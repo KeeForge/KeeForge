@@ -156,7 +156,7 @@
 		012690B5F23A7226C211D172 /* KDBXParserTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KDBXParserTests.swift; sourceTree = "<group>"; };
 		0330F701821BF808278069A3 /* ModelLogicTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelLogicTests.swift; sourceTree = "<group>"; };
 		04A1400E503A230DF2633686 /* TOTPGeneratorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TOTPGeneratorTests.swift; sourceTree = "<group>"; };
-		04C26DB367249DD15342820A /* AutoFillExtension.appex */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = "wrapper.extensionkit-extension"; name = AutoFillExtension.appex; path = KeeForgeAutoFill.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		04C26DB367249DD15342820A /* AutoFillExtension.appex */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = "wrapper.app-extension"; path = AutoFillExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		0904281BA49959779229086D /* EntryDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EntryDetailView.swift; sourceTree = "<group>"; };
 		0A785C829BFA44B1D7EC69DC /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		0FE57E0CBBA459436725D382 /* KeeForgeTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = KeeForgeTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -165,7 +165,6 @@
 		1C1B7D9F6B63224D55DF5C4A /* KeeForge.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = KeeForge.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		1C50DE2069FA6AFBD2DE3E76 /* KeeForgeUITests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = KeeForgeUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		255524A0026746268CB46642 /* SharedVaultStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SharedVaultStoreTests.swift; sourceTree = "<group>"; };
-		274AF7462F6F1933000F97D2 /* Configuration.storekit */ = {isa = PBXFileReference; lastKnownFileType = text; path = Configuration.storekit; sourceTree = "<group>"; };
 		33FB55D1B41198FB84115734 /* NavigationConformances.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NavigationConformances.swift; sourceTree = "<group>"; };
 		35E6EA2FF600FFF3543FF763 /* GroupListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GroupListView.swift; sourceTree = "<group>"; };
 		37FCB8A14A23CD5B7A7C8350 /* AutoFillExtension.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = AutoFillExtension.entitlements; sourceTree = "<group>"; };
@@ -176,10 +175,10 @@
 		43638A44681D59420BAF6F8A /* SettingsServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsServiceTests.swift; sourceTree = "<group>"; };
 		4A15836C142BB997DA70F8FE /* KeeForgeUITestCase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeeForgeUITestCase.swift; sourceTree = "<group>"; };
 		4B393A7DB556210E94C0F3A2 /* AppStoreScreenshots.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppStoreScreenshots.swift; sourceTree = "<group>"; };
-		4C350259754DFA5D42D782A7 /* test-v1.key */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = "test-v1.key"; sourceTree = "<group>"; };
+		4C350259754DFA5D42D782A7 /* test-v1.key */ = {isa = PBXFileReference; path = "test-v1.key"; sourceTree = "<group>"; };
 		4C745531E956F6B374FC606F /* VerifyKeyfileTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VerifyKeyfileTests.swift; sourceTree = "<group>"; };
 		4C77F34C13AF18DED3B4314B /* ScreenshotTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenshotTests.swift; sourceTree = "<group>"; };
-		4CC3CF24A57A3BB531DA56C2 /* demo-keyfile.kdbx */ = {isa = PBXFileReference; lastKnownFileType = file; path = "demo-keyfile.kdbx"; sourceTree = "<group>"; };
+		4CC3CF24A57A3BB531DA56C2 /* demo-keyfile.kdbx */ = {isa = PBXFileReference; path = "demo-keyfile.kdbx"; sourceTree = "<group>"; };
 		51105ADF7C41EB47401418D9 /* TOTPGenerator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TOTPGenerator.swift; sourceTree = "<group>"; };
 		5453C26A39D0DC4187275D6A /* EntryListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EntryListView.swift; sourceTree = "<group>"; };
 		57E1AFDB57675ED7C7FD2941 /* SearchUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchUITests.swift; sourceTree = "<group>"; };
@@ -191,14 +190,14 @@
 		7234D6EDEF49F76E532EFD03 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		77AD2010750D340A0A14D125 /* EntryTimestampUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EntryTimestampUITests.swift; sourceTree = "<group>"; };
 		77DE986C9A71BA15E1B4FE48 /* BiometricService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BiometricService.swift; sourceTree = "<group>"; };
-		7AB5EEF311A401337289C014 /* demo-keyfile.key */ = {isa = PBXFileReference; lastKnownFileType = file; path = "demo-keyfile.key"; sourceTree = "<group>"; };
+		7AB5EEF311A401337289C014 /* demo-keyfile.key */ = {isa = PBXFileReference; path = "demo-keyfile.key"; sourceTree = "<group>"; };
 		7AEBF3F7022FCACFF7195DB7 /* PasskeyCredential.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PasskeyCredential.swift; sourceTree = "<group>"; };
 		7E8950E3736C571416F14FEF /* FaviconService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FaviconService.swift; sourceTree = "<group>"; };
 		7EA0111DE46F6C0B6D89B6B4 /* KeeForgeApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeeForgeApp.swift; sourceTree = "<group>"; };
 		82BCAA075FDA5B9A780C689F /* CredentialMatcher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CredentialMatcher.swift; sourceTree = "<group>"; };
 		85D54277E25A51B4D3308D36 /* SettingsUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsUITests.swift; sourceTree = "<group>"; };
 		8C0418ADF1FDFF66CD471789 /* KeyFileProcessorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyFileProcessorTests.swift; sourceTree = "<group>"; };
-		8F5D08487A8DF3C72204ADEB /* test-arbitrary.key */ = {isa = PBXFileReference; lastKnownFileType = text; path = "test-arbitrary.key"; sourceTree = "<group>"; };
+		8F5D08487A8DF3C72204ADEB /* test-arbitrary.key */ = {isa = PBXFileReference; path = "test-arbitrary.key"; sourceTree = "<group>"; };
 		912D8D6DA32EA3E0346E5F6B /* SortUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SortUITests.swift; sourceTree = "<group>"; };
 		92CDD8F39D3FA23FCD1722E8 /* SearchView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchView.swift; sourceTree = "<group>"; };
 		93A9DF17FFAE21E9E974D8B3 /* DatabaseViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DatabaseViewModelTests.swift; sourceTree = "<group>"; };
@@ -209,13 +208,13 @@
 		A615B59AA50919BA538CDBFF /* PasskeyDisplayTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PasskeyDisplayTests.swift; sourceTree = "<group>"; };
 		A6681D2B1E9D865434D606B7 /* TOTPViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TOTPViewModel.swift; sourceTree = "<group>"; };
 		A74EDA5EB2D69BA039CD0CDC /* PasskeyCrypto.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PasskeyCrypto.swift; sourceTree = "<group>"; };
-		ACDB93B40CC051227D2E6D76 /* test.kdbx */ = {isa = PBXFileReference; lastKnownFileType = file; path = test.kdbx; sourceTree = "<group>"; };
+		ACDB93B40CC051227D2E6D76 /* test.kdbx */ = {isa = PBXFileReference; path = test.kdbx; sourceTree = "<group>"; };
 		ADAA5D103A016B02FDB65F56 /* AutoFillSearchView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AutoFillSearchView.swift; sourceTree = "<group>"; };
 		AEF7A2480DF3853AFF0AF02B /* Entry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Entry.swift; sourceTree = "<group>"; };
 		B33D0F39A86A065A638C40AF /* DatabaseViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DatabaseViewModel.swift; sourceTree = "<group>"; };
 		B6594B5A580C44B4042FE110 /* EncryptedValue.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EncryptedValue.swift; sourceTree = "<group>"; };
 		B6F6578919788B26EB07E259 /* CoordinatedFileReader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoordinatedFileReader.swift; sourceTree = "<group>"; };
-		B7EDDD48D0CB18EA1D45220E /* test-binary.key */ = {isa = PBXFileReference; lastKnownFileType = file; path = "test-binary.key"; sourceTree = "<group>"; };
+		B7EDDD48D0CB18EA1D45220E /* test-binary.key */ = {isa = PBXFileReference; path = "test-binary.key"; sourceTree = "<group>"; };
 		B84A9EECD929C6729AE6C797 /* SharedVaultStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SharedVaultStore.swift; sourceTree = "<group>"; };
 		BC9852527A48C28D5D60FCFD /* FaviconView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FaviconView.swift; sourceTree = "<group>"; };
 		C00A121EB1739F34DA39FE12 /* CredentialIdentityStoreManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CredentialIdentityStoreManager.swift; sourceTree = "<group>"; };
@@ -224,15 +223,15 @@
 		CE7654CB864A7BECF13483C8 /* ReviewPromptServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReviewPromptServiceTests.swift; sourceTree = "<group>"; };
 		CF40C9649E6870C49081C9C0 /* CredentialIdentityStoreManagerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CredentialIdentityStoreManagerTests.swift; sourceTree = "<group>"; };
 		CFE66B25CC80659A7E75C953 /* KeychainService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainService.swift; sourceTree = "<group>"; };
-		D0A537AE058B5206F5260C70 /* test-hex.key */ = {isa = PBXFileReference; lastKnownFileType = text; path = "test-hex.key"; sourceTree = "<group>"; };
+		D0A537AE058B5206F5260C70 /* test-hex.key */ = {isa = PBXFileReference; path = "test-hex.key"; sourceTree = "<group>"; };
 		D15DBC84769C820D86294442 /* KeyFileUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyFileUITests.swift; sourceTree = "<group>"; };
 		D288FBCA92B66BC8122CF445 /* ScreenProtectionService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenProtectionService.swift; sourceTree = "<group>"; };
 		DFF14B46CC89D1B7A9138E80 /* SortOrderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SortOrderTests.swift; sourceTree = "<group>"; };
 		E0E5E0B52692F925F8CAB5A1 /* LockUnlockUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LockUnlockUITests.swift; sourceTree = "<group>"; };
 		E2DA7B253B27404C400DB1B5 /* UnlockView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UnlockView.swift; sourceTree = "<group>"; };
 		E3217CA8D7D14799D216386B /* FaviconServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FaviconServiceTests.swift; sourceTree = "<group>"; };
-		ED991255A4FDFF53325EC964 /* test-v2.keyx */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = "test-v2.keyx"; sourceTree = "<group>"; };
-		F3D5CCD3DC2893DC1A65D6DC /* demo.kdbx */ = {isa = PBXFileReference; lastKnownFileType = file; path = demo.kdbx; sourceTree = "<group>"; };
+		ED991255A4FDFF53325EC964 /* test-v2.keyx */ = {isa = PBXFileReference; path = "test-v2.keyx"; sourceTree = "<group>"; };
+		F3D5CCD3DC2893DC1A65D6DC /* demo.kdbx */ = {isa = PBXFileReference; path = demo.kdbx; sourceTree = "<group>"; };
 		F984480E73A82B5043100065 /* KDBXCrypto.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KDBXCrypto.swift; sourceTree = "<group>"; };
 		FA5A20BA0FFA29C1067EB5EE /* Group.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Group.swift; sourceTree = "<group>"; };
 		FB771146F2B327CB67076403 /* KDBXParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KDBXParser.swift; sourceTree = "<group>"; };
@@ -399,7 +398,6 @@
 		ED085A8C1666D500B09A3437 = {
 			isa = PBXGroup;
 			children = (
-				274AF7462F6F1933000F97D2 /* Configuration.storekit */,
 				C215140854AFDC51CA451F3C /* App */,
 				A376BB645DDF43A121708494 /* AutoFillExtension */,
 				9F80FAF53100B49B0262BFFA /* Extensions */,
@@ -806,7 +804,7 @@
 			buildSettings = {
 				CODE_SIGN_ENTITLEMENTS = AutoFillExtension/AutoFillExtension.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 6;
+				CURRENT_PROJECT_VERSION = 2;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = AutoFillExtension/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -904,7 +902,7 @@
 			buildSettings = {
 				CODE_SIGN_ENTITLEMENTS = AutoFillExtension/AutoFillExtension.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 6;
+				CURRENT_PROJECT_VERSION = 2;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = AutoFillExtension/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -945,7 +943,7 @@
 				CODE_SIGN_ENTITLEMENTS = KeeForge/KeeForge.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 6;
+				CURRENT_PROJECT_VERSION = 2;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = KeeForge/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -1036,7 +1034,7 @@
 				CODE_SIGN_ENTITLEMENTS = KeeForge/KeeForge.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 6;
+				CURRENT_PROJECT_VERSION = 2;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = KeeForge/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (

@@ -4,8 +4,17 @@ struct AutoFillSearchView: View {
     let entries: [KPEntry]
     let onSelect: (KPEntry) -> Void
     let onCancel: () -> Void
+    let initialSearchText: String
 
-    @State private var searchText = ""
+    @State private var searchText: String
+
+    init(entries: [KPEntry], initialSearchText: String = "", onSelect: @escaping (KPEntry) -> Void, onCancel: @escaping () -> Void) {
+        self.entries = entries
+        self.initialSearchText = initialSearchText
+        self.onSelect = onSelect
+        self.onCancel = onCancel
+        self._searchText = State(initialValue: initialSearchText)
+    }
 
     private var filteredEntries: [KPEntry] {
         guard !searchText.isEmpty else { return entries }

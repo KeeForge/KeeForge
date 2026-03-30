@@ -358,20 +358,24 @@ final class CredentialProviderViewController: ASCredentialProviderViewController
 
         let matches = CredentialMatcher.matchedEntries(from: passwordEntries, for: serviceIdentifiers)
 
-        if matches.isEmpty || serviceIdentifiers.isEmpty {
-            presentSearchView(entries: passwordEntries) { [weak self] entry in
-                self?.completeRequest(with: entry)
-            }
-            return
-        }
-
         if matches.count == 1, let entry = matches.first {
             completeRequest(with: entry)
             return
         }
 
-        presentEntryPicker(entries: matches) { [weak self] entry in
-            self?.completeRequest(with: entry)
+        // Show search view — use matches if available, otherwise full list with pre-filled search
+        let searchDomain = serviceIdentifiers.first.flatMap { CredentialMatcher.searchTerm(for: $0) } ?? ""
+
+        if !matches.isEmpty {
+            // Multiple matches — show them, with domain pre-filled for further filtering
+            presentSearchView(entries: matches, initialSearchText: "") { [weak self] entry in
+                self?.completeRequest(with: entry)
+            }
+        } else {
+            // No matches — show full list but pre-fill search with the domain
+            presentSearchView(entries: passwordEntries, initialSearchText: searchDomain) { [weak self] entry in
+                self?.completeRequest(with: entry)
+            }
         }
     }
 
@@ -436,34 +440,15 @@ final class CredentialProviderViewController: ASCredentialProviderViewController
             return
         }
 
-        presentEntryPicker(entries: matches) { [weak self] entry in
+        presentSearchView(entries: matches) { [weak self] entry in
             self?.completePasskeyRequest(with: entry, requestParameters: requestParameters)
         }
     }
 
-    private func presentEntryPicker(entries: [KPEntry], onSelect: @escaping (KPEntry) -> Void) {
-        let alert = UIAlertController(title: "Choose Credential", message: nil, preferredStyle: .alert)
-
-        for entry in entries.prefix(10) {
-            let title = entryDisplayTitle(for: entry)
-            let subtitle = entryDisplaySubtitle(for: entry)
-            let label = title == subtitle ? title : "\(title) (\(subtitle))"
-
-            alert.addAction(UIAlertAction(title: label, style: .default) { _ in
-                onSelect(entry)
-            })
-        }
-
-        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel) { [weak self] _ in
-            self?.cancelRequest(code: .userCanceled)
-        })
-
-        present(alert, animated: true)
-    }
-
-    private func presentSearchView(entries: [KPEntry], onSelect: @escaping (KPEntry) -> Void) {
+    private func presentSearchView(entries: [KPEntry], initialSearchText: String = "", onSelect: @escaping (KPEntry) -> Void) {
         let searchView = AutoFillSearchView(
             entries: entries,
+            initialSearchText: initialSearchText,
             onSelect: { [weak self] entry in
                 self?.dismiss(animated: false) {
                     onSelect(entry)
@@ -665,35 +650,4 @@ final class CredentialProviderViewController: ASCredentialProviderViewController
         present(alert, animated: true)
     }
 
-    private func entryDisplayTitle(for entry: KPEntry) -> String {
-        if !entry.title.isEmpty {
-            return entry.title
-        }
-
-        if !entry.username.isEmpty {
-            return entry.username
-        }
-
-        if let passkeyUsername = entry.passkeyCredential?.username, !passkeyUsername.isEmpty {
-            return passkeyUsername
-        }
-
-        return "Credential"
-    }
-
-    private func entryDisplaySubtitle(for entry: KPEntry) -> String {
-        if !entry.username.isEmpty {
-            return entry.username
-        }
-
-        if let passkeyUsername = entry.passkeyCredential?.username, !passkeyUsername.isEmpty {
-            return passkeyUsername
-        }
-
-        if let relyingParty = entry.passkeyCredential?.relyingParty, !relyingParty.isEmpty {
-            return relyingParty
-        }
-
-        return "Use credential"
-    }
 }
