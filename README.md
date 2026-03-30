@@ -64,6 +64,11 @@ KeeForge collects zero data — no analytics, no telemetry, no crash reports. Al
 - `AGENTS.md` — context for AI coding agents
 - `docs/` — implementation specs, security audit, privacy policy
 
+## Support
+
+- **Email:** [support@keeforge.com](mailto:support@keeforge.com)
+- **Issues:** [GitHub Issues](https://github.com/crazytan/KeeForge/issues)
+
 ## Contributing
 
 See [`AGENTS.md`](AGENTS.md) for project architecture, conventions, and coding guidelines — useful for both human contributors and AI coding agents.

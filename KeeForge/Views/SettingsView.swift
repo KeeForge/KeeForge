@@ -115,8 +115,16 @@ struct SettingsView: View {
 
             LabeledContent("Version", value: appVersion)
 
+            Link(destination: URL(string: "mailto:support@keeforge.com")!) {
+                Label("Contact Support", systemImage: "envelope")
+            }
+
             Link(destination: URL(string: "https://github.com/crazytan/KeeForge/issues")!) {
-                Label("Send Feedback", systemImage: "bubble.left.and.exclamationmark.bubble.right")
+                Label("Report a Bug", systemImage: "ladybug")
+            }
+
+            Link(destination: URL(string: "https://github.com/crazytan/KeeForge")!) {
+                Label("Source Code", systemImage: "chevron.left.forwardslash.chevron.right")
             }
         }
     }
