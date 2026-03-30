@@ -159,26 +159,17 @@ xcodegen generate
 
 # Build
 xcodebuild build -project KeeForge.xcodeproj -scheme KeeForge \
-  -destination 'platform=iOS Simulator,name=iPhone 17 Pro'
+  -destination 'platform=iOS Simulator,name=iPhone 16 Pro'
 
-# Run all tests
+# Run ONLY relevant unit tests (preferred — fast feedback)
 xcodebuild test -project KeeForge.xcodeproj -scheme KeeForge \
-  -destination 'platform=iOS Simulator,name=iPhone 17 Pro'
+  -destination 'platform=iOS Simulator,name=iPhone 16 Pro' \
+  -only-testing:KeeForgeTests/KDBXParserTests -quiet
 
-# Run only unit tests
+# Run all unit tests (no UI tests)
 xcodebuild test -project KeeForge.xcodeproj -scheme KeeForge \
-  -destination 'platform=iOS Simulator,name=iPhone 17 Pro' \
-  -only-testing:KeeForgeTests
-
-# Run only UI tests
-xcodebuild test -project KeeForge.xcodeproj -scheme KeeForge \
-  -destination 'platform=iOS Simulator,name=iPhone 17 Pro' \
-  -only-testing:KeeForgeUITests
-
-# Using simulator UDID directly
-xcodebuild test -project KeeForge.xcodeproj -scheme KeeForge \
-  -destination 'platform=iOS Simulator,id=AC0AEE19-9C2E-4CCF-BEFD-C20292A2957F' \
-  -only-testing:KeeForgeUITests -quiet
+  -destination 'platform=iOS Simulator,name=iPhone 16 Pro' \
+  -only-testing:KeeForgeTests -quiet
 ```
 
 If simulator gets stuck with "preflight checks" error:
@@ -186,12 +177,33 @@ If simulator gets stuck with "preflight checks" error:
 xcrun simctl shutdown all && xcrun simctl erase <UDID>
 ```
 
+### ⚠️ Test Execution Rules
+
+**ALWAYS use `-only-testing:` to run only the relevant test class(es).** The full test suite (especially UI tests) takes a very long time. Never run all tests unless explicitly asked.
+
+Examples:
+```bash
+# Parser changes → run parser tests
+-only-testing:KeeForgeTests/KDBXParserTests
+
+# Credential store changes → run credential store tests  
+-only-testing:KeeForgeTests/CredentialIdentityStoreManagerTests
+
+# TOTP changes → run TOTP tests
+-only-testing:KeeForgeTests/TOTPGeneratorTests
+
+# Multiple relevant test classes
+-only-testing:KeeForgeTests/KDBXParserTests -only-testing:KeeForgeTests/CredentialIdentityStoreManagerTests
+```
+
+**NEVER run UI tests (`KeeForgeUITests`) unless explicitly asked.** They require simulator boot + full app launch and take minutes.
+
 ## Testing
 
 - Every feature and bug fix should include automated tests
 - Unit tests for logic, UI tests for user-facing flows
 - If a bug is found, write a regression test first, then fix
-- Run the full test suite before committing
+- Run only the relevant test class(es), not the full suite
 
 ### Test Targets
 
