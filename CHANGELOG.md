@@ -8,6 +8,7 @@
 - [ ] Sync / attachments
 
 ## Unreleased
+- Consolidated UI tests: merged 6 post-unlock test classes into a single `UnlockedDatabaseUITests` class with one unlock flow, reducing simulator + Argon2 overhead
 - Fixed AutoFill credential lookup falling back to slow matching every time by parsing stable UUIDs from KDBX entry XML instead of generating random UUIDs on each parse
 - Add TOTP one-time code AutoFill support (iOS 18+) — verification codes from TOTP entries now appear in the QuickType bar alongside passwords and passkeys
 - Fixed AutoFill key icon flow showing all entries instead of filtering to the current site; replaced non-scrollable alert picker with scrollable search view and pre-filled domain search
