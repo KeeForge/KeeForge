@@ -8,6 +8,7 @@
 - [ ] Sync / attachments
 
 ## Unreleased
+- Fixed "KDF parameter out of range" error when opening databases created with KeePassXC 2.7.12+ that use high Argon2 iterations or parallelism values
 
 ## v1.5.0 (2026-03-10)
 

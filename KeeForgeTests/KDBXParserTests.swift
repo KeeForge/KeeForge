@@ -435,7 +435,7 @@ final class KDBXParserTests: XCTestCase {
     // MARK: - Security: Argon2 Parameter Bounds Tests
 
     func testArgon2ExcessiveIterationsRejected() {
-        let data = buildKDBXWithKDFParams(iterations: 999, memory: 64 * 1024 * 1024, parallelism: 1)
+        let data = buildKDBXWithKDFParams(iterations: 1_001, memory: 64 * 1024 * 1024, parallelism: 1)
         XCTAssertThrowsError(
             try KDBXParser.parse(data: data, password: "x", sessionKey: testSessionKey)
         ) { error in
@@ -489,7 +489,7 @@ final class KDBXParserTests: XCTestCase {
     }
 
     func testArgon2ExcessiveParallelismRejected() {
-        let data = buildKDBXWithKDFParams(iterations: 3, memory: 64 * 1024 * 1024, parallelism: 64)
+        let data = buildKDBXWithKDFParams(iterations: 3, memory: 64 * 1024 * 1024, parallelism: 257)
         XCTAssertThrowsError(
             try KDBXParser.parse(data: data, password: "x", sessionKey: testSessionKey)
         ) { error in
@@ -498,6 +498,20 @@ final class KDBXParserTests: XCTestCase {
                 return
             }
             XCTAssertTrue(msg.contains("parallelism"))
+        }
+    }
+
+    func testArgon2HighParallelismAccepted() {
+        // 64 threads — valid for modern machines, should not throw kdfParameterOutOfRange
+        let data = buildKDBXWithKDFParams(iterations: 3, memory: 64 * 1024 * 1024, parallelism: 64)
+        // This will fail later in parsing (bad decrypt etc.) but must NOT fail with kdfParameterOutOfRange
+        do {
+            _ = try KDBXParser.parse(data: data, password: "x", sessionKey: testSessionKey)
+            XCTFail("Expected some parse error (bad data), but succeeded unexpectedly")
+        } catch KDBXParser.ParseError.kdfParameterOutOfRange {
+            XCTFail("parallelism=64 should be accepted, not rejected as out of range")
+        } catch {
+            // Any other error is fine — we just care that it's not kdfParameterOutOfRange
         }
     }
 

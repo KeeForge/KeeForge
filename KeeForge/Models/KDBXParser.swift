@@ -369,14 +369,14 @@ enum KDBXParser {
         let parallelism = (kdfParams["P"] as? UInt32) ?? 1
 
         // Bounds checks — these params are attacker-controlled (from file header)
-        guard iterations >= 1, iterations <= 100 else {
-            throw ParseError.kdfParameterOutOfRange("iterations \(iterations) not in 1...100")
+        guard iterations >= 1, iterations <= 1_000 else {
+            throw ParseError.kdfParameterOutOfRange("iterations \(iterations) not in 1...1000")
         }
         guard memory >= 8192, memory <= 4_294_967_296 else {
             throw ParseError.kdfParameterOutOfRange("memory \(memory) bytes not in 8192...4294967296")
         }
-        guard parallelism >= 1, parallelism <= 16 else {
-            throw ParseError.kdfParameterOutOfRange("parallelism \(parallelism) not in 1...16")
+        guard parallelism >= 1, parallelism <= 256 else {
+            throw ParseError.kdfParameterOutOfRange("parallelism \(parallelism) not in 1...256")
         }
 
         // Safe UInt32 conversions — fail closed on overflow
