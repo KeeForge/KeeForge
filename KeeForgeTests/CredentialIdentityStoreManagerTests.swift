@@ -225,6 +225,145 @@ final class CredentialIdentityStoreManagerTests: XCTestCase {
         XCTAssertNil(CredentialIdentityStoreManager.domainFromURLString("https://co.uk"))
     }
 
+    // MARK: - oneTimeCodeIdentity (iOS 18+)
+
+    @available(iOS 18.0, *)
+    func testOTCIdentityForEntryWithTOTP() {
+        let id = UUID()
+        let entry = makeEntry(
+            id: id,
+            title: "GitHub",
+            url: "https://github.com",
+            username: "octocat",
+            hasPassword: false,
+            hasTOTP: true
+        )
+        let identity = CredentialIdentityStoreManager.oneTimeCodeIdentity(for: entry)
+
+        XCTAssertNotNil(identity)
+        XCTAssertEqual(identity?.label, "GitHub")
+        XCTAssertEqual(identity?.serviceIdentifier.identifier, "github.com")
+        XCTAssertEqual(identity?.recordIdentifier, id.uuidString)
+    }
+
+    @available(iOS 18.0, *)
+    func testOTCIdentityUsesUsernameFallbackWhenTitleEmpty() {
+        let entry = makeEntry(
+            title: "",
+            url: "https://example.com",
+            username: "user@example.com",
+            hasPassword: false,
+            hasTOTP: true
+        )
+        let identity = CredentialIdentityStoreManager.oneTimeCodeIdentity(for: entry)
+
+        XCTAssertNotNil(identity)
+        XCTAssertEqual(identity?.label, "user@example.com")
+    }
+
+    @available(iOS 18.0, *)
+    func testOTCIdentityNilWhenNoTOTP() {
+        let entry = makeEntry(
+            title: "Test",
+            url: "https://example.com",
+            username: "user",
+            hasPassword: true,
+            hasTOTP: false
+        )
+        XCTAssertNil(CredentialIdentityStoreManager.oneTimeCodeIdentity(for: entry))
+    }
+
+    @available(iOS 18.0, *)
+    func testOTCIdentityNilWhenNoURL() {
+        let entry = makeEntry(
+            title: "Test",
+            url: "",
+            username: "user",
+            hasPassword: false,
+            hasTOTP: true
+        )
+        XCTAssertNil(CredentialIdentityStoreManager.oneTimeCodeIdentity(for: entry))
+    }
+
+    @available(iOS 18.0, *)
+    func testOTCIdentityNilWhenNoLabelOrUsername() {
+        let entry = makeEntry(
+            title: "",
+            url: "https://example.com",
+            username: "",
+            hasPassword: false,
+            hasTOTP: true
+        )
+        XCTAssertNil(CredentialIdentityStoreManager.oneTimeCodeIdentity(for: entry))
+    }
+
+    @available(iOS 18.0, *)
+    func testOTCIdentityUsesAdditionalURLWhenPrimaryEmpty() {
+        let entry = makeEntry(
+            title: "Fallback OTC",
+            url: "",
+            username: "user",
+            hasPassword: false,
+            hasTOTP: true,
+            customFields: ["KP2A_URL_1": "https://backup.example.com"]
+        )
+        let identity = CredentialIdentityStoreManager.oneTimeCodeIdentity(for: entry)
+
+        XCTAssertNotNil(identity)
+        XCTAssertEqual(identity?.serviceIdentifier.identifier, "example.com")
+    }
+
+    // MARK: - hasTOTP
+
+    func testHasTOTPTrueWhenConfigPresent() {
+        let entry = makeEntry(
+            title: "TOTP Entry",
+            url: "https://example.com",
+            username: "user",
+            hasPassword: false,
+            hasTOTP: true
+        )
+        XCTAssertTrue(entry.hasTOTP)
+    }
+
+    func testHasTOTPFalseWhenNoConfig() {
+        let entry = makeEntry(
+            title: "No TOTP",
+            url: "https://example.com",
+            username: "user",
+            hasPassword: true,
+            hasTOTP: false
+        )
+        XCTAssertFalse(entry.hasTOTP)
+    }
+
+    // MARK: - Entry filtering (TOTP-only entries included)
+
+    func testTOTPOnlyEntryPassesAutoFillFilter() {
+        let entry = makeEntry(
+            title: "TOTP Only",
+            url: "https://example.com",
+            username: "user",
+            hasPassword: false,
+            hasTOTP: true
+        )
+        // Simulates the filter used in loadEntries
+        let filtered = [entry].filter { $0.hasPassword || $0.hasPasskey || $0.hasTOTP }
+        XCTAssertEqual(filtered.count, 1)
+    }
+
+    func testEntryWithNoCredentialsExcludedFromFilter() {
+        let entry = makeEntry(
+            title: "Empty",
+            url: "https://example.com",
+            username: "user",
+            hasPassword: false,
+            hasTOTP: false
+        )
+        let filtered = [entry].filter { $0.hasPassword || $0.hasPasskey || $0.hasTOTP }
+        XCTAssertTrue(filtered.isEmpty)
+    }
+
     // MARK: - Helpers
 
     private func makeEntry(
@@ -233,18 +372,23 @@ final class CredentialIdentityStoreManagerTests: XCTestCase {
         url: String,
         username: String,
         hasPassword: Bool,
+        hasTOTP: Bool = false,
         customFields: [String: String] = [:]
     ) -> KPEntry {
         let encrypted: EncryptedValue = hasPassword
             ? EncryptedValue(sealedData: Data([0]), hasValue: true)
             : .empty
+        let totpConfig: TOTPConfig? = hasTOTP
+            ? TOTPConfig(secret: EncryptedValue(sealedData: Data([0]), hasValue: true))
+            : nil
         return KPEntry(
             id: id,
             title: title,
             username: username,
             password: encrypted,
             url: url,
-            customFields: customFields
+            customFields: customFields,
+            totpConfig: totpConfig
         )
     }
 }

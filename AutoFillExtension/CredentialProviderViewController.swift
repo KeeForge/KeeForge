@@ -13,6 +13,7 @@ final class CredentialProviderViewController: ASCredentialProviderViewController
     private var targetRecordIdentifier: String?
     private var pendingPasskeyRequest: ASPasskeyCredentialRequest?
     private var pendingPasskeyRequestParameters: ASPasskeyCredentialRequestParameters?
+    private var hasPendingOTCRequest = false
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -24,6 +25,7 @@ final class CredentialProviderViewController: ASCredentialProviderViewController
         targetRecordIdentifier = nil
         pendingPasskeyRequest = nil
         pendingPasskeyRequestParameters = nil
+        hasPendingOTCRequest = false
         didAttemptAutoBiometricUnlock = false
         pendingUnlock = true
     }
@@ -67,6 +69,11 @@ final class CredentialProviderViewController: ASCredentialProviderViewController
             pendingUnlock = true
         } else if let passwordIdentity = credentialRequest.credentialIdentity as? ASPasswordCredentialIdentity {
             prepareInterfaceToProvideCredential(for: passwordIdentity)
+        } else if #available(iOS 18.0, *), credentialRequest is ASOneTimeCodeCredentialRequest {
+            hasPendingOTCRequest = true
+            targetRecordIdentifier = credentialRequest.credentialIdentity.recordIdentifier
+            didAttemptAutoBiometricUnlock = false
+            pendingUnlock = true
         } else {
             cancelRequest(code: .failed)
         }
@@ -81,6 +88,8 @@ final class CredentialProviderViewController: ASCredentialProviderViewController
             providePasskeyWithoutUserInteraction(for: passkeyRequest)
         } else if let passwordIdentity = credentialRequest.credentialIdentity as? ASPasswordCredentialIdentity {
             provideCredentialWithoutUserInteraction(for: passwordIdentity)
+        } else if #available(iOS 18.0, *), credentialRequest is ASOneTimeCodeCredentialRequest {
+            provideOTCWithoutUserInteraction(for: credentialRequest)
         } else {
             extensionContext.cancelRequest(withError: ASExtensionError(.failed))
         }
@@ -281,6 +290,10 @@ final class CredentialProviderViewController: ASCredentialProviderViewController
             }
         } else if let requestParameters = pendingPasskeyRequestParameters {
             presentPasskeyMatchesOrFinish(using: requestParameters)
+        } else if hasPendingOTCRequest {
+            if #available(iOS 18.0, *) {
+                completeOTCRequestFromPending()
+            }
         } else {
             presentPasswordMatchesOrFinish()
         }
@@ -310,7 +323,7 @@ final class CredentialProviderViewController: ASCredentialProviderViewController
         } else {
             allEntries = root.allEntries
         }
-        parsedEntries = allEntries.filter { $0.hasPassword || $0.hasPasskey }
+        parsedEntries = allEntries.filter { $0.hasPassword || $0.hasPasskey || $0.hasTOTP }
     }
 
     private func loadDatabaseData() throws -> Data {
@@ -467,6 +480,93 @@ final class CredentialProviderViewController: ASCredentialProviderViewController
         present(host, animated: true)
     }
 
+    // MARK: - One-time code (TOTP) support
+
+    private func provideOTCWithoutUserInteraction(for credentialRequest: ASCredentialRequest) {
+        guard SettingsService.quickAutoFillEnabled else {
+            extensionContext.cancelRequest(withError: ASExtensionError(.userInteractionRequired))
+            return
+        }
+
+        guard canUseBiometrics else {
+            extensionContext.cancelRequest(withError: ASExtensionError(.userInteractionRequired))
+            return
+        }
+
+        let recordIdentifier = credentialRequest.credentialIdentity.recordIdentifier
+
+        Task {
+            do {
+                guard let databasePath = SharedVaultStore.loadDatabaseKeychainPath() else {
+                    throw ASExtensionError(.failed)
+                }
+
+                let context = try await BiometricService.authenticate(reason: "AutoFill with KeeForge")
+                let compositeKey = try KeychainService.retrieveCompositeKey(for: databasePath, context: context)
+                try await loadEntries(password: nil, compositeKey: compositeKey)
+
+                if #available(iOS 18.0, *) {
+                    let totpEntries = parsedEntries.filter(\.hasTOTP)
+                    if let recordIdentifier,
+                       let entry = totpEntries.first(where: { $0.id.uuidString == recordIdentifier }) {
+                        completeOTCRequest(with: entry)
+                    } else {
+                        cancelRequest(code: .credentialIdentityNotFound)
+                    }
+                } else {
+                    cancelRequest(code: .failed)
+                }
+            } catch {
+                extensionContext.cancelRequest(withError: ASExtensionError(.userInteractionRequired))
+            }
+        }
+    }
+
+    @available(iOS 18.0, *)
+    private func completeOTCRequestFromPending() {
+        hasPendingOTCRequest = false
+
+        guard let recordIdentifier = targetRecordIdentifier else {
+            cancelRequest(code: .failed)
+            return
+        }
+
+        let totpEntries = parsedEntries.filter(\.hasTOTP)
+        if let entry = totpEntries.first(where: { $0.id.uuidString == recordIdentifier }) {
+            completeOTCRequest(with: entry)
+        } else {
+            cancelRequest(code: .credentialIdentityNotFound)
+        }
+    }
+
+    @available(iOS 18.0, *)
+    private func completeOTCRequest(with entry: KPEntry) {
+        guard let totpConfig = entry.totpConfig,
+              let sessionKey = sessionKey else {
+            cancelRequest(code: .failed)
+            return
+        }
+
+        let code = TOTPGenerator.generateCode(config: totpConfig, sessionKey: sessionKey)
+        guard code != "------" else {
+            cancelRequest(code: .failed)
+            return
+        }
+
+        let credential = ASOneTimeCodeCredential(code: code)
+        cleanup()
+        extensionContext.completeOneTimeCodeRequest(using: credential)
+    }
+
+    private func cleanup() {
+        parsedEntries = []
+        sessionKey = nil
+        targetRecordIdentifier = nil
+        pendingPasskeyRequest = nil
+        pendingPasskeyRequestParameters = nil
+        hasPendingOTCRequest = false
+    }
+
     // MARK: - Complete password request
 
     private func completeRequest(with entry: KPEntry) {
@@ -477,11 +577,7 @@ final class CredentialProviderViewController: ASCredentialProviderViewController
         }
 
         let decryptedPassword = (try? entry.password.decrypt(using: decryptionKey)) ?? ""
-        parsedEntries = []
-        sessionKey = nil
-        targetRecordIdentifier = nil
-        pendingPasskeyRequest = nil
-        pendingPasskeyRequestParameters = nil
+        cleanup()
         let credential = ASPasswordCredential(user: user, password: decryptedPassword)
         extensionContext.completeRequest(withSelectedCredential: credential, completionHandler: nil)
     }
@@ -540,22 +636,14 @@ final class CredentialProviderViewController: ASCredentialProviderViewController
             credentialID: credentialIDData
         )
 
-        parsedEntries = []
-        sessionKey = nil
-        targetRecordIdentifier = nil
-        pendingPasskeyRequest = nil
-        pendingPasskeyRequestParameters = nil
+        cleanup()
         extensionContext.completeAssertionRequest(using: credential)
     }
 
     // MARK: - Error handling
 
     private func cancelRequest(code: ASExtensionError.Code) {
-        parsedEntries = []
-        sessionKey = nil
-        targetRecordIdentifier = nil
-        pendingPasskeyRequest = nil
-        pendingPasskeyRequestParameters = nil
+        cleanup()
         extensionContext.cancelRequest(withError: ASExtensionError(code))
     }
 

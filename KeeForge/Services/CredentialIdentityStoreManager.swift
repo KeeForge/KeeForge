@@ -25,17 +25,25 @@ enum CredentialIdentityStoreManager: Sendable {
 
             let passwordIds = entries.flatMap(passwordIdentities(for:))
             let passkeyIds = entries.compactMap(passkeyIdentity(for:))
-            let totalIdentities = passwordIds.count + passkeyIds.count
-            guard totalIdentities > 0 else {
+
+            var allIdentities: [any ASCredentialIdentity] = passwordIds
+            allIdentities.append(contentsOf: passkeyIds)
+
+            var otcCount = 0
+            if #available(iOS 18.0, *) {
+                let otcIds = entries.compactMap(oneTimeCodeIdentity(for:))
+                allIdentities.append(contentsOf: otcIds)
+                otcCount = otcIds.count
+            }
+
+            guard !allIdentities.isEmpty else {
                 logger.info("No credential identities to populate")
                 return
             }
 
             do {
-                var allIdentities: [any ASCredentialIdentity] = passwordIds
-                allIdentities.append(contentsOf: passkeyIds)
                 try await store.replaceCredentialIdentities(allIdentities)
-                logger.info("Populated identity store with \(passwordIds.count) password + \(passkeyIds.count) passkey identities")
+                logger.info("Populated identity store with \(passwordIds.count) password + \(passkeyIds.count) passkey + \(otcCount) OTC identities")
             } catch {
                 logger.error("Failed to replace credential identities: \(error.localizedDescription)")
             }
@@ -78,6 +86,27 @@ enum CredentialIdentityStoreManager: Sendable {
                 logger.error("Failed to remove credential identities: \(error.localizedDescription)")
             }
         }
+    }
+
+    // MARK: - One-time code identities
+
+    @available(iOS 18.0, *)
+    static func oneTimeCodeIdentity(for entry: KPEntry) -> ASOneTimeCodeCredentialIdentity? {
+        guard entry.hasTOTP else { return nil }
+
+        let allURLs = [entry.url] + entry.additionalURLs
+        let domain = allURLs.compactMap(domainFromURLString).first
+        guard let domain else { return nil }
+
+        let label = entry.title.isEmpty ? entry.username : entry.title
+        guard !label.isEmpty else { return nil }
+
+        let serviceIdentifier = ASCredentialServiceIdentifier(identifier: domain, type: .domain)
+        return ASOneTimeCodeCredentialIdentity(
+            serviceIdentifier: serviceIdentifier,
+            label: label,
+            recordIdentifier: entry.id.uuidString
+        )
     }
 
     // MARK: - Passkey identities

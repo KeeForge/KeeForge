@@ -60,6 +60,9 @@ struct KPEntry: Identifiable, Sendable {
         PasskeyCredential(customFields: customFields)
     }
 
+    /// Whether this entry has a TOTP configuration.
+    var hasTOTP: Bool { totpConfig != nil }
+
     /// Whether this entry contains a passkey credential.
     var hasPasskey: Bool { passkeyCredential != nil }
 
