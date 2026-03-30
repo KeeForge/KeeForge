@@ -777,7 +777,11 @@ final class KDBXXMLParser: NSObject, XMLParserDelegate {
             }
 
         case "UUID":
-            if currentEntry == nil, !groupUUIDs.isEmpty, !inMeta {
+            if let entry = currentEntry, !inMeta {
+                if let uuid = parseKPUUID(currentText) {
+                    entry.uuid = uuid
+                }
+            } else if currentEntry == nil, !groupUUIDs.isEmpty, !inMeta {
                 if let uuid = parseKPUUID(currentText) {
                     groupUUIDs[groupUUIDs.count - 1] = uuid
                 }
@@ -913,6 +917,7 @@ final class KDBXXMLParser: NSObject, XMLParserDelegate {
 // MARK: - Entry Builder
 
 private class EntryBuilder {
+    var uuid: UUID?
     var title = ""
     var username = ""
     var password = ""
@@ -929,6 +934,7 @@ private class EntryBuilder {
         let encryptedPassword = (try? EncryptedValue.encrypt(password, using: sessionKey)) ?? .empty
         let totpConfig = buildTOTPConfig(sessionKey: sessionKey)
         return KPEntry(
+            id: uuid ?? UUID(),
             title: title,
             username: username,
             password: encryptedPassword,

@@ -337,6 +337,28 @@ final class KDBXParserTests: XCTestCase {
         XCTAssertEqual(parsedWithPassword.allEntries.count, parsedWithCompositeKey.allEntries.count)
     }
 
+    // MARK: - Entry UUID Stability
+
+    func testEntryUUIDsAreStableAcrossParses() throws {
+        let data = try fixtureData()
+        let root1 = try KDBXParser.parse(data: data, password: fixturePassword, sessionKey: SymmetricKey(size: .bits256))
+        let root2 = try KDBXParser.parse(data: data, password: fixturePassword, sessionKey: SymmetricKey(size: .bits256))
+
+        let entries1 = root1.allEntries.sorted { $0.title < $1.title }
+        let entries2 = root2.allEntries.sorted { $0.title < $1.title }
+
+        XCTAssertEqual(entries1.count, entries2.count)
+        for (e1, e2) in zip(entries1, entries2) {
+            XCTAssertEqual(e1.id, e2.id, "UUID mismatch for entry: \(e1.title)")
+        }
+    }
+
+    func testEntryUUIDsAreUnique() throws {
+        let root = try parseFixture()
+        let ids = root.allEntries.map(\.id)
+        XCTAssertEqual(ids.count, Set(ids).count, "Entry UUIDs should be unique")
+    }
+
     // MARK: - Helpers
 
     private func parseFixture() throws -> KPGroup {
