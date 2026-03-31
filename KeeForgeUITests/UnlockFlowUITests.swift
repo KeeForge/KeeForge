@@ -7,10 +7,6 @@ final class UnlockFlowUITests: KeeForgeUITestCase {
         XCTAssertTrue(app.staticTexts["unlock.error.label"].waitForExistence(timeout: 10))
     }
 
-    func testUnlockSucceedsWithCorrectPassword() {
-        unlockSuccessfully()
-    }
-
     func testChooseDifferentFileShowsDocumentPicker() {
         // Unlock first, then lock to get back to unlock screen with "Choose Different File"
         unlockSuccessfully()
