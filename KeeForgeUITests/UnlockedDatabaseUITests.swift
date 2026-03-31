@@ -8,39 +8,48 @@ final class UnlockedDatabaseUITests: KeeForgeUITestCase {
         try super.setUpWithError()
     }
 
-    // MARK: - Single test method: one unlock, all post-unlock assertions
-
-    func testUnlockedDatabaseFeatures() {
+    func testNavigation() {
         unlockSuccessfully()
-
-        // --- Navigation ---
         verifyNavigation()
+    }
 
-        navigateBackToRoot()
-
-        // --- Entry Detail ---
+    func testEntryDetail() {
+        unlockSuccessfully()
         verifyEntryDetail()
+    }
 
-        navigateBackToRoot()
-
-        // --- Entry Timestamps ---
+    func testEntryTimestamps() {
+        unlockSuccessfully()
         verifyEntryTimestamps()
+    }
 
-        navigateBackToRoot()
-
-        // --- Search ---
+    func testSearchStaysActiveWhileTyping() {
+        unlockSuccessfully()
         verifySearchStaysActiveWhileTyping()
+    }
 
+    func testSearchShowsMatchesAndNoResults() {
+        unlockSuccessfully()
         verifySearchShowsMatchesAndNoResults()
+    }
 
-        // --- Sort ---
+    func testSortMenuShowsOptions() {
+        unlockSuccessfully()
         verifySortMenuShowsOptions()
+    }
 
+    func testSortOrderChangeWorks() {
+        unlockSuccessfully()
         verifySortOrderChangeWorks()
+    }
 
-        // --- Settings ---
+    func testSettingsPageContent() {
+        unlockSuccessfully()
         verifySettingsPageContent()
+    }
 
+    func testTipJarContent() {
+        unlockSuccessfully()
         verifyTipJarContent()
     }
 
@@ -227,6 +236,51 @@ final class UnlockedDatabaseUITests: KeeForgeUITestCase {
         searchField.typeText(deleteSequence)
     }
 
+    private func dismissSearchIfNeeded(timeout: TimeInterval = 5) {
+        if let searchField = findSearchInput(timeout: 1) {
+            searchField.tap()
+            clearSearchField(searchField)
+        }
+
+        let keyboardSearchButton = app.buttons["Search"]
+        if keyboardSearchButton.exists && keyboardSearchButton.isHittable {
+            keyboardSearchButton.tap()
+        }
+
+        let cancelButton = app.buttons["Cancel"]
+        if cancelButton.exists && cancelButton.isHittable {
+            cancelButton.tap()
+        }
+
+        let navigationBar = app.navigationBars.firstMatch
+        if navigationBar.exists {
+            navigationBar.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+        }
+
+        let deadline = Date().addingTimeInterval(timeout)
+        repeat {
+            if let searchField = findSearchInput(timeout: 0.2) {
+                clearSearchField(searchField)
+            } else {
+                return
+            }
+
+            if cancelButton.exists && cancelButton.isHittable {
+                cancelButton.tap()
+            }
+
+            if keyboardSearchButton.exists && keyboardSearchButton.isHittable {
+                keyboardSearchButton.tap()
+            }
+
+            if navigationBar.exists {
+                navigationBar.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+            }
+
+            RunLoop.current.run(until: Date().addingTimeInterval(0.2))
+        } while Date() < deadline
+    }
+
     // MARK: - Search (from SearchUITests)
 
     private func verifySearchStaysActiveWhileTyping() {
@@ -245,21 +299,15 @@ final class UnlockedDatabaseUITests: KeeForgeUITestCase {
             XCTAssertNotEqual(resultsCountLabel.label, "results:0", "Expected search results for 'Twi'")
         }
 
-        // Dismiss search by tapping Cancel if available, or navigating back
-        let cancelButton = app.buttons["Cancel"]
-        if cancelButton.exists && cancelButton.isHittable {
-            cancelButton.tap()
-        }
+        dismissSearchIfNeeded()
     }
 
     private func verifySearchShowsMatchesAndNoResults() {
-        guard let searchTerm = firstVisibleEntryLabel() else {
-            XCTFail("Could not determine a searchable entry title")
-            return
-        }
-
         let searchField = activateSearchField()
-        searchField.typeText(searchTerm + "\n")
+        clearSearchField(searchField)
+
+        // `test.kdbx` always includes a Twitter entry, so use a stable fixture-backed query.
+        searchField.typeText("Twitter\n")
 
         let resultsCountLabel = app.staticTexts["search.results.count"]
         XCTAssertTrue(resultsCountLabel.waitForExistence(timeout: 5), "Search results count label did not appear")
@@ -283,11 +331,7 @@ final class UnlockedDatabaseUITests: KeeForgeUITestCase {
 
         XCTAssertTrue(didReachZeroResults, "Expected no-results state")
 
-        // Dismiss search
-        let cancelButton = app.buttons["Cancel"]
-        if cancelButton.exists && cancelButton.isHittable {
-            cancelButton.tap()
-        }
+        dismissSearchIfNeeded()
     }
 
     // MARK: - Sort helpers (from SortUITests)
@@ -380,15 +424,16 @@ final class UnlockedDatabaseUITests: KeeForgeUITestCase {
         let sortDirection = app.staticTexts["Sort Direction"]
         revealInSettings(sortDirection, maxSwipes: 4)
 
-        let feedbackLink = app.descendants(matching: .any).matching(NSPredicate(format: "label == 'Send Feedback'")).firstMatch
-        revealInSettings(feedbackLink, maxSwipes: 2)
+        let supportLink = app.descendants(matching: .any).matching(NSPredicate(
+            format: "label == 'Contact Support' OR label == 'Report a Bug' OR label == 'Source Code'"
+        )).firstMatch
+        revealInSettings(supportLink, maxSwipes: 2)
 
         let tipJarHeader = app.staticTexts["Tip Jar"]
         revealInSettings(tipJarHeader, maxSwipes: 4)
 
         // Go back from Settings
-        let backButton = app.navigationBars.buttons.element(boundBy: 0)
-        if backButton.exists && backButton.isHittable {
+        if let backButton = navigationBackButton() {
             backButton.tap()
         }
     }
@@ -411,18 +456,33 @@ final class UnlockedDatabaseUITests: KeeForgeUITestCase {
         revealInSettings(description, maxSwipes: 2)
 
         // Go back from Settings
-        let backButton = app.navigationBars.buttons.element(boundBy: 0)
-        if backButton.exists && backButton.isHittable {
+        if let backButton = navigationBackButton() {
             backButton.tap()
         }
     }
 
     // MARK: - Helpers
 
+    private func navigationBackButton() -> XCUIElement? {
+        let toolbarIdentifiers = Set(["lock.button", "settings.button", "sort.menu", "Done"])
+
+        return app.navigationBars.buttons.allElementsBoundByIndex.first { button in
+            guard button.exists && button.isHittable else { return false }
+
+            let identifier = button.identifier.trimmingCharacters(in: .whitespacesAndNewlines)
+            let label = button.label.trimmingCharacters(in: .whitespacesAndNewlines)
+
+            if toolbarIdentifiers.contains(identifier) || toolbarIdentifiers.contains(label) {
+                return false
+            }
+
+            return true
+        }
+    }
+
     private func navigateBackToRoot() {
         for _ in 0..<5 {
-            let backButton = app.navigationBars.buttons.element(boundBy: 0)
-            if backButton.exists && backButton.isHittable && backButton.label != "Done" {
+            if let backButton = navigationBackButton() {
                 backButton.tap()
                 sleep(1)
             } else {

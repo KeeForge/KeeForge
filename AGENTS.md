@@ -153,23 +153,40 @@ search.no-results           # No search results view
 
 ## Build & Test
 
+### Project Setup
+
 ```bash
-# Generate Xcode project from project.yml
+# Regenerate the Xcode project from project.yml
 xcodegen generate
 
-# Build
+# Build the app target for simulator
 xcodebuild build -project KeeForge.xcodeproj -scheme KeeForge \
   -destination 'platform=iOS Simulator,name=iPhone 16 Pro'
+```
 
-# Run ONLY relevant unit tests (preferred — fast feedback)
+Run `xcodegen generate` whenever:
+- `project.yml` changes
+- files are added/removed from targets
+- Xcode reports stale/missing test file references in `.xcodeproj`
+
+### Common Test Commands
+
+```bash
+# Run one unit test class
 xcodebuild test -project KeeForge.xcodeproj -scheme KeeForge \
   -destination 'platform=iOS Simulator,name=iPhone 16 Pro' \
   -only-testing:KeeForgeTests/KDBXParserTests -quiet
 
-# Run all unit tests (no UI tests)
+# Run multiple unit test classes
 xcodebuild test -project KeeForge.xcodeproj -scheme KeeForge \
   -destination 'platform=iOS Simulator,name=iPhone 16 Pro' \
-  -only-testing:KeeForgeTests -quiet
+  -only-testing:KeeForgeTests/KDBXParserTests \
+  -only-testing:KeeForgeTests/TOTPGeneratorTests -quiet
+
+# Run one UI test class
+xcodebuild test -project KeeForge.xcodeproj -scheme KeeForge \
+  -destination 'platform=iOS Simulator,name=iPhone 16 Pro' \
+  -only-testing:KeeForgeUITests/UnlockFlowUITests -quiet
 ```
 
 If simulator gets stuck with "preflight checks" error:
@@ -177,33 +194,17 @@ If simulator gets stuck with "preflight checks" error:
 xcrun simctl shutdown all && xcrun simctl erase <UDID>
 ```
 
-### ⚠️ Test Execution Rules
-
-**ALWAYS use `-only-testing:` to run only the relevant test class(es).** The full test suite (especially UI tests) takes a very long time. Never run all tests unless explicitly asked.
-
-Examples:
+If `xcodebuild` cannot boot a simulator or reports missing runtimes/destinations:
 ```bash
-# Parser changes → run parser tests
--only-testing:KeeForgeTests/KDBXParserTests
-
-# Credential store changes → run credential store tests  
--only-testing:KeeForgeTests/CredentialIdentityStoreManagerTests
-
-# TOTP changes → run TOTP tests
--only-testing:KeeForgeTests/TOTPGeneratorTests
-
-# Multiple relevant test classes
--only-testing:KeeForgeTests/KDBXParserTests -only-testing:KeeForgeTests/CredentialIdentityStoreManagerTests
+xcodebuild -showdestinations -project KeeForge.xcodeproj -scheme KeeForge
 ```
-
-**NEVER run UI tests (`KeeForgeUITests`) unless explicitly asked.** They require simulator boot + full app launch and take minutes.
 
 ## Testing
 
 - Every feature and bug fix should include automated tests
-- Unit tests for logic, UI tests for user-facing flows
-- If a bug is found, write a regression test first, then fix
-- Run only the relevant test class(es), not the full suite
+- Unit tests cover logic and parsing; UI tests cover user-visible flows and regressions
+- If a bug is found, write a regression test first when practical, then fix
+- Prefer the smallest test scope that proves the behavior
 
 ### Test Targets
 
@@ -212,30 +213,29 @@ Examples:
 | KeeForgeTests | Unit tests | `com.keevault.app.tests` |
 | KeeForgeUITests | UI tests (XCUITest) | `com.keevault.app.uitests` |
 
-### Test Fixture
+### Test Selection Rules
 
-`TestFixtures/test.kdbx` (password: `testpassword123`) contains:
-- **Root** group (top-level, no entries directly)
-  - **Empty** group (0 entries)
-  - **Social** group: Twitter (with 2 history entries), Discord (with TOTP), Offline Key, Public Profile
-  - **Work** group: Email, GitHub (with TOTP)
+- **ALWAYS use `-only-testing:`** to run only the relevant test class(es)
+- **NEVER run the full UI suite unless explicitly asked**
+- For UI work, run one test class at a time and finish fixing that class before moving to the next
+- If a source file contains multiple test classes, run each class separately by class name
+- Prefer unit tests over UI tests unless the behavior is genuinely UI-driven
+- Detailed UI test guidance lives in `KeeForgeUITests/README.md`
 
-`TestFixtures/demo.kdbx` (password: `password`) — richer demo database with TOTP entries, used for App Store screenshots.
+Examples:
+```bash
+# Parser changes
+-only-testing:KeeForgeTests/KDBXParserTests
 
-Key file test fixtures: `test-binary.key`, `test-hex.key`, `test-v1.key`, `test-v2.keyx`, `test-arbitrary.key`, `demo-keyfile.kdbx` + `demo-keyfile.key`. Also `test-v3-backup.kdbx` (KDBX 4.x backup fixture).
+# Credential store changes
+-only-testing:KeeForgeTests/CredentialIdentityStoreManagerTests
 
-**Note:** `test.kdbx` does NOT contain passkey entries or key-file-protected databases — those require separate fixtures (`demo-keyfile.kdbx` for key file testing).
+# TOTP changes
+-only-testing:KeeForgeTests/TOTPGeneratorTests
 
-**UI test gotcha:** The root group has only subgroups, no direct entries. `openAnyEntry()` must navigate into a non-empty subgroup (Social or Work) to find entries. The helper `findNonEmptyGroup()` in `KeeForgeUITestCase.swift` handles this by preferring groups whose label doesn't contain "0 entries".
-
-### UI Test Base Class
-
-`KeeForgeUITestCase` provides:
-- `app` — pre-configured `XCUIApplication` with test.kdbx injected via launch environment
-- `unlock(password:)` — type password and tap unlock
-- `unlockSuccessfully()` — unlock with correct password and assert success
-- `openAnyEntry()` — navigate groups to find and tap an entry
-- `firstVisibleEntryLabel()` — get title of first visible entry
+# One UI class
+-only-testing:KeeForgeUITests/UnlockedDatabaseUITests
+```
 
 ## Release Process (Xcode Cloud)
 
