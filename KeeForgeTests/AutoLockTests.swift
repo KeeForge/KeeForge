@@ -4,12 +4,20 @@ import XCTest
 @MainActor
 final class AutoLockTests: XCTestCase {
     private let fixturePassword = "testpassword123"
+    private var savedAutoLockTimeout: SettingsService.AutoLockTimeout!
 
-    private func makeUnlockedViewModel() async throws -> DatabaseViewModel {
-        let vm = DatabaseViewModel()
-        vm.selectFile(try fixtureURL())
-        await vm.unlock(password: fixturePassword)
-        return vm
+    override func setUp() async throws {
+        try await super.setUp()
+        DatabaseListStore.clearAll()
+        SharedVaultStore.clearBookmark()
+        savedAutoLockTimeout = SettingsService.autoLockTimeout
+    }
+
+    override func tearDown() async throws {
+        SettingsService.autoLockTimeout = savedAutoLockTimeout
+        DatabaseListStore.clearAll()
+        SharedVaultStore.clearBookmark()
+        try await super.tearDown()
     }
 
     func testLockClearsRootGroup() async throws {
@@ -45,7 +53,7 @@ final class AutoLockTests: XCTestCase {
         }
     }
 
-    func testLockPreservesSelectedFile() async throws {
+    func testLockPreservesSelectedDatabaseReference() async throws {
         let vm = try await makeUnlockedViewModel()
         XCTAssertTrue(vm.hasSavedFile)
 
@@ -53,7 +61,6 @@ final class AutoLockTests: XCTestCase {
 
         XCTAssertTrue(vm.hasSavedFile)
     }
-
 
     func testLockClearsSearchText() async throws {
         let vm = try await makeUnlockedViewModel()
@@ -71,20 +78,6 @@ final class AutoLockTests: XCTestCase {
         vm.lock()
 
         XCTAssertTrue(vm.navigationPath.isEmpty)
-    }
-
-    // MARK: - Inactivity Timer
-
-    private var savedAutoLockTimeout: SettingsService.AutoLockTimeout!
-
-    override func setUp() async throws {
-        try await super.setUp()
-        savedAutoLockTimeout = SettingsService.autoLockTimeout
-    }
-
-    override func tearDown() async throws {
-        SettingsService.autoLockTimeout = savedAutoLockTimeout
-        try await super.tearDown()
     }
 
     func testInactivityTimerCreatedWithCorrectInterval() async throws {
@@ -127,17 +120,26 @@ final class AutoLockTests: XCTestCase {
         XCTAssertNil(vm.inactivityTimer)
     }
 
-    func testResetInactivityTimerDoesNothingWhenLocked() {
+    func testResetInactivityTimerDoesNothingWhenLocked() throws {
         SettingsService.autoLockTimeout = .fiveMinutes
-        let vm = DatabaseViewModel()
+        let vm = try makeViewModel()
 
         vm.resetInactivityTimer()
 
         XCTAssertNil(vm.inactivityTimer)
     }
 
+    private func makeUnlockedViewModel() async throws -> DatabaseViewModel {
+        let vm = try makeViewModel()
+        await vm.unlock(password: fixturePassword)
+        return vm
+    }
+
+    private func makeViewModel() throws -> DatabaseViewModel {
+        DatabaseViewModel(databaseReference: try TestDatabaseSupport.makeReference(for: fixtureURL()))
+    }
+
     private func fixtureURL() throws -> URL {
-        let bundle = Bundle(for: AutoLockTests.self)
-        return try XCTUnwrap(bundle.url(forResource: "test", withExtension: "kdbx"))
+        try TestDatabaseSupport.fixtureURL(named: "test", bundle: Bundle(for: AutoLockTests.self))
     }
 }

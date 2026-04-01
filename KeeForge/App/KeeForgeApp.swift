@@ -2,44 +2,104 @@ import SwiftUI
 
 @main
 struct KeeForgeApp: App {
-    @State private var viewModel = DatabaseViewModel()
+    @State private var listViewModel = DatabaseListViewModel()
+    @State private var activeDatabaseViewModel: DatabaseViewModel?
     @State private var screenProtectionService = ScreenProtectionService()
     @Environment(\.scenePhase) private var scenePhase
 
     var body: some Scene {
         WindowGroup {
-            ContentView(viewModel: viewModel)
-                .onChange(of: scenePhase) { _, newPhase in
-                    switch newPhase {
-                    case .active:
-                        screenProtectionService.hideShield()
-                        viewModel.didManuallyLock = false
-                        viewModel.resetInactivityTimer()
-                        viewModel.refreshSharedDatabaseCacheIfPossible()
-                    case .inactive:
-                        if !BiometricService.isBiometricAuthInProgress {
-                            screenProtectionService.showShield()
-                        }
-                    case .background:
-                        screenProtectionService.showShield()
-                        viewModel.lock()
-                    @unknown default:
+            AppRootView(
+                listViewModel: listViewModel,
+                activeDatabaseViewModel: $activeDatabaseViewModel
+            )
+            .onChange(of: scenePhase) { _, newPhase in
+                switch newPhase {
+                case .active:
+                    screenProtectionService.hideShield()
+                    activeDatabaseViewModel?.didManuallyLock = false
+                    activeDatabaseViewModel?.resetInactivityTimer()
+                    activeDatabaseViewModel?.refreshSharedDatabaseCacheIfPossible()
+                case .inactive:
+                    if !BiometricService.isBiometricAuthInProgress {
                         screenProtectionService.showShield()
                     }
+                case .background:
+                    screenProtectionService.showShield()
+                    activeDatabaseViewModel?.lock()
+                @unknown default:
+                    screenProtectionService.showShield()
                 }
+            }
         }
     }
 }
 
-struct ContentView: View {
-    @Bindable var viewModel: DatabaseViewModel
+private struct AppRootView: View {
+    @Bindable var listViewModel: DatabaseListViewModel
+    @Binding var activeDatabaseViewModel: DatabaseViewModel?
 
     var body: some View {
-        switch viewModel.state {
-        case .locked, .unlocking, .error:
-            UnlockView(viewModel: viewModel)
-        case .unlocked:
-            DatabaseNavigationView(viewModel: viewModel)
+        Group {
+            if let activeDatabaseViewModel {
+                ActiveDatabaseScene(
+                    viewModel: activeDatabaseViewModel,
+                    onReturnToList: returnToDatabaseList
+                )
+            } else {
+                DatabaseListView(
+                    viewModel: listViewModel,
+                    onSelectDatabase: openDatabase
+                )
+            }
+        }
+        .onAppear {
+            attemptInitialAutoOpen()
+        }
+    }
+
+    private func attemptInitialAutoOpen() {
+        guard activeDatabaseViewModel == nil else { return }
+        guard let databaseReference = listViewModel.databaseToAutoOpenOnLaunch() else { return }
+        openDatabase(databaseReference)
+    }
+
+    private func openDatabase(_ reference: DatabaseReference) {
+        activeDatabaseViewModel = DatabaseViewModel(databaseReference: reference)
+    }
+
+    private func returnToDatabaseList() {
+        activeDatabaseViewModel = nil
+        listViewModel.reload()
+    }
+}
+
+private struct ActiveDatabaseScene: View {
+    @Bindable var viewModel: DatabaseViewModel
+    let onReturnToList: () -> Void
+
+    @State private var hasUnlockedInThisSession = false
+
+    var body: some View {
+        Group {
+            switch viewModel.state {
+            case .locked, .unlocking, .error:
+                UnlockView(
+                    viewModel: viewModel,
+                    onBackToDatabaseList: onReturnToList
+                )
+            case .unlocked:
+                DatabaseNavigationView(viewModel: viewModel)
+            }
+        }
+        .onChange(of: viewModel.state) { _, newValue in
+            if case .unlocked = newValue {
+                hasUnlockedInThisSession = true
+            }
+
+            if hasUnlockedInThisSession, case .locked = newValue {
+                onReturnToList()
+            }
         }
     }
 }

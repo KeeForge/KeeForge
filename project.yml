@@ -72,6 +72,7 @@ targets:
       - path: KeeForge/Models
       - path: KeeForge/Services/BiometricService.swift
       - path: KeeForge/Services/DocumentPickerService.swift
+      - path: KeeForge/Services/DatabaseListStore.swift
       - path: KeeForge/Services/KeychainService.swift
       - path: KeeForge/Services/SettingsService.swift
       - path: KeeForge/Services/SharedVaultStore.swift

@@ -3,10 +3,10 @@ import UniformTypeIdentifiers
 
 struct UnlockView: View {
     @Bindable var viewModel: DatabaseViewModel
+    let onBackToDatabaseList: () -> Void
+
     @State private var password = ""
-    private enum PickerKind { case database, keyFile }
-    @State private var activePicker: PickerKind?
-    @State private var showPicker = false
+    @State private var showKeyFilePicker = false
     @State private var selectionAlert: DocumentPickerService.SelectionAlert?
     @State private var keyFileData: Data?
     @State private var keyFileName: String?
@@ -21,13 +21,22 @@ struct UnlockView: View {
                 .font(.system(size: 64))
                 .foregroundStyle(.tint)
 
-            Text("KeeForge")
-                .font(.largeTitle.bold())
+            VStack(spacing: 6) {
+                Text(viewModel.databaseDisplayName)
+                    .font(.largeTitle.bold())
+                    .multilineTextAlignment(.center)
+
+                if viewModel.databaseDisplayName != viewModel.databaseFilename {
+                    Text(viewModel.databaseFilename)
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
+            }
 
             if viewModel.hasSavedFile {
                 passwordSection
             } else {
-                noFileSection
+                unavailableSection
             }
 
             if let errorMessage = unlockErrorMessage {
@@ -42,17 +51,9 @@ struct UnlockView: View {
         }
         .padding()
         .fileImporter(
-            isPresented: $showPicker,
-            allowedContentTypes: pickerContentTypes,
-            onCompletion: { result in
-                switch activePicker {
-                case .keyFile:
-                    handleKeyFileSelection(result)
-                default:
-                    handleFileSelection(result)
-                }
-                activePicker = nil
-            }
+            isPresented: $showKeyFilePicker,
+            allowedContentTypes: DocumentPickerService.keyFilePickerContentTypes,
+            onCompletion: handleKeyFileSelection
         )
         .alert(item: $selectionAlert) { alert in
             Alert(
@@ -62,6 +63,7 @@ struct UnlockView: View {
             )
         }
         .onAppear {
+            loadAssociatedKeyFileIfNeeded()
             loadUITestKeyFileIfNeeded()
             autoUnlockWithBiometricsIfNeeded()
         }
@@ -90,7 +92,7 @@ struct UnlockView: View {
                     .frame(maxWidth: .infinity)
             }
             .buttonStyle(.borderedProminent)
-            .disabled(password.isEmpty && keyFileData == nil || isUnlocking)
+            .disabled((password.isEmpty && keyFileData == nil) || isUnlocking)
             .padding(.horizontal)
             .accessibilityIdentifier("unlock.button")
 
@@ -104,10 +106,8 @@ struct UnlockView: View {
                 .padding(.horizontal)
             }
 
-            Button("Choose Different File") {
-                selectionAlert = nil
-                activePicker = .database
-                showPicker = true
+            Button("Back to Database List") {
+                onBackToDatabaseList()
             }
             .font(.footnote)
             .accessibilityIdentifier("unlock.choose-different")
@@ -150,8 +150,7 @@ struct UnlockView: View {
 
             Button("Select") {
                 selectionAlert = nil
-                activePicker = .keyFile
-                showPicker = true
+                showKeyFilePicker = true
             }
             .font(.subheadline)
             .accessibilityIdentifier("unlock.keyfile.select")
@@ -160,30 +159,16 @@ struct UnlockView: View {
         .accessibilityIdentifier("unlock.keyfile.row")
     }
 
-    private var noFileSection: some View {
+    private var unavailableSection: some View {
         VStack(spacing: 16) {
-            Text("Open a .kdbx database to get started")
+            Text("This database is unavailable. Return to the database list to remove it or refresh its bookmark.")
                 .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
 
-            Button(action: {
-                selectionAlert = nil
-                activePicker = .database
-                showPicker = true
-            }) {
-                Label("Open Database", systemImage: "folder.badge.plus")
-                    .frame(maxWidth: .infinity)
+            Button("Back to Database List") {
+                onBackToDatabaseList()
             }
             .buttonStyle(.borderedProminent)
-            .padding(.horizontal)
-        }
-    }
-
-    private var pickerContentTypes: [UTType] {
-        switch activePicker {
-        case .keyFile:
-            DocumentPickerService.keyFilePickerContentTypes
-        case .database, .none:
-            DocumentPickerService.databasePickerContentTypes
         }
     }
 
@@ -229,6 +214,13 @@ struct UnlockView: View {
         unlockWithBiometrics()
     }
 
+    private func loadAssociatedKeyFileIfNeeded() {
+        guard keyFileData == nil else { return }
+        guard let associatedKeyFile = viewModel.loadAssociatedKeyFile() else { return }
+        keyFileData = associatedKeyFile.data
+        keyFileName = associatedKeyFile.filename
+    }
+
     private func loadUITestKeyFileIfNeeded() {
         guard ProcessInfo.processInfo.arguments.contains("-ui-testing") else { return }
         guard keyFileData == nil else { return }
@@ -237,21 +229,6 @@ struct UnlockView: View {
               let data = Data(base64Encoded: base64, options: .ignoreUnknownCharacters) else { return }
         keyFileData = data
         keyFileName = env["UI_TEST_KEYFILE_FILENAME"] ?? "test.key"
-    }
-
-    private func handleFileSelection(_ result: Result<URL, Error>) {
-        switch result {
-        case .success(let url):
-            guard isSupportedDatabaseSelection(url) else {
-                selectionAlert = DocumentPickerService.invalidDatabaseSelectionAlert()
-                return
-            }
-            selectionAlert = nil
-            viewModel.selectFile(url)
-            passwordFocused = true
-        case .failure(let error):
-            selectionAlert = DocumentPickerService.pickerFailureAlert(for: error)
-        }
     }
 
     private func handleKeyFileSelection(_ result: Result<URL, Error>) {
@@ -270,23 +247,8 @@ struct UnlockView: View {
                 keyFileData = nil
                 keyFileName = nil
             }
-        case .failure:
-            break
+        case .failure(let error):
+            selectionAlert = DocumentPickerService.pickerFailureAlert(for: error)
         }
-    }
-
-    private func isSupportedDatabaseSelection(_ url: URL) -> Bool {
-        if DocumentPickerService.isLikelyDatabaseFile(url) {
-            return true
-        }
-
-        let hasSecurityScope = url.startAccessingSecurityScopedResource()
-        defer {
-            if hasSecurityScope {
-                url.stopAccessingSecurityScopedResource()
-            }
-        }
-
-        return DocumentPickerService.isSupportedDatabaseFile(at: url)
     }
 }

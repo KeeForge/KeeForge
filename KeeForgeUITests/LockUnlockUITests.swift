@@ -6,19 +6,16 @@ final class LockUnlockUITests: KeeForgeUITestCase {
     func testManualLockBehavior() {
         unlockSuccessfully()
 
-        // Lock the database
         let lockButton = app.buttons["lock.button"]
         XCTAssertTrue(lockButton.waitForExistence(timeout: 5), "Lock button not found")
         lockButton.tap()
 
-        // Should return to unlock screen
-        let passwordField = app.secureTextFields["unlock.password.field"]
-        XCTAssertTrue(passwordField.waitForExistence(timeout: 10), "Password field did not appear after locking")
+        let databaseRow = app.buttons["database.row"].firstMatch
+        XCTAssertTrue(databaseRow.waitForExistence(timeout: 10), "Database list did not appear after locking")
 
-        // Wait several seconds and verify no auto-biometric unlock was triggered
         sleep(4)
 
-        XCTAssertTrue(passwordField.exists, "Password field should still be visible — no auto-biometric should trigger after manual lock")
+        XCTAssertTrue(databaseRow.exists, "Database list should remain visible after manual lock")
         XCTAssertFalse(
             app.buttons["lock.button"].exists,
             "Lock button should NOT exist — vault should remain locked after manual lock"

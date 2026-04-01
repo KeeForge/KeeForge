@@ -7,26 +7,18 @@ final class UnlockFlowUITests: KeeForgeUITestCase {
         XCTAssertTrue(app.staticTexts["unlock.error.label"].waitForExistence(timeout: 10))
     }
 
-    func testChooseDifferentFileShowsDocumentPicker() {
-        // Unlock first, then lock to get back to unlock screen with "Choose Different File"
-        unlockSuccessfully()
-
-        let lockButton = app.buttons["lock.button"]
-        XCTAssertTrue(lockButton.waitForExistence(timeout: 10), "Lock button not found")
-        lockButton.tap()
-
-        // Wait for unlock screen
+    func testSingleDatabaseLaunchAutoNavigatesToUnlockScreen() {
         let passwordField = app.secureTextFields["unlock.password.field"]
-        XCTAssertTrue(passwordField.waitForExistence(timeout: 10), "Password field did not appear after locking")
+        XCTAssertTrue(passwordField.waitForExistence(timeout: 10), "Password field should appear on launch when exactly one database is registered")
+    }
 
-        // Tap "Choose Different File"
-        let chooseDifferent = app.buttons["unlock.choose-different"]
-        XCTAssertTrue(chooseDifferent.waitForExistence(timeout: 10), "Choose Different File button not found")
-        chooseDifferent.tap()
+    func testBackToDatabaseListReturnsToHomeScreen() {
+        let backButton = app.buttons["unlock.choose-different"]
+        XCTAssertTrue(backButton.waitForExistence(timeout: 10), "Back to Database List button not found")
 
-        XCTAssertTrue(
-            waitForDocumentPicker(timeout: 15),
-            "Document picker did not appear after tapping Choose Different File"
-        )
+        backButton.tap()
+
+        let databaseRow = app.buttons["database.row"].firstMatch
+        XCTAssertTrue(databaseRow.waitForExistence(timeout: 10), "Database list did not appear after returning from unlock")
     }
 }

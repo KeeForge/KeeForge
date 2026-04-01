@@ -1,69 +1,37 @@
-import XCTest
 import CryptoKit
 import SwiftUI
+import XCTest
 @testable import KeeForge
 
 @MainActor
 final class DatabaseViewModelTests: XCTestCase {
     private let fixturePassword = "testpassword123"
 
-    override func setUp() {
-        super.setUp()
-        DocumentPickerService.clearBookmark()
+    override func setUp() async throws {
+        try await super.setUp()
+        DatabaseListStore.clearAll()
+        SharedVaultStore.clearBookmark()
     }
 
-    override func tearDown() {
-        DocumentPickerService.clearBookmark()
+    override func tearDown() async throws {
+        DatabaseListStore.clearAll()
+        SharedVaultStore.clearBookmark()
         CredentialIdentityStoreManager.populateObserver = nil
-        super.tearDown()
+        try await super.tearDown()
     }
 
-    func testInitialStateWithNoBookmarkIsLockedAndNoSavedFile() {
-        let vm = DatabaseViewModel()
+    func testInitialStateIsLockedWithSavedDatabaseReference() throws {
+        let vm = try makeViewModel()
 
         XCTAssertState(vm.state, is: .locked)
-        XCTAssertFalse(vm.hasSavedFile)
+        XCTAssertTrue(vm.hasSavedFile)
         XCTAssertFalse(vm.canUseBiometrics)
         XCTAssertEqual(vm.lockCycleID, 0)
         XCTAssertTrue(vm.searchResults.isEmpty)
     }
 
-    func testSelectFileSetsSavedFileAndResetsToLocked() throws {
-        let vm = DatabaseViewModel()
-        let url = try fixtureURL()
-
-        vm.selectFile(url)
-
-        XCTAssertTrue(vm.hasSavedFile)
-        XCTAssertState(vm.state, is: .locked)
-        XCTAssertEqual(vm.lockCycleID, 1)
-    }
-
-    func testSelectFileCachesDatabaseCopyForAutoFill() throws {
-        let vm = DatabaseViewModel()
-        let url = try fixtureURL()
-
-        vm.selectFile(url)
-
-        let cachedURL = try XCTUnwrap(SharedVaultStore.loadCachedDatabaseURL())
-        XCTAssertEqual(cachedURL.lastPathComponent, url.lastPathComponent)
-        XCTAssertEqual(try Data(contentsOf: cachedURL), try Data(contentsOf: url))
-    }
-
-    func testLockIncrementsLockCycle() {
-        let vm = DatabaseViewModel()
-        XCTAssertEqual(vm.lockCycleID, 0)
-
-        vm.lock()
-        XCTAssertEqual(vm.lockCycleID, 1)
-
-        vm.lock()
-        XCTAssertEqual(vm.lockCycleID, 2)
-    }
-
     func testUnlockWithCorrectPasswordTransitionsToUnlocked() async throws {
-        let vm = DatabaseViewModel()
-        vm.selectFile(try fixtureURL())
+        let vm = try makeViewModel()
 
         await vm.unlock(password: fixturePassword)
 
@@ -72,20 +40,20 @@ final class DatabaseViewModelTests: XCTestCase {
         XCTAssertFalse(vm.rootGroup?.allEntries.isEmpty ?? true)
     }
 
-    func testUnlockRefreshesSharedDatabaseCache() async throws {
-        let vm = DatabaseViewModel()
-        let url = try fixtureURL()
-        vm.selectFile(url)
+    func testUnlockCachesPerDatabaseCopy() async throws {
+        let reference = try makeReference()
+        let vm = DatabaseViewModel(databaseReference: reference)
+        let sourceURL = try fixtureURL()
 
         await vm.unlock(password: fixturePassword)
 
-        let cachedURL = try XCTUnwrap(SharedVaultStore.loadCachedDatabaseURL())
-        XCTAssertEqual(try Data(contentsOf: cachedURL), try Data(contentsOf: url))
+        let cachedURL = try XCTUnwrap(DatabaseListStore.cachedDatabaseURL(for: reference.id))
+        XCTAssertEqual(cachedURL.lastPathComponent, "\(reference.id.uuidString).kdbx")
+        XCTAssertEqual(try Data(contentsOf: cachedURL), try Data(contentsOf: sourceURL))
     }
 
     func testForegroundRefreshRepopulatesCredentialStoreWhenUnlocked() async throws {
-        let vm = DatabaseViewModel()
-        vm.selectFile(try fixtureURL())
+        let vm = try makeViewModel()
 
         let refreshExpectation = expectation(description: "Credential store repopulated after refresh")
         var populateCallCount = 0
@@ -127,8 +95,7 @@ final class DatabaseViewModelTests: XCTestCase {
     }
 
     func testUnlockWithWrongPasswordTransitionsToError() async throws {
-        let vm = DatabaseViewModel()
-        vm.selectFile(try fixtureURL())
+        let vm = try makeViewModel()
 
         await vm.unlock(password: "wrong-password")
 
@@ -141,8 +108,7 @@ final class DatabaseViewModelTests: XCTestCase {
     }
 
     func testSearchResultsMatchesEntryFieldsCaseInsensitively() async throws {
-        let vm = DatabaseViewModel()
-        vm.selectFile(try fixtureURL())
+        let vm = try makeViewModel()
         await vm.unlock(password: fixturePassword)
 
         guard case .unlocked = vm.state else {
@@ -184,8 +150,7 @@ final class DatabaseViewModelTests: XCTestCase {
     }
 
     func testLockClearsSensitiveAndNavigationState() async throws {
-        let vm = DatabaseViewModel()
-        vm.selectFile(try fixtureURL())
+        let vm = try makeViewModel()
         await vm.unlock(password: fixturePassword)
 
         vm.searchText = "query"
@@ -199,9 +164,16 @@ final class DatabaseViewModelTests: XCTestCase {
         XCTAssertTrue(vm.navigationPath.isEmpty)
     }
 
+    private func makeViewModel() throws -> DatabaseViewModel {
+        DatabaseViewModel(databaseReference: try makeReference())
+    }
+
+    private func makeReference() throws -> DatabaseReference {
+        try TestDatabaseSupport.makeReference(for: fixtureURL())
+    }
+
     private func fixtureURL() throws -> URL {
-        let bundle = Bundle(for: DatabaseViewModelTests.self)
-        return try XCTUnwrap(bundle.url(forResource: "test", withExtension: "kdbx"))
+        try TestDatabaseSupport.fixtureURL(named: "test", bundle: Bundle(for: DatabaseViewModelTests.self))
     }
 
     private func passkeyFields() -> [String: String] {

@@ -20,6 +20,18 @@ enum SharedVaultStore {
         sharedContainerURL.appendingPathComponent(databaseCacheDirectoryName, isDirectory: true)
     }
 
+    static var legacyBookmarkData: Data? {
+        sharedDefaults.data(forKey: bookmarkKey)
+    }
+
+    static var legacyDatabaseFilename: String? {
+        storedDatabaseFilename
+    }
+
+    static var legacyCachedDatabaseURL: URL? {
+        loadCachedDatabaseURL()
+    }
+
     static func saveBookmark(for url: URL) throws {
         let bookmarkData = try url.bookmarkData(
             options: [],

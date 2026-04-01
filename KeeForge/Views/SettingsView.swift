@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct SettingsView: View {
-    @Bindable var viewModel: DatabaseViewModel
+    var viewModel: DatabaseViewModel? = nil
     @Environment(\.dismiss) private var dismiss
 
     @State private var autoLockTimeout = SettingsService.autoLockTimeout
@@ -9,6 +9,8 @@ struct SettingsView: View {
     @State private var autoUnlockWithFaceID = SettingsService.autoUnlockWithFaceID
     @State private var showWebsiteIcons = SettingsService.showWebsiteIcons
     @State private var quickAutoFillEnabled = SettingsService.quickAutoFillEnabled
+    @State private var sortOrder = DatabaseViewModel.savedSortOrder()
+    @State private var sortAscending = DatabaseViewModel.savedSortAscending()
 
     var body: some View {
         NavigationStack {
@@ -41,10 +43,18 @@ struct SettingsView: View {
             .onChange(of: quickAutoFillEnabled) { _, newValue in
                 SettingsService.quickAutoFillEnabled = newValue
                 if newValue {
-                    viewModel.populateCredentialStoreIfUnlocked()
+                    viewModel?.populateCredentialStoreIfUnlocked()
                 } else {
                     CredentialIdentityStoreManager.clearStore()
                 }
+            }
+            .onChange(of: sortOrder) { _, newValue in
+                DatabaseViewModel.persistSortOrder(newValue)
+                viewModel?.sortOrder = newValue
+            }
+            .onChange(of: sortAscending) { _, newValue in
+                DatabaseViewModel.persistSortAscending(newValue)
+                viewModel?.sortAscending = newValue
             }
         }
     }
@@ -79,13 +89,13 @@ struct SettingsView: View {
         Section {
             Toggle("Download Website Favicons", isOn: $showWebsiteIcons)
 
-            Picker("Default Sort Order", selection: $viewModel.sortOrder) {
+            Picker("Default Sort Order", selection: $sortOrder) {
                 ForEach(DatabaseViewModel.SortOrder.allCases, id: \.self) { order in
                     Text(order.rawValue).tag(order)
                 }
             }
 
-            Picker("Sort Direction", selection: $viewModel.sortAscending) {
+            Picker("Sort Direction", selection: $sortAscending) {
                 Text("Ascending").tag(true)
                 Text("Descending").tag(false)
             }

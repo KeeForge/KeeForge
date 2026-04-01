@@ -1,18 +1,11 @@
 import CryptoKit
 import Foundation
-import OSLog
+import LocalAuthentication
 import SwiftUI
 
 @MainActor @Observable
 final class DatabaseViewModel {
-    private static let uiTestDBPathEnv = "UI_TEST_DB_PATH"
-    private static let uiTestDBBase64Env = "UI_TEST_DB_BASE64"
-    private static let uiTestDBFilenameEnv = "UI_TEST_DB_FILENAME"
-    private static let uiTestingLaunchArg = "-ui-testing"
-    private static let logger = Logger(subsystem: "KeeForge", category: "DatabaseViewModel")
-    private static let kdbxMagic: [UInt8] = [0x03, 0xD9, 0xA2, 0x9A, 0x67, 0xFB, 0x4B, 0xB5]
-
-    enum State: Sendable {
+    enum State: Sendable, Equatable {
         case locked
         case unlocking
         case unlocked
@@ -25,8 +18,13 @@ final class DatabaseViewModel {
         case modifiedDate = "Date Modified"
     }
 
+    private static let sortOrderKey = "KeeForge.sortOrder"
+    private static let sortAscendingKey = "KeeForge.sortAscending"
+
+    private(set) var databaseReference: DatabaseReference
+
     var sortAscending: Bool {
-        didSet { Self.saveSortAscending(sortAscending) }
+        didSet { Self.persistSortAscending(sortAscending) }
     }
 
     private(set) var state: State = .locked
@@ -45,24 +43,38 @@ final class DatabaseViewModel {
         didSet { resetInactivityTimer() }
     }
     var sortOrder: SortOrder {
-        didSet { Self.saveSortOrder(sortOrder) }
+        didSet { Self.persistSortOrder(sortOrder) }
     }
 
     private(set) var failedAttempts = 0
     private(set) var lockoutUntil: Date?
-
-    private var databaseURL: URL?
     private(set) var compositeKey: Data?
     private(set) var sessionKey: SymmetricKey?
-    private let isUITesting: Bool
+
+    init(databaseReference: DatabaseReference) {
+        self.databaseReference = databaseReference
+        sortOrder = Self.savedSortOrder()
+        sortAscending = Self.savedSortAscending()
+    }
+
+    var databaseDisplayName: String {
+        databaseReference.displayName
+    }
+
+    var databaseFilename: String {
+        databaseReference.filename
+    }
 
     var hasSavedFile: Bool {
-        effectiveDatabaseURL != nil
+        databaseReference.bookmarkData != nil
     }
 
     var canUseBiometrics: Bool {
-        guard let path = databasePath else { return false }
-        return BiometricService.isAvailable && KeychainService.hasStoredKey(for: path)
+        guard BiometricService.isAvailable else { return false }
+        return KeychainService.hasStoredKey(
+            for: databaseReference.id,
+            legacyFilename: databaseReference.legacyKeychainFilename
+        )
     }
 
     var biometricLabel: String {
@@ -98,66 +110,6 @@ final class DatabaseViewModel {
         }
     }
 
-    private var databasePath: String? {
-        effectiveDatabaseURL?.path
-    }
-
-    private var effectiveDatabaseURL: URL? {
-        if let databaseURL {
-            return databaseURL
-        }
-        if isUITesting {
-            return nil
-        }
-        return DocumentPickerService.loadBookmarkedURL()
-    }
-
-    init() {
-        let launchArgs = ProcessInfo.processInfo.arguments
-        isUITesting = launchArgs.contains(Self.uiTestingLaunchArg)
-        sortOrder = Self.loadSortOrder()
-        sortAscending = Self.loadSortAscending()
-
-        if isUITesting {
-            Self.diagnostic("init: running in UI test mode")
-            if let uiTestURL = Self.uiTestDatabaseURL() {
-                databaseURL = uiTestURL
-                Self.diagnostic("init: UI test DB URL resolved to \(uiTestURL.path)")
-            } else if let uiTestPath = ProcessInfo.processInfo.environment[Self.uiTestDBPathEnv], !uiTestPath.isEmpty {
-                let url = URL(fileURLWithPath: uiTestPath)
-                databaseURL = url
-                Self.diagnostic("init: using UI_TEST_DB_PATH \(url.path)")
-            } else {
-                databaseURL = nil
-                Self.diagnostic("init: no UI test DB env set; leaving databaseURL nil")
-            }
-            return
-        }
-
-        databaseURL = DocumentPickerService.loadBookmarkedURL()
-    }
-
-    func selectFile(_ url: URL) {
-        let hasSecurityScope = url.startAccessingSecurityScopedResource()
-        defer {
-            if hasSecurityScope {
-                url.stopAccessingSecurityScopedResource()
-            }
-        }
-
-        SharedVaultStore.clearCachedDatabaseCopy()
-        if hasSecurityScope {
-            try? DocumentPickerService.saveBookmark(for: url)
-        }
-        if let data = try? CoordinatedFileReader.readData(from: url) {
-            cacheDatabaseCopy(data, sourceURL: url)
-        }
-        databaseURL = url
-        didManuallyLock = false
-        beginNewLockCycle()
-        state = .locked
-    }
-
     /// Lockout delay in seconds: 0, 0, 0, 2, 4, 8, 16, 30, 30, 30...
     private var lockoutDelay: TimeInterval {
         guard failedAttempts >= 3 else { return 0 }
@@ -170,31 +122,18 @@ final class DatabaseViewModel {
     }
 
     func unlock(password: String, keyFileData: Data? = nil) async {
-        guard let url = effectiveDatabaseURL else {
-            state = .error("No database file selected")
-            return
-        }
-
         if let until = lockoutUntil, Date.now < until {
             let seconds = Int(ceil(until.timeIntervalSinceNow))
             state = .error("Too many failed attempts. Try again in \(seconds)s.")
             return
         }
 
-        if isUITesting {
-            let exists = FileManager.default.fileExists(atPath: url.path)
-            Self.diagnostic("unlock: using database URL \(url.path), exists=\(exists)")
-        }
-
         state = .unlocking
 
         do {
-            let data = try readSecurityScoped(url: url)
-            cacheDatabaseCopy(data, sourceURL: url)
-            if isUITesting {
-                let hasMagic = data.starts(with: Self.kdbxMagic)
-                Self.diagnostic("unlock: read \(data.count) bytes, kdbxMagic=\(hasMagic)")
-            }
+            let (_, data) = try readDatabaseData()
+            try cacheDatabaseCopy(data)
+
             let compositeKey = KDBXCrypto.compositeKey(password: password, keyFileData: keyFileData)
             let sessionKey = SymmetricKey(size: .bits256)
 
@@ -202,68 +141,54 @@ final class DatabaseViewModel {
                 try KDBXParser.parse(data: data, password: password, keyFileData: keyFileData, sessionKey: sessionKey)
             }.value
 
-            self.rootGroup = root
-            self.compositeKey = compositeKey
-            self.sessionKey = sessionKey
-            self.failedAttempts = 0
-            self.lockoutUntil = nil
-            state = .unlocked
-            startInactivityTimer()
-
-            // Store key for biometric unlock
-            if BiometricService.isAvailable {
-                try? KeychainService.storeCompositeKey(compositeKey, for: url.path)
-            }
-
-            populateCredentialStoreIfNeeded(root: root)
-            ReviewPromptService.requestReviewIfAppropriate()
+            await finalizeSuccessfulUnlock(
+                root: root,
+                compositeKey: compositeKey,
+                sessionKey: sessionKey
+            )
         } catch {
-            if isUITesting {
-                Self.diagnostic("unlock: failed with error '\(error.localizedDescription)'")
-            }
-            failedAttempts += 1
-            let delay = lockoutDelay
-            if delay > 0 {
-                lockoutUntil = Date.now.addingTimeInterval(delay)
-                let seconds = Int(ceil(delay))
-                state = .error("Too many failed attempts. Try again in \(seconds)s.")
-            } else {
-                state = .error(error.localizedDescription)
-            }
+            handleUnlockFailure(error)
         }
     }
 
     func unlockWithBiometrics() async {
-        guard let url = effectiveDatabaseURL else {
-            state = .error("No database file selected")
-            return
-        }
-
         state = .unlocking
 
         do {
             let context = try await BiometricService.authenticate(reason: "Unlock your password database")
-            let compositeKey = try KeychainService.retrieveCompositeKey(for: url.path, context: context)
-
-            let data = try readSecurityScoped(url: url)
-            cacheDatabaseCopy(data, sourceURL: url)
+            let compositeKey = try retrieveStoredCompositeKey(context: context)
+            let (_, data) = try readDatabaseData()
+            try cacheDatabaseCopy(data)
             let sessionKey = SymmetricKey(size: .bits256)
 
             let root = try await Task.detached {
                 try KDBXParser.parse(data: data, compositeKey: compositeKey, sessionKey: sessionKey)
             }.value
 
-            self.rootGroup = root
-            self.compositeKey = compositeKey
-            self.sessionKey = sessionKey
-            state = .unlocked
-            startInactivityTimer()
-
-            populateCredentialStoreIfNeeded(root: root)
-            ReviewPromptService.requestReviewIfAppropriate()
+            await finalizeSuccessfulUnlock(
+                root: root,
+                compositeKey: compositeKey,
+                sessionKey: sessionKey
+            )
         } catch {
             state = .error(error.localizedDescription)
         }
+    }
+
+    func loadAssociatedKeyFile() -> (data: Data, filename: String)? {
+        guard let url = DatabaseListStore.resolveKeyFileURL(for: databaseReference) else { return nil }
+        let hasSecurityScope = url.startAccessingSecurityScopedResource()
+        defer {
+            if hasSecurityScope {
+                url.stopAccessingSecurityScopedResource()
+            }
+        }
+
+        guard let data = try? Data(contentsOf: url) else { return nil }
+
+        refreshDatabaseReference()
+        let filename = databaseReference.keyFileFilename ?? url.lastPathComponent
+        return (data, filename)
     }
 
     func lock(manuallyTriggered: Bool = false) {
@@ -305,24 +230,11 @@ final class DatabaseViewModel {
         startInactivityTimer()
     }
 
-    private func beginNewLockCycle() {
-        lockCycleID += 1
-    }
-
-    private func readSecurityScoped(url: URL) throws -> Data {
-        let hasSecurityScope = url.startAccessingSecurityScopedResource()
-        defer {
-            if hasSecurityScope {
-                url.stopAccessingSecurityScopedResource()
-            }
-        }
-        return try CoordinatedFileReader.readData(from: url)
-    }
-
     func refreshSharedDatabaseCacheIfPossible() {
-        guard let url = effectiveDatabaseURL else { return }
         let expectedLockCycleID = lockCycleID
+        let databaseReference = self.databaseReference
         let compositeKeyForStoreRefresh: Data?
+
         if case .unlocked = state,
            SettingsService.quickAutoFillEnabled,
            let compositeKey {
@@ -331,10 +243,12 @@ final class DatabaseViewModel {
             compositeKeyForStoreRefresh = nil
         }
 
-        Task.detached(priority: .utility) { [url, expectedLockCycleID, compositeKeyForStoreRefresh] in
+        Task.detached(priority: .utility) {
+            guard let url = DatabaseListStore.resolveDatabaseURL(for: databaseReference) else { return }
+
             do {
                 let data = try Self.readSecurityScopedData(from: url)
-                try SharedVaultStore.cacheDatabaseCopy(data, sourceURL: url)
+                try DatabaseListStore.cacheDatabaseCopy(data, for: databaseReference.id)
 
                 if let compositeKeyForStoreRefresh {
                     let refreshedRoot = try KDBXParser.parse(
@@ -350,36 +264,6 @@ final class DatabaseViewModel {
             } catch {
                 return
             }
-        }
-    }
-
-    private static func uiTestDatabaseURL() -> URL? {
-        let env = ProcessInfo.processInfo.environment
-        guard let base64 = env[uiTestDBBase64Env], !base64.isEmpty else {
-            diagnostic("uiTestDatabaseURL: \(uiTestDBBase64Env) missing or empty")
-            return nil
-        }
-        diagnostic("uiTestDatabaseURL: found base64 payload (\(base64.count) chars)")
-
-        guard let data = Data(base64Encoded: base64, options: .ignoreUnknownCharacters) else {
-            diagnostic("uiTestDatabaseURL: failed to decode base64")
-            return nil
-        }
-        diagnostic("uiTestDatabaseURL: decoded \(data.count) bytes")
-
-        let requestedFilename = env[uiTestDBFilenameEnv] ?? "ui-test.kdbx"
-        let safeFilename = (requestedFilename as NSString).lastPathComponent
-        let url = FileManager.default.temporaryDirectory.appendingPathComponent(safeFilename, isDirectory: false)
-
-        do {
-            try data.write(to: url, options: .atomic)
-            let readBack = try Data(contentsOf: url)
-            let hasMagic = readBack.starts(with: kdbxMagic)
-            diagnostic("uiTestDatabaseURL: wrote and re-read \(readBack.count) bytes to \(url.path), kdbxMagic=\(hasMagic)")
-            return url
-        } catch {
-            diagnostic("uiTestDatabaseURL: failed writing temp DB '\(error.localizedDescription)'")
-            return nil
         }
     }
 
@@ -425,32 +309,6 @@ final class DatabaseViewModel {
         }
     }
 
-    private static let sortOrderKey = "KeeForge.sortOrder"
-
-    private static func loadSortOrder() -> SortOrder {
-        guard let raw = UserDefaults.standard.string(forKey: sortOrderKey) else { return .title }
-        return SortOrder(rawValue: raw) ?? .title
-    }
-
-    private static func saveSortOrder(_ order: SortOrder) {
-        UserDefaults.standard.set(order.rawValue, forKey: sortOrderKey)
-    }
-
-    private static let sortAscendingKey = "KeeForge.sortAscending"
-
-    private static func loadSortAscending() -> Bool {
-        if UserDefaults.standard.object(forKey: sortAscendingKey) == nil {
-            return true
-        }
-        return UserDefaults.standard.bool(forKey: sortAscendingKey)
-    }
-
-    private static func saveSortAscending(_ ascending: Bool) {
-        UserDefaults.standard.set(ascending, forKey: sortAscendingKey)
-    }
-
-    // MARK: - Credential Identity Store
-
     func populateCredentialStoreIfUnlocked() {
         guard let root = rootGroup else { return }
         populateCredentialStoreIfNeeded(root: root)
@@ -467,24 +325,120 @@ final class DatabaseViewModel {
         return entries.filter { $0.hasPassword || $0.hasPasskey }
     }
 
+    static func savedSortOrder() -> SortOrder {
+        guard let raw = UserDefaults.standard.string(forKey: sortOrderKey) else { return .title }
+        return SortOrder(rawValue: raw) ?? .title
+    }
+
+    static func persistSortOrder(_ order: SortOrder) {
+        UserDefaults.standard.set(order.rawValue, forKey: sortOrderKey)
+    }
+
+    static func savedSortAscending() -> Bool {
+        if UserDefaults.standard.object(forKey: sortAscendingKey) == nil {
+            return true
+        }
+        return UserDefaults.standard.bool(forKey: sortAscendingKey)
+    }
+
+    static func persistSortAscending(_ ascending: Bool) {
+        UserDefaults.standard.set(ascending, forKey: sortAscendingKey)
+    }
+
+    // MARK: - Private
+
+    private func beginNewLockCycle() {
+        lockCycleID += 1
+    }
+
+    private func finalizeSuccessfulUnlock(root: KPGroup, compositeKey: Data, sessionKey: SymmetricKey) async {
+        self.rootGroup = root
+        self.compositeKey = compositeKey
+        self.sessionKey = sessionKey
+        self.failedAttempts = 0
+        self.lockoutUntil = nil
+        self.state = .unlocked
+        startInactivityTimer()
+
+        persistCompositeKeyForBiometricUnlock(compositeKey)
+        DatabaseListStore.markDatabaseOpened(id: databaseReference.id)
+        refreshDatabaseReference()
+        populateCredentialStoreIfNeeded(root: root)
+        ReviewPromptService.requestReviewIfAppropriate()
+    }
+
+    private func handleUnlockFailure(_ error: Error) {
+        failedAttempts += 1
+        let delay = lockoutDelay
+        if delay > 0 {
+            lockoutUntil = Date.now.addingTimeInterval(delay)
+            let seconds = Int(ceil(delay))
+            state = .error("Too many failed attempts. Try again in \(seconds)s.")
+        } else {
+            state = .error(error.localizedDescription)
+        }
+    }
+
+    private func persistCompositeKeyForBiometricUnlock(_ compositeKey: Data) {
+        guard BiometricService.isAvailable else { return }
+
+        do {
+            try KeychainService.storeCompositeKey(compositeKey, for: databaseReference.id)
+
+            if let legacyFilename = databaseReference.legacyKeychainFilename {
+                KeychainService.deleteLegacyCompositeKey(forFilename: legacyFilename)
+                DatabaseListStore.clearLegacyKeychainFilename(for: databaseReference.id)
+            }
+        } catch {
+            return
+        }
+    }
+
+    private func retrieveStoredCompositeKey(context: LAContext) throws -> Data {
+        do {
+            return try KeychainService.retrieveCompositeKey(for: databaseReference.id, context: context)
+        } catch {
+            guard KeychainService.isItemNotFound(error),
+                  let legacyFilename = databaseReference.legacyKeychainFilename else {
+                throw error
+            }
+
+            return try KeychainService.retrieveLegacyCompositeKey(forFilename: legacyFilename, context: context)
+        }
+    }
+
+    private func refreshDatabaseReference() {
+        if let refreshedReference = DatabaseListStore.databases.first(where: { $0.id == databaseReference.id }) {
+            databaseReference = refreshedReference
+        }
+    }
+
+    private func readDatabaseData() throws -> (url: URL, data: Data) {
+        guard let url = DatabaseListStore.resolveDatabaseURL(for: databaseReference) else {
+            throw CocoaError(.fileReadNoSuchFile)
+        }
+
+        return (url, try readSecurityScoped(url: url))
+    }
+
+    private func readSecurityScoped(url: URL) throws -> Data {
+        let hasSecurityScope = url.startAccessingSecurityScopedResource()
+        defer {
+            if hasSecurityScope {
+                url.stopAccessingSecurityScopedResource()
+            }
+        }
+        return try CoordinatedFileReader.readData(from: url)
+    }
+
     private func populateCredentialStoreIfNeeded(root: KPGroup) {
         guard SettingsService.quickAutoFillEnabled else { return }
+        DatabaseListStore.activeAutoFillDatabaseID = databaseReference.id
         CredentialIdentityStoreManager.populate(with: Self.credentialStoreEntries(from: root))
     }
 
-    private static func diagnostic(_ message: String) {
-        logger.notice("\(message, privacy: .public)")
-        print("[DatabaseViewModel] \(message)")
-    }
-
-    private func cacheDatabaseCopy(_ data: Data, sourceURL: URL) {
-        do {
-            try SharedVaultStore.cacheDatabaseCopy(data, sourceURL: sourceURL)
-        } catch {
-            if isUITesting {
-                Self.diagnostic("cacheDatabaseCopy: failed for \(sourceURL.lastPathComponent) '\(error.localizedDescription)'")
-            }
-        }
+    private func cacheDatabaseCopy(_ data: Data) throws {
+        try DatabaseListStore.cacheDatabaseCopy(data, for: databaseReference.id)
     }
 
     private func refreshCredentialStoreIfStillUnlocked(with root: KPGroup, expectedLockCycleID: Int) {

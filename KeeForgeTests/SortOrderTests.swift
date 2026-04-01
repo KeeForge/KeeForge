@@ -5,10 +5,18 @@ import XCTest
 final class SortOrderTests: XCTestCase {
     private var viewModel: DatabaseViewModel!
 
-    override func setUp() {
-        super.setUp()
-        viewModel = DatabaseViewModel()
+    override func setUp() async throws {
+        try await super.setUp()
+        DatabaseListStore.clearAll()
+        SharedVaultStore.clearBookmark()
+        viewModel = try DatabaseViewModel(databaseReference: TestDatabaseSupport.makeReference(for: fixtureURL()))
         viewModel.sortAscending = true
+    }
+
+    override func tearDown() async throws {
+        DatabaseListStore.clearAll()
+        SharedVaultStore.clearBookmark()
+        try await super.tearDown()
     }
 
     // MARK: - Entry Sorting
@@ -141,10 +149,10 @@ final class SortOrderTests: XCTestCase {
         // Clean slate
         UserDefaults.standard.removeObject(forKey: key)
 
-        let vm1 = DatabaseViewModel()
+        let vm1 = try! DatabaseViewModel(databaseReference: TestDatabaseSupport.makeReference(for: fixtureURL()))
         vm1.sortOrder = .modifiedDate
 
-        let vm2 = DatabaseViewModel()
+        let vm2 = try! DatabaseViewModel(databaseReference: TestDatabaseSupport.makeReference(for: fixtureURL()))
         XCTAssertEqual(vm2.sortOrder, .modifiedDate)
 
         // Clean up
@@ -156,5 +164,9 @@ final class SortOrderTests: XCTestCase {
     func testSortEmptyArrayReturnsEmpty() {
         XCTAssertTrue(viewModel.sortedEntries([]).isEmpty)
         XCTAssertTrue(viewModel.sortedGroups([]).isEmpty)
+    }
+
+    private func fixtureURL() throws -> URL {
+        try TestDatabaseSupport.fixtureURL(named: "test", bundle: Bundle(for: SortOrderTests.self))
     }
 }

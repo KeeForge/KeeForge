@@ -1,29 +1,66 @@
 import Foundation
-import Security
 import LocalAuthentication
+import Security
 
 enum KeychainService {
     private static let service = "com.keevault.app"
     private static let compositeKeyAccount = "compositeKey"
 
-    /// Use filename only — bookmark-resolved paths can change between launches
-    private static func accountKey(for databasePath: String) -> String {
-        let filename = URL(fileURLWithPath: databasePath).lastPathComponent
-        return "\(compositeKeyAccount):\(filename)"
+    private static func accountKey(for databaseID: UUID) -> String {
+        "\(compositeKeyAccount):\(databaseID.uuidString)"
     }
 
-    static func storeCompositeKey(_ key: Data, for databasePath: String) throws {
-        let account = accountKey(for: databasePath)
+    private static func legacyAccountKey(forFilename filename: String) -> String {
+        "\(compositeKeyAccount):\(filename)"
+    }
 
-        // Delete any existing item first
-        let deleteQuery: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: service,
-            kSecAttrAccount as String: account,
-        ]
-        SecItemDelete(deleteQuery as CFDictionary)
+    static func storeCompositeKey(_ key: Data, for databaseID: UUID) throws {
+        let account = accountKey(for: databaseID)
+        try storeCompositeKey(key, account: account)
+    }
 
-        // Create access control requiring biometric authentication
+    static func retrieveCompositeKey(for databaseID: UUID, context: LAContext) throws -> Data {
+        let account = accountKey(for: databaseID)
+        return try retrieveCompositeKey(account: account, context: context)
+    }
+
+    static func deleteCompositeKey(for databaseID: UUID) {
+        let account = accountKey(for: databaseID)
+        deleteCompositeKey(account: account)
+    }
+
+    static func hasStoredKey(for databaseID: UUID, legacyFilename: String? = nil) -> Bool {
+        if hasStoredKey(account: accountKey(for: databaseID)) {
+            return true
+        }
+
+        guard let legacyFilename else { return false }
+        return hasStoredKey(account: legacyAccountKey(forFilename: legacyFilename))
+    }
+
+    static func retrieveLegacyCompositeKey(forFilename filename: String, context: LAContext) throws -> Data {
+        try retrieveCompositeKey(account: legacyAccountKey(forFilename: filename), context: context)
+    }
+
+    static func deleteLegacyCompositeKey(forFilename filename: String) {
+        deleteCompositeKey(account: legacyAccountKey(forFilename: filename))
+    }
+
+    static func hasLegacyStoredKey(forFilename filename: String) -> Bool {
+        hasStoredKey(account: legacyAccountKey(forFilename: filename))
+    }
+
+    static func isItemNotFound(_ error: Error) -> Bool {
+        guard let keychainError = error as? KeychainError,
+              case .retrieveFailed(errSecItemNotFound) = keychainError else {
+            return false
+        }
+        return true
+    }
+
+    private static func storeCompositeKey(_ key: Data, account: String) throws {
+        deleteCompositeKey(account: account)
+
         var error: Unmanaged<CFError>?
         guard let accessControl = SecAccessControlCreateWithFlags(
             nil,
@@ -48,9 +85,7 @@ enum KeychainService {
         }
     }
 
-    static func retrieveCompositeKey(for databasePath: String, context: LAContext) throws -> Data {
-        let account = accountKey(for: databasePath)
-
+    private static func retrieveCompositeKey(account: String, context: LAContext) throws -> Data {
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
@@ -67,8 +102,7 @@ enum KeychainService {
         return data
     }
 
-    static func deleteCompositeKey(for databasePath: String) {
-        let account = accountKey(for: databasePath)
+    private static func deleteCompositeKey(account: String) {
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
@@ -77,8 +111,7 @@ enum KeychainService {
         SecItemDelete(query as CFDictionary)
     }
 
-    static func hasStoredKey(for databasePath: String) -> Bool {
-        let account = accountKey(for: databasePath)
+    private static func hasStoredKey(account: String) -> Bool {
         let context = LAContext()
         context.interactionNotAllowed = true
 

@@ -1,5 +1,6 @@
 import AuthenticationServices
 import CryptoKit
+import LocalAuthentication
 import SwiftUI
 import UIKit
 
@@ -8,6 +9,7 @@ final class CredentialProviderViewController: ASCredentialProviderViewController
     private var serviceIdentifiers: [ASCredentialServiceIdentifier] = []
     private var parsedEntries: [KPEntry] = []
     private var sessionKey: SymmetricKey?
+    private var activeDatabaseReference: DatabaseReference?
     private var isUnlockInProgress = false
     private var didAttemptAutoBiometricUnlock = false
     private var targetRecordIdentifier: String?
@@ -120,13 +122,18 @@ final class CredentialProviderViewController: ASCredentialProviderViewController
 
         Task {
             do {
-                guard let databasePath = SharedVaultStore.loadDatabaseKeychainPath() else {
-                    throw ASExtensionError(.failed)
-                }
+                let databaseReference = try currentDatabaseReference()
 
                 let context = try await BiometricService.authenticate(reason: "AutoFill with KeeForge")
-                let compositeKey = try KeychainService.retrieveCompositeKey(for: databasePath, context: context)
-                try await loadEntries(password: nil, compositeKey: compositeKey)
+                let compositeKey = try retrieveCompositeKey(for: databaseReference, context: context)
+                try await loadEntries(
+                    password: nil,
+                    compositeKey: compositeKey,
+                    databaseReference: databaseReference,
+                    keyFileData: nil
+                )
+                persistCompositeKeyIfPossible(compositeKey, for: databaseReference)
+                recordSuccessfulUnlock(for: databaseReference)
                 let passwordEntries = parsedEntries.filter(\.hasPassword)
 
                 if let recordIdentifier,
@@ -169,13 +176,18 @@ final class CredentialProviderViewController: ASCredentialProviderViewController
 
         Task {
             do {
-                guard let databasePath = SharedVaultStore.loadDatabaseKeychainPath() else {
-                    throw ASExtensionError(.failed)
-                }
+                let databaseReference = try currentDatabaseReference()
 
                 let context = try await BiometricService.authenticate(reason: "Passkey sign-in with KeeForge")
-                let compositeKey = try KeychainService.retrieveCompositeKey(for: databasePath, context: context)
-                try await loadEntries(password: nil, compositeKey: compositeKey)
+                let compositeKey = try retrieveCompositeKey(for: databaseReference, context: context)
+                try await loadEntries(
+                    password: nil,
+                    compositeKey: compositeKey,
+                    databaseReference: databaseReference,
+                    keyFileData: nil
+                )
+                persistCompositeKeyIfPossible(compositeKey, for: databaseReference)
+                recordSuccessfulUnlock(for: databaseReference)
 
                 try completePasskeyRequest(request)
             } catch {
@@ -236,8 +248,11 @@ final class CredentialProviderViewController: ASCredentialProviderViewController
 
     private var canUseBiometrics: Bool {
         guard BiometricService.isAvailable else { return false }
-        guard let databasePath = SharedVaultStore.loadDatabaseKeychainPath() else { return false }
-        return KeychainService.hasStoredKey(for: databasePath)
+        guard let databaseReference = DatabaseListStore.activeAutoFillDatabase else { return false }
+        return KeychainService.hasStoredKey(
+            for: databaseReference.id,
+            legacyFilename: databaseReference.legacyKeychainFilename
+        )
     }
 
     private var biometricActionTitle: String {
@@ -253,7 +268,17 @@ final class CredentialProviderViewController: ASCredentialProviderViewController
         Task {
             defer { isUnlockInProgress = false }
             do {
-                try await loadEntries(password: password, compositeKey: nil)
+                let databaseReference = try currentDatabaseReference()
+                let keyFileData = try loadAssociatedKeyFileData(for: databaseReference)
+                try await loadEntries(
+                    password: password,
+                    compositeKey: nil,
+                    databaseReference: databaseReference,
+                    keyFileData: keyFileData
+                )
+                let compositeKey = KDBXCrypto.compositeKey(password: password, keyFileData: keyFileData)
+                persistCompositeKeyIfPossible(compositeKey, for: databaseReference)
+                recordSuccessfulUnlock(for: databaseReference)
                 afterUnlock()
             } catch {
                 showErrorAndRetry(error)
@@ -266,13 +291,18 @@ final class CredentialProviderViewController: ASCredentialProviderViewController
         Task {
             defer { isUnlockInProgress = false }
             do {
-                guard let databasePath = SharedVaultStore.loadDatabaseKeychainPath() else {
-                    throw NSError(domain: ASExtensionErrorDomain, code: ASExtensionError.failed.rawValue)
-                }
+                let databaseReference = try currentDatabaseReference()
 
                 let context = try await BiometricService.authenticate(reason: "Unlock KeeForge for AutoFill")
-                let compositeKey = try KeychainService.retrieveCompositeKey(for: databasePath, context: context)
-                try await loadEntries(password: nil, compositeKey: compositeKey)
+                let compositeKey = try retrieveCompositeKey(for: databaseReference, context: context)
+                try await loadEntries(
+                    password: nil,
+                    compositeKey: compositeKey,
+                    databaseReference: databaseReference,
+                    keyFileData: nil
+                )
+                persistCompositeKeyIfPossible(compositeKey, for: databaseReference)
+                recordSuccessfulUnlock(for: databaseReference)
                 afterUnlock()
             } catch {
                 showErrorAndRetry(error)
@@ -299,13 +329,69 @@ final class CredentialProviderViewController: ASCredentialProviderViewController
         }
     }
 
-    private func loadEntries(password: String?, compositeKey: Data?) async throws {
-        let data = try loadDatabaseData()
+    private func currentDatabaseReference() throws -> DatabaseReference {
+        if let activeDatabaseReference {
+            return activeDatabaseReference
+        }
+
+        guard let databaseReference = DatabaseListStore.activeAutoFillDatabase else {
+            throw ASExtensionError(.failed)
+        }
+
+        activeDatabaseReference = databaseReference
+        return databaseReference
+    }
+
+    private func recordSuccessfulUnlock(for databaseReference: DatabaseReference) {
+        activeDatabaseReference = databaseReference
+        DatabaseListStore.markDatabaseOpened(id: databaseReference.id)
+    }
+
+    private func persistCompositeKeyIfPossible(_ compositeKey: Data, for databaseReference: DatabaseReference) {
+        guard BiometricService.isAvailable else { return }
+
+        do {
+            try KeychainService.storeCompositeKey(compositeKey, for: databaseReference.id)
+            if let legacyFilename = databaseReference.legacyKeychainFilename {
+                KeychainService.deleteLegacyCompositeKey(forFilename: legacyFilename)
+                DatabaseListStore.clearLegacyKeychainFilename(for: databaseReference.id)
+                activeDatabaseReference = DatabaseListStore.activeAutoFillDatabase
+            }
+        } catch {
+            return
+        }
+    }
+
+    private func retrieveCompositeKey(for databaseReference: DatabaseReference, context: LAContext) throws -> Data {
+        do {
+            return try KeychainService.retrieveCompositeKey(for: databaseReference.id, context: context)
+        } catch {
+            guard KeychainService.isItemNotFound(error),
+                  let legacyFilename = databaseReference.legacyKeychainFilename else {
+                throw error
+            }
+
+            return try KeychainService.retrieveLegacyCompositeKey(forFilename: legacyFilename, context: context)
+        }
+    }
+
+    private func loadAssociatedKeyFileData(for databaseReference: DatabaseReference) throws -> Data? {
+        guard let url = DatabaseListStore.resolveKeyFileURL(for: databaseReference) else { return nil }
+        return try readSecurityScoped(url: url)
+    }
+
+    private func loadEntries(
+        password: String?,
+        compositeKey: Data?,
+        databaseReference: DatabaseReference,
+        keyFileData: Data?
+    ) async throws {
+        let data = try loadDatabaseData(for: databaseReference)
         let key = SymmetricKey(size: .bits256)
 
         let root = try await Task.detached {
             if let password {
-                return try KDBXParser.parse(data: data, password: password, sessionKey: key)
+                return try KDBXParser.parse(data: data, password: password, keyFileData: keyFileData, sessionKey: key)
             }
 
             guard let compositeKey else {
@@ -326,12 +412,12 @@ final class CredentialProviderViewController: ASCredentialProviderViewController
         parsedEntries = allEntries.filter { $0.hasPassword || $0.hasPasskey || $0.hasTOTP }
     }
 
-    private func loadDatabaseData() throws -> Data {
-        if let cachedURL = SharedVaultStore.loadCachedDatabaseURL() {
+    private func loadDatabaseData(for databaseReference: DatabaseReference) throws -> Data {
+        if let cachedURL = DatabaseListStore.cachedDatabaseURL(for: databaseReference.id) {
             return try CoordinatedFileReader.readData(from: cachedURL)
         }
 
-        guard let bookmarkedURL = SharedVaultStore.loadBookmarkedURL() else {
+        guard let bookmarkedURL = DatabaseListStore.resolveDatabaseURL(for: databaseReference) else {
             throw NSError(domain: ASExtensionErrorDomain, code: ASExtensionError.failed.rawValue)
         }
 
@@ -482,13 +568,18 @@ final class CredentialProviderViewController: ASCredentialProviderViewController
 
         Task {
             do {
-                guard let databasePath = SharedVaultStore.loadDatabaseKeychainPath() else {
-                    throw ASExtensionError(.failed)
-                }
+                let databaseReference = try currentDatabaseReference()
 
                 let context = try await BiometricService.authenticate(reason: "AutoFill with KeeForge")
-                let compositeKey = try KeychainService.retrieveCompositeKey(for: databasePath, context: context)
-                try await loadEntries(password: nil, compositeKey: compositeKey)
+                let compositeKey = try retrieveCompositeKey(for: databaseReference, context: context)
+                try await loadEntries(
+                    password: nil,
+                    compositeKey: compositeKey,
+                    databaseReference: databaseReference,
+                    keyFileData: nil
+                )
+                persistCompositeKeyIfPossible(compositeKey, for: databaseReference)
+                recordSuccessfulUnlock(for: databaseReference)
 
                 if #available(iOS 18.0, *) {
                     let totpEntries = parsedEntries.filter(\.hasTOTP)
@@ -546,6 +637,7 @@ final class CredentialProviderViewController: ASCredentialProviderViewController
     private func cleanup() {
         parsedEntries = []
         sessionKey = nil
+        activeDatabaseReference = nil
         targetRecordIdentifier = nil
         pendingPasskeyRequest = nil
         pendingPasskeyRequestParameters = nil
