@@ -34,7 +34,6 @@
 
 Rejected
 
-
 ## v1.4.0 (2026-03-08)
 
 ### New Features
