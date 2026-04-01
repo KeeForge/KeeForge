@@ -161,7 +161,7 @@ xcodegen generate
 
 # Build the app target for simulator
 xcodebuild build -project KeeForge.xcodeproj -scheme KeeForge \
-  -destination 'platform=iOS Simulator,name=iPhone 16 Pro'
+  -destination 'platform=iOS Simulator,name=iPhone 17 Pro'
 ```
 
 Run `xcodegen generate` whenever:
@@ -174,18 +174,18 @@ Run `xcodegen generate` whenever:
 ```bash
 # Run one unit test class
 xcodebuild test -project KeeForge.xcodeproj -scheme KeeForge \
-  -destination 'platform=iOS Simulator,name=iPhone 16 Pro' \
+  -destination 'platform=iOS Simulator,name=iPhone 17 Pro' \
   -only-testing:KeeForgeTests/KDBXParserTests -quiet
 
 # Run multiple unit test classes
 xcodebuild test -project KeeForge.xcodeproj -scheme KeeForge \
-  -destination 'platform=iOS Simulator,name=iPhone 16 Pro' \
+  -destination 'platform=iOS Simulator,name=iPhone 17 Pro' \
   -only-testing:KeeForgeTests/KDBXParserTests \
   -only-testing:KeeForgeTests/TOTPGeneratorTests -quiet
 
 # Run one UI test class
 xcodebuild test -project KeeForge.xcodeproj -scheme KeeForge \
-  -destination 'platform=iOS Simulator,name=iPhone 16 Pro' \
+  -destination 'platform=iOS Simulator,name=iPhone 17 Pro' \
   -only-testing:KeeForgeUITests/UnlockFlowUITests -quiet
 ```
 
