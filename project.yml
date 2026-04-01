@@ -40,6 +40,9 @@ targets:
         embed: true
         codeSign: true
       - package: Argon2Swift
+    configFiles:
+      Debug: BuildConfig.xcconfig
+      Release: BuildConfig.xcconfig
     sources:
       - path: KeeForge/App
       - path: KeeForge/Models
@@ -135,6 +138,11 @@ targets:
 schemes:
   KeeForge:
     build:
+      preActions:
+        - script: |
+            HASH=$(/usr/bin/git -C "${SRCROOT}" rev-parse --short HEAD 2>/dev/null || echo dev)
+            echo "GIT_COMMIT_HASH = ${HASH}" > "${SRCROOT}/BuildConfig.xcconfig"
+          settingsTarget: KeeForge
       targets:
         KeeForge: all
         KeeForgeUITests: [test]

@@ -6,6 +6,24 @@
       parallelizeBuildables = "YES"
       buildImplicitDependencies = "YES"
       runPostActionsOnFailure = "NO">
+      <PreActions>
+         <ExecutionAction
+            ActionType = "Xcode.IDEStandardExecutionActionsCore.ExecutionActionType.ShellScriptAction">
+            <ActionContent
+               title = "Run Script"
+               scriptText = "HASH=$(/usr/bin/git -C &quot;${SRCROOT}&quot; rev-parse --short HEAD 2&gt;/dev/null || echo dev)&#10;echo &quot;GIT_COMMIT_HASH = ${HASH}&quot; &gt; &quot;${SRCROOT}/BuildConfig.xcconfig&quot;&#10;">
+               <EnvironmentBuildable>
+                  <BuildableReference
+                     BuildableIdentifier = "primary"
+                     BlueprintIdentifier = "F9D5D329EB517FC26DCCD00F"
+                     BuildableName = "KeeForge.app"
+                     BlueprintName = "KeeForge"
+                     ReferencedContainer = "container:KeeForge.xcodeproj">
+                  </BuildableReference>
+               </EnvironmentBuildable>
+            </ActionContent>
+         </ExecutionAction>
+      </PreActions>
       <BuildActionEntries>
          <BuildActionEntry
             buildForTesting = "YES"
