@@ -13,6 +13,7 @@
 - Add migration from the legacy single-database bookmark/cache/keychain model to persisted per-database references with UUID-keyed shared cache files and lazy biometric key migration
 - Update AutoFill to keep one active source database at a time by tracking the last successfully unlocked database across the app and extension
 - Fixed false "File unavailable" warnings for cloud-backed databases, restored the Add Database picker flow, and replaced the old unlock flash on launch with a dedicated opening screen
+- Fixed multi-database file picker selections being dropped after dismissal before the chosen database or key file could be processed
 - Clarified quick launch behavior versus global Face ID auto-unlock, improved database detail/settings copy, and split Quick AutoFill into its own settings section
 
 ## v1.5.1 (2026-03-31)

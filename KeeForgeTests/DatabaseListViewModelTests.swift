@@ -72,6 +72,19 @@ final class DatabaseListViewModelTests: XCTestCase {
         XCTAssertTrue(updatedSecond.isQuickLaunch)
     }
 
+    func testPickerPresentationStateKeepsTargetUntilCompletion() {
+        var state = PickerPresentationState<String>()
+
+        state.present("database")
+        state.updatePresentation(false)
+
+        XCTAssertFalse(state.isPresented)
+        XCTAssertEqual(state.activeTarget, "database")
+        XCTAssertEqual(state.consumeActiveTarget(), "database")
+        XCTAssertNil(state.activeTarget)
+        XCTAssertFalse(state.isPresented)
+    }
+
     private func makeTemporaryFileURL(name: String, contents: Data = Data("fixture".utf8)) throws -> URL {
         let url = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString)

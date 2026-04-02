@@ -1,6 +1,29 @@
 import SwiftUI
 import UniformTypeIdentifiers
 
+struct PickerPresentationState<T> {
+    private(set) var activeTarget: T?
+    private(set) var isPresented = false
+
+    mutating func present(_ target: T) {
+        activeTarget = target
+        isPresented = true
+    }
+
+    mutating func updatePresentation(_ isPresented: Bool) {
+        self.isPresented = isPresented
+    }
+
+    mutating func consumeActiveTarget() -> T? {
+        defer {
+            activeTarget = nil
+            isPresented = false
+        }
+
+        return activeTarget
+    }
+}
+
 struct DatabaseListView: View {
     private enum PickerTarget {
         case database
@@ -10,7 +33,7 @@ struct DatabaseListView: View {
     @Bindable var viewModel: DatabaseListViewModel
     let onSelectDatabase: (DatabaseReference) -> Void
 
-    @State private var activePicker: PickerTarget?
+    @State private var pickerState = PickerPresentationState<PickerTarget>()
     @State private var selectionAlert: DocumentPickerService.SelectionAlert?
     @State private var pendingRemoval: DatabaseReference?
     @State private var renameTarget: DatabaseReference?
@@ -75,7 +98,7 @@ struct DatabaseListView: View {
 
                     Button {
                         selectionAlert = nil
-                        activePicker = .database
+                        pickerState.present(.database)
                     } label: {
                         Image(systemName: "plus")
                     }
@@ -88,11 +111,9 @@ struct DatabaseListView: View {
         }
         .fileImporter(
             isPresented: Binding(
-                get: { activePicker != nil },
+                get: { pickerState.isPresented },
                 set: { isPresented in
-                    if !isPresented {
-                        activePicker = nil
-                    }
+                    pickerState.updatePresentation(isPresented)
                 }
             ),
             allowedContentTypes: pickerContentTypes,
@@ -162,7 +183,7 @@ struct DatabaseListView: View {
                 reference: currentReference(for: reference),
                 viewModel: viewModel,
                 onSelectKeyFile: {
-                    activePicker = .keyFile(currentReference(for: reference))
+                    pickerState.present(.keyFile(currentReference(for: reference)))
                 }
             )
         }
@@ -179,7 +200,7 @@ struct DatabaseListView: View {
         } actions: {
             Button {
                 selectionAlert = nil
-                activePicker = .database
+                pickerState.present(.database)
             } label: {
                 Label("Add Database", systemImage: "plus")
             }
@@ -197,7 +218,7 @@ struct DatabaseListView: View {
 
         if reference.keyFileFilename != nil {
             Button("Change Key File") {
-                activePicker = .keyFile(reference)
+                pickerState.present(.keyFile(reference))
             }
 
             Button("Clear Key File", role: .destructive) {
@@ -206,7 +227,7 @@ struct DatabaseListView: View {
             }
         } else {
             Button("Set Key File") {
-                activePicker = .keyFile(reference)
+                pickerState.present(.keyFile(reference))
             }
         }
 
@@ -225,7 +246,7 @@ struct DatabaseListView: View {
     }
 
     private var pickerContentTypes: [UTType] {
-        switch activePicker {
+        switch pickerState.activeTarget {
         case .keyFile:
             DocumentPickerService.keyFilePickerContentTypes
         case .database, .none:
@@ -234,8 +255,7 @@ struct DatabaseListView: View {
     }
 
     private func handlePickerSelection(_ result: Result<URL, Error>) {
-        let activePicker = self.activePicker
-        self.activePicker = nil
+        let activePicker = pickerState.consumeActiveTarget()
 
         switch activePicker {
         case .database:
