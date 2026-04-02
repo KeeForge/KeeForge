@@ -33,26 +33,17 @@ enum SharedVaultStore {
     }
 
     static func saveBookmark(for url: URL) throws {
-        let bookmarkData = try url.bookmarkData(
-            options: [],
-            includingResourceValuesForKeys: nil,
-            relativeTo: nil
-        )
+        let bookmarkData = try SecurityScopedBookmarkManager.makeBookmarkData(for: url)
         sharedDefaults.set(bookmarkData, forKey: bookmarkKey)
         sharedDefaults.set(databaseFilename(for: url), forKey: databaseFilenameKey)
     }
 
     static func loadBookmarkedURL() -> URL? {
         guard let data = sharedDefaults.data(forKey: bookmarkKey) else { return nil }
-        var isStale = false
-        guard let url = try? URL(
-            resolvingBookmarkData: data,
-            options: [],
-            relativeTo: nil,
-            bookmarkDataIsStale: &isStale
-        ) else { return nil }
+        guard let resolved = SecurityScopedBookmarkManager.resolveURL(from: data) else { return nil }
+        let url = resolved.url
 
-        if isStale {
+        if resolved.isStale {
             let accessed = url.startAccessingSecurityScopedResource()
             defer {
                 if accessed { url.stopAccessingSecurityScopedResource() }

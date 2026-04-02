@@ -82,6 +82,7 @@ targets:
       - path: KeeForge/Services/CoordinatedFileReader.swift
       - path: KeeForge/Services/KeyFileProcessor.swift
       - path: KeeForge/Services/PasskeyCrypto.swift
+      - path: KeeForge/Services/SecurityScopedBookmarkManager.swift
 
   KeeForgeUITests:
     type: bundle.ui-testing

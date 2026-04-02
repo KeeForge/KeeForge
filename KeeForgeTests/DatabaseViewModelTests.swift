@@ -52,6 +52,19 @@ final class DatabaseViewModelTests: XCTestCase {
         XCTAssertEqual(try Data(contentsOf: cachedURL), try Data(contentsOf: sourceURL))
     }
 
+    func testUnlockFallsBackToCachedCopyWhenBookmarkCannotBeResolved() async throws {
+        var reference = try makeReference()
+        reference.bookmarkData = Data("invalid-bookmark".utf8)
+
+        try DatabaseListStore.cacheDatabaseCopy(try Data(contentsOf: fixtureURL()), for: reference.id)
+        let vm = DatabaseViewModel(databaseReference: reference)
+
+        await vm.unlock(password: fixturePassword)
+
+        XCTAssertState(vm.state, is: .unlocked)
+        XCTAssertNotNil(vm.rootGroup)
+    }
+
     func testForegroundRefreshRepopulatesCredentialStoreWhenUnlocked() async throws {
         let vm = try makeViewModel()
 

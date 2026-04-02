@@ -414,11 +414,21 @@ final class DatabaseViewModel {
     }
 
     private func readDatabaseData() throws -> (url: URL, data: Data) {
-        guard let url = DatabaseListStore.resolveDatabaseURL(for: databaseReference) else {
-            throw CocoaError(.fileReadNoSuchFile)
+        var lastReadError: Error?
+
+        if let url = DatabaseListStore.resolveDatabaseURL(for: databaseReference) {
+            do {
+                return (url, try readSecurityScoped(url: url))
+            } catch {
+                lastReadError = error
+            }
         }
 
-        return (url, try readSecurityScoped(url: url))
+        if let cachedURL = DatabaseListStore.cachedDatabaseURL(for: databaseReference.id) {
+            return (cachedURL, try CoordinatedFileReader.readData(from: cachedURL))
+        }
+
+        throw lastReadError ?? CocoaError(.fileReadNoSuchFile)
     }
 
     private func readSecurityScoped(url: URL) throws -> Data {

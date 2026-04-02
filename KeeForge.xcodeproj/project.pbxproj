@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		05608A3B8309DC423D0D15EB /* TOTPGenerator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 51105ADF7C41EB47401418D9 /* TOTPGenerator.swift */; };
+		0A3EB342387EFC4C0B66CBDD /* SecurityScopedBookmarkManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = F94BE9775E845678E66F6BE9 /* SecurityScopedBookmarkManager.swift */; };
 		0AEFD1CCD9D0F4F9F069D5E5 /* DatabaseListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 88EB38F9BBED091894FDB7DE /* DatabaseListView.swift */; };
 		0EEE9DF85014DFA4D3137969 /* demo-keyfile.kdbx in Resources */ = {isa = PBXBuildFile; fileRef = 4CC3CF24A57A3BB531DA56C2 /* demo-keyfile.kdbx */; };
 		109624BC35F24E414533262E /* CredentialIdentityStoreManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = C00A121EB1739F34DA39FE12 /* CredentialIdentityStoreManager.swift */; };
@@ -90,6 +91,7 @@
 		C2AD719517065CB7FC2BEB4F /* TOTPViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3660A7394A4B715ECCC64FF /* TOTPViewModelTests.swift */; };
 		C5CCB8692F1F9D9E2769664A /* TOTPGeneratorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 04A1400E503A230DF2633686 /* TOTPGeneratorTests.swift */; };
 		C7DD96B8E5EE88DE0DC36407 /* EntryDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0904281BA49959779229086D /* EntryDetailView.swift */; };
+		CA6FDBE8246A8D4042FFB3F7 /* SecurityScopedBookmarkManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = F94BE9775E845678E66F6BE9 /* SecurityScopedBookmarkManager.swift */; };
 		CD4C2C7C9B5073AE8F9E6731 /* BackoffUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 166C906E1AECCEE8FDBC33D7 /* BackoffUITests.swift */; };
 		D0017FAB9AB8A8FBBDA92361 /* UnlockView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E2DA7B253B27404C400DB1B5 /* UnlockView.swift */; };
 		D248A2156D636F43643B14A1 /* ScreenProtectionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = D288FBCA92B66BC8122CF445 /* ScreenProtectionService.swift */; };
@@ -248,6 +250,7 @@
 		F1036AABC590833FFFA1B8A2 /* DatabaseReference.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DatabaseReference.swift; sourceTree = "<group>"; };
 		F178F4027D7DB837D823C54C /* DatabaseListViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DatabaseListViewModel.swift; sourceTree = "<group>"; };
 		F3D5CCD3DC2893DC1A65D6DC /* demo.kdbx */ = {isa = PBXFileReference; path = demo.kdbx; sourceTree = "<group>"; };
+		F94BE9775E845678E66F6BE9 /* SecurityScopedBookmarkManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SecurityScopedBookmarkManager.swift; sourceTree = "<group>"; };
 		F984480E73A82B5043100065 /* KDBXCrypto.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KDBXCrypto.swift; sourceTree = "<group>"; };
 		FA5A20BA0FFA29C1067EB5EE /* Group.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Group.swift; sourceTree = "<group>"; };
 		FB771146F2B327CB67076403 /* KDBXParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KDBXParser.swift; sourceTree = "<group>"; };
@@ -309,6 +312,7 @@
 				A74EDA5EB2D69BA039CD0CDC /* PasskeyCrypto.swift */,
 				00833ADBD9F27BD6129EA937 /* ReviewPromptService.swift */,
 				D288FBCA92B66BC8122CF445 /* ScreenProtectionService.swift */,
+				F94BE9775E845678E66F6BE9 /* SecurityScopedBookmarkManager.swift */,
 				3A86027943176F7BF6A605EA /* SettingsService.swift */,
 				B84A9EECD929C6729AE6C797 /* SharedVaultStore.swift */,
 				3B49B2109D598BA031779A6E /* StoreKitManager.swift */,
@@ -701,6 +705,7 @@
 				3D2536DCC14F0EA2E80C41B7 /* ReviewPromptService.swift in Sources */,
 				D248A2156D636F43643B14A1 /* ScreenProtectionService.swift in Sources */,
 				58AD474260AA662614997B94 /* SearchView.swift in Sources */,
+				0A3EB342387EFC4C0B66CBDD /* SecurityScopedBookmarkManager.swift in Sources */,
 				8D12DB8CC870E9C939069474 /* SettingsService.swift in Sources */,
 				7FE2210E6E580757720E6153 /* SettingsView.swift in Sources */,
 				835C85AA1D1B65323ED71533 /* SharedVaultStore.swift in Sources */,
@@ -780,6 +785,7 @@
 				2670FF08B0986EEE16580A16 /* KeychainService.swift in Sources */,
 				EF27D4CB6F63B96C7589A73E /* PasskeyCredential.swift in Sources */,
 				51FFA32D55161412B62549FA /* PasskeyCrypto.swift in Sources */,
+				CA6FDBE8246A8D4042FFB3F7 /* SecurityScopedBookmarkManager.swift in Sources */,
 				FE645AA4EF808D94BD624AD3 /* SettingsService.swift in Sources */,
 				6F98148EB194DA8E1C7CCF31 /* SharedVaultStore.swift in Sources */,
 				691D5126398C8E8D6C26D340 /* TOTPGenerator.swift in Sources */,

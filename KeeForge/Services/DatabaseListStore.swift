@@ -73,6 +73,7 @@ enum DatabaseListStore {
         let reference = try makeReference(from: url)
         currentDatabases.append(reference)
         saveDatabases(currentDatabases)
+        cacheInitialCopyIfPossible(from: url, for: reference.id)
         return reference
     }
 
@@ -359,11 +360,7 @@ enum DatabaseListStore {
     }
 
     private static func makeReference(from url: URL) throws -> DatabaseReference {
-        let bookmarkData = try url.bookmarkData(
-            options: [],
-            includingResourceValuesForKeys: nil,
-            relativeTo: nil
-        )
+        let bookmarkData = try SecurityScopedBookmarkManager.makeBookmarkData(for: url)
 
         return DatabaseReference(
             id: UUID(),
@@ -421,18 +418,12 @@ enum DatabaseListStore {
 
     private static func resolveURL(from bookmarkData: Data?, onRefresh: (Data) -> Void) -> URL? {
         guard let bookmarkData else { return nil }
-
-        var isStale = false
-        guard let url = try? URL(
-            resolvingBookmarkData: bookmarkData,
-            options: [],
-            relativeTo: nil,
-            bookmarkDataIsStale: &isStale
-        ) else {
+        guard let resolved = SecurityScopedBookmarkManager.resolveURL(from: bookmarkData) else {
             return nil
         }
+        let url = resolved.url
 
-        if isStale {
+        if resolved.isStale {
             let accessed = url.startAccessingSecurityScopedResource()
             defer {
                 if accessed {
@@ -440,11 +431,7 @@ enum DatabaseListStore {
                 }
             }
 
-            if let refreshedBookmarkData = try? url.bookmarkData(
-                options: [],
-                includingResourceValuesForKeys: nil,
-                relativeTo: nil
-            ) {
+            if let refreshedBookmarkData = try? SecurityScopedBookmarkManager.makeBookmarkData(for: url) {
                 onRefresh(refreshedBookmarkData)
             }
         }
@@ -453,15 +440,7 @@ enum DatabaseListStore {
     }
 
     private static func resolveFilename(from bookmarkData: Data) -> String? {
-        var isStale = false
-        guard let url = try? URL(
-            resolvingBookmarkData: bookmarkData,
-            options: [],
-            relativeTo: nil,
-            bookmarkDataIsStale: &isStale
-        ) else {
-            return nil
-        }
+        guard let url = SecurityScopedBookmarkManager.resolveURL(from: bookmarkData)?.url else { return nil }
 
         return filename(for: url)
     }
@@ -484,6 +463,22 @@ enum DatabaseListStore {
 
     private static func fallbackAutoFillDatabase(in references: [DatabaseReference]) -> DatabaseReference? {
         references.first { $0.legacyKeychainFilename != nil }
+    }
+
+    private static func cacheInitialCopyIfPossible(from url: URL, for databaseID: UUID) {
+        guard let data = try? readSecurityScopedData(from: url) else { return }
+        try? cacheDatabaseCopy(data, for: databaseID)
+    }
+
+    private static func readSecurityScopedData(from url: URL) throws -> Data {
+        let accessed = url.startAccessingSecurityScopedResource()
+        defer {
+            if accessed {
+                url.stopAccessingSecurityScopedResource()
+            }
+        }
+
+        return try CoordinatedFileReader.readData(from: url)
     }
 
     private static func filename(for url: URL) -> String {

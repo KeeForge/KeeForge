@@ -80,6 +80,19 @@ final class SharedVaultStoreTests: XCTestCase {
         XCTAssertFalse(isSupported)
     }
 
+    func testSecurityScopedBookmarkManagerResolvesPlainBookmarkData() throws {
+        let url = try makeTemporaryFileURL(name: "plain-bookmark.kdbx")
+        let bookmarkData = try url.bookmarkData(
+            options: [],
+            includingResourceValuesForKeys: nil,
+            relativeTo: nil
+        )
+
+        let resolvedURL = try XCTUnwrap(SecurityScopedBookmarkManager.resolveURL(from: bookmarkData)?.url)
+
+        XCTAssertEqual(resolvedURL.path, url.path)
+    }
+
     func testPickerFailureAlertSuppressesUserCancelledError() {
         let cancelled = NSError(domain: NSCocoaErrorDomain, code: NSUserCancelledError)
 

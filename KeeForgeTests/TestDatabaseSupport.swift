@@ -21,20 +21,12 @@ enum TestDatabaseSupport {
         addedAt: Date = .now,
         legacyKeychainFilename: String? = nil
     ) throws -> DatabaseReference {
-        let bookmarkData = try url.bookmarkData(
-            options: [],
-            includingResourceValuesForKeys: nil,
-            relativeTo: nil
-        )
+        let bookmarkData = try SecurityScopedBookmarkManager.makeBookmarkData(for: url)
 
         let keyFileBookmarkData: Data?
         let keyFileFilename: String?
         if let keyFileURL {
-            keyFileBookmarkData = try keyFileURL.bookmarkData(
-                options: [],
-                includingResourceValuesForKeys: nil,
-                relativeTo: nil
-            )
+            keyFileBookmarkData = try SecurityScopedBookmarkManager.makeBookmarkData(for: keyFileURL)
             keyFileFilename = keyFileURL.lastPathComponent
         } else {
             keyFileBookmarkData = nil
