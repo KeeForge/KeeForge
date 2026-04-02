@@ -16,6 +16,7 @@ struct SettingsView: View {
         NavigationStack {
             Form {
                 securitySection
+                autoFillSection
                 displaySection
                 faviconCacheSection
                 aboutSection
@@ -63,8 +64,6 @@ struct SettingsView: View {
         Section {
             Toggle("Auto-Unlock with Face ID", isOn: $autoUnlockWithFaceID)
 
-            Toggle("Quick AutoFill", isOn: $quickAutoFillEnabled)
-
             Picker("Auto-Lock Timeout", selection: $autoLockTimeout) {
                 ForEach(SettingsService.AutoLockTimeout.allCases, id: \.self) { option in
                     Text(option.rawValue).tag(option)
@@ -79,8 +78,22 @@ struct SettingsView: View {
         } header: {
             Text("Security")
         } footer: {
-            if quickAutoFillEnabled {
-                Text("Credential suggestions appear in the keyboard bar. Requires Face ID to unlock when tapped.")
+            Text("Auto-Unlock with Face ID prompts after a database is opened. Quick Launch controls whether a database opens automatically on app launch.")
+        }
+    }
+
+    private var autoFillSection: some View {
+        Section {
+            Toggle("Quick AutoFill", isOn: $quickAutoFillEnabled)
+        } header: {
+            Text("AutoFill")
+        } footer: {
+            VStack(alignment: .leading, spacing: 8) {
+                Text("KeeForge currently autofills from the last database you successfully opened.")
+
+                if quickAutoFillEnabled {
+                    Text("Credential suggestions appear in the keyboard bar. Requires Face ID to unlock when tapped.")
+                }
             }
         }
     }

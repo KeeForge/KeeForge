@@ -9,6 +9,7 @@ enum DatabaseListStore {
     private static let uiTestingLaunchArg = "-ui-testing"
     private static let uiTestDBBase64Env = "UI_TEST_DB_BASE64"
     private static let uiTestDBFilenameEnv = "UI_TEST_DB_FILENAME"
+    private static let uiTestDatabasesJSONEnv = "UI_TEST_DATABASES_JSON"
 
     private static var sharedDefaults: UserDefaults {
         UserDefaults(suiteName: SharedVaultStore.appGroupID) ?? .standard
@@ -24,6 +25,11 @@ enum DatabaseListStore {
     }
 
     private nonisolated(unsafe) static var didBootstrapUITesting = false
+
+    private struct UITestDatabasePayload: Decodable {
+        let filename: String
+        let base64: String
+    }
 
     static var databases: [DatabaseReference] {
         get { loadDatabases() }
@@ -287,13 +293,32 @@ enum DatabaseListStore {
         guard ProcessInfo.processInfo.arguments.contains(uiTestingLaunchArg) else { return }
         didBootstrapUITesting = true
 
-        guard let url = uiTestDatabaseURL(),
-              let reference = try? makeReference(from: url) else {
+        let references = uiTestDatabaseURLs().compactMap { try? makeReference(from: $0) }
+        guard !references.isEmpty else {
             return
         }
 
-        saveDatabases([reference])
+        saveDatabases(references)
         activeAutoFillDatabaseID = nil
+    }
+
+    private static func uiTestDatabaseURLs() -> [URL] {
+        let environment = ProcessInfo.processInfo.environment
+
+        if let rawJSON = environment[uiTestDatabasesJSONEnv],
+           let data = rawJSON.data(using: .utf8),
+           let payloads = try? JSONDecoder().decode([UITestDatabasePayload].self, from: data) {
+            let urls = payloads.compactMap(uiTestDatabaseURL(from:))
+            if !urls.isEmpty {
+                return urls
+            }
+        }
+
+        if let url = uiTestDatabaseURL() {
+            return [url]
+        }
+
+        return []
     }
 
     private static func uiTestDatabaseURL() -> URL? {
@@ -304,10 +329,28 @@ enum DatabaseListStore {
         }
 
         let requestedFilename = environment[uiTestDBFilenameEnv] ?? "ui-test.kdbx"
+        return writeUITestDatabase(data: data, requestedFilename: requestedFilename)
+    }
+
+    private static func uiTestDatabaseURL(from payload: UITestDatabasePayload) -> URL? {
+        guard let data = Data(base64Encoded: payload.base64, options: .ignoreUnknownCharacters) else {
+            return nil
+        }
+
+        return writeUITestDatabase(data: data, requestedFilename: payload.filename)
+    }
+
+    private static func writeUITestDatabase(data: Data, requestedFilename: String) -> URL? {
         let safeFilename = (requestedFilename as NSString).lastPathComponent
-        let url = FileManager.default.temporaryDirectory.appendingPathComponent(safeFilename, isDirectory: false)
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let url = directory.appendingPathComponent(safeFilename, isDirectory: false)
 
         do {
+            try FileManager.default.createDirectory(
+                at: directory,
+                withIntermediateDirectories: true,
+                attributes: nil
+            )
             try data.write(to: url, options: .atomic)
             return url
         } catch {

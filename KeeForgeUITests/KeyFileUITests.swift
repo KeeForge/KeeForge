@@ -20,6 +20,8 @@ final class KeyFileUITests: KeeForgeUITestCase {
     }
 
     func testKeyFileSelectOpensDocumentPicker() {
+        XCTAssertTrue(openFirstDatabaseFromListIfNeeded(), "Unlock screen did not appear")
+
         let passwordField = app.secureTextFields["unlock.password.field"]
         XCTAssertTrue(passwordField.waitForExistence(timeout: 10), "Password field not found")
 
@@ -47,6 +49,8 @@ final class KeyFileUnlockUITests: KeeForgeUITestCase {
 
     /// Wait for key file injection to complete (name label appears in key file row).
     private func waitForKeyFileInjection() {
+        XCTAssertTrue(openFirstDatabaseFromListIfNeeded(), "Unlock screen did not appear")
+
         let passwordField = app.secureTextFields["unlock.password.field"]
         XCTAssertTrue(passwordField.waitForExistence(timeout: 10), "Password field did not appear")
 

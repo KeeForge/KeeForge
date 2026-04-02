@@ -31,6 +31,12 @@ final class AppStoreScreenshots: XCTestCase {
 
     private func unlock() {
         let passwordField = app.secureTextFields["unlock.password.field"]
+        if !passwordField.waitForExistence(timeout: 2) {
+            let databaseRow = app.buttons["database.row"].firstMatch
+            XCTAssertTrue(databaseRow.waitForExistence(timeout: 10))
+            databaseRow.tap()
+        }
+
         XCTAssertTrue(passwordField.waitForExistence(timeout: 10))
         passwordField.tap()
         passwordField.typeText("demo")
@@ -51,6 +57,12 @@ final class AppStoreScreenshots: XCTestCase {
     }
 
     func testCaptureAllScreenshots() throws {
+        let databaseRow = app.buttons["database.row"].firstMatch
+        if databaseRow.waitForExistence(timeout: 10) {
+            databaseRow.tap()
+            XCTAssertTrue(app.secureTextFields["unlock.password.field"].waitForExistence(timeout: 10))
+        }
+
         // 1. Unlock screen
         saveScreenshot("01-unlock-screen")
 

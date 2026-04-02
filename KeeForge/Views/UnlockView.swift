@@ -1,5 +1,4 @@
 import SwiftUI
-import UniformTypeIdentifiers
 
 struct UnlockView: View {
     @Bindable var viewModel: DatabaseViewModel
@@ -10,46 +9,45 @@ struct UnlockView: View {
     @State private var selectionAlert: DocumentPickerService.SelectionAlert?
     @State private var keyFileData: Data?
     @State private var keyFileName: String?
-    @State private var autoUnlockAttemptedLockCycle: Int?
     @FocusState private var passwordFocused: Bool
 
     var body: some View {
-        VStack(spacing: 24) {
-            Spacer()
+        ZStack {
+            LinearGradient(
+                colors: [Color(.systemBackground), Color(.secondarySystemBackground)],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+            .ignoresSafeArea()
 
-            Image(systemName: "lock.shield.fill")
-                .font(.system(size: 64))
-                .foregroundStyle(.tint)
+            ScrollView {
+                VStack(spacing: 22) {
+                    headerCard
 
-            VStack(spacing: 6) {
-                Text(viewModel.databaseDisplayName)
-                    .font(.largeTitle.bold())
-                    .multilineTextAlignment(.center)
+                    if viewModel.hasSavedFile {
+                        passwordSection
+                    } else {
+                        unavailableSection
+                    }
 
-                if viewModel.databaseDisplayName != viewModel.databaseFilename {
-                    Text(viewModel.databaseFilename)
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
+                    if let errorMessage = unlockErrorMessage {
+                        Label(errorMessage, systemImage: "exclamationmark.triangle.fill")
+                            .foregroundStyle(.red)
+                            .font(.caption)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(14)
+                            .background(
+                                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                                    .fill(Color.red.opacity(0.08))
+                            )
+                            .accessibilityIdentifier("unlock.error.label")
+                    }
                 }
+                .padding(20)
+                .frame(maxWidth: 520)
+                .frame(maxWidth: .infinity)
             }
-
-            if viewModel.hasSavedFile {
-                passwordSection
-            } else {
-                unavailableSection
-            }
-
-            if let errorMessage = unlockErrorMessage {
-                Label(errorMessage, systemImage: "exclamationmark.triangle.fill")
-                    .foregroundStyle(.red)
-                    .font(.caption)
-                    .padding(.horizontal)
-                    .accessibilityIdentifier("unlock.error.label")
-            }
-
-            Spacer()
         }
-        .padding()
         .fileImporter(
             isPresented: $showKeyFilePicker,
             allowedContentTypes: DocumentPickerService.keyFilePickerContentTypes,
@@ -65,35 +63,92 @@ struct UnlockView: View {
         .onAppear {
             loadAssociatedKeyFileIfNeeded()
             loadUITestKeyFileIfNeeded()
-            autoUnlockWithBiometricsIfNeeded()
         }
-        .onChange(of: viewModel.lockCycleID) { _, _ in
-            autoUnlockWithBiometricsIfNeeded()
+    }
+
+    private var headerCard: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(alignment: .top, spacing: 14) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 18, style: .continuous)
+                        .fill(Color.accentColor.opacity(0.14))
+                        .frame(width: 60, height: 60)
+
+                    Image(systemName: "externaldrive.connected.to.line.below.fill")
+                        .font(.system(size: 26))
+                        .foregroundStyle(.tint)
+                }
+
+                VStack(alignment: .leading, spacing: 5) {
+                    Text("Open Database")
+                        .font(.subheadline.weight(.medium))
+                        .foregroundStyle(.secondary)
+
+                    Text(viewModel.databaseDisplayName)
+                        .font(.title.bold())
+                        .multilineTextAlignment(.leading)
+
+                    if viewModel.databaseDisplayName != viewModel.databaseFilename {
+                        Text(viewModel.databaseFilename)
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+
+                Spacer(minLength: 0)
+            }
+
+            if keyFileName != nil || viewModel.canUseBiometrics {
+                HStack(spacing: 10) {
+                    if let keyFileName {
+                        Label(keyFileName, systemImage: "key.fill")
+                            .lineLimit(1)
+                    }
+
+                    if viewModel.canUseBiometrics {
+                        Label("Biometric unlock", systemImage: viewModel.biometricIcon)
+                    }
+                }
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            }
         }
-        .onChange(of: viewModel.canUseBiometrics) { _, _ in
-            autoUnlockWithBiometricsIfNeeded()
-        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(20)
+        .background(
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .fill(.thinMaterial)
+        )
     }
 
     private var passwordSection: some View {
         VStack(spacing: 16) {
-            SecureField("Master Password", text: $password)
-                .textFieldStyle(.roundedBorder)
-                .focused($passwordFocused)
-                .submitLabel(.go)
-                .onSubmit(unlockWithPassword)
-                .padding(.horizontal)
-                .accessibilityIdentifier("unlock.password.field")
+            VStack(alignment: .leading, spacing: 12) {
+                Text("Master Password")
+                    .font(.subheadline.weight(.medium))
+                    .foregroundStyle(.secondary)
 
-            keyFileRow
+                SecureField("Enter password", text: $password)
+                    .textFieldStyle(.roundedBorder)
+                    .focused($passwordFocused)
+                    .submitLabel(.go)
+                    .onSubmit(unlockWithPassword)
+                    .accessibilityIdentifier("unlock.password.field")
+
+                keyFileRow
+            }
+            .padding(18)
+            .background(
+                RoundedRectangle(cornerRadius: 24, style: .continuous)
+                    .fill(.thinMaterial)
+            )
 
             Button(action: unlockWithPassword) {
-                Label("Unlock", systemImage: "lock.open.fill")
+                Label("Unlock Database", systemImage: "lock.open.fill")
                     .frame(maxWidth: .infinity)
             }
             .buttonStyle(.borderedProminent)
             .disabled((password.isEmpty && keyFileData == nil) || isUnlocking)
-            .padding(.horizontal)
             .accessibilityIdentifier("unlock.button")
 
             if viewModel.canUseBiometrics {
@@ -103,59 +158,60 @@ struct UnlockView: View {
                 }
                 .buttonStyle(.bordered)
                 .disabled(isUnlocking)
-                .padding(.horizontal)
             }
 
             Button("Back to Database List") {
                 onBackToDatabaseList()
             }
-            .font(.footnote)
+            .font(.footnote.weight(.medium))
             .accessibilityIdentifier("unlock.choose-different")
-
-            if isUnlocking {
-                ProgressView("Decrypting...")
-            }
         }
     }
 
     private var keyFileRow: some View {
-        HStack {
-            Label {
-                if let keyFileName {
-                    Text(keyFileName)
-                        .lineLimit(1)
-                        .truncationMode(.middle)
-                } else {
-                    Text("None")
-                        .foregroundStyle(.secondary)
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Key File")
+                .font(.caption.weight(.medium))
+                .foregroundStyle(.secondary)
+
+            HStack(spacing: 12) {
+                Label {
+                    if let keyFileName {
+                        Text(keyFileName)
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                    } else {
+                        Text("None selected")
+                            .foregroundStyle(.secondary)
+                    }
+                } icon: {
+                    Image(systemName: "key.fill")
                 }
-            } icon: {
-                Image(systemName: "key.fill")
-            }
 
-            Spacer()
+                Spacer()
 
-            if keyFileData != nil {
-                Button {
-                    keyFileData = nil
-                    keyFileName = nil
-                } label: {
-                    Image(systemName: "xmark.circle.fill")
-                        .foregroundStyle(.secondary)
+                if keyFileData != nil {
+                    Button {
+                        keyFileData = nil
+                        keyFileName = nil
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .foregroundStyle(.secondary)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Clear key file")
+                    .accessibilityIdentifier("unlock.keyfile.clear")
                 }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Clear key file")
-                .accessibilityIdentifier("unlock.keyfile.clear")
-            }
 
-            Button("Select") {
-                selectionAlert = nil
-                showKeyFilePicker = true
+                Button("Select") {
+                    selectionAlert = nil
+                    showKeyFilePicker = true
+                }
+                .font(.subheadline)
+                .accessibilityIdentifier("unlock.keyfile.select")
             }
-            .font(.subheadline)
-            .accessibilityIdentifier("unlock.keyfile.select")
+            .padding(.horizontal, 2)
         }
-        .padding(.horizontal)
         .accessibilityIdentifier("unlock.keyfile.row")
     }
 
@@ -165,11 +221,14 @@ struct UnlockView: View {
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
 
-            Button("Back to Database List") {
-                onBackToDatabaseList()
-            }
-            .buttonStyle(.borderedProminent)
+            Button("Back to Database List") { onBackToDatabaseList() }
+                .buttonStyle(.borderedProminent)
         }
+        .padding(18)
+        .background(
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .fill(.thinMaterial)
+        )
     }
 
     private var unlockErrorMessage: String? {
@@ -200,18 +259,6 @@ struct UnlockView: View {
         Task {
             await viewModel.unlockWithBiometrics()
         }
-    }
-
-    private func autoUnlockWithBiometricsIfNeeded() {
-        guard SettingsService.autoUnlockWithFaceID else { return }
-        guard viewModel.hasSavedFile else { return }
-        guard viewModel.canUseBiometrics else { return }
-        guard case .locked = viewModel.state else { return }
-        guard !viewModel.didManuallyLock else { return }
-        guard autoUnlockAttemptedLockCycle != viewModel.lockCycleID else { return }
-
-        autoUnlockAttemptedLockCycle = viewModel.lockCycleID
-        unlockWithBiometrics()
     }
 
     private func loadAssociatedKeyFileIfNeeded() {
@@ -249,6 +296,52 @@ struct UnlockView: View {
             }
         case .failure(let error):
             selectionAlert = DocumentPickerService.pickerFailureAlert(for: error)
+        }
+    }
+}
+
+struct DatabaseOpeningView: View {
+    let databaseName: String
+
+    var body: some View {
+        ZStack {
+            LinearGradient(
+                colors: [Color(.systemBackground), Color(.secondarySystemBackground)],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+            .ignoresSafeArea()
+
+            VStack(spacing: 18) {
+                ZStack {
+                    Circle()
+                        .fill(Color.accentColor.opacity(0.12))
+                        .frame(width: 88, height: 88)
+
+                    Image(systemName: "lock.open.fill")
+                        .font(.system(size: 34))
+                        .foregroundStyle(.tint)
+                }
+
+                VStack(spacing: 6) {
+                    Text("Opening \(databaseName)")
+                        .font(.title3.weight(.semibold))
+                        .multilineTextAlignment(.center)
+
+                    Text("Decrypting your database securely…")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
+
+                ProgressView()
+                    .controlSize(.large)
+            }
+            .padding(28)
+            .background(
+                RoundedRectangle(cornerRadius: 28, style: .continuous)
+                    .fill(.thinMaterial)
+            )
+            .padding(24)
         }
     }
 }

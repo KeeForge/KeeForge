@@ -30,7 +30,8 @@ final class DatabaseListViewModel {
         guard didConsumeInitialLaunchSelection == false else { return nil }
         didConsumeInitialLaunchSelection = true
         guard databases.count == 1 else { return nil }
-        return databases.first
+        guard let reference = databases.first, reference.isQuickLaunch else { return nil }
+        return reference
     }
 
     func addDatabase(from url: URL) throws -> DatabaseReference {
@@ -50,8 +51,16 @@ final class DatabaseListViewModel {
     }
 
     func toggleQuickLaunch(for reference: DatabaseReference) {
+        let currentValue = databases.first(where: { $0.id == reference.id })?.isQuickLaunch ?? reference.isQuickLaunch
+
+        for database in databases where database.id != reference.id && database.isQuickLaunch {
+            var updatedDatabase = database
+            updatedDatabase.isQuickLaunch = false
+            DatabaseListStore.update(updatedDatabase)
+        }
+
         update(reference) { updatedReference in
-            updatedReference.isQuickLaunch.toggle()
+            updatedReference.isQuickLaunch = !currentValue
         }
     }
 
@@ -110,6 +119,18 @@ final class DatabaseListViewModel {
         }
     }
 
+    nonisolated static func makeRowStatus(
+        resolvedURL: URL?,
+        hasStoredKey: Bool,
+        accessChecker: (URL) -> Bool = defaultAccessChecker
+    ) -> DatabaseRowStatus {
+        let hasAccessIssue = resolvedURL.map { accessChecker($0) == false } ?? true
+        return DatabaseRowStatus(
+            hasStoredKey: hasStoredKey,
+            hasAccessIssue: hasAccessIssue
+        )
+    }
+
     // MARK: - Private
 
     private func update(_ reference: DatabaseReference, mutate: (inout DatabaseReference) throws -> Void) rethrows {
@@ -124,23 +145,33 @@ final class DatabaseListViewModel {
 
         for reference in databases {
             let resolvedURL = DatabaseListStore.resolveDatabaseURL(for: reference)
-            let hasAccessIssue: Bool
-            if let resolvedURL {
-                hasAccessIssue = FileManager.default.fileExists(atPath: resolvedURL.path) == false
-            } else {
-                hasAccessIssue = true
-            }
+            let hasStoredKey = KeychainService.hasStoredKey(
+                for: reference.id,
+                legacyFilename: reference.legacyKeychainFilename
+            )
 
-            updatedStatuses[reference.id] = DatabaseRowStatus(
-                hasStoredKey: KeychainService.hasStoredKey(
-                    for: reference.id,
-                    legacyFilename: reference.legacyKeychainFilename
-                ),
-                hasAccessIssue: hasAccessIssue
+            updatedStatuses[reference.id] = Self.makeRowStatus(
+                resolvedURL: resolvedURL,
+                hasStoredKey: hasStoredKey
             )
         }
 
         rowStatuses = updatedStatuses
         databases = DatabaseListStore.databases
+    }
+
+    nonisolated private static func defaultAccessChecker(_ url: URL) -> Bool {
+        let hasSecurityScope = url.startAccessingSecurityScopedResource()
+        defer {
+            if hasSecurityScope {
+                url.stopAccessingSecurityScopedResource()
+            }
+        }
+
+        if (try? url.checkResourceIsReachable()) == true {
+            return true
+        }
+
+        return (try? CoordinatedFileReader.readDataPrefix(from: url, byteCount: 1)) != nil
     }
 }

@@ -6,6 +6,7 @@ Use this document for UI test methodology. Repo-wide build and test policy stays
 
 ## Current Test Classes
 
+- `DatabaseListUITests` — home-screen database list actions and management
 - `UnlockFlowUITests` — basic unlock success/failure coverage
 - `BackoffUITests` — failed-unlock backoff behavior
 - `LockUnlockUITests` — lock cycle coverage

@@ -38,6 +38,7 @@ struct KeeForgeApp: App {
 private struct AppRootView: View {
     @Bindable var listViewModel: DatabaseListViewModel
     @Binding var activeDatabaseViewModel: DatabaseViewModel?
+    @State private var didResolveInitialRoute = false
 
     var body: some View {
         Group {
@@ -46,6 +47,8 @@ private struct AppRootView: View {
                     viewModel: activeDatabaseViewModel,
                     onReturnToList: returnToDatabaseList
                 )
+            } else if !didResolveInitialRoute {
+                LaunchRoutingView()
             } else {
                 DatabaseListView(
                     viewModel: listViewModel,
@@ -53,12 +56,15 @@ private struct AppRootView: View {
                 )
             }
         }
-        .onAppear {
-            attemptInitialAutoOpen()
+        .task {
+            await resolveInitialRouteIfNeeded()
         }
     }
 
-    private func attemptInitialAutoOpen() {
+    private func resolveInitialRouteIfNeeded() async {
+        guard didResolveInitialRoute == false else { return }
+        defer { didResolveInitialRoute = true }
+
         guard activeDatabaseViewModel == nil else { return }
         guard let databaseReference = listViewModel.databaseToAutoOpenOnLaunch() else { return }
         openDatabase(databaseReference)
@@ -79,15 +85,27 @@ private struct ActiveDatabaseScene: View {
     let onReturnToList: () -> Void
 
     @State private var hasUnlockedInThisSession = false
+    @State private var autoUnlockAttemptedLockCycle: Int?
 
     var body: some View {
         Group {
             switch viewModel.state {
-            case .locked, .unlocking, .error:
+            case .locked:
+                if shouldShowAutoUnlockOpeningView {
+                    DatabaseOpeningView(databaseName: viewModel.databaseDisplayName)
+                } else {
+                    UnlockView(
+                        viewModel: viewModel,
+                        onBackToDatabaseList: onReturnToList
+                    )
+                }
+            case .error:
                 UnlockView(
                     viewModel: viewModel,
                     onBackToDatabaseList: onReturnToList
                 )
+            case .unlocking:
+                DatabaseOpeningView(databaseName: viewModel.databaseDisplayName)
             case .unlocked:
                 DatabaseNavigationView(viewModel: viewModel)
             }
@@ -99,6 +117,60 @@ private struct ActiveDatabaseScene: View {
 
             if hasUnlockedInThisSession, case .locked = newValue {
                 onReturnToList()
+            }
+        }
+        .onAppear {
+            attemptAutoUnlockIfNeeded()
+        }
+        .onChange(of: viewModel.lockCycleID) { _, _ in
+            attemptAutoUnlockIfNeeded()
+        }
+        .onChange(of: viewModel.canUseBiometrics) { _, _ in
+            attemptAutoUnlockIfNeeded()
+        }
+    }
+
+    private var shouldShowAutoUnlockOpeningView: Bool {
+        guard SettingsService.autoUnlockWithFaceID else { return false }
+        guard viewModel.hasSavedFile else { return false }
+        guard viewModel.canUseBiometrics else { return false }
+        guard !viewModel.didManuallyLock else { return false }
+        guard case .locked = viewModel.state else { return false }
+        return true
+    }
+
+    private func attemptAutoUnlockIfNeeded() {
+        guard shouldShowAutoUnlockOpeningView else { return }
+        guard autoUnlockAttemptedLockCycle != viewModel.lockCycleID else { return }
+
+        autoUnlockAttemptedLockCycle = viewModel.lockCycleID
+
+        Task {
+            await viewModel.unlockWithBiometrics()
+        }
+    }
+}
+
+private struct LaunchRoutingView: View {
+    var body: some View {
+        ZStack {
+            LinearGradient(
+                colors: [Color(.systemBackground), Color(.secondarySystemBackground)],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            .ignoresSafeArea()
+
+            VStack(spacing: 16) {
+                Image(systemName: "lock.shield.fill")
+                    .font(.system(size: 44))
+                    .foregroundStyle(.tint)
+
+                Text("KeeForge")
+                    .font(.title2.weight(.semibold))
+
+                ProgressView()
+                    .controlSize(.regular)
             }
         }
     }

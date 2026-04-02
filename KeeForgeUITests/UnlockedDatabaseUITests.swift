@@ -419,18 +419,18 @@ final class UnlockedDatabaseUITests: KeeForgeUITestCase {
         XCTAssertTrue(app.navigationBars["Settings"].waitForExistence(timeout: 10), "Settings nav bar not found")
 
         let aboutHeader = app.staticTexts["About"]
-        revealInSettings(aboutHeader, maxSwipes: 6)
+        revealInSettings(aboutHeader, maxSwipes: 8)
 
         let sortDirection = app.staticTexts["Sort Direction"]
-        revealInSettings(sortDirection, maxSwipes: 4)
+        revealInSettings(sortDirection, maxSwipes: 5)
 
         let supportLink = app.descendants(matching: .any).matching(NSPredicate(
             format: "label == 'Contact Support' OR label == 'Report a Bug' OR label == 'Source Code'"
         )).firstMatch
-        revealInSettings(supportLink, maxSwipes: 2)
+        revealInSettings(supportLink, maxSwipes: 4)
 
         let tipJarHeader = app.staticTexts["Tip Jar"]
-        revealInSettings(tipJarHeader, maxSwipes: 4)
+        revealInSettings(tipJarHeader, maxSwipes: 6)
 
         // Go back from Settings
         if let backButton = navigationBackButton() {

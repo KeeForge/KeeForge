@@ -2,11 +2,15 @@ import SwiftUI
 import UniformTypeIdentifiers
 
 struct DatabaseListView: View {
+    private enum PickerTarget {
+        case database
+        case keyFile(DatabaseReference)
+    }
+
     @Bindable var viewModel: DatabaseListViewModel
     let onSelectDatabase: (DatabaseReference) -> Void
 
-    @State private var showDatabasePicker = false
-    @State private var keyFileTarget: DatabaseReference?
+    @State private var activePicker: PickerTarget?
     @State private var selectionAlert: DocumentPickerService.SelectionAlert?
     @State private var pendingRemoval: DatabaseReference?
     @State private var renameTarget: DatabaseReference?
@@ -57,6 +61,7 @@ struct DatabaseListView: View {
                 if !viewModel.databases.isEmpty {
                     ToolbarItem(placement: .topBarLeading) {
                         EditButton()
+                            .accessibilityIdentifier("database.edit.button")
                     }
                 }
 
@@ -70,7 +75,7 @@ struct DatabaseListView: View {
 
                     Button {
                         selectionAlert = nil
-                        showDatabasePicker = true
+                        activePicker = .database
                     } label: {
                         Image(systemName: "plus")
                     }
@@ -82,21 +87,16 @@ struct DatabaseListView: View {
             viewModel.reload()
         }
         .fileImporter(
-            isPresented: $showDatabasePicker,
-            allowedContentTypes: DocumentPickerService.databasePickerContentTypes,
-            onCompletion: handleDatabaseSelection
-        )
-        .fileImporter(
             isPresented: Binding(
-                get: { keyFileTarget != nil },
+                get: { activePicker != nil },
                 set: { isPresented in
                     if !isPresented {
-                        keyFileTarget = nil
+                        activePicker = nil
                     }
                 }
             ),
-            allowedContentTypes: DocumentPickerService.keyFilePickerContentTypes,
-            onCompletion: handleKeyFileSelection
+            allowedContentTypes: pickerContentTypes,
+            onCompletion: handlePickerSelection
         )
         .alert(item: $selectionAlert) { alert in
             Alert(
@@ -162,7 +162,7 @@ struct DatabaseListView: View {
                 reference: currentReference(for: reference),
                 viewModel: viewModel,
                 onSelectKeyFile: {
-                    keyFileTarget = currentReference(for: reference)
+                    activePicker = .keyFile(currentReference(for: reference))
                 }
             )
         }
@@ -179,7 +179,7 @@ struct DatabaseListView: View {
         } actions: {
             Button {
                 selectionAlert = nil
-                showDatabasePicker = true
+                activePicker = .database
             } label: {
                 Label("Add Database", systemImage: "plus")
             }
@@ -197,7 +197,7 @@ struct DatabaseListView: View {
 
         if reference.keyFileFilename != nil {
             Button("Change Key File") {
-                keyFileTarget = reference
+                activePicker = .keyFile(reference)
             }
 
             Button("Clear Key File", role: .destructive) {
@@ -206,7 +206,7 @@ struct DatabaseListView: View {
             }
         } else {
             Button("Set Key File") {
-                keyFileTarget = reference
+                activePicker = .keyFile(reference)
             }
         }
 
@@ -221,6 +221,29 @@ struct DatabaseListView: View {
 
         Button("Remove", role: .destructive) {
             pendingRemoval = reference
+        }
+    }
+
+    private var pickerContentTypes: [UTType] {
+        switch activePicker {
+        case .keyFile:
+            DocumentPickerService.keyFilePickerContentTypes
+        case .database, .none:
+            DocumentPickerService.databasePickerContentTypes
+        }
+    }
+
+    private func handlePickerSelection(_ result: Result<URL, Error>) {
+        let activePicker = self.activePicker
+        self.activePicker = nil
+
+        switch activePicker {
+        case .database:
+            handleDatabaseSelection(result)
+        case .keyFile(let reference):
+            handleKeyFileSelection(result, for: reference)
+        case .none:
+            break
         }
     }
 
@@ -245,18 +268,12 @@ struct DatabaseListView: View {
         }
     }
 
-    private func handleKeyFileSelection(_ result: Result<URL, Error>) {
-        guard let keyFileTarget else { return }
-
-        defer {
-            self.keyFileTarget = nil
-        }
-
+    private func handleKeyFileSelection(_ result: Result<URL, Error>, for reference: DatabaseReference) {
         switch result {
         case .success(let url):
             do {
-                try viewModel.setKeyFile(url: url, for: keyFileTarget)
-                refreshDetailsReferenceIfNeeded(for: keyFileTarget.id)
+                try viewModel.setKeyFile(url: url, for: reference)
+                refreshDetailsReferenceIfNeeded(for: reference.id)
                 selectionAlert = nil
             } catch {
                 selectionAlert = DocumentPickerService.pickerFailureAlert(for: error)
@@ -305,9 +322,14 @@ private struct DatabaseDetailsView: View {
     var body: some View {
         NavigationStack {
             Form {
-                Section("Identity") {
-                    TextField("Nickname", text: $nickname)
-                        .onSubmit(saveNickname)
+                Section {
+                    LabeledContent("Name", value: currentDisplayName)
+
+                    LabeledContent("Custom Name") {
+                        TextField("Use filename", text: $nickname)
+                            .multilineTextAlignment(.trailing)
+                            .onSubmit(saveNickname)
+                    }
 
                     LabeledContent("Filename", value: reference.filename)
 
@@ -315,6 +337,10 @@ private struct DatabaseDetailsView: View {
                         .onChange(of: isQuickLaunch) { _, _ in
                             viewModel.toggleQuickLaunch(for: reference)
                         }
+                } header: {
+                    Text("Identity")
+                } footer: {
+                    Text("Quick Launch opens this database automatically on app launch. Auto-Unlock with Face ID controls whether KeeForge prompts for biometrics after a database is opened.")
                 }
 
                 Section("Key File") {
@@ -359,6 +385,14 @@ private struct DatabaseDetailsView: View {
     private func saveNickname() {
         let trimmed = nickname.trimmingCharacters(in: .whitespacesAndNewlines)
         viewModel.setNickname(trimmed.isEmpty ? nil : trimmed, for: reference)
+    }
+
+    private var currentDisplayName: String {
+        let trimmed = nickname.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.isEmpty {
+            return reference.displayName
+        }
+        return trimmed
     }
 
     private func dateText(_ date: Date) -> String {

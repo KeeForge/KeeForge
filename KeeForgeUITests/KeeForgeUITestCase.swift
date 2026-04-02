@@ -4,9 +4,22 @@ import XCTest
 class KeeForgeUITestCase: XCTestCase {
     private static let uiTestDBBase64Env = "UI_TEST_DB_BASE64"
     private static let uiTestDBFilenameEnv = "UI_TEST_DB_FILENAME"
+    private static let uiTestDatabasesJSONEnv = "UI_TEST_DATABASES_JSON"
     private static let uiTestKeyFileBase64Env = "UI_TEST_KEYFILE_BASE64"
     private static let uiTestKeyFileFilenameEnv = "UI_TEST_KEYFILE_FILENAME"
     private static let passwordDeleteCount = 128
+
+    struct DatabaseFixture {
+        let resourceName: String
+        let resourceExtension: String
+        let injectedFilename: String
+
+        init(resourceName: String, resourceExtension: String = "kdbx", injectedFilename: String) {
+            self.resourceName = resourceName
+            self.resourceExtension = resourceExtension
+            self.injectedFilename = injectedFilename
+        }
+    }
 
     enum SwipeDirection {
         case up
@@ -17,6 +30,9 @@ class KeeForgeUITestCase: XCTestCase {
 
     /// Override in subclasses to use a different database fixture (e.g. "demo-keyfile").
     var databaseFixtureName: String { "test" }
+    var databaseFixtures: [DatabaseFixture] {
+        [DatabaseFixture(resourceName: databaseFixtureName, injectedFilename: "\(databaseFixtureName).kdbx")]
+    }
 
     /// Override in subclasses to inject a key file fixture (e.g. "demo-keyfile", extension "key").
     var keyFileFixtureName: String? { nil }
@@ -27,15 +43,32 @@ class KeeForgeUITestCase: XCTestCase {
 
         app = XCUIApplication()
 
-        let dbName = databaseFixtureName
-        guard let fixtureURL = Bundle(for: KeeForgeUITestCase.self).url(forResource: dbName, withExtension: "kdbx") else {
-            throw NSError(domain: "KeeForgeUITests", code: 1, userInfo: [NSLocalizedDescriptionKey: "Missing \(dbName).kdbx fixture in test bundle"])
+        let payloads = try databaseFixtures.map { fixture -> [String: String] in
+            guard let fixtureURL = Bundle(for: KeeForgeUITestCase.self).url(
+                forResource: fixture.resourceName,
+                withExtension: fixture.resourceExtension
+            ) else {
+                throw NSError(
+                    domain: "KeeForgeUITests",
+                    code: 1,
+                    userInfo: [NSLocalizedDescriptionKey: "Missing \(fixture.resourceName).\(fixture.resourceExtension) fixture in test bundle"]
+                )
+            }
+
+            let fixtureData = try Data(contentsOf: fixtureURL)
+            return [
+                "filename": fixture.injectedFilename,
+                "base64": fixtureData.base64EncodedString(),
+            ]
         }
 
-        let fixtureData = try Data(contentsOf: fixtureURL)
         app.launchArguments += ["-ui-testing"]
-        app.launchEnvironment[Self.uiTestDBBase64Env] = fixtureData.base64EncodedString()
-        app.launchEnvironment[Self.uiTestDBFilenameEnv] = "\(dbName).kdbx"
+        let payloadData = try JSONSerialization.data(withJSONObject: payloads, options: [])
+        app.launchEnvironment[Self.uiTestDatabasesJSONEnv] = String(decoding: payloadData, as: UTF8.self)
+
+        if let firstFixture = databaseFixtures.first {
+            app.launchEnvironment[Self.uiTestDBFilenameEnv] = firstFixture.injectedFilename
+        }
 
         if let keyFileName = keyFileFixtureName {
             let ext = keyFileFixtureExtension
@@ -51,6 +84,8 @@ class KeeForgeUITestCase: XCTestCase {
     }
 
     func unlock(password: String) {
+        openFirstDatabaseFromListIfNeeded()
+
         let passwordField = app.secureTextFields["unlock.password.field"]
         XCTAssertTrue(passwordField.waitForExistence(timeout: 10), "Password field did not appear")
 
@@ -102,6 +137,41 @@ class KeeForgeUITestCase: XCTestCase {
             XCTFail("Vault did not unlock within \(timeout) seconds", file: file, line: line)
         }
         return false
+    }
+
+    @discardableResult
+    func waitForDatabaseList(timeout: TimeInterval = 10) -> Bool {
+        let databaseRow = app.buttons["database.row"].firstMatch
+        return databaseRow.waitForExistence(timeout: timeout)
+    }
+
+    @discardableResult
+    func openFirstDatabaseFromListIfNeeded(
+        timeout: TimeInterval = 10,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) -> Bool {
+        let passwordField = app.secureTextFields["unlock.password.field"]
+        if passwordField.waitForExistence(timeout: 1) {
+            return true
+        }
+
+        let databaseRow = app.buttons["database.row"].firstMatch
+        XCTAssertTrue(
+            databaseRow.waitForExistence(timeout: timeout),
+            "Database list did not appear",
+            file: file,
+            line: line
+        )
+        databaseRow.tap()
+
+        XCTAssertTrue(
+            passwordField.waitForExistence(timeout: timeout),
+            "Password field did not appear after opening the database",
+            file: file,
+            line: line
+        )
+        return passwordField.exists
     }
 
     func scrollableContainer() -> XCUIElement? {
