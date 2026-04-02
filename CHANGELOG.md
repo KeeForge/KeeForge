@@ -8,6 +8,7 @@
 - [ ] Sync / attachments
 
 ## Unreleased
+- Add open source acknowledgments screen in Settings showing Argon2Swift and Argon2 license texts
 - Add a multi-database home screen that replaces the single-file launch screen with a database list, per-database unlock flow, add/remove/reorder actions, quick launch, nicknames, and key file association management
 - Add migration from the legacy single-database bookmark/cache/keychain model to persisted per-database references with UUID-keyed shared cache files and lazy biometric key migration
 - Update AutoFill to keep one active source database at a time by tracking the last successfully unlocked database across the app and extension

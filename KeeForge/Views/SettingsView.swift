@@ -149,6 +149,12 @@ struct SettingsView: View {
             Link(destination: URL(string: "https://github.com/crazytan/KeeForge")!) {
                 Label("Source Code", systemImage: "chevron.left.forwardslash.chevron.right")
             }
+
+            NavigationLink {
+                AcknowledgmentsView()
+            } label: {
+                Label("Acknowledgments", systemImage: "doc.text")
+            }
         }
     }
 
