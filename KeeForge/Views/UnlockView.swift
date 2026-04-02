@@ -12,40 +12,59 @@ struct UnlockView: View {
     @FocusState private var passwordFocused: Bool
 
     var body: some View {
-        ZStack {
-            LinearGradient(
-                colors: [Color(.systemBackground), Color(.secondarySystemBackground)],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-            .ignoresSafeArea()
+        GeometryReader { geometry in
+            ZStack(alignment: .bottom) {
+                UnlockViewBackground()
 
-            ScrollView {
-                VStack(spacing: 22) {
-                    headerCard
+                ScrollView {
+                    VStack(spacing: 0) {
+                        Spacer(minLength: max(geometry.size.height * 0.28, 180))
 
-                    if viewModel.hasSavedFile {
-                        passwordSection
-                    } else {
-                        unavailableSection
+                        VStack(spacing: 22) {
+                            Capsule()
+                                .fill(Color.secondary.opacity(0.35))
+                                .frame(width: 42, height: 5)
+                                .padding(.top, 8)
+
+                            headerCard
+
+                            if viewModel.hasSavedFile {
+                                passwordSection
+                            } else {
+                                unavailableSection
+                            }
+
+                            if let errorMessage = unlockErrorMessage {
+                                Label(errorMessage, systemImage: "exclamationmark.triangle.fill")
+                                    .foregroundStyle(.red)
+                                    .font(.caption)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .padding(14)
+                                    .background(
+                                        RoundedRectangle(cornerRadius: 18, style: .continuous)
+                                            .fill(Color.red.opacity(0.08))
+                                    )
+                                    .accessibilityIdentifier("unlock.error.label")
+                            }
+                        }
+                        .padding(.horizontal, 22)
+                        .padding(.top, 18)
+                        .padding(.bottom, max(geometry.safeAreaInsets.bottom, 20))
+                        .frame(maxWidth: 520)
+                        .frame(maxWidth: .infinity)
+                        .background(
+                            RoundedRectangle(cornerRadius: 34, style: .continuous)
+                                .fill(.ultraThinMaterial)
+                        )
+                        .overlay(alignment: .top) {
+                            RoundedRectangle(cornerRadius: 34, style: .continuous)
+                                .strokeBorder(Color.white.opacity(0.18), lineWidth: 1)
+                        }
+                        .shadow(color: .black.opacity(0.18), radius: 30, y: -6)
                     }
-
-                    if let errorMessage = unlockErrorMessage {
-                        Label(errorMessage, systemImage: "exclamationmark.triangle.fill")
-                            .foregroundStyle(.red)
-                            .font(.caption)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(14)
-                            .background(
-                                RoundedRectangle(cornerRadius: 18, style: .continuous)
-                                    .fill(Color.red.opacity(0.08))
-                            )
-                            .accessibilityIdentifier("unlock.error.label")
-                    }
+                    .frame(minHeight: geometry.size.height, alignment: .bottom)
                 }
-                .padding(20)
-                .frame(maxWidth: 520)
-                .frame(maxWidth: .infinity)
+                .scrollIndicators(.hidden)
             }
         }
         .fileImporter(
@@ -67,15 +86,15 @@ struct UnlockView: View {
     }
 
     private var headerCard: some View {
-        VStack(alignment: .leading, spacing: 14) {
+        VStack(alignment: .leading, spacing: 16) {
             HStack(alignment: .top, spacing: 14) {
                 ZStack {
                     RoundedRectangle(cornerRadius: 18, style: .continuous)
                         .fill(Color.accentColor.opacity(0.14))
-                        .frame(width: 60, height: 60)
+                        .frame(width: 64, height: 64)
 
                     Image(systemName: "externaldrive.connected.to.line.below.fill")
-                        .font(.system(size: 26))
+                        .font(.system(size: 28))
                         .foregroundStyle(.tint)
                 }
 
@@ -99,7 +118,7 @@ struct UnlockView: View {
             }
 
             if keyFileName != nil || viewModel.canUseBiometrics {
-                HStack(spacing: 10) {
+                VStack(alignment: .leading, spacing: 8) {
                     if let keyFileName {
                         Label(keyFileName, systemImage: "key.fill")
                             .lineLimit(1)
@@ -114,38 +133,38 @@ struct UnlockView: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(20)
-        .background(
-            RoundedRectangle(cornerRadius: 24, style: .continuous)
-                .fill(.thinMaterial)
-        )
     }
 
     private var passwordSection: some View {
-        VStack(spacing: 16) {
-            VStack(alignment: .leading, spacing: 12) {
+        VStack(spacing: 14) {
+            VStack(alignment: .leading, spacing: 10) {
                 Text("Master Password")
                     .font(.subheadline.weight(.medium))
                     .foregroundStyle(.secondary)
 
                 SecureField("Enter password", text: $password)
-                    .textFieldStyle(.roundedBorder)
                     .focused($passwordFocused)
                     .submitLabel(.go)
                     .onSubmit(unlockWithPassword)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 15)
+                    .background(
+                        RoundedRectangle(cornerRadius: 18, style: .continuous)
+                            .fill(Color(.secondarySystemBackground))
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 18, style: .continuous)
+                            .strokeBorder(Color.primary.opacity(0.08), lineWidth: 1)
+                    )
                     .accessibilityIdentifier("unlock.password.field")
-
-                keyFileRow
             }
-            .padding(18)
-            .background(
-                RoundedRectangle(cornerRadius: 24, style: .continuous)
-                    .fill(.thinMaterial)
-            )
+
+            keyFileRow
 
             Button(action: unlockWithPassword) {
                 Label("Unlock Database", systemImage: "lock.open.fill")
                     .frame(maxWidth: .infinity)
+                    .padding(.vertical, 4)
             }
             .buttonStyle(.borderedProminent)
             .disabled((password.isEmpty && keyFileData == nil) || isUnlocking)
@@ -155,6 +174,7 @@ struct UnlockView: View {
                 Button(action: unlockWithBiometrics) {
                     Label(viewModel.biometricLabel, systemImage: viewModel.biometricIcon)
                         .frame(maxWidth: .infinity)
+                        .padding(.vertical, 4)
                 }
                 .buttonStyle(.bordered)
                 .disabled(isUnlocking)
@@ -210,7 +230,16 @@ struct UnlockView: View {
                 .font(.subheadline)
                 .accessibilityIdentifier("unlock.keyfile.select")
             }
-            .padding(.horizontal, 2)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 14)
+            .background(
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .fill(Color(.secondarySystemBackground))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .strokeBorder(Color.primary.opacity(0.08), lineWidth: 1)
+            )
         }
         .accessibilityIdentifier("unlock.keyfile.row")
     }
@@ -224,11 +253,6 @@ struct UnlockView: View {
             Button("Back to Database List") { onBackToDatabaseList() }
                 .buttonStyle(.borderedProminent)
         }
-        .padding(18)
-        .background(
-            RoundedRectangle(cornerRadius: 24, style: .continuous)
-                .fill(.thinMaterial)
-        )
     }
 
     private var unlockErrorMessage: String? {
@@ -288,7 +312,7 @@ struct UnlockView: View {
                 }
             }
             do {
-                keyFileData = try Data(contentsOf: url)
+                keyFileData = try CoordinatedFileReader.readData(from: url)
                 keyFileName = url.lastPathComponent
             } catch {
                 keyFileData = nil
@@ -304,44 +328,85 @@ struct DatabaseOpeningView: View {
     let databaseName: String
 
     var body: some View {
+        GeometryReader { geometry in
+            ZStack(alignment: .bottom) {
+                UnlockViewBackground()
+
+                VStack(spacing: 18) {
+                    Capsule()
+                        .fill(Color.secondary.opacity(0.35))
+                        .frame(width: 42, height: 5)
+                        .padding(.top, 8)
+
+                    ZStack {
+                        Circle()
+                            .fill(Color.accentColor.opacity(0.12))
+                            .frame(width: 88, height: 88)
+
+                        Image(systemName: "lock.open.fill")
+                            .font(.system(size: 34))
+                            .foregroundStyle(.tint)
+                    }
+
+                    VStack(spacing: 6) {
+                        Text("Opening \(databaseName)")
+                            .font(.title3.weight(.semibold))
+                            .multilineTextAlignment(.center)
+
+                        Text("Decrypting your database securely…")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                    }
+
+                    ProgressView()
+                        .controlSize(.large)
+                        .padding(.bottom, 6)
+                }
+                .padding(.horizontal, 22)
+                .padding(.top, 18)
+                .padding(.bottom, max(geometry.safeAreaInsets.bottom, 20))
+                .frame(maxWidth: 520)
+                .frame(maxWidth: .infinity)
+                .background(
+                    RoundedRectangle(cornerRadius: 34, style: .continuous)
+                        .fill(.ultraThinMaterial)
+                )
+                .overlay(alignment: .top) {
+                    RoundedRectangle(cornerRadius: 34, style: .continuous)
+                        .strokeBorder(Color.white.opacity(0.18), lineWidth: 1)
+                }
+                .shadow(color: .black.opacity(0.18), radius: 30, y: -6)
+            }
+        }
+    }
+}
+
+struct UnlockViewBackground: View {
+    var body: some View {
         ZStack {
             LinearGradient(
-                colors: [Color(.systemBackground), Color(.secondarySystemBackground)],
+                colors: [
+                    Color(.systemBackground),
+                    Color.accentColor.opacity(0.08),
+                    Color(.secondarySystemBackground)
+                ],
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing
             )
-            .ignoresSafeArea()
 
-            VStack(spacing: 18) {
-                ZStack {
-                    Circle()
-                        .fill(Color.accentColor.opacity(0.12))
-                        .frame(width: 88, height: 88)
-
-                    Image(systemName: "lock.open.fill")
-                        .font(.system(size: 34))
-                        .foregroundStyle(.tint)
-                }
-
-                VStack(spacing: 6) {
-                    Text("Opening \(databaseName)")
-                        .font(.title3.weight(.semibold))
-                        .multilineTextAlignment(.center)
-
-                    Text("Decrypting your database securely…")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                }
-
-                ProgressView()
-                    .controlSize(.large)
-            }
-            .padding(28)
-            .background(
-                RoundedRectangle(cornerRadius: 28, style: .continuous)
-                    .fill(.thinMaterial)
+            RadialGradient(
+                colors: [Color.accentColor.opacity(0.22), .clear],
+                center: .topTrailing,
+                startRadius: 24,
+                endRadius: 300
             )
-            .padding(24)
+
+            LinearGradient(
+                colors: [Color.clear, Color.black.opacity(0.08)],
+                startPoint: .top,
+                endPoint: .bottom
+            )
         }
+        .ignoresSafeArea()
     }
 }

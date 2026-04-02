@@ -91,25 +91,35 @@ private struct ActiveDatabaseScene: View {
         Group {
             switch viewModel.state {
             case .locked:
-                if shouldShowAutoUnlockOpeningView {
+                if hasUnlockedInThisSession {
+                    // About to return to database list — show background only to avoid
+                    // flashing UnlockView for one frame before onChange navigates away.
+                    UnlockViewBackground()
+                } else if shouldShowAutoUnlockOpeningView {
                     DatabaseOpeningView(databaseName: viewModel.databaseDisplayName)
+                        .transition(.opacity)
                 } else {
                     UnlockView(
                         viewModel: viewModel,
                         onBackToDatabaseList: onReturnToList
                     )
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
                 }
             case .error:
                 UnlockView(
                     viewModel: viewModel,
                     onBackToDatabaseList: onReturnToList
                 )
+                .transition(.move(edge: .bottom).combined(with: .opacity))
             case .unlocking:
                 DatabaseOpeningView(databaseName: viewModel.databaseDisplayName)
+                    .transition(.opacity)
             case .unlocked:
                 DatabaseNavigationView(viewModel: viewModel)
+                    .transition(.opacity)
             }
         }
+        .animation(.easeInOut(duration: 0.3), value: viewModel.state)
         .onChange(of: viewModel.state) { _, newValue in
             if case .unlocked = newValue {
                 hasUnlockedInThisSession = true
