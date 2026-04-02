@@ -19,8 +19,8 @@ struct SettingsView: View {
                 autoFillSection
                 displaySection
                 faviconCacheSection
-                aboutSection
                 TipJarView()
+                aboutSection
             }
             .navigationTitle("Settings")
             .navigationBarTitleDisplayMode(.inline)
