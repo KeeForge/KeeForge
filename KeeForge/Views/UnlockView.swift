@@ -339,30 +339,7 @@ struct DatabaseOpeningView: View {
 
 struct UnlockViewBackground: View {
     var body: some View {
-        ZStack {
-            LinearGradient(
-                colors: [
-                    Color(.systemBackground),
-                    Color.accentColor.opacity(0.08),
-                    Color(.secondarySystemBackground)
-                ],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-
-            RadialGradient(
-                colors: [Color.accentColor.opacity(0.22), .clear],
-                center: .topTrailing,
-                startRadius: 24,
-                endRadius: 300
-            )
-
-            LinearGradient(
-                colors: [Color.clear, Color.black.opacity(0.08)],
-                startPoint: .top,
-                endPoint: .bottom
-            )
-        }
-        .ignoresSafeArea()
+        Color(.systemBackground)
+            .ignoresSafeArea()
     }
 }
