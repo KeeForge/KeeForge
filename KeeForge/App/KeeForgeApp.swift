@@ -21,9 +21,7 @@ struct KeeForgeApp: App {
                     activeDatabaseViewModel?.resetInactivityTimer()
                     activeDatabaseViewModel?.refreshSharedDatabaseCacheIfPossible()
                 case .inactive:
-                    if !BiometricService.isBiometricAuthInProgress {
-                        screenProtectionService.showShield()
-                    }
+                    break
                 case .background:
                     screenProtectionService.showShield()
                     activeDatabaseViewModel?.lock()

@@ -66,16 +66,16 @@ private final class ScreenProtectionViewController: UIViewController {
         blur.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(blur)
 
-        let icon = UIImageView(image: UIImage(systemName: "lock.shield.fill"))
+        let icon = UIImageView(image: UIImage(named: "LaunchGlyph"))
         icon.tintColor = .label
         icon.contentMode = .scaleAspectFit
         icon.translatesAutoresizingMaskIntoConstraints = false
         blur.contentView.addSubview(icon)
 
         let title = UILabel()
-        title.text = "KeeForge Locked"
+        title.text = "KeeForge"
         title.font = .preferredFont(forTextStyle: .headline)
-        title.textColor = .label
+        title.textColor = .secondaryLabel
         title.translatesAutoresizingMaskIntoConstraints = false
         blur.contentView.addSubview(title)
 
@@ -87,8 +87,8 @@ private final class ScreenProtectionViewController: UIViewController {
 
             icon.centerXAnchor.constraint(equalTo: blur.contentView.centerXAnchor),
             icon.centerYAnchor.constraint(equalTo: blur.contentView.centerYAnchor, constant: -16),
-            icon.widthAnchor.constraint(equalToConstant: 48),
-            icon.heightAnchor.constraint(equalToConstant: 48),
+            icon.widthAnchor.constraint(equalToConstant: 64),
+            icon.heightAnchor.constraint(equalToConstant: 64),
 
             title.topAnchor.constraint(equalTo: icon.bottomAnchor, constant: 12),
             title.centerXAnchor.constraint(equalTo: blur.contentView.centerXAnchor),
