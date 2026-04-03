@@ -31,7 +31,7 @@ targets:
         CODE_SIGN_ENTITLEMENTS: KeeForge/KeeForge.entitlements
         PRODUCT_NAME: KeeForge
         PRODUCT_MODULE_NAME: KeeForge
-        MARKETING_VERSION: "1.5.1"
+        MARKETING_VERSION: "1.6.0"
         CURRENT_PROJECT_VERSION: "1"
         GENERATE_INFOPLIST_FILE: false
         SWIFT_EMIT_LOC_STRINGS: "YES"
@@ -62,7 +62,7 @@ targets:
         CODE_SIGN_STYLE: Automatic
         CODE_SIGN_ENTITLEMENTS: AutoFillExtension/AutoFillExtension.entitlements
         PRODUCT_NAME: KeeForgeAutoFill
-        MARKETING_VERSION: "1.5.1"
+        MARKETING_VERSION: "1.6.0"
         CURRENT_PROJECT_VERSION: "1"
         GENERATE_INFOPLIST_FILE: false
     dependencies:

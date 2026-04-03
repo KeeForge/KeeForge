@@ -9,18 +9,27 @@
 
 ## Unreleased
 
-> **📸 Retake App Store screenshots before submitting this release** — UI has changed (transitions, privacy shield, settings order)
+## v1.6.0 (2026-04-03)
 
-- Improve privacy shield: show only app icon and name over blur instead of misleading "KeeForge Locked" text, trigger on background only (not inactive) to avoid flashing during Face ID or Control Center, and fix BiometricService auth-in-progress flag
-- Add open source acknowledgments screen in Settings showing Argon2Swift and Argon2 license texts
+### New Features
 - Add a multi-database home screen that replaces the single-file launch screen with a database list, per-database unlock flow, add/remove/reorder actions, quick launch, nicknames, and key file association management
 - Add migration from the legacy single-database bookmark/cache/keychain model to persisted per-database references with UUID-keyed shared cache files and lazy biometric key migration
-- Update AutoFill to keep one active source database at a time by tracking the last successfully unlocked database across the app and extension
+- Support opening .kdbx files from other apps (Files, Mail, AirDrop, etc.) with UTType support for KeePassium, Strongbox, MiniKeePass, and more
+- Add open source acknowledgments screen in Settings showing Argon2Swift and Argon2 license texts
+
+### Fixes
+- Improve privacy shield: show only app icon and name over blur instead of misleading "KeeForge Locked" text, trigger on background only (not inactive) to avoid flashing during Face ID or Control Center, and fix BiometricService auth-in-progress flag
 - Fixed false "File unavailable" warnings for cloud-backed databases, restored the Add Database picker flow, and replaced the old unlock flash on launch with a dedicated opening screen
 - Fixed multi-database file picker selections being dropped after dismissal before the chosen database or key file could be processed
 - Fixed newly added databases failing to unlock with "The file couldn’t be opened because it doesn’t exist" by capturing bookmarks while document access is active and falling back to the cached copy when needed
-- Restyle the database unlock flow as a bottom card instead of a full-screen page
+
+### Changes
+- Restyle the database unlock flow as a native sheet with plain system background instead of a full-screen page with blue gradient
+- Update AutoFill to keep one active source database at a time by tracking the last successfully unlocked database across the app and extension
 - Clarified quick launch behavior versus global Face ID auto-unlock, improved database detail/settings copy, and split Quick AutoFill into its own settings section
+- Move Tip Jar above About in Settings
+- Extract SecurityScopedBookmarkManager for cleaner bookmark handling
+- Remove .kdb support from file type declarations, keep only .kdbx
 
 ## v1.5.1 (2026-03-31)
 
