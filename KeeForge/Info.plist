@@ -27,16 +27,10 @@
 			<array>
 				<string>com.keevault.kdbx</string>
 				<string>com.keepassium.kdbx</string>
-				<string>com.keepassium.kdb</string>
 				<string>com.jflan.MiniKeePass.kdbx</string>
-				<string>com.jflan.MiniKeePass.kdb</string>
 				<string>com.kptouch.kdbx</string>
-				<string>com.kptouch.kdb</string>
 				<string>com.markmcguill.strongbox.kdbx</string>
-				<string>com.markmcguill.strongbox.kdb</string>
 				<string>com.maxep.mikee.kdbx</string>
-				<string>com.maxep.mikee.kdb</string>
-				<string>be.kyuran.kypass.kdb</string>
 			</array>
 		</dict>
 	</array>
@@ -74,23 +68,6 @@
 		<dict>
 			<key>UTTypeConformsTo</key>
 			<array>
-				<string>public.data</string>
-			</array>
-			<key>UTTypeDescription</key>
-			<string>KeePass Database (kdb)</string>
-			<key>UTTypeIdentifier</key>
-			<string>com.keevault.kdb</string>
-			<key>UTTypeTagSpecification</key>
-			<dict>
-				<key>public.filename-extension</key>
-				<array>
-					<string>kdb</string>
-				</array>
-			</dict>
-		</dict>
-		<dict>
-			<key>UTTypeConformsTo</key>
-			<array>
 				<string>com.keevault.kdbx</string>
 			</array>
 			<key>UTTypeDescription</key>
@@ -102,23 +79,6 @@
 				<key>public.filename-extension</key>
 				<array>
 					<string>kdbx</string>
-				</array>
-			</dict>
-		</dict>
-		<dict>
-			<key>UTTypeConformsTo</key>
-			<array>
-				<string>com.keevault.kdb</string>
-			</array>
-			<key>UTTypeDescription</key>
-			<string>KeePass Database (kdb)</string>
-			<key>UTTypeIdentifier</key>
-			<string>com.keepassium.kdb</string>
-			<key>UTTypeTagSpecification</key>
-			<dict>
-				<key>public.filename-extension</key>
-				<array>
-					<string>kdb</string>
 				</array>
 			</dict>
 		</dict>
@@ -142,17 +102,17 @@
 		<dict>
 			<key>UTTypeConformsTo</key>
 			<array>
-				<string>com.keevault.kdb</string>
+				<string>com.keevault.kdbx</string>
 			</array>
 			<key>UTTypeDescription</key>
-			<string>KeePass Database (kdb)</string>
+			<string>KeePass Database (kdbx)</string>
 			<key>UTTypeIdentifier</key>
-			<string>com.jflan.MiniKeePass.kdb</string>
+			<string>com.kptouch.kdbx</string>
 			<key>UTTypeTagSpecification</key>
 			<dict>
 				<key>public.filename-extension</key>
 				<array>
-					<string>kdb</string>
+					<string>kdbx</string>
 				</array>
 			</dict>
 		</dict>
@@ -176,23 +136,6 @@
 		<dict>
 			<key>UTTypeConformsTo</key>
 			<array>
-				<string>com.keevault.kdb</string>
-			</array>
-			<key>UTTypeDescription</key>
-			<string>KeePass Database (kdb)</string>
-			<key>UTTypeIdentifier</key>
-			<string>com.markmcguill.strongbox.kdb</string>
-			<key>UTTypeTagSpecification</key>
-			<dict>
-				<key>public.filename-extension</key>
-				<array>
-					<string>kdb</string>
-				</array>
-			</dict>
-		</dict>
-		<dict>
-			<key>UTTypeConformsTo</key>
-			<array>
 				<string>com.keevault.kdbx</string>
 			</array>
 			<key>UTTypeDescription</key>
@@ -204,74 +147,6 @@
 				<key>public.filename-extension</key>
 				<array>
 					<string>kdbx</string>
-				</array>
-			</dict>
-		</dict>
-		<dict>
-			<key>UTTypeConformsTo</key>
-			<array>
-				<string>com.keevault.kdb</string>
-			</array>
-			<key>UTTypeDescription</key>
-			<string>KeePass Database (kdb)</string>
-			<key>UTTypeIdentifier</key>
-			<string>com.maxep.mikee.kdb</string>
-			<key>UTTypeTagSpecification</key>
-			<dict>
-				<key>public.filename-extension</key>
-				<array>
-					<string>kdb</string>
-				</array>
-			</dict>
-		</dict>
-		<dict>
-			<key>UTTypeConformsTo</key>
-			<array>
-				<string>com.keevault.kdbx</string>
-			</array>
-			<key>UTTypeDescription</key>
-			<string>KeePass Database (kdbx)</string>
-			<key>UTTypeIdentifier</key>
-			<string>com.kptouch.kdbx</string>
-			<key>UTTypeTagSpecification</key>
-			<dict>
-				<key>public.filename-extension</key>
-				<array>
-					<string>kdbx</string>
-				</array>
-			</dict>
-		</dict>
-		<dict>
-			<key>UTTypeConformsTo</key>
-			<array>
-				<string>com.keevault.kdb</string>
-			</array>
-			<key>UTTypeDescription</key>
-			<string>KeePass Database (kdb)</string>
-			<key>UTTypeIdentifier</key>
-			<string>com.kptouch.kdb</string>
-			<key>UTTypeTagSpecification</key>
-			<dict>
-				<key>public.filename-extension</key>
-				<array>
-					<string>kdb</string>
-				</array>
-			</dict>
-		</dict>
-		<dict>
-			<key>UTTypeConformsTo</key>
-			<array>
-				<string>com.keevault.kdb</string>
-			</array>
-			<key>UTTypeDescription</key>
-			<string>KeePass Database (kdb)</string>
-			<key>UTTypeIdentifier</key>
-			<string>be.kyuran.kypass.kdb</string>
-			<key>UTTypeTagSpecification</key>
-			<dict>
-				<key>public.filename-extension</key>
-				<array>
-					<string>kdb</string>
 				</array>
 			</dict>
 		</dict>
