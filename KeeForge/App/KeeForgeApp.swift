@@ -73,6 +73,9 @@ private struct AppRootView: View {
                 .presentationDragIndicator(.visible)
             }
         }
+        .onOpenURL { url in
+            handleOpenURL(url)
+        }
     }
 
     private func resolveInitialRouteIfNeeded() async {
@@ -91,6 +94,25 @@ private struct AppRootView: View {
     private func returnToDatabaseList() {
         activeDatabaseViewModel = nil
         listViewModel.reload()
+    }
+
+    private func handleOpenURL(_ url: URL) {
+        // If already viewing a database, dismiss it first
+        if activeDatabaseViewModel != nil {
+            activeDatabaseViewModel = nil
+        }
+
+        do {
+            let reference = try listViewModel.addDatabase(from: url)
+            openDatabase(reference)
+        } catch {
+            // Database may already exist in the list — find and open it
+            if let existing = listViewModel.databases.first(where: {
+                $0.filename == url.lastPathComponent
+            }) {
+                openDatabase(existing)
+            }
+        }
     }
 }
 
