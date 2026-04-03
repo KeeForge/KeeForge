@@ -38,14 +38,20 @@ private struct AppRootView: View {
     @Binding var activeDatabaseViewModel: DatabaseViewModel?
     @State private var didResolveInitialRoute = false
 
+    private var isPresented: Binding<Bool> {
+        Binding(
+            get: { activeDatabaseViewModel != nil },
+            set: { isPresented in
+                if !isPresented {
+                    returnToDatabaseList()
+                }
+            }
+        )
+    }
+
     var body: some View {
         Group {
-            if let activeDatabaseViewModel {
-                ActiveDatabaseScene(
-                    viewModel: activeDatabaseViewModel,
-                    onReturnToList: returnToDatabaseList
-                )
-            } else if !didResolveInitialRoute {
+            if !didResolveInitialRoute {
                 LaunchRoutingView()
             } else {
                 DatabaseListView(
@@ -56,6 +62,16 @@ private struct AppRootView: View {
         }
         .task {
             await resolveInitialRouteIfNeeded()
+        }
+        .sheet(isPresented: isPresented) {
+            if let activeDatabaseViewModel {
+                ActiveDatabaseScene(
+                    viewModel: activeDatabaseViewModel,
+                    onReturnToList: returnToDatabaseList
+                )
+                .interactiveDismissDisabled(activeDatabaseViewModel.state == .unlocking)
+                .presentationDragIndicator(.visible)
+            }
         }
     }
 
@@ -90,8 +106,8 @@ private struct ActiveDatabaseScene: View {
             switch viewModel.state {
             case .locked:
                 if hasUnlockedInThisSession {
-                    // About to return to database list — show background only to avoid
-                    // flashing UnlockView for one frame before onChange navigates away.
+                    // About to dismiss sheet — show background only to avoid
+                    // flashing UnlockView for one frame before onDismiss fires.
                     UnlockViewBackground()
                 } else if shouldShowAutoUnlockOpeningView {
                     DatabaseOpeningView(databaseName: viewModel.databaseDisplayName)

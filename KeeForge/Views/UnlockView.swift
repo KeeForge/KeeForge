@@ -12,61 +12,37 @@ struct UnlockView: View {
     @FocusState private var passwordFocused: Bool
 
     var body: some View {
-        GeometryReader { geometry in
-            ZStack(alignment: .bottom) {
-                UnlockViewBackground()
+        ScrollView {
+            VStack(spacing: 22) {
+                headerCard
 
-                ScrollView {
-                    VStack(spacing: 0) {
-                        Spacer(minLength: max(geometry.size.height * 0.28, 180))
-
-                        VStack(spacing: 22) {
-                            Capsule()
-                                .fill(Color.secondary.opacity(0.35))
-                                .frame(width: 42, height: 5)
-                                .padding(.top, 8)
-
-                            headerCard
-
-                            if viewModel.hasSavedFile {
-                                passwordSection
-                            } else {
-                                unavailableSection
-                            }
-
-                            if let errorMessage = unlockErrorMessage {
-                                Label(errorMessage, systemImage: "exclamationmark.triangle.fill")
-                                    .foregroundStyle(.red)
-                                    .font(.caption)
-                                    .frame(maxWidth: .infinity, alignment: .leading)
-                                    .padding(14)
-                                    .background(
-                                        RoundedRectangle(cornerRadius: 18, style: .continuous)
-                                            .fill(Color.red.opacity(0.08))
-                                    )
-                                    .accessibilityIdentifier("unlock.error.label")
-                            }
-                        }
-                        .padding(.horizontal, 22)
-                        .padding(.top, 18)
-                        .padding(.bottom, max(geometry.safeAreaInsets.bottom, 20))
-                        .frame(maxWidth: 520)
-                        .frame(maxWidth: .infinity)
-                        .background(
-                            RoundedRectangle(cornerRadius: 34, style: .continuous)
-                                .fill(.ultraThinMaterial)
-                        )
-                        .overlay(alignment: .top) {
-                            RoundedRectangle(cornerRadius: 34, style: .continuous)
-                                .strokeBorder(Color.white.opacity(0.18), lineWidth: 1)
-                        }
-                        .shadow(color: .black.opacity(0.18), radius: 30, y: -6)
-                    }
-                    .frame(minHeight: geometry.size.height, alignment: .bottom)
+                if viewModel.hasSavedFile {
+                    passwordSection
+                } else {
+                    unavailableSection
                 }
-                .scrollIndicators(.hidden)
+
+                if let errorMessage = unlockErrorMessage {
+                    Label(errorMessage, systemImage: "exclamationmark.triangle.fill")
+                        .foregroundStyle(.red)
+                        .font(.caption)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(14)
+                        .background(
+                            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                                .fill(Color.red.opacity(0.08))
+                        )
+                        .accessibilityIdentifier("unlock.error.label")
+                }
             }
+            .padding(.horizontal, 22)
+            .padding(.top, 24)
+            .padding(.bottom, 20)
+            .frame(maxWidth: 520)
+            .frame(maxWidth: .infinity)
         }
+        .background(UnlockViewBackground())
+        .scrollIndicators(.hidden)
         .fileImporter(
             isPresented: $showKeyFilePicker,
             allowedContentTypes: DocumentPickerService.keyFilePickerContentTypes,
@@ -328,56 +304,36 @@ struct DatabaseOpeningView: View {
     let databaseName: String
 
     var body: some View {
-        GeometryReader { geometry in
-            ZStack(alignment: .bottom) {
-                UnlockViewBackground()
+        VStack(spacing: 18) {
+            Spacer()
 
-                VStack(spacing: 18) {
-                    Capsule()
-                        .fill(Color.secondary.opacity(0.35))
-                        .frame(width: 42, height: 5)
-                        .padding(.top, 8)
+            ZStack {
+                Circle()
+                    .fill(Color.accentColor.opacity(0.12))
+                    .frame(width: 88, height: 88)
 
-                    ZStack {
-                        Circle()
-                            .fill(Color.accentColor.opacity(0.12))
-                            .frame(width: 88, height: 88)
-
-                        Image(systemName: "lock.open.fill")
-                            .font(.system(size: 34))
-                            .foregroundStyle(.tint)
-                    }
-
-                    VStack(spacing: 6) {
-                        Text("Opening \(databaseName)")
-                            .font(.title3.weight(.semibold))
-                            .multilineTextAlignment(.center)
-
-                        Text("Decrypting your database securely…")
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-                    }
-
-                    ProgressView()
-                        .controlSize(.large)
-                        .padding(.bottom, 6)
-                }
-                .padding(.horizontal, 22)
-                .padding(.top, 18)
-                .padding(.bottom, max(geometry.safeAreaInsets.bottom, 20))
-                .frame(maxWidth: 520)
-                .frame(maxWidth: .infinity)
-                .background(
-                    RoundedRectangle(cornerRadius: 34, style: .continuous)
-                        .fill(.ultraThinMaterial)
-                )
-                .overlay(alignment: .top) {
-                    RoundedRectangle(cornerRadius: 34, style: .continuous)
-                        .strokeBorder(Color.white.opacity(0.18), lineWidth: 1)
-                }
-                .shadow(color: .black.opacity(0.18), radius: 30, y: -6)
+                Image(systemName: "lock.open.fill")
+                    .font(.system(size: 34))
+                    .foregroundStyle(.tint)
             }
+
+            VStack(spacing: 6) {
+                Text("Opening \(databaseName)")
+                    .font(.title3.weight(.semibold))
+                    .multilineTextAlignment(.center)
+
+                Text("Decrypting your database securely…")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+
+            ProgressView()
+                .controlSize(.large)
+
+            Spacer()
         }
+        .frame(maxWidth: .infinity)
+        .background(UnlockViewBackground())
     }
 }
 
