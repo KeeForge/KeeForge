@@ -175,13 +175,29 @@ class KeeForgeUITestCase: XCTestCase {
     }
 
     func scrollableContainer() -> XCUIElement? {
-        let candidates: [XCUIElement] = [
+        frontmostContainer()
+    }
+
+    /// Returns the frontmost (hittable) list/scroll container, preferring
+    /// the one in a presented sheet over background views.
+    private func frontmostContainer() -> XCUIElement? {
+        let types: [XCUIElement.ElementType] = [.collectionView, .table, .scrollView]
+
+        // Prefer a hittable container (e.g. inside the presented sheet)
+        for type in types {
+            for element in app.descendants(matching: type).allElementsBoundByIndex
+            where element.exists && element.isHittable {
+                return element
+            }
+        }
+
+        // Fall back to any existing container
+        let fallbacks: [XCUIElement] = [
             app.collectionViews.firstMatch,
             app.tables.firstMatch,
             app.scrollViews.firstMatch,
         ]
-
-        for candidate in candidates where candidate.exists {
+        for candidate in fallbacks where candidate.exists {
             return candidate
         }
 
@@ -251,17 +267,7 @@ class KeeForgeUITestCase: XCTestCase {
     }
 
     private func currentListContainer() -> XCUIElement? {
-        let candidates: [XCUIElement] = [
-            app.collectionViews.firstMatch,
-            app.tables.firstMatch,
-            app.scrollViews.firstMatch,
-        ]
-
-        for candidate in candidates where candidate.exists {
-            return candidate
-        }
-
-        return nil
+        frontmostContainer()
     }
 
     private func firstHittableNavigationLink(identifier: String) -> XCUIElement? {
@@ -313,7 +319,9 @@ class KeeForgeUITestCase: XCTestCase {
     private func findNonEmptyGroup(timeout: TimeInterval = 3) -> XCUIElement? {
         let deadline = Date().addingTimeInterval(timeout)
         repeat {
-            let groups = app.buttons.matching(identifier: "group.navlink").allElementsBoundByIndex
+            // Search all element types — NavigationLink may render as button or cell
+            let groups = app.descendants(matching: .any).matching(identifier: "group.navlink")
+                .allElementsBoundByIndex
                 .filter { $0.exists && $0.isHittable }
             // Prefer groups that don't say "0 entries"
             if let nonEmpty = groups.first(where: { !$0.label.contains("0 entries") }) {
