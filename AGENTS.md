@@ -110,7 +110,8 @@ unlock.keyfile.clear        # Clear key file button
 unlock.choose-different     # Choose Different File button
 lock.button                 # Lock database button
 sort.menu                   # Sort menu in toolbar
-settings.button             # Settings button
+settings.button             # Settings button (unlocked database)
+database.settings.button    # Settings button (database list)
 group.navlink               # Group navigation link
 entry.navlink               # Entry navigation link
 entry.password.reveal       # Password reveal/hide toggle

@@ -94,7 +94,7 @@ struct DatabaseListView: View {
                     } label: {
                         Image(systemName: "gearshape")
                     }
-                    .accessibilityIdentifier("settings.button")
+                    .accessibilityIdentifier("database.settings.button")
 
                     Button {
                         selectionAlert = nil

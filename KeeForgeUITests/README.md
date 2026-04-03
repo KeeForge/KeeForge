@@ -200,7 +200,8 @@ Use the app's accessibility identifiers whenever possible, including:
 - `unlock.button`
 - `unlock.error.label`
 - `lock.button`
-- `settings.button`
+- `settings.button` (unlocked database)
+- `database.settings.button` (database list)
 - `sort.menu`
 - `group.navlink`
 - `entry.navlink`
