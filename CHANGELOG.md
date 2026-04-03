@@ -8,6 +8,9 @@
 - [ ] Sync / attachments
 
 ## Unreleased
+
+> **📸 Retake App Store screenshots before submitting this release** — UI has changed (transitions, privacy shield, settings order)
+
 - Improve privacy shield: show only app icon and name over blur instead of misleading "KeeForge Locked" text, trigger on background only (not inactive) to avoid flashing during Face ID or Control Center, and fix BiometricService auth-in-progress flag
 - Add open source acknowledgments screen in Settings showing Argon2Swift and Argon2 license texts
 - Add a multi-database home screen that replaces the single-file launch screen with a database list, per-database unlock flow, add/remove/reorder actions, quick launch, nicknames, and key file association management
