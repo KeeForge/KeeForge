@@ -16,13 +16,19 @@ protocol CloudProvider: Identifiable {
     var displayName: String { get }
     var iconName: String { get }        // SF Symbol or asset name
 
-    func authenticate(from anchor: ASPresentationAnchor) async throws
-    func isAuthenticated() -> Bool
-    func signOut()
+    func authenticate(from anchor: ASPresentationAnchor) async throws -> CloudAccount
+    func isAuthenticated(account: String) -> Bool
+    func signOut(account: String)
 
     func listFiles(path: String?, query: String?) async throws -> [CloudFile]
-    func download(fileId: String) async throws -> Data
+    func download(fileId: String, to localURL: URL, progress: @escaping (Double) -> Void) async throws
     func getMetadata(fileId: String) async throws -> CloudFileMetadata
+}
+
+struct CloudAccount {
+    let id: String                      // Provider user ID (Dropbox account_id, Google sub, etc.)
+    let displayName: String             // "alex@gmail.com" or display name
+    let provider: String
 }
 
 struct CloudFile: Identifiable {
@@ -46,13 +52,27 @@ struct CloudFileMetadata {
 Extend `DatabaseReference` to support cloud sources:
 
 ```swift
-enum DatabaseSource {
+enum DatabaseSource: Codable {
     case local                          // Existing: security-scoped bookmark
-    case cloud(provider: String, fileId: String, path: String)
+    case cloud(CloudSyncMetadata)
+}
+
+struct CloudSyncMetadata: Codable {
+    let provider: String                // "dropbox", "google-drive", "onedrive"
+    let accountId: String               // Provider user ID — supports multiple accounts per provider
+    let fileId: String                  // Provider-specific (Dropbox: path, Google: file ID)
+    let displayPath: String             // Human-readable path for UI
+    var remoteContentHash: String?      // Dropbox content_hash, Google md5Checksum, OneDrive quickXorHash
+    var remoteModifiedAt: Date?
+    var lastSyncedAt: Date?
+    var lastSyncError: String?          // Nil when healthy
+    var isStale: Bool { lastSyncError != nil }
 }
 ```
 
-Store cloud metadata alongside existing bookmark data. The local cached copy lives in the app's shared container (same as current files).
+The local cached copy lives in the app's shared container, keyed by `{provider}-{accountId}-{fileId-hash}`. This ensures multiple accounts or same-name files don't collide.
+
+**Key file policy (v1):** Cloud sync covers `.kdbx` files only. Key files must be stored locally on the device. When a cloud database requires a key file, the user selects it from local storage as usual. Cloud-backed key files are out of scope for v1.
 
 ### Sync Flow
 
@@ -63,7 +83,20 @@ Store cloud metadata alongside existing bookmark data. The local cached copy liv
 
 ### Token Storage
 
-Keychain (shared app group) keyed by `cloud-token-{providerId}`. Store OAuth refresh token only — access tokens are ephemeral.
+OAuth tokens stored in **Keychain with the shared access group** (`com.keevault.shared`, same entitlement the AutoFill extension already uses). This allows the AutoFill extension to refresh cached cloud databases when needed.
+
+Keychain key format: `cloud-token-{providerId}-{accountId}` — supports multiple accounts per provider.
+
+Store the **refresh token** only — access tokens are ephemeral and re-derived. If the refresh token is revoked (user disconnects from provider settings), prompt re-auth on next open.
+
+### Cache & AutoFill Contract
+
+Cached `.kdbx` files live in the shared app group container at `cloud-cache/{provider}-{accountId}/{fileId-hash}.kdbx`.
+
+- **Main app:** On each database open, check remote metadata first. If network available and remote is newer → download fresh copy → replace cache → open. If network unavailable → open cached copy with "offline" badge.
+- **AutoFill extension:** Always uses cached copy (no network calls in extension — too slow and memory-constrained). Main app is responsible for keeping the cache fresh.
+- **After sign-out:** Cached files are **retained** (user may want offline access). Cloud icon changes to "disconnected" state. User can explicitly remove the database to delete the cache.
+- **Staleness indicator:** If `lastSyncError` is set or `lastSyncedAt` is >24h ago, show a subtle warning on the database row.
 
 ### UI
 
@@ -105,7 +138,7 @@ Keychain (shared app group) keyed by `cloud-token-{providerId}`. Store OAuth ref
 |---|---|
 | `listFiles(path:)` | `files/list_folder` (filter `.kdbx` client-side) |
 | `listFiles(query:)` | `files/search_v2` with `.kdbx` extension filter |
-| `download(fileId:)` | `files/download` by path |
+| `download(fileId:to:progress:)` | `files/download` by path, streamed to temp file |
 | `getMetadata(fileId:)` | `files/get_metadata` — use `content_hash` for change detection |
 
 ### Dropbox-Specific Notes
@@ -144,13 +177,13 @@ Keychain (shared app group) keyed by `cloud-token-{providerId}`. Store OAuth ref
 - Modify the .kdbx on another device → re-open in KeeForge → verify fresh data
 - Kill network → open cloud database → verify offline cache works
 - Revoke app access from Dropbox settings → verify graceful re-auth prompt
-- Multiple Dropbox accounts (if supported by SwiftyDropbox)
+- Multiple Dropbox accounts (data model supports it; v1 UI may limit to one per provider)
 
 ### Edge Cases
 
 - .kdbx file deleted from Dropbox → show error, offer to remove from list
-- File moved/renamed on Dropbox → detect via content_hash if path fails
-- Very large database (>50MB) → progress indicator during download
+- File moved/renamed on Dropbox → show "file not found" error with option to re-link (browse and pick new location) or remove
+- Very large database (>50MB) → progress indicator during download (streaming, not in-memory)
 - OAuth cancelled mid-flow → no crash, return to database list
 
 ## Future: Google Drive & OneDrive
