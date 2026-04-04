@@ -13,9 +13,16 @@ final class AppStoreScreenshots: XCTestCase {
         }
 
         let fixtureData = try Data(contentsOf: fixtureURL)
+        let base64 = fixtureData.base64EncodedString()
         app.launchArguments += ["-ui-testing"]
-        app.launchEnvironment["UI_TEST_DB_BASE64"] = fixtureData.base64EncodedString()
-        app.launchEnvironment["UI_TEST_DB_FILENAME"] = "demo.kdbx"
+
+        // Provide two databases so the database list screenshot shows multiple entries
+        let databasesJSON = [
+            ["filename": "Personal.kdbx", "base64": base64],
+            ["filename": "Work.kdbx", "base64": base64]
+        ]
+        let jsonData = try JSONSerialization.data(withJSONObject: databasesJSON)
+        app.launchEnvironment["UI_TEST_DATABASES_JSON"] = String(data: jsonData, encoding: .utf8)
         app.launchEnvironment["UI_TEST_ENABLE_FAVICONS"] = "1"
         app.launch()
     }

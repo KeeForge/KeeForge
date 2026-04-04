@@ -7,10 +7,6 @@
 - [ ] iPad-native layout
 - [ ] Sync / attachments
 
-## Unreleased
-
-- Update App Store screenshot test to capture 7 screenshots covering the new multi-database home screen, sheet-based unlock, vault groups, entry list, entry detail, settings, and search
-
 ## v1.6.0 (2026-04-03)
 
 ### New Features
