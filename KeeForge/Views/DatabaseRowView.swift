@@ -42,6 +42,22 @@ struct DatabaseRowView: View {
                         .foregroundStyle(.secondary)
                 }
 
+                if let cloudState = status.cloudState {
+                    HStack(spacing: 8) {
+                        Label(cloudState.providerName, systemImage: cloudState.isConnected ? cloudState.providerIconName : "icloud.slash")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+
+                        if let warningText = cloudState.warningText {
+                            Text(warningText)
+                                .font(.caption)
+                                .foregroundStyle(.orange)
+                                .lineLimit(1)
+                        }
+                    }
+                }
+
                 HStack(spacing: 10) {
                     if reference.keyFileFilename != nil {
                         Label(reference.keyFileFilename ?? "Key File", systemImage: "key.fill")
@@ -56,8 +72,14 @@ struct DatabaseRowView: View {
                             .foregroundStyle(.secondary)
                     }
 
-                    if status.hasAccessIssue {
+                    if status.hasAccessIssue, status.cloudState == nil {
                         Text("File unavailable")
+                            .font(.caption)
+                            .foregroundStyle(.orange)
+                    }
+
+                    if status.hasAccessIssue, status.cloudState != nil {
+                        Text("Cache unavailable")
                             .font(.caption)
                             .foregroundStyle(.orange)
                     }

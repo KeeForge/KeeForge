@@ -12,6 +12,7 @@ struct DatabaseReference: Identifiable, Codable, Hashable, Sendable {
     var addedAt: Date
     var colorTag: String?
     var legacyKeychainFilename: String?
+    var source: DatabaseSource = .local
 
     var displayName: String {
         let trimmedNickname = nickname?.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -33,5 +34,76 @@ struct DatabaseReference: Identifiable, Codable, Hashable, Sendable {
 
     var hasAssociatedKeyFile: Bool {
         keyFileBookmarkData != nil || keyFileFilename != nil
+    }
+
+    var isCloudBacked: Bool {
+        if case .cloud = source {
+            return true
+        }
+        return false
+    }
+
+    var cloudSyncMetadata: CloudSyncMetadata? {
+        guard case .cloud(let metadata) = source else { return nil }
+        return metadata
+    }
+
+    var cloudProviderKind: CloudProviderKind? {
+        cloudSyncMetadata?.providerKind
+    }
+
+    mutating func updateCloudSyncMetadata(_ mutate: (inout CloudSyncMetadata) -> Void) {
+        guard case .cloud(var metadata) = source else { return }
+        mutate(&metadata)
+        source = .cloud(metadata)
+    }
+}
+
+extension DatabaseReference {
+    private enum CodingKeys: String, CodingKey {
+        case id
+        case nickname
+        case filename
+        case bookmarkData
+        case keyFileBookmarkData
+        case keyFileFilename
+        case isQuickLaunch
+        case lastOpenedAt
+        case addedAt
+        case colorTag
+        case legacyKeychainFilename
+        case source
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(UUID.self, forKey: .id)
+        nickname = try container.decodeIfPresent(String.self, forKey: .nickname)
+        filename = try container.decode(String.self, forKey: .filename)
+        bookmarkData = try container.decodeIfPresent(Data.self, forKey: .bookmarkData)
+        keyFileBookmarkData = try container.decodeIfPresent(Data.self, forKey: .keyFileBookmarkData)
+        keyFileFilename = try container.decodeIfPresent(String.self, forKey: .keyFileFilename)
+        isQuickLaunch = try container.decode(Bool.self, forKey: .isQuickLaunch)
+        lastOpenedAt = try container.decodeIfPresent(Date.self, forKey: .lastOpenedAt)
+        addedAt = try container.decode(Date.self, forKey: .addedAt)
+        colorTag = try container.decodeIfPresent(String.self, forKey: .colorTag)
+        legacyKeychainFilename = try container.decodeIfPresent(String.self, forKey: .legacyKeychainFilename)
+        source = try container.decodeIfPresent(DatabaseSource.self, forKey: .source) ?? .local
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(id, forKey: .id)
+        try container.encodeIfPresent(nickname, forKey: .nickname)
+        try container.encode(filename, forKey: .filename)
+        try container.encodeIfPresent(bookmarkData, forKey: .bookmarkData)
+        try container.encodeIfPresent(keyFileBookmarkData, forKey: .keyFileBookmarkData)
+        try container.encodeIfPresent(keyFileFilename, forKey: .keyFileFilename)
+        try container.encode(isQuickLaunch, forKey: .isQuickLaunch)
+        try container.encodeIfPresent(lastOpenedAt, forKey: .lastOpenedAt)
+        try container.encode(addedAt, forKey: .addedAt)
+        try container.encodeIfPresent(colorTag, forKey: .colorTag)
+        try container.encodeIfPresent(legacyKeychainFilename, forKey: .legacyKeychainFilename)
+        try container.encode(source, forKey: .source)
     }
 }

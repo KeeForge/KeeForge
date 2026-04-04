@@ -1,12 +1,11 @@
 {
-  "originHash" : "dd7d9a5c4d4bdb59b6663b1e87f26c1899f753ca24d3cccc6cc47d792f5ab237",
+  "originHash" : "2e5ba2cbc47dde8cb565daf8b57e754c0b323b676550a0c7d1f3322b6937a900",
   "pins" : [
     {
       "identity" : "argon2swift",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/tmthecoder/Argon2Swift.git",
       "state" : {
-        "branch" : "main",
         "revision" : "53543623fefe68461b7eeea03d7f96677c2fd76d"
       }
     },
@@ -17,6 +16,15 @@
       "state" : {
         "branch" : "master",
         "revision" : "f57e61e19229e23c4445b85494dbf7c07de721cb"
+      }
+    },
+    {
+      "identity" : "swiftydropbox",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/dropbox/SwiftyDropbox.git",
+      "state" : {
+        "revision" : "e315e0b14edb83f022134aef389deb4e8bee6bbf",
+        "version" : "10.2.4"
       }
     }
   ],

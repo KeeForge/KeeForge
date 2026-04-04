@@ -3,6 +3,16 @@ import Foundation
 struct DatabaseRowStatus: Equatable, Sendable {
     var hasStoredKey: Bool
     var hasAccessIssue: Bool
+    var cloudState: CloudRowState?
+}
+
+struct CloudRowState: Equatable, Sendable {
+    var providerName: String
+    var providerIconName: String
+    var isConnected: Bool
+    var warningText: String?
+    var displayPath: String
+    var accountLabel: String
 }
 
 @MainActor @Observable
@@ -36,6 +46,16 @@ final class DatabaseListViewModel {
 
     func addDatabase(from url: URL) throws -> DatabaseReference {
         let reference = try DatabaseListStore.add(url: url)
+        reload()
+        return reference
+    }
+
+    func addCloudDatabase(selection: CloudDatabaseSelection) -> DatabaseReference {
+        let reference = DatabaseListStore.addCloud(
+            provider: selection.provider,
+            accountId: selection.account.id,
+            file: selection.file
+        )
         reload()
         return reference
     }
@@ -88,7 +108,11 @@ final class DatabaseListViewModel {
     }
 
     func status(for reference: DatabaseReference) -> DatabaseRowStatus {
-        rowStatuses[reference.id] ?? .init(hasStoredKey: false, hasAccessIssue: false)
+        rowStatuses[reference.id] ?? .init(hasStoredKey: false, hasAccessIssue: false, cloudState: nil)
+    }
+
+    func cloudState(for reference: DatabaseReference) -> CloudRowState? {
+        status(for: reference).cloudState
     }
 
     func lastOpenedDescription(for reference: DatabaseReference) -> String? {
@@ -123,7 +147,8 @@ final class DatabaseListViewModel {
         let hasAccessIssue = resolvedURL.map { accessChecker($0) == false } ?? true
         return DatabaseRowStatus(
             hasStoredKey: hasStoredKey,
-            hasAccessIssue: hasAccessIssue
+            hasAccessIssue: hasAccessIssue,
+            cloudState: nil
         )
     }
 
@@ -140,16 +165,41 @@ final class DatabaseListViewModel {
         var updatedStatuses: [UUID: DatabaseRowStatus] = [:]
 
         for reference in databases {
-            let resolvedURL = DatabaseListStore.resolveDatabaseURL(for: reference)
             let hasStoredKey = KeychainService.hasStoredKey(
                 for: reference.id,
                 legacyFilename: reference.legacyKeychainFilename
             )
 
-            updatedStatuses[reference.id] = Self.makeRowStatus(
-                resolvedURL: resolvedURL,
-                hasStoredKey: hasStoredKey
-            )
+            if let metadata = reference.cloudSyncMetadata {
+                let isConnected = CloudAccountStore.isConnected(
+                    provider: metadata.provider,
+                    accountId: metadata.accountId
+                )
+                let accountLabel = CloudAccountStore.account(
+                    provider: metadata.provider,
+                    accountId: metadata.accountId
+                )?.displayName ?? metadata.accountId
+                let provider = metadata.providerKind
+
+                updatedStatuses[reference.id] = DatabaseRowStatus(
+                    hasStoredKey: hasStoredKey,
+                    hasAccessIssue: DatabaseListStore.cachedDatabaseURL(for: reference) == nil && !isConnected,
+                    cloudState: CloudRowState(
+                        providerName: provider?.displayName ?? metadata.provider.capitalized,
+                        providerIconName: provider?.iconName ?? "icloud",
+                        isConnected: isConnected,
+                        warningText: metadata.warningText(isAuthenticated: isConnected),
+                        displayPath: metadata.displayPath,
+                        accountLabel: accountLabel
+                    )
+                )
+            } else {
+                let resolvedURL = DatabaseListStore.resolveDatabaseURL(for: reference)
+                updatedStatuses[reference.id] = Self.makeRowStatus(
+                    resolvedURL: resolvedURL,
+                    hasStoredKey: hasStoredKey
+                )
+            }
         }
 
         rowStatuses = updatedStatuses

@@ -413,7 +413,7 @@ final class CredentialProviderViewController: ASCredentialProviderViewController
     }
 
     private func loadDatabaseData(for databaseReference: DatabaseReference) throws -> Data {
-        if let cachedURL = DatabaseListStore.cachedDatabaseURL(for: databaseReference.id) {
+        if let cachedURL = DatabaseListStore.cachedDatabaseURL(for: databaseReference) {
             return try CoordinatedFileReader.readData(from: cachedURL)
         }
 

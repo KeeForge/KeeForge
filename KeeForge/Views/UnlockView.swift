@@ -302,6 +302,7 @@ struct UnlockView: View {
 
 struct DatabaseOpeningView: View {
     let databaseName: String
+    var progress: Double? = nil
 
     var body: some View {
         VStack(spacing: 18) {
@@ -327,8 +328,14 @@ struct DatabaseOpeningView: View {
                     .foregroundStyle(.secondary)
             }
 
-            ProgressView()
-                .controlSize(.large)
+            if let progress {
+                ProgressView(value: progress)
+                    .controlSize(.large)
+                    .padding(.horizontal, 40)
+            } else {
+                ProgressView()
+                    .controlSize(.large)
+            }
 
             Spacer()
         }

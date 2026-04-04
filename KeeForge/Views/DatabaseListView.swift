@@ -40,6 +40,8 @@ struct DatabaseListView: View {
     @State private var renameText = ""
     @State private var detailsReference: DatabaseReference?
     @State private var showSettings = false
+    @State private var showAddDatabaseOptions = false
+    @State private var activeCloudProvider: CloudProviderKind?
 
     var body: some View {
         NavigationStack {
@@ -98,7 +100,7 @@ struct DatabaseListView: View {
 
                     Button {
                         selectionAlert = nil
-                        pickerState.present(.database)
+                        showAddDatabaseOptions = true
                     } label: {
                         Image(systemName: "plus")
                     }
@@ -125,6 +127,25 @@ struct DatabaseListView: View {
                 message: Text(alert.message),
                 dismissButton: .default(Text("OK"))
             )
+        }
+        .confirmationDialog(
+            "Add Database",
+            isPresented: $showAddDatabaseOptions
+        ) {
+            Button("Open from Files") {
+                selectionAlert = nil
+                pickerState.present(.database)
+            }
+            .accessibilityIdentifier("database.add.files")
+
+            Button("Dropbox") {
+                activeCloudProvider = .dropbox
+            }
+            .accessibilityIdentifier("database.add.dropbox")
+
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Choose where to add a KeePass database from.")
         }
         .confirmationDialog(
             "Remove Database?",
@@ -190,6 +211,19 @@ struct DatabaseListView: View {
         .sheet(isPresented: $showSettings) {
             SettingsView()
         }
+        .sheet(item: $activeCloudProvider) { provider in
+            CloudFileBrowserView(
+                providerID: provider.rawValue,
+                onSelect: { selection in
+                    let reference = viewModel.addCloudDatabase(selection: selection)
+                    activeCloudProvider = nil
+                    onSelectDatabase(reference)
+                },
+                onFailure: { error in
+                    selectionAlert = makeCloudSelectionAlert(error: error, provider: provider)
+                }
+            )
+        }
     }
 
     private var emptyState: some View {
@@ -200,7 +234,7 @@ struct DatabaseListView: View {
         } actions: {
             Button {
                 selectionAlert = nil
-                pickerState.present(.database)
+                showAddDatabaseOptions = true
             } label: {
                 Label("Add Database", systemImage: "plus")
             }
@@ -328,6 +362,16 @@ struct DatabaseListView: View {
 
         return DocumentPickerService.isSupportedDatabaseFile(at: url)
     }
+
+    private func makeCloudSelectionAlert(
+        error: Error,
+        provider: CloudProviderKind
+    ) -> DocumentPickerService.SelectionAlert {
+        DocumentPickerService.SelectionAlert(
+            title: "Couldn’t Open \(provider.displayName)",
+            message: error.localizedDescription
+        )
+    }
 }
 
 private struct DatabaseDetailsView: View {
@@ -382,6 +426,36 @@ private struct DatabaseDetailsView: View {
 
                     if let lastOpenedAt = reference.lastOpenedAt {
                         LabeledContent("Last Opened", value: dateText(lastOpenedAt))
+                    }
+                }
+
+                if let cloudState = viewModel.cloudState(for: reference),
+                   let metadata = reference.cloudSyncMetadata {
+                    Section {
+                        LabeledContent("Provider") {
+                            Label(cloudState.providerName, systemImage: cloudState.providerIconName)
+                        }
+
+                        LabeledContent("Account", value: cloudState.accountLabel)
+                        LabeledContent("Path", value: metadata.displayPath)
+
+                        if let remoteModifiedAt = metadata.remoteModifiedAt {
+                            LabeledContent("Remote Modified", value: dateText(remoteModifiedAt))
+                        }
+
+                        if let lastSyncedAt = metadata.lastSyncedAt {
+                            LabeledContent("Last Sync", value: dateText(lastSyncedAt))
+                        }
+
+                        LabeledContent("Status", value: cloudState.warningText ?? "Healthy")
+                    } header: {
+                        Text("Cloud Sync")
+                    } footer: {
+                        if cloudState.isConnected {
+                            Text("Cloud databases are cached locally and refreshed whenever you open them in the main app. AutoFill uses the cached copy only.")
+                        } else {
+                            Text("This account is disconnected. KeeForge keeps the cached copy until you remove the database.")
+                        }
                     }
                 }
             }

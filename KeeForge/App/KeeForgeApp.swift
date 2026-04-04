@@ -97,6 +97,10 @@ private struct AppRootView: View {
     }
 
     private func handleOpenURL(_ url: URL) {
+        if CloudProviderRegistry.handleOpenURL(url) {
+            return
+        }
+
         // If already viewing a database, dismiss it first
         if activeDatabaseViewModel != nil {
             activeDatabaseViewModel = nil
@@ -132,7 +136,10 @@ private struct ActiveDatabaseScene: View {
                     // flashing UnlockView for one frame before onDismiss fires.
                     UnlockViewBackground()
                 } else if shouldShowAutoUnlockOpeningView {
-                    DatabaseOpeningView(databaseName: viewModel.databaseDisplayName)
+                    DatabaseOpeningView(
+                        databaseName: viewModel.databaseDisplayName,
+                        progress: viewModel.cloudSyncProgress
+                    )
                         .transition(.opacity)
                 } else {
                     UnlockView(
@@ -148,7 +155,10 @@ private struct ActiveDatabaseScene: View {
                 )
                 .transition(.move(edge: .bottom).combined(with: .opacity))
             case .unlocking:
-                DatabaseOpeningView(databaseName: viewModel.databaseDisplayName)
+                DatabaseOpeningView(
+                    databaseName: viewModel.databaseDisplayName,
+                    progress: viewModel.cloudSyncProgress
+                )
                     .transition(.opacity)
             case .unlocked:
                 DatabaseNavigationView(viewModel: viewModel)
@@ -243,6 +253,17 @@ struct DatabaseNavigationView: View {
             }
             .navigationDestination(for: KPEntry.self) { entry in
                 EntryDetailView(entry: entry, sessionKey: viewModel.sessionKey!)
+            }
+            .safeAreaInset(edge: .top, spacing: 0) {
+                if let bannerText = viewModel.cloudSyncBannerText {
+                    Label(bannerText, systemImage: "icloud")
+                        .font(.caption.weight(.medium))
+                        .foregroundStyle(.orange)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 10)
+                        .background(Color.orange.opacity(0.12))
+                }
             }
         }
     }

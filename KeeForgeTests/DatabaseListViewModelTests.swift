@@ -6,11 +6,13 @@ final class DatabaseListViewModelTests: XCTestCase {
     override func setUp() {
         super.setUp()
         DatabaseListStore.clearAll()
+        CloudAccountStore.clearAll()
         SharedVaultStore.clearBookmark()
     }
 
     override func tearDown() {
         DatabaseListStore.clearAll()
+        CloudAccountStore.clearAll()
         SharedVaultStore.clearBookmark()
         super.tearDown()
     }
@@ -70,6 +72,92 @@ final class DatabaseListViewModelTests: XCTestCase {
 
         XCTAssertFalse(updatedFirst.isQuickLaunch)
         XCTAssertTrue(updatedSecond.isQuickLaunch)
+    }
+
+    func testAddCloudDatabaseCreatesCloudReferenceFromSelection() {
+        let selection = CloudDatabaseSelection(
+            provider: CloudProviderKind.dropbox.rawValue,
+            account: CloudAccount(id: "acct-1", displayName: "alex@example.com", provider: CloudProviderKind.dropbox.rawValue),
+            file: CloudFile(
+                id: "/Vaults/personal.kdbx",
+                name: "personal.kdbx",
+                path: "/Vaults/personal.kdbx",
+                isFolder: false,
+                modifiedDate: Date(timeIntervalSince1970: 100),
+                size: 128
+            )
+        )
+        let viewModel = DatabaseListViewModel()
+
+        let reference = viewModel.addCloudDatabase(selection: selection)
+
+        XCTAssertTrue(reference.isCloudBacked)
+        XCTAssertEqual(reference.cloudSyncMetadata?.accountId, "acct-1")
+        XCTAssertEqual(viewModel.databases.count, 1)
+    }
+
+    func testCloudRowStatusUsesConnectedAccountAndStaleWarningWhenCached() throws {
+        let file = CloudFile(
+            id: "/Vaults/personal.kdbx",
+            name: "personal.kdbx",
+            path: "/Vaults/personal.kdbx",
+            isFolder: false,
+            modifiedDate: Date(timeIntervalSince1970: 100),
+            size: 128
+        )
+        var reference = DatabaseListStore.addCloud(
+            provider: CloudProviderKind.dropbox.rawValue,
+            accountId: "acct-1",
+            file: file
+        )
+        reference.updateCloudSyncMetadata { metadata in
+            metadata.lastSyncedAt = Date(timeIntervalSinceNow: -90_000)
+        }
+        DatabaseListStore.update(reference)
+        try DatabaseListStore.cacheDatabaseCopy(Data("cached".utf8), for: reference)
+        CloudAccountStore.upsert(
+            CloudAccount(id: "acct-1", displayName: "alex@example.com", provider: CloudProviderKind.dropbox.rawValue)
+        )
+
+        let viewModel = DatabaseListViewModel()
+        let status = viewModel.status(for: reference)
+
+        XCTAssertFalse(status.hasAccessIssue)
+        XCTAssertEqual(
+            status.cloudState,
+            CloudRowState(
+                providerName: "Dropbox",
+                providerIconName: "shippingbox.fill",
+                isConnected: true,
+                warningText: "Sync older than 24h",
+                displayPath: "/Vaults/personal.kdbx",
+                accountLabel: "alex@example.com"
+            )
+        )
+    }
+
+    func testCloudRowStatusMarksDisconnectedDatabaseWithoutCacheAsUnavailable() {
+        let file = CloudFile(
+            id: "/Vaults/work.kdbx",
+            name: "work.kdbx",
+            path: "/Vaults/work.kdbx",
+            isFolder: false,
+            modifiedDate: nil,
+            size: nil
+        )
+        let reference = DatabaseListStore.addCloud(
+            provider: CloudProviderKind.dropbox.rawValue,
+            accountId: "acct-1",
+            file: file
+        )
+
+        let viewModel = DatabaseListViewModel()
+        let status = viewModel.status(for: reference)
+
+        XCTAssertTrue(status.hasAccessIssue)
+        XCTAssertEqual(status.cloudState?.isConnected, false)
+        XCTAssertEqual(status.cloudState?.warningText, "Disconnected")
+        XCTAssertEqual(status.cloudState?.accountLabel, "acct-1")
     }
 
     func testPickerPresentationStateKeepsTargetUntilCompletion() {

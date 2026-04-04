@@ -50,6 +50,8 @@ final class DatabaseViewModel {
     private(set) var lockoutUntil: Date?
     private(set) var compositeKey: Data?
     private(set) var sessionKey: SymmetricKey?
+    private(set) var cloudSyncProgress: Double?
+    private(set) var cloudSyncBannerText: String?
 
     init(databaseReference: DatabaseReference) {
         self.databaseReference = databaseReference
@@ -66,7 +68,9 @@ final class DatabaseViewModel {
     }
 
     var hasSavedFile: Bool {
-        databaseReference.bookmarkData != nil
+        databaseReference.isCloudBacked ||
+        databaseReference.bookmarkData != nil ||
+        DatabaseListStore.cachedDatabaseURL(for: databaseReference) != nil
     }
 
     var canUseBiometrics: Bool {
@@ -129,9 +133,10 @@ final class DatabaseViewModel {
         }
 
         state = .unlocking
+        cloudSyncProgress = nil
 
         do {
-            let (_, data) = try readDatabaseData()
+            let (_, data) = try await readDatabaseData()
             try cacheDatabaseCopy(data)
 
             let compositeKey = KDBXCrypto.compositeKey(password: password, keyFileData: keyFileData)
@@ -153,11 +158,12 @@ final class DatabaseViewModel {
 
     func unlockWithBiometrics() async {
         state = .unlocking
+        cloudSyncProgress = nil
 
         do {
             let context = try await BiometricService.authenticate(reason: "Unlock your password database")
             let compositeKey = try retrieveStoredCompositeKey(context: context)
-            let (_, data) = try readDatabaseData()
+            let (_, data) = try await readDatabaseData()
             try cacheDatabaseCopy(data)
             let sessionKey = SymmetricKey(size: .bits256)
 
@@ -201,6 +207,8 @@ final class DatabaseViewModel {
         rootGroup = nil
         compositeKey = nil
         sessionKey = nil
+        cloudSyncProgress = nil
+        cloudSyncBannerText = nil
         searchText = ""
         navigationPath = NavigationPath()
     }
@@ -244,11 +252,25 @@ final class DatabaseViewModel {
         }
 
         Task.detached(priority: .utility) {
-            guard let url = DatabaseListStore.resolveDatabaseURL(for: databaseReference) else { return }
-
             do {
-                let data = try Self.readSecurityScopedData(from: url)
-                try DatabaseListStore.cacheDatabaseCopy(data, for: databaseReference.id)
+                let data: Data
+
+                if databaseReference.isCloudBacked {
+                    let resolution = try await CloudSyncCoordinator.syncIfNeededForOpen(reference: databaseReference)
+                    DatabaseListStore.update(resolution.reference)
+                    data = resolution.data
+
+                    await MainActor.run {
+                        if self.databaseReference.id == resolution.reference.id {
+                            self.databaseReference = resolution.reference
+                            self.cloudSyncBannerText = resolution.bannerMessage
+                        }
+                    }
+                } else {
+                    guard let url = DatabaseListStore.resolveDatabaseURL(for: databaseReference) else { return }
+                    data = try Self.readSecurityScopedData(from: url)
+                    try DatabaseListStore.cacheDatabaseCopy(data, for: databaseReference.id)
+                }
 
                 if let compositeKeyForStoreRefresh {
                     let refreshedRoot = try KDBXParser.parse(
@@ -413,8 +435,25 @@ final class DatabaseViewModel {
         }
     }
 
-    private func readDatabaseData() throws -> (url: URL, data: Data) {
+    private func readDatabaseData() async throws -> (url: URL, data: Data) {
+        if databaseReference.isCloudBacked {
+            let resolution = try await CloudSyncCoordinator.syncIfNeededForOpen(
+                reference: databaseReference,
+                progress: { progress in
+                    Task { @MainActor in
+                        self.cloudSyncProgress = progress
+                    }
+                }
+            )
+            cloudSyncProgress = nil
+            cloudSyncBannerText = resolution.bannerMessage
+            DatabaseListStore.update(resolution.reference)
+            databaseReference = resolution.reference
+            return (resolution.localURL, resolution.data)
+        }
+
         var lastReadError: Error?
+        cloudSyncBannerText = nil
 
         if let url = DatabaseListStore.resolveDatabaseURL(for: databaseReference) {
             do {
@@ -424,7 +463,7 @@ final class DatabaseViewModel {
             }
         }
 
-        if let cachedURL = DatabaseListStore.cachedDatabaseURL(for: databaseReference.id) {
+        if let cachedURL = DatabaseListStore.cachedDatabaseURL(for: databaseReference) {
             return (cachedURL, try CoordinatedFileReader.readData(from: cachedURL))
         }
 
@@ -448,7 +487,7 @@ final class DatabaseViewModel {
     }
 
     private func cacheDatabaseCopy(_ data: Data) throws {
-        try DatabaseListStore.cacheDatabaseCopy(data, for: databaseReference.id)
+        try DatabaseListStore.cacheDatabaseCopy(data, for: databaseReference)
     }
 
     private func refreshCredentialStoreIfStillUnlocked(with root: KPGroup, expectedLockCycleID: Int) {

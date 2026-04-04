@@ -77,6 +77,50 @@ enum DatabaseListStore {
         return reference
     }
 
+    @discardableResult
+    static func addCloud(
+        provider: String,
+        accountId: String,
+        file: CloudFile
+    ) -> DatabaseReference {
+        if let existing = loadDatabases().first(where: {
+            guard let metadata = $0.cloudSyncMetadata else { return false }
+            return metadata.provider == provider && metadata.accountId == accountId && metadata.fileId == file.id
+        }) {
+            return existing
+        }
+
+        var currentDatabases = loadDatabases()
+        let reference = DatabaseReference(
+            id: UUID(),
+            nickname: nil,
+            filename: file.name,
+            bookmarkData: nil,
+            keyFileBookmarkData: nil,
+            keyFileFilename: nil,
+            isQuickLaunch: false,
+            lastOpenedAt: nil,
+            addedAt: .now,
+            colorTag: nil,
+            legacyKeychainFilename: nil,
+            source: .cloud(
+                CloudSyncMetadata(
+                    provider: provider,
+                    accountId: accountId,
+                    fileId: file.id,
+                    displayPath: file.path,
+                    remoteContentHash: nil,
+                    remoteModifiedAt: file.modifiedDate,
+                    lastSyncedAt: nil,
+                    lastSyncError: nil
+                )
+            )
+        )
+        currentDatabases.append(reference)
+        saveDatabases(currentDatabases)
+        return reference
+    }
+
     static func remove(id: UUID) {
         let currentDatabases = loadDatabases()
         guard let removedReference = currentDatabases.first(where: { $0.id == id }) else { return }
@@ -86,7 +130,7 @@ enum DatabaseListStore {
             KeychainService.deleteLegacyCompositeKey(forFilename: legacyFilename)
         }
 
-        try? FileManager.default.removeItem(at: cacheURL(for: removedReference.id))
+        try? FileManager.default.removeItem(at: cacheLocation(for: removedReference))
 
         let remainingDatabases = currentDatabases.filter { $0.id != id }
         if activeAutoFillDatabaseID == id {
@@ -150,10 +194,38 @@ enum DatabaseListStore {
         )
     }
 
+    static func cacheDatabaseCopy(_ data: Data, for reference: DatabaseReference) throws {
+        let url = cacheLocation(for: reference)
+        let fm = FileManager.default
+        try fm.createDirectory(
+            at: url.deletingLastPathComponent(),
+            withIntermediateDirectories: true,
+            attributes: nil
+        )
+        try CoordinatedFileReader.writeData(
+            data,
+            to: url,
+            options: [.atomic, .completeFileProtection]
+        )
+    }
+
     static func cachedDatabaseURL(for databaseID: UUID) -> URL? {
         let url = cacheURL(for: databaseID)
         guard FileManager.default.fileExists(atPath: url.path) else { return nil }
         return url
+    }
+
+    static func cachedDatabaseURL(for reference: DatabaseReference) -> URL? {
+        let url = cacheLocation(for: reference)
+        guard FileManager.default.fileExists(atPath: url.path) else { return nil }
+        return url
+    }
+
+    static func cacheLocation(for reference: DatabaseReference) -> URL {
+        if let metadata = reference.cloudSyncMetadata {
+            return cloudCacheURL(for: metadata)
+        }
+        return cacheURL(for: reference.id)
     }
 
     static func resolveDatabaseURL(for reference: DatabaseReference) -> URL? {
@@ -447,6 +519,23 @@ enum DatabaseListStore {
 
     private static func cacheURL(for databaseID: UUID) -> URL {
         SharedVaultStore.databaseCacheDirectory.appendingPathComponent("\(databaseID.uuidString).kdbx", isDirectory: false)
+    }
+
+    private static func cloudCacheURL(for metadata: CloudSyncMetadata) -> URL {
+        let accountComponent = safeCloudPathComponent("\(metadata.provider)-\(metadata.accountId)")
+        let fileComponent = SHA256.hash(data: Data(metadata.fileId.utf8))
+            .compactMap { String(format: "%02x", $0) }
+            .joined()
+        return SharedVaultStore.cloudCacheDirectory
+            .appendingPathComponent(accountComponent, isDirectory: true)
+            .appendingPathComponent("\(fileComponent).kdbx", isDirectory: false)
+    }
+
+    private static func safeCloudPathComponent(_ rawValue: String) -> String {
+        let allowed = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "-_."))
+        return rawValue.unicodeScalars.map { scalar in
+            allowed.contains(scalar) ? String(scalar) : "_"
+        }.joined()
     }
 
     private static func copyLegacyCachedDatabaseIfNeeded(to databaseID: UUID) {

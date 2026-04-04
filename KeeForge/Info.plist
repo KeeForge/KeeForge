@@ -4,6 +4,19 @@
 <dict>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLName</key>
+			<string>Dropbox OAuth</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>db-$(DROPBOX_APP_KEY)</string>
+			</array>
+		</dict>
+	</array>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -40,8 +53,16 @@
 	<string>$(MARKETING_VERSION)</string>
 	<key>CFBundleVersion</key>
 	<string>$(CURRENT_PROJECT_VERSION)</string>
+	<key>CloudKeychainAccessGroup</key>
+	<string>$(CLOUD_KEYCHAIN_ACCESS_GROUP)</string>
+	<key>DropboxAppKey</key>
+	<string>$(DROPBOX_APP_KEY)</string>
 	<key>GITCommitHash</key>
 	<string>$(GIT_COMMIT_HASH)</string>
+	<key>LSApplicationQueriesSchemes</key>
+	<array>
+		<string>dbapi-2</string>
+	</array>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>NSFaceIDUsageDescription</key>

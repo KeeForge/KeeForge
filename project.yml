@@ -17,6 +17,9 @@ packages:
   Argon2Swift:
     url: https://github.com/tmthecoder/Argon2Swift.git
     revision: 53543623fefe68461b7eeea03d7f96677c2fd76d
+  SwiftyDropbox:
+    url: https://github.com/dropbox/SwiftyDropbox.git
+    from: 10.0.7
 targets:
   KeeForge:
     type: application
@@ -33,6 +36,8 @@ targets:
         PRODUCT_MODULE_NAME: KeeForge
         MARKETING_VERSION: "1.6.0"
         CURRENT_PROJECT_VERSION: "1"
+        DROPBOX_APP_KEY: DROPBOX_APP_KEY
+        CLOUD_KEYCHAIN_ACCESS_GROUP: $(DEVELOPMENT_TEAM).com.keevault.sharedkeychain
         GENERATE_INFOPLIST_FILE: false
         SWIFT_EMIT_LOC_STRINGS: "YES"
     dependencies:
@@ -40,6 +45,7 @@ targets:
         embed: true
         codeSign: true
       - package: Argon2Swift
+      - package: SwiftyDropbox
     configFiles:
       Debug: BuildConfig.xcconfig
       Release: BuildConfig.xcconfig

@@ -6,6 +6,7 @@ enum SharedVaultStore {
     private static let bookmarkKey = "savedDatabaseBookmark"
     private static let databaseFilenameKey = "savedDatabaseFilename"
     private static let databaseCacheDirectoryName = "databases"
+    private static let cloudCacheDirectoryName = "cloud-cache"
 
     private static var sharedDefaults: UserDefaults {
         UserDefaults(suiteName: appGroupID) ?? .standard
@@ -18,6 +19,10 @@ enum SharedVaultStore {
 
     static var databaseCacheDirectory: URL {
         sharedContainerURL.appendingPathComponent(databaseCacheDirectoryName, isDirectory: true)
+    }
+
+    static var cloudCacheDirectory: URL {
+        sharedContainerURL.appendingPathComponent(cloudCacheDirectoryName, isDirectory: true)
     }
 
     static var legacyBookmarkData: Data? {

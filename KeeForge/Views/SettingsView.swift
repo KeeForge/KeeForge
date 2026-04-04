@@ -11,12 +11,14 @@ struct SettingsView: View {
     @State private var quickAutoFillEnabled = SettingsService.quickAutoFillEnabled
     @State private var sortOrder = DatabaseViewModel.savedSortOrder()
     @State private var sortAscending = DatabaseViewModel.savedSortAscending()
+    @State private var cloudAccounts = CloudAccountStore.accounts
 
     var body: some View {
         NavigationStack {
             Form {
                 securitySection
                 autoFillSection
+                cloudAccountsSection
                 displaySection
                 faviconCacheSection
                 TipJarView()
@@ -56,6 +58,9 @@ struct SettingsView: View {
             .onChange(of: sortAscending) { _, newValue in
                 DatabaseViewModel.persistSortAscending(newValue)
                 viewModel?.sortAscending = newValue
+            }
+            .onAppear {
+                cloudAccounts = CloudAccountStore.accounts
             }
         }
     }
@@ -118,6 +123,36 @@ struct SettingsView: View {
             if showWebsiteIcons {
                 Text("Fetches icons from DuckDuckGo. Only the website domain is sent.")
             }
+        }
+    }
+
+    @ViewBuilder
+    private var cloudAccountsSection: some View {
+        Section {
+            if cloudAccounts.isEmpty {
+                Text("No cloud accounts connected")
+                    .foregroundStyle(.secondary)
+            } else {
+                ForEach(cloudAccounts) { account in
+                    HStack {
+                        Label(
+                            account.displayName,
+                            systemImage: account.providerKind?.iconName ?? "icloud"
+                        )
+
+                        Spacer()
+
+                        Button("Sign Out", role: .destructive) {
+                            CloudProviderRegistry.provider(for: account.provider)?.signOut(accountId: account.id)
+                            cloudAccounts = CloudAccountStore.accounts
+                        }
+                    }
+                }
+            }
+        } header: {
+            Text("Cloud Accounts")
+        } footer: {
+            Text("Signing out disconnects future syncs but keeps cached cloud databases available until you remove them.")
         }
     }
 

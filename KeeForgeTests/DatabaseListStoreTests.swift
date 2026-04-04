@@ -5,11 +5,13 @@ final class DatabaseListStoreTests: XCTestCase {
     override func setUp() {
         super.setUp()
         DatabaseListStore.clearAll()
+        CloudAccountStore.clearAll()
         SharedVaultStore.clearBookmark()
     }
 
     override func tearDown() {
         DatabaseListStore.clearAll()
+        CloudAccountStore.clearAll()
         SharedVaultStore.clearBookmark()
         super.tearDown()
     }
@@ -76,6 +78,90 @@ final class DatabaseListStoreTests: XCTestCase {
         DatabaseListStore.remove(id: reference.id)
 
         XCTAssertNil(DatabaseListStore.cachedDatabaseURL(for: reference.id))
+        XCTAssertTrue(DatabaseListStore.databases.isEmpty)
+    }
+
+    func testAddCloudPersistsMetadataAndCachesUsingScopedCloudPath() throws {
+        let file = CloudFile(
+            id: "/Vaults/personal.kdbx",
+            name: "personal.kdbx",
+            path: "/Vaults/personal.kdbx",
+            isFolder: false,
+            modifiedDate: Date(timeIntervalSince1970: 123),
+            size: 42
+        )
+
+        let reference = DatabaseListStore.addCloud(
+            provider: CloudProviderKind.dropbox.rawValue,
+            accountId: "acct-1",
+            file: file
+        )
+        let storedReference = try XCTUnwrap(DatabaseListStore.databases.first)
+        let metadata = try XCTUnwrap(storedReference.cloudSyncMetadata)
+
+        XCTAssertEqual(storedReference.id, reference.id)
+        XCTAssertEqual(metadata.provider, CloudProviderKind.dropbox.rawValue)
+        XCTAssertEqual(metadata.accountId, "acct-1")
+        XCTAssertEqual(metadata.fileId, file.id)
+        XCTAssertEqual(metadata.displayPath, file.path)
+        XCTAssertEqual(metadata.remoteModifiedAt, file.modifiedDate)
+
+        let cachedData = Data("cloud-cache".utf8)
+        try DatabaseListStore.cacheDatabaseCopy(cachedData, for: reference)
+
+        let cachedURL = try XCTUnwrap(DatabaseListStore.cachedDatabaseURL(for: reference))
+        XCTAssertTrue(cachedURL.path.contains("/cloud-cache/dropbox-acct-1/"))
+        XCTAssertEqual(cachedURL.pathExtension, "kdbx")
+        XCTAssertNotEqual(cachedURL.lastPathComponent, file.name)
+        XCTAssertEqual(try Data(contentsOf: cachedURL), cachedData)
+    }
+
+    func testAddCloudReturnsExistingReferenceForSameRemoteFile() {
+        let file = CloudFile(
+            id: "/Vaults/work.kdbx",
+            name: "work.kdbx",
+            path: "/Vaults/work.kdbx",
+            isFolder: false,
+            modifiedDate: nil,
+            size: nil
+        )
+
+        let first = DatabaseListStore.addCloud(
+            provider: CloudProviderKind.dropbox.rawValue,
+            accountId: "acct-1",
+            file: file
+        )
+        let second = DatabaseListStore.addCloud(
+            provider: CloudProviderKind.dropbox.rawValue,
+            accountId: "acct-1",
+            file: file
+        )
+
+        XCTAssertEqual(first.id, second.id)
+        XCTAssertEqual(DatabaseListStore.databases.count, 1)
+    }
+
+    func testRemoveDeletesCloudCachedCopy() throws {
+        let file = CloudFile(
+            id: "/Vaults/remove-me.kdbx",
+            name: "remove-me.kdbx",
+            path: "/Vaults/remove-me.kdbx",
+            isFolder: false,
+            modifiedDate: nil,
+            size: nil
+        )
+        let reference = DatabaseListStore.addCloud(
+            provider: CloudProviderKind.dropbox.rawValue,
+            accountId: "acct-1",
+            file: file
+        )
+
+        try DatabaseListStore.cacheDatabaseCopy(Data("cached-cloud".utf8), for: reference)
+        XCTAssertNotNil(DatabaseListStore.cachedDatabaseURL(for: reference))
+
+        DatabaseListStore.remove(id: reference.id)
+
+        XCTAssertNil(DatabaseListStore.cachedDatabaseURL(for: reference))
         XCTAssertTrue(DatabaseListStore.databases.isEmpty)
     }
 

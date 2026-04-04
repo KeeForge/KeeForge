@@ -7,6 +7,11 @@
 - [ ] Passkey creation (Phase 3 — requires KDBX write support)
 - [ ] Sync / attachments
 
+## Unreleased
+
+### New Features
+- Add read-only Dropbox cloud sync with OAuth account linking, native cloud browsing, shared cached copies for AutoFill, and cloud status indicators in the database list and settings
+
 ## v1.6.0 (2026-04-03)
 
 ### New Features
