@@ -162,6 +162,48 @@ Same `CloudProvider` protocol, different SDK/auth:
 
 The cloud file browser UI, caching layer, and DatabaseReference changes are shared — only the provider implementation differs. ~1-2 days each after Dropbox ships.
 
+## Prior Art: How Other iOS KeePass Apps Do It
+
+### KeePassium (GPLv3, Swift)
+
+Two-layer architecture:
+
+**Backend (`KeePassiumLib/files/data-source/remote/`):**
+- `DataSource` protocol: unified `read()`, `write()`, `readFileInfo()` for local and remote
+- `RemoteDataSource` extends it with associated types per provider
+- `RemoteDataSourceManager<ItemType>` generic base handles token mgmt + API calls
+- Per-provider: ~6 files each (Manager, Item, DataSource, API, AccountInfo, URL extension)
+- `CredentialManager` stores OAuth tokens in Keychain
+- `DataSourceFactory` picks the right DataSource based on URL/FileProvider
+
+**UI (`KeePassium/remote-files/`):**
+- `RemoteDataSourceSetupCoordinator<Manager>` — generic auth → browse → pick flow
+- `RemoteFolderViewerVC` — shared folder browser reused across all providers
+- Connection type picker sheet
+
+**Key decisions:**
+- **No third-party SDKs** — raw `URLSession` + manual OAuth PKCE (no SwiftyDropbox)
+- **URL-based file identity** — encodes provider + path into custom URL schemes (`dropbox:///path/to/file.kdbx`), so URLReference works uniformly for local and remote
+- **`content_hash`** for Dropbox change detection
+- **"Plan B" positioning** — defaults to Files app, direct cloud is fallback
+- **Premium gating** — corporate cloud accounts (Dropbox Business, Google Workspace Business) require paid tier
+
+### Strongbox (Obj-C, partially open source)
+
+- `SafeStorageProvider` protocol with implementations per provider (`DropboxV2StorageProvider`, `GoogleDriveStorageProvider`, etc.)
+- `SelectStorageProviderController` — table view listing providers grouped by type
+- `StorageBrowserTableViewController` — generic browser
+- **Uses official SDKs** (SwiftyDropbox, Google Sign-In, MSAL)
+- `SafeStorageProvider` has `browsableExisting`/`browsableNew` flags per provider
+
+### Lessons for KeeForge
+
+1. **Use SwiftyDropbox** — KeePassium's raw approach works but is more code to maintain. Strongbox uses official SDKs successfully. For a solo dev, less code > less dependencies.
+2. **URL-based identity is smart** — encoding provider info into a URL scheme means DatabaseReference barely changes. Worth considering.
+3. **Shared folder browser from day 1** — both apps reuse one folder viewer across providers.
+4. **`content_hash` for Dropbox staleness** — both apps use it, more reliable than timestamps.
+5. **Consider premium gating later** — KeePassium gates corporate accounts. Could monetize cloud sync for business accounts if needed.
+
 ## Out of Scope (for now)
 
 - Write-back / upload modified databases
