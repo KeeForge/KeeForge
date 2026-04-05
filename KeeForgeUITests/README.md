@@ -2,7 +2,7 @@
 
 Detailed guidance for adding, running, and fixing XCUITests in `KeeForgeUITests/`.
 
-Use this document for UI test methodology. Repo-wide build and test policy stays in `AGENTS.md`.
+Use this document for UI test methodology. Repo-wide build and test policy stays in `AGENTS.md`, and fixture details live in `../TestFixtures/README.md`.
 
 ## Current Test Classes
 
@@ -21,7 +21,7 @@ Always run one UI test class at a time:
 
 ```bash
 xcodebuild test -project KeeForge.xcodeproj -scheme KeeForge \
-  -destination 'platform=iOS Simulator,name=iPhone 16 Pro' \
+  -destination 'platform=iOS Simulator,name=iPhone 17 Pro' \
   -only-testing:KeeForgeUITests/UnlockedDatabaseUITests -quiet
 ```
 
@@ -32,12 +32,12 @@ Examples:
 ```bash
 # One standard UI class
 xcodebuild test -project KeeForge.xcodeproj -scheme KeeForge \
-  -destination 'platform=iOS Simulator,name=iPhone 16 Pro' \
+  -destination 'platform=iOS Simulator,name=iPhone 17 Pro' \
   -only-testing:KeeForgeUITests/UnlockFlowUITests -quiet
 
 # Key file-specific class from a shared source file
 xcodebuild test -project KeeForge.xcodeproj -scheme KeeForge \
-  -destination 'platform=iOS Simulator,name=iPhone 16 Pro' \
+  -destination 'platform=iOS Simulator,name=iPhone 17 Pro' \
   -only-testing:KeeForgeUITests/KeyFileUnlockUITests -quiet
 ```
 

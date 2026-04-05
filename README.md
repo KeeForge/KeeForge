@@ -62,6 +62,7 @@ KeeForge collects zero data — no analytics, no telemetry, no crash reports. Al
 
 - `CHANGELOG.md` — version history and roadmap
 - `AGENTS.md` — context for AI coding agents
+- `KeeForge/**/README.md`, `AutoFillExtension/README.md`, `KeeForgeTests/README.md`, `TestFixtures/README.md` — task-oriented folder docs for contributors and coding agents
 - `docs/` — implementation specs, security audit, privacy policy
 
 ## Support
@@ -71,7 +72,7 @@ KeeForge collects zero data — no analytics, no telemetry, no crash reports. Al
 
 ## Contributing
 
-See [`AGENTS.md`](AGENTS.md) for project architecture, conventions, and coding guidelines — useful for both human contributors and AI coding agents.
+Start with [`AGENTS.md`](AGENTS.md), then open the folder-local `README.md` closest to the code you are changing. The local docs are the fastest route to current architecture and test guidance.
 
 ## License
 
