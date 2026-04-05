@@ -1,0 +1,4 @@
+// Copy this file to BuildConfig.local.xcconfig and replace the placeholder
+// values before building or running the app.
+DEVELOPMENT_TEAM = YOUR_TEAM_ID
+DROPBOX_APP_KEY = YOUR_DROPBOX_APP_KEY

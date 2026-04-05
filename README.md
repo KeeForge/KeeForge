@@ -26,10 +26,14 @@ A free, native iOS KeePass password manager built with SwiftUI. Read-only in v1 
 ## Build
 
 ```bash
+cp BuildConfig.local.example.xcconfig BuildConfig.local.xcconfig
+# Fill in DEVELOPMENT_TEAM and DROPBOX_APP_KEY
 xcodegen generate
 open KeeForge.xcodeproj
 ```
 
+The build uses `BuildConfig.local.xcconfig` for developer-specific identifiers and
+`BuildMetadata.xcconfig` for generated values such as the git commit hash.
 Select an iOS 17+ simulator or device, then build and run.
 
 ## Usage

@@ -68,6 +68,8 @@ playground.xcworkspace
 *.p12
 *.key
 !TestFixtures/*.key
+BuildConfig.local.xcconfig
+BuildMetadata.xcconfig
 Secrets/
 .env
 .venv/

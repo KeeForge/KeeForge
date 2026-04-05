@@ -5,12 +5,14 @@ options:
     iOS: "17.0"
   xcodeVersion: "16.0"
   minimumXcodeGenVersion: "2.38"
+configFiles:
+  Debug: BuildConfig.xcconfig
+  Release: BuildConfig.xcconfig
 settings:
   base:
     SWIFT_VERSION: "6.0"
     IPHONEOS_DEPLOYMENT_TARGET: "17.0"
     SWIFT_STRICT_CONCURRENCY: complete
-    DEVELOPMENT_TEAM: V82M9YX8BR
     CODE_SIGN_STYLE: Automatic
     ENABLE_USER_SCRIPT_SANDBOXING: "YES"
 packages:
@@ -36,7 +38,6 @@ targets:
         PRODUCT_MODULE_NAME: KeeForge
         MARKETING_VERSION: "1.6.0"
         CURRENT_PROJECT_VERSION: "1"
-        DROPBOX_APP_KEY: DROPBOX_APP_KEY
         CLOUD_KEYCHAIN_ACCESS_GROUP: $(DEVELOPMENT_TEAM).com.keevault.sharedkeychain
         GENERATE_INFOPLIST_FILE: false
         SWIFT_EMIT_LOC_STRINGS: "YES"
@@ -46,9 +47,6 @@ targets:
         codeSign: true
       - package: Argon2Swift
       - package: SwiftyDropbox
-    configFiles:
-      Debug: BuildConfig.xcconfig
-      Release: BuildConfig.xcconfig
     sources:
       - path: KeeForge/App
         excludes: ["README.md"]
@@ -159,8 +157,7 @@ schemes:
     build:
       preActions:
         - script: |
-            HASH=$(/usr/bin/git -C "${SRCROOT}" rev-parse --short HEAD 2>/dev/null || echo dev)
-            echo "GIT_COMMIT_HASH = ${HASH}" > "${SRCROOT}/BuildConfig.xcconfig"
+            "${SRCROOT}/ci_scripts/prepare_build_config.sh" "${SRCROOT}"
           settingsTarget: KeeForge
       targets:
         KeeForge: all
@@ -172,8 +169,8 @@ schemes:
       gatherCoverageData: false
       targets:
         - name: KeeForgeTests
-          parallelizable: false
-          randomExecutionOrder: false
+          parallelizable: true
+          randomExecutionOrder: true
         - name: KeeForgeUITests
           parallelizable: false
           randomExecutionOrder: false

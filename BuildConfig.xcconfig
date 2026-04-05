@@ -1,1 +1,5 @@
-GIT_COMMIT_HASH = c4a9631
+// Shared build settings entry point.
+// Copy BuildConfig.local.example.xcconfig to BuildConfig.local.xcconfig
+// and replace the placeholder values before building.
+#include? "BuildConfig.local.xcconfig"
+#include? "BuildMetadata.xcconfig"

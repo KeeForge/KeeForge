@@ -15,6 +15,7 @@
 ### Changes
 - Anchor the database add options to the add button with a top-right menu and simplify the choices to `Local Device` and `Dropbox`
 - Use the official Dropbox glyph consistently across the add menu and cloud-related UI
+- Split developer-specific build identifiers into a gitignored local xcconfig and move generated git metadata into a separate build-time config file
 
 ## v1.6.0 (2026-04-03)
 
