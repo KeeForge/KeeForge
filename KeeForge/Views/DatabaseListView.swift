@@ -56,7 +56,6 @@ struct DatabaseListView: View {
                                 DatabaseRowView(
                                     reference: reference,
                                     status: viewModel.status(for: reference),
-                                    biometricSymbolName: viewModel.biometricIndicatorSymbolName(),
                                     lastOpenedDescription: viewModel.lastOpenedDescription(for: reference),
                                     filenameSubtitle: viewModel.detailSubtitle(for: reference)
                                 )
@@ -450,15 +449,26 @@ private struct DatabaseDetailsView: View {
                    let metadata = reference.cloudSyncMetadata {
                     Section {
                         LabeledContent("Provider") {
-                            Label {
+                            HStack(spacing: 6) {
+                                CloudProviderIcon(provider: metadata.providerKind, size: 16)
                                 Text(cloudState.providerName)
-                            } icon: {
-                                CloudProviderIcon(provider: metadata.providerKind)
                             }
+                            .lineLimit(1)
                         }
 
-                        LabeledContent("Account", value: cloudState.accountLabel)
-                        LabeledContent("Path", value: metadata.displayPath)
+                        LabeledContent("Account") {
+                            Text(cloudState.accountLabel)
+                                .lineLimit(1)
+                                .truncationMode(.middle)
+                                .multilineTextAlignment(.trailing)
+                        }
+
+                        LabeledContent("Path") {
+                            Text(metadata.displayPath)
+                                .lineLimit(1)
+                                .truncationMode(.middle)
+                                .multilineTextAlignment(.trailing)
+                        }
 
                         if let remoteModifiedAt = metadata.remoteModifiedAt {
                             LabeledContent("Remote Modified", value: dateText(remoteModifiedAt))

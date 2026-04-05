@@ -12,6 +12,9 @@
 ### New Features
 - Add read-only Dropbox cloud sync with OAuth account linking, native cloud browsing, shared cached copies for AutoFill, and cloud status indicators in the database list and settings
 
+### Fixes
+- Simplify database list rows by using source icons instead of separate Dropbox and biometric badges, and fix oversized whitespace in Dropbox cloud-sync details
+
 ### Changes
 - Split developer-specific build identifiers into a gitignored local xcconfig and move generated git metadata into a separate build-time config file
 - Bootstrap a simulator-only local build config in GitHub Actions so CI no longer requires developer-specific identifiers

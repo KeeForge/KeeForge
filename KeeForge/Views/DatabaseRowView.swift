@@ -3,16 +3,12 @@ import SwiftUI
 struct DatabaseRowView: View {
     let reference: DatabaseReference
     let status: DatabaseRowStatus
-    let biometricSymbolName: String
     let lastOpenedDescription: String?
     let filenameSubtitle: String?
 
     var body: some View {
         HStack(alignment: .top, spacing: 14) {
-            Image(systemName: status.hasAccessIssue ? "exclamationmark.triangle.fill" : "lock.fill")
-                .font(.title3)
-                .foregroundStyle(status.hasAccessIssue ? Color.orange : Color.accentColor)
-                .frame(width: 28, height: 28)
+            sourceIcon
 
             VStack(alignment: .leading, spacing: 6) {
                 HStack(alignment: .firstTextBaseline, spacing: 8) {
@@ -42,29 +38,6 @@ struct DatabaseRowView: View {
                         .foregroundStyle(.secondary)
                 }
 
-                if let cloudState = status.cloudState {
-                    HStack(spacing: 8) {
-                        Label {
-                            Text(cloudState.providerName)
-                        } icon: {
-                            CloudProviderIcon(
-                                provider: reference.cloudProviderKind,
-                                fallbackSystemName: cloudState.isConnected ? "icloud" : "icloud.slash"
-                            )
-                        }
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .lineLimit(1)
-
-                        if let warningText = cloudState.warningText {
-                            Text(warningText)
-                                .font(.caption)
-                                .foregroundStyle(.orange)
-                                .lineLimit(1)
-                        }
-                    }
-                }
-
                 HStack(spacing: 10) {
                     if reference.keyFileFilename != nil {
                         Label(reference.keyFileFilename ?? "Key File", systemImage: "key.fill")
@@ -73,10 +46,11 @@ struct DatabaseRowView: View {
                             .lineLimit(1)
                     }
 
-                    if status.hasStoredKey {
-                        Image(systemName: biometricSymbolName)
+                    if let warningText = status.cloudState?.warningText {
+                        Text(warningText)
                             .font(.caption)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(.orange)
+                            .lineLimit(1)
                     }
 
                     if status.hasAccessIssue, status.cloudState == nil {
@@ -102,5 +76,27 @@ struct DatabaseRowView: View {
         }
         .padding(.vertical, 4)
         .contentShape(Rectangle())
+    }
+
+    @ViewBuilder
+    private var sourceIcon: some View {
+        if status.hasAccessIssue {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .font(.title3)
+                .foregroundStyle(.orange)
+                .frame(width: 28, height: 28)
+        } else if reference.isCloudBacked {
+            CloudProviderIcon(
+                provider: reference.cloudProviderKind,
+                size: 24,
+                fallbackSystemName: "icloud"
+            )
+            .frame(width: 28, height: 28)
+        } else {
+            Image(systemName: "iphone")
+                .font(.title3)
+                .foregroundStyle(Color.accentColor)
+                .frame(width: 28, height: 28)
+        }
     }
 }

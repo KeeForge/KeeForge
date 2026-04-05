@@ -127,17 +127,6 @@ final class DatabaseListViewModel {
         return nil
     }
 
-    func biometricIndicatorSymbolName() -> String {
-        switch BiometricService.availableType {
-        case .faceID:
-            return "faceid"
-        case .touchID:
-            return "touchid"
-        case .none:
-            return "key.fill"
-        }
-    }
-
     nonisolated static func makeRowStatus(
         resolvedURL: URL?,
         hasStoredKey: Bool,
