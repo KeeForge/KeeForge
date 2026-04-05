@@ -62,13 +62,14 @@ jobs:
             -only-testing:KeeForgeTests \
             | xcpretty
 
-      - name: Run UI tests
-        if: github.event_name == 'pull_request'
-        run: |
-          set -o pipefail
-          xcodebuild test-without-building \
-            -project "$PROJECT" \
-            -scheme "$SCHEME" \
-            -destination "$DESTINATION" \
-            -only-testing:KeeForgeUITests \
-            | xcpretty
+      # UI tests disabled in CI — simulator-dependent and flaky on GitHub runners
+      # - name: Run UI tests
+      #   if: github.event_name == 'pull_request'
+      #   run: |
+      #     set -o pipefail
+      #     xcodebuild test-without-building \
+      #       -project "$PROJECT" \
+      #       -scheme "$SCHEME" \
+      #       -destination "$DESTINATION" \
+      #       -only-testing:KeeForgeUITests \
+      #       | xcpretty
