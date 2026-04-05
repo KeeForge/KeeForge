@@ -30,17 +30,6 @@ jobs:
           sudo xcode-select -s "$XCODE_PATH"
           xcodebuild -version
 
-      - name: Install simulator runtime
-        run: |
-          # List available runtimes and install iOS if missing
-          xcrun simctl list runtimes
-          if ! xcrun simctl list runtimes | grep -q "iOS.*Available"; then
-            echo "No iOS runtime found, installing..."
-            xcodebuild -downloadPlatform iOS
-          fi
-          # List available simulators
-          xcrun simctl list devices available | grep "iPhone" | head -5
-
       - name: Install XcodeGen
         run: brew install xcodegen
 
