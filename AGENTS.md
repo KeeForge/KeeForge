@@ -35,7 +35,7 @@ Entry point for coding agents working on KeeForge. This file is intentionally br
 - If you add, remove, or retarget source files, update `project.yml` and run `xcodegen generate`.
 - When changing code shared with `AutoFillExtension`, keep extension-safe imports/APIs and target membership in sync.
 - Preserve accessibility identifiers or update the relevant UI tests in the same change.
-- Update `CHANGELOG.md` for feature or bug-fix commits. Add entries only under `## Unreleased`.
+- Update `CHANGELOG.md` for feature or bug-fix commits. Add entries only under `## Unreleased`. It's okay to skip if the bug fix is for an unreleased feature.
 
 ## Build And Test
 
