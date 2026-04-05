@@ -12,6 +12,7 @@ struct SettingsView: View {
     @State private var sortOrder = DatabaseViewModel.savedSortOrder()
     @State private var sortAscending = DatabaseViewModel.savedSortAscending()
     @State private var cloudAccounts = CloudAccountStore.accounts
+    @State private var pendingCloudAccountSignOut: CloudAccount?
 
     var body: some View {
         NavigationStack {
@@ -138,15 +139,37 @@ struct SettingsView: View {
                         Label {
                             Text(account.displayName)
                         } icon: {
-                            CloudProviderIcon(provider: account.providerKind)
+                            CloudProviderIcon(provider: account.providerKind, size: 20)
                         }
                         .accessibilityIdentifier("settings.cloud.account.label")
 
                         Spacer()
 
                         Button("Sign Out", role: .destructive) {
-                            CloudProviderRegistry.provider(for: account.provider)?.signOut(accountId: account.id)
-                            cloudAccounts = CloudAccountStore.accounts
+                            pendingCloudAccountSignOut = account
+                        }
+                        .confirmationDialog(
+                            "Disconnect Cloud Account?",
+                            isPresented: Binding(
+                                get: { pendingCloudAccountSignOut?.id == account.id },
+                                set: { isPresented in
+                                    if !isPresented {
+                                        pendingCloudAccountSignOut = nil
+                                    }
+                                }
+                            )
+                        ) {
+                            Button("Disconnect", role: .destructive) {
+                                CloudProviderRegistry.provider(for: account.provider)?.signOut(accountId: account.id)
+                                cloudAccounts = CloudAccountStore.accounts
+                                pendingCloudAccountSignOut = nil
+                            }
+
+                            Button("Cancel", role: .cancel) {
+                                pendingCloudAccountSignOut = nil
+                            }
+                        } message: {
+                            Text("Disconnect \(account.displayName)? KeeForge will keep any cached cloud databases until you remove them.")
                         }
                         .accessibilityIdentifier("settings.cloud.signout.button")
                     }

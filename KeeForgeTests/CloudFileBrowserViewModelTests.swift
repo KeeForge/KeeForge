@@ -4,6 +4,16 @@ import XCTest
 
 @MainActor
 final class CloudFileBrowserViewModelTests: XCTestCase {
+    override func setUp() {
+        super.setUp()
+        CloudAccountStore.clearAll()
+    }
+
+    override func tearDown() {
+        CloudAccountStore.clearAll()
+        super.tearDown()
+    }
+
     func testRequestKeyIncludesAccountPathAndSearchText() {
         let viewModel = CloudFolderBrowserViewModel(path: "/Vaults")
         viewModel.searchText = "vault"
@@ -74,6 +84,58 @@ final class CloudFileBrowserViewModelTests: XCTestCase {
 
         XCTAssertNil(provider.lastListQuery)
     }
+
+    func testBrowserSessionAuthenticateRefreshesAccountsAndSelectsAuthenticatedAccount() async {
+        let provider = MockBrowserCloudProvider()
+        let account = CloudAccount(id: "acct-1", displayName: "alex@example.com", provider: provider.id)
+        provider.authenticateResult = .success(account)
+        let session = CloudFileBrowserSession(providerID: provider.id) { _ in provider }
+
+        let result = await session.authenticate {
+            ASPresentationAnchor()
+        }
+
+        switch result {
+        case .authenticated(let authenticatedAccount):
+            XCTAssertEqual(authenticatedAccount, account)
+        default:
+            XCTFail("Expected authentication success")
+        }
+
+        XCTAssertEqual(session.accounts, [account])
+        XCTAssertEqual(session.selectedAccountID, account.id)
+        XCTAssertFalse(session.isAuthenticating)
+    }
+
+    func testBrowserSessionAuthenticateReturnsCancelledWithoutDismissingState() async {
+        let provider = MockBrowserCloudProvider()
+        provider.authenticateResult = .failure(CloudProviderError.authenticationCancelled)
+        let session = CloudFileBrowserSession(providerID: provider.id) { _ in provider }
+
+        let result = await session.authenticate {
+            ASPresentationAnchor()
+        }
+
+        switch result {
+        case .cancelled:
+            break
+        default:
+            XCTFail("Expected authentication cancellation")
+        }
+
+        XCTAssertTrue(session.accounts.isEmpty)
+        XCTAssertNil(session.selectedAccountID)
+        XCTAssertFalse(session.isAuthenticating)
+    }
+
+    func testBrowserSessionCancelPendingAuthenticationDelegatesToProvider() {
+        let provider = MockBrowserCloudProvider()
+        let session = CloudFileBrowserSession(providerID: provider.id) { _ in provider }
+
+        session.cancelPendingAuthentication()
+
+        XCTAssertEqual(provider.cancelPendingAuthenticationCallCount, 1)
+    }
 }
 
 private final class MockBrowserCloudProvider: CloudProvider, @unchecked Sendable {
@@ -81,14 +143,24 @@ private final class MockBrowserCloudProvider: CloudProvider, @unchecked Sendable
     let displayName = CloudProviderKind.dropbox.displayName
     let iconName = CloudProviderKind.dropbox.iconName
 
+    var authenticateResult: Result<CloudAccount, Error> = .success(
+        CloudAccount(id: "acct-1", displayName: "alex@example.com", provider: CloudProviderKind.dropbox.rawValue)
+    )
     var filesToReturn: [CloudFile] = []
     var listError: Error?
     private(set) var lastListAccountID: String?
     private(set) var lastListPath: String?
     private(set) var lastListQuery: String?
+    private(set) var cancelPendingAuthenticationCallCount = 0
 
     func authenticate(from anchor: ASPresentationAnchor) async throws -> CloudAccount {
-        CloudAccount(id: "acct-1", displayName: "alex@example.com", provider: id)
+        let account = try authenticateResult.get()
+        CloudAccountStore.upsert(account)
+        return account
+    }
+
+    func cancelPendingAuthentication() {
+        cancelPendingAuthenticationCallCount += 1
     }
 
     func isAuthenticated(accountId: String) -> Bool {

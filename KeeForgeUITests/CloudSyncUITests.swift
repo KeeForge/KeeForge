@@ -41,6 +41,10 @@ final class CloudSyncUITests: KeeForgeUITestCase {
         XCTAssertTrue(dropboxButton.waitForExistence(timeout: 10))
         dropboxButton.tap()
 
+        let connectButton = app.buttons["cloud.browser.connect.button"].firstMatch
+        XCTAssertTrue(connectButton.waitForExistence(timeout: 10))
+        connectButton.tap()
+
         let fileRow = app.buttons.matching(
             NSPredicate(format: "identifier == 'cloud.browser.file.row' AND label CONTAINS[c] %@", "personal.kdbx")
         ).firstMatch
@@ -68,6 +72,10 @@ final class CloudSyncUITests: KeeForgeUITestCase {
         let signOutButton = app.buttons["settings.cloud.signout.button"].firstMatch
         XCTAssertTrue(signOutButton.waitForExistence(timeout: 10))
         signOutButton.tap()
+
+        let disconnectButton = app.buttons["Disconnect"].firstMatch
+        XCTAssertTrue(disconnectButton.waitForExistence(timeout: 10))
+        disconnectButton.tap()
 
         let doneButton = app.buttons["Done"]
         XCTAssertTrue(doneButton.waitForExistence(timeout: 10))

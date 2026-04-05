@@ -97,14 +97,15 @@ struct DatabaseListView: View {
                     }
                     .accessibilityIdentifier("database.settings.button")
 
-                    Menu {
-                        addDatabaseMenuContent
-                    } label: {
-                        Image(systemName: "plus")
-                    }
-                    .accessibilityIdentifier("database.add.button")
-                }
+            Menu {
+                addDatabaseMenuContent
+            } label: {
+                Image(systemName: "plus")
             }
+            .menuOrder(.fixed)
+            .accessibilityIdentifier("database.add.button")
+        }
+    }
         }
         .onAppear {
             viewModel.reload()
@@ -195,7 +196,10 @@ struct DatabaseListView: View {
         ) {
             SettingsView()
         }
-        .sheet(item: $activeCloudProvider) { provider in
+        .sheet(
+            item: $activeCloudProvider,
+            onDismiss: cancelPendingCloudAuthentication
+        ) { provider in
             CloudFileBrowserView(
                 providerID: provider.rawValue,
                 onSelect: { selection in
@@ -207,6 +211,13 @@ struct DatabaseListView: View {
                     selectionAlert = makeCloudSelectionAlert(error: error, provider: provider)
                 }
             )
+        }
+    }
+
+    @MainActor
+    private func cancelPendingCloudAuthentication() {
+        for providerKind in CloudProviderRegistry.availableProviders {
+            CloudProviderRegistry.provider(for: providerKind.rawValue)?.cancelPendingAuthentication()
         }
     }
 
@@ -222,6 +233,7 @@ struct DatabaseListView: View {
                 Label("Add Database", systemImage: "plus")
             }
             .buttonStyle(.borderedProminent)
+            .menuOrder(.fixed)
             .accessibilityIdentifier("database.empty.add")
         }
     }

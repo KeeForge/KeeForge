@@ -20,6 +20,11 @@
 
 ### Fixes
 - Clear Quick AutoFill credential identities when removing the currently active database so iOS does not keep stale suggestions after deletion
+- Fix the Dropbox add-database flow so the browser waits for an explicit Connect tap, stays open after auth cancellation, and clears stale pending sign-in state on dismiss
+- Keep the add-database option order consistent across both menu entry points and improve the Dropbox connect screen wording and icon sizing
+- Fix Dropbox account linking to persist the SDK token UID instead of Dropbox account_id so the browser can list files immediately after sign-in
+- Increase the Dropbox icon size in Settings -> Cloud Accounts for better legibility
+- Add a confirmation dialog before disconnecting a cloud account from Settings
 
 ## v1.6.0 (2026-04-03)
 

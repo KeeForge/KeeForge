@@ -8,23 +8,28 @@ struct CloudFileBrowserView: View {
     let onFailure: (Error) -> Void
 
     @Environment(\.dismiss) private var dismiss
-    @State private var accounts: [CloudAccount] = []
-    @State private var selectedAccountID: String?
-    @State private var isAuthenticating = false
+    @State private var session: CloudFileBrowserSession
 
-    private var provider: CloudProvider? {
-        CloudProviderRegistry.provider(for: providerID)
+    init(
+        providerID: String,
+        onSelect: @escaping (CloudDatabaseSelection) -> Void,
+        onFailure: @escaping (Error) -> Void
+    ) {
+        self.providerID = providerID
+        self.onSelect = onSelect
+        self.onFailure = onFailure
+        _session = State(initialValue: CloudFileBrowserSession(providerID: providerID))
     }
 
-    private var selectedAccount: CloudAccount? {
-        accounts.first { $0.id == selectedAccountID }
+    private var provider: CloudProvider? {
+        session.provider
     }
 
     var body: some View {
         NavigationStack {
             Group {
                 if let provider {
-                    if let selectedAccount {
+                    if let selectedAccount = session.selectedAccount {
                         CloudFolderBrowserView(
                             provider: provider,
                             account: selectedAccount,
@@ -38,20 +43,18 @@ struct CloudFileBrowserView: View {
                             } icon: {
                                 CloudProviderIcon(
                                     provider: CloudProviderKind(rawValue: provider.id),
-                                    size: 18,
+                                    size: 40,
                                     fallbackSystemName: provider.iconName
                                 )
                             }
                         } description: {
-                            Text("Sign in to browse your cloud vaults.")
+                            Text("Sign in to browse your \(provider.displayName) databases.")
                         } actions: {
                             Button("Connect") {
-                                Task {
-                                    await authenticate()
-                                }
+                                beginAuthentication()
                             }
                             .buttonStyle(.borderedProminent)
-                            .disabled(isAuthenticating)
+                            .disabled(session.isAuthenticating)
                             .accessibilityIdentifier("cloud.browser.connect.button")
                         }
                     }
@@ -68,6 +71,7 @@ struct CloudFileBrowserView: View {
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") {
+                        session.cancelPendingAuthentication()
                         dismiss()
                     }
                     .accessibilityIdentifier("cloud.browser.cancel.button")
@@ -76,10 +80,10 @@ struct CloudFileBrowserView: View {
                 if provider != nil {
                     ToolbarItem(placement: .topBarTrailing) {
                         Menu {
-                            if !accounts.isEmpty {
-                                ForEach(accounts) { account in
+                            if !session.accounts.isEmpty {
+                                ForEach(session.accounts) { account in
                                     Button(account.displayName) {
-                                        selectedAccountID = account.id
+                                        session.selectedAccountID = account.id
                                     }
                                 }
 
@@ -87,64 +91,39 @@ struct CloudFileBrowserView: View {
                             }
 
                             Button("Connect Another Account") {
-                                Task {
-                                    await authenticate()
-                                }
+                                beginAuthentication()
                             }
                         } label: {
                             Image(systemName: "person.crop.circle.badge.plus")
                         }
-                        .disabled(isAuthenticating)
+                        .disabled(session.isAuthenticating)
                         .accessibilityIdentifier("cloud.browser.account.menu")
                     }
                 }
             }
         }
         .task {
-            refreshAccounts()
-            if selectedAccount == nil, !isAuthenticating {
-                await authenticate()
-            }
+            session.refreshAccounts()
         }
     }
 
-    @MainActor
-    private func authenticate() async {
-        guard let provider else { return }
-
-        isAuthenticating = true
-        defer { isAuthenticating = false }
-
-        do {
-            let account = try await provider.authenticate(from: presentationAnchor())
-            refreshAccounts()
-            selectedAccountID = account.id
-        } catch {
-            if let cloudError = error as? CloudProviderError, cloudError == .authenticationCancelled {
-                if accounts.isEmpty {
-                    dismiss()
-                }
-                return
+    private func beginAuthentication() {
+        Task {
+            switch await session.authenticate(presentationAnchor: presentationAnchor) {
+            case .authenticated:
+                break
+            case .cancelled:
+                break
+            case .failed(let error):
+                onFailure(error)
+                dismiss()
             }
-
-            onFailure(error)
-            dismiss()
-        }
-    }
-
-    @MainActor
-    private func refreshAccounts() {
-        accounts = CloudAccountStore.accounts(for: providerID)
-        if selectedAccountID == nil {
-            selectedAccountID = accounts.first?.id
-        } else if accounts.contains(where: { $0.id == selectedAccountID }) == false {
-            selectedAccountID = accounts.first?.id
         }
     }
 
     @MainActor
     private func handleFileSelection(_ file: CloudFile) {
-        guard let selectedAccount else { return }
+        guard let selectedAccount = session.selectedAccount else { return }
         onSelect(
             CloudDatabaseSelection(
                 provider: providerID,
@@ -162,6 +141,76 @@ struct CloudFileBrowserView: View {
             return window
         }
         return ASPresentationAnchor()
+    }
+}
+
+enum CloudFileBrowserAuthenticationResult {
+    case authenticated(CloudAccount)
+    case cancelled
+    case failed(Error)
+}
+
+@MainActor
+@Observable
+final class CloudFileBrowserSession {
+    let providerID: String
+    private let providerResolver: (String) -> CloudProvider?
+
+    var accounts: [CloudAccount] = []
+    var selectedAccountID: String?
+    private(set) var isAuthenticating = false
+
+    init(
+        providerID: String,
+        providerResolver: @escaping (String) -> CloudProvider? = CloudProviderRegistry.provider(for:)
+    ) {
+        self.providerID = providerID
+        self.providerResolver = providerResolver
+    }
+
+    var provider: CloudProvider? {
+        providerResolver(providerID)
+    }
+
+    var selectedAccount: CloudAccount? {
+        accounts.first { $0.id == selectedAccountID }
+    }
+
+    func refreshAccounts() {
+        accounts = CloudAccountStore.accounts(for: providerID)
+        if selectedAccountID == nil {
+            selectedAccountID = accounts.first?.id
+        } else if accounts.contains(where: { $0.id == selectedAccountID }) == false {
+            selectedAccountID = accounts.first?.id
+        }
+    }
+
+    func authenticate(
+        presentationAnchor: @escaping @MainActor () -> ASPresentationAnchor
+    ) async -> CloudFileBrowserAuthenticationResult {
+        guard let provider else {
+            return .failed(CloudProviderError.invalidConfiguration)
+        }
+
+        isAuthenticating = true
+        defer { isAuthenticating = false }
+
+        do {
+            let account = try await provider.authenticate(from: presentationAnchor())
+            refreshAccounts()
+            selectedAccountID = account.id
+            return .authenticated(account)
+        } catch let cloudError as CloudProviderError where cloudError == .authenticationCancelled {
+            refreshAccounts()
+            return .cancelled
+        } catch {
+            refreshAccounts()
+            return .failed(error)
+        }
+    }
+
+    func cancelPendingAuthentication() {
+        provider?.cancelPendingAuthentication()
     }
 }
 

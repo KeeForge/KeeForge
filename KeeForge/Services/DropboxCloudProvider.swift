@@ -93,7 +93,7 @@ final class DropboxCloudProvider: CloudProvider, @unchecked Sendable {
 
             DropboxClientsManager.authorizeFromControllerV2(
                 UIApplication.shared,
-                controller: nil,
+                controller: presentingController(from: anchor),
                 loadingStatusDelegate: nil,
                 openURL: { url in
                     UIApplication.shared.open(url, options: [:], completionHandler: nil)
@@ -101,6 +101,13 @@ final class DropboxCloudProvider: CloudProvider, @unchecked Sendable {
                 scopeRequest: scopeRequest
             )
         }
+    }
+
+    @MainActor
+    func cancelPendingAuthentication() {
+        guard let continuation = pendingAuthContinuation else { return }
+        pendingAuthContinuation = nil
+        continuation.resume(throwing: CloudProviderError.authenticationCancelled)
     }
 
     func isAuthenticated(accountId: String) -> Bool {
@@ -300,6 +307,31 @@ final class DropboxCloudProvider: CloudProvider, @unchecked Sendable {
         DropboxOAuthManager.sharedOAuthManager
     }
 
+    @MainActor
+    private func presentingController(from anchor: ASPresentationAnchor) -> UIViewController? {
+        let window = anchor
+        return topViewController(startingAt: window.rootViewController)
+    }
+
+    @MainActor
+    private func topViewController(startingAt root: UIViewController?) -> UIViewController? {
+        var current = root
+
+        while let presented = current?.presentedViewController {
+            current = presented
+        }
+
+        if let navigationController = current as? UINavigationController {
+            return topViewController(startingAt: navigationController.visibleViewController)
+        }
+
+        if let tabBarController = current as? UITabBarController {
+            return topViewController(startingAt: tabBarController.selectedViewController)
+        }
+
+        return current
+    }
+
     private func configureIfNeeded() throws {
         guard didConfigure == false else { return }
         guard let appKey = appKey else {
@@ -338,9 +370,9 @@ final class DropboxCloudProvider: CloudProvider, @unchecked Sendable {
         }
 
         switch result {
-        case .success:
+        case .success(let accessToken):
             do {
-                let account = try await currentAccountFromAuthorizedClient()
+                let account = try await currentAccountFromAuthorizedClient(tokenUID: accessToken.uid)
                 CloudAccountStore.upsert(account)
                 continuation.resume(returning: account)
             } catch {
@@ -360,7 +392,7 @@ final class DropboxCloudProvider: CloudProvider, @unchecked Sendable {
     }
 
     @MainActor
-    private func currentAccountFromAuthorizedClient() async throws -> CloudAccount {
+    private func currentAccountFromAuthorizedClient(tokenUID: String) async throws -> CloudAccount {
         guard let client = DropboxClientsManager.authorizedClient else {
             throw CloudProviderError.notAuthenticated
         }
@@ -377,7 +409,15 @@ final class DropboxCloudProvider: CloudProvider, @unchecked Sendable {
         }
 
         let displayName = account.email.isEmpty ? account.name.displayName : account.email
-        return CloudAccount(id: account.accountId, displayName: displayName, provider: id)
+
+        // SwiftyDropbox stores and resolves tokens by OAuth uid, not by account_id.
+        // Keep our persisted account key aligned with the SDK token key so subsequent
+        // file listing and downloads can resolve the stored refresh token.
+        if account.accountId != tokenUID {
+            CloudAccountStore.remove(provider: id, accountId: account.accountId)
+        }
+
+        return CloudAccount(id: tokenUID, displayName: displayName, provider: id)
     }
 
     private static func makeCloudFile(from metadata: Files.Metadata) -> CloudFile? {

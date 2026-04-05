@@ -15,6 +15,9 @@ protocol CloudProvider: AnyObject, Sendable {
     @MainActor
     func authenticate(from anchor: ASPresentationAnchor) async throws -> CloudAccount
 
+    @MainActor
+    func cancelPendingAuthentication()
+
     func isAuthenticated(accountId: String) -> Bool
     func signOut(accountId: String)
 
@@ -26,6 +29,11 @@ protocol CloudProvider: AnyObject, Sendable {
         progress: @escaping @Sendable (Double) -> Void
     ) async throws
     func getMetadata(accountId: String, fileId: String) async throws -> CloudFileMetadata
+}
+
+extension CloudProvider {
+    @MainActor
+    func cancelPendingAuthentication() {}
 }
 
 enum CloudProviderError: LocalizedError, Equatable {
