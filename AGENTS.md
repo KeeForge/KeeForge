@@ -266,8 +266,6 @@ sed -i '' 's/MARKETING_VERSION: "X.Y.Z"/MARKETING_VERSION: "X.Y.Z"/' project.yml
 xcodegen generate
 xcodebuild test -scheme KeeForge -destination 'platform=iOS Simulator,name=iPhone 17 Pro'
 xcodebuild archive -scheme KeeForge -archivePath build/KeeForge.xcarchive
-
-# Upload via Xcode Organizer or xcrun altool
 ```
 
 ## CHANGELOG
