@@ -10,7 +10,7 @@ final class CloudSyncUITests: KeeForgeUITestCase {
         []
     }
 
-    override func configureLaunch(app: XCUIApplication) throws {
+    override nonisolated func configureLaunch(app: XCUIApplication) throws {
         let payload = try makeMockDropboxPayload()
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .iso8601
@@ -77,7 +77,7 @@ final class CloudSyncUITests: KeeForgeUITestCase {
         XCTAssertFalse(app.staticTexts["Cache unavailable"].exists)
     }
 
-    private func makeMockDropboxPayload() throws -> MockDropboxPayload {
+    private nonisolated func makeMockDropboxPayload() throws -> MockDropboxPayload {
         let databaseData = try fixtureData(resourceName: "test", resourceExtension: "kdbx")
         let fileID = "/Vaults/personal.kdbx"
         let modifiedDate = Date(timeIntervalSince1970: 1_700_000_000)
@@ -112,7 +112,7 @@ final class CloudSyncUITests: KeeForgeUITestCase {
         )
     }
 
-    private var usesSeededCloudDatabase: Bool {
+    private nonisolated var usesSeededCloudDatabase: Bool {
         name.contains("SeededCloudDatabase") || name.contains("SigningOutDropboxAccount")
     }
 }

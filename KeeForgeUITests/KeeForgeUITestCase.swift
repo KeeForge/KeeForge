@@ -84,9 +84,9 @@ class KeeForgeUITestCase: XCTestCase {
         app.launch()
     }
 
-    func configureLaunch(app: XCUIApplication) throws {}
+    nonisolated func configureLaunch(app: XCUIApplication) throws {}
 
-    func fixtureData(resourceName: String, resourceExtension: String) throws -> Data {
+    nonisolated func fixtureData(resourceName: String, resourceExtension: String) throws -> Data {
         guard let fixtureURL = Bundle(for: KeeForgeUITestCase.self).url(
             forResource: resourceName,
             withExtension: resourceExtension
