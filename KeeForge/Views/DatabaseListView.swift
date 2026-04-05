@@ -40,7 +40,6 @@ struct DatabaseListView: View {
     @State private var renameText = ""
     @State private var detailsReference: DatabaseReference?
     @State private var showSettings = false
-    @State private var showAddDatabaseOptions = false
     @State private var activeCloudProvider: CloudProviderKind?
 
     var body: some View {
@@ -98,9 +97,8 @@ struct DatabaseListView: View {
                     }
                     .accessibilityIdentifier("database.settings.button")
 
-                    Button {
-                        selectionAlert = nil
-                        showAddDatabaseOptions = true
+                    Menu {
+                        addDatabaseMenuContent
                     } label: {
                         Image(systemName: "plus")
                     }
@@ -127,25 +125,6 @@ struct DatabaseListView: View {
                 message: Text(alert.message),
                 dismissButton: .default(Text("OK"))
             )
-        }
-        .confirmationDialog(
-            "Add Database",
-            isPresented: $showAddDatabaseOptions
-        ) {
-            Button("Open from Files") {
-                selectionAlert = nil
-                pickerState.present(.database)
-            }
-            .accessibilityIdentifier("database.add.files")
-
-            Button("Dropbox") {
-                activeCloudProvider = .dropbox
-            }
-            .accessibilityIdentifier("database.add.dropbox")
-
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text("Choose where to add a KeePass database from.")
         }
         .confirmationDialog(
             "Remove Database?",
@@ -237,15 +216,36 @@ struct DatabaseListView: View {
         } description: {
             Text("Add a KeePass .kdbx file to get started.")
         } actions: {
-            Button {
-                selectionAlert = nil
-                showAddDatabaseOptions = true
+            Menu {
+                addDatabaseMenuContent
             } label: {
                 Label("Add Database", systemImage: "plus")
             }
             .buttonStyle(.borderedProminent)
             .accessibilityIdentifier("database.empty.add")
         }
+    }
+
+    @ViewBuilder
+    private var addDatabaseMenuContent: some View {
+        Button {
+            selectionAlert = nil
+            pickerState.present(.database)
+        } label: {
+            Label("Local Device", systemImage: "iphone")
+        }
+        .accessibilityIdentifier("database.add.files")
+
+        Button {
+            activeCloudProvider = .dropbox
+        } label: {
+            Label {
+                Text("Dropbox")
+            } icon: {
+                CloudProviderIcon(provider: .dropbox, size: 16)
+            }
+        }
+        .accessibilityIdentifier("database.add.dropbox")
     }
 
     @ViewBuilder
@@ -438,7 +438,11 @@ private struct DatabaseDetailsView: View {
                    let metadata = reference.cloudSyncMetadata {
                     Section {
                         LabeledContent("Provider") {
-                            Label(cloudState.providerName, systemImage: cloudState.providerIconName)
+                            Label {
+                                Text(cloudState.providerName)
+                            } icon: {
+                                CloudProviderIcon(provider: metadata.providerKind)
+                            }
                         }
 
                         LabeledContent("Account", value: cloudState.accountLabel)

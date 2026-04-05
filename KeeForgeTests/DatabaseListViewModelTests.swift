@@ -127,7 +127,6 @@ final class DatabaseListViewModelTests: XCTestCase {
             status.cloudState,
             CloudRowState(
                 providerName: "Dropbox",
-                providerIconName: "shippingbox.fill",
                 isConnected: true,
                 warningText: "Sync older than 24h",
                 displayPath: "/Vaults/personal.kdbx",

@@ -33,7 +33,15 @@ struct CloudFileBrowserView: View {
                         )
                     } else {
                         ContentUnavailableView {
-                            Label("Connect \(provider.displayName)", systemImage: provider.iconName)
+                            Label {
+                                Text("Connect \(provider.displayName)")
+                            } icon: {
+                                CloudProviderIcon(
+                                    provider: CloudProviderKind(rawValue: provider.id),
+                                    size: 18,
+                                    fallbackSystemName: provider.iconName
+                                )
+                            }
                         } description: {
                             Text("Sign in to browse your cloud vaults.")
                         } actions: {
@@ -154,6 +162,29 @@ struct CloudFileBrowserView: View {
             return window
         }
         return ASPresentationAnchor()
+    }
+}
+
+struct CloudProviderIcon: View {
+    let provider: CloudProviderKind?
+    var size: CGFloat = 14
+    var fallbackSystemName = "icloud"
+
+    @ViewBuilder
+    var body: some View {
+        switch provider {
+        case .dropbox:
+            Image("DropboxGlyph")
+                .renderingMode(.original)
+                .resizable()
+                .interpolation(.high)
+                .scaledToFit()
+                .frame(width: size, height: size)
+        case .none:
+            Image(systemName: fallbackSystemName)
+                .font(.system(size: size))
+                .frame(width: size, height: size)
+        }
     }
 }
 

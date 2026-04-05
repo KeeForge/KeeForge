@@ -8,7 +8,6 @@ struct DatabaseRowStatus: Equatable, Sendable {
 
 struct CloudRowState: Equatable, Sendable {
     var providerName: String
-    var providerIconName: String
     var isConnected: Bool
     var warningText: String?
     var displayPath: String
@@ -186,7 +185,6 @@ final class DatabaseListViewModel {
                     hasAccessIssue: DatabaseListStore.cachedDatabaseURL(for: reference) == nil && !isConnected,
                     cloudState: CloudRowState(
                         providerName: provider?.displayName ?? metadata.provider.capitalized,
-                        providerIconName: provider?.iconName ?? "icloud",
                         isConnected: isConnected,
                         warningText: metadata.warningText(isAuthenticated: isConnected),
                         displayPath: metadata.displayPath,

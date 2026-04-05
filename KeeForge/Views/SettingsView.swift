@@ -135,10 +135,11 @@ struct SettingsView: View {
             } else {
                 ForEach(cloudAccounts) { account in
                     HStack {
-                        Label(
-                            account.displayName,
-                            systemImage: account.providerKind?.iconName ?? "icloud"
-                        )
+                        Label {
+                            Text(account.displayName)
+                        } icon: {
+                            CloudProviderIcon(provider: account.providerKind)
+                        }
                         .accessibilityIdentifier("settings.cloud.account.label")
 
                         Spacer()

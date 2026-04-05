@@ -44,7 +44,14 @@ struct DatabaseRowView: View {
 
                 if let cloudState = status.cloudState {
                     HStack(spacing: 8) {
-                        Label(cloudState.providerName, systemImage: cloudState.isConnected ? cloudState.providerIconName : "icloud.slash")
+                        Label {
+                            Text(cloudState.providerName)
+                        } icon: {
+                            CloudProviderIcon(
+                                provider: reference.cloudProviderKind,
+                                fallbackSystemName: cloudState.isConnected ? "icloud" : "icloud.slash"
+                            )
+                        }
                             .font(.caption)
                             .foregroundStyle(.secondary)
                             .lineLimit(1)

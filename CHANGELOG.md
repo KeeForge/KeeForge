@@ -12,6 +12,10 @@
 ### New Features
 - Add read-only Dropbox cloud sync with OAuth account linking, native cloud browsing, shared cached copies for AutoFill, and cloud status indicators in the database list and settings
 
+### Changes
+- Anchor the database add options to the add button with a top-right menu and simplify the choices to `Local Device` and `Dropbox`
+- Use the official Dropbox glyph consistently across the add menu and cloud-related UI
+
 ## v1.6.0 (2026-04-03)
 
 ### New Features
