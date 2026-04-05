@@ -38,7 +38,7 @@ class KeeForgeUITestCase: XCTestCase {
     var keyFileFixtureName: String? { nil }
     var keyFileFixtureExtension: String { "key" }
 
-    override func setUpWithError() throws {
+    override func setUp() async throws {
         continueAfterFailure = false
 
         app = XCUIApplication()

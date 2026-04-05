@@ -3,9 +3,9 @@ import XCTest
 @MainActor
 final class UnlockedDatabaseUITests: KeeForgeUITestCase {
 
-    override func setUpWithError() throws {
+    override func setUp() async throws {
         continueAfterFailure = true
-        try super.setUpWithError()
+        try await super.setUp()
     }
 
     func testNavigation() {
