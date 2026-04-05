@@ -80,7 +80,25 @@ class KeeForgeUITestCase: XCTestCase {
             app.launchEnvironment[Self.uiTestKeyFileFilenameEnv] = "\(keyFileName).\(ext)"
         }
 
+        try configureLaunch(app: app)
         app.launch()
+    }
+
+    func configureLaunch(app: XCUIApplication) throws {}
+
+    func fixtureData(resourceName: String, resourceExtension: String) throws -> Data {
+        guard let fixtureURL = Bundle(for: KeeForgeUITestCase.self).url(
+            forResource: resourceName,
+            withExtension: resourceExtension
+        ) else {
+            throw NSError(
+                domain: "KeeForgeUITests",
+                code: 3,
+                userInfo: [NSLocalizedDescriptionKey: "Missing \(resourceName).\(resourceExtension) fixture in test bundle"]
+            )
+        }
+
+        return try Data(contentsOf: fixtureURL)
     }
 
     func unlock(password: String) {

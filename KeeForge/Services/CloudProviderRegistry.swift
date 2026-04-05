@@ -10,12 +10,18 @@ enum CloudProviderRegistry {
 
         switch provider {
         case .dropbox:
+            if UITestDropboxCloudProvider.isEnabled {
+                return UITestDropboxCloudProvider.shared
+            }
             return DropboxCloudProvider.shared
         }
     }
 
     @MainActor
     static func handleOpenURL(_ url: URL) -> Bool {
-        DropboxCloudProvider.shared.handleRedirectURL(url)
+        if UITestDropboxCloudProvider.isEnabled {
+            return false
+        }
+        return DropboxCloudProvider.shared.handleRedirectURL(url)
     }
 }

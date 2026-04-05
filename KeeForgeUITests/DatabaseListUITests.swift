@@ -20,6 +20,10 @@ final class DatabaseListUITests: KeeForgeUITestCase {
         XCTAssertTrue(addButton.waitForExistence(timeout: 10), "Add Database button not found")
         addButton.tap()
 
+        let filesButton = app.buttons["database.add.files"].firstMatch
+        XCTAssertTrue(filesButton.waitForExistence(timeout: 10), "Open from Files option did not appear")
+        filesButton.tap()
+
         XCTAssertTrue(waitForDocumentPicker(), "Document picker did not appear after tapping Add Database")
     }
 

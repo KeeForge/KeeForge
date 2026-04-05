@@ -139,6 +139,7 @@ struct SettingsView: View {
                             account.displayName,
                             systemImage: account.providerKind?.iconName ?? "icloud"
                         )
+                        .accessibilityIdentifier("settings.cloud.account.label")
 
                         Spacer()
 
@@ -146,6 +147,7 @@ struct SettingsView: View {
                             CloudProviderRegistry.provider(for: account.provider)?.signOut(accountId: account.id)
                             cloudAccounts = CloudAccountStore.accounts
                         }
+                        .accessibilityIdentifier("settings.cloud.signout.button")
                     }
                 }
             }

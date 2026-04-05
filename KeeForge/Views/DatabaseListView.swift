@@ -208,7 +208,12 @@ struct DatabaseListView: View {
                 }
             )
         }
-        .sheet(isPresented: $showSettings) {
+        .sheet(
+            isPresented: $showSettings,
+            onDismiss: {
+                viewModel.reload()
+            }
+        ) {
             SettingsView()
         }
         .sheet(item: $activeCloudProvider) { provider in

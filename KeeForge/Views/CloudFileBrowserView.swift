@@ -44,6 +44,7 @@ struct CloudFileBrowserView: View {
                             }
                             .buttonStyle(.borderedProminent)
                             .disabled(isAuthenticating)
+                            .accessibilityIdentifier("cloud.browser.connect.button")
                         }
                     }
                 } else {
@@ -61,6 +62,7 @@ struct CloudFileBrowserView: View {
                     Button("Cancel") {
                         dismiss()
                     }
+                    .accessibilityIdentifier("cloud.browser.cancel.button")
                 }
 
                 if provider != nil {
@@ -85,6 +87,7 @@ struct CloudFileBrowserView: View {
                             Image(systemName: "person.crop.circle.badge.plus")
                         }
                         .disabled(isAuthenticating)
+                        .accessibilityIdentifier("cloud.browser.account.menu")
                     }
                 }
             }
@@ -205,6 +208,7 @@ private struct CloudFolderBrowserView: View {
                         } label: {
                             Label(file.name, systemImage: "folder")
                         }
+                        .accessibilityIdentifier("cloud.browser.file.row")
                     } else {
                         Button {
                             onSelect(file)
@@ -219,6 +223,7 @@ private struct CloudFolderBrowserView: View {
                             }
                         }
                         .buttonStyle(.plain)
+                        .accessibilityIdentifier("cloud.browser.file.row")
                     }
                 }
                 .listStyle(.insetGrouped)

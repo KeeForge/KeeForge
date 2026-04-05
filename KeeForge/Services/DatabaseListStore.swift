@@ -10,6 +10,9 @@ enum DatabaseListStore {
     private static let uiTestDBBase64Env = "UI_TEST_DB_BASE64"
     private static let uiTestDBFilenameEnv = "UI_TEST_DB_FILENAME"
     private static let uiTestDatabasesJSONEnv = "UI_TEST_DATABASES_JSON"
+    private static let uiTestCloudDatabasesJSONEnv = "UI_TEST_CLOUD_DATABASES_JSON"
+    private static let uiTestCloudAccountsJSONEnv = "UI_TEST_CLOUD_ACCOUNTS_JSON"
+    private static let cloudAccountsStorageKey = "KeeForge.cloudAccounts"
 
     private static var sharedDefaults: UserDefaults {
         UserDefaults(suiteName: SharedVaultStore.appGroupID) ?? .standard
@@ -29,6 +32,21 @@ enum DatabaseListStore {
     private struct UITestDatabasePayload: Decodable {
         let filename: String
         let base64: String
+    }
+
+    private struct UITestCloudDatabasePayload: Decodable {
+        let provider: String
+        let accountId: String
+        let file: UITestCloudFilePayload
+    }
+
+    private struct UITestCloudFilePayload: Decodable {
+        let id: String
+        let name: String
+        let path: String
+        let isFolder: Bool
+        let modifiedDate: Date?
+        let size: Int64?
     }
 
     static var databases: [DatabaseReference] {
@@ -366,9 +384,16 @@ enum DatabaseListStore {
         guard ProcessInfo.processInfo.arguments.contains(uiTestingLaunchArg) else { return }
         didBootstrapUITesting = true
 
-        let references = uiTestDatabaseURLs().compactMap { try? makeReference(from: $0) }
-        guard !references.isEmpty else {
-            return
+        let references =
+            uiTestDatabaseURLs().compactMap { try? makeReference(from: $0) }
+            + uiTestCloudDatabases()
+        sharedDefaults.removeObject(forKey: cloudAccountsStorageKey)
+        try? FileManager.default.removeItem(at: SharedVaultStore.databaseCacheDirectory)
+        try? FileManager.default.removeItem(at: SharedVaultStore.cloudCacheDirectory)
+
+        if let cloudAccounts = uiTestCloudAccounts(),
+           let encodedAccounts = try? JSONEncoder().encode(cloudAccounts) {
+            sharedDefaults.set(encodedAccounts, forKey: cloudAccountsStorageKey)
         }
 
         saveDatabases(references)
@@ -392,6 +417,27 @@ enum DatabaseListStore {
         }
 
         return []
+    }
+
+    private static func uiTestCloudDatabases() -> [DatabaseReference] {
+        let environment = ProcessInfo.processInfo.environment
+        guard let rawJSON = environment[uiTestCloudDatabasesJSONEnv],
+              let data = rawJSON.data(using: .utf8),
+              let payloads = try? uiTestJSONDecoder().decode([UITestCloudDatabasePayload].self, from: data) else {
+            return []
+        }
+
+        return payloads.map(makeCloudReference(from:))
+    }
+
+    private static func uiTestCloudAccounts() -> [CloudAccount]? {
+        let environment = ProcessInfo.processInfo.environment
+        guard let rawJSON = environment[uiTestCloudAccountsJSONEnv],
+              let data = rawJSON.data(using: .utf8) else {
+            return nil
+        }
+
+        return try? uiTestJSONDecoder().decode([CloudAccount].self, from: data)
     }
 
     private static func uiTestDatabaseURL() -> URL? {
@@ -447,6 +493,40 @@ enum DatabaseListStore {
             colorTag: nil,
             legacyKeychainFilename: nil
         )
+    }
+
+    private static func makeCloudReference(from payload: UITestCloudDatabasePayload) -> DatabaseReference {
+        DatabaseReference(
+            id: UUID(),
+            nickname: nil,
+            filename: payload.file.name,
+            bookmarkData: nil,
+            keyFileBookmarkData: nil,
+            keyFileFilename: nil,
+            isQuickLaunch: false,
+            lastOpenedAt: nil,
+            addedAt: .now,
+            colorTag: nil,
+            legacyKeychainFilename: nil,
+            source: .cloud(
+                CloudSyncMetadata(
+                    provider: payload.provider,
+                    accountId: payload.accountId,
+                    fileId: payload.file.id,
+                    displayPath: payload.file.path,
+                    remoteContentHash: nil,
+                    remoteModifiedAt: payload.file.modifiedDate,
+                    lastSyncedAt: nil,
+                    lastSyncError: nil
+                )
+            )
+        )
+    }
+
+    private static func uiTestJSONDecoder() -> JSONDecoder {
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        return decoder
     }
 
     private static func migratedLegacyReference() -> DatabaseReference? {
