@@ -18,6 +18,9 @@
 - Split developer-specific build identifiers into a gitignored local xcconfig and move generated git metadata into a separate build-time config file
 - Bootstrap a simulator-only local build config in GitHub Actions so CI no longer requires developer-specific identifiers
 
+### Fixes
+- Clear Quick AutoFill credential identities when removing the currently active database so iOS does not keep stale suggestions after deletion
+
 ## v1.6.0 (2026-04-03)
 
 ### New Features

@@ -1,19 +1,22 @@
 import XCTest
 @testable import KeeForge
 
+@MainActor
 final class DatabaseListStoreTests: XCTestCase {
-    override func setUp() {
-        super.setUp()
+    override func setUp() async throws {
+        try await super.setUp()
         DatabaseListStore.clearAll()
         CloudAccountStore.clearAll()
         SharedVaultStore.clearBookmark()
+        CredentialIdentityStoreManager.clearObserver = nil
     }
 
-    override func tearDown() {
+    override func tearDown() async throws {
         DatabaseListStore.clearAll()
         CloudAccountStore.clearAll()
         SharedVaultStore.clearBookmark()
-        super.tearDown()
+        CredentialIdentityStoreManager.clearObserver = nil
+        try await super.tearDown()
     }
 
     func testAddPersistsDatabaseReference() throws {
@@ -163,6 +166,37 @@ final class DatabaseListStoreTests: XCTestCase {
 
         XCTAssertNil(DatabaseListStore.cachedDatabaseURL(for: reference))
         XCTAssertTrue(DatabaseListStore.databases.isEmpty)
+    }
+
+    func testRemoveClearsCredentialStoreWhenRemovingActiveAutoFillDatabase() async throws {
+        let first = try DatabaseListStore.add(url: makeTemporaryFileURL(name: "active.kdbx"))
+        _ = try DatabaseListStore.add(url: makeTemporaryFileURL(name: "other.kdbx"))
+        DatabaseListStore.activeAutoFillDatabaseID = first.id
+
+        let clearExpectation = expectation(description: "Credential store cleared")
+        CredentialIdentityStoreManager.clearObserver = {
+            clearExpectation.fulfill()
+        }
+
+        DatabaseListStore.remove(id: first.id)
+
+        await fulfillment(of: [clearExpectation], timeout: 1)
+        XCTAssertNil(DatabaseListStore.activeAutoFillDatabaseID)
+    }
+
+    func testRemoveDoesNotClearCredentialStoreWhenRemovingInactiveDatabase() async throws {
+        let first = try DatabaseListStore.add(url: makeTemporaryFileURL(name: "active.kdbx"))
+        let second = try DatabaseListStore.add(url: makeTemporaryFileURL(name: "inactive.kdbx"))
+        DatabaseListStore.activeAutoFillDatabaseID = first.id
+
+        CredentialIdentityStoreManager.clearObserver = {
+            XCTFail("Credential store should remain populated for the active AutoFill database")
+        }
+
+        DatabaseListStore.remove(id: second.id)
+
+        try? await Task.sleep(for: .milliseconds(100))
+        XCTAssertEqual(DatabaseListStore.activeAutoFillDatabaseID, first.id)
     }
 
     private func makeTemporaryFileURL(name: String, contents: Data = Data("fixture".utf8)) throws -> URL {

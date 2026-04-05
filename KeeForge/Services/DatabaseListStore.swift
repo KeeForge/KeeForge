@@ -142,6 +142,7 @@ enum DatabaseListStore {
     static func remove(id: UUID) {
         let currentDatabases = loadDatabases()
         guard let removedReference = currentDatabases.first(where: { $0.id == id }) else { return }
+        let shouldClearCredentialStore = activeAutoFillDatabase?.id == id
 
         KeychainService.deleteCompositeKey(for: removedReference.id)
         if let legacyFilename = removedReference.legacyKeychainFilename {
@@ -155,6 +156,10 @@ enum DatabaseListStore {
             activeAutoFillDatabaseID = nil
         }
         saveDatabases(remainingDatabases)
+
+        if shouldClearCredentialStore {
+            CredentialIdentityStoreManager.clearStore()
+        }
     }
 
     static func update(_ reference: DatabaseReference) {

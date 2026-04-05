@@ -6,6 +6,7 @@ enum CredentialIdentityStoreManager: Sendable {
 
     #if DEBUG
     @MainActor static var populateObserver: (([KPEntry]) -> Void)?
+    @MainActor static var clearObserver: (() -> Void)?
     #endif
 
     static func populate(with entries: [KPEntry]) {
@@ -51,6 +52,12 @@ enum CredentialIdentityStoreManager: Sendable {
     }
 
     static func clearStore() {
+        #if DEBUG
+        Task { @MainActor in
+            clearObserver?()
+        }
+        #endif
+
         Task {
             let store = ASCredentialIdentityStore.shared
             let state = await store.state()
