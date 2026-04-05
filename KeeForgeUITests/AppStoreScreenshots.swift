@@ -4,7 +4,7 @@ import XCTest
 final class AppStoreScreenshots: XCTestCase {
     var app: XCUIApplication!
 
-    override func setUpWithError() throws {
+    override func setUp() async throws {
         continueAfterFailure = true
         app = XCUIApplication()
 

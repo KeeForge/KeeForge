@@ -38,7 +38,7 @@ class KeeForgeUITestCase: XCTestCase {
     var keyFileFixtureName: String? { nil }
     var keyFileFixtureExtension: String { "key" }
 
-    override func setUpWithError() throws {
+    override func setUp() async throws {
         continueAfterFailure = false
 
         app = XCUIApplication()
@@ -84,9 +84,9 @@ class KeeForgeUITestCase: XCTestCase {
         app.launch()
     }
 
-    nonisolated func configureLaunch(app: XCUIApplication) throws {}
+    func configureLaunch(app: XCUIApplication) throws {}
 
-    nonisolated func fixtureData(resourceName: String, resourceExtension: String) throws -> Data {
+    func fixtureData(resourceName: String, resourceExtension: String) throws -> Data {
         guard let fixtureURL = Bundle(for: KeeForgeUITestCase.self).url(
             forResource: resourceName,
             withExtension: resourceExtension
