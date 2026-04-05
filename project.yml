@@ -42,7 +42,7 @@ targets:
         GENERATE_INFOPLIST_FILE: false
         SWIFT_EMIT_LOC_STRINGS: "YES"
     dependencies:
-      - target: AutoFillExtension
+      - target: KeeForgeAutoFill
         embed: true
         codeSign: true
       - package: Argon2Swift
@@ -63,7 +63,7 @@ targets:
       - path: KeeForge/Resources
         excludes: ["README.md"]
 
-  AutoFillExtension:
+  KeeForgeAutoFill:
     type: app-extension
     platform: iOS
     settings:
@@ -72,7 +72,6 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: com.keevault.app.autofill
         CODE_SIGN_STYLE: Automatic
         CODE_SIGN_ENTITLEMENTS: AutoFillExtension/AutoFillExtension.entitlements
-        PRODUCT_NAME: KeeForgeAutoFill
         MARKETING_VERSION: "1.6.0"
         CURRENT_PROJECT_VERSION: "1"
         GENERATE_INFOPLIST_FILE: false

@@ -7,7 +7,7 @@ Entry point for coding agents working on KeeForge. This file is intentionally br
 - Native iOS KeePass manager for KDBX 4.x databases
 - Swift 6, SwiftUI, iOS 17+, `@Observable`, strict concurrency
 - XcodeGen build graph: edit `project.yml`, then regenerate `KeeForge.xcodeproj`
-- Main targets: `KeeForge`, `AutoFillExtension`, `KeeForgeTests`, `KeeForgeUITests`
+- Main targets: `KeeForge`, `KeeForgeAutoFill`, `KeeForgeTests`, `KeeForgeUITests`
 - Current product areas: multi-database list, local and cloud-backed vaults, AutoFill, TOTP, passkeys, tip jar, screen protection
 
 ## Open The Local Doc First

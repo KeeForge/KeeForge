@@ -16,6 +16,6 @@ This target provides password, passkey, and one-time-code fulfillment through `A
 
 ## Change Carefully
 
-- Keep dependencies extension-safe. If the extension needs another service file, add it explicitly to the `AutoFillExtension` sources in `../project.yml`.
+- Keep dependencies extension-safe. If the extension needs another service file, add it explicitly to the `KeeForgeAutoFill` sources in `../project.yml`.
 - Changes to App Group storage, shared defaults, or Keychain semantics usually affect both targets.
 - Relevant tests are usually in `../KeeForgeTests/CredentialIdentityStoreManagerTests.swift`, `../KeeForgeTests/CredentialMatcherTests.swift`, `../KeeForgeTests/PasskeyTests.swift`, and `../KeeForgeTests/SharedVaultStoreTests.swift`.

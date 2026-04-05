@@ -10,73 +10,77 @@
 		05608A3B8309DC423D0D15EB /* TOTPGenerator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 51105ADF7C41EB47401418D9 /* TOTPGenerator.swift */; };
 		0A3EB342387EFC4C0B66CBDD /* SecurityScopedBookmarkManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = F94BE9775E845678E66F6BE9 /* SecurityScopedBookmarkManager.swift */; };
 		0AEFD1CCD9D0F4F9F069D5E5 /* DatabaseListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 88EB38F9BBED091894FDB7DE /* DatabaseListView.swift */; };
+		0C55C0F3933E2AC968D8786B /* KDBXCrypto.swift in Sources */ = {isa = PBXBuildFile; fileRef = F984480E73A82B5043100065 /* KDBXCrypto.swift */; };
 		0EEE9DF85014DFA4D3137969 /* demo-keyfile.kdbx in Resources */ = {isa = PBXBuildFile; fileRef = 4CC3CF24A57A3BB531DA56C2 /* demo-keyfile.kdbx */; };
-		109624BC35F24E414533262E /* CredentialIdentityStoreManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = C00A121EB1739F34DA39FE12 /* CredentialIdentityStoreManager.swift */; };
+		101FE00A9F3480ABB883BD76 /* Argon2Swift in Frameworks */ = {isa = PBXBuildFile; productRef = 87212E661EACAC1328E27A4E /* Argon2Swift */; };
 		115B1CF896D4326495169AF4 /* demo.kdbx in Resources */ = {isa = PBXBuildFile; fileRef = F3D5CCD3DC2893DC1A65D6DC /* demo.kdbx */; };
-		1620CC6076E01815195F3910 /* DatabaseReference.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1036AABC590833FFFA1B8A2 /* DatabaseReference.swift */; };
 		168CC74285D5A4DE4043056F /* CredentialIdentityStoreManagerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CF40C9649E6870C49081C9C0 /* CredentialIdentityStoreManagerTests.swift */; };
 		1D7E8521B58A96F3119C3DB1 /* ClipboardService.swift in Sources */ = {isa = PBXBuildFile; fileRef = FBFB9F009375CBEF2A500A37 /* ClipboardService.swift */; };
 		1D8B42383A85085F6E8AC2D1 /* GroupListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 35E6EA2FF600FFF3543FF763 /* GroupListView.swift */; };
 		2134BB330E59C281CF96FDAF /* SharedVaultStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 255524A0026746268CB46642 /* SharedVaultStoreTests.swift */; };
-		2205F1305F28CF858773F3E0 /* KDBXParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB771146F2B327CB67076403 /* KDBXParser.swift */; };
-		2670FF08B0986EEE16580A16 /* KeychainService.swift in Sources */ = {isa = PBXBuildFile; fileRef = CFE66B25CC80659A7E75C953 /* KeychainService.swift */; };
+		250A3D5CA72C0917CA7BD711 /* KeeForgeAutoFill.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 379C9421555E6C13A8335404 /* KeeForgeAutoFill.appex */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		26B6BCD4E53FFDD0B6A936C7 /* CloudSyncModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = A8EFE96A1D98D220EA6E3E53 /* CloudSyncModels.swift */; };
 		27F56844AAA14A1BA0009462 /* KDBXParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB771146F2B327CB67076403 /* KDBXParser.swift */; };
 		280833ABEC59A56A76CF7DD3 /* EntryListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5453C26A39D0DC4187275D6A /* EntryListView.swift */; };
 		2DA76B4703C153EF5009E568 /* KDBXCrypto.swift in Sources */ = {isa = PBXBuildFile; fileRef = F984480E73A82B5043100065 /* KDBXCrypto.swift */; };
 		2DD5D7C886F1AF1CD4EE98EA /* CredentialMatcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = 82BCAA075FDA5B9A780C689F /* CredentialMatcher.swift */; };
-		2F87DF2716F02AA6F0380389 /* CloudSyncModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = A8EFE96A1D98D220EA6E3E53 /* CloudSyncModels.swift */; };
+		2FA001A23A74841EA5CCEAF3 /* SettingsService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3A86027943176F7BF6A605EA /* SettingsService.swift */; };
 		31F2445E8B8081A4A129B7C8 /* DatabaseViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 93A9DF17FFAE21E9E974D8B3 /* DatabaseViewModelTests.swift */; };
 		385B72B5A83190582FE70E4F /* FaviconView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC9852527A48C28D5D60FCFD /* FaviconView.swift */; };
 		397AE855030AD882CF3B5A65 /* ModelLogicTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0330F701821BF808278069A3 /* ModelLogicTests.swift */; };
+		39E7FA74BFBCA0F422D3D226 /* PasskeyCrypto.swift in Sources */ = {isa = PBXBuildFile; fileRef = A74EDA5EB2D69BA039CD0CDC /* PasskeyCrypto.swift */; };
+		3C24F70C9805D197748349DF /* AutoFillSearchView.swift in Sources */ = {isa = PBXBuildFile; fileRef = ADAA5D103A016B02FDB65F56 /* AutoFillSearchView.swift */; };
 		3D2536DCC14F0EA2E80C41B7 /* ReviewPromptService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 00833ADBD9F27BD6129EA937 /* ReviewPromptService.swift */; };
-		3EBD9B66FA1479CAAC03AE41 /* AutoFillSearchView.swift in Sources */ = {isa = PBXBuildFile; fileRef = ADAA5D103A016B02FDB65F56 /* AutoFillSearchView.swift */; };
 		40513FE7EBB0EC663F345EEC /* SwiftyDropbox in Frameworks */ = {isa = PBXBuildFile; productRef = 51EBD2A917385D3E88CA0277 /* SwiftyDropbox */; };
+		4386503381C758DD632B9755 /* DatabaseReference.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1036AABC590833FFFA1B8A2 /* DatabaseReference.swift */; };
 		4559540601B649A98E79C197 /* Entry.swift in Sources */ = {isa = PBXBuildFile; fileRef = AEF7A2480DF3853AFF0AF02B /* Entry.swift */; };
 		463EB91BA8FFCC2C6EAB82EF /* DatabaseReferenceMigrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D92FD27E759F00EDA86B1F88 /* DatabaseReferenceMigrationTests.swift */; };
+		483CAF99370DDD0C6FCFC05B /* BiometricService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 77DE986C9A71BA15E1B4FE48 /* BiometricService.swift */; };
 		487037C671AD7C07191A38CA /* KeychainService.swift in Sources */ = {isa = PBXBuildFile; fileRef = CFE66B25CC80659A7E75C953 /* KeychainService.swift */; };
+		499968105D99D697FC2BCC6A /* SecurityScopedBookmarkManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = F94BE9775E845678E66F6BE9 /* SecurityScopedBookmarkManager.swift */; };
 		4A4894AF7ABA7B489682DF9C /* DropboxCloudProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = D613BF7E829EC40A0820BDB1 /* DropboxCloudProvider.swift */; };
 		4E0405CB1AC24ED88DE8B3D1 /* AppStoreScreenshots.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4B393A7DB556210E94C0F3A2 /* AppStoreScreenshots.swift */; };
 		4EBCDECF95FA3DAA81DDFABD /* CloudAccountStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0D4CDEFE5B81A270704E346 /* CloudAccountStore.swift */; };
 		501B38FD078785AFEBFC0125 /* KeeForgeUITestCase.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4A15836C142BB997DA70F8FE /* KeeForgeUITestCase.swift */; };
-		51FFA32D55161412B62549FA /* PasskeyCrypto.swift in Sources */ = {isa = PBXBuildFile; fileRef = A74EDA5EB2D69BA039CD0CDC /* PasskeyCrypto.swift */; };
 		5211F36B737E9F5842979B11 /* LockUnlockUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E0E5E0B52692F925F8CAB5A1 /* LockUnlockUITests.swift */; };
 		546946CF03D4BA3759BDA5F1 /* demo-keyfile.kdbx in Resources */ = {isa = PBXBuildFile; fileRef = 4CC3CF24A57A3BB531DA56C2 /* demo-keyfile.kdbx */; };
+		54CD35087BDA9681E771259B /* TOTPGenerator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 51105ADF7C41EB47401418D9 /* TOTPGenerator.swift */; };
 		54D91D4F231353EFC2D50852 /* CloudTokenStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E3C128E145557767D1EFDF84 /* CloudTokenStoreTests.swift */; };
+		55842C2074D95DB5E37EB360 /* KDBXParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB771146F2B327CB67076403 /* KDBXParser.swift */; };
 		55EB4D56C31B965154EE992C /* CredentialIdentityStoreManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = C00A121EB1739F34DA39FE12 /* CredentialIdentityStoreManager.swift */; };
 		58AD474260AA662614997B94 /* SearchView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 92CDD8F39D3FA23FCD1722E8 /* SearchView.swift */; };
 		593F3597EC5E308BE2BA67BC /* AutoLockTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6A60D769EF54ACAE8FAFEC73 /* AutoLockTests.swift */; };
 		5C9D57CF37F670CFA3B9F919 /* FaviconService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E8950E3736C571416F14FEF /* FaviconService.swift */; };
 		5D1534A2DAB9C6EC61C8551B /* CloudSyncModelsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6037B710DE638D64C1ED6576 /* CloudSyncModelsTests.swift */; };
 		5D2CF3FE49768C76388E382C /* demo.kdbx in Resources */ = {isa = PBXBuildFile; fileRef = F3D5CCD3DC2893DC1A65D6DC /* demo.kdbx */; };
+		5E17A333954ADDC0205E1B72 /* PasskeyCredential.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7AEBF3F7022FCACFF7195DB7 /* PasskeyCredential.swift */; };
 		5E1E376FC35BF2DB8D73A60B /* SortOrderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DFF14B46CC89D1B7A9138E80 /* SortOrderTests.swift */; };
+		64F0AD7B11B50E8AA4379546 /* CoordinatedFileReader.swift in Sources */ = {isa = PBXBuildFile; fileRef = B6F6578919788B26EB07E259 /* CoordinatedFileReader.swift */; };
 		653CF30906CAA071D8D27DB5 /* TipJarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60812E673D5622C7FA754128 /* TipJarView.swift */; };
-		691D5126398C8E8D6C26D340 /* TOTPGenerator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 51105ADF7C41EB47401418D9 /* TOTPGenerator.swift */; };
-		6AB0792A364B7F6C15973F0A /* CredentialMatcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = 82BCAA075FDA5B9A780C689F /* CredentialMatcher.swift */; };
 		6BBAF1981D321C2A67191572 /* UnlockedDatabaseUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 052B9C02DD70272885C3A280 /* UnlockedDatabaseUITests.swift */; };
-		6CF9964EBF2008E211601112 /* Argon2Swift in Frameworks */ = {isa = PBXBuildFile; productRef = B57F54D580E67656BC415235 /* Argon2Swift */; };
-		6F98148EB194DA8E1C7CCF31 /* SharedVaultStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = B84A9EECD929C6729AE6C797 /* SharedVaultStore.swift */; };
+		6DCCA2DED2816C06FBB19B3A /* KeychainService.swift in Sources */ = {isa = PBXBuildFile; fileRef = CFE66B25CC80659A7E75C953 /* KeychainService.swift */; };
 		7307D31C547DBFE4ACB27029 /* UITestDropboxCloudProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 403DEA23C39430C4B0A41672 /* UITestDropboxCloudProvider.swift */; };
-		735F4786AA56E9FF6AFBCD6F /* EncryptedValue.swift in Sources */ = {isa = PBXBuildFile; fileRef = B6594B5A580C44B4042FE110 /* EncryptedValue.swift */; };
-		787BEDC7C4C78B93AB2092C7 /* CredentialProviderViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5DFD74CE6911EB771A4B7FBD /* CredentialProviderViewController.swift */; };
+		775F9BA8EFAEF1F361AFF6BB /* Entry.swift in Sources */ = {isa = PBXBuildFile; fileRef = AEF7A2480DF3853AFF0AF02B /* Entry.swift */; };
+		7AD3A17E4ABD1F5E9C63EA8D /* DocumentPickerService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 63318429CBE0EF21ED75376B /* DocumentPickerService.swift */; };
 		7C0CE589D4FDCBB0AE0296A5 /* PasskeyCredential.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7AEBF3F7022FCACFF7195DB7 /* PasskeyCredential.swift */; };
 		7C249710427EF896850775E7 /* CredentialMatcherTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 952D7703E80D468B1A3168D8 /* CredentialMatcherTests.swift */; };
 		7FE2210E6E580757720E6153 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A785C829BFA44B1D7EC69DC /* SettingsView.swift */; };
 		81770A3091FFDA100CCA01BA /* PasskeyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B8F8B108FB789996AD3C0BD /* PasskeyTests.swift */; };
 		82C95283AF20A54E1651411A /* demo-keyfile.key in Resources */ = {isa = PBXBuildFile; fileRef = 7AB5EEF311A401337289C014 /* demo-keyfile.key */; };
 		835C85AA1D1B65323ED71533 /* SharedVaultStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = B84A9EECD929C6729AE6C797 /* SharedVaultStore.swift */; };
+		854F53222F9E7ECC3CD4257E /* Group.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA5A20BA0FFA29C1067EB5EE /* Group.swift */; };
 		85F4BF94918B5C26592668EA /* NavigationConformances.swift in Sources */ = {isa = PBXBuildFile; fileRef = 33FB55D1B41198FB84115734 /* NavigationConformances.swift */; };
 		897048166743B87F85CACA6E /* DatabaseListViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = F178F4027D7DB837D823C54C /* DatabaseListViewModel.swift */; };
 		8A1E1202234A0F6A2F42E507 /* HapticService.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC501EE7E48C61C39641D99D /* HapticService.swift */; };
 		8D12DB8CC870E9C939069474 /* SettingsService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3A86027943176F7BF6A605EA /* SettingsService.swift */; };
 		8E99F20C4C299C88E89B34ED /* test-v1.key in Resources */ = {isa = PBXBuildFile; fileRef = 4C350259754DFA5D42D782A7 /* test-v1.key */; };
-		8ED9B8C029BFF89CF4C00DA8 /* KDBXCrypto.swift in Sources */ = {isa = PBXBuildFile; fileRef = F984480E73A82B5043100065 /* KDBXCrypto.swift */; };
 		8F0FE540866A1995166D40ED /* DatabaseRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8DBB315683B9032E3301FD19 /* DatabaseRowView.swift */; };
+		8F1949E76E490D20D8852749 /* DatabaseListStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A8AE7EF4B345C220EAC66FD2 /* DatabaseListStore.swift */; };
 		93AE6A101D709182E00E8657 /* KeyFileProcessor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B073CC063A52BF80326BCA2 /* KeyFileProcessor.swift */; };
 		9441CDEE74E78B413B9B6034 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 3FFF736116CE4861D823A5B6 /* Assets.xcassets */; };
 		96CBA1155C402004E60A33E3 /* Argon2Swift in Frameworks */ = {isa = PBXBuildFile; productRef = E58302AF333F299169355B64 /* Argon2Swift */; };
 		97CEBE0EE1119CB163AD662C /* DatabaseViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B33D0F39A86A065A638C40AF /* DatabaseViewModel.swift */; };
 		982F1AF71FFA882BB9C49E87 /* KeeForgeApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7EA0111DE46F6C0B6D89B6B4 /* KeeForgeApp.swift */; };
-		9A6F253018065590ABC11334 /* Entry.swift in Sources */ = {isa = PBXBuildFile; fileRef = AEF7A2480DF3853AFF0AF02B /* Entry.swift */; };
 		9B3870766B755B0EC44241BC /* EncryptedValue.swift in Sources */ = {isa = PBXBuildFile; fileRef = B6594B5A580C44B4042FE110 /* EncryptedValue.swift */; };
 		9B8E96A65BE457D6296C1584 /* CloudFileBrowserView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8130C3F91180C3B88DF9EE9D /* CloudFileBrowserView.swift */; };
 		9C36CE737F98C0D6D44AE500 /* Group.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA5A20BA0FFA29C1067EB5EE /* Group.swift */; };
@@ -84,7 +88,6 @@
 		9F1F85720028AA656B854B18 /* StoreKitManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B49B2109D598BA031779A6E /* StoreKitManager.swift */; };
 		A02D3C44505B3523369922D8 /* DatabaseReference.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1036AABC590833FFFA1B8A2 /* DatabaseReference.swift */; };
 		A39BBA6987CB35923288872C /* AcknowledgmentsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 85EE32527319A5BEDE628232 /* AcknowledgmentsView.swift */; };
-		A8E418DC381EECD9AD82A871 /* KeyFileProcessor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B073CC063A52BF80326BCA2 /* KeyFileProcessor.swift */; };
 		A9B666729B66843DC7CC3747 /* CloudAccountStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 66DF057AA435224858861550 /* CloudAccountStoreTests.swift */; };
 		B253A58297B36B63A5838DCB /* FaviconServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E3217CA8D7D14799D216386B /* FaviconServiceTests.swift */; };
 		B58B1BFA49295114C50FC32B /* CloudTokenStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = D26A195E6048E746BEEBBCDD /* CloudTokenStore.swift */; };
@@ -97,6 +100,7 @@
 		BB1BA07B7136AB244645627B /* CloudSyncCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = E4E860F12E738ED16E2E132F /* CloudSyncCoordinator.swift */; };
 		BB21A94AE40BD1BC05CE17CF /* DocumentPickerService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 63318429CBE0EF21ED75376B /* DocumentPickerService.swift */; };
 		BC9357DCA2D6F7054C763864 /* ReviewPromptServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE7654CB864A7BECF13483C8 /* ReviewPromptServiceTests.swift */; };
+		BE6ABBD6BE21B73CB6319E7F /* EncryptedValue.swift in Sources */ = {isa = PBXBuildFile; fileRef = B6594B5A580C44B4042FE110 /* EncryptedValue.swift */; };
 		BFAC75E3B9EC2BB3E1B11FAB /* KeychainMigrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0BB465F403FF88189ACE559 /* KeychainMigrationTests.swift */; };
 		BFB9B3CB53F5C29E4AB01037 /* KDBXParserTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 012690B5F23A7226C211D172 /* KDBXParserTests.swift */; };
 		C00EE210CD5357E16B44C3BC /* DatabaseListStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE8A26125D7268C217C403DD /* DatabaseListStoreTests.swift */; };
@@ -104,41 +108,37 @@
 		C2AD719517065CB7FC2BEB4F /* TOTPViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3660A7394A4B715ECCC64FF /* TOTPViewModelTests.swift */; };
 		C5CCB8692F1F9D9E2769664A /* TOTPGeneratorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 04A1400E503A230DF2633686 /* TOTPGeneratorTests.swift */; };
 		C7DD96B8E5EE88DE0DC36407 /* EntryDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0904281BA49959779229086D /* EntryDetailView.swift */; };
-		CA6FDBE8246A8D4042FFB3F7 /* SecurityScopedBookmarkManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = F94BE9775E845678E66F6BE9 /* SecurityScopedBookmarkManager.swift */; };
 		CD4C2C7C9B5073AE8F9E6731 /* BackoffUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 166C906E1AECCEE8FDBC33D7 /* BackoffUITests.swift */; };
 		D0017FAB9AB8A8FBBDA92361 /* UnlockView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E2DA7B253B27404C400DB1B5 /* UnlockView.swift */; };
 		D248A2156D636F43643B14A1 /* ScreenProtectionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = D288FBCA92B66BC8122CF445 /* ScreenProtectionService.swift */; };
-		D5FA007C33EFCF737B314C12 /* DatabaseListStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A8AE7EF4B345C220EAC66FD2 /* DatabaseListStore.swift */; };
 		D60E824CAF57BAF67DE77841 /* SettingsServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 43638A44681D59420BAF6F8A /* SettingsServiceTests.swift */; };
+		D654EDEF6B8F24EA4F81BB6C /* CredentialIdentityStoreManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = C00A121EB1739F34DA39FE12 /* CredentialIdentityStoreManager.swift */; };
 		D6731B3FAF7B564B8F9439B7 /* DatabaseListUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8CA9912B84B19D308EAEDF9F /* DatabaseListUITests.swift */; };
 		D69512507C36FC7E54964C05 /* CoordinatedFileReader.swift in Sources */ = {isa = PBXBuildFile; fileRef = B6F6578919788B26EB07E259 /* CoordinatedFileReader.swift */; };
 		D7EA74FAC284CF307F6BA24C /* KeyFileProcessorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8C0418ADF1FDFF66CD471789 /* KeyFileProcessorTests.swift */; };
-		D8393AA881B7494A8674843C /* AutoFillExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 04C26DB367249DD15342820A /* AutoFillExtension.appex */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
-		D8525BB3ED1047BB1853E0BE /* DocumentPickerService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 63318429CBE0EF21ED75376B /* DocumentPickerService.swift */; };
 		D867DA976DABC1214D9E7066 /* CloudSyncModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = A8EFE96A1D98D220EA6E3E53 /* CloudSyncModels.swift */; };
-		D87DA0BA86638BA1327DA22D /* CoordinatedFileReader.swift in Sources */ = {isa = PBXBuildFile; fileRef = B6F6578919788B26EB07E259 /* CoordinatedFileReader.swift */; };
 		DA4E00D5996B327F4D3D589E /* PasskeyDisplayTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A615B59AA50919BA538CDBFF /* PasskeyDisplayTests.swift */; };
 		DA4E7174DD6C419E53304A24 /* CloudProviderRegistry.swift in Sources */ = {isa = PBXBuildFile; fileRef = 171EE08BD19575CB8D5D4182 /* CloudProviderRegistry.swift */; };
 		DB37BBC30E20632BEC1EC52E /* KeyFileUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D15DBC84769C820D86294442 /* KeyFileUITests.swift */; };
 		DB996C9E9E32317ED2B154CA /* DatabaseListStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A8AE7EF4B345C220EAC66FD2 /* DatabaseListStore.swift */; };
+		DBDF926E2680A40EE7430B94 /* SharedVaultStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = B84A9EECD929C6729AE6C797 /* SharedVaultStore.swift */; };
 		DC071F7A487715323727D9A4 /* VerifyKeyfileTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C745531E956F6B374FC606F /* VerifyKeyfileTests.swift */; };
+		DE8CCA67FF98C159D17B0E2F /* FaviconService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E8950E3736C571416F14FEF /* FaviconService.swift */; };
 		E152AFB67F2E8119575474B7 /* test-arbitrary.key in Resources */ = {isa = PBXBuildFile; fileRef = 8F5D08487A8DF3C72204ADEB /* test-arbitrary.key */; };
 		E18998A392523968184EBBA0 /* test-binary.key in Resources */ = {isa = PBXBuildFile; fileRef = B7EDDD48D0CB18EA1D45220E /* test-binary.key */; };
-		E1CC83A75E1D8BB5D8CA6096 /* BiometricService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 77DE986C9A71BA15E1B4FE48 /* BiometricService.swift */; };
+		E2CDA12E526C8DFBFBBC2D16 /* CredentialProviderViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5DFD74CE6911EB771A4B7FBD /* CredentialProviderViewController.swift */; };
 		E2F7F73F314AF29EEB91F8EB /* CloudSyncUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 161DA4B3D8C56EE8B3F0EBF3 /* CloudSyncUITests.swift */; };
 		E3D7895440CF711F291EEE23 /* CloudProviderRegistryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EEE77955BBD928FFC22F1048 /* CloudProviderRegistryTests.swift */; };
 		E57B26F87F23C64D42EFD5D7 /* PasskeyCrypto.swift in Sources */ = {isa = PBXBuildFile; fileRef = A74EDA5EB2D69BA039CD0CDC /* PasskeyCrypto.swift */; };
-		ED7C690038695CDD0350EF11 /* Group.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA5A20BA0FFA29C1067EB5EE /* Group.swift */; };
+		EAEDD2B90EEF297D64B6830D /* CredentialMatcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = 82BCAA075FDA5B9A780C689F /* CredentialMatcher.swift */; };
 		EE51139DDDFD5C48CEF2E51F /* UnlockFlowUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C2C726CD862BFFCE77228AAD /* UnlockFlowUITests.swift */; };
-		EF27D4CB6F63B96C7589A73E /* PasskeyCredential.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7AEBF3F7022FCACFF7195DB7 /* PasskeyCredential.swift */; };
+		F02C88E57CDDE75E3FA996CB /* KeyFileProcessor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B073CC063A52BF80326BCA2 /* KeyFileProcessor.swift */; };
 		F289E75CBCA9F0D99289D513 /* DatabaseListViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6371CF6584F8950C4679FE28 /* DatabaseListViewModelTests.swift */; };
 		F39D48D3DC770562FE2311AA /* BiometricService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 77DE986C9A71BA15E1B4FE48 /* BiometricService.swift */; };
 		F98036B14A7239C757090B8D /* test.kdbx in Resources */ = {isa = PBXBuildFile; fileRef = ACDB93B40CC051227D2E6D76 /* test.kdbx */; };
 		F9F8C9E33B5C2D486617E10B /* EncryptedValueTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FEDEBBDC91EBD1B2FBB3716B /* EncryptedValueTests.swift */; };
 		FBEFDD102275DCEA7AC63146 /* test-v2.keyx in Resources */ = {isa = PBXBuildFile; fileRef = ED991255A4FDFF53325EC964 /* test-v2.keyx */; };
 		FC7437F9D800FF2C36294730 /* demo-keyfile.key in Resources */ = {isa = PBXBuildFile; fileRef = 7AB5EEF311A401337289C014 /* demo-keyfile.key */; };
-		FD0A2644C2026BEF677318A7 /* FaviconService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E8950E3736C571416F14FEF /* FaviconService.swift */; };
-		FE645AA4EF808D94BD624AD3 /* SettingsService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3A86027943176F7BF6A605EA /* SettingsService.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -149,12 +149,12 @@
 			remoteGlobalIDString = F9D5D329EB517FC26DCCD00F;
 			remoteInfo = KeeForge;
 		};
-		B7D5835E8F752323ED421858 /* PBXContainerItemProxy */ = {
+		5DBBAD15ADCC44563A3CE2A3 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = 18DF02BAAD6D21CA7DF9BCBC /* Project object */;
 			proxyType = 1;
-			remoteGlobalIDString = F801205FA35907C6D3CC4A83;
-			remoteInfo = AutoFillExtension;
+			remoteGlobalIDString = FFA6C4212640756D8D70C1F6;
+			remoteInfo = KeeForgeAutoFill;
 		};
 		B92C064F7E06600D7050E6A7 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -172,7 +172,7 @@
 			dstPath = "";
 			dstSubfolderSpec = 13;
 			files = (
-				D8393AA881B7494A8674843C /* AutoFillExtension.appex in Embed Foundation Extensions */,
+				250A3D5CA72C0917CA7BD711 /* KeeForgeAutoFill.appex in Embed Foundation Extensions */,
 			);
 			name = "Embed Foundation Extensions";
 			runOnlyForDeploymentPostprocessing = 0;
@@ -184,7 +184,6 @@
 		012690B5F23A7226C211D172 /* KDBXParserTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KDBXParserTests.swift; sourceTree = "<group>"; };
 		0330F701821BF808278069A3 /* ModelLogicTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelLogicTests.swift; sourceTree = "<group>"; };
 		04A1400E503A230DF2633686 /* TOTPGeneratorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TOTPGeneratorTests.swift; sourceTree = "<group>"; };
-		04C26DB367249DD15342820A /* AutoFillExtension.appex */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = "wrapper.app-extension"; path = AutoFillExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		052B9C02DD70272885C3A280 /* UnlockedDatabaseUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UnlockedDatabaseUITests.swift; sourceTree = "<group>"; };
 		0904281BA49959779229086D /* EntryDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EntryDetailView.swift; sourceTree = "<group>"; };
 		0A785C829BFA44B1D7EC69DC /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
@@ -198,6 +197,7 @@
 		255524A0026746268CB46642 /* SharedVaultStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SharedVaultStoreTests.swift; sourceTree = "<group>"; };
 		33FB55D1B41198FB84115734 /* NavigationConformances.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NavigationConformances.swift; sourceTree = "<group>"; };
 		35E6EA2FF600FFF3543FF763 /* GroupListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GroupListView.swift; sourceTree = "<group>"; };
+		379C9421555E6C13A8335404 /* KeeForgeAutoFill.appex */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = "wrapper.app-extension"; path = KeeForgeAutoFill.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		37FCB8A14A23CD5B7A7C8350 /* AutoFillExtension.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = AutoFillExtension.entitlements; sourceTree = "<group>"; };
 		3A86027943176F7BF6A605EA /* SettingsService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsService.swift; sourceTree = "<group>"; };
 		3B073CC063A52BF80326BCA2 /* KeyFileProcessor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyFileProcessor.swift; sourceTree = "<group>"; };
@@ -301,11 +301,11 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		F17C25985AC50E082E07B8F4 /* Frameworks */ = {
+		E85BF72D7E706E2B2F1648E0 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				6CF9964EBF2008E211601112 /* Argon2Swift in Frameworks */,
+				101FE00A9F3480ABB883BD76 /* Argon2Swift in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -439,8 +439,8 @@
 		ACD0829002867CB7844115FB /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				04C26DB367249DD15342820A /* AutoFillExtension.appex */,
 				1C1B7D9F6B63224D55DF5C4A /* KeeForge.app */,
+				379C9421555E6C13A8335404 /* KeeForgeAutoFill.appex */,
 				0FE57E0CBBA459436725D382 /* KeeForgeTests.xctest */,
 				1C50DE2069FA6AFBD2DE3E76 /* KeeForgeUITests.xctest */,
 			);
@@ -580,25 +580,6 @@
 			productReference = 0FE57E0CBBA459436725D382 /* KeeForgeTests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
 		};
-		F801205FA35907C6D3CC4A83 /* AutoFillExtension */ = {
-			isa = PBXNativeTarget;
-			buildConfigurationList = DC044DB20FBB8E7F31FC8B5D /* Build configuration list for PBXNativeTarget "AutoFillExtension" */;
-			buildPhases = (
-				D54C4E4C0BB4F61268849952 /* Sources */,
-				F17C25985AC50E082E07B8F4 /* Frameworks */,
-			);
-			buildRules = (
-			);
-			dependencies = (
-			);
-			name = AutoFillExtension;
-			packageProductDependencies = (
-				B57F54D580E67656BC415235 /* Argon2Swift */,
-			);
-			productName = AutoFillExtension;
-			productReference = 04C26DB367249DD15342820A /* AutoFillExtension.appex */;
-			productType = "com.apple.product-type.app-extension";
-		};
 		F9D5D329EB517FC26DCCD00F /* KeeForge */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = 76FB974F8039F1560441611D /* Build configuration list for PBXNativeTarget "KeeForge" */;
@@ -611,7 +592,7 @@
 			buildRules = (
 			);
 			dependencies = (
-				AF004240FF5EAF9C6C41CAAD /* PBXTargetDependency */,
+				02CE643A26E33CAA12771038 /* PBXTargetDependency */,
 			);
 			name = KeeForge;
 			packageProductDependencies = (
@@ -621,6 +602,25 @@
 			productName = KeeForge;
 			productReference = 1C1B7D9F6B63224D55DF5C4A /* KeeForge.app */;
 			productType = "com.apple.product-type.application";
+		};
+		FFA6C4212640756D8D70C1F6 /* KeeForgeAutoFill */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 11E695B8FAF6D93A188EF0C0 /* Build configuration list for PBXNativeTarget "KeeForgeAutoFill" */;
+			buildPhases = (
+				F2242A79CB86BB829C11C1F6 /* Sources */,
+				E85BF72D7E706E2B2F1648E0 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = KeeForgeAutoFill;
+			packageProductDependencies = (
+				87212E661EACAC1328E27A4E /* Argon2Swift */,
+			);
+			productName = KeeForgeAutoFill;
+			productReference = 379C9421555E6C13A8335404 /* KeeForgeAutoFill.appex */;
+			productType = "com.apple.product-type.app-extension";
 		};
 /* End PBXNativeTarget section */
 
@@ -639,10 +639,10 @@
 						ProvisioningStyle = Automatic;
 						TestTargetID = F9D5D329EB517FC26DCCD00F;
 					};
-					F801205FA35907C6D3CC4A83 = {
+					F9D5D329EB517FC26DCCD00F = {
 						ProvisioningStyle = Automatic;
 					};
-					F9D5D329EB517FC26DCCD00F = {
+					FFA6C4212640756D8D70C1F6 = {
 						ProvisioningStyle = Automatic;
 					};
 				};
@@ -665,8 +665,8 @@
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				F801205FA35907C6D3CC4A83 /* AutoFillExtension */,
 				F9D5D329EB517FC26DCCD00F /* KeeForge */,
+				FFA6C4212640756D8D70C1F6 /* KeeForgeAutoFill */,
 				F371729A79BBD757456723E9 /* KeeForgeTests */,
 				142FE9D12173DF25C61DE561 /* KeeForgeUITests */,
 			);
@@ -823,49 +823,49 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		D54C4E4C0BB4F61268849952 /* Sources */ = {
+		F2242A79CB86BB829C11C1F6 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				3EBD9B66FA1479CAAC03AE41 /* AutoFillSearchView.swift in Sources */,
-				E1CC83A75E1D8BB5D8CA6096 /* BiometricService.swift in Sources */,
-				2F87DF2716F02AA6F0380389 /* CloudSyncModels.swift in Sources */,
-				D87DA0BA86638BA1327DA22D /* CoordinatedFileReader.swift in Sources */,
-				109624BC35F24E414533262E /* CredentialIdentityStoreManager.swift in Sources */,
-				6AB0792A364B7F6C15973F0A /* CredentialMatcher.swift in Sources */,
-				787BEDC7C4C78B93AB2092C7 /* CredentialProviderViewController.swift in Sources */,
-				D5FA007C33EFCF737B314C12 /* DatabaseListStore.swift in Sources */,
-				1620CC6076E01815195F3910 /* DatabaseReference.swift in Sources */,
-				D8525BB3ED1047BB1853E0BE /* DocumentPickerService.swift in Sources */,
-				735F4786AA56E9FF6AFBCD6F /* EncryptedValue.swift in Sources */,
-				9A6F253018065590ABC11334 /* Entry.swift in Sources */,
-				FD0A2644C2026BEF677318A7 /* FaviconService.swift in Sources */,
-				ED7C690038695CDD0350EF11 /* Group.swift in Sources */,
-				8ED9B8C029BFF89CF4C00DA8 /* KDBXCrypto.swift in Sources */,
-				2205F1305F28CF858773F3E0 /* KDBXParser.swift in Sources */,
-				A8E418DC381EECD9AD82A871 /* KeyFileProcessor.swift in Sources */,
-				2670FF08B0986EEE16580A16 /* KeychainService.swift in Sources */,
-				EF27D4CB6F63B96C7589A73E /* PasskeyCredential.swift in Sources */,
-				51FFA32D55161412B62549FA /* PasskeyCrypto.swift in Sources */,
-				CA6FDBE8246A8D4042FFB3F7 /* SecurityScopedBookmarkManager.swift in Sources */,
-				FE645AA4EF808D94BD624AD3 /* SettingsService.swift in Sources */,
-				6F98148EB194DA8E1C7CCF31 /* SharedVaultStore.swift in Sources */,
-				691D5126398C8E8D6C26D340 /* TOTPGenerator.swift in Sources */,
+				3C24F70C9805D197748349DF /* AutoFillSearchView.swift in Sources */,
+				483CAF99370DDD0C6FCFC05B /* BiometricService.swift in Sources */,
+				26B6BCD4E53FFDD0B6A936C7 /* CloudSyncModels.swift in Sources */,
+				64F0AD7B11B50E8AA4379546 /* CoordinatedFileReader.swift in Sources */,
+				D654EDEF6B8F24EA4F81BB6C /* CredentialIdentityStoreManager.swift in Sources */,
+				EAEDD2B90EEF297D64B6830D /* CredentialMatcher.swift in Sources */,
+				E2CDA12E526C8DFBFBBC2D16 /* CredentialProviderViewController.swift in Sources */,
+				8F1949E76E490D20D8852749 /* DatabaseListStore.swift in Sources */,
+				4386503381C758DD632B9755 /* DatabaseReference.swift in Sources */,
+				7AD3A17E4ABD1F5E9C63EA8D /* DocumentPickerService.swift in Sources */,
+				BE6ABBD6BE21B73CB6319E7F /* EncryptedValue.swift in Sources */,
+				775F9BA8EFAEF1F361AFF6BB /* Entry.swift in Sources */,
+				DE8CCA67FF98C159D17B0E2F /* FaviconService.swift in Sources */,
+				854F53222F9E7ECC3CD4257E /* Group.swift in Sources */,
+				0C55C0F3933E2AC968D8786B /* KDBXCrypto.swift in Sources */,
+				55842C2074D95DB5E37EB360 /* KDBXParser.swift in Sources */,
+				F02C88E57CDDE75E3FA996CB /* KeyFileProcessor.swift in Sources */,
+				6DCCA2DED2816C06FBB19B3A /* KeychainService.swift in Sources */,
+				5E17A333954ADDC0205E1B72 /* PasskeyCredential.swift in Sources */,
+				39E7FA74BFBCA0F422D3D226 /* PasskeyCrypto.swift in Sources */,
+				499968105D99D697FC2BCC6A /* SecurityScopedBookmarkManager.swift in Sources */,
+				2FA001A23A74841EA5CCEAF3 /* SettingsService.swift in Sources */,
+				DBDF926E2680A40EE7430B94 /* SharedVaultStore.swift in Sources */,
+				54CD35087BDA9681E771259B /* TOTPGenerator.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
+		02CE643A26E33CAA12771038 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = FFA6C4212640756D8D70C1F6 /* KeeForgeAutoFill */;
+			targetProxy = 5DBBAD15ADCC44563A3CE2A3 /* PBXContainerItemProxy */;
+		};
 		3A1F7A94852A172103F83E43 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			target = F9D5D329EB517FC26DCCD00F /* KeeForge */;
 			targetProxy = 273C087E5981D2A3312EA1EF /* PBXContainerItemProxy */;
-		};
-		AF004240FF5EAF9C6C41CAAD /* PBXTargetDependency */ = {
-			isa = PBXTargetDependency;
-			target = F801205FA35907C6D3CC4A83 /* AutoFillExtension */;
-			targetProxy = B7D5835E8F752323ED421858 /* PBXContainerItemProxy */;
 		};
 		B551CCEA308F5944DD405D3E /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
@@ -909,27 +909,6 @@
 				TEST_TARGET_NAME = KeeForge;
 			};
 			name = Debug;
-		};
-		2F94F6A619EC58C4A28F1E70 /* Release */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				CODE_SIGN_ENTITLEMENTS = AutoFillExtension/AutoFillExtension.entitlements;
-				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
-				GENERATE_INFOPLIST_FILE = NO;
-				INFOPLIST_FILE = AutoFillExtension/Info.plist;
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-					"@executable_path/Frameworks",
-					"@executable_path/../../Frameworks",
-				);
-				MARKETING_VERSION = 1.6.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.keevault.app.autofill;
-				PRODUCT_NAME = KeeForgeAutoFill;
-				SDKROOT = iphoneos;
-				TARGETED_DEVICE_FAMILY = "1,2";
-			};
-			name = Release;
 		};
 		433642D014742A51E017BA5F /* Release */ = {
 			isa = XCBuildConfiguration;
@@ -1008,7 +987,7 @@
 			};
 			name = Debug;
 		};
-		8A75740C43040A13D4AC16EE /* Debug */ = {
+		AA477608E6A78760EECB3272 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_ENTITLEMENTS = AutoFillExtension/AutoFillExtension.entitlements;
@@ -1023,11 +1002,10 @@
 				);
 				MARKETING_VERSION = 1.6.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.keevault.app.autofill;
-				PRODUCT_NAME = KeeForgeAutoFill;
 				SDKROOT = iphoneos;
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};
-			name = Debug;
+			name = Release;
 		};
 		AE8DA6B28EE043B93D4ED357 /* Release */ = {
 			isa = XCBuildConfiguration;
@@ -1139,6 +1117,26 @@
 			};
 			name = Debug;
 		};
+		FC2F884A4BE8B26636B86B71 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = AutoFillExtension/AutoFillExtension.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = AutoFillExtension/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.6.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.keevault.app.autofill;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
 		FF29994C3089ACBFCC9CE6B9 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -1167,6 +1165,15 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
+		11E695B8FAF6D93A188EF0C0 /* Build configuration list for PBXNativeTarget "KeeForgeAutoFill" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				FC2F884A4BE8B26636B86B71 /* Debug */,
+				AA477608E6A78760EECB3272 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
 		76FB974F8039F1560441611D /* Build configuration list for PBXNativeTarget "KeeForge" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
@@ -1203,15 +1210,6 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Debug;
 		};
-		DC044DB20FBB8E7F31FC8B5D /* Build configuration list for PBXNativeTarget "AutoFillExtension" */ = {
-			isa = XCConfigurationList;
-			buildConfigurations = (
-				8A75740C43040A13D4AC16EE /* Debug */,
-				2F94F6A619EC58C4A28F1E70 /* Release */,
-			);
-			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Debug;
-		};
 /* End XCConfigurationList section */
 
 /* Begin XCRemoteSwiftPackageReference section */
@@ -1239,7 +1237,7 @@
 			package = 0DE6D7E1C06867E37CE51E7D /* XCRemoteSwiftPackageReference "SwiftyDropbox" */;
 			productName = SwiftyDropbox;
 		};
-		B57F54D580E67656BC415235 /* Argon2Swift */ = {
+		87212E661EACAC1328E27A4E /* Argon2Swift */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = DAD92CB1C500ADA86A291E6B /* XCRemoteSwiftPackageReference "Argon2Swift" */;
 			productName = Argon2Swift;
