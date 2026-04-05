@@ -45,7 +45,6 @@
 		55EB4D56C31B965154EE992C /* CredentialIdentityStoreManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = C00A121EB1739F34DA39FE12 /* CredentialIdentityStoreManager.swift */; };
 		58AD474260AA662614997B94 /* SearchView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 92CDD8F39D3FA23FCD1722E8 /* SearchView.swift */; };
 		593F3597EC5E308BE2BA67BC /* AutoLockTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6A60D769EF54ACAE8FAFEC73 /* AutoLockTests.swift */; };
-		5A853F9C2655E718A2D8F769 /* README.md in Resources */ = {isa = PBXBuildFile; fileRef = C9272A9A8096F2DABE244130 /* README.md */; };
 		5C9D57CF37F670CFA3B9F919 /* FaviconService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E8950E3736C571416F14FEF /* FaviconService.swift */; };
 		5D1534A2DAB9C6EC61C8551B /* CloudSyncModelsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6037B710DE638D64C1ED6576 /* CloudSyncModelsTests.swift */; };
 		5D2CF3FE49768C76388E382C /* demo.kdbx in Resources */ = {isa = PBXBuildFile; fileRef = F3D5CCD3DC2893DC1A65D6DC /* demo.kdbx */; };
@@ -260,7 +259,6 @@
 		BC9852527A48C28D5D60FCFD /* FaviconView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FaviconView.swift; sourceTree = "<group>"; };
 		C00A121EB1739F34DA39FE12 /* CredentialIdentityStoreManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CredentialIdentityStoreManager.swift; sourceTree = "<group>"; };
 		C2C726CD862BFFCE77228AAD /* UnlockFlowUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UnlockFlowUITests.swift; sourceTree = "<group>"; };
-		C9272A9A8096F2DABE244130 /* README.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = README.md; sourceTree = "<group>"; };
 		CC501EE7E48C61C39641D99D /* HapticService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HapticService.swift; sourceTree = "<group>"; };
 		CE7654CB864A7BECF13483C8 /* ReviewPromptServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReviewPromptServiceTests.swift; sourceTree = "<group>"; };
 		CF40C9649E6870C49081C9C0 /* CredentialIdentityStoreManagerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CredentialIdentityStoreManagerTests.swift; sourceTree = "<group>"; };
@@ -324,7 +322,6 @@
 				4A15836C142BB997DA70F8FE /* KeeForgeUITestCase.swift */,
 				D15DBC84769C820D86294442 /* KeyFileUITests.swift */,
 				E0E5E0B52692F925F8CAB5A1 /* LockUnlockUITests.swift */,
-				C9272A9A8096F2DABE244130 /* README.md */,
 				052B9C02DD70272885C3A280 /* UnlockedDatabaseUITests.swift */,
 				C2C726CD862BFFCE77228AAD /* UnlockFlowUITests.swift */,
 			);
@@ -710,7 +707,6 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				5A853F9C2655E718A2D8F769 /* README.md in Resources */,
 				546946CF03D4BA3759BDA5F1 /* demo-keyfile.kdbx in Resources */,
 				82C95283AF20A54E1651411A /* demo-keyfile.key in Resources */,
 				115B1CF896D4326495169AF4 /* demo.kdbx in Resources */,
