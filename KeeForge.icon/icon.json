@@ -1,0 +1,37 @@
+{
+  "fill" : {
+    "solid" : "srgb:0.22533,0.26857,0.47275,1.00000"
+  },
+  "groups" : [
+    {
+      "layers" : [
+        {
+          "glass" : true,
+          "image-name" : "KeeForge-key-foreground.svg",
+          "name" : "KeeForge-key-foreground",
+          "position" : {
+            "scale" : 1.2,
+            "translation-in-points" : [
+              0.03749999999990905,
+              19.84771810672521
+            ]
+          }
+        }
+      ],
+      "shadow" : {
+        "kind" : "neutral",
+        "opacity" : 0.5
+      },
+      "translucency" : {
+        "enabled" : true,
+        "value" : 0.5
+      }
+    }
+  ],
+  "supported-platforms" : {
+    "circles" : [
+      "watchOS"
+    ],
+    "squares" : "shared"
+  }
+}
