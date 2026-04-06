@@ -9,6 +9,8 @@
 
 ## Unreleased
 
+## v1.7.0 (2026-04-05)
+
 ### New Features
 - Add read-only Dropbox cloud sync with OAuth account linking, native cloud browsing, shared cached copies for AutoFill, and cloud status indicators in the database list and settings
 
