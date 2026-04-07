@@ -49,6 +49,29 @@ final class KPGroup: Identifiable, @unchecked Sendable {
         return entries + groups.flatMap { $0.allEntries(excludingGroupID: groupID) }
     }
 
+    /// Returns a new version of this group with one direct child group replaced.
+    func replacingChildGroup(_ updatedGroup: KPGroup) -> KPGroup? {
+        guard let index = groups.firstIndex(where: { $0.id == updatedGroup.id }) else {
+            return nil
+        }
+
+        var updatedGroups = groups
+        updatedGroups[index] = updatedGroup
+
+        return KPGroup(
+            id: id,
+            name: name,
+            iconID: iconID,
+            entries: entries,
+            groups: updatedGroups,
+            isExpanded: isExpanded,
+            creationTime: creationTime,
+            lastModificationTime: lastModificationTime,
+            recycleBinUUID: recycleBinUUID,
+            unknownXML: unknownXML
+        )
+    }
+
     /// System icon name based on KeePass icon ID
     var systemIconName: String {
         switch iconID {
