@@ -155,7 +155,7 @@ final class KDBXWriterTests: XCTestCase {
         let encryptedPayload = try KDBXParser.readHMACBlocks(reader: &reader, baseKey: baseKey)
 
         XCTAssertFalse(encryptedPayload.isEmpty)
-        XCTAssertGreaterThan(countPayloadBlocks(in: written), 1)
+        XCTAssertGreaterThan(try countPayloadBlocks(in: written), 1)
     }
 
     func test_writeWithChaCha20Cipher_roundTrip() throws {

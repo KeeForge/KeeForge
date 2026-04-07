@@ -72,6 +72,10 @@ struct DatabaseDraft: Sendable {
         currentMetaStorage
     }
 
+    var writerSessionKey: SymmetricKey {
+        sessionKey
+    }
+
     var isDirty: Bool {
         !pendingEdits.isEmpty
     }
@@ -207,8 +211,8 @@ struct DatabaseDraft: Sendable {
             password: try EncryptedValue.encrypt(draft.password, using: sessionKey),
             url: draft.url,
             notes: draft.notes,
-            customFields: draft.customFields,
             tags: draft.tags,
+            customFields: draft.customFields,
             totpConfig: try makeTOTPConfig(from: draft.totpConfig),
             creationTime: timestamp,
             lastModificationTime: timestamp
@@ -249,7 +253,7 @@ struct DatabaseDraft: Sendable {
         }
 
         return TOTPConfig(
-            secret: EncryptedValue.encrypt(draft.secret, using: sessionKey),
+            secret: try EncryptedValue.encrypt(draft.secret, using: sessionKey),
             period: draft.period,
             digits: draft.digits,
             algorithm: draft.algorithm

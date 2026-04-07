@@ -22,6 +22,14 @@ final class DatabaseViewModel {
         _ reference: DatabaseReference,
         _ progress: @escaping @Sendable (Double) -> Void
     ) async throws -> CloudSyncResolution
+    typealias LocalSaveOperation = @Sendable (
+        _ draft: DatabaseDraft,
+        _ reference: DatabaseReference,
+        _ compositeKey: Data,
+        _ openTimeSHA512: Data
+    ) async throws -> SaveResult
+    typealias SyncedFolderDetectionOperation = @Sendable (DatabaseReference) async -> SyncedFolderLocation
+    typealias SyncedFolderWarningHandler = @MainActor @Sendable (SyncedFolderWarning) async -> SyncedFolderWarningAction
 
     private static let sortOrderKey = "KeeForge.sortOrder"
     private static let sortAscendingKey = "KeeForge.sortAscending"
@@ -56,10 +64,18 @@ final class DatabaseViewModel {
     private(set) var lockoutUntil: Date?
     private(set) var compositeKey: Data?
     private(set) var sessionKey: SymmetricKey?
+    var draft: DatabaseDraft?
+    private(set) var openTimeSHA512: Data?
+    private(set) var saveConflict: SaveConflict?
+    private(set) var syncedFolderWarning: SyncedFolderWarning?
     private(set) var cloudSyncProgress: Double?
     private(set) var cloudSyncBannerText: String?
     private(set) var unlockStatusMessage: String
+    private var unlockedMeta: KPMeta?
     private let cloudSyncOperation: CloudSyncOperation
+    private let localSaveOperation: LocalSaveOperation
+    private let syncedFolderDetector: SyncedFolderDetectionOperation
+    private let syncedFolderWarningHandler: SyncedFolderWarningHandler
 
     init(
         databaseReference: DatabaseReference,
@@ -68,6 +84,20 @@ final class DatabaseViewModel {
                 reference: reference,
                 progress: progress
             )
+        },
+        localSaveOperation: @escaping LocalSaveOperation = { draft, reference, compositeKey, openTimeSHA512 in
+            try await LocalDatabaseSaver.save(
+                draft: draft,
+                reference: reference,
+                compositeKey: compositeKey,
+                openTimeSHA512: openTimeSHA512
+            )
+        },
+        syncedFolderDetector: @escaping SyncedFolderDetectionOperation = { reference in
+            await SyncedFolderDetector.detect(reference: reference)
+        },
+        syncedFolderWarningHandler: @escaping SyncedFolderWarningHandler = { _ in
+            .continueEditing
         }
     ) {
         self.databaseReference = databaseReference
@@ -77,6 +107,9 @@ final class DatabaseViewModel {
             ? DatabaseViewModel.syncStatusMessage(for: databaseReference)
             : Self.decryptingStatusMessage
         self.cloudSyncOperation = cloudSyncOperation
+        self.localSaveOperation = localSaveOperation
+        self.syncedFolderDetector = syncedFolderDetector
+        self.syncedFolderWarningHandler = syncedFolderWarningHandler
     }
 
     var databaseDisplayName: String {
@@ -85,6 +118,14 @@ final class DatabaseViewModel {
 
     var databaseFilename: String {
         databaseReference.filename
+    }
+
+    var isReadOnly: Bool {
+        databaseReference.isReadOnly
+    }
+
+    var isDirty: Bool {
+        draft?.isDirty ?? false
     }
 
     var hasSavedFile: Bool {
@@ -161,12 +202,21 @@ final class DatabaseViewModel {
             let compositeKey = KDBXCrypto.compositeKey(password: password, keyFileData: keyFileData)
             let sessionKey = SymmetricKey(size: .bits256)
 
-            let root = try await Task.detached {
-                try KDBXParser.parse(data: data, password: password, keyFileData: keyFileData, sessionKey: sessionKey)
+            let unlockPayload = try await Task.detached {
+                let parsed = try KDBXParser.parseWithMeta(
+                    data: data,
+                    compositeKey: compositeKey,
+                    sessionKey: sessionKey
+                )
+                return UnlockPayload(
+                    rootGroup: parsed.rootGroup,
+                    meta: parsed.meta,
+                    openTimeSHA512: KDBXCrypto.sha512(data)
+                )
             }.value
 
             await finalizeSuccessfulUnlock(
-                root: root,
+                payload: unlockPayload,
                 compositeKey: compositeKey,
                 sessionKey: sessionKey
             )
@@ -185,12 +235,21 @@ final class DatabaseViewModel {
             try cacheDatabaseCopy(data)
             let sessionKey = SymmetricKey(size: .bits256)
 
-            let root = try await Task.detached {
-                try KDBXParser.parse(data: data, compositeKey: compositeKey, sessionKey: sessionKey)
+            let unlockPayload = try await Task.detached {
+                let parsed = try KDBXParser.parseWithMeta(
+                    data: data,
+                    compositeKey: compositeKey,
+                    sessionKey: sessionKey
+                )
+                return UnlockPayload(
+                    rootGroup: parsed.rootGroup,
+                    meta: parsed.meta,
+                    openTimeSHA512: KDBXCrypto.sha512(data)
+                )
             }.value
 
             await finalizeSuccessfulUnlock(
-                root: root,
+                payload: unlockPayload,
                 compositeKey: compositeKey,
                 sessionKey: sessionKey
             )
@@ -225,6 +284,11 @@ final class DatabaseViewModel {
         rootGroup = nil
         compositeKey = nil
         sessionKey = nil
+        unlockedMeta = nil
+        draft = nil
+        openTimeSHA512 = nil
+        saveConflict = nil
+        syncedFolderWarning = nil
         cloudSyncProgress = nil
         cloudSyncBannerText = nil
         unlockStatusMessage = databaseReference.isCloudBacked
@@ -232,6 +296,88 @@ final class DatabaseViewModel {
             : Self.decryptingStatusMessage
         searchText = ""
         navigationPath = NavigationPath()
+    }
+
+    func discardDraft() {
+        draft = nil
+        saveConflict = nil
+    }
+
+    func save() async throws {
+        if databaseReference.isReadOnly {
+            throw SaveError.databaseIsReadOnly
+        }
+
+        guard case .unlocked = state else { return }
+        guard let draft else { return }
+        guard draft.isDirty else { return }
+        guard let compositeKey, let openTimeSHA512 else {
+            throw SaveError.saveContextUnavailable
+        }
+
+        saveConflict = nil
+
+        let saveResult: SaveResult
+        switch databaseReference.source {
+        case .local:
+            saveResult = try await localSaveOperation(
+                draft,
+                databaseReference,
+                compositeKey,
+                openTimeSHA512
+            )
+        case .cloud:
+            throw SaveError.cloudSaveNotImplemented
+        }
+
+        switch saveResult {
+        case .saved(let newSHA512):
+            rootGroup = draft.rootGroup
+            unlockedMeta = draft.meta
+            self.openTimeSHA512 = newSHA512
+            self.draft = nil
+            saveConflict = nil
+        case .conflict(let remoteSHA512, let remoteData):
+            saveConflict = SaveConflict(
+                remoteSHA512: remoteSHA512,
+                remoteData: remoteData
+            )
+        }
+    }
+
+    func acknowledgeEditingIfNeeded() async -> AcknowledgmentResult {
+        guard case .local = databaseReference.source else {
+            return .acknowledged
+        }
+
+        guard databaseReference.bookmarkData != nil else {
+            return .acknowledged
+        }
+
+        if databaseReference.editsAcknowledgedAt != nil {
+            return .acknowledged
+        }
+
+        let syncedFolderLocation = await syncedFolderDetector(databaseReference)
+        guard syncedFolderLocation != .notSynced else {
+            return .acknowledged
+        }
+
+        let warning = SyncedFolderWarning(location: syncedFolderLocation)
+        syncedFolderWarning = warning
+        let action = await syncedFolderWarningHandler(warning)
+        syncedFolderWarning = nil
+
+        switch action {
+        case .continueEditing:
+            DatabaseListStore.acknowledgeEdits(for: databaseReference)
+            refreshDatabaseReference()
+            return .acknowledged
+        case .keepReadOnly:
+            DatabaseListStore.setReadOnly(true, for: databaseReference)
+            refreshDatabaseReference()
+            return .keptReadOnly
+        }
     }
 
     // MARK: - Inactivity Timer
@@ -395,22 +541,42 @@ final class DatabaseViewModel {
         return "Syncing with \(providerName)..."
     }
 
+    private struct UnlockPayload: Sendable {
+        let rootGroup: KPGroup
+        let meta: KPMeta
+        let openTimeSHA512: Data
+    }
+
     private func beginNewLockCycle() {
         lockCycleID += 1
     }
 
     private func prepareForUnlock() {
         state = .unlocking
+        draft = nil
+        openTimeSHA512 = nil
+        saveConflict = nil
+        syncedFolderWarning = nil
+        unlockedMeta = nil
         cloudSyncProgress = nil
         unlockStatusMessage = databaseReference.isCloudBacked
             ? Self.syncStatusMessage(for: databaseReference)
             : Self.decryptingStatusMessage
     }
 
-    private func finalizeSuccessfulUnlock(root: KPGroup, compositeKey: Data, sessionKey: SymmetricKey) async {
-        self.rootGroup = root
+    private func finalizeSuccessfulUnlock(
+        payload: UnlockPayload,
+        compositeKey: Data,
+        sessionKey: SymmetricKey
+    ) async {
+        self.rootGroup = payload.rootGroup
         self.compositeKey = compositeKey
         self.sessionKey = sessionKey
+        self.unlockedMeta = payload.meta
+        self.openTimeSHA512 = payload.openTimeSHA512
+        self.draft = nil
+        self.saveConflict = nil
+        self.syncedFolderWarning = nil
         self.failedAttempts = 0
         self.lockoutUntil = nil
         self.state = .unlocked
@@ -419,7 +585,7 @@ final class DatabaseViewModel {
         persistCompositeKeyForBiometricUnlock(compositeKey)
         DatabaseListStore.markDatabaseOpened(id: databaseReference.id)
         refreshDatabaseReference()
-        populateCredentialStoreIfNeeded(root: root)
+        populateCredentialStoreIfNeeded(root: payload.rootGroup)
         ReviewPromptService.requestReviewIfAppropriate()
     }
 

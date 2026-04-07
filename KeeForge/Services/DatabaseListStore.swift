@@ -3,6 +3,8 @@ import Foundation
 
 enum DatabaseListStore {
     private static let databaseListFilename = "database-list.json"
+    private static let applicationSupportPathComponent = "Library/Application Support"
+    private static let backupsDirectoryName = "backups"
     private static let activeAutoFillDatabaseIDKey = "activeAutoFillDatabaseID"
     private static let migrationVersionKey = "databaseListMigrationVersion"
     private static let currentMigrationVersion = 1
@@ -85,6 +87,31 @@ enum DatabaseListStore {
         return fallbackAutoFillDatabase(in: currentDatabases)
     }
 
+    static func databaseBackupDirectoryURL(for reference: DatabaseReference) -> URL {
+        backupsRootURL.appendingPathComponent(reference.id.uuidString, isDirectory: true)
+    }
+
+    static func recentBackups(for reference: DatabaseReference) -> [URL] {
+        let directoryURL = databaseBackupDirectoryURL(for: reference)
+        guard let contents = try? FileManager.default.contentsOfDirectory(
+            at: directoryURL,
+            includingPropertiesForKeys: [.isRegularFileKey],
+            options: [.skipsHiddenFiles]
+        ) else {
+            return []
+        }
+
+        return contents
+            .filter { url in
+                guard url.pathExtension.lowercased() == "kdbx" else { return false }
+                let values = try? url.resourceValues(forKeys: [.isRegularFileKey])
+                return values?.isRegularFile == true
+            }
+            .sorted { lhs, rhs in
+                lhs.lastPathComponent > rhs.lastPathComponent
+            }
+    }
+
     @discardableResult
     static func add(url: URL) throws -> DatabaseReference {
         var currentDatabases = loadDatabases()
@@ -150,6 +177,7 @@ enum DatabaseListStore {
         }
 
         try? FileManager.default.removeItem(at: cacheLocation(for: removedReference))
+        try? FileManager.default.removeItem(at: databaseBackupDirectoryURL(for: removedReference))
 
         let remainingDatabases = currentDatabases.filter { $0.id != id }
         if activeAutoFillDatabaseID == id {
@@ -172,6 +200,18 @@ enum DatabaseListStore {
         }
 
         saveDatabases(currentDatabases)
+    }
+
+    static func setReadOnly(_ isReadOnly: Bool, for reference: DatabaseReference) {
+        guard var updatedReference = loadDatabases().first(where: { $0.id == reference.id }) else { return }
+        updatedReference.isReadOnly = isReadOnly
+        update(updatedReference)
+    }
+
+    static func acknowledgeEdits(for reference: DatabaseReference, at date: Date = .now) {
+        guard var updatedReference = loadDatabases().first(where: { $0.id == reference.id }) else { return }
+        updatedReference.editsAcknowledgedAt = date
+        update(updatedReference)
     }
 
     static func move(from source: IndexSet, to destination: Int) {
@@ -302,8 +342,18 @@ enum DatabaseListStore {
         let currentDatabases = loadDatabases()
         currentDatabases.forEach { remove(id: $0.id) }
         try? FileManager.default.removeItem(at: databaseListURL)
+        try? FileManager.default.removeItem(at: backupsRootURL)
         activeAutoFillDatabaseID = nil
         sharedDefaults.removeObject(forKey: migrationVersionKey)
+    }
+
+    static func pruneBackups(for reference: DatabaseReference, keeping count: Int) throws {
+        guard count >= 0 else { return }
+
+        let backupsToRemove = recentBackups(for: reference).dropFirst(count)
+        for url in backupsToRemove {
+            try FileManager.default.removeItem(at: url)
+        }
     }
 
     // MARK: - Private
@@ -382,6 +432,14 @@ enum DatabaseListStore {
     private static func migrateFromSharedVaultStoreIfNeeded() {
         guard FileManager.default.fileExists(atPath: databaseListURL.path) == false else { return }
         migrateFromSharedVaultStore()
+    }
+
+    private static var applicationSupportURL: URL {
+        sharedContainerURL.appendingPathComponent(applicationSupportPathComponent, isDirectory: true)
+    }
+
+    private static var backupsRootURL: URL {
+        applicationSupportURL.appendingPathComponent(backupsDirectoryName, isDirectory: true)
     }
 
     private static func bootstrapForUITestingIfNeeded() {

@@ -55,6 +55,15 @@ final class DatabaseViewModelTests: XCTestCase {
         XCTAssertEqual(try Data(contentsOf: cachedURL), try Data(contentsOf: sourceURL))
     }
 
+    func testUnlockCapturesOpenTimeSHA512() async throws {
+        let vm = try makeViewModel()
+        let expectedHash = KDBXCrypto.sha512(try Data(contentsOf: fixtureURL()))
+
+        await vm.unlock(password: fixturePassword)
+
+        XCTAssertEqual(vm.openTimeSHA512, expectedHash)
+    }
+
     func testUnlockFallsBackToCachedCopyWhenBookmarkCannotBeResolved() async throws {
         var reference = try makeReference()
         reference.bookmarkData = Data("invalid-bookmark".utf8)
@@ -279,8 +288,212 @@ final class DatabaseViewModelTests: XCTestCase {
         XCTAssertTrue(vm.navigationPath.isEmpty)
     }
 
-    private func makeViewModel() throws -> DatabaseViewModel {
-        DatabaseViewModel(databaseReference: try makeReference())
+    func testSaveOnCleanDraftIsNoOp() async throws {
+        let localSaverCalls = CallTracker()
+        let vm = try makeViewModel(
+            localSaveOperation: { _, _, _, _ in
+                localSaverCalls.recordCall()
+                return .saved(newSHA512: Data("saved".utf8))
+            }
+        )
+
+        await vm.unlock(password: fixturePassword)
+        let originalHash = vm.openTimeSHA512
+        vm.draft = try makeCleanDraft(from: vm)
+
+        try await vm.save()
+
+        XCTAssertFalse(localSaverCalls.didCall)
+        XCTAssertEqual(vm.openTimeSHA512, originalHash)
+        XCTAssertNotNil(vm.draft)
+    }
+
+    func testSaveOnDirtyDraftReplacesRootClearsDraft() async throws {
+        let savedHash = Data("saved-hash".utf8)
+        let vm = try makeViewModel(
+            localSaveOperation: { _, _, _, _ in
+                .saved(newSHA512: savedHash)
+            }
+        )
+
+        await vm.unlock(password: fixturePassword)
+        let dirtyDraft = try makeDirtyDraft(from: vm, entryTitle: "Saved Entry")
+        let expectedTitles = dirtyDraft.rootGroup.allEntries.map(\.title).sorted()
+        vm.draft = dirtyDraft
+
+        try await vm.save()
+
+        XCTAssertEqual(vm.rootGroup?.allEntries.map(\.title).sorted(), expectedTitles)
+        XCTAssertNil(vm.draft)
+        XCTAssertEqual(vm.openTimeSHA512, savedHash)
+    }
+
+    func testSaveOnConflictSetsSaveConflictDoesNotClearDraft() async throws {
+        let remoteData = Data("remote".utf8)
+        let remoteHash = KDBXCrypto.sha512(remoteData)
+        let vm = try makeViewModel(
+            localSaveOperation: { _, _, _, _ in
+                .conflict(remoteSHA512: remoteHash, remoteData: remoteData)
+            }
+        )
+
+        await vm.unlock(password: fixturePassword)
+        let dirtyDraft = try makeDirtyDraft(from: vm, entryTitle: "Conflicted Entry")
+        vm.draft = dirtyDraft
+
+        try await vm.save()
+
+        XCTAssertEqual(
+            vm.saveConflict,
+            SaveConflict(remoteSHA512: remoteHash, remoteData: remoteData)
+        )
+        XCTAssertNotNil(vm.draft)
+    }
+
+    func testSaveWhenReadOnlyThrowsDatabaseIsReadOnlyDoesNotEncrypt() async throws {
+        var reference = try makeReference()
+        reference.isReadOnly = true
+
+        let localSaverCalls = CallTracker()
+        let vm = DatabaseViewModel(
+            databaseReference: reference,
+            localSaveOperation: { _, _, _, _ in
+                localSaverCalls.recordCall()
+                return .saved(newSHA512: Data("saved".utf8))
+            }
+        )
+
+        await vm.unlock(password: fixturePassword)
+        vm.draft = try makeDirtyDraft(from: vm, entryTitle: "Read Only Entry")
+
+        do {
+            try await vm.save()
+            XCTFail("Expected save to throw when the database is read-only.")
+        } catch let error as SaveError {
+            XCTAssertEqual(error, .databaseIsReadOnly)
+        } catch {
+            XCTFail("Unexpected error: \(error)")
+        }
+
+        XCTAssertFalse(localSaverCalls.didCall)
+    }
+
+    func testAcknowledgeEditingIfNeededLocalUnsyncedReturnsAcknowledgedImmediately() async throws {
+        var reference = try makeReference()
+        reference.bookmarkData = nil
+
+        let vm = DatabaseViewModel(
+            databaseReference: reference,
+            syncedFolderDetector: { _ in
+                XCTFail("Synced folder detection should not run when there is no bookmark.")
+                return .dropbox
+            }
+        )
+
+        let result = await vm.acknowledgeEditingIfNeeded()
+
+        XCTAssertEqual(result, .acknowledged)
+        XCTAssertNil(vm.syncedFolderWarning)
+    }
+
+    func testAcknowledgeEditingIfNeededAlreadyAcknowledgedReturnsAcknowledgedImmediately() async throws {
+        var reference = try makeReference()
+        reference.editsAcknowledgedAt = Date(timeIntervalSince1970: 10)
+
+        let vm = DatabaseViewModel(
+            databaseReference: reference,
+            syncedFolderDetector: { _ in
+                XCTFail("Synced folder detection should not run after acknowledgment.")
+                return .dropbox
+            },
+            syncedFolderWarningHandler: { _ in
+                XCTFail("Warning handler should not run after acknowledgment.")
+                return .continueEditing
+            }
+        )
+
+        let result = await vm.acknowledgeEditingIfNeeded()
+
+        XCTAssertEqual(result, .acknowledged)
+    }
+
+    func testAcknowledgeEditingIfNeededDropboxPromptsAndPersistsAcknowledgment() async throws {
+        let reference = try makeReference()
+        DatabaseListStore.update(reference)
+
+        var capturedWarning: SyncedFolderWarning?
+        let vm = DatabaseViewModel(
+            databaseReference: reference,
+            syncedFolderDetector: { _ in .dropbox },
+            syncedFolderWarningHandler: { warning in
+                capturedWarning = warning
+                return .continueEditing
+            }
+        )
+
+        let result = await vm.acknowledgeEditingIfNeeded()
+        let updatedReference = try XCTUnwrap(DatabaseListStore.databases.first(where: { $0.id == reference.id }))
+
+        XCTAssertEqual(result, .acknowledged)
+        XCTAssertEqual(capturedWarning?.title, "This database file is stored in Dropbox.")
+        XCTAssertNotNil(updatedReference.editsAcknowledgedAt)
+        XCTAssertNil(vm.syncedFolderWarning)
+    }
+
+    func testAcknowledgeEditingIfNeededDropboxKeepReadOnlySetsFlagReturnsKeptReadOnly() async throws {
+        let reference = try makeReference()
+        DatabaseListStore.update(reference)
+
+        let vm = DatabaseViewModel(
+            databaseReference: reference,
+            syncedFolderDetector: { _ in .dropbox },
+            syncedFolderWarningHandler: { _ in .keepReadOnly }
+        )
+
+        let result = await vm.acknowledgeEditingIfNeeded()
+        let updatedReference = try XCTUnwrap(DatabaseListStore.databases.first(where: { $0.id == reference.id }))
+
+        XCTAssertEqual(result, .keptReadOnly)
+        XCTAssertTrue(updatedReference.isReadOnly)
+        XCTAssertTrue(vm.isReadOnly)
+    }
+
+    private func makeViewModel(
+        reference: DatabaseReference? = nil,
+        cloudSyncOperation: @escaping DatabaseViewModel.CloudSyncOperation = { reference, progress in
+            try await CloudSyncCoordinator.syncIfNeededForOpen(
+                reference: reference,
+                progress: progress
+            )
+        },
+        localSaveOperation: @escaping DatabaseViewModel.LocalSaveOperation = { draft, reference, compositeKey, openTimeSHA512 in
+            try await LocalDatabaseSaver.save(
+                draft: draft,
+                reference: reference,
+                compositeKey: compositeKey,
+                openTimeSHA512: openTimeSHA512
+            )
+        },
+        syncedFolderDetector: @escaping DatabaseViewModel.SyncedFolderDetectionOperation = { _ in
+            .notSynced
+        },
+        syncedFolderWarningHandler: @escaping DatabaseViewModel.SyncedFolderWarningHandler = { _ in
+            .continueEditing
+        }
+    ) throws -> DatabaseViewModel {
+        let resolvedReference = if let reference {
+            reference
+        } else {
+            try makeReference()
+        }
+
+        return DatabaseViewModel(
+            databaseReference: resolvedReference,
+            cloudSyncOperation: cloudSyncOperation,
+            localSaveOperation: localSaveOperation,
+            syncedFolderDetector: syncedFolderDetector,
+            syncedFolderWarningHandler: syncedFolderWarningHandler
+        )
     }
 
     private func makeCloudReference() -> DatabaseReference {
@@ -313,6 +526,40 @@ final class DatabaseViewModelTests: XCTestCase {
 
     private func makeReference() throws -> DatabaseReference {
         try TestDatabaseSupport.makeReference(for: fixtureURL())
+    }
+
+    private func makeCleanDraft(from viewModel: DatabaseViewModel) throws -> DatabaseDraft {
+        guard let rootGroup = viewModel.rootGroup else {
+            throw TestError.missingRootGroup
+        }
+        guard let sessionKey = viewModel.sessionKey else {
+            throw TestError.missingSessionKey
+        }
+
+        return DatabaseDraft(
+            rootGroup: rootGroup,
+            meta: KPMeta(
+                recycleBinUUID: rootGroup.recycleBinUUID,
+                hasRecycleBinUUIDElement: rootGroup.recycleBinUUID != nil
+            ),
+            sessionKey: sessionKey
+        )
+    }
+
+    private func makeDirtyDraft(
+        from viewModel: DatabaseViewModel,
+        entryTitle: String
+    ) throws -> DatabaseDraft {
+        let cleanDraft = try makeCleanDraft(from: viewModel)
+        return try cleanDraft.apply(
+            .createEntry(
+                parentGroupID: cleanDraft.rootGroup.id,
+                draft: EntryDraftPayload(
+                    title: entryTitle,
+                    password: "secret-\(entryTitle)"
+                )
+            )
+        )
     }
 
     private func fixtureURL() throws -> URL {
@@ -353,6 +600,11 @@ final class DatabaseViewModelTests: XCTestCase {
         case unlocked
         case error
     }
+
+    private enum TestError: Error {
+        case missingRootGroup
+        case missingSessionKey
+    }
 }
 
 private actor AsyncGate {
@@ -376,6 +628,23 @@ private actor AsyncGate {
     func resume() {
         continuation?.resume()
         continuation = nil
+    }
+}
+
+private final class CallTracker: @unchecked Sendable {
+    private let lock = NSLock()
+    private var callCount = 0
+
+    var didCall: Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return callCount > 0
+    }
+
+    func recordCall() {
+        lock.lock()
+        callCount += 1
+        lock.unlock()
     }
 }
 

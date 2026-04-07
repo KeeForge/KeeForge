@@ -17,6 +17,16 @@ struct DatabaseRowView: View {
                         .foregroundStyle(.primary)
                         .lineLimit(1)
 
+                    if reference.isReadOnly {
+                        Text("READ ONLY")
+                            .font(.caption2.weight(.semibold))
+                            .foregroundStyle(.orange)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(Color.orange.opacity(0.12), in: Capsule())
+                            .accessibilityIdentifier("database-row.read-only-badge")
+                    }
+
                     if reference.isQuickLaunch {
                         Label("Quick Launch", systemImage: "rocket.fill")
                             .font(.caption)

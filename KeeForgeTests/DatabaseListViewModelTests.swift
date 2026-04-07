@@ -74,6 +74,16 @@ final class DatabaseListViewModelTests: XCTestCase {
         XCTAssertTrue(updatedSecond.isQuickLaunch)
     }
 
+    func testSetReadOnlyPersistsFlag() throws {
+        let reference = try DatabaseListStore.add(url: makeTemporaryFileURL(name: "readonly.kdbx"))
+        let viewModel = DatabaseListViewModel()
+
+        viewModel.setReadOnly(true, for: reference)
+
+        let updatedReference = try XCTUnwrap(DatabaseListStore.databases.first(where: { $0.id == reference.id }))
+        XCTAssertTrue(updatedReference.isReadOnly)
+    }
+
     func testAddCloudDatabaseCreatesCloudReferenceFromSelection() {
         let selection = CloudDatabaseSelection(
             provider: CloudProviderKind.dropbox.rawValue,

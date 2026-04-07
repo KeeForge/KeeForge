@@ -44,7 +44,7 @@ enum KDBXParser {
 
     // MARK: - Parsed Header
 
-    struct Header {
+    struct Header: @unchecked Sendable {
         var cipherID = Data()
         var compressionFlags: UInt32 = 0
         var masterSeed = Data()

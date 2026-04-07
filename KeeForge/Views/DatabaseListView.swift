@@ -286,6 +286,18 @@ struct DatabaseListView: View {
             refreshDetailsReferenceIfNeeded(for: reference.id)
         }
 
+        Toggle(
+            "Read-only",
+            isOn: Binding(
+                get: { currentReference(for: reference).isReadOnly },
+                set: { newValue in
+                    viewModel.setReadOnly(newValue, for: reference)
+                    refreshDetailsReferenceIfNeeded(for: reference.id)
+                }
+            )
+        )
+        .accessibilityIdentifier("database-row.read-only-toggle")
+
         Button("Database Details") {
             detailsReference = currentReference(for: reference)
         }

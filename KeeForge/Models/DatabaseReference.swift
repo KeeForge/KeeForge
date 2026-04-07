@@ -12,6 +12,8 @@ struct DatabaseReference: Identifiable, Codable, Hashable, Sendable {
     var addedAt: Date
     var colorTag: String?
     var legacyKeychainFilename: String?
+    var isReadOnly: Bool = false
+    var editsAcknowledgedAt: Date?
     var source: DatabaseSource = .local
 
     var displayName: String {
@@ -72,6 +74,8 @@ extension DatabaseReference {
         case addedAt
         case colorTag
         case legacyKeychainFilename
+        case isReadOnly
+        case editsAcknowledgedAt
         case source
     }
 
@@ -88,6 +92,8 @@ extension DatabaseReference {
         addedAt = try container.decode(Date.self, forKey: .addedAt)
         colorTag = try container.decodeIfPresent(String.self, forKey: .colorTag)
         legacyKeychainFilename = try container.decodeIfPresent(String.self, forKey: .legacyKeychainFilename)
+        isReadOnly = try container.decodeIfPresent(Bool.self, forKey: .isReadOnly) ?? false
+        editsAcknowledgedAt = try container.decodeIfPresent(Date.self, forKey: .editsAcknowledgedAt)
         source = try container.decodeIfPresent(DatabaseSource.self, forKey: .source) ?? .local
     }
 
@@ -104,6 +110,8 @@ extension DatabaseReference {
         try container.encode(addedAt, forKey: .addedAt)
         try container.encodeIfPresent(colorTag, forKey: .colorTag)
         try container.encodeIfPresent(legacyKeychainFilename, forKey: .legacyKeychainFilename)
+        try container.encode(isReadOnly, forKey: .isReadOnly)
+        try container.encodeIfPresent(editsAcknowledgedAt, forKey: .editsAcknowledgedAt)
         try container.encode(source, forKey: .source)
     }
 }

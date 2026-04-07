@@ -89,6 +89,12 @@ final class DatabaseListViewModel {
         }
     }
 
+    func setReadOnly(_ isReadOnly: Bool, for reference: DatabaseReference) {
+        update(reference) { updatedReference in
+            updatedReference.isReadOnly = isReadOnly
+        }
+    }
+
     func setKeyFile(url: URL?, for reference: DatabaseReference) throws {
         try update(reference) { updatedReference in
             if let url {
