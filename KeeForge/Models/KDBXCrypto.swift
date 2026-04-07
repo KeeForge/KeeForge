@@ -58,19 +58,23 @@ enum Argon2 {
 enum KDBXCrypto {
     enum CryptoError: Error, LocalizedError {
         case invalidKey
+        case encryptionFailed
         case decryptionFailed
         case hmacMismatch
         case unsupportedCipher(String)
         case unsupportedKDF(String)
+        case compressionFailed
         case decompressionFailed
 
         var errorDescription: String? {
             switch self {
             case .invalidKey: "Invalid master key"
+            case .encryptionFailed: "Encryption failed"
             case .decryptionFailed: "Decryption failed — wrong password?"
             case .hmacMismatch: "HMAC verification failed — file corrupted or wrong password"
             case .unsupportedCipher(let c): "Unsupported cipher: \(c)"
             case .unsupportedKDF(let k): "Unsupported KDF: \(k)"
+            case .compressionFailed: "Compression failed"
             case .decompressionFailed: "Decompression failed"
             }
         }
@@ -156,6 +160,37 @@ enum KDBXCrypto {
         return outData
     }
 
+    // MARK: - AES-256-CBC Encrypt
+
+    static func encryptAES256CBC(data: Data, key: Data, iv: Data) throws -> Data {
+        let outLength = data.count + kCCBlockSizeAES128
+        var outData = Data(count: outLength)
+        var bytesWritten: Int = 0
+
+        let status = outData.withUnsafeMutableBytes { outPtr in
+            data.withUnsafeBytes { dataPtr in
+                key.withUnsafeBytes { keyPtr in
+                    iv.withUnsafeBytes { ivPtr in
+                        CCCrypt(
+                            CCOperation(kCCEncrypt),
+                            CCAlgorithm(kCCAlgorithmAES),
+                            CCOptions(kCCOptionPKCS7Padding),
+                            keyPtr.baseAddress, key.count,
+                            ivPtr.baseAddress,
+                            dataPtr.baseAddress, data.count,
+                            outPtr.baseAddress, outLength,
+                            &bytesWritten
+                        )
+                    }
+                }
+            }
+        }
+
+        guard status == kCCSuccess else { throw CryptoError.encryptionFailed }
+        outData.count = bytesWritten
+        return outData
+    }
+
     // MARK: - ChaCha20-Poly1305 Decrypt (CryptoKit)
 
     static func decryptChaCha20Poly1305(data: Data, key: Data, nonce: Data) throws -> Data {
@@ -176,6 +211,28 @@ enum KDBXCrypto {
             tag: tag
         )
         return try Data(ChaChaPoly.open(sealedBox, using: symKey))
+    }
+
+    // MARK: - ChaCha20-Poly1305 Encrypt (CryptoKit)
+
+    static func encryptChaCha20Poly1305(data: Data, key: Data, nonce: Data) throws -> Data {
+        let symKey = SymmetricKey(data: key)
+        guard nonce.count == 12 else { throw CryptoError.encryptionFailed }
+
+        do {
+            let sealedBox = try ChaChaPoly.seal(
+                data,
+                using: symKey,
+                nonce: ChaChaPoly.Nonce(data: nonce)
+            )
+
+            var encrypted = Data()
+            encrypted.append(sealedBox.ciphertext)
+            encrypted.append(sealedBox.tag)
+            return encrypted
+        } catch {
+            throw CryptoError.encryptionFailed
+        }
     }
 
     // MARK: - ChaCha20 stream cipher (inner random stream)
@@ -314,6 +371,66 @@ enum KDBXCrypto {
                 }
                 if produced == 0 && stream.avail_in == 0 {
                     throw CryptoError.decompressionFailed
+                }
+            }
+
+            return output
+        }
+    }
+
+    // MARK: - GZip Compression
+
+    static func gzip(_ data: Data) throws -> Data {
+        var stream = z_stream()
+        let initResult = deflateInit2_(
+            &stream,
+            Z_DEFAULT_COMPRESSION,
+            Z_DEFLATED,
+            MAX_WBITS + 16,
+            MAX_MEM_LEVEL,
+            Z_DEFAULT_STRATEGY,
+            ZLIB_VERSION,
+            Int32(MemoryLayout<z_stream>.size)
+        )
+        guard initResult == Z_OK else {
+            throw CryptoError.compressionFailed
+        }
+        defer {
+            deflateEnd(&stream)
+        }
+
+        return try data.withUnsafeBytes { rawInput in
+            if !data.isEmpty {
+                guard let inputBase = rawInput.bindMemory(to: Bytef.self).baseAddress else {
+                    throw CryptoError.compressionFailed
+                }
+                stream.next_in = UnsafeMutablePointer(mutating: inputBase)
+            } else {
+                stream.next_in = nil
+            }
+            stream.avail_in = uInt(data.count)
+
+            var output = Data()
+            var outBuffer = [UInt8](repeating: 0, count: 64 * 1024)
+
+            while true {
+                let status = outBuffer.withUnsafeMutableBufferPointer { buffer -> Int32 in
+                    stream.next_out = buffer.baseAddress
+                    stream.avail_out = uInt(buffer.count)
+                    return deflate(&stream, Z_FINISH)
+                }
+
+                let produced = outBuffer.count - Int(stream.avail_out)
+                if produced > 0 {
+                    output.append(contentsOf: outBuffer.prefix(produced))
+                }
+
+                if status == Z_STREAM_END {
+                    break
+                }
+
+                guard status == Z_OK else {
+                    throw CryptoError.compressionFailed
                 }
             }
 

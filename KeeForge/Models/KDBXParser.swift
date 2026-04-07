@@ -51,6 +51,9 @@ enum KDBXParser {
         var encryptionIV = Data()
         var kdfParameters: [String: Any] = [:]
         var headerData = Data() // raw bytes for HMAC check
+        var innerStreamID: UInt32 = 0
+        var innerStreamKey = Data()
+        var innerHeaderBinaryFields: [Data] = []
     }
 
     // MARK: - Errors
@@ -110,6 +113,15 @@ enum KDBXParser {
         return try parseWithMeta(data: data, compositeKey: compositeKey, sessionKey: sessionKey)
     }
 
+    static func parseWithMetaAndHeader(
+        data: Data,
+        password: String,
+        sessionKey: SymmetricKey
+    ) throws -> (rootGroup: KPGroup, meta: KPMeta, header: Header) {
+        let compositeKey = KDBXCrypto.compositeKey(password: password)
+        return try parseWithMetaAndHeader(data: data, compositeKey: compositeKey, sessionKey: sessionKey)
+    }
+
     /// Parse and decrypt with password and/or key file data
     static func parse(data: Data, password: String?, keyFileData: Data?, sessionKey: SymmetricKey) throws -> KPGroup {
         let compositeKey = KDBXCrypto.compositeKey(password: password, keyFileData: keyFileData)
@@ -126,6 +138,16 @@ enum KDBXParser {
         return try parseWithMeta(data: data, compositeKey: compositeKey, sessionKey: sessionKey)
     }
 
+    static func parseWithMetaAndHeader(
+        data: Data,
+        password: String?,
+        keyFileData: Data?,
+        sessionKey: SymmetricKey
+    ) throws -> (rootGroup: KPGroup, meta: KPMeta, header: Header) {
+        let compositeKey = KDBXCrypto.compositeKey(password: password, keyFileData: keyFileData)
+        return try parseWithMetaAndHeader(data: data, compositeKey: compositeKey, sessionKey: sessionKey)
+    }
+
     static func parse(data: Data, compositeKey: Data, sessionKey: SymmetricKey) throws -> KPGroup {
         try parseWithMeta(data: data, compositeKey: compositeKey, sessionKey: sessionKey).rootGroup
     }
@@ -135,6 +157,15 @@ enum KDBXParser {
         compositeKey: Data,
         sessionKey: SymmetricKey
     ) throws -> (rootGroup: KPGroup, meta: KPMeta) {
+        let parsed = try parseWithMetaAndHeader(data: data, compositeKey: compositeKey, sessionKey: sessionKey)
+        return (parsed.rootGroup, parsed.meta)
+    }
+
+    static func parseWithMetaAndHeader(
+        data: Data,
+        compositeKey: Data,
+        sessionKey: SymmetricKey
+    ) throws -> (rootGroup: KPGroup, meta: KPMeta, header: Header) {
         var reader = DataReader(data: data)
 
         // 1. Verify signatures
@@ -153,9 +184,10 @@ enum KDBXParser {
 
         // 3. Parse outer header
         let headerStart = 0
-        let header = try parseHeader(&reader)
+        var header = try parseHeader(&reader)
         let headerEnd = reader.offset
         let headerBytes = data.subdata(in: headerStart..<headerEnd)
+        header.headerData = headerBytes
 
         // 4. Header SHA-256 and HMAC
         let storedHeaderSHA = try reader.readBytes(32)
@@ -216,6 +248,9 @@ enum KDBXParser {
         // 8. Parse inner header
         var innerReader = DataReader(data: payloadForInnerHeader)
         let innerHeader = try parseInnerHeader(&innerReader)
+        header.innerStreamID = innerHeader.streamID
+        header.innerStreamKey = innerHeader.streamKey
+        header.innerHeaderBinaryFields = innerHeader.binaryFields
 
         // Some producers omit the inner header and write payload directly.
         // If we consumed the whole payload without discovering header fields,
@@ -258,12 +293,12 @@ enum KDBXParser {
             sessionKey: sessionKey
         )
 
-        return parsed
+        return (parsed.rootGroup, parsed.meta, header)
     }
 
     // MARK: - Header Parsing
 
-    private static func parseHeader(_ reader: inout DataReader) throws -> Header {
+    static func parseHeader(_ reader: inout DataReader) throws -> Header {
         var header = Header()
 
         while reader.hasMore {
@@ -296,9 +331,12 @@ enum KDBXParser {
         return header
     }
 
-    private static func parseInnerHeader(_ reader: inout DataReader) throws -> (streamID: UInt32, streamKey: Data) {
+    static func parseInnerHeader(
+        _ reader: inout DataReader
+    ) throws -> (streamID: UInt32, streamKey: Data, binaryFields: [Data]) {
         var streamID: UInt32 = 0
         var streamKey = Data()
+        var binaryFields: [Data] = []
 
         while reader.hasMore {
             let fieldID = try reader.readUInt8()
@@ -312,17 +350,17 @@ enum KDBXParser {
             switch field {
             case .endOfHeader:
                 try reader.skip(fieldSize)
-                return (streamID, streamKey)
+                return (streamID, streamKey, binaryFields)
             case .innerRandomStreamID:
                 streamID = try reader.readUInt32From(fieldSize)
             case .innerRandomStreamKey:
                 streamKey = try reader.readBytes(fieldSize)
             case .binary:
-                try reader.skip(fieldSize)
+                binaryFields.append(try reader.readBytes(fieldSize))
             }
         }
 
-        return (streamID, streamKey)
+        return (streamID, streamKey, binaryFields)
     }
 
     // MARK: - Variant Map (KDF Parameters)
@@ -373,7 +411,7 @@ enum KDBXParser {
 
     // MARK: - Key Derivation
 
-    private static func deriveKey(compositeKey: Data, kdfParams: [String: Any]) throws -> Data {
+    static func deriveKey(compositeKey: Data, kdfParams: [String: Any]) throws -> Data {
         guard let uuidData = kdfParams["$UUID"] as? Data else {
             throw KDBXCrypto.CryptoError.unsupportedKDF("missing UUID")
         }
@@ -428,7 +466,7 @@ enum KDBXParser {
 
     // MARK: - HMAC Block Reading
 
-    private static func readHMACBlocks(reader: inout DataReader, baseKey: Data) throws -> Data {
+    static func readHMACBlocks(reader: inout DataReader, baseKey: Data) throws -> Data {
         var result = Data()
         var blockIndex: UInt64 = 0
 
@@ -466,7 +504,7 @@ enum KDBXParser {
         return result
     }
 
-    private static func computeBlockHMACKey(blockIndex: UInt64, baseKey: Data) -> Data {
+    static func computeBlockHMACKey(blockIndex: UInt64, baseKey: Data) -> Data {
         var indexData = Data()
         indexData.append(withUInt64: blockIndex)
         return KDBXCrypto.sha512(indexData + baseKey)
