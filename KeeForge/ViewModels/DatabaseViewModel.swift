@@ -18,8 +18,14 @@ final class DatabaseViewModel {
         case modifiedDate = "Date Modified"
     }
 
+    typealias CloudSyncOperation = @Sendable (
+        _ reference: DatabaseReference,
+        _ progress: @escaping @Sendable (Double) -> Void
+    ) async throws -> CloudSyncResolution
+
     private static let sortOrderKey = "KeeForge.sortOrder"
     private static let sortAscendingKey = "KeeForge.sortAscending"
+    private static let decryptingStatusMessage = "Decrypting your database securely..."
 
     private(set) var databaseReference: DatabaseReference
 
@@ -52,11 +58,25 @@ final class DatabaseViewModel {
     private(set) var sessionKey: SymmetricKey?
     private(set) var cloudSyncProgress: Double?
     private(set) var cloudSyncBannerText: String?
+    private(set) var unlockStatusMessage: String
+    private let cloudSyncOperation: CloudSyncOperation
 
-    init(databaseReference: DatabaseReference) {
+    init(
+        databaseReference: DatabaseReference,
+        cloudSyncOperation: @escaping CloudSyncOperation = { reference, progress in
+            try await CloudSyncCoordinator.syncIfNeededForOpen(
+                reference: reference,
+                progress: progress
+            )
+        }
+    ) {
         self.databaseReference = databaseReference
         sortOrder = Self.savedSortOrder()
         sortAscending = Self.savedSortAscending()
+        unlockStatusMessage = databaseReference.isCloudBacked
+            ? DatabaseViewModel.syncStatusMessage(for: databaseReference)
+            : Self.decryptingStatusMessage
+        self.cloudSyncOperation = cloudSyncOperation
     }
 
     var databaseDisplayName: String {
@@ -132,8 +152,7 @@ final class DatabaseViewModel {
             return
         }
 
-        state = .unlocking
-        cloudSyncProgress = nil
+        prepareForUnlock()
 
         do {
             let (_, data) = try await readDatabaseData()
@@ -157,8 +176,7 @@ final class DatabaseViewModel {
     }
 
     func unlockWithBiometrics() async {
-        state = .unlocking
-        cloudSyncProgress = nil
+        prepareForUnlock()
 
         do {
             let context = try await BiometricService.authenticate(reason: "Unlock your password database")
@@ -209,6 +227,9 @@ final class DatabaseViewModel {
         sessionKey = nil
         cloudSyncProgress = nil
         cloudSyncBannerText = nil
+        unlockStatusMessage = databaseReference.isCloudBacked
+            ? Self.syncStatusMessage(for: databaseReference)
+            : Self.decryptingStatusMessage
         searchText = ""
         navigationPath = NavigationPath()
     }
@@ -369,8 +390,21 @@ final class DatabaseViewModel {
 
     // MARK: - Private
 
+    private static func syncStatusMessage(for reference: DatabaseReference) -> String {
+        let providerName = reference.cloudProviderKind?.displayName ?? "cloud"
+        return "Syncing with \(providerName)..."
+    }
+
     private func beginNewLockCycle() {
         lockCycleID += 1
+    }
+
+    private func prepareForUnlock() {
+        state = .unlocking
+        cloudSyncProgress = nil
+        unlockStatusMessage = databaseReference.isCloudBacked
+            ? Self.syncStatusMessage(for: databaseReference)
+            : Self.decryptingStatusMessage
     }
 
     private func finalizeSuccessfulUnlock(root: KPGroup, compositeKey: Data, sessionKey: SymmetricKey) async {
@@ -437,16 +471,14 @@ final class DatabaseViewModel {
 
     private func readDatabaseData() async throws -> (url: URL, data: Data) {
         if databaseReference.isCloudBacked {
-            let resolution = try await CloudSyncCoordinator.syncIfNeededForOpen(
-                reference: databaseReference,
-                progress: { progress in
-                    Task { @MainActor in
-                        self.cloudSyncProgress = progress
-                    }
+            let resolution = try await cloudSyncOperation(databaseReference) { progress in
+                Task { @MainActor in
+                    self.cloudSyncProgress = progress
                 }
-            )
+            }
             cloudSyncProgress = nil
             cloudSyncBannerText = resolution.bannerMessage
+            unlockStatusMessage = Self.decryptingStatusMessage
             DatabaseListStore.update(resolution.reference)
             databaseReference = resolution.reference
             return (resolution.localURL, resolution.data)
@@ -454,6 +486,7 @@ final class DatabaseViewModel {
 
         var lastReadError: Error?
         cloudSyncBannerText = nil
+        unlockStatusMessage = Self.decryptingStatusMessage
 
         if let url = DatabaseListStore.resolveDatabaseURL(for: databaseReference) {
             do {

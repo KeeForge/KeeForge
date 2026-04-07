@@ -138,6 +138,7 @@ private struct ActiveDatabaseScene: View {
                 } else if shouldShowAutoUnlockOpeningView {
                     DatabaseOpeningView(
                         databaseName: viewModel.databaseDisplayName,
+                        statusMessage: viewModel.unlockStatusMessage,
                         progress: viewModel.cloudSyncProgress
                     )
                         .transition(.opacity)
@@ -157,6 +158,7 @@ private struct ActiveDatabaseScene: View {
             case .unlocking:
                 DatabaseOpeningView(
                     databaseName: viewModel.databaseDisplayName,
+                    statusMessage: viewModel.unlockStatusMessage,
                     progress: viewModel.cloudSyncProgress
                 )
                     .transition(.opacity)

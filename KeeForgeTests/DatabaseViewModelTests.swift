@@ -123,6 +123,105 @@ final class DatabaseViewModelTests: XCTestCase {
         XCTAssertNil(vm.rootGroup)
     }
 
+    func testCloudUnlockShowsProviderSpecificSyncMessageBeforeDecryption() async throws {
+        let reference = makeCloudReference()
+        let data = try Data(contentsOf: fixtureURL())
+        let syncStarted = expectation(description: "Cloud sync started")
+        let gate = AsyncGate()
+        let vm = DatabaseViewModel(
+            databaseReference: reference,
+            cloudSyncOperation: { reference, _ in
+                await gate.pause(started: syncStarted)
+                return CloudSyncResolution(
+                    reference: reference,
+                    localURL: DatabaseListStore.cacheLocation(for: reference),
+                    data: data,
+                    status: .downloaded
+                )
+            }
+        )
+
+        let unlockTask = Task {
+            await vm.unlock(password: fixturePassword)
+        }
+
+        await fulfillment(of: [syncStarted], timeout: 1)
+        await gate.waitUntilPaused()
+
+        XCTAssertState(vm.state, is: .unlocking)
+        XCTAssertEqual(vm.unlockStatusMessage, "Syncing with Dropbox...")
+
+        await gate.resume()
+        await unlockTask.value
+
+        XCTAssertState(vm.state, is: .unlocked)
+        XCTAssertEqual(vm.unlockStatusMessage, "Decrypting your database securely...")
+    }
+
+    func testCloudUnlockShowsOfflineBannerWhenCachedCopyDecryptsSuccessfully() async throws {
+        let reference = makeCloudReference()
+        let data = try Data(contentsOf: fixtureURL())
+        let vm = DatabaseViewModel(
+            databaseReference: reference,
+            cloudSyncOperation: { reference, _ in
+                CloudSyncResolution(
+                    reference: reference,
+                    localURL: DatabaseListStore.cacheLocation(for: reference),
+                    data: data,
+                    status: .offlineCached
+                )
+            }
+        )
+
+        await vm.unlock(password: fixturePassword)
+
+        XCTAssertState(vm.state, is: .unlocked)
+        XCTAssertEqual(vm.cloudSyncBannerText, "Using the cached copy offline.")
+    }
+
+    func testCloudUnlockTransitionsToErrorWhenSyncFails() async {
+        let vm = DatabaseViewModel(
+            databaseReference: makeCloudReference(),
+            cloudSyncOperation: { _, _ in
+                throw CloudProviderError.fileNotFound
+            }
+        )
+
+        await vm.unlock(password: fixturePassword)
+
+        guard case .error(let message) = vm.state else {
+            XCTFail("Expected .error state")
+            return
+        }
+        XCTAssertEqual(message, CloudProviderError.fileNotFound.localizedDescription)
+        XCTAssertNil(vm.rootGroup)
+    }
+
+    func testCloudUnlockTransitionsToErrorWhenDownloadedDataCannotBeParsed() async {
+        let reference = makeCloudReference()
+        let vm = DatabaseViewModel(
+            databaseReference: reference,
+            cloudSyncOperation: { reference, _ in
+                CloudSyncResolution(
+                    reference: reference,
+                    localURL: DatabaseListStore.cacheLocation(for: reference),
+                    data: Data("not-a-kdbx".utf8),
+                    status: .downloaded
+                )
+            }
+        )
+
+        await vm.unlock(password: fixturePassword)
+
+        guard case .error(let message) = vm.state else {
+            XCTFail("Expected .error state")
+            return
+        }
+        XCTAssertFalse(message.isEmpty)
+        XCTAssertNil(vm.rootGroup)
+        XCTAssertNil(vm.cloudSyncBannerText)
+    }
+
     func testSearchResultsMatchesEntryFieldsCaseInsensitively() async throws {
         let vm = try makeViewModel()
         await vm.unlock(password: fixturePassword)
@@ -184,6 +283,34 @@ final class DatabaseViewModelTests: XCTestCase {
         DatabaseViewModel(databaseReference: try makeReference())
     }
 
+    private func makeCloudReference() -> DatabaseReference {
+        DatabaseReference(
+            id: UUID(),
+            nickname: nil,
+            filename: "vault.kdbx",
+            bookmarkData: nil,
+            keyFileBookmarkData: nil,
+            keyFileFilename: nil,
+            isQuickLaunch: false,
+            lastOpenedAt: nil,
+            addedAt: Date(timeIntervalSince1970: 50),
+            colorTag: nil,
+            legacyKeychainFilename: nil,
+            source: .cloud(
+                CloudSyncMetadata(
+                    provider: CloudProviderKind.dropbox.rawValue,
+                    accountId: "acct-1",
+                    fileId: "/Vaults/vault.kdbx",
+                    displayPath: "/Vaults/vault.kdbx",
+                    remoteContentHash: nil,
+                    remoteModifiedAt: nil,
+                    lastSyncedAt: nil,
+                    lastSyncError: nil
+                )
+            )
+        )
+    }
+
     private func makeReference() throws -> DatabaseReference {
         try TestDatabaseSupport.makeReference(for: fixtureURL())
     }
@@ -225,6 +352,30 @@ final class DatabaseViewModelTests: XCTestCase {
         case unlocking
         case unlocked
         case error
+    }
+}
+
+private actor AsyncGate {
+    private var continuation: CheckedContinuation<Void, Never>?
+    private var isPaused = false
+
+    func pause(started: XCTestExpectation) async {
+        isPaused = true
+        started.fulfill()
+        await withCheckedContinuation { continuation in
+            self.continuation = continuation
+        }
+    }
+
+    func waitUntilPaused() async {
+        while isPaused == false {
+            await Task.yield()
+        }
+    }
+
+    func resume() {
+        continuation?.resume()
+        continuation = nil
     }
 }
 

@@ -1,13 +1,16 @@
 # Changelog
 
 ### TODO
-- [ ] Cloud drive integration (Google Drive, OneDrive, Dropbox, WebDAV)
+- [ ] Support more cloud sync providers: Google Drive, OneDrive, WebDAV, etc.
 - [ ] iPad-native layout
 - [ ] Editing support (create/modify entries)
 - [ ] Passkey creation (Phase 3 — requires KDBX write support)
 - [ ] Sync / attachments
 
 ## Unreleased
+
+### Fixes
+- Show provider-specific cloud sync status during unlock, and add focused unlock coverage for cloud sync success, fallback, and failure paths
 
 ## v1.7.0 (2026-04-05)
 

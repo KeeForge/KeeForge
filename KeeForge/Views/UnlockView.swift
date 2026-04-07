@@ -302,6 +302,7 @@ struct UnlockView: View {
 
 struct DatabaseOpeningView: View {
     let databaseName: String
+    let statusMessage: String
     var progress: Double? = nil
 
     var body: some View {
@@ -323,7 +324,7 @@ struct DatabaseOpeningView: View {
                     .font(.title3.weight(.semibold))
                     .multilineTextAlignment(.center)
 
-                Text("Decrypting your database securely…")
+                Text(statusMessage)
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
             }
