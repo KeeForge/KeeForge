@@ -1,0 +1,256 @@
+import CryptoKit
+import XCTest
+@testable import KeeForge
+
+final class KDBXRoundTripTests: XCTestCase {
+    private struct Fixture {
+        let name: String
+        let password: String?
+        let keyFileName: String?
+        let keyFileExtension: String?
+
+        static let test = Fixture(name: "test", password: "testpassword123", keyFileName: nil, keyFileExtension: nil)
+        static let demo = Fixture(name: "demo", password: "demo", keyFileName: nil, keyFileExtension: nil)
+        static let demoKeyfile = Fixture(
+            name: "demo-keyfile",
+            password: "demo",
+            keyFileName: "demo-keyfile",
+            keyFileExtension: "key"
+        )
+    }
+
+    private let roundTripSessionKey = SymmetricKey(size: .bits256)
+    private let roundTripInnerStreamKey = Data("KeeForge Slice01 Inner Stream Key".utf8)
+    private let protectedValueRegex = try? NSRegularExpression(
+        pattern: #"<Value(?=[^>]*Protected="True")([^>]*)>.*?</Value>"#,
+        options: [.dotMatchesLineSeparators]
+    )
+
+    func test_parseSerializeParse_test_kdbx_returnsEqualTree() throws {
+        try assertFixtureRoundTrips(.test)
+    }
+
+    func test_parseSerializeParse_demo_kdbx_returnsEqualTree() throws {
+        try assertFixtureRoundTrips(.demo)
+    }
+
+    func test_parseSerializeParse_demoKeyfile_kdbx_returnsEqualTree() throws {
+        try assertFixtureRoundTrips(.demoKeyfile)
+    }
+
+    func test_unknownNodes_areCapturedAndReEmitted() throws {
+        let parsed = try parseFixture(.test)
+        XCTAssertFalse(parsed.meta.unknownXML.isEmpty, "Expected test.kdbx to contain unknown meta XML")
+
+        let unknownXML = parsed.meta.unknownXML.nodes.map(\.xml).joined()
+        XCTAssertFalse(unknownXML.isEmpty)
+
+        let reparsed = try serializeAndParse(parsed)
+        XCTAssertEqual(normalizedOpaqueXML(parsed.meta.unknownXML), normalizedOpaqueXML(reparsed.meta.unknownXML))
+        try assertGroupsEqual(parsed.rootGroup, reparsed.rootGroup)
+    }
+
+    func test_protectedValues_reEncryptedDeterministically_roundTrip() throws {
+        let parsed = try parseFixture(.test)
+
+        var serializerA = KDBXXMLSerializer(
+            rootGroup: parsed.rootGroup,
+            meta: parsed.meta,
+            innerStreamKey: roundTripInnerStreamKey,
+            sessionKey: roundTripSessionKey
+        )
+        let xmlA = try serializerA.serialize()
+
+        var serializerB = KDBXXMLSerializer(
+            rootGroup: parsed.rootGroup,
+            meta: parsed.meta,
+            innerStreamKey: roundTripInnerStreamKey,
+            sessionKey: roundTripSessionKey
+        )
+        let xmlB = try serializerB.serialize()
+
+        XCTAssertEqual(xmlA, xmlB, "Protected value encryption should be deterministic for a fixed inner stream key")
+
+        let reparsed = try parseXML(xmlA)
+        let originalEntry = try XCTUnwrap(parsed.rootGroup.allEntries.first { $0.title == "GitHub" })
+        let reparsedEntry = try XCTUnwrap(reparsed.rootGroup.allEntries.first { $0.title == "GitHub" })
+
+        XCTAssertEqual(
+            try originalEntry.password.decrypt(using: roundTripSessionKey),
+            try reparsedEntry.password.decrypt(using: roundTripSessionKey)
+        )
+    }
+
+    func test_serializerEmitsValidXML_isUTF8WithBOM() throws {
+        let parsed = try parseFixture(.test)
+
+        var serializer = KDBXXMLSerializer(
+            rootGroup: parsed.rootGroup,
+            meta: parsed.meta,
+            innerStreamKey: roundTripInnerStreamKey,
+            sessionKey: roundTripSessionKey
+        )
+        let xmlData = try serializer.serialize()
+
+        let expectedPrefix = Data([0xEF, 0xBB, 0xBF]) +
+            Data("<?xml version=\"1.0\" encoding=\"utf-8\" standalone=\"yes\"?>\n".utf8)
+        XCTAssertTrue(xmlData.starts(with: expectedPrefix))
+
+        let xmlParser = XMLParser(data: xmlData)
+        XCTAssertTrue(xmlParser.parse(), xmlParser.parserError?.localizedDescription ?? "Serialized XML failed to parse")
+    }
+
+    private func assertFixtureRoundTrips(_ fixture: Fixture) throws {
+        let parsed = try parseFixture(fixture)
+        let reparsed = try serializeAndParse(parsed)
+
+        XCTAssertEqual(parsed.meta.recycleBinUUID, reparsed.meta.recycleBinUUID)
+        XCTAssertEqual(normalizedOpaqueXML(parsed.meta.unknownXML), normalizedOpaqueXML(reparsed.meta.unknownXML))
+        try assertGroupsEqual(parsed.rootGroup, reparsed.rootGroup)
+    }
+
+    private func parseFixture(_ fixture: Fixture) throws -> (rootGroup: KPGroup, meta: KPMeta) {
+        let bundle = Bundle(for: Self.self)
+        let databaseURL = try TestDatabaseSupport.fixtureURL(named: fixture.name, bundle: bundle)
+        let databaseData = try Data(contentsOf: databaseURL)
+
+        let keyFileData: Data?
+        if let keyFileName = fixture.keyFileName, let keyFileExtension = fixture.keyFileExtension {
+            let keyURL = try TestDatabaseSupport.fixtureURL(named: keyFileName, extension: keyFileExtension, bundle: bundle)
+            keyFileData = try Data(contentsOf: keyURL)
+        } else {
+            keyFileData = nil
+        }
+
+        if fixture.keyFileName != nil {
+            return try KDBXParser.parseWithMeta(
+                data: databaseData,
+                password: fixture.password,
+                keyFileData: keyFileData,
+                sessionKey: roundTripSessionKey
+            )
+        }
+
+        let password = try XCTUnwrap(fixture.password)
+        return try KDBXParser.parseWithMeta(
+            data: databaseData,
+            password: password,
+            sessionKey: roundTripSessionKey
+        )
+    }
+
+    private func serializeAndParse(
+        _ parsed: (rootGroup: KPGroup, meta: KPMeta)
+    ) throws -> (rootGroup: KPGroup, meta: KPMeta) {
+        var serializer = KDBXXMLSerializer(
+            rootGroup: parsed.rootGroup,
+            meta: parsed.meta,
+            innerStreamKey: roundTripInnerStreamKey,
+            sessionKey: roundTripSessionKey
+        )
+        let xmlData = try serializer.serialize()
+        return try parseXML(xmlData)
+    }
+
+    private func parseXML(_ xmlData: Data) throws -> (rootGroup: KPGroup, meta: KPMeta) {
+        let parser = KDBXXMLParser(
+            data: xmlData,
+            innerStreamKey: roundTripInnerStreamKey,
+            innerStreamID: KDBXParser.innerStreamChaCha20,
+            sessionKey: roundTripSessionKey
+        )
+        return try parser.parse()
+    }
+
+    private func assertGroupsEqual(
+        _ lhs: KPGroup,
+        _ rhs: KPGroup,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) throws {
+        XCTAssertEqual(lhs.id, rhs.id, file: file, line: line)
+        XCTAssertEqual(lhs.name, rhs.name, file: file, line: line)
+        XCTAssertEqual(lhs.iconID, rhs.iconID, file: file, line: line)
+        XCTAssertEqual(lhs.isExpanded, rhs.isExpanded, file: file, line: line)
+        XCTAssertEqual(lhs.creationTime, rhs.creationTime, file: file, line: line)
+        XCTAssertEqual(lhs.lastModificationTime, rhs.lastModificationTime, file: file, line: line)
+        XCTAssertEqual(lhs.recycleBinUUID, rhs.recycleBinUUID, file: file, line: line)
+        XCTAssertEqual(normalizedOpaqueXML(lhs.unknownXML), normalizedOpaqueXML(rhs.unknownXML), file: file, line: line)
+        XCTAssertEqual(lhs.entries.count, rhs.entries.count, file: file, line: line)
+        XCTAssertEqual(lhs.groups.count, rhs.groups.count, file: file, line: line)
+
+        for (lhsEntry, rhsEntry) in zip(lhs.entries, rhs.entries) {
+            try assertEntriesEqual(lhsEntry, rhsEntry, file: file, line: line)
+        }
+
+        for (lhsGroup, rhsGroup) in zip(lhs.groups, rhs.groups) {
+            try assertGroupsEqual(lhsGroup, rhsGroup, file: file, line: line)
+        }
+    }
+
+    private func assertEntriesEqual(
+        _ lhs: KPEntry,
+        _ rhs: KPEntry,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) throws {
+        XCTAssertEqual(lhs.id, rhs.id, file: file, line: line)
+        XCTAssertEqual(lhs.title, rhs.title, file: file, line: line)
+        XCTAssertEqual(lhs.username, rhs.username, file: file, line: line)
+        XCTAssertEqual(try lhs.password.decrypt(using: roundTripSessionKey), try rhs.password.decrypt(using: roundTripSessionKey), file: file, line: line)
+        XCTAssertEqual(lhs.url, rhs.url, file: file, line: line)
+        XCTAssertEqual(lhs.notes, rhs.notes, file: file, line: line)
+        XCTAssertEqual(lhs.iconID, rhs.iconID, file: file, line: line)
+        XCTAssertEqual(lhs.tags, rhs.tags, file: file, line: line)
+        XCTAssertEqual(lhs.customFields, rhs.customFields, file: file, line: line)
+        XCTAssertEqual(lhs.creationTime, rhs.creationTime, file: file, line: line)
+        XCTAssertEqual(lhs.lastModificationTime, rhs.lastModificationTime, file: file, line: line)
+        XCTAssertEqual(normalizedOpaqueXML(lhs.unknownXML), normalizedOpaqueXML(rhs.unknownXML), file: file, line: line)
+        try assertTOTPConfigsEqual(lhs.totpConfig, rhs.totpConfig, file: file, line: line)
+    }
+
+    private func normalizedOpaqueXML(_ unknownXML: OpaqueXMLNodes) -> OpaqueXMLNodes {
+        OpaqueXMLNodes(nodes: unknownXML.nodes.map { node in
+            OpaqueXMLNodes.Node(
+                path: node.path,
+                insertionIndex: node.insertionIndex,
+                xml: normalizedProtectedValues(in: node.xml)
+            )
+        })
+    }
+
+    private func normalizedProtectedValues(in xml: String) -> String {
+        guard let protectedValueRegex else { return xml }
+        let nsRange = NSRange(xml.startIndex..<xml.endIndex, in: xml)
+        return protectedValueRegex.stringByReplacingMatches(
+            in: xml,
+            options: [],
+            range: nsRange,
+            withTemplate: "<Value$1></Value>"
+        )
+    }
+
+    private func assertTOTPConfigsEqual(
+        _ lhs: TOTPConfig?,
+        _ rhs: TOTPConfig?,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) throws {
+        switch (lhs, rhs) {
+        case (nil, nil):
+            return
+        case let (lhs?, rhs?):
+            XCTAssertEqual(lhs.period, rhs.period, file: file, line: line)
+            XCTAssertEqual(lhs.digits, rhs.digits, file: file, line: line)
+            XCTAssertEqual(lhs.algorithm.rawValue, rhs.algorithm.rawValue, file: file, line: line)
+            XCTAssertEqual(
+                try lhs.secret.decrypt(using: roundTripSessionKey),
+                try rhs.secret.decrypt(using: roundTripSessionKey),
+                file: file,
+                line: line
+            )
+        default:
+            XCTFail("TOTP config mismatch", file: file, line: line)
+        }
+    }
+}

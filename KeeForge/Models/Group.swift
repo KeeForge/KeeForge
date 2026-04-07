@@ -1,17 +1,18 @@
 import Foundation
 
 /// Represents a KeePass group (folder) containing entries and subgroups
-final class KPGroup: Identifiable, Sendable {
-    let id: UUID
-    let name: String
-    let iconID: Int
-    let entries: [KPEntry]
-    let groups: [KPGroup]
-    let isExpanded: Bool
-    let creationTime: Date?
-    let lastModificationTime: Date?
+final class KPGroup: Identifiable, @unchecked Sendable {
+    var id: UUID
+    var name: String
+    var iconID: Int
+    var entries: [KPEntry]
+    var groups: [KPGroup]
+    var isExpanded: Bool
+    var creationTime: Date?
+    var lastModificationTime: Date?
     /// UUID of the Recycle Bin group (only meaningful on the root group)
-    let recycleBinUUID: UUID?
+    var recycleBinUUID: UUID?
+    var unknownXML: OpaqueXMLNodes
 
     init(
         id: UUID = UUID(),
@@ -22,7 +23,8 @@ final class KPGroup: Identifiable, Sendable {
         isExpanded: Bool = true,
         creationTime: Date? = nil,
         lastModificationTime: Date? = nil,
-        recycleBinUUID: UUID? = nil
+        recycleBinUUID: UUID? = nil,
+        unknownXML: OpaqueXMLNodes = .empty
     ) {
         self.id = id
         self.name = name
@@ -33,6 +35,7 @@ final class KPGroup: Identifiable, Sendable {
         self.creationTime = creationTime
         self.lastModificationTime = lastModificationTime
         self.recycleBinUUID = recycleBinUUID
+        self.unknownXML = unknownXML
     }
 
     /// Recursively find all entries in this group and subgroups

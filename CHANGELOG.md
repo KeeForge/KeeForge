@@ -13,6 +13,7 @@
 - Remove the baked white background from the Dropbox provider glyph so it renders cleanly in dark mode
 - Show provider-specific cloud sync status during unlock, and add focused unlock coverage for cloud sync success, fallback, and failure paths
 - Fix Xcode Cloud post-clone bootstrap so clean CI machines no longer require a developer team xcconfig value just to generate the project
+- Internal: KDBX parser now captures unknown XML elements verbatim, paving the way for lossless edits
 
 ## v1.7.0 (2026-04-05)
 

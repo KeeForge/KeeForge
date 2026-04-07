@@ -2,19 +2,21 @@ import Foundation
 
 /// Represents a single KeePass entry (password record)
 struct KPEntry: Identifiable, Sendable {
-    let id: UUID
-    let title: String
-    let username: String
-    let password: EncryptedValue
-    let url: String
-    let notes: String
-    let iconID: Int
-    let tags: [String]
-    let customFields: [String: String]
+    var id: UUID
+    var title: String
+    var username: String
+    var password: EncryptedValue
+    var url: String
+    var notes: String
+    var iconID: Int
+    var tags: [String]
+    var customFields: [String: String]
     /// Raw TOTP config: either otpauth:// URI or key/settings
-    let totpConfig: TOTPConfig?
-    let creationTime: Date?
-    let lastModificationTime: Date?
+    var totpConfig: TOTPConfig?
+    var creationTime: Date?
+    var lastModificationTime: Date?
+    var unknownXML: OpaqueXMLNodes
+    var protectedStringKeys: Set<String>
 
     /// Whether the entry has a non-empty password (without decrypting).
     var hasPassword: Bool { password.hasValue }
@@ -31,7 +33,9 @@ struct KPEntry: Identifiable, Sendable {
         customFields: [String: String] = [:],
         totpConfig: TOTPConfig? = nil,
         creationTime: Date? = nil,
-        lastModificationTime: Date? = nil
+        lastModificationTime: Date? = nil,
+        unknownXML: OpaqueXMLNodes = .empty,
+        protectedStringKeys: Set<String> = []
     ) {
         self.id = id
         self.title = title
@@ -45,6 +49,8 @@ struct KPEntry: Identifiable, Sendable {
         self.totpConfig = totpConfig
         self.creationTime = creationTime
         self.lastModificationTime = lastModificationTime
+        self.unknownXML = unknownXML
+        self.protectedStringKeys = protectedStringKeys
     }
 
     /// Additional URLs from KeePass2Android KP2A_URL_* custom fields, sorted by key

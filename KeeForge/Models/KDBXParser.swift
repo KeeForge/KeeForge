@@ -101,13 +101,40 @@ enum KDBXParser {
         return try parse(data: data, compositeKey: compositeKey, sessionKey: sessionKey)
     }
 
+    static func parseWithMeta(
+        data: Data,
+        password: String,
+        sessionKey: SymmetricKey
+    ) throws -> (rootGroup: KPGroup, meta: KPMeta) {
+        let compositeKey = KDBXCrypto.compositeKey(password: password)
+        return try parseWithMeta(data: data, compositeKey: compositeKey, sessionKey: sessionKey)
+    }
+
     /// Parse and decrypt with password and/or key file data
     static func parse(data: Data, password: String?, keyFileData: Data?, sessionKey: SymmetricKey) throws -> KPGroup {
         let compositeKey = KDBXCrypto.compositeKey(password: password, keyFileData: keyFileData)
         return try parse(data: data, compositeKey: compositeKey, sessionKey: sessionKey)
     }
 
+    static func parseWithMeta(
+        data: Data,
+        password: String?,
+        keyFileData: Data?,
+        sessionKey: SymmetricKey
+    ) throws -> (rootGroup: KPGroup, meta: KPMeta) {
+        let compositeKey = KDBXCrypto.compositeKey(password: password, keyFileData: keyFileData)
+        return try parseWithMeta(data: data, compositeKey: compositeKey, sessionKey: sessionKey)
+    }
+
     static func parse(data: Data, compositeKey: Data, sessionKey: SymmetricKey) throws -> KPGroup {
+        try parseWithMeta(data: data, compositeKey: compositeKey, sessionKey: sessionKey).rootGroup
+    }
+
+    static func parseWithMeta(
+        data: Data,
+        compositeKey: Data,
+        sessionKey: SymmetricKey
+    ) throws -> (rootGroup: KPGroup, meta: KPMeta) {
         var reader = DataReader(data: data)
 
         // 1. Verify signatures
@@ -224,14 +251,14 @@ enum KDBXParser {
         }
 
         // 11. Parse XML
-        let root = try parseXML(
+        let parsed = try parseXML(
             xmlData: xmlData,
             innerStreamKey: innerHeader.streamKey,
             innerStreamID: innerHeader.streamID,
             sessionKey: sessionKey
         )
 
-        return root
+        return parsed
     }
 
     // MARK: - Header Parsing
@@ -447,7 +474,12 @@ enum KDBXParser {
 
     // MARK: - XML Parsing
 
-    private static func parseXML(xmlData: Data, innerStreamKey: Data, innerStreamID: UInt32, sessionKey: SymmetricKey) throws -> KPGroup {
+    private static func parseXML(
+        xmlData: Data,
+        innerStreamKey: Data,
+        innerStreamID: UInt32,
+        sessionKey: SymmetricKey
+    ) throws -> (rootGroup: KPGroup, meta: KPMeta) {
         let parser = KDBXXMLParser(
             data: xmlData,
             innerStreamKey: innerStreamKey,
@@ -543,25 +575,105 @@ extension Data {
 // MARK: - XML Parser
 
 final class KDBXXMLParser: NSObject, XMLParserDelegate {
+    private struct GroupBuilder {
+        var id = UUID()
+        var name = ""
+        var iconID = 48
+        var entries: [KPEntry] = []
+        var groups: [KPGroup] = []
+        var isExpanded = true
+        var creationTime: Date?
+        var lastModificationTime: Date?
+        var unknownXML = OpaqueXMLNodes.empty
+        var knownChildCount = 0
+        var timesKnownChildCount = 0
+
+        func build(recycleBinUUID: UUID? = nil) -> KPGroup {
+            KPGroup(
+                id: id,
+                name: name,
+                iconID: iconID,
+                entries: entries,
+                groups: groups,
+                isExpanded: isExpanded,
+                creationTime: creationTime,
+                lastModificationTime: lastModificationTime,
+                recycleBinUUID: recycleBinUUID,
+                unknownXML: unknownXML
+            )
+        }
+    }
+
+    private struct MetaBuilder {
+        var recycleBinUUID: UUID?
+        var hasRecycleBinUUIDElement = false
+        var unknownXML = OpaqueXMLNodes.empty
+        var knownChildCount = 0
+
+        func build() -> KPMeta {
+            KPMeta(
+                recycleBinUUID: recycleBinUUID,
+                hasRecycleBinUUIDElement: hasRecycleBinUUIDElement,
+                unknownXML: unknownXML
+            )
+        }
+    }
+
+    private struct XMLCaptureElement {
+        let name: String
+        let attributes: [String: String]
+        var content = ""
+
+        mutating func append(text: String) {
+            content += Self.escape(text)
+        }
+
+        mutating func append(rawXML: String) {
+            content += rawXML
+        }
+
+        func render() -> String {
+            let renderedAttributes = attributes
+                .sorted { $0.key < $1.key }
+                .map { " \($0.key)=\"\(Self.escapeAttribute($0.value))\"" }
+                .joined()
+            return "<\(name)\(renderedAttributes)>\(content)</\(name)>"
+        }
+
+        private static func escape(_ text: String) -> String {
+            text
+                .replacingOccurrences(of: "&", with: "&amp;")
+                .replacingOccurrences(of: "<", with: "&lt;")
+                .replacingOccurrences(of: ">", with: "&gt;")
+        }
+
+        private static func escapeAttribute(_ text: String) -> String {
+            escape(text)
+                .replacingOccurrences(of: "\"", with: "&quot;")
+                .replacingOccurrences(of: "'", with: "&apos;")
+        }
+    }
+
     private let data: Data
     private let innerStreamKey: Data
     private let innerStreamID: UInt32
     private let sessionKey: SymmetricKey
 
-    private var groupStack: [KPGroup] = []
+    private var groupStack: [GroupBuilder] = []
+    private var currentMeta = MetaBuilder()
     private var currentEntry: EntryBuilder?
     private var currentKey = ""
     private var currentValue = ""
     private var currentText = ""
     private var isProtected = false
+    private var currentStringWasProtected = false
     private var inValue = false
     private var inKey = false
     private var historyDepth = 0
     private var inMeta = false
-    private var recycleBinUUID: UUID?
+    private var captureStack: [XMLCaptureElement] = []
 
     // Inner stream cipher state for decrypting protected values
-    private var streamOffset = 0
     private var chachaCounter: UInt32 = 0
     private var keystreamBlock = Data()
     private var keystreamBlockOffset = 0
@@ -577,13 +689,10 @@ final class KDBXXMLParser: NSObject, XMLParserDelegate {
 
     private var rootEntries: [KPEntry] = []
     private var rootGroups: [KPGroup] = []
-    private var currentGroupEntries: [[KPEntry]] = []
-    private var currentGroupSubgroups: [[KPGroup]] = []
-    private var groupNames: [String] = []
-    private var groupIconIDs: [Int] = []
-    private var groupUUIDs: [UUID] = []
-    private var groupCreationTimes: [Date?] = []
-    private var groupLastModificationTimes: [Date?] = []
+    private var rootUnknownXML = OpaqueXMLNodes.empty
+    private var rootKnownChildCount = 0
+    private var meta = KPMeta()
+    private static let syntheticRootUUID = nullUUID
 
     init(data: Data, innerStreamKey: Data, innerStreamID: UInt32, sessionKey: SymmetricKey) {
         self.data = data
@@ -592,18 +701,21 @@ final class KDBXXMLParser: NSObject, XMLParserDelegate {
         self.sessionKey = sessionKey
     }
 
-    func parse() throws -> KPGroup {
+    func parse() throws -> (rootGroup: KPGroup, meta: KPMeta) {
         let parser = XMLParser(data: data)
         parser.delegate = self
         guard parser.parse() else {
             throw KDBXParser.ParseError.xmlParsingFailed
         }
-        return KPGroup(
+        let root = KPGroup(
+            id: Self.syntheticRootUUID,
             name: "Root",
             entries: rootEntries,
             groups: rootGroups,
-            recycleBinUUID: recycleBinUUID
+            recycleBinUUID: meta.recycleBinUUID,
+            unknownXML: rootUnknownXML
         )
+        return (root, meta)
     }
 
     // MARK: - XMLParserDelegate
@@ -612,19 +724,15 @@ final class KDBXXMLParser: NSObject, XMLParserDelegate {
                 namespaceURI: String?, qualifiedName: String?,
                 attributes: [String: String] = [:]) {
         currentText = ""
+        captureStack.append(XMLCaptureElement(name: elementName, attributes: attributes))
 
         switch elementName {
         case "Meta":
             inMeta = true
+            currentMeta = MetaBuilder()
 
         case "Group":
-            groupNames.append("")
-            groupIconIDs.append(48)
-            groupUUIDs.append(UUID())
-            groupCreationTimes.append(nil)
-            groupLastModificationTimes.append(nil)
-            currentGroupEntries.append([])
-            currentGroupSubgroups.append([])
+            groupStack.append(GroupBuilder())
 
         case "History":
             historyDepth += 1
@@ -639,13 +747,22 @@ final class KDBXXMLParser: NSObject, XMLParserDelegate {
             currentKey = ""
             currentValue = ""
             isProtected = false
+            currentStringWasProtected = false
 
         case "Key":
             inKey = true
 
         case "Value":
             inValue = true
-            isProtected = attributes["Protected"]?.lowercased() == "true"
+            currentStringWasProtected = attributes["Protected"]?.lowercased() == "true"
+            isProtected = currentStringWasProtected
+
+        case "Times":
+            if !isInsideHistory(), currentEntry != nil {
+                currentEntry?.timesKnownChildCount = 0
+            } else if !inMeta, let index = groupStack.indices.last {
+                groupStack[index].timesKnownChildCount = 0
+            }
 
         default:
             break
@@ -654,36 +771,35 @@ final class KDBXXMLParser: NSObject, XMLParserDelegate {
 
     func parser(_ parser: XMLParser, foundCharacters string: String) {
         currentText += string
+        if let index = captureStack.indices.last {
+            captureStack[index].append(text: string)
+        }
     }
 
     func parser(_ parser: XMLParser, didEndElement elementName: String,
                 namespaceURI: String?, qualifiedName: String?) {
+        let captured = captureStack.removeLast()
+        var capturedXML = captured.render()
+        let parentName = captureStack.last?.name
+        let grandparentName = captureStack.count >= 2 ? captureStack[captureStack.count - 2].name : nil
+
         switch elementName {
         case "Meta":
             inMeta = false
+            meta = currentMeta.build()
 
         case "RecycleBinUUID":
             if inMeta {
-                if let uuid = parseKPUUID(currentText) {
-                    recycleBinUUID = uuid
-                }
+                currentMeta.hasRecycleBinUUIDElement = true
+                currentMeta.recycleBinUUID = parseKPUUID(currentText)
             }
 
         case "Group":
-            let name = groupNames.removeLast()
-            let iconID = groupIconIDs.removeLast()
-            let groupID = groupUUIDs.removeLast()
-            let creationTime = groupCreationTimes.removeLast()
-            let lastModificationTime = groupLastModificationTimes.removeLast()
-            let entries = currentGroupEntries.removeLast()
-            let subgroups = currentGroupSubgroups.removeLast()
-
-            let group = KPGroup(id: groupID, name: name, iconID: iconID, entries: entries, groups: subgroups, creationTime: creationTime, lastModificationTime: lastModificationTime)
-
-            if currentGroupSubgroups.isEmpty {
-                rootGroups.append(group)
+            let group = groupStack.removeLast().build()
+            if let index = groupStack.indices.last {
+                groupStack[index].groups.append(group)
             } else {
-                currentGroupSubgroups[currentGroupSubgroups.count - 1].append(group)
+                rootGroups.append(group)
             }
 
         case "History":
@@ -692,25 +808,25 @@ final class KDBXXMLParser: NSObject, XMLParserDelegate {
         case "Entry":
             if !isInsideHistory(), let builder = currentEntry {
                 let entry = builder.build(sessionKey: sessionKey)
-                if currentGroupEntries.isEmpty {
-                    rootEntries.append(entry)
+                if let index = groupStack.indices.last {
+                    groupStack[index].entries.append(entry)
                 } else {
-                    currentGroupEntries[currentGroupEntries.count - 1].append(entry)
+                    rootEntries.append(entry)
                 }
                 currentEntry = nil
             }
 
         case "Name":
-            if !groupNames.isEmpty && currentEntry == nil {
-                groupNames[groupNames.count - 1] = currentText.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !inMeta, currentEntry == nil, let index = groupStack.indices.last {
+                groupStack[index].name = currentText.trimmingCharacters(in: .whitespacesAndNewlines)
             }
 
         case "IconID":
             let val = Int(currentText.trimmingCharacters(in: .whitespacesAndNewlines)) ?? 0
-            if currentEntry != nil {
+            if !isInsideHistory(), currentEntry != nil {
                 currentEntry?.iconID = val
-            } else if !groupIconIDs.isEmpty {
-                groupIconIDs[groupIconIDs.count - 1] = val
+            } else if let index = groupStack.indices.last {
+                groupStack[index].iconID = val
             }
 
         case "Key":
@@ -731,6 +847,9 @@ final class KDBXXMLParser: NSObject, XMLParserDelegate {
 
         case "String":
             if !isInsideHistory(), let entry = currentEntry {
+                if currentStringWasProtected, !currentKey.isEmpty {
+                    entry.protectedStringKeys.insert(currentKey)
+                }
                 switch currentKey {
                 case "Title": entry.title = currentValue
                 case "UserName": entry.username = currentValue
@@ -752,22 +871,22 @@ final class KDBXXMLParser: NSObject, XMLParserDelegate {
 
         case "CreationTime":
             let date = parseKPDate(currentText.trimmingCharacters(in: .whitespacesAndNewlines))
-            if currentEntry != nil {
+            if !isInsideHistory(), currentEntry != nil {
                 currentEntry?.creationTime = date
-            } else if !groupCreationTimes.isEmpty {
-                groupCreationTimes[groupCreationTimes.count - 1] = date
+            } else if let index = groupStack.indices.last {
+                groupStack[index].creationTime = date
             }
 
         case "LastModificationTime":
             let date = parseKPDate(currentText.trimmingCharacters(in: .whitespacesAndNewlines))
-            if currentEntry != nil {
+            if !isInsideHistory(), currentEntry != nil {
                 currentEntry?.lastModificationTime = date
-            } else if !groupLastModificationTimes.isEmpty {
-                groupLastModificationTimes[groupLastModificationTimes.count - 1] = date
+            } else if let index = groupStack.indices.last {
+                groupStack[index].lastModificationTime = date
             }
 
         case "Tags":
-            if let entry = currentEntry {
+            if !isInsideHistory(), let entry = currentEntry {
                 let trimmed = currentText.trimmingCharacters(in: .whitespacesAndNewlines)
                 if !trimmed.isEmpty {
                     entry.tags = trimmed.components(separatedBy: CharacterSet([",", ";"])).map {
@@ -777,18 +896,38 @@ final class KDBXXMLParser: NSObject, XMLParserDelegate {
             }
 
         case "UUID":
-            if let entry = currentEntry, !inMeta {
+            if !isInsideHistory(), let entry = currentEntry, !inMeta {
                 if let uuid = parseKPUUID(currentText) {
                     entry.uuid = uuid
                 }
-            } else if currentEntry == nil, !groupUUIDs.isEmpty, !inMeta {
+            } else if currentEntry == nil, !inMeta, let index = groupStack.indices.last {
                 if let uuid = parseKPUUID(currentText) {
-                    groupUUIDs[groupUUIDs.count - 1] = uuid
+                    groupStack[index].id = uuid
                 }
+            }
+
+        case "IsExpanded":
+            if let index = groupStack.indices.last {
+                groupStack[index].isExpanded = currentText.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() != "false"
             }
 
         default:
             break
+        }
+
+        if elementName == "Value", currentStringWasProtected {
+            capturedXML = renderProtectedValueElement(attributes: captured.attributes, plaintext: currentValue)
+        }
+
+        recordOpaqueXML(
+            elementName: elementName,
+            parentName: parentName,
+            grandparentName: grandparentName,
+            xml: capturedXML
+        )
+
+        if let index = captureStack.indices.last {
+            captureStack[index].append(rawXML: capturedXML)
         }
     }
 
@@ -824,7 +963,6 @@ final class KDBXXMLParser: NSObject, XMLParserDelegate {
 
         let byte = keystreamBlock[keystreamBlockOffset]
         keystreamBlockOffset += 1
-        streamOffset += 1
         return byte
     }
 
@@ -885,6 +1023,106 @@ final class KDBXXMLParser: NSObject, XMLParserDelegate {
         historyDepth > 0
     }
 
+    private func renderProtectedValueElement(attributes: [String: String], plaintext: String) -> String {
+        let renderedAttributes = attributes
+            .sorted { $0.key < $1.key }
+            .map { " \($0.key)=\"\(escapeAttribute($0.value))\"" }
+            .joined()
+        return "<Value\(renderedAttributes)>\(escapeText(plaintext))</Value>"
+    }
+
+    private func escapeText(_ text: String) -> String {
+        text
+            .replacingOccurrences(of: "&", with: "&amp;")
+            .replacingOccurrences(of: "<", with: "&lt;")
+            .replacingOccurrences(of: ">", with: "&gt;")
+    }
+
+    private func escapeAttribute(_ text: String) -> String {
+        escapeText(text)
+            .replacingOccurrences(of: "\"", with: "&quot;")
+            .replacingOccurrences(of: "'", with: "&apos;")
+    }
+
+    private func recordOpaqueXML(
+        elementName: String,
+        parentName: String?,
+        grandparentName: String?,
+        xml: String
+    ) {
+        switch parentName {
+        case "Root":
+            if elementName == "Entry" || elementName == "Group" {
+                rootKnownChildCount += 1
+            } else {
+                rootUnknownXML.append(xml: xml, insertionIndex: rootKnownChildCount)
+            }
+
+        case "Meta":
+            if elementName == "RecycleBinUUID" {
+                currentMeta.knownChildCount += 1
+            } else {
+                currentMeta.unknownXML.append(xml: xml, insertionIndex: currentMeta.knownChildCount)
+            }
+
+        case "Group":
+            guard let index = groupStack.indices.last else { return }
+            switch elementName {
+            case "UUID", "Name", "IconID", "IsExpanded", "Times", "Entry", "Group":
+                groupStack[index].knownChildCount += 1
+            default:
+                groupStack[index].unknownXML.append(
+                    xml: xml,
+                    insertionIndex: groupStack[index].knownChildCount
+                )
+            }
+
+        case "Entry":
+            guard !isInsideHistory(), let entry = currentEntry else { return }
+            switch elementName {
+            case "UUID", "IconID", "Tags", "Times", "String":
+                entry.knownChildCount += 1
+            default:
+                entry.unknownXML.append(xml: xml, insertionIndex: entry.knownChildCount)
+            }
+
+        case "Times":
+            switch grandparentName {
+            case "Entry":
+                guard !isInsideHistory(), let entry = currentEntry else { return }
+                switch elementName {
+                case "CreationTime", "LastModificationTime":
+                    entry.timesKnownChildCount += 1
+                default:
+                    entry.unknownXML.append(
+                        xml: xml,
+                        path: ["Times"],
+                        insertionIndex: entry.timesKnownChildCount
+                    )
+                }
+
+            case "Group":
+                guard let index = groupStack.indices.last else { return }
+                switch elementName {
+                case "CreationTime", "LastModificationTime":
+                    groupStack[index].timesKnownChildCount += 1
+                default:
+                    groupStack[index].unknownXML.append(
+                        xml: xml,
+                        path: ["Times"],
+                        insertionIndex: groupStack[index].timesKnownChildCount
+                    )
+                }
+
+            default:
+                break
+            }
+
+        default:
+            break
+        }
+    }
+
     private static let nullUUID = UUID(uuid: (0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0))
 
     private func parseKPUUID(_ string: String) -> UUID? {
@@ -907,7 +1145,14 @@ final class KDBXXMLParser: NSObject, XMLParserDelegate {
         // Base64 binary timestamp (seconds since 0001-01-01)
         if let data = Data(base64Encoded: string), data.count == 8 {
             let seconds = data.withUnsafeBytes { $0.loadUnaligned(as: Int64.self).littleEndian }
-            let kpEpoch = DateComponents(calendar: .init(identifier: .gregorian), year: 1, month: 1, day: 1).date!
+            guard let kpEpoch = DateComponents(
+                calendar: .init(identifier: .gregorian),
+                year: 1,
+                month: 1,
+                day: 1
+            ).date else {
+                return nil
+            }
             return kpEpoch.addingTimeInterval(TimeInterval(seconds))
         }
         return nil
@@ -926,9 +1171,13 @@ private class EntryBuilder {
     var iconID = 0
     var tags: [String] = []
     var customFields: [String: String] = [:]
+    var protectedStringKeys: Set<String> = []
     var otpURL: String?
     var creationTime: Date?
     var lastModificationTime: Date?
+    var unknownXML = OpaqueXMLNodes.empty
+    var knownChildCount = 0
+    var timesKnownChildCount = 0
 
     func build(sessionKey: SymmetricKey) -> KPEntry {
         let encryptedPassword = (try? EncryptedValue.encrypt(password, using: sessionKey)) ?? .empty
@@ -945,7 +1194,9 @@ private class EntryBuilder {
             customFields: customFields.filter { !$0.key.hasPrefix("TimeOtp-") && $0.key != "TOTP Settings" && $0.key != "TOTP Seed" },
             totpConfig: totpConfig,
             creationTime: creationTime,
-            lastModificationTime: lastModificationTime
+            lastModificationTime: lastModificationTime,
+            unknownXML: unknownXML,
+            protectedStringKeys: protectedStringKeys
         )
     }
 
