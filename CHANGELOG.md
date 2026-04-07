@@ -11,6 +11,7 @@
 
 ### Fixes
 - Show provider-specific cloud sync status during unlock, and add focused unlock coverage for cloud sync success, fallback, and failure paths
+- Fix Xcode Cloud post-clone bootstrap so clean CI machines no longer require a developer team xcconfig value just to generate the project
 
 ## v1.7.0 (2026-04-05)
 

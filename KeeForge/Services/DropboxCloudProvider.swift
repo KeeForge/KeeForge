@@ -352,7 +352,9 @@ final class DropboxCloudProvider: CloudProvider, @unchecked Sendable {
         }
 
         let trimmed = rawValue.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty, trimmed != "DROPBOX_APP_KEY" else {
+        guard !trimmed.isEmpty,
+              trimmed != "DROPBOX_APP_KEY",
+              trimmed != "CI_PLACEHOLDER_DROPBOX_APP_KEY" else {
             return nil
         }
 

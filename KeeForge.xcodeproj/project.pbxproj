@@ -1033,7 +1033,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = KeeForge;
-				CLOUD_KEYCHAIN_ACCESS_GROUP = "$(DEVELOPMENT_TEAM).com.keevault.sharedkeychain";
+				CLOUD_KEYCHAIN_ACCESS_GROUP = "$(AppIdentifierPrefix)com.keevault.sharedkeychain";
 				CODE_SIGN_ENTITLEMENTS = KeeForge/KeeForge.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
@@ -1145,7 +1145,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = KeeForge;
-				CLOUD_KEYCHAIN_ACCESS_GROUP = "$(DEVELOPMENT_TEAM).com.keevault.sharedkeychain";
+				CLOUD_KEYCHAIN_ACCESS_GROUP = "$(AppIdentifierPrefix)com.keevault.sharedkeychain";
 				CODE_SIGN_ENTITLEMENTS = KeeForge/KeeForge.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
