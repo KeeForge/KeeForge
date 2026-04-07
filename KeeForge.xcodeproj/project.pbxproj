@@ -14,6 +14,7 @@
 		0EEE9DF85014DFA4D3137969 /* demo-keyfile.kdbx in Resources */ = {isa = PBXBuildFile; fileRef = 4CC3CF24A57A3BB531DA56C2 /* demo-keyfile.kdbx */; };
 		101FE00A9F3480ABB883BD76 /* Argon2Swift in Frameworks */ = {isa = PBXBuildFile; productRef = 87212E661EACAC1328E27A4E /* Argon2Swift */; };
 		115B1CF896D4326495169AF4 /* demo.kdbx in Resources */ = {isa = PBXBuildFile; fileRef = F3D5CCD3DC2893DC1A65D6DC /* demo.kdbx */; };
+		12CA554AB58CEA7C9842C713 /* unknown-elements.kdbx in Resources */ = {isa = PBXBuildFile; fileRef = 6C92F73C702B2C95BC3727FC /* unknown-elements.kdbx */; };
 		168CC74285D5A4DE4043056F /* CredentialIdentityStoreManagerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CF40C9649E6870C49081C9C0 /* CredentialIdentityStoreManagerTests.swift */; };
 		1D7E8521B58A96F3119C3DB1 /* ClipboardService.swift in Sources */ = {isa = PBXBuildFile; fileRef = FBFB9F009375CBEF2A500A37 /* ClipboardService.swift */; };
 		1D8B42383A85085F6E8AC2D1 /* GroupListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 35E6EA2FF600FFF3543FF763 /* GroupListView.swift */; };
@@ -228,6 +229,7 @@
 		6371CF6584F8950C4679FE28 /* DatabaseListViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DatabaseListViewModelTests.swift; sourceTree = "<group>"; };
 		66DF057AA435224858861550 /* CloudAccountStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudAccountStoreTests.swift; sourceTree = "<group>"; };
 		6A60D769EF54ACAE8FAFEC73 /* AutoLockTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AutoLockTests.swift; sourceTree = "<group>"; };
+		6C92F73C702B2C95BC3727FC /* unknown-elements.kdbx */ = {isa = PBXFileReference; path = "unknown-elements.kdbx"; sourceTree = "<group>"; };
 		70041C9E76CC7196DFCB5AE1 /* CloudProviderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudProviderTests.swift; sourceTree = "<group>"; };
 		7234D6EDEF49F76E532EFD03 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		77DE986C9A71BA15E1B4FE48 /* BiometricService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BiometricService.swift; sourceTree = "<group>"; };
@@ -466,6 +468,15 @@
 			path = KeeForge/App;
 			sourceTree = "<group>";
 		};
+		D35B1898D85AD1D33CE13604 /* round-trip */ = {
+			isa = PBXGroup;
+			children = (
+				6C92F73C702B2C95BC3727FC /* unknown-elements.kdbx */,
+			);
+			name = "round-trip";
+			path = "TestFixtures/round-trip";
+			sourceTree = "<group>";
+		};
 		E7125F33479895937960E6A0 /* ViewModels */ = {
 			isa = PBXGroup;
 			children = (
@@ -489,6 +500,7 @@
 				0DF923CE254AEEBCB0B054B1 /* KeeForgeUITests */,
 				F3F9AA8A28D02AE11AD6854E /* Models */,
 				65E3F4C6ED83A516F2D23EB6 /* Resources */,
+				D35B1898D85AD1D33CE13604 /* round-trip */,
 				0F643F928D1B442EDCF4379B /* Services */,
 				71F778658A17A600FECAC9C6 /* TestFixtures */,
 				E7125F33479895937960E6A0 /* ViewModels */,
@@ -701,6 +713,7 @@
 				8E99F20C4C299C88E89B34ED /* test-v1.key in Resources */,
 				FBEFDD102275DCEA7AC63146 /* test-v2.keyx in Resources */,
 				F98036B14A7239C757090B8D /* test.kdbx in Resources */,
+				12CA554AB58CEA7C9842C713 /* unknown-elements.kdbx in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

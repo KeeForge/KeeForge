@@ -7,6 +7,7 @@ This folder contains the sample databases and key files used by unit tests, UI t
 - `test.kdbx` — default fixture for most tests. Password: `testpassword123`.
 - `demo.kdbx` — richer demo fixture used by `KeeForgeUITests/AppStoreScreenshots.swift`. Password: `password`.
 - `demo-keyfile.kdbx` — key-file-protected fixture used for key-file tests. Pair it with `demo-keyfile.key`; the current UI tests use password `demo`.
+- `round-trip/unknown-elements.kdbx` — controlled KDBX4 round-trip fixture with meta and entry `CustomData`, `AutoType`, `History`, and an attachment reference. Password: `test-round-trip`.
 - `test-v3-backup.kdbx` — legacy sample kept in the repo but not currently wired into the active test targets.
 
 ## Key Files

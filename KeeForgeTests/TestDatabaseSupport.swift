@@ -6,9 +6,13 @@ enum TestDatabaseSupport {
     static func fixtureURL(
         named name: String = "test",
         extension ext: String = "kdbx",
+        subdirectory: String? = nil,
         bundle: Bundle
     ) throws -> URL {
-        try XCTUnwrap(bundle.url(forResource: name, withExtension: ext))
+        let url =
+            bundle.url(forResource: name, withExtension: ext, subdirectory: subdirectory) ??
+            bundle.url(forResource: name, withExtension: ext)
+        return try XCTUnwrap(url)
     }
 
     static func makeReference(

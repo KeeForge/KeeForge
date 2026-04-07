@@ -5,17 +5,38 @@ import XCTest
 final class KDBXRoundTripTests: XCTestCase {
     private struct Fixture {
         let name: String
+        let subdirectory: String?
         let password: String?
         let keyFileName: String?
         let keyFileExtension: String?
 
-        static let test = Fixture(name: "test", password: "testpassword123", keyFileName: nil, keyFileExtension: nil)
-        static let demo = Fixture(name: "demo", password: "demo", keyFileName: nil, keyFileExtension: nil)
+        static let test = Fixture(
+            name: "test",
+            subdirectory: nil,
+            password: "testpassword123",
+            keyFileName: nil,
+            keyFileExtension: nil
+        )
+        static let demo = Fixture(
+            name: "demo",
+            subdirectory: nil,
+            password: "demo",
+            keyFileName: nil,
+            keyFileExtension: nil
+        )
         static let demoKeyfile = Fixture(
             name: "demo-keyfile",
+            subdirectory: nil,
             password: "demo",
             keyFileName: "demo-keyfile",
             keyFileExtension: "key"
+        )
+        static let unknownElements = Fixture(
+            name: "unknown-elements",
+            subdirectory: "round-trip",
+            password: "test-round-trip",
+            keyFileName: nil,
+            keyFileExtension: nil
         )
     }
 
@@ -38,16 +59,144 @@ final class KDBXRoundTripTests: XCTestCase {
         try assertFixtureRoundTrips(.demoKeyfile)
     }
 
-    func test_unknownNodes_areCapturedAndReEmitted() throws {
-        let parsed = try parseFixture(.test)
-        XCTAssertFalse(parsed.meta.unknownXML.isEmpty, "Expected test.kdbx to contain unknown meta XML")
+    func test_unknownNodes_controlledFixture_capturesCustomData() throws {
+        let parsed = try parseFixture(.unknownElements)
+        let entry = try controlledUnknownsEntry(in: parsed.rootGroup)
 
-        let unknownXML = parsed.meta.unknownXML.nodes.map(\.xml).joined()
-        XCTAssertFalse(unknownXML.isEmpty)
+        let metaCustomData = try XCTUnwrap(
+            unknownFragment(
+                named: "CustomData",
+                containing: "RoundTripMetaValue-Expected",
+                in: parsed.meta.unknownXML
+            )
+        )
+        let entryCustomData = try XCTUnwrap(
+            unknownFragment(
+                named: "CustomData",
+                containing: "RoundTripEntryValue-Expected",
+                in: entry.unknownXML
+            )
+        )
+        let autoType = try XCTUnwrap(
+            unknownFragment(
+                named: "AutoType",
+                containing: "RoundTrip Login",
+                in: entry.unknownXML
+            )
+        )
+        let history = try XCTUnwrap(
+            unknownFragment(
+                named: "History",
+                containing: "Historical revision for round-trip coverage",
+                in: entry.unknownXML
+            )
+        )
+        let binaryReference = try XCTUnwrap(
+            unknownFragment(
+                named: "Binary",
+                containing: "round-trip.txt",
+                in: entry.unknownXML
+            )
+        )
+
+        XCTAssertFalse(metaCustomData.isEmpty)
+        XCTAssertFalse(entryCustomData.isEmpty)
+        XCTAssertFalse(autoType.isEmpty)
+        XCTAssertFalse(history.isEmpty)
+        XCTAssertFalse(binaryReference.isEmpty)
 
         let reparsed = try serializeAndParse(parsed)
-        XCTAssertEqual(normalizedOpaqueXML(parsed.meta.unknownXML), normalizedOpaqueXML(reparsed.meta.unknownXML))
-        try assertGroupsEqual(parsed.rootGroup, reparsed.rootGroup)
+        let reparsedEntry = try controlledUnknownsEntry(in: reparsed.rootGroup)
+
+        XCTAssertNotNil(
+            unknownFragment(
+                named: "CustomData",
+                containing: "RoundTripMetaValue-Expected",
+                in: reparsed.meta.unknownXML
+            )
+        )
+        XCTAssertNotNil(
+            unknownFragment(
+                named: "CustomData",
+                containing: "RoundTripEntryValue-Expected",
+                in: reparsedEntry.unknownXML
+            )
+        )
+        XCTAssertNotNil(
+            unknownFragment(
+                named: "AutoType",
+                containing: "RoundTrip Login",
+                in: reparsedEntry.unknownXML
+            )
+        )
+        XCTAssertNotNil(
+            unknownFragment(
+                named: "History",
+                containing: "Historical revision for round-trip coverage",
+                in: reparsedEntry.unknownXML
+            )
+        )
+        XCTAssertNotNil(
+            unknownFragment(
+                named: "Binary",
+                containing: "round-trip.txt",
+                in: reparsedEntry.unknownXML
+            )
+        )
+        XCTAssertEqual(parsed.meta.recycleBinUUID, reparsed.meta.recycleBinUUID)
+        XCTAssertEqual(entry.title, reparsedEntry.title)
+        XCTAssertEqual(entry.username, reparsedEntry.username)
+        XCTAssertEqual(entry.url, reparsedEntry.url)
+        XCTAssertEqual(
+            try entry.password.decrypt(using: roundTripSessionKey),
+            try reparsedEntry.password.decrypt(using: roundTripSessionKey)
+        )
+    }
+
+    func test_unknownNodes_controlledFixture_specificContentPreserved() throws {
+        let parsed = try parseFixture(.unknownElements)
+        let entry = try controlledUnknownsEntry(in: parsed.rootGroup)
+
+        let originalMetaCustomData = try XCTUnwrap(
+            unknownFragment(
+                named: "CustomData",
+                containing: "RoundTripMetaKey",
+                in: parsed.meta.unknownXML
+            )
+        )
+        let originalEntryCustomData = try XCTUnwrap(
+            unknownFragment(
+                named: "CustomData",
+                containing: "RoundTripEntryKey",
+                in: entry.unknownXML
+            )
+        )
+
+        XCTAssertTrue(originalMetaCustomData.contains("<Key>RoundTripMetaKey</Key>"))
+        XCTAssertTrue(originalMetaCustomData.contains("<Value>RoundTripMetaValue-Expected</Value>"))
+        XCTAssertTrue(originalEntryCustomData.contains("<Key>RoundTripEntryKey</Key>"))
+        XCTAssertTrue(originalEntryCustomData.contains("<Value>RoundTripEntryValue-Expected</Value>"))
+
+        let reparsed = try serializeAndParse(parsed)
+        let reparsedEntry = try controlledUnknownsEntry(in: reparsed.rootGroup)
+
+        let reparsedMetaCustomData = try XCTUnwrap(
+            unknownFragment(
+                named: "CustomData",
+                containing: "RoundTripMetaKey",
+                in: reparsed.meta.unknownXML
+            )
+        )
+        let reparsedEntryCustomData = try XCTUnwrap(
+            unknownFragment(
+                named: "CustomData",
+                containing: "RoundTripEntryKey",
+                in: reparsedEntry.unknownXML
+            )
+        )
+
+        XCTAssertEqual(originalMetaCustomData, reparsedMetaCustomData)
+        XCTAssertEqual(originalEntryCustomData, reparsedEntryCustomData)
     }
 
     func test_protectedValues_reEncryptedDeterministically_roundTrip() throws {
@@ -111,7 +260,11 @@ final class KDBXRoundTripTests: XCTestCase {
 
     private func parseFixture(_ fixture: Fixture) throws -> (rootGroup: KPGroup, meta: KPMeta) {
         let bundle = Bundle(for: Self.self)
-        let databaseURL = try TestDatabaseSupport.fixtureURL(named: fixture.name, bundle: bundle)
+        let databaseURL = try TestDatabaseSupport.fixtureURL(
+            named: fixture.name,
+            subdirectory: fixture.subdirectory,
+            bundle: bundle
+        )
         let databaseData = try Data(contentsOf: databaseURL)
 
         let keyFileData: Data?
@@ -252,5 +405,24 @@ final class KDBXRoundTripTests: XCTestCase {
         default:
             XCTFail("TOTP config mismatch", file: file, line: line)
         }
+    }
+
+    private func controlledUnknownsEntry(in rootGroup: KPGroup) throws -> KPEntry {
+        try XCTUnwrap(rootGroup.allEntries.first { $0.title == "Controlled Unknowns" })
+    }
+
+    private func unknownFragment(
+        named elementName: String,
+        containing expectedContent: String,
+        in unknownXML: OpaqueXMLNodes,
+        path: [String] = []
+    ) -> String? {
+        unknownXML.nodes
+            .filter { $0.path == path }
+            .map(\.xml)
+            .first { xml in
+                let trimmed = xml.trimmingCharacters(in: .whitespacesAndNewlines)
+                return trimmed.hasPrefix("<\(elementName)") && trimmed.contains(expectedContent)
+            }
     }
 }
