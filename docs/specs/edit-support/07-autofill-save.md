@@ -146,6 +146,7 @@ KeePassium's CHANGELOG records *eight* shipped database-corruption regressions i
 - [ ] Darwin notification is posted on enqueue and observed by the main app for immediate drain.
 - [ ] All extension save work runs off the main actor.
 - [ ] `xcodegen generate` run after the `project.yml` updates; both targets compile cleanly.
+- [ ] All affected folder-local `README.md` files are updated to reflect new/changed files, services, and flows introduced by this slice (e.g. `AutoFillExtension/README.md`, `KeeForge/Services/README.md`, `KeeForge/Views/README.md`, `KeeForge/ViewModels/README.md`, `KeeForge/App/README.md`, `KeeForgeTests/README.md`, `KeeForgeUITests/README.md`).
 - [ ] CHANGELOG entry added under `## Unreleased`.
 
 ## CHANGELOG entry

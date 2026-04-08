@@ -117,6 +117,7 @@ Add the user-facing surface in the main app that lets people create, edit, and d
 - [ ] No force unwraps.
 - [ ] All accessibility identifiers above are present; no existing identifiers were renamed (verify with the UI test suite passing without identifier changes).
 - [ ] `xcodegen generate` run after the `project.yml` update.
+- [ ] All affected folder-local `README.md` files are updated to reflect new/changed files, services, views, and flows introduced by this slice (e.g. `KeeForge/Views/README.md`, `KeeForge/Services/README.md`, `KeeForge/ViewModels/README.md`, `KeeForgeTests/README.md`, `KeeForgeUITests/README.md`).
 - [ ] CHANGELOG entry added under `## Unreleased`.
 
 ## Open question for the implementer

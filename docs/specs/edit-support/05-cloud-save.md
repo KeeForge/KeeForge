@@ -92,6 +92,7 @@ Extend the save pipeline so that databases backed by Dropbox can also be written
 - [ ] **Proactive upgrade banner** appears on first launch after upgrade for any user with a `.cloud(.dropbox)` database whose token lacks write scope; dismissing it suppresses for 7 days; tapping `Reconnect Dropbox` runs `authenticate(...)` with the new scope set and the database becomes writable.
 - [ ] No force unwraps.
 - [ ] All upload work runs off the main actor.
+- [ ] All affected folder-local `README.md` files are updated to reflect new/changed files, services, and flows introduced by this slice (e.g. `KeeForge/Services/README.md`, `KeeForge/ViewModels/README.md`, `KeeForgeTests/README.md`).
 - [ ] CHANGELOG entry added under `## Unreleased`.
 
 ## CHANGELOG entry
