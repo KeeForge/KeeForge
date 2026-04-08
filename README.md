@@ -48,10 +48,10 @@ Select an iOS 17+ simulator or device, then build and run.
 ```
 KeeForge/
 ├── App/              # App entry point, scene lifecycle
-├── Models/           # KDBX parser, crypto, data models, TOTP, passkey
-├── Services/         # Keychain, biometric, clipboard, favicon, screen protection
-├── ViewModels/       # DatabaseViewModel, TOTPViewModel
-├── Views/            # SwiftUI views (unlock, groups, entry detail, settings, tip jar)
+├── Models/           # KDBX parser/writer, crypto, edit draft, TOTP, passkey
+├── Services/         # Database list persistence, local save, cloud sync, Keychain, bookmarks
+├── ViewModels/       # DatabaseListViewModel, DatabaseViewModel, TOTPViewModel
+├── Views/            # SwiftUI views (database list, unlock, groups, entry detail, settings, tip jar)
 AutoFillExtension/    # AutoFill credential provider + passkey authentication
 KeeForgeTests/        # Unit tests
 KeeForgeUITests/      # UI tests (XCUITest)

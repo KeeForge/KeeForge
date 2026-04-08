@@ -16,14 +16,14 @@ xcodebuild test -project KeeForge.xcodeproj -scheme KeeForge \
 
 ## File Map
 
-- Parser, crypto, and secret handling: `KDBXParserTests.swift`, `EncryptedValueTests.swift`, `TOTPGeneratorTests.swift`, `KeyFileProcessorTests.swift`, `VerifyKeyfileTests.swift`.
-- View models and app state: `DatabaseViewModelTests.swift`, `DatabaseListViewModelTests.swift`, `TOTPViewModelTests.swift`, `AutoLockTests.swift`, `SortOrderTests.swift`.
-- Persistence and shared storage: `DatabaseListStoreTests.swift`, `SharedVaultStoreTests.swift`, `DatabaseReferenceMigrationTests.swift`, `SettingsServiceTests.swift`.
+- Parser, writer, and secret handling: `KDBXParserTests.swift`, `KDBXWriterTests.swift`, `KDBXRoundTripTests.swift`, `EncryptedValueTests.swift`, `TOTPGeneratorTests.swift`, `KeyFileProcessorTests.swift`, `VerifyKeyfileTests.swift`.
+- Drafts, view models, and app state: `DatabaseDraftTests.swift`, `DatabaseViewModelTests.swift`, `DatabaseListViewModelTests.swift`, `TOTPViewModelTests.swift`, `AutoLockTests.swift`, `SortOrderTests.swift`.
+- Persistence, save pipeline, and shared storage: `DatabaseListStoreTests.swift`, `LocalDatabaseSaverTests.swift`, `SyncedFolderDetectorTests.swift`, `DatabaseReferenceTests.swift`, `SharedVaultStoreTests.swift`, `DatabaseReferenceMigrationTests.swift`, `SettingsServiceTests.swift`.
 - Cloud and multi-database support: `CloudSyncModelsTests.swift`, `CloudProviderTests.swift`, `CloudProviderRegistryTests.swift`, `CloudAccountStoreTests.swift`, `CloudTokenStoreTests.swift`, `CloudFileBrowserViewModelTests.swift`.
 - AutoFill and passkeys: `CredentialMatcherTests.swift`, `CredentialIdentityStoreManagerTests.swift`, `PasskeyTests.swift`, `PasskeyDisplayTests.swift`.
 - Miscellaneous services: `FaviconServiceTests.swift`, `ReviewPromptServiceTests.swift`, `ModelLogicTests.swift`, `KeychainMigrationTests.swift`.
 
 ## Test Helpers
 
-- `TestDatabaseSupport.swift` builds fixture URLs and bookmark-backed `DatabaseReference` values for tests.
+- `TestDatabaseSupport.swift` builds fixture URLs, supports fixture subdirectories, and creates bookmark-backed `DatabaseReference` values for tests.
 - Shared databases and key files are documented in `../TestFixtures/README.md`.

@@ -209,6 +209,8 @@ Use the app's accessibility identifiers whenever possible, including:
 - `entry.copy.password`
 - `entry.copy.url`
 - `entry.copy.totp`
+- `database-row.read-only-toggle`
+- `database-row.read-only-badge`
 - `search.results.count`
 - `search.no-results`
 
