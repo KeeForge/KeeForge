@@ -127,6 +127,27 @@ final class LocalDatabaseSaverTests: XCTestCase {
         XCTAssertEqual(newSHA512, KDBXCrypto.sha512(savedData))
     }
 
+    func testSaveRefreshesSharedCachedCopyWithSavedBytes() async throws {
+        let databaseURL = try makeScratchDatabaseCopy()
+        let reference = try TestDatabaseSupport.makeReference(for: databaseURL)
+        let context = try makeDirtySaveContext(
+            databaseURL: databaseURL,
+            entryTitle: "Cached Entry"
+        )
+
+        _ = try await LocalDatabaseSaver.save(
+            draft: context.draft,
+            reference: reference,
+            compositeKey: context.compositeKey,
+            openTimeSHA512: context.openTimeSHA512
+        )
+
+        let savedData = try Data(contentsOf: databaseURL)
+        let cachedURL = try XCTUnwrap(DatabaseListStore.cachedDatabaseURL(for: reference))
+
+        XCTAssertEqual(try Data(contentsOf: cachedURL), savedData)
+    }
+
     func testSaveRemoteChangedSinceOpenReturnsConflictDoesNotWrite() async throws {
         let databaseURL = try makeScratchDatabaseCopy()
         let reference = try TestDatabaseSupport.makeReference(for: databaseURL)
@@ -152,6 +173,34 @@ final class LocalDatabaseSaverTests: XCTestCase {
         XCTAssertEqual(remoteSHA512, KDBXCrypto.sha512(remoteData))
         XCTAssertEqual(conflictData, remoteData)
         XCTAssertEqual(try Data(contentsOf: databaseURL), remoteData)
+    }
+
+    func testSaveOnReadOnlyFilesystemThrowsAndLeavesOriginalIntact() async throws {
+        let databaseURL = try makeScratchDatabaseCopy()
+        let directoryURL = databaseURL.deletingLastPathComponent()
+        let reference = try TestDatabaseSupport.makeReference(for: databaseURL)
+        let originalData = try Data(contentsOf: databaseURL)
+        let context = try makeDirtySaveContext(
+            databaseURL: databaseURL,
+            entryTitle: "Read Only FS Entry"
+        )
+
+        try FileManager.default.setAttributes([.posixPermissions: 0o500], ofItemAtPath: directoryURL.path)
+        defer {
+            try? FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: directoryURL.path)
+        }
+
+        do {
+            _ = try await LocalDatabaseSaver.save(
+                draft: context.draft,
+                reference: reference,
+                compositeKey: context.compositeKey,
+                openTimeSHA512: context.openTimeSHA512
+            )
+            XCTFail("Expected save to fail on a read-only filesystem.")
+        } catch {
+            XCTAssertEqual(try Data(contentsOf: databaseURL), originalData)
+        }
     }
 
     func testSaveAtomicReplaceDoesNotLeaveTempFilesOnSuccess() async throws {

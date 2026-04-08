@@ -113,6 +113,10 @@ enum LocalDatabaseSaver {
         )
     }
 
+    /// Saves an edited database draft back to encrypted storage.
+    ///
+    /// - Important: The caller must keep `draft.writerSessionKey` alive until this async call
+    ///   returns. `KDBXWriter` needs that session key to re-encrypt protected values while saving.
     static func save(
         draft: DatabaseDraft,
         reference: DatabaseReference,
@@ -195,6 +199,8 @@ enum LocalDatabaseSaver {
         )
         try environment.writeBackup(currentData, backupURL)
         try environment.replaceFileAtomically(newData, location.url)
+        // Keep the shared AutoFill cache aligned with the just-written encrypted bytes.
+        try? DatabaseListStore.cacheDatabaseCopy(newData, for: reference)
         try? environment.pruneBackups(reference, 5)
 
         return .saved(newSHA512: KDBXCrypto.sha512(newData))
