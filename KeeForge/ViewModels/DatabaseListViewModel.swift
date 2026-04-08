@@ -24,6 +24,7 @@ final class DatabaseListViewModel {
 
     private(set) var databases: [DatabaseReference] = []
     private(set) var rowStatuses: [UUID: DatabaseRowStatus] = [:]
+    private(set) var shouldShowDropboxWriteScopeUpgradeBanner = false
     private var didConsumeInitialLaunchSelection = false
 
     init() {
@@ -112,6 +113,11 @@ final class DatabaseListViewModel {
         reload()
     }
 
+    func dismissDropboxWriteScopeUpgradeBanner() {
+        SettingsService.dismissDropboxWriteScopeUpgradeBanner()
+        refreshDropboxWriteScopeUpgradeBanner()
+    }
+
     func status(for reference: DatabaseReference) -> DatabaseRowStatus {
         rowStatuses[reference.id] ?? .init(hasStoredKey: false, hasAccessIssue: false, cloudState: nil)
     }
@@ -197,6 +203,21 @@ final class DatabaseListViewModel {
 
         rowStatuses = updatedStatuses
         databases = DatabaseListStore.databases
+        refreshDropboxWriteScopeUpgradeBanner()
+    }
+
+    private func refreshDropboxWriteScopeUpgradeBanner() {
+        let needsWriteScopeUpgrade = databases.contains { reference in
+            guard let metadata = reference.cloudSyncMetadata,
+                  metadata.providerKind == .dropbox else {
+                return false
+            }
+
+            return CloudAccountStore.hasDropboxWriteScope(accountId: metadata.accountId) == false
+        }
+
+        shouldShowDropboxWriteScopeUpgradeBanner = needsWriteScopeUpgrade
+            && SettingsService.shouldShowDropboxWriteScopeUpgradeBanner()
     }
 
     nonisolated private static func defaultAccessChecker(_ url: URL) -> Bool {

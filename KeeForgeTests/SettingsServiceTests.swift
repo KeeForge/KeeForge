@@ -6,6 +6,7 @@ final class SettingsServiceTests: XCTestCase {
     private let clipboardKey = "KeeForge.clipboardTimeout"
     private let autoUnlockWithFaceIDKey = "KeeForge.autoUnlockWithFaceID"
     private let quickAutoFillEnabledKey = "KeeForge.quickAutoFillEnabled"
+    private let dropboxWriteScopeBannerLastDismissedAtKey = "dropboxWriteScopeBannerLastDismissedAt"
 
     private var sharedDefaults: UserDefaults {
         UserDefaults(suiteName: SharedVaultStore.appGroupID) ?? .standard
@@ -17,6 +18,7 @@ final class SettingsServiceTests: XCTestCase {
         UserDefaults.standard.removeObject(forKey: autoUnlockWithFaceIDKey)
         sharedDefaults.removeObject(forKey: autoUnlockWithFaceIDKey)
         sharedDefaults.removeObject(forKey: quickAutoFillEnabledKey)
+        sharedDefaults.removeObject(forKey: dropboxWriteScopeBannerLastDismissedAtKey)
         super.tearDown()
     }
 
@@ -110,5 +112,29 @@ final class SettingsServiceTests: XCTestCase {
 
         SettingsService.quickAutoFillEnabled = false
         XCTAssertFalse(sharedDefaults.bool(forKey: quickAutoFillEnabledKey))
+    }
+
+    // MARK: - Dropbox write-scope banner
+
+    func testDropboxWriteScopeBannerDefaultsToVisible() {
+        SettingsService.dropboxWriteScopeBannerLastDismissedAt = nil
+
+        XCTAssertTrue(SettingsService.shouldShowDropboxWriteScopeUpgradeBanner())
+    }
+
+    func testDropboxWriteScopeBannerSuppressesForSevenDays() {
+        let dismissedAt = Date(timeIntervalSince1970: 1_000)
+        SettingsService.dismissDropboxWriteScopeUpgradeBanner(at: dismissedAt)
+
+        XCTAssertFalse(
+            SettingsService.shouldShowDropboxWriteScopeUpgradeBanner(
+                now: dismissedAt.addingTimeInterval((7 * 24 * 60 * 60) - 1)
+            )
+        )
+        XCTAssertTrue(
+            SettingsService.shouldShowDropboxWriteScopeUpgradeBanner(
+                now: dismissedAt.addingTimeInterval(7 * 24 * 60 * 60)
+            )
+        )
     }
 }

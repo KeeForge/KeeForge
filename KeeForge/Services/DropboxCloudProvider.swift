@@ -63,6 +63,12 @@ private final class DropboxSecureStorageAccess: SecureStorageAccess {
 
 final class DropboxCloudProvider: CloudProvider, @unchecked Sendable {
     static let shared = DropboxCloudProvider()
+    static let requestedScopes = [
+        "account_info.read",
+        "files.metadata.read",
+        "files.content.read",
+        "files.content.write",
+    ]
 
     let id = CloudProviderKind.dropbox.rawValue
     let displayName = CloudProviderKind.dropbox.displayName
@@ -85,11 +91,7 @@ final class DropboxCloudProvider: CloudProvider, @unchecked Sendable {
         return try await withCheckedThrowingContinuation { continuation in
             pendingAuthContinuation = continuation
 
-            let scopeRequest = ScopeRequest(
-                scopeType: .user,
-                scopes: ["account_info.read", "files.metadata.read", "files.content.read"],
-                includeGrantedScopes: false
-            )
+            let scopeRequest = Self.makeScopeRequest()
 
             DropboxClientsManager.authorizeFromControllerV2(
                 UIApplication.shared,
@@ -134,6 +136,10 @@ final class DropboxCloudProvider: CloudProvider, @unchecked Sendable {
         DropboxClientsManager.resetClients()
     }
 
+    func hasWriteScope(accountId: String) -> Bool {
+        CloudAccountStore.hasDropboxWriteScope(accountId: accountId)
+    }
+
     func listFiles(accountId: String, path: String?, query: String?) async throws -> [CloudFile] {
         let client = try client(for: accountId)
 
@@ -174,19 +180,56 @@ final class DropboxCloudProvider: CloudProvider, @unchecked Sendable {
             client.files.getMetadata(path: fileId)
                 .response { response, error in
                     if let file = response as? Files.FileMetadata {
-                        continuation.resume(
-                            returning: CloudFileMetadata(
-                                modifiedDate: file.serverModified,
-                                contentHash: file.contentHash,
-                                size: Int64(file.size)
-                            )
-                        )
+                        continuation.resume(returning: Self.makeCloudFileMetadata(from: file))
                     } else if response != nil {
                         continuation.resume(throwing: CloudProviderError.fileNotFound)
                     } else {
                         continuation.resume(throwing: Self.mapGetMetadataError(error))
                     }
                 }
+        }
+    }
+
+    func upload(
+        accountId: String,
+        fileId: String,
+        data: Data,
+        expectedRev: String?,
+        progress: @escaping @Sendable (Double) -> Void
+    ) async throws -> CloudFileMetadata {
+        let client = try client(for: accountId)
+        let mode: Files.WriteMode = if let expectedRev {
+            .update(expectedRev)
+        } else {
+            .overwrite
+        }
+
+        return try await withCheckedThrowingContinuation { continuation in
+            client.files.upload(
+                path: fileId,
+                mode: mode,
+                strictConflict: true,
+                input: data
+            )
+            .progress { transferProgress in
+                progress(transferProgress.fractionCompleted)
+            }
+            .response { response, error in
+                if let file = response {
+                    CloudAccountStore.setDropboxWriteScope(true, accountId: accountId)
+                    continuation.resume(returning: Self.makeCloudFileMetadata(from: file))
+                } else if let error {
+                    self.resolveUploadFailure(
+                        client: client,
+                        accountId: accountId,
+                        fileId: fileId,
+                        error: error,
+                        continuation: continuation
+                    )
+                } else {
+                    continuation.resume(throwing: CloudProviderError.unknown("Dropbox upload failed."))
+                }
+            }
         }
     }
 
@@ -361,6 +404,34 @@ final class DropboxCloudProvider: CloudProvider, @unchecked Sendable {
         return trimmed
     }
 
+    private func resolveUploadFailure(
+        client: DropboxClient,
+        accountId: String,
+        fileId: String,
+        error: CallError<Files.UploadError>,
+        continuation: CheckedContinuation<CloudFileMetadata, Error>
+    ) {
+        let mappedError = Self.mapUploadError(error)
+        guard let cloudError = mappedError as? CloudProviderError else {
+            continuation.resume(throwing: mappedError)
+            return
+        }
+
+        switch cloudError {
+        case .conflict:
+            client.files.getMetadata(path: fileId)
+                .response { response, _ in
+                    let remoteRev = (response as? Files.FileMetadata)?.rev
+                    continuation.resume(throwing: CloudProviderError.conflict(remoteRev: remoteRev))
+                }
+        case .writeScopeRequired:
+            CloudAccountStore.setDropboxWriteScope(false, accountId: accountId)
+            continuation.resume(throwing: cloudError)
+        default:
+            continuation.resume(throwing: cloudError)
+        }
+    }
+
     @MainActor
     private func finishAuthentication(with result: DropboxOAuthResult?) async {
         guard let continuation = pendingAuthContinuation else { return }
@@ -376,6 +447,7 @@ final class DropboxCloudProvider: CloudProvider, @unchecked Sendable {
             do {
                 let account = try await currentAccountFromAuthorizedClient(tokenUID: accessToken.uid)
                 CloudAccountStore.upsert(account)
+                CloudAccountStore.setDropboxWriteScope(true, accountId: account.id)
                 continuation.resume(returning: account)
             } catch {
                 continuation.resume(throwing: error)
@@ -453,6 +525,15 @@ final class DropboxCloudProvider: CloudProvider, @unchecked Sendable {
         return nil
     }
 
+    private static func makeCloudFileMetadata(from file: Files.FileMetadata) -> CloudFileMetadata {
+        CloudFileMetadata(
+            modifiedDate: file.serverModified,
+            contentHash: file.contentHash,
+            size: Int64(file.size),
+            rev: file.rev
+        )
+    }
+
     private static func makeCloudFile(from match: Files.SearchMatchV2) -> CloudFile? {
         guard case .metadata(let metadata) = match.metadata else { return nil }
         return makeCloudFile(from: metadata)
@@ -524,6 +605,20 @@ final class DropboxCloudProvider: CloudProvider, @unchecked Sendable {
         return mapGenericDropboxError(error)
     }
 
+    private static func mapUploadError(_ error: CallError<Files.UploadError>?) -> Error {
+        guard let error else {
+            return CloudProviderError.unknown("Dropbox upload failed.")
+        }
+
+        if case .routeError(let boxed, _, _, _) = error,
+           case .path(let writeFailure) = boxed.unboxed,
+           case .conflict = writeFailure.reason {
+            return CloudProviderError.conflict(remoteRev: nil)
+        }
+
+        return mapGenericDropboxError(error)
+    }
+
     private static func mapGenericDropboxError(_ error: Error?) -> Error {
         guard let error else {
             return CloudProviderError.unknown("Dropbox request failed.")
@@ -563,6 +658,8 @@ final class DropboxCloudProvider: CloudProvider, @unchecked Sendable {
             switch authError {
             case .expiredAccessToken, .invalidAccessToken:
                 return CloudProviderError.notAuthenticated
+            case .missingScope:
+                return CloudProviderError.writeScopeRequired
             default:
                 return CloudProviderError.unknown(String(describing: error))
             }
@@ -570,5 +667,13 @@ final class DropboxCloudProvider: CloudProvider, @unchecked Sendable {
         default:
             return CloudProviderError.unknown(String(describing: error))
         }
+    }
+
+    static func makeScopeRequest() -> ScopeRequest {
+        ScopeRequest(
+            scopeType: .user,
+            scopes: requestedScopes,
+            includeGrantedScopes: false
+        )
     }
 }

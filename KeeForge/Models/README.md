@@ -12,7 +12,7 @@ This folder holds the data and logic that the rest of the app depends on. It is 
 ## Other Models Here
 
 - `DatabaseReference.swift` is the persisted identifier for a known database, including bookmarks, nicknames, quick-launch state, read-only and edit-acknowledgment flags, and cloud metadata.
-- `CloudSyncModels.swift` describes cloud provider files and sync metadata used by the database list and sync coordinator.
+- `CloudSyncModels.swift` describes cloud provider files and sync metadata used by the database list and sync coordinator, including provider-specific optimistic-concurrency tokens such as Dropbox `rev`.
 - `PasskeyCredential.swift` parses KeePassXC-style custom fields into passkey data used by the app and AutoFill extension.
 
 ## Notes For Agents

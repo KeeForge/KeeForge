@@ -4,7 +4,7 @@ This folder is the integration layer between app logic and the outside world: Ke
 
 ## Main Clusters
 
-- Database persistence, local save, and file access: `DatabaseListStore.swift`, `LocalDatabaseSaver.swift`, `SyncedFolderDetector.swift`, `SharedVaultStore.swift`, `SecurityScopedBookmarkManager.swift`, `CoordinatedFileReader.swift`, `DocumentPickerService.swift`.
+- Database persistence, local/cloud save, and file access: `DatabaseListStore.swift`, `LocalDatabaseSaver.swift`, `CloudDatabaseSaver.swift`, `SyncedFolderDetector.swift`, `SharedVaultStore.swift`, `SecurityScopedBookmarkManager.swift`, `CoordinatedFileReader.swift`, `DocumentPickerService.swift`.
 - Security and device integration: `BiometricService.swift`, `KeychainService.swift`, `ClipboardService.swift`, `ScreenProtectionService.swift`, `HapticService.swift`.
 - Cloud sync: `CloudProvider.swift`, `CloudProviderRegistry.swift`, `CloudSyncCoordinator.swift`, `CloudAccountStore.swift`, `CloudTokenStore.swift`, `DropboxCloudProvider.swift`, `UITestDropboxCloudProvider.swift`.
 - AutoFill and web helpers: `CredentialMatcher.swift`, `CredentialIdentityStoreManager.swift`, `PasskeyCrypto.swift`, `FaviconService.swift`.
@@ -14,9 +14,11 @@ This folder is the integration layer between app logic and the outside world: Ke
 
 - `DatabaseListStore.swift` is the persisted source of truth for known databases, cached copies, read-only and edit-acknowledgment flags, backup directories, active AutoFill database selection, and several UI-test bootstraps.
 - `LocalDatabaseSaver.swift` handles atomic local saves, open-time conflict detection, backup rotation, and shared-cache refresh after a successful write.
+- `CloudDatabaseSaver.swift` mirrors the local save pipeline for Dropbox-backed databases: cache SHA verification, remote rev verification, upload, cache refresh, and backup rotation.
 - `SyncedFolderDetector.swift` classifies iCloud Drive and File Provider-backed local URLs before edit flows decide whether to continue or keep the database read-only.
 - `KeychainService.swift` stores composite keys with biometric access control.
-- `CloudSyncCoordinator.swift` decides when a cloud-backed database must download before open.
+- `CloudSyncCoordinator.swift` decides when a cloud-backed database must download before open and applies successful cloud-save uploads back into the cache plus persisted reference metadata.
+- `DropboxCloudProvider.swift` owns Dropbox OAuth scope requests, rev-aware uploads, and write-scope upgrade detection.
 - `SettingsService.swift` decides what is local-only vs App Group-shared with the extension.
 
 ## Change Carefully
@@ -24,5 +26,5 @@ This folder is the integration layer between app logic and the outside world: Ke
 - Several service files are compiled into both the app and the AutoFill extension; see `../../AutoFillExtension/README.md`. If you add dependencies, keep them extension-safe and update `../../project.yml`.
 - App Group identifiers, bookmark semantics, backup directory layout, and Keychain access group behavior are compatibility boundaries. Avoid casual renames or storage format changes.
 - Keep SDK-specific cloud behavior behind `CloudProvider`-style abstractions so the rest of the app stays testable.
-- Local save currently covers local/bookmark-backed databases and shared cached copies; cloud save is still pending and should not be silently approximated.
-- Relevant unit tests are split by service area: database list/store, local save, synced-folder detection, cloud account/token/provider, credential matching/identity, settings/shared storage, review prompts, and favicon caching.
+- Local and Dropbox-backed save flows intentionally share the same backup/cache rules but have different conflict checks: local files use open-time SHA512 only, while cloud save layers remote `rev` verification and typed write-scope failures on top.
+- Relevant unit tests are split by service area: database list/store, local/cloud save, synced-folder detection, cloud account/token/provider, credential matching/identity, settings/shared storage, review prompts, and favicon caching.

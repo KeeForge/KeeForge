@@ -15,7 +15,6 @@ enum SaveError: Error, LocalizedError, Equatable {
     case databaseIsReadOnly
     case databaseLocationUnavailable
     case saveContextUnavailable
-    case cloudSaveNotImplemented
 
     var errorDescription: String? {
         switch self {
@@ -25,8 +24,6 @@ enum SaveError: Error, LocalizedError, Equatable {
             "The database file could not be located."
         case .saveContextUnavailable:
             "The database is not ready to save."
-        case .cloudSaveNotImplemented:
-            "Cloud save is not available yet."
         }
     }
 }

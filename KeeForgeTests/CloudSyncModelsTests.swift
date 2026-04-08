@@ -37,6 +37,19 @@ final class CloudSyncModelsTests: XCTestCase {
         XCTAssertFalse(remote.requiresDownload(comparedTo: cached, cacheExists: true))
     }
 
+    func testRequiresDownloadWhenRevisionDiffersWithoutHash() {
+        let remote = CloudFileMetadata(
+            modifiedDate: Date(timeIntervalSince1970: 300),
+            contentHash: nil,
+            size: 128,
+            rev: "rev-B"
+        )
+        var cached = makeCloudSyncMetadata(remoteContentHash: nil, remoteModifiedAt: Date(timeIntervalSince1970: 300))
+        cached.remoteRev = "rev-A"
+
+        XCTAssertTrue(remote.requiresDownload(comparedTo: cached, cacheExists: true))
+    }
+
     func testRequiresDownloadWhenCachedModifiedDateMissingAndNoHash() {
         let remote = makeRemoteMetadata(contentHash: nil, modifiedDate: Date(timeIntervalSince1970: 300))
         let cached = makeCloudSyncMetadata(remoteContentHash: nil, remoteModifiedAt: nil)

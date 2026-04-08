@@ -76,6 +76,7 @@ final class DatabaseReferenceMigrationTests: XCTestCase {
                     displayPath: "/Vaults/vault.kdbx",
                     remoteContentHash: "abc123",
                     remoteModifiedAt: Date(timeIntervalSince1970: 300),
+                    remoteRev: "rev-123",
                     lastSyncedAt: Date(timeIntervalSince1970: 400),
                     lastSyncError: "Offline"
                 )
@@ -93,6 +94,7 @@ final class DatabaseReferenceMigrationTests: XCTestCase {
         XCTAssertEqual(metadata.accountId, "acct-1")
         XCTAssertEqual(metadata.fileId, "/Vaults/vault.kdbx")
         XCTAssertEqual(metadata.remoteContentHash, "abc123")
+        XCTAssertEqual(metadata.remoteRev, "rev-123")
         XCTAssertEqual(metadata.lastSyncError, "Offline")
     }
 

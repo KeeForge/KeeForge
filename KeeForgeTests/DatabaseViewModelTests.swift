@@ -378,6 +378,39 @@ final class DatabaseViewModelTests: XCTestCase {
         XCTAssertFalse(localSaverCalls.didCall)
     }
 
+    func testSaveWriteScopeMissingOnCloudDatabaseThrowsTypedError() async throws {
+        let reference = makeCloudReference(remoteRev: "rev-A")
+        let fixtureData = try Data(contentsOf: fixtureURL())
+        let vm = try makeViewModel(
+            reference: reference,
+            cloudSyncOperation: { reference, _ in
+                CloudSyncResolution(
+                    reference: reference,
+                    localURL: DatabaseListStore.cacheLocation(for: reference),
+                    data: fixtureData,
+                    status: .current
+                )
+            },
+            cloudSaveOperation: { _, _, _, _, _ in
+                throw CloudProviderError.writeScopeRequired
+            }
+        )
+
+        await vm.unlock(password: fixturePassword)
+        vm.draft = try makeDirtyDraft(from: vm, entryTitle: "Cloud Save Entry")
+
+        do {
+            try await vm.save()
+            XCTFail("Expected cloud save to surface a typed write-scope error.")
+        } catch let error as CloudProviderError {
+            XCTAssertEqual(error, .writeScopeRequired)
+        } catch {
+            XCTFail("Unexpected error: \(error)")
+        }
+
+        XCTAssertNotNil(vm.draft)
+    }
+
     func testAcknowledgeEditingIfNeededLocalUnsyncedReturnsAcknowledgedImmediately() async throws {
         var reference = try makeReference()
         reference.bookmarkData = nil
@@ -474,6 +507,15 @@ final class DatabaseViewModelTests: XCTestCase {
                 openTimeSHA512: openTimeSHA512
             )
         },
+        cloudSaveOperation: @escaping DatabaseViewModel.CloudSaveOperation = { draft, reference, compositeKey, openTimeSHA512, expectedRev in
+            try await CloudDatabaseSaver.save(
+                draft: draft,
+                reference: reference,
+                compositeKey: compositeKey,
+                openTimeSHA512: openTimeSHA512,
+                expectedRev: expectedRev
+            )
+        },
         syncedFolderDetector: @escaping DatabaseViewModel.SyncedFolderDetectionOperation = { _ in
             .notSynced
         },
@@ -491,12 +533,13 @@ final class DatabaseViewModelTests: XCTestCase {
             databaseReference: resolvedReference,
             cloudSyncOperation: cloudSyncOperation,
             localSaveOperation: localSaveOperation,
+            cloudSaveOperation: cloudSaveOperation,
             syncedFolderDetector: syncedFolderDetector,
             syncedFolderWarningHandler: syncedFolderWarningHandler
         )
     }
 
-    private func makeCloudReference() -> DatabaseReference {
+    private func makeCloudReference(remoteRev: String? = nil) -> DatabaseReference {
         DatabaseReference(
             id: UUID(),
             nickname: nil,
@@ -517,6 +560,7 @@ final class DatabaseViewModelTests: XCTestCase {
                     displayPath: "/Vaults/vault.kdbx",
                     remoteContentHash: nil,
                     remoteModifiedAt: nil,
+                    remoteRev: remoteRev,
                     lastSyncedAt: nil,
                     lastSyncError: nil
                 )
@@ -901,6 +945,7 @@ private final class MockCloudProvider: CloudProvider, @unchecked Sendable {
     var downloadedData = Data()
     private(set) var metadataCallCount = 0
     private(set) var downloadCallCount = 0
+    private(set) var uploadCallCount = 0
 
     @MainActor
     func authenticate(from anchor: ASPresentationAnchor) async throws -> CloudAccount {
@@ -933,6 +978,23 @@ private final class MockCloudProvider: CloudProvider, @unchecked Sendable {
     func getMetadata(accountId: String, fileId: String) async throws -> CloudFileMetadata {
         metadataCallCount += 1
         return try metadataResult.get()
+    }
+
+    func upload(
+        accountId: String,
+        fileId: String,
+        data: Data,
+        expectedRev: String?,
+        progress: @escaping @Sendable (Double) -> Void
+    ) async throws -> CloudFileMetadata {
+        uploadCallCount += 1
+        progress(1)
+        return CloudFileMetadata(
+            modifiedDate: Date(),
+            contentHash: nil,
+            size: Int64(data.count),
+            rev: expectedRev
+        )
     }
 }
 

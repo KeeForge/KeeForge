@@ -54,6 +54,10 @@ struct DatabaseReference: Identifiable, Codable, Hashable, Sendable {
         cloudSyncMetadata?.providerKind
     }
 
+    var expectedCloudRevision: String? {
+        cloudSyncMetadata?.remoteRev
+    }
+
     mutating func updateCloudSyncMetadata(_ mutate: (inout CloudSyncMetadata) -> Void) {
         guard case .cloud(var metadata) = source else { return }
         mutate(&metadata)

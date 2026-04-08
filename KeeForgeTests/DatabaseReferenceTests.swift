@@ -48,6 +48,7 @@ final class DatabaseReferenceTests: XCTestCase {
                     displayPath: "/Vaults/vault.kdbx",
                     remoteContentHash: "hash",
                     remoteModifiedAt: Date(timeIntervalSince1970: 40),
+                    remoteRev: "rev-123",
                     lastSyncedAt: Date(timeIntervalSince1970: 50),
                     lastSyncError: nil
                 )

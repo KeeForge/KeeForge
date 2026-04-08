@@ -29,6 +29,13 @@ protocol CloudProvider: AnyObject, Sendable {
         progress: @escaping @Sendable (Double) -> Void
     ) async throws
     func getMetadata(accountId: String, fileId: String) async throws -> CloudFileMetadata
+    func upload(
+        accountId: String,
+        fileId: String,
+        data: Data,
+        expectedRev: String?,
+        progress: @escaping @Sendable (Double) -> Void
+    ) async throws -> CloudFileMetadata
 }
 
 extension CloudProvider {
@@ -42,6 +49,8 @@ enum CloudProviderError: LocalizedError, Equatable {
     case notAuthenticated
     case networkUnavailable
     case fileNotFound
+    case conflict(remoteRev: String?)
+    case writeScopeRequired
     case unknown(String)
 
     var errorDescription: String? {
@@ -56,6 +65,10 @@ enum CloudProviderError: LocalizedError, Equatable {
             "No network connection. Using the cached copy if available."
         case .fileNotFound:
             "The remote database could not be found."
+        case .conflict:
+            "This database changed in Dropbox. Reload before saving again."
+        case .writeScopeRequired:
+            "Reconnect Dropbox to save changes back to Dropbox."
         case .unknown(let message):
             message
         }

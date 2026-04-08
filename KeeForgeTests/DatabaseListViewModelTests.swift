@@ -8,12 +8,14 @@ final class DatabaseListViewModelTests: XCTestCase {
         DatabaseListStore.clearAll()
         CloudAccountStore.clearAll()
         SharedVaultStore.clearBookmark()
+        SettingsService.dropboxWriteScopeBannerLastDismissedAt = nil
     }
 
     override func tearDown() {
         DatabaseListStore.clearAll()
         CloudAccountStore.clearAll()
         SharedVaultStore.clearBookmark()
+        SettingsService.dropboxWriteScopeBannerLastDismissedAt = nil
         super.tearDown()
     }
 
@@ -167,6 +169,58 @@ final class DatabaseListViewModelTests: XCTestCase {
         XCTAssertEqual(status.cloudState?.isConnected, false)
         XCTAssertEqual(status.cloudState?.warningText, "Disconnected")
         XCTAssertEqual(status.cloudState?.accountLabel, "acct-1")
+    }
+
+    func testDropboxWriteScopeBannerShowsForExistingCloudDatabaseWithoutUpgrade() {
+        let file = CloudFile(
+            id: "/Vaults/work.kdbx",
+            name: "work.kdbx",
+            path: "/Vaults/work.kdbx",
+            isFolder: false,
+            modifiedDate: nil,
+            size: nil
+        )
+        _ = DatabaseListStore.addCloud(
+            provider: CloudProviderKind.dropbox.rawValue,
+            accountId: "acct-1",
+            file: file
+        )
+        CloudAccountStore.upsert(
+            CloudAccount(id: "acct-1", displayName: "alex@example.com", provider: CloudProviderKind.dropbox.rawValue)
+        )
+
+        let viewModel = DatabaseListViewModel()
+
+        XCTAssertTrue(viewModel.shouldShowDropboxWriteScopeUpgradeBanner)
+    }
+
+    func testDropboxWriteScopeBannerHidesWhenWriteScopeIsGrantedOrRecentlyDismissed() {
+        let file = CloudFile(
+            id: "/Vaults/work.kdbx",
+            name: "work.kdbx",
+            path: "/Vaults/work.kdbx",
+            isFolder: false,
+            modifiedDate: nil,
+            size: nil
+        )
+        _ = DatabaseListStore.addCloud(
+            provider: CloudProviderKind.dropbox.rawValue,
+            accountId: "acct-1",
+            file: file
+        )
+        CloudAccountStore.upsert(
+            CloudAccount(id: "acct-1", displayName: "alex@example.com", provider: CloudProviderKind.dropbox.rawValue)
+        )
+        CloudAccountStore.setDropboxWriteScope(true, accountId: "acct-1")
+
+        let upgradedViewModel = DatabaseListViewModel()
+        XCTAssertFalse(upgradedViewModel.shouldShowDropboxWriteScopeUpgradeBanner)
+
+        CloudAccountStore.setDropboxWriteScope(false, accountId: "acct-1")
+        SettingsService.dismissDropboxWriteScopeUpgradeBanner(at: .now)
+
+        let dismissedViewModel = DatabaseListViewModel()
+        XCTAssertFalse(dismissedViewModel.shouldShowDropboxWriteScopeUpgradeBanner)
     }
 
     func testPickerPresentationStateKeepsTargetUntilCompletion() {

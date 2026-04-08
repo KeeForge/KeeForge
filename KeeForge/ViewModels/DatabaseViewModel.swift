@@ -28,6 +28,13 @@ final class DatabaseViewModel {
         _ compositeKey: Data,
         _ openTimeSHA512: Data
     ) async throws -> SaveResult
+    typealias CloudSaveOperation = @Sendable (
+        _ draft: DatabaseDraft,
+        _ reference: DatabaseReference,
+        _ compositeKey: Data,
+        _ openTimeSHA512: Data,
+        _ expectedRev: String?
+    ) async throws -> SaveResult
     typealias SyncedFolderDetectionOperation = @Sendable (DatabaseReference) async -> SyncedFolderLocation
     typealias SyncedFolderWarningHandler = @MainActor @Sendable (SyncedFolderWarning) async -> SyncedFolderWarningAction
 
@@ -74,6 +81,7 @@ final class DatabaseViewModel {
     private var unlockedMeta: KPMeta?
     private let cloudSyncOperation: CloudSyncOperation
     private let localSaveOperation: LocalSaveOperation
+    private let cloudSaveOperation: CloudSaveOperation
     private let syncedFolderDetector: SyncedFolderDetectionOperation
     private let syncedFolderWarningHandler: SyncedFolderWarningHandler
 
@@ -93,6 +101,15 @@ final class DatabaseViewModel {
                 openTimeSHA512: openTimeSHA512
             )
         },
+        cloudSaveOperation: @escaping CloudSaveOperation = { draft, reference, compositeKey, openTimeSHA512, expectedRev in
+            try await CloudDatabaseSaver.save(
+                draft: draft,
+                reference: reference,
+                compositeKey: compositeKey,
+                openTimeSHA512: openTimeSHA512,
+                expectedRev: expectedRev
+            )
+        },
         syncedFolderDetector: @escaping SyncedFolderDetectionOperation = { reference in
             await SyncedFolderDetector.detect(reference: reference)
         },
@@ -108,6 +125,7 @@ final class DatabaseViewModel {
             : Self.decryptingStatusMessage
         self.cloudSyncOperation = cloudSyncOperation
         self.localSaveOperation = localSaveOperation
+        self.cloudSaveOperation = cloudSaveOperation
         self.syncedFolderDetector = syncedFolderDetector
         self.syncedFolderWarningHandler = syncedFolderWarningHandler
     }
@@ -327,7 +345,13 @@ final class DatabaseViewModel {
                 openTimeSHA512
             )
         case .cloud:
-            throw SaveError.cloudSaveNotImplemented
+            saveResult = try await cloudSaveOperation(
+                draft,
+                databaseReference,
+                compositeKey,
+                openTimeSHA512,
+                databaseReference.expectedCloudRevision
+            )
         }
 
         switch saveResult {
@@ -337,6 +361,7 @@ final class DatabaseViewModel {
             self.openTimeSHA512 = newSHA512
             self.draft = nil
             saveConflict = nil
+            refreshDatabaseReference()
         case .conflict(let remoteSHA512, let remoteData):
             saveConflict = SaveConflict(
                 remoteSHA512: remoteSHA512,

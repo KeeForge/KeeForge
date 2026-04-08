@@ -81,6 +81,7 @@ enum CloudSyncCoordinator {
             updatedReference.updateCloudSyncMetadata { cloudMetadata in
                 cloudMetadata.remoteContentHash = remoteMetadata.contentHash
                 cloudMetadata.remoteModifiedAt = remoteMetadata.modifiedDate
+                cloudMetadata.remoteRev = remoteMetadata.rev
                 cloudMetadata.lastSyncedAt = .now
                 cloudMetadata.lastSyncError = nil
             }
@@ -156,5 +157,54 @@ enum CloudSyncCoordinator {
             [.protectionKey: FileProtectionType.complete],
             ofItemAtPath: destinationURL.path
         )
+    }
+
+    static func pushAfterSave(
+        reference: DatabaseReference,
+        bytes: Data,
+        expectedRev: String?,
+        providerResolver: (String) -> CloudProvider? = CloudProviderRegistry.provider(for:),
+        progress: @escaping @Sendable (Double) -> Void = { _ in }
+    ) async throws -> DatabaseReference {
+        guard let metadata = reference.cloudSyncMetadata else {
+            throw CocoaError(.fileReadUnsupportedScheme)
+        }
+
+        guard let provider = providerResolver(metadata.provider) else {
+            throw CloudProviderError.notAuthenticated
+        }
+
+        let uploadedMetadata = try await provider.upload(
+            accountId: metadata.accountId,
+            fileId: metadata.fileId,
+            data: bytes,
+            expectedRev: expectedRev,
+            progress: progress
+        )
+
+        return try applyUploadedBytesAfterSave(
+            reference: reference,
+            bytes: bytes,
+            remoteMetadata: uploadedMetadata
+        )
+    }
+
+    static func applyUploadedBytesAfterSave(
+        reference: DatabaseReference,
+        bytes: Data,
+        remoteMetadata: CloudFileMetadata
+    ) throws -> DatabaseReference {
+        try DatabaseListStore.cacheDatabaseCopy(bytes, for: reference)
+
+        var updatedReference = reference
+        updatedReference.updateCloudSyncMetadata { cloudMetadata in
+            cloudMetadata.remoteContentHash = remoteMetadata.contentHash
+            cloudMetadata.remoteModifiedAt = remoteMetadata.modifiedDate
+            cloudMetadata.remoteRev = remoteMetadata.rev
+            cloudMetadata.lastSyncedAt = .now
+            cloudMetadata.lastSyncError = nil
+        }
+        DatabaseListStore.update(updatedReference)
+        return updatedReference
     }
 }

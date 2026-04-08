@@ -13,6 +13,14 @@ final class UITestDropboxCloudProvider: CloudProvider, @unchecked Sendable {
 
     private init() {}
 
+    static func recordedUploads() async -> [RecordedUpload] {
+        await uploadStore.all()
+    }
+
+    static func resetRecordedUploads() async {
+        await uploadStore.reset()
+    }
+
     static var isEnabled: Bool {
         let processInfo = ProcessInfo.processInfo
         return processInfo.arguments.contains(uiTestingLaunchArg)
@@ -32,6 +40,9 @@ final class UITestDropboxCloudProvider: CloudProvider, @unchecked Sendable {
         }
 
         payload.accounts.forEach(CloudAccountStore.upsert)
+        payload.accounts.forEach { account in
+            CloudAccountStore.setDropboxWriteScope(true, accountId: account.id)
+        }
         return account
     }
 
@@ -107,7 +118,52 @@ final class UITestDropboxCloudProvider: CloudProvider, @unchecked Sendable {
         return CloudFileMetadata(
             modifiedDate: file.modifiedDate ?? Date(timeIntervalSince1970: 0),
             contentHash: payload.contentHashByFileID[fileId],
-            size: Int64(fileData?.count ?? Int(file.size ?? 0))
+            size: Int64(fileData?.count ?? Int(file.size ?? 0)),
+            rev: payload.revByFileID?[fileId]
+        )
+    }
+
+    func upload(
+        accountId: String,
+        fileId: String,
+        data: Data,
+        expectedRev: String?,
+        progress: @escaping @Sendable (Double) -> Void
+    ) async throws -> CloudFileMetadata {
+        guard isAuthenticated(accountId: accountId) else {
+            throw CloudProviderError.notAuthenticated
+        }
+
+        guard CloudAccountStore.hasDropboxWriteScope(accountId: accountId) else {
+            throw CloudProviderError.writeScopeRequired
+        }
+
+        let payload = try Self.currentPayload()
+        if let error = payload.uploadError?.providerError {
+            throw error
+        }
+
+        guard payload.file(withID: fileId)?.isFolder == false else {
+            throw CloudProviderError.fileNotFound
+        }
+
+        await Self.uploadStore.append(
+            RecordedUpload(
+                accountId: accountId,
+                fileId: fileId,
+                expectedRev: expectedRev,
+                data: data
+            )
+        )
+
+        progress(1)
+
+        let fallbackRev = expectedRev.map { "\($0)-uploaded" } ?? "uploaded-\(fileId.replacingOccurrences(of: "/", with: "_"))"
+        return CloudFileMetadata(
+            modifiedDate: Date(),
+            contentHash: payload.contentHashByFileID[fileId],
+            size: Int64(data.count),
+            rev: payload.revByFileID?[fileId] ?? fallbackRev
         )
     }
 
@@ -137,15 +193,35 @@ final class UITestDropboxCloudProvider: CloudProvider, @unchecked Sendable {
 }
 
 private extension UITestDropboxCloudProvider {
+    static let uploadStore = UploadStore()
+
+    actor UploadStore {
+        private var uploads: [RecordedUpload] = []
+
+        func append(_ upload: RecordedUpload) {
+            uploads.append(upload)
+        }
+
+        func all() -> [RecordedUpload] {
+            uploads
+        }
+
+        func reset() {
+            uploads.removeAll()
+        }
+    }
+
     struct Payload: Decodable {
         let accounts: [CloudAccount]
         let directories: [Directory]
         let fileContentsByID: [String: String]
         let contentHashByFileID: [String: String]
+        let revByFileID: [String: String]?
         let authenticateError: ErrorKind?
         let listError: ErrorKind?
         let metadataError: ErrorKind?
         let downloadError: ErrorKind?
+        let uploadError: ErrorKind?
 
         func files(at path: String?) -> [CloudFile] {
             directories.first(where: { $0.normalizedPath == normalize(path) })?.files.map(\.cloudFile) ?? []
@@ -199,6 +275,8 @@ private extension UITestDropboxCloudProvider {
         case notAuthenticated
         case networkUnavailable
         case fileNotFound
+        case conflict
+        case writeScopeRequired
 
         var providerError: CloudProviderError {
             switch self {
@@ -212,6 +290,10 @@ private extension UITestDropboxCloudProvider {
                 .networkUnavailable
             case .fileNotFound:
                 .fileNotFound
+            case .conflict:
+                .conflict(remoteRev: nil)
+            case .writeScopeRequired:
+                .writeScopeRequired
             }
         }
     }
@@ -223,4 +305,11 @@ private extension UITestDropboxCloudProvider {
         }
         return trimmed
     }
+}
+
+struct RecordedUpload: Equatable, Sendable {
+    let accountId: String
+    let fileId: String
+    let expectedRev: String?
+    let data: Data
 }

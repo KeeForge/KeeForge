@@ -17,6 +17,7 @@
 - Internal: KDBX writer can now produce KDBX 4.x files (AES-256-CBC and ChaCha20-Poly1305) for use by upcoming edit features
 - Internal: Added DatabaseDraft layer that lets the app stage entry edits in memory before saving.
 - Internal: Added a local-file save pipeline with atomic write, automatic backups, and out-of-band-change detection.
+- Internal: Dropbox-backed databases can now be saved back to Dropbox with optimistic-concurrency conflict detection.
 
 ## v1.7.0 (2026-04-05)
 

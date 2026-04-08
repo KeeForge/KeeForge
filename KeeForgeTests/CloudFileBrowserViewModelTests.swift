@@ -156,6 +156,7 @@ private final class MockBrowserCloudProvider: CloudProvider, @unchecked Sendable
     func authenticate(from anchor: ASPresentationAnchor) async throws -> CloudAccount {
         let account = try authenticateResult.get()
         CloudAccountStore.upsert(account)
+        CloudAccountStore.setDropboxWriteScope(true, accountId: account.id)
         return account
     }
 
@@ -190,5 +191,21 @@ private final class MockBrowserCloudProvider: CloudProvider, @unchecked Sendable
 
     func getMetadata(accountId: String, fileId: String) async throws -> CloudFileMetadata {
         CloudFileMetadata(modifiedDate: Date(), contentHash: nil, size: 0)
+    }
+
+    func upload(
+        accountId: String,
+        fileId: String,
+        data: Data,
+        expectedRev: String?,
+        progress: @escaping @Sendable (Double) -> Void
+    ) async throws -> CloudFileMetadata {
+        progress(1)
+        return CloudFileMetadata(
+            modifiedDate: Date(),
+            contentHash: nil,
+            size: Int64(data.count),
+            rev: expectedRev
+        )
     }
 }

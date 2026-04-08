@@ -13,7 +13,10 @@ enum SettingsService {
         static let autoUnlockWithFaceID = "KeeForge.autoUnlockWithFaceID"
         static let showWebsiteIcons = "KeeForge.showWebsiteIcons"
         static let quickAutoFillEnabled = "KeeForge.quickAutoFillEnabled"
+        static let dropboxWriteScopeBannerLastDismissedAt = "dropboxWriteScopeBannerLastDismissedAt"
     }
+
+    private static let dropboxWriteScopeBannerSuppressionInterval: TimeInterval = 7 * 24 * 60 * 60
 
     private static var sharedDefaults: UserDefaults {
         UserDefaults(suiteName: SharedVaultStore.appGroupID) ?? .standard
@@ -110,5 +113,26 @@ enum SettingsService {
         set {
             sharedDefaults.set(newValue, forKey: Key.quickAutoFillEnabled)
         }
+    }
+
+    static var dropboxWriteScopeBannerLastDismissedAt: Date? {
+        get {
+            sharedDefaults.object(forKey: Key.dropboxWriteScopeBannerLastDismissedAt) as? Date
+        }
+        set {
+            sharedDefaults.set(newValue, forKey: Key.dropboxWriteScopeBannerLastDismissedAt)
+        }
+    }
+
+    static func shouldShowDropboxWriteScopeUpgradeBanner(now: Date = .now) -> Bool {
+        guard let lastDismissedAt = dropboxWriteScopeBannerLastDismissedAt else {
+            return true
+        }
+
+        return now.timeIntervalSince(lastDismissedAt) >= dropboxWriteScopeBannerSuppressionInterval
+    }
+
+    static func dismissDropboxWriteScopeUpgradeBanner(at date: Date = .now) {
+        dropboxWriteScopeBannerLastDismissedAt = date
     }
 }

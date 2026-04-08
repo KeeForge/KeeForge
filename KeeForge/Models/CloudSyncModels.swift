@@ -43,12 +43,29 @@ struct CloudFileMetadata: Equatable, Sendable {
     let modifiedDate: Date
     let contentHash: String?
     let size: Int64
+    let rev: String?
+
+    init(
+        modifiedDate: Date,
+        contentHash: String?,
+        size: Int64,
+        rev: String? = nil
+    ) {
+        self.modifiedDate = modifiedDate
+        self.contentHash = contentHash
+        self.size = size
+        self.rev = rev
+    }
 
     func requiresDownload(comparedTo cached: CloudSyncMetadata, cacheExists: Bool) -> Bool {
         guard cacheExists else { return true }
 
         if let contentHash, let cachedHash = cached.remoteContentHash {
             return contentHash != cachedHash
+        }
+
+        if let rev, let cachedRev = cached.remoteRev {
+            return rev != cachedRev
         }
 
         guard let cachedModifiedAt = cached.remoteModifiedAt else {
@@ -66,8 +83,31 @@ struct CloudSyncMetadata: Codable, Hashable, Sendable {
     let displayPath: String
     var remoteContentHash: String?
     var remoteModifiedAt: Date?
+    var remoteRev: String?
     var lastSyncedAt: Date?
     var lastSyncError: String?
+
+    init(
+        provider: String,
+        accountId: String,
+        fileId: String,
+        displayPath: String,
+        remoteContentHash: String?,
+        remoteModifiedAt: Date?,
+        remoteRev: String? = nil,
+        lastSyncedAt: Date?,
+        lastSyncError: String?
+    ) {
+        self.provider = provider
+        self.accountId = accountId
+        self.fileId = fileId
+        self.displayPath = displayPath
+        self.remoteContentHash = remoteContentHash
+        self.remoteModifiedAt = remoteModifiedAt
+        self.remoteRev = remoteRev
+        self.lastSyncedAt = lastSyncedAt
+        self.lastSyncError = lastSyncError
+    }
 
     var isStale: Bool {
         lastSyncError != nil
