@@ -8,6 +8,7 @@ This folder is the integration layer between app logic and the outside world: Ke
 - Security and device integration: `BiometricService.swift`, `KeychainService.swift`, `ClipboardService.swift`, `ScreenProtectionService.swift`, `HapticService.swift`.
 - Cloud sync: `CloudProvider.swift`, `CloudProviderRegistry.swift`, `CloudSyncCoordinator.swift`, `CloudAccountStore.swift`, `CloudTokenStore.swift`, `DropboxCloudProvider.swift`, `UITestDropboxCloudProvider.swift`.
 - AutoFill and web helpers: `CredentialMatcher.swift`, `CredentialIdentityStoreManager.swift`, `PasskeyCrypto.swift`, `FaviconService.swift`.
+- Editing helpers: `PasswordGenerator.swift` provides the reusable strong-password generator consumed by the main app today and AutoFill flows later.
 - App settings and monetization: `SettingsService.swift`, `ReviewPromptService.swift`, `StoreKitManager.swift`.
 
 ## Files Agents Usually Need First

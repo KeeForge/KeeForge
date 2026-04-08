@@ -498,6 +498,10 @@ private struct DatabaseDetailsView: View {
     @State private var nickname = ""
     @State private var isQuickLaunch = false
 
+    private var currentReference: DatabaseReference {
+        viewModel.databases.first(where: { $0.id == reference.id }) ?? reference
+    }
+
     var body: some View {
         NavigationStack {
             Form {
@@ -520,6 +524,21 @@ private struct DatabaseDetailsView: View {
                     Text("Identity")
                 } footer: {
                     Text("Quick Launch opens this database automatically on app launch. Auto-Unlock with Face ID controls whether KeeForge prompts for biometrics after a database is opened.")
+                }
+
+                Section {
+                    Toggle(
+                        "Read-only",
+                        isOn: Binding(
+                            get: { currentReference.isReadOnly },
+                            set: { viewModel.setReadOnly($0, for: reference) }
+                        )
+                    )
+                    .accessibilityIdentifier("database-row.read-only-toggle")
+                } header: {
+                    Text("Editing")
+                } footer: {
+                    Text("Keep this database openable but block create, edit, and delete actions until you turn editing back on.")
                 }
 
                 Section("Key File") {

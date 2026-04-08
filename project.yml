@@ -97,6 +97,7 @@ targets:
       - path: KeeForge/Services/KeyFileProcessor.swift
       - path: KeeForge/Services/LocalDatabaseSaver.swift
       - path: KeeForge/Services/PasskeyCrypto.swift
+      - path: KeeForge/Services/PasswordGenerator.swift
       - path: KeeForge/Services/SecurityScopedBookmarkManager.swift
       - path: KeeForge/Services/SyncedFolderDetector.swift
 

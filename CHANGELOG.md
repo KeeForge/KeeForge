@@ -9,6 +9,9 @@
 
 ## Unreleased
 
+### New Features
+- Add main-app entry editing with create, edit, delete, password generation, save-conflict resolution, and read-only editing safeguards
+
 ### Fixes
 - Remove the baked white background from the Dropbox provider glyph so it renders cleanly in dark mode
 - Show provider-specific cloud sync status during unlock, and add focused unlock coverage for cloud sync success, fallback, and failure paths

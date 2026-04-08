@@ -23,7 +23,7 @@ struct SearchView: View {
                 )
                 .accessibilityIdentifier("search.no-results")
             } else {
-                EntryListView(entries: viewModel.searchResults)
+                EntryListView(entries: viewModel.searchResults, viewModel: viewModel)
                     .accessibilityIdentifier("search.results")
             }
         }

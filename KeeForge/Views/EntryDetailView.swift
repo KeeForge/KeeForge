@@ -2,88 +2,138 @@ import CryptoKit
 import SwiftUI
 
 struct EntryDetailView: View {
-    let entry: KPEntry
-    let sessionKey: SymmetricKey
+    let entryID: UUID
+    @Bindable var viewModel: DatabaseViewModel
+    @Environment(\.dismiss) private var dismiss
+    @State private var activeEditor: EntryEditViewModel?
+
+    private var entry: KPEntry? {
+        viewModel.entry(withID: entryID)
+    }
+
+    private var sessionKey: SymmetricKey? {
+        viewModel.sessionKey
+    }
 
     var body: some View {
-        List {
-            Section {
-                HStack {
-                    FaviconView(url: entry.url, iconID: entry.iconID, size: 40)
-                    Text(entry.title.isEmpty ? "(untitled)" : entry.title)
-                        .font(.title2.bold())
-                }
-            }
-
-            if !entry.username.isEmpty {
-                FieldRow(label: "Username", value: entry.username, icon: "person.fill")
-            }
-
-            if entry.hasPassword {
-                PasswordFieldRow(password: entry.password, sessionKey: sessionKey)
-            }
-
-            if !entry.url.isEmpty {
-                URLFieldRow(url: entry.url)
-            }
-
-            ForEach(Array(entry.additionalURLs.enumerated()), id: \.offset) { index, url in
-                URLFieldRow(url: url, label: "URL \(index + 2)")
-            }
-
-            if entry.totpConfig != nil {
-                TOTPSection(config: entry.totpConfig!, sessionKey: sessionKey)
-            }
-
-            if !entry.notes.isEmpty {
-                Section("Notes") {
-                    Text(entry.notes)
-                        .font(.body)
-                        .textSelection(.enabled)
-                }
-            }
-
-            if SettingsService.passkeyEnabled, let passkey = entry.passkeyCredential {
-                Section("Passkey") {
-                    FieldRow(label: "Relying Party", value: passkey.relyingParty, icon: "person.badge.key.fill")
-                    FieldRow(label: "Username", value: passkey.username, icon: "person.fill")
-                }
-            }
-
-            if !entry.displayCustomFields.isEmpty {
-                Section("Custom Fields") {
-                    ForEach(entry.displayCustomFields.sorted(by: { $0.key < $1.key }), id: \.key) { key, value in
-                        FieldRow(label: key, value: value, icon: "text.justify.left")
+        Group {
+            if let entry, let sessionKey {
+                List {
+                    Section {
+                        HStack {
+                            FaviconView(url: entry.url, iconID: entry.iconID, size: 40)
+                            Text(entry.title.isEmpty ? "(untitled)" : entry.title)
+                                .font(.title2.bold())
+                        }
                     }
-                }
-            }
 
-            if !entry.tags.isEmpty {
-                Section("Tags") {
-                    FlowLayout(spacing: 6) {
-                        ForEach(entry.tags, id: \.self) { tag in
-                            Text(tag)
-                                .font(.caption)
-                                .padding(.horizontal, 8)
-                                .padding(.vertical, 4)
-                                .background(.fill, in: .capsule)
+                    if !entry.username.isEmpty {
+                        FieldRow(label: "Username", value: entry.username, icon: "person.fill")
+                    }
+
+                    if entry.hasPassword {
+                        PasswordFieldRow(password: entry.password, sessionKey: sessionKey)
+                    }
+
+                    if !entry.url.isEmpty {
+                        URLFieldRow(url: entry.url)
+                    }
+
+                    ForEach(Array(entry.additionalURLs.enumerated()), id: \.offset) { index, url in
+                        URLFieldRow(url: url, label: "URL \(index + 2)")
+                    }
+
+                    if let totpConfig = entry.totpConfig {
+                        TOTPSection(config: totpConfig, sessionKey: sessionKey)
+                    }
+
+                    if !entry.notes.isEmpty {
+                        Section("Notes") {
+                            Text(entry.notes)
+                                .font(.body)
+                                .textSelection(.enabled)
+                        }
+                    }
+
+                    if SettingsService.passkeyEnabled, let passkey = entry.passkeyCredential {
+                        Section("Passkey") {
+                            FieldRow(label: "Relying Party", value: passkey.relyingParty, icon: "person.badge.key.fill")
+                            FieldRow(label: "Username", value: passkey.username, icon: "person.fill")
+                        }
+                    }
+
+                    if !entry.displayCustomFields.isEmpty {
+                        Section("Custom Fields") {
+                            ForEach(entry.displayCustomFields.sorted(by: { $0.key < $1.key }), id: \.key) { key, value in
+                                FieldRow(label: key, value: value, icon: "text.justify.left")
+                            }
+                        }
+                    }
+
+                    if !entry.tags.isEmpty {
+                        Section("Tags") {
+                            FlowLayout(spacing: 6) {
+                                ForEach(entry.tags, id: \.self) { tag in
+                                    Text(tag)
+                                        .font(.caption)
+                                        .padding(.horizontal, 8)
+                                        .padding(.vertical, 4)
+                                        .background(.fill, in: .capsule)
+                                }
+                            }
+                        }
+                    }
+                    if entry.creationTime != nil || entry.lastModificationTime != nil {
+                        Section("Details") {
+                            if let created = entry.creationTime {
+                                LabeledContent("Created", value: created.formatted(date: .abbreviated, time: .shortened))
+                            }
+                            if let modified = entry.lastModificationTime {
+                                LabeledContent("Modified", value: modified.formatted(date: .abbreviated, time: .shortened))
+                            }
                         }
                     }
                 }
-            }
-            if entry.creationTime != nil || entry.lastModificationTime != nil {
-                Section("Details") {
-                    if let created = entry.creationTime {
-                        LabeledContent("Created", value: created.formatted(date: .abbreviated, time: .shortened))
+                .navigationTitle(entry.title)
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    if viewModel.isReadOnly == false {
+                        ToolbarItem(placement: .topBarTrailing) {
+                            Button("Edit") {
+                                Task {
+                                    let result = await viewModel.acknowledgeEditingIfNeeded()
+                                    guard result == .acknowledged,
+                                          let currentEntry = viewModel.entry(withID: entryID),
+                                          let currentSessionKey = viewModel.sessionKey else { return }
+                                    activeEditor = EntryEditViewModel(editing: currentEntry, sessionKey: currentSessionKey)
+                                }
+                            }
+                            .accessibilityIdentifier("entry-detail.edit")
+                        }
                     }
-                    if let modified = entry.lastModificationTime {
-                        LabeledContent("Modified", value: modified.formatted(date: .abbreviated, time: .shortened))
+                }
+                .navigationDestination(item: $activeEditor) { formViewModel in
+                    EntryEditView(
+                        formViewModel: formViewModel,
+                        databaseViewModel: viewModel
+                    ) { completion in
+                        activeEditor = nil
+                        if completion == .deleted {
+                            dismiss()
+                        }
                     }
+                }
+            } else {
+                ContentUnavailableView(
+                    "Entry Unavailable",
+                    systemImage: "doc.badge.questionmark",
+                    description: Text("This entry no longer exists in the current draft.")
+                )
+                .onAppear {
+                    dismiss()
                 }
             }
         }
-        .navigationTitle(entry.title)
-        .navigationBarTitleDisplayMode(.inline)
     }
 }
 

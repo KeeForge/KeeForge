@@ -1,91 +1,161 @@
 import SwiftUI
 
 struct GroupListView: View {
-    let group: KPGroup
+    struct PendingEntryDeletion: Identifiable {
+        let entryID: UUID
+        let sendToRecycleBin: Bool
+
+        var id: String {
+            "\(entryID.uuidString)-\(sendToRecycleBin)"
+        }
+    }
+
+    let groupID: UUID
     @Bindable var viewModel: DatabaseViewModel
     @State private var showSettings = false
+    @State private var activeEditor: EntryEditViewModel?
+    @State private var pendingEntryDeletion: PendingEntryDeletion?
+
+    private var resolvedGroup: KPGroup? {
+        viewModel.group(withID: groupID)
+    }
 
     private var visibleGroups: [KPGroup] {
-        let recycleBinID = viewModel.rootGroup?.recycleBinUUID
-        if let recycleBinID {
-            return group.groups.filter { $0.id != recycleBinID }
-        }
-        return group.groups
+        resolvedGroup?.groups ?? []
+    }
+
+    private var visibleEntries: [KPEntry] {
+        resolvedGroup?.entries ?? []
     }
 
     var body: some View {
         Group {
             if viewModel.searchText.isEmpty {
-                List {
-                    if !visibleGroups.isEmpty {
-                        Section("Groups") {
-                            ForEach(viewModel.sortedGroups(visibleGroups)) { subgroup in
-                                NavigationLink(value: subgroup) {
-                                    GroupRow(group: subgroup)
+                if let resolvedGroup {
+                    List {
+                        if !visibleGroups.isEmpty {
+                            Section("Groups") {
+                                ForEach(viewModel.sortedGroups(visibleGroups)) { subgroup in
+                                    NavigationLink(value: subgroup) {
+                                        GroupRow(group: subgroup)
+                                    }
+                                    .accessibilityIdentifier("group.navlink")
                                 }
-                                .accessibilityIdentifier("group.navlink")
                             }
                         }
-                    }
 
-                    if !group.entries.isEmpty {
-                        Section("Entries") {
-                            ForEach(viewModel.sortedEntries(group.entries)) { entry in
-                                NavigationLink(value: entry) {
-                                    EntryRow(entry: entry)
-                                }
-                                .accessibilityIdentifier("entry.navlink")
-                            }
-                        }
-                    }
-
-                    if visibleGroups.isEmpty && group.entries.isEmpty {
-                        ContentUnavailableView(
-                            "Empty Group",
-                            systemImage: "folder",
-                            description: Text("This group has no entries.")
-                        )
-                    }
-                }
-                .navigationTitle(group.name)
-                .navigationBarTitleDisplayMode(.large)
-                .toolbar {
-                    ToolbarItem(placement: .topBarTrailing) {
-                        HStack(spacing: 12) {
-                            Button {
-                                viewModel.lock(manuallyTriggered: true)
-                            } label: {
-                                Image(systemName: "lock")
-                            }
-                            .accessibilityIdentifier("lock.button")
-
-                            Menu {
-                                Picker("Sort By", selection: $viewModel.sortOrder) {
-                                    ForEach(DatabaseViewModel.SortOrder.allCases, id: \.self) { order in
-                                        Text(order.rawValue).tag(order)
+                        if !visibleEntries.isEmpty {
+                            Section("Entries") {
+                                ForEach(viewModel.sortedEntries(visibleEntries)) { entry in
+                                    NavigationLink(value: entry) {
+                                        EntryRow(entry: entry)
+                                    }
+                                    .accessibilityIdentifier("entry.navlink")
+                                    .contextMenu {
+                                        if viewModel.isReadOnly == false {
+                                            Button("Delete Permanently", role: .destructive) {
+                                                pendingEntryDeletion = PendingEntryDeletion(
+                                                    entryID: entry.id,
+                                                    sendToRecycleBin: false
+                                                )
+                                            }
+                                            .accessibilityIdentifier("entry-row.delete-permanent")
+                                        }
+                                    }
+                                    .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                                        if viewModel.isReadOnly == false {
+                                            Button("Delete", role: .destructive) {
+                                                pendingEntryDeletion = PendingEntryDeletion(
+                                                    entryID: entry.id,
+                                                    sendToRecycleBin: true
+                                                )
+                                            }
+                                            .accessibilityIdentifier("entry-row.delete-swipe")
+                                        }
                                     }
                                 }
-
-                                Picker("Sort Direction", selection: $viewModel.sortAscending) {
-                                    Text("Ascending").tag(true)
-                                    Text("Descending").tag(false)
-                                }
-                            } label: {
-                                Image(systemName: "arrow.up.arrow.down")
                             }
-                            .accessibilityIdentifier("sort.menu")
+                        }
 
-                            Button {
-                                showSettings = true
-                            } label: {
-                                Image(systemName: "gearshape")
-                            }
-                            .accessibilityIdentifier("settings.button")
+                        if visibleGroups.isEmpty && visibleEntries.isEmpty {
+                            ContentUnavailableView(
+                                "Empty Group",
+                                systemImage: "folder",
+                                description: Text("This group has no entries.")
+                            )
                         }
                     }
-                }
-                .sheet(isPresented: $showSettings) {
-                    SettingsView(viewModel: viewModel)
+                    .navigationTitle(resolvedGroup.name)
+                    .navigationBarTitleDisplayMode(.large)
+                    .toolbar {
+                        ToolbarItem(placement: .topBarTrailing) {
+                            HStack(spacing: 12) {
+                                if viewModel.isReadOnly == false {
+                                    Button {
+                                        Task {
+                                            let result = await viewModel.acknowledgeEditingIfNeeded()
+                                            guard result == .acknowledged else { return }
+                                            activeEditor = EntryEditViewModel(createIn: resolvedGroup.id)
+                                        }
+                                    } label: {
+                                        Image(systemName: "plus")
+                                    }
+                                    .accessibilityIdentifier("entry-list.add-entry")
+                                }
+
+                                Button {
+                                    viewModel.lockRequest(manuallyTriggered: true)
+                                } label: {
+                                    Image(systemName: "lock")
+                                }
+                                .accessibilityIdentifier("lock.button")
+
+                                Menu {
+                                    Picker("Sort By", selection: $viewModel.sortOrder) {
+                                        ForEach(DatabaseViewModel.SortOrder.allCases, id: \.self) { order in
+                                            Text(order.rawValue).tag(order)
+                                        }
+                                    }
+
+                                    Picker("Sort Direction", selection: $viewModel.sortAscending) {
+                                        Text("Ascending").tag(true)
+                                        Text("Descending").tag(false)
+                                    }
+                                } label: {
+                                    Image(systemName: "arrow.up.arrow.down")
+                                }
+                                .accessibilityIdentifier("sort.menu")
+
+                                Button {
+                                    showSettings = true
+                                } label: {
+                                    Image(systemName: "gearshape")
+                                }
+                                .accessibilityIdentifier("settings.button")
+                            }
+                        }
+                    }
+                    .sheet(isPresented: $showSettings) {
+                        SettingsView(viewModel: viewModel)
+                    }
+                    .alert(item: $pendingEntryDeletion) { action in
+                        Alert(
+                            title: Text(action.sendToRecycleBin ? "Delete Entry?" : "Delete Permanently?"),
+                            message: Text(action.sendToRecycleBin
+                                ? "The entry will be moved to the recycle bin."
+                                : "This entry will be removed immediately and cannot be restored from KeeForge."),
+                            primaryButton: .destructive(Text(action.sendToRecycleBin ? "Delete" : "Delete Permanently")) {
+                                try? viewModel.deleteEntry(action.entryID, sendToRecycleBin: action.sendToRecycleBin)
+                            },
+                            secondaryButton: .cancel()
+                        )
+                    }
+                } else {
+                    ContentUnavailableView(
+                        "Group Unavailable",
+                        systemImage: "folder.badge.questionmark",
+                        description: Text("This group no longer exists in the current draft.")
+                    )
                 }
             } else {
                 SearchView(viewModel: viewModel)
@@ -96,6 +166,14 @@ struct GroupListView: View {
             placement: .navigationBarDrawer(displayMode: .always),
             prompt: "Search entries"
         )
+        .navigationDestination(item: $activeEditor) { formViewModel in
+            EntryEditView(
+                formViewModel: formViewModel,
+                databaseViewModel: viewModel
+            ) { _ in
+                activeEditor = nil
+            }
+        }
     }
 }
 

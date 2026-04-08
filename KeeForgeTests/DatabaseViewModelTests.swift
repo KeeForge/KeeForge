@@ -411,6 +411,141 @@ final class DatabaseViewModelTests: XCTestCase {
         XCTAssertNotNil(vm.draft)
     }
 
+    func testSaveAsConflictCopyLocalWritesSiblingFileClearsConflict() async throws {
+        let conflictBytes = Data("conflict-copy".utf8)
+        let fixedDate = Date(timeIntervalSince1970: 1_775_603_700)
+        let recorder = ConflictCopyRecorder()
+        let vm = try makeViewModel(
+            localSaveOperation: { _, _, _, _ in
+                .conflict(remoteSHA512: Data("remote".utf8), remoteData: Data("remote-data".utf8))
+            },
+            conflictCopyEncryptionOperation: { _, _, _ in
+                conflictBytes
+            },
+            localConflictCopyOperation: { _, filename, bytes in
+                await recorder.record(filename: filename, bytes: bytes)
+            },
+            conflictCopyDateProvider: { fixedDate }
+        )
+
+        await vm.unlock(password: fixturePassword)
+        vm.draft = try makeDirtyDraft(from: vm, entryTitle: "Conflict Copy Entry")
+        try await vm.save()
+
+        try await vm.saveAsConflictCopy()
+
+        let recordedCall = await recorder.firstCall()
+        let call = try XCTUnwrap(recordedCall)
+        XCTAssertEqual(
+            call.filename,
+            expectedConflictFilename(originalFilename: "test.kdbx", date: fixedDate)
+        )
+        XCTAssertEqual(call.bytes, conflictBytes)
+        XCTAssertNil(vm.draft)
+        XCTAssertNil(vm.saveConflict)
+    }
+
+    func testSaveAsConflictCopyCloudUploadsSuffixedFileClearsConflict() async throws {
+        let conflictBytes = Data("cloud-conflict-copy".utf8)
+        let fixedDate = Date(timeIntervalSince1970: 1_775_603_700)
+        let recorder = ConflictCopyRecorder()
+        let reference = makeCloudReference(remoteRev: "rev-A")
+        let fixtureData = try Data(contentsOf: fixtureURL())
+        let vm = try makeViewModel(
+            reference: reference,
+            cloudSyncOperation: { reference, _ in
+                CloudSyncResolution(
+                    reference: reference,
+                    localURL: DatabaseListStore.cacheLocation(for: reference),
+                    data: fixtureData,
+                    status: .current
+                )
+            },
+            cloudSaveOperation: { _, _, _, _, _ in
+                .conflict(remoteSHA512: Data("remote".utf8), remoteData: Data("remote-data".utf8))
+            },
+            conflictCopyEncryptionOperation: { _, _, _ in
+                conflictBytes
+            },
+            cloudConflictCopyOperation: { _, fileID, bytes in
+                await recorder.record(filename: fileID, bytes: bytes)
+            },
+            conflictCopyDateProvider: { fixedDate }
+        )
+
+        await vm.unlock(password: fixturePassword)
+        vm.draft = try makeDirtyDraft(from: vm, entryTitle: "Cloud Conflict Copy Entry")
+        try await vm.save()
+
+        try await vm.saveAsConflictCopy()
+
+        let recordedCall = await recorder.firstCall()
+        let call = try XCTUnwrap(recordedCall)
+        XCTAssertEqual(
+            call.filename,
+            "/Vaults/\(expectedConflictFilename(originalFilename: "vault.kdbx", date: fixedDate))"
+        )
+        XCTAssertEqual(call.bytes, conflictBytes)
+        XCTAssertNil(vm.draft)
+        XCTAssertNil(vm.saveConflict)
+    }
+
+    func testReloadDiscardingDraftReplacesRootWithFreshTreeFromDiskClearsDraft() async throws {
+        let vm = try makeViewModel(
+            localSaveOperation: { _, _, _, _ in
+                .conflict(remoteSHA512: Data("remote".utf8), remoteData: Data("remote-data".utf8))
+            },
+            reloadOperation: { reference, _ in
+                var updatedReference = reference
+                updatedReference.nickname = "Reloaded"
+                return DatabaseViewModel.ReloadedDatabase(
+                    reference: updatedReference,
+                    rootGroup: KPGroup(name: "Reloaded Root", entries: [KPEntry(title: "Reloaded Entry")]),
+                    meta: KPMeta(),
+                    sessionKey: SymmetricKey(size: .bits256),
+                    openTimeSHA512: Data("reloaded-hash".utf8)
+                )
+            }
+        )
+
+        await vm.unlock(password: fixturePassword)
+        vm.draft = try makeDirtyDraft(from: vm, entryTitle: "Unsaved")
+        try await vm.save()
+        vm.searchText = "discord"
+        vm.navigationPath.append("detail")
+
+        try await vm.reloadDiscardingDraft()
+
+        XCTAssertEqual(vm.rootGroup?.name, "Reloaded Root")
+        XCTAssertEqual(vm.rootGroup?.allEntries.map(\.title), ["Reloaded Entry"])
+        XCTAssertEqual(vm.databaseReference.nickname, "Reloaded")
+        XCTAssertEqual(vm.openTimeSHA512, Data("reloaded-hash".utf8))
+        XCTAssertNil(vm.draft)
+        XCTAssertNil(vm.saveConflict)
+        XCTAssertTrue(vm.navigationPath.isEmpty)
+        XCTAssertEqual(vm.searchText, "")
+        XCTAssertState(vm.state, is: .unlocked)
+    }
+
+    func testLockWhileDirtyRequiresExplicitConfirmation() async throws {
+        let vm = try makeViewModel()
+
+        await vm.unlock(password: fixturePassword)
+        vm.draft = try makeDirtyDraft(from: vm, entryTitle: "Unsaved Entry")
+
+        vm.lockRequest()
+
+        XCTAssertState(vm.state, is: .unlocked)
+        XCTAssertNotNil(vm.draft)
+        XCTAssertEqual(vm.pendingLockRequest, .init(manuallyTriggered: false))
+
+        vm.lockRequest(force: true)
+
+        XCTAssertState(vm.state, is: .locked)
+        XCTAssertNil(vm.draft)
+        XCTAssertNil(vm.pendingLockRequest)
+    }
+
     func testAcknowledgeEditingIfNeededLocalUnsyncedReturnsAcknowledgedImmediately() async throws {
         var reference = try makeReference()
         reference.bookmarkData = nil
@@ -516,12 +651,87 @@ final class DatabaseViewModelTests: XCTestCase {
                 expectedRev: expectedRev
             )
         },
+        conflictCopyEncryptionOperation: @escaping DatabaseViewModel.ConflictCopyEncryptionOperation = { draft, compositeKey, sourceData in
+            try await Task.detached {
+                let parsed = try KDBXParser.parseWithMetaAndHeader(
+                    data: sourceData,
+                    compositeKey: compositeKey,
+                    sessionKey: SymmetricKey(size: .bits256)
+                )
+                return try KDBXWriter.write(
+                    rootGroup: draft.rootGroup,
+                    meta: draft.meta,
+                    compositeKey: compositeKey,
+                    header: parsed.header,
+                    sessionKey: draft.writerSessionKey
+                )
+            }.value
+        },
+        localConflictCopyOperation: @escaping DatabaseViewModel.LocalConflictCopyOperation = { reference, filename, bytes in
+            try await Task.detached {
+                let originalURL = DatabaseListStore.resolveDatabaseURL(for: reference) ?? DatabaseListStore.cacheLocation(for: reference)
+                let destinationURL = originalURL.deletingLastPathComponent().appendingPathComponent(filename)
+                try CoordinatedFileReader.writeData(
+                    bytes,
+                    to: destinationURL,
+                    options: [.atomic, .completeFileProtection]
+                )
+            }.value
+        },
+        cloudConflictCopyOperation: @escaping DatabaseViewModel.CloudConflictCopyOperation = { reference, fileID, bytes in
+            guard let metadata = reference.cloudSyncMetadata,
+                  let provider = CloudProviderRegistry.provider(for: metadata.provider) else {
+                throw CloudProviderError.notAuthenticated
+            }
+
+            _ = try await provider.upload(
+                accountId: metadata.accountId,
+                fileId: fileID,
+                data: bytes,
+                expectedRev: nil,
+                progress: { _ in }
+            )
+        },
+        reloadOperation: @escaping DatabaseViewModel.ReloadOperation = { reference, compositeKey in
+            let data: Data
+            let updatedReference: DatabaseReference
+
+            if reference.isCloudBacked {
+                let resolution = try await CloudSyncCoordinator.syncIfNeededForOpen(reference: reference)
+                data = resolution.data
+                updatedReference = resolution.reference
+            } else {
+                guard let url = DatabaseListStore.resolveDatabaseURL(for: reference) ?? DatabaseListStore.cachedDatabaseURL(for: reference) else {
+                    throw SaveError.databaseLocationUnavailable
+                }
+                data = try Data(contentsOf: url)
+                updatedReference = reference
+            }
+
+            let sessionKey = SymmetricKey(size: .bits256)
+            let parsed = try await Task.detached {
+                try KDBXParser.parseWithMeta(
+                    data: data,
+                    compositeKey: compositeKey,
+                    sessionKey: sessionKey
+                )
+            }.value
+
+            return DatabaseViewModel.ReloadedDatabase(
+                reference: updatedReference,
+                rootGroup: parsed.rootGroup,
+                meta: parsed.meta,
+                sessionKey: sessionKey,
+                openTimeSHA512: KDBXCrypto.sha512(data)
+            )
+        },
         syncedFolderDetector: @escaping DatabaseViewModel.SyncedFolderDetectionOperation = { _ in
             .notSynced
         },
         syncedFolderWarningHandler: @escaping DatabaseViewModel.SyncedFolderWarningHandler = { _ in
             .continueEditing
-        }
+        },
+        conflictCopyDateProvider: @escaping @Sendable () -> Date = { .now }
     ) throws -> DatabaseViewModel {
         let resolvedReference = if let reference {
             reference
@@ -534,8 +744,13 @@ final class DatabaseViewModelTests: XCTestCase {
             cloudSyncOperation: cloudSyncOperation,
             localSaveOperation: localSaveOperation,
             cloudSaveOperation: cloudSaveOperation,
+            conflictCopyEncryptionOperation: conflictCopyEncryptionOperation,
+            localConflictCopyOperation: localConflictCopyOperation,
+            cloudConflictCopyOperation: cloudConflictCopyOperation,
+            reloadOperation: reloadOperation,
             syncedFolderDetector: syncedFolderDetector,
-            syncedFolderWarningHandler: syncedFolderWarningHandler
+            syncedFolderWarningHandler: syncedFolderWarningHandler,
+            conflictCopyDateProvider: conflictCopyDateProvider
         )
     }
 
@@ -627,6 +842,22 @@ final class DatabaseViewModelTests: XCTestCase {
         return prefix.uppercased()
     }
 
+    private func expectedConflictFilename(originalFilename: String, date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.calendar = Calendar(identifier: .gregorian)
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = .current
+        formatter.dateFormat = "yyyy-MM-dd HHmm"
+
+        let stem = (originalFilename as NSString).deletingPathExtension
+        let ext = (originalFilename as NSString).pathExtension
+        let suffix = " (conflict \(formatter.string(from: date)))"
+        if ext.isEmpty {
+            return stem + suffix
+        }
+        return "\(stem)\(suffix).\(ext)"
+    }
+
     private func XCTAssertState(_ state: DatabaseViewModel.State, is expected: ExpectedState, file: StaticString = #filePath, line: UInt = #line) {
         switch (state, expected) {
         case (.locked, .locked), (.unlocking, .unlocking), (.unlocked, .unlocked):
@@ -689,6 +920,18 @@ private final class CallTracker: @unchecked Sendable {
         lock.lock()
         callCount += 1
         lock.unlock()
+    }
+}
+
+private actor ConflictCopyRecorder {
+    private var calls: [(filename: String, bytes: Data)] = []
+
+    func record(filename: String, bytes: Data) {
+        calls.append((filename, bytes))
+    }
+
+    func firstCall() -> (filename: String, bytes: Data)? {
+        calls.first
     }
 }
 

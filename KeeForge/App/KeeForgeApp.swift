@@ -1,4 +1,6 @@
+import AuthenticationServices
 import SwiftUI
+import UIKit
 
 @main
 struct KeeForgeApp: App {
@@ -24,7 +26,7 @@ struct KeeForgeApp: App {
                     break
                 case .background:
                     screenProtectionService.showShield()
-                    activeDatabaseViewModel?.lock()
+                    activeDatabaseViewModel?.lockRequest()
                 @unknown default:
                     screenProtectionService.showShield()
                 }
@@ -236,12 +238,14 @@ private struct LaunchRoutingView: View {
 
 struct DatabaseNavigationView: View {
     @Bindable var viewModel: DatabaseViewModel
+    @State private var presentedSaveError: DatabaseSaveError?
+    @State private var isDropboxReconnectInFlight = false
 
     var body: some View {
         NavigationStack(path: $viewModel.navigationPath) {
             Group {
-                if let root = viewModel.rootGroup {
-                    GroupListView(group: root, viewModel: viewModel)
+                if let root = viewModel.currentRootGroup {
+                    GroupListView(groupID: root.id, viewModel: viewModel)
                 } else {
                     ContentUnavailableView(
                         "Vault Not Loaded",
@@ -251,22 +255,205 @@ struct DatabaseNavigationView: View {
                 }
             }
             .navigationDestination(for: KPGroup.self) { group in
-                GroupListView(group: group, viewModel: viewModel)
+                GroupListView(groupID: group.id, viewModel: viewModel)
             }
             .navigationDestination(for: KPEntry.self) { entry in
-                EntryDetailView(entry: entry, sessionKey: viewModel.sessionKey!)
+                EntryDetailView(entryID: entry.id, viewModel: viewModel)
+            }
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    DatabaseSaveToolbarButton(viewModel: viewModel)
+                }
             }
             .safeAreaInset(edge: .top, spacing: 0) {
-                if let bannerText = viewModel.cloudSyncBannerText {
-                    Label(bannerText, systemImage: "icloud")
-                        .font(.caption.weight(.medium))
-                        .foregroundStyle(.orange)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 10)
-                        .background(Color.orange.opacity(0.12))
+                VStack(spacing: 8) {
+                    if let bannerText = viewModel.cloudSyncBannerText {
+                        BannerLabel(
+                            text: bannerText,
+                            systemImage: "icloud",
+                            foregroundStyle: .orange,
+                            backgroundColor: Color.orange.opacity(0.12)
+                        )
+                    }
+
+                    if viewModel.saveError?.isWriteScopeRequired == true {
+                        CloudReauthBanner(
+                            isReconnectInFlight: isDropboxReconnectInFlight,
+                            onReconnect: beginDropboxReconnect
+                        )
+                    }
+
+                    if viewModel.isDirty {
+                        UnsavedChangesBanner()
+                    }
+
+                    if viewModel.isReadOnly {
+                        ReadOnlyRibbon()
+                    }
                 }
             }
         }
+        .saveConflictAlert(viewModel: viewModel)
+        .onChange(of: viewModel.saveError) { _, newValue in
+            if let newValue {
+                presentedSaveError = newValue
+            }
+        }
+        .alert(item: $presentedSaveError) { error in
+            Alert(
+                title: Text("Couldn't Save Database"),
+                message: Text(error.localizedDescription),
+                dismissButton: .default(Text("OK"))
+            )
+        }
+        .alert(
+            "Lock and discard unsaved changes?",
+            isPresented: Binding(
+                get: { viewModel.pendingLockRequest != nil },
+                set: { isPresented in
+                    if isPresented == false {
+                        viewModel.cancelLockRequest()
+                    }
+                }
+            )
+        ) {
+            Button("Lock and Discard", role: .destructive) {
+                let manuallyTriggered = viewModel.pendingLockRequest?.manuallyTriggered ?? false
+                viewModel.lockRequest(force: true, manuallyTriggered: manuallyTriggered)
+            }
+            Button("Keep Editing", role: .cancel) {
+                viewModel.cancelLockRequest()
+            }
+        } message: {
+            Text("Your unsaved entry changes will be lost.")
+        }
+    }
+
+    @MainActor
+    private func beginDropboxReconnect() {
+        guard isDropboxReconnectInFlight == false else { return }
+        guard let provider = CloudProviderRegistry.provider(for: CloudProviderKind.dropbox.rawValue) else {
+            viewModel.presentSaveError(CloudProviderError.invalidConfiguration)
+            return
+        }
+
+        isDropboxReconnectInFlight = true
+        Task { @MainActor in
+            defer { isDropboxReconnectInFlight = false }
+
+            do {
+                _ = try await provider.authenticate(from: presentationAnchor())
+                viewModel.clearSaveError()
+            } catch let error as CloudProviderError where error == .authenticationCancelled {
+                return
+            } catch {
+                viewModel.presentSaveError(error)
+            }
+        }
+    }
+
+    @MainActor
+    private func presentationAnchor() -> ASPresentationAnchor {
+        let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
+        if let window = scenes.flatMap(\.windows).first(where: \.isKeyWindow) {
+            return window
+        }
+        return ASPresentationAnchor()
+    }
+}
+
+private struct DatabaseSaveToolbarButton: View {
+    @Bindable var viewModel: DatabaseViewModel
+
+    var body: some View {
+        Button {
+            Task {
+                await viewModel.saveHandlingError()
+            }
+        } label: {
+            if viewModel.isSaving {
+                ProgressView()
+                    .controlSize(.small)
+                    .frame(width: 24, height: 24)
+            } else {
+                Image(systemName: "square.and.arrow.down")
+            }
+        }
+        .disabled(viewModel.isDirty == false || viewModel.isSaving)
+        .accessibilityIdentifier("database.save")
+    }
+}
+
+private struct ReadOnlyRibbon: View {
+    var body: some View {
+        Text("Read-only mode — toggle in the database list to enable editing.")
+            .font(.caption.weight(.medium))
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 8)
+            .background(Color.yellow.opacity(0.18))
+            .accessibilityIdentifier("database.read-only-ribbon")
+    }
+}
+
+private struct UnsavedChangesBanner: View {
+    var body: some View {
+        HStack(spacing: 8) {
+            Circle()
+                .fill(Color.orange)
+                .frame(width: 8, height: 8)
+            Text("Unsaved changes")
+                .font(.caption.weight(.medium))
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 8)
+        .background(Color.orange.opacity(0.12))
+        .accessibilityIdentifier("database.unsaved-indicator")
+    }
+}
+
+private struct CloudReauthBanner: View {
+    let isReconnectInFlight: Bool
+    let onReconnect: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Reconnect Dropbox to save changes.")
+                .font(.subheadline.weight(.semibold))
+            Button("Reconnect Dropbox", action: onReconnect)
+                .buttonStyle(.borderedProminent)
+                .disabled(isReconnectInFlight)
+                .accessibilityIdentifier("cloud-reauth-banner.reconnect")
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(16)
+        .background(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .fill(Color(.secondarySystemBackground))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .stroke(Color(.separator), lineWidth: 0.5)
+        )
+        .padding(.horizontal, 12)
+        .accessibilityIdentifier("cloud-reauth-banner")
+    }
+}
+
+private struct BannerLabel: View {
+    let text: String
+    let systemImage: String
+    let foregroundStyle: Color
+    let backgroundColor: Color
+
+    var body: some View {
+        Label(text, systemImage: systemImage)
+            .font(.caption.weight(.medium))
+            .foregroundStyle(foregroundStyle)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 10)
+            .background(backgroundColor)
     }
 }

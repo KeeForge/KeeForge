@@ -11,6 +11,7 @@ Use this document for UI test methodology. Repo-wide build and test policy stays
 - `BackoffUITests` — failed-unlock backoff behavior
 - `LockUnlockUITests` — lock cycle coverage
 - `UnlockedDatabaseUITests` — post-unlock navigation, entry detail, search, sort, settings
+- `EntryEditUITests` — create/edit/delete entry flows, password generation, conflict handling, lock/discard prompts, and read-only editing affordances
 - `KeyFileUITests` — key file selection and picker flows
 - `KeyFileUnlockUITests` — unlocking with a key file
 - `AppStoreScreenshots` — screenshot capture flow using demo fixtures
@@ -39,6 +40,11 @@ xcodebuild test -project KeeForge.xcodeproj -scheme KeeForge \
 xcodebuild test -project KeeForge.xcodeproj -scheme KeeForge \
   -destination 'platform=iOS Simulator,name=iPhone 17 Pro' \
   -only-testing:KeeForgeUITests/KeyFileUnlockUITests -quiet
+
+# Entry editing slice
+xcodebuild test -project KeeForge.xcodeproj -scheme KeeForge \
+  -destination 'platform=iOS Simulator,name=iPhone 17 Pro' \
+  -only-testing:KeeForgeUITests/EntryEditUITests -quiet
 ```
 
 Do not run the full UI suite unless explicitly asked. It is slow and makes failures harder to isolate.

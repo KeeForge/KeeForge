@@ -178,7 +178,15 @@ enum LocalDatabaseSaver {
             }
         }
 
-        let currentData = try environment.readData(location.url)
+        var currentData = try environment.readData(location.url)
+        if let conflictSequence = DatabaseListStore.consumeUITestLocalSaveConflictSequence() {
+            currentData = try makeUITestConflictData(
+                from: currentData,
+                compositeKey: compositeKey,
+                sequence: conflictSequence
+            )
+            try environment.replaceFileAtomically(currentData, location.url)
+        }
         let currentSHA512 = KDBXCrypto.sha512(currentData)
         guard currentSHA512 == openTimeSHA512 else {
             return .conflict(remoteSHA512: currentSHA512, remoteData: currentData)
@@ -231,6 +239,32 @@ enum LocalDatabaseSaver {
             components.minute ?? 0,
             components.second ?? 0,
             microseconds
+        )
+    }
+
+    private static func makeUITestConflictData(
+        from data: Data,
+        compositeKey: Data,
+        sequence: Int
+    ) throws -> Data {
+        let sessionKey = SymmetricKey(size: .bits256)
+        let parsed = try KDBXParser.parseWithMetaAndHeader(
+            data: data,
+            compositeKey: compositeKey,
+            sessionKey: sessionKey
+        )
+        parsed.rootGroup.entries.append(
+            KPEntry(
+                title: "UI Test Conflict \(sequence)",
+                notes: "Injected save conflict \(sequence)"
+            )
+        )
+        return try KDBXWriter.write(
+            rootGroup: parsed.rootGroup,
+            meta: parsed.meta,
+            compositeKey: compositeKey,
+            header: parsed.header,
+            sessionKey: sessionKey
         )
     }
 

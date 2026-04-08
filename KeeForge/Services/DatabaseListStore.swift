@@ -14,6 +14,7 @@ enum DatabaseListStore {
     private static let uiTestDatabasesJSONEnv = "UI_TEST_DATABASES_JSON"
     private static let uiTestCloudDatabasesJSONEnv = "UI_TEST_CLOUD_DATABASES_JSON"
     private static let uiTestCloudAccountsJSONEnv = "UI_TEST_CLOUD_ACCOUNTS_JSON"
+    private static let uiTestLocalSaveConflictCountEnv = "UI_TEST_LOCAL_SAVE_CONFLICT_COUNT"
     private static let cloudAccountsStorageKey = "KeeForge.cloudAccounts"
 
     private static var sharedDefaults: UserDefaults {
@@ -30,6 +31,8 @@ enum DatabaseListStore {
     }
 
     private nonisolated(unsafe) static var didBootstrapUITesting = false
+    private nonisolated(unsafe) static var remainingUITestLocalSaveConflicts: Int?
+    private nonisolated(unsafe) static var consumedUITestLocalSaveConflicts = 0
 
     private struct UITestDatabasePayload: Decodable {
         let filename: String
@@ -345,6 +348,27 @@ enum DatabaseListStore {
         try? FileManager.default.removeItem(at: backupsRootURL)
         activeAutoFillDatabaseID = nil
         sharedDefaults.removeObject(forKey: migrationVersionKey)
+        remainingUITestLocalSaveConflicts = nil
+        consumedUITestLocalSaveConflicts = 0
+    }
+
+    static func consumeUITestLocalSaveConflictSequence() -> Int? {
+        guard ProcessInfo.processInfo.arguments.contains(uiTestingLaunchArg) else {
+            return nil
+        }
+
+        if remainingUITestLocalSaveConflicts == nil {
+            let rawValue = ProcessInfo.processInfo.environment[uiTestLocalSaveConflictCountEnv] ?? ""
+            remainingUITestLocalSaveConflicts = max(0, Int(rawValue) ?? 0)
+        }
+
+        guard let remainingUITestLocalSaveConflicts, remainingUITestLocalSaveConflicts > 0 else {
+            return nil
+        }
+
+        consumedUITestLocalSaveConflicts += 1
+        self.remainingUITestLocalSaveConflicts = remainingUITestLocalSaveConflicts - 1
+        return consumedUITestLocalSaveConflicts
     }
 
     static func pruneBackups(for reference: DatabaseReference, keeping count: Int) throws {
