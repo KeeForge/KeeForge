@@ -4,14 +4,14 @@ Open this folder when the code alone is not enough and you need the longer-form 
 
 ## Good Starting Points
 
-- `CLOUD_SYNC_SPEC.md` and `MULTI_DATABASE_SPEC.md` — database list, cloud-backed databases, and sync behavior.
+- `specs/cloud-file-autofill.md` — AutoFill behavior for cloud-hosted databases.
+- `specs/cloud-sync.md` and `specs/multi-database.md` — database list, cloud-backed databases, and sync behavior.
 - `specs/edit-support/epic.md` plus `specs/edit-support/01-xml-round-trip.md` through `07-autofill-save.md` — staged write-path design for XML round-trip, KDBX writing, draft/save flow, and pending cloud/UI/AutoFill work.
-- `CLOUD_FILE_AUTOFILL_RESEARCH.md` — AutoFill behavior for cloud-hosted databases.
-- `KEY_FILE_IMPLEMENTATION.md` — supported key-file formats and implementation notes.
-- `PASSKEY_IMPLEMENTATION.md` — passkey storage and signing behavior.
-- `TOTP_AUTOFILL_PLAN.md` — TOTP-related implementation direction.
-- `favicon-spec.md` — website icon fetching and caching.
-- `SECURITY_AUDIT.md` and `SECURITY_AUDIT_CODEX.md` — security review context and follow-up items.
+- `specs/favicon.md` — website icon fetching and caching.
+- `specs/key-file.md` — supported key-file formats and implementation notes.
+- `specs/passkey.md` — passkey storage and signing behavior.
+- `specs/totp-autofill.md` — TOTP-related implementation direction.
+- `audits/2026-02-26-security-audit-claude.md` and `audits/2026-03-03-security-audit-codex.md` — security review context and follow-up items.
 - `privacy-policy.md` — user-facing privacy guarantees that code changes should not contradict.
 
 ## Guidance
