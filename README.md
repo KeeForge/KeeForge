@@ -1,6 +1,6 @@
 # KeeForge
 
-[![Swift LoC](https://img.shields.io/tokei/lines/github/crazytan/KeeForge)](https://github.com/crazytan/KeeForge)
+[![Swift LoC](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fapi.codetabs.com%2Fv1%2Floc%3Fgithub%3Dcrazytan%2FKeeForge&query=%24%5B0%5D.linesOfCode&label=swift%20loc&color=orange)](https://github.com/crazytan/KeeForge)
 
 A free, native iOS KeePass password manager built with SwiftUI. Read-only in v1 — open any `.kdbx` (KDBX 4.x) database, browse and search entries, copy credentials, and autofill into apps and Safari.
 
