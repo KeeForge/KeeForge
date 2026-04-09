@@ -3,7 +3,6 @@
 ### TODO
 - [ ] Support more cloud sync providers: Google Drive, OneDrive, WebDAV, etc.
 - [ ] iPad-native layout
-- [ ] Editing support (create/modify entries)
 - [ ] Passkey creation (Phase 3 — requires KDBX write support)
 - [ ] Sync / attachments
 
