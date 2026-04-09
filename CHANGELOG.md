@@ -24,6 +24,7 @@
 
 ### Changes
 - Pending AutoFill uploads now live in the shared App Group cache/queue and are cleared if the app is uninstalled or reinstalled.
+- Add SwiftyDropbox to the Acknowledgments screen.
 
 ## v1.7.0 (2026-04-05)
 
