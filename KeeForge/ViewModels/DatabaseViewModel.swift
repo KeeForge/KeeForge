@@ -592,6 +592,7 @@ final class DatabaseViewModel {
             saveConflict = nil
             saveError = nil
             refreshDatabaseReference()
+            populateCredentialStoreIfNeeded(root: draft.rootGroup)
         case .conflict(let remoteSHA512, let remoteData):
             saveConflict = SaveConflict(
                 remoteSHA512: remoteSHA512,

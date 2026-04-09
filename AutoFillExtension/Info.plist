@@ -32,6 +32,12 @@
 				<true/>
 				<key>ProvidesPasswords</key>
 				<true/>
+				<key>SupportsGeneratePasswordCredentials</key>
+				<true/>
+				<key>SupportsGeneratePasswordCredentialsWithUI</key>
+				<true/>
+				<key>SupportsSavePasswordCredentials</key>
+				<true/>
 			</dict>
 		</dict>
 		<key>NSExtensionPointIdentifier</key>

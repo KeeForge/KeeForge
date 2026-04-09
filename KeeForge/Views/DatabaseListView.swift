@@ -142,6 +142,23 @@ struct DatabaseListView: View {
                 dismissButton: .default(Text("OK"))
             )
         }
+        .alert(
+            viewModel.pendingUploadAlert?.title ?? "",
+            isPresented: Binding(
+                get: { viewModel.pendingUploadAlert != nil },
+                set: { isPresented in
+                    if !isPresented {
+                        viewModel.dismissPendingUploadAlert()
+                    }
+                }
+            )
+        ) {
+            Button("OK") {
+                viewModel.dismissPendingUploadAlert()
+            }
+        } message: {
+            Text(viewModel.pendingUploadAlert?.message ?? "")
+        }
         .confirmationDialog(
             "Remove Database?",
             isPresented: Binding(
@@ -300,6 +317,16 @@ struct DatabaseListView: View {
         Button(reference.isQuickLaunch ? "Remove Quick Launch" : "Set Quick Launch") {
             viewModel.toggleQuickLaunch(for: reference)
             refreshDetailsReferenceIfNeeded(for: reference.id)
+        }
+
+        if viewModel.hasPendingUploads(for: reference) {
+            Button("Push pending changes") {
+                Task {
+                    await viewModel.pushPendingChanges(for: currentReference(for: reference))
+                    refreshDetailsReferenceIfNeeded(for: reference.id)
+                }
+            }
+            .accessibilityIdentifier("database-row.push-pending-action")
         }
 
         Toggle(

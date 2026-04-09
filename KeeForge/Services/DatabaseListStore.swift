@@ -181,6 +181,7 @@ enum DatabaseListStore {
 
         try? FileManager.default.removeItem(at: cacheLocation(for: removedReference))
         try? FileManager.default.removeItem(at: databaseBackupDirectoryURL(for: removedReference))
+        try? PendingUploadQueue.removeAllMarkers(for: removedReference.id)
 
         let remainingDatabases = currentDatabases.filter { $0.id != id }
         if activeAutoFillDatabaseID == id {
@@ -346,6 +347,7 @@ enum DatabaseListStore {
         currentDatabases.forEach { remove(id: $0.id) }
         try? FileManager.default.removeItem(at: databaseListURL)
         try? FileManager.default.removeItem(at: backupsRootURL)
+        try? PendingUploadQueue.clearAll()
         activeAutoFillDatabaseID = nil
         sharedDefaults.removeObject(forKey: migrationVersionKey)
         remainingUITestLocalSaveConflicts = nil

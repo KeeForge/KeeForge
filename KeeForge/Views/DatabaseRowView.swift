@@ -32,6 +32,20 @@ struct DatabaseRowView: View {
                             .font(.caption)
                             .foregroundStyle(.orange)
                     }
+
+                    if status.pendingUploadCount > 0 {
+                        Text("Pending \(status.pendingUploadCount)")
+                            .font(.caption2.weight(.semibold))
+                            .foregroundStyle(status.pendingUploadConflictCount > 0 ? .orange : .secondary)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(
+                                (status.pendingUploadConflictCount > 0 ? Color.orange : Color.secondary)
+                                    .opacity(0.12),
+                                in: Capsule()
+                            )
+                            .accessibilityIdentifier("database-row.pending-uploads-badge")
+                    }
                 }
 
                 if let filenameSubtitle {
@@ -56,7 +70,12 @@ struct DatabaseRowView: View {
                             .lineLimit(1)
                     }
 
-                    if let warningText = status.cloudState?.warningText {
+                    if status.pendingUploadConflictCount > 0 {
+                        Text(conflictText)
+                            .font(.caption)
+                            .foregroundStyle(.orange)
+                            .lineLimit(1)
+                    } else if let warningText = status.cloudState?.warningText {
                         Text(warningText)
                             .font(.caption)
                             .foregroundStyle(.orange)
@@ -86,6 +105,13 @@ struct DatabaseRowView: View {
         }
         .padding(.vertical, 4)
         .contentShape(Rectangle())
+    }
+
+    private var conflictText: String {
+        if status.pendingUploadConflictCount == 1 {
+            return "1 pending upload conflict"
+        }
+        return "\(status.pendingUploadConflictCount) pending upload conflicts"
     }
 
     @ViewBuilder

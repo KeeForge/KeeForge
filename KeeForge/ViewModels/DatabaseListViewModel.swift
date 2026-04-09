@@ -4,6 +4,8 @@ struct DatabaseRowStatus: Equatable, Sendable {
     var hasStoredKey: Bool
     var hasAccessIssue: Bool
     var cloudState: CloudRowState?
+    var pendingUploadCount: Int = 0
+    var pendingUploadConflictCount: Int = 0
 }
 
 struct CloudRowState: Equatable, Sendable {
@@ -12,6 +14,23 @@ struct CloudRowState: Equatable, Sendable {
     var warningText: String?
     var displayPath: String
     var accountLabel: String
+}
+
+struct PendingUploadAlert: Identifiable, Equatable, Sendable {
+    enum Kind: Sendable, Equatable {
+        case writeScopeRequired
+        case notAuthenticated
+        case message
+    }
+
+    let databaseId: UUID
+    let kind: Kind
+    let title: String
+    let message: String
+
+    var id: String {
+        "\(databaseId.uuidString)-\(kind)"
+    }
 }
 
 @MainActor @Observable
@@ -25,9 +44,12 @@ final class DatabaseListViewModel {
     private(set) var databases: [DatabaseReference] = []
     private(set) var rowStatuses: [UUID: DatabaseRowStatus] = [:]
     private(set) var shouldShowDropboxWriteScopeUpgradeBanner = false
+    private(set) var pendingUploadAlert: PendingUploadAlert?
     private var didConsumeInitialLaunchSelection = false
+    private let pendingUploadDrainer: PendingUploadDrainer
 
-    init() {
+    init(pendingUploadDrainer: PendingUploadDrainer = PendingUploadDrainer()) {
+        self.pendingUploadDrainer = pendingUploadDrainer
         reload()
     }
 
@@ -126,6 +148,18 @@ final class DatabaseListViewModel {
         status(for: reference).cloudState
     }
 
+    func hasPendingUploads(for reference: DatabaseReference) -> Bool {
+        status(for: reference).pendingUploadCount > 0
+    }
+
+    func pendingUploadCount(for reference: DatabaseReference) -> Int {
+        status(for: reference).pendingUploadCount
+    }
+
+    func hasPendingUploadConflicts(for reference: DatabaseReference) -> Bool {
+        status(for: reference).pendingUploadConflictCount > 0
+    }
+
     func lastOpenedDescription(for reference: DatabaseReference) -> String? {
         guard let lastOpenedAt = reference.lastOpenedAt else { return nil }
         let relative = Self.relativeDateFormatter.localizedString(for: lastOpenedAt, relativeTo: .now)
@@ -142,14 +176,32 @@ final class DatabaseListViewModel {
     nonisolated static func makeRowStatus(
         resolvedURL: URL?,
         hasStoredKey: Bool,
+        pendingUploadCount: Int = 0,
+        pendingUploadConflictCount: Int = 0,
         accessChecker: (URL) -> Bool = defaultAccessChecker
     ) -> DatabaseRowStatus {
         let hasAccessIssue = resolvedURL.map { accessChecker($0) == false } ?? true
         return DatabaseRowStatus(
             hasStoredKey: hasStoredKey,
             hasAccessIssue: hasAccessIssue,
-            cloudState: nil
+            cloudState: nil,
+            pendingUploadCount: pendingUploadCount,
+            pendingUploadConflictCount: pendingUploadConflictCount
         )
+    }
+
+    func drainPendingUploadsOnAppActive() async {
+        let outcome = await pendingUploadDrainer.drainAll()
+        applyDrainOutcome(outcome, surfaceAlerts: false)
+    }
+
+    func pushPendingChanges(for reference: DatabaseReference) async {
+        let outcome = await pendingUploadDrainer.drain(databaseId: reference.id)
+        applyDrainOutcome(outcome, surfaceAlerts: true)
+    }
+
+    func dismissPendingUploadAlert() {
+        pendingUploadAlert = nil
     }
 
     // MARK: - Private
@@ -163,12 +215,25 @@ final class DatabaseListViewModel {
 
     private func refreshRowStatuses() {
         var updatedStatuses: [UUID: DatabaseRowStatus] = [:]
+        let pendingMarkers = PendingUploadQueue.listMarkers()
+        let pendingCounts = Dictionary(
+            pendingMarkers.map { ($0.marker.databaseId, 1) },
+            uniquingKeysWith: +
+        )
+        let pendingConflictCounts = Dictionary(
+            pendingMarkers.compactMap { storedMarker in
+                storedMarker.marker.lastSyncError == nil ? nil : (storedMarker.marker.databaseId, 1)
+            },
+            uniquingKeysWith: +
+        )
 
         for reference in databases {
             let hasStoredKey = KeychainService.hasStoredKey(
                 for: reference.id,
                 legacyFilename: reference.legacyKeychainFilename
             )
+            let pendingUploadCount = pendingCounts[reference.id] ?? 0
+            let pendingUploadConflictCount = pendingConflictCounts[reference.id] ?? 0
 
             if let metadata = reference.cloudSyncMetadata {
                 let isConnected = CloudAccountStore.isConnected(
@@ -190,13 +255,17 @@ final class DatabaseListViewModel {
                         warningText: metadata.warningText(isAuthenticated: isConnected),
                         displayPath: metadata.displayPath,
                         accountLabel: accountLabel
-                    )
+                    ),
+                    pendingUploadCount: pendingUploadCount,
+                    pendingUploadConflictCount: pendingUploadConflictCount
                 )
             } else {
                 let resolvedURL = DatabaseListStore.resolveDatabaseURL(for: reference)
                 updatedStatuses[reference.id] = Self.makeRowStatus(
                     resolvedURL: resolvedURL,
-                    hasStoredKey: hasStoredKey
+                    hasStoredKey: hasStoredKey,
+                    pendingUploadCount: pendingUploadCount,
+                    pendingUploadConflictCount: pendingUploadConflictCount
                 )
             }
         }
@@ -218,6 +287,39 @@ final class DatabaseListViewModel {
 
         shouldShowDropboxWriteScopeUpgradeBanner = needsWriteScopeUpgrade
             && SettingsService.shouldShowDropboxWriteScopeUpgradeBanner()
+    }
+
+    private func applyDrainOutcome(_ outcome: PendingUploadDrainer.DrainOutcome, surfaceAlerts: Bool) {
+        reload()
+
+        guard surfaceAlerts, let issue = outcome.userIssue else { return }
+
+        let alert: PendingUploadAlert
+        switch issue.kind {
+        case .writeScopeRequired:
+            alert = PendingUploadAlert(
+                databaseId: issue.databaseId,
+                kind: .writeScopeRequired,
+                title: "Reconnect Dropbox",
+                message: issue.message
+            )
+        case .notAuthenticated:
+            alert = PendingUploadAlert(
+                databaseId: issue.databaseId,
+                kind: .notAuthenticated,
+                title: "Reconnect Cloud Account",
+                message: issue.message
+            )
+        case .message:
+            alert = PendingUploadAlert(
+                databaseId: issue.databaseId,
+                kind: .message,
+                title: "Couldn't Push Pending Changes",
+                message: issue.message
+            )
+        }
+
+        pendingUploadAlert = alert
     }
 
     nonisolated private static func defaultAccessChecker(_ url: URL) -> Bool {

@@ -3,6 +3,11 @@ import Foundation
 enum CloudDatabaseSaver {
     typealias ProgressHandler = @Sendable (Double) -> Void
 
+    enum PendingUploadPushResult: Sendable, Equatable {
+        case saved(updatedReference: DatabaseReference)
+        case conflict(remoteRev: String?)
+    }
+
     struct Environment: Sendable {
         var beginBackgroundTask: @MainActor @Sendable (String) -> LocalDatabaseSaver.BackgroundTaskHandle
         var endBackgroundTask: @MainActor @Sendable (LocalDatabaseSaver.BackgroundTaskHandle) -> Void
@@ -175,6 +180,46 @@ enum CloudDatabaseSaver {
         }
     }
 
+    static func pushPendingUpload(
+        reference: DatabaseReference,
+        encryptedBytes: Data,
+        expectedRev: String?
+    ) async throws -> PendingUploadPushResult {
+        try await pushPendingUpload(
+            reference: reference,
+            encryptedBytes: encryptedBytes,
+            expectedRev: expectedRev,
+            environment: .live
+        )
+    }
+
+    static func pushPendingUpload(
+        reference: DatabaseReference,
+        encryptedBytes: Data,
+        expectedRev: String?,
+        environment: Environment
+    ) async throws -> PendingUploadPushResult {
+        guard reference.cloudSyncMetadata != nil else {
+            throw SaveError.saveContextUnavailable
+        }
+
+        let backgroundTaskHandle = await environment.beginBackgroundTask("PendingUploadDraining")
+        defer {
+            Task { @MainActor in
+                environment.endBackgroundTask(backgroundTaskHandle)
+            }
+        }
+
+        return try await Task.detached(priority: .utility) {
+            try await pushPendingUploadOffMain(
+                reference: reference,
+                encryptedBytes: encryptedBytes,
+                expectedRev: expectedRev,
+                environment: environment
+            )
+        }.value
+    }
+
     private static func conflictResult(
         reference: DatabaseReference,
         fallbackData: Data,
@@ -185,6 +230,31 @@ enum CloudDatabaseSaver {
             remoteSHA512: KDBXCrypto.sha512(remoteData),
             remoteData: remoteData
         )
+    }
+
+    private static func pushPendingUploadOffMain(
+        reference: DatabaseReference,
+        encryptedBytes: Data,
+        expectedRev: String?,
+        environment: Environment
+    ) async throws -> PendingUploadPushResult {
+        let remoteMetadata = try await environment.getMetadata(reference)
+        if let expectedRev, remoteMetadata.rev != expectedRev {
+            return .conflict(remoteRev: remoteMetadata.rev)
+        }
+
+        do {
+            let uploadedMetadata = try await environment.upload(reference, encryptedBytes, expectedRev, { _ in })
+            let updatedReference = try environment.applyUploadedBytes(reference, encryptedBytes, uploadedMetadata)
+            return .saved(updatedReference: updatedReference)
+        } catch let error as CloudProviderError {
+            switch error {
+            case .conflict(let remoteRev):
+                return .conflict(remoteRev: remoteRev)
+            default:
+                throw error
+            }
+        }
     }
 
     private static func backupFilename(for date: Date) -> String {

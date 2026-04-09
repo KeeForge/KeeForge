@@ -8,7 +8,11 @@ import UIKit
 final class CredentialProviderViewController: ASCredentialProviderViewController {
     private var serviceIdentifiers: [ASCredentialServiceIdentifier] = []
     private var parsedEntries: [KPEntry] = []
+    private var parsedRootGroup: KPGroup?
+    private var parsedMeta: KPMeta?
     private var sessionKey: SymmetricKey?
+    private var compositeKey: Data?
+    private var openTimeSHA512: Data?
     private var activeDatabaseReference: DatabaseReference?
     private var isUnlockInProgress = false
     private var didAttemptAutoBiometricUnlock = false
@@ -16,6 +20,22 @@ final class CredentialProviderViewController: ASCredentialProviderViewController
     private var pendingPasskeyRequest: ASPasskeyCredentialRequest?
     private var pendingPasskeyRequestParameters: ASPasskeyCredentialRequestParameters?
     private var hasPendingOTCRequest = false
+    private var pendingGeneratePasswordPresentation = false
+    private var pendingReadOnlyCancellationMessage: String?
+    private var pendingSavePasswordRequestStorage: Any?
+    private var pendingGeneratePasswordsRequestStorage: Any?
+
+    @available(iOS 26.2, *)
+    private var pendingSavePasswordRequest: ASSavePasswordRequest? {
+        get { pendingSavePasswordRequestStorage as? ASSavePasswordRequest }
+        set { pendingSavePasswordRequestStorage = newValue }
+    }
+
+    @available(iOS 26.2, *)
+    private var pendingGeneratePasswordsRequest: ASGeneratePasswordsRequest? {
+        get { pendingGeneratePasswordsRequestStorage as? ASGeneratePasswordsRequest }
+        set { pendingGeneratePasswordsRequestStorage = newValue }
+    }
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -28,6 +48,7 @@ final class CredentialProviderViewController: ASCredentialProviderViewController
         pendingPasskeyRequest = nil
         pendingPasskeyRequestParameters = nil
         hasPendingOTCRequest = false
+        clearPendingCreationRequests()
         didAttemptAutoBiometricUnlock = false
         pendingUnlock = true
     }
@@ -37,6 +58,7 @@ final class CredentialProviderViewController: ASCredentialProviderViewController
         targetRecordIdentifier = credentialIdentity.recordIdentifier
         pendingPasskeyRequest = nil
         pendingPasskeyRequestParameters = nil
+        clearPendingCreationRequests()
         didAttemptAutoBiometricUnlock = false
         // Delay unlock to ensure the view is fully presented,
         // otherwise biometric auth fails with "not interactive".
@@ -54,6 +76,7 @@ final class CredentialProviderViewController: ASCredentialProviderViewController
         targetRecordIdentifier = nil
         pendingPasskeyRequest = nil
         pendingPasskeyRequestParameters = requestParameters
+        clearPendingCreationRequests()
         didAttemptAutoBiometricUnlock = false
         pendingUnlock = true
     }
@@ -67,6 +90,7 @@ final class CredentialProviderViewController: ASCredentialProviderViewController
             pendingPasskeyRequest = passkeyRequest
             pendingPasskeyRequestParameters = nil
             targetRecordIdentifier = passkeyRequest.credentialIdentity.recordIdentifier
+            clearPendingCreationRequests()
             didAttemptAutoBiometricUnlock = false
             pendingUnlock = true
         } else if let passwordIdentity = credentialRequest.credentialIdentity as? ASPasswordCredentialIdentity {
@@ -74,6 +98,7 @@ final class CredentialProviderViewController: ASCredentialProviderViewController
         } else if #available(iOS 18.0, *), credentialRequest is ASOneTimeCodeCredentialRequest {
             hasPendingOTCRequest = true
             targetRecordIdentifier = credentialRequest.credentialIdentity.recordIdentifier
+            clearPendingCreationRequests()
             didAttemptAutoBiometricUnlock = false
             pendingUnlock = true
         } else {
@@ -102,6 +127,15 @@ final class CredentialProviderViewController: ASCredentialProviderViewController
         if pendingUnlock {
             pendingUnlock = false
             presentUnlockPromptIfNeeded()
+        } else if let pendingReadOnlyCancellationMessage {
+            self.pendingReadOnlyCancellationMessage = nil
+            presentReadOnlyAlertAndCancel(message: pendingReadOnlyCancellationMessage)
+        } else if pendingGeneratePasswordPresentation {
+            pendingGeneratePasswordPresentation = false
+            if #available(iOS 26.2, *),
+               let pendingGeneratePasswordsRequest {
+                presentGeneratePasswordPrompt(for: pendingGeneratePasswordsRequest)
+            }
         }
     }
 
@@ -127,10 +161,8 @@ final class CredentialProviderViewController: ASCredentialProviderViewController
                 let context = try await BiometricService.authenticate(reason: "AutoFill with KeeForge")
                 let compositeKey = try retrieveCompositeKey(for: databaseReference, context: context)
                 try await loadEntries(
-                    password: nil,
                     compositeKey: compositeKey,
-                    databaseReference: databaseReference,
-                    keyFileData: nil
+                    databaseReference: databaseReference
                 )
                 persistCompositeKeyIfPossible(compositeKey, for: databaseReference)
                 recordSuccessfulUnlock(for: databaseReference)
@@ -161,6 +193,72 @@ final class CredentialProviderViewController: ASCredentialProviderViewController
         extensionContext.cancelRequest(withError: error)
     }
 
+    @available(iOS 26.2, *)
+    override func performWithoutUserInteractionIfPossible(savePasswordRequest: ASSavePasswordRequest) {
+        extensionContext.cancelRequest(withError: ASExtensionError(.userInteractionRequired))
+    }
+
+    @available(iOS 26.2, *)
+    override func prepareInterface(for savePasswordRequest: ASSavePasswordRequest) {
+        guard let databaseReference = DatabaseListStore.activeAutoFillDatabase else {
+            cancelRequest(code: .failed)
+            return
+        }
+
+        guard databaseReference.isReadOnly == false else {
+            serviceIdentifiers = [savePasswordRequest.serviceIdentifier]
+            targetRecordIdentifier = nil
+            pendingPasskeyRequest = nil
+            pendingPasskeyRequestParameters = nil
+            hasPendingOTCRequest = false
+            clearPendingCreationRequests()
+            didAttemptAutoBiometricUnlock = false
+            pendingUnlock = false
+            pendingGeneratePasswordPresentation = false
+            pendingReadOnlyCancellationMessage = "This database is read-only. Open KeeForge to enable editing."
+            return
+        }
+
+        serviceIdentifiers = [savePasswordRequest.serviceIdentifier]
+        targetRecordIdentifier = nil
+        pendingPasskeyRequest = nil
+        pendingPasskeyRequestParameters = nil
+        hasPendingOTCRequest = false
+        pendingGeneratePasswordsRequest = nil
+        pendingSavePasswordRequest = savePasswordRequest
+        didAttemptAutoBiometricUnlock = false
+        pendingGeneratePasswordPresentation = false
+        pendingUnlock = true
+    }
+
+    @available(iOS 26.2, *)
+    override func performWithoutUserInteraction(generatePasswordsRequest: ASGeneratePasswordsRequest) {
+        let password = PasswordGenerator.generate()
+        let generatedPassword = ASGeneratedPassword(
+            kind: .strong,
+            value: password
+        )
+        cleanup()
+        extensionContext.completeGeneratePasswordRequest(
+            results: [generatedPassword],
+            completionHandler: nil
+        )
+    }
+
+    @available(iOS 26.2, *)
+    override func prepareInterface(for generatePasswordsRequest: ASGeneratePasswordsRequest) {
+        serviceIdentifiers = [generatePasswordsRequest.serviceIdentifier]
+        targetRecordIdentifier = nil
+        pendingPasskeyRequest = nil
+        pendingPasskeyRequestParameters = nil
+        hasPendingOTCRequest = false
+        pendingSavePasswordRequest = nil
+        pendingGeneratePasswordsRequest = generatePasswordsRequest
+        didAttemptAutoBiometricUnlock = false
+        pendingUnlock = false
+        pendingGeneratePasswordPresentation = true
+    }
+
     // MARK: - Passkey silent auth
 
     private func providePasskeyWithoutUserInteraction(for request: ASPasskeyCredentialRequest) {
@@ -181,10 +279,8 @@ final class CredentialProviderViewController: ASCredentialProviderViewController
                 let context = try await BiometricService.authenticate(reason: "Passkey sign-in with KeeForge")
                 let compositeKey = try retrieveCompositeKey(for: databaseReference, context: context)
                 try await loadEntries(
-                    password: nil,
                     compositeKey: compositeKey,
-                    databaseReference: databaseReference,
-                    keyFileData: nil
+                    databaseReference: databaseReference
                 )
                 persistCompositeKeyIfPossible(compositeKey, for: databaseReference)
                 recordSuccessfulUnlock(for: databaseReference)
@@ -270,13 +366,11 @@ final class CredentialProviderViewController: ASCredentialProviderViewController
             do {
                 let databaseReference = try currentDatabaseReference()
                 let keyFileData = try loadAssociatedKeyFileData(for: databaseReference)
-                try await loadEntries(
-                    password: password,
-                    compositeKey: nil,
-                    databaseReference: databaseReference,
-                    keyFileData: keyFileData
-                )
                 let compositeKey = KDBXCrypto.compositeKey(password: password, keyFileData: keyFileData)
+                try await loadEntries(
+                    compositeKey: compositeKey,
+                    databaseReference: databaseReference
+                )
                 persistCompositeKeyIfPossible(compositeKey, for: databaseReference)
                 recordSuccessfulUnlock(for: databaseReference)
                 afterUnlock()
@@ -296,10 +390,8 @@ final class CredentialProviderViewController: ASCredentialProviderViewController
                 let context = try await BiometricService.authenticate(reason: "Unlock KeeForge for AutoFill")
                 let compositeKey = try retrieveCompositeKey(for: databaseReference, context: context)
                 try await loadEntries(
-                    password: nil,
                     compositeKey: compositeKey,
-                    databaseReference: databaseReference,
-                    keyFileData: nil
+                    databaseReference: databaseReference
                 )
                 persistCompositeKeyIfPossible(compositeKey, for: databaseReference)
                 recordSuccessfulUnlock(for: databaseReference)
@@ -318,6 +410,9 @@ final class CredentialProviderViewController: ASCredentialProviderViewController
             } catch {
                 showErrorAndRetry(error)
             }
+        } else if #available(iOS 26.2, *), let savePasswordRequest = pendingSavePasswordRequest {
+            pendingSavePasswordRequest = nil
+            presentEntryCreator(for: savePasswordRequest)
         } else if let requestParameters = pendingPasskeyRequestParameters {
             presentPasskeyMatchesOrFinish(using: requestParameters)
         } else if hasPendingOTCRequest {
@@ -380,34 +475,40 @@ final class CredentialProviderViewController: ASCredentialProviderViewController
         return try readSecurityScoped(url: url)
     }
 
+    private func clearPendingCreationRequests() {
+        pendingGeneratePasswordPresentation = false
+        if #available(iOS 26.2, *) {
+            pendingSavePasswordRequest = nil
+            pendingGeneratePasswordsRequest = nil
+        }
+    }
+
     private func loadEntries(
-        password: String?,
-        compositeKey: Data?,
-        databaseReference: DatabaseReference,
-        keyFileData: Data?
+        compositeKey: Data,
+        databaseReference: DatabaseReference
     ) async throws {
         let data = try loadDatabaseData(for: databaseReference)
         let key = SymmetricKey(size: .bits256)
 
-        let root = try await Task.detached {
-            if let password {
-                return try KDBXParser.parse(data: data, password: password, keyFileData: keyFileData, sessionKey: key)
-            }
-
-            guard let compositeKey else {
-                throw NSError(domain: ASExtensionErrorDomain, code: ASExtensionError.failed.rawValue)
-            }
-
-            return try KDBXParser.parse(data: data, compositeKey: compositeKey, sessionKey: key)
+        let parsed = try await Task.detached {
+            try KDBXParser.parseWithMeta(
+                data: data,
+                compositeKey: compositeKey,
+                sessionKey: key
+            )
         }.value
 
         self.sessionKey = key
+        self.compositeKey = compositeKey
+        self.openTimeSHA512 = KDBXCrypto.sha512(data)
+        self.parsedRootGroup = parsed.rootGroup
+        self.parsedMeta = parsed.meta
 
         let allEntries: [KPEntry]
-        if let recycleBinID = root.recycleBinUUID {
-            allEntries = root.allEntries(excludingGroupID: recycleBinID)
+        if let recycleBinID = parsed.rootGroup.recycleBinUUID {
+            allEntries = parsed.rootGroup.allEntries(excludingGroupID: recycleBinID)
         } else {
-            allEntries = root.allEntries
+            allEntries = parsed.rootGroup.allEntries
         }
         parsedEntries = allEntries.filter { $0.hasPassword || $0.hasPasskey || $0.hasTOTP }
     }
@@ -551,6 +652,133 @@ final class CredentialProviderViewController: ASCredentialProviderViewController
         present(host, animated: true)
     }
 
+    @available(iOS 26.2, *)
+    private func presentEntryCreator(for savePasswordRequest: ASSavePasswordRequest) {
+        let initialDraft = AutoFillSaveCoordinator.initialDraft(
+            for: savePasswordRequest.serviceIdentifier,
+            username: savePasswordRequest.credential.user,
+            password: savePasswordRequest.credential.password
+        )
+
+        let creatorView = AutoFillEntryCreatorView(
+            initialDraft: initialDraft,
+            onSave: { [weak self] draftPayload in
+                guard let self else {
+                    return .showError("The request is no longer available.")
+                }
+                return await self.saveNewEntry(
+                    draftPayload: draftPayload,
+                    for: savePasswordRequest
+                )
+            },
+            onCancel: { [weak self] in
+                self?.dismiss(animated: false) {
+                    self?.cancelRequest(code: .userCanceled)
+                }
+            }
+        )
+
+        let host = UIHostingController(rootView: creatorView)
+        host.modalPresentationStyle = .fullScreen
+        present(host, animated: true)
+    }
+
+    @available(iOS 26.2, *)
+    private func saveNewEntry(
+        draftPayload: EntryDraftPayload,
+        for _: ASSavePasswordRequest
+    ) async -> AutoFillEntryCreatorActionResult {
+        guard let reference = activeDatabaseReference,
+              let parsedRootGroup,
+              let parsedMeta,
+              let sessionKey,
+              let compositeKey,
+              let openTimeSHA512 else {
+            return .showError(SaveError.saveContextUnavailable.localizedDescription)
+        }
+
+        do {
+            let result = try await AutoFillSaveCoordinator.saveNewEntry(
+                draftPayload: draftPayload,
+                reference: reference,
+                rootGroup: parsedRootGroup,
+                meta: parsedMeta,
+                sessionKey: sessionKey,
+                compositeKey: compositeKey,
+                openTimeSHA512: openTimeSHA512
+            )
+
+            switch result {
+            case .saved(let outcome):
+                self.parsedRootGroup = outcome.savedRootGroup
+                self.openTimeSHA512 = outcome.newSHA512
+                cleanup()
+                extensionContext.completeSavePasswordRequest(completionHandler: nil)
+                return .completed
+            case .conflict:
+                return .showWarningAndCancel("Database changed — open KeeForge to save")
+            }
+        } catch {
+            return .showError(error.localizedDescription)
+        }
+    }
+
+    @available(iOS 26.2, *)
+    private func presentGeneratePasswordPrompt(
+        for request: ASGeneratePasswordsRequest,
+        password: String = PasswordGenerator.generate()
+    ) {
+        let alert = UIAlertController(
+            title: "Generate Password",
+            message: password,
+            preferredStyle: .alert
+        )
+
+        alert.addAction(UIAlertAction(title: "Regenerate", style: .default) { [weak self] _ in
+            self?.presentGeneratePasswordPrompt(
+                for: request,
+                password: PasswordGenerator.generate()
+            )
+        })
+
+        alert.addAction(UIAlertAction(title: "Use Password", style: .default) { [weak self] _ in
+            self?.completeGeneratedPasswordRequest(password)
+        })
+
+        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel) { [weak self] _ in
+            self?.cancelRequest(code: .userCanceled)
+        })
+
+        present(alert, animated: true)
+    }
+
+    @available(iOS 26.2, *)
+    private func completeGeneratedPasswordRequest(_ password: String) {
+        let generatedPassword = ASGeneratedPassword(
+            kind: .strong,
+            value: password
+        )
+        cleanup()
+        extensionContext.completeGeneratePasswordRequest(
+            results: [generatedPassword],
+            completionHandler: nil
+        )
+    }
+
+    private func presentReadOnlyAlertAndCancel(message: String) {
+        let alert = UIAlertController(
+            title: "Read-only Database",
+            message: message,
+            preferredStyle: .alert
+        )
+
+        alert.addAction(UIAlertAction(title: "OK", style: .default) { [weak self] _ in
+            self?.cancelRequest(code: .userCanceled)
+        })
+
+        present(alert, animated: true)
+    }
+
     // MARK: - One-time code (TOTP) support
 
     private func provideOTCWithoutUserInteraction(for credentialRequest: ASCredentialRequest) {
@@ -573,10 +801,8 @@ final class CredentialProviderViewController: ASCredentialProviderViewController
                 let context = try await BiometricService.authenticate(reason: "AutoFill with KeeForge")
                 let compositeKey = try retrieveCompositeKey(for: databaseReference, context: context)
                 try await loadEntries(
-                    password: nil,
                     compositeKey: compositeKey,
-                    databaseReference: databaseReference,
-                    keyFileData: nil
+                    databaseReference: databaseReference
                 )
                 persistCompositeKeyIfPossible(compositeKey, for: databaseReference)
                 recordSuccessfulUnlock(for: databaseReference)
@@ -636,12 +862,18 @@ final class CredentialProviderViewController: ASCredentialProviderViewController
 
     private func cleanup() {
         parsedEntries = []
+        parsedRootGroup = nil
+        parsedMeta = nil
         sessionKey = nil
+        compositeKey = nil
+        openTimeSHA512 = nil
         activeDatabaseReference = nil
         targetRecordIdentifier = nil
+        pendingReadOnlyCancellationMessage = nil
         pendingPasskeyRequest = nil
         pendingPasskeyRequestParameters = nil
         hasPendingOTCRequest = false
+        clearPendingCreationRequests()
     }
 
     // MARK: - Complete password request

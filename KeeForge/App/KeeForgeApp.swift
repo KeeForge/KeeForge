@@ -6,6 +6,7 @@ import UIKit
 struct KeeForgeApp: App {
     @State private var listViewModel = DatabaseListViewModel()
     @State private var activeDatabaseViewModel: DatabaseViewModel?
+    @State private var pendingUploadDrainer = PendingUploadDrainer()
     @State private var screenProtectionService = ScreenProtectionService()
     @Environment(\.scenePhase) private var scenePhase
 
@@ -22,6 +23,9 @@ struct KeeForgeApp: App {
                     activeDatabaseViewModel?.didManuallyLock = false
                     activeDatabaseViewModel?.resetInactivityTimer()
                     activeDatabaseViewModel?.refreshSharedDatabaseCacheIfPossible()
+                    Task {
+                        await listViewModel.drainPendingUploadsOnAppActive()
+                    }
                 case .inactive:
                     break
                 case .background:
@@ -29,6 +33,13 @@ struct KeeForgeApp: App {
                     activeDatabaseViewModel?.lockRequest()
                 @unknown default:
                     screenProtectionService.showShield()
+                }
+            }
+            .task {
+                pendingUploadDrainer.startObserving {
+                    Task {
+                        await listViewModel.drainPendingUploadsOnAppActive()
+                    }
                 }
             }
         }

@@ -11,6 +11,7 @@
 
 ### New Features
 - Add main-app entry editing with create, edit, delete, password generation, save-conflict resolution, and read-only editing safeguards
+- Added: Save new credentials and generate strong passwords directly from AutoFill, with offline-safe queueing for Dropbox-backed databases.
 
 ### Fixes
 - Remove the baked white background from the Dropbox provider glyph so it renders cleanly in dark mode
@@ -21,6 +22,9 @@
 - Internal: Added DatabaseDraft layer that lets the app stage entry edits in memory before saving.
 - Internal: Added a local-file save pipeline with atomic write, automatic backups, and out-of-band-change detection.
 - Internal: Dropbox-backed databases can now be saved back to Dropbox with optimistic-concurrency conflict detection.
+
+### Changes
+- Pending AutoFill uploads now live in the shared App Group cache/queue and are cleared if the app is uninstalled or reinstalled.
 
 ## v1.7.0 (2026-04-05)
 

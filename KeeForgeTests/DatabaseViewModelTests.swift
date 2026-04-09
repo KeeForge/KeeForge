@@ -328,6 +328,30 @@ final class DatabaseViewModelTests: XCTestCase {
         XCTAssertEqual(vm.openTimeSHA512, savedHash)
     }
 
+    func testSaveRepopulatesCredentialStoreAfterSuccessfulSave() async throws {
+        let vm = try makeViewModel(
+            localSaveOperation: { _, _, _, _ in
+                .saved(newSHA512: Data("saved-hash".utf8))
+            }
+        )
+        let refreshExpectation = expectation(description: "Credential store repopulated after save")
+        var populateCallCount = 0
+        CredentialIdentityStoreManager.populateObserver = { _ in
+            populateCallCount += 1
+            if populateCallCount == 2 {
+                refreshExpectation.fulfill()
+            }
+        }
+
+        await vm.unlock(password: fixturePassword)
+        vm.draft = try makeDirtyDraft(from: vm, entryTitle: "Saved Entry")
+
+        try await vm.save()
+
+        await fulfillment(of: [refreshExpectation], timeout: 30)
+        XCTAssertEqual(populateCallCount, 2)
+    }
+
     func testSaveOnConflictSetsSaveConflictDoesNotClearDraft() async throws {
         let remoteData = Data("remote".utf8)
         let remoteHash = KDBXCrypto.sha512(remoteData)

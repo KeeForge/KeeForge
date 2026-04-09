@@ -15,6 +15,7 @@ Use this document for UI test methodology. Repo-wide build and test policy stays
 - `KeyFileUITests` — key file selection and picker flows
 - `KeyFileUnlockUITests` — unlocking with a key file
 - `AppStoreScreenshots` — screenshot capture flow using demo fixtures
+- Database-list and cloud UI tests are the current place to cover pending-upload badges / actions; the repo does not currently have a dedicated simulator harness for the system AutoFill save sheet itself.
 
 ## Running UI Tests
 
@@ -217,6 +218,8 @@ Use the app's accessibility identifiers whenever possible, including:
 - `entry.copy.totp`
 - `database-row.read-only-toggle`
 - `database-row.read-only-badge`
+- `database-row.pending-uploads-badge`
+- `database-row.push-pending-action`
 - `search.results.count`
 - `search.no-results`
 

@@ -21,6 +21,7 @@ Use this folder as the main map for the app target. The subfolder READMEs hold t
 - Cloud database flow: cloud-backed `Models/DatabaseReference.swift` values carry `CloudSyncMetadata`; `Services/CloudSyncCoordinator.swift` decides whether to reuse cache or download before open.
 - Read-only/edit safety flow: `Models/DatabaseReference.swift` persists `isReadOnly` and `editsAcknowledgedAt`; `Services/SyncedFolderDetector.swift` classifies bookmark-backed synced folders before edit flows proceed.
 - AutoFill handoff: the main app and extension share models plus selected services through `project.yml`, `SharedVaultStore`, App Group defaults, cached database copies, and Keychain entries; local saves must keep the shared cached copy aligned.
+- AutoFill save flow: the extension can now generate/save new credentials through `Services/AutoFillSaveCoordinator.swift`, persist pending cloud uploads in `Services/PendingUploadQueue.swift`, and rely on the main app's `Services/PendingUploadDrainer.swift` to push cached encrypted bytes when the app becomes active.
 
 ## Working Rules
 
