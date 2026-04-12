@@ -177,7 +177,7 @@ schemes:
       gatherCoverageData: false
       targets:
         - name: KeeForgeTests
-          parallelizable: true
+          parallelizable: false
           randomExecutionOrder: true
         - name: KeeForgeUITests
           parallelizable: false
