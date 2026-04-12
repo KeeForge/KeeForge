@@ -26,7 +26,6 @@ struct AutoFillEntryCreatorView: View {
 
     @State private var draft: EntryDraftPayload
     @State private var isSaving = false
-    @State private var isEditingPasswordManually = false
     @State private var inlineWarningMessage: String?
     @State private var alertState: AlertState?
 
@@ -51,44 +50,37 @@ struct AutoFillEntryCreatorView: View {
                     }
                 }
 
-                Section("Entry") {
-                    TextField("Title", text: $draft.title)
-                        .textInputAutocapitalization(.words)
-                        .autocorrectionDisabled()
-                        .accessibilityIdentifier("autofill-entry-creator.title-field")
-
-                    TextField("Username", text: $draft.username)
-                        .textInputAutocapitalization(.never)
-                        .autocorrectionDisabled()
-                        .accessibilityIdentifier("autofill-entry-creator.username-field")
-
-                    SecureField("Password", text: $draft.password)
-                        .textInputAutocapitalization(.never)
-                        .autocorrectionDisabled()
-                        .disabled(isEditingPasswordManually == false)
-                        .accessibilityIdentifier("autofill-entry-creator.password-field")
-
-                    HStack {
-                        Button("Regenerate") {
-                            regeneratePassword()
-                        }
-                        .disabled(isSaving)
-                        .accessibilityIdentifier("autofill-entry-creator.regenerate-password")
-
-                        Spacer()
-
-                        Button("Edit Manually") {
-                            isEditingPasswordManually = true
-                        }
-                        .disabled(isSaving)
-                        .accessibilityIdentifier("autofill-entry-creator.edit-password-manually")
+                Section("Basics") {
+                    basicFieldRow("Title") {
+                        TextField("Title", text: $draft.title)
+                            .textInputAutocapitalization(.words)
+                            .autocorrectionDisabled()
+                            .accessibilityIdentifier("autofill-entry-creator.title-field")
                     }
 
-                    TextField("URL", text: $draft.url)
-                        .textInputAutocapitalization(.never)
-                        .autocorrectionDisabled()
-                        .keyboardType(.URL)
-                        .accessibilityIdentifier("autofill-entry-creator.url-field")
+                    basicFieldRow("Username") {
+                        TextField("Username", text: $draft.username)
+                            .textInputAutocapitalization(.never)
+                            .autocorrectionDisabled()
+                            .accessibilityIdentifier("autofill-entry-creator.username-field")
+                    }
+
+                    basicFieldRow("Password") {
+                        SecureField("Password", text: $draft.password)
+                            .textInputAutocapitalization(.never)
+                            .autocorrectionDisabled()
+                            .disabled(true)
+                            .accessibilityIdentifier("autofill-entry-creator.password-field")
+                    }
+
+                    basicFieldRow("URL") {
+                        TextField("URL", text: $draft.url)
+                            .textInputAutocapitalization(.never)
+                            .autocorrectionDisabled()
+                            .keyboardType(.URL)
+                            .textContentType(.URL)
+                            .accessibilityIdentifier("autofill-entry-creator.url-field")
+                    }
                 }
 
                 Section("Notes") {
@@ -96,35 +88,35 @@ struct AutoFillEntryCreatorView: View {
                         .frame(minHeight: 120)
                         .accessibilityIdentifier("autofill-entry-creator.notes-field")
                 }
-
-                Section {
-                    Button {
-                        Task {
-                            await save()
-                        }
-                    } label: {
-                        if isSaving {
-                            ProgressView()
-                                .frame(maxWidth: .infinity)
-                        } else {
-                            Text("Save and Fill")
-                                .frame(maxWidth: .infinity)
-                        }
-                    }
-                    .disabled(isSaving)
-                    .accessibilityIdentifier("autofill-entry-creator.save-and-fill")
-
-                    Button("Cancel", role: .cancel, action: onCancel)
-                        .disabled(isSaving)
-                        .accessibilityIdentifier("autofill-entry-creator.cancel")
-                }
             }
             .navigationTitle("New Credential")
             .navigationBarTitleDisplayMode(.inline)
+            .disabled(isSaving)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel", action: onCancel)
+                        .disabled(isSaving)
+                        .accessibilityIdentifier("autofill-entry-creator.cancel")
+                }
+
+                ToolbarItem(placement: .confirmationAction) {
+                    if isSaving {
+                        ProgressView()
+                    } else {
+                        Button("Save and Fill") {
+                            Task {
+                                await save()
+                            }
+                        }
+                        .disabled(isSaving)
+                        .accessibilityIdentifier("autofill-entry-creator.save-and-fill")
+                    }
+                }
+            }
         }
         .alert(item: $alertState) { state in
             Alert(
-                title: Text(state.kind == .warningAndCancel ? "Database Changed" : "Couldn’t Save"),
+                title: Text(state.kind == .warningAndCancel ? "Database Changed" : "Couldn't Save"),
                 message: Text(state.message),
                 dismissButton: .default(Text("OK")) {
                     if state.kind == .warningAndCancel {
@@ -135,9 +127,18 @@ struct AutoFillEntryCreatorView: View {
         }
     }
 
-    private func regeneratePassword() {
-        draft.password = PasswordGenerator.generate()
-        isEditingPasswordManually = false
+    private func basicFieldRow<Content: View>(
+        _ title: String,
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(title)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+            content()
+        }
+        .padding(.vertical, 2)
     }
 
     private func save() async {

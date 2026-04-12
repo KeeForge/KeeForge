@@ -38,7 +38,8 @@ final class CredentialProviderSaveTests: XCTestCase {
     func test_saveNewEntry_localSource_writesCacheAndCallsCompleteRequest_doesNotEnqueue() async throws {
         let reference = makeLocalReference()
         let sessionKey = SymmetricKey(size: .bits256)
-        let root = KPGroup(name: "Root")
+        let visibleRoot = KPGroup(name: "MyDatabase")
+        let root = KPGroup(name: "Root", groups: [visibleRoot])
         let recorder = SaveRecorder()
 
         let result = try await AutoFillSaveCoordinator.saveNewEntry(
@@ -65,6 +66,8 @@ final class CredentialProviderSaveTests: XCTestCase {
         XCTAssertEqual(outcome.savedRootGroup.allEntries.count, 1)
         XCTAssertEqual(outcome.savedRootGroup.allEntries.first?.title, "Example")
         XCTAssertEqual(outcome.savedRootGroup.allEntries.first?.username, "alex")
+        XCTAssertTrue(outcome.savedRootGroup.entries.isEmpty, "Entry should not be on the synthetic root")
+        XCTAssertEqual(outcome.savedRootGroup.groups.first?.entries.count, 1, "Entry should be in the visible root group")
         XCTAssertEqual(recorder.saveCalls.count, 1)
         XCTAssertTrue(recorder.enqueuedMarkers.isEmpty)
         XCTAssertEqual(recorder.populatedEntryTitles, [["Example"]])
@@ -85,7 +88,7 @@ final class CredentialProviderSaveTests: XCTestCase {
                 url: "https://dropbox.example.com"
             ),
             reference: reference,
-            rootGroup: KPGroup(name: "Root"),
+            rootGroup: KPGroup(name: "Root", groups: [KPGroup(name: "MyDatabase")]),
             meta: KPMeta(),
             sessionKey: sessionKey,
             compositeKey: Data("composite-key".utf8),
@@ -147,7 +150,7 @@ final class CredentialProviderSaveTests: XCTestCase {
                 url: "https://example.com"
             ),
             reference: reference,
-            rootGroup: KPGroup(name: "Root"),
+            rootGroup: KPGroup(name: "Root", groups: [KPGroup(name: "MyDatabase")]),
             meta: KPMeta(),
             sessionKey: sessionKey,
             compositeKey: Data("composite-key".utf8),

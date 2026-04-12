@@ -88,8 +88,9 @@ enum AutoFillSaveCoordinator {
         environment: Environment = .live
     ) async throws -> SaveResult {
         let cleanDraft = DatabaseDraft(rootGroup: rootGroup, meta: meta, sessionKey: sessionKey)
+        let parentGroupID = rootGroup.groups.first?.id ?? rootGroup.id
         let workingDraft = try cleanDraft.apply(
-            .createEntry(parentGroupID: rootGroup.id, draft: draftPayload)
+            .createEntry(parentGroupID: parentGroupID, draft: draftPayload)
         )
 
         let saveResult = try await environment.saveDraft(

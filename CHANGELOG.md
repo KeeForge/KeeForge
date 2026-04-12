@@ -14,9 +14,11 @@
 - Settings button in unlocked database view now opens database-specific settings (nickname, read-only, key file, metadata, cloud sync) with a link to app settings
 
 ### Improvements
+- AutoFill new-credential screen now uses labeled fields, toolbar buttons, and a non-editable password field, matching the main app's entry editor
 - Deleting an entry inside the Recycle Bin now permanently erases it instead of re-moving it to the same bin
 
 ### Fixes
+- AutoFill-created entries are now placed under the visible root group instead of the synthetic database root
 - Autosave entry create/edit/delete changes immediately after they are staged, remove the confusing unlocked-screen save button, and show retry-only save UI when an autosave fails
 - Refresh subgroup entry counts immediately after in-app edits like moving an entry to the recycle bin
 - Show a blocking saving-progress overlay while database changes are being written so users get clear feedback and cannot interact with the unlocked UI mid-save
