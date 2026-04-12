@@ -11,10 +11,12 @@ struct PasswordGeneratorSheet: View {
         NavigationStack {
             Form {
                 Section("Suggested Password") {
-                    Text(generatedPassword)
-                        .font(.body.monospaced())
-                        .textSelection(.enabled)
-                        .lineLimit(nil)
+                    PasswordDisplayRow(revealedText: generatedPassword) {
+                        CopyButton(
+                            text: generatedPassword,
+                            accessibilityID: "password-generator.copy"
+                        )
+                    }
                 }
 
                 Section("Length") {

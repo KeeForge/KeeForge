@@ -172,27 +172,8 @@ struct PasswordFieldRow: View {
 
     var body: some View {
         Section("Password") {
-            HStack {
-                Image(systemName: "lock.fill")
-                    .foregroundStyle(.secondary)
-                    .frame(width: 24)
-                if revealed, let text = revealedText {
-                    ColoredPasswordText(text)
-                        .textSelection(.enabled)
-                } else {
-                    Text(String(repeating: "\u{2022}", count: 12))
-                        .foregroundStyle(.secondary)
-                }
-                Spacer()
-                Button {
-                    if revealed {
-                        HapticService.tap()
-                        revealed = false
-                        revealedText = nil
-                    } else {
-                        authenticateAndReveal()
-                    }
-                } label: {
+            PasswordDisplayRow(revealedText: revealed ? revealedText : nil) {
+                Button(action: toggleReveal) {
                     Image(systemName: revealed ? "eye.slash.fill" : "eye.fill")
                         .font(.body)
                 }
@@ -200,8 +181,23 @@ struct PasswordFieldRow: View {
                 .contentShape(Rectangle())
                 .disabled(authenticating)
                 .accessibilityIdentifier("entry.password.reveal")
-                CopyButton(resolveText: { (try? password.decrypt(using: sessionKey)) ?? "" }, requireAuth: true, accessibilityID: "entry.copy.password")
+
+                CopyButton(
+                    resolveText: { (try? password.decrypt(using: sessionKey)) ?? "" },
+                    requireAuth: true,
+                    accessibilityID: "entry.copy.password"
+                )
             }
+        }
+    }
+
+    private func toggleReveal() {
+        if revealed {
+            HapticService.tap()
+            revealed = false
+            revealedText = nil
+        } else {
+            authenticateAndReveal()
         }
     }
 
@@ -236,7 +232,41 @@ struct PasswordFieldRow: View {
     }
 }
 
-struct ColoredPasswordText: View {
+struct PasswordDisplayRow<Actions: View>: View {
+    let revealedText: String?
+    private let actions: Actions
+
+    init(
+        revealedText: String?,
+        @ViewBuilder actions: () -> Actions
+    ) {
+        self.revealedText = revealedText
+        self.actions = actions()
+    }
+
+    var body: some View {
+        HStack {
+            Image(systemName: "lock.fill")
+                .foregroundStyle(.secondary)
+                .frame(width: 24)
+
+            if let revealedText {
+                PasswordDisplayText(revealedText)
+                    .textSelection(.enabled)
+                    .lineLimit(nil)
+                    .fixedSize(horizontal: false, vertical: true)
+            } else {
+                Text(String(repeating: "\u{2022}", count: 12))
+                    .foregroundStyle(.secondary)
+            }
+
+            Spacer(minLength: 12)
+            actions
+        }
+    }
+}
+
+struct PasswordDisplayText: View {
     let password: String
 
     init(_ password: String) {
