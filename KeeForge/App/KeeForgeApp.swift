@@ -265,8 +265,8 @@ struct DatabaseNavigationView: View {
                     )
                 }
             }
-            .navigationDestination(for: KPGroup.self) { group in
-                GroupListView(groupID: group.id, viewModel: viewModel)
+            .navigationDestination(for: UUID.self) { groupID in
+                GroupListView(groupID: groupID, viewModel: viewModel)
             }
             .navigationDestination(for: KPEntry.self) { entry in
                 EntryDetailView(entryID: entry.id, viewModel: viewModel)

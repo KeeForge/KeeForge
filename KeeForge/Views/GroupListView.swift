@@ -35,9 +35,9 @@ struct GroupListView: View {
                     List {
                         if !visibleGroups.isEmpty {
                             Section("Groups") {
-                                ForEach(viewModel.sortedGroups(visibleGroups)) { subgroup in
-                                    NavigationLink(value: subgroup) {
-                                        GroupRow(group: subgroup)
+                                ForEach(viewModel.sortedGroups(visibleGroups).map(\.id), id: \.self) { subgroupID in
+                                    NavigationLink(value: subgroupID) {
+                                        GroupRow(groupID: subgroupID, viewModel: viewModel)
                                     }
                                     .accessibilityIdentifier("group.navlink")
                                 }
@@ -185,20 +185,29 @@ struct GroupListView: View {
 }
 
 struct GroupRow: View {
-    let group: KPGroup
+    let groupID: UUID
+    @Bindable var viewModel: DatabaseViewModel
+
+    private var group: KPGroup? {
+        viewModel.group(withID: groupID)
+    }
 
     var body: some View {
-        HStack {
-            Image(systemName: group.systemIconName)
-                .foregroundStyle(.tint)
-                .frame(width: 28)
+        Group {
+            if let group {
+                HStack {
+                    Image(systemName: group.systemIconName)
+                        .foregroundStyle(.tint)
+                        .frame(width: 28)
 
-            VStack(alignment: .leading) {
-                Text(group.name)
-                    .font(.body)
-                Text("\(group.allEntries.count) entries")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                    VStack(alignment: .leading) {
+                        Text(group.name)
+                            .font(.body)
+                        Text("\(group.allEntries.count) entries")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
             }
         }
     }
