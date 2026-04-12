@@ -136,7 +136,15 @@ final class DatabaseDraftTests: XCTestCase {
 
         XCTAssertEqual(updatedDraft.rootGroup.recycleBinUUID, recycleBinGroupID)
         XCTAssertTrue(updatedDraft.meta.hasRecycleBinUUIDElement)
-        XCTAssertTrue(updatedDraft.rootGroup.groups.contains(where: { $0.id == recycleBinGroupID }))
+        XCTAssertFalse(
+            updatedDraft.rootGroup.groups.contains(where: { $0.id == recycleBinGroupID }),
+            "Recycle Bin should not be a direct child of the synthetic root"
+        )
+        let visibleRoot = try XCTUnwrap(updatedDraft.rootGroup.groups.first)
+        XCTAssertTrue(
+            visibleRoot.groups.contains(where: { $0.id == recycleBinGroupID }),
+            "Recycle Bin should be created under the visible root group"
+        )
         XCTAssertTrue(recycleBinGroup.entries.contains(where: { $0.id == tree.parentEntry.id }))
 
         let updatedParentGroup = try XCTUnwrap(findGroup(withID: tree.parentGroupID, in: updatedDraft.rootGroup))
@@ -365,14 +373,14 @@ final class DatabaseDraftTests: XCTestCase {
             )
         }
 
-        var rootGroups = [parentGroup, untouchedGroup]
+        var visibleRootChildren = [parentGroup, untouchedGroup]
         if let recycleBinGroup {
-            rootGroups.append(recycleBinGroup)
+            visibleRootChildren.append(recycleBinGroup)
         }
 
-        let rootGroup = KPGroup(
+        let visibleRootGroup = KPGroup(
             id: UUID(),
-            name: "Root",
+            name: "Visible Root",
             entries: [
                 KPEntry(
                     id: UUID(),
@@ -383,7 +391,13 @@ final class DatabaseDraftTests: XCTestCase {
                     lastModificationTime: modifiedAt
                 )
             ],
-            groups: rootGroups,
+            groups: visibleRootChildren
+        )
+
+        let rootGroup = KPGroup(
+            id: UUID(),
+            name: "Root",
+            groups: [visibleRootGroup],
             recycleBinUUID: recycleBinGroupID
         )
         let meta = KPMeta(

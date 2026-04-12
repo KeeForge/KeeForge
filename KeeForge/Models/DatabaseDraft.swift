@@ -186,12 +186,22 @@ struct DatabaseDraft: Sendable {
 
         case .create(let recycleBinID):
             let recycleBinGroup = makeRecycleBinGroup(id: recycleBinID, entry: entryLocation.entry)
-            var updatedRootGroups = rootWithoutEntry.groups
-            updatedRootGroups.append(recycleBinGroup)
+            let recycleBinParent = rootWithoutEntry.groups.first ?? rootWithoutEntry
+            let recycleBinParentPath: [UUID] = recycleBinParent.id == rootWithoutEntry.id
+                ? [rootWithoutEntry.id]
+                : [rootWithoutEntry.id, recycleBinParent.id]
+
+            let rootWithRecycleBin = try rebuildGroup(
+                in: rootWithoutEntry,
+                targetPath: recycleBinParentPath[...]
+            ) { group in
+                var updatedGroups = group.groups
+                updatedGroups.append(recycleBinGroup)
+                return copyGroup(group, groups: updatedGroups)
+            }
 
             let updatedRootGroup = copyGroup(
-                rootWithoutEntry,
-                groups: updatedRootGroups,
+                rootWithRecycleBin,
                 recycleBinUUIDOverride: .value(recycleBinID)
             )
             var updatedMeta = currentMetaStorage

@@ -19,6 +19,7 @@
 
 ### Fixes
 - AutoFill-created entries are now placed under the visible root group instead of the synthetic database root
+- Lazily-created Recycle Bin group is now placed under the visible root group instead of the synthetic database root
 - Autosave entry create/edit/delete changes immediately after they are staged, remove the confusing unlocked-screen save button, and show retry-only save UI when an autosave fails
 - Refresh subgroup entry counts immediately after in-app edits like moving an entry to the recycle bin
 - Show a blocking saving-progress overlay while database changes are being written so users get clear feedback and cannot interact with the unlocked UI mid-save
