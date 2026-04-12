@@ -299,6 +299,12 @@ struct DatabaseNavigationView: View {
                 }
             }
         }
+        .disabled(viewModel.isSaving)
+        .overlay {
+            if viewModel.isSaving {
+                DatabaseSavingOverlay()
+            }
+        }
         .saveConflictAlert(viewModel: viewModel)
         .onChange(of: viewModel.saveError) { _, newValue in
             if let newValue {
@@ -365,6 +371,39 @@ struct DatabaseNavigationView: View {
             return window
         }
         return ASPresentationAnchor()
+    }
+}
+
+private struct DatabaseSavingOverlay: View {
+    var body: some View {
+        ZStack {
+            Color.black.opacity(0.16)
+                .ignoresSafeArea()
+
+            VStack(spacing: 14) {
+                ProgressView()
+                    .controlSize(.large)
+
+                Text("Saving changes...")
+                    .font(.headline)
+
+                Text("KeeForge is writing the updated database securely.")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+            }
+            .padding(.horizontal, 24)
+            .padding(.vertical, 22)
+            .frame(maxWidth: 280)
+            .background(
+                RoundedRectangle(cornerRadius: 24, style: .continuous)
+                    .fill(.regularMaterial)
+            )
+            .shadow(color: .black.opacity(0.08), radius: 24, y: 10)
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Saving changes")
+        .accessibilityIdentifier("database.saving-overlay")
     }
 }
 

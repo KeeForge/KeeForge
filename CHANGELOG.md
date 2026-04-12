@@ -15,6 +15,7 @@
 ### Fixes
 - Autosave entry create/edit/delete changes immediately after they are staged, remove the confusing unlocked-screen save button, and show retry-only save UI when an autosave fails
 - Refresh subgroup entry counts immediately after in-app edits like moving an entry to the recycle bin
+- Show a blocking saving-progress overlay while database changes are being written so users get clear feedback and cannot interact with the unlocked UI mid-save
 - Remove the baked white background from the Dropbox provider glyph so it renders cleanly in dark mode
 - Show provider-specific cloud sync status during unlock, and add focused unlock coverage for cloud sync success, fallback, and failure paths
 - Fix Xcode Cloud post-clone bootstrap so clean CI machines no longer require a developer team xcconfig value just to generate the project

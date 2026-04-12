@@ -16,6 +16,10 @@ struct EntryEditView: View {
     @State private var editingErrorMessage: String?
     @State private var isSubmitting = false
 
+    private var isSavingInProgress: Bool {
+        isSubmitting || databaseViewModel.isSaving
+    }
+
     init(
         formViewModel: EntryEditViewModel,
         databaseViewModel: DatabaseViewModel,
@@ -113,12 +117,13 @@ struct EntryEditView: View {
         .navigationTitle(navigationTitle)
         .navigationBarTitleDisplayMode(.inline)
         .navigationBarBackButtonHidden(true)
+        .disabled(isSavingInProgress)
         .toolbar {
             ToolbarItem(placement: .cancellationAction) {
                 Button("Cancel") {
                     cancelTapped()
                 }
-                .disabled(isSubmitting)
+                .disabled(isSavingInProgress)
                 .accessibilityIdentifier("entry-edit.cancel")
             }
 
@@ -126,8 +131,33 @@ struct EntryEditView: View {
                 Button("Save") {
                     saveTapped()
                 }
-                .disabled(formViewModel.canSave == false || isSubmitting)
+                .disabled(formViewModel.canSave == false || isSavingInProgress)
                 .accessibilityIdentifier("entry-edit.save")
+            }
+        }
+        .overlay {
+            if isSubmitting && databaseViewModel.isSaving == false {
+                ZStack {
+                    Color.black.opacity(0.14)
+                        .ignoresSafeArea()
+
+                    VStack(spacing: 12) {
+                        ProgressView()
+                            .controlSize(.large)
+                        Text("Saving changes...")
+                            .font(.headline)
+                    }
+                    .padding(.horizontal, 24)
+                    .padding(.vertical, 20)
+                    .background(
+                        RoundedRectangle(cornerRadius: 22, style: .continuous)
+                            .fill(.regularMaterial)
+                    )
+                    .shadow(color: .black.opacity(0.08), radius: 20, y: 8)
+                }
+                .accessibilityElement(children: .combine)
+                .accessibilityLabel("Saving changes")
+                .accessibilityIdentifier("entry-edit.saving-overlay")
             }
         }
         .sheet(isPresented: $showPasswordGenerator) {
