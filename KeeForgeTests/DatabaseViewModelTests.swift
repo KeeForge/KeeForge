@@ -64,7 +64,7 @@ final class DatabaseViewModelTests: XCTestCase {
         XCTAssertEqual(vm.openTimeSHA512, expectedHash)
     }
 
-    func testUnlockFallsBackToCachedCopyWhenBookmarkCannotBeResolved() async throws {
+    func testUnlockFailsWhenLocalBookmarkCannotBeResolved() async throws {
         var reference = try makeReference()
         reference.bookmarkData = Data("invalid-bookmark".utf8)
 
@@ -73,8 +73,8 @@ final class DatabaseViewModelTests: XCTestCase {
 
         await vm.unlock(password: fixturePassword)
 
-        XCTAssertState(vm.state, is: .unlocked)
-        XCTAssertNotNil(vm.rootGroup)
+        XCTAssertState(vm.state, is: .error)
+        XCTAssertNil(vm.rootGroup)
     }
 
     func testForegroundRefreshRepopulatesCredentialStoreWhenUnlocked() async throws {
@@ -725,7 +725,7 @@ final class DatabaseViewModelTests: XCTestCase {
                 data = resolution.data
                 updatedReference = resolution.reference
             } else {
-                guard let url = DatabaseListStore.resolveDatabaseURL(for: reference) ?? DatabaseListStore.cachedDatabaseURL(for: reference) else {
+                guard let url = DatabaseListStore.resolveDatabaseURL(for: reference) else {
                     throw SaveError.databaseLocationUnavailable
                 }
                 data = try Data(contentsOf: url)

@@ -994,23 +994,14 @@ final class DatabaseViewModel {
             return (resolution.localURL, resolution.data)
         }
 
-        var lastReadError: Error?
         cloudSyncBannerText = nil
         unlockStatusMessage = Self.decryptingStatusMessage
 
         if let url = DatabaseListStore.resolveDatabaseURL(for: databaseReference) {
-            do {
-                return (url, try readSecurityScoped(url: url))
-            } catch {
-                lastReadError = error
-            }
+            return (url, try readSecurityScoped(url: url))
         }
 
-        if let cachedURL = DatabaseListStore.cachedDatabaseURL(for: databaseReference) {
-            return (cachedURL, try CoordinatedFileReader.readData(from: cachedURL))
-        }
-
-        throw lastReadError ?? CocoaError(.fileReadNoSuchFile)
+        throw CocoaError(.fileReadNoSuchFile)
     }
 
     private func readSecurityScoped(url: URL) throws -> Data {
@@ -1157,7 +1148,7 @@ final class DatabaseViewModel {
             data = resolution.data
             updatedReference = resolution.reference
         } else {
-            guard let url = DatabaseListStore.resolveDatabaseURL(for: reference) ?? DatabaseListStore.cachedDatabaseURL(for: reference) else {
+            guard let url = DatabaseListStore.resolveDatabaseURL(for: reference) else {
                 throw SaveError.databaseLocationUnavailable
             }
             data = try readSecurityScopedData(from: url)
