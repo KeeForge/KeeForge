@@ -83,6 +83,7 @@ struct DatabaseListView: View {
                 }
             }
             .navigationTitle("KeeForge")
+            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 if !viewModel.databases.isEmpty {
                     ToolbarItem(placement: .topBarLeading) {
