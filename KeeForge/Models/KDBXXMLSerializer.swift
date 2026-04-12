@@ -86,6 +86,12 @@ struct KDBXXMLSerializer {
             knownChildCount += 1
         }
 
+        if !meta.deletedObjects.isEmpty {
+            xml += try opaqueXML(from: rootGroup.unknownXML, path: [], insertionIndex: knownChildCount)
+            xml += serializeDeletedObjects(meta.deletedObjects)
+            knownChildCount += 1
+        }
+
         xml += try trailingOpaqueXML(from: rootGroup.unknownXML, path: [], knownChildCount: knownChildCount)
         xml += "</Root>"
         return xml
@@ -279,6 +285,18 @@ struct KDBXXMLSerializer {
 
         xml += try trailingOpaqueXML(from: unknownXML, path: ["Times"], knownChildCount: knownChildCount)
         xml += "</Times>"
+        return xml
+    }
+
+    private func serializeDeletedObjects(_ objects: [KPDeletedObject]) -> String {
+        var xml = "<DeletedObjects>"
+        for obj in objects {
+            xml += "<DeletedObject>"
+            xml += element("UUID", value: serializeUUID(obj.uuid))
+            xml += element("DeletionTime", value: serializeDate(obj.deletionTime))
+            xml += "</DeletedObject>"
+        }
+        xml += "</DeletedObjects>"
         return xml
     }
 

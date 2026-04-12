@@ -172,7 +172,11 @@ struct DatabaseDraft: Sendable {
         }
 
         guard sendToRecycleBin else {
-            return (rootWithoutEntry, currentMetaStorage)
+            var updatedMeta = currentMetaStorage
+            updatedMeta.deletedObjects.append(
+                KPDeletedObject(uuid: entryID, deletionTime: Date.now)
+            )
+            return (rootWithoutEntry, updatedMeta)
         }
 
         switch recycleBinTarget(in: rootWithoutEntry, meta: currentMetaStorage) {

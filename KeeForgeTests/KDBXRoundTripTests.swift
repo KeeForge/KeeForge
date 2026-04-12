@@ -444,6 +444,25 @@ final class KDBXRoundTripTests: XCTestCase {
         )
     }
 
+    // MARK: - DeletedObjects round-trip
+
+    func test_deletedObjects_survivesRoundTrip() throws {
+        let deletedUUID = UUID()
+        let deletionTime = Date(timeIntervalSinceReferenceDate: 700_000_000)
+        let meta = KPMeta(deletedObjects: [KPDeletedObject(uuid: deletedUUID, deletionTime: deletionTime)])
+        let root = KPGroup(name: "Root", entries: [KPEntry(title: "Entry")])
+        let reparsed = try serializeAndParse((rootGroup: root, meta: meta))
+
+        XCTAssertEqual(reparsed.meta.deletedObjects.count, 1)
+        let tombstone = try XCTUnwrap(reparsed.meta.deletedObjects.first)
+        XCTAssertEqual(tombstone.uuid, deletedUUID)
+        XCTAssertEqual(
+            tombstone.deletionTime.timeIntervalSinceReferenceDate,
+            deletionTime.timeIntervalSinceReferenceDate,
+            accuracy: 1.0
+        )
+    }
+
     // MARK: - Regression: Value whitespace preserved
 
     func test_valueWhitespace_trailingSpaces_preserved() throws {

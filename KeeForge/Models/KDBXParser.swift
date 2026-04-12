@@ -736,6 +736,13 @@ final class KDBXXMLParser: NSObject, XMLParserDelegate {
     private var rootUnknownXML = OpaqueXMLNodes.empty
     private var rootKnownChildCount = 0
     private var meta = KPMeta()
+
+    // DeletedObjects tracking
+    private var inDeletedObjects = false
+    private var inDeletedObject = false
+    private var currentDeletedObjectUUID: UUID?
+    private var currentDeletedObjectTime: Date?
+    private var parsedDeletedObjects: [KPDeletedObject] = []
     private static let syntheticRootUUID = nullUUID
 
     private var currentEntry: EntryBuilder? {
@@ -763,7 +770,9 @@ final class KDBXXMLParser: NSObject, XMLParserDelegate {
             recycleBinUUID: meta.recycleBinUUID,
             unknownXML: rootUnknownXML
         )
-        return (root, meta)
+        var completedMeta = meta
+        completedMeta.deletedObjects = parsedDeletedObjects
+        return (root, completedMeta)
     }
 
     // MARK: - XMLParserDelegate
@@ -788,6 +797,14 @@ final class KDBXXMLParser: NSObject, XMLParserDelegate {
 
         case "Entry":
             entryStack.append(EntryBuilder())
+
+        case "DeletedObjects":
+            inDeletedObjects = true
+
+        case "DeletedObject" where inDeletedObjects:
+            inDeletedObject = true
+            currentDeletedObjectUUID = nil
+            currentDeletedObjectTime = nil
 
         case "String":
             currentKey = ""
@@ -862,6 +879,21 @@ final class KDBXXMLParser: NSObject, XMLParserDelegate {
             } else {
                 rootGroups.append(group)
             }
+
+        case "DeletedObjects":
+            inDeletedObjects = false
+
+        case "DeletedObject" where inDeletedObjects:
+            if let uuid = currentDeletedObjectUUID, let time = currentDeletedObjectTime {
+                parsedDeletedObjects.append(KPDeletedObject(uuid: uuid, deletionTime: time))
+            }
+            inDeletedObject = false
+
+        case "UUID" where inDeletedObject:
+            currentDeletedObjectUUID = parseKPUUID(currentText)
+
+        case "DeletionTime" where inDeletedObject:
+            currentDeletedObjectTime = parseKPDate(currentText.trimmingCharacters(in: .whitespacesAndNewlines))
 
         case "History":
             historyDepth = max(0, historyDepth - 1)
@@ -1131,7 +1163,7 @@ final class KDBXXMLParser: NSObject, XMLParserDelegate {
     ) {
         switch parentName {
         case "Root":
-            if elementName == "Entry" || elementName == "Group" {
+            if elementName == "Entry" || elementName == "Group" || elementName == "DeletedObjects" {
                 rootKnownChildCount += 1
             } else {
                 rootUnknownXML.append(xml: xml, insertionIndex: rootKnownChildCount)

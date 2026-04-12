@@ -46,6 +46,13 @@ struct OpaqueXMLNodes: Sendable, Hashable {
     }
 }
 
+/// A tombstone record for a permanently deleted entry or group, used by
+/// KeePass sync/merge to prevent resurrecting deleted objects.
+struct KPDeletedObject: Sendable, Hashable {
+    let uuid: UUID
+    let deletionTime: Date
+}
+
 struct KPMeta: Sendable, Hashable {
     var recycleBinUUID: UUID?
     var hasRecycleBinUUIDElement: Bool
@@ -53,6 +60,7 @@ struct KPMeta: Sendable, Hashable {
     var historyMaxItems: Int?
     var historyMaxSize: Int64?
     var unknownXML: OpaqueXMLNodes
+    var deletedObjects: [KPDeletedObject]
 
     static let defaultMaintenanceHistoryDays = 365
     static let defaultHistoryMaxItems = 10
@@ -64,7 +72,8 @@ struct KPMeta: Sendable, Hashable {
         maintenanceHistoryDays: Int? = nil,
         historyMaxItems: Int? = nil,
         historyMaxSize: Int64? = nil,
-        unknownXML: OpaqueXMLNodes = .empty
+        unknownXML: OpaqueXMLNodes = .empty,
+        deletedObjects: [KPDeletedObject] = []
     ) {
         self.recycleBinUUID = recycleBinUUID
         self.hasRecycleBinUUIDElement = hasRecycleBinUUIDElement
@@ -72,6 +81,7 @@ struct KPMeta: Sendable, Hashable {
         self.historyMaxItems = historyMaxItems
         self.historyMaxSize = historyMaxSize
         self.unknownXML = unknownXML
+        self.deletedObjects = deletedObjects
     }
 
     var resolvedMaintenanceHistoryDays: Int {

@@ -211,18 +211,26 @@ final class DatabaseDraftTests: XCTestCase {
         XCTAssertFalse(updatedParentGroup.entries.contains(where: { $0.id == tree.parentEntry.id }))
     }
 
-    func test_deleteEntry_hardDelete_removesEntry() throws {
+    func test_deleteEntry_hardDelete_removesEntry_createsDeletedObject() throws {
         let tree = try makeSyntheticTree(includeRecycleBin: true)
         let draft = DatabaseDraft(rootGroup: tree.rootGroup, meta: tree.meta, sessionKey: sessionKey)
         let recycleBinGroupID = try XCTUnwrap(tree.recycleBinGroupID)
         let originalRecycleBin = try XCTUnwrap(findGroup(withID: recycleBinGroupID, in: tree.rootGroup))
 
-        let updatedDraft = try draft.apply(.deleteEntry(entryID: tree.parentEntry.id, sendToRecycleBin: false))
+        let deletedEntryID = tree.parentEntry.id
+        let beforeDelete = Date.now
+        let updatedDraft = try draft.apply(.deleteEntry(entryID: deletedEntryID, sendToRecycleBin: false))
 
-        XCTAssertFalse(updatedDraft.rootGroup.allEntries.contains(where: { $0.id == tree.parentEntry.id }))
+        XCTAssertFalse(updatedDraft.rootGroup.allEntries.contains(where: { $0.id == deletedEntryID }))
 
         let updatedRecycleBin = try XCTUnwrap(findGroup(withID: recycleBinGroupID, in: updatedDraft.rootGroup))
         try assertGroupsEqual(originalRecycleBin, updatedRecycleBin)
+
+        let tombstone = try XCTUnwrap(
+            updatedDraft.meta.deletedObjects.first(where: { $0.uuid == deletedEntryID }),
+            "Hard delete should create a DeletedObject tombstone"
+        )
+        XCTAssertGreaterThanOrEqual(tombstone.deletionTime, beforeDelete)
     }
 
     func test_pendingEdits_recordsEveryAppliedOp_inOrder() throws {
