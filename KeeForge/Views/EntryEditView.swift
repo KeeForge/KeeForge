@@ -74,55 +74,6 @@ struct EntryEditView: View {
                     .accessibilityIdentifier("entry-edit.notes-field")
             }
 
-            Section("Custom Fields") {
-                ForEach(Array(formViewModel.customFields.enumerated()), id: \.element.id) { index, field in
-                    VStack(alignment: .leading, spacing: 8) {
-                        TextField("Field Name", text: Binding(
-                            get: { formViewModel.customFields[index].key },
-                            set: { formViewModel.customFields[index].key = $0 }
-                        ))
-                        .textInputAutocapitalization(.never)
-                        .autocorrectionDisabled()
-
-                        TextField("Field Value", text: Binding(
-                            get: { formViewModel.customFields[index].value },
-                            set: { formViewModel.customFields[index].value = $0 }
-                        ))
-                        .textInputAutocapitalization(.never)
-                        .autocorrectionDisabled()
-
-                        Button("Remove Field", role: .destructive) {
-                            formViewModel.removeCustomField(id: field.id)
-                        }
-                        .font(.footnote)
-                    }
-                    .accessibilityIdentifier(formViewModel.customFieldAccessibilityIdentifier(for: field, fallbackIndex: index))
-                }
-
-                Button("Add Custom Field") {
-                    formViewModel.addCustomField()
-                }
-                .accessibilityIdentifier("entry-edit.custom-field.add")
-            }
-
-            Section("One-Time Password") {
-                VStack(alignment: .leading, spacing: 12) {
-                    TextField("Secret", text: $formViewModel.totpSecret)
-                        .textInputAutocapitalization(.never)
-                        .autocorrectionDisabled()
-
-                    Stepper("Period: \(formViewModel.totpPeriod)s", value: $formViewModel.totpPeriod, in: 15...120, step: 15)
-                    Stepper("Digits: \(formViewModel.totpDigits)", value: $formViewModel.totpDigits, in: 6...8)
-
-                    Picker("Algorithm", selection: $formViewModel.totpAlgorithm) {
-                        Text("SHA-1").tag(TOTPAlgorithm.sha1)
-                        Text("SHA-256").tag(TOTPAlgorithm.sha256)
-                        Text("SHA-512").tag(TOTPAlgorithm.sha512)
-                    }
-                }
-                .accessibilityIdentifier("entry-edit.totp-setup")
-            }
-
             if formViewModel.passkeyCredential != nil || formViewModel.unknownXMLNodeCount > 0 {
                 Section("Preserved Read-Only Data") {
                     if let passkey = formViewModel.passkeyCredential {
