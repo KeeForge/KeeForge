@@ -28,6 +28,10 @@ struct GroupListView: View {
         resolvedGroup?.entries ?? []
     }
 
+    private var isRecycleBin: Bool {
+        viewModel.currentRootGroup?.recycleBinUUID == groupID
+    }
+
     var body: some View {
         Group {
             if viewModel.searchText.isEmpty {
@@ -64,10 +68,10 @@ struct GroupListView: View {
                                     }
                                     .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                                         if viewModel.isReadOnly == false {
-                                            Button("Delete", role: .destructive) {
+                                            Button(isRecycleBin ? "Delete Permanently" : "Delete", role: .destructive) {
                                                 pendingEntryDeletion = PendingEntryDeletion(
                                                     entryID: entry.id,
-                                                    sendToRecycleBin: true
+                                                    sendToRecycleBin: !isRecycleBin
                                                 )
                                             }
                                             .accessibilityIdentifier("entry-row.delete-swipe")

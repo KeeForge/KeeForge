@@ -12,6 +12,9 @@
 - Add main-app entry editing with create, edit, delete, password generation, save-conflict resolution, and read-only editing safeguards
 - Added: Save new credentials and generate strong passwords directly from AutoFill, with offline-safe queueing for Dropbox-backed databases.
 
+### Improvements
+- Deleting an entry inside the Recycle Bin now permanently erases it instead of re-moving it to the same bin
+
 ### Fixes
 - Autosave entry create/edit/delete changes immediately after they are staged, remove the confusing unlocked-screen save button, and show retry-only save UI when an autosave fails
 - Refresh subgroup entry counts immediately after in-app edits like moving an entry to the recycle bin

@@ -20,6 +20,11 @@ struct EntryEditView: View {
         isSubmitting || databaseViewModel.isSaving
     }
 
+    private var isEntryInRecycleBin: Bool {
+        guard case .edit(let entryID) = formViewModel.mode else { return false }
+        return databaseViewModel.isEntryInRecycleBin(entryID: entryID)
+    }
+
     init(
         formViewModel: EntryEditViewModel,
         databaseViewModel: DatabaseViewModel,
@@ -178,15 +183,19 @@ struct EntryEditView: View {
             isPresented: $showDeleteConfirmation,
             titleVisibility: .visible
         ) {
-            Button("Move to Recycle Bin", role: .destructive) {
-                deleteTapped(sendToRecycleBin: true)
+            if !isEntryInRecycleBin {
+                Button("Move to Recycle Bin", role: .destructive) {
+                    deleteTapped(sendToRecycleBin: true)
+                }
             }
             Button("Delete Permanently", role: .destructive) {
                 deleteTapped(sendToRecycleBin: false)
             }
             Button("Cancel", role: .cancel) {}
         } message: {
-            Text("Choose how to remove this entry.")
+            Text(isEntryInRecycleBin
+                ? "This entry is already in the recycle bin. It will be permanently deleted."
+                : "Choose how to remove this entry.")
         }
         .alert(
             "Couldn’t Update Entry",

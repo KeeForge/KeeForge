@@ -466,6 +466,14 @@ final class DatabaseViewModel {
         Self.findGroup(groupID, in: currentRootGroup)
     }
 
+    func isEntryInRecycleBin(entryID: UUID) -> Bool {
+        guard let recycleBinID = currentRootGroup?.recycleBinUUID,
+              let recycleBinGroup = Self.findGroup(recycleBinID, in: currentRootGroup) else {
+            return false
+        }
+        return recycleBinGroup.entries.contains(where: { $0.id == entryID })
+    }
+
     func applyEntryEdit(_ edit: EntryEdit) throws {
         draft = try makeWorkingDraft().apply(edit)
         saveConflict = nil
