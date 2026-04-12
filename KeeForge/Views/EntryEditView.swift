@@ -28,44 +28,54 @@ struct EntryEditView: View {
     var body: some View {
         Form {
             Section("Basics") {
-                TextField("Title", text: $formViewModel.title)
-                    .textInputAutocapitalization(.words)
-                    .accessibilityIdentifier("entry-edit.title-field")
-
-                TextField("Username", text: $formViewModel.username)
-                    .textInputAutocapitalization(.never)
-                    .autocorrectionDisabled()
-                    .accessibilityIdentifier("entry-edit.username-field")
-
-                HStack(spacing: 12) {
-                    SecureField("Password", text: $formViewModel.password)
-                        .textInputAutocapitalization(.never)
-                        .autocorrectionDisabled()
-                        .accessibilityIdentifier("entry-edit.password-field")
-
-                    Button {
-                        showPasswordGenerator = true
-                    } label: {
-                        Image(systemName: "dice.fill")
-                            .frame(width: 30, height: 30)
-                    }
-                    .buttonStyle(.borderless)
-                    .accessibilityLabel("Generate password")
-                    .accessibilityIdentifier("entry-edit.password-generator-button")
+                basicFieldRow("Title") {
+                    TextField("Title", text: $formViewModel.title)
+                        .textInputAutocapitalization(.words)
+                        .accessibilityIdentifier("entry-edit.title-field")
                 }
 
-                TextField("URL", text: $formViewModel.url)
-                    .textInputAutocapitalization(.never)
-                    .autocorrectionDisabled()
-                    .keyboardType(.URL)
-                    .textContentType(.URL)
-                    .accessibilityIdentifier("entry-edit.url-field")
+                basicFieldRow("Username") {
+                    TextField("Username", text: $formViewModel.username)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                        .accessibilityIdentifier("entry-edit.username-field")
+                }
 
-                TextField("Tags", text: $formViewModel.tagsText, axis: .vertical)
-                    .lineLimit(2...4)
-                    .textInputAutocapitalization(.never)
-                    .autocorrectionDisabled()
-                    .accessibilityIdentifier("entry-edit.tags-field")
+                basicFieldRow("Password") {
+                    HStack(spacing: 12) {
+                        SecureField("Password", text: $formViewModel.password)
+                            .textInputAutocapitalization(.never)
+                            .autocorrectionDisabled()
+                            .accessibilityIdentifier("entry-edit.password-field")
+
+                        Button {
+                            showPasswordGenerator = true
+                        } label: {
+                            Image(systemName: "dice.fill")
+                                .frame(width: 30, height: 30)
+                        }
+                        .buttonStyle(.borderless)
+                        .accessibilityLabel("Generate password")
+                        .accessibilityIdentifier("entry-edit.password-generator-button")
+                    }
+                }
+
+                basicFieldRow("URL") {
+                    TextField("URL", text: $formViewModel.url)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                        .keyboardType(.URL)
+                        .textContentType(.URL)
+                        .accessibilityIdentifier("entry-edit.url-field")
+                }
+
+                basicFieldRow("Tags") {
+                    TextField("Tags", text: $formViewModel.tagsText, axis: .vertical)
+                        .lineLimit(2...4)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                        .accessibilityIdentifier("entry-edit.tags-field")
+                }
             }
 
             Section("Notes") {
@@ -169,6 +179,20 @@ struct EntryEditView: View {
         case .edit:
             "Edit Entry"
         }
+    }
+
+    private func basicFieldRow<Content: View>(
+        _ title: String,
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(title)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+            content()
+        }
+        .padding(.vertical, 2)
     }
 
     private func cancelTapped() {

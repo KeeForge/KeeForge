@@ -16,6 +16,7 @@
 - Remove the baked white background from the Dropbox provider glyph so it renders cleanly in dark mode
 - Show provider-specific cloud sync status during unlock, and add focused unlock coverage for cloud sync success, fallback, and failure paths
 - Fix Xcode Cloud post-clone bootstrap so clean CI machines no longer require a developer team xcconfig value just to generate the project
+- Add persistent field labels to the entry edit basics section so filled-in rows remain identifiable while editing
 - Internal: KDBX parser now captures unknown XML elements verbatim, paving the way for lossless edits
 - Internal: KDBX writer can now produce KDBX 4.x files (AES-256-CBC and ChaCha20-Poly1305) for use by upcoming edit features
 - Internal: Added DatabaseDraft layer that lets the app stage entry edits in memory before saving.
