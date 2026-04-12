@@ -114,6 +114,26 @@ final class CredentialProviderSaveTests: XCTestCase {
         XCTAssertEqual(recorder.populatedEntryTitles, [["Dropbox Entry"]])
     }
 
+    func test_activeAutoFillDatabase_readOnly_blocksCreation() {
+        let reference = makeLocalReference(isReadOnly: true)
+        DatabaseListStore.update(reference)
+        DatabaseListStore.activeAutoFillDatabaseID = reference.id
+
+        let active = DatabaseListStore.activeAutoFillDatabase
+        XCTAssertNotNil(active)
+        XCTAssertTrue(active?.isReadOnly == true)
+    }
+
+    func test_activeAutoFillDatabase_readOnlyCloud_blocksCreation() {
+        let reference = makeCloudReference(rev: "rev-1", isReadOnly: true)
+        DatabaseListStore.update(reference)
+        DatabaseListStore.activeAutoFillDatabaseID = reference.id
+
+        let active = DatabaseListStore.activeAutoFillDatabase
+        XCTAssertNotNil(active)
+        XCTAssertTrue(active?.isReadOnly == true)
+    }
+
     func test_saveNewEntry_conflict_doesNotEnqueueOrPopulate() async throws {
         let reference = makeCloudReference(rev: "rev-2")
         let sessionKey = SymmetricKey(size: .bits256)
@@ -190,7 +210,7 @@ final class CredentialProviderSaveTests: XCTestCase {
         )
     }
 
-    private func makeLocalReference(id: UUID = UUID()) -> DatabaseReference {
+    private func makeLocalReference(id: UUID = UUID(), isReadOnly: Bool = false) -> DatabaseReference {
         DatabaseReference(
             id: id,
             nickname: nil,
@@ -202,11 +222,12 @@ final class CredentialProviderSaveTests: XCTestCase {
             lastOpenedAt: nil,
             addedAt: Date(timeIntervalSince1970: 0),
             colorTag: nil,
-            legacyKeychainFilename: nil
+            legacyKeychainFilename: nil,
+            isReadOnly: isReadOnly
         )
     }
 
-    private func makeCloudReference(id: UUID = UUID(), rev: String?) -> DatabaseReference {
+    private func makeCloudReference(id: UUID = UUID(), rev: String?, isReadOnly: Bool = false) -> DatabaseReference {
         DatabaseReference(
             id: id,
             nickname: nil,
@@ -219,7 +240,7 @@ final class CredentialProviderSaveTests: XCTestCase {
             addedAt: Date(timeIntervalSince1970: 0),
             colorTag: nil,
             legacyKeychainFilename: nil,
-            isReadOnly: false,
+            isReadOnly: isReadOnly,
             editsAcknowledgedAt: nil,
             source: .cloud(
                 CloudSyncMetadata(
