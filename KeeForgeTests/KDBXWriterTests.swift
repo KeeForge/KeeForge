@@ -131,7 +131,10 @@ final class KDBXWriterTests: XCTestCase {
 
     func test_writtenFile_validatesPerBlockHMAC() throws {
         let parsed = try parseFixture(.test)
-        let largeNotes = String(repeating: "HMAC block coverage ", count: 120_000)
+        // Use base64-encoded random bytes so gzip cannot compress below the 1 MB HMAC block size.
+        var rng = [UInt8](repeating: 0, count: 1_500_000)
+        _ = SecRandomCopyBytes(kSecRandomDefault, rng.count, &rng)
+        let largeNotes = Data(rng).base64EncodedString()
         XCTAssertTrue(setNotes(largeNotes, forEntryTitled: "GitHub", in: parsed.rootGroup))
 
         let written = try KDBXWriter.write(
