@@ -140,7 +140,7 @@ struct GroupListView: View {
                         }
                     }
                     .sheet(isPresented: $showSettings) {
-                        SettingsView(viewModel: viewModel)
+                        DatabaseSettingsView(viewModel: viewModel)
                     }
                     .alert(item: $pendingEntryDeletion) { action in
                         Alert(
@@ -249,5 +249,191 @@ struct EntryRow: View {
                     .foregroundStyle(.green)
             }
         }
+    }
+}
+
+struct DatabaseSettingsView: View {
+    @Bindable var viewModel: DatabaseViewModel
+    @Environment(\.dismiss) private var dismiss
+    @State private var nickname = ""
+    @State private var isQuickLaunch = false
+    @State private var showKeyFilePicker = false
+    @State private var showAppSettings = false
+
+    private var reference: DatabaseReference {
+        viewModel.databaseReference
+    }
+
+    private var currentReference: DatabaseReference {
+        DatabaseListStore.databases.first(where: { $0.id == reference.id }) ?? reference
+    }
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section {
+                    LabeledContent("Name", value: currentDisplayName)
+
+                    LabeledContent("Custom Name") {
+                        TextField("Use filename", text: $nickname)
+                            .multilineTextAlignment(.trailing)
+                            .onSubmit(saveNickname)
+                    }
+
+                    LabeledContent("Filename", value: reference.filename)
+
+                    Toggle("Quick Launch", isOn: $isQuickLaunch)
+                        .onChange(of: isQuickLaunch) { _, newValue in
+                            toggleQuickLaunch(newValue)
+                        }
+                } header: {
+                    Text("Identity")
+                } footer: {
+                    Text("Quick Launch opens this database automatically on app launch.")
+                }
+
+                Section {
+                    Toggle(
+                        "Read-only",
+                        isOn: Binding(
+                            get: { currentReference.isReadOnly },
+                            set: { DatabaseListStore.setReadOnly($0, for: reference) }
+                        )
+                    )
+                    .accessibilityIdentifier("database-settings.read-only-toggle")
+                } header: {
+                    Text("Editing")
+                } footer: {
+                    Text("Keep this database openable but block create, edit, and delete actions until you turn editing back on.")
+                }
+
+                Section("Key File") {
+                    LabeledContent("Associated File", value: currentReference.keyFileFilename ?? "None")
+
+                    Button("Select Key File") {
+                        showKeyFilePicker = true
+                    }
+
+                    if currentReference.keyFileFilename != nil {
+                        Button("Clear Key File", role: .destructive) {
+                            setKeyFile(url: nil)
+                        }
+                    }
+                }
+
+                Section("Metadata") {
+                    LabeledContent("Added", value: dateText(reference.addedAt))
+
+                    if let lastOpenedAt = reference.lastOpenedAt {
+                        LabeledContent("Last Opened", value: dateText(lastOpenedAt))
+                    }
+                }
+
+                if let metadata = currentReference.cloudSyncMetadata {
+                    Section {
+                        LabeledContent("Provider") {
+                            HStack(spacing: 6) {
+                                CloudProviderIcon(provider: metadata.providerKind, size: 16)
+                                Text(metadata.providerKind?.displayName ?? metadata.provider)
+                            }
+                            .lineLimit(1)
+                        }
+
+                        LabeledContent("Path") {
+                            Text(metadata.displayPath)
+                                .lineLimit(1)
+                                .truncationMode(.middle)
+                                .multilineTextAlignment(.trailing)
+                        }
+
+                        if let remoteModifiedAt = metadata.remoteModifiedAt {
+                            LabeledContent("Remote Modified", value: dateText(remoteModifiedAt))
+                        }
+
+                        if let lastSyncedAt = metadata.lastSyncedAt {
+                            LabeledContent("Last Sync", value: dateText(lastSyncedAt))
+                        }
+                    } header: {
+                        Text("Cloud Sync")
+                    }
+                }
+
+                Section {
+                    Button("App Settings") {
+                        showAppSettings = true
+                    }
+                }
+            }
+            .navigationTitle("Database Settings")
+            .navigationBarTitleDisplayMode(.inline)
+            .onAppear {
+                nickname = currentReference.nickname ?? ""
+                isQuickLaunch = currentReference.isQuickLaunch
+            }
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Close") {
+                        saveNickname()
+                        dismiss()
+                    }
+                }
+            }
+            .fileImporter(
+                isPresented: $showKeyFilePicker,
+                allowedContentTypes: [.data],
+                allowsMultipleSelection: false
+            ) { result in
+                if case .success(let urls) = result, let url = urls.first {
+                    setKeyFile(url: url)
+                }
+            }
+            .sheet(isPresented: $showAppSettings) {
+                SettingsView(viewModel: viewModel)
+            }
+        }
+    }
+
+    private func saveNickname() {
+        let trimmed = nickname.trimmingCharacters(in: .whitespacesAndNewlines)
+        let newNickname = trimmed.isEmpty ? nil : trimmed
+        guard var updated = DatabaseListStore.databases.first(where: { $0.id == reference.id }) else { return }
+        updated.nickname = newNickname
+        DatabaseListStore.update(updated)
+    }
+
+    private func toggleQuickLaunch(_ newValue: Bool) {
+        // Clear Quick Launch from any other database first
+        if newValue {
+            for database in DatabaseListStore.databases where database.id != reference.id && database.isQuickLaunch {
+                var updated = database
+                updated.isQuickLaunch = false
+                DatabaseListStore.update(updated)
+            }
+        }
+        guard var updated = DatabaseListStore.databases.first(where: { $0.id == reference.id }) else { return }
+        updated.isQuickLaunch = newValue
+        DatabaseListStore.update(updated)
+    }
+
+    private func setKeyFile(url: URL?) {
+        guard var updated = DatabaseListStore.databases.first(where: { $0.id == reference.id }) else { return }
+        if let url {
+            guard let bookmarkData = try? SecurityScopedBookmarkManager.makeBookmarkData(for: url) else { return }
+            updated.keyFileBookmarkData = bookmarkData
+            updated.keyFileFilename = url.lastPathComponent
+        } else {
+            updated.keyFileBookmarkData = nil
+            updated.keyFileFilename = nil
+        }
+        DatabaseListStore.update(updated)
+    }
+
+    private var currentDisplayName: String {
+        let trimmed = nickname.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? reference.displayName : trimmed
+    }
+
+    private func dateText(_ date: Date) -> String {
+        date.formatted(date: .abbreviated, time: .shortened)
     }
 }

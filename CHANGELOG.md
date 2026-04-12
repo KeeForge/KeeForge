@@ -11,6 +11,7 @@
 ### New Features
 - Add main-app entry editing with create, edit, delete, password generation, save-conflict resolution, and read-only editing safeguards
 - Added: Save new credentials and generate strong passwords directly from AutoFill, with offline-safe queueing for Dropbox-backed databases.
+- Settings button in unlocked database view now opens database-specific settings (nickname, read-only, key file, metadata, cloud sync) with a link to app settings
 
 ### Improvements
 - Deleting an entry inside the Recycle Bin now permanently erases it instead of re-moving it to the same bin
