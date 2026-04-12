@@ -270,10 +270,6 @@ enum LocalDatabaseSaver {
 
     private static func replaceFileAtomically(_ data: Data, at url: URL) throws {
         let fileManager = FileManager.default
-        let tempURL = url.deletingLastPathComponent().appendingPathComponent(
-            ".keeforge-save-\(UUID().uuidString).tmp",
-            isDirectory: false
-        )
 
         var coordinatorError: NSError?
         var result: Result<Void, Error>?
@@ -285,7 +281,23 @@ enum LocalDatabaseSaver {
             error: &coordinatorError
         ) { coordinatedURL in
             result = Result {
+                let replacementDirectoryURL = try fileManager.url(
+                    for: .itemReplacementDirectory,
+                    in: .userDomainMask,
+                    appropriateFor: coordinatedURL,
+                    create: true
+                )
+                let tempURL = replacementDirectoryURL.appendingPathComponent(
+                    "keeforge-save-\(UUID().uuidString)",
+                    isDirectory: false
+                )
+                defer {
+                    try? fileManager.removeItem(at: replacementDirectoryURL)
+                }
+
                 do {
+                    // Keep the staged replacement outside the picked folder because
+                    // file-scoped security access may not allow creating sibling temp files.
                     try data.write(to: tempURL, options: [.completeFileProtection])
                     _ = try fileManager.replaceItemAt(
                         coordinatedURL,
