@@ -13,6 +13,7 @@ struct EntryEditView: View {
     @State private var showDiscardConfirmation = false
     @State private var showDeleteConfirmation = false
     @State private var showPasswordGenerator = false
+    @State private var isPasswordVisible = true
     @State private var editingErrorMessage: String?
     @State private var isSubmitting = false
 
@@ -53,10 +54,27 @@ struct EntryEditView: View {
 
                 basicFieldRow("Password") {
                     HStack(spacing: 12) {
-                        SecureField("Password", text: $formViewModel.password)
-                            .textInputAutocapitalization(.never)
-                            .autocorrectionDisabled()
-                            .accessibilityIdentifier("entry-edit.password-field")
+                        Group {
+                            if isPasswordVisible {
+                                TextField("Password", text: $formViewModel.password)
+                            } else {
+                                SecureField("Password", text: $formViewModel.password)
+                            }
+                        }
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                        .textContentType(.password)
+                        .accessibilityIdentifier("entry-edit.password-field")
+
+                        Button {
+                            isPasswordVisible.toggle()
+                        } label: {
+                            Image(systemName: isPasswordVisible ? "eye.slash.fill" : "eye.fill")
+                                .frame(width: 30, height: 30)
+                        }
+                        .buttonStyle(.borderless)
+                        .accessibilityLabel(isPasswordVisible ? "Hide password" : "Show password")
+                        .accessibilityIdentifier("entry-edit.password-visibility-button")
 
                         Button {
                             showPasswordGenerator = true

@@ -84,13 +84,6 @@ final class KDBXRoundTripTests: XCTestCase {
                 in: entry.unknownXML
             )
         )
-        let history = try XCTUnwrap(
-            unknownFragment(
-                named: "History",
-                containing: "Historical revision for round-trip coverage",
-                in: entry.unknownXML
-            )
-        )
         let binaryReference = try XCTUnwrap(
             unknownFragment(
                 named: "Binary",
@@ -102,8 +95,9 @@ final class KDBXRoundTripTests: XCTestCase {
         XCTAssertFalse(metaCustomData.isEmpty)
         XCTAssertFalse(entryCustomData.isEmpty)
         XCTAssertFalse(autoType.isEmpty)
-        XCTAssertFalse(history.isEmpty)
         XCTAssertFalse(binaryReference.isEmpty)
+        XCTAssertEqual(entry.history.count, 1)
+        XCTAssertTrue(entry.history[0].notes.contains("Historical revision for round-trip coverage"))
 
         let reparsed = try serializeAndParse(parsed)
         let reparsedEntry = try controlledUnknownsEntry(in: reparsed.rootGroup)
@@ -131,18 +125,13 @@ final class KDBXRoundTripTests: XCTestCase {
         )
         XCTAssertNotNil(
             unknownFragment(
-                named: "History",
-                containing: "Historical revision for round-trip coverage",
-                in: reparsedEntry.unknownXML
-            )
-        )
-        XCTAssertNotNil(
-            unknownFragment(
                 named: "Binary",
                 containing: "round-trip.txt",
                 in: reparsedEntry.unknownXML
             )
         )
+        XCTAssertEqual(reparsedEntry.history.count, 1)
+        XCTAssertTrue(reparsedEntry.history[0].notes.contains("Historical revision for round-trip coverage"))
         XCTAssertEqual(parsed.meta.recycleBinUUID, reparsed.meta.recycleBinUUID)
         XCTAssertEqual(entry.title, reparsedEntry.title)
         XCTAssertEqual(entry.username, reparsedEntry.username)
@@ -254,6 +243,9 @@ final class KDBXRoundTripTests: XCTestCase {
         let reparsed = try serializeAndParse(parsed)
 
         XCTAssertEqual(parsed.meta.recycleBinUUID, reparsed.meta.recycleBinUUID)
+        XCTAssertEqual(parsed.meta.maintenanceHistoryDays, reparsed.meta.maintenanceHistoryDays)
+        XCTAssertEqual(parsed.meta.historyMaxItems, reparsed.meta.historyMaxItems)
+        XCTAssertEqual(parsed.meta.historyMaxSize, reparsed.meta.historyMaxSize)
         XCTAssertEqual(normalizedOpaqueXML(parsed.meta.unknownXML), normalizedOpaqueXML(reparsed.meta.unknownXML))
         try assertGroupsEqual(parsed.rootGroup, reparsed.rootGroup)
     }
@@ -359,6 +351,10 @@ final class KDBXRoundTripTests: XCTestCase {
         XCTAssertEqual(lhs.creationTime, rhs.creationTime, file: file, line: line)
         XCTAssertEqual(lhs.lastModificationTime, rhs.lastModificationTime, file: file, line: line)
         XCTAssertEqual(normalizedOpaqueXML(lhs.unknownXML), normalizedOpaqueXML(rhs.unknownXML), file: file, line: line)
+        XCTAssertEqual(lhs.history.count, rhs.history.count, file: file, line: line)
+        for (lhsHistoryEntry, rhsHistoryEntry) in zip(lhs.history, rhs.history) {
+            try assertEntriesEqual(lhsHistoryEntry, rhsHistoryEntry, file: file, line: line)
+        }
         try assertTOTPConfigsEqual(lhs.totpConfig, rhs.totpConfig, file: file, line: line)
     }
 

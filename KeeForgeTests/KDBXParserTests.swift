@@ -104,6 +104,17 @@ final class KDBXParserTests: XCTestCase {
                        "Duplicate entries found: \(keys)")
     }
 
+    func testHistoryEntriesAreAttachedToOwningEntry() throws {
+        let root = try parseFixture()
+        let twitter = try XCTUnwrap(root.allEntries.first { $0.title == "Twitter" })
+
+        XCTAssertEqual(twitter.history.count, 2)
+        XCTAssertTrue(twitter.history.allSatisfy { $0.history.isEmpty })
+        for historyEntry in twitter.history {
+            XCTAssertFalse(try historyEntry.password.decrypt(using: testSessionKey).isEmpty)
+        }
+    }
+
     // MARK: - Entry Field Tests
 
     func testAllEntryUsernames() throws {

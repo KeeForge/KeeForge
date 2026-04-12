@@ -180,6 +180,30 @@ final class KDBXWriterTests: XCTestCase {
         try assertTreesEqual(parsed, reparsed)
     }
 
+    func test_writeRoundTrip_preservesHistorySettingsAndEntryHistory() throws {
+        let parsed = try parseFixture(.test)
+        var meta = parsed.meta
+        meta.maintenanceHistoryDays = 30
+        meta.historyMaxItems = 3
+        meta.historyMaxSize = 4_096
+
+        let written = try KDBXWriter.write(
+            rootGroup: parsed.rootGroup,
+            meta: meta,
+            compositeKey: parsed.compositeKey,
+            header: parsed.header,
+            sessionKey: sessionKey
+        )
+
+        let reparsed = try parseWrittenFile(written, fixture: .test)
+        let twitter = try XCTUnwrap(reparsed.rootGroup.allEntries.first { $0.title == "Twitter" })
+
+        XCTAssertEqual(reparsed.meta.maintenanceHistoryDays, 30)
+        XCTAssertEqual(reparsed.meta.historyMaxItems, 3)
+        XCTAssertEqual(reparsed.meta.historyMaxSize, 4_096)
+        XCTAssertEqual(twitter.history.count, 2)
+    }
+
     func test_writer_failsOnInvalidKDFParameters() throws {
         let parsed = try parseFixture(.test)
         var invalidHeader = parsed.header
@@ -425,6 +449,9 @@ final class KDBXWriterTests: XCTestCase {
         line: UInt = #line
     ) throws {
         XCTAssertEqual(lhs.meta.recycleBinUUID, rhs.meta.recycleBinUUID, file: file, line: line)
+        XCTAssertEqual(lhs.meta.maintenanceHistoryDays, rhs.meta.maintenanceHistoryDays, file: file, line: line)
+        XCTAssertEqual(lhs.meta.historyMaxItems, rhs.meta.historyMaxItems, file: file, line: line)
+        XCTAssertEqual(lhs.meta.historyMaxSize, rhs.meta.historyMaxSize, file: file, line: line)
         XCTAssertEqual(normalizedOpaqueXML(lhs.meta.unknownXML), normalizedOpaqueXML(rhs.meta.unknownXML), file: file, line: line)
         try assertGroupsEqual(lhs.rootGroup, rhs.rootGroup, file: file, line: line)
     }
@@ -473,6 +500,10 @@ final class KDBXWriterTests: XCTestCase {
         XCTAssertEqual(lhs.creationTime, rhs.creationTime, file: file, line: line)
         XCTAssertEqual(lhs.lastModificationTime, rhs.lastModificationTime, file: file, line: line)
         XCTAssertEqual(normalizedOpaqueXML(lhs.unknownXML), normalizedOpaqueXML(rhs.unknownXML), file: file, line: line)
+        XCTAssertEqual(lhs.history.count, rhs.history.count, file: file, line: line)
+        for (lhsHistoryEntry, rhsHistoryEntry) in zip(lhs.history, rhs.history) {
+            try assertEntriesEqual(lhsHistoryEntry, rhsHistoryEntry, file: file, line: line)
+        }
         try assertTOTPConfigsEqual(lhs.totpConfig, rhs.totpConfig, file: file, line: line)
     }
 

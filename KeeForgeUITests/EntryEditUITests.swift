@@ -124,6 +124,12 @@ final class EntryEditUITests: KeeForgeUITestCase {
         XCTAssertTrue(useButton.waitForExistence(timeout: 5))
         useButton.tap()
 
+        let passwordField = app.textFields["entry-edit.password-field"]
+        XCTAssertTrue(passwordField.waitForExistence(timeout: 5))
+        let passwordValue = passwordField.value as? String
+        XCTAssertNotNil(passwordValue)
+        XCTAssertFalse(passwordValue?.isEmpty ?? true)
+
         app.buttons["entry-edit.save"].tap()
         XCTAssertTrue(waitForElementToDisappear(app.buttons["entry-edit.save"], timeout: 10))
         lockAndReopenVault()
@@ -242,7 +248,7 @@ final class EntryEditUITests: KeeForgeUITestCase {
         }
 
         if let password {
-            let passwordField = app.secureTextFields["entry-edit.password-field"]
+            let passwordField = app.textFields["entry-edit.password-field"]
             XCTAssertTrue(passwordField.waitForExistence(timeout: 5), "Password field was not visible", file: file, line: line)
             replaceText(in: passwordField, with: password)
         }

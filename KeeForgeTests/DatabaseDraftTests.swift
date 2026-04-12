@@ -94,6 +94,66 @@ final class DatabaseDraftTests: XCTestCase {
         XCTAssertGreaterThan(updatedTimestamp, originalTimestamp)
     }
 
+    func test_updateEntry_pushesPreviousEntryStateIntoHistory() throws {
+        let tree = try makeSyntheticTree(includeRecycleBin: true)
+        var updatedPayload = try makeDraftPayload(from: tree.parentEntry)
+        updatedPayload.password = "new-password"
+        updatedPayload.notes = "Updated note"
+
+        let draft = DatabaseDraft(rootGroup: tree.rootGroup, meta: tree.meta, sessionKey: sessionKey)
+        let updatedDraft = try draft.apply(.updateEntry(entryID: tree.parentEntry.id, draft: updatedPayload))
+        let updatedEntry = try XCTUnwrap(findEntry(withID: tree.parentEntry.id, in: updatedDraft.rootGroup))
+        let historicalEntry = try XCTUnwrap(updatedEntry.history.first)
+
+        XCTAssertEqual(updatedEntry.history.count, 1)
+        XCTAssertEqual(historicalEntry.title, tree.parentEntry.title)
+        XCTAssertEqual(historicalEntry.username, tree.parentEntry.username)
+        XCTAssertEqual(try historicalEntry.password.decrypt(using: sessionKey), "old-password")
+        XCTAssertEqual(historicalEntry.notes, "Original notes")
+        XCTAssertEqual(historicalEntry.lastModificationTime, tree.parentEntry.lastModificationTime)
+        XCTAssertTrue(historicalEntry.history.isEmpty)
+    }
+
+    func test_updateEntry_trimsHistoryToConfiguredMaxItems() throws {
+        let tree = try makeSyntheticTree(includeRecycleBin: true)
+        let olderHistoryEntry = KPEntry(
+            id: UUID(),
+            title: "Older Snapshot",
+            username: "older-user",
+            password: try EncryptedValue.encrypt("older-password", using: sessionKey),
+            notes: "Older note",
+            creationTime: Date(timeIntervalSince1970: 500),
+            lastModificationTime: Date(timeIntervalSince1970: 1_500)
+        )
+        let entryWithHistory = withUpdatedEntry(
+            tree.parentEntry,
+            history: [olderHistoryEntry]
+        )
+        let treeWithHistory = try makeSyntheticTree(
+            includeRecycleBin: true,
+            parentEntryOverride: entryWithHistory,
+            metaOverride: KPMeta(
+                recycleBinUUID: tree.recycleBinGroupID,
+                hasRecycleBinUUIDElement: true,
+                historyMaxItems: 1
+            )
+        )
+        var updatedPayload = try makeDraftPayload(from: treeWithHistory.parentEntry)
+        updatedPayload.title = "Updated Title"
+
+        let draft = DatabaseDraft(
+            rootGroup: treeWithHistory.rootGroup,
+            meta: treeWithHistory.meta,
+            sessionKey: sessionKey
+        )
+        let updatedDraft = try draft.apply(.updateEntry(entryID: treeWithHistory.parentEntry.id, draft: updatedPayload))
+        let updatedEntry = try XCTUnwrap(findEntry(withID: treeWithHistory.parentEntry.id, in: updatedDraft.rootGroup))
+
+        XCTAssertEqual(updatedEntry.history.count, 1)
+        XCTAssertEqual(updatedEntry.history[0].title, treeWithHistory.parentEntry.title)
+        XCTAssertEqual(try updatedEntry.history[0].password.decrypt(using: sessionKey), "old-password")
+    }
+
     func test_updateEntry_reEncryptsPassword_underSessionKey() throws {
         let tree = try makeSyntheticTree(includeRecycleBin: true)
         var updatedPayload = try makeDraftPayload(from: tree.parentEntry)
@@ -317,10 +377,14 @@ final class DatabaseDraftTests: XCTestCase {
         XCTAssertEqual(updatedParentGroup.entries.count, 1_001)
     }
 
-    private func makeSyntheticTree(includeRecycleBin: Bool) throws -> SyntheticTree {
+    private func makeSyntheticTree(
+        includeRecycleBin: Bool,
+        parentEntryOverride: KPEntry? = nil,
+        metaOverride: KPMeta? = nil
+    ) throws -> SyntheticTree {
         let createdAt = Date(timeIntervalSince1970: 1_000)
         let modifiedAt = Date(timeIntervalSince1970: 2_000)
-        let parentEntry = KPEntry(
+        let defaultParentEntry = KPEntry(
             id: UUID(),
             title: "Original Entry",
             username: "original-user",
@@ -333,6 +397,7 @@ final class DatabaseDraftTests: XCTestCase {
             lastModificationTime: modifiedAt,
             protectedStringKeys: ["KPEX_PASSKEY_PRIVATE_KEY_PEM"]
         )
+        let parentEntry = parentEntryOverride ?? defaultParentEntry
         let parentGroupID = UUID()
         let parentGroup = KPGroup(
             id: parentGroupID,
@@ -400,7 +465,7 @@ final class DatabaseDraftTests: XCTestCase {
             groups: [visibleRootGroup],
             recycleBinUUID: recycleBinGroupID
         )
-        let meta = KPMeta(
+        let meta = metaOverride ?? KPMeta(
             recycleBinUUID: recycleBinGroupID,
             hasRecycleBinUUIDElement: includeRecycleBin
         )
@@ -536,7 +601,36 @@ final class DatabaseDraftTests: XCTestCase {
         XCTAssertEqual(lhs.lastModificationTime, rhs.lastModificationTime, file: file, line: line)
         XCTAssertEqual(lhs.unknownXML, rhs.unknownXML, file: file, line: line)
         XCTAssertEqual(lhs.protectedStringKeys, rhs.protectedStringKeys, file: file, line: line)
+        XCTAssertEqual(lhs.history.count, rhs.history.count, file: file, line: line)
+        for (lhsHistoryEntry, rhsHistoryEntry) in zip(lhs.history, rhs.history) {
+            try assertEntriesEqual(lhsHistoryEntry, rhsHistoryEntry, file: file, line: line)
+        }
         try assertTOTPConfigsEqual(lhs.totpConfig, rhs.totpConfig, file: file, line: line)
+    }
+
+    private func withUpdatedEntry(
+        _ entry: KPEntry,
+        history: [KPEntry]
+    ) -> KPEntry {
+        KPEntry(
+            id: entry.id,
+            title: entry.title,
+            username: entry.username,
+            password: entry.password,
+            url: entry.url,
+            notes: entry.notes,
+            iconID: entry.iconID,
+            tags: entry.tags,
+            hasTagsElement: entry.hasTagsElement,
+            customFields: entry.customFields,
+            totpConfig: entry.totpConfig,
+            otpURL: entry.otpURL,
+            creationTime: entry.creationTime,
+            lastModificationTime: entry.lastModificationTime,
+            history: history,
+            unknownXML: entry.unknownXML,
+            protectedStringKeys: entry.protectedStringKeys
+        )
     }
 
     private func assertTOTPConfigsEqual(

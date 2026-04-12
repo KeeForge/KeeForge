@@ -33,6 +33,18 @@ final class EntryEditViewModelTests: XCTestCase {
         XCTAssertEqual(payload.customFields[PasskeyCredential.usernameKey], "alice@example.com")
     }
 
+    func testEditingEntryDecryptsExistingPasswordIntoFormState() throws {
+        let entry = KPEntry(
+            title: "Original",
+            username: "alice",
+            password: try EncryptedValue.encrypt("existing-secret", using: sessionKey)
+        )
+
+        let viewModel = EntryEditViewModel(editing: entry, sessionKey: sessionKey)
+
+        XCTAssertEqual(viewModel.password, "existing-secret")
+    }
+
     func testIsDirtyTracksFormChanges() {
         let viewModel = EntryEditViewModel(createIn: UUID())
 

@@ -46,6 +46,25 @@ struct KDBXXMLSerializer {
             xml += element("RecycleBinUUID", value: serializeUUID(recycleBinUUID))
             knownChildCount += 1
         }
+
+        if let maintenanceHistoryDays = meta.maintenanceHistoryDays {
+            xml += try opaqueXML(from: meta.unknownXML, path: [], insertionIndex: knownChildCount)
+            xml += element("MaintenanceHistoryDays", value: String(maintenanceHistoryDays))
+            knownChildCount += 1
+        }
+
+        if let historyMaxItems = meta.historyMaxItems {
+            xml += try opaqueXML(from: meta.unknownXML, path: [], insertionIndex: knownChildCount)
+            xml += element("HistoryMaxItems", value: String(historyMaxItems))
+            knownChildCount += 1
+        }
+
+        if let historyMaxSize = meta.historyMaxSize {
+            xml += try opaqueXML(from: meta.unknownXML, path: [], insertionIndex: knownChildCount)
+            xml += element("HistoryMaxSize", value: String(historyMaxSize))
+            knownChildCount += 1
+        }
+
         xml += try trailingOpaqueXML(from: meta.unknownXML, path: [], knownChildCount: knownChildCount)
         xml += "</Meta>"
         return xml
@@ -209,8 +228,32 @@ struct KDBXXMLSerializer {
             knownChildCount += 1
         }
 
+        if !entry.history.isEmpty || hasOpaqueHistory(entry.unknownXML) {
+            xml += try opaqueXML(from: entry.unknownXML, path: [], insertionIndex: knownChildCount)
+            xml += try serializeHistory(entry.history, unknownXML: entry.unknownXML)
+            knownChildCount += 1
+        }
+
         xml += try trailingOpaqueXML(from: entry.unknownXML, path: [], knownChildCount: knownChildCount)
         xml += "</Entry>"
+        return xml
+    }
+
+    private mutating func serializeHistory(
+        _ historyEntries: [KPEntry],
+        unknownXML: OpaqueXMLNodes
+    ) throws -> String {
+        var xml = "<History>"
+        var knownChildCount = 0
+
+        for historyEntry in historyEntries {
+            xml += try opaqueXML(from: unknownXML, path: ["History"], insertionIndex: knownChildCount)
+            xml += try serializeEntry(historyEntry)
+            knownChildCount += 1
+        }
+
+        xml += try trailingOpaqueXML(from: unknownXML, path: ["History"], knownChildCount: knownChildCount)
+        xml += "</History>"
         return xml
     }
 
@@ -375,6 +418,10 @@ struct KDBXXMLSerializer {
 
     private func hasOpaqueTimes(_ unknownXML: OpaqueXMLNodes) -> Bool {
         unknownXML.nodes.contains { $0.path == ["Times"] }
+    }
+
+    private func hasOpaqueHistory(_ unknownXML: OpaqueXMLNodes) -> Bool {
+        unknownXML.nodes.contains { $0.path == ["History"] }
     }
 
     private mutating func rewriteProtectedValues(in xml: String) throws -> String {

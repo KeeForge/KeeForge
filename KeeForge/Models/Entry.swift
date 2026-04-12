@@ -24,6 +24,7 @@ struct KPEntry: Identifiable, Sendable {
     var otpURL: String?
     var creationTime: Date?
     var lastModificationTime: Date?
+    var history: [KPEntry]
     var unknownXML: OpaqueXMLNodes
     var protectedStringKeys: Set<String>
 
@@ -45,6 +46,7 @@ struct KPEntry: Identifiable, Sendable {
         otpURL: String? = nil,
         creationTime: Date? = nil,
         lastModificationTime: Date? = nil,
+        history: [KPEntry] = [],
         unknownXML: OpaqueXMLNodes = .empty,
         protectedStringKeys: Set<String> = []
     ) {
@@ -62,6 +64,7 @@ struct KPEntry: Identifiable, Sendable {
         self.otpURL = otpURL
         self.creationTime = creationTime
         self.lastModificationTime = lastModificationTime
+        self.history = history
         self.unknownXML = unknownXML
         self.protectedStringKeys = protectedStringKeys
     }
@@ -99,6 +102,12 @@ struct KPEntry: Identifiable, Sendable {
         case 68: "at"
         default: "key.fill"
         }
+    }
+
+    func cloneForHistory() -> KPEntry {
+        var clone = self
+        clone.history = []
+        return clone
     }
 }
 

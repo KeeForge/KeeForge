@@ -235,7 +235,13 @@ struct DatabaseDraft: Sendable {
         originalEntry: KPEntry,
         timestamp: Date
     ) throws -> KPEntry {
-        KPEntry(
+        let history = trimmedHistory(
+            appending: originalEntry.cloneForHistory(),
+            existing: originalEntry.history,
+            meta: currentMetaStorage
+        )
+
+        return KPEntry(
             id: originalEntry.id,
             title: draft.title,
             username: draft.username,
@@ -250,6 +256,7 @@ struct DatabaseDraft: Sendable {
             otpURL: preservedOtpURL(draft: draft, originalEntry: originalEntry),
             creationTime: originalEntry.creationTime,
             lastModificationTime: timestamp,
+            history: history,
             unknownXML: originalEntry.unknownXML,
             protectedStringKeys: preservedProtectedStringKeys(
                 from: originalEntry,
@@ -300,6 +307,80 @@ struct DatabaseDraft: Sendable {
     ) -> Set<String> {
         let editableKeys = Set(customFields.keys).union(["Title", "UserName", "URL", "Notes"])
         return entry.protectedStringKeys.intersection(editableKeys)
+    }
+
+    private func trimmedHistory(
+        appending snapshot: KPEntry,
+        existing: [KPEntry],
+        meta: KPMeta
+    ) -> [KPEntry] {
+        var history = ([snapshot] + existing).map { $0.cloneForHistory() }
+
+        let maxItems = meta.resolvedHistoryMaxItems
+        if maxItems >= 0, history.count > maxItems {
+            history = Array(history.prefix(maxItems))
+        }
+
+        let maxSize = meta.resolvedHistoryMaxSize
+        if maxSize >= 0 {
+            var retained: [KPEntry] = []
+            var sizeSoFar: Int64 = 0
+
+            for historyEntry in history {
+                let entrySize = estimatedHistorySize(for: historyEntry)
+                if sizeSoFar + entrySize > maxSize {
+                    break
+                }
+                retained.append(historyEntry)
+                sizeSoFar += entrySize
+            }
+
+            history = retained
+        }
+
+        return history
+    }
+
+    private func estimatedHistorySize(for entry: KPEntry) -> Int64 {
+        var size = Int64(256)
+        size += Int64(entry.title.utf8.count)
+        size += Int64(entry.username.utf8.count)
+        size += Int64(entry.url.utf8.count)
+        size += Int64(entry.notes.utf8.count)
+        size += Int64(entry.tags.joined(separator: ",").utf8.count)
+        size += Int64(entry.otpURL?.utf8.count ?? 0)
+
+        if let password = try? entry.password.decrypt(using: sessionKey) {
+            size += Int64(password.utf8.count)
+        } else {
+            size += Int64(entry.password.sealedData.count)
+        }
+
+        for (key, value) in entry.customFields {
+            size += Int64(key.utf8.count + value.utf8.count)
+        }
+
+        if let totpConfig = entry.totpConfig {
+            if let secret = try? totpConfig.secret.decrypt(using: sessionKey) {
+                size += Int64(secret.utf8.count)
+            } else {
+                size += Int64(totpConfig.secret.sealedData.count)
+            }
+            size += Int64(String(totpConfig.period).utf8.count)
+            size += Int64(String(totpConfig.digits).utf8.count)
+            size += Int64(totpConfig.algorithm.rawValue.utf8.count)
+        }
+
+        for node in entry.unknownXML.nodes {
+            size += Int64(node.xml.utf8.count)
+            size += Int64(node.path.joined(separator: "/").utf8.count)
+        }
+
+        for key in entry.protectedStringKeys {
+            size += Int64(key.utf8.count)
+        }
+
+        return size
     }
 
     private func recycleBinTarget(in rootGroup: KPGroup, meta: KPMeta) -> RecycleBinTarget {

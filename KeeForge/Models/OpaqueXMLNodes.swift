@@ -49,15 +49,40 @@ struct OpaqueXMLNodes: Sendable, Hashable {
 struct KPMeta: Sendable, Hashable {
     var recycleBinUUID: UUID?
     var hasRecycleBinUUIDElement: Bool
+    var maintenanceHistoryDays: Int?
+    var historyMaxItems: Int?
+    var historyMaxSize: Int64?
     var unknownXML: OpaqueXMLNodes
+
+    static let defaultMaintenanceHistoryDays = 365
+    static let defaultHistoryMaxItems = 10
+    static let defaultHistoryMaxSize: Int64 = 6 * 1024 * 1024
 
     init(
         recycleBinUUID: UUID? = nil,
         hasRecycleBinUUIDElement: Bool = false,
+        maintenanceHistoryDays: Int? = nil,
+        historyMaxItems: Int? = nil,
+        historyMaxSize: Int64? = nil,
         unknownXML: OpaqueXMLNodes = .empty
     ) {
         self.recycleBinUUID = recycleBinUUID
         self.hasRecycleBinUUIDElement = hasRecycleBinUUIDElement
+        self.maintenanceHistoryDays = maintenanceHistoryDays
+        self.historyMaxItems = historyMaxItems
+        self.historyMaxSize = historyMaxSize
         self.unknownXML = unknownXML
+    }
+
+    var resolvedMaintenanceHistoryDays: Int {
+        maintenanceHistoryDays ?? Self.defaultMaintenanceHistoryDays
+    }
+
+    var resolvedHistoryMaxItems: Int {
+        historyMaxItems ?? Self.defaultHistoryMaxItems
+    }
+
+    var resolvedHistoryMaxSize: Int64 {
+        historyMaxSize ?? Self.defaultHistoryMaxSize
     }
 }

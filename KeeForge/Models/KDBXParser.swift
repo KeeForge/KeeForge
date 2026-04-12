@@ -645,6 +645,9 @@ final class KDBXXMLParser: NSObject, XMLParserDelegate {
     private struct MetaBuilder {
         var recycleBinUUID: UUID?
         var hasRecycleBinUUIDElement = false
+        var maintenanceHistoryDays: Int?
+        var historyMaxItems: Int?
+        var historyMaxSize: Int64?
         var unknownXML = OpaqueXMLNodes.empty
         var knownChildCount = 0
 
@@ -652,6 +655,9 @@ final class KDBXXMLParser: NSObject, XMLParserDelegate {
             KPMeta(
                 recycleBinUUID: recycleBinUUID,
                 hasRecycleBinUUIDElement: hasRecycleBinUUIDElement,
+                maintenanceHistoryDays: maintenanceHistoryDays,
+                historyMaxItems: historyMaxItems,
+                historyMaxSize: historyMaxSize,
                 unknownXML: unknownXML
             )
         }
@@ -699,7 +705,7 @@ final class KDBXXMLParser: NSObject, XMLParserDelegate {
 
     private var groupStack: [GroupBuilder] = []
     private var currentMeta = MetaBuilder()
-    private var currentEntry: EntryBuilder?
+    private var entryStack: [EntryBuilder] = []
     private var currentKey = ""
     private var currentValue = ""
     private var currentText = ""
@@ -731,6 +737,10 @@ final class KDBXXMLParser: NSObject, XMLParserDelegate {
     private var rootKnownChildCount = 0
     private var meta = KPMeta()
     private static let syntheticRootUUID = nullUUID
+
+    private var currentEntry: EntryBuilder? {
+        entryStack.last
+    }
 
     init(data: Data, innerStreamKey: Data, innerStreamID: UInt32, sessionKey: SymmetricKey) {
         self.data = data
@@ -774,12 +784,10 @@ final class KDBXXMLParser: NSObject, XMLParserDelegate {
 
         case "History":
             historyDepth += 1
+            currentEntry?.historyKnownChildCount = 0
 
         case "Entry":
-            // Ignore entries nested under <History>.
-            if !isInsideHistory() {
-                currentEntry = EntryBuilder()
-            }
+            entryStack.append(EntryBuilder())
 
         case "String":
             currentKey = ""
@@ -796,8 +804,8 @@ final class KDBXXMLParser: NSObject, XMLParserDelegate {
             isProtected = currentStringWasProtected
 
         case "Times":
-            if !isInsideHistory(), currentEntry != nil {
-                currentEntry?.timesKnownChildCount = 0
+            if let currentEntry {
+                currentEntry.timesKnownChildCount = 0
             } else if !inMeta, let index = groupStack.indices.last {
                 groupStack[index].timesKnownChildCount = 0
             }
@@ -832,6 +840,21 @@ final class KDBXXMLParser: NSObject, XMLParserDelegate {
                 currentMeta.recycleBinUUID = parseKPUUID(currentText)
             }
 
+        case "MaintenanceHistoryDays":
+            if inMeta {
+                currentMeta.maintenanceHistoryDays = Int(currentText.trimmingCharacters(in: .whitespacesAndNewlines))
+            }
+
+        case "HistoryMaxItems":
+            if inMeta {
+                currentMeta.historyMaxItems = Int(currentText.trimmingCharacters(in: .whitespacesAndNewlines))
+            }
+
+        case "HistoryMaxSize":
+            if inMeta {
+                currentMeta.historyMaxSize = Int64(currentText.trimmingCharacters(in: .whitespacesAndNewlines))
+            }
+
         case "Group":
             let group = groupStack.removeLast().build()
             if let index = groupStack.indices.last {
@@ -844,14 +867,18 @@ final class KDBXXMLParser: NSObject, XMLParserDelegate {
             historyDepth = max(0, historyDepth - 1)
 
         case "Entry":
-            if !isInsideHistory(), let builder = currentEntry {
-                let entry = builder.build(sessionKey: sessionKey)
-                if let index = groupStack.indices.last {
-                    groupStack[index].entries.append(entry)
-                } else {
-                    rootEntries.append(entry)
-                }
-                currentEntry = nil
+            guard let builder = entryStack.popLast() else { return }
+            let entry = builder.build(sessionKey: sessionKey)
+            if isInsideHistory(), let parentEntry = currentEntry {
+                parentEntry.history.append(entry)
+            } else if let index = groupStack.indices.last {
+                groupStack[index].entries.append(entry)
+            } else {
+                rootEntries.append(entry)
+            }
+            if entryStack.isEmpty {
+                currentKey = ""
+                currentValue = ""
             }
 
         case "Name":
@@ -861,8 +888,8 @@ final class KDBXXMLParser: NSObject, XMLParserDelegate {
 
         case "IconID":
             let val = Int(currentText.trimmingCharacters(in: .whitespacesAndNewlines)) ?? 0
-            if !isInsideHistory(), currentEntry != nil {
-                currentEntry?.iconID = val
+            if let currentEntry {
+                currentEntry.iconID = val
             } else if let index = groupStack.indices.last {
                 groupStack[index].iconID = val
             }
@@ -894,7 +921,7 @@ final class KDBXXMLParser: NSObject, XMLParserDelegate {
             }
 
         case "String":
-            if !isInsideHistory(), let entry = currentEntry {
+            if let entry = currentEntry {
                 if currentStringWasProtected, !currentKey.isEmpty {
                     entry.protectedStringKeys.insert(currentKey)
                 }
@@ -919,22 +946,22 @@ final class KDBXXMLParser: NSObject, XMLParserDelegate {
 
         case "CreationTime":
             let date = parseKPDate(currentText.trimmingCharacters(in: .whitespacesAndNewlines))
-            if !isInsideHistory(), currentEntry != nil {
-                currentEntry?.creationTime = date
+            if let currentEntry {
+                currentEntry.creationTime = date
             } else if let index = groupStack.indices.last {
                 groupStack[index].creationTime = date
             }
 
         case "LastModificationTime":
             let date = parseKPDate(currentText.trimmingCharacters(in: .whitespacesAndNewlines))
-            if !isInsideHistory(), currentEntry != nil {
-                currentEntry?.lastModificationTime = date
+            if let currentEntry {
+                currentEntry.lastModificationTime = date
             } else if let index = groupStack.indices.last {
                 groupStack[index].lastModificationTime = date
             }
 
         case "Tags":
-            if !isInsideHistory(), let entry = currentEntry {
+            if let entry = currentEntry {
                 // Track element presence separately from content so that an
                 // empty `<Tags></Tags>` element round-trips instead of being
                 // silently dropped on save.
@@ -948,7 +975,7 @@ final class KDBXXMLParser: NSObject, XMLParserDelegate {
             }
 
         case "UUID":
-            if !isInsideHistory(), let entry = currentEntry, !inMeta {
+            if let entry = currentEntry, !inMeta {
                 if let uuid = parseKPUUID(currentText) {
                     entry.uuid = uuid
                 }
@@ -1113,6 +1140,10 @@ final class KDBXXMLParser: NSObject, XMLParserDelegate {
         case "Meta":
             if elementName == "RecycleBinUUID" {
                 currentMeta.knownChildCount += 1
+            } else if elementName == "MaintenanceHistoryDays" ||
+                        elementName == "HistoryMaxItems" ||
+                        elementName == "HistoryMaxSize" {
+                currentMeta.knownChildCount += 1
             } else {
                 currentMeta.unknownXML.append(xml: xml, insertionIndex: currentMeta.knownChildCount)
             }
@@ -1130,18 +1161,31 @@ final class KDBXXMLParser: NSObject, XMLParserDelegate {
             }
 
         case "Entry":
-            guard !isInsideHistory(), let entry = currentEntry else { return }
+            guard let entry = currentEntry else { return }
             switch elementName {
-            case "UUID", "IconID", "Tags", "Times", "String":
+            case "UUID", "IconID", "Tags", "Times", "String", "History":
                 entry.knownChildCount += 1
             default:
                 entry.unknownXML.append(xml: xml, insertionIndex: entry.knownChildCount)
             }
 
+        case "History":
+            guard let entry = currentEntry else { return }
+            switch elementName {
+            case "Entry":
+                entry.historyKnownChildCount += 1
+            default:
+                entry.unknownXML.append(
+                    xml: xml,
+                    path: ["History"],
+                    insertionIndex: entry.historyKnownChildCount
+                )
+            }
+
         case "Times":
             switch grandparentName {
             case "Entry":
-                guard !isInsideHistory(), let entry = currentEntry else { return }
+                guard let entry = currentEntry else { return }
                 switch elementName {
                 case "CreationTime", "LastModificationTime":
                     entry.timesKnownChildCount += 1
@@ -1227,9 +1271,11 @@ private class EntryBuilder {
     var otpURL: String?
     var creationTime: Date?
     var lastModificationTime: Date?
+    var history: [KPEntry] = []
     var unknownXML = OpaqueXMLNodes.empty
     var knownChildCount = 0
     var timesKnownChildCount = 0
+    var historyKnownChildCount = 0
 
     func build(sessionKey: SymmetricKey) -> KPEntry {
         let encryptedPassword = (try? EncryptedValue.encrypt(password, using: sessionKey)) ?? .empty
@@ -1249,6 +1295,7 @@ private class EntryBuilder {
             otpURL: otpURL,
             creationTime: creationTime,
             lastModificationTime: lastModificationTime,
+            history: history,
             unknownXML: unknownXML,
             protectedStringKeys: protectedStringKeys
         )

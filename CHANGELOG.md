@@ -4,6 +4,7 @@
 - [ ] Support more cloud sync providers: Google Drive, OneDrive, WebDAV, etc.
 - [ ] iPad-native layout
 - [ ] Passkey creation (Phase 3 — requires KDBX write support)
+- [ ] In-app entry history viewer and restore flow
 - [ ] Sync / attachments
 
 ## Unreleased
@@ -23,6 +24,8 @@
 - Autosave entry create/edit/delete changes immediately after they are staged, remove the confusing unlocked-screen save button, and show retry-only save UI when an autosave fails
 - Refresh subgroup entry counts immediately after in-app edits like moving an entry to the recycle bin
 - Show a blocking saving-progress overlay while database changes are being written so users get clear feedback and cannot interact with the unlocked UI mid-save
+- Show the actual password value in the entry editor by default while keeping a hide/reveal toggle next to the generator button
+- Preserve full KeePass entry history snapshots on edit, including previous passwords and other entry fields, and round-trip history metadata back into saved databases
 - Remove the baked white background from the Dropbox provider glyph so it renders cleanly in dark mode
 - Show provider-specific cloud sync status during unlock, and add focused unlock coverage for cloud sync success, fallback, and failure paths
 - Fix Xcode Cloud post-clone bootstrap so clean CI machines no longer require a developer team xcconfig value just to generate the project
