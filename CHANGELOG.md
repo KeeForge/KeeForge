@@ -9,39 +9,37 @@
 
 ## Unreleased
 
-### New Features
-- Add main-app entry editing with create, edit, delete, password generation, save-conflict resolution, and read-only editing safeguards
-- Added: Save new credentials and generate strong passwords directly from AutoFill, with offline-safe queueing for Dropbox-backed databases.
-- Settings button in unlocked database view now opens database-specific settings (nickname, read-only, key file, metadata, cloud sync) with a link to app settings
+## v1.8.0 (2026-04-12)
 
-### Improvements
-- AutoFill new-credential screen now uses labeled fields, toolbar buttons, and a non-editable password field, matching the main app's entry editor
-- Deleting an entry inside the Recycle Bin now permanently erases it instead of re-moving it to the same bin
+### New Features
+- **Entry editing** — create, edit, and delete entries directly in the app with built-in password generation, autosave, save-conflict resolution, and read-only mode
+- **AutoFill credential creation** — save new credentials and generate strong passwords directly from the AutoFill extension, with offline-safe queueing for Dropbox-backed databases
+- **Database settings** — tap the settings button in the unlocked view to manage nickname, read-only mode, key file, metadata, and cloud sync
+
+### Editing Details
+- Changes autosave immediately — no manual save button; a progress overlay shows while the database is being written
+- Full entry history is preserved on every edit, so previous passwords and fields can be reviewed
+- Passwords are visible by default in the editor with a toggle to hide them
+- Deleting an entry already in the Recycle Bin permanently erases it
+- No data loss: unknown XML elements and third-party KeePass fields are preserved when saving
+- Automatic timestamped backups before each save, with detection of external changes to prevent overwrites
+- Saving works correctly for databases stored in Files folders like Downloads
+- Dropbox-backed databases can be saved back to Dropbox with conflict detection
+- Field labels stay visible while typing, and password styling is consistent across the app
 
 ### Fixes
-- AutoFill-created entries are now placed under the visible root group instead of the synthetic database root
-- Lazily-created Recycle Bin group is now placed under the visible root group instead of the synthetic database root
-- Autosave entry create/edit/delete changes immediately after they are staged, remove the confusing unlocked-screen save button, and show retry-only save UI when an autosave fails
-- Refresh subgroup entry counts immediately after in-app edits like moving an entry to the recycle bin
-- Show a blocking saving-progress overlay while database changes are being written so users get clear feedback and cannot interact with the unlocked UI mid-save
-- Show the actual password value in the entry editor by default while keeping a hide/reveal toggle next to the generator button
-- Preserve full KeePass entry history snapshots on edit, including previous passwords and other entry fields, and round-trip history metadata back into saved databases
-- Remove the baked white background from the Dropbox provider glyph so it renders cleanly in dark mode
-- Show provider-specific cloud sync status during unlock, and add focused unlock coverage for cloud sync success, fallback, and failure paths
-- Fix Xcode Cloud post-clone bootstrap so clean CI machines no longer require a developer team xcconfig value just to generate the project
-- Add persistent field labels to the entry edit basics section so filled-in rows remain identifiable while editing
-- Unify the main-app password display styling so generated passwords and entry-detail passwords share the same visual treatment
-- Fix local saves for bookmark-backed databases in Files folders like Downloads by staging the replacement file outside the picked folder before the atomic swap
-- Internal: KDBX parser now captures unknown XML elements verbatim, paving the way for lossless edits
-- Internal: KDBX writer can now produce KDBX 4.x files (AES-256-CBC and ChaCha20-Poly1305) for use by upcoming edit features
-- Internal: Added DatabaseDraft layer that lets the app stage entry edits in memory before saving.
-- Internal: Added a local-file save pipeline with atomic write, automatic backups, and out-of-band-change detection.
-- Internal: Dropbox-backed databases can now be saved back to Dropbox with optimistic-concurrency conflict detection.
+- New entries from AutoFill are placed under the correct root group instead of a hidden internal group
+- Recycle Bin is created under the correct root group
+- Group entry counts update immediately after edits
+- Dropbox icon renders correctly in dark mode
+- Provider-specific cloud sync status shown during unlock
+- Fixed Xcode Cloud CI bootstrap for clean machines
 
 ### Changes
-- Pending AutoFill uploads now live in the shared App Group cache/queue and are cleared if the app is uninstalled or reinstalled.
-- Add SwiftyDropbox to the Acknowledgments screen.
-- Simplify the entry edit screen by removing the custom fields and one-time password sections.
+- Improved AutoFill new-credential screen with labeled fields and toolbar buttons
+- Saved AutoFill credentials queue in the shared App Group cache and are cleared on reinstall
+- Simplified entry editor by removing custom fields and one-time password sections
+- Added SwiftyDropbox to the Acknowledgments screen
 
 ## v1.7.0 (2026-04-05)
 
