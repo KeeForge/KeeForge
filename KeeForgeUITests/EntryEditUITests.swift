@@ -13,6 +13,9 @@ final class EntryEditUITests: KeeForgeUITestCase {
         if name.contains("testSaveConflictOffersReloadAndConflictCopy") {
             app.launchEnvironment["UI_TEST_LOCAL_SAVE_CONFLICT_COUNT"] = "2"
         }
+        if name.contains("testLockWhileDirtyPromptsConfirmationThenLocks") {
+            app.launchEnvironment["UI_TEST_LOCAL_SAVE_CONFLICT_COUNT"] = "1"
+        }
     }
 
     func testCreateEntrySavesAndShowsInList() {
@@ -23,7 +26,6 @@ final class EntryEditUITests: KeeForgeUITestCase {
             username: "ui-created-user",
             password: "created-password-123"
         )
-        persistDatabaseChanges()
         lockAndReopenVault()
 
         openEntry(named: createdEntryTitle)
@@ -44,9 +46,7 @@ final class EntryEditUITests: KeeForgeUITestCase {
         XCTAssertTrue(titleField.waitForExistence(timeout: 5))
         replaceText(in: titleField, with: editedDiscordTitle)
         app.buttons["entry-edit.save"].tap()
-
-        XCTAssertTrue(waitForUnsavedIndicator(isPresent: true))
-        persistDatabaseChanges()
+        XCTAssertTrue(waitForElementToDisappear(app.buttons["entry-edit.save"], timeout: 10))
         tapBackButton()
         tapBackButton()
         lockAndReopenVault()
@@ -68,12 +68,10 @@ final class EntryEditUITests: KeeForgeUITestCase {
         XCTAssertTrue(deleteButton.waitForExistence(timeout: 5))
         deleteButton.tap()
         app.alerts.buttons["Delete"].tap()
-
-        XCTAssertTrue(waitForUnsavedIndicator(isPresent: true))
-        persistDatabaseChanges()
+        waitForAutosaveAttempt()
 
         XCTAssertFalse(entry(named: "Twitter").exists)
-        tapBackButton()
+        lockAndReopenVault()
 
         openGroup(named: "Recycle Bin")
         XCTAssertTrue(revealElement(entry(named: "Twitter")), "Twitter entry was not moved into the recycle bin")
@@ -127,8 +125,7 @@ final class EntryEditUITests: KeeForgeUITestCase {
         useButton.tap()
 
         app.buttons["entry-edit.save"].tap()
-        XCTAssertTrue(waitForUnsavedIndicator(isPresent: true))
-        persistDatabaseChanges()
+        XCTAssertTrue(waitForElementToDisappear(app.buttons["entry-edit.save"], timeout: 10))
         lockAndReopenVault()
 
         openEntry(named: generatedPasswordEntryTitle)
@@ -160,7 +157,7 @@ final class EntryEditUITests: KeeForgeUITestCase {
         openGroup(named: "Social")
         openEntry(named: "Discord")
         editCurrentEntryTitle(to: firstConflictDiscordTitle)
-        triggerDatabaseSaveConflict()
+        XCTAssertTrue(waitForSaveConflictAlert())
 
         let reloadButton = app.buttons["save-conflict.reload"]
         let saveAsCopyButton = app.buttons["save-conflict.save-as-copy"]
@@ -176,7 +173,7 @@ final class EntryEditUITests: KeeForgeUITestCase {
         openGroup(named: "Social")
         openEntry(named: "Discord")
         editCurrentEntryTitle(to: secondConflictDiscordTitle)
-        triggerDatabaseSaveConflict()
+        XCTAssertTrue(waitForSaveConflictAlert())
 
         XCTAssertTrue(saveAsCopyButton.waitForExistence(timeout: 5))
         saveAsCopyButton.tap()
@@ -253,6 +250,7 @@ final class EntryEditUITests: KeeForgeUITestCase {
         let saveButton = app.buttons["entry-edit.save"]
         XCTAssertTrue(saveButton.waitForExistence(timeout: 5), "Entry editor save button was not visible", file: file, line: line)
         saveButton.tap()
+        XCTAssertTrue(waitForElementToDisappear(saveButton, timeout: 10), "Entry editor did not dismiss after autosave", file: file, line: line)
     }
 
     private func editCurrentEntryTitle(to title: String, file: StaticString = #filePath, line: UInt = #line) {
@@ -267,24 +265,7 @@ final class EntryEditUITests: KeeForgeUITestCase {
         let saveButton = app.buttons["entry-edit.save"]
         XCTAssertTrue(saveButton.waitForExistence(timeout: 5), "Entry editor save button was not visible", file: file, line: line)
         saveButton.tap()
-        XCTAssertTrue(waitForUnsavedIndicator(isPresent: true), "Unsaved indicator did not appear after editing", file: file, line: line)
-    }
-
-    private func triggerDatabaseSaveConflict(file: StaticString = #filePath, line: UInt = #line) {
-        let saveButton = app.buttons["database.save"]
-        XCTAssertTrue(saveButton.waitForExistence(timeout: 5), "Database save button was not visible", file: file, line: line)
-        saveButton.tap()
-
-        let alert = app.alerts["Save Conflict"]
-        XCTAssertTrue(alert.waitForExistence(timeout: 10), "Save conflict alert did not appear", file: file, line: line)
-    }
-
-    private func persistDatabaseChanges(file: StaticString = #filePath, line: UInt = #line) {
-        let saveButton = app.buttons["database.save"]
-        XCTAssertTrue(saveButton.waitForExistence(timeout: 5), "Database save button was not visible", file: file, line: line)
-        XCTAssertTrue(saveButton.isEnabled, "Database save button was disabled unexpectedly", file: file, line: line)
-        saveButton.tap()
-        XCTAssertFalse(waitForUnsavedIndicator(isPresent: true, timeout: 10), "Unsaved indicator did not clear after saving", file: file, line: line)
+        XCTAssertTrue(waitForElementToDisappear(saveButton, timeout: 10), "Entry editor did not dismiss after autosave", file: file, line: line)
     }
 
     private func lockAndReopenVault(file: StaticString = #filePath, line: UInt = #line) {
@@ -332,12 +313,35 @@ final class EntryEditUITests: KeeForgeUITestCase {
         return indicator.exists == isPresent
     }
 
+    private func waitForSaveConflictAlert(timeout: TimeInterval = 10) -> Bool {
+        app.alerts["Save Conflict"].waitForExistence(timeout: timeout)
+    }
+
+    private func waitForElementToDisappear(
+        _ element: XCUIElement,
+        timeout: TimeInterval = 5
+    ) -> Bool {
+        let deadline = Date().addingTimeInterval(timeout)
+
+        repeat {
+            if element.exists == false {
+                return true
+            }
+            RunLoop.current.run(until: Date().addingTimeInterval(0.2))
+        } while Date() < deadline
+
+        return element.exists == false
+    }
+
+    private func waitForAutosaveAttempt(timeout: TimeInterval = 2) {
+        RunLoop.current.run(until: Date().addingTimeInterval(timeout))
+    }
+
     private func tapBackButton(file: StaticString = #filePath, line: UInt = #line) {
         let navigationBar = app.navigationBars.firstMatch
         XCTAssertTrue(navigationBar.waitForExistence(timeout: 5), "Navigation bar was not visible", file: file, line: line)
 
         let excludedIdentifiers = Set([
-            "database.save",
             "entry-list.add-entry",
             "lock.button",
             "sort.menu",

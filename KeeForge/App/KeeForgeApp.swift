@@ -271,11 +271,6 @@ struct DatabaseNavigationView: View {
             .navigationDestination(for: KPEntry.self) { entry in
                 EntryDetailView(entryID: entry.id, viewModel: viewModel)
             }
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    DatabaseSaveToolbarButton(viewModel: viewModel)
-                }
-            }
             .safeAreaInset(edge: .top, spacing: 0) {
                 VStack(spacing: 8) {
                     if let bannerText = viewModel.cloudSyncBannerText {
@@ -294,8 +289,8 @@ struct DatabaseNavigationView: View {
                         )
                     }
 
-                    if viewModel.isDirty {
-                        UnsavedChangesBanner()
+                    if viewModel.isDirty && viewModel.isSaving == false {
+                        UnsavedChangesBanner(viewModel: viewModel)
                     }
 
                     if viewModel.isReadOnly {
@@ -373,28 +368,6 @@ struct DatabaseNavigationView: View {
     }
 }
 
-private struct DatabaseSaveToolbarButton: View {
-    @Bindable var viewModel: DatabaseViewModel
-
-    var body: some View {
-        Button {
-            Task {
-                await viewModel.saveHandlingError()
-            }
-        } label: {
-            if viewModel.isSaving {
-                ProgressView()
-                    .controlSize(.small)
-                    .frame(width: 24, height: 24)
-            } else {
-                Image(systemName: "square.and.arrow.down")
-            }
-        }
-        .disabled(viewModel.isDirty == false || viewModel.isSaving)
-        .accessibilityIdentifier("database.save")
-    }
-}
-
 private struct ReadOnlyRibbon: View {
     var body: some View {
         Text("Read-only mode — toggle in the database list to enable editing.")
@@ -408,13 +381,25 @@ private struct ReadOnlyRibbon: View {
 }
 
 private struct UnsavedChangesBanner: View {
+    @Bindable var viewModel: DatabaseViewModel
+
     var body: some View {
         HStack(spacing: 8) {
             Circle()
                 .fill(Color.orange)
                 .frame(width: 8, height: 8)
-            Text("Unsaved changes")
+            Text("Changes not saved")
                 .font(.caption.weight(.medium))
+
+            Spacer(minLength: 12)
+
+            Button("Retry Save") {
+                Task {
+                    await viewModel.saveHandlingError()
+                }
+            }
+            .font(.caption.weight(.semibold))
+            .disabled(viewModel.isSaving)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, 16)

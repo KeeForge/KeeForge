@@ -14,6 +14,7 @@ struct EntryEditView: View {
     @State private var showDeleteConfirmation = false
     @State private var showPasswordGenerator = false
     @State private var editingErrorMessage: String?
+    @State private var isSubmitting = false
 
     init(
         formViewModel: EntryEditViewModel,
@@ -104,6 +105,7 @@ struct EntryEditView: View {
                     Button("Delete Entry", role: .destructive) {
                         showDeleteConfirmation = true
                     }
+                    .disabled(isSubmitting)
                     .accessibilityIdentifier("entry-edit.delete")
                 }
             }
@@ -116,6 +118,7 @@ struct EntryEditView: View {
                 Button("Cancel") {
                     cancelTapped()
                 }
+                .disabled(isSubmitting)
                 .accessibilityIdentifier("entry-edit.cancel")
             }
 
@@ -123,7 +126,7 @@ struct EntryEditView: View {
                 Button("Save") {
                     saveTapped()
                 }
-                .disabled(formViewModel.canSave == false)
+                .disabled(formViewModel.canSave == false || isSubmitting)
                 .accessibilityIdentifier("entry-edit.save")
             }
         }
@@ -216,7 +219,12 @@ struct EntryEditView: View {
                 )
             }
 
-            onComplete(.finished)
+            isSubmitting = true
+            Task { @MainActor in
+                await databaseViewModel.saveHandlingError()
+                isSubmitting = false
+                onComplete(.finished)
+            }
         } catch {
             editingErrorMessage = error.localizedDescription
         }
@@ -227,7 +235,12 @@ struct EntryEditView: View {
 
         do {
             try databaseViewModel.deleteEntry(entryID, sendToRecycleBin: sendToRecycleBin)
-            onComplete(.deleted)
+            isSubmitting = true
+            Task { @MainActor in
+                await databaseViewModel.saveHandlingError()
+                isSubmitting = false
+                onComplete(.deleted)
+            }
         } catch {
             editingErrorMessage = error.localizedDescription
         }

@@ -145,7 +145,14 @@ struct GroupListView: View {
                                 ? "The entry will be moved to the recycle bin."
                                 : "This entry will be removed immediately and cannot be restored from KeeForge."),
                             primaryButton: .destructive(Text(action.sendToRecycleBin ? "Delete" : "Delete Permanently")) {
-                                try? viewModel.deleteEntry(action.entryID, sendToRecycleBin: action.sendToRecycleBin)
+                                do {
+                                    try viewModel.deleteEntry(action.entryID, sendToRecycleBin: action.sendToRecycleBin)
+                                    Task {
+                                        await viewModel.saveHandlingError()
+                                    }
+                                } catch {
+                                    viewModel.presentSaveError(error)
+                                }
                             },
                             secondaryButton: .cancel()
                         )

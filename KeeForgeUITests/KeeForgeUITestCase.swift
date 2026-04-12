@@ -181,7 +181,17 @@ class KeeForgeUITestCase: XCTestCase {
             file: file,
             line: line
         )
-        databaseRow.tap()
+        XCTAssertTrue(
+            revealElement(databaseRow),
+            "Database row was not hittable",
+            file: file,
+            line: line
+        )
+        if databaseRow.isHittable {
+            databaseRow.tap()
+        } else {
+            databaseRow.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+        }
 
         XCTAssertTrue(
             passwordField.waitForExistence(timeout: timeout),
