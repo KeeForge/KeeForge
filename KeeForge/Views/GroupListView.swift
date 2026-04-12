@@ -196,11 +196,15 @@ struct GroupRow: View {
         viewModel.group(withID: groupID)
     }
 
+    private var isRecycleBin: Bool {
+        viewModel.currentRootGroup?.recycleBinUUID == groupID
+    }
+
     var body: some View {
         Group {
             if let group {
                 HStack {
-                    Image(systemName: group.systemIconName)
+                    Image(systemName: isRecycleBin ? "trash" : group.systemIconName)
                         .foregroundStyle(.tint)
                         .frame(width: 28)
 

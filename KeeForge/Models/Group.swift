@@ -79,6 +79,7 @@ final class KPGroup: Identifiable, @unchecked Sendable {
         case 1: "globe"
         case 2: "exclamationmark.triangle"
         case 3: "server.rack"
+        case 43: "trash"
         case 48: "folder.fill"
         case 49: "folder.fill"
         default: "folder.fill"

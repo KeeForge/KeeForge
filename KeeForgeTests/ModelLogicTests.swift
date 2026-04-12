@@ -29,6 +29,7 @@ final class ModelLogicTests: XCTestCase {
         XCTAssertEqual(KPGroup(name: "a", iconID: 1).systemIconName, "globe")
         XCTAssertEqual(KPGroup(name: "a", iconID: 2).systemIconName, "exclamationmark.triangle")
         XCTAssertEqual(KPGroup(name: "a", iconID: 3).systemIconName, "server.rack")
+        XCTAssertEqual(KPGroup(name: "a", iconID: 43).systemIconName, "trash")
         XCTAssertEqual(KPGroup(name: "a", iconID: 48).systemIconName, "folder.fill")
         XCTAssertEqual(KPGroup(name: "a", iconID: 49).systemIconName, "folder.fill")
         XCTAssertEqual(KPGroup(name: "a", iconID: 999).systemIconName, "folder.fill")
