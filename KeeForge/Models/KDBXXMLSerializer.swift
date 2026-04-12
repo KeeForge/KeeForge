@@ -432,9 +432,16 @@ struct KDBXXMLSerializer {
         }
     }
 
+    /// Seconds from Foundation's reference date (2001-01-01 UTC) to the KeePass
+    /// epoch (0001-01-01 UTC).  Must stay in sync with the constant in
+    /// `KDBXXMLParser`.
+    private static let kpEpochOffset: TimeInterval = -63_113_904_000
+
     private func serializeDate(_ date: Date) -> String {
-        let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        return formatter.string(from: date)
+        // KDBX4 binary format: little-endian Int64 seconds since
+        // 0001-01-01 UTC, base64-encoded.
+        let seconds = Int64(date.timeIntervalSinceReferenceDate - Self.kpEpochOffset)
+        var leSeconds = seconds.littleEndian
+        return withUnsafeBytes(of: &leSeconds) { Data($0) }.base64EncodedString()
     }
 }

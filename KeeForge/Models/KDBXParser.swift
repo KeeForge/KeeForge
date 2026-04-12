@@ -1187,6 +1187,12 @@ final class KDBXXMLParser: NSObject, XMLParserDelegate {
         return uuid == Self.nullUUID ? nil : uuid
     }
 
+    /// Seconds from Foundation's reference date (2001-01-01 UTC) to the KeePass
+    /// epoch (0001-01-01 UTC).  This equals −730 485 days × 86 400 s/day, i.e.
+    /// 2 000 Gregorian years containing 485 leap years — matching .NET
+    /// `DateTime`'s epoch that the KDBX binary timestamp format is based on.
+    private static let kpEpochOffset: TimeInterval = -63_113_904_000
+
     private func parseKPDate(_ string: String) -> Date? {
         // KDBX4 stores timestamps as 8 bytes of little-endian seconds since
         // year 0001, base64-encoded (always 12 characters with padding).
@@ -1195,15 +1201,7 @@ final class KDBXXMLParser: NSObject, XMLParserDelegate {
         // to distinguish binary from ISO-8601 form.
         if string.count == 12, let data = Data(base64Encoded: string), data.count == 8 {
             let seconds = data.withUnsafeBytes { $0.loadUnaligned(as: Int64.self).littleEndian }
-            guard let kpEpoch = DateComponents(
-                calendar: .init(identifier: .gregorian),
-                year: 1,
-                month: 1,
-                day: 1
-            ).date else {
-                return nil
-            }
-            return kpEpoch.addingTimeInterval(TimeInterval(seconds))
+            return Date(timeIntervalSinceReferenceDate: Self.kpEpochOffset + TimeInterval(seconds))
         }
         // KDBX 3.x and some KDBX 4 writers use ISO-8601 text form.
         let formatter = ISO8601DateFormatter()
