@@ -131,7 +131,7 @@ struct KDBXXMLSerializer {
         xml += element("IconID", value: String(entry.iconID))
         knownChildCount += 1
 
-        if !entry.tags.isEmpty {
+        if entry.hasTagsElement || !entry.tags.isEmpty {
             xml += try opaqueXML(from: entry.unknownXML, path: [], insertionIndex: knownChildCount)
             xml += element("Tags", value: escape(entry.tags.joined(separator: ",")))
             knownChildCount += 1
@@ -171,7 +171,18 @@ struct KDBXXMLSerializer {
         xml += try serializeString(key: "Notes", value: entry.notes, isProtected: entry.protectedStringKeys.contains("Notes"))
         knownChildCount += 1
 
-        if let totpConfig = entry.totpConfig {
+        if let otpURL = entry.otpURL {
+            // Preserve the original otpauth:// URI so issuer/label and any
+            // custom query parameters survive the round-trip. Splitting into
+            // TimeOtp-* fields drops everything outside the canonical set.
+            xml += try opaqueXML(from: entry.unknownXML, path: [], insertionIndex: knownChildCount)
+            xml += try serializeString(
+                key: "otp",
+                value: otpURL,
+                isProtected: entry.protectedStringKeys.contains("otp")
+            )
+            knownChildCount += 1
+        } else if let totpConfig = entry.totpConfig {
             let secret = try totpConfig.secret.decrypt(using: sessionKey)
             let totpFields = [
                 ("TimeOtp-Secret-Base32", secret, true),

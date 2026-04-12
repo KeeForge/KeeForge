@@ -425,4 +425,83 @@ final class KDBXRoundTripTests: XCTestCase {
                 return trimmed.hasPrefix("<\(elementName)") && trimmed.contains(expectedContent)
             }
     }
+
+    // MARK: - Regression: base64 dates containing 'T' must parse
+
+    func test_parseKPDate_base64WithLetterT_roundTrips() throws {
+        // "9eT23g4AAAA=" is a valid KDBX4 base64 timestamp whose encoding
+        // contains the letter 'T'. A naive "contains T → ISO-8601" heuristic
+        // would misroute this string and silently lose the date.
+        let entry = KPEntry(
+            title: "Date-T",
+            creationTime: Date(timeIntervalSinceReferenceDate: 0)
+        )
+        let root = KPGroup(name: "Root", entries: [entry])
+        let parsed = (rootGroup: root, meta: KPMeta())
+        let reparsed = try serializeAndParse(parsed)
+        let reparsedEntry = try XCTUnwrap(reparsed.rootGroup.allEntries.first)
+        XCTAssertNotNil(reparsedEntry.creationTime, "CreationTime should survive round-trip")
+        XCTAssertEqual(
+            entry.creationTime!.timeIntervalSinceReferenceDate,
+            reparsedEntry.creationTime!.timeIntervalSinceReferenceDate,
+            accuracy: 1.0
+        )
+    }
+
+    // MARK: - Regression: Value whitespace preserved
+
+    func test_valueWhitespace_trailingSpaces_preserved() throws {
+        let entry = KPEntry(
+            title: "Whitespace",
+            username: "user   "
+        )
+        let root = KPGroup(name: "Root", entries: [entry])
+        let reparsed = try serializeAndParse((rootGroup: root, meta: KPMeta()))
+        let reparsedEntry = try XCTUnwrap(reparsed.rootGroup.allEntries.first)
+        XCTAssertEqual(reparsedEntry.username, "user   ", "Trailing whitespace must be preserved")
+    }
+
+    // MARK: - Regression: otp URL preserved
+
+    func test_otpURL_preservedOnRoundTrip() throws {
+        let uri = "otpauth://totp/Example:user@example.com?secret=JBSWY3DPEHPK3PXP&issuer=Example&period=30&digits=6&algorithm=SHA1"
+        let secret = "JBSWY3DPEHPK3PXP"
+        let encryptedSecret = try EncryptedValue.encrypt(secret, using: roundTripSessionKey)
+        let entry = KPEntry(
+            title: "OTP",
+            totpConfig: TOTPConfig(secret: encryptedSecret),
+            otpURL: uri,
+            protectedStringKeys: ["otp"]
+        )
+        let root = KPGroup(name: "Root", entries: [entry])
+        let reparsed = try serializeAndParse((rootGroup: root, meta: KPMeta()))
+        let reparsedEntry = try XCTUnwrap(reparsed.rootGroup.allEntries.first)
+        XCTAssertEqual(reparsedEntry.otpURL, uri, "otp URL should survive round-trip")
+        XCTAssertNotNil(reparsedEntry.totpConfig, "TOTP config should still be derived from the URL")
+    }
+
+    // MARK: - Regression: empty Tags element preserved
+
+    func test_emptyTags_elementPreserved() throws {
+        let entry = KPEntry(
+            title: "Empty Tags",
+            hasTagsElement: true
+        )
+        let root = KPGroup(name: "Root", entries: [entry])
+
+        var serializer = KDBXXMLSerializer(
+            rootGroup: root,
+            meta: KPMeta(),
+            innerStreamKey: roundTripInnerStreamKey,
+            sessionKey: roundTripSessionKey
+        )
+        let xmlData = try serializer.serialize()
+        let xmlString = String(data: xmlData, encoding: .utf8)!
+        XCTAssertTrue(xmlString.contains("<Tags></Tags>"), "Empty Tags element should be emitted")
+
+        let reparsed = try parseXML(xmlData)
+        let reparsedEntry = try XCTUnwrap(reparsed.rootGroup.allEntries.first)
+        XCTAssertTrue(reparsedEntry.hasTagsElement, "hasTagsElement should survive round-trip")
+        XCTAssertTrue(reparsedEntry.tags.isEmpty, "tags array should remain empty")
+    }
 }

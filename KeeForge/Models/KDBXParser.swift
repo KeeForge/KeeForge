@@ -875,11 +875,21 @@ final class KDBXXMLParser: NSObject, XMLParserDelegate {
 
         case "Value":
             if inValue {
-                var val = currentText.trimmingCharacters(in: .whitespacesAndNewlines)
-                if isProtected, let decoded = Data(base64Encoded: val) {
-                    val = decryptProtectedValue(decoded)
+                // Preserve leading/trailing whitespace in stored values — a
+                // username or custom field may intentionally contain spaces,
+                // and trimming here silently destroys that data. Only the
+                // base64 ciphertext of a protected value needs trimming before
+                // decoding.
+                if isProtected {
+                    let base64 = currentText.trimmingCharacters(in: .whitespacesAndNewlines)
+                    if let decoded = Data(base64Encoded: base64) {
+                        currentValue = decryptProtectedValue(decoded)
+                    } else {
+                        currentValue = currentText
+                    }
+                } else {
+                    currentValue = currentText
                 }
-                currentValue = val
                 inValue = false
             }
 
@@ -925,6 +935,10 @@ final class KDBXXMLParser: NSObject, XMLParserDelegate {
 
         case "Tags":
             if !isInsideHistory(), let entry = currentEntry {
+                // Track element presence separately from content so that an
+                // empty `<Tags></Tags>` element round-trips instead of being
+                // silently dropped on save.
+                entry.hasTagsElement = true
                 let trimmed = currentText.trimmingCharacters(in: .whitespacesAndNewlines)
                 if !trimmed.isEmpty {
                     entry.tags = trimmed.components(separatedBy: CharacterSet([",", ";"])).map {
@@ -1174,14 +1188,12 @@ final class KDBXXMLParser: NSObject, XMLParserDelegate {
     }
 
     private func parseKPDate(_ string: String) -> Date? {
-        // KDBX4 can use base64-encoded binary date or ISO 8601
-        if string.contains("-") || string.contains("T") {
-            let formatter = ISO8601DateFormatter()
-            formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-            return formatter.date(from: string) ?? ISO8601DateFormatter().date(from: string)
-        }
-        // Base64 binary timestamp (seconds since 0001-01-01)
-        if let data = Data(base64Encoded: string), data.count == 8 {
+        // KDBX4 stores timestamps as 8 bytes of little-endian seconds since
+        // year 0001, base64-encoded (always 12 characters with padding).
+        // Try this form first — base64 strings can legitimately contain the
+        // characters 'T' and '-', so a substring check is not a reliable way
+        // to distinguish binary from ISO-8601 form.
+        if string.count == 12, let data = Data(base64Encoded: string), data.count == 8 {
             let seconds = data.withUnsafeBytes { $0.loadUnaligned(as: Int64.self).littleEndian }
             guard let kpEpoch = DateComponents(
                 calendar: .init(identifier: .gregorian),
@@ -1193,7 +1205,10 @@ final class KDBXXMLParser: NSObject, XMLParserDelegate {
             }
             return kpEpoch.addingTimeInterval(TimeInterval(seconds))
         }
-        return nil
+        // KDBX 3.x and some KDBX 4 writers use ISO-8601 text form.
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return formatter.date(from: string) ?? ISO8601DateFormatter().date(from: string)
     }
 }
 
@@ -1208,6 +1223,7 @@ private class EntryBuilder {
     var notes = ""
     var iconID = 0
     var tags: [String] = []
+    var hasTagsElement = false
     var customFields: [String: String] = [:]
     var protectedStringKeys: Set<String> = []
     var otpURL: String?
@@ -1229,8 +1245,10 @@ private class EntryBuilder {
             notes: notes,
             iconID: iconID,
             tags: tags,
+            hasTagsElement: hasTagsElement,
             customFields: customFields.filter { !$0.key.hasPrefix("TimeOtp-") && $0.key != "TOTP Settings" && $0.key != "TOTP Seed" },
             totpConfig: totpConfig,
+            otpURL: otpURL,
             creationTime: creationTime,
             lastModificationTime: lastModificationTime,
             unknownXML: unknownXML,

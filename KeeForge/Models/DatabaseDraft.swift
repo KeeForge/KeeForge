@@ -222,6 +222,7 @@ struct DatabaseDraft: Sendable {
             url: draft.url,
             notes: draft.notes,
             tags: draft.tags,
+            hasTagsElement: !draft.tags.isEmpty,
             customFields: draft.customFields,
             totpConfig: try makeTOTPConfig(from: draft.totpConfig),
             creationTime: timestamp,
@@ -243,8 +244,10 @@ struct DatabaseDraft: Sendable {
             notes: draft.notes,
             iconID: originalEntry.iconID,
             tags: draft.tags,
+            hasTagsElement: originalEntry.hasTagsElement || !draft.tags.isEmpty,
             customFields: draft.customFields,
             totpConfig: try makeTOTPConfig(from: draft.totpConfig),
+            otpURL: preservedOtpURL(draft: draft, originalEntry: originalEntry),
             creationTime: originalEntry.creationTime,
             lastModificationTime: timestamp,
             unknownXML: originalEntry.unknownXML,
@@ -253,6 +256,27 @@ struct DatabaseDraft: Sendable {
                 customFields: draft.customFields
             )
         )
+    }
+
+    private func preservedOtpURL(
+        draft: EntryDraftPayload,
+        originalEntry: KPEntry
+    ) -> String? {
+        guard let url = originalEntry.otpURL,
+              let draftConfig = draft.totpConfig,
+              let originalConfig = originalEntry.totpConfig,
+              let originalSecret = try? originalConfig.secret.decrypt(using: sessionKey)
+        else {
+            return nil
+        }
+        guard draftConfig.secret == originalSecret,
+              draftConfig.period == originalConfig.period,
+              draftConfig.digits == originalConfig.digits,
+              draftConfig.algorithm == originalConfig.algorithm
+        else {
+            return nil
+        }
+        return url
     }
 
     private func makeTOTPConfig(

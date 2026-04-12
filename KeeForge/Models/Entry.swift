@@ -10,9 +10,18 @@ struct KPEntry: Identifiable, Sendable {
     var notes: String
     var iconID: Int
     var tags: [String]
+    /// Whether the source XML had a `<Tags>` element, even if empty. Writers
+    /// use this to preserve an empty `<Tags></Tags>` that would otherwise be
+    /// indistinguishable from "no tags at all".
+    var hasTagsElement: Bool
     var customFields: [String: String]
     /// Raw TOTP config: either otpauth:// URI or key/settings
     var totpConfig: TOTPConfig?
+    /// Original `otp` key value (an `otpauth://` URI) if the source used the
+    /// KeeWeb/legacy format. When present, the writer emits the original URI
+    /// verbatim instead of decomposing into `TimeOtp-*` fields, which would
+    /// drop the issuer/label and any custom query parameters.
+    var otpURL: String?
     var creationTime: Date?
     var lastModificationTime: Date?
     var unknownXML: OpaqueXMLNodes
@@ -30,8 +39,10 @@ struct KPEntry: Identifiable, Sendable {
         notes: String = "",
         iconID: Int = 0,
         tags: [String] = [],
+        hasTagsElement: Bool = false,
         customFields: [String: String] = [:],
         totpConfig: TOTPConfig? = nil,
+        otpURL: String? = nil,
         creationTime: Date? = nil,
         lastModificationTime: Date? = nil,
         unknownXML: OpaqueXMLNodes = .empty,
@@ -45,8 +56,10 @@ struct KPEntry: Identifiable, Sendable {
         self.notes = notes
         self.iconID = iconID
         self.tags = tags
+        self.hasTagsElement = hasTagsElement
         self.customFields = customFields
         self.totpConfig = totpConfig
+        self.otpURL = otpURL
         self.creationTime = creationTime
         self.lastModificationTime = lastModificationTime
         self.unknownXML = unknownXML
