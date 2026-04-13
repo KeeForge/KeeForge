@@ -181,17 +181,20 @@ class KeeForgeUITestCase: XCTestCase {
             file: file,
             line: line
         )
+
+        // Wait for the row to become hittable (sheet dismissal may still be animating)
+        let hittableDeadline = Date().addingTimeInterval(timeout)
+        while !databaseRow.isHittable, Date() < hittableDeadline {
+            RunLoop.current.run(until: Date().addingTimeInterval(0.3))
+        }
+
         XCTAssertTrue(
-            revealElement(databaseRow),
+            databaseRow.isHittable,
             "Database row was not hittable",
             file: file,
             line: line
         )
-        if databaseRow.isHittable {
-            databaseRow.tap()
-        } else {
-            databaseRow.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
-        }
+        databaseRow.tap()
 
         XCTAssertTrue(
             passwordField.waitForExistence(timeout: timeout),

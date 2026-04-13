@@ -255,8 +255,8 @@ struct DatabaseNavigationView: View {
     var body: some View {
         NavigationStack(path: $viewModel.navigationPath) {
             Group {
-                if let root = viewModel.currentRootGroup {
-                    GroupListView(groupID: root.id, viewModel: viewModel)
+                if let rootID = viewModel.visibleRootGroupID {
+                    GroupListView(groupID: rootID, viewModel: viewModel)
                 } else {
                     ContentUnavailableView(
                         "Vault Not Loaded",
@@ -409,13 +409,17 @@ private struct DatabaseSavingOverlay: View {
 
 private struct ReadOnlyRibbon: View {
     var body: some View {
-        Text("Read-only mode — toggle in the database list to enable editing.")
-            .font(.caption.weight(.medium))
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, 16)
-            .padding(.vertical, 8)
-            .background(Color.yellow.opacity(0.18))
-            .accessibilityIdentifier("database.read-only-ribbon")
+        HStack {
+            Text("Read-only mode — toggle in the database list to enable editing.")
+                .font(.caption.weight(.medium))
+            Spacer(minLength: 0)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 8)
+        .background(Color.yellow.opacity(0.18))
+        .accessibilityElement(children: .combine)
+        .accessibilityIdentifier("database.read-only-ribbon")
     }
 }
 
@@ -444,6 +448,7 @@ private struct UnsavedChangesBanner: View {
         .padding(.horizontal, 16)
         .padding(.vertical, 8)
         .background(Color.orange.opacity(0.12))
+        .accessibilityElement(children: .combine)
         .accessibilityIdentifier("database.unsaved-indicator")
     }
 }

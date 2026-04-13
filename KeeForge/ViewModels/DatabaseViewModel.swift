@@ -312,6 +312,18 @@ final class DatabaseViewModel {
         draft?.rootGroup ?? rootGroup
     }
 
+    /// The group ID to display at the top level of the navigation stack.
+    /// KDBX files wrap all content in a single root `<Group>`, so the parser's
+    /// synthetic wrapper has one child — the actual visible root. Show that
+    /// child's contents directly, skipping the wrapper level.
+    var visibleRootGroupID: UUID? {
+        guard let root = currentRootGroup else { return nil }
+        if root.entries.isEmpty, root.groups.count == 1 {
+            return root.groups[0].id
+        }
+        return root.id
+    }
+
     var hasSavedFile: Bool {
         databaseReference.isCloudBacked ||
         databaseReference.bookmarkData != nil ||

@@ -150,7 +150,13 @@ final class AppStoreScreenshots: XCTestCase {
         XCTAssertTrue(searchField.waitForExistence(timeout: 5), "Search field should be visible on GroupListView")
         searchField.tap()
         sleep(1)
-        searchField.typeText("git")
+        // Re-resolve the search field after tap activates the searchable modifier
+        let activeSearchField = app.searchFields.firstMatch
+        if activeSearchField.waitForExistence(timeout: 3) {
+            activeSearchField.tap()
+            sleep(1)
+        }
+        activeSearchField.typeText("git")
         sleep(2)
         saveScreenshot("07-search")
     }

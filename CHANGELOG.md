@@ -8,6 +8,9 @@
 - [ ] Sync / attachments
 
 ## Unreleased
+- Fix unlocked vault displaying a wrapper "Root" group instead of showing database contents directly
+- Fix read-only ribbon and unsaved-changes banner accessibility identifiers for UI test visibility
+- Fix settings navigation from the unlocked database view (gear button → Database Settings → App Settings)
 
 ## v1.8.0 (2026-04-12)
 

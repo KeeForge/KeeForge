@@ -388,6 +388,14 @@ final class UnlockedDatabaseUITests: KeeForgeUITestCase {
         let settingsButton = app.buttons["settings.button"]
         XCTAssertTrue(settingsButton.waitForExistence(timeout: 10), "Settings button not found")
         settingsButton.tap()
+
+        // The gear button opens Database Settings; scroll to and tap App Settings
+        let appSettingsButton = app.buttons["App Settings"]
+        XCTAssertTrue(
+            revealElement(appSettingsButton, in: settingsForm(), direction: .up, maxSwipes: 6),
+            "App Settings button not found in Database Settings"
+        )
+        appSettingsButton.tap()
     }
 
     private func settingsForm() -> XCUIElement {
