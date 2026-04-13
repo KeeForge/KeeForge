@@ -110,7 +110,7 @@ enum AutoFillSaveCoordinator {
                         PendingUploadQueue.Marker(
                             databaseId: reference.id,
                             encryptedBytesCacheURL: relativePath,
-                            openTimeSHA512: openTimeSHA512,
+                            openTimeSHA512: outcome.newSHA512,
                             expectedRev: reference.expectedCloudRevision,
                             createdAt: environment.now(),
                             lastSyncError: nil

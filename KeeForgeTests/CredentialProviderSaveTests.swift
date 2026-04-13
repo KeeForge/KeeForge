@@ -112,7 +112,7 @@ final class CredentialProviderSaveTests: XCTestCase {
         XCTAssertEqual(recorder.enqueuedMarkers.first?.databaseId, reference.id)
         XCTAssertEqual(recorder.enqueuedMarkers.first?.encryptedBytesCacheURL, "cloud-cache/\(reference.id.uuidString).kdbx")
         XCTAssertEqual(recorder.enqueuedMarkers.first?.expectedRev, "rev-9")
-        XCTAssertEqual(recorder.enqueuedMarkers.first?.openTimeSHA512, Data("open-sha".utf8))
+        XCTAssertEqual(recorder.enqueuedMarkers.first?.openTimeSHA512, Data("new-sha".utf8))
         XCTAssertNil(recorder.enqueuedMarkers.first?.lastSyncError)
         XCTAssertEqual(recorder.populatedEntryTitles, [["Dropbox Entry"]])
     }

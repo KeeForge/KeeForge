@@ -280,7 +280,12 @@ struct EntryEditView: View {
             Task { @MainActor in
                 await databaseViewModel.saveHandlingError()
                 isSubmitting = false
-                onComplete(.finished)
+                if let saveError = databaseViewModel.saveError {
+                    editingErrorMessage = saveError.localizedDescription
+                    databaseViewModel.clearSaveError()
+                } else {
+                    onComplete(.finished)
+                }
             }
         } catch {
             editingErrorMessage = error.localizedDescription
@@ -296,7 +301,12 @@ struct EntryEditView: View {
             Task { @MainActor in
                 await databaseViewModel.saveHandlingError()
                 isSubmitting = false
-                onComplete(.deleted)
+                if let saveError = databaseViewModel.saveError {
+                    editingErrorMessage = saveError.localizedDescription
+                    databaseViewModel.clearSaveError()
+                } else {
+                    onComplete(.deleted)
+                }
             }
         } catch {
             editingErrorMessage = error.localizedDescription
