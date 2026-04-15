@@ -20,6 +20,8 @@ enum KDBXParser {
                                    0x91, 0xF7, 0xA9, 0xA4, 0x03, 0xE3, 0x0A, 0x0C])
     static let argon2idUUID = Data([0x9E, 0x29, 0x8B, 0x19, 0x56, 0xDB, 0x47, 0x73,
                                     0xB2, 0x3D, 0xFC, 0x3E, 0xC6, 0xF0, 0xA1, 0xE6])
+    static let aesKDFUUID = Data([0xC9, 0xD9, 0xF3, 0x9A, 0x62, 0x8A, 0x44, 0x60,
+                                  0xBF, 0x74, 0x0D, 0x08, 0xC1, 0x8A, 0x4F, 0xEA])
 
     // Inner random stream IDs
     static let innerStreamChaCha20: UInt32 = 3
@@ -413,7 +415,18 @@ enum KDBXParser {
 
     static func deriveKey(compositeKey: Data, kdfParams: [String: Any]) throws -> Data {
         guard let uuidData = kdfParams["$UUID"] as? Data else {
-            throw KDBXCrypto.CryptoError.unsupportedKDF("missing UUID")
+            throw KDBXCrypto.CryptoError.unsupportedKDF(KDFDescriptor(identifier: "missing UUID", displayName: "Unknown KDF"))
+        }
+
+        if uuidData == aesKDFUUID {
+            guard let seed = kdfParams["S"] as? Data else {
+                throw KDBXCrypto.CryptoError.unsupportedKDF(KDFDescriptor(identifier: "missing salt", displayName: "AES-KDF"))
+            }
+            let rounds = (kdfParams["R"] as? UInt64) ?? 0
+            guard rounds >= 1, rounds <= 10_000_000 else {
+                throw ParseError.kdfParameterOutOfRange("rounds \(rounds) not in 1...10000000")
+            }
+            return try KDBXCrypto.transformKeyAESKDF(compositeKey: compositeKey, seed: seed, rounds: rounds)
         }
 
         let variant: Argon2Variant
@@ -422,11 +435,13 @@ enum KDBXParser {
         } else if uuidData == argon2idUUID {
             variant = .id
         } else {
-            throw KDBXCrypto.CryptoError.unsupportedKDF(uuidData.hexString)
+            throw KDBXCrypto.CryptoError.unsupportedKDF(
+                KDFDescriptor(identifier: uuidData.hexString, displayName: "Unknown KDF (\(uuidData.hexString))")
+            )
         }
 
         guard let salt = kdfParams["S"] as? Data else {
-            throw KDBXCrypto.CryptoError.unsupportedKDF("missing salt")
+            throw KDBXCrypto.CryptoError.unsupportedKDF(KDFDescriptor(identifier: "missing salt", displayName: variant == .d ? "Argon2d" : "Argon2id"))
         }
 
         let iterations = (kdfParams["I"] as? UInt64) ?? 3

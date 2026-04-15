@@ -4,6 +4,22 @@ import CommonCrypto
 import zlib
 import Argon2Swift
 
+struct KDFDescriptor: Equatable, Sendable {
+    let identifier: String
+    let displayName: String
+
+    var userFacingDescription: String {
+        switch identifier {
+        case "missing UUID":
+            return "The database is missing key derivation metadata."
+        case "missing salt":
+            return "The database is missing key derivation salt data."
+        default:
+            return displayName
+        }
+    }
+}
+
 // MARK: - Argon2
 
 enum Argon2Variant: UInt32, Sendable {
@@ -62,7 +78,7 @@ enum KDBXCrypto {
         case decryptionFailed
         case hmacMismatch
         case unsupportedCipher(String)
-        case unsupportedKDF(String)
+        case unsupportedKDF(KDFDescriptor)
         case compressionFailed
         case decompressionFailed
 
@@ -73,7 +89,7 @@ enum KDBXCrypto {
             case .decryptionFailed: "Decryption failed — wrong password?"
             case .hmacMismatch: "HMAC verification failed — file corrupted or wrong password"
             case .unsupportedCipher(let c): "Unsupported cipher: \(c)"
-            case .unsupportedKDF(let k): "Unsupported KDF: \(k)"
+            case .unsupportedKDF(let descriptor): "Unsupported key derivation function: \(descriptor.userFacingDescription)"
             case .compressionFailed: "Compression failed"
             case .decompressionFailed: "Decompression failed"
             }
@@ -127,6 +143,59 @@ enum KDBXCrypto {
         }
 
         return sha256(preKey)
+    }
+
+    // MARK: - AES-KDF
+
+    static func transformKeyAESKDF(compositeKey: Data, seed: Data, rounds: UInt64) throws -> Data {
+        guard compositeKey.count == kCCKeySizeAES256, seed.count == kCCKeySizeAES256 else {
+            throw CryptoError.invalidKey
+        }
+
+        var left = compositeKey.prefix(16)
+        var right = compositeKey.suffix(16)
+        let zeroIV = Data(repeating: 0, count: kCCBlockSizeAES128)
+
+        for _ in 0..<rounds {
+            left = try aesECBEncryptBlock(left, key: seed.prefix(16), iv: zeroIV)
+            right = try aesECBEncryptBlock(right, key: seed.suffix(16), iv: zeroIV)
+        }
+
+        return sha256(Data(left + right))
+    }
+
+    private static func aesECBEncryptBlock(_ block: some DataProtocol, key: some DataProtocol, iv: Data) throws -> Data {
+        let blockData = Data(block)
+        let keyData = Data(key)
+        guard blockData.count == kCCBlockSizeAES128, keyData.count == kCCBlockSizeAES128 else {
+            throw CryptoError.invalidKey
+        }
+
+        let outLength = kCCBlockSizeAES128
+        var outData = Data(count: outLength)
+        var bytesWritten: Int = 0
+
+        let status = outData.withUnsafeMutableBytes { outPtr in
+            blockData.withUnsafeBytes { dataPtr in
+                keyData.withUnsafeBytes { keyPtr in
+                    CCCrypt(
+                        CCOperation(kCCEncrypt),
+                        CCAlgorithm(kCCAlgorithmAES),
+                        CCOptions(kCCOptionECBMode),
+                        keyPtr.baseAddress, keyData.count,
+                        nil,
+                        dataPtr.baseAddress, blockData.count,
+                        outPtr.baseAddress, outLength,
+                        &bytesWritten
+                    )
+                }
+            }
+        }
+
+        guard status == kCCSuccess, bytesWritten == kCCBlockSizeAES128 else {
+            throw CryptoError.encryptionFailed
+        }
+        return outData.prefix(kCCBlockSizeAES128)
     }
 
     // MARK: - AES-256-CBC Decrypt

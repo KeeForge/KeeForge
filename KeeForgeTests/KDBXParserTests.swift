@@ -322,6 +322,24 @@ final class KDBXParserTests: XCTestCase {
         )
     }
 
+    func testAESKDFKeyDerivationKnownVector() throws {
+        let compositeKey = Data((0..<32).map(UInt8.init))
+        let seed = Data((32..<64).map(UInt8.init))
+        let derived = try KDBXCrypto.transformKeyAESKDF(compositeKey: compositeKey, seed: seed, rounds: 10)
+
+        XCTAssertEqual(
+            derived.hexString,
+            "fabd4da9c3933f59b105cd94c10149b7e892105473bd81be514d74240843c35f"
+        )
+    }
+
+    func testUnsupportedKDFErrorUsesFriendlyName() {
+        let descriptor = KDFDescriptor(identifier: "c9d9f39a628a4460bf740d08c18a4fea", displayName: "AES-KDF")
+        let error = KDBXCrypto.CryptoError.unsupportedKDF(descriptor)
+
+        XCTAssertEqual(error.errorDescription, "Unsupported key derivation function: AES-KDF")
+    }
+
     func testGunzipKnownCompressedData() throws {
         let compressedBase64 = "H4sIAAAAAAAC//NOTQ1LLM0pUUgvzavKLFAoS00uyS9SKEiszMlPTOHKycxLNQIAX50mACQAAAA="
         let compressed = try XCTUnwrap(Data(base64Encoded: compressedBase64))
@@ -645,6 +663,39 @@ final class KDBXParserTests: XCTestCase {
         map.append(0x00)
 
         return map
+    }
+
+    private func buildAESVariantMap(rounds: UInt64) -> Data {
+        var map = Data()
+        map.appendLE(UInt16(0x0100))
+
+        appendVariantEntry(&map, type: 0x42, key: "$UUID",
+                           value: Data([0xC9, 0xD9, 0xF3, 0x9A, 0x62, 0x8A, 0x44, 0x60,
+                                        0xBF, 0x74, 0x0D, 0x08, 0xC1, 0x8A, 0x4F, 0xEA]))
+        appendVariantEntry(&map, type: 0x42, key: "S", value: Data((32..<64).map(UInt8.init)))
+
+        var roundBytes = Data(count: 8)
+        roundBytes.withUnsafeMutableBytes { $0.storeBytes(of: rounds.littleEndian, as: UInt64.self) }
+        appendVariantEntry(&map, type: 0x05, key: "R", value: roundBytes)
+
+        map.append(0x00)
+        return map
+    }
+
+    func testAESVariantMapDerivesKey() throws {
+        let compositeKey = Data((0..<32).map(UInt8.init))
+        let params: [String: Any] = [
+            "$UUID": Data([0xC9, 0xD9, 0xF3, 0x9A, 0x62, 0x8A, 0x44, 0x60,
+                            0xBF, 0x74, 0x0D, 0x08, 0xC1, 0x8A, 0x4F, 0xEA]),
+            "S": Data((32..<64).map(UInt8.init)),
+            "R": UInt64(10),
+        ]
+        let derived = try KDBXParser.deriveKey(compositeKey: compositeKey, kdfParams: params)
+
+        XCTAssertEqual(
+            derived.hexString,
+            "fabd4da9c3933f59b105cd94c10149b7e892105473bd81be514d74240843c35f"
+        )
     }
 
     private func appendVariantEntry(_ data: inout Data, type: UInt8, key: String, value: Data) {
