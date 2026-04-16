@@ -28,9 +28,13 @@ struct DatabaseRowView: View {
                     }
 
                     if reference.isQuickLaunch {
-                        Label("Quick Launch", systemImage: "rocket.fill")
-                            .font(.caption)
+                        Text("QUICK LAUNCH")
+                            .font(.caption2.weight(.semibold))
                             .foregroundStyle(.orange)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(Color.orange.opacity(0.12), in: Capsule())
+                            .accessibilityIdentifier("database-row.quick-launch-badge")
                     }
 
                     if status.pendingUploadCount > 0 {

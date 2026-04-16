@@ -315,10 +315,17 @@ struct DatabaseListView: View {
             }
         }
 
-        Button(reference.isQuickLaunch ? "Remove Quick Launch" : "Set Quick Launch") {
-            viewModel.toggleQuickLaunch(for: reference)
-            refreshDetailsReferenceIfNeeded(for: reference.id)
-        }
+        Toggle(
+            "Quick Launch",
+            isOn: Binding(
+                get: { currentReference(for: reference).isQuickLaunch },
+                set: { _ in
+                    viewModel.toggleQuickLaunch(for: reference)
+                    refreshDetailsReferenceIfNeeded(for: reference.id)
+                }
+            )
+        )
+        .accessibilityIdentifier("database-row.quick-launch-toggle")
 
         if viewModel.hasPendingUploads(for: reference) {
             Button("Push pending changes") {

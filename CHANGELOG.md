@@ -13,6 +13,8 @@
 - Fix unlocked vault displaying a wrapper "Root" group instead of showing database contents directly
 - Fix read-only ribbon and unsaved-changes banner accessibility identifiers for UI test visibility
 - Fix settings navigation from the unlocked database view (gear button → Database Settings → App Settings)
+- Unify Quick Launch and Read Only badge styling in the database list
+- Use a check mark toggle for Quick Launch in the database context menu to match the Read-only toggle
 
 ## v1.8.0 (2026-04-12)
 
