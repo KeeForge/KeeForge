@@ -166,7 +166,7 @@ Important notes:
 ### Demo Fixture
 
 `TestFixtures/demo.kdbx`  
-Password: `password`
+Password: `demo`
 
 Used by `AppStoreScreenshots` and richer screenshot-style flows.
 
