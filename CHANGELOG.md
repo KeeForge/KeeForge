@@ -8,15 +8,23 @@
 - [ ] Sync / attachments
 
 ## Unreleased
+
+## v1.8.1 (2026-04-16)
+
+### New Features
 - Add KDBX 3.1 read/open compatibility for password-only databases, including legacy AES-KDF headers, hashed block streams, and Salsa20 protected fields
-- Replace the yellow read-only banner with a lock icon in the navigation toolbar so the indicator stays visible across groups and entry details
+
+### Fixes
 - Toggling read-only in Database Settings now updates the current view immediately
 - Fix unlocked vault displaying a wrapper "Root" group instead of showing database contents directly
 - Fix read-only ribbon and unsaved-changes banner accessibility identifiers for UI test visibility
 - Fix settings navigation from the unlocked database view (gear button → Database Settings → App Settings)
+- Prevent adding the same local database file twice; opening an already-added file via Files/AirDrop now reliably opens the existing entry
+
+### Changes
+- Replace the yellow read-only banner with a lock icon in the navigation toolbar so the indicator stays visible across groups and entry details
 - Unify Quick Launch and Read Only badge styling in the database list
 - Use a check mark toggle for Quick Launch in the database context menu to match the Read-only toggle
-- Prevent adding the same local database file twice; opening an already-added file via Files/AirDrop now reliably opens the existing entry
 
 ## v1.8.0 (2026-04-12)
 

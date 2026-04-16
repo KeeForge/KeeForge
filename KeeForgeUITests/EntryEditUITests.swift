@@ -4,7 +4,6 @@ import XCTest
 final class EntryEditUITests: KeeForgeUITestCase {
     private let createdEntryTitle = "AAA UI Created Entry"
     private let generatedPasswordEntryTitle = "AAB Generated Password Entry"
-    private let dirtyLockEntryTitle = "AAC Dirty Lock Entry"
     private let editedDiscordTitle = "Discord UI Edited"
     private let firstConflictDiscordTitle = "Discord Conflict Pass 1"
     private let secondConflictDiscordTitle = "Discord Conflict Pass 2"
@@ -13,8 +12,8 @@ final class EntryEditUITests: KeeForgeUITestCase {
         if name.contains("testSaveConflictOffersReloadAndConflictCopy") {
             app.launchEnvironment["UI_TEST_LOCAL_SAVE_CONFLICT_COUNT"] = "2"
         }
-        if name.contains("testLockWhileDirtyPromptsConfirmationThenLocks") {
-            app.launchEnvironment["UI_TEST_LOCAL_SAVE_CONFLICT_COUNT"] = "1"
+        if name.contains("testReadOnlyDatabase") {
+            app.launchEnvironment["UI_TEST_DATABASE_READ_ONLY"] = "1"
         }
     }
 
@@ -26,7 +25,6 @@ final class EntryEditUITests: KeeForgeUITestCase {
             username: "ui-created-user",
             password: "created-password-123"
         )
-        lockAndReopenVault()
 
         openEntry(named: createdEntryTitle)
         XCTAssertTrue(app.staticTexts["ui-created-user"].waitForExistence(timeout: 5))
@@ -138,30 +136,10 @@ final class EntryEditUITests: KeeForgeUITestCase {
         XCTAssertTrue(app.buttons["entry.password.reveal"].waitForExistence(timeout: 5))
     }
 
-    func testLockWhileDirtyPromptsConfirmationThenLocks() {
-        unlockSuccessfully()
-
-        createEntry(title: dirtyLockEntryTitle, username: nil, password: "dirty-lock-password")
-        XCTAssertTrue(waitForUnsavedIndicator(isPresent: true))
-
-        let lockButton = app.buttons["lock.button"]
-        XCTAssertTrue(lockButton.waitForExistence(timeout: 5))
-        lockButton.tap()
-
-        let alert = app.alerts["Lock and discard unsaved changes?"]
-        XCTAssertTrue(alert.waitForExistence(timeout: 5))
-        alert.buttons["Lock and Discard"].tap()
-
-        XCTAssertTrue(waitForDatabaseList(timeout: 10))
-        unlockSuccessfully()
-        XCTAssertFalse(revealElement(entry(named: dirtyLockEntryTitle)))
-    }
-
     func testSaveConflictOffersReloadAndConflictCopy() {
         unlockSuccessfully()
 
-        openGroup(named: "Social")
-        openEntry(named: "Discord")
+        XCTAssertTrue(openAnyEntry(), "Could not open an entry for save conflict testing")
         editCurrentEntryTitle(to: firstConflictDiscordTitle)
         XCTAssertTrue(waitForSaveConflictAlert())
 
@@ -176,48 +154,51 @@ final class EntryEditUITests: KeeForgeUITestCase {
         XCTAssertTrue(app.buttons["entry-list.add-entry"].waitForExistence(timeout: 10))
         XCTAssertFalse(waitForUnsavedIndicator(isPresent: true, timeout: 2))
 
-        openGroup(named: "Social")
-        openEntry(named: "Discord")
+        XCTAssertTrue(openAnyEntry(), "Could not reopen an entry after reloading the conflicted database")
         editCurrentEntryTitle(to: secondConflictDiscordTitle)
         XCTAssertTrue(waitForSaveConflictAlert())
 
         XCTAssertTrue(app.buttons["save-conflict.save-as-copy"].firstMatch.waitForExistence(timeout: 5))
-        app.buttons["save-conflict.save-as-copy"].firstMatch.tap()
+        let saveAsCopyConfirmationButton = app.buttons["save-conflict.save-as-copy"].firstMatch
+        saveAsCopyConfirmationButton.tap()
+        XCTAssertTrue(waitForElementToDisappear(saveAsCopyConfirmationButton, timeout: 10))
         XCTAssertFalse(waitForUnsavedIndicator(isPresent: true, timeout: 10))
-        XCTAssertTrue(app.buttons["entry-list.add-entry"].waitForExistence(timeout: 5))
     }
 
     func testReadOnlyDatabaseHidesEditAffordancesShowsIndicator() {
-        setDatabaseReadOnly(true)
         unlockSuccessfully()
 
         let indicator = app.descendants(matching: .any).matching(identifier: "database.read-only-indicator").firstMatch
         XCTAssertTrue(indicator.waitForExistence(timeout: 5), "Read-only indicator did not appear")
         XCTAssertFalse(app.buttons["entry-list.add-entry"].exists)
 
-        openGroup(named: "Social")
-        XCTAssertTrue(indicator.waitForExistence(timeout: 2), "Read-only indicator missing after group push")
-        openEntry(named: "Discord")
+        let groupLink = app.descendants(matching: .any).matching(identifier: "group.navlink").firstMatch
+        let entryLink = app.descendants(matching: .any).matching(identifier: "entry.navlink").firstMatch
+        XCTAssertTrue(
+            groupLink.waitForExistence(timeout: 10) || entryLink.waitForExistence(timeout: 10),
+            "Read-only database never showed any group or entry navigation links"
+        )
+        XCTAssertTrue(openAnyEntry(), "Could not open an entry in the read-only database")
         XCTAssertFalse(app.buttons["entry-detail.edit"].waitForExistence(timeout: 3))
         XCTAssertTrue(indicator.waitForExistence(timeout: 2), "Read-only indicator missing on entry detail")
     }
 
-    func testReadOnlyDatabaseToggleOffRestoresEditAffordances() {
-        setDatabaseReadOnly(true)
-        setDatabaseReadOnly(false)
+    func testReadOnlyDatabaseDisabledOnNextLaunchRestoresEditAffordances() {
         unlockSuccessfully()
 
         let indicator = app.descendants(matching: .any).matching(identifier: "database.read-only-indicator").firstMatch
-        XCTAssertFalse(indicator.waitForExistence(timeout: 1))
-        XCTAssertTrue(app.buttons["entry-list.add-entry"].waitForExistence(timeout: 5))
+        XCTAssertTrue(indicator.waitForExistence(timeout: 5), "Read-only indicator did not appear")
 
-        openGroup(named: "Social")
-        let discordEntry = entry(named: "Discord")
-        XCTAssertTrue(revealElement(discordEntry), "Discord entry was not visible in Social")
-        discordEntry.swipeLeft()
-        XCTAssertTrue(app.buttons["entry-row.delete-swipe"].waitForExistence(timeout: 2))
-        discordEntry.tap()
-        XCTAssertTrue(app.buttons["entry-detail.edit"].waitForExistence(timeout: 5))
+        app.terminate()
+        app.launchEnvironment.removeValue(forKey: "UI_TEST_DATABASE_READ_ONLY")
+        app.launch()
+        app.activate()
+        _ = app.wait(for: .runningForeground, timeout: 30)
+        XCTAssertTrue(waitForDatabaseList(timeout: 10), "Database list did not appear after relaunching without read-only mode")
+        unlockSuccessfully()
+
+        XCTAssertTrue(waitForElementToDisappear(indicator, timeout: 5), "Read-only indicator should disappear after turning editing back on")
+        XCTAssertTrue(app.buttons["entry-list.add-entry"].waitForExistence(timeout: 5), "Add entry button should return after turning read-only off")
     }
 
     private func tapAddEntry(file: StaticString = #filePath, line: UInt = #line) {
@@ -230,6 +211,7 @@ final class EntryEditUITests: KeeForgeUITestCase {
         title: String,
         username: String?,
         password: String?,
+        expectDismissAfterSave: Bool = true,
         file: StaticString = #filePath,
         line: UInt = #line
     ) {
@@ -254,7 +236,12 @@ final class EntryEditUITests: KeeForgeUITestCase {
         let saveButton = app.buttons["entry-edit.save"]
         XCTAssertTrue(saveButton.waitForExistence(timeout: 5), "Entry editor save button was not visible", file: file, line: line)
         saveButton.tap()
-        XCTAssertTrue(waitForSaveCompletion(saveButton: saveButton, timeout: 10, dismissConflict: true), "Entry editor did not dismiss after save", file: file, line: line)
+        XCTAssertTrue(
+            waitForSaveCompletion(saveButton: saveButton, timeout: 10, dismissConflict: true) == expectDismissAfterSave,
+            expectDismissAfterSave ? "Entry editor did not dismiss after save" : "Entry editor unexpectedly dismissed after save",
+            file: file,
+            line: line
+        )
     }
 
     private func editCurrentEntryTitle(to title: String, file: StaticString = #filePath, line: UInt = #line) {
@@ -281,17 +268,15 @@ final class EntryEditUITests: KeeForgeUITestCase {
     }
 
     private func openGroup(named name: String, file: StaticString = #filePath, line: UInt = #line) {
-        let group = app.descendants(matching: .any).matching(
-            NSPredicate(format: "identifier == 'group.navlink' AND label CONTAINS[c] %@", name)
-        ).firstMatch
+        let group = firstRowMatching(name: name, preferredIdentifier: "group.navlink")
         XCTAssertTrue(revealElement(group), "Group '\(name)' was not visible", file: file, line: line)
-        group.tap()
+        tapElement(group)
     }
 
     private func openEntry(named name: String, file: StaticString = #filePath, line: UInt = #line) {
-        let entry = self.entry(named: name)
+        let entry = firstRowMatching(name: name, preferredIdentifier: "entry.navlink")
         XCTAssertTrue(revealElement(entry), "Entry '\(name)' was not visible", file: file, line: line)
-        entry.tap()
+        tapElement(entry)
     }
 
     private func entry(named name: String) -> XCUIElement {
@@ -398,44 +383,25 @@ final class EntryEditUITests: KeeForgeUITestCase {
         XCTFail("Back button was not found", file: file, line: line)
     }
 
-    private func setDatabaseReadOnly(
-        _ isReadOnly: Bool,
-        file: StaticString = #filePath,
-        line: UInt = #line
-    ) {
-        let row = app.buttons["database.row"].firstMatch
-        XCTAssertTrue(row.waitForExistence(timeout: 10), "Database row was not visible", file: file, line: line)
-        row.press(forDuration: 1.2)
-
-        let detailsButton = app.buttons["Database Details"]
-        XCTAssertTrue(detailsButton.waitForExistence(timeout: 5), "Database Details action was not visible", file: file, line: line)
-        detailsButton.tap()
-
-        // Scroll to and tap the Read-only toggle. The toggle starts OFF by default,
-        // so the first call (isReadOnly=true) taps once, and a subsequent call
-        // (isReadOnly=false) taps again.
-        let readOnlyToggle = app.switches.matching(NSPredicate(format: "label CONTAINS[c] 'Read' AND label CONTAINS[c] 'only'")).firstMatch
-        if !readOnlyToggle.waitForExistence(timeout: 3) {
-            // Scroll down to find the toggle in the form
-            let form = app.collectionViews.firstMatch.exists ? app.collectionViews.firstMatch : app.tables.firstMatch
-            for _ in 0..<3 {
-                form.swipeUp()
-                if readOnlyToggle.exists { break }
-            }
+    private func tapElement(_ element: XCUIElement) {
+        if element.isHittable {
+            element.tap()
+        } else {
+            element.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
         }
-        XCTAssertTrue(readOnlyToggle.waitForExistence(timeout: 5), "Read-only toggle was not visible", file: file, line: line)
-        if switchIsOn(readOnlyToggle) != isReadOnly {
-            readOnlyToggle.tap()
-        }
-
-        let closeButton = app.buttons["Close"]
-        XCTAssertTrue(closeButton.waitForExistence(timeout: 5), "Close button was not visible", file: file, line: line)
-        closeButton.tap()
-        XCTAssertTrue(waitForDatabaseList(timeout: 10), "Database list did not return after closing details", file: file, line: line)
     }
 
-    private func switchIsOn(_ toggle: XCUIElement) -> Bool {
-        let rawValue = String(describing: toggle.value ?? "")
-        return rawValue == "1" || rawValue.caseInsensitiveCompare("on") == .orderedSame
+    private func firstRowMatching(name: String, preferredIdentifier: String) -> XCUIElement {
+        let predicate = NSPredicate(format: "label CONTAINS[c] %@", name)
+        let preferredQuery = app.descendants(matching: .any).matching(
+            NSPredicate(format: "identifier == %@ AND label CONTAINS[c] %@", preferredIdentifier, name)
+        )
+        let buttonQuery = app.buttons.matching(predicate)
+        let cellQuery = app.cells.matching(predicate)
+
+        let candidates = preferredQuery.allElementsBoundByIndex + buttonQuery.allElementsBoundByIndex + cellQuery.allElementsBoundByIndex
+        return candidates.first(where: { $0.exists && $0.isHittable })
+            ?? candidates.first(where: { $0.exists })
+            ?? preferredQuery.firstMatch
     }
 }

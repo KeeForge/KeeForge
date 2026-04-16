@@ -26,6 +26,7 @@ enum DatabaseListStore {
     private static let uiTestCloudDatabasesJSONEnv = "UI_TEST_CLOUD_DATABASES_JSON"
     private static let uiTestCloudAccountsJSONEnv = "UI_TEST_CLOUD_ACCOUNTS_JSON"
     private static let uiTestLocalSaveConflictCountEnv = "UI_TEST_LOCAL_SAVE_CONFLICT_COUNT"
+    private static let uiTestDatabaseReadOnlyEnv = "UI_TEST_DATABASE_READ_ONLY"
     private static let cloudAccountsStorageKey = "KeeForge.cloudAccounts"
 
     private static var sharedDefaults: UserDefaults {
@@ -490,9 +491,23 @@ enum DatabaseListStore {
         guard ProcessInfo.processInfo.arguments.contains(uiTestingLaunchArg) else { return }
         didBootstrapUITesting = true
 
-        let references =
+        var references =
             uiTestDatabaseURLs().compactMap { try? makeReference(from: $0) }
             + uiTestCloudDatabases()
+        if uiTestEnvironmentFlag(uiTestDatabaseReadOnlyEnv) {
+            references = references.map { reference in
+                var updatedReference = reference
+                updatedReference.isReadOnly = true
+                return updatedReference
+            }
+        }
+        if references.count == 1 {
+            references = references.map { reference in
+                var updatedReference = reference
+                updatedReference.isQuickLaunch = true
+                return updatedReference
+            }
+        }
         sharedDefaults.removeObject(forKey: cloudAccountsStorageKey)
         try? FileManager.default.removeItem(at: SharedVaultStore.databaseCacheDirectory)
         try? FileManager.default.removeItem(at: SharedVaultStore.cloudCacheDirectory)
@@ -563,6 +578,16 @@ enum DatabaseListStore {
         }
 
         return writeUITestDatabase(data: data, requestedFilename: payload.filename)
+    }
+
+    private static func uiTestEnvironmentFlag(_ key: String) -> Bool {
+        let rawValue = ProcessInfo.processInfo.environment[key]?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        switch rawValue.lowercased() {
+        case "1", "true", "yes", "on":
+            return true
+        default:
+            return false
+        }
     }
 
     private static func writeUITestDatabase(data: Data, requestedFilename: String) -> URL? {

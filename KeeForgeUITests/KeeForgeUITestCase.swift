@@ -82,6 +82,19 @@ class KeeForgeUITestCase: XCTestCase {
 
         try configureLaunch(app: app)
         app.launch()
+        app.activate()
+        _ = app.wait(for: .runningForeground, timeout: 30)
+        let databaseRow = app.buttons["database.row"].firstMatch
+        let passwordField = app.secureTextFields["unlock.password.field"]
+        let lockButton = app.buttons["lock.button"]
+        let deadline = Date().addingTimeInterval(30)
+
+        while Date() < deadline {
+            if databaseRow.exists || passwordField.exists || lockButton.exists {
+                break
+            }
+            try? await Task.sleep(for: .milliseconds(250))
+        }
     }
 
     func configureLaunch(app: XCUIApplication) throws {}
@@ -169,35 +182,78 @@ class KeeForgeUITestCase: XCTestCase {
         file: StaticString = #filePath,
         line: UInt = #line
     ) -> Bool {
+        app.activate()
+        _ = app.wait(for: .runningForeground, timeout: timeout)
+
         let passwordField = app.secureTextFields["unlock.password.field"]
         if passwordField.waitForExistence(timeout: 1) {
             return true
         }
 
-        let databaseRow = app.buttons["database.row"].firstMatch
+        let databaseRowQuery = app.buttons.matching(identifier: "database.row")
+        let databaseRow = databaseRowQuery.firstMatch
+        let databaseCell = app.cells.firstMatch
+        let listDeadline = Date().addingTimeInterval(timeout)
+        while !databaseRow.exists && !databaseCell.exists && Date() < listDeadline {
+            RunLoop.current.run(until: Date().addingTimeInterval(0.3))
+        }
+
         XCTAssertTrue(
-            databaseRow.waitForExistence(timeout: timeout),
+            databaseRow.exists || databaseCell.exists,
             "Database list did not appear",
             file: file,
             line: line
         )
 
-        // Wait for the row to become hittable (sheet dismissal may still be animating)
+        let rowCandidates: [XCUIElement] = [databaseRow, databaseCell]
+
+        // Prefer a normally hittable row, but fall back to a coordinate tap when
+        // XCTest exposes the row before it reports as hittable.
         let hittableDeadline = Date().addingTimeInterval(timeout)
-        while !databaseRow.isHittable, Date() < hittableDeadline {
+        var hittableRow: XCUIElement?
+        while hittableRow == nil, Date() < hittableDeadline {
+            hittableRow = databaseRowQuery.allElementsBoundByIndex.first(where: { $0.exists && $0.isHittable })
+                ?? rowCandidates.first(where: { $0.exists && $0.isHittable })
             RunLoop.current.run(until: Date().addingTimeInterval(0.3))
         }
 
-        XCTAssertTrue(
-            databaseRow.isHittable,
-            "Database row was not hittable",
-            file: file,
-            line: line
-        )
-        databaseRow.tap()
+        let tapTarget: XCUIElement
+        if let hittableRow {
+            tapTarget = hittableRow
+        } else {
+            guard let fallbackRow = rowCandidates.first(where: { $0.exists }) else {
+                XCTFail("Database row was not visible", file: file, line: line)
+                return false
+            }
+            tapTarget = fallbackRow
+        }
+
+        let tapSequence = [tapTarget, databaseRow, databaseCell]
+        for _ in 0..<3 {
+            app.activate()
+            for candidate in tapSequence where candidate.exists {
+                if candidate.isHittable {
+                    candidate.tap()
+                } else {
+                    XCTAssertGreaterThan(candidate.frame.width, 0, "Database row frame was empty", file: file, line: line)
+                    XCTAssertGreaterThan(candidate.frame.height, 0, "Database row frame was empty", file: file, line: line)
+                    let isDatabaseRow = candidate.identifier == "database.row"
+                    let offset = isDatabaseRow
+                        ? CGVector(dx: 0.2, dy: 0.5)
+                        : CGVector(dx: 0.5, dy: 0.5)
+                    candidate.coordinate(withNormalizedOffset: offset).tap()
+                }
+
+                if passwordField.waitForExistence(timeout: 3) {
+                    return true
+                }
+            }
+
+            RunLoop.current.run(until: Date().addingTimeInterval(0.5))
+        }
 
         XCTAssertTrue(
-            passwordField.waitForExistence(timeout: timeout),
+            passwordField.waitForExistence(timeout: 1),
             "Password field did not appear after opening the database",
             file: file,
             line: line
