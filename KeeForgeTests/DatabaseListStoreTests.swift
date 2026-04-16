@@ -30,6 +30,21 @@ final class DatabaseListStoreTests: XCTestCase {
         XCTAssertEqual(storedReferences.first?.filename, "personal.kdbx")
     }
 
+    func testAddRejectsSameLocalFileTwice() throws {
+        let url = try makeTemporaryFileURL(name: "duplicate.kdbx")
+        let firstReference = try DatabaseListStore.add(url: url)
+
+        XCTAssertThrowsError(try DatabaseListStore.add(url: url)) { error in
+            guard case let DatabaseListStore.AddDatabaseError.duplicateFile(existingReferenceID, filename) = error else {
+                XCTFail("Expected duplicateFile error, got \(error)")
+                return
+            }
+            XCTAssertEqual(existingReferenceID, firstReference.id)
+            XCTAssertEqual(filename, firstReference.displayName)
+        }
+        XCTAssertEqual(DatabaseListStore.databases.count, 1)
+    }
+
     func testCacheDatabaseCopyUsesPerDatabaseUUIDPath() throws {
         let url = try makeTemporaryFileURL(name: "work.kdbx", contents: Data("fixture".utf8))
         let reference = try DatabaseListStore.add(url: url)

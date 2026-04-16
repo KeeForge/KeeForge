@@ -122,8 +122,11 @@ private struct AppRootView: View {
         do {
             let reference = try listViewModel.addDatabase(from: url)
             openDatabase(reference)
+        } catch DatabaseListStore.AddDatabaseError.duplicateFile(let existingReferenceID, _) {
+            if let existing = listViewModel.databases.first(where: { $0.id == existingReferenceID }) {
+                openDatabase(existing)
+            }
         } catch {
-            // Database may already exist in the list — find and open it
             if let existing = listViewModel.databases.first(where: {
                 $0.filename == url.lastPathComponent
             }) {

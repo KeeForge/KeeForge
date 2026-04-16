@@ -2,6 +2,17 @@ import CryptoKit
 import Foundation
 
 enum DatabaseListStore {
+    enum AddDatabaseError: Error, LocalizedError, Equatable {
+        case duplicateFile(existingReferenceID: UUID, filename: String)
+
+        var errorDescription: String? {
+            switch self {
+            case .duplicateFile(_, let filename):
+                return "“\(filename)” is already in your database list."
+            }
+        }
+    }
+
     private static let databaseListFilename = "database-list.json"
     private static let applicationSupportPathComponent = "Library/Application Support"
     private static let backupsDirectoryName = "backups"
@@ -118,6 +129,12 @@ enum DatabaseListStore {
     @discardableResult
     static func add(url: URL) throws -> DatabaseReference {
         var currentDatabases = loadDatabases()
+        if let duplicate = existingLocalReference(matching: url, in: currentDatabases) {
+            throw AddDatabaseError.duplicateFile(
+                existingReferenceID: duplicate.id,
+                filename: duplicate.displayName
+            )
+        }
         let reference = try makeReference(from: url)
         currentDatabases.append(reference)
         saveDatabases(currentDatabases)
@@ -721,6 +738,25 @@ enum DatabaseListStore {
 
     private static func fallbackAutoFillDatabase(in references: [DatabaseReference]) -> DatabaseReference? {
         references.first { $0.legacyKeychainFilename != nil }
+    }
+
+    private static func existingLocalReference(
+        matching url: URL,
+        in references: [DatabaseReference]
+    ) -> DatabaseReference? {
+        let targetPath = normalizedFilePath(for: url)
+        return references.first { reference in
+            guard reference.cloudSyncMetadata == nil,
+                  let bookmarkData = reference.bookmarkData,
+                  let resolved = SecurityScopedBookmarkManager.resolveURL(from: bookmarkData) else {
+                return false
+            }
+            return normalizedFilePath(for: resolved.url) == targetPath
+        }
+    }
+
+    private static func normalizedFilePath(for url: URL) -> String {
+        url.resolvingSymlinksInPath().standardizedFileURL.path
     }
 
     private static func cacheInitialCopyIfPossible(from url: URL, for databaseID: UUID) {

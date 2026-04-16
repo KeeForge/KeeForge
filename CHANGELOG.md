@@ -15,6 +15,7 @@
 - Fix settings navigation from the unlocked database view (gear button → Database Settings → App Settings)
 - Unify Quick Launch and Read Only badge styling in the database list
 - Use a check mark toggle for Quick Launch in the database context menu to match the Read-only toggle
+- Prevent adding the same local database file twice; opening an already-added file via Files/AirDrop now reliably opens the existing entry
 
 ## v1.8.0 (2026-04-12)
 
