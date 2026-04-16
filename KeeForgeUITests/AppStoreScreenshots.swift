@@ -6,10 +6,11 @@ final class AppStoreScreenshots: KeeForgeUITestCase {
         case databaseList = "01-database-list"
         case unlockScreen = "02-unlock-screen"
         case vaultGroups = "03-vault-groups"
-        case entryList = "04-entry-list"
-        case entryDetail = "05-entry-detail"
-        case entryEdit = "06-entry-edit"
-        case search = "07-search"
+        case databaseSettings = "04-database-settings"
+        case entryList = "05-entry-list"
+        case entryDetail = "06-entry-detail"
+        case entryEdit = "07-entry-edit"
+        case search = "08-search"
     }
 
     private struct CloudAccountPayload: Encodable {
@@ -165,6 +166,18 @@ final class AppStoreScreenshots: KeeForgeUITestCase {
         sleep(2)
 
         saveScreenshot(.vaultGroups)
+
+        let settingsButton = app.buttons["settings.button"]
+        XCTAssertTrue(settingsButton.waitForExistence(timeout: 5), "Database settings button should be visible after unlock")
+        settingsButton.tap()
+        XCTAssertTrue(app.navigationBars["Database Settings"].waitForExistence(timeout: 5), "Database Settings screen should open")
+        sleep(1)
+        saveScreenshot(.databaseSettings)
+
+        let closeButton = app.buttons["Close"]
+        XCTAssertTrue(closeButton.waitForExistence(timeout: 5), "Close button should dismiss Database Settings")
+        closeButton.tap()
+        sleep(1)
 
         let primaryGroup = app.buttons.matching(identifier: "group.navlink").allElementsBoundByIndex
             .first(where: { $0.label.contains("Social") })
