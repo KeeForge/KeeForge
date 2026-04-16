@@ -8,6 +8,7 @@
 - [ ] Sync / attachments
 
 ## Unreleased
+- Add KDBX 3.1 read/open compatibility for password-only databases, including legacy AES-KDF headers, hashed block streams, and Salsa20 protected fields
 - Replace the yellow read-only banner with a lock icon in the navigation toolbar so the indicator stays visible across groups and entry details
 - Toggling read-only in Database Settings now updates the current view immediately
 - Fix unlocked vault displaying a wrapper "Root" group instead of showing database contents directly

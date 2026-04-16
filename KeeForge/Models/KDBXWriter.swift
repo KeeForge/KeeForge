@@ -23,11 +23,14 @@ enum KDBXWriter {
     }
 
     enum WriteError: Error, LocalizedError {
+        case unsupportedSourceFormat(KDBXParser.FileVersion)
         case unsupportedInnerRandomStream(UInt32)
         case unsupportedVariantMapValue(String)
 
         var errorDescription: String? {
             switch self {
+            case .unsupportedSourceFormat:
+                "Saving legacy KDBX 3.1 databases is not supported yet."
             case .unsupportedInnerRandomStream(let streamID):
                 "Unsupported inner random stream: \(streamID)"
             case .unsupportedVariantMapValue(let key):
@@ -131,9 +134,13 @@ enum KDBXWriter {
 
         switch source {
         case .reuse(let existing):
+            guard existing.formatVersion.majorVersion == KDBXParser.versionKDBX4 else {
+                throw WriteError.unsupportedSourceFormat(existing.formatVersion)
+            }
             header = existing
         case .fresh(let configuration):
             header = KDBXParser.Header(
+                formatVersion: .kdbx4(minor: headerMinorVersion),
                 cipherID: configuration.cipherID,
                 compressionFlags: 1,
                 masterSeed: randomData(count: masterSeedLength),

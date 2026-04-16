@@ -7,6 +7,7 @@ enum KDBXParser {
 
     static let kdbxSignature1: UInt32 = 0x9AA2D903
     static let kdbxSignature2: UInt32 = 0xB54BFB67
+    static let versionKDBX3: UInt16 = 3
     static let versionKDBX4: UInt16 = 4
 
     // Cipher UUIDs (16 bytes)
@@ -24,6 +25,9 @@ enum KDBXParser {
                                   0xBF, 0x74, 0x0D, 0x08, 0xC1, 0x8A, 0x4F, 0xEA])
 
     // Inner random stream IDs
+    static let innerStreamNone: UInt32 = 0
+    static let innerStreamArcFourVariant: UInt32 = 1
+    static let innerStreamSalsa20: UInt32 = 2
     static let innerStreamChaCha20: UInt32 = 3
 
     // MARK: - Header Fields
@@ -44,9 +48,46 @@ enum KDBXParser {
         case binary = 3
     }
 
+    enum LegacyHeaderField: UInt8 {
+        case endOfHeader = 0
+        case cipherID = 2
+        case compressionFlags = 3
+        case masterSeed = 4
+        case transformSeed = 5
+        case transformRounds = 6
+        case encryptionIV = 7
+        case protectedStreamKey = 8
+        case streamStartBytes = 9
+        case innerRandomStreamID = 10
+    }
+
+    enum FileVersion: Equatable, Sendable {
+        case kdbx3_1
+        case kdbx4(minor: UInt16)
+
+        var majorVersion: UInt16 {
+            switch self {
+            case .kdbx3_1:
+                versionKDBX3
+            case .kdbx4:
+                versionKDBX4
+            }
+        }
+
+        var minorVersion: UInt16 {
+            switch self {
+            case .kdbx3_1:
+                1
+            case .kdbx4(let minor):
+                minor
+            }
+        }
+    }
+
     // MARK: - Parsed Header
 
     struct Header: @unchecked Sendable {
+        var formatVersion = FileVersion.kdbx4(minor: 0)
         var cipherID = Data()
         var compressionFlags: UInt32 = 0
         var masterSeed = Data()
@@ -67,19 +108,26 @@ enum KDBXParser {
         case headerFieldMissing(String)
         case xmlParsingFailed
         case invalidBlockHMAC
+        case invalidLegacyBlockHash
+        case invalidStreamStartBytes
         case innerHeaderInvalid
+        case unsupportedProtectedFieldStream(UInt32)
         case malformedVariantMap
         case kdfParameterOutOfRange(String)
 
         var errorDescription: String? {
             switch self {
             case .invalidSignature: "Not a valid KDBX file"
-            case .unsupportedVersion(let v): "Unsupported KDBX version: \(v)"
+            case .unsupportedVersion:
+                "This database uses an older KeePass format that KeeForge does not support yet."
             case .truncatedFile: "File is truncated"
             case .headerFieldMissing(let f): "Missing header field: \(f)"
             case .xmlParsingFailed: "Failed to parse database XML"
             case .invalidBlockHMAC: "Block HMAC invalid — wrong password or corrupted file"
+            case .invalidLegacyBlockHash: "The database appears corrupted or incomplete."
+            case .invalidStreamStartBytes: "Decryption failed — wrong password?"
             case .innerHeaderInvalid: "Invalid inner header"
+            case .unsupportedProtectedFieldStream: "This database uses an unsupported protected-field stream."
             case .malformedVariantMap: "Malformed variant map in header"
             case .kdfParameterOutOfRange(let p): "KDF parameter out of range: \(p)"
             }
@@ -89,7 +137,7 @@ enum KDBXParser {
     // MARK: - Constant-Time Comparison
 
     /// Compare two Data values in constant time to prevent timing side-channels on HMAC/hash checks.
-    private static func constantTimeEqual(_ a: Data, _ b: Data) -> Bool {
+    static func constantTimeEqual(_ a: Data, _ b: Data) -> Bool {
         guard a.count == b.count else { return false }
         var result: UInt8 = 0
         for i in 0..<a.count {
@@ -168,25 +216,60 @@ enum KDBXParser {
         compositeKey: Data,
         sessionKey: SymmetricKey
     ) throws -> (rootGroup: KPGroup, meta: KPMeta, header: Header) {
+        let version = try parseFileVersion(from: data)
+        switch version {
+        case .kdbx3_1:
+            return try parseKDBX3WithMetaAndHeader(
+                data: data,
+                compositeKey: compositeKey,
+                sessionKey: sessionKey
+            )
+        case .kdbx4:
+            return try parseKDBX4WithMetaAndHeader(
+                data: data,
+                compositeKey: compositeKey,
+                sessionKey: sessionKey
+            )
+        }
+    }
+
+    static func parseFileVersion(from data: Data) throws -> FileVersion {
         var reader = DataReader(data: data)
 
-        // 1. Verify signatures
         let sig1 = try reader.readUInt32()
         let sig2 = try reader.readUInt32()
         guard sig1 == kdbxSignature1, sig2 == kdbxSignature2 else {
             throw ParseError.invalidSignature
         }
 
-        // 2. Version
-        let _ = try reader.readUInt16()
+        let versionMinor = try reader.readUInt16()
         let versionMajor = try reader.readUInt16()
-        guard versionMajor == versionKDBX4 else {
+
+        switch versionMajor {
+        case versionKDBX3 where versionMinor == 1:
+            return .kdbx3_1
+        case versionKDBX4:
+            return .kdbx4(minor: versionMinor)
+        default:
             throw ParseError.unsupportedVersion(versionMajor)
         }
+    }
 
-        // 3. Parse outer header
+    private static func parseKDBX4WithMetaAndHeader(
+        data: Data,
+        compositeKey: Data,
+        sessionKey: SymmetricKey
+    ) throws -> (rootGroup: KPGroup, meta: KPMeta, header: Header) {
+        var reader = DataReader(data: data)
+
+        let version = try parseVersion(from: &reader)
+        guard case .kdbx4(let minorVersion) = version else {
+            throw ParseError.unsupportedVersion(version.majorVersion)
+        }
+
         let headerStart = 0
         var header = try parseHeader(&reader)
+        header.formatVersion = .kdbx4(minor: minorVersion)
         let headerEnd = reader.offset
         let headerBytes = data.subdata(in: headerStart..<headerEnd)
         header.headerData = headerBytes
@@ -296,6 +379,26 @@ enum KDBXParser {
         )
 
         return (parsed.rootGroup, parsed.meta, header)
+    }
+
+    static func parseVersion(from reader: inout DataReader) throws -> FileVersion {
+        let sig1 = try reader.readUInt32()
+        let sig2 = try reader.readUInt32()
+        guard sig1 == kdbxSignature1, sig2 == kdbxSignature2 else {
+            throw ParseError.invalidSignature
+        }
+
+        let versionMinor = try reader.readUInt16()
+        let versionMajor = try reader.readUInt16()
+
+        switch versionMajor {
+        case versionKDBX3 where versionMinor == 1:
+            return .kdbx3_1
+        case versionKDBX4:
+            return .kdbx4(minor: versionMinor)
+        default:
+            throw ParseError.unsupportedVersion(versionMajor)
+        }
     }
 
     // MARK: - Header Parsing
@@ -527,12 +630,13 @@ enum KDBXParser {
 
     // MARK: - XML Parsing
 
-    private static func parseXML(
+    static func parseXML(
         xmlData: Data,
         innerStreamKey: Data,
         innerStreamID: UInt32,
         sessionKey: SymmetricKey
     ) throws -> (rootGroup: KPGroup, meta: KPMeta) {
+        try validateSupportedProtectedFieldStream(innerStreamID)
         let parser = KDBXXMLParser(
             data: xmlData,
             innerStreamKey: innerStreamKey,
@@ -713,6 +817,215 @@ final class KDBXXMLParser: NSObject, XMLParserDelegate {
         }
     }
 
+    private enum ProtectedValueCipher {
+        case none
+        case salsa20(key: Data, nonce: Data, counterLow: UInt32, counterHigh: UInt32, keystreamBlock: Data, offset: Int)
+        case chacha20(key: Data, nonce: Data, counter: UInt32, keystreamBlock: Data, offset: Int)
+
+        init(streamID: UInt32, innerStreamKey: Data) {
+            switch streamID {
+            case KDBXParser.innerStreamSalsa20:
+                self = .salsa20(
+                    key: KDBXCrypto.sha256(innerStreamKey),
+                    nonce: Data([0xE8, 0x30, 0x09, 0x4B, 0x97, 0x20, 0x5D, 0x2A]),
+                    counterLow: 0,
+                    counterHigh: 0,
+                    keystreamBlock: Data(),
+                    offset: 0
+                )
+            case KDBXParser.innerStreamChaCha20:
+                let keyHash = KDBXCrypto.sha512(innerStreamKey)
+                self = .chacha20(
+                    key: Data(keyHash.prefix(32)),
+                    nonce: Data(keyHash[32..<44]),
+                    counter: 0,
+                    keystreamBlock: Data(),
+                    offset: 0
+                )
+            default:
+                self = .none
+            }
+        }
+
+        mutating func xor(_ encrypted: Data) -> Data {
+            guard !encrypted.isEmpty else { return encrypted }
+
+            var decrypted = Data()
+            decrypted.reserveCapacity(encrypted.count)
+            for byte in encrypted {
+                decrypted.append(byte ^ nextKeystreamByte())
+            }
+            return decrypted
+        }
+
+        private mutating func nextKeystreamByte() -> UInt8 {
+            switch self {
+            case .none:
+                return 0
+
+            case .salsa20(let key, let nonce, var counterLow, var counterHigh, var keystreamBlock, var offset):
+                if offset >= keystreamBlock.count {
+                    keystreamBlock = Self.makeSalsa20Block(
+                        key: key,
+                        nonce: nonce,
+                        counterLow: counterLow,
+                        counterHigh: counterHigh
+                    )
+                    offset = 0
+                    let nextLow = counterLow &+ 1
+                    if nextLow == 0 {
+                        counterHigh &+= 1
+                    }
+                    counterLow = nextLow
+                }
+
+                let byte = keystreamBlock[offset]
+                offset += 1
+                self = .salsa20(
+                    key: key,
+                    nonce: nonce,
+                    counterLow: counterLow,
+                    counterHigh: counterHigh,
+                    keystreamBlock: keystreamBlock,
+                    offset: offset
+                )
+                return byte
+
+            case .chacha20(let key, let nonce, var counter, var keystreamBlock, var offset):
+                if offset >= keystreamBlock.count {
+                    keystreamBlock = Self.makeChaCha20Block(key: key, nonce: nonce, counter: counter)
+                    offset = 0
+                    counter &+= 1
+                }
+
+                let byte = keystreamBlock[offset]
+                offset += 1
+                self = .chacha20(
+                    key: key,
+                    nonce: nonce,
+                    counter: counter,
+                    keystreamBlock: keystreamBlock,
+                    offset: offset
+                )
+                return byte
+            }
+        }
+
+        private static func makeSalsa20Block(
+            key: Data,
+            nonce: Data,
+            counterLow: UInt32,
+            counterHigh: UInt32
+        ) -> Data {
+            var state = [UInt32](repeating: 0, count: 16)
+            state[0] = 0x61707865
+            state[5] = 0x3320646e
+            state[10] = 0x79622d32
+            state[15] = 0x6b206574
+
+            key.withUnsafeBytes { ptr in
+                for i in 0..<4 {
+                    state[1 + i] = ptr.loadUnaligned(fromByteOffset: i * 4, as: UInt32.self).littleEndian
+                    state[11 + i] = ptr.loadUnaligned(fromByteOffset: (i + 4) * 4, as: UInt32.self).littleEndian
+                }
+            }
+
+            nonce.withUnsafeBytes { ptr in
+                state[6] = ptr.loadUnaligned(fromByteOffset: 0, as: UInt32.self).littleEndian
+                state[7] = ptr.loadUnaligned(fromByteOffset: 4, as: UInt32.self).littleEndian
+            }
+            state[8] = counterLow
+            state[9] = counterHigh
+
+            var working = state
+            for _ in 0..<10 {
+                salsaQuarterRound(&working, 0, 4, 8, 12)
+                salsaQuarterRound(&working, 5, 9, 13, 1)
+                salsaQuarterRound(&working, 10, 14, 2, 6)
+                salsaQuarterRound(&working, 15, 3, 7, 11)
+
+                salsaQuarterRound(&working, 0, 1, 2, 3)
+                salsaQuarterRound(&working, 5, 6, 7, 4)
+                salsaQuarterRound(&working, 10, 11, 8, 9)
+                salsaQuarterRound(&working, 15, 12, 13, 14)
+            }
+
+            for i in 0..<16 {
+                working[i] = working[i] &+ state[i]
+            }
+
+            return serializeWords(working)
+        }
+
+        private static func makeChaCha20Block(key: Data, nonce: Data, counter: UInt32) -> Data {
+            var state = [UInt32](repeating: 0, count: 16)
+            state[0] = 0x61707865
+            state[1] = 0x3320646e
+            state[2] = 0x79622d32
+            state[3] = 0x6b206574
+
+            key.withUnsafeBytes { ptr in
+                for i in 0..<8 {
+                    state[4 + i] = ptr.loadUnaligned(fromByteOffset: i * 4, as: UInt32.self).littleEndian
+                }
+            }
+
+            state[12] = counter
+            nonce.withUnsafeBytes { ptr in
+                for i in 0..<3 {
+                    state[13 + i] = ptr.loadUnaligned(fromByteOffset: i * 4, as: UInt32.self).littleEndian
+                }
+            }
+
+            var working = state
+            for _ in 0..<10 {
+                chachaQuarterRound(&working, 0, 4, 8, 12)
+                chachaQuarterRound(&working, 1, 5, 9, 13)
+                chachaQuarterRound(&working, 2, 6, 10, 14)
+                chachaQuarterRound(&working, 3, 7, 11, 15)
+                chachaQuarterRound(&working, 0, 5, 10, 15)
+                chachaQuarterRound(&working, 1, 6, 11, 12)
+                chachaQuarterRound(&working, 2, 7, 8, 13)
+                chachaQuarterRound(&working, 3, 4, 9, 14)
+            }
+
+            for i in 0..<16 {
+                working[i] = working[i] &+ state[i]
+            }
+
+            return serializeWords(working)
+        }
+
+        private static func salsaQuarterRound(_ state: inout [UInt32], _ a: Int, _ b: Int, _ c: Int, _ d: Int) {
+            state[b] ^= rotl(state[a] &+ state[d], by: 7)
+            state[c] ^= rotl(state[b] &+ state[a], by: 9)
+            state[d] ^= rotl(state[c] &+ state[b], by: 13)
+            state[a] ^= rotl(state[d] &+ state[c], by: 18)
+        }
+
+        private static func chachaQuarterRound(_ state: inout [UInt32], _ a: Int, _ b: Int, _ c: Int, _ d: Int) {
+            state[a] = state[a] &+ state[b]; state[d] ^= state[a]; state[d] = rotl(state[d], by: 16)
+            state[c] = state[c] &+ state[d]; state[b] ^= state[c]; state[b] = rotl(state[b], by: 12)
+            state[a] = state[a] &+ state[b]; state[d] ^= state[a]; state[d] = rotl(state[d], by: 8)
+            state[c] = state[c] &+ state[d]; state[b] ^= state[c]; state[b] = rotl(state[b], by: 7)
+        }
+
+        private static func rotl(_ value: UInt32, by amount: UInt32) -> UInt32 {
+            (value << amount) | (value >> (32 - amount))
+        }
+
+        private static func serializeWords(_ words: [UInt32]) -> Data {
+            var block = Data(capacity: 64)
+            for word in words {
+                var little = word.littleEndian
+                withUnsafeBytes(of: &little) { bytes in
+                    block.append(contentsOf: bytes)
+                }
+            }
+            return block
+        }
+    }
+
     private let data: Data
     private let innerStreamKey: Data
     private let innerStreamID: UInt32
@@ -732,19 +1045,7 @@ final class KDBXXMLParser: NSObject, XMLParserDelegate {
     private var inMeta = false
     private var captureStack: [XMLCaptureElement] = []
 
-    // Inner stream cipher state for decrypting protected values
-    private var chachaCounter: UInt32 = 0
-    private var keystreamBlock = Data()
-    private var keystreamBlockOffset = 0
-    private lazy var streamCipherKey: Data = {
-        KDBXCrypto.sha512(innerStreamKey)
-    }()
-    private lazy var innerChaChaKey: Data = {
-        Data(streamCipherKey.prefix(32))
-    }()
-    private lazy var innerChaChaNonce: Data = {
-        Data(streamCipherKey[32..<44])
-    }()
+    private var protectedValueCipher: ProtectedValueCipher
 
     private var rootEntries: [KPEntry] = []
     private var rootGroups: [KPGroup] = []
@@ -769,6 +1070,10 @@ final class KDBXXMLParser: NSObject, XMLParserDelegate {
         self.innerStreamKey = innerStreamKey
         self.innerStreamID = innerStreamID
         self.sessionKey = sessionKey
+        self.protectedValueCipher = ProtectedValueCipher(
+            streamID: innerStreamID,
+            innerStreamKey: innerStreamKey
+        )
     }
 
     func parse() throws -> (rootGroup: KPGroup, meta: KPMeta) {
@@ -1060,89 +1365,8 @@ final class KDBXXMLParser: NSObject, XMLParserDelegate {
     // MARK: - Protected Value Decryption
 
     private func decryptProtectedValue(_ encrypted: Data) -> String {
-        guard innerStreamID == KDBXParser.innerStreamChaCha20 else {
-            // Salsa20 or other — not supported in v1
-            return String(data: encrypted, encoding: .utf8) ?? ""
-        }
-
-        guard innerChaChaKey.count == 32, innerChaChaNonce.count == 12 else {
-            return String(data: encrypted, encoding: .utf8) ?? ""
-        }
-
-        // KDBX4 protected values consume one continuous ChaCha20 stream.
-        var decrypted = Data()
-        decrypted.reserveCapacity(encrypted.count)
-
-        for byte in encrypted {
-            decrypted.append(byte ^ nextKeystreamByte())
-        }
-
+        let decrypted = protectedValueCipher.xor(encrypted)
         return String(data: decrypted, encoding: .utf8) ?? ""
-    }
-
-    private func nextKeystreamByte() -> UInt8 {
-        if keystreamBlockOffset >= keystreamBlock.count {
-            keystreamBlock = makeChaCha20Block(counter: chachaCounter)
-            keystreamBlockOffset = 0
-            chachaCounter &+= 1
-        }
-
-        let byte = keystreamBlock[keystreamBlockOffset]
-        keystreamBlockOffset += 1
-        return byte
-    }
-
-    private func makeChaCha20Block(counter: UInt32) -> Data {
-        var state = [UInt32](repeating: 0, count: 16)
-        state[0] = 0x61707865
-        state[1] = 0x3320646e
-        state[2] = 0x79622d32
-        state[3] = 0x6b206574
-
-        innerChaChaKey.withUnsafeBytes { ptr in
-            for i in 0..<8 {
-                state[4 + i] = ptr.loadUnaligned(fromByteOffset: i * 4, as: UInt32.self).littleEndian
-            }
-        }
-
-        state[12] = counter
-        innerChaChaNonce.withUnsafeBytes { ptr in
-            for i in 0..<3 {
-                state[13 + i] = ptr.loadUnaligned(fromByteOffset: i * 4, as: UInt32.self).littleEndian
-            }
-        }
-
-        var working = state
-        for _ in 0..<10 {
-            quarterRound(&working, 0, 4, 8, 12)
-            quarterRound(&working, 1, 5, 9, 13)
-            quarterRound(&working, 2, 6, 10, 14)
-            quarterRound(&working, 3, 7, 11, 15)
-            quarterRound(&working, 0, 5, 10, 15)
-            quarterRound(&working, 1, 6, 11, 12)
-            quarterRound(&working, 2, 7, 8, 13)
-            quarterRound(&working, 3, 4, 9, 14)
-        }
-
-        for i in 0..<16 {
-            working[i] = working[i] &+ state[i]
-        }
-
-        var block = Data(capacity: 64)
-        for word in working {
-            var little = word.littleEndian
-            withUnsafeBytes(of: &little) { bytes in
-                block.append(contentsOf: bytes)
-            }
-        }
-        return block
-    }
-
-    private func quarterRound(_ s: inout [UInt32], _ a: Int, _ b: Int, _ c: Int, _ d: Int) {
-        s[a] = s[a] &+ s[b]; s[d] ^= s[a]; s[d] = (s[d] << 16) | (s[d] >> 16)
-        s[c] = s[c] &+ s[d]; s[b] ^= s[c]; s[b] = (s[b] << 12) | (s[b] >> 20)
-        s[a] = s[a] &+ s[b]; s[d] ^= s[a]; s[d] = (s[d] << 8) | (s[d] >> 24)
-        s[c] = s[c] &+ s[d]; s[b] ^= s[c]; s[b] = (s[b] << 7) | (s[b] >> 25)
     }
 
     private func isInsideHistory() -> Bool {

@@ -154,20 +154,19 @@ enum KDBXCrypto {
 
         var left = compositeKey.prefix(16)
         var right = compositeKey.suffix(16)
-        let zeroIV = Data(repeating: 0, count: kCCBlockSizeAES128)
 
         for _ in 0..<rounds {
-            left = try aesECBEncryptBlock(left, key: seed.prefix(16), iv: zeroIV)
-            right = try aesECBEncryptBlock(right, key: seed.suffix(16), iv: zeroIV)
+            left = try aesECBEncryptBlock(left, key: seed)
+            right = try aesECBEncryptBlock(right, key: seed)
         }
 
         return sha256(Data(left + right))
     }
 
-    private static func aesECBEncryptBlock(_ block: some DataProtocol, key: some DataProtocol, iv: Data) throws -> Data {
+    private static func aesECBEncryptBlock(_ block: some DataProtocol, key: some DataProtocol) throws -> Data {
         let blockData = Data(block)
         let keyData = Data(key)
-        guard blockData.count == kCCBlockSizeAES128, keyData.count == kCCBlockSizeAES128 else {
+        guard blockData.count == kCCBlockSizeAES128, keyData.count == kCCKeySizeAES256 else {
             throw CryptoError.invalidKey
         }
 

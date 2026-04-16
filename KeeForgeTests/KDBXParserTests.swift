@@ -4,6 +4,7 @@ import XCTest
 
 final class KDBXParserTests: XCTestCase {
     private let fixturePassword = "testpassword123"
+    private let legacyFixturePassword = "testpassword123"
     private let testSessionKey = SymmetricKey(size: .bits256)
 
     // MARK: - Fixture Expectations
@@ -322,6 +323,78 @@ final class KDBXParserTests: XCTestCase {
         )
     }
 
+    // MARK: - KDBX 3.1 Compatibility
+
+    func testKDBX31PasswordOnlyDatabaseOpens() throws {
+        let data = try legacyFixtureData()
+        let parsed = try KDBXParser.parseWithMetaAndHeader(
+            data: data,
+            password: legacyFixturePassword,
+            sessionKey: testSessionKey
+        )
+
+        XCTAssertEqual(parsed.header.formatVersion, .kdbx3_1)
+        XCTAssertEqual(parsed.rootGroup.groups.map(\.name), ["Passwords"])
+        XCTAssertEqual(parsed.rootGroup.groups.first?.groups.map(\.name), ["Social", "Work"])
+        XCTAssertEqual(parsed.rootGroup.allEntries.count, 5)
+    }
+
+    func testKDBX31ProtectedFieldsDecrypt() throws {
+        let root = try KDBXParser.parse(
+            data: legacyFixtureData(),
+            password: legacyFixturePassword,
+            sessionKey: testSessionKey
+        )
+        let entriesByTitle = Dictionary(uniqueKeysWithValues: root.allEntries.map { ($0.title, $0) })
+
+        XCTAssertEqual(entriesByTitle["Twitter"]?.username, "jia_tan")
+        XCTAssertEqual(try entriesByTitle["Twitter"]?.password.decrypt(using: testSessionKey), "tw1tterP@ss!")
+        XCTAssertEqual(try entriesByTitle["GitHub"]?.password.decrypt(using: testSessionKey), "g1thubS3cure#")
+        XCTAssertEqual(try entriesByTitle["Email"]?.password.decrypt(using: testSessionKey), "w0rkM@il2024")
+        XCTAssertEqual(try entriesByTitle["KeeVault"]?.password.decrypt(using: testSessionKey), "k33v@ultDev!")
+        XCTAssertFalse(entriesByTitle["Slack"]?.hasPassword ?? true)
+    }
+
+    func testKDBX31WrongPasswordFailsCleanly() throws {
+        let data = try legacyFixtureData()
+
+        XCTAssertThrowsError(
+            try KDBXParser.parse(data: data, password: "definitely-wrong", sessionKey: testSessionKey)
+        ) { error in
+            XCTAssertTrue(
+                error.localizedDescription.localizedCaseInsensitiveContains("wrong password"),
+                "Expected a friendly wrong-password failure, got: \(error.localizedDescription)"
+            )
+        }
+    }
+
+    func testKDBX31CorruptedHashedBlockFails() throws {
+        let corrupted = try makeLegacyFixtureWithCorruptedHashedBlock()
+
+        XCTAssertThrowsError(
+            try KDBXParser.parse(data: corrupted, password: legacyFixturePassword, sessionKey: testSessionKey)
+        ) { error in
+            XCTAssertEqual(error as? KDBXParser.ParseError, .invalidLegacyBlockHash)
+        }
+    }
+
+    func testUnsupportedLegacyInnerStreamShowsFriendlyError() throws {
+        let data = try legacyFixtureData()
+        let fieldValueOffset = try XCTUnwrap(legacyHeaderFieldValueOffset(fieldID: 10, in: data))
+        var mutated = data
+        mutated.replaceSubrange(fieldValueOffset..<(fieldValueOffset + 4), with: [0x01, 0x00, 0x00, 0x00])
+
+        XCTAssertThrowsError(
+            try KDBXParser.parse(data: mutated, password: legacyFixturePassword, sessionKey: testSessionKey)
+        ) { error in
+            XCTAssertEqual(error as? KDBXParser.ParseError, .unsupportedProtectedFieldStream(1))
+            XCTAssertEqual(
+                error.localizedDescription,
+                "This database uses an unsupported protected-field stream."
+            )
+        }
+    }
+
     func testAESKDFKeyDerivationKnownVector() throws {
         let compositeKey = Data((0..<32).map(UInt8.init))
         let seed = Data((32..<64).map(UInt8.init))
@@ -329,7 +402,7 @@ final class KDBXParserTests: XCTestCase {
 
         XCTAssertEqual(
             derived.hexString,
-            "fabd4da9c3933f59b105cd94c10149b7e892105473bd81be514d74240843c35f"
+            "f76f387e7538424a09d988e6f358824cd30d0dd35d0e8ecb1487ff6ffc1581cf"
         )
     }
 
@@ -399,6 +472,60 @@ final class KDBXParserTests: XCTestCase {
         let bundle = Bundle(for: KDBXParserTests.self)
         let fixtureURL = try XCTUnwrap(bundle.url(forResource: "test", withExtension: "kdbx"))
         return try Data(contentsOf: fixtureURL)
+    }
+
+    private func legacyFixtureData() throws -> Data {
+        let bundle = Bundle(for: KDBXParserTests.self)
+        let fixtureURL = try XCTUnwrap(bundle.url(forResource: "test-v3-backup", withExtension: "kdbx"))
+        return try Data(contentsOf: fixtureURL)
+    }
+
+    private func makeLegacyFixtureWithCorruptedHashedBlock() throws -> Data {
+        let data = try legacyFixtureData()
+        let legacyHeader = try KDBXParser.parseKDBX3Header(from: data)
+        let compositeKey = KDBXCrypto.compositeKey(password: legacyFixturePassword)
+        let masterKey = try KDBXParser.deriveKDBX3MasterKey(
+            compositeKey: compositeKey,
+            header: legacyHeader
+        )
+        let encryptedPayload = data.subdata(in: legacyHeader.payloadOffset..<data.count)
+        var decryptedPayload = try KDBXCrypto.decryptAES256CBC(
+            data: encryptedPayload,
+            key: masterKey,
+            iv: legacyHeader.encryptionIV
+        )
+
+        let firstBlockDataOffset = legacyHeader.streamStartBytes.count + 4 + 32 + 4
+        XCTAssertLessThan(firstBlockDataOffset, decryptedPayload.count)
+        decryptedPayload[firstBlockDataOffset] ^= 0x01
+
+        let reencryptedPayload = try KDBXCrypto.encryptAES256CBC(
+            data: decryptedPayload,
+            key: masterKey,
+            iv: legacyHeader.encryptionIV
+        )
+
+        var mutated = Data(data.prefix(legacyHeader.payloadOffset))
+        mutated.append(reencryptedPayload)
+        return mutated
+    }
+
+    private func legacyHeaderFieldValueOffset(fieldID: UInt8, in data: Data) -> Int? {
+        var offset = 12
+        while offset + 3 <= data.count {
+            let currentFieldID = data[offset]
+            let fieldSize = data[(offset + 1)..<(offset + 3)].withUnsafeBytes {
+                $0.loadUnaligned(as: UInt16.self).littleEndian
+            }
+            if currentFieldID == fieldID {
+                return offset + 3
+            }
+            offset += 3 + Int(fieldSize)
+            if currentFieldID == 0 {
+                return nil
+            }
+        }
+        return nil
     }
 
     private func allGroupNames(in root: KPGroup) -> [String] {
@@ -694,7 +821,7 @@ final class KDBXParserTests: XCTestCase {
 
         XCTAssertEqual(
             derived.hexString,
-            "fabd4da9c3933f59b105cd94c10149b7e892105473bd81be514d74240843c35f"
+            "f76f387e7538424a09d988e6f358824cd30d0dd35d0e8ecb1487ff6ffc1581cf"
         )
     }
 
