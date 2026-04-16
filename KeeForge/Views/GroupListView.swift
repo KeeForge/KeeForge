@@ -94,6 +94,13 @@ struct GroupListView: View {
                     .toolbar {
                         ToolbarItem(placement: .topBarTrailing) {
                             HStack(spacing: 12) {
+                                if viewModel.isReadOnly {
+                                    Image(systemName: "lock.fill")
+                                        .foregroundStyle(.orange)
+                                        .accessibilityLabel("Read-only database")
+                                        .accessibilityIdentifier("database.read-only-indicator")
+                                }
+
                                 if viewModel.isReadOnly == false {
                                     Button {
                                         Task {
@@ -303,8 +310,8 @@ struct DatabaseSettingsView: View {
                     Toggle(
                         "Read-only",
                         isOn: Binding(
-                            get: { currentReference.isReadOnly },
-                            set: { DatabaseListStore.setReadOnly($0, for: reference) }
+                            get: { viewModel.isReadOnly },
+                            set: { viewModel.setReadOnly($0) }
                         )
                     )
                     .accessibilityIdentifier("database-settings.read-only-toggle")

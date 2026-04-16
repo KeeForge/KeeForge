@@ -292,10 +292,6 @@ struct DatabaseNavigationView: View {
                     if viewModel.isDirty && viewModel.isSaving == false {
                         UnsavedChangesBanner(viewModel: viewModel)
                     }
-
-                    if viewModel.isReadOnly {
-                        ReadOnlyRibbon()
-                    }
                 }
             }
         }
@@ -404,22 +400,6 @@ private struct DatabaseSavingOverlay: View {
         .accessibilityElement(children: .combine)
         .accessibilityLabel("Saving changes")
         .accessibilityIdentifier("database.saving-overlay")
-    }
-}
-
-private struct ReadOnlyRibbon: View {
-    var body: some View {
-        HStack {
-            Text("Read-only mode — toggle in the database list to enable editing.")
-                .font(.caption.weight(.medium))
-            Spacer(minLength: 0)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.horizontal, 16)
-        .padding(.vertical, 8)
-        .background(Color.yellow.opacity(0.18))
-        .accessibilityElement(children: .combine)
-        .accessibilityIdentifier("database.read-only-ribbon")
     }
 }
 

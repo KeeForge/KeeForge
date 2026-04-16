@@ -679,6 +679,11 @@ final class DatabaseViewModel {
         startInactivityTimer()
     }
 
+    func setReadOnly(_ isReadOnly: Bool) {
+        DatabaseListStore.setReadOnly(isReadOnly, for: databaseReference)
+        refreshDatabaseReference()
+    }
+
     func acknowledgeEditingIfNeeded() async -> AcknowledgmentResult {
         guard case .local = databaseReference.source else {
             return .acknowledged

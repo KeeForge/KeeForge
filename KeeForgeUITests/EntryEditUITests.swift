@@ -187,18 +187,19 @@ final class EntryEditUITests: KeeForgeUITestCase {
         XCTAssertTrue(app.buttons["entry-list.add-entry"].waitForExistence(timeout: 5))
     }
 
-    func testReadOnlyDatabaseHidesEditAffordancesShowsRibbon() {
+    func testReadOnlyDatabaseHidesEditAffordancesShowsIndicator() {
         setDatabaseReadOnly(true)
         unlockSuccessfully()
 
-        let ribbon = app.descendants(matching: .any).matching(identifier: "database.read-only-ribbon").firstMatch
-        XCTAssertTrue(ribbon.waitForExistence(timeout: 5), "Read-only ribbon did not appear")
+        let indicator = app.descendants(matching: .any).matching(identifier: "database.read-only-indicator").firstMatch
+        XCTAssertTrue(indicator.waitForExistence(timeout: 5), "Read-only indicator did not appear")
         XCTAssertFalse(app.buttons["entry-list.add-entry"].exists)
 
         openGroup(named: "Social")
+        XCTAssertTrue(indicator.waitForExistence(timeout: 2), "Read-only indicator missing after group push")
         openEntry(named: "Discord")
         XCTAssertFalse(app.buttons["entry-detail.edit"].waitForExistence(timeout: 3))
-        XCTAssertTrue(ribbon.exists)
+        XCTAssertTrue(indicator.waitForExistence(timeout: 2), "Read-only indicator missing on entry detail")
     }
 
     func testReadOnlyDatabaseToggleOffRestoresEditAffordances() {
@@ -206,8 +207,8 @@ final class EntryEditUITests: KeeForgeUITestCase {
         setDatabaseReadOnly(false)
         unlockSuccessfully()
 
-        let ribbon = app.descendants(matching: .any).matching(identifier: "database.read-only-ribbon").firstMatch
-        XCTAssertFalse(ribbon.waitForExistence(timeout: 1))
+        let indicator = app.descendants(matching: .any).matching(identifier: "database.read-only-indicator").firstMatch
+        XCTAssertFalse(indicator.waitForExistence(timeout: 1))
         XCTAssertTrue(app.buttons["entry-list.add-entry"].waitForExistence(timeout: 5))
 
         openGroup(named: "Social")

@@ -8,6 +8,8 @@
 - [ ] Sync / attachments
 
 ## Unreleased
+- Replace the yellow read-only banner with a lock icon in the navigation toolbar so the indicator stays visible across groups and entry details
+- Toggling read-only in Database Settings now updates the current view immediately
 - Fix unlocked vault displaying a wrapper "Root" group instead of showing database contents directly
 - Fix read-only ribbon and unsaved-changes banner accessibility identifiers for UI test visibility
 - Fix settings navigation from the unlocked database view (gear button → Database Settings → App Settings)

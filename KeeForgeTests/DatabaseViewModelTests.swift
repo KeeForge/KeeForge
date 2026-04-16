@@ -632,6 +632,25 @@ final class DatabaseViewModelTests: XCTestCase {
         XCTAssertNil(vm.syncedFolderWarning)
     }
 
+    func testSetReadOnlyUpdatesInMemoryReferenceAndStore() throws {
+        let reference = try makeReference()
+        DatabaseListStore.update(reference)
+        let vm = DatabaseViewModel(databaseReference: reference)
+        XCTAssertFalse(vm.isReadOnly)
+
+        vm.setReadOnly(true)
+
+        XCTAssertTrue(vm.isReadOnly)
+        let stored = try XCTUnwrap(DatabaseListStore.databases.first(where: { $0.id == reference.id }))
+        XCTAssertTrue(stored.isReadOnly)
+
+        vm.setReadOnly(false)
+
+        XCTAssertFalse(vm.isReadOnly)
+        let storedAfterOff = try XCTUnwrap(DatabaseListStore.databases.first(where: { $0.id == reference.id }))
+        XCTAssertFalse(storedAfterOff.isReadOnly)
+    }
+
     func testAcknowledgeEditingIfNeededDropboxKeepReadOnlySetsFlagReturnsKeptReadOnly() async throws {
         let reference = try makeReference()
         DatabaseListStore.update(reference)

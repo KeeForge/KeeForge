@@ -97,18 +97,25 @@ struct EntryDetailView: View {
                 .navigationTitle(entry.title)
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
-                    if viewModel.isReadOnly == false {
-                        ToolbarItem(placement: .topBarTrailing) {
-                            Button("Edit") {
-                                Task {
-                                    let result = await viewModel.acknowledgeEditingIfNeeded()
-                                    guard result == .acknowledged,
-                                          let currentEntry = viewModel.entry(withID: entryID),
-                                          let currentSessionKey = viewModel.sessionKey else { return }
-                                    activeEditor = EntryEditViewModel(editing: currentEntry, sessionKey: currentSessionKey)
+                    ToolbarItem(placement: .topBarTrailing) {
+                        HStack(spacing: 12) {
+                            if viewModel.isReadOnly {
+                                Image(systemName: "lock.fill")
+                                    .foregroundStyle(.orange)
+                                    .accessibilityLabel("Read-only database")
+                                    .accessibilityIdentifier("database.read-only-indicator")
+                            } else {
+                                Button("Edit") {
+                                    Task {
+                                        let result = await viewModel.acknowledgeEditingIfNeeded()
+                                        guard result == .acknowledged,
+                                              let currentEntry = viewModel.entry(withID: entryID),
+                                              let currentSessionKey = viewModel.sessionKey else { return }
+                                        activeEditor = EntryEditViewModel(editing: currentEntry, sessionKey: currentSessionKey)
+                                    }
                                 }
+                                .accessibilityIdentifier("entry-detail.edit")
                             }
-                            .accessibilityIdentifier("entry-detail.edit")
                         }
                     }
                 }
