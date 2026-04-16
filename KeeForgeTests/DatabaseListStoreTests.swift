@@ -73,6 +73,24 @@ final class DatabaseListStoreTests: XCTestCase {
         XCTAssertEqual(DatabaseListStore.databases.map(\.id), [second.id, first.id])
     }
 
+    func testNormalizedKeepsOnlyFirstQuickLaunchDatabase() throws {
+        let first = try DatabaseListStore.add(url: makeTemporaryFileURL(name: "one.kdbx"))
+        let second = try DatabaseListStore.add(url: makeTemporaryFileURL(name: "two.kdbx"))
+
+        var updatedFirst = first
+        updatedFirst.isQuickLaunch = true
+        DatabaseListStore.update(updatedFirst)
+
+        var updatedSecond = second
+        updatedSecond.isQuickLaunch = true
+        DatabaseListStore.update(updatedSecond)
+
+        let storedReferences = DatabaseListStore.databases
+        XCTAssertTrue(storedReferences.first(where: { $0.id == first.id })?.isQuickLaunch ?? false)
+        XCTAssertFalse(storedReferences.first(where: { $0.id == second.id })?.isQuickLaunch ?? true)
+        XCTAssertEqual(DatabaseListStore.quickLaunchDatabase?.id, first.id)
+    }
+
     func testRemoveDeletesCachedCopy() throws {
         let reference = try DatabaseListStore.add(url: makeTemporaryFileURL(name: "remove-me.kdbx"))
         try DatabaseListStore.cacheDatabaseCopy(Data("cached".utf8), for: reference.id)

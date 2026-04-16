@@ -284,11 +284,14 @@ struct DatabaseSettingsView: View {
                             .onSubmit(saveNickname)
                     }
 
-                    LabeledContent("Filename", value: reference.filename)
+                    LabeledContent("Filename", value: currentReference.filename)
 
                     Toggle("Quick Launch", isOn: $isQuickLaunch)
                         .onChange(of: isQuickLaunch) { _, newValue in
+                            let currentValue = currentReference.isQuickLaunch
+                            guard newValue != currentValue else { return }
                             toggleQuickLaunch(newValue)
+                            isQuickLaunch = currentReference.isQuickLaunch
                         }
                 } header: {
                     Text("Identity")
@@ -326,9 +329,9 @@ struct DatabaseSettingsView: View {
                 }
 
                 Section("Metadata") {
-                    LabeledContent("Added", value: dateText(reference.addedAt))
+                    LabeledContent("Added", value: dateText(currentReference.addedAt))
 
-                    if let lastOpenedAt = reference.lastOpenedAt {
+                    if let lastOpenedAt = currentReference.lastOpenedAt {
                         LabeledContent("Last Opened", value: dateText(lastOpenedAt))
                     }
                 }
@@ -371,8 +374,13 @@ struct DatabaseSettingsView: View {
             .navigationTitle("Database Settings")
             .navigationBarTitleDisplayMode(.inline)
             .onAppear {
-                nickname = currentReference.nickname ?? ""
-                isQuickLaunch = currentReference.isQuickLaunch
+                syncFormStateFromCurrentReference()
+            }
+            .onChange(of: currentReference.nickname) { _, _ in
+                syncFormStateFromCurrentReference()
+            }
+            .onChange(of: currentReference.isQuickLaunch) { _, newValue in
+                isQuickLaunch = newValue
             }
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -395,6 +403,11 @@ struct DatabaseSettingsView: View {
                 SettingsView(viewModel: viewModel)
             }
         }
+    }
+
+    private func syncFormStateFromCurrentReference() {
+        nickname = currentReference.nickname ?? ""
+        isQuickLaunch = currentReference.isQuickLaunch
     }
 
     private func saveNickname() {

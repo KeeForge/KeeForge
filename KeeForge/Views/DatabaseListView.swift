@@ -542,11 +542,14 @@ private struct DatabaseDetailsView: View {
                             .onSubmit(saveNickname)
                     }
 
-                    LabeledContent("Filename", value: reference.filename)
+                    LabeledContent("Filename", value: currentReference.filename)
 
                     Toggle("Quick Launch", isOn: $isQuickLaunch)
-                        .onChange(of: isQuickLaunch) { _, _ in
+                        .onChange(of: isQuickLaunch) { _, newValue in
+                            let currentValue = currentReference.isQuickLaunch
+                            guard newValue != currentValue else { return }
                             viewModel.toggleQuickLaunch(for: reference)
+                            isQuickLaunch = currentReference.isQuickLaunch
                         }
                 } header: {
                     Text("Identity")
@@ -570,13 +573,13 @@ private struct DatabaseDetailsView: View {
                 }
 
                 Section("Key File") {
-                    LabeledContent("Associated File", value: reference.keyFileFilename ?? "None")
+                    LabeledContent("Associated File", value: currentReference.keyFileFilename ?? "None")
 
                     Button("Select Key File") {
                         onSelectKeyFile()
                     }
 
-                    if reference.keyFileFilename != nil {
+                    if currentReference.keyFileFilename != nil {
                         Button("Clear Key File", role: .destructive) {
                             try? viewModel.setKeyFile(url: nil, for: reference)
                         }
@@ -584,15 +587,15 @@ private struct DatabaseDetailsView: View {
                 }
 
                 Section("Metadata") {
-                    LabeledContent("Added", value: dateText(reference.addedAt))
+                    LabeledContent("Added", value: dateText(currentReference.addedAt))
 
-                    if let lastOpenedAt = reference.lastOpenedAt {
+                    if let lastOpenedAt = currentReference.lastOpenedAt {
                         LabeledContent("Last Opened", value: dateText(lastOpenedAt))
                     }
                 }
 
                 if let cloudState = viewModel.cloudState(for: reference),
-                   let metadata = reference.cloudSyncMetadata {
+                   let metadata = currentReference.cloudSyncMetadata {
                     Section {
                         LabeledContent("Provider") {
                             HStack(spacing: 6) {
@@ -636,11 +639,16 @@ private struct DatabaseDetailsView: View {
                     }
                 }
             }
-            .navigationTitle(reference.displayName)
+            .navigationTitle(currentReference.displayName)
             .navigationBarTitleDisplayMode(.inline)
             .onAppear {
-                nickname = reference.nickname ?? ""
-                isQuickLaunch = reference.isQuickLaunch
+                syncFormStateFromCurrentReference()
+            }
+            .onChange(of: currentReference.nickname) { _, _ in
+                syncFormStateFromCurrentReference()
+            }
+            .onChange(of: currentReference.isQuickLaunch) { _, newValue in
+                isQuickLaunch = newValue
             }
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -651,6 +659,11 @@ private struct DatabaseDetailsView: View {
                 }
             }
         }
+    }
+
+    private func syncFormStateFromCurrentReference() {
+        nickname = currentReference.nickname ?? ""
+        isQuickLaunch = currentReference.isQuickLaunch
     }
 
     private func saveNickname() {
