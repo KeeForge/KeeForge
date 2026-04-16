@@ -53,7 +53,7 @@ targets:
       - path: KeeForge/Models
         excludes: ["README.md"]
       - path: KeeForge/Services
-        excludes: ["README.md"]
+        excludes: ["README.md", "**/README.md"]
       - path: KeeForge/ViewModels
         excludes: ["README.md"]
       - path: KeeForge/Views
@@ -84,24 +84,24 @@ targets:
         excludes: ["README.md"]
       - path: KeeForge/Models
         excludes: ["README.md"]
-      - path: KeeForge/Services/BiometricService.swift
-      - path: KeeForge/Services/DocumentPickerService.swift
-      - path: KeeForge/Services/AutoFillSaveCoordinator.swift
-      - path: KeeForge/Services/DatabaseListStore.swift
-      - path: KeeForge/Services/KeychainService.swift
-      - path: KeeForge/Services/SettingsService.swift
-      - path: KeeForge/Services/SharedVaultStore.swift
-      - path: KeeForge/Services/CredentialMatcher.swift
-      - path: KeeForge/Services/CredentialIdentityStoreManager.swift
-      - path: KeeForge/Services/FaviconService.swift
-      - path: KeeForge/Services/CoordinatedFileReader.swift
-      - path: KeeForge/Services/KeyFileProcessor.swift
-      - path: KeeForge/Services/LocalDatabaseSaver.swift
-      - path: KeeForge/Services/PasskeyCrypto.swift
-      - path: KeeForge/Services/PendingUploadQueue.swift
-      - path: KeeForge/Services/PasswordGenerator.swift
-      - path: KeeForge/Services/SecurityScopedBookmarkManager.swift
-      - path: KeeForge/Services/SyncedFolderDetector.swift
+      - path: KeeForge/Services/Security/BiometricService.swift
+      - path: KeeForge/Services/Persistence/DocumentPickerService.swift
+      - path: KeeForge/Services/AutoFill/AutoFillSaveCoordinator.swift
+      - path: KeeForge/Services/Persistence/DatabaseListStore.swift
+      - path: KeeForge/Services/Security/KeychainService.swift
+      - path: KeeForge/Services/AppSupport/SettingsService.swift
+      - path: KeeForge/Services/Persistence/SharedVaultStore.swift
+      - path: KeeForge/Services/AutoFill/CredentialMatcher.swift
+      - path: KeeForge/Services/AutoFill/CredentialIdentityStoreManager.swift
+      - path: KeeForge/Services/AppSupport/FaviconService.swift
+      - path: KeeForge/Services/Persistence/CoordinatedFileReader.swift
+      - path: KeeForge/Services/Persistence/KeyFileProcessor.swift
+      - path: KeeForge/Services/Persistence/LocalDatabaseSaver.swift
+      - path: KeeForge/Services/Security/PasskeyCrypto.swift
+      - path: KeeForge/Services/Cloud/PendingUploadQueue.swift
+      - path: KeeForge/Services/AutoFill/PasswordGenerator.swift
+      - path: KeeForge/Services/Persistence/SecurityScopedBookmarkManager.swift
+      - path: KeeForge/Services/Persistence/SyncedFolderDetector.swift
 
   KeeForgeUITests:
     type: bundle.ui-testing

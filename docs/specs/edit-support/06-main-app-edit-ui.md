@@ -42,7 +42,7 @@ Add the user-facing surface in the main app that lets people create, edit, and d
 - **New:**
   - `KeeForge/Views/EntryEditView.swift`.
   - `KeeForge/Views/PasswordGeneratorSheet.swift`.
-  - `KeeForge/Services/PasswordGenerator.swift`.
+  - `KeeForge/Services/AutoFill/PasswordGenerator.swift`.
   - `KeeForge/Views/SaveConflictAlert.swift` (or as a `.alert(...)` modifier on the existing host view — author's call).
 - **Modified:**
   - `KeeForge/Views/EntryDetailView.swift` — adds the `Edit` toolbar button.
@@ -62,7 +62,7 @@ Add the user-facing surface in the main app that lets people create, edit, and d
   - `EntryEditView.swift`, `PasswordGeneratorSheet.swift`, `SaveConflictAlert.swift` — `KeeForge` only.
   - `PasswordGenerator.swift` — **both** `KeeForge` and `KeeForgeAutoFill` (slice 07 reuses it).
 - **project.yml:**
-  - Add `KeeForge/Services/PasswordGenerator.swift` to `KeeForgeAutoFill.sources` (everything else lives under `KeeForge/Views`, which the extension does not include).
+  - Add `KeeForge/Services/AutoFill/PasswordGenerator.swift` to `KeeForgeAutoFill.sources` (everything else lives under `KeeForge/Views`, which the extension does not include).
   - `Run xcodegen generate`.
 - **Accessibility identifiers** (add and preserve):
   - **Preserved:** every existing identifier on `EntryDetailView`, `GroupListView`, `EntryListView`, `SearchView`, `UnlockView` — slice 06 adds buttons but does not rename existing controls. Audit the diff before merging to confirm.

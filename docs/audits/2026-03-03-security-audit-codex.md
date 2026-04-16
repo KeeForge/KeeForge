@@ -52,7 +52,7 @@ An attacker can supply extreme KDF parameters in a malicious file to cause very 
 ### 3) [MEDIUM] Over-broad AutoFill matching can return credentials for the wrong site
 
 **Evidence**
-- `KeeForge/Services/CredentialMatcher.swift:18-23` matches by URL substring and title substring, not only canonical host/domain rules.
+- `KeeForge/Services/AutoFill/CredentialMatcher.swift:18-23` matches by URL substring and title substring, not only canonical host/domain rules.
 - `AutoFillExtension/CredentialProviderViewController.swift:59-64` and `:227-229` can auto-select first/single match.
 
 **Impact**
@@ -68,7 +68,7 @@ Credentials can be considered matches when domain relation is weak (substring/ti
 ### 4) [MEDIUM] Keychain key namespace collides across databases with same filename
 
 **Evidence**
-- `KeeForge/Services/KeychainService.swift:10-13` derives keychain account from `lastPathComponent` only.
+- `KeeForge/Services/Security/KeychainService.swift:10-13` derives keychain account from `lastPathComponent` only.
 - Storage/retrieval operations (`:15-23`, `:51-58`) depend on this derived account key.
 
 **Impact**
@@ -82,7 +82,7 @@ Two different vault files with the same filename share one keychain slot, causin
 ### 5) [MEDIUM] Registered-domain extraction relies on incomplete static suffix list
 
 **Evidence**
-- `KeeForge/Services/CredentialIdentityStoreManager.swift:105-159` uses a hand-maintained `knownMultiPartTLDs` set.
+- `KeeForge/Services/AutoFill/CredentialIdentityStoreManager.swift:105-159` uses a hand-maintained `knownMultiPartTLDs` set.
 - `:78-83` writes this derived domain into `ASPasswordCredentialIdentity`.
 
 **Impact**

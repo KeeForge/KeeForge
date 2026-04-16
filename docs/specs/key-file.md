@@ -108,7 +108,7 @@ func getKey(fromCombinedComponents combined: SecureBytes) -> SecureBytes {
 
 ### Phase 1: Key File Parser (`KeyFileProcessor.swift`)
 
-**New file:** `KeeForge/Services/KeyFileProcessor.swift`
+**New file:** `KeeForge/Services/Persistence/KeyFileProcessor.swift`
 
 ```swift
 struct KeyFileProcessor {

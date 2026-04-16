@@ -44,11 +44,11 @@ Extend the save pipeline so that databases backed by Dropbox can also be written
 
 ## Affected areas
 
-- **New:** `KeeForge/Services/CloudDatabaseSaver.swift`.
-- **Modified:** `KeeForge/Services/CloudProvider.swift` — add `upload(...)` to the protocol; add `CloudProviderError.conflict(remoteRev:)` and `.writeScopeRequired` cases; add `rev: String?` to `CloudFileMetadata`.
-- **Modified:** `KeeForge/Services/DropboxCloudProvider.swift` — implement `upload(...)`, bump scope request, add the "missing write scope" detection at startup and per-save.
-- **Modified:** `KeeForge/Services/CloudSyncCoordinator.swift` — add `pushAfterSave(reference:bytes:expectedRev:)` mirror of `syncIfNeededForOpen`. Calls `DropboxCloudProvider.upload`, updates the cache and `DatabaseReference`.
-- **Modified:** `KeeForge/Services/UITestDropboxCloudProvider.swift` — implement `upload(...)` for UI tests; should record uploads in memory and let tests assert on them.
+- **New:** `KeeForge/Services/Cloud/CloudDatabaseSaver.swift`.
+- **Modified:** `KeeForge/Services/Cloud/CloudProvider.swift` — add `upload(...)` to the protocol; add `CloudProviderError.conflict(remoteRev:)` and `.writeScopeRequired` cases; add `rev: String?` to `CloudFileMetadata`.
+- **Modified:** `KeeForge/Services/Cloud/DropboxCloudProvider.swift` — implement `upload(...)`, bump scope request, add the "missing write scope" detection at startup and per-save.
+- **Modified:** `KeeForge/Services/Cloud/CloudSyncCoordinator.swift` — add `pushAfterSave(reference:bytes:expectedRev:)` mirror of `syncIfNeededForOpen`. Calls `DropboxCloudProvider.upload`, updates the cache and `DatabaseReference`.
+- **Modified:** `KeeForge/Services/Cloud/UITestDropboxCloudProvider.swift` — implement `upload(...)` for UI tests; should record uploads in memory and let tests assert on them.
 - **Modified:** `KeeForge/Models/CloudSyncModels.swift` — add `rev` to `CloudFileMetadata`. The existing `requiresDownload(comparedTo:cacheExists:)` already prefers `contentHash`, which is robust; consider also using `rev` when available.
 - **Modified:** `KeeForge/ViewModels/DatabaseViewModel.swift` — `save()` routes to `CloudDatabaseSaver` for cloud sources; captures `expectedRev` at open.
 - **New tests:** `KeeForgeTests/CloudDatabaseSaverTests.swift`, additions to `KeeForgeTests/DropboxCloudProviderTests.swift` (or whatever the existing test class is named — see `KeeForge/Services/README.md`).

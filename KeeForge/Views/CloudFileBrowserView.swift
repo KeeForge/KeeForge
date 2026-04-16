@@ -144,76 +144,6 @@ struct CloudFileBrowserView: View {
     }
 }
 
-enum CloudFileBrowserAuthenticationResult {
-    case authenticated(CloudAccount)
-    case cancelled
-    case failed(Error)
-}
-
-@MainActor
-@Observable
-final class CloudFileBrowserSession {
-    let providerID: String
-    private let providerResolver: (String) -> CloudProvider?
-
-    var accounts: [CloudAccount] = []
-    var selectedAccountID: String?
-    private(set) var isAuthenticating = false
-
-    init(
-        providerID: String,
-        providerResolver: @escaping (String) -> CloudProvider? = CloudProviderRegistry.provider(for:)
-    ) {
-        self.providerID = providerID
-        self.providerResolver = providerResolver
-    }
-
-    var provider: CloudProvider? {
-        providerResolver(providerID)
-    }
-
-    var selectedAccount: CloudAccount? {
-        accounts.first { $0.id == selectedAccountID }
-    }
-
-    func refreshAccounts() {
-        accounts = CloudAccountStore.accounts(for: providerID)
-        if selectedAccountID == nil {
-            selectedAccountID = accounts.first?.id
-        } else if accounts.contains(where: { $0.id == selectedAccountID }) == false {
-            selectedAccountID = accounts.first?.id
-        }
-    }
-
-    func authenticate(
-        presentationAnchor: @escaping @MainActor () -> ASPresentationAnchor
-    ) async -> CloudFileBrowserAuthenticationResult {
-        guard let provider else {
-            return .failed(CloudProviderError.invalidConfiguration)
-        }
-
-        isAuthenticating = true
-        defer { isAuthenticating = false }
-
-        do {
-            let account = try await provider.authenticate(from: presentationAnchor())
-            refreshAccounts()
-            selectedAccountID = account.id
-            return .authenticated(account)
-        } catch let cloudError as CloudProviderError where cloudError == .authenticationCancelled {
-            refreshAccounts()
-            return .cancelled
-        } catch {
-            refreshAccounts()
-            return .failed(error)
-        }
-    }
-
-    func cancelPendingAuthentication() {
-        provider?.cancelPendingAuthentication()
-    }
-}
-
 struct CloudProviderIcon: View {
     let provider: CloudProviderKind?
     var size: CGFloat = 14
@@ -325,45 +255,5 @@ private struct CloudFolderBrowserView: View {
         }
 
         return account.displayName
-    }
-}
-
-@MainActor
-@Observable
-final class CloudFolderBrowserViewModel {
-    let path: String?
-    var searchText = ""
-    private(set) var files: [CloudFile] = []
-    private(set) var isLoading = false
-    private(set) var errorMessage: String?
-
-    init(path: String?) {
-        self.path = path
-    }
-
-    func requestKey(accountID: String) -> String {
-        "\(accountID)|\(path ?? "")|\(searchText)"
-    }
-
-    func load(provider: CloudProvider, accountID: String) async {
-        isLoading = true
-        defer { isLoading = false }
-
-        do {
-            files = try await provider.listFiles(
-                accountId: accountID,
-                path: path,
-                query: trimmedSearchText
-            )
-            errorMessage = nil
-        } catch {
-            errorMessage = error.localizedDescription
-            files = []
-        }
-    }
-
-    private var trimmedSearchText: String? {
-        let trimmed = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmed.isEmpty ? nil : trimmed
     }
 }

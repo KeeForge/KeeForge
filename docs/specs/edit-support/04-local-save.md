@@ -52,13 +52,13 @@ Wire slices 02 and 03 together for **local-file** databases: the user makes edit
 
 ## Affected areas
 
-- **New:** `KeeForge/Services/LocalDatabaseSaver.swift`.
-- **New:** `KeeForge/Services/SyncedFolderDetector.swift`.
+- **New:** `KeeForge/Services/Persistence/LocalDatabaseSaver.swift`.
+- **New:** `KeeForge/Services/Persistence/SyncedFolderDetector.swift`.
 - **Modified:** `KeeForge/Models/DatabaseReference.swift` — adds `var isReadOnly: Bool = false` and `var editsAcknowledgedAt: Date?`. Both Codable; both default to safe values for migration. The decoder must `decodeIfPresent` so existing on-disk references load correctly.
 - **Modified:** `KeeForge/ViewModels/DatabaseViewModel.swift` — adds `draft`, `openTimeSHA512`, `save()`, `discardDraft()`, `acknowledgeEditingIfNeeded() async -> AcknowledgmentResult`. Captures `openTimeSHA512` inside the existing unlock pipeline. The save path checks `databaseReference.isReadOnly` first and surfaces `SaveError.databaseIsReadOnly` if set. Exposes `var isReadOnly: Bool` as a passthrough for the view layer.
 - **Modified:** `KeeForge/ViewModels/DatabaseListViewModel.swift` — adds `setReadOnly(_:for:)` mutator and persists through `DatabaseListStore`.
 - **Modified:** `KeeForge/Views/DatabaseRowView.swift` — adds the read-only toggle to the context menu (`Toggle("Read-only", isOn: ...)`). Adds a small "READ ONLY" badge on the row when set. Both behind accessibility identifiers below.
-- **Modified:** `KeeForge/Services/DatabaseListStore.swift` — adds `databaseBackupDirectoryURL(for:)`, `recentBackups(for:)`, `pruneBackups(for:keeping:)`, `setReadOnly(_:for:)`, `acknowledgeEdits(for:)`.
+- **Modified:** `KeeForge/Services/Persistence/DatabaseListStore.swift` — adds `databaseBackupDirectoryURL(for:)`, `recentBackups(for:)`, `pruneBackups(for:keeping:)`, `setReadOnly(_:for:)`, `acknowledgeEdits(for:)`.
 - **Modified:** `KeeForge/Models/KDBXCrypto.swift` — make `sha512(_:)` `internal` (was effectively private to parser).
 - **New tests:** `KeeForgeTests/LocalDatabaseSaverTests.swift`, `KeeForgeTests/SyncedFolderDetectorTests.swift`, additions to `KeeForgeTests/DatabaseViewModelTests.swift`, `KeeForgeTests/DatabaseListViewModelTests.swift`, and `KeeForgeTests/DatabaseReferenceTests.swift` (Codable migration).
 

@@ -319,7 +319,7 @@ App updates are treated as a cold launch, not session restoration.
 
 ### New Files
 - `KeeForge/Models/DatabaseReference.swift`
-- `KeeForge/Services/DatabaseListStore.swift`
+- `KeeForge/Services/Persistence/DatabaseListStore.swift`
 - `KeeForge/ViewModels/DatabaseListViewModel.swift`
 - `KeeForge/Views/DatabaseListView.swift`
 - `KeeForge/Views/DatabaseRowView.swift`
@@ -331,10 +331,10 @@ App updates are treated as a cold launch, not session restoration.
 - `KeeForge/App/KeeForgeApp.swift` — new root navigation (list → unlock → browse)
 - `KeeForge/Views/UnlockView.swift` — accept DatabaseReference, remove global SharedVaultStore dependency
 - `KeeForge/ViewModels/DatabaseViewModel.swift` — accept DatabaseReference for unlock
-- `KeeForge/Services/KeychainService.swift` — UUID-keyed composite key storage
-- `KeeForge/Services/SharedVaultStore.swift` — deprecate (keep for migration), eventually remove
+- `KeeForge/Services/Security/KeychainService.swift` — UUID-keyed composite key storage
+- `KeeForge/Services/Persistence/SharedVaultStore.swift` — deprecate (keep for migration), eventually remove
 - `AutoFillExtension/CredentialProviderViewController.swift` — load `activeAutoFillDatabaseID` instead of legacy single-database globals
-- `KeeForge/Services/CredentialIdentityStoreManager.swift` — preserve single-database replace semantics
+- `KeeForge/Services/AutoFill/CredentialIdentityStoreManager.swift` — preserve single-database replace semantics
 
 ### Eventually Remove
 - `SharedVaultStore.swift` (after migration period, ~2 versions)

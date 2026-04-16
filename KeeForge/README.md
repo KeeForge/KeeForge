@@ -6,7 +6,7 @@ Use this folder as the main map for the app target. The subfolder READMEs hold t
 
 - `App/README.md` — scene lifecycle and root routing
 - `Models/README.md` — parser, writer, edit-draft, and persisted models
-- `Services/README.md` — storage, local save, cloud sync, device integration, Keychain, App Group
+- `Services/README.md` — persistence, cloud sync, security, AutoFill helpers, and app-support services
 - `ViewModels/README.md` — observable app state, including draft/save ownership
 - `Views/README.md` — SwiftUI screens and UI conventions
 - `Extensions/README.md` — target-wide conformances and small shared extensions
@@ -14,14 +14,14 @@ Use this folder as the main map for the app target. The subfolder READMEs hold t
 
 ## Cross-Cutting Flows
 
-- Database list flow: `App/KeeForgeApp.swift` creates `DatabaseListViewModel`, which reads and mutates persisted database references through `Services/DatabaseListStore.swift`.
+- Database list flow: `App/KeeForgeApp.swift` creates `DatabaseListViewModel`, which reads and mutates persisted database references through `Services/Persistence/DatabaseListStore.swift`.
 - Unlock flow: `Views/UnlockView.swift` drives `ViewModels/DatabaseViewModel.swift`, which resolves the database file, derives the composite key, parses via `Models/KDBXParser.swift`, and stores a per-session `SymmetricKey`.
-- Local edit/save flow: `ViewModels/DatabaseViewModel.swift` stages changes in `Models/DatabaseDraft.swift`, reuses `Models/KDBXWriter.swift` for encryption, and saves local files through `Services/LocalDatabaseSaver.swift` with conflict checks, backups, and shared-cache refresh.
-- Entry editing flow: `Views/EntryEditView.swift` and `ViewModels/EntryEditViewModel.swift` drive create/edit/delete entry drafts from the unlocked database UI, while `Views/PasswordGeneratorSheet.swift` and `Services/PasswordGenerator.swift` provide the reusable strong-password generator surface.
-- Cloud database flow: cloud-backed `Models/DatabaseReference.swift` values carry `CloudSyncMetadata`; `Services/CloudSyncCoordinator.swift` decides whether to reuse cache or download before open.
-- Read-only/edit safety flow: `Models/DatabaseReference.swift` persists `isReadOnly` and `editsAcknowledgedAt`; `Services/SyncedFolderDetector.swift` classifies bookmark-backed synced folders before edit flows proceed.
+- Local edit/save flow: `ViewModels/DatabaseViewModel.swift` stages changes in `Models/DatabaseDraft.swift`, reuses `Models/KDBXWriter.swift` for encryption, and saves local files through `Services/Persistence/LocalDatabaseSaver.swift` with conflict checks, backups, and shared-cache refresh.
+- Entry editing flow: `Views/EntryEditView.swift` and `ViewModels/EntryEditViewModel.swift` drive create/edit/delete entry drafts from the unlocked database UI, while `Views/PasswordGeneratorSheet.swift` and `Services/AutoFill/PasswordGenerator.swift` provide the reusable strong-password generator surface.
+- Cloud database flow: cloud-backed `Models/DatabaseReference.swift` values carry `CloudSyncMetadata`; `Services/Cloud/CloudSyncCoordinator.swift` decides whether to reuse cache or download before open.
+- Read-only/edit safety flow: `Models/DatabaseReference.swift` persists `isReadOnly` and `editsAcknowledgedAt`; `Services/Persistence/SyncedFolderDetector.swift` classifies bookmark-backed synced folders before edit flows proceed.
 - AutoFill handoff: the main app and extension share models plus selected services through `project.yml`, `SharedVaultStore`, App Group defaults, cached database copies, and Keychain entries; local saves must keep the shared cached copy aligned.
-- AutoFill save flow: the extension can now generate/save new credentials through `Services/AutoFillSaveCoordinator.swift`, persist pending cloud uploads in `Services/PendingUploadQueue.swift`, and rely on the main app's `Services/PendingUploadDrainer.swift` to push cached encrypted bytes when the app becomes active.
+- AutoFill save flow: the extension can now generate/save new credentials through `Services/AutoFill/AutoFillSaveCoordinator.swift`, persist pending cloud uploads in `Services/Cloud/PendingUploadQueue.swift`, and rely on the main app's `Services/Cloud/PendingUploadDrainer.swift` to push cached encrypted bytes when the app becomes active.
 
 ## Working Rules
 

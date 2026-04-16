@@ -10,11 +10,11 @@ This target provides password, passkey, one-time-code, and new-credential save/g
 
 ## How It Works
 
-- The extension looks up the active database through `../KeeForge/Services/DatabaseListStore.swift` and reads the shared cached database copy from the App Group container.
+- The extension looks up the active database through `../KeeForge/Services/Persistence/DatabaseListStore.swift` and reads the shared cached database copy from the App Group container.
 - It reuses `../KeeForge/Models` plus a selected subset of service files declared explicitly in `../project.yml`.
 - Unlock can use stored composite keys plus biometrics for quick AutoFill, or fall back to interactive password entry.
 - Password and passkey requests both parse the database locally; the extension does not depend on the main app being open.
-- Save-password requests now prefill a new entry via `../KeeForge/Services/AutoFillSaveCoordinator.swift`, save encrypted bytes through `LocalDatabaseSaver.swift`, and enqueue `PendingUploadQueue.swift` markers for cloud-backed databases before returning success.
+- Save-password requests now prefill a new entry via `../KeeForge/Services/AutoFill/AutoFillSaveCoordinator.swift`, save encrypted bytes through `../KeeForge/Services/Persistence/LocalDatabaseSaver.swift`, and enqueue `../KeeForge/Services/Cloud/PendingUploadQueue.swift` markers for cloud-backed databases before returning success.
 
 ## Change Carefully
 

@@ -57,15 +57,15 @@ KeePassium's CHANGELOG records *eight* shipped database-corruption regressions i
 
 - **New:**
   - `AutoFillExtension/AutoFillEntryCreatorView.swift`.
-  - `KeeForge/Services/PendingUploadQueue.swift`.
-  - `KeeForge/Services/PendingUploadDrainer.swift` (main app only).
+  - `KeeForge/Services/Cloud/PendingUploadQueue.swift`.
+  - `KeeForge/Services/Cloud/PendingUploadDrainer.swift` (main app only).
 - **Modified:**
   - `AutoFillExtension/CredentialProviderViewController.swift` — implements `prepareInterfaceForPasswordCreation(for:)`, calls into `AutoFillEntryCreatorView`, calls `LocalDatabaseSaver.save(...)`, calls `PendingUploadQueue.enqueue(...)` for cloud sources, calls `extensionContext.completeRequest(withSelectedCredential:)`.
   - `AutoFillExtension/Info.plist` — declares the password creation capability (`ASCredentialProviderExtensionCapabilities` or the equivalent key for iOS 17+).
   - `KeeForge/App/KeeForgeApp.swift` — drains the pending-upload queue on `.scene` phase becoming `.active`.
   - `KeeForge/Views/DatabaseListView.swift` — adds the pending-upload count badge and "Push pending changes" context-menu action on rows with a non-empty queue.
   - `KeeForge/ViewModels/DatabaseListViewModel.swift` — exposes the pending-upload count per row.
-  - `KeeForge/Services/CredentialIdentityStoreManager.swift` — refresh after a save (for both main app and extension paths). It probably already does this on open; verify and add a save-time call if missing.
+  - `KeeForge/Services/AutoFill/CredentialIdentityStoreManager.swift` — refresh after a save (for both main app and extension paths). It probably already does this on open; verify and add a save-time call if missing.
 - **New tests:**
   - `KeeForgeTests/PendingUploadQueueTests.swift`.
   - `KeeForgeTests/PendingUploadDrainerTests.swift`.
@@ -81,7 +81,7 @@ KeePassium's CHANGELOG records *eight* shipped database-corruption regressions i
   - `CredentialProviderViewController.swift` — already `KeeForgeAutoFill`.
   - `KeeForgeApp.swift`, `DatabaseListView.swift`, `DatabaseListViewModel.swift` — already `KeeForge`.
 - **project.yml:**
-  - Add `KeeForge/Services/PendingUploadQueue.swift` to `KeeForgeAutoFill.sources`.
+  - Add `KeeForge/Services/Cloud/PendingUploadQueue.swift` to `KeeForgeAutoFill.sources`.
   - The extension already has `LocalDatabaseSaver.swift` (added in slice 04), `KDBXWriter.swift` (slice 02 via Models glob), `DatabaseDraft.swift` (slice 03 via Models glob), `PasswordGenerator.swift` (slice 06).
   - Confirm the extension does **not** depend on SwiftyDropbox or any cloud provider files. Cloud saves happen only via the main app drainer.
   - `Run xcodegen generate`.
