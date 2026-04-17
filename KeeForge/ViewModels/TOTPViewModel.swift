@@ -9,14 +9,14 @@ final class TOTPViewModel {
     private(set) var progress: Double = 1.0
 
     private let config: TOTPConfig
-    private let sessionKey: SymmetricKey
+    private let resolvedSecret: TOTPGenerator.ResolvedSecret?
     private var timer: Timer?
 
     var period: Int { config.period }
 
     init(config: TOTPConfig, sessionKey: SymmetricKey) {
         self.config = config
-        self.sessionKey = sessionKey
+        self.resolvedSecret = TOTPGenerator.resolveSecret(config: config, sessionKey: sessionKey)
         refresh()
     }
 
@@ -36,7 +36,7 @@ final class TOTPViewModel {
 
     private func refresh() {
         let now = Date()
-        code = TOTPGenerator.generateCode(config: config, sessionKey: sessionKey, date: now)
+        code = TOTPGenerator.generateCode(config: config, resolvedSecret: resolvedSecret, date: now)
         secondsRemaining = TOTPGenerator.secondsRemaining(period: config.period, date: now)
         progress = Double(secondsRemaining) / Double(config.period)
     }

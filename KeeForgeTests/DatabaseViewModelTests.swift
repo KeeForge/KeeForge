@@ -108,6 +108,123 @@ final class DatabaseViewModelTests: XCTestCase {
         XCTAssertEqual(populateCallCount, 2)
     }
 
+    func testApplyEntryEditRefreshesCredentialStoreFromDraft() async throws {
+        let vm = try makeViewModel()
+        let refreshExpectation = expectation(description: "Credential store refreshed after edit")
+        var observedEntries: [[KPEntry]] = []
+
+        CredentialIdentityStoreManager.populateObserver = { entries in
+            observedEntries.append(entries)
+            if observedEntries.count == 2 {
+                refreshExpectation.fulfill()
+            }
+        }
+
+        await vm.unlock(password: fixturePassword)
+
+        let originalEntry = try XCTUnwrap(
+            vm.rootGroup?.allEntries.first(where: {
+                $0.hasPassword &&
+                !$0.url.isEmpty &&
+                !$0.username.isEmpty &&
+                $0.totpConfig == nil &&
+                $0.passkeyCredential == nil
+            })
+        )
+
+        try vm.applyEntryEdit(
+            .updateEntry(
+                entryID: originalEntry.id,
+                draft: EntryDraftPayload(
+                    title: originalEntry.title,
+                    username: "cache-updated-user",
+                    password: "cache-updated-password",
+                    url: "https://cache-update.example.com/login",
+                    notes: originalEntry.notes,
+                    customFields: originalEntry.customFields,
+                    tags: originalEntry.tags
+                )
+            )
+        )
+
+        await fulfillment(of: [refreshExpectation], timeout: 30)
+
+        let refreshedEntry = try XCTUnwrap(observedEntries.last?.first(where: { $0.id == originalEntry.id }))
+        XCTAssertEqual(refreshedEntry.username, "cache-updated-user")
+        XCTAssertEqual(refreshedEntry.url, "https://cache-update.example.com/login")
+    }
+
+    func testMoveToRecycleBinRefreshesCredentialStoreAndRemovesEntry() async throws {
+        let vm = try makeViewModel()
+        let refreshExpectation = expectation(description: "Credential store refreshed after recycle bin move")
+        var observedEntries: [[KPEntry]] = []
+
+        CredentialIdentityStoreManager.populateObserver = { entries in
+            observedEntries.append(entries)
+            if observedEntries.count == 2 {
+                refreshExpectation.fulfill()
+            }
+        }
+
+        await vm.unlock(password: fixturePassword)
+
+        let entry = try XCTUnwrap(
+            vm.rootGroup?.allEntries.first(where: {
+                $0.hasPassword &&
+                !$0.url.isEmpty &&
+                !$0.username.isEmpty
+            })
+        )
+
+        try vm.deleteEntry(entry.id, sendToRecycleBin: true)
+
+        await fulfillment(of: [refreshExpectation], timeout: 30)
+
+        XCTAssertFalse(observedEntries.last?.contains(where: { $0.id == entry.id }) ?? true)
+        XCTAssertTrue(vm.isEntryInRecycleBin(entryID: entry.id))
+    }
+
+    func testPermanentDeleteFromRecycleBinRefreshesCredentialStore() async throws {
+        let vm = try makeViewModel()
+        await vm.unlock(password: fixturePassword)
+
+        let entry = try XCTUnwrap(
+            vm.rootGroup?.allEntries.first(where: {
+                $0.hasPassword &&
+                !$0.url.isEmpty &&
+                !$0.username.isEmpty
+            })
+        )
+
+        let recycleExpectation = expectation(description: "Credential store refreshed after recycle bin move")
+        var observedRecycleRefresh = false
+        CredentialIdentityStoreManager.populateObserver = { _ in
+            guard observedRecycleRefresh == false else { return }
+            observedRecycleRefresh = true
+            recycleExpectation.fulfill()
+        }
+        try vm.deleteEntry(entry.id, sendToRecycleBin: true)
+        await fulfillment(of: [recycleExpectation], timeout: 30)
+        XCTAssertTrue(vm.isEntryInRecycleBin(entryID: entry.id))
+
+        let refreshExpectation = expectation(description: "Credential store refreshed after permanent delete")
+        var refreshedEntries: [KPEntry] = []
+        var observedPermanentDeleteRefresh = false
+        CredentialIdentityStoreManager.populateObserver = { entries in
+            guard observedPermanentDeleteRefresh == false else { return }
+            observedPermanentDeleteRefresh = true
+            refreshedEntries = entries
+            refreshExpectation.fulfill()
+        }
+
+        try vm.deleteEntry(entry.id, sendToRecycleBin: false)
+
+        await fulfillment(of: [refreshExpectation], timeout: 30)
+
+        XCTAssertFalse(refreshedEntries.contains(where: { $0.id == entry.id }))
+        XCTAssertFalse(vm.isEntryInRecycleBin(entryID: entry.id))
+    }
+
     func testCredentialStoreEntriesIncludePasskeyOnlyEntries() {
         let sessionKey = SymmetricKey(size: .bits256)
         let passwordEntry = KPEntry(

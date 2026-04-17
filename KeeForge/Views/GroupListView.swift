@@ -218,7 +218,7 @@ struct GroupRow: View {
                     VStack(alignment: .leading) {
                         Text(group.name)
                             .font(.body)
-                        Text("\(group.allEntries.count) entries")
+                        Text("\(viewModel.entryCount(forGroupID: groupID)) entries")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }

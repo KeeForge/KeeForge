@@ -8,11 +8,12 @@ struct KDBXXMLSerializer {
 
     private let rootGroup: KPGroup
     private let meta: KPMeta
-    private let innerStreamKey: Data
     private let sessionKey: SymmetricKey
+    private let innerChaChaKeyWords: [UInt32]
+    private let innerChaChaNonceWords: [UInt32]
 
     private var chachaCounter: UInt32 = 0
-    private var keystreamBlock = Data()
+    private var keystreamBlock: [UInt8] = []
     private var keystreamBlockOffset = 0
 
     private static let xmlPrefix = Data([0xEF, 0xBB, 0xBF]) +
@@ -21,8 +22,21 @@ struct KDBXXMLSerializer {
     init(rootGroup: KPGroup, meta: KPMeta, innerStreamKey: Data, sessionKey: SymmetricKey) {
         self.rootGroup = rootGroup
         self.meta = meta
-        self.innerStreamKey = innerStreamKey
         self.sessionKey = sessionKey
+
+        let keyHash = KDBXCrypto.sha512(innerStreamKey)
+        let keyBytes = Data(keyHash.prefix(32))
+        let nonceBytes = Data(keyHash[32..<44])
+        self.innerChaChaKeyWords = keyBytes.withUnsafeBytes { (pointer: UnsafeRawBufferPointer) in
+            (0..<8).map { index in
+                pointer.loadUnaligned(fromByteOffset: index * 4, as: UInt32.self).littleEndian
+            }
+        }
+        self.innerChaChaNonceWords = nonceBytes.withUnsafeBytes { (pointer: UnsafeRawBufferPointer) in
+            (0..<3).map { index in
+                pointer.loadUnaligned(fromByteOffset: index * 4, as: UInt32.self).littleEndian
+            }
+        }
     }
 
     mutating func serialize() throws -> Data {
@@ -316,67 +330,47 @@ struct KDBXXMLSerializer {
     }
 
     private mutating func encryptProtectedValue(_ plaintext: String) throws -> String {
-        guard innerChaChaKey.count == 32, innerChaChaNonce.count == 12 else {
+        guard innerChaChaKeyWords.count == 8, innerChaChaNonceWords.count == 3 else {
             throw SerializationError.invalidInnerStreamKey
         }
 
         let input = Data(plaintext.utf8)
-        var encrypted = Data()
-        encrypted.reserveCapacity(input.count)
+        var encrypted = [UInt8](repeating: 0, count: input.count)
+        input.withUnsafeBytes { (inputPtr: UnsafeRawBufferPointer) in
+            var readOffset = 0
+            while readOffset < input.count {
+                if keystreamBlockOffset >= keystreamBlock.count {
+                    keystreamBlock = makeChaCha20Block(counter: chachaCounter)
+                    keystreamBlockOffset = 0
+                    chachaCounter &+= 1
+                }
 
-        for byte in input {
-            encrypted.append(byte ^ nextKeystreamByte())
+                let chunkLength = min(input.count - readOffset, keystreamBlock.count - keystreamBlockOffset)
+                for index in 0..<chunkLength {
+                    encrypted[readOffset + index] = inputPtr[readOffset + index] ^ keystreamBlock[keystreamBlockOffset + index]
+                }
+                readOffset += chunkLength
+                keystreamBlockOffset += chunkLength
+            }
         }
 
-        return encrypted.base64EncodedString()
+        return Data(encrypted).base64EncodedString()
     }
 
-    private var streamCipherKey: Data {
-        KDBXCrypto.sha512(innerStreamKey)
-    }
-
-    private var innerChaChaKey: Data {
-        Data(streamCipherKey.prefix(32))
-    }
-
-    private var innerChaChaNonce: Data {
-        Data(streamCipherKey[32..<44])
-    }
-
-    private mutating func nextKeystreamByte() -> UInt8 {
-        if keystreamBlockOffset >= keystreamBlock.count {
-            keystreamBlock = makeChaCha20Block(counter: chachaCounter)
-            keystreamBlockOffset = 0
-            chachaCounter &+= 1
-        }
-
-        let byte = keystreamBlock[keystreamBlockOffset]
-        keystreamBlockOffset += 1
-        return byte
-    }
-
-    private func makeChaCha20Block(counter: UInt32) -> Data {
+    private func makeChaCha20Block(counter: UInt32) -> [UInt8] {
         var state = [UInt32](repeating: 0, count: 16)
         state[0] = 0x61707865
         state[1] = 0x3320646e
         state[2] = 0x79622d32
         state[3] = 0x6b206574
 
-        innerChaChaKey.withUnsafeBytes { pointer in
-            for index in 0..<8 {
-                state[4 + index] = pointer
-                    .loadUnaligned(fromByteOffset: index * 4, as: UInt32.self)
-                    .littleEndian
-            }
+        for index in 0..<8 {
+            state[4 + index] = innerChaChaKeyWords[index]
         }
 
         state[12] = counter
-        innerChaChaNonce.withUnsafeBytes { pointer in
-            for index in 0..<3 {
-                state[13 + index] = pointer
-                    .loadUnaligned(fromByteOffset: index * 4, as: UInt32.self)
-                    .littleEndian
-            }
+        for index in 0..<3 {
+            state[13 + index] = innerChaChaNonceWords[index]
         }
 
         var working = state
@@ -395,7 +389,8 @@ struct KDBXXMLSerializer {
             working[index] = working[index] &+ state[index]
         }
 
-        var block = Data(capacity: 64)
+        var block: [UInt8] = []
+        block.reserveCapacity(64)
         for word in working {
             var littleEndian = word.littleEndian
             withUnsafeBytes(of: &littleEndian) { bytes in

@@ -163,6 +163,12 @@ final class DatabaseViewModel {
     private static let sortOrderKey = "KeeForge.sortOrder"
     private static let sortAscendingKey = "KeeForge.sortAscending"
     private static let decryptingStatusMessage = "Decrypting your database securely..."
+    private static let sharedCloudRefreshMinimumInterval: TimeInterval = 30
+
+    private enum SharedCacheRefreshFingerprint: Equatable {
+        case local(url: URL, modificationDate: Date?)
+        case cloud(fileID: String, remoteRev: String?, remoteModifiedAt: Date?, lastSyncedAt: Date?)
+    }
 
     private(set) var databaseReference: DatabaseReference
 
@@ -173,12 +179,17 @@ final class DatabaseViewModel {
     private(set) var state: State = .locked
     private(set) var lockCycleID = 0
     var didManuallyLock = false
-    private(set) var rootGroup: KPGroup?
+    private(set) var rootGroup: KPGroup? {
+        didSet { rebuildDerivedState() }
+    }
     private(set) var openedFormatVersion: KDBXParser.FileVersion?
     private(set) var inactivityTimer: Timer?
     private(set) var inactivityTimerInterval: TimeInterval?
     var searchText = "" {
-        didSet { resetInactivityTimer() }
+        didSet {
+            resetInactivityTimer()
+            updateSearchResults()
+        }
     }
     var isSearchActive = false {
         didSet { resetInactivityTimer() }
@@ -194,7 +205,10 @@ final class DatabaseViewModel {
     private(set) var lockoutUntil: Date?
     private(set) var compositeKey: Data?
     private(set) var sessionKey: SymmetricKey?
-    var draft: DatabaseDraft?
+    var draft: DatabaseDraft? {
+        didSet { rebuildDerivedState() }
+    }
+    private(set) var searchResults: [KPEntry] = []
     private(set) var openTimeSHA512: Data?
     private(set) var saveError: DatabaseSaveError?
     private(set) var saveConflict: SaveConflict?
@@ -204,6 +218,15 @@ final class DatabaseViewModel {
     private(set) var cloudSyncProgress: Double?
     private(set) var cloudSyncBannerText: String?
     private(set) var unlockStatusMessage: String
+    private var entryIndex: [UUID: KPEntry] = [:]
+    private var groupIndex: [UUID: KPGroup] = [:]
+    private var groupEntryCounts: [UUID: Int] = [:]
+    private var searchableEntries: [KPEntry] = []
+    private var searchableEntryText: [UUID: String] = [:]
+    private var recycleBinEntryIDs: Set<UUID> = []
+    private var lastSharedCacheRefreshFingerprint: SharedCacheRefreshFingerprint?
+    private var isRefreshingSharedCache = false
+    private var lastSharedCacheRefreshAt: Date?
     private var unlockedMeta: KPMeta?
     private let cloudSyncOperation: CloudSyncOperation
     private let localSaveOperation: LocalSaveOperation
@@ -360,23 +383,6 @@ final class DatabaseViewModel {
         }
     }
 
-    var searchResults: [KPEntry] {
-        guard !searchText.isEmpty, let root = currentRootGroup else { return [] }
-        let query = searchText.lowercased()
-        let candidates: [KPEntry]
-        if let recycleBinID = root.recycleBinUUID {
-            candidates = root.allEntries(excludingGroupID: recycleBinID)
-        } else {
-            candidates = root.allEntries
-        }
-        return candidates.filter { entry in
-            entry.title.lowercased().contains(query) ||
-            entry.username.lowercased().contains(query) ||
-            entry.url.lowercased().contains(query) ||
-            entry.notes.lowercased().contains(query)
-        }
-    }
-
     /// Lockout delay in seconds: 0, 0, 0, 2, 4, 8, 16, 30, 30, 30...
     private var lockoutDelay: TimeInterval {
         guard failedAttempts >= 3 else { return 0 }
@@ -479,24 +485,21 @@ final class DatabaseViewModel {
     }
 
     func entry(withID entryID: UUID) -> KPEntry? {
-        currentRootGroup?.allEntries.first(where: { $0.id == entryID })
+        entryIndex[entryID]
     }
 
     func group(withID groupID: UUID) -> KPGroup? {
-        Self.findGroup(groupID, in: currentRootGroup)
+        groupIndex[groupID]
     }
 
     func isEntryInRecycleBin(entryID: UUID) -> Bool {
-        guard let recycleBinID = currentRootGroup?.recycleBinUUID,
-              let recycleBinGroup = Self.findGroup(recycleBinID, in: currentRootGroup) else {
-            return false
-        }
-        return recycleBinGroup.entries.contains(where: { $0.id == entryID })
+        recycleBinEntryIDs.contains(entryID)
     }
 
     func applyEntryEdit(_ edit: EntryEdit) throws {
         draft = try makeWorkingDraft().apply(edit)
         saveConflict = nil
+        refreshCredentialStoreForCurrentTreeIfNeeded()
         resetInactivityTimer()
     }
 
@@ -572,6 +575,7 @@ final class DatabaseViewModel {
     func discardDraft() {
         draft = nil
         saveConflict = nil
+        refreshCredentialStoreForCurrentTreeIfNeeded()
     }
 
     func save() async throws {
@@ -769,6 +773,28 @@ final class DatabaseViewModel {
 
         Task.detached(priority: .utility) {
             do {
+                let fingerprint = databaseReference.isCloudBacked
+                    ? nil
+                    : try Self.makeSharedCacheRefreshFingerprint(for: databaseReference)
+                let refreshStart = Date.now
+                let shouldRefresh = await MainActor.run { () -> Bool in
+                    guard self.isRefreshingSharedCache == false else { return false }
+                    if let fingerprint {
+                        guard self.lastSharedCacheRefreshFingerprint != fingerprint else { return false }
+                    } else if let lastSharedCacheRefreshAt = self.lastSharedCacheRefreshAt,
+                              refreshStart.timeIntervalSince(lastSharedCacheRefreshAt) < Self.sharedCloudRefreshMinimumInterval {
+                        return false
+                    }
+                    self.isRefreshingSharedCache = true
+                    return true
+                }
+                guard shouldRefresh else { return }
+                defer {
+                    Task { @MainActor in
+                        self.isRefreshingSharedCache = false
+                    }
+                }
+
                 let data: Data
 
                 if databaseReference.isCloudBacked {
@@ -798,6 +824,11 @@ final class DatabaseViewModel {
                         with: refreshedRoot,
                         expectedLockCycleID: expectedLockCycleID
                     )
+                }
+
+                await MainActor.run {
+                    self.lastSharedCacheRefreshFingerprint = fingerprint
+                    self.lastSharedCacheRefreshAt = refreshStart
                 }
             } catch {
                 return
@@ -852,6 +883,10 @@ final class DatabaseViewModel {
         populateCredentialStoreIfNeeded(root: root)
     }
 
+    func entryCount(forGroupID groupID: UUID) -> Int {
+        groupEntryCounts[groupID] ?? 0
+    }
+
     static func credentialStoreEntries(from root: KPGroup) -> [KPEntry] {
         let entries: [KPEntry]
         if let recycleBinID = root.recycleBinUUID {
@@ -901,6 +936,75 @@ final class DatabaseViewModel {
         lockCycleID += 1
     }
 
+    private func rebuildDerivedState() {
+        guard let root = currentRootGroup else {
+            entryIndex = [:]
+            groupIndex = [:]
+            groupEntryCounts = [:]
+            searchableEntries = []
+            searchableEntryText = [:]
+            recycleBinEntryIDs = []
+            searchResults = []
+            return
+        }
+
+        var nextEntryIndex: [UUID: KPEntry] = [:]
+        var nextGroupIndex: [UUID: KPGroup] = [:]
+        var nextGroupEntryCounts: [UUID: Int] = [:]
+        var nextSearchableEntries: [KPEntry] = []
+        var nextSearchableEntryText: [UUID: String] = [:]
+        var nextRecycleBinEntryIDs = Set<UUID>()
+        let recycleBinID = root.recycleBinUUID
+
+        @discardableResult
+        func index(group: KPGroup, includeInSearch: Bool) -> Int {
+            nextGroupIndex[group.id] = group
+
+            var totalEntryCount = 0
+            for entry in group.entries {
+                nextEntryIndex[entry.id] = entry
+                totalEntryCount += 1
+                if includeInSearch {
+                    nextSearchableEntries.append(entry)
+                    nextSearchableEntryText[entry.id] = Self.searchText(for: entry)
+                } else {
+                    nextRecycleBinEntryIDs.insert(entry.id)
+                }
+            }
+
+            for childGroup in group.groups {
+                let childIncludedInSearch = includeInSearch && childGroup.id != recycleBinID
+                totalEntryCount += index(group: childGroup, includeInSearch: childIncludedInSearch)
+            }
+
+            nextGroupEntryCounts[group.id] = totalEntryCount
+            return totalEntryCount
+        }
+
+        index(group: root, includeInSearch: true)
+
+        entryIndex = nextEntryIndex
+        groupIndex = nextGroupIndex
+        groupEntryCounts = nextGroupEntryCounts
+        searchableEntries = nextSearchableEntries
+        searchableEntryText = nextSearchableEntryText
+        recycleBinEntryIDs = nextRecycleBinEntryIDs
+        updateSearchResults()
+    }
+
+    private func updateSearchResults() {
+        let trimmedQuery = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmedQuery.isEmpty == false else {
+            searchResults = []
+            return
+        }
+
+        let query = trimmedQuery.lowercased()
+        searchResults = searchableEntries.filter { entry in
+            searchableEntryText[entry.id]?.contains(query) == true
+        }
+    }
+
     private func prepareForUnlock() {
         state = .unlocking
         draft = nil
@@ -914,6 +1018,9 @@ final class DatabaseViewModel {
         unlockStatusMessage = databaseReference.isCloudBacked
             ? Self.syncStatusMessage(for: databaseReference)
             : Self.decryptingStatusMessage
+        lastSharedCacheRefreshFingerprint = nil
+        isRefreshingSharedCache = false
+        lastSharedCacheRefreshAt = nil
     }
 
     private func finalizeSuccessfulUnlock(
@@ -990,6 +1097,40 @@ final class DatabaseViewModel {
         }
     }
 
+    nonisolated private static func makeSharedCacheRefreshFingerprint(
+        for reference: DatabaseReference
+    ) throws -> SharedCacheRefreshFingerprint {
+        if let metadata = reference.cloudSyncMetadata {
+            return .cloud(
+                fileID: metadata.fileId,
+                remoteRev: metadata.remoteRev,
+                remoteModifiedAt: metadata.remoteModifiedAt,
+                lastSyncedAt: metadata.lastSyncedAt
+            )
+        }
+
+        guard let url = DatabaseListStore.resolveDatabaseURL(for: reference) else {
+            throw SaveError.databaseLocationUnavailable
+        }
+
+        return .local(
+            url: url,
+            modificationDate: try readSecurityScopedModificationDate(from: url)
+        )
+    }
+
+    private static func searchText(for entry: KPEntry) -> String {
+        [
+            entry.title,
+            entry.username,
+            entry.url,
+            entry.notes,
+        ]
+        .joined(separator: "\n")
+        .folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
+        .lowercased()
+    }
+
     private func makeWorkingDraft() throws -> DatabaseDraft {
         if let draft {
             return draft
@@ -1057,6 +1198,12 @@ final class DatabaseViewModel {
         guard expectedLockCycleID == lockCycleID else { return }
         guard case .unlocked = state else { return }
         populateCredentialStoreIfNeeded(root: root)
+    }
+
+    private func refreshCredentialStoreForCurrentTreeIfNeeded() {
+        guard case .unlocked = state else { return }
+        guard let currentRootGroup else { return }
+        populateCredentialStoreIfNeeded(root: currentRootGroup)
     }
 
     private func conflictCopyFilename(for filename: String) -> String {
@@ -1211,5 +1358,15 @@ final class DatabaseViewModel {
             }
         }
         return try CoordinatedFileReader.readData(from: url)
+    }
+
+    nonisolated private static func readSecurityScopedModificationDate(from url: URL) throws -> Date? {
+        let hasSecurityScope = url.startAccessingSecurityScopedResource()
+        defer {
+            if hasSecurityScope {
+                url.stopAccessingSecurityScopedResource()
+            }
+        }
+        return try url.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate
     }
 }

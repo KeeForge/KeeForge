@@ -827,123 +827,147 @@ final class KDBXXMLParser: NSObject, XMLParserDelegate {
         }
     }
 
-    private enum ProtectedValueCipher {
-        case none
-        case salsa20(key: Data, nonce: Data, counterLow: UInt32, counterHigh: UInt32, keystreamBlock: Data, offset: Int)
-        case chacha20(key: Data, nonce: Data, counter: UInt32, keystreamBlock: Data, offset: Int)
+    private struct ProtectedValueCipher {
+        private enum Mode {
+            case none
+            case salsa20(initialState: [UInt32])
+            case chacha20(initialState: [UInt32])
+        }
+
+        private let mode: Mode
+        private var salsaCounterLow: UInt32 = 0
+        private var salsaCounterHigh: UInt32 = 0
+        private var chachaCounter: UInt32 = 0
+        private var keystreamBlock: [UInt8] = []
+        private var offset = 0
 
         init(streamID: UInt32, innerStreamKey: Data) {
             switch streamID {
             case KDBXParser.innerStreamSalsa20:
-                self = .salsa20(
-                    key: KDBXCrypto.sha256(innerStreamKey),
-                    nonce: Data([0xE8, 0x30, 0x09, 0x4B, 0x97, 0x20, 0x5D, 0x2A]),
-                    counterLow: 0,
-                    counterHigh: 0,
-                    keystreamBlock: Data(),
-                    offset: 0
-                )
+                let key = KDBXCrypto.sha256(innerStreamKey)
+                let nonce = Data([0xE8, 0x30, 0x09, 0x4B, 0x97, 0x20, 0x5D, 0x2A])
+                var state = [UInt32](repeating: 0, count: 16)
+                state[0] = 0x61707865
+                state[5] = 0x3320646e
+                state[10] = 0x79622d32
+                state[15] = 0x6b206574
+
+                key.withUnsafeBytes { (ptr: UnsafeRawBufferPointer) in
+                    for i in 0..<4 {
+                        state[1 + i] = ptr.loadUnaligned(fromByteOffset: i * 4, as: UInt32.self).littleEndian
+                        state[11 + i] = ptr.loadUnaligned(fromByteOffset: (i + 4) * 4, as: UInt32.self).littleEndian
+                    }
+                }
+
+                nonce.withUnsafeBytes { (ptr: UnsafeRawBufferPointer) in
+                    state[6] = ptr.loadUnaligned(fromByteOffset: 0, as: UInt32.self).littleEndian
+                    state[7] = ptr.loadUnaligned(fromByteOffset: 4, as: UInt32.self).littleEndian
+                }
+
+                mode = .salsa20(initialState: state)
+
             case KDBXParser.innerStreamChaCha20:
                 let keyHash = KDBXCrypto.sha512(innerStreamKey)
-                self = .chacha20(
-                    key: Data(keyHash.prefix(32)),
-                    nonce: Data(keyHash[32..<44]),
-                    counter: 0,
-                    keystreamBlock: Data(),
-                    offset: 0
-                )
+                var state = [UInt32](repeating: 0, count: 16)
+                state[0] = 0x61707865
+                state[1] = 0x3320646e
+                state[2] = 0x79622d32
+                state[3] = 0x6b206574
+
+                Data(keyHash.prefix(32)).withUnsafeBytes { (ptr: UnsafeRawBufferPointer) in
+                    for i in 0..<8 {
+                        state[4 + i] = ptr.loadUnaligned(fromByteOffset: i * 4, as: UInt32.self).littleEndian
+                    }
+                }
+
+                Data(keyHash[32..<44]).withUnsafeBytes { (ptr: UnsafeRawBufferPointer) in
+                    for i in 0..<3 {
+                        state[13 + i] = ptr.loadUnaligned(fromByteOffset: i * 4, as: UInt32.self).littleEndian
+                    }
+                }
+
+                mode = .chacha20(initialState: state)
+
             default:
-                self = .none
+                mode = .none
             }
         }
 
         mutating func xor(_ encrypted: Data) -> Data {
             guard !encrypted.isEmpty else { return encrypted }
 
-            var decrypted = Data()
-            decrypted.reserveCapacity(encrypted.count)
-            for byte in encrypted {
-                decrypted.append(byte ^ nextKeystreamByte())
+            switch mode {
+            case .none:
+                return encrypted
+            case .salsa20(let initialState):
+                return xorSalsa20(encrypted, initialState: initialState)
+            case .chacha20(let initialState):
+                return xorChaCha20(encrypted, initialState: initialState)
             }
-            return decrypted
         }
 
-        private mutating func nextKeystreamByte() -> UInt8 {
-            switch self {
-            case .none:
-                return 0
+        private mutating func xorSalsa20(_ encrypted: Data, initialState: [UInt32]) -> Data {
+            var decrypted = [UInt8](repeating: 0, count: encrypted.count)
 
-            case .salsa20(let key, let nonce, var counterLow, var counterHigh, var keystreamBlock, var offset):
-                if offset >= keystreamBlock.count {
-                    keystreamBlock = Self.makeSalsa20Block(
-                        key: key,
-                        nonce: nonce,
-                        counterLow: counterLow,
-                        counterHigh: counterHigh
-                    )
-                    offset = 0
-                    let nextLow = counterLow &+ 1
-                    if nextLow == 0 {
-                        counterHigh &+= 1
+            encrypted.withUnsafeBytes { (encryptedPtr: UnsafeRawBufferPointer) in
+                var readOffset = 0
+                while readOffset < encrypted.count {
+                    if offset >= keystreamBlock.count {
+                        keystreamBlock = Self.makeSalsa20Block(
+                            initialState: initialState,
+                            counterLow: salsaCounterLow,
+                            counterHigh: salsaCounterHigh
+                        )
+                        offset = 0
+                        let nextLow = salsaCounterLow &+ 1
+                        if nextLow == 0 {
+                            salsaCounterHigh &+= 1
+                        }
+                        salsaCounterLow = nextLow
                     }
-                    counterLow = nextLow
+
+                    let chunkLength = min(encrypted.count - readOffset, keystreamBlock.count - offset)
+                    for index in 0..<chunkLength {
+                        decrypted[readOffset + index] = encryptedPtr[readOffset + index] ^ keystreamBlock[offset + index]
+                    }
+                    readOffset += chunkLength
+                    offset += chunkLength
                 }
-
-                let byte = keystreamBlock[offset]
-                offset += 1
-                self = .salsa20(
-                    key: key,
-                    nonce: nonce,
-                    counterLow: counterLow,
-                    counterHigh: counterHigh,
-                    keystreamBlock: keystreamBlock,
-                    offset: offset
-                )
-                return byte
-
-            case .chacha20(let key, let nonce, var counter, var keystreamBlock, var offset):
-                if offset >= keystreamBlock.count {
-                    keystreamBlock = Self.makeChaCha20Block(key: key, nonce: nonce, counter: counter)
-                    offset = 0
-                    counter &+= 1
-                }
-
-                let byte = keystreamBlock[offset]
-                offset += 1
-                self = .chacha20(
-                    key: key,
-                    nonce: nonce,
-                    counter: counter,
-                    keystreamBlock: keystreamBlock,
-                    offset: offset
-                )
-                return byte
             }
+
+            return Data(decrypted)
+        }
+
+        private mutating func xorChaCha20(_ encrypted: Data, initialState: [UInt32]) -> Data {
+            var decrypted = [UInt8](repeating: 0, count: encrypted.count)
+
+            encrypted.withUnsafeBytes { (encryptedPtr: UnsafeRawBufferPointer) in
+                var readOffset = 0
+                while readOffset < encrypted.count {
+                    if offset >= keystreamBlock.count {
+                        keystreamBlock = Self.makeChaCha20Block(initialState: initialState, counter: chachaCounter)
+                        offset = 0
+                        chachaCounter &+= 1
+                    }
+
+                    let chunkLength = min(encrypted.count - readOffset, keystreamBlock.count - offset)
+                    for index in 0..<chunkLength {
+                        decrypted[readOffset + index] = encryptedPtr[readOffset + index] ^ keystreamBlock[offset + index]
+                    }
+                    readOffset += chunkLength
+                    offset += chunkLength
+                }
+            }
+
+            return Data(decrypted)
         }
 
         private static func makeSalsa20Block(
-            key: Data,
-            nonce: Data,
+            initialState: [UInt32],
             counterLow: UInt32,
             counterHigh: UInt32
-        ) -> Data {
-            var state = [UInt32](repeating: 0, count: 16)
-            state[0] = 0x61707865
-            state[5] = 0x3320646e
-            state[10] = 0x79622d32
-            state[15] = 0x6b206574
-
-            key.withUnsafeBytes { ptr in
-                for i in 0..<4 {
-                    state[1 + i] = ptr.loadUnaligned(fromByteOffset: i * 4, as: UInt32.self).littleEndian
-                    state[11 + i] = ptr.loadUnaligned(fromByteOffset: (i + 4) * 4, as: UInt32.self).littleEndian
-                }
-            }
-
-            nonce.withUnsafeBytes { ptr in
-                state[6] = ptr.loadUnaligned(fromByteOffset: 0, as: UInt32.self).littleEndian
-                state[7] = ptr.loadUnaligned(fromByteOffset: 4, as: UInt32.self).littleEndian
-            }
+        ) -> [UInt8] {
+            var state = initialState
             state[8] = counterLow
             state[9] = counterHigh
 
@@ -967,25 +991,9 @@ final class KDBXXMLParser: NSObject, XMLParserDelegate {
             return serializeWords(working)
         }
 
-        private static func makeChaCha20Block(key: Data, nonce: Data, counter: UInt32) -> Data {
-            var state = [UInt32](repeating: 0, count: 16)
-            state[0] = 0x61707865
-            state[1] = 0x3320646e
-            state[2] = 0x79622d32
-            state[3] = 0x6b206574
-
-            key.withUnsafeBytes { ptr in
-                for i in 0..<8 {
-                    state[4 + i] = ptr.loadUnaligned(fromByteOffset: i * 4, as: UInt32.self).littleEndian
-                }
-            }
-
+        private static func makeChaCha20Block(initialState: [UInt32], counter: UInt32) -> [UInt8] {
+            var state = initialState
             state[12] = counter
-            nonce.withUnsafeBytes { ptr in
-                for i in 0..<3 {
-                    state[13 + i] = ptr.loadUnaligned(fromByteOffset: i * 4, as: UInt32.self).littleEndian
-                }
-            }
 
             var working = state
             for _ in 0..<10 {
@@ -1024,8 +1032,9 @@ final class KDBXXMLParser: NSObject, XMLParserDelegate {
             (value << amount) | (value >> (32 - amount))
         }
 
-        private static func serializeWords(_ words: [UInt32]) -> Data {
-            var block = Data(capacity: 64)
+        private static func serializeWords(_ words: [UInt32]) -> [UInt8] {
+            var block: [UInt8] = []
+            block.reserveCapacity(64)
             for word in words {
                 var little = word.littleEndian
                 withUnsafeBytes(of: &little) { bytes in
