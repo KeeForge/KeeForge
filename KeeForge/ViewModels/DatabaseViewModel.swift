@@ -95,6 +95,7 @@ final class DatabaseViewModel {
         let reference: DatabaseReference
         let rootGroup: KPGroup
         let meta: KPMeta
+        let formatVersion: KDBXParser.FileVersion
         let sessionKey: SymmetricKey
         let openTimeSHA512: Data
     }
@@ -173,6 +174,7 @@ final class DatabaseViewModel {
     private(set) var lockCycleID = 0
     var didManuallyLock = false
     private(set) var rootGroup: KPGroup?
+    private(set) var openedFormatVersion: KDBXParser.FileVersion?
     private(set) var inactivityTimer: Timer?
     private(set) var inactivityTimerInterval: TimeInterval?
     var searchText = "" {
@@ -301,7 +303,11 @@ final class DatabaseViewModel {
     }
 
     var isReadOnly: Bool {
-        databaseReference.isReadOnly
+        databaseReference.isReadOnly || openedFormatVersion?.requiresReadOnlyMode == true
+    }
+
+    var isFormatReadOnly: Bool {
+        openedFormatVersion?.requiresReadOnlyMode == true
     }
 
     var isDirty: Bool {
@@ -399,7 +405,7 @@ final class DatabaseViewModel {
             let sessionKey = SymmetricKey(size: .bits256)
 
             let unlockPayload = try await Task.detached {
-                let parsed = try KDBXParser.parseWithMeta(
+                let parsed = try KDBXParser.parseWithMetaAndHeader(
                     data: data,
                     compositeKey: compositeKey,
                     sessionKey: sessionKey
@@ -407,6 +413,7 @@ final class DatabaseViewModel {
                 return UnlockPayload(
                     rootGroup: parsed.rootGroup,
                     meta: parsed.meta,
+                    formatVersion: parsed.header.formatVersion,
                     openTimeSHA512: KDBXCrypto.sha512(data)
                 )
             }.value
@@ -432,7 +439,7 @@ final class DatabaseViewModel {
             let sessionKey = SymmetricKey(size: .bits256)
 
             let unlockPayload = try await Task.detached {
-                let parsed = try KDBXParser.parseWithMeta(
+                let parsed = try KDBXParser.parseWithMetaAndHeader(
                     data: data,
                     compositeKey: compositeKey,
                     sessionKey: sessionKey
@@ -440,6 +447,7 @@ final class DatabaseViewModel {
                 return UnlockPayload(
                     rootGroup: parsed.rootGroup,
                     meta: parsed.meta,
+                    formatVersion: parsed.header.formatVersion,
                     openTimeSHA512: KDBXCrypto.sha512(data)
                 )
             }.value
@@ -520,6 +528,7 @@ final class DatabaseViewModel {
         beginNewLockCycle()
         state = .locked
         rootGroup = nil
+        openedFormatVersion = nil
         compositeKey = nil
         sessionKey = nil
         unlockedMeta = nil
@@ -566,7 +575,7 @@ final class DatabaseViewModel {
     }
 
     func save() async throws {
-        if databaseReference.isReadOnly {
+        if isReadOnly {
             throw SaveError.databaseIsReadOnly
         }
 
@@ -666,6 +675,7 @@ final class DatabaseViewModel {
         let reloaded = try await reloadOperation(databaseReference, compositeKey)
         rootGroup = reloaded.rootGroup
         databaseReference = reloaded.reference
+        openedFormatVersion = reloaded.formatVersion
         sessionKey = reloaded.sessionKey
         unlockedMeta = reloaded.meta
         openTimeSHA512 = reloaded.openTimeSHA512
@@ -883,6 +893,7 @@ final class DatabaseViewModel {
     private struct UnlockPayload: Sendable {
         let rootGroup: KPGroup
         let meta: KPMeta
+        let formatVersion: KDBXParser.FileVersion
         let openTimeSHA512: Data
     }
 
@@ -914,6 +925,7 @@ final class DatabaseViewModel {
         self.compositeKey = compositeKey
         self.sessionKey = sessionKey
         self.unlockedMeta = payload.meta
+        self.openedFormatVersion = payload.formatVersion
         self.openTimeSHA512 = payload.openTimeSHA512
         self.draft = nil
         self.saveError = nil
@@ -1174,7 +1186,7 @@ final class DatabaseViewModel {
 
         let sessionKey = SymmetricKey(size: .bits256)
         let parsed = try await Task.detached(priority: .utility) {
-            try KDBXParser.parseWithMeta(
+            try KDBXParser.parseWithMetaAndHeader(
                 data: data,
                 compositeKey: compositeKey,
                 sessionKey: sessionKey
@@ -1185,6 +1197,7 @@ final class DatabaseViewModel {
             reference: updatedReference,
             rootGroup: parsed.rootGroup,
             meta: parsed.meta,
+            formatVersion: parsed.header.formatVersion,
             sessionKey: sessionKey,
             openTimeSHA512: KDBXCrypto.sha512(data)
         )

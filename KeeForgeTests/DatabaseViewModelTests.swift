@@ -43,6 +43,18 @@ final class DatabaseViewModelTests: XCTestCase {
         XCTAssertFalse(vm.rootGroup?.allEntries.isEmpty ?? true)
     }
 
+    func testUnlockLegacyKDBX31ForcesReadOnlyMode() async throws {
+        let reference = try TestDatabaseSupport.makeReference(for: legacyFixtureURL())
+        let vm = try makeViewModel(reference: reference)
+
+        await vm.unlock(password: fixturePassword)
+
+        XCTAssertState(vm.state, is: .unlocked)
+        XCTAssertEqual(vm.openedFormatVersion, .kdbx3_1)
+        XCTAssertTrue(vm.isFormatReadOnly)
+        XCTAssertTrue(vm.isReadOnly)
+    }
+
     func testUnlockCachesPerDatabaseCopy() async throws {
         let reference = try makeReference()
         let vm = DatabaseViewModel(databaseReference: reference)
@@ -402,6 +414,32 @@ final class DatabaseViewModelTests: XCTestCase {
         XCTAssertFalse(localSaverCalls.didCall)
     }
 
+    func testSaveLegacyKDBX31ThrowsDatabaseIsReadOnlyBeforeSaveOperation() async throws {
+        let localSaverCalls = CallTracker()
+        let reference = try TestDatabaseSupport.makeReference(for: legacyFixtureURL())
+        let vm = try makeViewModel(
+            reference: reference,
+            localSaveOperation: { _, _, _, _ in
+                localSaverCalls.recordCall()
+                return .saved(newSHA512: Data("saved".utf8))
+            }
+        )
+
+        await vm.unlock(password: fixturePassword)
+        vm.draft = try makeDirtyDraft(from: vm, entryTitle: "Legacy Edit")
+
+        do {
+            try await vm.save()
+            XCTFail("Expected legacy KDBX3 save to stay read-only.")
+        } catch let error as SaveError {
+            XCTAssertEqual(error, .databaseIsReadOnly)
+        } catch {
+            XCTFail("Unexpected error: \(error)")
+        }
+
+        XCTAssertFalse(localSaverCalls.didCall)
+    }
+
     func testSaveWriteScopeMissingOnCloudDatabaseThrowsTypedError() async throws {
         let reference = makeCloudReference(remoteRev: "rev-A")
         let fixtureData = try Data(contentsOf: fixtureURL())
@@ -526,6 +564,7 @@ final class DatabaseViewModelTests: XCTestCase {
                     reference: updatedReference,
                     rootGroup: KPGroup(name: "Reloaded Root", entries: [KPEntry(title: "Reloaded Entry")]),
                     meta: KPMeta(),
+                    formatVersion: .kdbx4(minor: 0),
                     sessionKey: SymmetricKey(size: .bits256),
                     openTimeSHA512: Data("reloaded-hash".utf8)
                 )
@@ -753,7 +792,7 @@ final class DatabaseViewModelTests: XCTestCase {
 
             let sessionKey = SymmetricKey(size: .bits256)
             let parsed = try await Task.detached {
-                try KDBXParser.parseWithMeta(
+                try KDBXParser.parseWithMetaAndHeader(
                     data: data,
                     compositeKey: compositeKey,
                     sessionKey: sessionKey
@@ -764,6 +803,7 @@ final class DatabaseViewModelTests: XCTestCase {
                 reference: updatedReference,
                 rootGroup: parsed.rootGroup,
                 meta: parsed.meta,
+                formatVersion: parsed.header.formatVersion,
                 sessionKey: sessionKey,
                 openTimeSHA512: KDBXCrypto.sha512(data)
             )
@@ -866,6 +906,10 @@ final class DatabaseViewModelTests: XCTestCase {
 
     private func fixtureURL() throws -> URL {
         try TestDatabaseSupport.fixtureURL(named: "test", bundle: Bundle(for: DatabaseViewModelTests.self))
+    }
+
+    private func legacyFixtureURL() throws -> URL {
+        try TestDatabaseSupport.fixtureURL(named: "test-v3-backup", bundle: Bundle(for: DatabaseViewModelTests.self))
     }
 
     private func passkeyFields() -> [String: String] {

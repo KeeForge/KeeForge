@@ -374,6 +374,53 @@ final class CloudDatabaseSaverTests: XCTestCase {
         XCTAssertEqual(backupContents, Array(priorVersions.suffix(5).reversed()))
     }
 
+    func testSaveLegacyKDBX31ThrowsDatabaseIsReadOnlyBeforeUpload() async throws {
+        let reference = try makeCloudReference(remoteRev: "rev-A", fixtureName: "test-v3-backup")
+        let cacheURL = DatabaseListStore.cacheLocation(for: reference)
+        let context = try makeDirtySaveContext(cacheURL: cacheURL, entryTitle: "Legacy Cloud Save")
+        let recorder = UploadRecorder()
+        let environment = makeEnvironment(
+            getMetadata: { reference in
+                CloudFileMetadata(
+                    modifiedDate: Date(timeIntervalSince1970: 150),
+                    contentHash: "remote-hash-A",
+                    size: Int64(context.currentData.count),
+                    rev: reference.expectedCloudRevision
+                )
+            },
+            upload: { _, data, expectedRev, progress in
+                await recorder.record(data: data, expectedRev: expectedRev)
+                progress(1)
+                return CloudFileMetadata(
+                    modifiedDate: Date(timeIntervalSince1970: 200),
+                    contentHash: "remote-hash-B",
+                    size: Int64(data.count),
+                    rev: "rev-B"
+                )
+            }
+        )
+
+        do {
+            _ = try await CloudDatabaseSaver.save(
+                draft: context.draft,
+                reference: reference,
+                compositeKey: context.compositeKey,
+                openTimeSHA512: context.openTimeSHA512,
+                expectedRev: "rev-A",
+                environment: environment
+            )
+            XCTFail("Expected legacy KDBX3 cloud save to stay read-only.")
+        } catch let error as SaveError {
+            XCTAssertEqual(error, .databaseIsReadOnly)
+        } catch {
+            XCTFail("Unexpected error: \(error)")
+        }
+
+        let uploadCallCount = await recorder.callCount()
+        XCTAssertEqual(uploadCallCount, 0)
+        XCTAssertEqual(try Data(contentsOf: cacheURL), context.currentData)
+    }
+
     private func makeEnvironment(
         getMetadata: @escaping @Sendable (DatabaseReference) async throws -> CloudFileMetadata,
         upload: @escaping @Sendable (DatabaseReference, Data, String?, CloudDatabaseSaver.ProgressHandler) async throws -> CloudFileMetadata,
@@ -392,7 +439,7 @@ final class CloudDatabaseSaverTests: XCTestCase {
         return environment
     }
 
-    private func makeCloudReference(remoteRev: String) throws -> DatabaseReference {
+    private func makeCloudReference(remoteRev: String, fixtureName: String = "test") throws -> DatabaseReference {
         let file = CloudFile(
             id: "/Vaults/cloud-save.kdbx",
             name: "cloud-save.kdbx",
@@ -412,7 +459,7 @@ final class CloudDatabaseSaverTests: XCTestCase {
             metadata.remoteRev = remoteRev
         }
         DatabaseListStore.update(reference)
-        try DatabaseListStore.cacheDatabaseCopy(try Data(contentsOf: fixtureURL()), for: reference)
+        try DatabaseListStore.cacheDatabaseCopy(try Data(contentsOf: fixtureURL(named: fixtureName)), for: reference)
         return reference
     }
 
@@ -450,8 +497,8 @@ final class CloudDatabaseSaverTests: XCTestCase {
         )
     }
 
-    private func fixtureURL() throws -> URL {
-        try TestDatabaseSupport.fixtureURL(named: "test", bundle: Bundle(for: CloudDatabaseSaverTests.self))
+    private func fixtureURL(named name: String = "test") throws -> URL {
+        try TestDatabaseSupport.fixtureURL(named: name, bundle: Bundle(for: CloudDatabaseSaverTests.self))
     }
 }
 

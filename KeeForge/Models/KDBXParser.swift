@@ -83,6 +83,15 @@ enum KDBXParser {
                 minor
             }
         }
+
+        var requiresReadOnlyMode: Bool {
+            switch self {
+            case .kdbx3_1:
+                true
+            case .kdbx4:
+                false
+            }
+        }
     }
 
     // MARK: - Parsed Header

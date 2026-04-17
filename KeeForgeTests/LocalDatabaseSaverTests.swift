@@ -287,6 +287,29 @@ final class LocalDatabaseSaverTests: XCTestCase {
         }
     }
 
+    func testSaveLegacyKDBX31ThrowsDatabaseIsReadOnly() async throws {
+        let databaseURL = try makeScratchDatabaseCopy(fixtureName: "test-v3-backup")
+        let reference = try TestDatabaseSupport.makeReference(for: databaseURL)
+        let context = try makeDirtySaveContext(
+            databaseURL: databaseURL,
+            entryTitle: "Legacy Save Attempt"
+        )
+
+        do {
+            _ = try await LocalDatabaseSaver.save(
+                draft: context.draft,
+                reference: reference,
+                compositeKey: context.compositeKey,
+                openTimeSHA512: context.openTimeSHA512
+            )
+            XCTFail("Expected legacy KDBX3 save to be blocked as read-only.")
+        } catch let error as SaveError {
+            XCTAssertEqual(error, .databaseIsReadOnly)
+        } catch {
+            XCTFail("Unexpected error: \(error)")
+        }
+    }
+
     private func makeDirtySaveContext(
         databaseURL: URL,
         entryTitle: String
@@ -321,9 +344,9 @@ final class LocalDatabaseSaverTests: XCTestCase {
         )
     }
 
-    private func makeScratchDatabaseCopy() throws -> URL {
+    private func makeScratchDatabaseCopy(fixtureName: String = "test") throws -> URL {
         let fixtureURL = try TestDatabaseSupport.fixtureURL(
-            named: "test",
+            named: fixtureName,
             bundle: Bundle(for: LocalDatabaseSaverTests.self)
         )
         let scratchDirectory = FileManager.default.temporaryDirectory

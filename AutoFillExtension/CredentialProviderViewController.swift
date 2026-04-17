@@ -10,6 +10,7 @@ final class CredentialProviderViewController: ASCredentialProviderViewController
     private var parsedEntries: [KPEntry] = []
     private var parsedRootGroup: KPGroup?
     private var parsedMeta: KPMeta?
+    private var parsedFormatVersion: KDBXParser.FileVersion?
     private var sessionKey: SymmetricKey?
     private var compositeKey: Data?
     private var openTimeSHA512: Data?
@@ -412,6 +413,12 @@ final class CredentialProviderViewController: ASCredentialProviderViewController
             }
         } else if #available(iOS 26.2, *), let savePasswordRequest = pendingSavePasswordRequest {
             pendingSavePasswordRequest = nil
+            if parsedFormatVersion?.requiresReadOnlyMode == true {
+                presentReadOnlyAlertAndCancel(
+                    message: "Legacy KDBX 3.1 databases can be opened, but KeeForge only allows them in read-only mode."
+                )
+                return
+            }
             presentEntryCreator(for: savePasswordRequest)
         } else if let requestParameters = pendingPasskeyRequestParameters {
             presentPasskeyMatchesOrFinish(using: requestParameters)
@@ -491,7 +498,7 @@ final class CredentialProviderViewController: ASCredentialProviderViewController
         let key = SymmetricKey(size: .bits256)
 
         let parsed = try await Task.detached {
-            try KDBXParser.parseWithMeta(
+            try KDBXParser.parseWithMetaAndHeader(
                 data: data,
                 compositeKey: compositeKey,
                 sessionKey: key
@@ -503,6 +510,7 @@ final class CredentialProviderViewController: ASCredentialProviderViewController
         self.openTimeSHA512 = KDBXCrypto.sha512(data)
         self.parsedRootGroup = parsed.rootGroup
         self.parsedMeta = parsed.meta
+        self.parsedFormatVersion = parsed.header.formatVersion
 
         let allEntries: [KPEntry]
         if let recycleBinID = parsed.rootGroup.recycleBinUUID {
@@ -864,6 +872,7 @@ final class CredentialProviderViewController: ASCredentialProviderViewController
         parsedEntries = []
         parsedRootGroup = nil
         parsedMeta = nil
+        parsedFormatVersion = nil
         sessionKey = nil
         compositeKey = nil
         openTimeSHA512 = nil

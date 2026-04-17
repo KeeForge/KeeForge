@@ -314,11 +314,16 @@ struct DatabaseSettingsView: View {
                             set: { viewModel.setReadOnly($0) }
                         )
                     )
+                    .disabled(viewModel.isFormatReadOnly)
                     .accessibilityIdentifier("database-settings.read-only-toggle")
                 } header: {
                     Text("Editing")
                 } footer: {
-                    Text("Keep this database openable but block create, edit, and delete actions until you turn editing back on.")
+                    Text(
+                        viewModel.isFormatReadOnly
+                            ? "Legacy KDBX 3.1 databases can be opened, but KeeForge intentionally keeps them read-only."
+                            : "Keep this database openable but block create, edit, and delete actions until you turn editing back on."
+                    )
                 }
 
                 Section("Key File") {

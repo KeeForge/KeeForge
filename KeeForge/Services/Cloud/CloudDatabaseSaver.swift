@@ -148,6 +148,9 @@ enum CloudDatabaseSaver {
         }
 
         let header = try environment.extractHeader(currentData, compositeKey)
+        guard header.formatVersion.requiresReadOnlyMode == false else {
+            throw SaveError.databaseIsReadOnly
+        }
         let newData = try environment.encryptDraft(draft, compositeKey, header)
 
         do {
