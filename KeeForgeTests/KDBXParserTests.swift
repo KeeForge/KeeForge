@@ -832,6 +832,59 @@ final class KDBXParserTests: XCTestCase {
         )
     }
 
+    func testAESVariantMapRejectsRoundsAboveUpdatedMaximum() {
+        let compositeKey = Data((0..<32).map(UInt8.init))
+        let params: [String: Any] = [
+            "$UUID": KDBXParser.aesKDFUUID,
+            "S": Data((32..<64).map(UInt8.init)),
+            "R": KDBXParser.aesKDFMaxRounds + 1,
+        ]
+
+        XCTAssertThrowsError(
+            try KDBXParser.deriveKey(compositeKey: compositeKey, kdfParams: params)
+        ) { error in
+            guard case KDBXParser.ParseError.kdfParameterOutOfRange(let message) = error else {
+                XCTFail("Expected kdfParameterOutOfRange, got \(error)")
+                return
+            }
+            XCTAssertEqual(
+                message,
+                "rounds \(KDBXParser.aesKDFMaxRounds + 1) not in 1...\(KDBXParser.aesKDFMaxRounds)"
+            )
+        }
+    }
+
+    func testLegacyHeaderRejectsRoundsAboveUpdatedMaximum() {
+        let compositeKey = Data(repeating: 0x11, count: 32)
+        let header = KDBXParser.LegacyHeader(
+            formatVersion: .kdbx3_1,
+            cipherID: Data(),
+            compressionFlags: 0,
+            masterSeed: Data(repeating: 0x22, count: 32),
+            transformSeed: Data(repeating: 0x33, count: 32),
+            transformRounds: KDBXParser.aesKDFMaxRounds + 1,
+            encryptionIV: Data(),
+            protectedStreamKey: Data(),
+            streamStartBytes: Data(),
+            innerRandomStreamID: 0,
+            headerData: Data(),
+            payloadOffset: 0
+        )
+
+        XCTAssertThrowsError(
+            try KDBXParser.deriveKDBX3MasterKey(compositeKey: compositeKey, header: header)
+        ) { error in
+            guard case KDBXParser.ParseError.kdfParameterOutOfRange(let message) = error else {
+                XCTFail("Expected kdfParameterOutOfRange, got \(error)")
+                return
+            }
+            XCTAssertEqual(
+                message,
+                "rounds \(KDBXParser.aesKDFMaxRounds + 1) not in 1...\(KDBXParser.aesKDFMaxRounds)"
+            )
+        }
+    }
+
     func testArgon2idVariantMapDerivesKey() throws {
         let compositeKey = Data((0..<32).map(UInt8.init))
         let salt = Data(repeating: 0xCC, count: 32)

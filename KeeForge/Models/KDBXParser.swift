@@ -23,6 +23,7 @@ enum KDBXParser {
                                     0xB2, 0x3D, 0xFC, 0x3E, 0xC6, 0xF0, 0xA1, 0xE6])
     static let aesKDFUUID = Data([0xC9, 0xD9, 0xF3, 0x9A, 0x62, 0x8A, 0x44, 0x60,
                                   0xBF, 0x74, 0x0D, 0x08, 0xC1, 0x8A, 0x4F, 0xEA])
+    static let aesKDFMaxRounds: UInt64 = 100_000_000
 
     // Inner random stream IDs
     static let innerStreamNone: UInt32 = 0
@@ -526,8 +527,8 @@ enum KDBXParser {
                 throw KDBXCrypto.CryptoError.unsupportedKDF(KDFDescriptor(identifier: "missing salt", displayName: "AES-KDF"))
             }
             let rounds = (kdfParams["R"] as? UInt64) ?? 0
-            guard rounds >= 1, rounds <= 10_000_000 else {
-                throw ParseError.kdfParameterOutOfRange("rounds \(rounds) not in 1...10000000")
+            guard rounds >= 1, rounds <= aesKDFMaxRounds else {
+                throw ParseError.kdfParameterOutOfRange("rounds \(rounds) not in 1...\(aesKDFMaxRounds)")
             }
             return try KDBXCrypto.transformKeyAESKDF(compositeKey: compositeKey, seed: seed, rounds: rounds)
         }

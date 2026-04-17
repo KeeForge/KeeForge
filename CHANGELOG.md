@@ -9,6 +9,9 @@
 
 ## Unreleased
 
+### Fixes
+- Raise the AES-KDF transform-rounds compatibility limit to `100,000,000` so KeeForge accepts databases created with higher KeePassium- and KeePassXC-style settings
+
 ## v1.8.1 (2026-04-16)
 
 ### New Features

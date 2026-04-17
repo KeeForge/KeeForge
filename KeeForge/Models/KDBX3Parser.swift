@@ -35,8 +35,8 @@ extension KDBXParser {
         compositeKey: Data,
         header: LegacyHeader
     ) throws -> Data {
-        guard header.transformRounds >= 1, header.transformRounds <= 10_000_000 else {
-            throw ParseError.kdfParameterOutOfRange("rounds \(header.transformRounds) not in 1...10000000")
+        guard header.transformRounds >= 1, header.transformRounds <= aesKDFMaxRounds else {
+            throw ParseError.kdfParameterOutOfRange("rounds \(header.transformRounds) not in 1...\(aesKDFMaxRounds)")
         }
 
         let transformedKey = try KDBXCrypto.transformKeyAESKDF(
