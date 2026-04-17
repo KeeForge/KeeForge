@@ -27,16 +27,29 @@ Entry point for coding agents working on KeeForge. This file is intentionally br
 
 ## Repo-Wide Rules
 
+### Coding Styles
+
 - Use `@Observable`, not `ObservableObject` / `@Published`.
 - Use `NavigationStack` + `NavigationPath`, not `NavigationView`.
 - Keep crypto, parsing, and secret handling off the main thread.
 - Treat `KeeForge/Models/KDBXParser.swift`, `KeeForge/Models/KDBXWriter.swift`, `KeeForge/Models/KDBXCrypto.swift`, `KeeForge/Models/DatabaseDraft.swift`, `KeeForge/Models/Entry.swift`, `KeeForge/Models/Group.swift`, `KeeForge/Models/EncryptedValue.swift`, and `KeeForge/Models/TOTPGenerator.swift` as stable core. Change them only for real bugs or intentional format/security work, and add focused tests.
 - No force unwraps outside tests.
+
+### Workflows
+
 - If you add, remove, or retarget source files, update `project.yml` and run `xcodegen generate`.
 - When changing code shared with `AutoFillExtension`, keep extension-safe imports/APIs and target membership in sync.
-- Local save currently supports local/bookmark-backed databases and shared cached copies; cloud save is still intentionally unimplemented.
 - Preserve accessibility identifiers or update the relevant UI tests in the same change.
+- Do not use MCP tools to run Xcode tests. Start a fresh `bash` session and run the test command there instead.
 - Update `CHANGELOG.md` for feature or bug-fix commits. Add entries only under `## Unreleased`. It's okay to skip if the bug fix is for an unreleased feature.
+
+### Research Notes
+
+- When asked for reference implementations, consult `https://github.com/keepassium/keepassium` and `https://github.com/strongbox-password-safe/Strongbox`.
+
+### Version Control Notes
+
+- Prefer committing on the current branch, or on `main` if already there. Avoid creating new branches when possible, and push directly instead of waiting for a separate branch workflow.
 
 ## Build And Test
 
