@@ -404,7 +404,7 @@ final class DatabaseViewModel {
             let compositeKey = KDBXCrypto.compositeKey(password: password, keyFileData: keyFileData)
             let sessionKey = SymmetricKey(size: .bits256)
 
-            let unlockPayload = try await Task.detached {
+            let unlockPayload = try await Task.detached(priority: .userInitiated) {
                 let parsed = try KDBXParser.parseWithMetaAndHeader(
                     data: data,
                     compositeKey: compositeKey,
@@ -438,7 +438,7 @@ final class DatabaseViewModel {
             try cacheDatabaseCopy(data)
             let sessionKey = SymmetricKey(size: .bits256)
 
-            let unlockPayload = try await Task.detached {
+            let unlockPayload = try await Task.detached(priority: .userInitiated) {
                 let parsed = try KDBXParser.parseWithMetaAndHeader(
                     data: data,
                     compositeKey: compositeKey,

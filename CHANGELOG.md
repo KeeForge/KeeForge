@@ -9,6 +9,9 @@
 
 ## Unreleased
 
+### Fixes
+- Speed up AES-KDF database unlocks so KDBX 4 files with very high transform rounds no longer appear stuck on the decrypting step
+
 ## v1.8.1 (2026-04-16)
 
 ### New Features

@@ -152,42 +152,91 @@ enum KDBXCrypto {
             throw CryptoError.invalidKey
         }
 
-        var left = compositeKey.prefix(16)
-        var right = compositeKey.suffix(16)
+        var input = [UInt8](compositeKey)
+        var output = [UInt8](repeating: 0, count: input.count)
+        let keyBytes = [UInt8](seed)
+        let cryptor = try makeAESECBEncryptor(key: keyBytes)
+        defer { CCCryptorRelease(cryptor) }
 
         for _ in 0..<rounds {
-            left = try aesECBEncryptBlock(left, key: seed)
-            right = try aesECBEncryptBlock(right, key: seed)
+            var bytesMoved = 0
+            let blockByteCount = input.count
+            let status = input.withUnsafeBytes { inputPtr in
+                output.withUnsafeMutableBytes { outputPtr in
+                    CCCryptorUpdate(
+                        cryptor,
+                        inputPtr.baseAddress,
+                        blockByteCount,
+                        outputPtr.baseAddress,
+                        blockByteCount,
+                        &bytesMoved
+                    )
+                }
+            }
+
+            guard status == kCCSuccess, bytesMoved == blockByteCount else {
+                throw CryptoError.encryptionFailed
+            }
+
+            swap(&input, &output)
         }
 
-        return sha256(Data(left + right))
+        return sha256(Data(input))
+    }
+
+    private static func makeAESECBEncryptor(key: [UInt8]) throws -> CCCryptorRef {
+        guard key.count == kCCKeySizeAES256 else {
+            throw CryptoError.invalidKey
+        }
+
+        var cryptor: CCCryptorRef?
+        let status = key.withUnsafeBytes { keyPtr in
+            CCCryptorCreateWithMode(
+                CCOperation(kCCEncrypt),
+                CCMode(kCCModeECB),
+                CCAlgorithm(kCCAlgorithmAES),
+                CCPadding(ccNoPadding),
+                nil,
+                keyPtr.baseAddress,
+                key.count,
+                nil,
+                0,
+                0,
+                CCModeOptions(),
+                &cryptor
+            )
+        }
+
+        guard status == kCCSuccess, let cryptor else {
+            throw CryptoError.encryptionFailed
+        }
+
+        return cryptor
     }
 
     private static func aesECBEncryptBlock(_ block: some DataProtocol, key: some DataProtocol) throws -> Data {
         let blockData = Data(block)
-        let keyData = Data(key)
-        guard blockData.count == kCCBlockSizeAES128, keyData.count == kCCKeySizeAES256 else {
+        guard blockData.count == kCCBlockSizeAES128 else {
             throw CryptoError.invalidKey
         }
 
-        let outLength = kCCBlockSizeAES128
-        var outData = Data(count: outLength)
-        var bytesWritten: Int = 0
+        let cryptor = try makeAESECBEncryptor(key: [UInt8](key))
+        defer { CCCryptorRelease(cryptor) }
 
-        let status = outData.withUnsafeMutableBytes { outPtr in
-            blockData.withUnsafeBytes { dataPtr in
-                keyData.withUnsafeBytes { keyPtr in
-                    CCCrypt(
-                        CCOperation(kCCEncrypt),
-                        CCAlgorithm(kCCAlgorithmAES),
-                        CCOptions(kCCOptionECBMode),
-                        keyPtr.baseAddress, keyData.count,
-                        nil,
-                        dataPtr.baseAddress, blockData.count,
-                        outPtr.baseAddress, outLength,
-                        &bytesWritten
-                    )
-                }
+        var outData = Data(count: kCCBlockSizeAES128)
+        var bytesWritten = 0
+        let outLength = outData.count
+
+        let status = blockData.withUnsafeBytes { dataPtr in
+            outData.withUnsafeMutableBytes { outPtr in
+                CCCryptorUpdate(
+                    cryptor,
+                    dataPtr.baseAddress,
+                    blockData.count,
+                    outPtr.baseAddress,
+                    outLength,
+                    &bytesWritten
+                )
             }
         }
 

@@ -1,4 +1,5 @@
 import CryptoKit
+import CommonCrypto
 import XCTest
 @testable import KeeForge
 
@@ -406,6 +407,29 @@ final class KDBXParserTests: XCTestCase {
         )
     }
 
+    func testAESKDFMatchesReferenceImplementationAcrossRoundCounts() throws {
+        let compositeKey = Data((0..<32).map(UInt8.init))
+        let seed = Data((32..<64).map(UInt8.init))
+
+        for rounds in [1, 2, 11, 257] {
+            let derived = try KDBXCrypto.transformKeyAESKDF(
+                compositeKey: compositeKey,
+                seed: seed,
+                rounds: UInt64(rounds)
+            )
+
+            XCTAssertEqual(
+                derived,
+                try referenceAESKDFTransform(
+                    compositeKey: compositeKey,
+                    seed: seed,
+                    rounds: UInt64(rounds)
+                ),
+                "Mismatch at rounds=\(rounds)"
+            )
+        }
+    }
+
     func testUnsupportedKDFErrorUsesFriendlyName() {
         let descriptor = KDFDescriptor(identifier: "c9d9f39a628a4460bf740d08c18a4fea", displayName: "AES-KDF")
         let error = KDBXCrypto.CryptoError.unsupportedKDF(descriptor)
@@ -466,6 +490,56 @@ final class KDBXParserTests: XCTestCase {
     private func parseFixture() throws -> KPGroup {
         let data = try fixtureData()
         return try KDBXParser.parse(data: data, password: fixturePassword, sessionKey: testSessionKey)
+    }
+
+    private func referenceAESKDFTransform(compositeKey: Data, seed: Data, rounds: UInt64) throws -> Data {
+        var left = compositeKey.prefix(16)
+        var right = compositeKey.suffix(16)
+
+        for _ in 0..<rounds {
+            left = try referenceAESECBEncryptBlock(left, key: seed)
+            right = try referenceAESECBEncryptBlock(right, key: seed)
+        }
+
+        return KDBXCrypto.sha256(Data(left + right))
+    }
+
+    private func referenceAESECBEncryptBlock(_ block: some DataProtocol, key: some DataProtocol) throws -> Data {
+        let blockData = Data(block)
+        let keyData = Data(key)
+        guard blockData.count == kCCBlockSizeAES128, keyData.count == kCCKeySizeAES256 else {
+            throw KDBXCrypto.CryptoError.invalidKey
+        }
+
+        var outData = Data(count: kCCBlockSizeAES128)
+        let outLength = outData.count
+        var bytesWritten = 0
+
+        let status = outData.withUnsafeMutableBytes { outPtr in
+            blockData.withUnsafeBytes { dataPtr in
+                keyData.withUnsafeBytes { keyPtr in
+                    CCCrypt(
+                        CCOperation(kCCEncrypt),
+                        CCAlgorithm(kCCAlgorithmAES),
+                        CCOptions(kCCOptionECBMode),
+                        keyPtr.baseAddress,
+                        keyData.count,
+                        nil,
+                        dataPtr.baseAddress,
+                        blockData.count,
+                        outPtr.baseAddress,
+                        outLength,
+                        &bytesWritten
+                    )
+                }
+            }
+        }
+
+        guard status == kCCSuccess, bytesWritten == kCCBlockSizeAES128 else {
+            throw KDBXCrypto.CryptoError.encryptionFailed
+        }
+
+        return outData
     }
 
     private func fixtureData() throws -> Data {
