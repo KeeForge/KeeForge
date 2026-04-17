@@ -152,36 +152,47 @@ enum KDBXCrypto {
             throw CryptoError.invalidKey
         }
 
-        var input = [UInt8](compositeKey)
-        var output = [UInt8](repeating: 0, count: input.count)
+        var derived = [UInt8](compositeKey)
         let keyBytes = [UInt8](seed)
         let cryptor = try makeAESECBEncryptor(key: keyBytes)
         defer { CCCryptorRelease(cryptor) }
 
-        for _ in 0..<rounds {
+        let blockByteCount = derived.count
+        let updateStatus = derived.withUnsafeMutableBytes { derivedPtr in
+            var remainingRounds = rounds
             var bytesMoved = 0
-            let blockByteCount = input.count
-            let status = input.withUnsafeBytes { inputPtr in
-                output.withUnsafeMutableBytes { outputPtr in
-                    CCCryptorUpdate(
-                        cryptor,
-                        inputPtr.baseAddress,
-                        blockByteCount,
-                        outputPtr.baseAddress,
-                        blockByteCount,
-                        &bytesMoved
-                    )
+
+            while remainingRounds > 0 {
+                let status = CCCryptorUpdate(
+                    cryptor,
+                    derivedPtr.baseAddress,
+                    blockByteCount,
+                    derivedPtr.baseAddress,
+                    blockByteCount,
+                    &bytesMoved
+                )
+
+                if status != kCCSuccess || bytesMoved != blockByteCount {
+                    return status
                 }
+
+                remainingRounds -= 1
             }
 
-            guard status == kCCSuccess, bytesMoved == blockByteCount else {
-                throw CryptoError.encryptionFailed
-            }
-
-            swap(&input, &output)
+            return CCCryptorStatus(kCCSuccess)
         }
 
-        return sha256(Data(input))
+        guard updateStatus == kCCSuccess else {
+            throw CryptoError.encryptionFailed
+        }
+
+        var finalBytesMoved = 0
+        let finalStatus = CCCryptorFinal(cryptor, nil, 0, &finalBytesMoved)
+        guard finalStatus == kCCSuccess, finalBytesMoved == 0 else {
+            throw CryptoError.encryptionFailed
+        }
+
+        return sha256(Data(derived))
     }
 
     private static func makeAESECBEncryptor(key: [UInt8]) throws -> CCCryptorRef {
@@ -243,6 +254,13 @@ enum KDBXCrypto {
         guard status == kCCSuccess, bytesWritten == kCCBlockSizeAES128 else {
             throw CryptoError.encryptionFailed
         }
+
+        var finalBytesWritten = 0
+        let finalStatus = CCCryptorFinal(cryptor, nil, 0, &finalBytesWritten)
+        guard finalStatus == kCCSuccess, finalBytesWritten == 0 else {
+            throw CryptoError.encryptionFailed
+        }
+
         return outData.prefix(kCCBlockSizeAES128)
     }
 
