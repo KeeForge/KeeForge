@@ -741,7 +741,12 @@ final class KDBXParserTests: XCTestCase {
         header.append(Data(repeating: 0xBB, count: 12))
 
         // KDF Parameters field (field 11)
-        let kdfData = buildVariantMap(iterations: iterations, memory: memory, parallelism: parallelism)
+        let kdfData = buildArgon2VariantMap(
+            uuid: KDBXParser.argon2dUUID,
+            iterations: iterations,
+            memory: memory,
+            parallelism: parallelism
+        )
         header.append(11)
         header.appendLE(UInt32(kdfData.count))
         header.append(kdfData)
@@ -759,14 +764,16 @@ final class KDBXParserTests: XCTestCase {
         return result
     }
 
-    private func buildVariantMap(iterations: UInt64, memory: UInt64, parallelism: UInt32) -> Data {
+    private func buildArgon2VariantMap(
+        uuid: Data,
+        iterations: UInt64,
+        memory: UInt64,
+        parallelism: UInt32
+    ) -> Data {
         var map = Data()
         map.appendLE(UInt16(0x0100)) // version
 
-        // $UUID — Argon2d (byte array type 0x42)
-        appendVariantEntry(&map, type: 0x42, key: "$UUID",
-                           value: Data([0xEF, 0x63, 0x6D, 0xDF, 0x8C, 0x29, 0x44, 0x4B,
-                                        0x91, 0xF7, 0xA9, 0xA4, 0x03, 0xE3, 0x0A, 0x0C]))
+        appendVariantEntry(&map, type: 0x42, key: "$UUID", value: uuid)
 
         // S (salt) — byte array
         appendVariantEntry(&map, type: 0x42, key: "S", value: Data(repeating: 0xCC, count: 32))
@@ -823,6 +830,41 @@ final class KDBXParserTests: XCTestCase {
             derived.hexString,
             "f76f387e7538424a09d988e6f358824cd30d0dd35d0e8ecb1487ff6ffc1581cf"
         )
+    }
+
+    func testArgon2idVariantMapDerivesKey() throws {
+        let compositeKey = Data((0..<32).map(UInt8.init))
+        let salt = Data(repeating: 0xCC, count: 32)
+        let params: [String: Any] = [
+            "$UUID": KDBXParser.argon2idUUID,
+            "S": salt,
+            "I": UInt64(3),
+            "M": UInt64(64 * 1024 * 1024),
+            "P": UInt32(1),
+        ]
+
+        let derived = try KDBXParser.deriveKey(compositeKey: compositeKey, kdfParams: params)
+        let expected = try Argon2.hash(
+            password: compositeKey,
+            salt: salt,
+            timeCost: 3,
+            memoryCost: 64 * 1024,
+            parallelism: 1,
+            hashLength: 32,
+            variant: .id
+        )
+        let argon2d = try Argon2.hash(
+            password: compositeKey,
+            salt: salt,
+            timeCost: 3,
+            memoryCost: 64 * 1024,
+            parallelism: 1,
+            hashLength: 32,
+            variant: .d
+        )
+
+        XCTAssertEqual(derived, expected)
+        XCTAssertNotEqual(derived, argon2d)
     }
 
     private func appendVariantEntry(_ data: inout Data, type: UInt8, key: String, value: Data) {

@@ -180,6 +180,26 @@ final class KDBXWriterTests: XCTestCase {
         try assertTreesEqual(parsed, reparsed)
     }
 
+    func test_writeWithArgon2idKDF_roundTrip() throws {
+        let parsed = try parseFixture(.test)
+        var argon2idHeader = parsed.header
+        argon2idHeader.kdfParameters["$UUID"] = KDBXParser.argon2idUUID
+
+        let written = try KDBXWriter.write(
+            rootGroup: parsed.rootGroup,
+            meta: parsed.meta,
+            compositeKey: parsed.compositeKey,
+            header: argon2idHeader,
+            sessionKey: sessionKey
+        )
+
+        let fileComponents = try readWrittenFileComponents(written, compositeKey: parsed.compositeKey)
+        XCTAssertEqual(fileComponents.header.kdfParameters["$UUID"] as? Data, KDBXParser.argon2idUUID)
+
+        let reparsed = try parseWrittenFile(written, fixture: .test)
+        try assertTreesEqual(parsed, reparsed)
+    }
+
     func test_writeRoundTrip_preservesHistorySettingsAndEntryHistory() throws {
         let parsed = try parseFixture(.test)
         var meta = parsed.meta
