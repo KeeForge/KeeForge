@@ -52,6 +52,17 @@ private struct AppRootView: View {
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @State private var didResolveInitialRoute = false
 
+    private var isCompactSessionPresented: Binding<Bool> {
+        Binding(
+            get: { usesRegularLayout == false && activeDatabaseViewModel != nil },
+            set: { isPresented in
+                if isPresented == false {
+                    returnToDatabaseList()
+                }
+            }
+        )
+    }
+
     var body: some View {
         Group {
             if !didResolveInitialRoute {
@@ -62,6 +73,16 @@ private struct AppRootView: View {
         }
         .task {
             await resolveInitialRouteIfNeeded()
+        }
+        .sheet(isPresented: isCompactSessionPresented) {
+            if let activeDatabaseViewModel, usesRegularLayout == false {
+                CompactDatabaseScene(
+                    viewModel: activeDatabaseViewModel,
+                    onReturnToList: returnToDatabaseList
+                )
+                .interactiveDismissDisabled(activeDatabaseViewModel.state == .unlocking)
+                .presentationDragIndicator(.visible)
+            }
         }
         .onOpenURL { url in
             handleOpenURL(url)
@@ -90,11 +111,6 @@ private struct AppRootView: View {
                     )
                 }
             }
-        } else if let activeDatabaseViewModel {
-            CompactDatabaseScene(
-                viewModel: activeDatabaseViewModel,
-                onReturnToList: returnToDatabaseList
-            )
         } else {
             DatabaseListView(
                 viewModel: listViewModel,

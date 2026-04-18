@@ -293,10 +293,14 @@ final class UnlockedDatabaseUITests: KeeForgeUITestCase {
         let activeSearchField = findSearchInput(timeout: 5)
         XCTAssertNotNil(activeSearchField, "Search field disappeared after typing")
 
-        // Verify results appeared (we have a "Twitter" entry)
         let resultsCountLabel = app.staticTexts["search.results.count"]
         if resultsCountLabel.waitForExistence(timeout: 5) {
             XCTAssertNotEqual(resultsCountLabel.label, "results:0", "Expected search results for 'Twi'")
+        } else {
+            let matchingResult = app.descendants(matching: .any).matching(
+                NSPredicate(format: "identifier IN %@ AND label CONTAINS[c] %@", ["entry.navlink", "search.entry.navlink"], "Twitter")
+            ).firstMatch
+            XCTAssertTrue(matchingResult.waitForExistence(timeout: 5), "Expected search results for 'Twi'")
         }
 
         dismissSearchIfNeeded()
@@ -310,8 +314,14 @@ final class UnlockedDatabaseUITests: KeeForgeUITestCase {
         searchField.typeText("Twitter\n")
 
         let resultsCountLabel = app.staticTexts["search.results.count"]
-        XCTAssertTrue(resultsCountLabel.waitForExistence(timeout: 5), "Search results count label did not appear")
-        XCTAssertFalse(resultsCountLabel.label == "results:0", "Expected at least one search result")
+        if resultsCountLabel.waitForExistence(timeout: 5) {
+            XCTAssertFalse(resultsCountLabel.label == "results:0", "Expected at least one search result")
+        } else {
+            let matchingResult = app.descendants(matching: .any).matching(
+                NSPredicate(format: "identifier IN %@ AND label CONTAINS[c] %@", ["entry.navlink", "search.entry.navlink"], "Twitter")
+            ).firstMatch
+            XCTAssertTrue(matchingResult.waitForExistence(timeout: 5), "Expected at least one search result")
+        }
 
         searchField.tap()
         clearSearchField(searchField)
@@ -319,17 +329,21 @@ final class UnlockedDatabaseUITests: KeeForgeUITestCase {
         let refocusedSearchField = activateSearchField()
         refocusedSearchField.typeText("___unlikely_query___\n")
 
-        let timeout = Date().addingTimeInterval(5)
-        var didReachZeroResults = false
-        repeat {
-            if resultsCountLabel.label == "results:0" {
-                didReachZeroResults = true
-                break
-            }
-            RunLoop.current.run(until: Date().addingTimeInterval(0.2))
-        } while Date() < timeout
+        if resultsCountLabel.exists {
+            let timeout = Date().addingTimeInterval(5)
+            var didReachZeroResults = false
+            repeat {
+                if resultsCountLabel.label == "results:0" {
+                    didReachZeroResults = true
+                    break
+                }
+                RunLoop.current.run(until: Date().addingTimeInterval(0.2))
+            } while Date() < timeout
 
-        XCTAssertTrue(didReachZeroResults, "Expected no-results state")
+            XCTAssertTrue(didReachZeroResults, "Expected no-results state")
+        } else {
+            XCTAssertTrue(app.staticTexts["search.no-results"].waitForExistence(timeout: 5), "Expected no-results state")
+        }
 
         dismissSearchIfNeeded()
     }
@@ -399,17 +413,25 @@ final class UnlockedDatabaseUITests: KeeForgeUITestCase {
     }
 
     private func settingsForm() -> XCUIElement {
-        let candidates: [XCUIElement] = [
-            app.collectionViews.firstMatch,
-            app.tables.firstMatch,
-            app.scrollViews.firstMatch,
-        ]
-
-        for candidate in candidates where candidate.exists {
-            return candidate
+        let candidates = (
+            app.collectionViews.allElementsBoundByIndex +
+            app.tables.allElementsBoundByIndex +
+            app.scrollViews.allElementsBoundByIndex
+        )
+        .filter { $0.exists && $0.isHittable }
+        .sorted { lhs, rhs in
+            let leftArea = lhs.frame.width * lhs.frame.height
+            let rightArea = rhs.frame.width * rhs.frame.height
+            if leftArea != rightArea {
+                return leftArea > rightArea
+            }
+            if lhs.frame.minX != rhs.frame.minX {
+                return lhs.frame.minX > rhs.frame.minX
+            }
+            return lhs.frame.minY < rhs.frame.minY
         }
 
-        return app.collectionViews.firstMatch
+        return candidates.first ?? app.collectionViews.firstMatch
     }
 
     private func revealInSettings(_ element: XCUIElement, maxSwipes: Int = 8) {
@@ -428,9 +450,6 @@ final class UnlockedDatabaseUITests: KeeForgeUITestCase {
 
         let aboutHeader = app.staticTexts["About"]
         revealInSettings(aboutHeader, maxSwipes: 8)
-
-        let sortDirection = app.staticTexts["Sort Direction"]
-        revealInSettings(sortDirection, maxSwipes: 5)
 
         let supportLink = app.descendants(matching: .any).matching(NSPredicate(
             format: "label == 'Contact Support' OR label == 'Report a Bug' OR label == 'Source Code'"

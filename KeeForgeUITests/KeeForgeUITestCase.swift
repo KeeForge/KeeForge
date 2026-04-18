@@ -269,26 +269,43 @@ class KeeForgeUITestCase: XCTestCase {
     /// the one in a presented sheet over background views.
     private func frontmostContainer() -> XCUIElement? {
         let types: [XCUIElement.ElementType] = [.collectionView, .table, .scrollView]
+        var candidates: [XCUIElement] = []
 
-        // Prefer a hittable container (e.g. inside the presented sheet)
         for type in types {
             for element in app.descendants(matching: type).allElementsBoundByIndex
             where element.exists && element.isHittable {
-                return element
+                candidates.append(element)
             }
         }
 
+        if let preferred = candidates.sorted(by: preferredContainerOrder).first {
+            return preferred
+        }
+
         // Fall back to any existing container
-        let fallbacks: [XCUIElement] = [
-            app.collectionViews.firstMatch,
-            app.tables.firstMatch,
-            app.scrollViews.firstMatch,
-        ]
-        for candidate in fallbacks where candidate.exists {
-            return candidate
+        for type in types {
+            let existing = app.descendants(matching: type).allElementsBoundByIndex.filter(\.exists)
+            if let preferred = existing.sorted(by: preferredContainerOrder).first {
+                return preferred
+            }
         }
 
         return nil
+    }
+
+    private func preferredContainerOrder(_ lhs: XCUIElement, _ rhs: XCUIElement) -> Bool {
+        let leftArea = lhs.frame.width * lhs.frame.height
+        let rightArea = rhs.frame.width * rhs.frame.height
+
+        if leftArea != rightArea {
+            return leftArea > rightArea
+        }
+
+        if lhs.frame.minX != rhs.frame.minX {
+            return lhs.frame.minX > rhs.frame.minX
+        }
+
+        return lhs.frame.minY < rhs.frame.minY
     }
 
     @discardableResult
@@ -358,14 +375,17 @@ class KeeForgeUITestCase: XCTestCase {
     }
 
     private func firstHittableNavigationLink(identifier: String) -> XCUIElement? {
-        let query: XCUIElementQuery
-        if let container = currentListContainer() {
-            query = container.descendants(matching: .any).matching(identifier: identifier)
-        } else {
-            query = app.descendants(matching: .any).matching(identifier: identifier)
-        }
-
-        return query.allElementsBoundByIndex.first(where: { $0.exists && $0.isHittable })
+        app.descendants(matching: .any)
+            .matching(identifier: identifier)
+            .allElementsBoundByIndex
+            .filter { $0.exists && $0.isHittable }
+            .sorted { lhs, rhs in
+                if lhs.frame.minX != rhs.frame.minX {
+                    return lhs.frame.minX > rhs.frame.minX
+                }
+                return lhs.frame.minY < rhs.frame.minY
+            }
+            .first
     }
 
     private func waitForHittableNavigationLink(identifier: String, timeout: TimeInterval) -> XCUIElement? {
@@ -406,10 +426,15 @@ class KeeForgeUITestCase: XCTestCase {
     private func findNonEmptyGroup(timeout: TimeInterval = 3) -> XCUIElement? {
         let deadline = Date().addingTimeInterval(timeout)
         repeat {
-            // Search all element types — NavigationLink may render as button or cell
             let groups = app.descendants(matching: .any).matching(identifier: "group.navlink")
                 .allElementsBoundByIndex
                 .filter { $0.exists && $0.isHittable }
+                .sorted { lhs, rhs in
+                    if lhs.frame.minX != rhs.frame.minX {
+                        return lhs.frame.minX > rhs.frame.minX
+                    }
+                    return lhs.frame.minY < rhs.frame.minY
+                }
             // Prefer groups that don't say "0 entries"
             if let nonEmpty = groups.first(where: { !$0.label.contains("0 entries") }) {
                 return nonEmpty

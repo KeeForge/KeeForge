@@ -12,6 +12,7 @@ struct GroupListView: View {
 
     let groupID: UUID
     @Bindable var viewModel: DatabaseViewModel
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @State private var showSettings = false
     @State private var activeEditor: EntryEditViewModel?
     @State private var pendingEntryDeletion: PendingEntryDeletion?
@@ -30,6 +31,10 @@ struct GroupListView: View {
 
     private var isRecycleBin: Bool {
         viewModel.currentRootGroup?.recycleBinUUID == groupID
+    }
+
+    private var showsCompactLockButton: Bool {
+        horizontalSizeClass == .compact
     }
 
     var body: some View {
@@ -92,6 +97,15 @@ struct GroupListView: View {
                     .navigationTitle(resolvedGroup.name)
                     .navigationBarTitleDisplayMode(.large)
                     .toolbar {
+                        if showsCompactLockButton {
+                            ToolbarItem(placement: .topBarLeading) {
+                                Button("Lock") {
+                                    viewModel.lockRequest(manuallyTriggered: true)
+                                }
+                                .accessibilityIdentifier("lock.button")
+                            }
+                        }
+
                         ToolbarItem(placement: .topBarTrailing) {
                             HStack(spacing: 12) {
                                 if viewModel.isReadOnly {
@@ -114,12 +128,14 @@ struct GroupListView: View {
                                     .accessibilityIdentifier("entry-list.add-entry")
                                 }
 
-                                Button {
-                                    viewModel.lockRequest(manuallyTriggered: true)
-                                } label: {
-                                    Image(systemName: "lock")
+                                if showsCompactLockButton == false {
+                                    Button {
+                                        viewModel.lockRequest(manuallyTriggered: true)
+                                    } label: {
+                                        Image(systemName: "lock")
+                                    }
+                                    .accessibilityIdentifier("lock.button")
                                 }
-                                .accessibilityIdentifier("lock.button")
 
                                 Menu {
                                     Picker("Sort By", selection: $viewModel.sortOrder) {

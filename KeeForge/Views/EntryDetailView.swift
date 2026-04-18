@@ -5,6 +5,7 @@ struct EntryDetailView: View {
     let entryID: UUID
     @Bindable var viewModel: DatabaseViewModel
     var onClose: () -> Void = {}
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @Environment(\.dismiss) private var dismiss
     @State private var activeEditor: EntryEditViewModel?
 
@@ -14,6 +15,10 @@ struct EntryDetailView: View {
 
     private var sessionKey: SymmetricKey? {
         viewModel.sessionKey
+    }
+
+    private var showsCompactLockButton: Bool {
+        horizontalSizeClass == .compact
     }
 
     var body: some View {
@@ -98,6 +103,15 @@ struct EntryDetailView: View {
                 .navigationTitle(entry.title)
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
+                    if showsCompactLockButton {
+                        ToolbarItem(placement: .topBarLeading) {
+                            Button("Lock") {
+                                viewModel.lockRequest(manuallyTriggered: true)
+                            }
+                            .accessibilityIdentifier("lock.button")
+                        }
+                    }
+
                     ToolbarItem(placement: .topBarTrailing) {
                         HStack(spacing: 12) {
                             if viewModel.isReadOnly {
