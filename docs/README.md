@@ -18,5 +18,6 @@ Open this folder when the code alone is not enough and you need the longer-form 
 ## Guidance
 
 - Treat these docs as intent and spec context, not guaranteed truth. Confirm against current code before changing behavior.
+- The current app uses an adaptive navigation shell: compact layouts move into a full-screen vault flow, and regular-width layouts keep the database list visible beside the selected vault. Older specs may still describe the previous sheet-based flow.
 - If a code change supersedes one of these documents, update the doc or leave a note so future agents do not chase stale assumptions.
 - The edit-support specs are staged by slice; some later slices describe planned work rather than shipped behavior, so confirm against the current code before implementing them.

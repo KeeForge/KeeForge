@@ -49,46 +49,62 @@ struct KeeForgeApp: App {
 private struct AppRootView: View {
     @Bindable var listViewModel: DatabaseListViewModel
     @Binding var activeDatabaseViewModel: DatabaseViewModel?
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @State private var didResolveInitialRoute = false
-
-    private var isPresented: Binding<Bool> {
-        Binding(
-            get: { activeDatabaseViewModel != nil },
-            set: { isPresented in
-                if !isPresented {
-                    returnToDatabaseList()
-                }
-            }
-        )
-    }
 
     var body: some View {
         Group {
             if !didResolveInitialRoute {
                 LaunchRoutingView()
             } else {
-                DatabaseListView(
-                    viewModel: listViewModel,
-                    onSelectDatabase: openDatabase
-                )
+                rootContent
             }
         }
         .task {
             await resolveInitialRouteIfNeeded()
         }
-        .sheet(isPresented: isPresented) {
-            if let activeDatabaseViewModel {
-                ActiveDatabaseScene(
-                    viewModel: activeDatabaseViewModel,
-                    onReturnToList: returnToDatabaseList
-                )
-                .interactiveDismissDisabled(activeDatabaseViewModel.state == .unlocking)
-                .presentationDragIndicator(.visible)
-            }
-        }
         .onOpenURL { url in
             handleOpenURL(url)
         }
+    }
+
+    @ViewBuilder
+    private var rootContent: some View {
+        if usesRegularLayout {
+            NavigationSplitView {
+                DatabaseListView(
+                    viewModel: listViewModel,
+                    onSelectDatabase: openDatabase
+                )
+            } detail: {
+                if let activeDatabaseViewModel {
+                    RegularDatabaseScene(
+                        viewModel: activeDatabaseViewModel,
+                        onReturnToList: returnToDatabaseList
+                    )
+                } else {
+                    ContentUnavailableView(
+                        "Select a Database",
+                        systemImage: "externaldrive.connected.to.line.below",
+                        description: Text("Choose a database from the sidebar to unlock and browse it.")
+                    )
+                }
+            }
+        } else if let activeDatabaseViewModel {
+            CompactDatabaseScene(
+                viewModel: activeDatabaseViewModel,
+                onReturnToList: returnToDatabaseList
+            )
+        } else {
+            DatabaseListView(
+                viewModel: listViewModel,
+                onSelectDatabase: openDatabase
+            )
+        }
+    }
+
+    private var usesRegularLayout: Bool {
+        horizontalSizeClass == .regular
     }
 
     private func resolveInitialRouteIfNeeded() async {
@@ -114,11 +130,6 @@ private struct AppRootView: View {
             return
         }
 
-        // If already viewing a database, dismiss it first
-        if activeDatabaseViewModel != nil {
-            activeDatabaseViewModel = nil
-        }
-
         do {
             let reference = try listViewModel.addDatabase(from: url)
             openDatabase(reference)
@@ -136,7 +147,7 @@ private struct AppRootView: View {
     }
 }
 
-private struct ActiveDatabaseScene: View {
+private struct CompactDatabaseScene: View {
     @Bindable var viewModel: DatabaseViewModel
     let onReturnToList: () -> Void
 
@@ -193,6 +204,81 @@ private struct ActiveDatabaseScene: View {
                 onReturnToList()
             }
         }
+        .onAppear {
+            attemptAutoUnlockIfNeeded()
+        }
+        .onChange(of: viewModel.lockCycleID) { _, _ in
+            attemptAutoUnlockIfNeeded()
+        }
+        .onChange(of: viewModel.canUseBiometrics) { _, _ in
+            attemptAutoUnlockIfNeeded()
+        }
+    }
+
+    private var shouldShowAutoUnlockOpeningView: Bool {
+        guard SettingsService.autoUnlockWithFaceID else { return false }
+        guard viewModel.hasSavedFile else { return false }
+        guard viewModel.canUseBiometrics else { return false }
+        guard !viewModel.didManuallyLock else { return false }
+        guard case .locked = viewModel.state else { return false }
+        return true
+    }
+
+    private func attemptAutoUnlockIfNeeded() {
+        guard shouldShowAutoUnlockOpeningView else { return }
+        guard autoUnlockAttemptedLockCycle != viewModel.lockCycleID else { return }
+
+        autoUnlockAttemptedLockCycle = viewModel.lockCycleID
+
+        Task {
+            await viewModel.unlockWithBiometrics()
+        }
+    }
+}
+
+private struct RegularDatabaseScene: View {
+    @Bindable var viewModel: DatabaseViewModel
+    let onReturnToList: () -> Void
+
+    @State private var autoUnlockAttemptedLockCycle: Int?
+
+    var body: some View {
+        Group {
+            switch viewModel.state {
+            case .locked:
+                if shouldShowAutoUnlockOpeningView {
+                    DatabaseOpeningView(
+                        databaseName: viewModel.databaseDisplayName,
+                        statusMessage: viewModel.unlockStatusMessage,
+                        progress: viewModel.cloudSyncProgress
+                    )
+                    .transition(.opacity)
+                } else {
+                    UnlockView(
+                        viewModel: viewModel,
+                        onBackToDatabaseList: onReturnToList
+                    )
+                    .transition(.opacity)
+                }
+            case .error:
+                UnlockView(
+                    viewModel: viewModel,
+                    onBackToDatabaseList: onReturnToList
+                )
+                .transition(.opacity)
+            case .unlocking:
+                DatabaseOpeningView(
+                    databaseName: viewModel.databaseDisplayName,
+                    statusMessage: viewModel.unlockStatusMessage,
+                    progress: viewModel.cloudSyncProgress
+                )
+                .transition(.opacity)
+            case .unlocked:
+                RegularDatabaseWorkspaceView(viewModel: viewModel)
+                    .transition(.opacity)
+            }
+        }
+        .animation(.easeInOut(duration: 0.25), value: viewModel.state)
         .onAppear {
             attemptAutoUnlockIfNeeded()
         }
@@ -373,7 +459,7 @@ struct DatabaseNavigationView: View {
     }
 }
 
-private struct DatabaseSavingOverlay: View {
+struct DatabaseSavingOverlay: View {
     var body: some View {
         ZStack {
             Color.black.opacity(0.16)
@@ -406,7 +492,7 @@ private struct DatabaseSavingOverlay: View {
     }
 }
 
-private struct UnsavedChangesBanner: View {
+struct UnsavedChangesBanner: View {
     @Bindable var viewModel: DatabaseViewModel
 
     var body: some View {
@@ -436,7 +522,7 @@ private struct UnsavedChangesBanner: View {
     }
 }
 
-private struct CloudReauthBanner: View {
+struct CloudReauthBanner: View {
     let isReconnectInFlight: Bool
     let onReconnect: () -> Void
 
@@ -464,7 +550,7 @@ private struct CloudReauthBanner: View {
     }
 }
 
-private struct BannerLabel: View {
+struct BannerLabel: View {
     let text: String
     let systemImage: String
     let foregroundStyle: Color

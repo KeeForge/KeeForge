@@ -30,7 +30,7 @@ targets:
       base:
         INFOPLIST_FILE: KeeForge/Info.plist
         PRODUCT_BUNDLE_IDENTIFIER: com.keevault.app
-        TARGETED_DEVICE_FAMILY: "1"
+        TARGETED_DEVICE_FAMILY: "1,2"
         ASSETCATALOG_COMPILER_APPICON_NAME: KeeForge
         CODE_SIGN_STYLE: Automatic
         CODE_SIGN_ENTITLEMENTS: KeeForge/KeeForge.entitlements

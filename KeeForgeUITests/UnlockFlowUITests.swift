@@ -2,6 +2,13 @@ import XCTest
 
 @MainActor
 final class UnlockFlowUITests: KeeForgeUITestCase {
+    override var databaseFixtures: [DatabaseFixture] {
+        [
+            DatabaseFixture(resourceName: "test", injectedFilename: "test-primary.kdbx"),
+            DatabaseFixture(resourceName: "test", injectedFilename: "test-secondary.kdbx"),
+        ]
+    }
+
     func testUnlockShowsErrorForWrongPassword() {
         unlock(password: "wrong-password")
         XCTAssertTrue(app.staticTexts["unlock.error.label"].waitForExistence(timeout: 10))

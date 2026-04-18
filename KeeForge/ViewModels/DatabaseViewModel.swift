@@ -197,6 +197,17 @@ final class DatabaseViewModel {
     var navigationPath = NavigationPath() {
         didSet { resetInactivityTimer() }
     }
+    var selectedGroupID: UUID? {
+        didSet {
+            if oldValue != selectedGroupID {
+                selectedEntryID = nil
+            }
+            resetInactivityTimer()
+        }
+    }
+    var selectedEntryID: UUID? {
+        didSet { resetInactivityTimer() }
+    }
     var sortOrder: SortOrder {
         didSet { Self.persistSortOrder(sortOrder) }
     }
@@ -339,6 +350,11 @@ final class DatabaseViewModel {
 
     var currentRootGroup: KPGroup? {
         draft?.rootGroup ?? rootGroup
+    }
+
+    var visibleRootGroup: KPGroup? {
+        guard let visibleRootGroupID else { return nil }
+        return group(withID: visibleRootGroupID)
     }
 
     /// The group ID to display at the top level of the navigation stack.
@@ -548,6 +564,8 @@ final class DatabaseViewModel {
             : Self.decryptingStatusMessage
         searchText = ""
         navigationPath = NavigationPath()
+        selectedGroupID = nil
+        selectedEntryID = nil
     }
 
     func lockRequest(force: Bool = false, manuallyTriggered: Bool = false) {
@@ -670,6 +688,8 @@ final class DatabaseViewModel {
         navigationPath = NavigationPath()
         searchText = ""
         isSearchActive = false
+        selectedGroupID = nil
+        selectedEntryID = nil
         state = .unlocking
         cloudSyncProgress = nil
         unlockStatusMessage = databaseReference.isCloudBacked
@@ -690,7 +710,16 @@ final class DatabaseViewModel {
         failedAttempts = 0
         lockoutUntil = nil
         state = .unlocked
+        synchronizeSelections()
         startInactivityTimer()
+    }
+
+    func selectGroup(_ groupID: UUID?) {
+        selectedGroupID = groupID
+    }
+
+    func selectEntry(_ entryID: UUID?) {
+        selectedEntryID = entryID
     }
 
     func setReadOnly(_ isReadOnly: Bool) {
@@ -945,6 +974,8 @@ final class DatabaseViewModel {
             searchableEntryText = [:]
             recycleBinEntryIDs = []
             searchResults = []
+            selectedGroupID = nil
+            selectedEntryID = nil
             return
         }
 
@@ -989,6 +1020,7 @@ final class DatabaseViewModel {
         searchableEntries = nextSearchableEntries
         searchableEntryText = nextSearchableEntryText
         recycleBinEntryIDs = nextRecycleBinEntryIDs
+        synchronizeSelections()
         updateSearchResults()
     }
 
@@ -1002,6 +1034,24 @@ final class DatabaseViewModel {
         let query = trimmedQuery.lowercased()
         searchResults = searchableEntries.filter { entry in
             searchableEntryText[entry.id]?.contains(query) == true
+        }
+    }
+
+    private func synchronizeSelections() {
+        guard let visibleRootGroupID else {
+            selectedGroupID = nil
+            selectedEntryID = nil
+            return
+        }
+
+        if let selectedGroupID, groupIndex[selectedGroupID] == nil {
+            self.selectedGroupID = visibleRootGroupID
+        } else if selectedGroupID == nil {
+            selectedGroupID = visibleRootGroupID
+        }
+
+        if let selectedEntryID, entryIndex[selectedEntryID] == nil {
+            self.selectedEntryID = nil
         }
     }
 
@@ -1042,6 +1092,7 @@ final class DatabaseViewModel {
         self.failedAttempts = 0
         self.lockoutUntil = nil
         self.state = .unlocked
+        synchronizeSelections()
         startInactivityTimer()
 
         persistCompositeKeyForBiometricUnlock(compositeKey)

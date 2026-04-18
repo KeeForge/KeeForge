@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+### New Features
+- Add adaptive iPad layout support with a persistent sidebar, regular-width vault workspace, and a non-modal iPhone vault flow
+
 ## v1.8.1 (2026-04-16)
 
 ### New Features

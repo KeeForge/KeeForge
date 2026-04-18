@@ -4,6 +4,7 @@ import SwiftUI
 struct EntryDetailView: View {
     let entryID: UUID
     @Bindable var viewModel: DatabaseViewModel
+    var onClose: () -> Void = {}
     @Environment(\.dismiss) private var dismiss
     @State private var activeEditor: EntryEditViewModel?
 
@@ -126,6 +127,7 @@ struct EntryDetailView: View {
                     ) { completion in
                         activeEditor = nil
                         if completion == .deleted {
+                            onClose()
                             dismiss()
                         }
                     }
@@ -137,6 +139,7 @@ struct EntryDetailView: View {
                     description: Text("This entry no longer exists in the current draft.")
                 )
                 .onAppear {
+                    onClose()
                     dismiss()
                 }
             }

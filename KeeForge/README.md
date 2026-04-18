@@ -15,7 +15,8 @@ Use this folder as the main map for the app target. The subfolder READMEs hold t
 ## Cross-Cutting Flows
 
 - Database list flow: `App/KeeForgeApp.swift` creates `DatabaseListViewModel`, which reads and mutates persisted database references through `Services/Persistence/DatabaseListStore.swift`.
-- Unlock flow: `Views/UnlockView.swift` drives `ViewModels/DatabaseViewModel.swift`, which resolves the database file, derives the composite key, parses via `Models/KDBXParser.swift`, and stores a per-session `SymmetricKey`.
+- Unlock flow: `Views/UnlockView.swift` and the adaptive root shell in `App/KeeForgeApp.swift` drive `ViewModels/DatabaseViewModel.swift`, which resolves the database file, derives the composite key, parses via `Models/KDBXParser.swift`, and stores a per-session `SymmetricKey`.
+- Adaptive navigation flow: compact layouts push from the database list into one active database session, while regular-width layouts keep the list visible and render the selected session in a dedicated workspace.
 - Local edit/save flow: `ViewModels/DatabaseViewModel.swift` stages changes in `Models/DatabaseDraft.swift`, reuses `Models/KDBXWriter.swift` for encryption, and saves local files through `Services/Persistence/LocalDatabaseSaver.swift` with conflict checks, backups, and shared-cache refresh.
 - Entry editing flow: `Views/EntryEditView.swift` and `ViewModels/EntryEditViewModel.swift` drive create/edit/delete entry drafts from the unlocked database UI, while `Views/PasswordGeneratorSheet.swift` and `Services/AutoFill/PasswordGenerator.swift` provide the reusable strong-password generator surface.
 - Cloud database flow: cloud-backed `Models/DatabaseReference.swift` values carry `CloudSyncMetadata`; `Services/Cloud/CloudSyncCoordinator.swift` decides whether to reuse cache or download before open.

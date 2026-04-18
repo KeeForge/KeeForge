@@ -2,11 +2,12 @@
 
 [![Swift LoC](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fapi.codetabs.com%2Fv1%2Floc%3Fgithub%3Dcrazytan%2FKeeForge&query=%24%5B0%5D.linesOfCode&label=swift%20loc&color=orange)](https://github.com/crazytan/KeeForge)
 
-A free, native iOS KeePass password manager built with SwiftUI. Read-only in v1 — open any `.kdbx` (KDBX 4.x) database, browse and search entries, copy credentials, and autofill into apps and Safari.
+A free, native iPhone and iPad KeePass password manager built with SwiftUI. Open `.kdbx` databases, unlock with passwords, key files, or biometrics, browse and edit entries, and AutoFill into apps and Safari.
 
 ## Features
 
 - **KDBX 4.x** — AES-256 / ChaCha20 decryption with Argon2 key derivation
+- **iPad support** — adaptive navigation keeps the database list visible on larger layouts while the selected vault opens in a regular-width workspace
 - **Composite keys** — unlock with password, key file, or both. Supports binary, hex, XML v1/v2 (`.key`/`.keyx`), and arbitrary file key formats
 - **Passkey support** — detect and authenticate with FIDO2/WebAuthn passkeys stored in KeePassXC format
 - **AutoFill** — credential provider extension works in Safari and apps. QuickType bar suggestions with Face ID
@@ -14,6 +15,7 @@ A free, native iOS KeePass password manager built with SwiftUI. Read-only in v1 
 - **Face ID / Touch ID** — biometric database unlock, auto-unlock on launch, biometric-gated password reveal/copy
 - **Search** — full-text search across all entries
 - **Sorting** — sort by title, created, or modified date; ascending or descending
+- **Entry editing** — create, edit, delete, and save entries with password generation, conflict handling, and read-only safeguards
 - **Favicons** — opt-in website icon fetching via DuckDuckGo with disk cache
 - **Security hardened** — AES-GCM in-memory secret encryption, exponential backoff on failed attempts, screen recording blur overlay, local-only clipboard, decompression bomb protection, constant-time HMAC comparison
 
@@ -40,20 +42,20 @@ Select an iOS 17+ simulator or device, then build and run.
 
 ## Usage
 
-1. Open a `.kdbx` database from Files or iCloud Drive
-2. Enter master password (and optional key file) to unlock
-3. Browse groups, search entries, copy credentials
+1. Add one or more `.kdbx` databases from Files, iCloud Drive, or supported cloud providers
+2. Select a database, then unlock with a master password, key file, biometrics, or a supported combination
+3. Browse groups and entries, search, edit, and save changes
 4. Use AutoFill in Safari and apps — credentials appear in the QuickType bar
 
 ## Project Structure
 
 ```
 KeeForge/
-├── App/              # App entry point, scene lifecycle
+├── App/              # App entry point, adaptive root shell, scene lifecycle
 ├── Models/           # KDBX parser/writer, crypto, edit draft, TOTP, passkey
 ├── Services/         # Database list persistence, local save, cloud sync, Keychain, bookmarks
 ├── ViewModels/       # DatabaseListViewModel, DatabaseViewModel, TOTPViewModel
-├── Views/            # SwiftUI views (database list, unlock, groups, entry detail, settings, tip jar)
+├── Views/            # SwiftUI views (database list, unlock, group/entry browsing, editor, settings, tip jar)
 AutoFillExtension/    # AutoFill credential provider + passkey authentication
 KeeForgeTests/        # Unit tests
 KeeForgeUITests/      # UI tests (XCUITest)
