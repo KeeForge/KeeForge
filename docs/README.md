@@ -4,6 +4,7 @@ Open this folder when the code alone is not enough and you need the longer-form 
 
 ## Good Starting Points
 
+- `competitive-gap-analysis.md` — quick comparison against Strongbox and KeePassium, plus the largest current product gaps.
 - `specs/cloud-file-autofill.md` — AutoFill behavior for cloud-hosted databases.
 - `specs/cloud-sync.md` and `specs/multi-database.md` — database list, cloud-backed databases, and sync behavior.
 - `specs/edit-support/epic.md` plus `specs/edit-support/01-xml-round-trip.md` through `07-autofill-save.md` — staged write-path design for XML round-trip, KDBX writing, draft/save flow, and pending cloud/UI/AutoFill work.

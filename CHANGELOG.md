@@ -1,12 +1,5 @@
 # Changelog
 
-### TODO
-- [ ] Support more cloud sync providers: Google Drive, OneDrive, WebDAV, etc.
-- [ ] iPad-native layout
-- [ ] Passkey creation (Phase 3 — requires KDBX write support)
-- [ ] In-app entry history viewer and restore flow
-- [ ] Sync / attachments
-
 ## Unreleased
 
 ## v1.8.1 (2026-04-16)

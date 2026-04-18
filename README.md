@@ -66,7 +66,8 @@ KeeForge collects zero data — no analytics, no telemetry, no crash reports. Al
 
 ## Docs
 
-- `CHANGELOG.md` — version history and roadmap
+- `CHANGELOG.md` — version history
+- `ROADMAP.md` — planned product work and open priorities
 - `AGENTS.md` — context for AI coding agents
 - `KeeForge/**/README.md`, `AutoFillExtension/README.md`, `KeeForgeTests/README.md`, `TestFixtures/README.md` — task-oriented folder docs for contributors and coding agents
 - `docs/` — implementation specs, security audit, privacy policy
