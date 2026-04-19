@@ -20,22 +20,19 @@ struct RegularDatabaseWorkspaceView: View {
     }
 
     var body: some View {
-        NavigationSplitView {
-            RegularGroupSidebar(viewModel: viewModel)
-        } content: {
+        HStack(spacing: 0) {
             RegularDatabaseContentColumn(
                 viewModel: viewModel,
                 pendingEntryDeletion: $pendingEntryDeletion
             )
-        } detail: {
+            .frame(minWidth: 300, idealWidth: 340, maxWidth: 360)
+
+            Divider()
+
             RegularDatabaseDetailColumn(viewModel: viewModel)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-        .navigationSplitViewStyle(.balanced)
-        .searchable(
-            text: $viewModel.searchText,
-            placement: .toolbar,
-            prompt: "Search entries"
-        )
+        .background(Color(.systemBackground))
         .toolbar {
             ToolbarItem(placement: .topBarLeading) {
                 if viewModel.isReadOnly {
@@ -44,6 +41,13 @@ struct RegularDatabaseWorkspaceView: View {
                         .accessibilityLabel("Read-only database")
                         .accessibilityIdentifier("database.read-only-indicator")
                 }
+            }
+
+            ToolbarItem(placement: .topBarTrailing) {
+                TextField("Search entries", text: $viewModel.searchText)
+                    .textFieldStyle(.roundedBorder)
+                    .frame(width: 240)
+                    .accessibilityLabel("Search entries")
             }
 
             ToolbarItemGroup(placement: .topBarTrailing) {
@@ -346,33 +350,100 @@ private struct RegularDatabaseContentColumn: View {
     }
 
     var body: some View {
-        List {
-            if viewModel.searchText.isEmpty {
-                if let selectedGroup {
-                    if visibleGroups.isEmpty == false {
-                        Section("Groups") {
-                            ForEach(viewModel.sortedGroups(visibleGroups).map(\.id), id: \.self) { subgroupID in
-                                Button {
-                                    viewModel.selectGroup(subgroupID)
-                                } label: {
-                                    GroupRow(groupID: subgroupID, viewModel: viewModel)
+        VStack(alignment: .leading, spacing: 0) {
+            RegularDatabaseContentHeader(
+                title: contentTitle,
+                subtitle: contentSubtitle
+            )
+            .padding(.horizontal, 20)
+            .padding(.top, 20)
+            .padding(.bottom, 8)
+
+            List {
+                if viewModel.searchText.isEmpty {
+                    if selectedGroup != nil {
+                        if visibleGroups.isEmpty == false {
+                            Section("Groups") {
+                                ForEach(viewModel.sortedGroups(visibleGroups).map(\.id), id: \.self) { subgroupID in
+                                    Button {
+                                        viewModel.selectGroup(subgroupID)
+                                    } label: {
+                                        GroupRow(groupID: subgroupID, viewModel: viewModel)
+                                    }
+                                    .buttonStyle(.plain)
+                                    .accessibilityIdentifier("group.navlink")
                                 }
-                                .buttonStyle(.plain)
-                                .accessibilityIdentifier("group.navlink")
                             }
                         }
-                    }
 
-                    if visibleEntries.isEmpty == false {
-                        Section("Entries") {
-                            ForEach(viewModel.sortedEntries(visibleEntries)) { entry in
+                        if visibleEntries.isEmpty == false {
+                            Section("Entries") {
+                                ForEach(viewModel.sortedEntries(visibleEntries)) { entry in
+                                    Button {
+                                        viewModel.selectEntry(entry.id)
+                                    } label: {
+                                        EntryRow(entry: entry)
+                                    }
+                                    .buttonStyle(.plain)
+                                    .accessibilityIdentifier("entry.navlink")
+                                    .contextMenu {
+                                        if viewModel.isReadOnly == false {
+                                            Button("Delete Permanently", role: .destructive) {
+                                                pendingEntryDeletion = .init(
+                                                    entryID: entry.id,
+                                                    sendToRecycleBin: false
+                                                )
+                                            }
+                                            .accessibilityIdentifier("entry-row.delete-permanent")
+                                        }
+                                    }
+                                    .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                                        if viewModel.isReadOnly == false {
+                                            Button(isRecycleBin ? "Delete Permanently" : "Delete", role: .destructive) {
+                                                pendingEntryDeletion = .init(
+                                                    entryID: entry.id,
+                                                    sendToRecycleBin: !isRecycleBin
+                                                )
+                                            }
+                                            .accessibilityIdentifier("entry-row.delete-swipe")
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        if visibleGroups.isEmpty && visibleEntries.isEmpty {
+                            ContentUnavailableView(
+                                "Empty Group",
+                                systemImage: "folder",
+                                description: Text("This group has no entries.")
+                            )
+                        }
+                    } else {
+                        ContentUnavailableView(
+                            "Group Unavailable",
+                            systemImage: "folder.badge.questionmark",
+                            description: Text("This group no longer exists in the current draft.")
+                        )
+                    }
+                } else {
+                    if viewModel.searchResults.isEmpty {
+                        ContentUnavailableView(
+                            "No Results",
+                            systemImage: "doc.text.magnifyingglass",
+                            description: Text("No entries matched \"\(viewModel.searchText)\".")
+                        )
+                        .accessibilityIdentifier("search.no-results")
+                    } else {
+                        Section("Search Results") {
+                            ForEach(viewModel.searchResults) { entry in
                                 Button {
                                     viewModel.selectEntry(entry.id)
                                 } label: {
                                     EntryRow(entry: entry)
                                 }
                                 .buttonStyle(.plain)
-                                .accessibilityIdentifier("entry.navlink")
+                                .accessibilityIdentifier("search.entry.navlink")
                                 .contextMenu {
                                     if viewModel.isReadOnly == false {
                                         Button("Delete Permanently", role: .destructive) {
@@ -386,10 +457,10 @@ private struct RegularDatabaseContentColumn: View {
                                 }
                                 .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                                     if viewModel.isReadOnly == false {
-                                        Button(isRecycleBin ? "Delete Permanently" : "Delete", role: .destructive) {
+                                        Button("Delete", role: .destructive) {
                                             pendingEntryDeletion = .init(
                                                 entryID: entry.id,
-                                                sendToRecycleBin: !isRecycleBin
+                                                sendToRecycleBin: true
                                             )
                                         }
                                         .accessibilityIdentifier("entry-row.delete-swipe")
@@ -398,68 +469,10 @@ private struct RegularDatabaseContentColumn: View {
                             }
                         }
                     }
-
-                    if visibleGroups.isEmpty && visibleEntries.isEmpty {
-                        ContentUnavailableView(
-                            "Empty Group",
-                            systemImage: "folder",
-                            description: Text("This group has no entries.")
-                        )
-                    }
-                } else {
-                    ContentUnavailableView(
-                        "Group Unavailable",
-                        systemImage: "folder.badge.questionmark",
-                        description: Text("This group no longer exists in the current draft.")
-                    )
-                }
-            } else {
-                if viewModel.searchResults.isEmpty {
-                    ContentUnavailableView(
-                        "No Results",
-                        systemImage: "doc.text.magnifyingglass",
-                        description: Text("No entries matched \"\(viewModel.searchText)\".")
-                    )
-                    .accessibilityIdentifier("search.no-results")
-                } else {
-                    Section("Search Results") {
-                        ForEach(viewModel.searchResults) { entry in
-                            Button {
-                                viewModel.selectEntry(entry.id)
-                            } label: {
-                                EntryRow(entry: entry)
-                            }
-                            .buttonStyle(.plain)
-                            .accessibilityIdentifier("search.entry.navlink")
-                            .contextMenu {
-                                if viewModel.isReadOnly == false {
-                                    Button("Delete Permanently", role: .destructive) {
-                                        pendingEntryDeletion = .init(
-                                            entryID: entry.id,
-                                            sendToRecycleBin: false
-                                        )
-                                    }
-                                    .accessibilityIdentifier("entry-row.delete-permanent")
-                                }
-                            }
-                            .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                                if viewModel.isReadOnly == false {
-                                    Button("Delete", role: .destructive) {
-                                        pendingEntryDeletion = .init(
-                                            entryID: entry.id,
-                                            sendToRecycleBin: true
-                                        )
-                                    }
-                                    .accessibilityIdentifier("entry-row.delete-swipe")
-                                }
-                            }
-                        }
-                    }
                 }
             }
+            .listStyle(.plain)
         }
-        .navigationTitle(contentTitle)
-        .navigationBarTitleDisplayMode(.large)
     }
 
     private var contentTitle: String {
@@ -467,6 +480,38 @@ private struct RegularDatabaseContentColumn: View {
             return "Search"
         }
         return selectedGroup?.name ?? "Entries"
+    }
+
+    private var contentSubtitle: String? {
+        guard viewModel.searchText.isEmpty else { return "Results" }
+        if visibleEntries.isEmpty == false {
+            return "Entries"
+        }
+        if visibleGroups.isEmpty == false {
+            return "Groups"
+        }
+        return nil
+    }
+}
+
+private struct RegularDatabaseContentHeader: View {
+    let title: String
+    let subtitle: String?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            if let subtitle {
+                Text(subtitle)
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(.secondary)
+            }
+
+            Text(title)
+                .font(.title2.weight(.semibold))
+                .foregroundStyle(.primary)
+                .lineLimit(1)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 
