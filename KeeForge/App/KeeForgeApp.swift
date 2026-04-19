@@ -52,17 +52,6 @@ private struct AppRootView: View {
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @State private var didResolveInitialRoute = false
 
-    private var isCompactSessionPresented: Binding<Bool> {
-        Binding(
-            get: { usesRegularLayout == false && activeDatabaseViewModel != nil },
-            set: { isPresented in
-                if isPresented == false {
-                    returnToDatabaseList()
-                }
-            }
-        )
-    }
-
     var body: some View {
         Group {
             if !didResolveInitialRoute {
@@ -73,16 +62,6 @@ private struct AppRootView: View {
         }
         .task {
             await resolveInitialRouteIfNeeded()
-        }
-        .sheet(isPresented: isCompactSessionPresented) {
-            if let activeDatabaseViewModel, usesRegularLayout == false {
-                CompactDatabaseScene(
-                    viewModel: activeDatabaseViewModel,
-                    onReturnToList: returnToDatabaseList
-                )
-                .interactiveDismissDisabled(activeDatabaseViewModel.state == .unlocking)
-                .presentationDragIndicator(.visible)
-            }
         }
         .onOpenURL { url in
             handleOpenURL(url)
@@ -112,10 +91,19 @@ private struct AppRootView: View {
                 }
             }
         } else {
-            DatabaseListView(
-                viewModel: listViewModel,
-                onSelectDatabase: openDatabase
-            )
+            if let activeDatabaseViewModel {
+                CompactDatabaseHost(
+                    listViewModel: listViewModel,
+                    viewModel: activeDatabaseViewModel,
+                    onSelectDatabase: openDatabase,
+                    onReturnToList: returnToDatabaseList
+                )
+            } else {
+                DatabaseListView(
+                    viewModel: listViewModel,
+                    onSelectDatabase: openDatabase
+                )
+            }
         }
     }
 
@@ -163,22 +151,83 @@ private struct AppRootView: View {
     }
 }
 
-private struct CompactDatabaseScene: View {
+private struct CompactDatabaseHost: View {
+    @Bindable var listViewModel: DatabaseListViewModel
     @Bindable var viewModel: DatabaseViewModel
+    let onSelectDatabase: (DatabaseReference) -> Void
     let onReturnToList: () -> Void
 
     @State private var hasUnlockedInThisSession = false
+
+    private var isUnlockPresented: Binding<Bool> {
+        Binding(
+            get: {
+                guard hasUnlockedInThisSession == false else { return false }
+                if case .unlocked = viewModel.state {
+                    return false
+                }
+                return true
+            },
+            set: { isPresented in
+                if isPresented == false,
+                   hasUnlockedInThisSession == false,
+                   !isVaultOpen {
+                    onReturnToList()
+                }
+            }
+        )
+    }
+
+    private var isVaultOpen: Bool {
+        if case .unlocked = viewModel.state {
+            return true
+        }
+        return false
+    }
+
+    var body: some View {
+        Group {
+            if case .unlocked = viewModel.state {
+                DatabaseNavigationView(viewModel: viewModel)
+            } else {
+                DatabaseListView(
+                    viewModel: listViewModel,
+                    onSelectDatabase: onSelectDatabase
+                )
+            }
+        }
+        .sheet(isPresented: isUnlockPresented) {
+            CompactUnlockScene(
+                viewModel: viewModel,
+                onReturnToList: onReturnToList
+            )
+            .interactiveDismissDisabled(viewModel.state == .unlocking)
+            .presentationDragIndicator(.visible)
+        }
+        .onChange(of: viewModel.state) { _, newValue in
+            if case .unlocked = newValue {
+                hasUnlockedInThisSession = true
+                return
+            }
+
+            if hasUnlockedInThisSession, case .locked = newValue {
+                onReturnToList()
+            }
+        }
+    }
+}
+
+private struct CompactUnlockScene: View {
+    @Bindable var viewModel: DatabaseViewModel
+    let onReturnToList: () -> Void
+
     @State private var autoUnlockAttemptedLockCycle: Int?
 
     var body: some View {
         Group {
             switch viewModel.state {
             case .locked:
-                if hasUnlockedInThisSession {
-                    // About to dismiss sheet — show background only to avoid
-                    // flashing UnlockView for one frame before onDismiss fires.
-                    UnlockViewBackground()
-                } else if shouldShowAutoUnlockOpeningView {
+                if shouldShowAutoUnlockOpeningView {
                     DatabaseOpeningView(
                         databaseName: viewModel.databaseDisplayName,
                         statusMessage: viewModel.unlockStatusMessage,
@@ -206,20 +255,12 @@ private struct CompactDatabaseScene: View {
                 )
                     .transition(.opacity)
             case .unlocked:
-                DatabaseNavigationView(viewModel: viewModel)
+                // The compact sheet dismisses as soon as unlock succeeds.
+                UnlockViewBackground()
                     .transition(.opacity)
             }
         }
         .animation(.easeInOut(duration: 0.3), value: viewModel.state)
-        .onChange(of: viewModel.state) { _, newValue in
-            if case .unlocked = newValue {
-                hasUnlockedInThisSession = true
-            }
-
-            if hasUnlockedInThisSession, case .locked = newValue {
-                onReturnToList()
-            }
-        }
         .onAppear {
             attemptAutoUnlockIfNeeded()
         }
