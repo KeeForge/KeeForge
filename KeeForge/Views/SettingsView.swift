@@ -13,6 +13,7 @@ struct SettingsView: View {
     @State private var sortAscending = DatabaseViewModel.savedSortAscending()
     @State private var cloudAccounts = CloudAccountStore.accounts
     @State private var pendingCloudAccountSignOut: CloudAccount?
+    @State private var feedbackContext: FeedbackComposerContext?
 
     var body: some View {
         NavigationStack {
@@ -23,6 +24,7 @@ struct SettingsView: View {
                 displaySection
                 faviconCacheSection
                 TipJarView()
+                supportSection
                 aboutSection
             }
             .navigationTitle("Settings")
@@ -63,6 +65,9 @@ struct SettingsView: View {
             .onAppear {
                 cloudAccounts = CloudAccountStore.accounts
             }
+        }
+        .sheet(item: $feedbackContext) { context in
+            FeedbackComposerView(context: context)
         }
     }
 
@@ -199,14 +204,6 @@ struct SettingsView: View {
 
             LabeledContent("Version", value: appVersion)
 
-            Link(destination: URL(string: "mailto:support@keeforge.com")!) {
-                Label("Contact Support", systemImage: "envelope")
-            }
-
-            Link(destination: URL(string: "https://github.com/crazytan/KeeForge/issues")!) {
-                Label("Report a Bug", systemImage: "ladybug")
-            }
-
             Link(destination: URL(string: "https://github.com/crazytan/KeeForge")!) {
                 Label("Source Code", systemImage: "chevron.left.forwardslash.chevron.right")
             }
@@ -219,9 +216,23 @@ struct SettingsView: View {
         }
     }
 
+    private var supportSection: some View {
+        Section {
+            Button {
+                feedbackContext = .general
+            } label: {
+                Label("Send Feedback", systemImage: "paperplane")
+            }
+            .accessibilityIdentifier("settings.send-feedback")
+        } header: {
+            Text("Support")
+        } footer: {
+            Text("No GitHub or email required. KeeForge never includes database contents, passwords, key files, or raw vault files in feedback. This build currently uses a placeholder feedback endpoint.")
+        }
+    }
+
     private var appVersion: String {
-        let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "–"
-        let commit = Bundle.main.infoDictionary?["GITCommitHash"] as? String ?? "dev"
-        return "\(version) (\(commit))"
+        let environment = AppFeedbackEnvironment.current()
+        return "\(environment.appVersion) (\(environment.buildNumber))"
     }
 }

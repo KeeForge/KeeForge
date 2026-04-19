@@ -112,7 +112,7 @@ final class DatabaseViewModel {
         case locked
         case unlocking
         case unlocked
-        case error(String)
+        case error(DatabaseOpenFailure)
     }
 
     enum SortOrder: String, CaseIterable, Sendable {
@@ -375,6 +375,11 @@ final class DatabaseViewModel {
         DatabaseListStore.cachedDatabaseURL(for: databaseReference) != nil
     }
 
+    var openFailure: DatabaseOpenFailure? {
+        guard case .error(let failure) = state else { return nil }
+        return failure
+    }
+
     var canUseBiometrics: Bool {
         guard BiometricService.isAvailable else { return false }
         return KeychainService.hasStoredKey(
@@ -413,7 +418,7 @@ final class DatabaseViewModel {
     func unlock(password: String, keyFileData: Data? = nil) async {
         if let until = lockoutUntil, Date.now < until {
             let seconds = Int(ceil(until.timeIntervalSinceNow))
-            state = .error("Too many failed attempts. Try again in \(seconds)s.")
+            state = .error(lockoutFailure(seconds: seconds))
             return
         }
 
@@ -480,7 +485,7 @@ final class DatabaseViewModel {
                 sessionKey: sessionKey
             )
         } catch {
-            state = .error(error.localizedDescription)
+            handleUnlockFailure(error)
         }
     }
 
@@ -1103,15 +1108,32 @@ final class DatabaseViewModel {
     }
 
     private func handleUnlockFailure(_ error: Error) {
-        failedAttempts += 1
-        let delay = lockoutDelay
-        if delay > 0 {
-            lockoutUntil = Date.now.addingTimeInterval(delay)
-            let seconds = Int(ceil(delay))
-            state = .error("Too many failed attempts. Try again in \(seconds)s.")
-        } else {
-            state = .error(error.localizedDescription)
+        let failure = DatabaseOpenFailure.classify(error, isCloudBacked: databaseReference.isCloudBacked)
+
+        if failure.countsTowardFailedAttempts {
+            failedAttempts += 1
+            let delay = lockoutDelay
+            if delay > 0 {
+                lockoutUntil = Date.now.addingTimeInterval(delay)
+                let seconds = Int(ceil(delay))
+                state = .error(lockoutFailure(seconds: seconds))
+                return
+            }
         }
+
+        state = .error(failure)
+    }
+
+    private func lockoutFailure(seconds: Int) -> DatabaseOpenFailure {
+        DatabaseOpenFailure(
+            title: "Too Many Failed Attempts",
+            summary: "KeeForge is temporarily slowing down unlock attempts. Try again in \(seconds) seconds.",
+            technicalDetails: "Unlock temporarily rate-limited after repeated authentication failures.",
+            errorCode: "auth.locked_out",
+            category: .authentication,
+            countsTowardFailedAttempts: false,
+            canChooseDifferentFile: false
+        )
     }
 
     private func persistCompositeKeyForBiometricUnlock(_ compositeKey: Data) {

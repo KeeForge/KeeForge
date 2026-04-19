@@ -4,6 +4,11 @@
 
 ### New Features
 - Add adaptive iPad layout support with a persistent sidebar, regular-width vault workspace, and a non-modal iPhone vault flow
+- Add an in-app feedback form that can be opened from Settings and database-open failure screens without requiring GitHub or email
+
+### Fixes
+- Improve database-open failure handling by separating expected password/key-file errors from unexpected file, format, cloud, and biometric failures
+- Add copyable sanitized error details and safer feedback payloads for database-open issues without including vault contents, passwords, key files, or raw database files
 
 ## v1.8.1 (2026-04-16)
 

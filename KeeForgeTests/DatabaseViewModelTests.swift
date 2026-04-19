@@ -253,11 +253,13 @@ final class DatabaseViewModelTests: XCTestCase {
 
         await vm.unlock(password: "wrong-password")
 
-        guard case .error(let message) = vm.state else {
+        guard case .error(let failure) = vm.state else {
             XCTFail("Expected .error state")
             return
         }
-        XCTAssertFalse(message.isEmpty)
+        XCTAssertEqual(failure.category, .authentication)
+        XCTAssertEqual(failure.errorCode, "auth.invalid_credentials")
+        XCTAssertEqual(vm.failedAttempts, 1)
         XCTAssertNil(vm.rootGroup)
     }
 
@@ -327,11 +329,13 @@ final class DatabaseViewModelTests: XCTestCase {
 
         await vm.unlock(password: fixturePassword)
 
-        guard case .error(let message) = vm.state else {
+        guard case .error(let failure) = vm.state else {
             XCTFail("Expected .error state")
             return
         }
-        XCTAssertEqual(message, CloudProviderError.fileNotFound.localizedDescription)
+        XCTAssertEqual(failure.category, .cloud)
+        XCTAssertEqual(failure.errorCode, "cloud.file_not_found")
+        XCTAssertEqual(vm.failedAttempts, 0)
         XCTAssertNil(vm.rootGroup)
     }
 
@@ -351,13 +355,33 @@ final class DatabaseViewModelTests: XCTestCase {
 
         await vm.unlock(password: fixturePassword)
 
-        guard case .error(let message) = vm.state else {
+        guard case .error(let failure) = vm.state else {
             XCTFail("Expected .error state")
             return
         }
-        XCTAssertFalse(message.isEmpty)
+        XCTAssertEqual(failure.errorCode, "format.invalid_signature")
+        XCTAssertEqual(vm.failedAttempts, 0)
         XCTAssertNil(vm.rootGroup)
         XCTAssertNil(vm.cloudSyncBannerText)
+    }
+
+    func testFileAccessErrorDoesNotIncrementFailedAttempts() async throws {
+        var reference = try makeReference()
+        reference.bookmarkData = Data("invalid-bookmark".utf8)
+
+        try DatabaseListStore.cacheDatabaseCopy(try Data(contentsOf: fixtureURL()), for: reference.id)
+        let vm = DatabaseViewModel(databaseReference: reference)
+
+        await vm.unlock(password: fixturePassword)
+
+        guard case .error(let failure) = vm.state else {
+            XCTFail("Expected .error state")
+            return
+        }
+
+        XCTAssertEqual(failure.category, .fileAccess)
+        XCTAssertEqual(vm.failedAttempts, 0)
+        XCTAssertNil(vm.lockoutUntil)
     }
 
     func testSearchResultsMatchesEntryFieldsCaseInsensitively() async throws {

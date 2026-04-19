@@ -9,6 +9,8 @@ struct UnlockView: View {
     @State private var selectionAlert: DocumentPickerService.SelectionAlert?
     @State private var keyFileData: Data?
     @State private var keyFileName: String?
+    @State private var feedbackContext: FeedbackComposerContext?
+    @State private var copiedErrorDetails = false
     @FocusState private var passwordFocused: Bool
 
     var body: some View {
@@ -16,24 +18,7 @@ struct UnlockView: View {
             VStack(spacing: 22) {
                 headerCard
 
-                if viewModel.hasSavedFile {
-                    passwordSection
-                } else {
-                    unavailableSection
-                }
-
-                if let errorMessage = unlockErrorMessage {
-                    Label(errorMessage, systemImage: "exclamationmark.triangle.fill")
-                        .foregroundStyle(.red)
-                        .font(.caption)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(14)
-                        .background(
-                            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                                .fill(Color.red.opacity(0.08))
-                        )
-                        .accessibilityIdentifier("unlock.error.label")
-                }
+                contentSection
             }
             .padding(.horizontal, 22)
             .padding(.top, 24)
@@ -48,6 +33,9 @@ struct UnlockView: View {
             allowedContentTypes: DocumentPickerService.keyFilePickerContentTypes,
             onCompletion: handleKeyFileSelection
         )
+        .sheet(item: $feedbackContext) { context in
+            FeedbackComposerView(context: context)
+        }
         .alert(item: $selectionAlert) { alert in
             Alert(
                 title: Text(alert.title),
@@ -58,6 +46,9 @@ struct UnlockView: View {
         .onAppear {
             loadAssociatedKeyFileIfNeeded()
             loadUITestKeyFileIfNeeded()
+        }
+        .onChange(of: viewModel.openFailure?.errorCode) { _, _ in
+            copiedErrorDetails = false
         }
     }
 
@@ -111,6 +102,21 @@ struct UnlockView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
+    @ViewBuilder
+    private var contentSection: some View {
+        if let failure = viewModel.openFailure {
+            failureSection(failure)
+
+            if failure.isAuthenticationFailure {
+                passwordSection
+            }
+        } else if viewModel.hasSavedFile {
+            passwordSection
+        } else {
+            unavailableSection
+        }
+    }
+
     private var passwordSection: some View {
         VStack(spacing: 14) {
             VStack(alignment: .leading, spacing: 10) {
@@ -156,12 +162,97 @@ struct UnlockView: View {
                 .disabled(isUnlocking)
             }
 
-            Button("Back to Database List") {
+            Button("Choose Different File") {
                 onBackToDatabaseList()
             }
             .font(.footnote.weight(.medium))
             .accessibilityIdentifier("unlock.choose-different")
         }
+    }
+
+    private func failureSection(_ failure: DatabaseOpenFailure) -> some View {
+        VStack(alignment: .leading, spacing: 16) {
+            HStack(alignment: .top, spacing: 12) {
+                Image(systemName: failure.isAuthenticationFailure ? "lock.slash.fill" : "exclamationmark.triangle.fill")
+                    .font(.title3)
+                    .foregroundStyle(failure.isAuthenticationFailure ? .orange : .red)
+                    .padding(.top, 2)
+
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(failure.title)
+                        .font(.headline)
+
+                    Text(failure.summary)
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Error Code")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+
+                Text(failure.errorCode)
+                    .font(.caption.monospaced())
+
+                Text(failure.technicalDetails)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            VStack(spacing: 10) {
+                Button(action: retryUnlock) {
+                    Label("Try Again", systemImage: "arrow.clockwise")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.borderedProminent)
+                .accessibilityIdentifier("unlock.retry.button")
+
+                if failure.isAuthenticationFailure == false {
+                    Button(failure.canChooseDifferentFile ? "Choose Different File" : "Back to Database List") {
+                        onBackToDatabaseList()
+                    }
+                    .buttonStyle(.bordered)
+                    .accessibilityIdentifier("unlock.choose-different")
+                }
+
+                HStack(spacing: 10) {
+                    Button("Copy Error Details") {
+                        copyErrorDetails(failure)
+                    }
+                    .buttonStyle(.bordered)
+                    .accessibilityIdentifier("unlock.copy-error")
+
+                    Button("Send Feedback") {
+                        feedbackContext = .databaseOpenFailure(failure)
+                    }
+                    .buttonStyle(.bordered)
+                    .accessibilityIdentifier("unlock.send-feedback")
+                }
+            }
+
+            Label(failure.privacyNote, systemImage: "shield.lefthalf.filled")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+            if copiedErrorDetails {
+                Text("Error details copied.")
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(.green)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(18)
+        .background(
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                .fill(Color(.secondarySystemBackground))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                .strokeBorder(Color.red.opacity(0.15), lineWidth: 1)
+        )
+        .accessibilityIdentifier("unlock.error.card")
     }
 
     private var keyFileRow: some View {
@@ -231,17 +322,29 @@ struct UnlockView: View {
         }
     }
 
-    private var unlockErrorMessage: String? {
-        if case .error(let message) = viewModel.state {
-            return message
-        }
-
-        return nil
-    }
-
     private var isUnlocking: Bool {
         if case .unlocking = viewModel.state { return true }
         return false
+    }
+
+    private func retryUnlock() {
+        if password.isEmpty == false || keyFileData != nil {
+            unlockWithPassword()
+            return
+        }
+
+        if viewModel.canUseBiometrics {
+            unlockWithBiometrics()
+            return
+        }
+
+        passwordFocused = true
+    }
+
+    private func copyErrorDetails(_ failure: DatabaseOpenFailure) {
+        ClipboardService.copy(failure.copyableDetails)
+        copiedErrorDetails = true
+        HapticService.success()
     }
 
     private func unlockWithPassword() {
