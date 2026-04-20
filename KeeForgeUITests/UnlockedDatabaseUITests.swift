@@ -456,8 +456,17 @@ final class UnlockedDatabaseUITests: KeeForgeUITestCase {
         )).firstMatch
         revealInSettings(supportLink, maxSwipes: 4)
 
-        let tipJarHeader = app.staticTexts["Tip Jar"]
-        revealInSettings(tipJarHeader, maxSwipes: 6)
+        let tipJarContent = app.buttons.matching(NSPredicate(
+            format: "label CONTAINS[c] 'tip' OR label CONTAINS[c] '$'"
+        )).firstMatch
+        let tipJarFallback = app.staticTexts.matching(NSPredicate(
+            format: "label CONTAINS[c] 'Tip Jar is not available'"
+        )).firstMatch
+        XCTAssertTrue(
+            revealElement(tipJarContent, in: settingsForm(), direction: .up, maxSwipes: 6)
+                || revealElement(tipJarFallback, in: settingsForm(), direction: .up, maxSwipes: 6),
+            "Tip Jar section not found in Settings"
+        )
 
         // Go back from Settings
         if let backButton = navigationBackButton() {

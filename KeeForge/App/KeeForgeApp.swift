@@ -71,24 +71,31 @@ private struct AppRootView: View {
     @ViewBuilder
     private var rootContent: some View {
         if usesRegularLayout {
-            NavigationSplitView {
-                DatabaseListView(
-                    viewModel: listViewModel,
-                    onSelectDatabase: openDatabase
-                )
-            } detail: {
-                if let activeDatabaseViewModel {
-                    RegularDatabaseScene(
-                        viewModel: activeDatabaseViewModel,
-                        onReturnToList: returnToDatabaseList
+            if let activeDatabaseViewModel, case .unlocked = activeDatabaseViewModel.state {
+                RegularDatabaseWorkspaceView(viewModel: activeDatabaseViewModel)
+            } else {
+                NavigationSplitView {
+                    DatabaseListView(
+                        viewModel: listViewModel,
+                        onSelectDatabase: openDatabase,
+                        selectedDatabaseID: activeDatabaseViewModel?.databaseReference.id
                     )
-                } else {
-                    ContentUnavailableView(
-                        "Select a Database",
-                        systemImage: "externaldrive.connected.to.line.below",
-                        description: Text("Choose a database from the sidebar to unlock and browse it.")
-                    )
+                    .navigationSplitViewColumnWidth(min: 300, ideal: 340, max: 380)
+                } detail: {
+                    if let activeDatabaseViewModel {
+                        RegularDatabaseScene(
+                            viewModel: activeDatabaseViewModel,
+                            onReturnToList: returnToDatabaseList
+                        )
+                    } else {
+                        ContentUnavailableView(
+                            "Select a Database",
+                            systemImage: "externaldrive.connected.to.line.below",
+                            description: Text("Choose a database from the sidebar to unlock and browse it.")
+                        )
+                    }
                 }
+                .navigationSplitViewStyle(.balanced)
             }
         } else {
             if let activeDatabaseViewModel {
@@ -313,14 +320,16 @@ private struct RegularDatabaseScene: View {
                 } else {
                     UnlockView(
                         viewModel: viewModel,
-                        onBackToDatabaseList: onReturnToList
+                        onBackToDatabaseList: onReturnToList,
+                        showsChooseDifferentFileAction: false
                     )
                     .transition(.opacity)
                 }
             case .error:
                 UnlockView(
                     viewModel: viewModel,
-                    onBackToDatabaseList: onReturnToList
+                    onBackToDatabaseList: onReturnToList,
+                    showsChooseDifferentFileAction: false
                 )
                 .transition(.opacity)
             case .unlocking:

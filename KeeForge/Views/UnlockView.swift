@@ -3,6 +3,7 @@ import SwiftUI
 struct UnlockView: View {
     @Bindable var viewModel: DatabaseViewModel
     let onBackToDatabaseList: () -> Void
+    var showsChooseDifferentFileAction = true
 
     @State private var password = ""
     @State private var showKeyFilePicker = false
@@ -162,11 +163,13 @@ struct UnlockView: View {
                 .disabled(isUnlocking)
             }
 
-            Button("Choose Different File") {
-                onBackToDatabaseList()
+            if showsChooseDifferentFileAction {
+                Button("Choose Different File") {
+                    onBackToDatabaseList()
+                }
+                .font(.footnote.weight(.medium))
+                .accessibilityIdentifier("unlock.choose-different")
             }
-            .font(.footnote.weight(.medium))
-            .accessibilityIdentifier("unlock.choose-different")
         }
     }
 
@@ -209,7 +212,7 @@ struct UnlockView: View {
                 .buttonStyle(.borderedProminent)
                 .accessibilityIdentifier("unlock.retry.button")
 
-                if failure.isAuthenticationFailure == false {
+                if failure.isAuthenticationFailure == false, showsChooseDifferentFileAction {
                     Button(failure.canChooseDifferentFile ? "Choose Different File" : "Back to Database List") {
                         onBackToDatabaseList()
                     }
@@ -317,8 +320,10 @@ struct UnlockView: View {
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
 
-            Button("Back to Database List") { onBackToDatabaseList() }
-                .buttonStyle(.borderedProminent)
+            if showsChooseDifferentFileAction {
+                Button("Back to Database List") { onBackToDatabaseList() }
+                    .buttonStyle(.borderedProminent)
+            }
         }
     }
 

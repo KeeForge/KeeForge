@@ -2,6 +2,7 @@ import SwiftUI
 
 struct SearchView: View {
     @Bindable var viewModel: DatabaseViewModel
+    var onSelectEntry: ((KPEntry) -> Void)? = nil
 
     private var isUITesting: Bool {
         ProcessInfo.processInfo.arguments.contains("-ui-testing")
@@ -23,7 +24,11 @@ struct SearchView: View {
                 )
                 .accessibilityIdentifier("search.no-results")
             } else {
-                EntryListView(entries: viewModel.searchResults, viewModel: viewModel)
+                EntryListView(
+                    entries: viewModel.searchResults,
+                    viewModel: viewModel,
+                    onSelectEntry: onSelectEntry
+                )
                     .accessibilityIdentifier("search.results")
             }
         }

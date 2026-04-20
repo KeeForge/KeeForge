@@ -34,6 +34,7 @@ struct DatabaseListView: View {
 
     @Bindable var viewModel: DatabaseListViewModel
     let onSelectDatabase: (DatabaseReference) -> Void
+    var selectedDatabaseID: UUID? = nil
 
     @State private var pickerState = PickerPresentationState<PickerTarget>()
     @State private var selectionAlert: DocumentPickerService.SelectionAlert?
@@ -65,6 +66,14 @@ struct DatabaseListView: View {
                             }
                             .buttonStyle(.plain)
                             .accessibilityIdentifier("database.row")
+                            .listRowBackground(
+                                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                    .fill(
+                                        reference.id == selectedDatabaseID
+                                            ? Color.accentColor.opacity(0.16)
+                                            : Color.clear
+                                    )
+                            )
                             .contextMenu {
                                 contextMenu(for: reference)
                             }

@@ -12,6 +12,7 @@ struct GroupListView: View {
 
     let groupID: UUID
     @Bindable var viewModel: DatabaseViewModel
+    var onSelectEntry: ((KPEntry) -> Void)? = nil
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @State private var showSettings = false
     @State private var activeEditor: EntryEditViewModel?
@@ -56,32 +57,7 @@ struct GroupListView: View {
                         if !visibleEntries.isEmpty {
                             Section("Entries") {
                                 ForEach(viewModel.sortedEntries(visibleEntries)) { entry in
-                                    NavigationLink(value: entry) {
-                                        EntryRow(entry: entry)
-                                    }
-                                    .accessibilityIdentifier("entry.navlink")
-                                    .contextMenu {
-                                        if viewModel.isReadOnly == false {
-                                            Button("Delete Permanently", role: .destructive) {
-                                                pendingEntryDeletion = PendingEntryDeletion(
-                                                    entryID: entry.id,
-                                                    sendToRecycleBin: false
-                                                )
-                                            }
-                                            .accessibilityIdentifier("entry-row.delete-permanent")
-                                        }
-                                    }
-                                    .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                                        if viewModel.isReadOnly == false {
-                                            Button(isRecycleBin ? "Delete Permanently" : "Delete", role: .destructive) {
-                                                pendingEntryDeletion = PendingEntryDeletion(
-                                                    entryID: entry.id,
-                                                    sendToRecycleBin: !isRecycleBin
-                                                )
-                                            }
-                                            .accessibilityIdentifier("entry-row.delete-swipe")
-                                        }
-                                    }
+                                    entryRow(for: entry)
                                 }
                             }
                         }
@@ -192,7 +168,7 @@ struct GroupListView: View {
                     )
                 }
             } else {
-                SearchView(viewModel: viewModel)
+                SearchView(viewModel: viewModel, onSelectEntry: onSelectEntry)
             }
         }
         .searchable(
@@ -206,6 +182,48 @@ struct GroupListView: View {
                 databaseViewModel: viewModel
             ) { _ in
                 activeEditor = nil
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func entryRow(for entry: KPEntry) -> some View {
+        Group {
+            if let onSelectEntry {
+                Button {
+                    onSelectEntry(entry)
+                } label: {
+                    EntryRow(entry: entry)
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("entry.navlink")
+            } else {
+                NavigationLink(value: entry) {
+                    EntryRow(entry: entry)
+                }
+                .accessibilityIdentifier("entry.navlink")
+            }
+        }
+        .contextMenu {
+            if viewModel.isReadOnly == false {
+                Button("Delete Permanently", role: .destructive) {
+                    pendingEntryDeletion = PendingEntryDeletion(
+                        entryID: entry.id,
+                        sendToRecycleBin: false
+                    )
+                }
+                .accessibilityIdentifier("entry-row.delete-permanent")
+            }
+        }
+        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+            if viewModel.isReadOnly == false {
+                Button(isRecycleBin ? "Delete Permanently" : "Delete", role: .destructive) {
+                    pendingEntryDeletion = PendingEntryDeletion(
+                        entryID: entry.id,
+                        sendToRecycleBin: !isRecycleBin
+                    )
+                }
+                .accessibilityIdentifier("entry-row.delete-swipe")
             }
         }
     }
@@ -239,6 +257,8 @@ struct GroupRow: View {
                             .foregroundStyle(.secondary)
                     }
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .contentShape(Rectangle())
             }
         }
     }
@@ -276,6 +296,8 @@ struct EntryRow: View {
                     .foregroundStyle(.green)
             }
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .contentShape(Rectangle())
     }
 }
 

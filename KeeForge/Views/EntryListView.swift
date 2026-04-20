@@ -12,6 +12,7 @@ struct EntryListView: View {
 
     let entries: [KPEntry]
     @Bindable var viewModel: DatabaseViewModel
+    var onSelectEntry: ((KPEntry) -> Void)? = nil
     @State private var pendingEntryDeletion: PendingEntryDeletion?
 
     var body: some View {
@@ -19,32 +20,7 @@ struct EntryListView: View {
             ContentUnavailableView.search
         } else {
             List(entries) { entry in
-                NavigationLink(value: entry) {
-                    EntryRow(entry: entry)
-                }
-                .accessibilityIdentifier("search.entry.navlink")
-                .contextMenu {
-                    if viewModel.isReadOnly == false {
-                        Button("Delete Permanently", role: .destructive) {
-                            pendingEntryDeletion = PendingEntryDeletion(
-                                entryID: entry.id,
-                                sendToRecycleBin: false
-                            )
-                        }
-                        .accessibilityIdentifier("entry-row.delete-permanent")
-                    }
-                }
-                .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                    if viewModel.isReadOnly == false {
-                        Button("Delete", role: .destructive) {
-                            pendingEntryDeletion = PendingEntryDeletion(
-                                entryID: entry.id,
-                                sendToRecycleBin: true
-                            )
-                        }
-                        .accessibilityIdentifier("entry-row.delete-swipe")
-                    }
-                }
+                entryRow(for: entry)
             }
             .alert(item: $pendingEntryDeletion) { action in
                 Alert(
@@ -64,6 +40,48 @@ struct EntryListView: View {
                     },
                     secondaryButton: .cancel()
                 )
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func entryRow(for entry: KPEntry) -> some View {
+        Group {
+            if let onSelectEntry {
+                Button {
+                    onSelectEntry(entry)
+                } label: {
+                    EntryRow(entry: entry)
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("search.entry.navlink")
+            } else {
+                NavigationLink(value: entry) {
+                    EntryRow(entry: entry)
+                }
+                .accessibilityIdentifier("search.entry.navlink")
+            }
+        }
+        .contextMenu {
+            if viewModel.isReadOnly == false {
+                Button("Delete Permanently", role: .destructive) {
+                    pendingEntryDeletion = PendingEntryDeletion(
+                        entryID: entry.id,
+                        sendToRecycleBin: false
+                    )
+                }
+                .accessibilityIdentifier("entry-row.delete-permanent")
+            }
+        }
+        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+            if viewModel.isReadOnly == false {
+                Button("Delete", role: .destructive) {
+                    pendingEntryDeletion = PendingEntryDeletion(
+                        entryID: entry.id,
+                        sendToRecycleBin: true
+                    )
+                }
+                .accessibilityIdentifier("entry-row.delete-swipe")
             }
         }
     }
