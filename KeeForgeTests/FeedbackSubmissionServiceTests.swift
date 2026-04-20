@@ -57,7 +57,7 @@ final class FeedbackSubmissionServiceTests: XCTestCase {
         }
     }
 
-    func testSubmitEncodesPayloadToPlaceholderEndpoint() async throws {
+    func testSubmitEncodesPayloadToFeedbackEndpoint() async throws {
         let capture = RequestCapture()
         let environment = AppFeedbackEnvironment(
             appVersion: "1.8.1",

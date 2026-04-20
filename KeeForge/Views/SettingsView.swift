@@ -227,7 +227,7 @@ struct SettingsView: View {
         } header: {
             Text("Support")
         } footer: {
-            Text("No GitHub or email required. KeeForge never includes database contents, passwords, key files, or raw vault files in feedback. This build currently uses a placeholder feedback endpoint.")
+            Text("No GitHub or email required. KeeForge never includes database contents, passwords, key files, or raw vault files in feedback.")
         }
     }
 

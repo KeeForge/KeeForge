@@ -52,8 +52,6 @@ struct FeedbackComposerView: View {
                         Section("Privacy") {
                             Text("KeeForge includes app version, build number, iOS version, device model, and the safe details shown above.")
                             Text("KeeForge does not include database contents, passwords, key files, raw vault files, or unsanitized logs.")
-                            Text("Developer note: this build still uses a placeholder feedback endpoint.")
-                                .foregroundStyle(.secondary)
                         }
                     }
                 }

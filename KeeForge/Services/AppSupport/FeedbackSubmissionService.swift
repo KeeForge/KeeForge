@@ -101,8 +101,7 @@ enum FeedbackSubmissionError: LocalizedError, Equatable, Sendable {
 }
 
 enum FeedbackSubmissionService {
-    // Replace this placeholder before shipping a real feedback backend.
-    static let endpointURL = URL(string: "https://example.com/api/feedback")!
+    static let endpointURL = URL(string: "https://feedback.keeforge.com/api/feedback")!
 
     typealias SendOperation = @Sendable (URLRequest) async throws -> (Data, URLResponse)
 

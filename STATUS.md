@@ -8,7 +8,7 @@
   - `FeedbackSubmissionService` with a strict, conservative payload shape
   - a reusable `FeedbackComposerView`
   - Settings entry point plus unlock-error entry point
-  - placeholder endpoint `https://example.com/api/feedback`
+  - feedback endpoint `https://feedback.keeforge.com/api/feedback`
 - Added targeted unit-test updates for the new failure model and feedback payload encoding.
 - Regenerated `KeeForge.xcodeproj` after adding new source files.
 
