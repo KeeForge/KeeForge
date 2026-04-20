@@ -204,6 +204,14 @@ struct SettingsView: View {
 
             LabeledContent("Version", value: appVersion)
 
+            Link(destination: URL(string: "mailto:support@keeforge.com")!) {
+                Label("Contact Support", systemImage: "envelope")
+            }
+
+            Link(destination: URL(string: "https://github.com/crazytan/KeeForge/issues")!) {
+                Label("Report a Bug", systemImage: "ladybug")
+            }
+
             Link(destination: URL(string: "https://github.com/crazytan/KeeForge")!) {
                 Label("Source Code", systemImage: "chevron.left.forwardslash.chevron.right")
             }
@@ -232,7 +240,15 @@ struct SettingsView: View {
     }
 
     private var appVersion: String {
-        let environment = AppFeedbackEnvironment.current()
-        return "\(environment.appVersion) (\(environment.buildNumber))"
+        let bundle = Bundle.main
+        let version = bundle.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "–"
+        let commit = bundle.object(forInfoDictionaryKey: "GITCommitHash") as? String
+        let trimmedCommit = commit?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let displayCommit = if let trimmedCommit, trimmedCommit.isEmpty == false {
+            trimmedCommit
+        } else {
+            "dev"
+        }
+        return "\(version) (\(displayCommit))"
     }
 }
