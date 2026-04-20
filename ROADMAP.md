@@ -23,6 +23,8 @@ This file tracks planned product work.
 
 ## In-App UI Enhancements
 
+- [ ] add folders in settings page
+
 ### Entry Viewer
 
 - [ ] Add an in-app entry history viewer and restore flow
