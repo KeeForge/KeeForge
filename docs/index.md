@@ -11,5 +11,5 @@ Having issues or have a question? Reach out:
 
 ## Links
 
-- [Privacy Policy](privacy-policy)
+- [Privacy Policy](https://keeforge.com/privacy)
 - [Source Code](https://github.com/crazytan/KeeForge)

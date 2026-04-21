@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## v1.8.2 (2026-04-20)
+
 ### New Features
 - Add adaptive iPad layout support with a persistent sidebar, regular-width vault workspace, and a non-modal iPhone vault flow
 - Add an in-app feedback form that can be opened from Settings and database-open failure screens without requiring GitHub or email

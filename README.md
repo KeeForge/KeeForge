@@ -64,7 +64,7 @@ TestFixtures/         # Test .kdbx databases and key files
 
 ## Privacy
 
-KeeForge collects zero data — no analytics, no telemetry, no crash reports. All data stays on device. Network requests are limited to opt-in favicon fetching (domain only, no credentials sent). See [privacy policy](docs/privacy-policy.md).
+KeeForge has no analytics, no background telemetry, and no crash-reporting SDKs. Your vault data stays on device and in the cloud storage you configure. Outbound network requests are limited to the cloud providers you connect, opt-in favicon fetching (domain only, no credentials sent), and the optional in-app feedback form — which only transmits anything when you tap Send. See the [privacy policy](https://keeforge.com/privacy).
 
 ## Docs
 
