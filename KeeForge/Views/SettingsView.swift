@@ -5,6 +5,7 @@ struct SettingsView: View {
     @Environment(\.dismiss) private var dismiss
 
     @State private var autoLockTimeout = SettingsService.autoLockTimeout
+    @State private var lockOnBackground = SettingsService.lockOnBackground
     @State private var clipboardTimeout = SettingsService.clipboardTimeout
     @State private var autoUnlockWithFaceID = SettingsService.autoUnlockWithFaceID
     @State private var showWebsiteIcons = SettingsService.showWebsiteIcons
@@ -36,6 +37,10 @@ struct SettingsView: View {
             }
             .onChange(of: autoLockTimeout) { _, newValue in
                 SettingsService.autoLockTimeout = newValue
+                viewModel?.resetInactivityTimer()
+            }
+            .onChange(of: lockOnBackground) { _, newValue in
+                SettingsService.lockOnBackground = newValue
             }
             .onChange(of: clipboardTimeout) { _, newValue in
                 SettingsService.clipboardTimeout = newValue
@@ -74,6 +79,7 @@ struct SettingsView: View {
     private var securitySection: some View {
         Section {
             Toggle("Auto-Unlock with Face ID", isOn: $autoUnlockWithFaceID)
+            Toggle("Lock When App Goes to Background", isOn: $lockOnBackground)
 
             Picker("Auto-Lock Timeout", selection: $autoLockTimeout) {
                 ForEach(SettingsService.AutoLockTimeout.allCases, id: \.self) { option in
@@ -89,7 +95,7 @@ struct SettingsView: View {
         } header: {
             Text("Security")
         } footer: {
-            Text("Auto-Unlock with Face ID prompts after a database is opened. Quick Launch controls whether a database opens automatically on app launch.")
+            Text("Auto-Unlock with Face ID prompts after a database is opened. When background locking is off, KeeForge still uses the auto-lock timeout and locks the next time the app becomes active after that deadline has passed. Quick Launch controls whether a database opens automatically on app launch.")
         }
     }
 

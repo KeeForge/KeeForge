@@ -21,7 +21,7 @@ struct KeeForgeApp: App {
                 case .active:
                     screenProtectionService.hideShield()
                     activeDatabaseViewModel?.didManuallyLock = false
-                    activeDatabaseViewModel?.resetInactivityTimer()
+                    activeDatabaseViewModel?.handleSceneDidBecomeActive()
                     activeDatabaseViewModel?.refreshSharedDatabaseCacheIfPossible()
                     Task {
                         await listViewModel.drainPendingUploadsOnAppActive()
@@ -30,7 +30,7 @@ struct KeeForgeApp: App {
                     break
                 case .background:
                     screenProtectionService.showShield()
-                    activeDatabaseViewModel?.lockRequest()
+                    activeDatabaseViewModel?.handleSceneDidEnterBackground()
                 @unknown default:
                     screenProtectionService.showShield()
                 }

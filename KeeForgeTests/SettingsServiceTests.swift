@@ -3,6 +3,7 @@ import XCTest
 
 final class SettingsServiceTests: XCTestCase {
     private let autoLockKey = "KeeForge.autoLockTimeout"
+    private let lockOnBackgroundKey = "KeeForge.lockOnBackground"
     private let clipboardKey = "KeeForge.clipboardTimeout"
     private let autoUnlockWithFaceIDKey = "KeeForge.autoUnlockWithFaceID"
     private let quickAutoFillEnabledKey = "KeeForge.quickAutoFillEnabled"
@@ -14,6 +15,7 @@ final class SettingsServiceTests: XCTestCase {
 
     override func tearDown() {
         UserDefaults.standard.removeObject(forKey: autoLockKey)
+        UserDefaults.standard.removeObject(forKey: lockOnBackgroundKey)
         UserDefaults.standard.removeObject(forKey: clipboardKey)
         UserDefaults.standard.removeObject(forKey: autoUnlockWithFaceIDKey)
         sharedDefaults.removeObject(forKey: autoUnlockWithFaceIDKey)
@@ -32,6 +34,11 @@ final class SettingsServiceTests: XCTestCase {
     func testClipboardTimeoutDefaultsToThirtySeconds() {
         UserDefaults.standard.removeObject(forKey: clipboardKey)
         XCTAssertEqual(SettingsService.clipboardTimeout, .thirtySeconds)
+    }
+
+    func testLockOnBackgroundDefaultsToOn() {
+        UserDefaults.standard.removeObject(forKey: lockOnBackgroundKey)
+        XCTAssertTrue(SettingsService.lockOnBackground)
     }
 
     func testAutoUnlockWithFaceIDDefaultsToOff() {
@@ -53,6 +60,14 @@ final class SettingsServiceTests: XCTestCase {
             SettingsService.clipboardTimeout = value
             XCTAssertEqual(SettingsService.clipboardTimeout, value, "Failed for \(value.rawValue)")
         }
+    }
+
+    func testLockOnBackgroundPersists() {
+        SettingsService.lockOnBackground = true
+        XCTAssertTrue(SettingsService.lockOnBackground)
+
+        SettingsService.lockOnBackground = false
+        XCTAssertFalse(SettingsService.lockOnBackground)
     }
 
     func testAutoUnlockWithFaceIDPersists() {

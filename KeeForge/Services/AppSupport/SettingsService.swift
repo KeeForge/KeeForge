@@ -9,6 +9,7 @@ enum SettingsService {
 
     private enum Key {
         static let autoLockTimeout = "KeeForge.autoLockTimeout"
+        static let lockOnBackground = "KeeForge.lockOnBackground"
         static let clipboardTimeout = "KeeForge.clipboardTimeout"
         static let autoUnlockWithFaceID = "KeeForge.autoUnlockWithFaceID"
         static let showWebsiteIcons = "KeeForge.showWebsiteIcons"
@@ -81,6 +82,18 @@ enum SettingsService {
         }
         set {
             UserDefaults.standard.set(newValue.rawValue, forKey: Key.clipboardTimeout)
+        }
+    }
+
+    static var lockOnBackground: Bool {
+        get {
+            if UserDefaults.standard.object(forKey: Key.lockOnBackground) == nil {
+                return true
+            }
+            return UserDefaults.standard.bool(forKey: Key.lockOnBackground)
+        }
+        set {
+            UserDefaults.standard.set(newValue, forKey: Key.lockOnBackground)
         }
     }
 

@@ -750,6 +750,31 @@ final class DatabaseViewModelTests: XCTestCase {
         XCTAssertNil(vm.pendingLockRequest)
     }
 
+    func testBackgroundTimeoutWhileDirtyPromptsBeforeLocking() async throws {
+        let savedAutoLockTimeout = SettingsService.autoLockTimeout
+        let savedLockOnBackground = SettingsService.lockOnBackground
+        SettingsService.autoLockTimeout = .thirtySeconds
+        SettingsService.lockOnBackground = false
+        defer {
+            SettingsService.autoLockTimeout = savedAutoLockTimeout
+            SettingsService.lockOnBackground = savedLockOnBackground
+        }
+
+        let clock = MutableNowProvider(now: Date(timeIntervalSince1970: 1_000))
+        let vm = try makeViewModel(nowProvider: { clock.now })
+
+        await vm.unlock(password: fixturePassword)
+        vm.draft = try makeDirtyDraft(from: vm, entryTitle: "Unsaved Background Entry")
+
+        vm.handleSceneDidEnterBackground()
+        clock.advance(by: 31)
+        vm.handleSceneDidBecomeActive()
+
+        XCTAssertState(vm.state, is: .unlocked)
+        XCTAssertNotNil(vm.draft)
+        XCTAssertEqual(vm.pendingLockRequest, .init(manuallyTriggered: false))
+    }
+
     func testAcknowledgeEditingIfNeededLocalUnsyncedReturnsAcknowledgedImmediately() async throws {
         var reference = try makeReference()
         reference.bookmarkData = nil
@@ -955,7 +980,8 @@ final class DatabaseViewModelTests: XCTestCase {
         syncedFolderWarningHandler: @escaping DatabaseViewModel.SyncedFolderWarningHandler = { _ in
             .continueEditing
         },
-        conflictCopyDateProvider: @escaping @Sendable () -> Date = { .now }
+        conflictCopyDateProvider: @escaping @Sendable () -> Date = { .now },
+        nowProvider: @escaping @Sendable () -> Date = { .now }
     ) throws -> DatabaseViewModel {
         let resolvedReference = if let reference {
             reference
@@ -974,7 +1000,8 @@ final class DatabaseViewModelTests: XCTestCase {
             reloadOperation: reloadOperation,
             syncedFolderDetector: syncedFolderDetector,
             syncedFolderWarningHandler: syncedFolderWarningHandler,
-            conflictCopyDateProvider: conflictCopyDateProvider
+            conflictCopyDateProvider: conflictCopyDateProvider,
+            nowProvider: nowProvider
         )
     }
 
@@ -1483,5 +1510,17 @@ private final class ProgressRecorder: @unchecked Sendable {
         lock.lock()
         storage.append(value)
         lock.unlock()
+    }
+}
+
+private final class MutableNowProvider: @unchecked Sendable {
+    var now: Date
+
+    init(now: Date) {
+        self.now = now
+    }
+
+    func advance(by interval: TimeInterval) {
+        now.addTimeInterval(interval)
     }
 }

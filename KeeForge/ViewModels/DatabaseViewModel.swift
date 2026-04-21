@@ -185,6 +185,7 @@ final class DatabaseViewModel {
     private(set) var openedFormatVersion: KDBXParser.FileVersion?
     private(set) var inactivityTimer: Timer?
     private(set) var inactivityTimerInterval: TimeInterval?
+    private(set) var inactivityDeadline: Date?
     var searchText = "" {
         didSet {
             resetInactivityTimer()
@@ -249,6 +250,8 @@ final class DatabaseViewModel {
     private let syncedFolderDetector: SyncedFolderDetectionOperation
     private let syncedFolderWarningHandler: SyncedFolderWarningHandler
     private let conflictCopyDateProvider: @Sendable () -> Date
+    private let nowProvider: @Sendable () -> Date
+    private var backgroundEnteredAt: Date?
 
     init(
         databaseReference: DatabaseReference,
@@ -308,7 +311,8 @@ final class DatabaseViewModel {
         syncedFolderWarningHandler: @escaping SyncedFolderWarningHandler = { _ in
             .continueEditing
         },
-        conflictCopyDateProvider: @escaping @Sendable () -> Date = { .now }
+        conflictCopyDateProvider: @escaping @Sendable () -> Date = { .now },
+        nowProvider: @escaping @Sendable () -> Date = { .now }
     ) {
         self.databaseReference = databaseReference
         sortOrder = Self.savedSortOrder()
@@ -326,6 +330,7 @@ final class DatabaseViewModel {
         self.syncedFolderDetector = syncedFolderDetector
         self.syncedFolderWarningHandler = syncedFolderWarningHandler
         self.conflictCopyDateProvider = conflictCopyDateProvider
+        self.nowProvider = nowProvider
     }
 
     var databaseDisplayName: String {
@@ -546,6 +551,7 @@ final class DatabaseViewModel {
 
     func lock(manuallyTriggered: Bool = false) {
         cancelInactivityTimer()
+        backgroundEnteredAt = nil
         if manuallyTriggered {
             didManuallyLock = true
         }
@@ -770,26 +776,89 @@ final class DatabaseViewModel {
     // MARK: - Inactivity Timer
 
     func startInactivityTimer() {
-        cancelInactivityTimer()
         let timeout = SettingsService.autoLockTimeout
-        guard let seconds = timeout.seconds, seconds > 0 else { return }
-        inactivityTimerInterval = seconds
-        inactivityTimer = Timer.scheduledTimer(withTimeInterval: seconds, repeats: false) { [weak self] _ in
-            Task { @MainActor [weak self] in
-                self?.lockRequest()
-            }
+        backgroundEnteredAt = nil
+
+        switch timeout {
+        case .never:
+            cancelInactivityTimer()
+        case .immediately:
+            cancelInactivityTimer()
+            inactivityDeadline = nowProvider()
+        case .thirtySeconds, .oneMinute, .fiveMinutes:
+            guard let seconds = timeout.seconds else { return }
+            scheduleInactivityTimer(until: nowProvider().addingTimeInterval(seconds))
         }
     }
 
-    func cancelInactivityTimer() {
+    func cancelInactivityTimer(clearDeadline: Bool = true) {
         inactivityTimer?.invalidate()
         inactivityTimer = nil
         inactivityTimerInterval = nil
+        if clearDeadline {
+            inactivityDeadline = nil
+        }
     }
 
     func resetInactivityTimer() {
         guard case .unlocked = state else { return }
         startInactivityTimer()
+    }
+
+    func handleSceneDidEnterBackground() {
+        guard case .unlocked = state else { return }
+
+        if SettingsService.lockOnBackground {
+            lockRequest()
+            return
+        }
+
+        backgroundEnteredAt = nowProvider()
+        cancelInactivityTimer(clearDeadline: false)
+    }
+
+    func handleSceneDidBecomeActive() {
+        guard case .unlocked = state else { return }
+
+        guard backgroundEnteredAt != nil else {
+            resetInactivityTimer()
+            return
+        }
+
+        backgroundEnteredAt = nil
+
+        switch SettingsService.autoLockTimeout {
+        case .never:
+            startInactivityTimer()
+        case .immediately:
+            lockRequest()
+        case .thirtySeconds, .oneMinute, .fiveMinutes:
+            guard let inactivityDeadline else {
+                startInactivityTimer()
+                return
+            }
+
+            if nowProvider() >= inactivityDeadline {
+                lockRequest()
+            } else {
+                scheduleInactivityTimer(until: inactivityDeadline)
+            }
+        }
+    }
+
+    private func scheduleInactivityTimer(until deadline: Date) {
+        cancelInactivityTimer(clearDeadline: false)
+        inactivityDeadline = deadline
+
+        let remaining = deadline.timeIntervalSince(nowProvider())
+        guard remaining > 0 else { return }
+
+        inactivityTimerInterval = remaining
+        inactivityTimer = Timer.scheduledTimer(withTimeInterval: remaining, repeats: false) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                self?.lockRequest()
+            }
+        }
     }
 
     func refreshSharedDatabaseCacheIfPossible() {
