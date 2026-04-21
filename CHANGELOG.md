@@ -9,6 +9,7 @@
 ### Fixes
 - Improve database-open failure handling by separating expected password/key-file errors from unexpected file, format, cloud, and biometric failures
 - Add copyable sanitized error details and safer feedback payloads for database-open issues without including vault contents, passwords, key files, or raw database files
+- Restore subtle card styling for database list entries so they remain visually distinct in both iPhone and iPad layouts
 
 ## v1.8.1 (2026-04-16)
 

@@ -107,8 +107,11 @@ struct DatabaseRowView: View {
                 .foregroundStyle(.tertiary)
                 .padding(.top, 4)
         }
-        .padding(.vertical, 4)
-        .contentShape(Rectangle())
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
+        .background(rowBackground)
+        .overlay(rowBorder)
+        .contentShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
     }
 
     private var conflictText: String {
@@ -138,5 +141,15 @@ struct DatabaseRowView: View {
                 .foregroundStyle(Color.accentColor)
                 .frame(width: 28, height: 28)
         }
+    }
+
+    private var rowBackground: some View {
+        RoundedRectangle(cornerRadius: 18, style: .continuous)
+            .fill(Color(uiColor: .secondarySystemGroupedBackground))
+    }
+
+    private var rowBorder: some View {
+        RoundedRectangle(cornerRadius: 18, style: .continuous)
+            .stroke(Color(uiColor: .separator).opacity(0.35), lineWidth: 0.75)
     }
 }

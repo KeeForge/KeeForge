@@ -65,6 +65,9 @@ struct DatabaseListView: View {
                                 )
                             }
                             .buttonStyle(.plain)
+                            .listRowInsets(EdgeInsets(top: 6, leading: 20, bottom: 6, trailing: 20))
+                            .listRowBackground(Color.clear)
+                            .listRowSeparator(.hidden)
                             .accessibilityIdentifier("database.row")
                             .listRowBackground(
                                 RoundedRectangle(cornerRadius: 12, style: .continuous)
