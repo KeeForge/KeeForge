@@ -188,6 +188,7 @@ struct UnlockView: View {
                     Text(failure.summary)
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
+                        .accessibilityIdentifier("unlock.error.label")
                 }
             }
 
@@ -255,6 +256,7 @@ struct UnlockView: View {
             RoundedRectangle(cornerRadius: 20, style: .continuous)
                 .strokeBorder(Color.red.opacity(0.15), lineWidth: 1)
         )
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("unlock.error.card")
     }
 

@@ -20,7 +20,7 @@ struct DatabaseOpenFailure: Equatable, Sendable {
     let canChooseDifferentFile: Bool
 
     var isAuthenticationFailure: Bool {
-        countsTowardFailedAttempts
+        category == .authentication
     }
 
     var privacyNote: String {

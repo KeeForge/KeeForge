@@ -26,6 +26,7 @@ final class EntryEditUITests: KeeForgeUITestCase {
             password: "created-password-123"
         )
 
+        lockAndReopenVault()
         openEntry(named: createdEntryTitle)
         XCTAssertTrue(app.staticTexts["ui-created-user"].waitForExistence(timeout: 5))
     }

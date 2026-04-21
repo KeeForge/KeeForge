@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Fixes
+- Keep password/key-file unlock failures visible during lockout backoff and restore the unlock error accessibility hooks used by UI tests
+- Stabilize entry-creation UI coverage by validating new entries after a lock/reopen cycle and hardening list scrolling against stale simulator snapshots
+
 ## v1.8.2 (2026-04-20)
 
 ### New Features

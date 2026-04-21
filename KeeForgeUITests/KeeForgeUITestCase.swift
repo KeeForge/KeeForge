@@ -268,29 +268,35 @@ class KeeForgeUITestCase: XCTestCase {
     /// Returns the frontmost (hittable) list/scroll container, preferring
     /// the one in a presented sheet over background views.
     private func frontmostContainer() -> XCUIElement? {
+        candidateScrollableContainers().first
+    }
+
+    private func candidateScrollableContainers() -> [XCUIElement] {
         let types: [XCUIElement.ElementType] = [.collectionView, .table, .scrollView]
         var candidates: [XCUIElement] = []
 
         for type in types {
             for element in app.descendants(matching: type).allElementsBoundByIndex
-            where element.exists && element.isHittable {
+            where isSafeToHitTest(element) {
                 candidates.append(element)
             }
         }
 
-        if let preferred = candidates.sorted(by: preferredContainerOrder).first {
-            return preferred
+        if candidates.isEmpty == false {
+            return candidates.sorted(by: preferredContainerOrder)
         }
 
         // Fall back to any existing container
         for type in types {
-            let existing = app.descendants(matching: type).allElementsBoundByIndex.filter(\.exists)
-            if let preferred = existing.sorted(by: preferredContainerOrder).first {
-                return preferred
+            let existing = app.descendants(matching: type).allElementsBoundByIndex.filter {
+                $0.exists && hasUsableFrame($0)
+            }
+            if existing.isEmpty == false {
+                return existing.sorted(by: preferredContainerOrder)
             }
         }
 
-        return nil
+        return []
     }
 
     private func preferredContainerOrder(_ lhs: XCUIElement, _ rhs: XCUIElement) -> Bool {
@@ -315,34 +321,58 @@ class KeeForgeUITestCase: XCTestCase {
         direction: SwipeDirection = .up,
         maxSwipes: Int = 6
     ) -> Bool {
-        if element.exists && element.isHittable {
+        if isSafeToHitTest(element) {
             return true
         }
 
-        let scrollContainer = container ?? scrollableContainer()
-
-        guard let scrollContainer, scrollContainer.exists else {
-            return element.waitForExistence(timeout: 1)
-        }
-
-        if element.waitForExistence(timeout: 1), element.isHittable {
-            return true
-        }
-
-        for _ in 0..<maxSwipes {
-            switch direction {
-            case .up:
-                scrollContainer.swipeUp()
-            case .down:
-                scrollContainer.swipeDown()
+        if let container, container.exists {
+            if element.waitForExistence(timeout: 1), isSafeToHitTest(element) {
+                return true
             }
 
-            if element.waitForExistence(timeout: 1), element.isHittable {
-                return true
+            for _ in 0..<maxSwipes {
+                switch direction {
+                case .up:
+                    container.swipeUp()
+                case .down:
+                    container.swipeDown()
+                }
+
+                if element.waitForExistence(timeout: 1), isSafeToHitTest(element) {
+                    return true
+                }
+            }
+        } else {
+            for _ in 0..<maxSwipes {
+                switch direction {
+                case .up:
+                    app.swipeUp()
+                case .down:
+                    app.swipeDown()
+                }
+
+                if element.waitForExistence(timeout: 1), isSafeToHitTest(element) {
+                    return true
+                }
             }
         }
 
         return element.exists
+    }
+
+    private func hasUsableFrame(_ element: XCUIElement) -> Bool {
+        let frame = element.frame
+        return frame.minX.isFinite
+            && frame.minY.isFinite
+            && frame.width.isFinite
+            && frame.height.isFinite
+            && frame.width > 0
+            && frame.height > 0
+    }
+
+    private func isSafeToHitTest(_ element: XCUIElement) -> Bool {
+        guard element.exists, hasUsableFrame(element) else { return false }
+        return element.isHittable
     }
 
     @discardableResult
