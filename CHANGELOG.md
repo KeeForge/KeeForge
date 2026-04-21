@@ -9,7 +9,7 @@
 ### Fixes
 - Improve database-open failure handling by separating expected password/key-file errors from unexpected file, format, cloud, and biometric failures
 - Add copyable sanitized error details and safer feedback payloads for database-open issues without including vault contents, passwords, key files, or raw database files
-- Restore subtle card styling for database list entries so they remain visually distinct in both iPhone and iPad layouts
+- Restore database list row sizing to match v1.8.1, including the selected-row highlight footprint on both iPhone and iPad layouts
 - Respect the configured auto-lock timeout across app switching by making immediate background locking optional and applying elapsed timeout checks when returning from the background
 
 ## v1.8.1 (2026-04-16)

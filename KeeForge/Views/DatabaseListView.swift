@@ -54,36 +54,14 @@ struct DatabaseListView: View {
                 } else {
                     List {
                         ForEach(viewModel.databases) { reference in
-                            Button {
-                                onSelectDatabase(reference)
-                            } label: {
-                                DatabaseRowView(
-                                    reference: reference,
-                                    status: viewModel.status(for: reference),
-                                    lastOpenedDescription: viewModel.lastOpenedDescription(for: reference),
-                                    filenameSubtitle: viewModel.detailSubtitle(for: reference)
-                                )
-                            }
-                            .buttonStyle(.plain)
-                            .listRowInsets(EdgeInsets(top: 6, leading: 20, bottom: 6, trailing: 20))
-                            .listRowBackground(Color.clear)
-                            .listRowSeparator(.hidden)
-                            .accessibilityIdentifier("database.row")
-                            .listRowBackground(
-                                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                    .fill(
-                                        reference.id == selectedDatabaseID
-                                            ? Color.accentColor.opacity(0.16)
-                                            : Color.clear
+                            if reference.id == selectedDatabaseID {
+                                databaseRowButton(for: reference)
+                                    .listRowBackground(
+                                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                            .fill(Color.accentColor.opacity(0.16))
                                     )
-                            )
-                            .contextMenu {
-                                contextMenu(for: reference)
-                            }
-                            .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                                Button("Remove", role: .destructive) {
-                                    pendingRemoval = reference
-                                }
+                            } else {
+                                databaseRowButton(for: reference)
                             }
                         }
                         .onMove(perform: viewModel.moveDatabases)
@@ -256,6 +234,29 @@ struct DatabaseListView: View {
                     selectionAlert = makeCloudSelectionAlert(error: error, provider: provider)
                 }
             )
+        }
+    }
+
+    private func databaseRowButton(for reference: DatabaseReference) -> some View {
+        Button {
+            onSelectDatabase(reference)
+        } label: {
+            DatabaseRowView(
+                reference: reference,
+                status: viewModel.status(for: reference),
+                lastOpenedDescription: viewModel.lastOpenedDescription(for: reference),
+                filenameSubtitle: viewModel.detailSubtitle(for: reference)
+            )
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier("database.row")
+        .contextMenu {
+            contextMenu(for: reference)
+        }
+        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+            Button("Remove", role: .destructive) {
+                pendingRemoval = reference
+            }
         }
     }
 
