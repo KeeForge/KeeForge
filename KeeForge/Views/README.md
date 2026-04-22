@@ -1,6 +1,12 @@
 # Views Folder
 
-This folder contains the SwiftUI screens for the database-list flow and the unlocked-database flow that is reused by both compact and regular-width layouts.
+This folder contains the SwiftUI screens for both supported app UIs: the compact iPhone-style flow and the regular-width iPad workspace. Most feature screens are shared across those presentations, so view changes should account for both shells rather than assuming a single navigation structure.
+
+## Supported UI Shells
+
+- Compact UI: iPhone-sized layouts push from the database list into one active unlock or database session at a time.
+- Regular-width UI: iPad layouts keep the database list visible while the selected unlock or database session renders in a dedicated detail workspace.
+- Treat both shells as first-class product surfaces. If a feature adds navigation, chrome, editing, or status UI, verify how it lands in both presentations.
 
 ## Screen Map
 
@@ -14,7 +20,7 @@ This folder contains the SwiftUI screens for the database-list flow and the unlo
 ## UI Rules
 
 - Keep business logic in view models and services; views should compose state, trigger intents, and manage local presentation state only.
-- Keep compact and regular-width layouts behaviorally aligned. If a screen gains iPad-specific presentation, prefer sharing the same core row/detail/editor views instead of forking the feature.
+- Keep compact and regular-width layouts behaviorally aligned. If a screen gains iPad-specific presentation, prefer sharing the same core row/detail/editor views instead of forking the feature, and call out any intentional divergence in the local docs.
 - Preserve existing accessibility identifiers on major controls. If you add a new flow that needs automation, add identifiers as part of the feature instead of relying on visible labels.
 - The database list now exposes `database-row.pending-uploads-badge` and `database-row.push-pending-action`; keep those stable unless the matching tests are updated with the change.
 - Keep entry-form state local to `EntryEditViewModel`, but keep draft/save orchestration, conflict handling, and lock/discard decisions in `../ViewModels/DatabaseViewModel.swift`.

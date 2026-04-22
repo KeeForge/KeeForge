@@ -27,6 +27,7 @@ This file tracks planned product work.
 - [ ] group settings into sub pages
 - [ ] optimize database row view
 - [ ] option to disable metadata display for DB row
+- [ ] nicer password views with consistent font/color and strength indication
 
 ### Entry Viewer
 
