@@ -1,10 +1,9 @@
-name: CI
+name: CI (Manual)
 
 on:
-  push:
-    branches: [main]
-  pull_request:
-    branches: [main]
+  # Temporarily disable automatic GitHub Actions runs while the workflow is too flaky
+  # to justify push/PR noise. Manual dispatch keeps the workflow available on demand.
+  workflow_dispatch:
 
 concurrency:
   group: ci-${{ github.ref }}

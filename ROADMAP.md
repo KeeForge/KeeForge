@@ -8,7 +8,7 @@ This file tracks planned product work.
 
 ## iPad and macOS Support
 
-- [ ] Build an iPad-native layout
+- [x] Build an iPad-native layout
 - [ ] Plan and implement native macOS support
 
 ## Core Functionalities
@@ -24,6 +24,9 @@ This file tracks planned product work.
 ## In-App UI Enhancements
 
 - [ ] add folders in settings page
+- [ ] group settings into sub pages
+- [ ] optimize database row view
+- [ ] option to disable metadata display for DB row
 
 ### Entry Viewer
 
@@ -38,3 +41,6 @@ This file tracks planned product work.
 
 - [ ] Add internationalization infrastructure across the app
 - [ ] Add German language support
+
+## Release
+- [ ] Github release for macOS app
