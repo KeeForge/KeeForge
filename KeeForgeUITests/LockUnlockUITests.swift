@@ -6,16 +6,18 @@ final class LockUnlockUITests: KeeForgeUITestCase {
     func testManualLockBehavior() {
         unlockSuccessfully()
 
-        let lockButton = app.buttons["lock.button"]
+        let lockButton = currentLockButton()
         XCTAssertTrue(lockButton.waitForExistence(timeout: 5), "Lock button not found")
-        lockButton.tap()
+        tapElement(lockButton)
 
-        let databaseRow = app.buttons["database.row"].firstMatch
-        XCTAssertTrue(databaseRow.waitForExistence(timeout: 10), "Database list did not appear after locking")
+        XCTAssertTrue(waitForLockedState(timeout: 10), "Locked state did not appear after manual lock")
 
         sleep(4)
 
-        XCTAssertTrue(databaseRow.exists, "Database list should remain visible after manual lock")
+        XCTAssertTrue(
+            app.buttons["database.row"].exists || app.secureTextFields["unlock.password.field"].exists,
+            "A locked landing screen should remain visible after manual lock"
+        )
         XCTAssertFalse(
             app.buttons["lock.button"].exists,
             "Lock button should NOT exist — vault should remain locked after manual lock"

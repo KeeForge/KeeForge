@@ -48,17 +48,6 @@ final class DatabaseListUITests: KeeForgeUITestCase {
         XCTAssertTrue(secondHandle.waitForExistence(timeout: 5), "Bravo reorder handle not found")
     }
 
-    private func databaseRow(containing text: String) -> XCUIElement {
-        let cell = app.cells.matching(NSPredicate(format: "label CONTAINS[c] %@", text)).firstMatch
-        if cell.exists {
-            return cell
-        }
-
-        return app.buttons.matching(
-            NSPredicate(format: "identifier == 'database.row' AND label CONTAINS[c] %@", text)
-        ).firstMatch
-    }
-
     private func reorderHandle(containing text: String) -> XCUIElement {
         let predicate = NSPredicate(format: "label CONTAINS[c] %@ AND label BEGINSWITH[c] 'Reorder'", text)
 

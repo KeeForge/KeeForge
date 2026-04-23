@@ -509,6 +509,7 @@ enum DatabaseListStore {
             }
         }
         sharedDefaults.removeObject(forKey: cloudAccountsStorageKey)
+        try? PendingUploadQueue.clearAll()
         try? FileManager.default.removeItem(at: SharedVaultStore.databaseCacheDirectory)
         try? FileManager.default.removeItem(at: SharedVaultStore.cloudCacheDirectory)
 

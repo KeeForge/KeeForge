@@ -31,3 +31,18 @@ final class UnlockFlowUITests: KeeForgeUITestCase {
         XCTAssertTrue(databaseRow.waitForExistence(timeout: 10), "Database list did not appear after returning from unlock")
     }
 }
+
+@MainActor
+final class QuickLaunchSmokeUITests: KeeForgeUITestCase {
+    func testSingleDatabaseLaunchAutoOpensUnlockScreen() {
+        let passwordField = app.secureTextFields["unlock.password.field"]
+        XCTAssertTrue(
+            passwordField.waitForExistence(timeout: 10),
+            "Quick Launch should open the unlock screen automatically when a single database is seeded"
+        )
+
+        unlockSuccessfully()
+
+        XCTAssertTrue(currentLockButton().exists, "Vault should unlock successfully after quick-launch routing")
+    }
+}

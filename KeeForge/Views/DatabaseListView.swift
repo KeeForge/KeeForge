@@ -365,6 +365,7 @@ struct DatabaseListView: View {
         Button("Database Details") {
             detailsReference = currentReference(for: reference)
         }
+        .accessibilityIdentifier("database-row.details")
 
         Button("Remove", role: .destructive) {
             pendingRemoval = reference
@@ -560,6 +561,7 @@ private struct DatabaseDetailsView: View {
                         TextField("Use filename", text: $nickname)
                             .multilineTextAlignment(.trailing)
                             .onSubmit(saveNickname)
+                            .accessibilityIdentifier("database-details.nickname-field")
                     }
 
                     LabeledContent("Filename", value: currentReference.filename)
@@ -571,6 +573,7 @@ private struct DatabaseDetailsView: View {
                             viewModel.toggleQuickLaunch(for: reference)
                             isQuickLaunch = currentReference.isQuickLaunch
                         }
+                        .accessibilityIdentifier("database-details.quick-launch-toggle")
                 } header: {
                     Text("Identity")
                 } footer: {
@@ -598,6 +601,7 @@ private struct DatabaseDetailsView: View {
                     Button("Select Key File") {
                         onSelectKeyFile()
                     }
+                    .accessibilityIdentifier("database-details.key-file-select")
 
                     if currentReference.keyFileFilename != nil {
                         Button("Clear Key File", role: .destructive) {
@@ -676,6 +680,7 @@ private struct DatabaseDetailsView: View {
                         saveNickname()
                         dismiss()
                     }
+                    .accessibilityIdentifier("database-details.close")
                 }
             }
         }

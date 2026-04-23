@@ -136,19 +136,79 @@ class KeeForgeUITestCase: XCTestCase {
         element.typeText(text)
     }
 
+    func databaseRow(containing text: String) -> XCUIElement {
+        let cell = app.cells.matching(NSPredicate(format: "label CONTAINS[c] %@", text)).firstMatch
+        if cell.exists {
+            return cell
+        }
+
+        return app.buttons.matching(
+            NSPredicate(format: "identifier == 'database.row' AND label CONTAINS[c] %@", text)
+        ).firstMatch
+    }
+
+    func tapElement(_ element: XCUIElement) {
+        if element.isHittable {
+            element.tap()
+        } else {
+            element.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+        }
+    }
+
+    func firstExistingElement(in query: XCUIElementQuery) -> XCUIElement {
+        let candidates = query.allElementsBoundByIndex
+        return candidates.first(where: { $0.exists && $0.isHittable })
+            ?? candidates.first(where: { $0.exists })
+            ?? query.firstMatch
+    }
+
+    func currentLockButton() -> XCUIElement {
+        firstExistingElement(in: app.buttons.matching(identifier: "lock.button"))
+    }
+
+    @discardableResult
+    func openDatabase(
+        named name: String,
+        timeout: TimeInterval = 10,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) -> Bool {
+        let row = databaseRow(containing: name)
+        XCTAssertTrue(row.waitForExistence(timeout: timeout), "Database '\(name)' was not visible", file: file, line: line)
+        tapElement(row)
+
+        let passwordField = app.secureTextFields["unlock.password.field"]
+        let chooseDifferentButton = app.buttons["unlock.choose-different"].firstMatch
+        let deadline = Date().addingTimeInterval(timeout)
+
+        repeat {
+            if passwordField.exists || chooseDifferentButton.exists || currentLockButton().exists {
+                return true
+            }
+            RunLoop.current.run(until: Date().addingTimeInterval(0.25))
+        } while Date() < deadline
+
+        XCTFail(
+            "Database '\(name)' did not open into an unlock or vault screen within \(timeout) seconds",
+            file: file,
+            line: line
+        )
+        return false
+    }
+
     @discardableResult
     func waitForVaultToUnlock(
         timeout: TimeInterval = 30,
         file: StaticString = #filePath,
         line: UInt = #line
     ) -> Bool {
-        let lockButton = app.buttons["lock.button"]
+        let lockButtonQuery = app.buttons.matching(identifier: "lock.button")
         let errorLabel = app.staticTexts["unlock.error.label"]
         let deadline = Date().addingTimeInterval(timeout)
         var lastErrorMessage: String?
 
         repeat {
-            if lockButton.exists {
+            if lockButtonQuery.allElementsBoundByIndex.contains(where: \.exists) {
                 return true
             }
 
@@ -174,6 +234,31 @@ class KeeForgeUITestCase: XCTestCase {
     func waitForDatabaseList(timeout: TimeInterval = 10) -> Bool {
         let databaseRow = app.buttons["database.row"].firstMatch
         return databaseRow.waitForExistence(timeout: timeout)
+    }
+
+    @discardableResult
+    func waitForLockedState(timeout: TimeInterval = 10) -> Bool {
+        let databaseRow = app.buttons["database.row"].firstMatch
+        let passwordField = app.secureTextFields["unlock.password.field"]
+        let chooseDifferentButton = app.buttons["unlock.choose-different"].firstMatch
+        let deadline = Date().addingTimeInterval(timeout)
+
+        repeat {
+            if databaseRow.exists || passwordField.exists || chooseDifferentButton.exists {
+                return true
+            }
+            RunLoop.current.run(until: Date().addingTimeInterval(0.25))
+        } while Date() < deadline
+
+        return databaseRow.exists || passwordField.exists || chooseDifferentButton.exists
+    }
+
+    func requireRegularWidthLayout(file: StaticString = #filePath, line: UInt = #line) throws {
+        let window = app.windows.firstMatch
+        XCTAssertTrue(window.waitForExistence(timeout: 5), "App window did not appear", file: file, line: line)
+        guard window.frame.width >= 700 else {
+            throw XCTSkip("Requires a regular-width simulator destination")
+        }
     }
 
     @discardableResult

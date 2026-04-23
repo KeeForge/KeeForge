@@ -1,226 +1,52 @@
 import XCTest
 
 @MainActor
-final class UnlockedDatabaseUITests: KeeForgeUITestCase {
-
-    override func setUp() async throws {
-        continueAfterFailure = true
-        try await super.setUp()
+class UnlockedDatabaseUITestCase: KeeForgeUITestCase {
+    func openFixtureEntry(
+        groupName: String = "Social",
+        entryName: String = "Twitter",
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        openGroup(named: groupName, file: file, line: line)
+        openEntry(named: entryName, file: file, line: line)
     }
 
-    func testNavigation() {
-        unlockSuccessfully()
-        verifyNavigation()
+    func openGroup(named name: String, file: StaticString = #filePath, line: UInt = #line) {
+        let group = groupRow(named: name)
+        XCTAssertTrue(revealElement(group), "Group '\(name)' was not visible", file: file, line: line)
+        tapElement(group)
     }
 
-    func testEntryDetail() {
-        unlockSuccessfully()
-        verifyEntryDetail()
+    func openEntry(named name: String, file: StaticString = #filePath, line: UInt = #line) {
+        let entry = entryRow(named: name)
+        XCTAssertTrue(revealElement(entry), "Entry '\(name)' was not visible", file: file, line: line)
+        tapElement(entry)
     }
 
-    func testEntryTimestamps() {
-        unlockSuccessfully()
-        verifyEntryTimestamps()
+    func groupRow(named name: String) -> XCUIElement {
+        firstRowMatching(name: name, preferredIdentifier: "group.navlink")
     }
 
-    func testSearchStaysActiveWhileTyping() {
-        unlockSuccessfully()
-        verifySearchStaysActiveWhileTyping()
+    func entryRow(named name: String) -> XCUIElement {
+        firstRowMatching(name: name, preferredIdentifier: "entry.navlink")
     }
 
-    func testSearchShowsMatchesAndNoResults() {
-        unlockSuccessfully()
-        verifySearchShowsMatchesAndNoResults()
-    }
-
-    func testSortMenuShowsOptions() {
-        unlockSuccessfully()
-        verifySortMenuShowsOptions()
-    }
-
-    func testSortOrderChangeWorks() {
-        unlockSuccessfully()
-        verifySortOrderChangeWorks()
-    }
-
-    func testSettingsPageContent() {
-        unlockSuccessfully()
-        verifySettingsPageContent()
-    }
-
-    func testTipJarContent() {
-        unlockSuccessfully()
-        verifyTipJarContent()
-    }
-
-    // MARK: - Navigation (from NavigationUITests)
-
-    private func verifyNavigation() {
-        XCTAssertTrue(openAnyEntry(maxDepth: 8), "No entry found while navigating groups")
-
-        let anyCopyButton = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "entry.copy.")).firstMatch
-        XCTAssertTrue(anyCopyButton.waitForExistence(timeout: 5), "Entry detail did not open")
-    }
-
-    // MARK: - Entry Detail (from EntryDetailUITests)
-
-    private func verifyEntryDetail() {
-        XCTAssertTrue(openAnyEntry(), "Could not find an entry to open")
-
-        let copyQuery = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "entry.copy."))
-        XCTAssertTrue(copyQuery.firstMatch.waitForExistence(timeout: 5), "No copy actions found in entry detail")
-
-        let tapCount = min(copyQuery.count, 3)
-        XCTAssertGreaterThan(tapCount, 0)
-        for index in 0..<tapCount {
-            copyQuery.element(boundBy: index).tap()
+    func activateSearchField(file: StaticString = #filePath, line: UInt = #line) -> XCUIElement {
+        let searchField = app.searchFields["Search entries"].firstMatch
+        if searchField.waitForExistence(timeout: 1) == false, let container = scrollableContainer() {
+            container.swipeDown()
         }
 
-        let revealButton = app.buttons["entry.password.reveal"]
-        if revealButton.exists {
-            revealButton.tap()
-            let passwordCopy = app.buttons["entry.copy.password"]
-            if passwordCopy.exists {
-                passwordCopy.tap()
-            }
+        XCTAssertTrue(searchField.waitForExistence(timeout: 5), "Search field was not visible", file: file, line: line)
+        if searchField.isHittable == false {
+            _ = revealElement(searchField, in: scrollableContainer(), direction: .down, maxSwipes: 2)
         }
-
-        let urlCopy = app.buttons["entry.copy.url"]
-        if urlCopy.exists {
-            urlCopy.tap()
-        }
+        tapElement(searchField)
+        return searchField
     }
 
-    // MARK: - Entry Timestamps (from EntryTimestampUITests)
-
-    private func verifyEntryTimestamps() {
-        XCTAssertTrue(openAnyEntry(), "Could not open any entry")
-
-        // Scroll down to find the Details section with timestamps
-        let detailList = app.collectionViews.firstMatch.exists ? app.collectionViews.firstMatch : app.tables.firstMatch
-        for _ in 0..<4 {
-            detailList.swipeUp()
-        }
-
-        // Check for "Created" or "Modified" labels in the Details section
-        let createdLabel = app.staticTexts["Created"]
-        let modifiedLabel = app.staticTexts["Modified"]
-
-        let hasTimestamp = createdLabel.exists || modifiedLabel.exists
-        XCTAssertTrue(hasTimestamp, "Entry detail should show Created or Modified timestamp")
-    }
-
-    // MARK: - Search helpers (from SearchUITests)
-
-    private func debugSearchHierarchy(_ stage: String, file: StaticString = #filePath, line: UInt = #line) {
-        let promptMatchCount = app.descendants(matching: .any).matching(identifier: "Search entries").count
-        let searchFieldCount = app.searchFields.count
-        let textFieldCount = app.textFields.count
-        let searchButtonCount = app.buttons.matching(identifier: "Search").count
-        let navBarCount = app.navigationBars.count
-        let tableCount = app.tables.count
-        let collectionCount = app.collectionViews.count
-        let scrollViewCount = app.scrollViews.count
-        let navSearchButtonCount = app.navigationBars.buttons.matching(NSPredicate(format: "label CONTAINS[c] 'Search'")).count
-
-        let summary = """
-        [SearchUITests] \(stage)
-          navigationBars=\(navBarCount) tables=\(tableCount) collectionViews=\(collectionCount) scrollViews=\(scrollViewCount)
-          searchFields=\(searchFieldCount) textFields=\(textFieldCount)
-          buttons[Search]=\(searchButtonCount) navButtons[label~Search]=\(navSearchButtonCount) descendants[id=Search entries]=\(promptMatchCount)
-        """
-        NSLog("%@", summary)
-
-        let attachment = XCTAttachment(string: "[\(stage)]\n\(app.debugDescription)")
-        attachment.name = "Search hierarchy - \(stage)"
-        attachment.lifetime = .keepAlways
-        add(attachment)
-
-        if !app.navigationBars.firstMatch.exists {
-            XCTFail("Navigation bar is missing at \(stage)", file: file, line: line)
-        }
-    }
-
-    private func findSearchInput(timeout: TimeInterval) -> XCUIElement? {
-        let candidates: [XCUIElement] = [
-            app.searchFields["Search entries"],
-            app.searchFields.firstMatch,
-            app.textFields["Search entries"],
-            app.textFields.firstMatch
-        ]
-
-        for candidate in candidates where candidate.waitForExistence(timeout: timeout) {
-            return candidate
-        }
-
-        return nil
-    }
-
-    private func tapSearchButtonIfPresent(timeout: TimeInterval) -> Bool {
-        let candidates: [XCUIElement] = [
-            app.navigationBars.buttons["Search"].firstMatch,
-            app.buttons["Search"].firstMatch,
-            app.navigationBars.buttons.matching(NSPredicate(format: "label CONTAINS[c] 'Search'")).firstMatch,
-            app.buttons.matching(NSPredicate(format: "label CONTAINS[c] 'Search'")).firstMatch
-        ]
-
-        for button in candidates where button.waitForExistence(timeout: timeout) {
-            button.tap()
-            return true
-        }
-
-        return false
-    }
-
-    private func activateSearchField(file: StaticString = #filePath, line: UInt = #line) -> XCUIElement {
-        debugSearchHierarchy("before-search-activation", file: file, line: line)
-
-        if let searchInput = findSearchInput(timeout: 1) {
-            searchInput.tap()
-            return searchInput
-        }
-
-        if tapSearchButtonIfPresent(timeout: 1), let searchInput = findSearchInput(timeout: 1) {
-            searchInput.tap()
-            return searchInput
-        }
-
-        let swipeTargets: [XCUIElement] = [
-            app.collectionViews.firstMatch,
-            app.tables.firstMatch,
-            app.scrollViews.firstMatch,
-            app.navigationBars.firstMatch
-        ]
-
-        for _ in 0..<3 {
-            for target in swipeTargets where target.waitForExistence(timeout: 1) {
-                target.swipeDown()
-
-                if tapSearchButtonIfPresent(timeout: 1), let searchInput = findSearchInput(timeout: 1) {
-                    searchInput.tap()
-                    return searchInput
-                }
-
-                if let searchInput = findSearchInput(timeout: 1) {
-                    searchInput.tap()
-                    return searchInput
-                }
-            }
-        }
-
-        debugSearchHierarchy("search-field-missing-after-fallback", file: file, line: line)
-        let fallbackField = app.searchFields.firstMatch
-        XCTAssertTrue(
-            fallbackField.waitForExistence(timeout: 5),
-            "Search field did not appear",
-            file: file,
-            line: line
-        )
-        fallbackField.tap()
-        return fallbackField
-    }
-
-    private func clearSearchField(_ searchField: XCUIElement) {
+    func clearSearchField(_ searchField: XCUIElement) {
         let clearButton = searchField.buttons["Clear text"]
         if clearButton.exists {
             clearButton.tap()
@@ -228,7 +54,7 @@ final class UnlockedDatabaseUITests: KeeForgeUITestCase {
         }
 
         let currentValue = (searchField.value as? String) ?? ""
-        if currentValue.isEmpty || currentValue == "Search entries" {
+        guard currentValue.isEmpty == false, currentValue != "Search entries" else {
             return
         }
 
@@ -236,294 +62,275 @@ final class UnlockedDatabaseUITests: KeeForgeUITestCase {
         searchField.typeText(deleteSequence)
     }
 
-    private func dismissSearchIfNeeded(timeout: TimeInterval = 5) {
-        if let searchField = findSearchInput(timeout: 1) {
-            searchField.tap()
-            clearSearchField(searchField)
-        }
-
-        let keyboardSearchButton = app.buttons["Search"]
-        if keyboardSearchButton.exists && keyboardSearchButton.isHittable {
-            keyboardSearchButton.tap()
-        }
-
-        let cancelButton = app.buttons["Cancel"]
-        if cancelButton.exists && cancelButton.isHittable {
-            cancelButton.tap()
-        }
-
-        let navigationBar = app.navigationBars.firstMatch
-        if navigationBar.exists {
-            navigationBar.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
-        }
-
-        let deadline = Date().addingTimeInterval(timeout)
-        repeat {
-            if let searchField = findSearchInput(timeout: 0.2) {
-                clearSearchField(searchField)
-            } else {
-                return
-            }
-
-            if cancelButton.exists && cancelButton.isHittable {
-                cancelButton.tap()
-            }
-
-            if keyboardSearchButton.exists && keyboardSearchButton.isHittable {
-                keyboardSearchButton.tap()
-            }
-
-            if navigationBar.exists {
-                navigationBar.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
-            }
-
-            RunLoop.current.run(until: Date().addingTimeInterval(0.2))
-        } while Date() < deadline
+    func searchResult(named name: String) -> XCUIElement {
+        app.descendants(matching: .any).matching(
+            NSPredicate(
+                format: "identifier IN %@ AND label CONTAINS[c] %@",
+                ["entry.navlink", "search.entry.navlink"],
+                name
+            )
+        ).firstMatch
     }
 
-    // MARK: - Search (from SearchUITests)
+    func openAppSettings(file: StaticString = #filePath, line: UInt = #line) {
+        let settingsButton = app.buttons["settings.button"]
+        XCTAssertTrue(settingsButton.waitForExistence(timeout: 5), "Settings button was not visible", file: file, line: line)
+        settingsButton.tap()
 
-    private func verifySearchStaysActiveWhileTyping() {
+        let databaseSettingsBar = app.navigationBars["Database Settings"]
+        XCTAssertTrue(
+            databaseSettingsBar.waitForExistence(timeout: 5),
+            "Database Settings sheet did not appear",
+            file: file,
+            line: line
+        )
+
+        let appSettingsButton = app.buttons["App Settings"]
+        XCTAssertTrue(
+            revealElement(appSettingsButton, in: activeSettingsContainer(file: file, line: line), direction: .up, maxSwipes: 6),
+            "App Settings button was not visible in Database Settings",
+            file: file,
+            line: line
+        )
+        appSettingsButton.tap()
+
+        XCTAssertTrue(app.navigationBars["Settings"].waitForExistence(timeout: 5), "Settings sheet did not appear", file: file, line: line)
+    }
+
+    func revealInSettings(
+        _ element: XCUIElement,
+        maxSwipes: Int = 6,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        XCTAssertTrue(
+            revealElement(element, in: activeSettingsContainer(file: file, line: line), direction: .up, maxSwipes: maxSwipes),
+            "Could not reveal '\(element.label)' in Settings",
+            file: file,
+            line: line
+        )
+    }
+
+    func closeSettings(file: StaticString = #filePath, line: UInt = #line) {
+        let doneButton = app.navigationBars["Settings"].buttons["Done"]
+        XCTAssertTrue(doneButton.waitForExistence(timeout: 5), "Done button was not visible", file: file, line: line)
+        doneButton.tap()
+
+        let closeButton = app.navigationBars["Database Settings"].buttons["Close"]
+        XCTAssertTrue(closeButton.waitForExistence(timeout: 5), "Close button was not visible", file: file, line: line)
+        closeButton.tap()
+    }
+
+    private func activeSettingsContainer(file: StaticString, line: UInt) -> XCUIElement {
+        if let container = scrollableContainer() {
+            return container
+        }
+
+        XCTFail("No visible settings container was found", file: file, line: line)
+        return app.collectionViews.firstMatch
+    }
+
+    private func firstRowMatching(name: String, preferredIdentifier: String) -> XCUIElement {
+        let preferredQuery = app.descendants(matching: .any).matching(
+            NSPredicate(format: "identifier == %@ AND label CONTAINS[c] %@", preferredIdentifier, name)
+        )
+        let labelPredicate = NSPredicate(format: "label CONTAINS[c] %@", name)
+        let buttonQuery = app.buttons.matching(labelPredicate)
+        let cellQuery = app.cells.matching(labelPredicate)
+
+        let candidates = preferredQuery.allElementsBoundByIndex + buttonQuery.allElementsBoundByIndex + cellQuery.allElementsBoundByIndex
+        return candidates.first(where: { $0.exists && $0.isHittable })
+            ?? candidates.first(where: { $0.exists })
+            ?? preferredQuery.firstMatch
+    }
+}
+
+// Happy-path smoke coverage for unlocked browsing and detail screens.
+@MainActor
+final class UnlockedDatabaseBrowseAndDetailUITests: UnlockedDatabaseUITestCase {
+    func testFixtureGroupShowsExpectedEntry() {
+        unlockSuccessfully()
+
+        openGroup(named: "Social")
+
+        let twitterEntry = entryRow(named: "Twitter")
+        XCTAssertTrue(revealElement(twitterEntry), "Twitter entry was not visible in Social")
+    }
+
+    func testFixtureEntryDetailShowsCopyActions() {
+        unlockSuccessfully()
+
+        openFixtureEntry()
+
+        let passwordCopy = app.buttons["entry.copy.password"]
+        let urlCopy = app.buttons["entry.copy.url"]
+        XCTAssertTrue(passwordCopy.waitForExistence(timeout: 5), "Password copy action was not visible")
+        XCTAssertTrue(urlCopy.waitForExistence(timeout: 5), "URL copy action was not visible")
+
+        passwordCopy.tap()
+        urlCopy.tap()
+    }
+
+    func testFixtureEntryDetailShowsTimestamps() {
+        unlockSuccessfully()
+
+        openFixtureEntry()
+
+        let createdLabel = app.staticTexts["Created"]
+        let modifiedLabel = app.staticTexts["Modified"]
+        let container = scrollableContainer()
+        let foundCreated = revealElement(createdLabel, in: container, direction: .up, maxSwipes: 4)
+        let foundModified = revealElement(modifiedLabel, in: container, direction: .up, maxSwipes: 4)
+
+        XCTAssertTrue(foundCreated || foundModified, "Entry detail should show Created or Modified timestamps")
+    }
+}
+
+// Happy-path smoke coverage for unlocked search and sorting flows.
+@MainActor
+final class UnlockedDatabaseSearchAndSortUITests: UnlockedDatabaseUITestCase {
+    func testSearchFieldStaysVisibleWhileTypingFixtureQuery() {
+        unlockSuccessfully()
+
         let searchField = activateSearchField()
-
-        // Type a multi-character query in one go — this is the real user flow
+        clearSearchField(searchField)
         searchField.typeText("Twi")
 
-        // Search field should still exist (not dismissed after typing)
-        let activeSearchField = findSearchInput(timeout: 5)
-        XCTAssertNotNil(activeSearchField, "Search field disappeared after typing")
-
         let resultsCountLabel = app.staticTexts["search.results.count"]
-        if resultsCountLabel.waitForExistence(timeout: 5) {
-            XCTAssertNotEqual(resultsCountLabel.label, "results:0", "Expected search results for 'Twi'")
-        } else {
-            let matchingResult = app.descendants(matching: .any).matching(
-                NSPredicate(format: "identifier IN %@ AND label CONTAINS[c] %@", ["entry.navlink", "search.entry.navlink"], "Twitter")
-            ).firstMatch
-            XCTAssertTrue(matchingResult.waitForExistence(timeout: 5), "Expected search results for 'Twi'")
-        }
-
-        dismissSearchIfNeeded()
+        XCTAssertTrue(app.searchFields["Search entries"].waitForExistence(timeout: 2), "Search field disappeared while typing")
+        XCTAssertTrue(resultsCountLabel.waitForExistence(timeout: 5), "Search results count did not appear")
+        XCTAssertNotEqual(resultsCountLabel.label, "results:0", "Expected search results for 'Twi'")
+        XCTAssertTrue(searchResult(named: "Twitter").waitForExistence(timeout: 5), "Expected Twitter to appear in search results")
     }
 
-    private func verifySearchShowsMatchesAndNoResults() {
+    func testSearchShowsFixtureMatchAndNoResultsState() {
+        unlockSuccessfully()
+
         let searchField = activateSearchField()
         clearSearchField(searchField)
-
-        // `test.kdbx` always includes a Twitter entry, so use a stable fixture-backed query.
-        searchField.typeText("Twitter\n")
+        searchField.typeText("Twitter")
 
         let resultsCountLabel = app.staticTexts["search.results.count"]
-        if resultsCountLabel.waitForExistence(timeout: 5) {
-            XCTAssertFalse(resultsCountLabel.label == "results:0", "Expected at least one search result")
-        } else {
-            let matchingResult = app.descendants(matching: .any).matching(
-                NSPredicate(format: "identifier IN %@ AND label CONTAINS[c] %@", ["entry.navlink", "search.entry.navlink"], "Twitter")
-            ).firstMatch
-            XCTAssertTrue(matchingResult.waitForExistence(timeout: 5), "Expected at least one search result")
-        }
+        XCTAssertTrue(resultsCountLabel.waitForExistence(timeout: 5), "Search results count did not appear")
+        XCTAssertNotEqual(resultsCountLabel.label, "results:0", "Expected Twitter to appear in search results")
+        XCTAssertTrue(searchResult(named: "Twitter").waitForExistence(timeout: 5), "Expected Twitter to appear in search results")
 
-        searchField.tap()
+        tapElement(searchField)
         clearSearchField(searchField)
+        searchField.typeText("___unlikely_query___")
 
-        let refocusedSearchField = activateSearchField()
-        refocusedSearchField.typeText("___unlikely_query___\n")
-
-        if resultsCountLabel.exists {
-            let timeout = Date().addingTimeInterval(5)
-            var didReachZeroResults = false
-            repeat {
-                if resultsCountLabel.label == "results:0" {
-                    didReachZeroResults = true
-                    break
-                }
-                RunLoop.current.run(until: Date().addingTimeInterval(0.2))
-            } while Date() < timeout
-
-            XCTAssertTrue(didReachZeroResults, "Expected no-results state")
-        } else {
-            XCTAssertTrue(app.staticTexts["search.no-results"].waitForExistence(timeout: 5), "Expected no-results state")
-        }
-
-        dismissSearchIfNeeded()
+        XCTAssertTrue(app.staticTexts["search.no-results"].waitForExistence(timeout: 5), "Expected no-results state for an unlikely query")
     }
 
-    // MARK: - Sort helpers (from SortUITests)
+    func testSortMenuShowsExpectedOptions() {
+        unlockSuccessfully()
 
-    private func waitForAnyListContent(timeout: TimeInterval = 10) -> Bool {
-        let entry = app.buttons.matching(identifier: "entry.navlink").firstMatch
-        let group = app.buttons.matching(identifier: "group.navlink").firstMatch
-        let deadline = Date().addingTimeInterval(timeout)
-
-        repeat {
-            if entry.exists || group.exists {
-                return true
-            }
-            RunLoop.current.run(until: Date().addingTimeInterval(0.25))
-        } while Date() < deadline
-
-        return false
-    }
-
-    // MARK: - Sort (from SortUITests)
-
-    private func verifySortMenuShowsOptions() {
-        // Sort menu should exist and open
         let sortMenu = app.buttons["sort.menu"]
-        XCTAssertTrue(sortMenu.waitForExistence(timeout: 10), "Sort menu button not found in toolbar")
+        XCTAssertTrue(sortMenu.waitForExistence(timeout: 5), "Sort menu button was not visible")
         sortMenu.tap()
 
-        // Should show sort options: Title, Date Created, Date Modified
-        let titleOption = app.buttons["Title"]
-        XCTAssertTrue(titleOption.waitForExistence(timeout: 5), "Sort menu should show sort order options")
+        XCTAssertTrue(app.buttons["Title"].waitForExistence(timeout: 5), "Title sort option was not visible")
+        XCTAssertTrue(app.buttons["Date Created"].exists, "Date Created sort option was not visible")
+        XCTAssertTrue(app.buttons["Date Modified"].exists, "Date Modified sort option was not visible")
 
-        // Dismiss by tapping elsewhere
         app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.1)).tap()
     }
 
-    private func verifySortOrderChangeWorks() {
+    func testChangingSortOrderKeepsFixtureGroupsVisible() {
+        unlockSuccessfully()
+
         let sortMenu = app.buttons["sort.menu"]
-        XCTAssertTrue(sortMenu.waitForExistence(timeout: 10), "Sort menu not found")
+        XCTAssertTrue(sortMenu.waitForExistence(timeout: 5), "Sort menu button was not visible")
         sortMenu.tap()
 
-        // Select "Date Modified"
         let modifiedOption = app.buttons["Date Modified"]
-        XCTAssertTrue(modifiedOption.waitForExistence(timeout: 5), "Date Modified option not found")
+        XCTAssertTrue(modifiedOption.waitForExistence(timeout: 5), "Date Modified sort option was not visible")
         modifiedOption.tap()
 
-        // Verify the list still displays entries (sort didn't crash)
-        let hasContent = waitForAnyListContent(timeout: 10)
-        XCTAssertTrue(hasContent, "List should still show entries/groups after changing sort order")
-    }
-
-    // MARK: - Settings helpers (from SettingsUITests)
-
-    private func openSettings() {
-        let settingsButton = app.buttons["settings.button"]
-        XCTAssertTrue(settingsButton.waitForExistence(timeout: 10), "Settings button not found")
-        settingsButton.tap()
-
-        // The gear button opens Database Settings; scroll to and tap App Settings
-        let appSettingsButton = app.buttons["App Settings"]
+        let socialGroup = groupRow(named: "Social")
+        let workGroup = groupRow(named: "Work")
         XCTAssertTrue(
-            revealElement(appSettingsButton, in: settingsForm(), direction: .up, maxSwipes: 6),
-            "App Settings button not found in Database Settings"
+            revealElement(socialGroup) || revealElement(workGroup),
+            "Expected fixture groups to remain visible after changing sort order"
         )
-        appSettingsButton.tap()
     }
+}
 
-    private func settingsForm() -> XCUIElement {
-        let candidates = (
-            app.collectionViews.allElementsBoundByIndex +
-            app.tables.allElementsBoundByIndex +
-            app.scrollViews.allElementsBoundByIndex
-        )
-        .filter { $0.exists && $0.isHittable }
-        .sorted { lhs, rhs in
-            let leftArea = lhs.frame.width * lhs.frame.height
-            let rightArea = rhs.frame.width * rhs.frame.height
-            if leftArea != rightArea {
-                return leftArea > rightArea
-            }
-            if lhs.frame.minX != rhs.frame.minX {
-                return lhs.frame.minX > rhs.frame.minX
-            }
-            return lhs.frame.minY < rhs.frame.minY
-        }
+// Happy-path smoke coverage for the regular-width workspace shell.
+@MainActor
+final class RegularWidthWorkspaceUITests: UnlockedDatabaseUITestCase {
+    func testRegularWidthWorkspaceShowsPlaceholderThenSelectedEntryDetail() throws {
+        try requireRegularWidthLayout()
+        unlockSuccessfully()
 
-        return candidates.first ?? app.collectionViews.firstMatch
-    }
-
-    private func revealInSettings(_ element: XCUIElement, maxSwipes: Int = 8) {
+        let identifiedPlaceholder = app.descendants(matching: .any).matching(
+            identifier: "regular-workspace.select-entry-placeholder"
+        ).firstMatch
+        let titledPlaceholder = app.staticTexts["Select an Entry"]
         XCTAssertTrue(
-            revealElement(element, in: settingsForm(), direction: .up, maxSwipes: maxSwipes),
-            "Could not reveal '\(element.label)' in Settings"
+            identifiedPlaceholder.waitForExistence(timeout: 2) || titledPlaceholder.waitForExistence(timeout: 5),
+            "Regular-width workspace should show the Select an Entry placeholder before a detail is chosen"
         )
+
+        openGroup(named: "Social")
+        openEntry(named: "Twitter")
+
+        let passwordCopy = app.buttons["entry.copy.password"]
+        XCTAssertTrue(passwordCopy.waitForExistence(timeout: 5), "Selected entry detail should appear in the regular-width workspace")
     }
+}
 
-    // MARK: - Settings (from SettingsUITests)
+// Secondary, non-gating coverage for unlocked settings surfaces.
+@MainActor
+final class UnlockedDatabaseSettingsUITests: UnlockedDatabaseUITestCase {
+    func testSettingsPageShowsSupportAndAboutSections() {
+        unlockSuccessfully()
 
-    private func verifySettingsPageContent() {
-        openSettings()
+        openAppSettings()
 
-        XCTAssertTrue(app.navigationBars["Settings"].waitForExistence(timeout: 10), "Settings nav bar not found")
+        let supportButton = app.buttons["settings.send-feedback"]
+        revealInSettings(supportButton, maxSwipes: 4)
 
         let aboutHeader = app.staticTexts["About"]
         revealInSettings(aboutHeader, maxSwipes: 8)
 
-        let supportLink = app.descendants(matching: .any).matching(NSPredicate(
-            format: "label == 'Contact Support' OR label == 'Report a Bug' OR label == 'Source Code'"
-        )).firstMatch
-        revealInSettings(supportLink, maxSwipes: 4)
+        let sourceCodeLink = app.descendants(matching: .any).matching(
+            NSPredicate(format: "label == 'Source Code'")
+        ).firstMatch
+        revealInSettings(sourceCodeLink, maxSwipes: 4)
 
-        let tipJarContent = app.buttons.matching(NSPredicate(
-            format: "label CONTAINS[c] 'tip' OR label CONTAINS[c] '$'"
-        )).firstMatch
-        let tipJarFallback = app.staticTexts.matching(NSPredicate(
-            format: "label CONTAINS[c] 'Tip Jar is not available'"
-        )).firstMatch
-        XCTAssertTrue(
-            revealElement(tipJarContent, in: settingsForm(), direction: .up, maxSwipes: 6)
-                || revealElement(tipJarFallback, in: settingsForm(), direction: .up, maxSwipes: 6),
-            "Tip Jar section not found in Settings"
-        )
-
-        // Go back from Settings
-        if let backButton = navigationBackButton() {
-            backButton.tap()
-        }
+        closeSettings()
     }
 
-    private func verifyTipJarContent() {
-        openSettings()
+    func testTipJarSectionShowsProductsOrFallback() {
+        unlockSuccessfully()
+
+        openAppSettings()
 
         let tipJarHeader = app.staticTexts["Tip Jar"]
         revealInSettings(tipJarHeader, maxSwipes: 8)
 
-        let smallTip = app.buttons.matching(NSPredicate(format: "label CONTAINS[c] 'Small' OR label CONTAINS[c] '$1.99' OR label CONTAINS[c] 'tip'")).firstMatch
-        let notAvailable = app.staticTexts.matching(NSPredicate(format: "label CONTAINS[c] 'not available' OR label CONTAINS[c] 'unavailable'")).firstMatch
-        let hasTipContent = revealElement(smallTip, in: settingsForm(), direction: .up, maxSwipes: 2)
-            || revealElement(notAvailable, in: settingsForm(), direction: .up, maxSwipes: 2)
-        XCTAssertTrue(hasTipContent, "Tip Jar should show tip buttons or 'not available' fallback")
+        let tipButton = app.buttons.matching(
+            NSPredicate(format: "label CONTAINS[c] '$' OR label CONTAINS[c] 'Small' OR label CONTAINS[c] 'tip'")
+        ).firstMatch
+        let unavailableText = app.staticTexts["Tip Jar is not available right now."]
+        let deadline = Date().addingTimeInterval(10)
+        var foundTipJarContent = false
 
-        let description = app.staticTexts.matching(NSPredicate(
-            format: "label CONTAINS[c] 'support' OR label CONTAINS[c] 'tip' OR label CONTAINS[c] 'free'"
-        )).firstMatch
-        revealInSettings(description, maxSwipes: 2)
+        repeat {
+            foundTipJarContent =
+                revealElement(tipButton, in: scrollableContainer(), direction: .up, maxSwipes: 2)
+                || revealElement(unavailableText, in: scrollableContainer(), direction: .up, maxSwipes: 2)
 
-        // Go back from Settings
-        if let backButton = navigationBackButton() {
-            backButton.tap()
-        }
-    }
-
-    // MARK: - Helpers
-
-    private func navigationBackButton() -> XCUIElement? {
-        let toolbarIdentifiers = Set(["lock.button", "settings.button", "sort.menu", "Done"])
-
-        return app.navigationBars.buttons.allElementsBoundByIndex.first { button in
-            guard button.exists && button.isHittable else { return false }
-
-            let identifier = button.identifier.trimmingCharacters(in: .whitespacesAndNewlines)
-            let label = button.label.trimmingCharacters(in: .whitespacesAndNewlines)
-
-            if toolbarIdentifiers.contains(identifier) || toolbarIdentifiers.contains(label) {
-                return false
-            }
-
-            return true
-        }
-    }
-
-    private func navigateBackToRoot() {
-        for _ in 0..<5 {
-            if let backButton = navigationBackButton() {
-                backButton.tap()
-                sleep(1)
-            } else {
+            if foundTipJarContent {
                 break
             }
-        }
+
+            RunLoop.current.run(until: Date().addingTimeInterval(0.25))
+        } while Date() < deadline
+
+        XCTAssertTrue(foundTipJarContent, "Tip Jar should show products or the unavailable fallback")
+
+        closeSettings()
     }
 }

@@ -49,17 +49,20 @@ struct RegularDatabaseWorkspaceView: View {
                         systemImage: "key.horizontal",
                         description: Text("Choose an entry to view or edit its details.")
                     )
+                    .accessibilityIdentifier("regular-workspace.select-entry-placeholder")
                 } else {
                     ContentUnavailableView(
                         "Search Results",
                         systemImage: "magnifyingglass",
                         description: Text("Select a matching entry to view its details.")
                     )
+                    .accessibilityIdentifier("regular-workspace.search-results-placeholder")
                 }
             }
         }
         .navigationSplitViewStyle(.balanced)
         .background(Color(.systemBackground))
+        .accessibilityIdentifier("regular-workspace.root")
         .safeAreaInset(edge: .top, spacing: 0) {
             VStack(spacing: 8) {
                 if let bannerText = viewModel.cloudSyncBannerText {

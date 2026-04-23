@@ -6,16 +6,32 @@ Use this document for UI test methodology. Repo-wide build and test policy stays
 
 ## Current Test Classes
 
+### Release-Smoke Oriented Classes
+
 - `DatabaseListUITests` — home-screen database list actions and management
 - `UnlockFlowUITests` — basic unlock success/failure coverage
-- `BackoffUITests` — failed-unlock backoff behavior
+- `QuickLaunchSmokeUITests` — single-database quick-launch routing into unlock
 - `LockUnlockUITests` — lock cycle coverage
-- `UnlockedDatabaseUITests` — post-unlock navigation, entry detail, search, sort, settings
-- `EntryEditUITests` — create/edit/delete entry flows, password generation, conflict handling, lock/discard prompts, and read-only editing affordances
-- `KeyFileUITests` — key file selection and picker flows
+- `UnlockedDatabaseBrowseAndDetailUITests` — unlocked vault browse + entry-detail happy paths
+- `UnlockedDatabaseSearchAndSortUITests` — unlocked search and sort happy paths
+- `EntryCreateSmokeUITests` — create-entry happy path using a known fixture group
+- `EntryEditSmokeUITests` — edit-entry happy path using a known fixture entry
+- `EntryDeleteSmokeUITests` — delete-entry happy path using a known fixture entry
 - `KeyFileUnlockUITests` — unlocking with a key file
+- `CloudBrowserSmokeUITests` — add Dropbox and browse the mock cloud picker
+- `CloudUnlockSmokeUITests` — unlock a seeded cloud-backed database through the mock provider
+- `RegularWidthWorkspaceUITests` — regular-width / iPad workspace smoke coverage
+
+### Secondary / Edge Coverage
+
+- `BackoffUITests` — failed-unlock backoff behavior
+- `UnlockedDatabaseSettingsUITests` — unlocked settings / tip jar coverage
+- `EntryEditEdgeUITests` — password generation, conflict handling, discard prompts, and read-only editing affordances
+- `KeyFileUITests` — key file selection and picker flows
+- `CloudAccountEdgeUITests` — sign-out / disconnected cloud account behavior
 - `AppStoreScreenshots` — screenshot capture flow using demo fixtures
-- Database-list and cloud UI tests are the current place to cover pending-upload badges / actions; the repo does not currently have a dedicated simulator harness for the system AutoFill save sheet itself.
+
+Database-list and cloud UI tests are the current place to cover pending-upload badges / actions; the repo does not currently have a dedicated simulator harness for the system AutoFill save sheet itself.
 
 ## Running UI Tests
 
@@ -32,20 +48,26 @@ If one source file contains multiple test classes, run each class separately by 
 Examples:
 
 ```bash
-# One standard UI class
+# One release-smoke unlocked class
 xcodebuild test -project KeeForge.xcodeproj -scheme KeeForge \
   -destination 'platform=iOS Simulator,name=iPhone 17 Pro' \
-  -only-testing:KeeForgeUITests/UnlockFlowUITests -quiet
+  -only-testing:KeeForgeUITests/UnlockedDatabaseSearchAndSortUITests -quiet
 
 # Key file-specific class from a shared source file
 xcodebuild test -project KeeForge.xcodeproj -scheme KeeForge \
   -destination 'platform=iOS Simulator,name=iPhone 17 Pro' \
   -only-testing:KeeForgeUITests/KeyFileUnlockUITests -quiet
 
-# Entry editing slice
+# Entry creation smoke slice
 xcodebuild test -project KeeForge.xcodeproj -scheme KeeForge \
   -destination 'platform=iOS Simulator,name=iPhone 17 Pro' \
-  -only-testing:KeeForgeUITests/EntryEditUITests -quiet
+  -only-testing:KeeForgeUITests/EntryCreateSmokeUITests -quiet
+
+# Cloud-backed smoke slice
+xcodebuild test -project KeeForge.xcodeproj -scheme KeeForge \
+  -destination 'platform=iOS Simulator,name=iPhone 17 Pro' \
+  -only-testing:KeeForgeUITests/CloudUnlockSmokeUITests -quiet
+
 ```
 
 Do not run the full UI suite unless explicitly asked. It is slow and makes failures harder to isolate.
@@ -112,10 +134,12 @@ Good patterns:
 
 - one test method per behavior
 - helpers that return to a known stable screen before the next assertion
+- for save-path smoke assertions, reopen the target group before checking persisted list content
 - explicit waits for the element that proves state changed
 
 Avoid:
 
+- long tests that combine smoke-path coverage and edge-case coverage in the same class
 - long tests that combine search, sort, settings, navigation, and modal flows in one method
 - tests that depend on toolbar structure while search or sheets are still active
 - assertions that guess at content instead of using known fixture data
@@ -140,6 +164,8 @@ Common sources of UI test flakiness in this repo:
 - sheets and menus replace the expected navigation controls
 - the root fixture group contains subgroups, not direct entries
 - document picker flows are asynchronous and require explicit waiting
+- password-filled create flows can trigger the system `Save Password?` sheet in the simulator
+- regular-width workspace and database-details smoke flows are much more stable when they target dedicated accessibility identifiers such as `regular-workspace.select-entry-placeholder` and `database-details.quick-launch-toggle`
 
 When a test drives search, sorting, or modal UI, reset back to a known stable state before the next assertion. If a combined test keeps leaking state across sections, split it into multiple test methods.
 
@@ -193,6 +219,7 @@ Key helpers:
 - `unlock(password:)` — type password and tap unlock
 - `unlockSuccessfully()` — unlock with the default fixture password and assert success
 - `waitForVaultToUnlock()` — poll until unlock succeeds or surface the last visible error
+- `openDatabase(named:)` — open a known fixture-backed database row instead of whichever row appears first
 - `openAnyEntry()` — navigate into a non-empty group and open an entry
 - `revealElement(_:in:direction:maxSwipes:)` — scroll until an element is visible and hittable
 - `waitForDocumentPicker()` — wait for the system document picker to appear
