@@ -39,19 +39,13 @@ struct FeedbackComposerView: View {
                             }
                         }
 
-                        Section("Follow-Up") {
-                            Toggle("I'm okay with a follow-up", isOn: $model.consentToContact)
-
-                            if model.consentToContact {
-                                TextField("Email or other contact", text: $model.contact)
-                                    .textInputAutocapitalization(.never)
-                                    .autocorrectionDisabled()
-                            }
-                        }
-
                         Section("Privacy") {
-                            Text("KeeForge includes app version, build number, iOS version, device model, and the safe details shown above.")
-                            Text("KeeForge does not include database contents, passwords, key files, raw vault files, or unsanitized logs.")
+                            Text(
+                                model.context.hasErrorContext
+                                    ? "KeeForge sends the message you type here plus the error details shown above."
+                                    : "KeeForge only sends the message you type here."
+                            )
+                            Text("KeeForge does not include database contents, passwords, key files, raw vault files, or app/device metadata.")
                         }
                     }
                 }

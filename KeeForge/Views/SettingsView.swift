@@ -241,7 +241,7 @@ struct SettingsView: View {
         } header: {
             Text("Support")
         } footer: {
-            Text("No GitHub or email required. KeeForge never includes database contents, passwords, key files, or raw vault files in feedback.")
+            Text("No GitHub or email required. KeeForge only sends the message you type, plus the visible error details if you report a database-open failure. It never includes database contents, passwords, key files, raw vault files, or app/device metadata.")
         }
     }
 

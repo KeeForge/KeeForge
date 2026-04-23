@@ -13,6 +13,24 @@ struct FeedbackComposerContext: Identifiable, Equatable, Sendable {
         errorCode.isEmpty == false || errorCategory.isEmpty == false || details.isEmpty == false
     }
 
+    var submittedDetails: String {
+        var components: [String] = []
+
+        if errorCategory.isEmpty == false {
+            components.append("Category: \(errorCategory)")
+        }
+
+        if errorCode.isEmpty == false {
+            components.append("Code: \(errorCode)")
+        }
+
+        if details.isEmpty == false {
+            components.append(details)
+        }
+
+        return components.joined(separator: "\n")
+    }
+
     static var general: FeedbackComposerContext {
         FeedbackComposerContext(
             id: "general-feedback",
@@ -44,56 +62,17 @@ struct FeedbackComposerContext: Identifiable, Equatable, Sendable {
 
 struct AppFeedbackPayload: Codable, Equatable, Sendable {
     let message: String
-    let errorCode: String
-    let errorCategory: String
-    let appVersion: String
-    let buildNumber: String
-    let osVersion: String
-    let deviceModel: String
     let details: String
-    let consentToContact: Bool
-    let contact: String
-}
-
-struct AppFeedbackEnvironment: Equatable, Sendable {
-    let appVersion: String
-    let buildNumber: String
-    let osVersion: String
-    let deviceModel: String
-
-    static func current(bundle: Bundle = .main) -> AppFeedbackEnvironment {
-        let version = bundle.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "unknown"
-        let build = bundle.object(forInfoDictionaryKey: kCFBundleVersionKey as String) as? String ?? "unknown"
-        return AppFeedbackEnvironment(
-            appVersion: version,
-            buildNumber: build,
-            osVersion: ProcessInfo.processInfo.operatingSystemVersionString,
-            deviceModel: currentDeviceModel()
-        )
-    }
-
-    private static func currentDeviceModel() -> String {
-        var systemInfo = utsname()
-        uname(&systemInfo)
-        let mirror = Mirror(reflecting: systemInfo.machine)
-        return mirror.children.reduce(into: "") { result, element in
-            guard let value = element.value as? Int8, value != 0 else { return }
-            result.append(Character(UnicodeScalar(UInt8(value))))
-        }
-    }
 }
 
 enum FeedbackSubmissionError: LocalizedError, Equatable, Sendable {
     case messageRequired
-    case contactRequired
     case invalidResponse(Int)
 
     var errorDescription: String? {
         switch self {
         case .messageRequired:
             "Add a short message before sending feedback."
-        case .contactRequired:
-            "Add contact information or turn off follow-up consent."
         case .invalidResponse:
             "KeeForge couldn't submit the feedback right now. Please try again later."
         }
@@ -107,49 +86,27 @@ enum FeedbackSubmissionService {
 
     static func makePayload(
         message: String,
-        consentToContact: Bool,
-        contact: String,
-        context: FeedbackComposerContext,
-        environment: AppFeedbackEnvironment = .current()
+        context: FeedbackComposerContext
     ) throws -> AppFeedbackPayload {
-        let trimmedMessage = message.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedMessage = trim(message)
         guard trimmedMessage.isEmpty == false else {
             throw FeedbackSubmissionError.messageRequired
         }
 
-        let trimmedContact = contact.trimmingCharacters(in: .whitespacesAndNewlines)
-        if consentToContact && trimmedContact.isEmpty {
-            throw FeedbackSubmissionError.contactRequired
-        }
-
         return AppFeedbackPayload(
-            message: sanitize(trimmedMessage),
-            errorCode: sanitize(context.errorCode),
-            errorCategory: sanitize(context.errorCategory),
-            appVersion: sanitize(environment.appVersion),
-            buildNumber: sanitize(environment.buildNumber),
-            osVersion: sanitize(environment.osVersion),
-            deviceModel: sanitize(environment.deviceModel),
-            details: sanitize(context.details),
-            consentToContact: consentToContact,
-            contact: consentToContact ? sanitize(trimmedContact) : ""
+            message: trimmedMessage,
+            details: trim(context.submittedDetails)
         )
     }
 
     static func submit(
         message: String,
-        consentToContact: Bool,
-        contact: String,
         context: FeedbackComposerContext,
-        environment: AppFeedbackEnvironment = .current(),
         send: @escaping SendOperation = liveSend
     ) async throws -> AppFeedbackPayload {
         let payload = try makePayload(
             message: message,
-            consentToContact: consentToContact,
-            contact: contact,
-            context: context,
-            environment: environment
+            context: context
         )
 
         var request = URLRequest(url: endpointURL)
@@ -171,15 +128,8 @@ enum FeedbackSubmissionService {
         try await URLSession.shared.data(for: request)
     }
 
-    private static func sanitize(_ string: String) -> String {
-        let trimmed = string.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard trimmed.isEmpty == false else { return "" }
-
-        return trimmed.replacingOccurrences(
-            of: #"\s+"#,
-            with: " ",
-            options: .regularExpression
-        )
+    private static func trim(_ string: String) -> String {
+        string.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 }
 
@@ -187,15 +137,11 @@ enum FeedbackSubmissionService {
 final class FeedbackComposerModel {
     typealias SubmitOperation = @Sendable (
         _ message: String,
-        _ consentToContact: Bool,
-        _ contact: String,
         _ context: FeedbackComposerContext
     ) async throws -> AppFeedbackPayload
 
     let context: FeedbackComposerContext
     var message: String
-    var consentToContact = false
-    var contact = ""
     private(set) var isSubmitting = false
     private(set) var didSubmit = false
     var submissionErrorMessage: String?
@@ -204,11 +150,9 @@ final class FeedbackComposerModel {
 
     init(
         context: FeedbackComposerContext,
-        submitOperation: @escaping SubmitOperation = { message, consentToContact, contact, context in
+        submitOperation: @escaping SubmitOperation = { message, context in
             try await FeedbackSubmissionService.submit(
                 message: message,
-                consentToContact: consentToContact,
-                contact: contact,
                 context: context
             )
         }
@@ -219,9 +163,7 @@ final class FeedbackComposerModel {
     }
 
     var canSend: Bool {
-        let hasMessage = message.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
-        let hasContact = contact.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
-        return isSubmitting == false && hasMessage && (consentToContact == false || hasContact)
+        isSubmitting == false && message.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
     }
 
     func submit() async {
@@ -230,7 +172,7 @@ final class FeedbackComposerModel {
         submissionErrorMessage = nil
 
         do {
-            _ = try await submitOperation(message, consentToContact, contact, context)
+            _ = try await submitOperation(message, context)
             didSubmit = true
             HapticService.success()
         } catch {

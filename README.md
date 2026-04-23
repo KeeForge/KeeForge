@@ -64,7 +64,7 @@ TestFixtures/         # Test .kdbx databases and key files
 
 ## Privacy
 
-KeeForge has no analytics, no background telemetry, and no crash-reporting SDKs. Your vault data stays on device and in the cloud storage you configure. Outbound network requests are limited to the cloud providers you connect, opt-in favicon fetching (domain only, no credentials sent), and the optional in-app feedback form — which only transmits anything when you tap Send. See the [privacy policy](https://keeforge.com/privacy).
+KeeForge has no analytics, no background telemetry, and no crash-reporting SDKs. Your vault data stays on device and in the cloud storage you configure. Outbound network requests are limited to the cloud providers you connect, opt-in favicon fetching (domain only, no credentials sent), and the optional in-app feedback form — which only sends the message you choose to submit, plus the visible error details when reporting a database-open failure. See the [privacy policy](https://keeforge.com/privacy).
 
 ## Docs
 

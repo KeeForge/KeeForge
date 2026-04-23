@@ -2,11 +2,9 @@ import XCTest
 @testable import KeeForge
 
 final class FeedbackSubmissionServiceTests: XCTestCase {
-    func testMakePayloadBuildsConservativeShape() throws {
+    func testMakePayloadBuildsMessageAndVisibleErrorDetailsOnly() throws {
         let payload = try FeedbackSubmissionService.makePayload(
             message: "  Opening a database failed after I moved it.  ",
-            consentToContact: false,
-            contact: "ignored@example.com",
             context: .databaseOpenFailure(
                 DatabaseOpenFailure(
                     title: "Database File Unavailable",
@@ -17,40 +15,20 @@ final class FeedbackSubmissionServiceTests: XCTestCase {
                     countsTowardFailedAttempts: false,
                     canChooseDifferentFile: true
                 )
-            ),
-            environment: AppFeedbackEnvironment(
-                appVersion: "1.8.1",
-                buildNumber: "2",
-                osVersion: "iOS 18.4",
-                deviceModel: "iPhone17,1"
             )
         )
 
         XCTAssertEqual(payload.message, "Opening a database failed after I moved it.")
-        XCTAssertEqual(payload.errorCode, "file.not_found")
-        XCTAssertEqual(payload.errorCategory, "file_access")
-        XCTAssertEqual(payload.appVersion, "1.8.1")
-        XCTAssertEqual(payload.buildNumber, "2")
-        XCTAssertEqual(payload.osVersion, "iOS 18.4")
-        XCTAssertEqual(payload.deviceModel, "iPhone17,1")
+        XCTAssertTrue(payload.details.contains("Category: file_access"))
+        XCTAssertTrue(payload.details.contains("Code: file.not_found"))
         XCTAssertTrue(payload.details.contains("Technical Details:"))
-        XCTAssertFalse(payload.consentToContact)
-        XCTAssertEqual(payload.contact, "")
     }
 
     func testMakePayloadRequiresMessage() {
         XCTAssertThrowsError(
             try FeedbackSubmissionService.makePayload(
                 message: "   ",
-                consentToContact: false,
-                contact: "",
-                context: .general,
-                environment: AppFeedbackEnvironment(
-                    appVersion: "1.8.1",
-                    buildNumber: "2",
-                    osVersion: "iOS 18.4",
-                    deviceModel: "iPhone17,1"
-                )
+                context: .general
             )
         ) { error in
             XCTAssertEqual(error as? FeedbackSubmissionError, .messageRequired)
@@ -59,19 +37,10 @@ final class FeedbackSubmissionServiceTests: XCTestCase {
 
     func testSubmitEncodesPayloadToFeedbackEndpoint() async throws {
         let capture = RequestCapture()
-        let environment = AppFeedbackEnvironment(
-            appVersion: "1.8.1",
-            buildNumber: "2",
-            osVersion: "iOS 18.4",
-            deviceModel: "iPhone17,1"
-        )
 
         let payload = try await FeedbackSubmissionService.submit(
             message: "Opening my database failed.",
-            consentToContact: true,
-            contact: "me@example.com",
             context: .general,
-            environment: environment,
             send: { request in
                 await capture.store(request)
                 return (
@@ -90,11 +59,20 @@ final class FeedbackSubmissionServiceTests: XCTestCase {
         XCTAssertEqual(capturedRequest?.url, FeedbackSubmissionService.endpointURL)
         XCTAssertEqual(capturedRequest?.httpMethod, "POST")
         XCTAssertEqual(capturedRequest?.value(forHTTPHeaderField: "Content-Type"), "application/json")
-        XCTAssertEqual(payload.contact, "me@example.com")
+        XCTAssertEqual(payload.details, "")
 
         let body = try XCTUnwrap(capturedRequest?.httpBody)
         let decodedPayload = try JSONDecoder().decode(AppFeedbackPayload.self, from: body)
         XCTAssertEqual(decodedPayload, payload)
+
+        let jsonObject = try XCTUnwrap(JSONSerialization.jsonObject(with: body) as? [String: String])
+        XCTAssertEqual(jsonObject["message"], "Opening my database failed.")
+        XCTAssertEqual(jsonObject["details"], "")
+        XCTAssertNil(jsonObject["contact"])
+        XCTAssertNil(jsonObject["appVersion"])
+        XCTAssertNil(jsonObject["buildNumber"])
+        XCTAssertNil(jsonObject["osVersion"])
+        XCTAssertNil(jsonObject["deviceModel"])
     }
 }
 
