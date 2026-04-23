@@ -27,6 +27,7 @@ enum DatabaseListStore {
     private static let uiTestCloudAccountsJSONEnv = "UI_TEST_CLOUD_ACCOUNTS_JSON"
     private static let uiTestLocalSaveConflictCountEnv = "UI_TEST_LOCAL_SAVE_CONFLICT_COUNT"
     private static let uiTestDatabaseReadOnlyEnv = "UI_TEST_DATABASE_READ_ONLY"
+    private static let uiTestEnableQuickLaunchEnv = "UI_TEST_ENABLE_QUICK_LAUNCH"
     private static let cloudAccountsStorageKey = "KeeForge.cloudAccounts"
 
     private static var sharedDefaults: UserDefaults {
@@ -501,7 +502,7 @@ enum DatabaseListStore {
                 return updatedReference
             }
         }
-        if references.count == 1 {
+        if references.count == 1, uiTestEnvironmentFlag(uiTestEnableQuickLaunchEnv) {
             references = references.map { reference in
                 var updatedReference = reference
                 updatedReference.isQuickLaunch = true

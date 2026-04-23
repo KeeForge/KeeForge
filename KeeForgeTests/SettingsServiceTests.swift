@@ -6,6 +6,7 @@ final class SettingsServiceTests: XCTestCase {
     private let lockOnBackgroundKey = "KeeForge.lockOnBackground"
     private let clipboardKey = "KeeForge.clipboardTimeout"
     private let autoUnlockWithFaceIDKey = "KeeForge.autoUnlockWithFaceID"
+    private let showDatabaseUsageStatsKey = "KeeForge.showDatabaseUsageStats"
     private let quickAutoFillEnabledKey = "KeeForge.quickAutoFillEnabled"
     private let dropboxWriteScopeBannerLastDismissedAtKey = "dropboxWriteScopeBannerLastDismissedAt"
 
@@ -18,6 +19,7 @@ final class SettingsServiceTests: XCTestCase {
         UserDefaults.standard.removeObject(forKey: lockOnBackgroundKey)
         UserDefaults.standard.removeObject(forKey: clipboardKey)
         UserDefaults.standard.removeObject(forKey: autoUnlockWithFaceIDKey)
+        UserDefaults.standard.removeObject(forKey: showDatabaseUsageStatsKey)
         sharedDefaults.removeObject(forKey: autoUnlockWithFaceIDKey)
         sharedDefaults.removeObject(forKey: quickAutoFillEnabledKey)
         sharedDefaults.removeObject(forKey: dropboxWriteScopeBannerLastDismissedAtKey)
@@ -44,6 +46,11 @@ final class SettingsServiceTests: XCTestCase {
     func testAutoUnlockWithFaceIDDefaultsToOff() {
         sharedDefaults.removeObject(forKey: autoUnlockWithFaceIDKey)
         XCTAssertFalse(SettingsService.autoUnlockWithFaceID)
+    }
+
+    func testShowDatabaseUsageStatsDefaultsToOn() {
+        UserDefaults.standard.removeObject(forKey: showDatabaseUsageStatsKey)
+        XCTAssertTrue(SettingsService.showDatabaseUsageStats)
     }
 
     // MARK: - Round-trip persistence
@@ -76,6 +83,14 @@ final class SettingsServiceTests: XCTestCase {
 
         SettingsService.autoUnlockWithFaceID = false
         XCTAssertFalse(SettingsService.autoUnlockWithFaceID)
+    }
+
+    func testShowDatabaseUsageStatsPersists() {
+        SettingsService.showDatabaseUsageStats = true
+        XCTAssertTrue(SettingsService.showDatabaseUsageStats)
+
+        SettingsService.showDatabaseUsageStats = false
+        XCTAssertFalse(SettingsService.showDatabaseUsageStats)
     }
 
     // MARK: - Seconds values

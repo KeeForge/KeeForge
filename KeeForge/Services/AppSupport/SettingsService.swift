@@ -13,6 +13,7 @@ enum SettingsService {
         static let clipboardTimeout = "KeeForge.clipboardTimeout"
         static let autoUnlockWithFaceID = "KeeForge.autoUnlockWithFaceID"
         static let showWebsiteIcons = "KeeForge.showWebsiteIcons"
+        static let showDatabaseUsageStats = "KeeForge.showDatabaseUsageStats"
         static let quickAutoFillEnabled = "KeeForge.quickAutoFillEnabled"
         static let dropboxWriteScopeBannerLastDismissedAt = "dropboxWriteScopeBannerLastDismissedAt"
     }
@@ -112,6 +113,18 @@ enum SettingsService {
         }
         set {
             sharedDefaults.set(newValue, forKey: Key.showWebsiteIcons)
+        }
+    }
+
+    static var showDatabaseUsageStats: Bool {
+        get {
+            if UserDefaults.standard.object(forKey: Key.showDatabaseUsageStats) == nil {
+                return true
+            }
+            return UserDefaults.standard.bool(forKey: Key.showDatabaseUsageStats)
+        }
+        set {
+            UserDefaults.standard.set(newValue, forKey: Key.showDatabaseUsageStats)
         }
     }
 

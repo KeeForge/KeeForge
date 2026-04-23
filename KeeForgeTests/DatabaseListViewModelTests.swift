@@ -8,6 +8,7 @@ final class DatabaseListViewModelTests: XCTestCase {
         DatabaseListStore.clearAll()
         CloudAccountStore.clearAll()
         SharedVaultStore.clearBookmark()
+        SettingsService.showDatabaseUsageStats = true
         SettingsService.dropboxWriteScopeBannerLastDismissedAt = nil
     }
 
@@ -15,6 +16,7 @@ final class DatabaseListViewModelTests: XCTestCase {
         DatabaseListStore.clearAll()
         CloudAccountStore.clearAll()
         SharedVaultStore.clearBookmark()
+        SettingsService.showDatabaseUsageStats = true
         SettingsService.dropboxWriteScopeBannerLastDismissedAt = nil
         super.tearDown()
     }
@@ -221,6 +223,27 @@ final class DatabaseListViewModelTests: XCTestCase {
 
         let dismissedViewModel = DatabaseListViewModel()
         XCTAssertFalse(dismissedViewModel.shouldShowDropboxWriteScopeUpgradeBanner)
+    }
+
+    func testLastOpenedDescriptionReturnsTextWhenUsageStatsAreEnabled() throws {
+        var reference = try DatabaseListStore.add(url: makeTemporaryFileURL(name: "personal.kdbx"))
+        reference.lastOpenedAt = Date().addingTimeInterval(-3_600)
+        DatabaseListStore.update(reference)
+
+        let viewModel = DatabaseListViewModel()
+
+        XCTAssertNotNil(viewModel.lastOpenedDescription(for: reference))
+    }
+
+    func testLastOpenedDescriptionHidesWhenUsageStatsAreDisabled() throws {
+        var reference = try DatabaseListStore.add(url: makeTemporaryFileURL(name: "private.kdbx"))
+        reference.lastOpenedAt = Date().addingTimeInterval(-3_600)
+        DatabaseListStore.update(reference)
+        SettingsService.showDatabaseUsageStats = false
+
+        let viewModel = DatabaseListViewModel()
+
+        XCTAssertNil(viewModel.lastOpenedDescription(for: reference))
     }
 
     func testPickerPresentationStateKeepsTargetUntilCompletion() {

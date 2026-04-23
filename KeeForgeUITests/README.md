@@ -25,7 +25,7 @@ Use this document for UI test methodology. Repo-wide build and test policy stays
 ### Secondary / Edge Coverage
 
 - `BackoffUITests` — failed-unlock backoff behavior
-- `UnlockedDatabaseSettingsUITests` — unlocked settings / tip jar coverage
+- `AppSettingsUITests` — app settings / tip jar coverage from the database list
 - `EntryEditEdgeUITests` — password generation, conflict handling, discard prompts, and read-only editing affordances
 - `KeyFileUITests` — key file selection and picker flows
 - `CloudAccountEdgeUITests` — sign-out / disconnected cloud account behavior
@@ -136,6 +136,7 @@ Good patterns:
 - helpers that return to a known stable screen before the next assertion
 - for save-path smoke assertions, reopen the target group before checking persisted list content
 - explicit waits for the element that proves state changed
+- tests that need Quick Launch should enable it explicitly in `configureLaunch(app:)` instead of relying on the single-database default
 
 Avoid:
 

@@ -72,29 +72,36 @@ class UnlockedDatabaseUITestCase: KeeForgeUITestCase {
         ).firstMatch
     }
 
+    private func firstRowMatching(name: String, preferredIdentifier: String) -> XCUIElement {
+        let preferredQuery = app.descendants(matching: .any).matching(
+            NSPredicate(format: "identifier == %@ AND label CONTAINS[c] %@", preferredIdentifier, name)
+        )
+        let labelPredicate = NSPredicate(format: "label CONTAINS[c] %@", name)
+        let buttonQuery = app.buttons.matching(labelPredicate)
+        let cellQuery = app.cells.matching(labelPredicate)
+
+        let candidates = preferredQuery.allElementsBoundByIndex + buttonQuery.allElementsBoundByIndex + cellQuery.allElementsBoundByIndex
+        return candidates.first(where: { $0.exists && $0.isHittable })
+            ?? candidates.first(where: { $0.exists })
+            ?? preferredQuery.firstMatch
+    }
+}
+
+@MainActor
+class AppSettingsUITestCase: KeeForgeUITestCase {
     func openAppSettings(file: StaticString = #filePath, line: UInt = #line) {
-        let settingsButton = app.buttons["settings.button"]
-        XCTAssertTrue(settingsButton.waitForExistence(timeout: 5), "Settings button was not visible", file: file, line: line)
-        settingsButton.tap()
+        let settingsButton = app.buttons["database.settings.button"]
+        XCTAssertTrue(settingsButton.waitForExistence(timeout: 5), "Database list settings button was not visible", file: file, line: line)
+        tapElement(settingsButton)
 
-        let databaseSettingsBar = app.navigationBars["Database Settings"]
+        let doneButton = app.buttons["Done"].firstMatch
+        let displayLink = app.descendants(matching: .any).matching(identifier: "settings.display.link").firstMatch
         XCTAssertTrue(
-            databaseSettingsBar.waitForExistence(timeout: 5),
-            "Database Settings sheet did not appear",
+            doneButton.waitForExistence(timeout: 5) || displayLink.waitForExistence(timeout: 5),
+            "Settings sheet did not appear",
             file: file,
             line: line
         )
-
-        let appSettingsButton = app.buttons["App Settings"]
-        XCTAssertTrue(
-            revealElement(appSettingsButton, in: activeSettingsContainer(file: file, line: line), direction: .up, maxSwipes: 6),
-            "App Settings button was not visible in Database Settings",
-            file: file,
-            line: line
-        )
-        appSettingsButton.tap()
-
-        XCTAssertTrue(app.navigationBars["Settings"].waitForExistence(timeout: 5), "Settings sheet did not appear", file: file, line: line)
     }
 
     func revealInSettings(
@@ -114,11 +121,7 @@ class UnlockedDatabaseUITestCase: KeeForgeUITestCase {
     func closeSettings(file: StaticString = #filePath, line: UInt = #line) {
         let doneButton = app.navigationBars["Settings"].buttons["Done"]
         XCTAssertTrue(doneButton.waitForExistence(timeout: 5), "Done button was not visible", file: file, line: line)
-        doneButton.tap()
-
-        let closeButton = app.navigationBars["Database Settings"].buttons["Close"]
-        XCTAssertTrue(closeButton.waitForExistence(timeout: 5), "Close button was not visible", file: file, line: line)
-        closeButton.tap()
+        tapElement(doneButton)
     }
 
     private func activeSettingsContainer(file: StaticString, line: UInt) -> XCUIElement {
@@ -128,20 +131,6 @@ class UnlockedDatabaseUITestCase: KeeForgeUITestCase {
 
         XCTFail("No visible settings container was found", file: file, line: line)
         return app.collectionViews.firstMatch
-    }
-
-    private func firstRowMatching(name: String, preferredIdentifier: String) -> XCUIElement {
-        let preferredQuery = app.descendants(matching: .any).matching(
-            NSPredicate(format: "identifier == %@ AND label CONTAINS[c] %@", preferredIdentifier, name)
-        )
-        let labelPredicate = NSPredicate(format: "label CONTAINS[c] %@", name)
-        let buttonQuery = app.buttons.matching(labelPredicate)
-        let cellQuery = app.cells.matching(labelPredicate)
-
-        let candidates = preferredQuery.allElementsBoundByIndex + buttonQuery.allElementsBoundByIndex + cellQuery.allElementsBoundByIndex
-        return candidates.first(where: { $0.exists && $0.isHittable })
-            ?? candidates.first(where: { $0.exists })
-            ?? preferredQuery.firstMatch
     }
 }
 
@@ -280,35 +269,48 @@ final class RegularWidthWorkspaceUITests: UnlockedDatabaseUITestCase {
     }
 }
 
-// Secondary, non-gating coverage for unlocked settings surfaces.
+// Secondary, non-gating coverage for root app settings surfaces.
 @MainActor
-final class UnlockedDatabaseSettingsUITests: UnlockedDatabaseUITestCase {
-    func testSettingsPageShowsSupportAndAboutSections() {
-        unlockSuccessfully()
-
+final class AppSettingsUITests: AppSettingsUITestCase {
+    func testDisplaySettingsPageShowsUsageStatsToggle() {
         openAppSettings()
+
+        let displayLink = app.descendants(matching: .any).matching(identifier: "settings.display.link").firstMatch
+        revealInSettings(displayLink, maxSwipes: 2)
+        tapElement(displayLink)
+
+        let usageStatsToggle = app.switches["settings.display.usage-stats-toggle"]
+        XCTAssertTrue(usageStatsToggle.waitForExistence(timeout: 5), "Display settings should expose the database list usage-stats toggle")
+    }
+
+    func testSettingsPageShowsSupportAndAboutSections() {
+        openAppSettings()
+
+        let aboutLink = app.descendants(matching: .any).matching(identifier: "settings.about.link").firstMatch
+        revealInSettings(aboutLink, maxSwipes: 2)
+        tapElement(aboutLink)
 
         let supportButton = app.buttons["settings.send-feedback"]
         revealInSettings(supportButton, maxSwipes: 4)
-
-        let aboutHeader = app.staticTexts["About"]
-        revealInSettings(aboutHeader, maxSwipes: 8)
 
         let sourceCodeLink = app.descendants(matching: .any).matching(
             NSPredicate(format: "label == 'Source Code'")
         ).firstMatch
         revealInSettings(sourceCodeLink, maxSwipes: 4)
 
+        let backToSettingsButton = app.navigationBars.buttons["Settings"].firstMatch
+        if backToSettingsButton.waitForExistence(timeout: 2) {
+            tapElement(backToSettingsButton)
+        }
+
         closeSettings()
     }
 
     func testTipJarSectionShowsProductsOrFallback() {
-        unlockSuccessfully()
-
         openAppSettings()
 
         let tipJarHeader = app.staticTexts["Tip Jar"]
-        revealInSettings(tipJarHeader, maxSwipes: 8)
+        revealInSettings(tipJarHeader, maxSwipes: 6)
 
         let tipButton = app.buttons.matching(
             NSPredicate(format: "label CONTAINS[c] '$' OR label CONTAINS[c] 'Small' OR label CONTAINS[c] 'tip'")

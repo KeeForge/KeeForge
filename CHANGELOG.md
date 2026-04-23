@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+### Changes
+- Split app settings into separate Security, AutoFill, Display, and About pages while keeping Tip Jar prominent on the main settings screen, and add a privacy toggle to hide last-opened usage stats from the locked database list
+
 ### Fixes
 - Keep password/key-file unlock failures visible during lockout backoff and restore the unlock error accessibility hooks used by UI tests
 - Stabilize entry-creation UI coverage by validating new entries after a lock/reopen cycle and hardening list scrolling against stale simulator snapshots

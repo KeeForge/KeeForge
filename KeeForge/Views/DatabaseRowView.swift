@@ -64,6 +64,7 @@ struct DatabaseRowView: View {
                     Text(lastOpenedDescription)
                         .font(.caption)
                         .foregroundStyle(.secondary)
+                        .accessibilityIdentifier("database-row.last-opened")
                 }
 
                 HStack(spacing: 10) {

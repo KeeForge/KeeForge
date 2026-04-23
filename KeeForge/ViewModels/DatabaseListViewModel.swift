@@ -160,7 +160,11 @@ final class DatabaseListViewModel {
         status(for: reference).pendingUploadConflictCount > 0
     }
 
-    func lastOpenedDescription(for reference: DatabaseReference) -> String? {
+    func lastOpenedDescription(
+        for reference: DatabaseReference,
+        showsUsageStats: Bool = SettingsService.showDatabaseUsageStats
+    ) -> String? {
+        guard showsUsageStats else { return nil }
         guard let lastOpenedAt = reference.lastOpenedAt else { return nil }
         let relative = Self.relativeDateFormatter.localizedString(for: lastOpenedAt, relativeTo: .now)
         return "Last opened \(relative)"

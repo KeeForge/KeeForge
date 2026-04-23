@@ -9,6 +9,7 @@ struct SettingsView: View {
     @State private var clipboardTimeout = SettingsService.clipboardTimeout
     @State private var autoUnlockWithFaceID = SettingsService.autoUnlockWithFaceID
     @State private var showWebsiteIcons = SettingsService.showWebsiteIcons
+    @State private var showDatabaseUsageStats = SettingsService.showDatabaseUsageStats
     @State private var quickAutoFillEnabled = SettingsService.quickAutoFillEnabled
     @State private var sortOrder = DatabaseViewModel.savedSortOrder()
     @State private var sortAscending = DatabaseViewModel.savedSortAscending()
@@ -19,14 +20,9 @@ struct SettingsView: View {
     var body: some View {
         NavigationStack {
             Form {
-                securitySection
-                autoFillSection
-                cloudAccountsSection
-                displaySection
-                faviconCacheSection
+                settingsNavigationSection
                 TipJarView()
-                supportSection
-                aboutSection
+                cloudAccountsSection
             }
             .navigationTitle("Settings")
             .navigationBarTitleDisplayMode(.inline)
@@ -50,6 +46,9 @@ struct SettingsView: View {
             }
             .onChange(of: showWebsiteIcons) { _, newValue in
                 SettingsService.showWebsiteIcons = newValue
+            }
+            .onChange(of: showDatabaseUsageStats) { _, newValue in
+                SettingsService.showDatabaseUsageStats = newValue
             }
             .onChange(of: quickAutoFillEnabled) { _, newValue in
                 SettingsService.quickAutoFillEnabled = newValue
@@ -76,65 +75,45 @@ struct SettingsView: View {
         }
     }
 
-    private var securitySection: some View {
+    private var settingsNavigationSection: some View {
         Section {
-            Toggle("Auto-Unlock with Face ID", isOn: $autoUnlockWithFaceID)
-            Toggle("Lock When App Goes to Background", isOn: $lockOnBackground)
-
-            Picker("Auto-Lock Timeout", selection: $autoLockTimeout) {
-                ForEach(SettingsService.AutoLockTimeout.allCases, id: \.self) { option in
-                    Text(option.rawValue).tag(option)
-                }
+            NavigationLink {
+                SecuritySettingsView(
+                    autoLockTimeout: $autoLockTimeout,
+                    lockOnBackground: $lockOnBackground,
+                    clipboardTimeout: $clipboardTimeout,
+                    autoUnlockWithFaceID: $autoUnlockWithFaceID
+                )
+            } label: {
+                Label("Security", systemImage: "lock.shield")
             }
+            .accessibilityIdentifier("settings.security.link")
 
-            Picker("Clipboard Clear Timeout", selection: $clipboardTimeout) {
-                ForEach(SettingsService.ClipboardTimeout.allCases, id: \.self) { option in
-                    Text(option.rawValue).tag(option)
-                }
+            NavigationLink {
+                AutoFillSettingsView(quickAutoFillEnabled: $quickAutoFillEnabled)
+            } label: {
+                Label("AutoFill", systemImage: "text.cursor")
             }
-        } header: {
-            Text("Security")
-        } footer: {
-            Text("Auto-Unlock with Face ID prompts after a database is opened. When background locking is off, KeeForge still uses the auto-lock timeout and locks the next time the app becomes active after that deadline has passed. Quick Launch controls whether a database opens automatically on app launch.")
-        }
-    }
+            .accessibilityIdentifier("settings.autofill.link")
 
-    private var autoFillSection: some View {
-        Section {
-            Toggle("Quick AutoFill", isOn: $quickAutoFillEnabled)
-        } header: {
-            Text("AutoFill")
-        } footer: {
-            VStack(alignment: .leading, spacing: 8) {
-                Text("KeeForge currently autofills from the last database you successfully opened.")
-
-                if quickAutoFillEnabled {
-                    Text("Credential suggestions appear in the keyboard bar. Requires Face ID to unlock when tapped.")
-                }
+            NavigationLink {
+                DisplaySettingsView(
+                    showWebsiteIcons: $showWebsiteIcons,
+                    showDatabaseUsageStats: $showDatabaseUsageStats,
+                    sortOrder: $sortOrder,
+                    sortAscending: $sortAscending
+                )
+            } label: {
+                Label("Display", systemImage: "eye")
             }
-        }
-    }
+            .accessibilityIdentifier("settings.display.link")
 
-    private var displaySection: some View {
-        Section {
-            Toggle("Download Website Favicons", isOn: $showWebsiteIcons)
-
-            Picker("Default Sort Order", selection: $sortOrder) {
-                ForEach(DatabaseViewModel.SortOrder.allCases, id: \.self) { order in
-                    Text(order.rawValue).tag(order)
-                }
+            NavigationLink {
+                AboutSettingsView(feedbackContext: $feedbackContext)
+            } label: {
+                Label("About", systemImage: "info.circle")
             }
-
-            Picker("Sort Direction", selection: $sortAscending) {
-                Text("Ascending").tag(true)
-                Text("Descending").tag(false)
-            }
-        } header: {
-            Text("Display")
-        } footer: {
-            if showWebsiteIcons {
-                Text("Fetches icons from DuckDuckGo. Only the website domain is sent.")
-            }
+            .accessibilityIdentifier("settings.about.link")
         }
     }
 
@@ -193,14 +172,151 @@ struct SettingsView: View {
         }
     }
 
-    @ViewBuilder
-    private var faviconCacheSection: some View {
-        if showWebsiteIcons {
+}
+
+private struct SecuritySettingsView: View {
+    @Binding var autoLockTimeout: SettingsService.AutoLockTimeout
+    @Binding var lockOnBackground: Bool
+    @Binding var clipboardTimeout: SettingsService.ClipboardTimeout
+    @Binding var autoUnlockWithFaceID: Bool
+
+    var body: some View {
+        Form {
             Section {
-                Button("Clear Favicon Cache", role: .destructive) {
-                    FaviconService.clearCache()
+                Toggle("Auto-Unlock with Face ID", isOn: $autoUnlockWithFaceID)
+                Toggle("Lock When App Goes to Background", isOn: $lockOnBackground)
+
+                Picker("Auto-Lock Timeout", selection: $autoLockTimeout) {
+                    ForEach(SettingsService.AutoLockTimeout.allCases, id: \.self) { option in
+                        Text(option.rawValue).tag(option)
+                    }
+                }
+
+                Picker("Clipboard Clear Timeout", selection: $clipboardTimeout) {
+                    ForEach(SettingsService.ClipboardTimeout.allCases, id: \.self) { option in
+                        Text(option.rawValue).tag(option)
+                    }
+                }
+            } footer: {
+                Text("Auto-Unlock with Face ID prompts after a database is opened. When background locking is off, KeeForge still uses the auto-lock timeout and locks the next time the app becomes active after that deadline has passed. Quick Launch controls whether a database opens automatically on app launch.")
+            }
+        }
+        .navigationTitle("Security")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+}
+
+private struct AutoFillSettingsView: View {
+    @Binding var quickAutoFillEnabled: Bool
+
+    var body: some View {
+        Form {
+            Section {
+                Toggle("Quick AutoFill", isOn: $quickAutoFillEnabled)
+            } footer: {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("KeeForge currently autofills from the last database you successfully opened.")
+
+                    if quickAutoFillEnabled {
+                        Text("Credential suggestions appear in the keyboard bar. Requires Face ID to unlock when tapped.")
+                    }
                 }
             }
+        }
+        .navigationTitle("AutoFill")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+}
+
+private struct DisplaySettingsView: View {
+    @Binding var showWebsiteIcons: Bool
+    @Binding var showDatabaseUsageStats: Bool
+    @Binding var sortOrder: DatabaseViewModel.SortOrder
+    @Binding var sortAscending: Bool
+
+    var body: some View {
+        Form {
+            privacySection
+            displaySection
+            sortSection
+
+            if showWebsiteIcons {
+                Section {
+                    Button("Clear Favicon Cache", role: .destructive) {
+                        FaviconService.clearCache()
+                    }
+                    .accessibilityIdentifier("settings.display.clear-favicon-cache")
+                }
+            }
+        }
+        .navigationTitle("Display")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+
+    private var privacySection: some View {
+        Section {
+            Toggle("Show Usage Stats in Database List", isOn: $showDatabaseUsageStats)
+                .accessibilityIdentifier("settings.display.usage-stats-toggle")
+        } header: {
+            Text("Privacy")
+        } footer: {
+            Text("When off, KeeForge hides last-opened activity from the locked database list.")
+        }
+    }
+
+    private var displaySection: some View {
+        Section {
+            Toggle("Download Website Favicons", isOn: $showWebsiteIcons)
+                .accessibilityIdentifier("settings.display.favicons-toggle")
+        } header: {
+            Text("Display")
+        } footer: {
+            if showWebsiteIcons {
+                Text("Fetches icons from DuckDuckGo. Only the website domain is sent.")
+            }
+        }
+    }
+
+    private var sortSection: some View {
+        Section("Entry List") {
+            Picker("Default Sort Order", selection: $sortOrder) {
+                ForEach(DatabaseViewModel.SortOrder.allCases, id: \.self) { order in
+                    Text(order.rawValue).tag(order)
+                }
+            }
+
+            Picker("Sort Direction", selection: $sortAscending) {
+                Text("Ascending").tag(true)
+                Text("Descending").tag(false)
+            }
+        }
+    }
+}
+
+private struct AboutSettingsView: View {
+    @Binding var feedbackContext: FeedbackComposerContext?
+
+    var body: some View {
+        Form {
+            supportSection
+            aboutSection
+        }
+        .navigationTitle("About")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+
+    private var supportSection: some View {
+        Section {
+            Button {
+                feedbackContext = .general
+            } label: {
+                Label("Send Feedback", systemImage: "paperplane")
+            }
+            .accessibilityIdentifier("settings.send-feedback")
+        } header: {
+            Text("Support")
+        } footer: {
+            Text("No GitHub or email required. KeeForge only sends the message you type, plus the visible error details if you report a database-open failure. It never includes database contents, passwords, key files, raw vault files, or app/device metadata.")
         }
     }
 
@@ -227,21 +343,6 @@ struct SettingsView: View {
             } label: {
                 Label("Acknowledgments", systemImage: "doc.text")
             }
-        }
-    }
-
-    private var supportSection: some View {
-        Section {
-            Button {
-                feedbackContext = .general
-            } label: {
-                Label("Send Feedback", systemImage: "paperplane")
-            }
-            .accessibilityIdentifier("settings.send-feedback")
-        } header: {
-            Text("Support")
-        } footer: {
-            Text("No GitHub or email required. KeeForge only sends the message you type, plus the visible error details if you report a database-open failure. It never includes database contents, passwords, key files, raw vault files, or app/device metadata.")
         }
     }
 

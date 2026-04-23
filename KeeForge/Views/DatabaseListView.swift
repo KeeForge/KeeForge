@@ -43,6 +43,7 @@ struct DatabaseListView: View {
     @State private var renameText = ""
     @State private var detailsReference: DatabaseReference?
     @State private var showSettings = false
+    @State private var showDatabaseUsageStats = SettingsService.showDatabaseUsageStats
     @State private var activeCloudProvider: CloudProviderKind?
     @State private var isDropboxWriteScopeReconnectInFlight = false
 
@@ -114,6 +115,10 @@ struct DatabaseListView: View {
             }
         }
         .onAppear {
+            refreshUsageStatsVisibility()
+            viewModel.reload()
+        }
+        .onChange(of: showDatabaseUsageStats) { _, _ in
             viewModel.reload()
         }
         .fileImporter(
@@ -214,6 +219,7 @@ struct DatabaseListView: View {
         .sheet(
             isPresented: $showSettings,
             onDismiss: {
+                refreshUsageStatsVisibility()
                 viewModel.reload()
             }
         ) {
@@ -244,10 +250,14 @@ struct DatabaseListView: View {
             DatabaseRowView(
                 reference: reference,
                 status: viewModel.status(for: reference),
-                lastOpenedDescription: viewModel.lastOpenedDescription(for: reference),
+                lastOpenedDescription: viewModel.lastOpenedDescription(
+                    for: reference,
+                    showsUsageStats: showDatabaseUsageStats
+                ),
                 filenameSubtitle: viewModel.detailSubtitle(for: reference)
             )
         }
+        .id("\(reference.id.uuidString)-\(showDatabaseUsageStats)")
         .buttonStyle(.plain)
         .accessibilityIdentifier("database.row")
         .contextMenu {
@@ -258,6 +268,10 @@ struct DatabaseListView: View {
                 pendingRemoval = reference
             }
         }
+    }
+
+    private func refreshUsageStatsVisibility() {
+        showDatabaseUsageStats = SettingsService.showDatabaseUsageStats
     }
 
     @MainActor
