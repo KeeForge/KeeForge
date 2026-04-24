@@ -591,7 +591,7 @@ private struct DatabaseDetailsView: View {
                 } header: {
                     Text("Identity")
                 } footer: {
-                    Text("Quick Launch opens this database automatically on app launch. Auto-Unlock with Face ID controls whether KeeForge prompts for biometrics after a database is opened.")
+                    Text("Quick Launch opens this database automatically on app launch.")
                 }
 
                 Section {
@@ -606,7 +606,7 @@ private struct DatabaseDetailsView: View {
                 } header: {
                     Text("Editing")
                 } footer: {
-                    Text("Keep this database openable but block create, edit, and delete actions until you turn editing back on.")
+                    Text("You can still open this database, but create, edit, and delete actions stay blocked until you turn editing back on.")
                 }
 
                 Section("Key File") {

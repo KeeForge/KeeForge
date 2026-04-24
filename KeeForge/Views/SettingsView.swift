@@ -23,6 +23,8 @@ struct SettingsView: View {
                 settingsNavigationSection
                 TipJarView()
                 cloudAccountsSection
+                feedbackSection
+                aboutNavigationSection
             }
             .navigationTitle("Settings")
             .navigationBarTitleDisplayMode(.inline)
@@ -107,9 +109,13 @@ struct SettingsView: View {
                 Label("Display", systemImage: "eye")
             }
             .accessibilityIdentifier("settings.display.link")
+        }
+    }
 
+    private var aboutNavigationSection: some View {
+        Section {
             NavigationLink {
-                AboutSettingsView(feedbackContext: $feedbackContext)
+                AboutSettingsView()
             } label: {
                 Label("About", systemImage: "info.circle")
             }
@@ -172,6 +178,21 @@ struct SettingsView: View {
         }
     }
 
+    private var feedbackSection: some View {
+        Section {
+            Button {
+                feedbackContext = .general
+            } label: {
+                Label("Send Feedback", systemImage: "paperplane")
+            }
+            .accessibilityIdentifier("settings.send-feedback")
+        } header: {
+            Text("Support")
+        } footer: {
+            Text("No GitHub or email required. KeeForge only sends the message you type, plus the visible error details if you report a database-open failure. It never includes database contents, passwords, key files, raw vault files, or app/device metadata.")
+        }
+    }
+
 }
 
 private struct SecuritySettingsView: View {
@@ -198,7 +219,7 @@ private struct SecuritySettingsView: View {
                     }
                 }
             } footer: {
-                Text("Auto-Unlock with Face ID prompts after a database is opened. When background locking is off, KeeForge still uses the auto-lock timeout and locks the next time the app becomes active after that deadline has passed. Quick Launch controls whether a database opens automatically on app launch.")
+                Text("Auto-Unlock with Face ID prompts after a database is opened. When background locking is off, KeeForge still uses the auto-lock timeout and locks the next time the app becomes active after that deadline has passed.")
             }
         }
         .navigationTitle("Security")
@@ -294,30 +315,12 @@ private struct DisplaySettingsView: View {
 }
 
 private struct AboutSettingsView: View {
-    @Binding var feedbackContext: FeedbackComposerContext?
-
     var body: some View {
         Form {
-            supportSection
             aboutSection
         }
         .navigationTitle("About")
         .navigationBarTitleDisplayMode(.inline)
-    }
-
-    private var supportSection: some View {
-        Section {
-            Button {
-                feedbackContext = .general
-            } label: {
-                Label("Send Feedback", systemImage: "paperplane")
-            }
-            .accessibilityIdentifier("settings.send-feedback")
-        } header: {
-            Text("Support")
-        } footer: {
-            Text("No GitHub or email required. KeeForge only sends the message you type, plus the visible error details if you report a database-open failure. It never includes database contents, passwords, key files, raw vault files, or app/device metadata.")
-        }
     }
 
     private var aboutSection: some View {
