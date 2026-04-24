@@ -479,9 +479,10 @@ final class CloudDatabaseSaverTests: XCTestCase {
             meta: parsed.meta,
             sessionKey: sessionKey
         )
+        let parentGroupID = TestDatabaseSupport.visibleRootGroupID(in: parsed.rootGroup)
         let dirtyDraft = try cleanDraft.apply(
             .createEntry(
-                parentGroupID: parsed.rootGroup.id,
+                parentGroupID: parentGroupID,
                 draft: EntryDraftPayload(
                     title: entryTitle,
                     password: "secret-\(entryTitle)"

@@ -1091,9 +1091,10 @@ final class DatabaseViewModelTests: XCTestCase {
         entryTitle: String
     ) throws -> DatabaseDraft {
         let cleanDraft = try makeCleanDraft(from: viewModel)
+        let parentGroupID = TestDatabaseSupport.visibleRootGroupID(in: cleanDraft.rootGroup)
         return try cleanDraft.apply(
             .createEntry(
-                parentGroupID: cleanDraft.rootGroup.id,
+                parentGroupID: parentGroupID,
                 draft: EntryDraftPayload(
                     title: entryTitle,
                     password: "secret-\(entryTitle)"

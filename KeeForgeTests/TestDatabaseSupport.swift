@@ -3,6 +3,13 @@ import XCTest
 @testable import KeeForge
 
 enum TestDatabaseSupport {
+    static func visibleRootGroupID(in rootGroup: KPGroup) -> UUID {
+        if rootGroup.entries.isEmpty, rootGroup.groups.count == 1 {
+            return rootGroup.groups[0].id
+        }
+        return rootGroup.id
+    }
+
     static func fixtureURL(
         named name: String = "test",
         extension ext: String = "kdbx",

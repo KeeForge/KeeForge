@@ -136,12 +136,6 @@ class EntryEditUITestCase: KeeForgeUITestCase {
     }
 
     func openEntry(named entryName: String, inGroup groupName: String, file: StaticString = #filePath, line: UInt = #line) {
-        let visibleEntry = entry(named: entryName)
-        if revealElement(visibleEntry, maxSwipes: 2) {
-            tapElement(visibleEntry)
-            return
-        }
-
         if app.navigationBars[groupName].exists == false {
             openGroup(named: groupName, file: file, line: line)
         }
