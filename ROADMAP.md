@@ -4,7 +4,9 @@ This file tracks planned product work.
 
 ## Synchronization Support
 
-- [ ] Support more cloud sync providers: Google Drive, OneDrive, WebDAV, etc.
+- [ ] support Google Drive
+- [ ] support OneDrive
+- [ ] support WebDAV
 
 ## iPad and macOS Support
 
@@ -23,10 +25,10 @@ This file tracks planned product work.
 
 ## In-App UI Enhancements
 
-- [ ] add folders in settings page
-- [ ] group settings into sub pages
+- [x] add folders in settings page
+- [x] group settings into sub pages
 - [ ] optimize database row view
-- [ ] option to disable metadata display for DB row
+- [x] option to disable metadata display for DB row
 - [ ] nicer password views with consistent font/color and strength indication
 
 ### Entry Viewer
