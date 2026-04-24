@@ -56,6 +56,7 @@ struct EntryDraftPayload: Codable, Sendable, Equatable {
 
 enum EntryEdit: Codable, Sendable, Equatable {
     case createEntry(parentGroupID: UUID, draft: EntryDraftPayload)
+    case createGroup(parentGroupID: UUID, name: String)
     case updateEntry(entryID: UUID, draft: EntryDraftPayload)
     case deleteEntry(entryID: UUID, sendToRecycleBin: Bool)
 }

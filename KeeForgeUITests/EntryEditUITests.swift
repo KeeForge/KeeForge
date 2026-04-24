@@ -24,10 +24,43 @@ class EntryEditUITestCase: KeeForgeUITestCase {
         }
     }
 
-    func tapAddEntry(file: StaticString = #filePath, line: UInt = #line) {
+    func openAddMenu(file: StaticString = #filePath, line: UInt = #line) {
         let addButton = app.buttons["entry-list.add-entry"]
-        XCTAssertTrue(addButton.waitForExistence(timeout: 5), "Add entry button was not visible", file: file, line: line)
+        XCTAssertTrue(addButton.waitForExistence(timeout: 5), "Add menu button was not visible", file: file, line: line)
         addButton.tap()
+    }
+
+    func tapAddEntry(file: StaticString = #filePath, line: UInt = #line) {
+        openAddMenu(file: file, line: line)
+
+        let newEntryButton = app.buttons["New Entry"]
+        XCTAssertTrue(newEntryButton.waitForExistence(timeout: 5), "New Entry action was not visible", file: file, line: line)
+        newEntryButton.tap()
+    }
+
+    func createGroup(
+        named name: String,
+        expectSuccess: Bool = true,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        openAddMenu(file: file, line: line)
+
+        let newGroupButton = app.buttons["New Group"]
+        XCTAssertTrue(newGroupButton.waitForExistence(timeout: 5), "New Group action was not visible", file: file, line: line)
+        newGroupButton.tap()
+
+        let nameField = app.textFields["group-create.name-field"]
+        XCTAssertTrue(nameField.waitForExistence(timeout: 5), "Group name field was not visible", file: file, line: line)
+        replaceText(in: nameField, with: name)
+
+        let createButton = app.buttons["group-create.confirm"]
+        XCTAssertTrue(createButton.waitForExistence(timeout: 5), "Create group button was not visible", file: file, line: line)
+        createButton.tap()
+
+        if expectSuccess {
+            XCTAssertTrue(waitForElementToDisappear(createButton, timeout: 5), "Group prompt did not dismiss after creation", file: file, line: line)
+        }
     }
 
     func createEntry(
@@ -103,6 +136,12 @@ class EntryEditUITestCase: KeeForgeUITestCase {
     }
 
     func openEntry(named entryName: String, inGroup groupName: String, file: StaticString = #filePath, line: UInt = #line) {
+        let visibleEntry = entry(named: entryName)
+        if revealElement(visibleEntry, maxSwipes: 2) {
+            tapElement(visibleEntry)
+            return
+        }
+
         if app.navigationBars[groupName].exists == false {
             openGroup(named: groupName, file: file, line: line)
         }
@@ -253,6 +292,19 @@ final class EntryCreateSmokeUITests: EntryEditUITestCase {
         openEntry(named: createdEntryTitle)
         XCTAssertTrue(app.staticTexts["ui-created-user"].waitForExistence(timeout: 5))
     }
+
+    func testCreateGroupInWorkGroupSavesAndShowsInList() {
+        unlockSuccessfully()
+
+        openGroup(named: workGroupName)
+        createGroup(named: "UI Created Group")
+        waitForAutosaveAttempt()
+
+        XCTAssertTrue(
+            revealElement(firstRowMatching(name: "UI Created Group", preferredIdentifier: "group.navlink")),
+            "Created group was not visible in the Work group after saving"
+        )
+    }
 }
 
 @MainActor
@@ -303,6 +355,28 @@ final class EntryDeleteSmokeUITests: EntryEditUITestCase {
 
 @MainActor
 final class EntryEditEdgeUITests: EntryEditUITestCase {
+    func testCreateGroupDuplicateShowsErrorAndDoesNotAddSecondGroup() {
+        unlockSuccessfully()
+
+        openGroup(named: workGroupName)
+        createGroup(named: "UI Duplicate Group")
+        waitForAutosaveAttempt()
+
+        createGroup(named: "ui duplicate group", expectSuccess: false)
+
+        let duplicateAlert = app.alerts["Couldn’t Create Group"]
+        XCTAssertTrue(duplicateAlert.waitForExistence(timeout: 5))
+        XCTAssertTrue(duplicateAlert.staticTexts["\"ui duplicate group\" already exists in this group."].exists)
+        duplicateAlert.buttons["OK"].tap()
+
+        app.buttons["group-create.cancel"].tap()
+
+        let createdGroups = app.descendants(matching: .any).matching(
+            NSPredicate(format: "identifier == 'group.navlink' AND label CONTAINS[c] %@", "UI Duplicate Group")
+        ).allElementsBoundByIndex.filter(\.exists)
+        XCTAssertEqual(createdGroups.count, 1)
+    }
+
     func testDiscardUnsavedEditPromptsConfirmation() {
         unlockSuccessfully()
 

@@ -3,6 +3,7 @@
 ## Unreleased
 
 ### Changes
+- Add group creation from the unlocked database add menu, including duplicate-name validation.
 - Split app settings into separate Security, AutoFill, Display, and About pages while keeping Tip Jar prominent on the main settings screen, and add a privacy toggle to hide last-opened usage stats from the locked database list
 - Move Send Feedback to the main Settings page, place About at the bottom, and tighten database/app settings helper copy
 

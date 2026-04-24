@@ -533,6 +533,12 @@ final class DatabaseViewModel {
         try applyEntryEdit(.deleteEntry(entryID: entryID, sendToRecycleBin: sendToRecycleBin))
     }
 
+    func createGroup(named name: String, in parentGroupID: UUID) throws {
+        let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmedName.isEmpty == false else { return }
+        try applyEntryEdit(.createGroup(parentGroupID: parentGroupID, name: trimmedName))
+    }
+
     func saveHandlingError() async {
         do {
             try await save()

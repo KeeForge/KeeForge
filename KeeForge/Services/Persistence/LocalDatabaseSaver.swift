@@ -256,7 +256,10 @@ enum LocalDatabaseSaver {
             compositeKey: compositeKey,
             sessionKey: sessionKey
         )
-        parsed.rootGroup.entries.append(
+        let conflictMarkerParent = parsed.rootGroup.entries.isEmpty && parsed.rootGroup.groups.count == 1
+            ? parsed.rootGroup.groups[0]
+            : parsed.rootGroup
+        conflictMarkerParent.entries.append(
             KPEntry(
                 title: "UI Test Conflict \(sequence)",
                 notes: "Injected save conflict \(sequence)"

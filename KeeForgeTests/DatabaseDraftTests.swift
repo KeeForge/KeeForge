@@ -66,6 +66,33 @@ final class DatabaseDraftTests: XCTestCase {
         XCTAssertTrue(updatedDraft.rootGroup.entries.contains(where: { $0.title == "Root Entry" }))
     }
 
+    func test_createGroup_addsSubgroupToParentGroup() throws {
+        let tree = try makeSyntheticTree(includeRecycleBin: false)
+        let draft = DatabaseDraft(rootGroup: tree.rootGroup, meta: tree.meta, sessionKey: sessionKey)
+
+        let updatedDraft = try draft.apply(.createGroup(parentGroupID: tree.parentGroupID, name: "Created Group"))
+
+        let updatedParentGroup = try XCTUnwrap(findGroup(withID: tree.parentGroupID, in: updatedDraft.rootGroup))
+        let createdGroup = try XCTUnwrap(updatedParentGroup.groups.last)
+        XCTAssertEqual(createdGroup.name, "Created Group")
+        XCTAssertNotNil(createdGroup.creationTime)
+        XCTAssertNotNil(createdGroup.lastModificationTime)
+    }
+
+    func test_createGroup_duplicateNameInParent_throws() throws {
+        let tree = try makeSyntheticTree(includeRecycleBin: false)
+        let draft = DatabaseDraft(rootGroup: tree.rootGroup, meta: tree.meta, sessionKey: sessionKey)
+
+        XCTAssertThrowsError(
+            try draft.apply(.createGroup(parentGroupID: tree.parentGroupID, name: "existing subgroup"))
+        ) { error in
+            XCTAssertEqual(
+                error as? DatabaseDraft.DraftError,
+                .duplicateGroupName(parentGroupID: tree.parentGroupID, name: "existing subgroup")
+            )
+        }
+    }
+
     func test_updateEntry_updatesFields_preservesUnknownXML() throws {
         let parsed = try parseUnknownElementsFixture()
         let originalEntry = try controlledUnknownsEntry(in: parsed.rootGroup)
@@ -307,6 +334,7 @@ final class DatabaseDraftTests: XCTestCase {
         )
         let edits: [EntryEdit] = [
             .createEntry(parentGroupID: createParentID, draft: payload),
+            .createGroup(parentGroupID: createParentID, name: "New Group"),
             .updateEntry(entryID: updateEntryID, draft: payload),
             .deleteEntry(entryID: deleteEntryID, sendToRecycleBin: true),
         ]
@@ -411,6 +439,14 @@ final class DatabaseDraftTests: XCTestCase {
             id: parentGroupID,
             name: "Parent",
             entries: [parentEntry],
+            groups: [
+                KPGroup(
+                    id: UUID(),
+                    name: "Existing Subgroup",
+                    creationTime: createdAt,
+                    lastModificationTime: modifiedAt
+                )
+            ],
             creationTime: createdAt,
             lastModificationTime: modifiedAt
         )

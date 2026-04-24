@@ -5,6 +5,7 @@ struct DatabaseDraft: Sendable {
     enum DraftError: Error, LocalizedError, Equatable {
         case groupNotFound(UUID)
         case entryNotFound(UUID)
+        case duplicateGroupName(parentGroupID: UUID, name: String)
 
         var errorDescription: String? {
             switch self {
@@ -12,6 +13,8 @@ struct DatabaseDraft: Sendable {
                 "Group not found: \(groupID.uuidString)"
             case .entryNotFound(let entryID):
                 "Entry not found: \(entryID.uuidString)"
+            case .duplicateGroupName(_, let name):
+                "\"\(name)\" already exists in this group."
             }
         }
     }
@@ -86,6 +89,8 @@ struct DatabaseDraft: Sendable {
         switch edit {
         case .createEntry(let parentGroupID, let draft):
             updatedState = try applyCreate(parentGroupID: parentGroupID, draft: draft)
+        case .createGroup(let parentGroupID, let name):
+            updatedState = try applyCreateGroup(parentGroupID: parentGroupID, name: name)
         case .updateEntry(let entryID, let draft):
             updatedState = try applyUpdate(entryID: entryID, draft: draft)
         case .deleteEntry(let entryID, let sendToRecycleBin):
@@ -129,6 +134,34 @@ struct DatabaseDraft: Sendable {
             var updatedEntries = group.entries
             updatedEntries.append(newEntry)
             return copyGroup(group, entries: updatedEntries)
+        }
+
+        return (updatedRootGroup, currentMetaStorage)
+    }
+
+    private func applyCreateGroup(
+        parentGroupID: UUID,
+        name: String
+    ) throws -> (rootGroup: KPGroup, meta: KPMeta) {
+        guard let parentGroupPath = pathToGroup(withID: parentGroupID, in: currentRootGroupStorage) else {
+            throw DraftError.groupNotFound(parentGroupID)
+        }
+
+        let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        let updatedRootGroup = try rebuildGroup(in: currentRootGroupStorage, targetPath: parentGroupPath[...]) { group in
+            if group.groups.contains(where: { $0.name.compare(trimmedName, options: [.caseInsensitive, .diacriticInsensitive]) == .orderedSame }) {
+                throw DraftError.duplicateGroupName(parentGroupID: parentGroupID, name: trimmedName)
+            }
+
+            let timestamp = Date.now
+            let newGroup = KPGroup(
+                name: trimmedName,
+                creationTime: timestamp,
+                lastModificationTime: timestamp
+            )
+            var updatedGroups = group.groups
+            updatedGroups.append(newGroup)
+            return copyGroup(group, groups: updatedGroups)
         }
 
         return (updatedRootGroup, currentMetaStorage)

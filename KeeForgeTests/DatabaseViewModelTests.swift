@@ -154,6 +154,36 @@ final class DatabaseViewModelTests: XCTestCase {
         XCTAssertEqual(refreshedEntry.url, "https://cache-update.example.com/login")
     }
 
+    func testCreateGroupAddsSubgroupToParent() async throws {
+        let vm = try makeViewModel()
+        await vm.unlock(password: fixturePassword)
+
+        let parentGroup = try XCTUnwrap(vm.visibleRootGroup?.groups.first(where: { $0.name == "Work" }))
+
+        try vm.createGroup(named: "Projects", in: parentGroup.id)
+
+        let updatedParentGroup = try XCTUnwrap(vm.group(withID: parentGroup.id))
+        XCTAssertTrue(updatedParentGroup.groups.contains(where: { $0.name == "Projects" }))
+        XCTAssertTrue(vm.isDirty)
+    }
+
+    func testCreateGroupDuplicateNameThrowsTypedError() async throws {
+        let vm = try makeViewModel()
+        await vm.unlock(password: fixturePassword)
+
+        let parentGroup = try XCTUnwrap(vm.visibleRootGroup?.groups.first(where: { $0.name == "Work" }))
+        try vm.createGroup(named: "Projects", in: parentGroup.id)
+
+        XCTAssertThrowsError(
+            try vm.createGroup(named: "projects", in: parentGroup.id)
+        ) { error in
+            XCTAssertEqual(
+                error as? DatabaseDraft.DraftError,
+                .duplicateGroupName(parentGroupID: parentGroup.id, name: "projects")
+            )
+        }
+    }
+
     func testMoveToRecycleBinRefreshesCredentialStoreAndRemovesEntry() async throws {
         let vm = try makeViewModel()
         let refreshExpectation = expectation(description: "Credential store refreshed after recycle bin move")

@@ -17,6 +17,9 @@ struct GroupListView: View {
     @State private var showSettings = false
     @State private var activeEditor: EntryEditViewModel?
     @State private var pendingEntryDeletion: PendingEntryDeletion?
+    @State private var isShowingNewGroupSheet = false
+    @State private var newGroupName = ""
+    @State private var groupCreationErrorMessage: String?
 
     private var resolvedGroup: KPGroup? {
         viewModel.group(withID: groupID)
@@ -92,11 +95,22 @@ struct GroupListView: View {
                                 }
 
                                 if viewModel.isReadOnly == false {
-                                    Button {
-                                        Task {
-                                            let result = await viewModel.acknowledgeEditingIfNeeded()
-                                            guard result == .acknowledged else { return }
-                                            activeEditor = EntryEditViewModel(createIn: resolvedGroup.id)
+                                    Menu {
+                                        Button("New Entry", systemImage: "doc.badge.plus") {
+                                            Task {
+                                                let result = await viewModel.acknowledgeEditingIfNeeded()
+                                                guard result == .acknowledged else { return }
+                                                activeEditor = EntryEditViewModel(createIn: resolvedGroup.id)
+                                            }
+                                        }
+
+                                        Button("New Group", systemImage: "folder.badge.plus") {
+                                            Task {
+                                                let result = await viewModel.acknowledgeEditingIfNeeded()
+                                                guard result == .acknowledged else { return }
+                                                newGroupName = ""
+                                                isShowingNewGroupSheet = true
+                                            }
                                         }
                                     } label: {
                                         Image(systemName: "plus")
@@ -140,6 +154,30 @@ struct GroupListView: View {
                     }
                     .sheet(isPresented: $showSettings) {
                         DatabaseSettingsView(viewModel: viewModel)
+                    }
+                    .sheet(isPresented: $isShowingNewGroupSheet) {
+                        NewGroupSheet(
+                            name: $newGroupName,
+                            errorMessage: $groupCreationErrorMessage,
+                            onCancel: {
+                                newGroupName = ""
+                                groupCreationErrorMessage = nil
+                                isShowingNewGroupSheet = false
+                            },
+                            onCreate: { name in
+                                do {
+                                    try viewModel.createGroup(named: name, in: resolvedGroup.id)
+                                    newGroupName = ""
+                                    groupCreationErrorMessage = nil
+                                    isShowingNewGroupSheet = false
+                                    Task {
+                                        await viewModel.saveHandlingError()
+                                    }
+                                } catch {
+                                    groupCreationErrorMessage = error.localizedDescription
+                                }
+                            }
+                        )
                     }
                     .alert(item: $pendingEntryDeletion) { action in
                         Alert(
@@ -224,6 +262,55 @@ struct GroupListView: View {
                     )
                 }
                 .accessibilityIdentifier("entry-row.delete-swipe")
+            }
+        }
+    }
+}
+
+struct NewGroupSheet: View {
+    @Binding var name: String
+    @Binding var errorMessage: String?
+    let onCancel: () -> Void
+    let onCreate: (String) -> Void
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section {
+                    TextField("Group Name", text: $name)
+                        .textInputAutocapitalization(.words)
+                        .accessibilityIdentifier("group-create.name-field")
+                }
+            }
+            .navigationTitle("New Group")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel", action: onCancel)
+                        .accessibilityIdentifier("group-create.cancel")
+                }
+
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Create") {
+                        onCreate(name)
+                    }
+                    .disabled(name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    .accessibilityIdentifier("group-create.confirm")
+                }
+            }
+            .alert("Couldn’t Create Group", isPresented: Binding(
+                get: { errorMessage != nil },
+                set: { isPresented in
+                    if isPresented == false {
+                        errorMessage = nil
+                    }
+                }
+            )) {
+                Button("OK", role: .cancel) {
+                    errorMessage = nil
+                }
+            } message: {
+                Text(errorMessage ?? "Please try again.")
             }
         }
     }
