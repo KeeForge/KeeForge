@@ -7,6 +7,7 @@ Open this folder when the code alone is not enough and you need the longer-form 
 - `competitive-gap-analysis.md` — quick comparison against Strongbox and KeePassium, plus the largest current product gaps.
 - `specs/cloud-file-autofill.md` — AutoFill behavior for cloud-hosted databases.
 - `specs/cloud-sync.md` and `specs/multi-database.md` — database list, cloud-backed databases, and sync behavior.
+- `specs/database-creation.md` — plan for creating brand-new local KDBX 4.x databases in KeeForge.
 - `specs/edit-support/epic.md` plus `specs/edit-support/01-xml-round-trip.md` through `07-autofill-save.md` — staged write-path design for XML round-trip, KDBX writing, draft/save flow, and pending cloud/UI/AutoFill work.
 - `specs/favicon.md` — website icon fetching and caching.
 - `specs/key-file.md` — supported key-file formats and implementation notes.
