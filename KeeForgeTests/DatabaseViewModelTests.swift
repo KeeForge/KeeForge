@@ -43,6 +43,60 @@ final class DatabaseViewModelTests: XCTestCase {
         XCTAssertFalse(vm.rootGroup?.allEntries.isEmpty ?? true)
     }
 
+    func testCreatedDatabaseInitializerStartsUnlocked() async throws {
+        let created = try await DatabaseCreationService.create(
+            request: DatabaseCreationRequest(
+                displayName: "Created",
+                destination: .appOnlyAcknowledged,
+                password: "created password"
+            )
+        )
+
+        let vm = DatabaseViewModel(createdDatabase: created)
+
+        XCTAssertState(vm.state, is: .unlocked)
+        XCTAssertEqual(vm.databaseReference.id, created.reference.id)
+        XCTAssertEqual(vm.openTimeSHA512, created.openTimeSHA512)
+        XCTAssertEqual(vm.visibleRootGroup?.name, "Created")
+        XCTAssertEqual(DatabaseListStore.activeAutoFillDatabaseID, created.reference.id)
+    }
+
+    func testCreatedDatabaseCanSaveFirstEntry() async throws {
+        let created = try await DatabaseCreationService.create(
+            request: DatabaseCreationRequest(
+                displayName: "First Entry",
+                destination: .appOnlyAcknowledged,
+                password: "created save password"
+            )
+        )
+        let vm = DatabaseViewModel(createdDatabase: created)
+        let parentGroupID = try XCTUnwrap(vm.visibleRootGroupID)
+
+        try vm.applyEntryEdit(
+            .createEntry(
+                parentGroupID: parentGroupID,
+                draft: EntryDraftPayload(
+                    title: "First Saved Entry",
+                    username: "alice",
+                    password: "saved-secret",
+                    url: "https://example.com"
+                )
+            )
+        )
+
+        try await vm.save()
+
+        let cachedURL = try XCTUnwrap(DatabaseListStore.cachedDatabaseURL(for: created.reference))
+        let parsed = try KDBXParser.parse(
+            data: Data(contentsOf: cachedURL),
+            password: "created save password",
+            sessionKey: SymmetricKey(size: .bits256)
+        )
+        XCTAssertTrue(parsed.allEntries.contains(where: { $0.title == "First Saved Entry" }))
+        XCTAssertNil(vm.draft)
+        XCTAssertFalse(vm.isDirty)
+    }
+
     func testSetNicknamePersistsAndRefreshesCurrentReference() throws {
         let reference = try makeReference()
         DatabaseListStore.update(reference)

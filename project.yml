@@ -85,6 +85,7 @@ targets:
       - path: KeeForge/Models
         excludes: ["README.md"]
       - path: KeeForge/Services/Security/BiometricService.swift
+      - path: KeeForge/Services/Security/SecureRandom.swift
       - path: KeeForge/Services/Persistence/DocumentPickerService.swift
       - path: KeeForge/Services/AutoFill/AutoFillSaveCoordinator.swift
       - path: KeeForge/Services/Persistence/DatabaseListStore.swift
@@ -102,6 +103,7 @@ targets:
       - path: KeeForge/Services/AutoFill/PasswordGenerator.swift
       - path: KeeForge/Services/AutoFill/PasswordStrengthEstimator.swift
       - path: KeeForge/Views/PasswordDisplay.swift
+      - path: KeeForge/Views/PasswordInputRow.swift
       - path: KeeForge/Services/Persistence/SecurityScopedBookmarkManager.swift
       - path: KeeForge/Services/Persistence/SyncedFolderDetector.swift
 

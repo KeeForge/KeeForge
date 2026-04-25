@@ -333,6 +333,20 @@ final class DatabaseViewModel {
         self.nowProvider = nowProvider
     }
 
+    convenience init(createdDatabase: CreatedDatabase) {
+        self.init(databaseReference: createdDatabase.reference)
+        finalizeSuccessfulUnlock(
+            payload: UnlockPayload(
+                rootGroup: createdDatabase.rootGroup,
+                meta: createdDatabase.meta,
+                formatVersion: createdDatabase.formatVersion,
+                openTimeSHA512: createdDatabase.openTimeSHA512
+            ),
+            compositeKey: createdDatabase.compositeKey,
+            sessionKey: createdDatabase.sessionKey
+        )
+    }
+
     var databaseDisplayName: String {
         databaseReference.displayName
     }
@@ -450,7 +464,7 @@ final class DatabaseViewModel {
                 )
             }.value
 
-            await finalizeSuccessfulUnlock(
+            finalizeSuccessfulUnlock(
                 payload: unlockPayload,
                 compositeKey: compositeKey,
                 sessionKey: sessionKey
@@ -484,7 +498,7 @@ final class DatabaseViewModel {
                 )
             }.value
 
-            await finalizeSuccessfulUnlock(
+            finalizeSuccessfulUnlock(
                 payload: unlockPayload,
                 compositeKey: compositeKey,
                 sessionKey: sessionKey
@@ -1164,7 +1178,7 @@ final class DatabaseViewModel {
         payload: UnlockPayload,
         compositeKey: Data,
         sessionKey: SymmetricKey
-    ) async {
+    ) {
         self.rootGroup = payload.rootGroup
         self.compositeKey = compositeKey
         self.sessionKey = sessionKey

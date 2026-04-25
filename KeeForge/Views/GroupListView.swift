@@ -119,10 +119,8 @@ struct GroupListView: View {
                                 }
 
                                 if showsCompactLockButton == false {
-                                    Button {
+                                    Button("Lock") {
                                         viewModel.lockRequest(manuallyTriggered: true)
-                                    } label: {
-                                        Image(systemName: "lock")
                                     }
                                     .accessibilityIdentifier("lock.button")
                                 }

@@ -3,6 +3,7 @@
 ## Unreleased
 
 ### Changes
+- Added support for creating new local KDBX 4.x databases from KeeForge.
 - Use shared monospaced password styling across entry detail, password generation, editing, unlock, and AutoFill credential creation screens.
 - Show estimated password strength and entropy bits below visible password displays and the entry password editor.
 

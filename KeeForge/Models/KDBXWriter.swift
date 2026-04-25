@@ -143,12 +143,12 @@ enum KDBXWriter {
                 formatVersion: .kdbx4(minor: headerMinorVersion),
                 cipherID: configuration.cipherID,
                 compressionFlags: 1,
-                masterSeed: randomData(count: masterSeedLength),
-                encryptionIV: randomData(count: try encryptionIVLength(for: configuration.cipherID)),
+                masterSeed: try randomData(count: masterSeedLength),
+                encryptionIV: try randomData(count: try encryptionIVLength(for: configuration.cipherID)),
                 kdfParameters: configuration.kdfParameters,
                 headerData: Data(),
                 innerStreamID: configuration.innerStreamID,
-                innerStreamKey: randomData(count: innerStreamKeyLength),
+                innerStreamKey: try randomData(count: innerStreamKeyLength),
                 innerHeaderBinaryFields: configuration.innerHeaderBinaryFields
             )
         }
@@ -156,11 +156,11 @@ enum KDBXWriter {
         header.compressionFlags = 1
 
         if header.masterSeed.isEmpty {
-            header.masterSeed = randomData(count: masterSeedLength)
+            header.masterSeed = try randomData(count: masterSeedLength)
         }
 
         if header.encryptionIV.isEmpty {
-            header.encryptionIV = randomData(count: try encryptionIVLength(for: header.cipherID))
+            header.encryptionIV = try randomData(count: try encryptionIVLength(for: header.cipherID))
         }
 
         if header.innerStreamID == 0 {
@@ -172,7 +172,7 @@ enum KDBXWriter {
         }
 
         if header.innerStreamKey.isEmpty {
-            header.innerStreamKey = randomData(count: innerStreamKeyLength)
+            header.innerStreamKey = try randomData(count: innerStreamKeyLength)
         }
 
         return header
@@ -383,12 +383,8 @@ enum KDBXWriter {
         throw KDBXCrypto.CryptoError.unsupportedCipher(cipherID.hexString)
     }
 
-    private static func randomData(count: Int) -> Data {
-        var generator = SystemRandomNumberGenerator()
-        let bytes = (0..<count).map { _ in
-            UInt8.random(in: UInt8.min...UInt8.max, using: &generator)
-        }
-        return Data(bytes)
+    private static func randomData(count: Int) throws -> Data {
+        try SecureRandom.data(count: count)
     }
 }
 

@@ -200,6 +200,49 @@ final class KDBXWriterTests: XCTestCase {
         try assertTreesEqual(parsed, reparsed)
     }
 
+    func testWriteFreshEmptyDatabaseRoundTrips() throws {
+        let password = "fresh empty password"
+        let compositeKey = KDBXCrypto.compositeKey(password: password)
+        let recycleBinID = UUID()
+        let root = KPGroup(
+            name: "Root",
+            groups: [
+                KPGroup(
+                    name: "Fresh",
+                    groups: [
+                        KPGroup(id: recycleBinID, name: "Recycle Bin", iconID: 43, isExpanded: false),
+                    ]
+                ),
+            ],
+            recycleBinUUID: recycleBinID
+        )
+        let meta = KPMeta(
+            recycleBinUUID: recycleBinID,
+            hasRecycleBinUUIDElement: true,
+            maintenanceHistoryDays: KPMeta.defaultMaintenanceHistoryDays,
+            historyMaxItems: KPMeta.defaultHistoryMaxItems,
+            historyMaxSize: KPMeta.defaultHistoryMaxSize
+        )
+
+        let written = try KDBXWriter.write(
+            rootGroup: root,
+            meta: meta,
+            compositeKey: compositeKey,
+            freshHeader: try DatabaseCreationDefaults.freshHeaderConfiguration(),
+            sessionKey: sessionKey
+        )
+
+        let parsed = try KDBXParser.parseWithMetaAndHeader(
+            data: written,
+            compositeKey: compositeKey,
+            sessionKey: sessionKey
+        )
+
+        XCTAssertEqual(parsed.header.formatVersion, .kdbx4(minor: 0))
+        XCTAssertEqual(parsed.rootGroup.groups.first?.name, "Fresh")
+        XCTAssertEqual(parsed.meta.recycleBinUUID, recycleBinID)
+    }
+
     func test_writeRoundTrip_preservesHistorySettingsAndEntryHistory() throws {
         let parsed = try parseFixture(.test)
         var meta = parsed.meta

@@ -1,0 +1,215 @@
+import SwiftUI
+import UniformTypeIdentifiers
+
+struct DatabaseCreationView: View {
+    @Bindable var viewModel: DatabaseCreationViewModel
+    let onCreated: (CreatedDatabase) -> Void
+
+    @Environment(\.dismiss) private var dismiss
+    @State private var isDestinationExporterPresented = false
+    @State private var isKeyFileImporterPresented = false
+    @State private var selectionAlert: DocumentPickerService.SelectionAlert?
+    @State private var exportDocument = KDBXExportDocument(data: Data())
+    @State private var isMasterPasswordVisible = false
+    @State private var isConfirmPasswordVisible = false
+
+    var body: some View {
+        NavigationStack {
+            formContent
+            .navigationTitle("New Database")
+            .navigationBarTitleDisplayMode(.inline)
+            .disabled(viewModel.isCreating)
+            .safeAreaInset(edge: .top, spacing: 0) {
+                if let errorMessage = viewModel.validationError ?? viewModel.creationError {
+                    CreationErrorBanner(message: errorMessage)
+                        .padding(.horizontal)
+                        .padding(.top, 8)
+                        .padding(.bottom, 6)
+                }
+            }
+            .overlay {
+                if viewModel.isCreating {
+                    ProgressView("Creating Database")
+                        .padding()
+                        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                }
+            }
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") {
+                        viewModel.clearSecrets()
+                        viewModel.clearPreparedDatabase()
+                        dismiss()
+                    }
+                    .accessibilityIdentifier("database-create.cancel-button")
+                }
+
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Create") {
+                        Task {
+                            if await viewModel.prepareForExport() {
+                                exportDocument = KDBXExportDocument(data: viewModel.preparedEncryptedBytes)
+                                isDestinationExporterPresented = true
+                            }
+                        }
+                    }
+                    .disabled(viewModel.isCreating)
+                    .accessibilityIdentifier("database-create.create-button")
+                }
+            }
+        }
+        .fileExporter(
+            isPresented: $isDestinationExporterPresented,
+            document: exportDocument,
+            contentType: DocumentPickerService.databaseContentType,
+            defaultFilename: viewModel.preparedFilename,
+            onCompletion: handleDestinationSelection
+        )
+        .fileImporter(
+            isPresented: $isKeyFileImporterPresented,
+            allowedContentTypes: DocumentPickerService.keyFilePickerContentTypes,
+            onCompletion: handleKeyFileSelection
+        )
+        .alert(item: $selectionAlert) { alert in
+            Alert(
+                title: Text(alert.title),
+                message: Text(alert.message),
+                dismissButton: .default(Text("OK"))
+            )
+        }
+    }
+
+    private var formContent: some View {
+        Form {
+            Section {
+                TextField("Database name", text: $viewModel.databaseName)
+                    .textInputAutocapitalization(.words)
+                    .accessibilityIdentifier("database-create.name-field")
+            } header: {
+                Text("Database")
+            } footer: {
+                Text("After you tap Create, Files will ask where to save the encrypted .kdbx database.")
+            }
+
+            Section {
+                PasswordInputRow(
+                    title: "Master password",
+                    text: $viewModel.password,
+                    isVisible: $isMasterPasswordVisible,
+                    fieldAccessibilityIdentifier: "database-create.password-field",
+                    visibilityAccessibilityIdentifier: "database-create.password-visibility-button"
+                )
+
+                PasswordInputRow(
+                    title: "Confirm password",
+                    text: $viewModel.confirmPassword,
+                    isVisible: $isConfirmPasswordVisible,
+                    fieldAccessibilityIdentifier: "database-create.confirm-password-field",
+                    visibilityAccessibilityIdentifier: "database-create.confirm-password-visibility-button"
+                )
+
+                if let warning = viewModel.passwordStrengthWarning {
+                    Text(warning)
+                        .font(.footnote)
+                        .foregroundStyle(.orange)
+                }
+            } header: {
+                Text("Master Password")
+            } footer: {
+                Text("KeeForge creates KDBX 4 databases encrypted with AES-256 and Argon2id key derivation. Choose a long, unique master password: it protects the entire database and cannot be recovered if forgotten.")
+            }
+
+            Section {
+                LabeledContent("Selected", value: viewModel.keyFileSummary)
+
+                Button {
+                    isKeyFileImporterPresented = true
+                } label: {
+                    Label("Select Key File", systemImage: "key")
+                }
+                .accessibilityIdentifier("database-create.keyfile.select")
+
+                if viewModel.keyFileFilename != nil {
+                    Button("Clear Key File", role: .destructive) {
+                        viewModel.clearKeyFile()
+                    }
+                    .accessibilityIdentifier("database-create.keyfile.clear")
+                }
+            } header: {
+                Text("Key File")
+            }
+        }
+    }
+
+    private func handleDestinationSelection(_ result: Result<URL, Error>) {
+        switch result {
+        case .success(let url):
+            do {
+                let created = try viewModel.completeExport(to: url)
+                onCreated(created)
+                dismiss()
+            } catch {
+                viewModel.creationError = error.localizedDescription
+            }
+        case .failure(let error):
+            viewModel.clearPreparedDatabase()
+            selectionAlert = DocumentPickerService.pickerFailureAlert(for: error)
+        }
+    }
+
+    private func handleKeyFileSelection(_ result: Result<URL, Error>) {
+        switch result {
+        case .success(let url):
+            do {
+                try viewModel.selectKeyFile(url: url)
+            } catch {
+                selectionAlert = DocumentPickerService.pickerFailureAlert(for: error)
+            }
+        case .failure(let error):
+            selectionAlert = DocumentPickerService.pickerFailureAlert(for: error)
+        }
+    }
+}
+
+private struct KDBXExportDocument: FileDocument {
+    let data: Data
+
+    static var readableContentTypes: [UTType] {
+        [DocumentPickerService.databaseContentType]
+    }
+
+    init(data: Data) {
+        self.data = data
+    }
+
+    init(configuration: ReadConfiguration) throws {
+        data = configuration.file.regularFileContents ?? Data()
+    }
+
+    func fileWrapper(configuration: WriteConfiguration) throws -> FileWrapper {
+        FileWrapper(regularFileWithContents: data)
+    }
+}
+
+private struct CreationErrorBanner: View {
+    let message: String
+
+    var body: some View {
+        Label {
+            Text(message)
+                .font(.subheadline.weight(.semibold))
+                .fixedSize(horizontal: false, vertical: true)
+        } icon: {
+            Image(systemName: "exclamationmark.triangle.fill")
+        }
+        .foregroundStyle(.red)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(12)
+        .background(Color.red.opacity(0.12), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .stroke(Color.red.opacity(0.35), lineWidth: 1)
+        )
+        .accessibilityIdentifier("database-create.error")
+    }
+}

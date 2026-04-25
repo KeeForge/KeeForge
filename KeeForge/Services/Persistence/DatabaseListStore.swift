@@ -4,11 +4,14 @@ import Foundation
 enum DatabaseListStore {
     enum AddDatabaseError: Error, LocalizedError, Equatable {
         case duplicateFile(existingReferenceID: UUID, filename: String)
+        case duplicateCreatedFilename(filename: String)
 
         var errorDescription: String? {
             switch self {
             case .duplicateFile(_, let filename):
                 return "“\(filename)” is already in your database list."
+            case .duplicateCreatedFilename(let filename):
+                return "“\(filename)” is already used by a KeeForge-only database."
             }
         }
     }
@@ -186,6 +189,29 @@ enum DatabaseListStore {
         currentDatabases.append(reference)
         saveDatabases(currentDatabases)
         return reference
+    }
+
+    static func addCreatedLocal(_ reference: DatabaseReference) throws {
+        var currentDatabases = loadDatabases()
+        try validateCreatedLocal(reference, in: currentDatabases)
+        currentDatabases.append(reference)
+        saveDatabases(currentDatabases)
+    }
+
+    static func addAppOnlyCreatedLocal(_ reference: DatabaseReference, encryptedBytes: Data) throws {
+        var currentDatabases = loadDatabases()
+        try validateAppOnlyCreatedLocal(reference, in: currentDatabases)
+        try cacheDatabaseCopy(encryptedBytes, for: reference)
+        currentDatabases.append(reference)
+        saveDatabases(currentDatabases)
+    }
+
+    static func validateCreatedLocal(_ reference: DatabaseReference) throws {
+        try validateCreatedLocal(reference, in: loadDatabases())
+    }
+
+    static func validateAppOnlyCreatedLocal(_ reference: DatabaseReference) throws {
+        try validateAppOnlyCreatedLocal(reference, in: loadDatabases())
     }
 
     static func remove(id: UUID) {
@@ -779,6 +805,39 @@ enum DatabaseListStore {
                 return false
             }
             return normalizedFilePath(for: resolved.url) == targetPath
+        }
+    }
+
+    private static func validateCreatedLocal(
+        _ reference: DatabaseReference,
+        in references: [DatabaseReference]
+    ) throws {
+        if let bookmarkData = reference.bookmarkData,
+           let resolved = SecurityScopedBookmarkManager.resolveURL(from: bookmarkData),
+           let duplicate = existingLocalReference(matching: resolved.url, in: references) {
+            throw AddDatabaseError.duplicateFile(
+                existingReferenceID: duplicate.id,
+                filename: duplicate.displayName
+            )
+        }
+
+        if reference.bookmarkData == nil {
+            try validateAppOnlyCreatedLocal(reference, in: references)
+        }
+    }
+
+    private static func validateAppOnlyCreatedLocal(
+        _ reference: DatabaseReference,
+        in references: [DatabaseReference]
+    ) throws {
+        let targetFilename = reference.filename.lowercased()
+        let hasDuplicate = references.contains { existing in
+            existing.cloudSyncMetadata == nil &&
+            existing.bookmarkData == nil &&
+            existing.filename.lowercased() == targetFilename
+        }
+        if hasDuplicate {
+            throw AddDatabaseError.duplicateCreatedFilename(filename: reference.filename)
         }
     }
 

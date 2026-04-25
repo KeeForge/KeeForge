@@ -34,6 +34,7 @@ struct DatabaseListView: View {
 
     @Bindable var viewModel: DatabaseListViewModel
     let onSelectDatabase: (DatabaseReference) -> Void
+    let onCreateDatabase: (CreatedDatabase) -> Void
     var selectedDatabaseID: UUID? = nil
 
     @State private var pickerState = PickerPresentationState<PickerTarget>()
@@ -46,6 +47,7 @@ struct DatabaseListView: View {
     @State private var showDatabaseUsageStats = SettingsService.showDatabaseUsageStats
     @State private var activeCloudProvider: CloudProviderKind?
     @State private var isDropboxWriteScopeReconnectInFlight = false
+    @State private var isDatabaseCreationPresented = false
 
     var body: some View {
         NavigationStack {
@@ -241,6 +243,15 @@ struct DatabaseListView: View {
                 }
             )
         }
+        .sheet(isPresented: $isDatabaseCreationPresented) {
+            DatabaseCreationView(
+                viewModel: DatabaseCreationViewModel(),
+                onCreated: { createdDatabase in
+                    viewModel.reload()
+                    onCreateDatabase(createdDatabase)
+                }
+            )
+        }
     }
 
     private func databaseRowButton(for reference: DatabaseReference) -> some View {
@@ -285,26 +296,51 @@ struct DatabaseListView: View {
         ContentUnavailableView {
             Label("No Databases", systemImage: "folder.badge.plus")
         } description: {
-            Text("Add a KeePass .kdbx file to get started.")
+            Text("Create a new KeePass database or import an existing .kdbx file.")
         } actions: {
-            Menu {
-                addDatabaseMenuContent
-            } label: {
-                Label("Add Database", systemImage: "plus")
+            VStack(spacing: 12) {
+                Button {
+                    isDatabaseCreationPresented = true
+                } label: {
+                    Label("Create New Database", systemImage: "doc.badge.plus")
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.large)
+                .accessibilityIdentifier("database.empty.create")
+
+                Menu {
+                    importDatabaseMenuContent
+                } label: {
+                    Label("Import Existing Database", systemImage: "square.and.arrow.down")
+                }
+                .buttonStyle(.bordered)
+                .menuOrder(.fixed)
+                .accessibilityIdentifier("database.empty.add")
             }
-            .buttonStyle(.borderedProminent)
-            .menuOrder(.fixed)
-            .accessibilityIdentifier("database.empty.add")
         }
     }
 
     @ViewBuilder
     private var addDatabaseMenuContent: some View {
         Button {
+            isDatabaseCreationPresented = true
+        } label: {
+            Label("New Database", systemImage: "doc.badge.plus")
+        }
+        .accessibilityIdentifier("database.add.new")
+
+        Section("Import Existing Database") {
+            importDatabaseMenuContent
+        }
+    }
+
+    @ViewBuilder
+    private var importDatabaseMenuContent: some View {
+        Button {
             selectionAlert = nil
             pickerState.present(.database)
         } label: {
-            Label("Local Device", systemImage: "iphone")
+            Label("Files", systemImage: "iphone")
         }
         .accessibilityIdentifier("database.add.files")
 

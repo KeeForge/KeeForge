@@ -81,22 +81,6 @@ struct PasswordConcealedText: View {
     }
 }
 
-struct PasswordInputStyle: ViewModifier {
-    func body(content: Content) -> some View {
-        content
-            .font(.body.monospaced())
-            .textInputAutocapitalization(.never)
-            .autocorrectionDisabled()
-            .textContentType(.password)
-    }
-}
-
-extension View {
-    func passwordInputStyle() -> some View {
-        modifier(PasswordInputStyle())
-    }
-}
-
 struct PasswordStrengthIndicator: View {
     let password: String
 

@@ -53,27 +53,13 @@ struct EntryEditView: View {
                 }
 
                 basicFieldRow("Password") {
-                    HStack(spacing: 12) {
-                        Group {
-                            if isPasswordVisible {
-                                TextField("Password", text: $formViewModel.password)
-                            } else {
-                                SecureField("Password", text: $formViewModel.password)
-                            }
-                        }
-                        .passwordInputStyle()
-                        .accessibilityIdentifier("entry-edit.password-field")
-
-                        Button {
-                            isPasswordVisible.toggle()
-                        } label: {
-                            Image(systemName: isPasswordVisible ? "eye.slash.fill" : "eye.fill")
-                                .frame(width: 30, height: 30)
-                        }
-                        .buttonStyle(.borderless)
-                        .accessibilityLabel(isPasswordVisible ? "Hide password" : "Show password")
-                        .accessibilityIdentifier("entry-edit.password-visibility-button")
-
+                    PasswordInputRow(
+                        title: "Password",
+                        text: $formViewModel.password,
+                        isVisible: $isPasswordVisible,
+                        fieldAccessibilityIdentifier: "entry-edit.password-field",
+                        visibilityAccessibilityIdentifier: "entry-edit.password-visibility-button"
+                    ) {
                         Button {
                             showPasswordGenerator = true
                         } label: {
