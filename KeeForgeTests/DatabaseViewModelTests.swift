@@ -71,6 +71,7 @@ final class DatabaseViewModelTests: XCTestCase {
         )
         let vm = DatabaseViewModel(createdDatabase: created)
         let parentGroupID = try XCTUnwrap(vm.visibleRootGroupID)
+        let initialContentRevision = vm.contentRevision
 
         try vm.applyEntryEdit(
             .createEntry(
@@ -83,6 +84,8 @@ final class DatabaseViewModelTests: XCTestCase {
                 )
             )
         )
+        XCTAssertGreaterThan(vm.contentRevision, initialContentRevision)
+        XCTAssertEqual(vm.group(withID: parentGroupID)?.entries.map(\.title), ["First Saved Entry"])
 
         try await vm.save()
 

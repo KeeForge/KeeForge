@@ -220,6 +220,7 @@ final class DatabaseViewModel {
     var draft: DatabaseDraft? {
         didSet { rebuildDerivedState() }
     }
+    private(set) var contentRevision = 0
     private(set) var searchResults: [KPEntry] = []
     private(set) var openTimeSHA512: Data?
     private(set) var saveError: DatabaseSaveError?
@@ -525,11 +526,13 @@ final class DatabaseViewModel {
     }
 
     func entry(withID entryID: UUID) -> KPEntry? {
-        entryIndex[entryID]
+        _ = contentRevision
+        return entryIndex[entryID]
     }
 
     func group(withID groupID: UUID) -> KPGroup? {
-        groupIndex[groupID]
+        _ = contentRevision
+        return groupIndex[groupID]
     }
 
     func isEntryInRecycleBin(entryID: UUID) -> Bool {
@@ -1014,7 +1017,8 @@ final class DatabaseViewModel {
     }
 
     func entryCount(forGroupID groupID: UUID) -> Int {
-        groupEntryCounts[groupID] ?? 0
+        _ = contentRevision
+        return groupEntryCounts[groupID] ?? 0
     }
 
     static func credentialStoreEntries(from root: KPGroup) -> [KPEntry] {
@@ -1075,6 +1079,7 @@ final class DatabaseViewModel {
             searchableEntryText = [:]
             recycleBinEntryIDs = []
             searchResults = []
+            contentRevision += 1
             selectedGroupID = nil
             selectedEntryID = nil
             return
@@ -1121,6 +1126,7 @@ final class DatabaseViewModel {
         searchableEntries = nextSearchableEntries
         searchableEntryText = nextSearchableEntryText
         recycleBinEntryIDs = nextRecycleBinEntryIDs
+        contentRevision += 1
         synchronizeSelections()
         updateSearchResults()
     }

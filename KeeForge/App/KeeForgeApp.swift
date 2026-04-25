@@ -66,7 +66,6 @@ private struct AppRootView: View {
         .onOpenURL { url in
             handleOpenURL(url)
         }
-        .animation(.snappy(duration: 0.28), value: rootTransitionKey)
     }
 
     @ViewBuilder
@@ -74,12 +73,6 @@ private struct AppRootView: View {
         if usesRegularLayout {
             if let activeDatabaseViewModel, case .unlocked = activeDatabaseViewModel.state {
                 RegularDatabaseWorkspaceView(viewModel: activeDatabaseViewModel)
-                    .transition(
-                        .asymmetric(
-                            insertion: .move(edge: .trailing).combined(with: .opacity),
-                            removal: .move(edge: .trailing).combined(with: .opacity)
-                        )
-                    )
             } else {
                 NavigationSplitView {
                     DatabaseListView(
@@ -104,12 +97,6 @@ private struct AppRootView: View {
                     }
                 }
                 .navigationSplitViewStyle(.balanced)
-                .transition(
-                    .asymmetric(
-                        insertion: .move(edge: .leading).combined(with: .opacity),
-                        removal: .move(edge: .leading).combined(with: .opacity)
-                    )
-                )
             }
         } else {
             if let activeDatabaseViewModel {
@@ -120,23 +107,11 @@ private struct AppRootView: View {
                     onCreateDatabase: openCreatedDatabase,
                     onReturnToList: returnToDatabaseList
                 )
-                .transition(
-                    .asymmetric(
-                        insertion: .move(edge: .trailing).combined(with: .opacity),
-                        removal: .move(edge: .trailing).combined(with: .opacity)
-                    )
-                )
             } else {
                 DatabaseListView(
                     viewModel: listViewModel,
                     onSelectDatabase: openDatabase,
                     onCreateDatabase: openCreatedDatabase
-                )
-                .transition(
-                    .asymmetric(
-                        insertion: .move(edge: .leading).combined(with: .opacity),
-                        removal: .move(edge: .leading).combined(with: .opacity)
-                    )
                 )
             }
         }
@@ -144,12 +119,6 @@ private struct AppRootView: View {
 
     private var usesRegularLayout: Bool {
         horizontalSizeClass == .regular
-    }
-
-    private var rootTransitionKey: String {
-        guard didResolveInitialRoute else { return "launching" }
-        guard let activeDatabaseViewModel else { return "database-list" }
-        return "\(activeDatabaseViewModel.databaseReference.id.uuidString)-\(activeDatabaseViewModel.state)"
     }
 
     private func resolveInitialRouteIfNeeded() async {
@@ -171,10 +140,8 @@ private struct AppRootView: View {
     }
 
     private func returnToDatabaseList() {
-        withAnimation(.snappy(duration: 0.28)) {
-            activeDatabaseViewModel = nil
-            listViewModel.reload()
-        }
+        activeDatabaseViewModel = nil
+        listViewModel.reload()
     }
 
     private func handleOpenURL(_ url: URL) {
