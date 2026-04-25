@@ -10,8 +10,8 @@ This file tracks planned product work.
 
 ## iPad and macOS Support
 
-- [x] Build an iPad-native layout
 - [ ] Plan and implement native macOS support
+- [x] Build an iPad-native layout
 
 ## Core Functionalities
 
@@ -21,15 +21,15 @@ This file tracks planned product work.
 
 ### Database Creation
 
-- [ ] Create new databases directly in the app
+- [x] Create new databases directly in the app
 
 ## In-App UI Enhancements
 
+- [ ] optimize database row view
+- [ ] nicer password views with consistent font/color and strength indication
 - [x] add folders in settings page
 - [x] group settings into sub pages
-- [ ] optimize database row view
 - [x] option to disable metadata display for DB row
-- [ ] nicer password views with consistent font/color and strength indication
 
 ### Entry Viewer
 
