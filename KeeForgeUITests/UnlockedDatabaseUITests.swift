@@ -286,12 +286,12 @@ final class AppSettingsUITests: AppSettingsUITestCase {
     func testSettingsPageShowsSupportAndAboutSections() {
         openAppSettings()
 
-        let aboutLink = app.descendants(matching: .any).matching(identifier: "settings.about.link").firstMatch
-        revealInSettings(aboutLink, maxSwipes: 2)
-        tapElement(aboutLink)
-
         let supportButton = app.buttons["settings.send-feedback"]
         revealInSettings(supportButton, maxSwipes: 4)
+
+        let aboutLink = app.descendants(matching: .any).matching(identifier: "settings.about.link").firstMatch
+        revealInSettings(aboutLink, maxSwipes: 4)
+        tapElement(aboutLink)
 
         let sourceCodeLink = app.descendants(matching: .any).matching(
             NSPredicate(format: "label == 'Source Code'")
