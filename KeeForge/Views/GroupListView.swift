@@ -410,9 +410,10 @@ struct DatabaseSettingsView: View {
                 Section {
                     LabeledContent("Name", value: currentDisplayName)
 
-                    LabeledContent("Custom Name") {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Custom Name")
                         TextField("Use filename", text: $nickname)
-                            .multilineTextAlignment(.trailing)
+                            .textInputAutocapitalization(.words)
                             .onSubmit(saveNickname)
                     }
 
@@ -516,6 +517,9 @@ struct DatabaseSettingsView: View {
             .onChange(of: currentReference.nickname) { _, _ in
                 syncFormStateFromCurrentReference()
             }
+            .onChange(of: nickname) { _, _ in
+                saveNickname()
+            }
             .onChange(of: currentReference.isQuickLaunch) { _, newValue in
                 isQuickLaunch = newValue
             }
@@ -550,9 +554,8 @@ struct DatabaseSettingsView: View {
     private func saveNickname() {
         let trimmed = nickname.trimmingCharacters(in: .whitespacesAndNewlines)
         let newNickname = trimmed.isEmpty ? nil : trimmed
-        guard var updated = DatabaseListStore.databases.first(where: { $0.id == reference.id }) else { return }
-        updated.nickname = newNickname
-        DatabaseListStore.update(updated)
+        guard newNickname != currentReference.nickname else { return }
+        viewModel.setNickname(newNickname)
     }
 
     private func toggleQuickLaunch(_ newValue: Bool) {
@@ -584,7 +587,7 @@ struct DatabaseSettingsView: View {
 
     private var currentDisplayName: String {
         let trimmed = nickname.trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmed.isEmpty ? reference.displayName : trimmed
+        return trimmed.isEmpty ? currentReference.displayName : trimmed
     }
 
     private func dateText(_ date: Date) -> String {

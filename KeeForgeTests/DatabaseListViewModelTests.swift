@@ -88,6 +88,17 @@ final class DatabaseListViewModelTests: XCTestCase {
         XCTAssertTrue(updatedReference.isReadOnly)
     }
 
+    func testSetNicknamePersistsAndRefreshesList() throws {
+        let reference = try DatabaseListStore.add(url: makeTemporaryFileURL(name: "personal.kdbx"))
+        let viewModel = DatabaseListViewModel()
+
+        viewModel.setNickname("Work Vault", for: reference)
+
+        let updatedReference = try XCTUnwrap(DatabaseListStore.databases.first(where: { $0.id == reference.id }))
+        XCTAssertEqual(updatedReference.nickname, "Work Vault")
+        XCTAssertEqual(viewModel.databases.first(where: { $0.id == reference.id })?.displayName, "Work Vault")
+    }
+
     func testAddCloudDatabaseCreatesCloudReferenceFromSelection() {
         let selection = CloudDatabaseSelection(
             provider: CloudProviderKind.dropbox.rawValue,

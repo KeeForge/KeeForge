@@ -43,6 +43,19 @@ final class DatabaseViewModelTests: XCTestCase {
         XCTAssertFalse(vm.rootGroup?.allEntries.isEmpty ?? true)
     }
 
+    func testSetNicknamePersistsAndRefreshesCurrentReference() throws {
+        let reference = try makeReference()
+        DatabaseListStore.update(reference)
+        let vm = try makeViewModel(reference: reference)
+
+        vm.setNickname("Travel Vault")
+
+        let storedReference = try XCTUnwrap(DatabaseListStore.databases.first(where: { $0.id == reference.id }))
+        XCTAssertEqual(storedReference.nickname, "Travel Vault")
+        XCTAssertEqual(vm.databaseReference.nickname, "Travel Vault")
+        XCTAssertEqual(vm.databaseDisplayName, "Travel Vault")
+    }
+
     func testUnlockLegacyKDBX31ForcesReadOnlyMode() async throws {
         let reference = try TestDatabaseSupport.makeReference(for: legacyFixtureURL())
         let vm = try makeViewModel(reference: reference)

@@ -744,6 +744,13 @@ final class DatabaseViewModel {
         refreshDatabaseReference()
     }
 
+    func setNickname(_ nickname: String?) {
+        var updatedReference = DatabaseListStore.databases.first(where: { $0.id == databaseReference.id }) ?? databaseReference
+        updatedReference.nickname = nickname
+        DatabaseListStore.update(updatedReference)
+        refreshDatabaseReference()
+    }
+
     func acknowledgeEditingIfNeeded() async -> AcknowledgmentResult {
         guard case .local = databaseReference.source else {
             return .acknowledged

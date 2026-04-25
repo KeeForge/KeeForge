@@ -571,9 +571,10 @@ private struct DatabaseDetailsView: View {
                 Section {
                     LabeledContent("Name", value: currentDisplayName)
 
-                    LabeledContent("Custom Name") {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Custom Name")
                         TextField("Use filename", text: $nickname)
-                            .multilineTextAlignment(.trailing)
+                            .textInputAutocapitalization(.words)
                             .onSubmit(saveNickname)
                             .accessibilityIdentifier("database-details.nickname-field")
                     }
@@ -685,6 +686,9 @@ private struct DatabaseDetailsView: View {
             .onChange(of: currentReference.nickname) { _, _ in
                 syncFormStateFromCurrentReference()
             }
+            .onChange(of: nickname) { _, _ in
+                saveNickname()
+            }
             .onChange(of: currentReference.isQuickLaunch) { _, newValue in
                 isQuickLaunch = newValue
             }
@@ -707,13 +711,15 @@ private struct DatabaseDetailsView: View {
 
     private func saveNickname() {
         let trimmed = nickname.trimmingCharacters(in: .whitespacesAndNewlines)
-        viewModel.setNickname(trimmed.isEmpty ? nil : trimmed, for: reference)
+        let newNickname = trimmed.isEmpty ? nil : trimmed
+        guard newNickname != currentReference.nickname else { return }
+        viewModel.setNickname(newNickname, for: reference)
     }
 
     private var currentDisplayName: String {
         let trimmed = nickname.trimmingCharacters(in: .whitespacesAndNewlines)
         if trimmed.isEmpty {
-            return reference.displayName
+            return currentReference.displayName
         }
         return trimmed
     }
