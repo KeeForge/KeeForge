@@ -48,8 +48,12 @@ struct DatabaseCreationView: View {
                     Button("Create") {
                         Task {
                             if await viewModel.prepareForExport() {
-                                exportDocument = KDBXExportDocument(data: viewModel.preparedEncryptedBytes)
-                                isDestinationExporterPresented = true
+                                if let uiTestingExportURL {
+                                    completeUITestingExport(to: uiTestingExportURL)
+                                } else {
+                                    exportDocument = KDBXExportDocument(data: viewModel.preparedEncryptedBytes)
+                                    isDestinationExporterPresented = true
+                                }
                             }
                         }
                     }
@@ -154,6 +158,39 @@ struct DatabaseCreationView: View {
         case .failure(let error):
             viewModel.clearPreparedDatabase()
             selectionAlert = DocumentPickerService.pickerFailureAlert(for: error)
+        }
+    }
+
+    private var uiTestingExportURL: URL? {
+        guard ProcessInfo.processInfo.arguments.contains("-ui-testing") else { return nil }
+        guard let rawValue = ProcessInfo.processInfo.environment["UI_TEST_DATABASE_CREATION_EXPORT_PATH"]?
+            .trimmingCharacters(in: .whitespacesAndNewlines),
+            rawValue.isEmpty == false
+        else {
+            return nil
+        }
+
+        if rawValue.hasPrefix("/") {
+            return URL(fileURLWithPath: rawValue)
+        }
+
+        return FileManager.default.temporaryDirectory
+            .appendingPathComponent(rawValue, isDirectory: false)
+    }
+
+    private func completeUITestingExport(to url: URL) {
+        do {
+            try FileManager.default.createDirectory(
+                at: url.deletingLastPathComponent(),
+                withIntermediateDirectories: true
+            )
+            try viewModel.preparedEncryptedBytes.write(to: url, options: .atomic)
+            let created = try viewModel.completeExport(to: url)
+            onCreated(created)
+            dismiss()
+        } catch {
+            viewModel.clearPreparedDatabase()
+            viewModel.creationError = error.localizedDescription
         }
     }
 

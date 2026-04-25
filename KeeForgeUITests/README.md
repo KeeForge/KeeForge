@@ -9,6 +9,7 @@ Use this document for UI test methodology. Repo-wide build and test policy stays
 ### Release-Smoke Oriented Classes
 
 - `DatabaseListUITests` — home-screen database list actions and management
+- `DatabaseCreationCompactUITests` — new local database happy path on compact / iPhone layout
 - `UnlockFlowUITests` — basic unlock success/failure coverage
 - `QuickLaunchSmokeUITests` — single-database quick-launch routing into unlock
 - `LockUnlockUITests` — lock cycle coverage
@@ -20,6 +21,7 @@ Use this document for UI test methodology. Repo-wide build and test policy stays
 - `KeyFileUnlockUITests` — unlocking with a key file
 - `CloudBrowserSmokeUITests` — add Dropbox and browse the mock cloud picker
 - `CloudUnlockSmokeUITests` — unlock a seeded cloud-backed database through the mock provider
+- `DatabaseCreationRegularWidthUITests` — new local database happy path on regular-width / iPad layout
 - `RegularWidthWorkspaceUITests` — regular-width / iPad workspace smoke coverage
 
 ### Secondary / Edge Coverage
@@ -62,6 +64,15 @@ xcodebuild test -project KeeForge.xcodeproj -scheme KeeForge \
 xcodebuild test -project KeeForge.xcodeproj -scheme KeeForge \
   -destination 'platform=iOS Simulator,name=iPhone 17 Pro' \
   -only-testing:KeeForgeUITests/EntryCreateSmokeUITests -quiet
+
+# New local database creation smoke slice
+xcodebuild test -project KeeForge.xcodeproj -scheme KeeForge \
+  -destination 'platform=iOS Simulator,name=iPhone 17 Pro' \
+  -only-testing:KeeForgeUITests/DatabaseCreationCompactUITests -quiet
+
+xcodebuild test -project KeeForge.xcodeproj -scheme KeeForge \
+  -destination 'platform=iOS Simulator,name=iPad Air 13-inch (M4)' \
+  -only-testing:KeeForgeUITests/DatabaseCreationRegularWidthUITests -quiet
 
 # Cloud-backed smoke slice
 xcodebuild test -project KeeForge.xcodeproj -scheme KeeForge \

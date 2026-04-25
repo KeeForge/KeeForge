@@ -115,6 +115,7 @@
 		8E99F20C4C299C88E89B34ED /* test-v1.key in Resources */ = {isa = PBXBuildFile; fileRef = 4C350259754DFA5D42D782A7 /* test-v1.key */; };
 		8EAB80EF201B8AE0EA7F865F /* EntryEdit.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0E36B86BDCAAD4E3C120428 /* EntryEdit.swift */; };
 		8F0FE540866A1995166D40ED /* DatabaseRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8DBB315683B9032E3301FD19 /* DatabaseRowView.swift */; };
+		90744D6CBDBAAE6F533052D5 /* DatabaseCreationUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9ECE57184BC7684A8E946B6 /* DatabaseCreationUITests.swift */; };
 		90E81BC3B648E87B0D4BFB37 /* CredentialIdentityStoreManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 280C8E252110A0DEC3BE5283 /* CredentialIdentityStoreManager.swift */; };
 		92642556D147F42B985AC642 /* AutoFillSaveCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 553C63DEBDFFD48E4FC4646E /* AutoFillSaveCoordinator.swift */; };
 		9441CDEE74E78B413B9B6034 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 3FFF736116CE4861D823A5B6 /* Assets.xcassets */; };
@@ -360,6 +361,7 @@
 		B6594B5A580C44B4042FE110 /* EncryptedValue.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EncryptedValue.swift; sourceTree = "<group>"; };
 		B7B6F08C62E668E72877D297 /* LocalDatabaseSaver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalDatabaseSaver.swift; sourceTree = "<group>"; };
 		B7EDDD48D0CB18EA1D45220E /* test-binary.key */ = {isa = PBXFileReference; path = "test-binary.key"; sourceTree = "<group>"; };
+		B9ECE57184BC7684A8E946B6 /* DatabaseCreationUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DatabaseCreationUITests.swift; sourceTree = "<group>"; };
 		BC9852527A48C28D5D60FCFD /* FaviconView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FaviconView.swift; sourceTree = "<group>"; };
 		BE7B832DCD71D53272108662 /* HapticService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HapticService.swift; sourceTree = "<group>"; };
 		BF77C387846CFF3B94A08369 /* FeedbackSubmissionServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeedbackSubmissionServiceTests.swift; sourceTree = "<group>"; };
@@ -435,6 +437,7 @@
 				4B393A7DB556210E94C0F3A2 /* AppStoreScreenshots.swift */,
 				166C906E1AECCEE8FDBC33D7 /* BackoffUITests.swift */,
 				161DA4B3D8C56EE8B3F0EBF3 /* CloudSyncUITests.swift */,
+				B9ECE57184BC7684A8E946B6 /* DatabaseCreationUITests.swift */,
 				8CA9912B84B19D308EAEDF9F /* DatabaseListUITests.swift */,
 				0298F6EF01194050F3D35F5A /* EntryEditUITests.swift */,
 				4A15836C142BB997DA70F8FE /* KeeForgeUITestCase.swift */,
@@ -1028,6 +1031,7 @@
 				4E0405CB1AC24ED88DE8B3D1 /* AppStoreScreenshots.swift in Sources */,
 				CD4C2C7C9B5073AE8F9E6731 /* BackoffUITests.swift in Sources */,
 				E2F7F73F314AF29EEB91F8EB /* CloudSyncUITests.swift in Sources */,
+				90744D6CBDBAAE6F533052D5 /* DatabaseCreationUITests.swift in Sources */,
 				D6731B3FAF7B564B8F9439B7 /* DatabaseListUITests.swift in Sources */,
 				F73B54C1572F840DDD7889DF /* EntryEditUITests.swift in Sources */,
 				501B38FD078785AFEBFC0125 /* KeeForgeUITestCase.swift in Sources */,
