@@ -51,11 +51,14 @@ struct CreatedDatabase: Sendable {
 }
 
 enum DatabaseCreationDefaults {
-    static let argon2idIterations: UInt64 = 3
+    static let argon2idIterations: UInt64 = 10
     static let argon2idMemory: UInt64 = 64 * 1024 * 1024
-    static let argon2idParallelism: UInt32 = 1
     static let argon2Version: UInt32 = 0x13
     static let kdfSaltByteCount = 32
+
+    static var argon2idParallelism: UInt32 {
+        UInt32(min(ProcessInfo.processInfo.processorCount, 4))
+    }
 
     static func freshHeaderConfiguration() throws -> KDBXWriter.FreshHeaderConfiguration {
         try KDBXWriter.FreshHeaderConfiguration(

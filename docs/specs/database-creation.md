@@ -94,9 +94,9 @@ New databases should use conservative, widely compatible defaults:
 - Compression: gzip
 - KDF: Argon2id
 - Argon2id parameters:
-  - `I`: `UInt64(3)`
+  - `I`: `UInt64(10)`
   - `M`: `UInt64(64 * 1024 * 1024)` bytes
-  - `P`: `UInt32(1)`
+  - `P`: `UInt32(min(ProcessInfo.processInfo.processorCount, 4))`
   - `V`: `UInt32(0x13)`
   - `S`: 32 bytes from `SecRandomCopyBytes`
 - Inner protected-value stream: ChaCha20 (`KDBXParser.innerStreamChaCha20`)

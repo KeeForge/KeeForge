@@ -106,9 +106,9 @@ final class DatabaseCreationServiceTests: XCTestCase {
         let parameters = try DatabaseCreationDefaults.argon2idKDFParameters(salt: salt)
 
         XCTAssertEqual(parameters["$UUID"] as? Data, KDBXParser.argon2idUUID)
-        XCTAssertEqual(parameters["I"] as? UInt64, 3)
+        XCTAssertEqual(parameters["I"] as? UInt64, 10)
         XCTAssertEqual(parameters["M"] as? UInt64, 64 * 1024 * 1024)
-        XCTAssertEqual(parameters["P"] as? UInt32, 1)
+        XCTAssertEqual(parameters["P"] as? UInt32, UInt32(min(ProcessInfo.processInfo.processorCount, 4)))
         XCTAssertEqual(parameters["V"] as? UInt32, 0x13)
         XCTAssertEqual(parameters["S"] as? Data, salt)
     }
