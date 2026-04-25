@@ -1,5 +1,6 @@
 import CryptoKit
 import SwiftUI
+import UIKit
 
 struct EntryDetailView: View {
     let entryID: UUID
@@ -55,9 +56,8 @@ struct EntryDetailView: View {
 
                     if !entry.notes.isEmpty {
                         Section("Notes") {
-                            Text(entry.notes)
-                                .font(.body)
-                                .textSelection(.enabled)
+                            SelectableNotesText(entry.notes)
+                                .accessibilityIdentifier("entry.notes")
                         }
                     }
 
@@ -158,6 +158,45 @@ struct EntryDetailView: View {
                 }
             }
         }
+    }
+}
+
+private struct SelectableNotesText: UIViewRepresentable {
+    let text: String
+
+    init(_ text: String) {
+        self.text = text
+    }
+
+    func makeUIView(context: Context) -> UITextView {
+        let textView = UITextView()
+        textView.isEditable = false
+        textView.isSelectable = true
+        textView.isScrollEnabled = false
+        textView.backgroundColor = .clear
+        textView.textContainerInset = .zero
+        textView.textContainer.lineFragmentPadding = 0
+        textView.adjustsFontForContentSizeCategory = true
+        textView.font = .preferredFont(forTextStyle: .body)
+        textView.textColor = .label
+        textView.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        return textView
+    }
+
+    func updateUIView(_ textView: UITextView, context: Context) {
+        textView.text = text
+        textView.font = .preferredFont(forTextStyle: .body)
+        textView.textColor = .label
+    }
+
+    func sizeThatFits(_ proposal: ProposedViewSize, uiView: UITextView, context: Context) -> CGSize? {
+        guard let width = proposal.width else {
+            return nil
+        }
+
+        let fittingSize = CGSize(width: width, height: .greatestFiniteMagnitude)
+        let size = uiView.sizeThatFits(fittingSize)
+        return CGSize(width: width, height: size.height)
     }
 }
 
