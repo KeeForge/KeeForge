@@ -2,9 +2,9 @@
 
 ## Summary
 
-Add support for creating a brand-new KeePass database from inside KeeForge. The v1 path creates a local KDBX 4.x database in KeeForge-owned app-group storage, adds it to the database list, and opens it immediately as an unlocked session so the user can add entries without going through a second unlock step.
+Add support for creating a brand-new KeePass database from inside KeeForge. The v1 path creates a local KDBX 4.x database, saves the primary file to a user-visible Files location, adds it to the database list, and opens it immediately as an unlocked session so the user can add entries without going through a second unlock step.
 
-This is a local-first feature. The created database is fully compatible with the existing local save, backup, AutoFill cache, biometric composite-key storage, and multi-database list flows. Creating a new Dropbox file directly is deferred.
+This is a local-first feature, but it must not trap the only database copy inside KeeForge-owned storage. The created database is fully compatible with the existing local save, backup, AutoFill cache, biometric composite-key storage, and multi-database list flows. Creating a new Dropbox file directly is deferred.
 
 ## Current State
 
@@ -12,6 +12,7 @@ This is a local-first feature. The created database is fully compatible with the
 - KeeForge can add existing Dropbox files through the cloud browser.
 - `KDBXWriter` already has `FreshHeaderConfiguration`, which can produce a KDBX 4.x file without reusing an existing header.
 - `LocalDatabaseSaver` can save a local `DatabaseReference` with no bookmark by falling back to `DatabaseListStore.cacheLocation(for:)`.
+- `LocalDatabaseSaver` already prefers a resolved security-scoped bookmark when a local reference has one, so a created database can use the same save path as an imported Files document once the app has a bookmarked destination URL.
 - `DatabaseListStore` has no API for registering an app-created database before there is an external file URL.
 - There is no UI or service that builds a minimal empty KeePass tree, creates fresh KDF/header material, writes encrypted bytes, and starts an unlocked database session.
 
@@ -23,6 +24,7 @@ This is a local-first feature. The created database is fully compatible with the
 4. Store no raw master password after creation. Persist only the composite key through the existing biometric Keychain path when available.
 5. Make the created database available to AutoFill after the first successful creation/open, matching the existing "last opened database" behavior.
 6. Use the existing draft/save pipeline for the first and subsequent edits.
+7. Ensure the created `.kdbx` is recoverable from outside KeeForge, so deleting the app does not silently delete the user's only database copy.
 
 ## Non-Goals
 
@@ -31,20 +33,29 @@ This is a local-first feature. The created database is fully compatible with the
 - Changing a database's master password, key file, cipher, or KDF after creation.
 - Generating new key files.
 - Importing templates or sample entries.
-- Exporting or relocating app-created databases to Files. A later slice can add "Export Copy" or "Move to Files".
+- Building a full backup browser or restore UI.
 
 ## Product Decisions
 
 ### Storage
 
-v1 creates databases inside KeeForge-owned app-group storage:
+v1 should not create the only durable database copy inside KeeForge-owned app-group storage. That path is convenient for implementation, but it creates a bad failure mode: a user can create a database, start relying on it, and lose the file if KeeForge is deleted.
+
+Recommended v1 behavior:
 
 - `DatabaseReference.source = .local`
-- `bookmarkData = nil`
-- encrypted bytes live at `DatabaseListStore.cacheLocation(for: reference)`
+- `bookmarkData` points at the user-visible `.kdbx` file selected during creation
+- encrypted bytes are written to that bookmarked file as the primary copy
+- `DatabaseListStore.cacheLocation(for: reference)` remains the shared AutoFill/cache copy, refreshed immediately after creation and after each save
 - the displayed filename still ends in `.kdbx`
 
-This intentionally uses the path that `LocalDatabaseSaver.resolveLocation(for:)` already supports for app-owned databases with no security-scoped bookmark. Removing the database from KeeForge deletes the cached database file, saved composite key, backups, and pending upload markers just like existing references.
+The creation UI should default to a KeeForge-friendly Files destination when possible, but it should be honest about what is safe:
+
+- A KeeForge folder exposed under the app's own Documents container is useful for discoverability, manual sharing, and Finder/Files access, but it may still be removed with the app and should not be treated as the uninstall-survival guarantee.
+- A user-chosen Files location, such as iCloud Drive, a third-party file provider, or another user-owned local folder, is the stronger v1 safety story because the `.kdbx` is not only an internal KeeForge cache artifact.
+- If iOS only allows KeeForge to stage the file internally before moving it to a user-selected Files destination, creation should not be considered complete until the external write succeeds or the user explicitly chooses an advanced "Keep only in KeeForge" escape hatch with clear copy about uninstall risk.
+
+Removing the database from KeeForge should remove KeeForge-owned state only: saved composite key, AutoFill cache copy, backups, pending upload markers, and the database-list row. It should not delete the external bookmarked `.kdbx` file unless the user is in an explicit destructive file-management flow.
 
 ### Creation Flow
 
@@ -57,6 +68,7 @@ The database list `+` menu gains a new first action:
 `New Database` presents a SwiftUI creation sheet with:
 
 - database name
+- storage location, defaulting to "Choose in Files" / a KeeForge folder suggestion if available
 - master password
 - confirm master password
 - optional existing key file picker
@@ -65,12 +77,13 @@ The database list `+` menu gains a new first action:
 Validation:
 
 - database name must normalize to a non-empty `.kdbx` filename
-- filename must not duplicate another app-created local database filename
+- filename must not duplicate another app-created local database filename or the selected destination file
+- a writable external destination must be selected unless the user explicitly accepts "Keep only in KeeForge" risk copy
 - password confirmation must match
 - at least one key component is required: password, key file, or both
 - weak passwords should show a warning, but v1 should not invent complex composition rules
 
-After success, the sheet clears password fields, dismisses, reloads the database list, and opens the new database unlocked.
+After success, the sheet clears password fields, dismisses, reloads the database list, and opens the new database unlocked. If the external destination write fails, keep the sheet open and do not register a database row that points at an unavailable file.
 
 ### Format Defaults
 
@@ -100,10 +113,18 @@ Add a small request model in the creation service layer:
 ```swift
 struct DatabaseCreationRequest: Sendable {
     var displayName: String
+    var destination: DatabaseCreationDestination
     var password: String?
     var keyFileData: Data?
     var keyFileBookmarkData: Data?
     var keyFileFilename: String?
+}
+```
+
+```swift
+enum DatabaseCreationDestination: Sendable, Equatable {
+    case files(url: URL, bookmarkData: Data)
+    case appOnlyAcknowledged
 }
 ```
 
@@ -180,33 +201,40 @@ Add `KeeForge/Services/Persistence/DatabaseCreationService.swift`.
 Responsibilities:
 
 1. Validate and normalize the request.
-2. Create a `DatabaseReference` with a fresh UUID, `.local` source, no bookmark, optional key-file bookmark metadata, `isReadOnly = false`, and `addedAt = now`.
+2. Create a `DatabaseReference` with a fresh UUID, `.local` source, destination bookmark data when Files-backed, optional key-file bookmark metadata, `isReadOnly = false`, and `addedAt = now`.
 3. Build the empty KeePass tree and metadata.
 4. Derive the composite key from password/key-file data.
 5. Build fresh header configuration with secure random KDF salt.
 6. Call `KDBXWriter.write(rootGroup:meta:compositeKey:freshHeader:sessionKey:)`.
 7. Parse the generated bytes once in the same detached task to prove the file reopens.
-8. Call `DatabaseListStore.addCreatedLocal(_:, encryptedBytes:)` to write the encrypted bytes and append the reference.
-9. Return `CreatedDatabase`.
+8. Write the encrypted bytes to the selected Files destination with coordinated file access, or to app-owned storage only for the explicit app-only fallback.
+9. Cache the same encrypted bytes through `DatabaseListStore.cacheDatabaseCopy(_:for:)` so AutoFill and quick reopen work immediately.
+10. Call `DatabaseListStore.addCreatedLocal(_:)` to append the reference after the primary write and cache refresh have succeeded.
+11. Return `CreatedDatabase`.
 
-Register the database only after the encrypted bytes have been generated and re-parsed successfully. `DatabaseListStore.addCreatedLocal` must write the file before appending the reference, so a write failure leaves no broken row behind.
+Register the database only after the encrypted bytes have been generated, re-parsed successfully, written to the primary destination, and cached. A write failure must leave no broken row behind. If the cache write fails after the primary destination write succeeds, surface a retryable error and do not register until the cache can be refreshed; AutoFill should not be pointed at a database whose shared cache is missing.
 
 ### `DatabaseListStore`
 
 Add a narrow registration API for app-created databases:
 
 ```swift
-static func addCreatedLocal(_ reference: DatabaseReference, encryptedBytes: Data) throws
+static func addCreatedLocal(_ reference: DatabaseReference) throws
 ```
 
 This method should:
 
-- reject duplicate app-created filenames
-- create the cache parent directory
-- write the encrypted bytes to `cacheLocation(for:)`
+- reject duplicate app-created filenames for app-only references
+- reject duplicate bookmarked destination URLs when the user picked a Files location that is already in the database list
 - append the reference to `database-list.json`
 
-Do not use `SecurityScopedBookmarkManager` for app-created storage.
+For the explicit app-only fallback, add a separate API whose name makes the risk visible in call sites:
+
+```swift
+static func addAppOnlyCreatedLocal(_ reference: DatabaseReference, encryptedBytes: Data) throws
+```
+
+That method may write to `cacheLocation(for:)` before appending the reference. Do not route normal Files-backed creation through this fallback.
 
 ### Randomness
 
@@ -231,6 +259,8 @@ New `@MainActor @Observable` type that owns only form state and the async create
 - `confirmPassword`
 - `keyFileData`
 - `keyFileFilename`
+- `destinationSummary`
+- `isAppOnlyStorageAcknowledged`
 - `isCreating`
 - `validationError`
 - `creationError`
@@ -240,6 +270,8 @@ It should expose:
 ```swift
 func selectKeyFile(url: URL) throws
 func clearKeyFile()
+func selectDestination(url: URL) throws
+func acknowledgeAppOnlyStorageRisk()
 func create() async -> CreatedDatabase?
 func clearSecrets()
 ```
@@ -284,6 +316,8 @@ Accessibility identifiers:
 - `database-create.name-field`
 - `database-create.password-field`
 - `database-create.confirm-password-field`
+- `database-create.destination.select`
+- `database-create.destination-summary`
 - `database-create.keyfile.select`
 - `database-create.keyfile.clear`
 - `database-create.create-button`
@@ -306,6 +340,7 @@ The new database should become the active AutoFill database because creation cou
 - Clear creation form password fields on cancel, failure retry, and success.
 - Keep password and key-file data out of `DatabaseReference` and App Group JSON.
 - Use complete file protection for created encrypted bytes.
+- Treat the external `.kdbx` file as the user's durable database and the App Group copy as KeeForge's cache/AutoFill support copy.
 - Wrap the creation write in a background task named `DatabaseCreation`.
 - All serialization, KDF work, SHA512, and validation parse should run in `Task.detached(priority: .utility)`.
 - If app backgrounding interrupts the UI, the service should either complete the atomic write or leave no registered database row.
@@ -319,6 +354,8 @@ Surface user-friendly errors for:
 - password confirmation mismatch
 - missing password/key-file combination
 - key file bookmark/read failure
+- destination picker cancellation
+- destination bookmark/write failure
 - KDF parameter failure
 - encrypted file write failure
 - generated file failed to re-open
@@ -337,7 +374,11 @@ Add `KeeForgeTests/DatabaseCreationServiceTests.swift`:
 - `testCreateDatabaseUsesExpectedKDFDefaults`
 - `testCreateDatabaseGeneratesFreshSaltAndHeaderMaterialEachTime`
 - `testCreateDatabaseDoesNotRegisterReferenceWhenWriteFails`
-- `testCreateDatabaseRejectsDuplicateAppCreatedFilename`
+- `testCreateDatabaseWritesPrimaryFileToBookmarkedFilesDestination`
+- `testCreateDatabaseCachesCreatedBytesForAutoFill`
+- `testCreateDatabaseDoesNotRegisterReferenceWhenDestinationWriteFails`
+- `testCreateDatabaseRejectsDuplicateDestination`
+- `testCreateDatabaseRejectsDuplicateAppCreatedFilenameForAppOnlyFallback`
 - `testCreateDatabaseSanitizesFilenameAndAppendsKDBXExtension`
 - `testCreatedEncryptedBytesDoNotContainVisibleRootName`
 
@@ -347,7 +388,8 @@ Add focused writer coverage:
 
 Add store coverage:
 
-- `DatabaseListStoreTests.testAddCreatedLocalPersistsReferenceAndCache`
+- `DatabaseListStoreTests.testAddCreatedLocalPersistsFilesBackedReference`
+- `DatabaseListStoreTests.testAddCreatedLocalDoesNotDeleteExternalFileOnRemove`
 - `DatabaseListStoreTests.testRemoveCreatedLocalDeletesCacheAndBackups`
 
 Add view-model coverage:
@@ -372,8 +414,9 @@ Do not run the full UI suite for this slice.
 
 - Create a password-only database, add an entry, save, lock, reopen.
 - Create a password-plus-key-file database, save, lock, reopen with the associated key file.
+- Create a database in a user-visible Files destination, delete the KeeForge database-list row, and verify the `.kdbx` still exists in Files.
+- Open the created `.kdbx` from its selected Files destination in KeePassXC.
 - Create on iPhone compact layout and iPad regular-width layout.
-- Export a created `.kdbx` manually from the simulator container and open it in KeePassXC.
 - Confirm AutoFill sees the created database after the first successful open.
 
 Suggested focused command:
@@ -391,6 +434,7 @@ xcodebuild test -project KeeForge.xcodeproj -scheme KeeForge \
 - Add `SecureRandom`.
 - Add creation defaults.
 - Add `DatabaseCreationService`.
+- Add Files destination bookmark/write support for creation.
 - Add `DatabaseListStore.addCreatedLocal`.
 - Add fresh empty-database writer tests.
 
@@ -404,6 +448,7 @@ xcodebuild test -project KeeForge.xcodeproj -scheme KeeForge \
 
 - Add `DatabaseCreationViewModel`.
 - Add `DatabaseCreationView`.
+- Add destination selection and clear storage-risk copy for any app-only fallback.
 - Wire the database list `New Database` action.
 - Verify compact and regular-width behavior.
 
@@ -417,6 +462,8 @@ xcodebuild test -project KeeForge.xcodeproj -scheme KeeForge \
 
 - [ ] A newly created database reopens in KeeForge with password-only credentials.
 - [ ] A newly created database reopens in KeeForge with password plus an associated key file.
+- [ ] The primary created `.kdbx` is saved to a user-visible Files location unless the user explicitly accepts app-only storage risk.
+- [ ] Removing the database from KeeForge removes KeeForge-owned state but does not delete the external `.kdbx`.
 - [ ] The first save after creation uses the existing local save path and creates backups on subsequent saves.
 - [ ] Created databases appear in the multi-database list and can be removed cleanly.
 - [ ] Created databases become the active AutoFill source after creation/open.
