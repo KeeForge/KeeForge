@@ -36,11 +36,26 @@ protocol CloudProvider: AnyObject, Sendable {
         expectedRev: String?,
         progress: @escaping @Sendable (Double) -> Void
     ) async throws -> CloudFileMetadata
+    func createFile(
+        accountId: String,
+        path: String,
+        data: Data,
+        progress: @escaping @Sendable (Double) -> Void
+    ) async throws -> CloudCreatedFile
 }
 
 extension CloudProvider {
     @MainActor
     func cancelPendingAuthentication() {}
+
+    func createFile(
+        accountId: String,
+        path: String,
+        data: Data,
+        progress: @escaping @Sendable (Double) -> Void
+    ) async throws -> CloudCreatedFile {
+        throw CloudProviderError.invalidConfiguration
+    }
 }
 
 enum CloudProviderError: LocalizedError, Equatable {

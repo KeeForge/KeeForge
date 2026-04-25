@@ -7,6 +7,7 @@ struct DatabaseCreationView: View {
 
     @Environment(\.dismiss) private var dismiss
     @State private var isDestinationExporterPresented = false
+    @State private var isCloudFolderPickerPresented = false
     @State private var isKeyFileImporterPresented = false
     @State private var selectionAlert: DocumentPickerService.SelectionAlert?
     @State private var exportDocument = KDBXExportDocument(data: Data())
@@ -46,14 +47,21 @@ struct DatabaseCreationView: View {
 
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Create") {
-                        Task {
-                            if await viewModel.prepareForExport() {
-                                if let uiTestingExportURL {
-                                    completeUITestingExport(to: uiTestingExportURL)
-                                } else {
-                                    exportDocument = KDBXExportDocument(data: viewModel.preparedEncryptedBytes)
-                                    isDestinationExporterPresented = true
+                        switch viewModel.destinationChoice {
+                        case .files:
+                            Task {
+                                if await viewModel.prepareForExport() {
+                                    if let uiTestingExportURL {
+                                        completeUITestingExport(to: uiTestingExportURL)
+                                    } else {
+                                        exportDocument = KDBXExportDocument(data: viewModel.preparedEncryptedBytes)
+                                        isDestinationExporterPresented = true
+                                    }
                                 }
+                            }
+                        case .dropbox:
+                            if viewModel.validateForDestinationSelection() {
+                                isCloudFolderPickerPresented = true
                             }
                         }
                     }
@@ -74,6 +82,21 @@ struct DatabaseCreationView: View {
             allowedContentTypes: DocumentPickerService.keyFilePickerContentTypes,
             onCompletion: handleKeyFileSelection
         )
+        .sheet(
+            isPresented: $isCloudFolderPickerPresented,
+            onDismiss: cancelPendingCloudAuthentication
+        ) {
+            CloudFolderPickerView(
+                providerID: CloudProviderKind.dropbox.rawValue,
+                onSelect: handleCloudFolderSelection,
+                onFailure: { error in
+                    selectionAlert = DocumentPickerService.SelectionAlert(
+                        title: "Couldn’t Open Dropbox",
+                        message: error.localizedDescription
+                    )
+                }
+            )
+        }
         .alert(item: $selectionAlert) { alert in
             Alert(
                 title: Text(alert.title),
@@ -92,7 +115,19 @@ struct DatabaseCreationView: View {
             } header: {
                 Text("Database")
             } footer: {
-                Text("After you tap Create, Files will ask where to save the encrypted .kdbx database.")
+                Text(destinationFooter)
+            }
+
+            Section {
+                Picker("Save To", selection: $viewModel.destinationChoice) {
+                    ForEach(DatabaseCreationDestinationChoice.allCases) { destination in
+                        Text(destination.title).tag(destination)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .accessibilityIdentifier("database-create.destination-picker")
+            } header: {
+                Text("Destination")
             }
 
             Section {
@@ -145,6 +180,15 @@ struct DatabaseCreationView: View {
         }
     }
 
+    private var destinationFooter: String {
+        switch viewModel.destinationChoice {
+        case .files:
+            "After you tap Create, Files will ask where to save the encrypted .kdbx database."
+        case .dropbox:
+            "After you tap Create, choose the Dropbox folder for the encrypted .kdbx database."
+        }
+    }
+
     private func handleDestinationSelection(_ result: Result<URL, Error>) {
         switch result {
         case .success(let url):
@@ -192,6 +236,24 @@ struct DatabaseCreationView: View {
             viewModel.clearPreparedDatabase()
             viewModel.creationError = error.localizedDescription
         }
+    }
+
+    private func handleCloudFolderSelection(_ selection: CloudFolderSelection) {
+        Task {
+            if let created = await viewModel.createInCloud(
+                provider: selection.provider,
+                accountID: selection.account.id,
+                folderPath: selection.folderPath
+            ) {
+                onCreated(created)
+                dismiss()
+            }
+        }
+    }
+
+    @MainActor
+    private func cancelPendingCloudAuthentication() {
+        CloudProviderRegistry.provider(for: CloudProviderKind.dropbox.rawValue)?.cancelPendingAuthentication()
     }
 
     private func handleKeyFileSelection(_ result: Result<URL, Error>) {

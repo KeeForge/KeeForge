@@ -216,6 +216,110 @@ final class DatabaseCreationServiceTests: XCTestCase {
         XCTAssertFalse(encryptedBytes.contains(Data("SecretName".utf8)))
     }
 
+    func testCreateDropboxDatabaseUploadsCachesAndRegistersCloudReference() async throws {
+        let recorder = CloudCreateRecorder()
+        let environment = cloudCreateEnvironment(recorder: recorder)
+
+        let created = try await DatabaseCreationService.create(
+            request: DatabaseCreationRequest(
+                displayName: "Cloud Vault",
+                destination: .cloud(
+                    provider: CloudProviderKind.dropbox.rawValue,
+                    accountId: "acct-1",
+                    folderPath: "/Vaults"
+                ),
+                password: "dropbox create password"
+            ),
+            environment: environment
+        )
+
+        let uploadedBytes = try XCTUnwrap(recorder.uploadedData)
+        let parsed = try KDBXParser.parseWithMeta(
+            data: uploadedBytes,
+            password: "dropbox create password",
+            sessionKey: SymmetricKey(size: .bits256)
+        )
+        let metadata = try XCTUnwrap(created.reference.cloudSyncMetadata)
+        let cachedURL = try XCTUnwrap(DatabaseListStore.cachedDatabaseURL(for: created.reference))
+
+        XCTAssertEqual(recorder.uploadedPath, "/Vaults/Cloud Vault.kdbx")
+        XCTAssertEqual(parsed.rootGroup.groups.first?.name, "Cloud Vault")
+        XCTAssertEqual(created.reference.filename, "Cloud Vault.kdbx")
+        XCTAssertEqual(metadata.provider, CloudProviderKind.dropbox.rawValue)
+        XCTAssertEqual(metadata.accountId, "acct-1")
+        XCTAssertEqual(metadata.fileId, "/Vaults/Cloud Vault.kdbx")
+        XCTAssertEqual(metadata.displayPath, "/Vaults/Cloud Vault.kdbx")
+        XCTAssertEqual(metadata.remoteContentHash, "created-hash")
+        XCTAssertEqual(metadata.remoteRev, "rev-created")
+        XCTAssertEqual(DatabaseListStore.databases.map(\.id), [created.reference.id])
+        XCTAssertEqual(try Data(contentsOf: cachedURL), uploadedBytes)
+    }
+
+    func testCreateDropboxDatabaseDoesNotRegisterWhenUploadFails() async throws {
+        let recorder = CloudCreateRecorder(error: CloudProviderError.networkUnavailable)
+        let environment = cloudCreateEnvironment(recorder: recorder)
+
+        do {
+            _ = try await DatabaseCreationService.create(
+                request: DatabaseCreationRequest(
+                    displayName: "Upload Failure",
+                    destination: .cloud(
+                        provider: CloudProviderKind.dropbox.rawValue,
+                        accountId: "acct-1",
+                        folderPath: nil
+                    ),
+                    password: "dropbox failure password"
+                ),
+                environment: environment
+            )
+            XCTFail("Expected upload failure.")
+        } catch CloudProviderError.networkUnavailable {
+            XCTAssertTrue(DatabaseListStore.databases.isEmpty)
+            XCTAssertEqual(recorder.uploadedPath, "/Upload Failure.kdbx")
+        } catch {
+            XCTFail("Unexpected error: \(error)")
+        }
+    }
+
+    func testCreateDropboxDatabaseRejectsDuplicateTrackedDestinationBeforeUpload() async throws {
+        let existingFile = CloudFile(
+            id: "/Vaults/Duplicate.kdbx",
+            name: "Duplicate.kdbx",
+            path: "/Vaults/Duplicate.kdbx",
+            isFolder: false,
+            modifiedDate: nil,
+            size: nil
+        )
+        _ = DatabaseListStore.addCloud(
+            provider: CloudProviderKind.dropbox.rawValue,
+            accountId: "acct-1",
+            file: existingFile
+        )
+        let recorder = CloudCreateRecorder()
+        let environment = cloudCreateEnvironment(recorder: recorder)
+
+        do {
+            _ = try await DatabaseCreationService.create(
+                request: DatabaseCreationRequest(
+                    displayName: "Duplicate",
+                    destination: .cloud(
+                        provider: CloudProviderKind.dropbox.rawValue,
+                        accountId: "acct-1",
+                        folderPath: "/Vaults"
+                    ),
+                    password: "duplicate cloud password"
+                ),
+                environment: environment
+            )
+            XCTFail("Expected duplicate destination to be rejected.")
+        } catch DatabaseListStore.AddDatabaseError.duplicateFile {
+            XCTAssertNil(recorder.uploadedPath)
+            XCTAssertEqual(DatabaseListStore.databases.count, 1)
+        } catch {
+            XCTFail("Unexpected error: \(error)")
+        }
+    }
+
     private func failingWriteEnvironment() -> DatabaseCreationService.Environment {
         .init(
             now: { Date(timeIntervalSince1970: 1_700_000_000) },
@@ -223,14 +327,26 @@ final class DatabaseCreationServiceTests: XCTestCase {
             beginBackgroundTask: { _ in .invalid },
             endBackgroundTask: { _ in },
             writePrimaryFile: { _, _, _ in throw CocoaError(.fileWriteNoPermission) },
+            createCloudFile: DatabaseCreationService.Environment.live.createCloudFile,
             cacheDatabaseCopy: { data, reference in
                 try DatabaseListStore.cacheDatabaseCopy(data, for: reference)
             },
             addCreatedLocal: { reference in
                 try DatabaseListStore.addCreatedLocal(reference)
             },
+            addCreatedCloud: { reference in
+                try DatabaseListStore.addCreatedCloud(reference)
+            },
             addAppOnlyCreatedLocal: { reference, data in
                 try DatabaseListStore.addAppOnlyCreatedLocal(reference, encryptedBytes: data)
+            },
+            validateCreatedCloud: { provider, accountId, fileId, filename in
+                try DatabaseListStore.validateCreatedCloud(
+                    provider: provider,
+                    accountId: accountId,
+                    fileId: fileId,
+                    filename: filename
+                )
             }
         )
     }
@@ -245,14 +361,65 @@ final class DatabaseCreationServiceTests: XCTestCase {
                 recorder.recordWrite()
                 try DatabaseCreationService.Environment.live.writePrimaryFile(data, url, usesSecurityScope)
             },
+            createCloudFile: DatabaseCreationService.Environment.live.createCloudFile,
             cacheDatabaseCopy: { data, reference in
                 try DatabaseListStore.cacheDatabaseCopy(data, for: reference)
             },
             addCreatedLocal: { reference in
                 try DatabaseListStore.addCreatedLocal(reference)
             },
+            addCreatedCloud: { reference in
+                try DatabaseListStore.addCreatedCloud(reference)
+            },
             addAppOnlyCreatedLocal: { reference, data in
                 try DatabaseListStore.addAppOnlyCreatedLocal(reference, encryptedBytes: data)
+            },
+            validateCreatedCloud: { provider, accountId, fileId, filename in
+                try DatabaseListStore.validateCreatedCloud(
+                    provider: provider,
+                    accountId: accountId,
+                    fileId: fileId,
+                    filename: filename
+                )
+            }
+        )
+    }
+
+    private func cloudCreateEnvironment(recorder: CloudCreateRecorder) -> DatabaseCreationService.Environment {
+        .init(
+            now: { Date(timeIntervalSince1970: 1_700_000_000) },
+            id: { UUID() },
+            beginBackgroundTask: { _ in .invalid },
+            endBackgroundTask: { _ in },
+            writePrimaryFile: DatabaseCreationService.Environment.live.writePrimaryFile,
+            createCloudFile: { provider, accountId, path, data, progress in
+                try await recorder.createFile(
+                    provider: provider,
+                    accountId: accountId,
+                    path: path,
+                    data: data,
+                    progress: progress
+                )
+            },
+            cacheDatabaseCopy: { data, reference in
+                try DatabaseListStore.cacheDatabaseCopy(data, for: reference)
+            },
+            addCreatedLocal: { reference in
+                try DatabaseListStore.addCreatedLocal(reference)
+            },
+            addCreatedCloud: { reference in
+                try DatabaseListStore.addCreatedCloud(reference)
+            },
+            addAppOnlyCreatedLocal: { reference, data in
+                try DatabaseListStore.addAppOnlyCreatedLocal(reference, encryptedBytes: data)
+            },
+            validateCreatedCloud: { provider, accountId, fileId, filename in
+                try DatabaseListStore.validateCreatedCloud(
+                    provider: provider,
+                    accountId: accountId,
+                    fileId: fileId,
+                    filename: filename
+                )
             }
         )
     }
@@ -288,5 +455,57 @@ private final class WriteRecorder: @unchecked Sendable {
         lock.lock()
         storage = true
         lock.unlock()
+    }
+}
+
+private final class CloudCreateRecorder: @unchecked Sendable {
+    private let error: Error?
+    private nonisolated(unsafe) var storagePath: String?
+    private nonisolated(unsafe) var storageData: Data?
+
+    init(error: Error? = nil) {
+        self.error = error
+    }
+
+    var uploadedPath: String? {
+        storagePath
+    }
+
+    var uploadedData: Data? {
+        storageData
+    }
+
+    func createFile(
+        provider: String,
+        accountId: String,
+        path: String,
+        data: Data,
+        progress: @escaping DatabaseCreationService.CloudProgressHandler
+    ) async throws -> CloudCreatedFile {
+        storagePath = path
+        storageData = data
+
+        if let error {
+            throw error
+        }
+
+        progress(1)
+        let file = CloudFile(
+            id: path,
+            name: (path as NSString).lastPathComponent,
+            path: path,
+            isFolder: false,
+            modifiedDate: Date(timeIntervalSince1970: 1_700_000_001),
+            size: Int64(data.count)
+        )
+        return CloudCreatedFile(
+            file: file,
+            metadata: CloudFileMetadata(
+                modifiedDate: Date(timeIntervalSince1970: 1_700_000_001),
+                contentHash: "created-hash",
+                size: Int64(data.count),
+                rev: "rev-created"
+            )
+        )
     }
 }

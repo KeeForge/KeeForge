@@ -198,6 +198,13 @@ enum DatabaseListStore {
         saveDatabases(currentDatabases)
     }
 
+    static func addCreatedCloud(_ reference: DatabaseReference) throws {
+        var currentDatabases = loadDatabases()
+        try validateCreatedCloud(reference, in: currentDatabases)
+        currentDatabases.append(reference)
+        saveDatabases(currentDatabases)
+    }
+
     static func addAppOnlyCreatedLocal(_ reference: DatabaseReference, encryptedBytes: Data) throws {
         var currentDatabases = loadDatabases()
         try validateAppOnlyCreatedLocal(reference, in: currentDatabases)
@@ -212,6 +219,21 @@ enum DatabaseListStore {
 
     static func validateAppOnlyCreatedLocal(_ reference: DatabaseReference) throws {
         try validateAppOnlyCreatedLocal(reference, in: loadDatabases())
+    }
+
+    static func validateCreatedCloud(
+        provider: String,
+        accountId: String,
+        fileId: String,
+        filename: String
+    ) throws {
+        try validateCreatedCloud(
+            provider: provider,
+            accountId: accountId,
+            fileId: fileId,
+            filename: filename,
+            in: loadDatabases()
+        )
     }
 
     static func remove(id: UUID) {
@@ -838,6 +860,40 @@ enum DatabaseListStore {
         }
         if hasDuplicate {
             throw AddDatabaseError.duplicateCreatedFilename(filename: reference.filename)
+        }
+    }
+
+    private static func validateCreatedCloud(
+        _ reference: DatabaseReference,
+        in references: [DatabaseReference]
+    ) throws {
+        guard let metadata = reference.cloudSyncMetadata else { return }
+        try validateCreatedCloud(
+            provider: metadata.provider,
+            accountId: metadata.accountId,
+            fileId: metadata.fileId,
+            filename: reference.filename,
+            in: references
+        )
+    }
+
+    private static func validateCreatedCloud(
+        provider: String,
+        accountId: String,
+        fileId: String,
+        filename: String,
+        in references: [DatabaseReference]
+    ) throws {
+        if let duplicate = references.first(where: { existing in
+            guard let metadata = existing.cloudSyncMetadata else { return false }
+            return metadata.provider == provider
+                && metadata.accountId == accountId
+                && metadata.fileId == fileId
+        }) {
+            throw AddDatabaseError.duplicateFile(
+                existingReferenceID: duplicate.id,
+                filename: filename
+            )
         }
     }
 

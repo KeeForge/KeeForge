@@ -1,10 +1,27 @@
 import Foundation
 
+enum DatabaseCreationDestinationChoice: String, CaseIterable, Identifiable {
+    case files
+    case dropbox
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .files:
+            "Local Files"
+        case .dropbox:
+            "Dropbox"
+        }
+    }
+}
+
 @MainActor @Observable
 final class DatabaseCreationViewModel {
     var databaseName = ""
     var password = ""
     var confirmPassword = ""
+    var destinationChoice: DatabaseCreationDestinationChoice = .files
     private(set) var keyFileData: Data?
     private(set) var keyFileBookmarkData: Data?
     private(set) var keyFileFilename: String?
@@ -101,6 +118,48 @@ final class DatabaseCreationViewModel {
         return created
     }
 
+    func validateForDestinationSelection() -> Bool {
+        validate()
+    }
+
+    func createInCloud(
+        provider: String,
+        accountID: String,
+        folderPath: String?
+    ) async -> CreatedDatabase? {
+        guard isCreating == false else { return nil }
+        guard validate() else { return nil }
+
+        isCreating = true
+        creationError = nil
+        defer {
+            isCreating = false
+        }
+
+        do {
+            let created = try await DatabaseCreationService.create(
+                request: DatabaseCreationRequest(
+                    displayName: databaseName,
+                    destination: .cloud(
+                        provider: provider,
+                        accountId: accountID,
+                        folderPath: folderPath
+                    ),
+                    password: password.isEmpty ? nil : password,
+                    keyFileData: keyFileData,
+                    keyFileBookmarkData: keyFileBookmarkData,
+                    keyFileFilename: keyFileFilename
+                )
+            )
+            clearSecrets()
+            preparedDatabase = nil
+            return created
+        } catch {
+            creationError = cloudCreationMessage(for: error)
+            return nil
+        }
+    }
+
     func clearSecrets() {
         password = ""
         confirmPassword = ""
@@ -132,6 +191,14 @@ final class DatabaseCreationViewModel {
         }
 
         return true
+    }
+
+    private func cloudCreationMessage(for error: Error) -> String {
+        if case CloudProviderError.conflict = error {
+            return "A database with this name already exists in this Dropbox folder."
+        }
+
+        return error.localizedDescription
     }
 
     private func clearDisplayedErrors() {

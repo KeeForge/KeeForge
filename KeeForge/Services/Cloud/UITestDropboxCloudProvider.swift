@@ -167,6 +167,63 @@ final class UITestDropboxCloudProvider: CloudProvider, @unchecked Sendable {
         )
     }
 
+    func createFile(
+        accountId: String,
+        path: String,
+        data: Data,
+        progress: @escaping @Sendable (Double) -> Void
+    ) async throws -> CloudCreatedFile {
+        guard isAuthenticated(accountId: accountId) else {
+            throw CloudProviderError.notAuthenticated
+        }
+
+        guard CloudAccountStore.hasDropboxWriteScope(accountId: accountId) else {
+            throw CloudProviderError.writeScopeRequired
+        }
+
+        let payload = try Self.currentPayload()
+        if let error = payload.uploadError?.providerError {
+            throw error
+        }
+
+        if payload.file(withID: path) != nil {
+            throw CloudProviderError.conflict(remoteRev: payload.revByFileID?[path])
+        }
+
+        let parentPath = Self.parentPath(for: path)
+        guard payload.directories.contains(where: { $0.normalizedPath == Self.normalize(parentPath) }) else {
+            throw CloudProviderError.fileNotFound
+        }
+
+        await Self.uploadStore.append(
+            RecordedUpload(
+                accountId: accountId,
+                fileId: path,
+                expectedRev: nil,
+                data: data
+            )
+        )
+
+        progress(1)
+
+        let filename = (path as NSString).lastPathComponent
+        let file = CloudFile(
+            id: path,
+            name: filename,
+            path: path,
+            isFolder: false,
+            modifiedDate: Date(),
+            size: Int64(data.count)
+        )
+        let metadata = CloudFileMetadata(
+            modifiedDate: file.modifiedDate ?? Date(),
+            contentHash: payload.contentHashByFileID[path],
+            size: Int64(data.count),
+            rev: payload.revByFileID?[path] ?? "created-\(path.replacingOccurrences(of: "/", with: "_"))"
+        )
+        return CloudCreatedFile(file: file, metadata: metadata)
+    }
+
     private func sort(_ files: [CloudFile]) -> [CloudFile] {
         files.sorted { lhs, rhs in
             if lhs.isFolder != rhs.isFolder {
@@ -189,6 +246,13 @@ final class UITestDropboxCloudProvider: CloudProvider, @unchecked Sendable {
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
         return try decoder.decode(Payload.self, from: data)
+    }
+
+    private static func parentPath(for path: String) -> String? {
+        let trimmed = normalize(path)
+        guard !trimmed.isEmpty else { return nil }
+        let parent = (trimmed as NSString).deletingLastPathComponent
+        return parent == "/" ? nil : parent
     }
 }
 

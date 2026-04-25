@@ -10,6 +10,7 @@ Observable app state lives here. Keep business rules here and keep views thin.
 - `TOTPViewModel.swift` owns live TOTP code refresh and countdown state for entry-detail UI.
 - `CloudFileBrowserSession.swift` owns account selection plus cloud-provider authentication state for the cloud database picker.
 - `CloudFolderBrowserViewModel.swift` owns folder browsing, search text, loading, and load-error state for the cloud file browser.
+- `DatabaseCreationViewModel.swift` owns new-database form validation, local export preparation, and Dropbox creation requests.
 
 ## Guidance
 

@@ -76,6 +76,11 @@ struct CloudFileMetadata: Equatable, Sendable {
     }
 }
 
+struct CloudCreatedFile: Equatable, Sendable {
+    let file: CloudFile
+    let metadata: CloudFileMetadata
+}
+
 struct CloudSyncMetadata: Codable, Hashable, Sendable {
     let provider: String
     let accountId: String

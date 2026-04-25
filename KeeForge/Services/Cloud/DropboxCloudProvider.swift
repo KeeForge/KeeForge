@@ -233,6 +233,49 @@ final class DropboxCloudProvider: CloudProvider, @unchecked Sendable {
         }
     }
 
+    func createFile(
+        accountId: String,
+        path: String,
+        data: Data,
+        progress: @escaping @Sendable (Double) -> Void
+    ) async throws -> CloudCreatedFile {
+        let client = try client(for: accountId)
+
+        return try await withCheckedThrowingContinuation { continuation in
+            client.files.upload(
+                path: path,
+                mode: .add,
+                strictConflict: true,
+                input: data
+            )
+            .progress { transferProgress in
+                progress(transferProgress.fractionCompleted)
+            }
+            .response { response, error in
+                if let file = response,
+                   let cloudFile = Self.makeCloudFile(from: file) {
+                    CloudAccountStore.setDropboxWriteScope(true, accountId: accountId)
+                    continuation.resume(
+                        returning: CloudCreatedFile(
+                            file: cloudFile,
+                            metadata: Self.makeCloudFileMetadata(from: file)
+                        )
+                    )
+                } else if let error {
+                    self.resolveCreateFailure(
+                        client: client,
+                        accountId: accountId,
+                        path: path,
+                        error: error,
+                        continuation: continuation
+                    )
+                } else {
+                    continuation.resume(throwing: CloudProviderError.unknown("Dropbox upload failed."))
+                }
+            }
+        }
+    }
+
     @MainActor
     func handleRedirectURL(_ url: URL) -> Bool {
         do {
@@ -420,6 +463,34 @@ final class DropboxCloudProvider: CloudProvider, @unchecked Sendable {
         switch cloudError {
         case .conflict:
             client.files.getMetadata(path: fileId)
+                .response { response, _ in
+                    let remoteRev = (response as? Files.FileMetadata)?.rev
+                    continuation.resume(throwing: CloudProviderError.conflict(remoteRev: remoteRev))
+                }
+        case .writeScopeRequired:
+            CloudAccountStore.setDropboxWriteScope(false, accountId: accountId)
+            continuation.resume(throwing: cloudError)
+        default:
+            continuation.resume(throwing: cloudError)
+        }
+    }
+
+    private func resolveCreateFailure(
+        client: DropboxClient,
+        accountId: String,
+        path: String,
+        error: CallError<Files.UploadError>,
+        continuation: CheckedContinuation<CloudCreatedFile, Error>
+    ) {
+        let mappedError = Self.mapUploadError(error)
+        guard let cloudError = mappedError as? CloudProviderError else {
+            continuation.resume(throwing: mappedError)
+            return
+        }
+
+        switch cloudError {
+        case .conflict:
+            client.files.getMetadata(path: path)
                 .response { response, _ in
                     let remoteRev = (response as? Files.FileMetadata)?.rev
                     continuation.resume(throwing: CloudProviderError.conflict(remoteRev: remoteRev))
