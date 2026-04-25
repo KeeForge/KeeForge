@@ -2,15 +2,21 @@
 
 ## Unreleased
 
-### Changes
+## v1.8.3 (2026-04-24)
+
+### New Features
 - Add group creation from the unlocked database add menu, including duplicate-name validation.
 - Split app settings into separate Security, AutoFill, Display, and About pages while keeping Tip Jar prominent on the main settings screen, and add a privacy toggle to hide last-opened usage stats from the locked database list
+
+### Security
+- Reduce in-app feedback uploads to the typed message plus visible error details, removing dedicated contact fields and automatic app/device metadata collection
+
+### Changes
 - Move Send Feedback to the main Settings page, place About at the bottom, and tighten database/app settings helper copy
 
 ### Fixes
 - Keep password/key-file unlock failures visible during lockout backoff and restore the unlock error accessibility hooks used by UI tests
 - Stabilize entry-creation UI coverage by validating new entries after a lock/reopen cycle and hardening list scrolling against stale simulator snapshots
-- Reduce in-app feedback uploads to the typed message plus visible error details, removing dedicated contact fields and automatic app/device metadata collection
 
 ## v1.8.2 (2026-04-20)
 
