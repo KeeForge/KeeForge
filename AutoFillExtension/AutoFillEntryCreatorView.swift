@@ -67,8 +67,7 @@ struct AutoFillEntryCreatorView: View {
 
                     basicFieldRow("Password") {
                         SecureField("Password", text: $draft.password)
-                            .textInputAutocapitalization(.never)
-                            .autocorrectionDisabled()
+                            .passwordInputStyle()
                             .disabled(true)
                             .accessibilityIdentifier("autofill-entry-creator.password-field")
                     }

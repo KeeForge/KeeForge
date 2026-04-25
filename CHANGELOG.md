@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Changes
+- Use shared monospaced password styling across entry detail, password generation, editing, unlock, and AutoFill credential creation screens.
+- Show estimated password strength and entropy bits below visible password displays and the entry password editor.
+
 ## v1.8.3 (2026-04-24)
 
 ### New Features

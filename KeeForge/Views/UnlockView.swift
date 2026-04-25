@@ -126,6 +126,7 @@ struct UnlockView: View {
                     .foregroundStyle(.secondary)
 
                 SecureField("Enter password", text: $password)
+                    .passwordInputStyle()
                     .focused($passwordFocused)
                     .submitLabel(.go)
                     .onSubmit(unlockWithPassword)

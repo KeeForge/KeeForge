@@ -100,6 +100,8 @@ targets:
       - path: KeeForge/Services/Security/PasskeyCrypto.swift
       - path: KeeForge/Services/Cloud/PendingUploadQueue.swift
       - path: KeeForge/Services/AutoFill/PasswordGenerator.swift
+      - path: KeeForge/Services/AutoFill/PasswordStrengthEstimator.swift
+      - path: KeeForge/Views/PasswordDisplay.swift
       - path: KeeForge/Services/Persistence/SecurityScopedBookmarkManager.swift
       - path: KeeForge/Services/Persistence/SyncedFolderDetector.swift
 

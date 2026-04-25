@@ -61,9 +61,7 @@ struct EntryEditView: View {
                                 SecureField("Password", text: $formViewModel.password)
                             }
                         }
-                        .textInputAutocapitalization(.never)
-                        .autocorrectionDisabled()
-                        .textContentType(.password)
+                        .passwordInputStyle()
                         .accessibilityIdentifier("entry-edit.password-field")
 
                         Button {
@@ -86,6 +84,8 @@ struct EntryEditView: View {
                         .accessibilityLabel("Generate password")
                         .accessibilityIdentifier("entry-edit.password-generator-button")
                     }
+
+                    PasswordStrengthIndicator(password: formViewModel.password)
                 }
 
                 basicFieldRow("URL") {

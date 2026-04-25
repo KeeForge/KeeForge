@@ -295,66 +295,6 @@ struct PasswordFieldRow: View {
     }
 }
 
-struct PasswordDisplayRow<Actions: View>: View {
-    let revealedText: String?
-    private let actions: Actions
-
-    init(
-        revealedText: String?,
-        @ViewBuilder actions: () -> Actions
-    ) {
-        self.revealedText = revealedText
-        self.actions = actions()
-    }
-
-    var body: some View {
-        HStack {
-            Image(systemName: "lock.fill")
-                .foregroundStyle(.secondary)
-                .frame(width: 24)
-
-            if let revealedText {
-                PasswordDisplayText(revealedText)
-                    .textSelection(.enabled)
-                    .lineLimit(nil)
-                    .fixedSize(horizontal: false, vertical: true)
-            } else {
-                Text(String(repeating: "\u{2022}", count: 12))
-                    .foregroundStyle(.secondary)
-            }
-
-            Spacer(minLength: 12)
-            actions
-        }
-    }
-}
-
-struct PasswordDisplayText: View {
-    let password: String
-
-    init(_ password: String) {
-        self.password = password
-    }
-
-    var body: some View {
-        password.reduce(Text("")) { result, char in
-            result + Text(String(char))
-                .foregroundColor(color(for: char))
-        }
-        .font(.body.monospaced())
-    }
-
-    private func color(for char: Character) -> Color {
-        if char.isLetter {
-            return .primary
-        } else if char.isNumber {
-            return .blue
-        } else {
-            return .orange
-        }
-    }
-}
-
 struct URLFieldRow: View {
     let url: String
     var label: String = "URL"
