@@ -1,0 +1,4 @@
+interface:
+  display_name: "KeeForge Release"
+  short_description: "Cut KeeForge release candidates"
+  default_prompt: "Use $release to prepare a KeeForge release candidate for version <version>."

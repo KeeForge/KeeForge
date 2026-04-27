@@ -1,0 +1,4 @@
+interface:
+  display_name: "Spec Creator"
+  short_description: "Draft agent-ready feature specs"
+  default_prompt: "Use $spec-creator to turn this feature idea into an implementation-ready spec."
