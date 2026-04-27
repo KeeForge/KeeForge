@@ -40,12 +40,7 @@ struct FeedbackComposerView: View {
                         }
 
                         Section("Privacy") {
-                            Text(
-                                model.context.hasErrorContext
-                                    ? "KeeForge sends the message you type here plus the error details shown above."
-                                    : "KeeForge only sends the message you type here."
-                            )
-                            Text("KeeForge does not include database contents, passwords, key files, raw vault files, or app/device metadata.")
+                            Text("No GitHub or email required. KeeForge only sends the message you type, plus the visible error details if you report a database-open failure. It never includes database contents, passwords, key files, raw vault files, or app/device metadata.")
                         }
                     }
                 }

@@ -21,9 +21,9 @@ struct SettingsView: View {
         NavigationStack {
             Form {
                 settingsNavigationSection
-                TipJarView()
                 cloudAccountsSection
                 feedbackSection
+                TipJarView()
                 aboutNavigationSection
             }
             .navigationTitle("Settings")
@@ -174,7 +174,9 @@ struct SettingsView: View {
         } header: {
             Text("Cloud Accounts")
         } footer: {
-            Text("Signing out disconnects future syncs but keeps cached cloud databases available until you remove them.")
+            if cloudAccounts.isEmpty == false {
+                Text("Signing out disconnects future syncs but keeps cached cloud databases available until you remove them.")
+            }
         }
     }
 
@@ -188,8 +190,6 @@ struct SettingsView: View {
             .accessibilityIdentifier("settings.send-feedback")
         } header: {
             Text("Support")
-        } footer: {
-            Text("No GitHub or email required. KeeForge only sends the message you type, plus the visible error details if you report a database-open failure. It never includes database contents, passwords, key files, raw vault files, or app/device metadata.")
         }
     }
 
