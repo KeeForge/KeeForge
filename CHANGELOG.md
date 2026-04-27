@@ -2,11 +2,15 @@
 
 ## Unreleased
 
-### Changes
+## v1.9.0 (2026-04-27)
+
+### New Features
 - Added support for creating new local KDBX 4.x databases from KeeForge.
 - Added support for creating new KDBX 4.x databases directly in Dropbox folders.
-- Use shared monospaced password styling across entry detail, password generation, editing, unlock, and AutoFill credential creation screens.
 - Show estimated password strength and entropy bits below visible password displays and the entry password editor.
+
+### Changes
+- Use shared monospaced password styling across entry detail, password generation, editing, unlock, and AutoFill credential creation screens.
 
 ### Fixes
 - Remove the root lock/unlock transition animation and refresh empty groups immediately after creating their first entry.
