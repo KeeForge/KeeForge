@@ -210,7 +210,7 @@ final class OneDriveCloudProvider: CloudProvider, @unchecked Sendable {
             throw CloudProviderError.invalidConfiguration
         }
 
-        guard let authorityURL = URL(string: "https://login.microsoftonline.com/common") else {
+        guard let authorityURL = URL(string: "https://login.microsoftonline.com/consumers") else {
             throw CloudProviderError.invalidConfiguration
         }
         let authority = try MSALAADAuthority(url: authorityURL)
