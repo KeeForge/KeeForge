@@ -2,6 +2,7 @@ import Foundation
 
 enum CloudProviderKind: String, Codable, CaseIterable, Hashable, Identifiable, Sendable {
     case dropbox = "dropbox"
+    case oneDrive = "onedrive"
 
     var id: String { rawValue }
 
@@ -9,6 +10,8 @@ enum CloudProviderKind: String, Codable, CaseIterable, Hashable, Identifiable, S
         switch self {
         case .dropbox:
             "Dropbox"
+        case .oneDrive:
+            "OneDrive"
         }
     }
 
@@ -16,6 +19,8 @@ enum CloudProviderKind: String, Codable, CaseIterable, Hashable, Identifiable, S
         switch self {
         case .dropbox:
             "shippingbox.fill"
+        case .oneDrive:
+            "cloud.fill"
         }
     }
 }

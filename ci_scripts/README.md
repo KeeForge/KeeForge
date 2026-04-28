@@ -12,6 +12,6 @@ This folder holds small scripts used by Xcode Cloud and local build setup.
 - Keep these scripts deterministic and noninteractive.
 - If CI needs new generated files or dependencies, add them here instead of assuming the checked-in `.xcodeproj` is current.
 - `BuildConfig.xcconfig` is a checked-in include file, not a generated source of truth.
-- Local developers should copy `BuildConfig.local.example.xcconfig` to `BuildConfig.local.xcconfig` and fill in `DROPBOX_APP_KEY`.
-- Xcode Cloud can provide `DROPBOX_APP_KEY` as an environment variable for release archives; otherwise `ci_post_clone.sh` falls back to a CI-only placeholder so project generation still succeeds.
-- GitHub Actions can keep using simulator-safe placeholder values to materialize `BuildConfig.local.xcconfig`; the app treats the CI placeholder as Dropbox-disabled.
+- Local developers should copy `BuildConfig.local.example.xcconfig` to `BuildConfig.local.xcconfig`, fill in `DROPBOX_APP_KEY`, and optionally add `ONEDRIVE_CLIENT_ID` to test OneDrive OAuth.
+- Xcode Cloud can provide `DROPBOX_APP_KEY` and `ONEDRIVE_CLIENT_ID` as environment variables for release archives; otherwise `ci_post_clone.sh` falls back to CI-only placeholders so project generation still succeeds.
+- GitHub Actions can keep using simulator-safe placeholder values to materialize `BuildConfig.local.xcconfig`; the app treats the CI placeholders as cloud providers disabled for real sign-in.

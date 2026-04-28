@@ -111,6 +111,7 @@
 		85F4BF94918B5C26592668EA /* NavigationConformances.swift in Sources */ = {isa = PBXBuildFile; fileRef = 33FB55D1B41198FB84115734 /* NavigationConformances.swift */; };
 		897048166743B87F85CACA6E /* DatabaseListViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = F178F4027D7DB837D823C54C /* DatabaseListViewModel.swift */; };
 		8A337E187B2D7B4382CB465A /* PasskeyCrypto.swift in Sources */ = {isa = PBXBuildFile; fileRef = DDEA3048149FA6E823621EA0 /* PasskeyCrypto.swift */; };
+		8B033D10ABCF3C4C54E2B52C /* MSAL in Frameworks */ = {isa = PBXBuildFile; productRef = 64B6830B629BBAC2E266834E /* MSAL */; };
 		8BB568B0FC7686569B85396B /* CloudSyncCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2CC241709FEF1D5139F38372 /* CloudSyncCoordinator.swift */; };
 		8E99F20C4C299C88E89B34ED /* test-v1.key in Resources */ = {isa = PBXBuildFile; fileRef = 4C350259754DFA5D42D782A7 /* test-v1.key */; };
 		8EAB80EF201B8AE0EA7F865F /* EntryEdit.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0E36B86BDCAAD4E3C120428 /* EntryEdit.swift */; };
@@ -135,6 +136,7 @@
 		A39BBA6987CB35923288872C /* AcknowledgmentsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 85EE32527319A5BEDE628232 /* AcknowledgmentsView.swift */; };
 		A5BFF2A90A55B2DCA322D1EB /* OpaqueXMLNodes.swift in Sources */ = {isa = PBXBuildFile; fileRef = E83812EEBF6C270EDFBA5E90 /* OpaqueXMLNodes.swift */; };
 		A9B666729B66843DC7CC3747 /* CloudAccountStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 66DF057AA435224858861550 /* CloudAccountStoreTests.swift */; };
+		A9E880DCC3B893C3D6E337EC /* OneDriveCloudProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = B942B75B67043A4CB397BE27 /* OneDriveCloudProvider.swift */; };
 		B2527655D4C3E131B514101B /* UITestDropboxCloudProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = F010A269DB2C2D6FD2B162EF /* UITestDropboxCloudProvider.swift */; };
 		B253A58297B36B63A5838DCB /* FaviconServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E3217CA8D7D14799D216386B /* FaviconServiceTests.swift */; };
 		B33230137D36525164283C19 /* SecureRandom.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6F135327240ED1387C8003A4 /* SecureRandom.swift */; };
@@ -361,6 +363,7 @@
 		B6594B5A580C44B4042FE110 /* EncryptedValue.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EncryptedValue.swift; sourceTree = "<group>"; };
 		B7B6F08C62E668E72877D297 /* LocalDatabaseSaver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalDatabaseSaver.swift; sourceTree = "<group>"; };
 		B7EDDD48D0CB18EA1D45220E /* test-binary.key */ = {isa = PBXFileReference; path = "test-binary.key"; sourceTree = "<group>"; };
+		B942B75B67043A4CB397BE27 /* OneDriveCloudProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OneDriveCloudProvider.swift; sourceTree = "<group>"; };
 		B9ECE57184BC7684A8E946B6 /* DatabaseCreationUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DatabaseCreationUITests.swift; sourceTree = "<group>"; };
 		BC9852527A48C28D5D60FCFD /* FaviconView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FaviconView.swift; sourceTree = "<group>"; };
 		BE7B832DCD71D53272108662 /* HapticService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HapticService.swift; sourceTree = "<group>"; };
@@ -417,6 +420,7 @@
 			files = (
 				96CBA1155C402004E60A33E3 /* Argon2Swift in Frameworks */,
 				40513FE7EBB0EC663F345EEC /* SwiftyDropbox in Frameworks */,
+				8B033D10ABCF3C4C54E2B52C /* MSAL in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -752,6 +756,7 @@
 				2CC241709FEF1D5139F38372 /* CloudSyncCoordinator.swift */,
 				859C701D22CBF7ABEF51E825 /* CloudTokenStore.swift */,
 				6AFBBC10051B412E85947EB5 /* DropboxCloudProvider.swift */,
+				B942B75B67043A4CB397BE27 /* OneDriveCloudProvider.swift */,
 				0B85CAF10E8CFC72802590A3 /* PendingUploadDrainer.swift */,
 				E6B7062FC711FD8F8EA1BEE3 /* PendingUploadQueue.swift */,
 				F010A269DB2C2D6FD2B162EF /* UITestDropboxCloudProvider.swift */,
@@ -818,6 +823,7 @@
 			packageProductDependencies = (
 				E58302AF333F299169355B64 /* Argon2Swift */,
 				51EBD2A917385D3E88CA0277 /* SwiftyDropbox */,
+				64B6830B629BBAC2E266834E /* MSAL */,
 			);
 			productName = KeeForge;
 			productReference = 1C1B7D9F6B63224D55DF5C4A /* KeeForge.app */;
@@ -878,6 +884,7 @@
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
 				DAD92CB1C500ADA86A291E6B /* XCRemoteSwiftPackageReference "Argon2Swift" */,
+				1406D2AE51BB5512501439B4 /* XCRemoteSwiftPackageReference "microsoft-authentication-library-for-objc" */,
 				0DE6D7E1C06867E37CE51E7D /* XCRemoteSwiftPackageReference "SwiftyDropbox" */,
 			);
 			preferredProjectObjectVersion = 77;
@@ -994,6 +1001,7 @@
 				C345E0CBF0AE22D43AA5D5EB /* KeychainService.swift in Sources */,
 				59ADE684D5F68C0BC02EB0CC /* LocalDatabaseSaver.swift in Sources */,
 				85F4BF94918B5C26592668EA /* NavigationConformances.swift in Sources */,
+				A9E880DCC3B893C3D6E337EC /* OneDriveCloudProvider.swift in Sources */,
 				A5BFF2A90A55B2DCA322D1EB /* OpaqueXMLNodes.swift in Sources */,
 				7C0CE589D4FDCBB0AE0296A5 /* PasskeyCredential.swift in Sources */,
 				8A337E187B2D7B4382CB465A /* PasskeyCrypto.swift in Sources */,
@@ -1508,6 +1516,14 @@
 				minimumVersion = 10.0.7;
 			};
 		};
+		1406D2AE51BB5512501439B4 /* XCRemoteSwiftPackageReference "microsoft-authentication-library-for-objc" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/AzureAD/microsoft-authentication-library-for-objc.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 1.7.0;
+			};
+		};
 		DAD92CB1C500ADA86A291E6B /* XCRemoteSwiftPackageReference "Argon2Swift" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/tmthecoder/Argon2Swift.git";
@@ -1523,6 +1539,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 0DE6D7E1C06867E37CE51E7D /* XCRemoteSwiftPackageReference "SwiftyDropbox" */;
 			productName = SwiftyDropbox;
+		};
+		64B6830B629BBAC2E266834E /* MSAL */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 1406D2AE51BB5512501439B4 /* XCRemoteSwiftPackageReference "microsoft-authentication-library-for-objc" */;
+			productName = MSAL;
 		};
 		87212E661EACAC1328E27A4E /* Argon2Swift */ = {
 			isa = XCSwiftPackageProductDependency;

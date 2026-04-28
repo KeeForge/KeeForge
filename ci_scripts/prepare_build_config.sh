@@ -5,6 +5,7 @@ REPO_ROOT="${1:-$(pwd)}"
 LOCAL_CONFIG_PATH="${REPO_ROOT}/BuildConfig.local.xcconfig"
 METADATA_CONFIG_PATH="${REPO_ROOT}/BuildMetadata.xcconfig"
 CI_PLACEHOLDER_DROPBOX_APP_KEY="CI_PLACEHOLDER_DROPBOX_APP_KEY"
+CI_PLACEHOLDER_ONEDRIVE_CLIENT_ID="00000000-0000-0000-0000-000000000000"
 
 is_ci_environment() {
   [[ -n "${CI:-}" || -n "${CI_XCODEBUILD_ACTION:-}" || -n "${CI_PRIMARY_REPOSITORY_PATH:-}" || -n "${GITHUB_ACTIONS:-}" ]]
@@ -26,8 +27,12 @@ bootstrap_local_config_from_env() {
   fi
 
   local dropbox_app_key="${DROPBOX_APP_KEY:-}"
+  local onedrive_client_id="${ONEDRIVE_CLIENT_ID:-}"
   if [[ -z "${dropbox_app_key}" ]] && is_ci_environment; then
     dropbox_app_key="${CI_PLACEHOLDER_DROPBOX_APP_KEY}"
+  fi
+  if [[ -z "${onedrive_client_id}" ]] && is_ci_environment; then
+    onedrive_client_id="${CI_PLACEHOLDER_ONEDRIVE_CLIENT_ID}"
   fi
 
   if [[ -z "${dropbox_app_key}" ]]; then
@@ -40,6 +45,9 @@ bootstrap_local_config_from_env() {
       printf "DEVELOPMENT_TEAM = %s\n" "${DEVELOPMENT_TEAM}"
     fi
     printf "DROPBOX_APP_KEY = %s\n" "${dropbox_app_key}"
+    if [[ -n "${onedrive_client_id}" ]]; then
+      printf "ONEDRIVE_CLIENT_ID = %s\n" "${onedrive_client_id}"
+    fi
   } > "${LOCAL_CONFIG_PATH}"
 }
 
@@ -64,6 +72,9 @@ validate_setting() {
   if [[ "${key}" == "DROPBOX_APP_KEY" && "${value}" == "${CI_PLACEHOLDER_DROPBOX_APP_KEY}" ]] && is_ci_environment; then
     return
   fi
+  if [[ "${key}" == "ONEDRIVE_CLIENT_ID" && "${value}" == "${CI_PLACEHOLDER_ONEDRIVE_CLIENT_ID}" ]] && is_ci_environment; then
+    return
+  fi
 
   if [[ -z "${value}" || "${value}" == "${placeholder}" ]]; then
     fail_with_message "Set ${key} in BuildConfig.local.xcconfig before building. Start from BuildConfig.local.example.xcconfig."
@@ -74,7 +85,7 @@ write_metadata
 bootstrap_local_config_from_env
 
 if [[ ! -f "${LOCAL_CONFIG_PATH}" ]]; then
-  fail_with_message "Missing BuildConfig.local.xcconfig. Copy BuildConfig.local.example.xcconfig to BuildConfig.local.xcconfig and fill in DROPBOX_APP_KEY."
+  fail_with_message "Missing BuildConfig.local.xcconfig. Copy BuildConfig.local.example.xcconfig to BuildConfig.local.xcconfig and fill in DROPBOX_APP_KEY. Add ONEDRIVE_CLIENT_ID to test OneDrive OAuth."
 fi
 
 validate_setting "DROPBOX_APP_KEY" "YOUR_DROPBOX_APP_KEY"

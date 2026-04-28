@@ -420,7 +420,7 @@ private struct LaunchRoutingView: View {
 struct DatabaseNavigationView: View {
     @Bindable var viewModel: DatabaseViewModel
     @State private var presentedSaveError: DatabaseSaveError?
-    @State private var isDropboxReconnectInFlight = false
+    @State private var isCloudReconnectInFlight = false
 
     var body: some View {
         NavigationStack(path: $viewModel.navigationPath) {
@@ -454,8 +454,9 @@ struct DatabaseNavigationView: View {
 
                     if viewModel.saveError?.isWriteScopeRequired == true {
                         CloudReauthBanner(
-                            isReconnectInFlight: isDropboxReconnectInFlight,
-                            onReconnect: beginDropboxReconnect
+                            providerName: viewModel.databaseReference.cloudProviderKind?.displayName ?? "cloud",
+                            isReconnectInFlight: isCloudReconnectInFlight,
+                            onReconnect: beginCloudReconnect
                         )
                     }
 
@@ -508,16 +509,17 @@ struct DatabaseNavigationView: View {
     }
 
     @MainActor
-    private func beginDropboxReconnect() {
-        guard isDropboxReconnectInFlight == false else { return }
-        guard let provider = CloudProviderRegistry.provider(for: CloudProviderKind.dropbox.rawValue) else {
+    private func beginCloudReconnect() {
+        guard isCloudReconnectInFlight == false else { return }
+        guard let providerID = viewModel.databaseReference.cloudSyncMetadata?.provider,
+              let provider = CloudProviderRegistry.provider(for: providerID) else {
             viewModel.presentSaveError(CloudProviderError.invalidConfiguration)
             return
         }
 
-        isDropboxReconnectInFlight = true
+        isCloudReconnectInFlight = true
         Task { @MainActor in
-            defer { isDropboxReconnectInFlight = false }
+            defer { isCloudReconnectInFlight = false }
 
             do {
                 _ = try await provider.authenticate(from: presentationAnchor())
@@ -604,14 +606,15 @@ struct UnsavedChangesBanner: View {
 }
 
 struct CloudReauthBanner: View {
+    let providerName: String
     let isReconnectInFlight: Bool
     let onReconnect: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("Reconnect Dropbox to save changes.")
+            Text("Reconnect \(providerName) to save changes.")
                 .font(.subheadline.weight(.semibold))
-            Button("Reconnect Dropbox", action: onReconnect)
+            Button("Reconnect \(providerName)", action: onReconnect)
                 .buttonStyle(.borderedProminent)
                 .disabled(isReconnectInFlight)
                 .accessibilityIdentifier("cloud-reauth-banner.reconnect")

@@ -7,10 +7,10 @@ This folder owns provider abstractions plus the cloud-backed open/save pipeline.
 - `CloudProvider.swift` and `CloudProviderRegistry.swift` define the provider boundary the rest of the app talks to.
 - `CloudAccountStore.swift` and `CloudTokenStore.swift` persist provider account state and auth material.
 - `CloudSyncCoordinator.swift` decides when to reuse cache, download before open, or refresh metadata after cloud saves.
-- `CloudDatabaseSaver.swift` performs the Dropbox-backed save pipeline with `rev` verification, upload, cache refresh, and backup rotation.
+- `CloudDatabaseSaver.swift` performs the cloud-backed save pipeline with provider revision verification, upload, cache refresh, and backup rotation.
 - `CloudProvider.swift` also exposes create-only cloud uploads used by database creation; providers must use no-overwrite semantics for new files.
 - `PendingUploadQueue.swift` and `PendingUploadDrainer.swift` handle deferred cloud uploads from the AutoFill save path.
-- `DropboxCloudProvider.swift` and `UITestDropboxCloudProvider.swift` implement the real and test Dropbox integrations.
+- `DropboxCloudProvider.swift`, `OneDriveCloudProvider.swift`, and `UITestDropboxCloudProvider.swift` implement the real and test cloud integrations.
 
 ## Change Carefully
 

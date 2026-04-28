@@ -304,7 +304,7 @@ final class DatabaseListViewModel {
             alert = PendingUploadAlert(
                 databaseId: issue.databaseId,
                 kind: .writeScopeRequired,
-                title: "Reconnect Dropbox",
+                title: "Reconnect Cloud Account",
                 message: issue.message
             )
         case .notAuthenticated:

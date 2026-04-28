@@ -3,6 +3,7 @@ import Foundation
 enum DatabaseCreationDestinationChoice: String, CaseIterable, Identifiable {
     case files
     case dropbox
+    case oneDrive
 
     var id: String { rawValue }
 
@@ -12,6 +13,19 @@ enum DatabaseCreationDestinationChoice: String, CaseIterable, Identifiable {
             "Local Files"
         case .dropbox:
             "Dropbox"
+        case .oneDrive:
+            "OneDrive"
+        }
+    }
+
+    var cloudProviderKind: CloudProviderKind? {
+        switch self {
+        case .files:
+            nil
+        case .dropbox:
+            .dropbox
+        case .oneDrive:
+            .oneDrive
         }
     }
 }
@@ -195,7 +209,7 @@ final class DatabaseCreationViewModel {
 
     private func cloudCreationMessage(for error: Error) -> String {
         if case CloudProviderError.conflict = error {
-            return "A database with this name already exists in this Dropbox folder."
+            return "A database with this name already exists in this cloud folder."
         }
 
         return error.localizedDescription

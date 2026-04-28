@@ -13,7 +13,7 @@ This folder is the integration layer between app logic and the outside world: Ap
 ## Folder Map
 
 - `Persistence` holds the file-system and App Group storage surfaces the app depends on, including `DatabaseListStore.swift`, `LocalDatabaseSaver.swift`, `SecurityScopedBookmarkManager.swift`, `CoordinatedFileReader.swift`, and `SharedVaultStore.swift`.
-- `Cloud` holds provider abstractions plus the Dropbox-backed open/save pipeline, including `CloudProvider.swift`, `CloudSyncCoordinator.swift`, `CloudDatabaseSaver.swift`, `PendingUploadQueue.swift`, and `PendingUploadDrainer.swift`.
+- `Cloud` holds provider abstractions plus the cloud-backed open/save pipeline, including `CloudProvider.swift`, `CloudSyncCoordinator.swift`, `CloudDatabaseSaver.swift`, `PendingUploadQueue.swift`, and `PendingUploadDrainer.swift`.
 - `Security` holds device-security integrations such as `BiometricService.swift`, `KeychainService.swift`, `PasskeyCrypto.swift`, and `ScreenProtectionService.swift`.
 - `AutoFill` holds extension-facing helpers such as `AutoFillSaveCoordinator.swift`, `CredentialMatcher.swift`, `CredentialIdentityStoreManager.swift`, and `PasswordGenerator.swift`.
 - `AppSupport` holds app-scoped helpers that do not fit the more sensitive storage/security buckets, including `SettingsService.swift`, `StoreKitManager.swift`, `ReviewPromptService.swift`, `ClipboardService.swift`, `HapticService.swift`, and `FaviconService.swift`.
@@ -31,5 +31,5 @@ This folder is the integration layer between app logic and the outside world: Ap
 - Several service files are compiled into both the app and the AutoFill extension; see `../../AutoFillExtension/README.md`. If you add dependencies, keep them extension-safe and update `../../project.yml`.
 - App Group identifiers, bookmark semantics, backup directory layout, and Keychain access group behavior are compatibility boundaries. Avoid casual renames or storage format changes.
 - Keep SDK-specific cloud behavior behind `CloudProvider`-style abstractions so the rest of the app stays testable.
-- Local and Dropbox-backed save flows intentionally share the same backup/cache rules but have different conflict checks: local files use open-time SHA512 only, while cloud save layers remote `rev` verification and typed write-scope failures on top.
+- Local and cloud-backed save flows intentionally share the same backup/cache rules but have different conflict checks: local files use open-time SHA512 only, while cloud save layers remote revision verification and typed write-scope failures on top.
 - Pending-upload markers must stay durable, secret-free, and App-Group-relative because AutoFill may return before the main app is foregrounded to upload the cloud cache copy.

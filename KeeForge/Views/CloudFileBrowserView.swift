@@ -310,6 +310,11 @@ struct CloudProviderIcon: View {
                 .interpolation(.high)
                 .scaledToFit()
                 .frame(width: size, height: size)
+        case .oneDrive:
+            Image(systemName: "cloud.fill")
+                .font(.system(size: size))
+                .foregroundStyle(.blue)
+                .frame(width: size, height: size)
         case .none:
             Image(systemName: fallbackSystemName)
                 .font(.system(size: size))

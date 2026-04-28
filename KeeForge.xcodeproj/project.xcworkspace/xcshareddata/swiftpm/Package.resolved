@@ -1,5 +1,5 @@
 {
-  "originHash" : "2e5ba2cbc47dde8cb565daf8b57e754c0b323b676550a0c7d1f3322b6937a900",
+  "originHash" : "2250b42d521065c176821d9d2ffdb82e6855e0fd1726bb88dc2d3bca5b4b1270",
   "pins" : [
     {
       "identity" : "argon2swift",
@@ -7,6 +7,15 @@
       "location" : "https://github.com/tmthecoder/Argon2Swift.git",
       "state" : {
         "revision" : "53543623fefe68461b7eeea03d7f96677c2fd76d"
+      }
+    },
+    {
+      "identity" : "microsoft-authentication-library-for-objc",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/AzureAD/microsoft-authentication-library-for-objc.git",
+      "state" : {
+        "revision" : "be848ee7fa9516cec47ae6de47cf1087d51bc774",
+        "version" : "1.9.0"
       }
     },
     {

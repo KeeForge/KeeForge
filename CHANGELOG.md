@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+### New Features
+- Add OneDrive support for signing in, browsing KDBX files, opening databases, and saving cloud-backed edits.
+
 ## v1.9.0 (2026-04-27)
 
 ### New Features

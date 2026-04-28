@@ -22,6 +22,9 @@ packages:
   SwiftyDropbox:
     url: https://github.com/dropbox/SwiftyDropbox.git
     from: 10.0.7
+  MSAL:
+    url: https://github.com/AzureAD/microsoft-authentication-library-for-objc.git
+    from: 1.7.0
 targets:
   KeeForge:
     type: application
@@ -47,6 +50,7 @@ targets:
         codeSign: true
       - package: Argon2Swift
       - package: SwiftyDropbox
+      - package: MSAL
     sources:
       - path: KeeForge/App
         excludes: ["README.md"]

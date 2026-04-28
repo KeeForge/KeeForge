@@ -59,7 +59,7 @@ struct DatabaseCreationView: View {
                                     }
                                 }
                             }
-                        case .dropbox:
+                        case .dropbox, .oneDrive:
                             if viewModel.validateForDestinationSelection() {
                                 isCloudFolderPickerPresented = true
                             }
@@ -87,11 +87,12 @@ struct DatabaseCreationView: View {
             onDismiss: cancelPendingCloudAuthentication
         ) {
             CloudFolderPickerView(
-                providerID: CloudProviderKind.dropbox.rawValue,
+                providerID: selectedCloudProvider?.rawValue ?? CloudProviderKind.dropbox.rawValue,
                 onSelect: handleCloudFolderSelection,
                 onFailure: { error in
+                    let provider = selectedCloudProvider ?? .dropbox
                     selectionAlert = DocumentPickerService.SelectionAlert(
-                        title: "Couldn’t Open Dropbox",
+                        title: "Couldn’t Open \(provider.displayName)",
                         message: error.localizedDescription
                     )
                 }
@@ -183,9 +184,10 @@ struct DatabaseCreationView: View {
     private var destinationFooter: String {
         switch viewModel.destinationChoice {
         case .files:
-            "After you tap Create, Files will ask where to save the encrypted .kdbx database."
-        case .dropbox:
-            "After you tap Create, choose the Dropbox folder for the encrypted .kdbx database."
+            return "After you tap Create, Files will ask where to save the encrypted .kdbx database."
+        case .dropbox, .oneDrive:
+            let providerName = selectedCloudProvider?.displayName ?? "cloud"
+            return "After you tap Create, choose the \(providerName) folder for the encrypted .kdbx database."
         }
     }
 
@@ -253,7 +255,13 @@ struct DatabaseCreationView: View {
 
     @MainActor
     private func cancelPendingCloudAuthentication() {
-        CloudProviderRegistry.provider(for: CloudProviderKind.dropbox.rawValue)?.cancelPendingAuthentication()
+        for providerKind in CloudProviderRegistry.availableProviders {
+            CloudProviderRegistry.provider(for: providerKind.rawValue)?.cancelPendingAuthentication()
+        }
+    }
+
+    private var selectedCloudProvider: CloudProviderKind? {
+        viewModel.destinationChoice.cloudProviderKind
     }
 
     private func handleKeyFileSelection(_ result: Result<URL, Error>) {

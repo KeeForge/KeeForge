@@ -16,6 +16,16 @@
 				<string>db-$(DROPBOX_APP_KEY)</string>
 			</array>
 		</dict>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLName</key>
+			<string>OneDrive OAuth</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>msauth.$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+			</array>
+		</dict>
 	</array>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
@@ -57,6 +67,10 @@
 	<string>$(CLOUD_KEYCHAIN_ACCESS_GROUP)</string>
 	<key>DropboxAppKey</key>
 	<string>$(DROPBOX_APP_KEY)</string>
+	<key>OneDriveClientID</key>
+	<string>$(ONEDRIVE_CLIENT_ID)</string>
+	<key>OneDriveRedirectURI</key>
+	<string>msauth.$(PRODUCT_BUNDLE_IDENTIFIER)://auth</string>
 	<key>GITCommitHash</key>
 	<string>$(GIT_COMMIT_HASH)</string>
 	<key>LSApplicationQueriesSchemes</key>

@@ -8,11 +8,19 @@ final class CloudSyncModelsTests: XCTestCase {
         XCTAssertEqual(CloudProviderKind.dropbox.iconName, "shippingbox.fill")
     }
 
+    func testCloudProviderKindOneDriveMetadata() {
+        XCTAssertEqual(CloudProviderKind.oneDrive.id, "onedrive")
+        XCTAssertEqual(CloudProviderKind.oneDrive.displayName, "OneDrive")
+        XCTAssertEqual(CloudProviderKind.oneDrive.iconName, "cloud.fill")
+    }
+
     func testCloudAccountProviderKindResolvesKnownProvider() {
         let account = CloudAccount(id: "acct-1", displayName: "alex@example.com", provider: "dropbox")
+        let oneDriveAccount = CloudAccount(id: "acct-2", displayName: "alex@example.com", provider: "onedrive")
         let unknown = CloudAccount(id: "acct-2", displayName: "Unknown", provider: "other")
 
         XCTAssertEqual(account.providerKind, .dropbox)
+        XCTAssertEqual(oneDriveAccount.providerKind, .oneDrive)
         XCTAssertNil(unknown.providerKind)
     }
 

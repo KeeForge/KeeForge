@@ -1,3 +1,4 @@
 // Copy this file to BuildConfig.local.xcconfig and replace the placeholder
 // value before building or running the app.
 DROPBOX_APP_KEY = YOUR_DROPBOX_APP_KEY
+ONEDRIVE_CLIENT_ID = YOUR_ONEDRIVE_CLIENT_ID

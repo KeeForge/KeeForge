@@ -81,9 +81,9 @@ enum CloudProviderError: LocalizedError, Equatable {
         case .fileNotFound:
             "The remote database could not be found."
         case .conflict:
-            "This database changed in Dropbox. Reload before saving again."
+            "This database changed in the cloud. Reload before saving again."
         case .writeScopeRequired:
-            "Reconnect Dropbox to save changes back to Dropbox."
+            "Reconnect this cloud account to save changes."
         case .unknown(let message):
             message
         }

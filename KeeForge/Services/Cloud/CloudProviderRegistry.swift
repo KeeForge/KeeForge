@@ -2,7 +2,7 @@ import Foundation
 
 enum CloudProviderRegistry {
     static var availableProviders: [CloudProviderKind] {
-        [.dropbox]
+        [.dropbox, .oneDrive]
     }
 
     static func provider(for id: String) -> CloudProvider? {
@@ -14,6 +14,8 @@ enum CloudProviderRegistry {
                 return UITestDropboxCloudProvider.shared
             }
             return DropboxCloudProvider.shared
+        case .oneDrive:
+            return OneDriveCloudProvider.shared
         }
     }
 
@@ -23,5 +25,6 @@ enum CloudProviderRegistry {
             return false
         }
         return DropboxCloudProvider.shared.handleRedirectURL(url)
+            || OneDriveCloudProvider.shared.handleRedirectURL(url)
     }
 }

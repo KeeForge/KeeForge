@@ -6,7 +6,7 @@ struct RegularDatabaseWorkspaceView: View {
     @Bindable var viewModel: DatabaseViewModel
     @State private var navigationPath: [UUID] = []
     @State private var presentedSaveError: DatabaseSaveError?
-    @State private var isDropboxReconnectInFlight = false
+    @State private var isCloudReconnectInFlight = false
 
     var body: some View {
         NavigationSplitView {
@@ -76,8 +76,9 @@ struct RegularDatabaseWorkspaceView: View {
 
                 if viewModel.saveError?.isWriteScopeRequired == true {
                     CloudReauthBanner(
-                        isReconnectInFlight: isDropboxReconnectInFlight,
-                        onReconnect: beginDropboxReconnect
+                        providerName: viewModel.databaseReference.cloudProviderKind?.displayName ?? "cloud",
+                        isReconnectInFlight: isCloudReconnectInFlight,
+                        onReconnect: beginCloudReconnect
                     )
                 }
 
@@ -144,16 +145,17 @@ struct RegularDatabaseWorkspaceView: View {
     }
 
     @MainActor
-    private func beginDropboxReconnect() {
-        guard isDropboxReconnectInFlight == false else { return }
-        guard let provider = CloudProviderRegistry.provider(for: CloudProviderKind.dropbox.rawValue) else {
+    private func beginCloudReconnect() {
+        guard isCloudReconnectInFlight == false else { return }
+        guard let providerID = viewModel.databaseReference.cloudSyncMetadata?.provider,
+              let provider = CloudProviderRegistry.provider(for: providerID) else {
             viewModel.presentSaveError(CloudProviderError.invalidConfiguration)
             return
         }
 
-        isDropboxReconnectInFlight = true
+        isCloudReconnectInFlight = true
         Task { @MainActor in
-            defer { isDropboxReconnectInFlight = false }
+            defer { isCloudReconnectInFlight = false }
 
             do {
                 _ = try await provider.authenticate(from: presentationAnchor())

@@ -227,8 +227,8 @@ struct DatabaseOpenFailure: Equatable, Sendable {
             )
         case .writeScopeRequired:
             return DatabaseOpenFailure(
-                title: "Reconnect Dropbox",
-                summary: "KeeForge needs refreshed Dropbox access before it can continue with this database.",
+                title: "Reconnect Cloud Account",
+                summary: "KeeForge needs refreshed cloud access before it can continue with this database.",
                 technicalDetails: technicalDetails(for: error),
                 errorCode: "cloud.write_scope_required",
                 category: .cloud,

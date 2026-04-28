@@ -344,16 +344,18 @@ struct DatabaseListView: View {
         }
         .accessibilityIdentifier("database.add.files")
 
-        Button {
-            activeCloudProvider = .dropbox
-        } label: {
-            Label {
-                Text("Dropbox")
-            } icon: {
-                CloudProviderIcon(provider: .dropbox, size: 16)
+        ForEach(CloudProviderRegistry.availableProviders) { providerKind in
+            Button {
+                activeCloudProvider = providerKind
+            } label: {
+                Label {
+                    Text(providerKind.displayName)
+                } icon: {
+                    CloudProviderIcon(provider: providerKind, size: 16)
+                }
             }
+            .accessibilityIdentifier("database.add.\(providerKind.rawValue)")
         }
-        .accessibilityIdentifier("database.add.dropbox")
     }
 
     @ViewBuilder
