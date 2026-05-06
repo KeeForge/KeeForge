@@ -28,4 +28,11 @@ final class CloudProviderRegistryTests: XCTestCase {
 
         XCTAssertFalse(CloudProviderRegistry.handleOpenURL(url))
     }
+
+    func testAppInfoPlistIncludesMSALBrokerQuerySchemes() throws {
+        let schemes = try XCTUnwrap(Bundle.main.object(forInfoDictionaryKey: "LSApplicationQueriesSchemes") as? [String])
+
+        XCTAssertTrue(schemes.contains("msauthv2"))
+        XCTAssertTrue(schemes.contains("msauthv3"))
+    }
 }
