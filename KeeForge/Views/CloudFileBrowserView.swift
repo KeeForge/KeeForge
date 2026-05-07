@@ -48,7 +48,10 @@ struct CloudFileBrowserView: View {
                                 )
                             }
                         } description: {
-                            Text("Sign in to browse your \(provider.displayName) databases.")
+                            VStack(spacing: 8) {
+                                Text("Sign in to browse your \(provider.displayName) databases.")
+                                DropboxLowUserWarningNote(provider: provider)
+                            }
                         } actions: {
                             Button("Connect") {
                                 beginAuthentication()
@@ -198,7 +201,10 @@ struct CloudFolderPickerView: View {
                                 )
                             }
                         } description: {
-                            Text("Sign in to browse your \(provider.displayName) folders.")
+                            VStack(spacing: 8) {
+                                Text("Sign in to browse your \(provider.displayName) folders.")
+                                DropboxLowUserWarningNote(provider: provider)
+                            }
                         } actions: {
                             Button("Connect") {
                                 beginAuthentication()
@@ -292,6 +298,18 @@ struct CloudFolderPickerView: View {
             return window
         }
         return ASPresentationAnchor()
+    }
+}
+
+private struct DropboxLowUserWarningNote: View {
+    let provider: CloudProvider
+
+    var body: some View {
+        if provider.id == CloudProviderKind.dropbox.rawValue {
+            Text("Note: Dropbox may warn that KeeForge has low number of users. That is normal for an indie app. KeeForge is open source and will only use the database file you choose to open or create.")
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+        }
     }
 }
 

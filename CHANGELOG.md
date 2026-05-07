@@ -6,6 +6,7 @@
 - Add OneDrive support for signing in, browsing KDBX files, opening databases, and saving cloud-backed edits.
 
 ### Changes
+- Add a Dropbox sign-in note explaining that the low-user-count OAuth warning is expected for an indie app.
 - Remove the retired Dropbox write-scope upgrade reminder and always-on passkey feature flag.
 - Replace the full-width cloud sync warning banner in unlocked databases with a compact toolbar warning icon that opens the detailed status message.
 
