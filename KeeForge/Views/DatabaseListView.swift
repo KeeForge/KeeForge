@@ -335,7 +335,11 @@ struct DatabaseListView: View {
                 Label {
                     Text(providerKind.displayName)
                 } icon: {
-                    CloudProviderIcon(provider: providerKind, size: 16)
+                    CloudProviderIcon(
+                        provider: providerKind,
+                        size: 16,
+                        visualScale: providerKind == .oneDrive ? 0.50 : 1
+                    )
                 }
             }
             .accessibilityIdentifier("database.add.\(providerKind.rawValue)")

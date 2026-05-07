@@ -298,6 +298,7 @@ struct CloudFolderPickerView: View {
 struct CloudProviderIcon: View {
     let provider: CloudProviderKind?
     var size: CGFloat = 14
+    var visualScale: CGFloat = 1
     var fallbackSystemName = "icloud"
 
     @ViewBuilder
@@ -311,9 +312,12 @@ struct CloudProviderIcon: View {
                 .scaledToFit()
                 .frame(width: size, height: size)
         case .oneDrive:
-            Image(systemName: "cloud.fill")
-                .font(.system(size: size))
-                .foregroundStyle(.blue)
+            Image("OneDriveGlyph")
+                .renderingMode(.original)
+                .resizable()
+                .interpolation(.high)
+                .scaledToFit()
+                .frame(width: size * visualScale, height: size * visualScale)
                 .frame(width: size, height: size)
         case .none:
             Image(systemName: fallbackSystemName)
