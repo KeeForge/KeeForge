@@ -69,10 +69,6 @@ final class CredentialProviderViewController: ASCredentialProviderViewController
     // MARK: - Passkey credential request (iOS 17+)
 
     override func prepareCredentialList(for serviceIdentifiers: [ASCredentialServiceIdentifier], requestParameters: ASPasskeyCredentialRequestParameters) {
-        guard SettingsService.passkeyEnabled else {
-            cancelRequest(code: .failed)
-            return
-        }
         self.serviceIdentifiers = serviceIdentifiers
         targetRecordIdentifier = nil
         pendingPasskeyRequest = nil
@@ -84,10 +80,6 @@ final class CredentialProviderViewController: ASCredentialProviderViewController
 
     override func prepareInterfaceToProvideCredential(for credentialRequest: ASCredentialRequest) {
         if let passkeyRequest = credentialRequest as? ASPasskeyCredentialRequest {
-            guard SettingsService.passkeyEnabled else {
-                cancelRequest(code: .failed)
-                return
-            }
             pendingPasskeyRequest = passkeyRequest
             pendingPasskeyRequestParameters = nil
             targetRecordIdentifier = passkeyRequest.credentialIdentity.recordIdentifier
@@ -109,10 +101,6 @@ final class CredentialProviderViewController: ASCredentialProviderViewController
 
     override func provideCredentialWithoutUserInteraction(for credentialRequest: ASCredentialRequest) {
         if let passkeyRequest = credentialRequest as? ASPasskeyCredentialRequest {
-            guard SettingsService.passkeyEnabled else {
-                extensionContext.cancelRequest(withError: ASExtensionError(.failed))
-                return
-            }
             providePasskeyWithoutUserInteraction(for: passkeyRequest)
         } else if let passwordIdentity = credentialRequest.credentialIdentity as? ASPasswordCredentialIdentity {
             provideCredentialWithoutUserInteraction(for: passwordIdentity)

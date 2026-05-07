@@ -1,6 +1,4 @@
-import AuthenticationServices
 import SwiftUI
-import UIKit
 import UniformTypeIdentifiers
 
 struct PickerPresentationState<T> {
@@ -46,7 +44,6 @@ struct DatabaseListView: View {
     @State private var showSettings = false
     @State private var showDatabaseUsageStats = SettingsService.showDatabaseUsageStats
     @State private var activeCloudProvider: CloudProviderKind?
-    @State private var isDropboxWriteScopeReconnectInFlight = false
     @State private var isDatabaseCreationPresented = false
 
     var body: some View {
@@ -101,19 +98,6 @@ struct DatabaseListView: View {
                     .menuOrder(.fixed)
                     .accessibilityIdentifier("database.add.button")
                 }
-            }
-        }
-        .safeAreaInset(edge: .top) {
-            if viewModel.shouldShowDropboxWriteScopeUpgradeBanner {
-                DropboxWriteScopeUpgradeBanner(
-                    isReconnectInFlight: isDropboxWriteScopeReconnectInFlight,
-                    onReconnect: beginDropboxWriteScopeReconnect,
-                    onNotNow: {
-                        viewModel.dismissDropboxWriteScopeUpgradeBanner()
-                    }
-                )
-                .padding(.horizontal)
-                .padding(.top, 8)
             }
         }
         .onAppear {
@@ -518,76 +502,6 @@ struct DatabaseListView: View {
         )
     }
 
-    @MainActor
-    private func beginDropboxWriteScopeReconnect() {
-        guard isDropboxWriteScopeReconnectInFlight == false else { return }
-        guard let provider = CloudProviderRegistry.provider(for: CloudProviderKind.dropbox.rawValue) else {
-            selectionAlert = makeCloudSelectionAlert(
-                error: CloudProviderError.invalidConfiguration,
-                provider: .dropbox
-            )
-            return
-        }
-
-        isDropboxWriteScopeReconnectInFlight = true
-        Task { @MainActor in
-            defer { isDropboxWriteScopeReconnectInFlight = false }
-
-            do {
-                _ = try await provider.authenticate(from: presentationAnchor())
-                viewModel.reload()
-            } catch let cloudError as CloudProviderError where cloudError == .authenticationCancelled {
-                return
-            } catch {
-                selectionAlert = makeCloudSelectionAlert(error: error, provider: .dropbox)
-            }
-        }
-    }
-
-    @MainActor
-    private func presentationAnchor() -> ASPresentationAnchor {
-        let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
-        if let window = scenes.flatMap(\.windows).first(where: \.isKeyWindow) {
-            return window
-        }
-        return ASPresentationAnchor()
-    }
-}
-
-private struct DropboxWriteScopeUpgradeBanner: View {
-    let isReconnectInFlight: Bool
-    let onReconnect: () -> Void
-    let onNotNow: () -> Void
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("KeeForge can now save changes back to Dropbox.")
-                .font(.headline)
-            Text("Reconnect Dropbox to enable editing — your existing read access will keep working either way.")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-            HStack(spacing: 12) {
-                Button("Reconnect Dropbox", action: onReconnect)
-                    .buttonStyle(.borderedProminent)
-                    .disabled(isReconnectInFlight)
-
-                Button("Not now", action: onNotNow)
-                    .buttonStyle(.bordered)
-                    .disabled(isReconnectInFlight)
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(16)
-        .background(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .fill(Color(.secondarySystemBackground))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .stroke(Color(.separator), lineWidth: 0.5)
-        )
-        .accessibilityIdentifier("dropbox.write-scope-upgrade-banner")
-    }
 }
 
 private struct DatabaseDetailsView: View {

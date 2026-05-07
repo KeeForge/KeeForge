@@ -40,9 +40,6 @@ final class UITestDropboxCloudProvider: CloudProvider, @unchecked Sendable {
         }
 
         payload.accounts.forEach(CloudAccountStore.upsert)
-        payload.accounts.forEach { account in
-            CloudAccountStore.setDropboxWriteScope(true, accountId: account.id)
-        }
         return account
     }
 
@@ -134,10 +131,6 @@ final class UITestDropboxCloudProvider: CloudProvider, @unchecked Sendable {
             throw CloudProviderError.notAuthenticated
         }
 
-        guard CloudAccountStore.hasDropboxWriteScope(accountId: accountId) else {
-            throw CloudProviderError.writeScopeRequired
-        }
-
         let payload = try Self.currentPayload()
         if let error = payload.uploadError?.providerError {
             throw error
@@ -175,10 +168,6 @@ final class UITestDropboxCloudProvider: CloudProvider, @unchecked Sendable {
     ) async throws -> CloudCreatedFile {
         guard isAuthenticated(accountId: accountId) else {
             throw CloudProviderError.notAuthenticated
-        }
-
-        guard CloudAccountStore.hasDropboxWriteScope(accountId: accountId) else {
-            throw CloudProviderError.writeScopeRequired
         }
 
         let payload = try Self.currentPayload()

@@ -10,7 +10,7 @@ This folder contains the SwiftUI screens for both supported app UIs: the compact
 
 ## Screen Map
 
-- `DatabaseListView.swift`, `DatabaseRowView.swift`, the in-file `DatabaseDetailsView`, and `CloudFileBrowserView.swift` own database picking, cloud browsing UI, rename/remove actions, read-only toggles and badges, pending-upload badges/conflict copy, "Push pending changes" actions, settings entry points, and the Dropbox write-scope reconnect banner shown after the cloud-save upgrade.
+- `DatabaseListView.swift`, `DatabaseRowView.swift`, the in-file `DatabaseDetailsView`, and `CloudFileBrowserView.swift` own database picking, cloud browsing UI, rename/remove actions, read-only toggles and badges, pending-upload badges/conflict copy, "Push pending changes" actions, and settings entry points.
 - `DatabaseCreationView.swift` owns local and cloud database creation, including master-key input, key-file selection, destination choice, and handoff to Files export or provider folder picking.
 - `UnlockView.swift` owns password/key-file entry and biometric affordances for one database.
 - `GroupListView.swift`, `EntryListView.swift`, `EntryDetailView.swift`, and `SearchView.swift` own post-unlock navigation, entry creation/deletion affordances, detail presentation, and the global read-only + unsaved-change surfaces shown while a database is open.

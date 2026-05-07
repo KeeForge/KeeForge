@@ -4,7 +4,7 @@ Observable app state lives here. Keep business rules here and keep views thin.
 
 ## Main View Models
 
-- `DatabaseListViewModel.swift` owns the database list screen: add/remove/reorder, quick launch, nicknames, read-only toggles, key-file association, cloud database selection, row-status derivation, pending-upload counts/conflicts, manual "push pending changes", and the Dropbox write-scope upgrade banner state.
+- `DatabaseListViewModel.swift` owns the database list screen: add/remove/reorder, quick launch, nicknames, read-only toggles, key-file association, cloud database selection, row-status derivation, pending-upload counts/conflicts, and manual "push pending changes".
 - `DatabaseViewModel.swift` owns one database session: unlock state machine, local/cloud file resolution, draft/save state, local-vs-cloud save routing, expected Dropbox rev tracking, save-conflict detection, synced-folder edit acknowledgments, search, sorting, compact + regular-width selection/navigation state, inactivity lock, biometric unlock, and shared AutoFill cache refresh after both unlock and save.
 - `EntryEditViewModel.swift` owns entry form state for both create and edit flows, including tag/custom-field normalization, TOTP field shaping, passkey-preserving round trips, and dirty-state tracking for the edit UI.
 - `TOTPViewModel.swift` owns live TOTP code refresh and countdown state for entry-detail UI.

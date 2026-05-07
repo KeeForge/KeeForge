@@ -5,6 +5,9 @@
 ### New Features
 - Add OneDrive support for signing in, browsing KDBX files, opening databases, and saving cloud-backed edits.
 
+### Changes
+- Remove the retired Dropbox write-scope upgrade reminder and always-on passkey feature flag.
+
 ## v1.9.0 (2026-04-27)
 
 ### New Features

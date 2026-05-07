@@ -9,14 +9,12 @@ final class PendingUploadDrainerTests: XCTestCase {
         DatabaseListStore.clearAll()
         CloudAccountStore.clearAll()
         SharedVaultStore.clearBookmark()
-        SettingsService.dropboxWriteScopeBannerLastDismissedAt = nil
     }
 
     override func tearDown() {
         DatabaseListStore.clearAll()
         CloudAccountStore.clearAll()
         SharedVaultStore.clearBookmark()
-        SettingsService.dropboxWriteScopeBannerLastDismissedAt = nil
         super.tearDown()
     }
 

@@ -156,7 +156,6 @@ private final class MockBrowserCloudProvider: CloudProvider, @unchecked Sendable
     func authenticate(from anchor: ASPresentationAnchor) async throws -> CloudAccount {
         let account = try authenticateResult.get()
         CloudAccountStore.upsert(account)
-        CloudAccountStore.setDropboxWriteScope(true, accountId: account.id)
         return account
     }
 

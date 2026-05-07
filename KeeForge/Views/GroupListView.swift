@@ -369,7 +369,7 @@ struct EntryRow: View {
 
             Spacer()
 
-            if SettingsService.passkeyEnabled && entry.hasPasskey {
+            if entry.hasPasskey {
                 Image(systemName: "person.badge.key.fill")
                     .font(.caption)
                     .foregroundStyle(.purple)

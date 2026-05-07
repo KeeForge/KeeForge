@@ -20,17 +20,4 @@ final class DropboxCloudProviderTests: XCTestCase {
         XCTAssertTrue(scopeRequest.scopes.contains("files.content.write"))
         XCTAssertEqual(scopeRequest.includeGrantedScopes, false)
     }
-
-    func testHasWriteScopeReflectsStoredUpgradeState() {
-        let provider = DropboxCloudProvider.shared
-        let accountID = "acct-1"
-
-        XCTAssertFalse(provider.hasWriteScope(accountId: accountID))
-
-        CloudAccountStore.setDropboxWriteScope(true, accountId: accountID)
-        XCTAssertTrue(provider.hasWriteScope(accountId: accountID))
-
-        CloudAccountStore.setDropboxWriteScope(false, accountId: accountID)
-        XCTAssertFalse(provider.hasWriteScope(accountId: accountID))
-    }
 }

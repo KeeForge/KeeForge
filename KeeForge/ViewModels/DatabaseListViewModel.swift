@@ -43,7 +43,6 @@ final class DatabaseListViewModel {
 
     private(set) var databases: [DatabaseReference] = []
     private(set) var rowStatuses: [UUID: DatabaseRowStatus] = [:]
-    private(set) var shouldShowDropboxWriteScopeUpgradeBanner = false
     private(set) var pendingUploadAlert: PendingUploadAlert?
     private var didConsumeInitialLaunchSelection = false
     private let pendingUploadDrainer: PendingUploadDrainer
@@ -133,11 +132,6 @@ final class DatabaseListViewModel {
     func refreshBookmarks() {
         DatabaseListStore.refreshBookmarks()
         reload()
-    }
-
-    func dismissDropboxWriteScopeUpgradeBanner() {
-        SettingsService.dismissDropboxWriteScopeUpgradeBanner()
-        refreshDropboxWriteScopeUpgradeBanner()
     }
 
     func status(for reference: DatabaseReference) -> DatabaseRowStatus {
@@ -276,21 +270,6 @@ final class DatabaseListViewModel {
 
         rowStatuses = updatedStatuses
         databases = DatabaseListStore.databases
-        refreshDropboxWriteScopeUpgradeBanner()
-    }
-
-    private func refreshDropboxWriteScopeUpgradeBanner() {
-        let needsWriteScopeUpgrade = databases.contains { reference in
-            guard let metadata = reference.cloudSyncMetadata,
-                  metadata.providerKind == .dropbox else {
-                return false
-            }
-
-            return CloudAccountStore.hasDropboxWriteScope(accountId: metadata.accountId) == false
-        }
-
-        shouldShowDropboxWriteScopeUpgradeBanner = needsWriteScopeUpgrade
-            && SettingsService.shouldShowDropboxWriteScopeUpgradeBanner()
     }
 
     private func applyDrainOutcome(_ outcome: PendingUploadDrainer.DrainOutcome, surfaceAlerts: Bool) {

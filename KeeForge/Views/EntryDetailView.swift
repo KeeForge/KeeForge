@@ -61,7 +61,7 @@ struct EntryDetailView: View {
                         }
                     }
 
-                    if SettingsService.passkeyEnabled, let passkey = entry.passkeyCredential {
+                    if let passkey = entry.passkeyCredential {
                         Section("Passkey") {
                             FieldRow(label: "Relying Party", value: passkey.relyingParty, icon: "person.badge.key.fill")
                             FieldRow(label: "Username", value: passkey.username, icon: "person.fill")

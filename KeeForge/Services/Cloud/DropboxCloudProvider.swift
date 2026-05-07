@@ -136,10 +136,6 @@ final class DropboxCloudProvider: CloudProvider, @unchecked Sendable {
         DropboxClientsManager.resetClients()
     }
 
-    func hasWriteScope(accountId: String) -> Bool {
-        CloudAccountStore.hasDropboxWriteScope(accountId: accountId)
-    }
-
     func listFiles(accountId: String, path: String?, query: String?) async throws -> [CloudFile] {
         let client = try client(for: accountId)
 
@@ -216,12 +212,10 @@ final class DropboxCloudProvider: CloudProvider, @unchecked Sendable {
             }
             .response { response, error in
                 if let file = response {
-                    CloudAccountStore.setDropboxWriteScope(true, accountId: accountId)
                     continuation.resume(returning: Self.makeCloudFileMetadata(from: file))
                 } else if let error {
                     self.resolveUploadFailure(
                         client: client,
-                        accountId: accountId,
                         fileId: fileId,
                         error: error,
                         continuation: continuation
@@ -254,7 +248,6 @@ final class DropboxCloudProvider: CloudProvider, @unchecked Sendable {
             .response { response, error in
                 if let file = response,
                    let cloudFile = Self.makeCloudFile(from: file) {
-                    CloudAccountStore.setDropboxWriteScope(true, accountId: accountId)
                     continuation.resume(
                         returning: CloudCreatedFile(
                             file: cloudFile,
@@ -264,7 +257,6 @@ final class DropboxCloudProvider: CloudProvider, @unchecked Sendable {
                 } else if let error {
                     self.resolveCreateFailure(
                         client: client,
-                        accountId: accountId,
                         path: path,
                         error: error,
                         continuation: continuation
@@ -449,7 +441,6 @@ final class DropboxCloudProvider: CloudProvider, @unchecked Sendable {
 
     private func resolveUploadFailure(
         client: DropboxClient,
-        accountId: String,
         fileId: String,
         error: CallError<Files.UploadError>,
         continuation: CheckedContinuation<CloudFileMetadata, Error>
@@ -467,9 +458,6 @@ final class DropboxCloudProvider: CloudProvider, @unchecked Sendable {
                     let remoteRev = (response as? Files.FileMetadata)?.rev
                     continuation.resume(throwing: CloudProviderError.conflict(remoteRev: remoteRev))
                 }
-        case .writeScopeRequired:
-            CloudAccountStore.setDropboxWriteScope(false, accountId: accountId)
-            continuation.resume(throwing: cloudError)
         default:
             continuation.resume(throwing: cloudError)
         }
@@ -477,7 +465,6 @@ final class DropboxCloudProvider: CloudProvider, @unchecked Sendable {
 
     private func resolveCreateFailure(
         client: DropboxClient,
-        accountId: String,
         path: String,
         error: CallError<Files.UploadError>,
         continuation: CheckedContinuation<CloudCreatedFile, Error>
@@ -495,9 +482,6 @@ final class DropboxCloudProvider: CloudProvider, @unchecked Sendable {
                     let remoteRev = (response as? Files.FileMetadata)?.rev
                     continuation.resume(throwing: CloudProviderError.conflict(remoteRev: remoteRev))
                 }
-        case .writeScopeRequired:
-            CloudAccountStore.setDropboxWriteScope(false, accountId: accountId)
-            continuation.resume(throwing: cloudError)
         default:
             continuation.resume(throwing: cloudError)
         }
@@ -518,7 +502,6 @@ final class DropboxCloudProvider: CloudProvider, @unchecked Sendable {
             do {
                 let account = try await currentAccountFromAuthorizedClient(tokenUID: accessToken.uid)
                 CloudAccountStore.upsert(account)
-                CloudAccountStore.setDropboxWriteScope(true, accountId: account.id)
                 continuation.resume(returning: account)
             } catch {
                 continuation.resume(throwing: error)
