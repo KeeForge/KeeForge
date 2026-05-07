@@ -443,16 +443,6 @@ struct DatabaseNavigationView: View {
             }
             .safeAreaInset(edge: .top, spacing: 0) {
                 VStack(spacing: 8) {
-                    if let warningText = viewModel.cloudSyncBannerText {
-                        HStack {
-                            CloudSyncWarningButton(message: warningText)
-                            Spacer(minLength: 0)
-                        }
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 8)
-                    }
-
                     if viewModel.saveError?.isWriteScopeRequired == true {
                         CloudReauthBanner(
                             providerName: viewModel.databaseReference.cloudProviderKind?.displayName ?? "cloud",
@@ -652,12 +642,6 @@ struct CloudSyncWarningButton: View {
                 .symbolRenderingMode(.monochrome)
                 .foregroundStyle(Color.yellow)
                 .frame(width: 34, height: 34)
-                .background(.regularMaterial, in: Circle())
-                .overlay(
-                    Circle()
-                        .stroke(Color.yellow.opacity(0.65), lineWidth: 1)
-                )
-                .shadow(color: .black.opacity(0.18), radius: 5, y: 2)
         }
         .buttonStyle(.plain)
         .accessibilityLabel("Cloud sync warning")

@@ -7,7 +7,7 @@
 
 ### Changes
 - Remove the retired Dropbox write-scope upgrade reminder and always-on passkey feature flag.
-- Replace the full-width cloud sync warning banner in unlocked databases with a compact warning icon that opens the detailed status message.
+- Replace the full-width cloud sync warning banner in unlocked databases with a compact toolbar warning icon that opens the detailed status message.
 
 ## v1.9.0 (2026-04-27)
 

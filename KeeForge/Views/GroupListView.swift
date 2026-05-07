@@ -87,6 +87,10 @@ struct GroupListView: View {
 
                         ToolbarItem(placement: .topBarTrailing) {
                             HStack(spacing: 12) {
+                                if let warningText = viewModel.cloudSyncBannerText {
+                                    CloudSyncWarningButton(message: warningText)
+                                }
+
                                 if viewModel.isReadOnly {
                                     Image(systemName: "lock.fill")
                                         .foregroundStyle(.orange)
