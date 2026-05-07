@@ -65,13 +65,14 @@ struct RegularDatabaseWorkspaceView: View {
         .accessibilityIdentifier("regular-workspace.root")
         .safeAreaInset(edge: .top, spacing: 0) {
             VStack(spacing: 8) {
-                if let bannerText = viewModel.cloudSyncBannerText {
-                    BannerLabel(
-                        text: bannerText,
-                        systemImage: "icloud",
-                        foregroundStyle: .orange,
-                        backgroundColor: Color.orange.opacity(0.12)
-                    )
+                if let warningText = viewModel.cloudSyncBannerText {
+                    HStack {
+                        CloudSyncWarningButton(message: warningText)
+                        Spacer(minLength: 0)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
                 }
 
                 if viewModel.saveError?.isWriteScopeRequired == true {

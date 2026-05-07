@@ -443,13 +443,14 @@ struct DatabaseNavigationView: View {
             }
             .safeAreaInset(edge: .top, spacing: 0) {
                 VStack(spacing: 8) {
-                    if let bannerText = viewModel.cloudSyncBannerText {
-                        BannerLabel(
-                            text: bannerText,
-                            systemImage: "icloud",
-                            foregroundStyle: .orange,
-                            backgroundColor: Color.orange.opacity(0.12)
-                        )
+                    if let warningText = viewModel.cloudSyncBannerText {
+                        HStack {
+                            CloudSyncWarningButton(message: warningText)
+                            Spacer(minLength: 0)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 8)
                     }
 
                     if viewModel.saveError?.isWriteScopeRequired == true {
@@ -634,19 +635,39 @@ struct CloudReauthBanner: View {
     }
 }
 
-struct BannerLabel: View {
-    let text: String
-    let systemImage: String
-    let foregroundStyle: Color
-    let backgroundColor: Color
+struct CloudSyncWarningButton: View {
+    let message: String
+    @State private var isShowingDetails = false
+
+    private var explanation: String {
+        "\(message)\n\nKeeForge opened the cached copy for now. Cloud sync needs attention before this database can be refreshed from its provider."
+    }
 
     var body: some View {
-        Label(text, systemImage: systemImage)
-            .font(.caption.weight(.medium))
-            .foregroundStyle(foregroundStyle)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, 16)
-            .padding(.vertical, 10)
-            .background(backgroundColor)
+        Button {
+            isShowingDetails = true
+        } label: {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .font(.title3.weight(.semibold))
+                .symbolRenderingMode(.monochrome)
+                .foregroundStyle(Color.yellow)
+                .frame(width: 34, height: 34)
+                .background(.regularMaterial, in: Circle())
+                .overlay(
+                    Circle()
+                        .stroke(Color.yellow.opacity(0.65), lineWidth: 1)
+                )
+                .shadow(color: .black.opacity(0.18), radius: 5, y: 2)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Cloud sync warning")
+        .accessibilityValue(message)
+        .accessibilityHint("Shows why this database needs attention")
+        .accessibilityIdentifier("database.cloud-sync-warning")
+        .alert("Cloud Sync Needs Attention", isPresented: $isShowingDetails) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(explanation)
+        }
     }
 }
