@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+## v1.9.2 (2026-05-12)
+
+### Fixes
+- Fixed a bug where the OneDrive account could not be connected
+
 ## v1.9.1 (2026-05-10)
 
 ### New Features
