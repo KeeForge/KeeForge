@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="KeeForge/Resources/Assets.xcassets/AppIcon.appiconset/AppIcon-1024.png" alt="KeeForge app icon" width="128" />
+  <img src=".github/assets/KeeForge-iOS-Default-1024x1024@1x.png" alt="KeeForge app icon" width="128" />
 </p>
 
 <h1 align="center">KeeForge</h1>

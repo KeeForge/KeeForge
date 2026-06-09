@@ -4,7 +4,7 @@ Static app resources live here.
 
 ## Current Contents
 
-- `Assets.xcassets` — app icons, colors, and image assets
+- `Assets.xcassets` — colors and image assets
 - `LaunchScreen.storyboard` — launch screen UI
 
 ## Guidance
