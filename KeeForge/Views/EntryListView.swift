@@ -64,25 +64,37 @@ struct EntryListView: View {
         }
         .contextMenu {
             if viewModel.isReadOnly == false {
-                Button("Delete Permanently", role: .destructive) {
+                Button(deletionTitle(for: entry), role: .destructive) {
                     pendingEntryDeletion = PendingEntryDeletion(
                         entryID: entry.id,
-                        sendToRecycleBin: false
+                        sendToRecycleBin: sendDeletionToRecycleBin(for: entry)
                     )
                 }
-                .accessibilityIdentifier("entry-row.delete-permanent")
+                .accessibilityIdentifier(
+                    sendDeletionToRecycleBin(for: entry)
+                        ? "entry-row.delete-context"
+                        : "entry-row.delete-permanent"
+                )
             }
         }
         .swipeActions(edge: .trailing, allowsFullSwipe: false) {
             if viewModel.isReadOnly == false {
-                Button("Delete", role: .destructive) {
+                Button(deletionTitle(for: entry), role: .destructive) {
                     pendingEntryDeletion = PendingEntryDeletion(
                         entryID: entry.id,
-                        sendToRecycleBin: true
+                        sendToRecycleBin: sendDeletionToRecycleBin(for: entry)
                     )
                 }
                 .accessibilityIdentifier("entry-row.delete-swipe")
             }
         }
+    }
+
+    private func deletionTitle(for entry: KPEntry) -> String {
+        sendDeletionToRecycleBin(for: entry) ? "Delete" : "Delete Permanently"
+    }
+
+    private func sendDeletionToRecycleBin(for entry: KPEntry) -> Bool {
+        viewModel.isEntryInRecycleBin(entryID: entry.id) == false
     }
 }

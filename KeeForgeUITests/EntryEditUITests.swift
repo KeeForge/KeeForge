@@ -345,6 +345,33 @@ final class EntryDeleteSmokeUITests: EntryEditUITestCase {
             "Twitter entry was not moved into the recycle bin"
         )
     }
+
+    func testContextMenuDeleteSocialDiscordSoftDeleteMovesToRecycleBin() {
+        unlockSuccessfully()
+
+        openGroup(named: socialGroupName)
+        let discordEntry = entry(named: discordEntryTitle)
+        XCTAssertTrue(revealElement(discordEntry), "Discord entry was not visible in Social")
+        discordEntry.press(forDuration: 1.2)
+
+        let deleteButton = app.buttons["entry-row.delete-context"]
+        XCTAssertTrue(deleteButton.waitForExistence(timeout: 5))
+        deleteButton.tap()
+
+        let alertDeleteButton = app.alerts.buttons["Delete"]
+        XCTAssertTrue(alertDeleteButton.waitForExistence(timeout: 5))
+        alertDeleteButton.tap()
+        waitForAutosaveAttempt()
+
+        XCTAssertFalse(entry(named: discordEntryTitle).exists)
+
+        tapBackButton()
+        openGroup(named: recycleBinGroupName)
+        XCTAssertTrue(
+            revealElement(entry(named: discordEntryTitle)),
+            "Discord entry was not moved into the recycle bin"
+        )
+    }
 }
 
 @MainActor

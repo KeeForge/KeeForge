@@ -246,13 +246,15 @@ struct GroupListView: View {
         }
         .contextMenu {
             if viewModel.isReadOnly == false {
-                Button("Delete Permanently", role: .destructive) {
+                Button(isRecycleBin ? "Delete Permanently" : "Delete", role: .destructive) {
                     pendingEntryDeletion = PendingEntryDeletion(
                         entryID: entry.id,
-                        sendToRecycleBin: false
+                        sendToRecycleBin: !isRecycleBin
                     )
                 }
-                .accessibilityIdentifier("entry-row.delete-permanent")
+                .accessibilityIdentifier(
+                    isRecycleBin ? "entry-row.delete-permanent" : "entry-row.delete-context"
+                )
             }
         }
         .swipeActions(edge: .trailing, allowsFullSwipe: false) {

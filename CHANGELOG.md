@@ -5,6 +5,9 @@
 ### New Features
 - Add a Display setting for choosing System Default, Light, or Dark app appearance.
 
+### Fixes
+- Move entries to the recycle bin from the long-press context menu instead of permanently deleting them.
+
 ## v1.9.2 (2026-05-12)
 
 ### Fixes
