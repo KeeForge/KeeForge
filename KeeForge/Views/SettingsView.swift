@@ -10,6 +10,7 @@ struct SettingsView: View {
     @State private var autoUnlockWithFaceID = SettingsService.autoUnlockWithFaceID
     @State private var showWebsiteIcons = SettingsService.showWebsiteIcons
     @State private var showDatabaseUsageStats = SettingsService.showDatabaseUsageStats
+    @State private var appearanceMode = SettingsService.appearanceMode
     @State private var quickAutoFillEnabled = SettingsService.quickAutoFillEnabled
     @State private var sortOrder = DatabaseViewModel.savedSortOrder()
     @State private var sortAscending = DatabaseViewModel.savedSortAscending()
@@ -52,6 +53,9 @@ struct SettingsView: View {
             .onChange(of: showDatabaseUsageStats) { _, newValue in
                 SettingsService.showDatabaseUsageStats = newValue
             }
+            .onChange(of: appearanceMode) { _, newValue in
+                SettingsService.appearanceMode = newValue
+            }
             .onChange(of: quickAutoFillEnabled) { _, newValue in
                 SettingsService.quickAutoFillEnabled = newValue
                 if newValue {
@@ -72,8 +76,20 @@ struct SettingsView: View {
                 cloudAccounts = CloudAccountStore.accounts
             }
         }
+        .preferredColorScheme(preferredColorScheme)
         .sheet(item: $feedbackContext) { context in
             FeedbackComposerView(context: context)
+        }
+    }
+
+    private var preferredColorScheme: ColorScheme? {
+        switch appearanceMode {
+        case .system:
+            return nil
+        case .light:
+            return .light
+        case .dark:
+            return .dark
         }
     }
 
@@ -102,6 +118,7 @@ struct SettingsView: View {
                 DisplaySettingsView(
                     showWebsiteIcons: $showWebsiteIcons,
                     showDatabaseUsageStats: $showDatabaseUsageStats,
+                    appearanceMode: $appearanceMode,
                     sortOrder: $sortOrder,
                     sortAscending: $sortAscending
                 )
@@ -252,11 +269,13 @@ private struct AutoFillSettingsView: View {
 private struct DisplaySettingsView: View {
     @Binding var showWebsiteIcons: Bool
     @Binding var showDatabaseUsageStats: Bool
+    @Binding var appearanceMode: SettingsService.AppearanceMode
     @Binding var sortOrder: DatabaseViewModel.SortOrder
     @Binding var sortAscending: Bool
 
     var body: some View {
         Form {
+            themeSection
             privacySection
             displaySection
             sortSection
@@ -272,6 +291,17 @@ private struct DisplaySettingsView: View {
         }
         .navigationTitle("Display")
         .navigationBarTitleDisplayMode(.inline)
+    }
+
+    private var themeSection: some View {
+        Section {
+            Picker("Theme", selection: $appearanceMode) {
+                ForEach(SettingsService.AppearanceMode.allCases, id: \.self) { mode in
+                    Text(mode.title).tag(mode)
+                }
+            }
+            .accessibilityIdentifier("settings.display.theme-picker")
+        }
     }
 
     private var privacySection: some View {

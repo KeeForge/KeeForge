@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+### New Features
+- Add a Display setting for choosing System Default, Light, or Dark app appearance.
+
 ## v1.9.2 (2026-05-12)
 
 ### Fixes

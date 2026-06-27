@@ -8,6 +8,7 @@ struct KeeForgeApp: App {
     @State private var activeDatabaseViewModel: DatabaseViewModel?
     @State private var pendingUploadDrainer = PendingUploadDrainer()
     @State private var screenProtectionService = ScreenProtectionService()
+    @AppStorage(SettingsService.appearanceModeDefaultsKey) private var appearanceModeRaw = SettingsService.AppearanceMode.system.rawValue
     @Environment(\.scenePhase) private var scenePhase
 
     var body: some Scene {
@@ -16,6 +17,7 @@ struct KeeForgeApp: App {
                 listViewModel: listViewModel,
                 activeDatabaseViewModel: $activeDatabaseViewModel
             )
+            .preferredColorScheme(appearanceMode.preferredColorScheme)
             .onChange(of: scenePhase) { _, newPhase in
                 switch newPhase {
                 case .active:
@@ -42,6 +44,23 @@ struct KeeForgeApp: App {
                     }
                 }
             }
+        }
+    }
+
+    private var appearanceMode: SettingsService.AppearanceMode {
+        SettingsService.AppearanceMode(rawValue: appearanceModeRaw) ?? .system
+    }
+}
+
+private extension SettingsService.AppearanceMode {
+    var preferredColorScheme: ColorScheme? {
+        switch self {
+        case .system:
+            return nil
+        case .light:
+            return .light
+        case .dark:
+            return .dark
         }
     }
 }

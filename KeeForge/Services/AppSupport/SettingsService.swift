@@ -11,7 +11,10 @@ enum SettingsService {
         static let showWebsiteIcons = "KeeForge.showWebsiteIcons"
         static let showDatabaseUsageStats = "KeeForge.showDatabaseUsageStats"
         static let quickAutoFillEnabled = "KeeForge.quickAutoFillEnabled"
+        static let appearanceMode = "KeeForge.appearanceMode"
     }
+
+    static let appearanceModeDefaultsKey = Key.appearanceMode
 
     private static var sharedDefaults: UserDefaults {
         UserDefaults(suiteName: SharedVaultStore.appGroupID) ?? .standard
@@ -53,7 +56,38 @@ enum SettingsService {
         }
     }
 
+    // MARK: - Appearance Mode
+
+    enum AppearanceMode: String, CaseIterable, Sendable {
+        case system = "system"
+        case light = "light"
+        case dark = "dark"
+
+        var title: String {
+            switch self {
+            case .system:
+                return "System Default"
+            case .light:
+                return "Light"
+            case .dark:
+                return "Dark"
+            }
+        }
+    }
+
     // MARK: - Accessors
+
+    static var appearanceMode: AppearanceMode {
+        get {
+            guard let raw = UserDefaults.standard.string(forKey: Key.appearanceMode) else {
+                return .system
+            }
+            return AppearanceMode(rawValue: raw) ?? .system
+        }
+        set {
+            UserDefaults.standard.set(newValue.rawValue, forKey: Key.appearanceMode)
+        }
+    }
 
     static var autoLockTimeout: AutoLockTimeout {
         get {

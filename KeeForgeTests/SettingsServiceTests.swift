@@ -8,6 +8,7 @@ final class SettingsServiceTests: XCTestCase {
     private let autoUnlockWithFaceIDKey = "KeeForge.autoUnlockWithFaceID"
     private let showDatabaseUsageStatsKey = "KeeForge.showDatabaseUsageStats"
     private let quickAutoFillEnabledKey = "KeeForge.quickAutoFillEnabled"
+    private let appearanceModeKey = "KeeForge.appearanceMode"
 
     private var sharedDefaults: UserDefaults {
         UserDefaults(suiteName: SharedVaultStore.appGroupID) ?? .standard
@@ -19,6 +20,7 @@ final class SettingsServiceTests: XCTestCase {
         UserDefaults.standard.removeObject(forKey: clipboardKey)
         UserDefaults.standard.removeObject(forKey: autoUnlockWithFaceIDKey)
         UserDefaults.standard.removeObject(forKey: showDatabaseUsageStatsKey)
+        UserDefaults.standard.removeObject(forKey: appearanceModeKey)
         sharedDefaults.removeObject(forKey: autoUnlockWithFaceIDKey)
         sharedDefaults.removeObject(forKey: quickAutoFillEnabledKey)
         super.tearDown()
@@ -49,6 +51,11 @@ final class SettingsServiceTests: XCTestCase {
     func testShowDatabaseUsageStatsDefaultsToOn() {
         UserDefaults.standard.removeObject(forKey: showDatabaseUsageStatsKey)
         XCTAssertTrue(SettingsService.showDatabaseUsageStats)
+    }
+
+    func testAppearanceModeDefaultsToSystem() {
+        UserDefaults.standard.removeObject(forKey: appearanceModeKey)
+        XCTAssertEqual(SettingsService.appearanceMode, .system)
     }
 
     // MARK: - Round-trip persistence
@@ -91,6 +98,13 @@ final class SettingsServiceTests: XCTestCase {
         XCTAssertFalse(SettingsService.showDatabaseUsageStats)
     }
 
+    func testAppearanceModePersists() {
+        for value in SettingsService.AppearanceMode.allCases {
+            SettingsService.appearanceMode = value
+            XCTAssertEqual(SettingsService.appearanceMode, value, "Failed for \(value.rawValue)")
+        }
+    }
+
     // MARK: - Seconds values
 
     func testAutoLockTimeoutSeconds() {
@@ -117,6 +131,11 @@ final class SettingsServiceTests: XCTestCase {
     func testClipboardTimeoutFallsBackOnInvalidValue() {
         UserDefaults.standard.set("bogus", forKey: clipboardKey)
         XCTAssertEqual(SettingsService.clipboardTimeout, .thirtySeconds)
+    }
+
+    func testAppearanceModeFallsBackOnInvalidValue() {
+        UserDefaults.standard.set("bogus", forKey: appearanceModeKey)
+        XCTAssertEqual(SettingsService.appearanceMode, .system)
     }
 
     // MARK: - Quick AutoFill
