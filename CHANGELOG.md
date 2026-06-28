@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## v1.9.3 (2026-06-28)
+
 ### New Features
 - Add a reveal toggle to the unlock master-password field.
 - Add a Display setting for choosing System Default, Light, or Dark app appearance.
