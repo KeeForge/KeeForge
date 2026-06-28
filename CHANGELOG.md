@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+### Tests
+- Cover recycle-bin permanent deletes in the KDBX compatibility matrix instead of live-object hard-delete scenarios that the app does not expose.
+
 ## v1.9.3 (2026-06-28)
 
 ### New Features

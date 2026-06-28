@@ -197,9 +197,9 @@ enum KDBXCompatibilitySupport {
             updateEntryScenario(),
             createGroupScenario(),
             softDeleteEntryScenario(),
-            hardDeleteEntryScenario(),
             softDeleteGroupScenario(),
-            hardDeleteGroupScenario(),
+            hardDeleteRecycledEntryScenario(),
+            hardDeleteRecycledGroupScenario(),
         ]
     }
 
@@ -593,25 +593,28 @@ private extension KDBXCompatibilitySupport {
         )
     }
 
-    static func hardDeleteEntryScenario() -> Scenario {
+    static func hardDeleteRecycledEntryScenario() -> Scenario {
         Scenario(
-            id: "hard-delete-entry",
-            title: "Hard delete entry creates tombstone",
-            artifactFileName: "synthetic-rich-hard-delete-entry.kdbx",
+            id: "hard-delete-recycled-entry",
+            title: "Hard delete entry from recycle bin creates tombstone",
+            artifactFileName: "synthetic-rich-hard-delete-recycled-entry.kdbx",
             expectedSearchTerms: ["Compat Untouched Entry"],
-            expectedGroupPaths: [],
+            expectedGroupPaths: ["Recycle Bin"],
             makeEdit: { loaded in
-                let entry = try XCTUnwrap(findEntry(titled: "Compat Hard Delete Target", in: loaded.rootGroup))
+                let entry = try XCTUnwrap(findEntry(titled: "Compat Recycled Entry", in: loaded.rootGroup))
                 return .deleteEntry(entryID: entry.id, sendToRecycleBin: false)
             },
             assertChange: { before, after, _ in
-                let entryID = try XCTUnwrap(before.entryID(titled: "Compat Hard Delete Target"))
+                let entryID = try XCTUnwrap(before.entryID(titled: "Compat Recycled Entry"))
                 try assertUnchangedEntries(before: before, after: after, excluding: [entryID])
                 try assertSurvivingGroupsPreserveScalars(before: before, after: after)
                 XCTAssertNil(after.entries[entryID])
                 XCTAssertEqual(after.entries.count, before.entries.count - 1)
                 XCTAssertEqual(after.meta.recycleBinUUID, before.meta.recycleBinUUID)
                 XCTAssertTrue(after.meta.deletedObjects.contains { $0.uuid == entryID })
+                let recycleBinID = try XCTUnwrap(before.meta.recycleBinUUID)
+                let recycleBin = try XCTUnwrap(after.groups[recycleBinID])
+                XCTAssertFalse(recycleBin.entryIDs.contains(entryID))
             }
         )
     }
@@ -640,21 +643,21 @@ private extension KDBXCompatibilitySupport {
         )
     }
 
-    static func hardDeleteGroupScenario() -> Scenario {
+    static func hardDeleteRecycledGroupScenario() -> Scenario {
         Scenario(
-            id: "hard-delete-group",
-            title: "Hard delete group subtree creates tombstones",
-            artifactFileName: "synthetic-rich-hard-delete-group.kdbx",
+            id: "hard-delete-recycled-group",
+            title: "Hard delete group from recycle bin creates subtree tombstones",
+            artifactFileName: "synthetic-rich-hard-delete-recycled-group.kdbx",
             expectedSearchTerms: ["Compat Untouched Entry"],
-            expectedGroupPaths: [],
+            expectedGroupPaths: ["Recycle Bin"],
             makeEdit: { loaded in
-                let group = try XCTUnwrap(findGroup(named: "Compat Group Delete Target", in: loaded.rootGroup))
+                let group = try XCTUnwrap(findGroup(named: "Compat Recycled Group Delete Target", in: loaded.rootGroup))
                 return .deleteGroup(groupID: group.id, sendToRecycleBin: false)
             },
             assertChange: { before, after, _ in
-                let groupID = try XCTUnwrap(before.groupID(named: "Compat Group Delete Target"))
-                let childGroupID = try XCTUnwrap(before.groupID(named: "Compat Nested Child Group"))
-                let nestedEntryID = try XCTUnwrap(before.entryID(titled: "Compat Nested Entry"))
+                let groupID = try XCTUnwrap(before.groupID(named: "Compat Recycled Group Delete Target"))
+                let childGroupID = try XCTUnwrap(before.groupID(named: "Compat Recycled Nested Child Group"))
+                let nestedEntryID = try XCTUnwrap(before.entryID(titled: "Compat Recycled Nested Entry"))
                 let deletedIDs: Set<UUID> = [groupID, childGroupID, nestedEntryID]
                 try assertUnchangedEntries(before: before, after: after, excluding: [nestedEntryID])
                 try assertSurvivingGroupsPreserveScalars(before: before, after: after, excluding: [groupID, childGroupID])
@@ -662,6 +665,9 @@ private extension KDBXCompatibilitySupport {
                 XCTAssertNil(after.groups[childGroupID])
                 XCTAssertNil(after.entries[nestedEntryID])
                 XCTAssertTrue(deletedIDs.isSubset(of: Set(after.meta.deletedObjects.map(\.uuid))))
+                let recycleBinID = try XCTUnwrap(before.meta.recycleBinUUID)
+                let recycleBin = try XCTUnwrap(after.groups[recycleBinID])
+                XCTAssertFalse(recycleBin.groupIDs.contains(groupID))
             }
         )
     }
@@ -710,15 +716,6 @@ private extension KDBXCompatibilitySupport {
             title: "Compat Soft Delete Target",
             username: "soft-user",
             password: try EncryptedValue.encrypt("soft-password", using: sessionKey),
-            creationTime: timestamp,
-            lastModificationTime: timestamp
-        )
-
-        let hardDeleteTarget = KPEntry(
-            id: UUID(uuidString: "AAAAAAAA-BBBB-CCCC-DDDD-000000000103")!,
-            title: "Compat Hard Delete Target",
-            username: "hard-user",
-            password: try EncryptedValue.encrypt("hard-password", using: sessionKey),
             creationTime: timestamp,
             lastModificationTime: timestamp
         )
@@ -777,11 +774,46 @@ private extension KDBXCompatibilitySupport {
             lastModificationTime: timestamp
         )
 
+        let recycledEntry = KPEntry(
+            id: UUID(uuidString: "AAAAAAAA-BBBB-CCCC-DDDD-000000000108")!,
+            title: "Compat Recycled Entry",
+            username: "recycled-user",
+            password: try EncryptedValue.encrypt("recycled-password", using: sessionKey),
+            creationTime: timestamp,
+            lastModificationTime: timestamp
+        )
+
+        let recycledNestedEntry = KPEntry(
+            id: UUID(uuidString: "AAAAAAAA-BBBB-CCCC-DDDD-000000000109")!,
+            title: "Compat Recycled Nested Entry",
+            password: try EncryptedValue.encrypt("recycled-nested-password", using: sessionKey),
+            creationTime: timestamp,
+            lastModificationTime: timestamp
+        )
+
+        let recycledNestedChildGroup = KPGroup(
+            id: UUID(uuidString: "AAAAAAAA-BBBB-CCCC-DDDD-000000000304")!,
+            name: "Compat Recycled Nested Child Group",
+            entries: [recycledNestedEntry],
+            creationTime: timestamp,
+            lastModificationTime: timestamp
+        )
+
+        let recycledDeleteTargetGroup = KPGroup(
+            id: UUID(uuidString: "AAAAAAAA-BBBB-CCCC-DDDD-000000000303")!,
+            name: "Compat Recycled Group Delete Target",
+            groups: [recycledNestedChildGroup],
+            creationTime: timestamp,
+            lastModificationTime: timestamp
+        )
+
         let recycleBinGroup = recycleBinID.map {
             KPGroup(
                 id: $0,
                 name: "Recycle Bin",
                 iconID: 43,
+                entries: [recycledEntry],
+                groups: [recycledDeleteTargetGroup],
                 creationTime: timestamp,
                 lastModificationTime: timestamp
             )
@@ -795,7 +827,7 @@ private extension KDBXCompatibilitySupport {
         let visibleRoot = KPGroup(
             id: UUID(uuidString: "AAAAAAAA-BBBB-CCCC-DDDD-000000000201")!,
             name: "Compatibility Root",
-            entries: [updateTarget, softDeleteTarget, hardDeleteTarget, untouchedEntry, emptyTagsEntry, otpEntry],
+            entries: [updateTarget, softDeleteTarget, untouchedEntry, emptyTagsEntry, otpEntry],
             groups: visibleGroups,
             creationTime: timestamp,
             lastModificationTime: timestamp
