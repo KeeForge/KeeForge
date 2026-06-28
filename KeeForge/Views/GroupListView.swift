@@ -10,13 +10,39 @@ struct GroupListView: View {
         }
     }
 
+    struct PendingGroupDeletion: Identifiable {
+        let groupID: UUID
+        let groupName: String
+        let entryCount: Int
+        let nestedGroupCount: Int
+        let sendToRecycleBin: Bool
+
+        var id: String {
+            "\(groupID.uuidString)-\(sendToRecycleBin)"
+        }
+    }
+
+    enum PendingDeletion: Identifiable {
+        case entry(PendingEntryDeletion)
+        case group(PendingGroupDeletion)
+
+        var id: String {
+            switch self {
+            case .entry(let action):
+                "entry-\(action.id)"
+            case .group(let action):
+                "group-\(action.id)"
+            }
+        }
+    }
+
     let groupID: UUID
     @Bindable var viewModel: DatabaseViewModel
     var onSelectEntry: ((KPEntry) -> Void)? = nil
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @State private var showSettings = false
     @State private var activeEditor: EntryEditViewModel?
-    @State private var pendingEntryDeletion: PendingEntryDeletion?
+    @State private var pendingDeletion: PendingDeletion?
     @State private var isShowingNewGroupSheet = false
     @State private var newGroupName = ""
     @State private var groupCreationErrorMessage: String?
@@ -49,10 +75,7 @@ struct GroupListView: View {
                         if !visibleGroups.isEmpty {
                             Section("Groups") {
                                 ForEach(viewModel.sortedGroups(visibleGroups).map(\.id), id: \.self) { subgroupID in
-                                    NavigationLink(value: subgroupID) {
-                                        GroupRow(groupID: subgroupID, viewModel: viewModel)
-                                    }
-                                    .accessibilityIdentifier("group.navlink")
+                                    groupRow(for: subgroupID)
                                 }
                             }
                         }
@@ -181,25 +204,7 @@ struct GroupListView: View {
                             }
                         )
                     }
-                    .alert(item: $pendingEntryDeletion) { action in
-                        Alert(
-                            title: Text(action.sendToRecycleBin ? "Delete Entry?" : "Delete Permanently?"),
-                            message: Text(action.sendToRecycleBin
-                                ? "The entry will be moved to the recycle bin."
-                                : "This entry will be removed immediately and cannot be restored from KeeForge."),
-                            primaryButton: .destructive(Text(action.sendToRecycleBin ? "Delete" : "Delete Permanently")) {
-                                do {
-                                    try viewModel.deleteEntry(action.entryID, sendToRecycleBin: action.sendToRecycleBin)
-                                    Task {
-                                        await viewModel.saveHandlingError()
-                                    }
-                                } catch {
-                                    viewModel.presentSaveError(error)
-                                }
-                            },
-                            secondaryButton: .cancel()
-                        )
-                    }
+                    .alert(item: $pendingDeletion, content: deletionAlert)
                 } else {
                     ContentUnavailableView(
                         "Group Unavailable",
@@ -227,6 +232,30 @@ struct GroupListView: View {
     }
 
     @ViewBuilder
+    private func groupRow(for groupID: UUID) -> some View {
+        NavigationLink(value: groupID) {
+            GroupRow(groupID: groupID, viewModel: viewModel)
+        }
+        .accessibilityIdentifier("group.navlink")
+        .contextMenu {
+            if canDeleteGroup(groupID) {
+                Button(groupDeleteButtonTitle(for: groupID), role: .destructive) {
+                    preparePendingGroupDeletion(groupID)
+                }
+                .accessibilityIdentifier(groupDeleteContextIdentifier(for: groupID))
+            }
+        }
+        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+            if canDeleteGroup(groupID) {
+                Button(groupDeleteButtonTitle(for: groupID), role: .destructive) {
+                    preparePendingGroupDeletion(groupID)
+                }
+                .accessibilityIdentifier("group-row.delete-swipe")
+            }
+        }
+    }
+
+    @ViewBuilder
     private func entryRow(for entry: KPEntry) -> some View {
         Group {
             if let onSelectEntry {
@@ -247,9 +276,11 @@ struct GroupListView: View {
         .contextMenu {
             if viewModel.isReadOnly == false {
                 Button(isRecycleBin ? "Delete Permanently" : "Delete", role: .destructive) {
-                    pendingEntryDeletion = PendingEntryDeletion(
-                        entryID: entry.id,
-                        sendToRecycleBin: !isRecycleBin
+                    pendingDeletion = .entry(
+                        PendingEntryDeletion(
+                            entryID: entry.id,
+                            sendToRecycleBin: !isRecycleBin
+                        )
                     )
                 }
                 .accessibilityIdentifier(
@@ -260,14 +291,95 @@ struct GroupListView: View {
         .swipeActions(edge: .trailing, allowsFullSwipe: false) {
             if viewModel.isReadOnly == false {
                 Button(isRecycleBin ? "Delete Permanently" : "Delete", role: .destructive) {
-                    pendingEntryDeletion = PendingEntryDeletion(
-                        entryID: entry.id,
-                        sendToRecycleBin: !isRecycleBin
+                    pendingDeletion = .entry(
+                        PendingEntryDeletion(
+                            entryID: entry.id,
+                            sendToRecycleBin: !isRecycleBin
+                        )
                     )
                 }
                 .accessibilityIdentifier("entry-row.delete-swipe")
             }
         }
+    }
+
+    private func canDeleteGroup(_ groupID: UUID) -> Bool {
+        viewModel.isReadOnly == false && viewModel.isGroupProtectedFromDeletion(groupID: groupID) == false
+    }
+
+    private func groupDeleteButtonTitle(for groupID: UUID) -> String {
+        viewModel.isGroupInRecycleBin(groupID: groupID) ? "Delete Permanently" : "Delete"
+    }
+
+    private func groupDeleteContextIdentifier(for groupID: UUID) -> String {
+        viewModel.isGroupInRecycleBin(groupID: groupID)
+            ? "group-row.delete-permanent"
+            : "group-row.delete-context"
+    }
+
+    private func preparePendingGroupDeletion(_ groupID: UUID) {
+        guard let summary = viewModel.groupDeletionSummary(forGroupID: groupID) else { return }
+        pendingDeletion = .group(
+            PendingGroupDeletion(
+                groupID: groupID,
+                groupName: summary.name,
+                entryCount: summary.entryCount,
+                nestedGroupCount: summary.nestedGroupCount,
+                sendToRecycleBin: viewModel.isGroupInRecycleBin(groupID: groupID) == false
+            )
+        )
+    }
+
+    private func deletionAlert(for deletion: PendingDeletion) -> Alert {
+        switch deletion {
+        case .entry(let action):
+            Alert(
+                title: Text(action.sendToRecycleBin ? "Delete Entry?" : "Delete Permanently?"),
+                message: Text(action.sendToRecycleBin
+                    ? "The entry will be moved to the recycle bin."
+                    : "This entry will be removed immediately and cannot be restored from KeeForge."),
+                primaryButton: .destructive(Text(action.sendToRecycleBin ? "Delete" : "Delete Permanently")) {
+                    do {
+                        try viewModel.deleteEntry(action.entryID, sendToRecycleBin: action.sendToRecycleBin)
+                        Task {
+                            await viewModel.saveHandlingError()
+                        }
+                    } catch {
+                        viewModel.presentSaveError(error)
+                    }
+                },
+                secondaryButton: .cancel()
+            )
+
+        case .group(let action):
+            Alert(
+                title: Text(action.sendToRecycleBin ? "Delete Group?" : "Delete Permanently?"),
+                message: Text(groupDeletionMessage(for: action)),
+                primaryButton: .destructive(Text(action.sendToRecycleBin ? "Delete" : "Delete Permanently")) {
+                    do {
+                        try viewModel.deleteGroup(action.groupID, sendToRecycleBin: action.sendToRecycleBin)
+                        Task {
+                            await viewModel.saveHandlingError()
+                        }
+                    } catch {
+                        viewModel.presentSaveError(error)
+                    }
+                },
+                secondaryButton: .cancel()
+            )
+        }
+    }
+
+    private func groupDeletionMessage(for action: PendingGroupDeletion) -> String {
+        let contents = "\(countText(action.entryCount, singular: "entry", plural: "entries")) and \(countText(action.nestedGroupCount, singular: "nested group", plural: "nested groups"))"
+        if action.sendToRecycleBin {
+            return "\"\(action.groupName)\" contains \(contents). The group and its contents will be moved to the recycle bin."
+        }
+        return "\"\(action.groupName)\" contains \(contents). The group and its contents will be removed immediately and cannot be restored from KeeForge."
+    }
+
+    private func countText(_ count: Int, singular: String, plural: String) -> String {
+        "\(count) \(count == 1 ? singular : plural)"
     }
 }
 

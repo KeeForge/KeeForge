@@ -254,6 +254,71 @@ final class DatabaseViewModelTests: XCTestCase {
         }
     }
 
+    func testDeleteGroupRefreshesCredentialStoreAndMovesGroupToRecycleBin() async throws {
+        let vm = try makeViewModel()
+        let refreshExpectation = expectation(description: "Credential store refreshed after group recycle")
+        var observedEntries: [[KPEntry]] = []
+
+        CredentialIdentityStoreManager.populateObserver = { entries in
+            observedEntries.append(entries)
+            if observedEntries.count == 2 {
+                refreshExpectation.fulfill()
+            }
+        }
+
+        await vm.unlock(password: fixturePassword)
+
+        let workGroup = try XCTUnwrap(vm.visibleRootGroup?.groups.first(where: { $0.name == "Work" }))
+        let deletedEntryIDs = Set(workGroup.allEntries.map(\.id))
+
+        try vm.deleteGroup(workGroup.id, sendToRecycleBin: true)
+
+        await fulfillment(of: [refreshExpectation], timeout: 30)
+
+        XCTAssertTrue(vm.isGroupInRecycleBin(groupID: workGroup.id))
+        XCTAssertTrue(deletedEntryIDs.isDisjoint(with: Set(observedEntries.last?.map(\.id) ?? [])))
+    }
+
+    func testDeleteGroupSelectionFallsBackToVisibleRoot() async throws {
+        let vm = try makeViewModel()
+        await vm.unlock(password: fixturePassword)
+
+        let socialGroup = try XCTUnwrap(vm.visibleRootGroup?.groups.first(where: { $0.name == "Social" }))
+        let entry = try XCTUnwrap(socialGroup.entries.first)
+
+        vm.selectGroup(socialGroup.id)
+        vm.selectEntry(entry.id)
+
+        try vm.deleteGroup(socialGroup.id, sendToRecycleBin: true)
+
+        XCTAssertEqual(vm.selectedGroupID, vm.visibleRootGroupID)
+        XCTAssertNil(vm.selectedEntryID)
+        XCTAssertTrue(vm.isGroupInRecycleBin(groupID: socialGroup.id))
+    }
+
+    func testGroupDeletionSummaryCountsEntriesAndNestedGroups() async throws {
+        let vm = try makeViewModel()
+        await vm.unlock(password: fixturePassword)
+
+        let rootGroupID = try XCTUnwrap(vm.visibleRootGroupID)
+        try vm.createGroup(named: "Parent Summary", in: rootGroupID)
+        let parent = try XCTUnwrap(vm.visibleRootGroup?.groups.first(where: { $0.name == "Parent Summary" }))
+        try vm.createGroup(named: "Child Summary", in: parent.id)
+        try vm.applyEntryEdit(
+            .createEntry(
+                parentGroupID: parent.id,
+                draft: EntryDraftPayload(title: "Summary Entry", password: "secret")
+            )
+        )
+
+        let summary = try XCTUnwrap(vm.groupDeletionSummary(forGroupID: parent.id))
+
+        XCTAssertEqual(summary.name, "Parent Summary")
+        XCTAssertEqual(summary.entryCount, 1)
+        XCTAssertEqual(summary.nestedGroupCount, 1)
+        XCTAssertFalse(vm.isGroupProtectedFromDeletion(groupID: parent.id))
+    }
+
     func testMoveToRecycleBinRefreshesCredentialStoreAndRemovesEntry() async throws {
         let vm = try makeViewModel()
         let refreshExpectation = expectation(description: "Credential store refreshed after recycle bin move")

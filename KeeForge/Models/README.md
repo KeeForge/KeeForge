@@ -6,7 +6,7 @@ This folder holds the data and logic that the rest of the app depends on. It is 
 
 - `KDBXParser.swift`, `KDBXWriter.swift`, and `KDBXCrypto.swift` implement KDBX 4.x read/write, KDF handling, XML extraction, HMAC checks, payload framing, and decompression guards.
 - `Entry.swift`, `Group.swift`, `EncryptedValue.swift`, and `TOTPGenerator.swift` define the in-memory representation of secrets and time-based codes.
-- `DatabaseDraft.swift` and `EntryEdit.swift` stage in-memory creates, updates, and deletes while preserving recycle-bin behavior, protected fields, and unknown XML for later save.
+- `DatabaseDraft.swift` and `EntryEdit.swift` stage in-memory entry/group creates, updates, and deletes while preserving recycle-bin behavior, protected fields, and unknown XML for later save.
 - Changes here should be small, test-backed, and motivated by a real bug, format update, or security requirement.
 
 ## Other Models Here

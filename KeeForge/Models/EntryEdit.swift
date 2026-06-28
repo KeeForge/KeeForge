@@ -59,4 +59,5 @@ enum EntryEdit: Codable, Sendable, Equatable {
     case createGroup(parentGroupID: UUID, name: String)
     case updateEntry(entryID: UUID, draft: EntryDraftPayload)
     case deleteEntry(entryID: UUID, sendToRecycleBin: Bool)
+    case deleteGroup(groupID: UUID, sendToRecycleBin: Bool)
 }

@@ -148,6 +148,12 @@ class EntryEditUITestCase: KeeForgeUITestCase {
         ).firstMatch
     }
 
+    func group(named name: String) -> XCUIElement {
+        app.descendants(matching: .any).matching(
+            NSPredicate(format: "identifier == 'group.navlink' AND label CONTAINS[c] %@", name)
+        ).firstMatch
+    }
+
     func readOnlyIndicator() -> XCUIElement {
         app.descendants(matching: .any).matching(identifier: "database.read-only-indicator").firstMatch
     }
@@ -371,6 +377,128 @@ final class EntryDeleteSmokeUITests: EntryEditUITestCase {
             revealElement(entry(named: discordEntryTitle)),
             "Discord entry was not moved into the recycle bin"
         )
+    }
+
+    func testDeleteWorkGroupSoftDeleteMovesToRecycleBin() {
+        unlockSuccessfully()
+
+        let workGroup = group(named: workGroupName)
+        XCTAssertTrue(revealElement(workGroup), "Work group was not visible")
+        workGroup.swipeLeft()
+
+        let deleteButton = app.buttons["group-row.delete-swipe"]
+        XCTAssertTrue(deleteButton.waitForExistence(timeout: 5))
+        deleteButton.tap()
+
+        let alert = app.alerts["Delete Group?"]
+        XCTAssertTrue(alert.waitForExistence(timeout: 5))
+        let confirmationText = alert.staticTexts.matching(
+            NSPredicate(
+                format: "label CONTAINS[c] %@ AND label CONTAINS[c] %@ AND label CONTAINS[c] %@",
+                workGroupName,
+                "3 entries",
+                "1 nested group"
+            )
+        ).firstMatch
+        XCTAssertTrue(
+            confirmationText.waitForExistence(timeout: 2),
+            "Group delete confirmation did not include the group name and subtree counts"
+        )
+        alert.buttons["Delete"].tap()
+        waitForAutosaveAttempt()
+
+        XCTAssertFalse(group(named: workGroupName).exists)
+
+        openGroup(named: recycleBinGroupName)
+        XCTAssertTrue(
+            revealElement(group(named: workGroupName)),
+            "Work group was not moved into the recycle bin"
+        )
+    }
+
+    func testContextMenuDeleteEmptyGroupSoftDeleteMovesToRecycleBin() {
+        unlockSuccessfully()
+
+        let emptyGroup = group(named: "Empty")
+        XCTAssertTrue(revealElement(emptyGroup), "Empty group was not visible")
+        emptyGroup.press(forDuration: 1.2)
+
+        let deleteButton = app.buttons["group-row.delete-context"]
+        XCTAssertTrue(deleteButton.waitForExistence(timeout: 5))
+        deleteButton.tap()
+
+        let alert = app.alerts["Delete Group?"]
+        XCTAssertTrue(alert.waitForExistence(timeout: 5))
+        alert.buttons["Delete"].tap()
+        waitForAutosaveAttempt()
+
+        XCTAssertFalse(group(named: "Empty").exists)
+
+        openGroup(named: recycleBinGroupName)
+        XCTAssertTrue(
+            revealElement(group(named: "Empty")),
+            "Empty group was not moved into the recycle bin"
+        )
+    }
+
+    func testDeleteGroupInsideRecycleBinDeletesPermanently() {
+        unlockSuccessfully()
+
+        createRecycleBinByDeletingEmptyGroup()
+
+        openGroup(named: recycleBinGroupName)
+        let recycledEmptyGroup = group(named: "Empty")
+        XCTAssertTrue(revealElement(recycledEmptyGroup), "Recycled Empty group was not visible")
+        recycledEmptyGroup.swipeLeft()
+
+        let deleteButton = app.buttons["group-row.delete-swipe"]
+        XCTAssertTrue(deleteButton.waitForExistence(timeout: 5))
+        deleteButton.tap()
+
+        let alert = app.alerts["Delete Permanently?"]
+        XCTAssertTrue(alert.waitForExistence(timeout: 5))
+        alert.buttons["Delete Permanently"].tap()
+        waitForAutosaveAttempt()
+
+        XCTAssertFalse(group(named: "Empty").exists)
+    }
+
+    func testRecycleBinGroupHasNoDeleteSwipeAction() {
+        unlockSuccessfully()
+
+        createRecycleBinByDeletingEmptyGroup()
+
+        let recycleBinGroup = group(named: recycleBinGroupName)
+        XCTAssertTrue(revealElement(recycleBinGroup), "Recycle Bin group was not visible")
+        recycleBinGroup.swipeLeft()
+        XCTAssertFalse(app.buttons["group-row.delete-swipe"].waitForExistence(timeout: 2))
+    }
+
+    func testRecycleBinGroupHasNoDeleteContextAction() {
+        unlockSuccessfully()
+
+        createRecycleBinByDeletingEmptyGroup()
+
+        let recycleBinGroup = group(named: recycleBinGroupName)
+        XCTAssertTrue(revealElement(recycleBinGroup), "Recycle Bin group was not visible")
+        recycleBinGroup.press(forDuration: 1.2)
+        XCTAssertFalse(app.buttons["group-row.delete-context"].waitForExistence(timeout: 2))
+        XCTAssertFalse(app.buttons["group-row.delete-permanent"].exists)
+    }
+
+    private func createRecycleBinByDeletingEmptyGroup(file: StaticString = #filePath, line: UInt = #line) {
+        let emptyGroup = group(named: "Empty")
+        XCTAssertTrue(revealElement(emptyGroup), "Empty group was not visible", file: file, line: line)
+        emptyGroup.swipeLeft()
+
+        let deleteButton = app.buttons["group-row.delete-swipe"]
+        XCTAssertTrue(deleteButton.waitForExistence(timeout: 5), "Group delete swipe action was not visible", file: file, line: line)
+        deleteButton.tap()
+
+        let alert = app.alerts["Delete Group?"]
+        XCTAssertTrue(alert.waitForExistence(timeout: 5), "Delete group alert was not visible", file: file, line: line)
+        alert.buttons["Delete"].tap()
+        waitForAutosaveAttempt()
     }
 }
 

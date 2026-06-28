@@ -6,6 +6,7 @@ struct DatabaseDraft: Sendable {
         case groupNotFound(UUID)
         case entryNotFound(UUID)
         case duplicateGroupName(parentGroupID: UUID, name: String)
+        case protectedGroup(UUID)
 
         var errorDescription: String? {
             switch self {
@@ -15,6 +16,8 @@ struct DatabaseDraft: Sendable {
                 "Entry not found: \(entryID.uuidString)"
             case .duplicateGroupName(_, let name):
                 "\"\(name)\" already exists in this group."
+            case .protectedGroup:
+                "This group cannot be deleted."
             }
         }
     }
@@ -95,6 +98,8 @@ struct DatabaseDraft: Sendable {
             updatedState = try applyUpdate(entryID: entryID, draft: draft)
         case .deleteEntry(let entryID, let sendToRecycleBin):
             updatedState = try applyDelete(entryID: entryID, sendToRecycleBin: sendToRecycleBin)
+        case .deleteGroup(let groupID, let sendToRecycleBin):
+            updatedState = try applyDeleteGroup(groupID: groupID, sendToRecycleBin: sendToRecycleBin)
         }
 
         updatedState.rootGroup.recycleBinUUID = updatedState.meta.recycleBinUUID
@@ -230,6 +235,71 @@ struct DatabaseDraft: Sendable {
 
             let rootWithRecycleBin = try rebuildGroup(
                 in: rootWithoutEntry,
+                targetPath: recycleBinParentPath[...]
+            ) { group in
+                var updatedGroups = group.groups
+                updatedGroups.append(recycleBinGroup)
+                return copyGroup(group, groups: updatedGroups)
+            }
+
+            let updatedRootGroup = copyGroup(
+                rootWithRecycleBin,
+                recycleBinUUIDOverride: .value(recycleBinID)
+            )
+            var updatedMeta = currentMetaStorage
+            updatedMeta.recycleBinUUID = recycleBinID
+            updatedMeta.hasRecycleBinUUIDElement = true
+            return (updatedRootGroup, updatedMeta)
+        }
+    }
+
+    private func applyDeleteGroup(
+        groupID: UUID,
+        sendToRecycleBin: Bool
+    ) throws -> (rootGroup: KPGroup, meta: KPMeta) {
+        guard isProtectedGroupForDeletion(groupID, in: currentRootGroupStorage, meta: currentMetaStorage) == false else {
+            throw DraftError.protectedGroup(groupID)
+        }
+
+        guard let groupLocation = findGroupLocation(groupID: groupID, in: currentRootGroupStorage) else {
+            throw DraftError.groupNotFound(groupID)
+        }
+
+        let rootWithoutGroup = try rebuildGroup(
+            in: currentRootGroupStorage,
+            targetPath: groupLocation.parentPath[...]
+        ) { parentGroup in
+            var updatedGroups = parentGroup.groups
+            updatedGroups.remove(at: groupLocation.groupIndex)
+            return copyGroup(parentGroup, groups: updatedGroups)
+        }
+
+        guard sendToRecycleBin else {
+            var updatedMeta = currentMetaStorage
+            updatedMeta.deletedObjects.append(
+                contentsOf: deletedObjects(for: groupLocation.group, deletionTime: Date.now)
+            )
+            return (rootWithoutGroup, updatedMeta)
+        }
+
+        switch recycleBinTarget(in: rootWithoutGroup, meta: currentMetaStorage) {
+        case .existing(let recycleBinPath):
+            let updatedRootGroup = try rebuildGroup(in: rootWithoutGroup, targetPath: recycleBinPath[...]) { group in
+                var updatedGroups = group.groups
+                updatedGroups.append(groupLocation.group)
+                return copyGroup(group, groups: updatedGroups)
+            }
+            return (updatedRootGroup, currentMetaStorage)
+
+        case .create(let recycleBinID):
+            let recycleBinGroup = makeRecycleBinGroup(id: recycleBinID, group: groupLocation.group)
+            let recycleBinParent = rootWithoutGroup.groups.first ?? rootWithoutGroup
+            let recycleBinParentPath: [UUID] = recycleBinParent.id == rootWithoutGroup.id
+                ? [rootWithoutGroup.id]
+                : [rootWithoutGroup.id, recycleBinParent.id]
+
+            let rootWithRecycleBin = try rebuildGroup(
+                in: rootWithoutGroup,
                 targetPath: recycleBinParentPath[...]
             ) { group in
                 var updatedGroups = group.groups
@@ -443,6 +513,49 @@ struct DatabaseDraft: Sendable {
         )
     }
 
+    private func makeRecycleBinGroup(id: UUID, group: KPGroup) -> KPGroup {
+        let timestamp = Date.now
+        return KPGroup(
+            id: id,
+            name: "Recycle Bin",
+            iconID: 43,
+            groups: [group],
+            creationTime: timestamp,
+            lastModificationTime: timestamp
+        )
+    }
+
+    private func isProtectedGroupForDeletion(
+        _ groupID: UUID,
+        in rootGroup: KPGroup,
+        meta: KPMeta
+    ) -> Bool {
+        if groupID == rootGroup.id || groupID == visibleRootGroupID(in: rootGroup) {
+            return true
+        }
+
+        guard let recycleBinID = meta.recycleBinUUID ?? rootGroup.recycleBinUUID else {
+            return false
+        }
+
+        if groupID == recycleBinID {
+            return true
+        }
+
+        guard let group = findGroup(withID: groupID, in: rootGroup) else {
+            return false
+        }
+
+        return containsGroup(withID: recycleBinID, in: group)
+    }
+
+    private func visibleRootGroupID(in rootGroup: KPGroup) -> UUID {
+        if rootGroup.entries.isEmpty, rootGroup.groups.count == 1 {
+            return rootGroup.groups[0].id
+        }
+        return rootGroup.id
+    }
+
     private func pathToGroup(withID targetGroupID: UUID, in group: KPGroup) -> [UUID]? {
         if group.id == targetGroupID {
             return [group.id]
@@ -472,6 +585,53 @@ struct DatabaseDraft: Sendable {
         }
 
         return nil
+    }
+
+    private func findGroup(
+        withID groupID: UUID,
+        in group: KPGroup
+    ) -> KPGroup? {
+        if group.id == groupID {
+            return group
+        }
+
+        for childGroup in group.groups {
+            if let match = findGroup(withID: groupID, in: childGroup) {
+                return match
+            }
+        }
+
+        return nil
+    }
+
+    private func findGroupLocation(
+        groupID: UUID,
+        in group: KPGroup
+    ) -> (parentPath: [UUID], groupIndex: Int, group: KPGroup)? {
+        if let groupIndex = group.groups.firstIndex(where: { $0.id == groupID }) {
+            return ([group.id], groupIndex, group.groups[groupIndex])
+        }
+
+        for childGroup in group.groups {
+            if let childLocation = findGroupLocation(groupID: groupID, in: childGroup) {
+                return ([group.id] + childLocation.parentPath, childLocation.groupIndex, childLocation.group)
+            }
+        }
+
+        return nil
+    }
+
+    private func containsGroup(withID groupID: UUID, in group: KPGroup) -> Bool {
+        group.id == groupID || group.groups.contains { containsGroup(withID: groupID, in: $0) }
+    }
+
+    private func deletedObjects(for group: KPGroup, deletionTime: Date) -> [KPDeletedObject] {
+        var objects = [KPDeletedObject(uuid: group.id, deletionTime: deletionTime)]
+        objects.append(contentsOf: group.entries.map { KPDeletedObject(uuid: $0.id, deletionTime: deletionTime) })
+        for childGroup in group.groups {
+            objects.append(contentsOf: deletedObjects(for: childGroup, deletionTime: deletionTime))
+        }
+        return objects
     }
 
     private func rebuildGroup(

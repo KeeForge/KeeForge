@@ -260,6 +260,111 @@ final class DatabaseDraftTests: XCTestCase {
         XCTAssertGreaterThanOrEqual(tombstone.deletionTime, beforeDelete)
     }
 
+    func test_deleteGroup_softDelete_movesSubtreeToRecycleBin() throws {
+        let tree = try makeSyntheticTree(includeRecycleBin: true)
+        let draft = DatabaseDraft(rootGroup: tree.rootGroup, meta: tree.meta, sessionKey: sessionKey)
+        let originalGroup = try XCTUnwrap(findGroup(withID: tree.parentGroupID, in: tree.rootGroup))
+
+        let updatedDraft = try draft.apply(.deleteGroup(groupID: tree.parentGroupID, sendToRecycleBin: true))
+
+        let visibleRoot = try XCTUnwrap(updatedDraft.rootGroup.groups.first)
+        XCTAssertFalse(visibleRoot.groups.contains(where: { $0.id == tree.parentGroupID }))
+
+        let recycleBinGroupID = try XCTUnwrap(tree.recycleBinGroupID)
+        let recycleBinGroup = try XCTUnwrap(findGroup(withID: recycleBinGroupID, in: updatedDraft.rootGroup))
+        let movedGroup = try XCTUnwrap(recycleBinGroup.groups.first(where: { $0.id == tree.parentGroupID }))
+        try assertGroupsEqual(movedGroup, originalGroup)
+    }
+
+    func test_deleteGroup_softDelete_lazilyCreatesRecycleBin() throws {
+        let tree = try makeSyntheticTree(includeRecycleBin: false)
+        let draft = DatabaseDraft(rootGroup: tree.rootGroup, meta: tree.meta, sessionKey: sessionKey)
+
+        let updatedDraft = try draft.apply(.deleteGroup(groupID: tree.parentGroupID, sendToRecycleBin: true))
+
+        let recycleBinGroupID = try XCTUnwrap(updatedDraft.meta.recycleBinUUID)
+        let recycleBinGroup = try XCTUnwrap(findGroup(withID: recycleBinGroupID, in: updatedDraft.rootGroup))
+        XCTAssertEqual(updatedDraft.rootGroup.recycleBinUUID, recycleBinGroupID)
+        XCTAssertTrue(updatedDraft.meta.hasRecycleBinUUIDElement)
+        XCTAssertTrue(recycleBinGroup.groups.contains(where: { $0.id == tree.parentGroupID }))
+
+        let visibleRoot = try XCTUnwrap(updatedDraft.rootGroup.groups.first)
+        XCTAssertFalse(visibleRoot.groups.contains(where: { $0.id == tree.parentGroupID }))
+        XCTAssertTrue(visibleRoot.groups.contains(where: { $0.id == recycleBinGroupID }))
+    }
+
+    func test_deleteGroup_softDelete_preservesDuplicateNamesInRecycleBin() throws {
+        let recycleBinID = UUID()
+        let firstGroupID = UUID()
+        let secondGroupID = UUID()
+        let visibleRoot = KPGroup(
+            name: "Visible Root",
+            groups: [
+                KPGroup(id: firstGroupID, name: "Duplicate"),
+                KPGroup(id: secondGroupID, name: "Duplicate"),
+                KPGroup(id: recycleBinID, name: "Recycle Bin", iconID: 43),
+            ]
+        )
+        let root = KPGroup(name: "Root", groups: [visibleRoot], recycleBinUUID: recycleBinID)
+        let meta = KPMeta(recycleBinUUID: recycleBinID, hasRecycleBinUUIDElement: true)
+        let draft = DatabaseDraft(rootGroup: root, meta: meta, sessionKey: sessionKey)
+
+        let updatedDraft = try draft
+            .apply(.deleteGroup(groupID: firstGroupID, sendToRecycleBin: true))
+            .apply(.deleteGroup(groupID: secondGroupID, sendToRecycleBin: true))
+
+        let recycleBinGroup = try XCTUnwrap(findGroup(withID: recycleBinID, in: updatedDraft.rootGroup))
+        let duplicateGroups = recycleBinGroup.groups.filter { $0.name == "Duplicate" }
+        XCTAssertEqual(duplicateGroups.count, 2)
+        XCTAssertEqual(Set(duplicateGroups.map(\.id)), Set([firstGroupID, secondGroupID]))
+    }
+
+    func test_deleteGroup_hardDelete_removesSubtreeAndCreatesDeletedObjects() throws {
+        let tree = try makeSyntheticTree(includeRecycleBin: true)
+        let draft = DatabaseDraft(rootGroup: tree.rootGroup, meta: tree.meta, sessionKey: sessionKey)
+        let originalParentGroup = try XCTUnwrap(findGroup(withID: tree.parentGroupID, in: tree.rootGroup))
+        let childGroupID = try XCTUnwrap(originalParentGroup.groups.first?.id)
+        let beforeDelete = Date.now
+
+        let updatedDraft = try draft.apply(.deleteGroup(groupID: tree.parentGroupID, sendToRecycleBin: false))
+
+        XCTAssertNil(findGroup(withID: tree.parentGroupID, in: updatedDraft.rootGroup))
+        XCTAssertNil(findGroup(withID: childGroupID, in: updatedDraft.rootGroup))
+        XCTAssertFalse(updatedDraft.rootGroup.allEntries.contains(where: { $0.id == tree.parentEntry.id }))
+
+        let tombstoneIDs = Set(updatedDraft.meta.deletedObjects.map(\.uuid))
+        XCTAssertTrue(tombstoneIDs.isSuperset(of: [tree.parentGroupID, childGroupID, tree.parentEntry.id]))
+        for tombstone in updatedDraft.meta.deletedObjects where [tree.parentGroupID, childGroupID, tree.parentEntry.id].contains(tombstone.uuid) {
+            XCTAssertGreaterThanOrEqual(tombstone.deletionTime, beforeDelete)
+        }
+    }
+
+    func test_deleteGroup_protectedAndMissingGroupsThrowWithoutMutatingDraft() throws {
+        let tree = try makeSyntheticTree(includeRecycleBin: true)
+        let draft = DatabaseDraft(rootGroup: tree.rootGroup, meta: tree.meta, sessionKey: sessionKey)
+        let originalRootGroup = draft.rootGroup
+        let visibleRootID = try XCTUnwrap(tree.rootGroup.groups.first?.id)
+        let recycleBinGroupID = try XCTUnwrap(tree.recycleBinGroupID)
+        let missingGroupID = UUID()
+
+        for protectedGroupID in [tree.rootGroup.id, visibleRootID, recycleBinGroupID] {
+            XCTAssertThrowsError(
+                try draft.apply(.deleteGroup(groupID: protectedGroupID, sendToRecycleBin: true))
+            ) { error in
+                XCTAssertEqual(error as? DatabaseDraft.DraftError, .protectedGroup(protectedGroupID))
+            }
+        }
+
+        XCTAssertThrowsError(
+            try draft.apply(.deleteGroup(groupID: missingGroupID, sendToRecycleBin: true))
+        ) { error in
+            XCTAssertEqual(error as? DatabaseDraft.DraftError, .groupNotFound(missingGroupID))
+        }
+
+        XCTAssertFalse(draft.isDirty)
+        try assertGroupsEqual(draft.rootGroup, originalRootGroup)
+    }
+
     func test_pendingEdits_recordsEveryAppliedOp_inOrder() throws {
         let tree = try makeSyntheticTree(includeRecycleBin: false)
         let draft = DatabaseDraft(rootGroup: tree.rootGroup, meta: tree.meta, sessionKey: sessionKey)
@@ -321,6 +426,7 @@ final class DatabaseDraftTests: XCTestCase {
         let createParentID = try XCTUnwrap(UUID(uuidString: "AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE"))
         let updateEntryID = try XCTUnwrap(UUID(uuidString: "11111111-2222-3333-4444-555555555555"))
         let deleteEntryID = try XCTUnwrap(UUID(uuidString: "99999999-8888-7777-6666-555555555555"))
+        let deleteGroupID = try XCTUnwrap(UUID(uuidString: "12345678-1234-5678-1234-567812345678"))
         let payload = EntryDraftPayload(
             title: "Codable",
             username: "user",
@@ -337,6 +443,7 @@ final class DatabaseDraftTests: XCTestCase {
             .createGroup(parentGroupID: createParentID, name: "New Group"),
             .updateEntry(entryID: updateEntryID, draft: payload),
             .deleteEntry(entryID: deleteEntryID, sendToRecycleBin: true),
+            .deleteGroup(groupID: deleteGroupID, sendToRecycleBin: false),
         ]
 
         let encoder = JSONEncoder()

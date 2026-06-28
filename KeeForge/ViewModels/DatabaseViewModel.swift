@@ -108,6 +108,12 @@ final class DatabaseViewModel {
         }
     }
 
+    struct GroupDeletionSummary: Equatable, Sendable {
+        let name: String
+        let entryCount: Int
+        let nestedGroupCount: Int
+    }
+
     enum State: Sendable, Equatable {
         case locked
         case unlocking
@@ -237,6 +243,7 @@ final class DatabaseViewModel {
     private var searchableEntries: [KPEntry] = []
     private var searchableEntryText: [UUID: String] = [:]
     private var recycleBinEntryIDs: Set<UUID> = []
+    private var recycleBinGroupIDs: Set<UUID> = []
     private var lastSharedCacheRefreshFingerprint: SharedCacheRefreshFingerprint?
     private var isRefreshingSharedCache = false
     private var lastSharedCacheRefreshAt: Date?
@@ -539,6 +546,43 @@ final class DatabaseViewModel {
         recycleBinEntryIDs.contains(entryID)
     }
 
+    func isGroupInRecycleBin(groupID: UUID) -> Bool {
+        recycleBinGroupIDs.contains(groupID)
+    }
+
+    func isGroupProtectedFromDeletion(groupID: UUID) -> Bool {
+        guard let root = currentRootGroup else { return true }
+        if groupID == root.id {
+            return true
+        }
+        if let visibleRootGroupID, groupID == visibleRootGroupID {
+            return true
+        }
+
+        guard let recycleBinID = root.recycleBinUUID else {
+            return false
+        }
+
+        if groupID == recycleBinID {
+            return true
+        }
+
+        guard let group = groupIndex[groupID] else {
+            return false
+        }
+
+        return Self.group(group, containsGroupID: recycleBinID)
+    }
+
+    func groupDeletionSummary(forGroupID groupID: UUID) -> GroupDeletionSummary? {
+        guard let group = groupIndex[groupID] else { return nil }
+        return GroupDeletionSummary(
+            name: group.name,
+            entryCount: groupEntryCounts[groupID] ?? group.allEntries.count,
+            nestedGroupCount: Self.nestedGroupCount(in: group)
+        )
+    }
+
     func applyEntryEdit(_ edit: EntryEdit) throws {
         draft = try makeWorkingDraft().apply(edit)
         saveConflict = nil
@@ -548,6 +592,20 @@ final class DatabaseViewModel {
 
     func deleteEntry(_ entryID: UUID, sendToRecycleBin: Bool) throws {
         try applyEntryEdit(.deleteEntry(entryID: entryID, sendToRecycleBin: sendToRecycleBin))
+    }
+
+    func deleteGroup(_ groupID: UUID, sendToRecycleBin: Bool) throws {
+        let affectedGroupIDs = groupIndex[groupID].map(Self.groupIDs(in:)) ?? []
+        let affectedEntryIDs = Set(groupIndex[groupID]?.allEntries.map(\.id) ?? [])
+
+        try applyEntryEdit(.deleteGroup(groupID: groupID, sendToRecycleBin: sendToRecycleBin))
+
+        if let selectedGroupID, affectedGroupIDs.contains(selectedGroupID) {
+            self.selectedGroupID = visibleRootGroupID
+        }
+        if let selectedEntryID, affectedEntryIDs.contains(selectedEntryID) {
+            self.selectedEntryID = nil
+        }
     }
 
     func createGroup(named name: String, in parentGroupID: UUID) throws {
@@ -1078,6 +1136,7 @@ final class DatabaseViewModel {
             searchableEntries = []
             searchableEntryText = [:]
             recycleBinEntryIDs = []
+            recycleBinGroupIDs = []
             searchResults = []
             contentRevision += 1
             selectedGroupID = nil
@@ -1091,11 +1150,15 @@ final class DatabaseViewModel {
         var nextSearchableEntries: [KPEntry] = []
         var nextSearchableEntryText: [UUID: String] = [:]
         var nextRecycleBinEntryIDs = Set<UUID>()
+        var nextRecycleBinGroupIDs = Set<UUID>()
         let recycleBinID = root.recycleBinUUID
 
         @discardableResult
         func index(group: KPGroup, includeInSearch: Bool) -> Int {
             nextGroupIndex[group.id] = group
+            if includeInSearch == false, group.id != recycleBinID {
+                nextRecycleBinGroupIDs.insert(group.id)
+            }
 
             var totalEntryCount = 0
             for entry in group.entries {
@@ -1126,6 +1189,7 @@ final class DatabaseViewModel {
         searchableEntries = nextSearchableEntries
         searchableEntryText = nextSearchableEntryText
         recycleBinEntryIDs = nextRecycleBinEntryIDs
+        recycleBinGroupIDs = nextRecycleBinGroupIDs
         contentRevision += 1
         synchronizeSelections()
         updateSearchResults()
@@ -1159,6 +1223,22 @@ final class DatabaseViewModel {
 
         if let selectedEntryID, entryIndex[selectedEntryID] == nil {
             self.selectedEntryID = nil
+        }
+    }
+
+    private static func nestedGroupCount(in group: KPGroup) -> Int {
+        group.groups.reduce(0) { count, childGroup in
+            count + 1 + nestedGroupCount(in: childGroup)
+        }
+    }
+
+    private static func group(_ group: KPGroup, containsGroupID groupID: UUID) -> Bool {
+        group.id == groupID || group.groups.contains { Self.group($0, containsGroupID: groupID) }
+    }
+
+    private static func groupIDs(in group: KPGroup) -> Set<UUID> {
+        group.groups.reduce(into: [group.id]) { ids, childGroup in
+            ids.formUnion(groupIDs(in: childGroup))
         }
     }
 
