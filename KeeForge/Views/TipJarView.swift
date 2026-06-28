@@ -16,27 +16,10 @@ struct TipJarView: View {
                 Text("Tip Jar is not available right now.")
                     .foregroundStyle(.secondary)
                     .font(.callout)
+            } else if store.hasTipped {
+                thankedSupporterContent
             } else {
-                ForEach(store.tips, id: \.id) { product in
-                    Button {
-                        Task { await store.purchase(product) }
-                    } label: {
-                        HStack {
-                            VStack(alignment: .leading) {
-                                Text(product.displayName)
-                                    .foregroundStyle(.primary)
-                                Text(product.description)
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                            }
-                            Spacer()
-                            Text(product.displayPrice)
-                                .font(.callout.bold())
-                                .foregroundStyle(.blue)
-                        }
-                    }
-                    .disabled(store.isPurchasing)
-                }
+                tipButtons
             }
         } header: {
             Text("Tip Jar")
@@ -45,6 +28,7 @@ struct TipJarView: View {
         }
         .task {
             await store.loadProducts()
+            await store.refreshTipHistory()
             loadingDone = true
         }
         .onChange(of: store.purchaseResult) { _, result in
@@ -56,6 +40,55 @@ struct TipJarView: View {
             Button("OK", role: .cancel) {}
         } message: {
             Text("Your support means the world. Thank you for helping keep KeeForge alive!")
+        }
+    }
+
+    @ViewBuilder
+    private var thankedSupporterContent: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Label("Thank you for tipping!", systemImage: "heart.fill")
+                .foregroundStyle(.primary)
+            Text("Your support helps keep KeeForge free and open source.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+        .accessibilityIdentifier("tip-jar.thank-you")
+
+        Menu {
+            ForEach(store.tips, id: \.id) { product in
+                Button {
+                    Task { await store.purchase(product) }
+                } label: {
+                    Text("\(product.displayName) - \(product.displayPrice)")
+                }
+            }
+        } label: {
+            Label("Tip again", systemImage: "heart")
+        }
+        .disabled(store.isPurchasing)
+        .accessibilityIdentifier("tip-jar.tip-again.menu")
+    }
+
+    private var tipButtons: some View {
+        ForEach(store.tips, id: \.id) { product in
+            Button {
+                Task { await store.purchase(product) }
+            } label: {
+                HStack {
+                    VStack(alignment: .leading) {
+                        Text(product.displayName)
+                            .foregroundStyle(.primary)
+                        Text(product.description)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                    Text(product.displayPrice)
+                        .font(.callout.bold())
+                        .foregroundStyle(.blue)
+                }
+            }
+            .disabled(store.isPurchasing)
         }
     }
 }

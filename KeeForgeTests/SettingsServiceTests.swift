@@ -9,6 +9,7 @@ final class SettingsServiceTests: XCTestCase {
     private let showDatabaseUsageStatsKey = "KeeForge.showDatabaseUsageStats"
     private let quickAutoFillEnabledKey = "KeeForge.quickAutoFillEnabled"
     private let appearanceModeKey = "KeeForge.appearanceMode"
+    private let hasTippedKey = "KeeForge.hasTipped"
 
     private var sharedDefaults: UserDefaults {
         UserDefaults(suiteName: SharedVaultStore.appGroupID) ?? .standard
@@ -21,6 +22,7 @@ final class SettingsServiceTests: XCTestCase {
         UserDefaults.standard.removeObject(forKey: autoUnlockWithFaceIDKey)
         UserDefaults.standard.removeObject(forKey: showDatabaseUsageStatsKey)
         UserDefaults.standard.removeObject(forKey: appearanceModeKey)
+        UserDefaults.standard.removeObject(forKey: hasTippedKey)
         sharedDefaults.removeObject(forKey: autoUnlockWithFaceIDKey)
         sharedDefaults.removeObject(forKey: quickAutoFillEnabledKey)
         super.tearDown()
@@ -56,6 +58,11 @@ final class SettingsServiceTests: XCTestCase {
     func testAppearanceModeDefaultsToSystem() {
         UserDefaults.standard.removeObject(forKey: appearanceModeKey)
         XCTAssertEqual(SettingsService.appearanceMode, .system)
+    }
+
+    func testHasTippedDefaultsToFalse() {
+        UserDefaults.standard.removeObject(forKey: hasTippedKey)
+        XCTAssertFalse(SettingsService.hasTipped)
     }
 
     // MARK: - Round-trip persistence
@@ -103,6 +110,14 @@ final class SettingsServiceTests: XCTestCase {
             SettingsService.appearanceMode = value
             XCTAssertEqual(SettingsService.appearanceMode, value, "Failed for \(value.rawValue)")
         }
+    }
+
+    func testHasTippedPersists() {
+        SettingsService.hasTipped = true
+        XCTAssertTrue(SettingsService.hasTipped)
+
+        SettingsService.hasTipped = false
+        XCTAssertFalse(SettingsService.hasTipped)
     }
 
     // MARK: - Seconds values

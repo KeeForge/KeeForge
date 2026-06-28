@@ -12,6 +12,7 @@ enum SettingsService {
         static let showDatabaseUsageStats = "KeeForge.showDatabaseUsageStats"
         static let quickAutoFillEnabled = "KeeForge.quickAutoFillEnabled"
         static let appearanceMode = "KeeForge.appearanceMode"
+        static let hasTipped = "KeeForge.hasTipped"
     }
 
     static let appearanceModeDefaultsKey = Key.appearanceMode
@@ -165,6 +166,15 @@ enum SettingsService {
         }
         set {
             sharedDefaults.set(newValue, forKey: Key.quickAutoFillEnabled)
+        }
+    }
+
+    static var hasTipped: Bool {
+        get {
+            UserDefaults.standard.bool(forKey: Key.hasTipped)
+        }
+        set {
+            UserDefaults.standard.set(newValue, forKey: Key.hasTipped)
         }
     }
 }

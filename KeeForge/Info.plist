@@ -84,6 +84,8 @@
 	<true/>
 	<key>NSFaceIDUsageDescription</key>
 	<string>KeeForge uses Face ID to quickly unlock your password database.</string>
+	<key>SKIncludeConsumableInAppPurchaseHistory</key>
+	<true/>
 	<key>UTImportedTypeDeclarations</key>
 	<array>
 		<dict>
