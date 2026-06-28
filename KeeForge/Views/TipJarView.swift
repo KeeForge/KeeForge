@@ -46,8 +46,12 @@ struct TipJarView: View {
     @ViewBuilder
     private var thankedSupporterContent: some View {
         VStack(alignment: .leading, spacing: 4) {
-            Label("Thank you for tipping!", systemImage: "heart.fill")
-                .foregroundStyle(.primary)
+            HStack(spacing: 8) {
+                Image(systemName: "heart.fill")
+                    .foregroundStyle(.red)
+                Text("Thank you for tipping!")
+                    .foregroundStyle(.primary)
+            }
             Text("Your support helps keep KeeForge free and open source.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
