@@ -27,7 +27,24 @@ class EntryEditUITestCase: KeeForgeUITestCase {
     func openAddMenu(file: StaticString = #filePath, line: UInt = #line) {
         let addButton = app.buttons["entry-list.add-entry"]
         XCTAssertTrue(addButton.waitForExistence(timeout: 5), "Add menu button was not visible", file: file, line: line)
-        addButton.tap()
+
+        // Right after a create/save the workspace is briefly disabled behind the
+        // saving overlay, so the first tap can be swallowed. Retry until the menu
+        // items actually appear.
+        let newEntryItem = app.buttons["New Entry"]
+        let newGroupItem = app.buttons["New Group"]
+        for _ in 0..<4 {
+            addButton.tap()
+            if newEntryItem.waitForExistence(timeout: 2) || newGroupItem.exists {
+                return
+            }
+        }
+        XCTAssertTrue(
+            newEntryItem.waitForExistence(timeout: 2) || newGroupItem.exists,
+            "Add menu did not open",
+            file: file,
+            line: line
+        )
     }
 
     func tapAddEntry(file: StaticString = #filePath, line: UInt = #line) {
@@ -127,6 +144,44 @@ class EntryEditUITestCase: KeeForgeUITestCase {
         let group = firstRowMatching(name: name, preferredIdentifier: "group.navlink")
         XCTAssertTrue(revealElement(group), "Group '\(name)' was not visible", file: file, line: line)
         tapElement(group)
+
+        // A freshly rebuilt list — e.g. immediately after `reloadDiscardingDraft`
+        // resets the navigation stack — can swallow the first tap. Confirm we
+        // actually pushed into the group (its title becomes the nav bar) and
+        // retry once if the tap did not register.
+        if app.navigationBars[name].waitForExistence(timeout: 5) == false {
+            let retry = firstRowMatching(name: name, preferredIdentifier: "group.navlink")
+            if revealElement(retry) {
+                tapElement(retry)
+            }
+        }
+    }
+
+    /// Swipes a row open and waits for its trailing delete action, retrying the
+    /// swipe because a single `swipeLeft()` occasionally fails to reveal the
+    /// action under load.
+    @discardableResult
+    func revealSwipeDeleteButton(
+        on row: XCUIElement,
+        identifier: String,
+        attempts: Int = 4,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) -> XCUIElement {
+        let deleteButton = app.buttons[identifier]
+        for _ in 0..<attempts {
+            row.swipeLeft()
+            if deleteButton.waitForExistence(timeout: 2) {
+                return deleteButton
+            }
+        }
+        XCTAssertTrue(
+            deleteButton.waitForExistence(timeout: 2),
+            "Swipe delete action '\(identifier)' was not visible",
+            file: file,
+            line: line
+        )
+        return deleteButton
     }
 
     func openEntry(named name: String, file: StaticString = #filePath, line: UInt = #line) {
@@ -449,10 +504,8 @@ final class EntryDeleteSmokeUITests: EntryEditUITestCase {
         openGroup(named: recycleBinGroupName)
         let recycledEmptyGroup = group(named: "Empty")
         XCTAssertTrue(revealElement(recycledEmptyGroup), "Recycled Empty group was not visible")
-        recycledEmptyGroup.swipeLeft()
 
-        let deleteButton = app.buttons["group-row.delete-swipe"]
-        XCTAssertTrue(deleteButton.waitForExistence(timeout: 5))
+        let deleteButton = revealSwipeDeleteButton(on: recycledEmptyGroup, identifier: "group-row.delete-swipe")
         deleteButton.tap()
 
         let alert = app.alerts["Delete Permanently?"]
@@ -489,10 +542,13 @@ final class EntryDeleteSmokeUITests: EntryEditUITestCase {
     private func createRecycleBinByDeletingEmptyGroup(file: StaticString = #filePath, line: UInt = #line) {
         let emptyGroup = group(named: "Empty")
         XCTAssertTrue(revealElement(emptyGroup), "Empty group was not visible", file: file, line: line)
-        emptyGroup.swipeLeft()
 
-        let deleteButton = app.buttons["group-row.delete-swipe"]
-        XCTAssertTrue(deleteButton.waitForExistence(timeout: 5), "Group delete swipe action was not visible", file: file, line: line)
+        let deleteButton = revealSwipeDeleteButton(
+            on: emptyGroup,
+            identifier: "group-row.delete-swipe",
+            file: file,
+            line: line
+        )
         deleteButton.tap()
 
         let alert = app.alerts["Delete Group?"]
