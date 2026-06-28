@@ -12,6 +12,7 @@ struct UnlockView: View {
     @State private var keyFileName: String?
     @State private var feedbackContext: FeedbackComposerContext?
     @State private var copiedErrorDetails = false
+    @State private var isPasswordVisible = false
     @FocusState private var passwordFocused: Bool
 
     var body: some View {
@@ -125,22 +126,41 @@ struct UnlockView: View {
                     .font(.subheadline.weight(.medium))
                     .foregroundStyle(.secondary)
 
-                SecureField("Enter password", text: $password)
+                HStack(spacing: 12) {
+                    Group {
+                        if isPasswordVisible {
+                            TextField("Enter password", text: $password)
+                        } else {
+                            SecureField("Enter password", text: $password)
+                        }
+                    }
                     .passwordInputStyle()
                     .focused($passwordFocused)
                     .submitLabel(.go)
                     .onSubmit(unlockWithPassword)
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 15)
-                    .background(
-                        RoundedRectangle(cornerRadius: 18, style: .continuous)
-                            .fill(Color(.secondarySystemBackground))
-                    )
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 18, style: .continuous)
-                            .strokeBorder(Color.primary.opacity(0.08), lineWidth: 1)
-                    )
                     .accessibilityIdentifier("unlock.password.field")
+
+                    Button {
+                        isPasswordVisible.toggle()
+                        passwordFocused = true
+                    } label: {
+                        Image(systemName: isPasswordVisible ? "eye.slash.fill" : "eye.fill")
+                            .frame(width: 30, height: 30)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(isPasswordVisible ? "Hide master password" : "Show master password")
+                    .accessibilityIdentifier("unlock.password-visibility-button")
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 15)
+                .background(
+                    RoundedRectangle(cornerRadius: 18, style: .continuous)
+                        .fill(Color(.secondarySystemBackground))
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 18, style: .continuous)
+                        .strokeBorder(Color.primary.opacity(0.08), lineWidth: 1)
+                )
             }
 
             keyFileRow

@@ -44,6 +44,28 @@ final class LockUnlockUITests: KeeForgeUITestCase {
         waitForVaultToUnlock(timeout: 30)
     }
 
+    func testUnlockPasswordVisibilityToggleShowsTypedPassword() {
+        openFirstDatabaseFromListIfNeeded()
+
+        let passwordField = app.secureTextFields["unlock.password.field"]
+        XCTAssertTrue(passwordField.waitForExistence(timeout: 10), "Password field did not appear")
+        replaceText(in: passwordField, with: "testpassword123")
+
+        let visibilityButton = app.buttons["unlock.password-visibility-button"]
+        XCTAssertTrue(visibilityButton.waitForExistence(timeout: 5), "Password visibility button did not appear")
+        visibilityButton.tap()
+
+        let visiblePasswordField = app.textFields["unlock.password.field"]
+        XCTAssertTrue(visiblePasswordField.waitForExistence(timeout: 5), "Visible password field did not appear")
+        XCTAssertEqual(visiblePasswordField.value as? String, "testpassword123")
+
+        visibilityButton.tap()
+        XCTAssertTrue(
+            app.secureTextFields["unlock.password.field"].waitForExistence(timeout: 5),
+            "Password field should become secure again after hiding"
+        )
+    }
+
     private func waitForCurrentLockoutIfNeeded() {
         let errorLabel = app.staticTexts["unlock.error.label"]
         guard errorLabel.waitForExistence(timeout: 15) else { return }

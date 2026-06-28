@@ -3,6 +3,7 @@
 ## Unreleased
 
 ### New Features
+- Add a reveal toggle to the unlock master-password field.
 - Add a Display setting for choosing System Default, Light, or Dark app appearance.
 - Add group deletion from open databases, including recycle-bin moves and permanent deletion from inside the recycle bin.
 - Show a thank-you tip jar state for returning supporters and move repeat tips into a compact menu.
