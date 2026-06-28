@@ -369,6 +369,21 @@ final class KDBXParserTests: XCTestCase {
         }
     }
 
+    func testChaChaDecryptFailureIsNormalized() throws {
+        XCTAssertThrowsError(
+            try KDBXCrypto.decryptChaCha20Poly1305(
+                data: Data(repeating: 0x01, count: 32),
+                key: Data(repeating: 0x02, count: 32),
+                nonce: Data(repeating: 0x03, count: 12)
+            )
+        ) { error in
+            guard case KDBXCrypto.CryptoError.decryptionFailed = error else {
+                XCTFail("Expected normalized ChaCha decrypt failure, got \(error)")
+                return
+            }
+        }
+    }
+
     func testKDBX31CorruptedHashedBlockFails() throws {
         let corrupted = try makeLegacyFixtureWithCorruptedHashedBlock()
 

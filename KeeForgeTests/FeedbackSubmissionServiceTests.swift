@@ -13,7 +13,14 @@ final class FeedbackSubmissionServiceTests: XCTestCase {
                     errorCode: "file.not_found",
                     category: .fileAccess,
                     countsTowardFailedAttempts: false,
-                    canChooseDifferentFile: true
+                    canChooseDifferentFile: true,
+                    diagnostics: DatabaseOpenDiagnostics(
+                        lines: [
+                            "Unlock Method: password",
+                            "Encrypted File SHA-256 Prefix: abcdef1234567890",
+                            "Device Model: iPhone16,2",
+                        ]
+                    )
                 )
             )
         )
@@ -22,6 +29,10 @@ final class FeedbackSubmissionServiceTests: XCTestCase {
         XCTAssertTrue(payload.details.contains("Category: file_access"))
         XCTAssertTrue(payload.details.contains("Code: file.not_found"))
         XCTAssertTrue(payload.details.contains("Technical Details:"))
+        XCTAssertTrue(payload.details.contains("Diagnostics:"))
+        XCTAssertTrue(payload.details.contains("Device Model: iPhone16,2"))
+        XCTAssertTrue(payload.details.contains("Encrypted File SHA-256 Prefix: abcdef1234567890"))
+        XCTAssertFalse(payload.details.contains("abcdef1234567890abcdef1234567890"))
     }
 
     func testMakePayloadRequiresMessage() {

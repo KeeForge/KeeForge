@@ -443,16 +443,31 @@ final class DatabaseViewModel {
     }
 
     func unlock(password: String, keyFileData: Data? = nil) async {
+        let failedAttemptsBeforeAttempt = failedAttempts
         if let until = lockoutUntil, Date.now < until {
             let seconds = Int(ceil(until.timeIntervalSinceNow))
-            state = .error(lockoutFailure(seconds: seconds))
+            let diagnostics = makeUnlockDiagnostics(
+                unlockMethod: .password,
+                passwordSupplied: password.isEmpty == false,
+                keyFileSupplied: keyFileData != nil,
+                failedAttemptsBeforeAttempt: failedAttemptsBeforeAttempt,
+                encryptedData: nil,
+                cloudSyncStatus: nil
+            )
+            state = .error(lockoutFailure(seconds: seconds, diagnostics: diagnostics))
             return
         }
 
         prepareForUnlock()
 
+        var encryptedData: Data?
+        var cloudSyncStatus: CloudSyncResolution.Status?
+
         do {
-            let (_, data) = try await readDatabaseData()
+            let readResult = try await readDatabaseData()
+            let data = readResult.data
+            encryptedData = data
+            cloudSyncStatus = readResult.cloudSyncStatus
             try cacheDatabaseCopy(data)
 
             let compositeKey = KDBXCrypto.compositeKey(password: password, keyFileData: keyFileData)
@@ -478,17 +493,32 @@ final class DatabaseViewModel {
                 sessionKey: sessionKey
             )
         } catch {
-            handleUnlockFailure(error)
+            let diagnostics = makeUnlockDiagnostics(
+                unlockMethod: .password,
+                passwordSupplied: password.isEmpty == false,
+                keyFileSupplied: keyFileData != nil,
+                failedAttemptsBeforeAttempt: failedAttemptsBeforeAttempt,
+                encryptedData: encryptedData,
+                cloudSyncStatus: cloudSyncStatus
+            )
+            handleUnlockFailure(error, diagnostics: diagnostics)
         }
     }
 
     func unlockWithBiometrics() async {
+        let failedAttemptsBeforeAttempt = failedAttempts
         prepareForUnlock()
+
+        var encryptedData: Data?
+        var cloudSyncStatus: CloudSyncResolution.Status?
 
         do {
             let context = try await BiometricService.authenticate(reason: "Unlock your password database")
             let compositeKey = try retrieveStoredCompositeKey(context: context)
-            let (_, data) = try await readDatabaseData()
+            let readResult = try await readDatabaseData()
+            let data = readResult.data
+            encryptedData = data
+            cloudSyncStatus = readResult.cloudSyncStatus
             try cacheDatabaseCopy(data)
             let sessionKey = SymmetricKey(size: .bits256)
 
@@ -512,7 +542,15 @@ final class DatabaseViewModel {
                 sessionKey: sessionKey
             )
         } catch {
-            handleUnlockFailure(error)
+            let diagnostics = makeUnlockDiagnostics(
+                unlockMethod: .biometrics,
+                passwordSupplied: false,
+                keyFileSupplied: false,
+                failedAttemptsBeforeAttempt: failedAttemptsBeforeAttempt,
+                encryptedData: encryptedData,
+                cloudSyncStatus: cloudSyncStatus
+            )
+            handleUnlockFailure(error, diagnostics: diagnostics)
         }
     }
 
@@ -1289,8 +1327,12 @@ final class DatabaseViewModel {
         ReviewPromptService.requestReviewIfAppropriate()
     }
 
-    private func handleUnlockFailure(_ error: Error) {
-        let failure = DatabaseOpenFailure.classify(error, isCloudBacked: databaseReference.isCloudBacked)
+    private func handleUnlockFailure(_ error: Error, diagnostics: DatabaseOpenDiagnostics?) {
+        let failure = DatabaseOpenFailure.classify(
+            error,
+            isCloudBacked: databaseReference.isCloudBacked,
+            diagnostics: diagnostics
+        )
 
         if failure.countsTowardFailedAttempts {
             failedAttempts += 1
@@ -1298,7 +1340,7 @@ final class DatabaseViewModel {
             if delay > 0 {
                 lockoutUntil = Date.now.addingTimeInterval(delay)
                 let seconds = Int(ceil(delay))
-                state = .error(lockoutFailure(seconds: seconds))
+                state = .error(lockoutFailure(seconds: seconds, diagnostics: diagnostics))
                 return
             }
         }
@@ -1306,7 +1348,7 @@ final class DatabaseViewModel {
         state = .error(failure)
     }
 
-    private func lockoutFailure(seconds: Int) -> DatabaseOpenFailure {
+    private func lockoutFailure(seconds: Int, diagnostics: DatabaseOpenDiagnostics? = nil) -> DatabaseOpenFailure {
         DatabaseOpenFailure(
             title: "Too Many Failed Attempts",
             summary: "KeeForge is temporarily slowing down unlock attempts. Try again in \(seconds) seconds.",
@@ -1314,7 +1356,8 @@ final class DatabaseViewModel {
             errorCode: "auth.locked_out",
             category: .authentication,
             countsTowardFailedAttempts: false,
-            canChooseDifferentFile: false
+            canChooseDifferentFile: false,
+            diagnostics: diagnostics
         )
     }
 
@@ -1404,7 +1447,26 @@ final class DatabaseViewModel {
         )
     }
 
-    private func readDatabaseData() async throws -> (url: URL, data: Data) {
+    private func makeUnlockDiagnostics(
+        unlockMethod: DatabaseOpenDiagnostics.UnlockMethod,
+        passwordSupplied: Bool,
+        keyFileSupplied: Bool,
+        failedAttemptsBeforeAttempt: Int,
+        encryptedData: Data?,
+        cloudSyncStatus: CloudSyncResolution.Status?
+    ) -> DatabaseOpenDiagnostics {
+        DatabaseOpenDiagnostics.make(
+            reference: databaseReference,
+            unlockMethod: unlockMethod,
+            passwordSupplied: passwordSupplied,
+            keyFileSupplied: keyFileSupplied,
+            failedAttemptsBeforeAttempt: failedAttemptsBeforeAttempt,
+            encryptedData: encryptedData,
+            cloudSyncStatus: cloudSyncStatus
+        )
+    }
+
+    private func readDatabaseData() async throws -> (url: URL, data: Data, cloudSyncStatus: CloudSyncResolution.Status?) {
         if databaseReference.isCloudBacked {
             let resolution = try await cloudSyncOperation(databaseReference) { progress in
                 Task { @MainActor in
@@ -1416,14 +1478,14 @@ final class DatabaseViewModel {
             unlockStatusMessage = Self.decryptingStatusMessage
             DatabaseListStore.update(resolution.reference)
             databaseReference = resolution.reference
-            return (resolution.localURL, resolution.data)
+            return (resolution.localURL, resolution.data, resolution.status)
         }
 
         cloudSyncBannerText = nil
         unlockStatusMessage = Self.decryptingStatusMessage
 
         if let url = DatabaseListStore.resolveDatabaseURL(for: databaseReference) {
-            return (url, try readSecurityScoped(url: url))
+            return (url, try readSecurityScoped(url: url), nil)
         }
 
         throw CocoaError(.fileReadNoSuchFile)

@@ -40,7 +40,7 @@ struct FeedbackComposerView: View {
                         }
 
                         Section("Privacy") {
-                            Text("No GitHub or email required. KeeForge only sends the message you type, plus the visible error details if you report a database-open failure. It never includes database contents, passwords, key files, raw vault files, or app/device metadata.")
+                            Text("No GitHub or email required. KeeForge only sends the message you type, plus visible attached error details. Database-open reports may include visible app/device metadata, cloud sync status, and short file hash prefixes, but never database contents, passwords, key files, or raw vault files.")
                         }
                     }
                 }

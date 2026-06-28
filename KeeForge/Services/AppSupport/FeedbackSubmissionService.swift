@@ -51,11 +51,7 @@ struct FeedbackComposerContext: Identifiable, Equatable, Sendable {
             initialMessage: "KeeForge couldn't open my database.",
             errorCode: failure.errorCode,
             errorCategory: failure.category.rawValue,
-            details: """
-            Title: \(failure.title)
-            Summary: \(failure.summary)
-            Technical Details: \(failure.technicalDetails)
-            """
+            details: failure.reportDetails
         )
     }
 }

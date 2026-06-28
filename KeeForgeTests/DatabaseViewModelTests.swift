@@ -1,5 +1,6 @@
 import AuthenticationServices
 import CryptoKit
+import LocalAuthentication
 import SwiftUI
 import XCTest
 @testable import KeeForge
@@ -415,6 +416,9 @@ final class DatabaseViewModelTests: XCTestCase {
 
     func testUnlockWithWrongPasswordTransitionsToError() async throws {
         let vm = try makeViewModel()
+        let data = try Data(contentsOf: fixtureURL())
+        let fullSHA256 = KDBXCrypto.sha256(data).hexString
+        let expectedSHA256Prefix = String(fullSHA256.prefix(16))
 
         await vm.unlock(password: "wrong-password")
 
@@ -426,6 +430,92 @@ final class DatabaseViewModelTests: XCTestCase {
         XCTAssertEqual(failure.errorCode, "auth.invalid_credentials")
         XCTAssertEqual(vm.failedAttempts, 1)
         XCTAssertNil(vm.rootGroup)
+
+        let diagnostics = try XCTUnwrap(failure.diagnostics)
+        XCTAssertTrue(diagnostics.details.contains("Unlock Method: password"))
+        XCTAssertTrue(diagnostics.details.contains("Password Supplied: yes"))
+        XCTAssertTrue(diagnostics.details.contains("Key File Supplied: no"))
+        XCTAssertTrue(diagnostics.details.contains("Failed Attempts Before Attempt: 0"))
+        XCTAssertTrue(diagnostics.details.contains("Database Source: local"))
+        XCTAssertTrue(diagnostics.details.contains("Encrypted File Bytes: \(data.count)"))
+        XCTAssertTrue(diagnostics.details.contains("Encrypted File SHA-256 Prefix: \(expectedSHA256Prefix)"))
+        XCTAssertTrue(diagnostics.details.contains("KDBX Header: version=KDBX"))
+        XCTAssertFalse(diagnostics.details.contains(fullSHA256))
+        XCTAssertTrue(failure.copyableDetails.contains("Diagnostics:"))
+    }
+
+    func testCloudParseFailureIncludesSyncDiagnosticsWithoutPrivateIdentifiers() async throws {
+        let remoteRev = "rev-1234567890abcdef"
+        let remoteHash = "hash-abcdefghijklmnop"
+        let lastSyncedAt = Date(timeIntervalSince1970: 123)
+        let invalidData = Data("not-a-kdbx".utf8)
+        let resolvedReference = {
+            var reference = makeCloudReference(remoteRev: remoteRev)
+            reference.updateCloudSyncMetadata { metadata in
+                metadata.remoteContentHash = remoteHash
+                metadata.lastSyncedAt = lastSyncedAt
+            }
+            return reference
+        }()
+        let cacheURL = DatabaseListStore.cacheLocation(for: resolvedReference)
+
+        let vm = DatabaseViewModel(
+            databaseReference: makeCloudReference(),
+            cloudSyncOperation: { _, _ in
+                CloudSyncResolution(
+                    reference: resolvedReference,
+                    localURL: cacheURL,
+                    data: invalidData,
+                    status: .downloaded
+                )
+            }
+        )
+
+        await vm.unlock(password: fixturePassword)
+
+        guard case .error(let failure) = vm.state else {
+            XCTFail("Expected .error state")
+            return
+        }
+
+        let diagnostics = try XCTUnwrap(failure.diagnostics)
+        XCTAssertTrue(diagnostics.details.contains("Database Source: cloud"))
+        XCTAssertTrue(diagnostics.details.contains("Cloud Provider: Dropbox"))
+        XCTAssertTrue(diagnostics.details.contains("Cloud Sync Status: downloaded"))
+        XCTAssertTrue(diagnostics.details.contains("Remote Revision Prefix: \(String(remoteRev.prefix(12)))"))
+        XCTAssertTrue(diagnostics.details.contains("Remote Content Hash Prefix: \(String(remoteHash.prefix(12)))"))
+        XCTAssertTrue(diagnostics.details.contains("Encrypted File Bytes: \(invalidData.count)"))
+        XCTAssertFalse(diagnostics.details.contains(remoteRev))
+        XCTAssertFalse(diagnostics.details.contains(remoteHash))
+        XCTAssertFalse(diagnostics.details.contains("/Vaults/vault.kdbx"))
+        XCTAssertFalse(diagnostics.details.contains("acct-1"))
+        XCTAssertFalse(diagnostics.details.contains("fileId"))
+    }
+
+    func testBiometricFailureDiagnosticsDescribeBiometricMethodWithoutPasswordOrKeyFileData() throws {
+        let diagnostics = DatabaseOpenDiagnostics.make(
+            reference: try makeReference(),
+            unlockMethod: .biometrics,
+            passwordSupplied: false,
+            keyFileSupplied: false,
+            failedAttemptsBeforeAttempt: 0,
+            encryptedData: nil,
+            cloudSyncStatus: nil
+        )
+
+        let failure = DatabaseOpenFailure.classify(
+            LAError(.biometryNotAvailable),
+            isCloudBacked: false,
+            diagnostics: diagnostics
+        )
+
+        let details = try XCTUnwrap(failure.diagnostics?.details)
+        XCTAssertEqual(failure.category, DatabaseOpenFailure.Category.biometric)
+        XCTAssertTrue(details.contains("Unlock Method: biometrics"))
+        XCTAssertTrue(details.contains("Password Supplied: no"))
+        XCTAssertTrue(details.contains("Key File Supplied: no"))
+        XCTAssertFalse(details.contains(fixturePassword))
+        XCTAssertFalse(details.localizedCaseInsensitiveContains("key file data"))
     }
 
     func testCloudUnlockShowsProviderSpecificSyncMessageBeforeDecryption() async throws {

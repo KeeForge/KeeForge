@@ -9,6 +9,7 @@
 - Show a thank-you tip jar state for returning supporters and move repeat tips into a compact menu.
 
 ### Fixes
+- Improve database unlock failure reports with visible safe diagnostics.
 - Move entries to the recycle bin from the long-press context menu instead of permanently deleting them.
 
 ## v1.9.2 (2026-05-12)

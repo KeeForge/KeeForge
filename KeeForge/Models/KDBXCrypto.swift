@@ -340,12 +340,16 @@ enum KDBXCrypto {
         let ciphertext = data.prefix(data.count - 16)
         let tag = data.suffix(16)
 
-        let sealedBox = try CryptoKit.ChaChaPoly.SealedBox(
-            nonce: ChaChaPoly.Nonce(data: nonce),
-            ciphertext: ciphertext,
-            tag: tag
-        )
-        return try Data(ChaChaPoly.open(sealedBox, using: symKey))
+        do {
+            let sealedBox = try CryptoKit.ChaChaPoly.SealedBox(
+                nonce: ChaChaPoly.Nonce(data: nonce),
+                ciphertext: ciphertext,
+                tag: tag
+            )
+            return try Data(ChaChaPoly.open(sealedBox, using: symKey))
+        } catch {
+            throw CryptoError.decryptionFailed
+        }
     }
 
     // MARK: - ChaCha20-Poly1305 Encrypt (CryptoKit)
