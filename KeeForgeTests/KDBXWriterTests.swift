@@ -176,6 +176,21 @@ final class KDBXWriterTests: XCTestCase {
             sessionKey: sessionKey
         )
 
+        let fileComponents = try readWrittenFileComponents(written, compositeKey: parsed.compositeKey)
+        XCTAssertEqual(fileComponents.header.cipherID, KDBXParser.chachaCipherUUID)
+        let encryptedPayload = try readEncryptedPayload(
+            from: written,
+            payloadOffset: fileComponents.payloadOffset,
+            hmacBaseKey: fileComponents.hmacBaseKey
+        )
+        let decryptedPayload = try decryptPayload(
+            encryptedPayload,
+            header: fileComponents.header,
+            compositeKey: parsed.compositeKey
+        )
+        XCTAssertEqual(encryptedPayload.count, decryptedPayload.count)
+        _ = try parseInnerPayload(decryptedPayload, header: fileComponents.header)
+
         let reparsed = try parseWrittenFile(written, fixture: .test)
         try assertTreesEqual(parsed, reparsed)
     }
@@ -454,7 +469,7 @@ final class KDBXWriterTests: XCTestCase {
                 iv: header.encryptionIV
             )
         } else if header.cipherID == KDBXParser.chachaCipherUUID {
-            decryptedPayload = try KDBXCrypto.decryptChaCha20Poly1305(
+            decryptedPayload = try KDBXCrypto.decryptChaCha20(
                 data: encryptedPayload,
                 key: masterKey,
                 nonce: header.encryptionIV
@@ -463,6 +478,57 @@ final class KDBXWriterTests: XCTestCase {
             throw KDBXCrypto.CryptoError.unsupportedCipher(header.cipherID.hexString)
         }
 
+        let payload = header.compressionFlags == 1 ? try KDBXCrypto.gunzip(decryptedPayload) : decryptedPayload
+        var innerReader = DataReader(data: payload)
+        _ = try KDBXParser.parseInnerHeader(&innerReader)
+        return payload.subdata(in: innerReader.offset..<payload.count)
+    }
+
+    private func readEncryptedPayload(
+        from data: Data,
+        payloadOffset: Int,
+        hmacBaseKey: Data
+    ) throws -> Data {
+        var reader = DataReader(data: data)
+        try reader.skip(payloadOffset)
+        return try KDBXParser.readHMACBlocks(reader: &reader, baseKey: hmacBaseKey)
+    }
+
+    private func decryptPayload(
+        _ encryptedPayload: Data,
+        header: KDBXParser.Header,
+        compositeKey: Data
+    ) throws -> Data {
+        let transformedKey = try KDBXParser.deriveKey(compositeKey: compositeKey, kdfParams: header.kdfParameters)
+
+        var masterPreKey = Data()
+        masterPreKey.append(header.masterSeed)
+        masterPreKey.append(transformedKey)
+        let masterKey = KDBXCrypto.sha256(masterPreKey)
+
+        if header.cipherID == KDBXParser.aesCipherUUID {
+            return try KDBXCrypto.decryptAES256CBC(
+                data: encryptedPayload,
+                key: masterKey,
+                iv: header.encryptionIV
+            )
+        }
+
+        if header.cipherID == KDBXParser.chachaCipherUUID {
+            return try KDBXCrypto.decryptChaCha20(
+                data: encryptedPayload,
+                key: masterKey,
+                nonce: header.encryptionIV
+            )
+        }
+
+        throw KDBXCrypto.CryptoError.unsupportedCipher(header.cipherID.hexString)
+    }
+
+    private func parseInnerPayload(
+        _ decryptedPayload: Data,
+        header: KDBXParser.Header
+    ) throws -> Data {
         let payload = header.compressionFlags == 1 ? try KDBXCrypto.gunzip(decryptedPayload) : decryptedPayload
         var innerReader = DataReader(data: payload)
         _ = try KDBXParser.parseInnerHeader(&innerReader)

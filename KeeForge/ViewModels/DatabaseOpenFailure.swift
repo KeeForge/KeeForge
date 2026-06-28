@@ -141,7 +141,7 @@ struct DatabaseOpenDiagnostics: Equatable, Sendable {
             return "AES-256"
         }
         if cipherID == KDBXParser.chachaCipherUUID {
-            return "ChaCha20-Poly1305"
+            return "ChaCha20"
         }
         return "unknown"
     }

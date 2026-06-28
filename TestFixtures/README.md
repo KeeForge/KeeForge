@@ -9,6 +9,7 @@ This folder contains the sample databases and key files used by unit tests, UI t
 - `demo-keyfile.kdbx` — key-file-protected fixture used for key-file tests. Pair it with `demo-keyfile.key`; the current UI tests use password `demo`.
 - `round-trip/unknown-elements.kdbx` — controlled KDBX4 round-trip fixture with meta and entry `CustomData`, `AutoType`, `History`, and an attachment reference. Password: `test-round-trip`.
 - `test-v3-backup.kdbx` — legacy sample kept in the repo but not currently wired into the active test targets.
+- `compatibility/` — sanitized fixtures for the KDBX compatibility matrix and external opener gate. Passwords mirror their source fixtures: `aes-baseline.kdbx` uses `testpassword123`, `password-keyfile.kdbx` uses `demo` plus `password-keyfile.key`, `unknown-rich.kdbx` uses `test-round-trip`, and `legacy-kdbx31.kdbx` uses `testpassword123`.
 
 ## Key Files
 
@@ -19,4 +20,5 @@ This folder contains the sample databases and key files used by unit tests, UI t
 
 - `test.kdbx` has groups under the root, so many flows need to enter a subgroup before opening an entry.
 - `test.kdbx` is the stable fixture-backed source for common entries like Twitter, GitHub, and Email.
+- Compatibility fixtures are intentionally copied into `compatibility/` so future agents can add, remove, or retarget release-gate coverage without changing unrelated unit-test fixture names.
 - If you add a new fixture that tests depend on, wire it into the correct target in `../project.yml`.

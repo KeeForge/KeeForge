@@ -41,6 +41,7 @@ Entry point for coding agents working on KeeForge. This file is intentionally br
 - When adding new files, update the nearest folder-local `README.md` if the file changes that folder's map, ownership notes, or workflow guidance.
 - Do not update `docs/specs` for new code changes unless explicitly asked. These specs are mostly historical artifacts, not living implementation docs.
 - When changing code shared with `AutoFillExtension`, keep extension-safe imports/APIs and target membership in sync.
+- When adding or changing database creation, edit operations, KDBX parser/writer behavior, protected fields, unknown XML handling, AutoFill save, cloud save, or local save, update `KeeForgeTests/KDBXCompatibilityTests.swift` and the compatibility artifact gate if the supported compatibility matrix changes.
 - Preserve accessibility identifiers or update the relevant UI tests in the same change.
 - Do not use MCP tools to run Xcode tests. Start a fresh `bash` session and run the test command there instead.
 - Update `CHANGELOG.md` for feature or bug-fix commits. Add entries only under `## Unreleased`. It's okay to skip if the bug fix is for an unreleased feature.

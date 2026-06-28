@@ -326,7 +326,7 @@ enum KDBXParser {
                 data: encryptedPayload, key: masterKey, iv: header.encryptionIV
             )
         } else if header.cipherID == chachaCipherUUID {
-            decryptedPayload = try KDBXCrypto.decryptChaCha20Poly1305(
+            decryptedPayload = try KDBXCrypto.decryptChaCha20(
                 data: encryptedPayload, key: masterKey, nonce: header.encryptionIV
             )
         } else {

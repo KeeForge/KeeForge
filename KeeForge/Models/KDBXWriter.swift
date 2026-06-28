@@ -253,7 +253,7 @@ enum KDBXWriter {
         }
 
         if cipherID == KDBXParser.chachaCipherUUID {
-            return try KDBXCrypto.encryptChaCha20Poly1305(
+            return try KDBXCrypto.encryptChaCha20(
                 data: data,
                 key: masterKey,
                 nonce: encryptionIV

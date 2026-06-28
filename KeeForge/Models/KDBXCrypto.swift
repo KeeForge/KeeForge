@@ -326,60 +326,29 @@ enum KDBXCrypto {
         return outData
     }
 
-    // MARK: - ChaCha20-Poly1305 Decrypt (CryptoKit)
+    // MARK: - ChaCha20 Encrypt/Decrypt
 
-    static func decryptChaCha20Poly1305(data: Data, key: Data, nonce: Data) throws -> Data {
-        let symKey = SymmetricKey(data: key)
-        // KDBX uses ChaCha20 combined box: nonce(12) + ciphertext + tag(16)
-        // But the caller gives us raw ciphertext — we handle differently
-        // In KDBX4, outer encryption uses 12-byte nonce from header
-        guard nonce.count == 12 else { throw CryptoError.decryptionFailed }
-
-        // Last 16 bytes are the Poly1305 tag
-        guard data.count > 16 else { throw CryptoError.decryptionFailed }
-        let ciphertext = data.prefix(data.count - 16)
-        let tag = data.suffix(16)
-
-        do {
-            let sealedBox = try CryptoKit.ChaChaPoly.SealedBox(
-                nonce: ChaChaPoly.Nonce(data: nonce),
-                ciphertext: ciphertext,
-                tag: tag
-            )
-            return try Data(ChaChaPoly.open(sealedBox, using: symKey))
-        } catch {
+    static func decryptChaCha20(data: Data, key: Data, nonce: Data) throws -> Data {
+        guard key.count == 32, nonce.count == 12 else {
             throw CryptoError.decryptionFailed
         }
+
+        return chacha20Stream(key: key, nonce: nonce, data: data)
     }
 
-    // MARK: - ChaCha20-Poly1305 Encrypt (CryptoKit)
-
-    static func encryptChaCha20Poly1305(data: Data, key: Data, nonce: Data) throws -> Data {
-        let symKey = SymmetricKey(data: key)
-        guard nonce.count == 12 else { throw CryptoError.encryptionFailed }
-
-        do {
-            let sealedBox = try ChaChaPoly.seal(
-                data,
-                using: symKey,
-                nonce: ChaChaPoly.Nonce(data: nonce)
-            )
-
-            var encrypted = Data()
-            encrypted.append(sealedBox.ciphertext)
-            encrypted.append(sealedBox.tag)
-            return encrypted
-        } catch {
+    static func encryptChaCha20(data: Data, key: Data, nonce: Data) throws -> Data {
+        guard key.count == 32, nonce.count == 12 else {
             throw CryptoError.encryptionFailed
         }
+
+        return chacha20Stream(key: key, nonce: nonce, data: data)
     }
 
     // MARK: - ChaCha20 stream cipher (inner random stream)
 
     static func chacha20Stream(key: Data, nonce: Data, data: Data) -> Data {
         // ChaCha20 is XOR-based; encrypt == decrypt
-        // Use CommonCrypto / raw implementation for stream-only (no Poly1305)
-        // CryptoKit only supports ChaCha20-Poly1305 AEAD, so we use CryptoSwift or manual
+        // CryptoKit does not expose raw ChaCha20, so use the local stream-only implementation.
         // For inner stream, KDBX uses raw ChaCha20 without authentication
         return chacha20XOR(key: key, nonce: nonce, data: data)
     }

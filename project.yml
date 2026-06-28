@@ -155,6 +155,16 @@ targets:
         buildPhase: resources
       - path: TestFixtures/round-trip/unknown-elements.kdbx
         buildPhase: resources
+      - path: TestFixtures/compatibility/aes-baseline.kdbx
+        buildPhase: resources
+      - path: TestFixtures/compatibility/password-keyfile.kdbx
+        buildPhase: resources
+      - path: TestFixtures/compatibility/password-keyfile.key
+        buildPhase: resources
+      - path: TestFixtures/compatibility/unknown-rich.kdbx
+        buildPhase: resources
+      - path: TestFixtures/compatibility/legacy-kdbx31.kdbx
+        buildPhase: resources
       - path: TestFixtures/test-v3-backup.kdbx
         buildPhase: resources
       - path: TestFixtures/demo-keyfile.key

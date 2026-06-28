@@ -369,12 +369,12 @@ final class KDBXParserTests: XCTestCase {
         }
     }
 
-    func testChaChaDecryptFailureIsNormalized() throws {
+    func testChaChaDecryptRejectsInvalidNonce() throws {
         XCTAssertThrowsError(
-            try KDBXCrypto.decryptChaCha20Poly1305(
+            try KDBXCrypto.decryptChaCha20(
                 data: Data(repeating: 0x01, count: 32),
                 key: Data(repeating: 0x02, count: 32),
-                nonce: Data(repeating: 0x03, count: 12)
+                nonce: Data(repeating: 0x03, count: 8)
             )
         ) { error in
             guard case KDBXCrypto.CryptoError.decryptionFailed = error else {
