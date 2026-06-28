@@ -2,12 +2,6 @@
 
 ## Unreleased
 
-### Fixes
-- Write KDBX ChaCha20 databases with the raw ChaCha20 stream cipher expected by KeePass-compatible apps.
-
-### Tests
-- Add a KDBX compatibility matrix and external KeePassXC opener gate for database edit/save safety.
-
 ## v1.9.3 (2026-06-28)
 
 ### New Features
@@ -19,6 +13,10 @@
 ### Fixes
 - Improve database unlock failure reports with visible safe diagnostics.
 - Move entries to the recycle bin from the long-press context menu instead of permanently deleting them.
+- Write KDBX ChaCha20 databases with the raw ChaCha20 stream cipher expected by KeePass-compatible apps.
+
+### Tests
+- Add a KDBX compatibility matrix and external KeePassXC opener gate for database edit/save safety.
 
 ## v1.9.2 (2026-05-12)
 
