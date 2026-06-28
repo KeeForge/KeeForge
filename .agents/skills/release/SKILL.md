@@ -2,7 +2,8 @@
 name: release
 description: >
   Create a new release candidate for the KeeForge iOS app. Bumps the version in project.yml,
-  updates CHANGELOG.md, runs tests, commits, tags, and pushes to trigger Xcode Cloud.
+  updates CHANGELOG.md, runs the full unit and UI test targets, commits, tags, and pushes
+  to trigger Xcode Cloud.
   Use this skill whenever the user wants to cut a release, create a release candidate,
   bump the version, ship a new version, or prepare a build for TestFlight/App Store.
   Triggers on phrases like "release", "new version", "bump version", "cut a release",
@@ -84,26 +85,29 @@ Since `project.yml` changed, regenerate the `.xcodeproj` before building:
 xcodegen generate
 ```
 
-Then run the release verification tests in a fresh `bash` session. Reset the simulator before
-running tests so release validation starts from clean app and extension state:
+Then run the release verification tests in a fresh `bash` session. Release validation is an
+explicit full-suite exception to the usual smallest-slice testing rule: run every existing unit
+test and every existing UI test before committing, tagging, or pushing.
+
+Use target-level `-only-testing:` selectors so the command remains explicit while covering each
+entire test target. Do not substitute individual class or method slices for the required release
+verification run. Reset the simulator before each test target so release validation starts from
+clean app and extension state:
 
 ```bash
 xcrun simctl shutdown "iPhone 17 Pro" || true
 xcrun simctl erase "iPhone 17 Pro"
-```
-
-Run unit tests and UI tests as separate commands. Follow the repo's current AGENTS.md testing
-rules first; in KeeForge this means using `-only-testing:` slices. For release validation, pick
-the smallest meaningful unit-test slice and UI-test slice that cover the changed surface:
-
-```bash
-xcodebuild test -project KeeForge.xcodeproj -scheme KeeForge \
-  -destination 'platform=iOS Simulator,name=iPhone 17 Pro' \
-  -only-testing:KeeForgeTests/<RelevantTestClass> -quiet
 
 xcodebuild test -project KeeForge.xcodeproj -scheme KeeForge \
   -destination 'platform=iOS Simulator,name=iPhone 17 Pro' \
-  -only-testing:KeeForgeUITests/<RelevantUITestClass> -quiet
+  -only-testing:KeeForgeTests -quiet
+
+xcrun simctl shutdown "iPhone 17 Pro" || true
+xcrun simctl erase "iPhone 17 Pro"
+
+xcodebuild test -project KeeForge.xcodeproj -scheme KeeForge \
+  -destination 'platform=iOS Simulator,name=iPhone 17 Pro' \
+  -only-testing:KeeForgeUITests -quiet
 ```
 
 If tests fail, stop and report the failures. Do not proceed to commit. Help the user fix the
