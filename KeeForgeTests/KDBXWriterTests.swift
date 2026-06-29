@@ -215,6 +215,25 @@ final class KDBXWriterTests: XCTestCase {
         try assertTreesEqual(parsed, reparsed)
     }
 
+    func test_writeReusedHeader_preservesKDBX4MinorVersion() throws {
+        let parsed = try parseFixture(.test)
+        var kdbx41Header = parsed.header
+        kdbx41Header.formatVersion = .kdbx4(minor: 1)
+
+        let written = try KDBXWriter.write(
+            rootGroup: parsed.rootGroup,
+            meta: parsed.meta,
+            compositeKey: parsed.compositeKey,
+            header: kdbx41Header,
+            sessionKey: sessionKey
+        )
+
+        XCTAssertEqual(try KDBXParser.parseFileVersion(from: written), .kdbx4(minor: 1))
+
+        let reparsed = try parseWrittenFile(written, fixture: .test)
+        try assertTreesEqual(parsed, reparsed)
+    }
+
     func testWriteFreshEmptyDatabaseRoundTrips() throws {
         let password = "fresh empty password"
         let compositeKey = KDBXCrypto.compositeKey(password: password)

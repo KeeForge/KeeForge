@@ -44,7 +44,7 @@ enum KDBXWriter {
         case fresh(FreshHeaderConfiguration)
     }
 
-    private static let headerMinorVersion: UInt16 = 0
+    private static let defaultHeaderMinorVersion: UInt16 = 0
     private static let hmacBlockSize = 1_048_576
     private static let innerStreamKeyLength = 64
     private static let masterSeedLength = 32
@@ -140,7 +140,7 @@ enum KDBXWriter {
             header = existing
         case .fresh(let configuration):
             header = KDBXParser.Header(
-                formatVersion: .kdbx4(minor: headerMinorVersion),
+                formatVersion: .kdbx4(minor: defaultHeaderMinorVersion),
                 cipherID: configuration.cipherID,
                 compressionFlags: 1,
                 masterSeed: try randomData(count: masterSeedLength),
@@ -205,7 +205,7 @@ enum KDBXWriter {
         var outerHeader = Data()
         outerHeader.appendLE(KDBXParser.kdbxSignature1)
         outerHeader.appendLE(KDBXParser.kdbxSignature2)
-        outerHeader.appendLE(headerMinorVersion)
+        outerHeader.appendLE(header.formatVersion.minorVersion)
         outerHeader.appendLE(KDBXParser.versionKDBX4)
 
         appendHeaderField(&outerHeader, field: .cipherID, value: header.cipherID)

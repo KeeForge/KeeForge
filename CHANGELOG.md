@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+### Fixes
+- Preserve the KDBX 4 minor version when saving existing databases instead of rewriting all KDBX 4 files as 4.0.
+
 ### Tests
 - Cover recycle-bin permanent deletes in the KDBX compatibility matrix instead of live-object hard-delete scenarios that the app does not expose.
 
