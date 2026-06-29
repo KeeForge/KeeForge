@@ -42,6 +42,14 @@ enum KDBXCompatibilitySupport {
             source: .bundled(name: "unknown-rich")
         )
 
+        static let kdbx41PublicCustomData = Fixture(
+            id: "kdbx41-public-custom-data",
+            displayName: "KDBX 4.1 public custom data fixture",
+            password: "testpassword123",
+            keyFileName: nil,
+            source: .bundled(name: "kdbx41-public-custom-data")
+        )
+
         static let legacyKDBX31 = Fixture(
             id: "legacy-kdbx31",
             displayName: "Legacy KDBX 3.1 fixture",
@@ -272,7 +280,7 @@ enum KDBXCompatibilitySupport {
         let noRecycleBinFixture = try load(.syntheticNoRecycleBin, bundle: bundle)
         plans.append((noRecycleBinFixture, recycleBinCreationScenario()))
 
-        let smokeFixtures: [Fixture] = [.aesBaseline, .passwordKeyfile, .unknownRich, .syntheticChaCha]
+        let smokeFixtures: [Fixture] = [.aesBaseline, .passwordKeyfile, .unknownRich, .kdbx41PublicCustomData, .syntheticChaCha]
         for fixture in smokeFixtures {
             let loaded = try load(fixture, bundle: bundle)
             plans.append((loaded, fixtureSmokeScenario(fixtureID: fixture.id)))

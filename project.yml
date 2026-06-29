@@ -163,6 +163,8 @@ targets:
         buildPhase: resources
       - path: TestFixtures/compatibility/unknown-rich.kdbx
         buildPhase: resources
+      - path: TestFixtures/compatibility/kdbx41-public-custom-data.kdbx
+        buildPhase: resources
       - path: TestFixtures/compatibility/legacy-kdbx31.kdbx
         buildPhase: resources
       - path: TestFixtures/test-v3-backup.kdbx

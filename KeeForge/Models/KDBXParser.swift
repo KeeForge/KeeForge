@@ -96,6 +96,11 @@ enum KDBXParser {
 
     // MARK: - Parsed Header
 
+    struct UnknownHeaderField: Equatable, Sendable {
+        let id: UInt8
+        let data: Data
+    }
+
     struct Header: @unchecked Sendable {
         var formatVersion = FileVersion.kdbx4(minor: 0)
         var cipherID = Data()
@@ -103,6 +108,7 @@ enum KDBXParser {
         var masterSeed = Data()
         var encryptionIV = Data()
         var kdfParameters: [String: Any] = [:]
+        var unknownOuterHeaderFields: [UnknownHeaderField] = []
         var headerData = Data() // raw bytes for HMAC check
         var innerStreamID: UInt32 = 0
         var innerStreamKey = Data()
@@ -421,7 +427,9 @@ enum KDBXParser {
             let fieldSize = Int(try reader.readUInt32())
 
             guard let field = HeaderField(rawValue: fieldID) else {
-                try reader.skip(fieldSize)
+                header.unknownOuterHeaderFields.append(
+                    UnknownHeaderField(id: fieldID, data: try reader.readBytes(fieldSize))
+                )
                 continue
             }
 

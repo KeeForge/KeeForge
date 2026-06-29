@@ -26,6 +26,7 @@ final class KDBXCompatibilityTests: XCTestCase {
             .aesBaseline,
             .passwordKeyfile,
             .unknownRich,
+            .kdbx41PublicCustomData,
             .syntheticChaCha,
         ]
 
@@ -55,6 +56,28 @@ final class KDBXCompatibilityTests: XCTestCase {
         XCTAssertTrue(afterUnknownXML.contains("RoundTripEntryValue-Expected"))
         XCTAssertTrue(beforeMetaUnknownXML.contains("RoundTripMetaValue-Expected"))
         XCTAssertTrue(afterMetaUnknownXML.contains("RoundTripMetaValue-Expected"))
+    }
+
+    func test_kdbx41Fixture_capturesAndPreservesUnknownOuterHeaderFields() throws {
+        let loaded = try KDBXCompatibilitySupport.load(.kdbx41PublicCustomData, bundle: bundle)
+
+        XCTAssertEqual(loaded.header.formatVersion, .kdbx4(minor: 1))
+        let publicCustomData = try XCTUnwrap(
+            loaded.header.unknownOuterHeaderFields.first { $0.id == 12 }
+        )
+        XCTAssertNotNil(publicCustomData.data.range(of: Data("KeeForgeFixture".utf8)))
+        XCTAssertNotNil(publicCustomData.data.range(of: Data("KDBX 4.1 public custom data".utf8)))
+
+        let scenario = KDBXCompatibilitySupport.fixtureSmokeScenario(fixtureID: loaded.fixture.id)
+        let result = try scenario.apply(to: loaded)
+        let reparsed = try KDBXParser.parseWithMetaAndHeader(
+            data: result.written,
+            compositeKey: loaded.compositeKey,
+            sessionKey: loaded.sessionKey
+        )
+
+        XCTAssertEqual(reparsed.header.formatVersion, .kdbx4(minor: 1))
+        XCTAssertEqual(reparsed.header.unknownOuterHeaderFields, loaded.header.unknownOuterHeaderFields)
     }
 
     func test_legacyKDBX31CompatibilityFixture_isReadOnlyAndWriterRejects() throws {

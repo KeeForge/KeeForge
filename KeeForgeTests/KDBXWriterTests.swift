@@ -234,6 +234,33 @@ final class KDBXWriterTests: XCTestCase {
         try assertTreesEqual(parsed, reparsed)
     }
 
+    func test_writeReusedHeader_preservesUnknownOuterHeaderFields() throws {
+        let parsed = try parseFixture(.test)
+        let unknownFields = [
+            KDBXParser.UnknownHeaderField(id: 12, data: Data("public-custom-data".utf8)),
+            KDBXParser.UnknownHeaderField(id: 0x7F, data: Data([0x01, 0x02, 0x03])),
+        ]
+        var header = parsed.header
+        header.unknownOuterHeaderFields = unknownFields
+
+        let written = try KDBXWriter.write(
+            rootGroup: parsed.rootGroup,
+            meta: parsed.meta,
+            compositeKey: parsed.compositeKey,
+            header: header,
+            sessionKey: sessionKey
+        )
+
+        let reparsed = try KDBXParser.parseWithMetaAndHeader(
+            data: written,
+            compositeKey: parsed.compositeKey,
+            sessionKey: sessionKey
+        )
+
+        XCTAssertEqual(reparsed.header.unknownOuterHeaderFields, unknownFields)
+        try assertTreesEqual(parsed, (rootGroup: reparsed.rootGroup, meta: reparsed.meta))
+    }
+
     func testWriteFreshEmptyDatabaseRoundTrips() throws {
         let password = "fresh empty password"
         let compositeKey = KDBXCrypto.compositeKey(password: password)

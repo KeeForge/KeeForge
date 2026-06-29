@@ -78,6 +78,7 @@
 		58AD474260AA662614997B94 /* SearchView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 92CDD8F39D3FA23FCD1722E8 /* SearchView.swift */; };
 		593F3597EC5E308BE2BA67BC /* AutoLockTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6A60D769EF54ACAE8FAFEC73 /* AutoLockTests.swift */; };
 		59ADE684D5F68C0BC02EB0CC /* LocalDatabaseSaver.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7B6F08C62E668E72877D297 /* LocalDatabaseSaver.swift */; };
+		5BB5396D932F586B396D5D98 /* kdbx41-public-custom-data.kdbx in Resources */ = {isa = PBXBuildFile; fileRef = B768B63FEA29736435D3E922 /* kdbx41-public-custom-data.kdbx */; };
 		5D1534A2DAB9C6EC61C8551B /* CloudSyncModelsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6037B710DE638D64C1ED6576 /* CloudSyncModelsTests.swift */; };
 		5D2CF3FE49768C76388E382C /* demo.kdbx in Resources */ = {isa = PBXBuildFile; fileRef = F3D5CCD3DC2893DC1A65D6DC /* demo.kdbx */; };
 		5E17A333954ADDC0205E1B72 /* PasskeyCredential.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7AEBF3F7022FCACFF7195DB7 /* PasskeyCredential.swift */; };
@@ -373,6 +374,7 @@
 		B4817DCDBE10FCB59D878033 /* KDBXWriterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KDBXWriterTests.swift; sourceTree = "<group>"; };
 		B514D9E533F3FF2EB1978959 /* LocalDatabaseSaverTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalDatabaseSaverTests.swift; sourceTree = "<group>"; };
 		B6594B5A580C44B4042FE110 /* EncryptedValue.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EncryptedValue.swift; sourceTree = "<group>"; };
+		B768B63FEA29736435D3E922 /* kdbx41-public-custom-data.kdbx */ = {isa = PBXFileReference; path = "kdbx41-public-custom-data.kdbx"; sourceTree = "<group>"; };
 		B7B6F08C62E668E72877D297 /* LocalDatabaseSaver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalDatabaseSaver.swift; sourceTree = "<group>"; };
 		B7EDDD48D0CB18EA1D45220E /* test-binary.key */ = {isa = PBXFileReference; path = "test-binary.key"; sourceTree = "<group>"; };
 		B942B75B67043A4CB397BE27 /* OneDriveCloudProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OneDriveCloudProvider.swift; sourceTree = "<group>"; };
@@ -513,6 +515,7 @@
 			isa = PBXGroup;
 			children = (
 				934128843AF7AE9BAE055114 /* aes-baseline.kdbx */,
+				B768B63FEA29736435D3E922 /* kdbx41-public-custom-data.kdbx */,
 				FED8CAC6F5E34BB1CB405728 /* legacy-kdbx31.kdbx */,
 				C28D00833DC5188EEBB34BE9 /* password-keyfile.kdbx */,
 				0809F99F0AAE2475591DAE55 /* password-keyfile.key */,
@@ -942,6 +945,7 @@
 				0EEE9DF85014DFA4D3137969 /* demo-keyfile.kdbx in Resources */,
 				FC7437F9D800FF2C36294730 /* demo-keyfile.key in Resources */,
 				5D2CF3FE49768C76388E382C /* demo.kdbx in Resources */,
+				5BB5396D932F586B396D5D98 /* kdbx41-public-custom-data.kdbx in Resources */,
 				51700A65B8C39BA7C19DD430 /* legacy-kdbx31.kdbx in Resources */,
 				54FA28C4E62D81EED558CDA5 /* password-keyfile.kdbx in Resources */,
 				C55677C1569E249BCCCFAE5B /* password-keyfile.key in Resources */,

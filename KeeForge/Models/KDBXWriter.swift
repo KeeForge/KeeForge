@@ -217,6 +217,9 @@ enum KDBXWriter {
         appendHeaderField(&outerHeader, field: .masterSeed, value: header.masterSeed)
         appendHeaderField(&outerHeader, field: .encryptionIV, value: header.encryptionIV)
         appendHeaderField(&outerHeader, field: .kdfParameters, value: try writeVariantMap(header.kdfParameters))
+        for field in header.unknownOuterHeaderFields {
+            appendRawHeaderField(&outerHeader, id: field.id, value: field.data)
+        }
         appendHeaderField(&outerHeader, field: .endOfHeader, value: Data())
 
         return outerHeader
@@ -337,7 +340,15 @@ enum KDBXWriter {
         field: KDBXParser.HeaderField,
         value: Data
     ) {
-        data.append(field.rawValue)
+        appendRawHeaderField(&data, id: field.rawValue, value: value)
+    }
+
+    private static func appendRawHeaderField(
+        _ data: inout Data,
+        id: UInt8,
+        value: Data
+    ) {
+        data.append(id)
         data.appendLE(UInt32(value.count))
         data.append(value)
     }
