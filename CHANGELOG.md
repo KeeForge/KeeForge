@@ -2,11 +2,13 @@
 
 ## Unreleased
 
+## v1.9.4 (2026-07-02)
+
 ### Fixes
 - Preserve the KDBX 4 minor version when saving existing databases instead of rewriting all KDBX 4 files as 4.0.
 - Preserve unknown KDBX outer header fields when saving existing databases.
 
-### Tests
+### Changes
 - Add KDBX 4.1 fixture coverage for public custom-data outer header preservation.
 - Cover recycle-bin permanent deletes in the KDBX compatibility matrix instead of live-object hard-delete scenarios that the app does not expose.
 
