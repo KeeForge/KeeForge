@@ -6,7 +6,7 @@ This folder holds small scripts used by Xcode Cloud and local build setup.
 
 - `prepare_build_config.sh` validates `BuildConfig.local.xcconfig`, stamps `BuildMetadata.xcconfig` with the current git hash, and can bootstrap the local config from environment variables in CI.
 - `ci_post_clone.sh` installs XcodeGen, prepares the build config, and regenerates the Xcode project after checkout.
-- `run_kdbx_compatibility_gate.sh` runs the KDBX artifact test, exports generated `.kdbx` attachments from the `.xcresult`, and validates them with `keepassxc-cli`. This is a required local release gate; Xcode Cloud does not install KeePassXC.
+- `run_kdbx_compatibility_gate.sh` runs the KDBX artifact test, exports generated `.kdbx` attachments from the `.xcresult`, and validates them with `keepassxc-cli`. This is a required local release gate; Xcode Cloud does not install KeePassXC. For artifacts with `expectedAttachments` in the manifest (currently the `attachments.kdbx`-derived artifacts), it also resolves each entry via `keepassxc-cli search`, runs `keepassxc-cli attachment-export`, and compares the exported file's SHA-256 against the manifest value; the script prints how many attachment checks passed alongside the overall artifact count.
 
 ## Guidance
 

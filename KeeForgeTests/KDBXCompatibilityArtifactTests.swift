@@ -48,7 +48,8 @@ final class KDBXCompatibilityArtifactTests: XCTestCase {
                     password: plan.fixture.fixture.password,
                     keyFileName: keyFileAttachmentName,
                     expectedSearchTerms: plan.scenario.expectedSearchTerms,
-                    expectedGroupPaths: plan.scenario.expectedGroupPaths
+                    expectedGroupPaths: plan.scenario.expectedGroupPaths,
+                    expectedAttachments: KDBXCompatibilitySupport.expectedAttachments(forScenarioID: plan.scenario.id)
                 )
             )
         }

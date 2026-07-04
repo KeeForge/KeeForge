@@ -37,10 +37,12 @@ xcrun xcresulttool export attachments \
   --output-path "${ATTACHMENT_DIR}"
 
 python3 - "${ATTACHMENT_DIR}" "${KEEPASSXC_CLI}" <<'PY'
+import hashlib
 import json
 import os
 import subprocess
 import sys
+import tempfile
 
 attachment_dir = sys.argv[1]
 keepassxc_cli = sys.argv[2]
@@ -129,6 +131,7 @@ with open(manifest_path, "r", encoding="utf-8") as handle:
     manifest = json.load(handle)
 
 failures = []
+attachment_checks_verified = 0
 
 def run_keepassxc(args, password):
     process = subprocess.run(
@@ -139,6 +142,23 @@ def run_keepassxc(args, password):
         stderr=subprocess.PIPE,
     )
     return process
+
+def resolve_entry_path(db_path, base_options, password, entry_title, artifact_id, expected_search_terms):
+    # Prefer an exact-title search hit so entries that moved (e.g. into the
+    # Recycle Bin) still resolve to their current path. Only search if the
+    # scenario's own expectedSearchTerms didn't already confirm this title,
+    # to avoid masking an unrelated search failure recorded above.
+    command = [keepassxc_cli, "search", *base_options, db_path, entry_title]
+    result = run_keepassxc(command, password)
+    if result.returncode != 0:
+        return None, f"{artifact_id}: search for entry {entry_title!r} failed\nstdout: {result.stdout}\nstderr: {result.stderr}"
+
+    for line in result.stdout.splitlines():
+        candidate = line.strip()
+        if candidate.rsplit("/", 1)[-1] == entry_title:
+            return candidate, None
+
+    return None, f"{artifact_id}: could not resolve path for entry {entry_title!r}\nstdout: {result.stdout}"
 
 for artifact in manifest.get("artifacts", []):
     artifact_id = artifact["id"]
@@ -177,11 +197,49 @@ for artifact in manifest.get("artifacts", []):
                 f"stderr: {result.stderr}"
             )
 
+    for expected_attachment in artifact.get("expectedAttachments", []):
+        entry_title = expected_attachment["entryTitle"]
+        attachment_name = expected_attachment["attachmentName"]
+        expected_sha256 = expected_attachment["sha256"]
+
+        entry_path, resolve_error = resolve_entry_path(
+            db_path, base_options, artifact["password"], entry_title, artifact_id, artifact.get("expectedSearchTerms", [])
+        )
+        if entry_path is None:
+            failures.append(resolve_error)
+            continue
+
+        with tempfile.TemporaryDirectory() as export_dir:
+            export_path = os.path.join(export_dir, "exported-attachment")
+            command = [keepassxc_cli, "attachment-export", *base_options, db_path, entry_path, attachment_name, export_path]
+            result = run_keepassxc(command, artifact["password"])
+            if result.returncode != 0:
+                failures.append(
+                    f"{artifact_id}: attachment-export for {entry_title!r}/{attachment_name!r} failed\n"
+                    f"stdout: {result.stdout}\n"
+                    f"stderr: {result.stderr}"
+                )
+                continue
+
+            with open(export_path, "rb") as handle:
+                actual_sha256 = hashlib.sha256(handle.read()).hexdigest()
+
+            if actual_sha256 != expected_sha256:
+                failures.append(
+                    f"{artifact_id}: attachment {entry_title!r}/{attachment_name!r} sha256 mismatch "
+                    f"(expected {expected_sha256}, got {actual_sha256})"
+                )
+            else:
+                attachment_checks_verified += 1
+
 if failures:
     print("KDBX compatibility gate failed:", file=sys.stderr)
     for failure in failures:
         print(f"- {failure}", file=sys.stderr)
     sys.exit(1)
 
-print(f"KDBX compatibility gate passed for {len(manifest.get('artifacts', []))} artifacts.")
+print(
+    f"KDBX compatibility gate passed for {len(manifest.get('artifacts', []))} artifacts "
+    f"({attachment_checks_verified} attachment checks verified)."
+)
 PY

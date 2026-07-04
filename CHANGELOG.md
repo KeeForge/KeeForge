@@ -7,6 +7,7 @@
 
 ### Changes
 - Parse `<Entry>/<Binary>` attachment references structurally into `KPEntry.attachments`, resolvable against the KDBX4 inner-header binary pool via the new read-only `BinaryPool` (name and pool ref preserved verbatim, including on history entries and dangling refs). The writer continues to re-emit the binary pool verbatim; no attachment editing yet.
+- Add attachment test coverage: a deterministic `attachments.kdbx` KDBX4 fixture (non-ASCII filename plus an identical-bytes dedup pair), compatibility-matrix scenarios asserting attachment names and resolved pool SHA-256s survive edit round-trips, external `keepassxc-cli attachment-export` SHA-256 verification in the compatibility gate, and an `EntryAttachmentsSmokeUITests` UI smoke test for the attachments list and QuickLook preview.
 
 ## v1.9.4 (2026-07-02)
 

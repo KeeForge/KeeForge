@@ -6,6 +6,18 @@ import XCTest
 enum KDBXCompatibilitySupport {
     static let artifactManifestName = "kdbx-compatibility-manifest.json"
 
+    /// Recorded SHA-256 hashes for `TestFixtures/compatibility/attachments.kdbx`
+    /// content, generated deterministically via `pykeepass` (see
+    /// `TestFixtures/README.md`). `keepassxc-cli db-create` only produces
+    /// KDBX 3.1 databases and exposes no cipher/KDF override flags, so this
+    /// fixture cannot be regenerated with the CLI used by the other
+    /// compatibility fixtures.
+    enum AttachmentFixtureHashes {
+        static let noteUnicodeTxt = "bcc1c6cd101bd5b27356a7004361fd1e1ff74ed2ef416e3252997d328efd3727"
+        static let pixelPNG = "3ec322a42990a3067cc6c73f3856a86e55bdd8baf19d2166954a8fb319329a72"
+        static let sharedBin = "fd184a4f05cf3d4f39ab726bda3d3a923da30e9ab2d6697b69c2d39d7ea1ab18"
+    }
+
     struct Fixture {
         enum Source {
             case bundled(name: String, subdirectory: String? = "compatibility")
@@ -58,6 +70,14 @@ enum KDBXCompatibilitySupport {
             source: .bundled(name: "legacy-kdbx31")
         )
 
+        static let attachments = Fixture(
+            id: "attachments",
+            displayName: "Attachments fixture",
+            password: "testpassword123",
+            keyFileName: nil,
+            source: .bundled(name: "attachments")
+        )
+
         static let syntheticRich = Fixture(
             id: "synthetic-rich",
             displayName: "Synthetic rich KDBX4 fixture",
@@ -104,7 +124,13 @@ enum KDBXCompatibilitySupport {
         let assertChange: (CompatibilitySnapshot, CompatibilitySnapshot, LoadedFixture) throws -> Void
 
         func apply(to loaded: LoadedFixture) throws -> ScenarioResult {
-            let before = try CompatibilitySnapshot(rootGroup: loaded.rootGroup, meta: loaded.meta, sessionKey: loaded.sessionKey)
+            let beforePool = BinaryPool(rawFields: loaded.header.innerHeaderBinaryFields)
+            let before = try CompatibilitySnapshot(
+                rootGroup: loaded.rootGroup,
+                meta: loaded.meta,
+                sessionKey: loaded.sessionKey,
+                binaryPool: beforePool
+            )
             let draft = DatabaseDraft(rootGroup: loaded.rootGroup, meta: loaded.meta, sessionKey: loaded.sessionKey)
             let edit = try makeEdit(loaded)
             let updatedDraft = try draft.apply(edit)
@@ -120,10 +146,12 @@ enum KDBXCompatibilitySupport {
                 compositeKey: loaded.compositeKey,
                 sessionKey: loaded.sessionKey
             )
+            let afterPool = BinaryPool(rawFields: reparsed.header.innerHeaderBinaryFields)
             let after = try CompatibilitySnapshot(
                 rootGroup: reparsed.rootGroup,
                 meta: reparsed.meta,
-                sessionKey: loaded.sessionKey
+                sessionKey: loaded.sessionKey,
+                binaryPool: afterPool
             )
 
             try assertChange(before, after, loaded)
@@ -138,6 +166,12 @@ enum KDBXCompatibilitySupport {
     }
 
     struct ArtifactManifest: Codable {
+        struct ExpectedAttachment: Codable {
+            let entryTitle: String
+            let attachmentName: String
+            let sha256: String
+        }
+
         struct Artifact: Codable {
             let id: String
             let fileName: String
@@ -145,9 +179,65 @@ enum KDBXCompatibilitySupport {
             let keyFileName: String?
             let expectedSearchTerms: [String]
             let expectedGroupPaths: [String]
+            var expectedAttachments: [ExpectedAttachment] = []
         }
 
         let artifacts: [Artifact]
+    }
+
+    /// Expected attachment checks for artifacts derived from the
+    /// `attachments` fixture, keyed by scenario id. Populated for scenarios
+    /// where the referenced entry (and its attachment) is expected to still
+    /// exist, under its post-edit title, in the written artifact.
+    static func expectedAttachments(forScenarioID scenarioID: String) -> [ArtifactManifest.ExpectedAttachment] {
+        switch scenarioID {
+        case "fixture-smoke-attachments":
+            return [
+                ArtifactManifest.ExpectedAttachment(
+                    entryTitle: "Multi Attachment Entry",
+                    attachmentName: "note-ü.txt",
+                    sha256: AttachmentFixtureHashes.noteUnicodeTxt
+                ),
+                ArtifactManifest.ExpectedAttachment(
+                    entryTitle: "Multi Attachment Entry",
+                    attachmentName: "pixel.png",
+                    sha256: AttachmentFixtureHashes.pixelPNG
+                ),
+                ArtifactManifest.ExpectedAttachment(
+                    entryTitle: "Dedup Entry A",
+                    attachmentName: "shared.bin",
+                    sha256: AttachmentFixtureHashes.sharedBin
+                ),
+                ArtifactManifest.ExpectedAttachment(
+                    entryTitle: "Dedup Entry B",
+                    attachmentName: "shared.bin",
+                    sha256: AttachmentFixtureHashes.sharedBin
+                ),
+            ]
+        case "attachments-update-entry":
+            return [
+                ArtifactManifest.ExpectedAttachment(
+                    entryTitle: "Multi Attachment Entry Updated",
+                    attachmentName: "note-ü.txt",
+                    sha256: AttachmentFixtureHashes.noteUnicodeTxt
+                ),
+                ArtifactManifest.ExpectedAttachment(
+                    entryTitle: "Multi Attachment Entry Updated",
+                    attachmentName: "pixel.png",
+                    sha256: AttachmentFixtureHashes.pixelPNG
+                ),
+            ]
+        case "attachments-soft-delete-entry":
+            return [
+                ArtifactManifest.ExpectedAttachment(
+                    entryTitle: "Dedup Entry B",
+                    attachmentName: "shared.bin",
+                    sha256: AttachmentFixtureHashes.sharedBin
+                ),
+            ]
+        default:
+            return []
+        }
     }
 
     static func load(_ fixture: Fixture, bundle: Bundle, sessionKey: SymmetricKey = SymmetricKey(size: .bits256)) throws -> LoadedFixture {
@@ -269,6 +359,88 @@ enum KDBXCompatibilitySupport {
         )
     }
 
+    /// Update-entry scenario for the `attachments` fixture: edits the
+    /// non-attachment fields of `Multi Attachment Entry` (which carries two
+    /// attachments) and asserts its attachments and their resolved pool
+    /// content hashes survive untouched.
+    static func attachmentsFixtureUpdateEntryScenario() -> Scenario {
+        Scenario(
+            id: "attachments-update-entry",
+            title: "Update entry preserves attachments",
+            artifactFileName: "attachments-update-entry.kdbx",
+            expectedSearchTerms: ["Multi Attachment Entry Updated"],
+            expectedGroupPaths: [],
+            makeEdit: { loaded in
+                let entry = try XCTUnwrap(findEntry(titled: "Multi Attachment Entry", in: loaded.rootGroup))
+                return .updateEntry(
+                    entryID: entry.id,
+                    draft: EntryDraftPayload(
+                        title: "Multi Attachment Entry Updated",
+                        username: "updated-multi-user",
+                        password: "updated-multi-password",
+                        url: entry.url,
+                        notes: entry.notes,
+                        customFields: entry.customFields,
+                        tags: entry.tags
+                    )
+                )
+            },
+            assertChange: { before, after, _ in
+                let entryID = try XCTUnwrap(before.entryID(titled: "Multi Attachment Entry"))
+                try assertUnchangedEntries(before: before, after: after, excluding: [entryID])
+                try assertSurvivingGroupsPreserveScalars(before: before, after: after)
+
+                let original = try XCTUnwrap(before.entries[entryID])
+                let updated = try XCTUnwrap(after.entries[entryID])
+                XCTAssertEqual(updated.title, "Multi Attachment Entry Updated")
+                XCTAssertEqual(updated.attachments, original.attachments)
+                XCTAssertEqual(updated.attachmentHashes, original.attachmentHashes)
+                XCTAssertEqual(Set(updated.attachments.map(\.name)), ["note-ü.txt", "pixel.png"])
+                XCTAssertEqual(Set(updated.attachmentHashes.compactMap { $0 }), [
+                    AttachmentFixtureHashes.noteUnicodeTxt,
+                    AttachmentFixtureHashes.pixelPNG,
+                ])
+            }
+        )
+    }
+
+    /// Soft-delete scenario for the `attachments` fixture: sends `Dedup
+    /// Entry A` to the recycle bin (creating it, since the fixture starts
+    /// without one) and asserts both dedup entries' shared attachment bytes
+    /// remain resolvable and identical afterward.
+    static func attachmentsFixtureSoftDeleteScenario() -> Scenario {
+        Scenario(
+            id: "attachments-soft-delete-entry",
+            title: "Soft delete entry preserves sibling dedup attachment",
+            artifactFileName: "attachments-soft-delete-entry.kdbx",
+            expectedSearchTerms: ["Dedup Entry B"],
+            expectedGroupPaths: ["Recycle Bin"],
+            makeEdit: { loaded in
+                let entry = try XCTUnwrap(findEntry(titled: "Dedup Entry A", in: loaded.rootGroup))
+                return .deleteEntry(entryID: entry.id, sendToRecycleBin: true)
+            },
+            assertChange: { before, after, _ in
+                let deletedID = try XCTUnwrap(before.entryID(titled: "Dedup Entry A"))
+                let survivingID = try XCTUnwrap(before.entryID(titled: "Dedup Entry B"))
+                try assertUnchangedEntries(before: before, after: after, excluding: [deletedID])
+
+                let deletedBefore = try XCTUnwrap(before.entries[deletedID])
+                let deletedAfter = try XCTUnwrap(after.entries[deletedID])
+                XCTAssertEqual(deletedAfter.attachments, deletedBefore.attachments)
+                XCTAssertEqual(deletedAfter.attachmentHashes, deletedBefore.attachmentHashes)
+
+                let survivor = try XCTUnwrap(after.entries[survivingID])
+                XCTAssertEqual(survivor.attachments.map(\.name), ["shared.bin"])
+                XCTAssertEqual(survivor.attachmentHashes, [AttachmentFixtureHashes.sharedBin])
+                XCTAssertEqual(deletedAfter.attachmentHashes, [AttachmentFixtureHashes.sharedBin])
+
+                let recycleBinID = try XCTUnwrap(after.meta.recycleBinUUID)
+                let recycleBin = try XCTUnwrap(after.groups[recycleBinID])
+                XCTAssertTrue(recycleBin.entryIDs.contains(deletedID))
+            }
+        )
+    }
+
     static func artifactPlans(bundle: Bundle) throws -> [(fixture: LoadedFixture, scenario: Scenario)] {
         var plans: [(LoadedFixture, Scenario)] = []
 
@@ -285,6 +457,15 @@ enum KDBXCompatibilitySupport {
             let loaded = try load(fixture, bundle: bundle)
             plans.append((loaded, fixtureSmokeScenario(fixtureID: fixture.id)))
         }
+
+        let attachmentsFixtureForSmoke = try load(.attachments, bundle: bundle)
+        plans.append((attachmentsFixtureForSmoke, fixtureSmokeScenario(fixtureID: Fixture.attachments.id)))
+
+        let attachmentsFixtureForUpdate = try load(.attachments, bundle: bundle)
+        plans.append((attachmentsFixtureForUpdate, attachmentsFixtureUpdateEntryScenario()))
+
+        let attachmentsFixtureForSoftDelete = try load(.attachments, bundle: bundle)
+        plans.append((attachmentsFixtureForSoftDelete, attachmentsFixtureSoftDeleteScenario()))
 
         return plans
     }
@@ -330,6 +511,11 @@ struct CompatibilitySnapshot {
         let unknownXML: OpaqueXMLNodes
         let protectedStringKeys: Set<String>
         let attachments: [KPAttachment]
+        /// SHA-256 hex digest of each attachment's resolved pool bytes, in
+        /// the same order as `attachments`. `nil` for a dangling ref (no
+        /// pool entry at that index) so a missing binary doesn't silently
+        /// compare equal to another missing binary with a different ref.
+        let attachmentHashes: [String?]
     }
 
     struct TOTP: Equatable {
@@ -380,10 +566,10 @@ struct CompatibilitySnapshot {
     let groups: [UUID: Group]
     let meta: KPMeta
 
-    init(rootGroup: KPGroup, meta: KPMeta, sessionKey: SymmetricKey) throws {
+    init(rootGroup: KPGroup, meta: KPMeta, sessionKey: SymmetricKey, binaryPool: BinaryPool? = nil) throws {
         var entries: [UUID: Entry] = [:]
         var groups: [UUID: Group] = [:]
-        try Self.capture(group: rootGroup, sessionKey: sessionKey, entries: &entries, groups: &groups)
+        try Self.capture(group: rootGroup, sessionKey: sessionKey, binaryPool: binaryPool, entries: &entries, groups: &groups)
         self.entries = entries
         self.groups = groups
         self.meta = meta
@@ -400,6 +586,7 @@ struct CompatibilitySnapshot {
     private static func capture(
         group: KPGroup,
         sessionKey: SymmetricKey,
+        binaryPool: BinaryPool?,
         entries: inout [UUID: Entry],
         groups: inout [UUID: Group]
     ) throws {
@@ -418,15 +605,23 @@ struct CompatibilitySnapshot {
         groups[group.id] = capturedGroup
 
         for entry in group.entries {
-            entries[entry.id] = try capture(entry: entry, sessionKey: sessionKey)
+            entries[entry.id] = try capture(entry: entry, sessionKey: sessionKey, binaryPool: binaryPool)
         }
 
         for child in group.groups {
-            try capture(group: child, sessionKey: sessionKey, entries: &entries, groups: &groups)
+            try capture(group: child, sessionKey: sessionKey, binaryPool: binaryPool, entries: &entries, groups: &groups)
         }
     }
 
-    private static func capture(entry: KPEntry, sessionKey: SymmetricKey) throws -> Entry {
+    private static func attachmentHashes(for attachments: [KPAttachment], binaryPool: BinaryPool?) -> [String?] {
+        attachments.map { attachment in
+            guard let binaryPool, let item = binaryPool[attachment.ref] else { return nil }
+            let digest = SHA256.hash(data: item.data)
+            return digest.map { String(format: "%02x", $0) }.joined()
+        }
+    }
+
+    private static func capture(entry: KPEntry, sessionKey: SymmetricKey, binaryPool: BinaryPool?) throws -> Entry {
         let capturedTOTP: TOTP?
         if let totp = entry.totpConfig {
             capturedTOTP = TOTP(
@@ -454,10 +649,11 @@ struct CompatibilitySnapshot {
             otpURL: entry.otpURL,
             creationTime: entry.creationTime,
             lastModificationTime: entry.lastModificationTime,
-            history: try entry.history.map { try capture(entry: $0, sessionKey: sessionKey) },
+            history: try entry.history.map { try capture(entry: $0, sessionKey: sessionKey, binaryPool: binaryPool) },
             unknownXML: entry.unknownXML,
             protectedStringKeys: entry.protectedStringKeys,
-            attachments: entry.attachments
+            attachments: entry.attachments,
+            attachmentHashes: attachmentHashes(for: entry.attachments, binaryPool: binaryPool)
         )
     }
 }

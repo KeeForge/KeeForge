@@ -18,6 +18,7 @@ Use this document for UI test methodology. Repo-wide build and test policy stays
 - `EntryCreateSmokeUITests` — create-entry happy path using a known fixture group
 - `EntryEditSmokeUITests` — edit-entry happy path using a known fixture entry
 - `EntryDeleteSmokeUITests` — delete-entry happy path using a known fixture entry
+- `EntryAttachmentsSmokeUITests` — entry-attachments list happy path (row name/size, QuickLook preview open/dismiss) using the `attachments` fixture
 - `KeyFileUnlockUITests` — unlocking with a key file
 - `CloudBrowserSmokeUITests` — add Dropbox and browse the mock cloud picker
 - `CloudUnlockSmokeUITests` — unlock a seeded cloud-backed database through the mock provider
@@ -207,6 +208,13 @@ Important notes:
 Password: `demo`
 
 Used by `AppStoreScreenshots` and richer screenshot-style flows.
+
+### Attachments Fixture
+
+`TestFixtures/compatibility/attachments.kdbx`  
+Password: `testpassword123`
+
+Used by `EntryAttachmentsSmokeUITests`. Single `Attachments` group with `Multi Attachment Entry` (attachments `note-ü.txt` and `pixel.png`), `Dedup Entry A` / `Dedup Entry B` (both attach identically-named/identical-content `shared.bin`), and `No Attachment Entry`. See `../TestFixtures/README.md` for recorded SHA-256 hashes.
 
 ### Key File Fixtures
 

@@ -11,8 +11,7 @@ struct AttachmentsSection: View {
     var body: some View {
         Section("Attachments") {
             ForEach(Array(attachments.enumerated()), id: \.offset) { index, attachment in
-                AttachmentRow(attachment: attachment, viewModel: viewModel)
-                    .accessibilityIdentifier("entry.attachment.\(index)")
+                AttachmentRow(attachment: attachment, index: index, viewModel: viewModel)
             }
         }
     }
@@ -20,6 +19,7 @@ struct AttachmentsSection: View {
 
 private struct AttachmentRow: View {
     let attachment: KPAttachment
+    let index: Int
     @Bindable var viewModel: DatabaseViewModel
 
     @State private var isResolving = false
@@ -63,7 +63,12 @@ private struct AttachmentRow: View {
             }
         }
         .disabled(isDangling)
-        .accessibilityIdentifier("entry.attachment.row")
+        // Each row carries a stable per-index identifier (`entry.attachment.0`,
+        // `entry.attachment.1`, ...). Because SwiftUI collapses the button into a
+        // single accessibility element, an additional `entry.attachment.row`
+        // identifier on the same element would be shadowed by this one, so tests
+        // enumerate rows via the `entry.attachment.<index>` prefix instead.
+        .accessibilityIdentifier("entry.attachment.\(index)")
         .sheet(isPresented: previewPresentedBinding) {
             if let previewURL {
                 AttachmentQuickLookPreview(url: previewURL)
