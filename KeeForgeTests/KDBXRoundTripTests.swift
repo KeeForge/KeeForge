@@ -84,20 +84,19 @@ final class KDBXRoundTripTests: XCTestCase {
                 in: entry.unknownXML
             )
         )
-        let binaryReference = try XCTUnwrap(
-            unknownFragment(
-                named: "Binary",
-                containing: "round-trip.txt",
-                in: entry.unknownXML
-            )
-        )
+        // `<Binary>` attachment refs are structurally parsed into
+        // `KPEntry.attachments`, not captured as unknown XML.
+        let binaryAttachment = try XCTUnwrap(entry.attachments.first)
 
         XCTAssertFalse(metaCustomData.isEmpty)
         XCTAssertFalse(entryCustomData.isEmpty)
         XCTAssertFalse(autoType.isEmpty)
-        XCTAssertFalse(binaryReference.isEmpty)
+        XCTAssertEqual(binaryAttachment.name, "round-trip.txt")
+        XCTAssertEqual(binaryAttachment.ref, 0)
         XCTAssertEqual(entry.history.count, 1)
         XCTAssertTrue(entry.history[0].notes.contains("Historical revision for round-trip coverage"))
+        XCTAssertEqual(entry.history[0].attachments.first?.name, "round-trip.txt")
+        XCTAssertEqual(entry.history[0].attachments.first?.ref, 0)
 
         let reparsed = try serializeAndParse(parsed)
         let reparsedEntry = try controlledUnknownsEntry(in: reparsed.rootGroup)
@@ -123,15 +122,12 @@ final class KDBXRoundTripTests: XCTestCase {
                 in: reparsedEntry.unknownXML
             )
         )
-        XCTAssertNotNil(
-            unknownFragment(
-                named: "Binary",
-                containing: "round-trip.txt",
-                in: reparsedEntry.unknownXML
-            )
-        )
+        XCTAssertEqual(reparsedEntry.attachments.first?.name, "round-trip.txt")
+        XCTAssertEqual(reparsedEntry.attachments.first?.ref, 0)
         XCTAssertEqual(reparsedEntry.history.count, 1)
         XCTAssertTrue(reparsedEntry.history[0].notes.contains("Historical revision for round-trip coverage"))
+        XCTAssertEqual(reparsedEntry.history[0].attachments.first?.name, "round-trip.txt")
+        XCTAssertEqual(reparsedEntry.history[0].attachments.first?.ref, 0)
         XCTAssertEqual(parsed.meta.recycleBinUUID, reparsed.meta.recycleBinUUID)
         XCTAssertEqual(entry.title, reparsedEntry.title)
         XCTAssertEqual(entry.username, reparsedEntry.username)
@@ -351,6 +347,7 @@ final class KDBXRoundTripTests: XCTestCase {
         XCTAssertEqual(lhs.creationTime, rhs.creationTime, file: file, line: line)
         XCTAssertEqual(lhs.lastModificationTime, rhs.lastModificationTime, file: file, line: line)
         XCTAssertEqual(normalizedOpaqueXML(lhs.unknownXML), normalizedOpaqueXML(rhs.unknownXML), file: file, line: line)
+        XCTAssertEqual(lhs.attachments, rhs.attachments, file: file, line: line)
         XCTAssertEqual(lhs.history.count, rhs.history.count, file: file, line: line)
         for (lhsHistoryEntry, rhsHistoryEntry) in zip(lhs.history, rhs.history) {
             try assertEntriesEqual(lhsHistoryEntry, rhsHistoryEntry, file: file, line: line)

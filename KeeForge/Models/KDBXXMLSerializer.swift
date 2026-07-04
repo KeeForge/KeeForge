@@ -160,67 +160,120 @@ struct KDBXXMLSerializer {
 
     private mutating func serializeEntry(_ entry: KPEntry) throws -> String {
         var xml = "<Entry>"
+        // `knownChildCount` is the opaque-XML position space: it advances for
+        // every structural child, including `<Binary>`, exactly mirroring
+        // `EntryBuilder.knownChildCount` on the parser side (recordOpaqueXML's
+        // Entry case increments it for Binary too). `attachmentAnchor` is a
+        // second, slower counter that only advances for non-attachment known
+        // elements — it mirrors `EntryBuilder.attachmentAnchorChildCount` and
+        // is what `KPAttachment.insertionIndex` is expressed against, so that
+        // multiple attachments recorded at the same source position don't
+        // pollute each other's recorded index.
         var knownChildCount = 0
+        var attachmentAnchor = 0
+        var remainingAttachments = entry.attachments
+
+        func attachmentsXML() throws -> String {
+            var matched = ""
+            var stillPending: [KPAttachment] = []
+            for attachment in remainingAttachments {
+                if attachment.insertionIndex == attachmentAnchor {
+                    matched += serializeBinary(attachment)
+                    knownChildCount += 1
+                    // Advancing `knownChildCount` opens up a new opaque-XML
+                    // position between this attachment and whatever comes
+                    // next, since the parser bumps `entry.knownChildCount`
+                    // for every parsed Binary too. Query it immediately so
+                    // unknown fragments recorded at that position aren't
+                    // silently skipped by the next, later opaque lookup.
+                    matched += try opaqueXML(from: entry.unknownXML, path: [], insertionIndex: knownChildCount)
+                } else {
+                    stillPending.append(attachment)
+                }
+            }
+            remainingAttachments = stillPending
+            return matched
+        }
 
         xml += try opaqueXML(from: entry.unknownXML, path: [], insertionIndex: knownChildCount)
+        xml += try attachmentsXML()
         xml += element("UUID", value: serializeUUID(entry.id))
         knownChildCount += 1
+        attachmentAnchor += 1
 
         xml += try opaqueXML(from: entry.unknownXML, path: [], insertionIndex: knownChildCount)
+        xml += try attachmentsXML()
         xml += element("IconID", value: String(entry.iconID))
         knownChildCount += 1
+        attachmentAnchor += 1
 
         if entry.hasTagsElement || !entry.tags.isEmpty {
             xml += try opaqueXML(from: entry.unknownXML, path: [], insertionIndex: knownChildCount)
+            xml += try attachmentsXML()
             xml += element("Tags", value: escape(entry.tags.joined(separator: ",")))
             knownChildCount += 1
+            attachmentAnchor += 1
         }
 
         if entry.creationTime != nil || entry.lastModificationTime != nil || hasOpaqueTimes(entry.unknownXML) {
             xml += try opaqueXML(from: entry.unknownXML, path: [], insertionIndex: knownChildCount)
+            xml += try attachmentsXML()
             xml += try serializeTimes(
                 creationTime: entry.creationTime,
                 lastModificationTime: entry.lastModificationTime,
                 unknownXML: entry.unknownXML
             )
             knownChildCount += 1
+            attachmentAnchor += 1
         }
 
         xml += try opaqueXML(from: entry.unknownXML, path: [], insertionIndex: knownChildCount)
+        xml += try attachmentsXML()
         xml += try serializeString(key: "Title", value: entry.title, isProtected: entry.protectedStringKeys.contains("Title"))
         knownChildCount += 1
+        attachmentAnchor += 1
 
         xml += try opaqueXML(from: entry.unknownXML, path: [], insertionIndex: knownChildCount)
+        xml += try attachmentsXML()
         xml += try serializeString(key: "UserName", value: entry.username, isProtected: entry.protectedStringKeys.contains("UserName"))
         knownChildCount += 1
+        attachmentAnchor += 1
 
         xml += try opaqueXML(from: entry.unknownXML, path: [], insertionIndex: knownChildCount)
+        xml += try attachmentsXML()
         xml += try serializeString(
             key: "Password",
             value: try entry.password.decrypt(using: sessionKey),
             isProtected: true
         )
         knownChildCount += 1
+        attachmentAnchor += 1
 
         xml += try opaqueXML(from: entry.unknownXML, path: [], insertionIndex: knownChildCount)
+        xml += try attachmentsXML()
         xml += try serializeString(key: "URL", value: entry.url, isProtected: entry.protectedStringKeys.contains("URL"))
         knownChildCount += 1
+        attachmentAnchor += 1
 
         xml += try opaqueXML(from: entry.unknownXML, path: [], insertionIndex: knownChildCount)
+        xml += try attachmentsXML()
         xml += try serializeString(key: "Notes", value: entry.notes, isProtected: entry.protectedStringKeys.contains("Notes"))
         knownChildCount += 1
+        attachmentAnchor += 1
 
         if let otpURL = entry.otpURL {
             // Preserve the original otpauth:// URI so issuer/label and any
             // custom query parameters survive the round-trip. Splitting into
             // TimeOtp-* fields drops everything outside the canonical set.
             xml += try opaqueXML(from: entry.unknownXML, path: [], insertionIndex: knownChildCount)
+            xml += try attachmentsXML()
             xml += try serializeString(
                 key: "otp",
                 value: otpURL,
                 isProtected: entry.protectedStringKeys.contains("otp")
             )
             knownChildCount += 1
+            attachmentAnchor += 1
         } else if let totpConfig = entry.totpConfig {
             let secret = try totpConfig.secret.decrypt(using: sessionKey)
             let totpFields = [
@@ -232,28 +285,40 @@ struct KDBXXMLSerializer {
 
             for (key, value, isProtected) in totpFields {
                 xml += try opaqueXML(from: entry.unknownXML, path: [], insertionIndex: knownChildCount)
+                xml += try attachmentsXML()
                 xml += try serializeString(key: key, value: value, isProtected: isProtected)
                 knownChildCount += 1
+                attachmentAnchor += 1
             }
         }
 
         for key in entry.customFields.keys.sorted() {
             let value = entry.customFields[key] ?? ""
             xml += try opaqueXML(from: entry.unknownXML, path: [], insertionIndex: knownChildCount)
+            xml += try attachmentsXML()
             xml += try serializeString(
                 key: key,
                 value: value,
                 isProtected: entry.protectedStringKeys.contains(key)
             )
             knownChildCount += 1
+            attachmentAnchor += 1
         }
 
         if !entry.history.isEmpty || hasOpaqueHistory(entry.unknownXML) {
             xml += try opaqueXML(from: entry.unknownXML, path: [], insertionIndex: knownChildCount)
+            xml += try attachmentsXML()
             xml += try serializeHistory(entry.history, unknownXML: entry.unknownXML)
             knownChildCount += 1
+            attachmentAnchor += 1
         }
 
+        // Any attachments recorded at or beyond the final anchor position
+        // (including newly-added attachments, which default to
+        // insertionIndex 0 but only reach here once all indices below the
+        // final count have already been drained) trail just before the
+        // closing tag, mirroring trailingOpaqueXML.
+        xml += remainingAttachments.map(serializeBinary).joined()
         xml += try trailingOpaqueXML(from: entry.unknownXML, path: [], knownChildCount: knownChildCount)
         xml += "</Entry>"
         return xml
@@ -327,6 +392,10 @@ struct KDBXXMLSerializer {
         }
 
         return "<String><Key>\(escape(key))</Key><Value\(attributes)>\(renderedValue)</Value></String>"
+    }
+
+    private func serializeBinary(_ attachment: KPAttachment) -> String {
+        "<Binary><Key>\(escape(attachment.name))</Key><Value Ref=\"\(attachment.ref)\"/></Binary>"
     }
 
     private mutating func encryptProtectedValue(_ plaintext: String) throws -> String {

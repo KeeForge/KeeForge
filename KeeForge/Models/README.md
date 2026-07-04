@@ -14,10 +14,11 @@ This folder holds the data and logic that the rest of the app depends on. It is 
 - `DatabaseReference.swift` is the persisted identifier for a known database, including bookmarks, nicknames, quick-launch state, read-only and edit-acknowledgment flags, and cloud metadata.
 - `CloudSyncModels.swift` describes cloud provider files and sync metadata used by the database list and sync coordinator, including provider-specific optimistic-concurrency tokens such as Dropbox `rev` and OneDrive eTag/cTag values.
 - `PasskeyCredential.swift` parses KeePassXC-style custom fields into passkey data used by the app and AutoFill extension.
+- `Attachment.swift` defines `KPAttachment` (name + pool ref, structurally parsed from `<Entry>/<Binary>`) and `BinaryPool`, which lazily decodes `Header.innerHeaderBinaryFields` (stripping the leading protection-flag byte) on subscript access by ref. Read-only in Phase 1: the writer only ever re-emits the inner-header binary pool verbatim: no ref renumbering, no new pool entries. Dangling refs (no pool entry at that index) are tolerated and resolve to `nil` rather than failing the parse.
 
 ## Notes For Agents
 
 - Secrets should stay encrypted in memory until the exact point of use.
 - Keep parsing and crypto work off the main actor.
 - If a format or compatibility change is unclear, check `../../docs/README.md` and the related spec before changing code.
-- Relevant unit tests usually live in `../../KeeForgeTests/KDBXParserTests.swift`, `../../KeeForgeTests/KDBXWriterTests.swift`, `../../KeeForgeTests/KDBXRoundTripTests.swift`, `../../KeeForgeTests/DatabaseDraftTests.swift`, `../../KeeForgeTests/EncryptedValueTests.swift`, `../../KeeForgeTests/TOTPGeneratorTests.swift`, `../../KeeForgeTests/KeyFileProcessorTests.swift`, and `../../KeeForgeTests/PasskeyTests.swift`.
+- Relevant unit tests usually live in `../../KeeForgeTests/KDBXParserTests.swift`, `../../KeeForgeTests/KDBXWriterTests.swift`, `../../KeeForgeTests/KDBXRoundTripTests.swift`, `../../KeeForgeTests/DatabaseDraftTests.swift`, `../../KeeForgeTests/EncryptedValueTests.swift`, `../../KeeForgeTests/TOTPGeneratorTests.swift`, `../../KeeForgeTests/KeyFileProcessorTests.swift`, `../../KeeForgeTests/PasskeyTests.swift`, and `../../KeeForgeTests/AttachmentTests.swift`.

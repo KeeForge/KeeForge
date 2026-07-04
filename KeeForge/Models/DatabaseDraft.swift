@@ -368,7 +368,8 @@ struct DatabaseDraft: Sendable {
             protectedStringKeys: preservedProtectedStringKeys(
                 from: originalEntry,
                 customFields: draft.customFields
-            )
+            ),
+            attachments: originalEntry.attachments
         )
     }
 

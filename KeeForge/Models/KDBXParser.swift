@@ -1068,6 +1068,8 @@ final class KDBXXMLParser: NSObject, XMLParserDelegate {
     private var currentStringWasProtected = false
     private var inValue = false
     private var inKey = false
+    private var currentBinaryRef: Int?
+    private var currentBinaryRefWasParsable = true
     private var historyDepth = 0
     private var inMeta = false
     private var captureStack: [XMLCaptureElement] = []
@@ -1159,6 +1161,11 @@ final class KDBXXMLParser: NSObject, XMLParserDelegate {
             isProtected = false
             currentStringWasProtected = false
 
+        case "Binary":
+            currentKey = ""
+            currentBinaryRef = nil
+            currentBinaryRefWasParsable = true
+
         case "Key":
             inKey = true
 
@@ -1166,6 +1173,13 @@ final class KDBXXMLParser: NSObject, XMLParserDelegate {
             inValue = true
             currentStringWasProtected = attributes["Protected"]?.lowercased() == "true"
             isProtected = currentStringWasProtected
+            if let refAttribute = attributes["Ref"] {
+                if let ref = Int(refAttribute) {
+                    currentBinaryRef = ref
+                } else {
+                    currentBinaryRefWasParsable = false
+                }
+            }
 
         case "Times":
             if let currentEntry {
@@ -1320,6 +1334,17 @@ final class KDBXXMLParser: NSObject, XMLParserDelegate {
                 }
             }
 
+        case "Binary":
+            if let entry = currentEntry, currentBinaryRefWasParsable, let ref = currentBinaryRef {
+                entry.attachments.append(
+                    KPAttachment(name: currentKey, ref: ref, insertionIndex: entry.attachmentAnchorChildCount)
+                )
+            } else {
+                // Malformed or missing Ref: keep the element as opaque XML
+                // rather than failing the parse.
+                currentBinaryRefWasParsable = false
+            }
+
         case "Times":
             break // handled by sub-elements
 
@@ -1463,6 +1488,14 @@ final class KDBXXMLParser: NSObject, XMLParserDelegate {
             switch elementName {
             case "UUID", "IconID", "Tags", "Times", "String", "History":
                 entry.knownChildCount += 1
+                entry.attachmentAnchorChildCount += 1
+            case "Binary" where currentBinaryRefWasParsable:
+                // Counts toward opaque-XML sibling positioning (knownChildCount)
+                // but not toward attachmentAnchorChildCount: the writer's
+                // interleaving loop only advances past non-attachment known
+                // elements, so attachment insertionIndex must live in that same
+                // position space rather than including other attachments.
+                entry.knownChildCount += 1
             default:
                 entry.unknownXML.append(xml: xml, insertionIndex: entry.knownChildCount)
             }
@@ -1572,8 +1605,16 @@ private class EntryBuilder {
     var history: [KPEntry] = []
     var unknownXML = OpaqueXMLNodes.empty
     var knownChildCount = 0
+    /// Count of non-`Binary` known children seen so far, i.e. the same
+    /// position space the writer's `serializeEntry` counter occupies (it
+    /// never advances for attachments). Used as `KPAttachment.insertionIndex`
+    /// so re-serialization interleaves `<Binary>` at its original position
+    /// without attachments polluting each other's recorded index the way a
+    /// shared counter would.
+    var attachmentAnchorChildCount = 0
     var timesKnownChildCount = 0
     var historyKnownChildCount = 0
+    var attachments: [KPAttachment] = []
 
     func build(sessionKey: SymmetricKey) -> KPEntry {
         let encryptedPassword = (try? EncryptedValue.encrypt(password, using: sessionKey)) ?? .empty
@@ -1595,7 +1636,8 @@ private class EntryBuilder {
             lastModificationTime: lastModificationTime,
             history: history,
             unknownXML: unknownXML,
-            protectedStringKeys: protectedStringKeys
+            protectedStringKeys: protectedStringKeys,
+            attachments: attachments
         )
     }
 

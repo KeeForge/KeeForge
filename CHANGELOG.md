@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+### New Features
+- Show a read-only "Attachments" section on the entry detail screen, with QuickLook preview and share for each attachment; dangling references are shown disabled and marked unavailable. Preview/share uses short-lived, file-protected temp files that are cleaned up on dismiss and on database lock.
+
+### Changes
+- Parse `<Entry>/<Binary>` attachment references structurally into `KPEntry.attachments`, resolvable against the KDBX4 inner-header binary pool via the new read-only `BinaryPool` (name and pool ref preserved verbatim, including on history entries and dangling refs). The writer continues to re-emit the binary pool verbatim; no attachment editing yet.
+
 ## v1.9.4 (2026-07-02)
 
 ### Fixes

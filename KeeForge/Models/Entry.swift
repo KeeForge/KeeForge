@@ -27,6 +27,10 @@ struct KPEntry: Identifiable, Sendable {
     var history: [KPEntry]
     var unknownXML: OpaqueXMLNodes
     var protectedStringKeys: Set<String>
+    /// Attachment references (`<Binary><Key>name</Key><Value Ref="N"/></Binary>`)
+    /// resolved lazily against the inner-header `BinaryPool`. Dangling refs are
+    /// tolerated and preserved verbatim.
+    var attachments: [KPAttachment]
 
     /// Whether the entry has a non-empty password (without decrypting).
     var hasPassword: Bool { password.hasValue }
@@ -48,7 +52,8 @@ struct KPEntry: Identifiable, Sendable {
         lastModificationTime: Date? = nil,
         history: [KPEntry] = [],
         unknownXML: OpaqueXMLNodes = .empty,
-        protectedStringKeys: Set<String> = []
+        protectedStringKeys: Set<String> = [],
+        attachments: [KPAttachment] = []
     ) {
         self.id = id
         self.title = title
@@ -67,6 +72,7 @@ struct KPEntry: Identifiable, Sendable {
         self.history = history
         self.unknownXML = unknownXML
         self.protectedStringKeys = protectedStringKeys
+        self.attachments = attachments
     }
 
     /// Additional URLs from KeePass2Android KP2A_URL_* custom fields, sorted by key

@@ -98,6 +98,7 @@ final class DatabaseViewModel {
         let formatVersion: KDBXParser.FileVersion
         let sessionKey: SymmetricKey
         let openTimeSHA512: Data
+        let binaryPool: BinaryPool
     }
 
     struct PendingLockRequest: Identifiable, Equatable, Sendable {
@@ -248,6 +249,9 @@ final class DatabaseViewModel {
     private var isRefreshingSharedCache = false
     private var lastSharedCacheRefreshAt: Date?
     private var unlockedMeta: KPMeta?
+    /// Decoded inner-header binary pool for the currently unlocked database.
+    /// Cleared on lock; attachments are resolved against it lazily.
+    private(set) var binaryPool: BinaryPool?
     private let cloudSyncOperation: CloudSyncOperation
     private let localSaveOperation: LocalSaveOperation
     private let cloudSaveOperation: CloudSaveOperation
@@ -348,7 +352,8 @@ final class DatabaseViewModel {
                 rootGroup: createdDatabase.rootGroup,
                 meta: createdDatabase.meta,
                 formatVersion: createdDatabase.formatVersion,
-                openTimeSHA512: createdDatabase.openTimeSHA512
+                openTimeSHA512: createdDatabase.openTimeSHA512,
+                binaryPool: BinaryPool(rawFields: [])
             ),
             compositeKey: createdDatabase.compositeKey,
             sessionKey: createdDatabase.sessionKey
@@ -483,7 +488,8 @@ final class DatabaseViewModel {
                     rootGroup: parsed.rootGroup,
                     meta: parsed.meta,
                     formatVersion: parsed.header.formatVersion,
-                    openTimeSHA512: KDBXCrypto.sha512(data)
+                    openTimeSHA512: KDBXCrypto.sha512(data),
+                    binaryPool: BinaryPool(rawFields: parsed.header.innerHeaderBinaryFields)
                 )
             }.value
 
@@ -532,7 +538,8 @@ final class DatabaseViewModel {
                     rootGroup: parsed.rootGroup,
                     meta: parsed.meta,
                     formatVersion: parsed.header.formatVersion,
-                    openTimeSHA512: KDBXCrypto.sha512(data)
+                    openTimeSHA512: KDBXCrypto.sha512(data),
+                    binaryPool: BinaryPool(rawFields: parsed.header.innerHeaderBinaryFields)
                 )
             }.value
 
@@ -578,6 +585,17 @@ final class DatabaseViewModel {
     func group(withID groupID: UUID) -> KPGroup? {
         _ = contentRevision
         return groupIndex[groupID]
+    }
+
+    /// Resolves and decodes attachment bytes for `attachment` against the
+    /// currently unlocked database's inner-header binary pool. Decoding runs
+    /// off the main thread; returns `nil` for dangling refs or when no
+    /// database is unlocked.
+    func attachmentData(for attachment: KPAttachment) async -> Data? {
+        guard let binaryPool else { return nil }
+        return await Task.detached(priority: .userInitiated) {
+            binaryPool[attachment.ref]?.data
+        }.value
     }
 
     func isEntryInRecycleBin(entryID: UUID) -> Bool {
@@ -681,8 +699,10 @@ final class DatabaseViewModel {
         compositeKey = nil
         sessionKey = nil
         unlockedMeta = nil
+        binaryPool = nil
         draft = nil
         openTimeSHA512 = nil
+        AttachmentPreviewFileStore.clearAll()
         saveError = nil
         saveConflict = nil
         pendingLockRequest = nil
@@ -833,6 +853,8 @@ final class DatabaseViewModel {
         sessionKey = reloaded.sessionKey
         unlockedMeta = reloaded.meta
         openTimeSHA512 = reloaded.openTimeSHA512
+        binaryPool = reloaded.binaryPool
+        AttachmentPreviewFileStore.clearAll()
         draft = nil
         saveConflict = nil
         syncedFolderWarning = nil
@@ -1160,6 +1182,7 @@ final class DatabaseViewModel {
         let meta: KPMeta
         let formatVersion: KDBXParser.FileVersion
         let openTimeSHA512: Data
+        let binaryPool: BinaryPool
     }
 
     private func beginNewLockCycle() {
@@ -1289,6 +1312,7 @@ final class DatabaseViewModel {
         pendingLockRequest = nil
         syncedFolderWarning = nil
         unlockedMeta = nil
+        binaryPool = nil
         cloudSyncProgress = nil
         unlockStatusMessage = databaseReference.isCloudBacked
             ? Self.syncStatusMessage(for: databaseReference)
@@ -1309,6 +1333,7 @@ final class DatabaseViewModel {
         self.unlockedMeta = payload.meta
         self.openedFormatVersion = payload.formatVersion
         self.openTimeSHA512 = payload.openTimeSHA512
+        self.binaryPool = payload.binaryPool
         self.draft = nil
         self.saveError = nil
         self.saveConflict = nil
@@ -1663,7 +1688,8 @@ final class DatabaseViewModel {
             meta: parsed.meta,
             formatVersion: parsed.header.formatVersion,
             sessionKey: sessionKey,
-            openTimeSHA512: KDBXCrypto.sha512(data)
+            openTimeSHA512: KDBXCrypto.sha512(data),
+            binaryPool: BinaryPool(rawFields: parsed.header.innerHeaderBinaryFields)
         )
     }
 

@@ -675,6 +675,7 @@ final class KDBXWriterTests: XCTestCase {
         XCTAssertEqual(lhs.creationTime, rhs.creationTime, file: file, line: line)
         XCTAssertEqual(lhs.lastModificationTime, rhs.lastModificationTime, file: file, line: line)
         XCTAssertEqual(normalizedOpaqueXML(lhs.unknownXML), normalizedOpaqueXML(rhs.unknownXML), file: file, line: line)
+        XCTAssertEqual(lhs.attachments, rhs.attachments, file: file, line: line)
         XCTAssertEqual(lhs.history.count, rhs.history.count, file: file, line: line)
         for (lhsHistoryEntry, rhsHistoryEntry) in zip(lhs.history, rhs.history) {
             try assertEntriesEqual(lhsHistoryEntry, rhsHistoryEntry, file: file, line: line)

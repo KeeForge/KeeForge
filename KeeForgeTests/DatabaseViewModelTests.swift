@@ -147,6 +147,22 @@ final class DatabaseViewModelTests: XCTestCase {
         XCTAssertEqual(vm.openTimeSHA512, expectedHash)
     }
 
+    func testAttachmentDataReturnsNilBeforeUnlockAndForDanglingRefAfterUnlock() async throws {
+        let vm = try makeViewModel()
+
+        let beforeUnlock = await vm.attachmentData(for: KPAttachment(name: "missing.txt", ref: 0))
+        XCTAssertNil(beforeUnlock)
+
+        await vm.unlock(password: fixturePassword)
+
+        let danglingRef = await vm.attachmentData(for: KPAttachment(name: "missing.txt", ref: 0))
+        XCTAssertNil(danglingRef)
+
+        vm.lock()
+        let afterLock = await vm.attachmentData(for: KPAttachment(name: "missing.txt", ref: 0))
+        XCTAssertNil(afterLock)
+    }
+
     func testUnlockFailsWhenLocalBookmarkCannotBeResolved() async throws {
         var reference = try makeReference()
         reference.bookmarkData = Data("invalid-bookmark".utf8)
@@ -962,7 +978,8 @@ final class DatabaseViewModelTests: XCTestCase {
                     meta: KPMeta(),
                     formatVersion: .kdbx4(minor: 0),
                     sessionKey: SymmetricKey(size: .bits256),
-                    openTimeSHA512: Data("reloaded-hash".utf8)
+                    openTimeSHA512: Data("reloaded-hash".utf8),
+                    binaryPool: BinaryPool(rawFields: [])
                 )
             }
         )
@@ -1226,7 +1243,8 @@ final class DatabaseViewModelTests: XCTestCase {
                 meta: parsed.meta,
                 formatVersion: parsed.header.formatVersion,
                 sessionKey: sessionKey,
-                openTimeSHA512: KDBXCrypto.sha512(data)
+                openTimeSHA512: KDBXCrypto.sha512(data),
+                binaryPool: BinaryPool(rawFields: parsed.header.innerHeaderBinaryFields)
             )
         },
         syncedFolderDetector: @escaping DatabaseViewModel.SyncedFolderDetectionOperation = { _ in

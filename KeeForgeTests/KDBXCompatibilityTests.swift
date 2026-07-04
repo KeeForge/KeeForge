@@ -45,13 +45,25 @@ final class KDBXCompatibilityTests: XCTestCase {
         let scenario = KDBXCompatibilitySupport.fixtureSmokeScenario(fixtureID: loaded.fixture.id)
         let result = try scenario.apply(to: loaded)
 
+        // `<Binary>` attachment refs are now parsed structurally into
+        // `KPEntry.attachments` instead of falling into unknownXML.
+        let beforeAttachments = result.before.entries.values.flatMap(\.attachments)
+        let afterAttachments = result.after.entries.values.flatMap(\.attachments)
+        XCTAssertTrue(beforeAttachments.contains { $0.name == "round-trip.txt" && $0.ref == 0 })
+        XCTAssertTrue(afterAttachments.contains { $0.name == "round-trip.txt" && $0.ref == 0 })
+
+        let beforeHistoryAttachments = result.before.entries.values.flatMap(\.history).flatMap(\.attachments)
+        let afterHistoryAttachments = result.after.entries.values.flatMap(\.history).flatMap(\.attachments)
+        XCTAssertTrue(beforeHistoryAttachments.contains { $0.name == "round-trip.txt" && $0.ref == 0 })
+        XCTAssertTrue(afterHistoryAttachments.contains { $0.name == "round-trip.txt" && $0.ref == 0 })
+
         let beforeUnknownXML = result.before.entries.values.map(\.unknownXML.nodes).flatMap { $0 }.map(\.xml).joined()
         let afterUnknownXML = result.after.entries.values.map(\.unknownXML.nodes).flatMap { $0 }.map(\.xml).joined()
         let beforeMetaUnknownXML = result.before.meta.unknownXML.nodes.map(\.xml).joined()
         let afterMetaUnknownXML = result.after.meta.unknownXML.nodes.map(\.xml).joined()
 
-        XCTAssertTrue(beforeUnknownXML.contains("round-trip.txt"))
-        XCTAssertTrue(afterUnknownXML.contains("round-trip.txt"))
+        XCTAssertFalse(beforeUnknownXML.contains("round-trip.txt"))
+        XCTAssertFalse(afterUnknownXML.contains("round-trip.txt"))
         XCTAssertTrue(beforeUnknownXML.contains("RoundTripEntryValue-Expected"))
         XCTAssertTrue(afterUnknownXML.contains("RoundTripEntryValue-Expected"))
         XCTAssertTrue(beforeMetaUnknownXML.contains("RoundTripMetaValue-Expected"))

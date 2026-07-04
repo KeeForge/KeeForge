@@ -14,6 +14,7 @@ This folder contains the SwiftUI screens for both supported app UIs: the compact
 - `DatabaseCreationView.swift` owns local and cloud database creation, including master-key input, key-file selection, destination choice, and handoff to Files export or provider folder picking.
 - `UnlockView.swift` owns password/key-file entry and biometric affordances for one database.
 - `GroupListView.swift`, `EntryListView.swift`, `EntryDetailView.swift`, and `SearchView.swift` own post-unlock navigation, entry/group creation and deletion affordances, detail presentation, and the global read-only + unsaved-change surfaces shown while a database is open.
+- `AttachmentsSection.swift` (used by `EntryDetailView.swift`) owns the read-only entry-attachment list: paperclip rows resolved lazily via `DatabaseViewModel.attachmentData(for:)`, byte-size formatting, dangling-ref rows disabled and marked unavailable, and QuickLook preview/share backed by `AttachmentPreviewFileStore` temp files. `AttachmentQuickLookPreview.swift` is the `QLPreviewController` SwiftUI wrapper it presents in a sheet.
 - `EntryEditView.swift`, `PasswordGeneratorSheet.swift`, and `SaveConflictAlert.swift` own entry form editing, password generation, discard confirmation, and the save-conflict alert choices surfaced from `DatabaseViewModel`.
 - `PasswordInputRow.swift` owns editable password entry controls shared by master-password creation and entry editing; `PasswordDisplay.swift` owns read-only password reveal/display rows plus strength indicators.
 - `SettingsView.swift`, `AcknowledgmentsView.swift`, and `TipJarView.swift` own secondary settings and support surfaces.
@@ -25,6 +26,7 @@ This folder contains the SwiftUI screens for both supported app UIs: the compact
 - Keep compact and regular-width layouts behaviorally aligned. If a screen gains iPad-specific presentation, prefer sharing the same core row/detail/editor views instead of forking the feature, and call out any intentional divergence in the local docs.
 - Preserve existing accessibility identifiers on major controls. If you add a new flow that needs automation, add identifiers as part of the feature instead of relying on visible labels.
 - The database list now exposes `database-row.pending-uploads-badge` and `database-row.push-pending-action`; keep those stable unless the matching tests are updated with the change.
+- Entry detail exposes `entry.attachment.row`, `entry.attachment.<index>`, and `entry.attachment.share` for the read-only attachments list; keep those stable unless the matching tests are updated with the change.
 - Keep entry-form state local to `EntryEditViewModel`, but keep draft/save orchestration, conflict handling, and lock/discard decisions in `../ViewModels/DatabaseViewModel.swift`.
 - When changing navigation, split-view behavior, or sheet structure, rerun the smallest affected UI test class from `../../KeeForgeUITests/README.md`.
 - If a view starts needing substantial async or state logic, prefer extracting a helper type or moving the logic into `../ViewModels` rather than growing one monolithic view file.

@@ -76,6 +76,10 @@ struct EntryDetailView: View {
                         }
                     }
 
+                    if !entry.attachments.isEmpty {
+                        AttachmentsSection(attachments: entry.attachments, viewModel: viewModel)
+                    }
+
                     if !entry.tags.isEmpty {
                         Section("Tags") {
                             FlowLayout(spacing: 6) {

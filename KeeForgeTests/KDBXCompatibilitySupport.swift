@@ -329,6 +329,7 @@ struct CompatibilitySnapshot {
         var history: [Entry]
         let unknownXML: OpaqueXMLNodes
         let protectedStringKeys: Set<String>
+        let attachments: [KPAttachment]
     }
 
     struct TOTP: Equatable {
@@ -455,7 +456,8 @@ struct CompatibilitySnapshot {
             lastModificationTime: entry.lastModificationTime,
             history: try entry.history.map { try capture(entry: $0, sessionKey: sessionKey) },
             unknownXML: entry.unknownXML,
-            protectedStringKeys: entry.protectedStringKeys
+            protectedStringKeys: entry.protectedStringKeys,
+            attachments: entry.attachments
         )
     }
 }
