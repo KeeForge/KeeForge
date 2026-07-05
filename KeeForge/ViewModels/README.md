@@ -8,7 +8,8 @@ Observable app state lives here. Keep business rules here and keep views thin.
 - `DatabaseViewModel.swift` owns one database session: unlock state machine, local/cloud file resolution, draft/save state, entry/group deletion state, local-vs-cloud save routing, expected Dropbox rev tracking, save-conflict detection, synced-folder edit acknowledgments, search, sorting, compact + regular-width selection/navigation state, inactivity lock, biometric unlock, shared AutoFill cache refresh after both unlock and save, and the decoded inner-header `BinaryPool` used to resolve read-only entry attachments (`attachmentData(for:)`). The pool and any cached attachment preview temp files are cleared on lock.
 - `EntryEditViewModel.swift` owns entry form state for both create and edit flows, including tag/custom-field normalization, TOTP field shaping, passkey-preserving round trips, and dirty-state tracking for the edit UI.
 - `TOTPViewModel.swift` owns live TOTP code refresh and countdown state for entry-detail UI.
-- `CloudFileBrowserSession.swift` owns account selection plus cloud-provider authentication state for the cloud database picker.
+- `CloudFileBrowserSession.swift` owns account selection plus cloud-provider authentication state for the cloud database picker, including the manual-connection-form branch (`usesManualConnectionForm`/`adoptManualAccount`) used by WebDAV.
+- `WebDAVConnectViewModel.swift` owns the manual WebDAV connect form's field state, https-only client validation, and submit-to-provider (`WebDAVConnecting.connect`) flow.
 - `CloudFolderBrowserViewModel.swift` owns folder browsing, search text, loading, and load-error state for the cloud file browser.
 - `DatabaseCreationViewModel.swift` owns new-database form validation, local export preparation, and cloud creation requests.
 

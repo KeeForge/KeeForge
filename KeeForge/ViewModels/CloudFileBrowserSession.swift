@@ -33,6 +33,12 @@ final class CloudFileBrowserSession {
         accounts.first { $0.id == selectedAccountID }
     }
 
+    /// True when this provider is connected through an in-app server/username/
+    /// password form (WebDAV) rather than a hosted OAuth flow.
+    var usesManualConnectionForm: Bool {
+        CloudProviderKind(rawValue: providerID)?.usesManualConnectionForm ?? false
+    }
+
     func refreshAccounts() {
         accounts = CloudAccountStore.accounts(for: providerID)
         if selectedAccountID == nil {
@@ -64,6 +70,14 @@ final class CloudFileBrowserSession {
             refreshAccounts()
             return .failed(error)
         }
+    }
+
+    /// Adopts an account produced by the manual WebDAV connect form. Mirrors the
+    /// state mutations of a successful `authenticate()`: refresh the account list
+    /// and select the newly connected account.
+    func adoptManualAccount(_ account: CloudAccount) {
+        refreshAccounts()
+        selectedAccountID = account.id
     }
 
     func cancelPendingAuthentication() {

@@ -3,6 +3,7 @@
 ## Unreleased
 
 ### New Features
+- Sync databases over WebDAV (Nextcloud, Synology, and other WebDAV servers). Add a WebDAV server from Add Database or New Database by entering an https server address, username, and password (Nextcloud app passwords recommended), then browse and open or create databases in it.
 - Show a read-only "Attachments" section on the entry detail screen, with QuickLook preview and share for each attachment; dangling references are shown disabled and marked unavailable. Preview/share uses short-lived, file-protected temp files that are cleaned up on dismiss and on database lock.
 
 ### Changes

@@ -2,7 +2,7 @@ import Foundation
 
 enum CloudProviderRegistry {
     static var availableProviders: [CloudProviderKind] {
-        [.dropbox, .oneDrive]
+        [.dropbox, .oneDrive, .webDAV]
     }
 
     static func provider(for id: String) -> CloudProvider? {

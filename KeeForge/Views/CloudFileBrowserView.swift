@@ -9,6 +9,7 @@ struct CloudFileBrowserView: View {
 
     @Environment(\.dismiss) private var dismiss
     @State private var session: CloudFileBrowserSession
+    @State private var isWebDAVConnectPresented = false
 
     init(
         providerID: String,
@@ -108,9 +109,28 @@ struct CloudFileBrowserView: View {
         .task {
             session.refreshAccounts()
         }
+        .sheet(isPresented: $isWebDAVConnectPresented) {
+            if let connector = session.provider as? WebDAVConnecting {
+                WebDAVConnectView(
+                    connector: connector,
+                    onConnected: { account in
+                        session.adoptManualAccount(account)
+                        isWebDAVConnectPresented = false
+                    },
+                    onCancel: {
+                        isWebDAVConnectPresented = false
+                    }
+                )
+            }
+        }
     }
 
     private func beginAuthentication() {
+        if session.usesManualConnectionForm {
+            isWebDAVConnectPresented = true
+            return
+        }
+
         Task {
             switch await session.authenticate(presentationAnchor: presentationAnchor) {
             case .authenticated:
@@ -161,6 +181,7 @@ struct CloudFolderPickerView: View {
 
     @Environment(\.dismiss) private var dismiss
     @State private var session: CloudFileBrowserSession
+    @State private var isWebDAVConnectPresented = false
 
     init(
         providerID: String,
@@ -261,9 +282,28 @@ struct CloudFolderPickerView: View {
         .task {
             session.refreshAccounts()
         }
+        .sheet(isPresented: $isWebDAVConnectPresented) {
+            if let connector = session.provider as? WebDAVConnecting {
+                WebDAVConnectView(
+                    connector: connector,
+                    onConnected: { account in
+                        session.adoptManualAccount(account)
+                        isWebDAVConnectPresented = false
+                    },
+                    onCancel: {
+                        isWebDAVConnectPresented = false
+                    }
+                )
+            }
+        }
     }
 
     private func beginAuthentication() {
+        if session.usesManualConnectionForm {
+            isWebDAVConnectPresented = true
+            return
+        }
+
         Task {
             switch await session.authenticate(presentationAnchor: presentationAnchor) {
             case .authenticated:

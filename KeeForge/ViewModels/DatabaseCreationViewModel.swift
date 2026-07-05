@@ -4,6 +4,7 @@ enum DatabaseCreationDestinationChoice: String, CaseIterable, Identifiable {
     case files
     case dropbox
     case oneDrive
+    case webDAV
 
     var id: String { rawValue }
 
@@ -15,6 +16,8 @@ enum DatabaseCreationDestinationChoice: String, CaseIterable, Identifiable {
             "Dropbox"
         case .oneDrive:
             "OneDrive"
+        case .webDAV:
+            "WebDAV"
         }
     }
 
@@ -26,6 +29,8 @@ enum DatabaseCreationDestinationChoice: String, CaseIterable, Identifiable {
             .dropbox
         case .oneDrive:
             .oneDrive
+        case .webDAV:
+            .webDAV
         }
     }
 }

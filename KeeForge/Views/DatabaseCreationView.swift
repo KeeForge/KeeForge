@@ -59,7 +59,7 @@ struct DatabaseCreationView: View {
                                     }
                                 }
                             }
-                        case .dropbox, .oneDrive:
+                        case .dropbox, .oneDrive, .webDAV:
                             if viewModel.validateForDestinationSelection() {
                                 isCloudFolderPickerPresented = true
                             }
@@ -185,7 +185,7 @@ struct DatabaseCreationView: View {
         switch viewModel.destinationChoice {
         case .files:
             return "After you tap Create, Files will ask where to save the encrypted .kdbx database."
-        case .dropbox, .oneDrive:
+        case .dropbox, .oneDrive, .webDAV:
             let providerName = selectedCloudProvider?.displayName ?? "cloud"
             return "After you tap Create, choose the \(providerName) folder for the encrypted .kdbx database."
         }

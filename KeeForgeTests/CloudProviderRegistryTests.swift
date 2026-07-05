@@ -4,7 +4,7 @@ import XCTest
 @MainActor
 final class CloudProviderRegistryTests: XCTestCase {
     func testAvailableProvidersContainsCloudProviders() {
-        XCTAssertEqual(CloudProviderRegistry.availableProviders, [.dropbox, .oneDrive])
+        XCTAssertEqual(CloudProviderRegistry.availableProviders, [.dropbox, .oneDrive, .webDAV])
     }
 
     func testProviderReturnsDropboxSharedInstance() {
@@ -17,6 +17,12 @@ final class CloudProviderRegistryTests: XCTestCase {
         let provider = CloudProviderRegistry.provider(for: CloudProviderKind.oneDrive.rawValue)
 
         XCTAssertTrue(provider === OneDriveCloudProvider.shared)
+    }
+
+    func testProviderReturnsWebDAVSharedInstance() {
+        let provider = CloudProviderRegistry.provider(for: CloudProviderKind.webDAV.rawValue)
+
+        XCTAssertTrue(provider === WebDAVCloudProvider.shared)
     }
 
     func testProviderReturnsNilForUnknownProvider() {

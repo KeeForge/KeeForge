@@ -128,6 +128,29 @@ final class CloudFileBrowserViewModelTests: XCTestCase {
         XCTAssertFalse(session.isAuthenticating)
     }
 
+    func testBrowserSessionUsesManualConnectionFormForWebDAVProvider() {
+        let webDAVSession = CloudFileBrowserSession(providerID: CloudProviderKind.webDAV.rawValue) { _ in nil }
+        let dropboxSession = CloudFileBrowserSession(providerID: CloudProviderKind.dropbox.rawValue) { _ in nil }
+
+        XCTAssertTrue(webDAVSession.usesManualConnectionForm)
+        XCTAssertFalse(dropboxSession.usesManualConnectionForm)
+    }
+
+    func testBrowserSessionAdoptManualAccountRefreshesAndSelectsAccount() {
+        let account = CloudAccount(
+            id: "webdav-abc",
+            displayName: "alex@cloud.example.com",
+            provider: CloudProviderKind.webDAV.rawValue
+        )
+        CloudAccountStore.upsert(account)
+        let session = CloudFileBrowserSession(providerID: CloudProviderKind.webDAV.rawValue) { _ in nil }
+
+        session.adoptManualAccount(account)
+
+        XCTAssertEqual(session.accounts, [account])
+        XCTAssertEqual(session.selectedAccountID, account.id)
+    }
+
     func testBrowserSessionCancelPendingAuthenticationDelegatesToProvider() {
         let provider = MockBrowserCloudProvider()
         let session = CloudFileBrowserSession(providerID: provider.id) { _ in provider }
