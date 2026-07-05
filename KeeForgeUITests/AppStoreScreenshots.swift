@@ -52,9 +52,29 @@ final class AppStoreScreenshots: KeeForgeUITestCase {
         let uploadError: String?
     }
 
+    private struct WebDAVDirectoryPayload: Encodable {
+        let path: String?
+        let files: [CloudFilePayload]
+    }
+
+    private struct WebDAVProviderPayload: Encodable {
+        let accounts: [CloudAccountPayload]
+        let directories: [WebDAVDirectoryPayload]
+        let fileContentsByID: [String: String]
+        let contentHashByFileID: [String: String]
+        let revByFileID: [String: String]?
+        let connectError: String?
+        let authenticateError: String?
+        let listError: String?
+        let metadataError: String?
+        let downloadError: String?
+        let uploadError: String?
+    }
+
     private static let uiTestCloudDatabasesEnv = "UI_TEST_CLOUD_DATABASES_JSON"
     private static let uiTestCloudAccountsEnv = "UI_TEST_CLOUD_ACCOUNTS_JSON"
     private static let uiTestDropboxPayloadEnv = "UI_TEST_DROPBOX_PAYLOAD_JSON"
+    private static let uiTestWebDAVPayloadEnv = "UI_TEST_WEBDAV_PAYLOAD_JSON"
 
     private let demoPassword = "demo"
 
@@ -74,6 +94,16 @@ final class AppStoreScreenshots: KeeForgeUITestCase {
             displayName: "alex@example.com",
             provider: "dropbox"
         )
+        let webDAVAccount = CloudAccountPayload(
+            id: "webdav-family",
+            displayName: "family@webdav.example.com",
+            provider: "webdav"
+        )
+        let oneDriveAccount = CloudAccountPayload(
+            id: "onedrive-backup",
+            displayName: "taylor@outlook.com",
+            provider: "onedrive"
+        )
         let cloudFile = CloudFilePayload(
             id: "/Vaults/shared-vault.kdbx",
             name: "Shared Vault.kdbx",
@@ -82,14 +112,40 @@ final class AppStoreScreenshots: KeeForgeUITestCase {
             modifiedDate: Date(timeIntervalSince1970: 1_712_345_678),
             size: Int64(fixtureData.count)
         )
+        let webDAVFile = CloudFilePayload(
+            id: "/Family/Family WebDAV.kdbx",
+            name: "Family WebDAV.kdbx",
+            path: "/Family/Family WebDAV.kdbx",
+            isFolder: false,
+            modifiedDate: Date(timeIntervalSince1970: 1_712_432_100),
+            size: Int64(fixtureData.count)
+        )
+        let oneDriveFile = CloudFilePayload(
+            id: "/drive/root:/KeeForge/OneDrive Backup.kdbx",
+            name: "OneDrive Backup.kdbx",
+            path: "/KeeForge/OneDrive Backup.kdbx",
+            isFolder: false,
+            modifiedDate: Date(timeIntervalSince1970: 1_712_500_400),
+            size: Int64(fixtureData.count)
+        )
 
         app.launchEnvironment["UI_TEST_ENABLE_FAVICONS"] = "1"
-        app.launchEnvironment[Self.uiTestCloudAccountsEnv] = try encode([account])
+        app.launchEnvironment[Self.uiTestCloudAccountsEnv] = try encode([account, webDAVAccount, oneDriveAccount])
         app.launchEnvironment[Self.uiTestCloudDatabasesEnv] = try encode([
             CloudDatabasePayload(
                 provider: "dropbox",
                 accountId: account.id,
                 file: cloudFile
+            ),
+            CloudDatabasePayload(
+                provider: "webdav",
+                accountId: webDAVAccount.id,
+                file: webDAVFile
+            ),
+            CloudDatabasePayload(
+                provider: "onedrive",
+                accountId: oneDriveAccount.id,
+                file: oneDriveFile
             ),
         ])
         app.launchEnvironment[Self.uiTestDropboxPayloadEnv] = try encode(
@@ -99,6 +155,21 @@ final class AppStoreScreenshots: KeeForgeUITestCase {
                 fileContentsByID: [cloudFile.id: fixtureBase64],
                 contentHashByFileID: [cloudFile.id: "demo-content-hash"],
                 revByFileID: [cloudFile.id: "demo-rev-1"],
+                authenticateError: nil,
+                listError: nil,
+                metadataError: nil,
+                downloadError: nil,
+                uploadError: nil
+            )
+        )
+        app.launchEnvironment[Self.uiTestWebDAVPayloadEnv] = try encode(
+            WebDAVProviderPayload(
+                accounts: [webDAVAccount],
+                directories: [WebDAVDirectoryPayload(path: nil, files: [webDAVFile])],
+                fileContentsByID: [webDAVFile.id: fixtureBase64],
+                contentHashByFileID: [webDAVFile.id: "demo-webdav-content-hash"],
+                revByFileID: [webDAVFile.id: "\"demo-webdav-rev-1\""],
+                connectError: nil,
                 authenticateError: nil,
                 listError: nil,
                 metadataError: nil,
@@ -142,15 +213,17 @@ final class AppStoreScreenshots: KeeForgeUITestCase {
         }
     }
 
-    private func cloudDatabaseRow() -> XCUIElement {
+    private func cloudDatabaseRow(containing name: String) -> XCUIElement {
         app.buttons.matching(
-            NSPredicate(format: "identifier == 'database.row' AND label CONTAINS[c] %@", "Shared Vault")
+            NSPredicate(format: "identifier == 'database.row' AND label CONTAINS[c] %@", name)
         ).firstMatch
     }
 
     func testCaptureAllScreenshots() throws {
         XCTAssertTrue(waitForDatabaseList(timeout: 10), "Database rows should appear on the home screen")
-        XCTAssertTrue(cloudDatabaseRow().waitForExistence(timeout: 5), "Dropbox-backed database row should appear on the home screen")
+        XCTAssertTrue(cloudDatabaseRow(containing: "Shared Vault").waitForExistence(timeout: 5), "Dropbox-backed database row should appear on the home screen")
+        XCTAssertTrue(cloudDatabaseRow(containing: "Family WebDAV").waitForExistence(timeout: 5), "WebDAV-backed database row should appear on the home screen")
+        XCTAssertTrue(cloudDatabaseRow(containing: "OneDrive Backup").waitForExistence(timeout: 5), "OneDrive-backed database row should appear on the home screen")
         saveScreenshot(.databaseList)
 
         XCTAssertTrue(openFirstDatabaseFromListIfNeeded(), "Unlock sheet should appear after opening the first database")
