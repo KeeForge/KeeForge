@@ -5,7 +5,7 @@ This file tracks planned product work.
 ## Synchronization Support
 
 - [ ] support Google Drive
-- [ ] support OneDrive
+- [x] support OneDrive
 - [ ] support WebDAV
 
 ## iPad and macOS Support
@@ -26,7 +26,7 @@ This file tracks planned product work.
 ## In-App UI Enhancements
 
 - [ ] optimize database row view
-- [ ] nicer password views with consistent font/color and strength indication
+- [x] nicer password views with consistent font/color and strength indication
 - [x] add folders in settings page
 - [x] group settings into sub pages
 - [x] option to disable metadata display for DB row
@@ -37,7 +37,7 @@ This file tracks planned product work.
 
 ### Attachments
 
-- [ ] Add in-app attachment browsing and management
+- [x] Add in-app attachment browsing and management
 - [ ] Support attachment sync across storage providers
 
 ## Localization Support
