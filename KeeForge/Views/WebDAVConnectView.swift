@@ -24,7 +24,12 @@ struct WebDAVConnectView: View {
         NavigationStack {
             Form {
                 Section {
-                    TextField("https://cloud.example.com/…", text: $viewModel.serverURL)
+                    TextField(
+                        "Server",
+                        text: $viewModel.serverURL,
+                        prompt: Text(verbatim: "https://cloud.example.com/…")
+                            .foregroundColor(Color(uiColor: .placeholderText))
+                    )
                         .keyboardType(.URL)
                         .textContentType(.URL)
                         .textInputAutocapitalization(.never)
@@ -33,7 +38,7 @@ struct WebDAVConnectView: View {
                 } header: {
                     Text("Server")
                 } footer: {
-                    Text("e.g. https://cloud.example.com/remote.php/dav/files/USERNAME/ — for Nextcloud, use an app password")
+                    Text("Example: https://cloud.example.com/remote.php/dav/files/USERNAME/ — for Nextcloud, use an app password")
                 }
 
                 Section {
