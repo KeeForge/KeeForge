@@ -13,6 +13,7 @@ Open this folder when the code alone is not enough and you need the longer-form 
 - `specs/key-file.md` — supported key-file formats and implementation notes.
 - `specs/passkey.md` — passkey storage and signing behavior.
 - `specs/totp-autofill.md` — TOTP-related implementation direction.
+- `webdav-manual-e2e-checklist.md` — pre-release manual verification pass for WebDAV sync against real servers.
 - `audits/2026-02-26-security-audit-claude.md` and `audits/2026-03-03-security-audit-codex.md` — security review context and follow-up items.
 - The user-facing privacy policy lives at <https://keeforge.com/privacy> (source in the `keeforge.com` repo). Code changes should not contradict it.
 

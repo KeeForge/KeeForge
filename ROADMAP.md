@@ -6,7 +6,7 @@ This file tracks planned product work.
 
 - [ ] support Google Drive
 - [x] support OneDrive
-- [ ] support WebDAV
+- [x] support WebDAV
 
 ## iPad and macOS Support
 

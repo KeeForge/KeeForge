@@ -22,6 +22,9 @@ Use this document for UI test methodology. Repo-wide build and test policy stays
 - `KeyFileUnlockUITests` — unlocking with a key file
 - `CloudBrowserSmokeUITests` — add Dropbox and browse the mock cloud picker
 - `CloudUnlockSmokeUITests` — unlock a seeded cloud-backed database through the mock provider
+- `WebDAVAddFlowUITests` — add WebDAV, fill the connect form, and browse the mock cloud picker (driven by `UITestWebDAVCloudProvider` via `UI_TEST_WEBDAV_PAYLOAD_JSON`)
+- `WebDAVConnectErrorUITests` — WebDAV connect failure surfaces `webdav.connect.error` and keeps the form up
+- `WebDAVSeededUnlockUITests` — unlock a seeded WebDAV cloud-backed database through the mock provider
 - `DatabaseCreationRegularWidthUITests` — new local database happy path on regular-width / iPad layout
 - `RegularWidthWorkspaceUITests` — regular-width / iPad workspace smoke coverage
 
