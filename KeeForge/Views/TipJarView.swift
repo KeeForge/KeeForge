@@ -21,6 +21,8 @@ struct TipJarView: View {
             } else {
                 tipButtons
             }
+
+            buyMeACoffeeLink
         } header: {
             Text("Tip Jar")
         } footer: {
@@ -71,6 +73,13 @@ struct TipJarView: View {
         }
         .disabled(store.isPurchasing)
         .accessibilityIdentifier("tip-jar.tip-again.menu")
+    }
+
+    private var buyMeACoffeeLink: some View {
+        Link(destination: URL(string: "https://buymeacoffee.com/crazytan")!) {
+            Label("Buy Me a Coffee", systemImage: "cup.and.saucer.fill")
+        }
+        .accessibilityIdentifier("tip-jar.buy-me-a-coffee")
     }
 
     private var tipButtons: some View {

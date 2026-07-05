@@ -5,6 +5,7 @@
 ### New Features
 - Sync databases over WebDAV (Nextcloud, Synology, and other WebDAV servers). Add a WebDAV server from Add Database or New Database by entering an https server address, username, and password (Nextcloud app passwords recommended), then browse and open or create databases in it.
 - Show a read-only "Attachments" section on the entry detail screen, with QuickLook preview and share for each attachment; dangling references are shown disabled and marked unavailable. Preview/share uses short-lived, file-protected temp files that are cleaned up on dismiss and on database lock.
+- Add a "Buy Me a Coffee" link to the Tip Jar section in Settings for supporting development outside the App Store.
 
 ### Changes
 - Replace the Dropbox and OneDrive PNG icons with custom SF Symbol assets and render all cloud provider icons (including WebDAV) through one symbol pipeline, so their size, tint, and dark/light appearance match built-in icons in menus, labels, and rows across iPhone, iPad, and Mac.
