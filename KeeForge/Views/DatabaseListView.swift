@@ -335,11 +335,7 @@ struct DatabaseListView: View {
                 Label {
                     Text(providerKind.displayName)
                 } icon: {
-                    CloudProviderIcon(
-                        provider: providerKind,
-                        size: 16,
-                        visualScale: providerKind == .oneDrive ? 0.50 : 1
-                    )
+                    CloudProviderIcon(provider: providerKind)
                 }
             }
             .accessibilityIdentifier("database.add.\(providerKind.rawValue)")
@@ -594,7 +590,7 @@ private struct DatabaseDetailsView: View {
                     Section {
                         LabeledContent("Provider") {
                             HStack(spacing: 6) {
-                                CloudProviderIcon(provider: metadata.providerKind, size: 16)
+                                CloudProviderIcon(provider: metadata.providerKind)
                                 Text(cloudState.providerName)
                             }
                             .lineLimit(1)

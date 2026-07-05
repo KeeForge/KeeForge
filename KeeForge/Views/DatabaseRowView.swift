@@ -129,9 +129,10 @@ struct DatabaseRowView: View {
         } else if reference.isCloudBacked {
             CloudProviderIcon(
                 provider: reference.cloudProviderKind,
-                size: 24,
                 fallbackSystemName: "icloud"
             )
+            .font(.title3)
+            .foregroundStyle(Color.accentColor)
             .frame(width: 28, height: 28)
         } else {
             Image(systemName: "iphone")

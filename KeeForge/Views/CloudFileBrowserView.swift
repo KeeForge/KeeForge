@@ -44,7 +44,6 @@ struct CloudFileBrowserView: View {
                             } icon: {
                                 CloudProviderIcon(
                                     provider: CloudProviderKind(rawValue: provider.id),
-                                    size: 40,
                                     fallbackSystemName: provider.iconName
                                 )
                             }
@@ -217,7 +216,6 @@ struct CloudFolderPickerView: View {
                             } icon: {
                                 CloudProviderIcon(
                                     provider: CloudProviderKind(rawValue: provider.id),
-                                    size: 40,
                                     fallbackSystemName: provider.iconName
                                 )
                             }
@@ -353,38 +351,24 @@ private struct DropboxLowUserWarningNote: View {
     }
 }
 
+/// Renders a cloud provider glyph as a symbol image so it inherits font,
+/// weight, tint, and dark/light appearance from its context exactly like a
+/// built-in SF Symbol. Dropbox and OneDrive are custom template symbols in
+/// the asset catalog; WebDAV uses a system symbol.
 struct CloudProviderIcon: View {
     let provider: CloudProviderKind?
-    var size: CGFloat = 14
-    var visualScale: CGFloat = 1
     var fallbackSystemName = "icloud"
 
-    @ViewBuilder
     var body: some View {
         switch provider {
         case .dropbox:
             Image("DropboxGlyph")
-                .renderingMode(.original)
-                .resizable()
-                .interpolation(.high)
-                .scaledToFit()
-                .frame(width: size, height: size)
         case .oneDrive:
             Image("OneDriveGlyph")
-                .renderingMode(.original)
-                .resizable()
-                .interpolation(.high)
-                .scaledToFit()
-                .frame(width: size * visualScale, height: size * visualScale)
-                .frame(width: size, height: size)
         case .webDAV:
             Image(systemName: CloudProviderKind.webDAV.iconName)
-                .font(.system(size: size))
-                .frame(width: size, height: size)
         case .none:
             Image(systemName: fallbackSystemName)
-                .font(.system(size: size))
-                .frame(width: size, height: size)
         }
     }
 }

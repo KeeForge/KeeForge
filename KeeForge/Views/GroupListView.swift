@@ -594,7 +594,7 @@ struct DatabaseSettingsView: View {
                     Section {
                         LabeledContent("Provider") {
                             HStack(spacing: 6) {
-                                CloudProviderIcon(provider: metadata.providerKind, size: 16)
+                                CloudProviderIcon(provider: metadata.providerKind)
                                 Text(metadata.providerKind?.displayName ?? metadata.provider)
                             }
                             .lineLimit(1)

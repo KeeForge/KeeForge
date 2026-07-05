@@ -152,7 +152,7 @@ struct SettingsView: View {
                         Label {
                             Text(account.displayName)
                         } icon: {
-                            CloudProviderIcon(provider: account.providerKind, size: 20)
+                            CloudProviderIcon(provider: account.providerKind)
                         }
                         .accessibilityIdentifier("settings.cloud.account.label")
 
