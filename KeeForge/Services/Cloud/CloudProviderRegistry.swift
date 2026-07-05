@@ -16,6 +16,11 @@ enum CloudProviderRegistry {
             return DropboxCloudProvider.shared
         case .oneDrive:
             return OneDriveCloudProvider.shared
+        case .webDAV:
+            // Slice 1: real provider only. The UI-test mock hook lands in a
+            // later slice; when it does, branch here on the -ui-testing flag as
+            // the Dropbox case does above.
+            return WebDAVCloudProvider.shared
         }
     }
 

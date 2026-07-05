@@ -337,6 +337,10 @@ struct CloudProviderIcon: View {
                 .scaledToFit()
                 .frame(width: size * visualScale, height: size * visualScale)
                 .frame(width: size, height: size)
+        case .webDAV:
+            Image(systemName: CloudProviderKind.webDAV.iconName)
+                .font(.system(size: size))
+                .frame(width: size, height: size)
         case .none:
             Image(systemName: fallbackSystemName)
                 .font(.system(size: size))

@@ -3,6 +3,7 @@ import Foundation
 enum CloudProviderKind: String, Codable, CaseIterable, Hashable, Identifiable, Sendable {
     case dropbox = "dropbox"
     case oneDrive = "onedrive"
+    case webDAV = "webdav"
 
     var id: String { rawValue }
 
@@ -12,6 +13,8 @@ enum CloudProviderKind: String, Codable, CaseIterable, Hashable, Identifiable, S
             "Dropbox"
         case .oneDrive:
             "OneDrive"
+        case .webDAV:
+            "WebDAV"
         }
     }
 
@@ -21,6 +24,19 @@ enum CloudProviderKind: String, Codable, CaseIterable, Hashable, Identifiable, S
             "shippingbox.fill"
         case .oneDrive:
             "cloud.fill"
+        case .webDAV:
+            "server.rack"
+        }
+    }
+
+    /// Providers that are connected through an in-app server/username/password
+    /// form rather than a hosted OAuth flow. Only WebDAV uses this path today.
+    var usesManualConnectionForm: Bool {
+        switch self {
+        case .webDAV:
+            true
+        case .dropbox, .oneDrive:
+            false
         }
     }
 }
