@@ -65,8 +65,16 @@ final class WebDAVConnectViewModel {
         do {
             return try await connector.connect(configuration)
         } catch {
-            errorMessage = error.localizedDescription
+            errorMessage = Self.connectionMessage(for: error)
             return nil
         }
+    }
+
+    private static func connectionMessage(for error: Error) -> String {
+        if let cloudError = error as? CloudProviderError, cloudError == .notAuthenticated {
+            return "The WebDAV username or password was rejected."
+        }
+
+        return error.localizedDescription
     }
 }

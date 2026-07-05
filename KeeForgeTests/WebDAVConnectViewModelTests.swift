@@ -85,7 +85,7 @@ final class WebDAVConnectViewModelTests: XCTestCase {
         XCTAssertEqual(connector.lastConfiguration?.password, "secret")
     }
 
-    func testConnectFailureSetsErrorMessageAndClearsConnecting() async {
+    func testConnectAuthenticationFailureUsesCredentialSpecificMessage() async {
         let connector = MockWebDAVConnector()
         connector.result = .failure(CloudProviderError.notAuthenticated)
         let viewModel = WebDAVConnectViewModel(connector: connector)
@@ -97,7 +97,23 @@ final class WebDAVConnectViewModelTests: XCTestCase {
 
         XCTAssertNil(account)
         XCTAssertEqual(connector.connectCallCount, 1)
-        XCTAssertEqual(viewModel.errorMessage, CloudProviderError.notAuthenticated.localizedDescription)
+        XCTAssertEqual(viewModel.errorMessage, "The WebDAV username or password was rejected.")
+        XCTAssertFalse(viewModel.isConnecting)
+    }
+
+    func testConnectFailureSetsErrorMessageAndClearsConnecting() async {
+        let connector = MockWebDAVConnector()
+        connector.result = .failure(CloudProviderError.fileNotFound)
+        let viewModel = WebDAVConnectViewModel(connector: connector)
+        viewModel.serverURL = "https://cloud.example.com/"
+        viewModel.username = "alex"
+        viewModel.password = "secret"
+
+        let account = await viewModel.connect()
+
+        XCTAssertNil(account)
+        XCTAssertEqual(connector.connectCallCount, 1)
+        XCTAssertEqual(viewModel.errorMessage, CloudProviderError.fileNotFound.localizedDescription)
         XCTAssertFalse(viewModel.isConnecting)
     }
 }
