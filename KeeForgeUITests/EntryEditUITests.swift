@@ -184,6 +184,37 @@ class EntryEditUITestCase: KeeForgeUITestCase {
         return deleteButton
     }
 
+    /// Opens a row context menu and waits for its delete action, retrying the
+    /// long press because XCTest can report a row as hittable just before the
+    /// gesture is swallowed by list settling or the saving overlay.
+    @discardableResult
+    func revealContextDeleteButton(
+        rowNamed name: String,
+        identifier: String,
+        preferredIdentifier: String,
+        attempts: Int = 4,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) -> XCUIElement {
+        let deleteButton = app.buttons[identifier]
+        for _ in 0..<attempts {
+            let row = firstRowMatching(name: name, preferredIdentifier: preferredIdentifier)
+            if revealElement(row) {
+                row.press(forDuration: 1.2)
+                if deleteButton.waitForExistence(timeout: 2) {
+                    return deleteButton
+                }
+            }
+        }
+        XCTAssertTrue(
+            deleteButton.waitForExistence(timeout: 2),
+            "Context delete action '\(identifier)' was not visible for row '\(name)'",
+            file: file,
+            line: line
+        )
+        return deleteButton
+    }
+
     func openEntry(named name: String, file: StaticString = #filePath, line: UInt = #line) {
         let entry = firstRowMatching(name: name, preferredIdentifier: "entry.navlink")
         XCTAssertTrue(revealElement(entry), "Entry '\(name)' was not visible", file: file, line: line)
@@ -411,12 +442,11 @@ final class EntryDeleteSmokeUITests: EntryEditUITestCase {
         unlockSuccessfully()
 
         openGroup(named: socialGroupName)
-        let discordEntry = entry(named: discordEntryTitle)
-        XCTAssertTrue(revealElement(discordEntry), "Discord entry was not visible in Social")
-        discordEntry.press(forDuration: 1.2)
-
-        let deleteButton = app.buttons["entry-row.delete-context"]
-        XCTAssertTrue(deleteButton.waitForExistence(timeout: 5))
+        let deleteButton = revealContextDeleteButton(
+            rowNamed: discordEntryTitle,
+            identifier: "entry-row.delete-context",
+            preferredIdentifier: "entry.navlink"
+        )
         deleteButton.tap()
 
         let alertDeleteButton = app.alerts.buttons["Delete"]
@@ -474,12 +504,11 @@ final class EntryDeleteSmokeUITests: EntryEditUITestCase {
     func testContextMenuDeleteEmptyGroupSoftDeleteMovesToRecycleBin() {
         unlockSuccessfully()
 
-        let emptyGroup = group(named: "Empty")
-        XCTAssertTrue(revealElement(emptyGroup), "Empty group was not visible")
-        emptyGroup.press(forDuration: 1.2)
-
-        let deleteButton = app.buttons["group-row.delete-context"]
-        XCTAssertTrue(deleteButton.waitForExistence(timeout: 5))
+        let deleteButton = revealContextDeleteButton(
+            rowNamed: "Empty",
+            identifier: "group-row.delete-context",
+            preferredIdentifier: "group.navlink"
+        )
         deleteButton.tap()
 
         let alert = app.alerts["Delete Group?"]
