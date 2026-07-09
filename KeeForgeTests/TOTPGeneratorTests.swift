@@ -22,6 +22,35 @@ final class TOTPGeneratorTests: XCTestCase {
         XCTAssertEqual(code, "94287082")
     }
 
+    func testGenerateCodeUsesPredecodedBinarySecret() throws {
+        let secret = Data([0x00, 0x01, 0x02, 0xFE, 0xFF])
+        let config = TOTPConfig(
+            secret: encryptSecret("preserved-source"),
+            decodedSecret: try EncryptedValue.encrypt(secret, using: testKey),
+            period: 30,
+            digits: 6,
+            algorithm: .sha1
+        )
+
+        let resolved = try XCTUnwrap(TOTPGenerator.resolveSecret(config: config, sessionKey: testKey))
+        XCTAssertEqual(resolved.data, secret)
+        XCTAssertNotEqual(
+            TOTPGenerator.generateCode(config: config, sessionKey: testKey, date: Date(timeIntervalSince1970: 59)),
+            "------"
+        )
+    }
+
+    func testGenerateCodeReturnsPlaceholderForEmptyPredecodedSecret() {
+        let config = TOTPConfig(
+            secret: encryptSecret("ignored"), decodedSecret: .empty, period: 30, digits: 6, algorithm: .sha1
+        )
+
+        XCTAssertEqual(
+            TOTPGenerator.generateCode(config: config, sessionKey: testKey, date: Date(timeIntervalSince1970: 59)),
+            "------"
+        )
+    }
+
     func testGenerateCodeReturnsPlaceholderForInvalidBase32Secret() {
         let config = TOTPConfig(secret: encryptSecret("not_base32***"), period: 30, digits: 6, algorithm: .sha1)
 

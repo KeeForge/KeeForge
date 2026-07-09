@@ -15,9 +15,13 @@ struct EncryptedValue: Sendable, Hashable {
     /// Encrypt a plaintext string with the given session key.
     /// Returns `.empty` if the plaintext is empty.
     static func encrypt(_ plaintext: String, using key: SymmetricKey) throws -> EncryptedValue {
+        try encrypt(Data(plaintext.utf8), using: key)
+    }
+
+    /// Encrypt arbitrary secret bytes with the per-session key.
+    static func encrypt(_ plaintext: Data, using key: SymmetricKey) throws -> EncryptedValue {
         guard !plaintext.isEmpty else { return .empty }
-        let data = Data(plaintext.utf8)
-        let sealed = try AES.GCM.seal(data, using: key)
+        let sealed = try AES.GCM.seal(plaintext, using: key)
         guard let combined = sealed.combined else {
             throw CryptoKitError.underlyingCoreCryptoError(error: -1)
         }
@@ -26,9 +30,13 @@ struct EncryptedValue: Sendable, Hashable {
 
     /// Decrypt to a temporary String. Returns "" if this is `.empty`.
     func decrypt(using key: SymmetricKey) throws -> String {
-        guard hasValue else { return "" }
+        String(data: try decryptData(using: key), encoding: .utf8) ?? ""
+    }
+
+    /// Decrypt arbitrary secret bytes. Returns empty data for `.empty`.
+    func decryptData(using key: SymmetricKey) throws -> Data {
+        guard hasValue else { return Data() }
         let box = try AES.GCM.SealedBox(combined: sealedData)
-        let plaintext = try AES.GCM.open(box, using: key)
-        return String(data: plaintext, encoding: .utf8) ?? ""
+        return try AES.GCM.open(box, using: key)
     }
 }

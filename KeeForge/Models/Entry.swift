@@ -120,12 +120,21 @@ struct KPEntry: Identifiable, Sendable {
 /// TOTP configuration extracted from KeePass entry
 struct TOTPConfig: Sendable {
     let secret: EncryptedValue
+    /// Pre-decoded secret bytes for formats whose declared encoding is not Base32.
+    let decodedSecret: EncryptedValue?
     let period: Int
     let digits: Int
     let algorithm: TOTPAlgorithm
 
-    init(secret: EncryptedValue, period: Int = 30, digits: Int = 6, algorithm: TOTPAlgorithm = .sha1) {
+    init(
+        secret: EncryptedValue,
+        decodedSecret: EncryptedValue? = nil,
+        period: Int = 30,
+        digits: Int = 6,
+        algorithm: TOTPAlgorithm = .sha1
+    ) {
         self.secret = secret
+        self.decodedSecret = decodedSecret
         self.period = period
         self.digits = digits
         self.algorithm = algorithm

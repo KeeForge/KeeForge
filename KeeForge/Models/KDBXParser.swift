@@ -1325,6 +1325,7 @@ final class KDBXXMLParser: NSObject, XMLParserDelegate {
                 case "URL": entry.url = currentValue
                 case "Notes": entry.notes = currentValue
                 case "otp": entry.otpURL = currentValue
+                case "OTP", "Otp": entry.customFields[currentKey] = currentValue
                 default:
                     if currentKey.hasPrefix("TimeOtp-") || currentKey == "TOTP Settings" || currentKey == "TOTP Seed" {
                         entry.customFields[currentKey] = currentValue
@@ -1666,7 +1667,98 @@ private class EntryBuilder {
             return TOTPConfig(secret: encryptedSeed, period: period, digits: digits)
         }
 
+        let candidates = [otpURL, customFields["OTP"], customFields["Otp"]]
+        for value in candidates where value?.hasPrefix("key=") == true {
+            if let value, let config = parseKeeOTPTOTP(value, sessionKey: sessionKey) {
+                return config
+            }
+        }
         return nil
+    }
+
+    private func parseKeeOTPTOTP(_ query: String, sessionKey: SymmetricKey) -> TOTPConfig? {
+        guard let components = URLComponents(string: "https://keeotp.invalid/?\(query)") else { return nil }
+        let mappedNames = Set(["key", "encoding", "type", "step", "size", "otphashmode"])
+        var params: [String: String] = [:]
+        for item in components.queryItems ?? [] {
+            let name = item.name.lowercased()
+            guard !mappedNames.contains(name) || params[name] == nil,
+                  let value = item.value else { return nil }
+            if mappedNames.contains(name) { params[name] = value }
+        }
+
+        guard let key = params["key"], !key.isEmpty,
+              let encoding = params["encoding"],
+              params["type"]?.uppercased() == "TOTP",
+              let stepValue = params["step"], let step = Int(stepValue), step > 0,
+              let sizeValue = params["size"], let size = Int(sizeValue), [6, 8].contains(size),
+              let hash = params["otphashmode"],
+              let algorithm = TOTPAlgorithm(rawValue: hash.uppercased()),
+              let decoded = decodeKeeOTPSecret(key, encoding: encoding), !decoded.isEmpty,
+              let encryptedKey = try? EncryptedValue.encrypt(key, using: sessionKey),
+              let encryptedDecoded = try? EncryptedValue.encrypt(decoded, using: sessionKey) else { return nil }
+
+        return TOTPConfig(
+            secret: encryptedKey,
+            decodedSecret: encryptedDecoded,
+            period: step,
+            digits: size,
+            algorithm: algorithm
+        )
+    }
+
+    private func decodeKeeOTPSecret(_ key: String, encoding: String) -> Data? {
+        switch encoding.lowercased() {
+        case "base32":
+            guard let normalized = normalizeStrictUnpaddedBase32(key) else { return nil }
+            return TOTPGenerator.base32Decode(normalized).flatMap { $0.isEmpty ? nil : $0 }
+        case "base64":
+            return Data(base64Encoded: key).flatMap { $0.isEmpty ? nil : $0 }
+        case "hex":
+            guard key.count.isMultiple(of: 2), !key.isEmpty else { return nil }
+            var bytes: [UInt8] = []
+            bytes.reserveCapacity(key.count / 2)
+            var index = key.startIndex
+            while index < key.endIndex {
+                let next = key.index(index, offsetBy: 2)
+                guard let byte = UInt8(key[index..<next], radix: 16) else { return nil }
+                bytes.append(byte)
+                index = next
+            }
+            return Data(bytes)
+        case "utf8":
+            return Data(key.utf8)
+        default:
+            return nil
+        }
+    }
+
+    private func normalizeStrictUnpaddedBase32(_ value: String) -> String? {
+        guard !value.isEmpty else { return nil }
+        var normalized: [UInt8] = []
+        normalized.reserveCapacity(value.utf8.count)
+        for byte in value.utf8 {
+            switch byte {
+            case 65...90, 50...55: normalized.append(byte)
+            case 97...122: normalized.append(byte - 32)
+            default: return nil
+            }
+        }
+
+        let remainder = normalized.count % 8
+        let unusedBits: Int
+        switch remainder {
+        case 0: return String(bytes: normalized, encoding: .ascii)
+        case 2: unusedBits = 2
+        case 4: unusedBits = 4
+        case 5: unusedBits = 1
+        case 7: unusedBits = 3
+        default: return nil
+        }
+        guard let last = normalized.last else { return nil }
+        let lastValue = last >= 65 ? Int(last - 65) : Int(last - 50 + 26)
+        guard lastValue & ((1 << unusedBits) - 1) == 0 else { return nil }
+        return String(bytes: normalized, encoding: .ascii)
     }
 
     private func parseTOTPFromURI(_ uri: String, sessionKey: SymmetricKey) -> TOTPConfig? {
