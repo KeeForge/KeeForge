@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+### New Features
+- Allow trusted local WebDAV servers to use unencrypted HTTP through an explicit Advanced connection toggle, while keeping HTTPS required by default and warning that credentials and database traffic will not be encrypted.
+
 ## v1.10.0 (2026-07-05)
 
 ### New Features

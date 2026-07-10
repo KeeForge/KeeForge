@@ -12,6 +12,7 @@ final class WebDAVConnectViewModel {
     var serverURL = ""
     var username = ""
     var password = ""
+    var allowsUnencryptedHTTP = false
     private(set) var isConnecting = false
     var errorMessage: String?
 
@@ -48,8 +49,16 @@ final class WebDAVConnectViewModel {
             return nil
         }
 
-        guard trimmedServerURL.lowercased().hasPrefix("https://") else {
-            errorMessage = "The server address must start with https://."
+        let lowercasedServerURL = trimmedServerURL.lowercased()
+        let usesHTTPS = lowercasedServerURL.hasPrefix("https://")
+        let usesHTTP = lowercasedServerURL.hasPrefix("http://")
+
+        guard usesHTTPS || (usesHTTP && allowsUnencryptedHTTP) else {
+            if usesHTTP {
+                errorMessage = "Turn on Allow Unencrypted HTTP in Advanced to use an http:// server address."
+            } else {
+                errorMessage = "The server address must start with https://."
+            }
             return nil
         }
 
@@ -59,7 +68,8 @@ final class WebDAVConnectViewModel {
         let configuration = WebDAVConnectionConfiguration(
             serverURL: trimmedServerURL,
             username: trimmedUsername,
-            password: password
+            password: password,
+            allowsUnencryptedHTTP: allowsUnencryptedHTTP
         )
 
         do {

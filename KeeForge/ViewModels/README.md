@@ -9,7 +9,7 @@ Observable app state lives here. Keep business rules here and keep views thin.
 - `EntryEditViewModel.swift` owns entry form state for both create and edit flows, including tag/custom-field normalization, TOTP field shaping, passkey-preserving round trips, and dirty-state tracking for the edit UI.
 - `TOTPViewModel.swift` owns live TOTP code refresh and countdown state for entry-detail UI.
 - `CloudFileBrowserSession.swift` owns account selection plus cloud-provider authentication state for the cloud database picker, including the manual-connection-form branch (`usesManualConnectionForm`/`adoptManualAccount`) used by WebDAV.
-- `WebDAVConnectViewModel.swift` owns the manual WebDAV connect form's field state, https-only client validation, and submit-to-provider (`WebDAVConnecting.connect`) flow.
+- `WebDAVConnectViewModel.swift` owns the manual WebDAV connect form's field state, HTTPS-by-default validation with explicit unencrypted-HTTP opt-in, and submit-to-provider (`WebDAVConnecting.connect`) flow.
 - `CloudFolderBrowserViewModel.swift` owns folder browsing, search text, loading, and load-error state for the cloud file browser.
 - `DatabaseCreationViewModel.swift` owns new-database form validation, local export preparation, and cloud creation requests.
 

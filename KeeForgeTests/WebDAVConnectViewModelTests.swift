@@ -57,8 +57,27 @@ final class WebDAVConnectViewModelTests: XCTestCase {
 
         XCTAssertNil(account)
         XCTAssertEqual(connector.connectCallCount, 0)
-        XCTAssertEqual(viewModel.errorMessage, "The server address must start with https://.")
+        XCTAssertEqual(
+            viewModel.errorMessage,
+            "Turn on Allow Unencrypted HTTP in Advanced to use an http:// server address."
+        )
         XCTAssertFalse(viewModel.isConnecting)
+    }
+
+    func testConnectAllowsHTTPWhenExplicitlyEnabled() async {
+        let connector = MockWebDAVConnector()
+        let viewModel = WebDAVConnectViewModel(connector: connector)
+        viewModel.serverURL = "http://vault.local:8080/dav"
+        viewModel.username = "alex"
+        viewModel.password = "secret"
+        viewModel.allowsUnencryptedHTTP = true
+
+        let account = await viewModel.connect()
+
+        XCTAssertNotNil(account)
+        XCTAssertEqual(connector.connectCallCount, 1)
+        XCTAssertEqual(connector.lastConfiguration?.serverURL, "http://vault.local:8080/dav")
+        XCTAssertEqual(connector.lastConfiguration?.allowsUnencryptedHTTP, true)
     }
 
     func testConnectSuccessReturnsAccountAndClearsError() async {
@@ -83,6 +102,7 @@ final class WebDAVConnectViewModelTests: XCTestCase {
         XCTAssertEqual(connector.lastConfiguration?.serverURL, "https://cloud.example.com/")
         XCTAssertEqual(connector.lastConfiguration?.username, "alex")
         XCTAssertEqual(connector.lastConfiguration?.password, "secret")
+        XCTAssertEqual(connector.lastConfiguration?.allowsUnencryptedHTTP, false)
     }
 
     func testConnectAuthenticationFailureUsesCredentialSpecificMessage() async {
