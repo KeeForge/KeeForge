@@ -7,7 +7,7 @@
 <p align="center">
   A free, open-source KeePass manager for iPhone and iPad.
   <br />
-  Native SwiftUI, local-first storage, AutoFill, passkeys, TOTP, Dropbox sync, and KDBX editing.
+  Native SwiftUI, local-first storage, AutoFill, passkeys, TOTP, cloud sync, KDBX editing, and attachment viewing.
 </p>
 
 <p align="center">
@@ -22,21 +22,22 @@
 
 ## Why KeeForge?
 
-KeeForge is a native iOS KeePass client for people who want their vault to stay theirs. Open `.kdbx` databases from Files, iCloud Drive, local folders, or Dropbox; unlock with a master password, key file, or biometrics; then browse, search, edit, save, and AutoFill without handing your vault to a hosted password service.
+KeeForge is a native iOS KeePass client for people who want their vault to stay theirs. Open `.kdbx` databases from Files, iCloud Drive, local folders, Dropbox, OneDrive, or WebDAV servers such as Nextcloud and Synology; unlock with a master password, key file, or biometrics; then browse, search, edit, save, and AutoFill without handing your vault to a hosted password service.
 
 ## Highlights
 
 | Area | What KeeForge Does |
 | --- | --- |
-| **KeePass compatibility** | Opens KDBX 4.x databases with AES-256 or ChaCha20 encryption and Argon2 KDF. Also opens password-only KDBX 3.1 databases. |
-| **Local-first editing** | Create, edit, delete, and save entries and groups with conflict checks, timestamped backups, and unknown XML preservation. |
-| **New databases** | Create new KDBX 4.x databases locally or directly inside Dropbox folders. |
+| **KeePass compatibility** | Reads and writes KDBX 4.x databases with AES-256 or ChaCha20 encryption and AES-KDF, Argon2d, or Argon2id. Also opens password-only KDBX 3.1 databases in read-only mode. |
+| **Local-first editing** | Create, edit, and delete entries; create and delete groups; and save with conflict checks, timestamped backups, entry history, and unknown XML preservation. |
+| **New databases** | Create new KDBX 4.x databases locally or directly inside Dropbox, OneDrive, and WebDAV folders. |
 | **Composite keys** | Unlock with password, key file, or both, including binary, hex, XML v1/v2 (`.key`/`.keyx`), and arbitrary key files. |
 | **AutoFill** | Safari and app AutoFill, QuickType suggestions, credential creation from the extension, and Face ID gated unlock. |
 | **Passkeys** | Detect and authenticate FIDO2/WebAuthn passkeys stored in KeePassXC-compatible custom fields. |
 | **TOTP** | Live one-time password display, copy support, countdowns, and iOS 18+ verification-code AutoFill. |
-| **Dropbox sync** | Native Dropbox account linking, cloud browsing, cached shared copies for AutoFill, and queued extension uploads. |
-| **iPad ready** | Adaptive navigation keeps the database list visible on wider layouts while vaults open in a regular-width workspace. |
+| **Cloud sync** | Native Dropbox, OneDrive, and WebDAV browsing and read/write sync, cached shared copies for AutoFill, queued extension uploads, and conflict checks. |
+| **Attachments** | View KeePass entry attachments, preview supported files with QuickLook, and share them from short-lived protected temporary files. Attachment editing is not yet supported. |
+| **iPad ready** | Adaptive navigation uses a split-view vault workspace on wider layouts while keeping the compact iPhone flow focused and native. |
 | **Security-minded** | AES-GCM in-memory secret encryption, failed-unlock backoff, screen-capture protection, local-only clipboard, decompression bomb limits, and constant-time HMAC comparison. |
 
 ## Privacy
@@ -51,13 +52,13 @@ Read the [privacy policy](https://keeforge.com/privacy).
 - Xcode 16+
 - [XcodeGen](https://github.com/yonaskolb/XcodeGen)
 - Swift 6 with strict concurrency
-- Swift Package dependencies: [Argon2Swift](https://github.com/tmthecoder/Argon2Swift) and [SwiftyDropbox](https://github.com/dropbox/SwiftyDropbox)
+- Swift Package dependencies: [Argon2Swift](https://github.com/tmthecoder/Argon2Swift), [SwiftyDropbox](https://github.com/dropbox/SwiftyDropbox), and [Microsoft Authentication Library](https://github.com/AzureAD/microsoft-authentication-library-for-objc)
 
 ## Build From Source
 
 ```bash
 cp BuildConfig.local.example.xcconfig BuildConfig.local.xcconfig
-# Fill in DROPBOX_APP_KEY for Dropbox-enabled builds.
+# Fill in DROPBOX_APP_KEY and ONEDRIVE_CLIENT_ID for provider-enabled builds.
 xcodegen generate
 open KeeForge.xcodeproj
 ```
@@ -78,7 +79,7 @@ xcodebuild test -project KeeForge.xcodeproj -scheme KeeForge \
 KeeForge/
 ├── App/              # App entry point, adaptive root shell, scene lifecycle
 ├── Models/           # KDBX parser/writer, crypto, edit draft, TOTP, passkeys
-├── Services/         # Persistence, Dropbox sync, Keychain, bookmarks, AutoFill helpers
+├── Services/         # Persistence, cloud sync, Keychain, bookmarks, attachments, AutoFill helpers
 ├── ViewModels/       # Database list, unlock, save, search, sort, TOTP state
 ├── Views/            # SwiftUI screens, editor, settings, tip jar, reusable controls
 AutoFillExtension/    # AutoFill credential provider, passkey auth, credential creation
