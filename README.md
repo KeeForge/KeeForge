@@ -105,7 +105,7 @@ TestFixtures/         # Sample .kdbx databases and key files
 
 ## Contributing
 
-Start with [`AGENTS.md`](AGENTS.md), then open the folder-local `README.md` closest to the code you are changing. The local docs are the fastest route to current architecture and test guidance.
+See [`CONTRIBUTING.md`](CONTRIBUTING.md) for the pull request workflow, Developer Certificate of Origin sign-off requirement, and licensing terms. Start with [`AGENTS.md`](AGENTS.md), then open the folder-local `README.md` closest to the code you are changing.
 
 ## License
 
