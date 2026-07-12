@@ -171,23 +171,6 @@ final class DatabaseListViewModel {
         return nil
     }
 
-    nonisolated static func makeRowStatus(
-        resolvedURL: URL?,
-        hasStoredKey: Bool,
-        pendingUploadCount: Int = 0,
-        pendingUploadConflictCount: Int = 0,
-        accessChecker: (URL) -> Bool = defaultAccessChecker
-    ) -> DatabaseRowStatus {
-        let hasAccessIssue = resolvedURL.map { accessChecker($0) == false } ?? true
-        return DatabaseRowStatus(
-            hasStoredKey: hasStoredKey,
-            hasAccessIssue: hasAccessIssue,
-            cloudState: nil,
-            pendingUploadCount: pendingUploadCount,
-            pendingUploadConflictCount: pendingUploadConflictCount
-        )
-    }
-
     func drainPendingUploadsOnAppActive() async {
         let outcome = await pendingUploadDrainer.drainAll()
         applyDrainOutcome(outcome, surfaceAlerts: false)
@@ -258,10 +241,14 @@ final class DatabaseListViewModel {
                     pendingUploadConflictCount: pendingUploadConflictCount
                 )
             } else {
-                let resolvedURL = DatabaseListStore.resolveDatabaseURL(for: reference)
-                updatedStatuses[reference.id] = Self.makeRowStatus(
-                    resolvedURL: resolvedURL,
+                // Do not resolve or probe local bookmarks while building the
+                // database list. File-provider URLs (especially an offline SMB
+                // share) can block synchronously and freeze the app at launch.
+                // The bounded open path reports the actual access error.
+                updatedStatuses[reference.id] = DatabaseRowStatus(
                     hasStoredKey: hasStoredKey,
+                    hasAccessIssue: reference.bookmarkData == nil,
+                    cloudState: nil,
                     pendingUploadCount: pendingUploadCount,
                     pendingUploadConflictCount: pendingUploadConflictCount
                 )
@@ -305,18 +292,4 @@ final class DatabaseListViewModel {
         pendingUploadAlert = alert
     }
 
-    nonisolated private static func defaultAccessChecker(_ url: URL) -> Bool {
-        let hasSecurityScope = url.startAccessingSecurityScopedResource()
-        defer {
-            if hasSecurityScope {
-                url.stopAccessingSecurityScopedResource()
-            }
-        }
-
-        if (try? url.checkResourceIsReachable()) == true {
-            return true
-        }
-
-        return (try? CoordinatedFileReader.readDataPrefix(from: url, byteCount: 1)) != nil
-    }
 }

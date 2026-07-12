@@ -91,6 +91,11 @@ enum DatabaseSaveError: Error, LocalizedError, Identifiable, Equatable, Sendable
 
 @MainActor @Observable
 final class DatabaseViewModel {
+    struct LocalDatabaseReadResult: Sendable {
+        let url: URL
+        let data: Data
+    }
+
     struct ReloadedDatabase: Sendable {
         let reference: DatabaseReference
         let rootGroup: KPGroup
@@ -132,6 +137,7 @@ final class DatabaseViewModel {
         _ reference: DatabaseReference,
         _ progress: @escaping @Sendable (Double) -> Void
     ) async throws -> CloudSyncResolution
+    typealias LocalDatabaseReadOperation = @Sendable (DatabaseReference) async throws -> LocalDatabaseReadResult
     typealias LocalSaveOperation = @Sendable (
         _ draft: DatabaseDraft,
         _ reference: DatabaseReference,
@@ -171,6 +177,7 @@ final class DatabaseViewModel {
     private static let sortAscendingKey = "KeeForge.sortAscending"
     private static let decryptingStatusMessage = "Decrypting your database securely..."
     private static let sharedCloudRefreshMinimumInterval: TimeInterval = 30
+    private static let localDatabaseReadTimeout: Duration = .seconds(10)
 
     private enum SharedCacheRefreshFingerprint: Equatable {
         case local(url: URL, modificationDate: Date?)
@@ -253,6 +260,7 @@ final class DatabaseViewModel {
     /// Cleared on lock; attachments are resolved against it lazily.
     private(set) var binaryPool: BinaryPool?
     private let cloudSyncOperation: CloudSyncOperation
+    private let localDatabaseReadOperation: LocalDatabaseReadOperation
     private let localSaveOperation: LocalSaveOperation
     private let cloudSaveOperation: CloudSaveOperation
     private let conflictCopyEncryptionOperation: ConflictCopyEncryptionOperation
@@ -272,6 +280,9 @@ final class DatabaseViewModel {
                 reference: reference,
                 progress: progress
             )
+        },
+        localDatabaseReadOperation: @escaping LocalDatabaseReadOperation = { reference in
+            try await DatabaseViewModel.readLocalDatabase(reference: reference)
         },
         localSaveOperation: @escaping LocalSaveOperation = { draft, reference, compositeKey, openTimeSHA512 in
             try await LocalDatabaseSaver.save(
@@ -333,6 +344,7 @@ final class DatabaseViewModel {
             ? DatabaseViewModel.syncStatusMessage(for: databaseReference)
             : Self.decryptingStatusMessage
         self.cloudSyncOperation = cloudSyncOperation
+        self.localDatabaseReadOperation = localDatabaseReadOperation
         self.localSaveOperation = localSaveOperation
         self.cloudSaveOperation = cloudSaveOperation
         self.conflictCopyEncryptionOperation = conflictCopyEncryptionOperation
@@ -561,20 +573,26 @@ final class DatabaseViewModel {
         }
     }
 
-    func loadAssociatedKeyFile() -> (data: Data, filename: String)? {
-        guard let url = DatabaseListStore.resolveKeyFileURL(for: databaseReference) else { return nil }
-        let hasSecurityScope = url.startAccessingSecurityScopedResource()
-        defer {
-            if hasSecurityScope {
-                url.stopAccessingSecurityScopedResource()
-            }
-        }
+    func loadAssociatedKeyFile() async -> (data: Data, filename: String)? {
+        let reference = databaseReference
+        guard let associatedKeyFile = try? await CoordinatedFileReader.performBlocking(
+            timeout: Self.localDatabaseReadTimeout,
+            operation: { () throws -> (data: Data, filename: String)? in
+                guard let url = DatabaseListStore.resolveKeyFileURL(for: reference) else { return nil }
+                let hasSecurityScope = url.startAccessingSecurityScopedResource()
+                defer {
+                    if hasSecurityScope {
+                        url.stopAccessingSecurityScopedResource()
+                    }
+                }
 
-        guard let data = try? Data(contentsOf: url) else { return nil }
+                guard let data = try? CoordinatedFileReader.readData(from: url) else { return nil }
+                return (data: data, filename: reference.keyFileFilename ?? url.lastPathComponent)
+            }
+        ) else { return nil }
 
         refreshDatabaseReference()
-        let filename = databaseReference.keyFileFilename ?? url.lastPathComponent
-        return (data, filename)
+        return associatedKeyFile
     }
 
     func entry(withID entryID: UUID) -> KPEntry? {
@@ -1509,21 +1527,30 @@ final class DatabaseViewModel {
         cloudSyncBannerText = nil
         unlockStatusMessage = Self.decryptingStatusMessage
 
-        if let url = DatabaseListStore.resolveDatabaseURL(for: databaseReference) {
-            return (url, try readSecurityScoped(url: url), nil)
-        }
-
-        throw CocoaError(.fileReadNoSuchFile)
+        let result = try await localDatabaseReadOperation(databaseReference)
+        return (result.url, result.data, nil)
     }
 
-    private func readSecurityScoped(url: URL) throws -> Data {
-        let hasSecurityScope = url.startAccessingSecurityScopedResource()
-        defer {
-            if hasSecurityScope {
-                url.stopAccessingSecurityScopedResource()
+    nonisolated private static func readLocalDatabase(
+        reference: DatabaseReference
+    ) async throws -> LocalDatabaseReadResult {
+        try await CoordinatedFileReader.performBlocking(timeout: localDatabaseReadTimeout) {
+            guard let url = DatabaseListStore.resolveDatabaseURL(for: reference) else {
+                throw CocoaError(.fileReadNoSuchFile)
             }
+
+            let hasSecurityScope = url.startAccessingSecurityScopedResource()
+            defer {
+                if hasSecurityScope {
+                    url.stopAccessingSecurityScopedResource()
+                }
+            }
+
+            return LocalDatabaseReadResult(
+                url: url,
+                data: try CoordinatedFileReader.readData(from: url)
+            )
         }
-        return try CoordinatedFileReader.readData(from: url)
     }
 
     private func populateCredentialStoreIfNeeded(root: KPGroup) {

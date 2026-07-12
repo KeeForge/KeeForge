@@ -176,6 +176,34 @@ final class DatabaseViewModelTests: XCTestCase {
         XCTAssertNil(vm.rootGroup)
     }
 
+    func testUnlockShowsServerUnavailableWhenLocalReadTimesOut() async throws {
+        let reference = try makeReference()
+        let vm = DatabaseViewModel(
+            databaseReference: reference,
+            localDatabaseReadOperation: { _ in
+                throw CoordinatedFileReader.TimeoutError.timedOut
+            }
+        )
+
+        await vm.unlock(password: fixturePassword)
+
+        XCTAssertEqual(vm.openFailure?.errorCode, "file.read_timeout")
+        XCTAssertEqual(vm.openFailure?.category, .fileAccess)
+        XCTAssertFalse(vm.openFailure?.countsTowardFailedAttempts ?? true)
+    }
+
+    func testBlockingFileAccessTimesOutWithoutBlockingCallerActor() async {
+        do {
+            let _: Data = try await CoordinatedFileReader.performBlocking(timeout: .milliseconds(20)) {
+                Thread.sleep(forTimeInterval: 0.25)
+                return Data("eventual result".utf8)
+            }
+            XCTFail("Expected the blocking file access to time out")
+        } catch {
+            XCTAssertEqual(error as? CoordinatedFileReader.TimeoutError, .timedOut)
+        }
+    }
+
     func testForegroundRefreshRepopulatesCredentialStoreWhenUnlocked() async throws {
         let vm = try makeViewModel()
 

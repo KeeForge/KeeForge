@@ -286,6 +286,19 @@ struct DatabaseOpenFailure: Equatable, Sendable {
         isCloudBacked: Bool,
         diagnostics: DatabaseOpenDiagnostics? = nil
     ) -> DatabaseOpenFailure {
+        if error is CoordinatedFileReader.TimeoutError {
+            return DatabaseOpenFailure(
+                title: "Database Server Unavailable",
+                summary: "The database file did not respond. Check that the server is reachable or connect to its network or VPN, then try again.",
+                technicalDetails: technicalDetails(for: error),
+                errorCode: "file.read_timeout",
+                category: .fileAccess,
+                countsTowardFailedAttempts: false,
+                canChooseDifferentFile: true,
+                diagnostics: diagnostics
+            )
+        }
+
         if let cloudError = error as? CloudProviderError {
             return fromCloudError(cloudError).attaching(diagnostics)
         }
