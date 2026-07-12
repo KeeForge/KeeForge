@@ -59,6 +59,66 @@ final class KDBXRoundTripTests: XCTestCase {
         try assertFixtureRoundTrips(.demoKeyfile)
     }
 
+    @MainActor
+    func test_editSaveReload_preservesKeeOTPDecodedSecretAndUppercaseSource() throws {
+        let entry = KPEntry(
+            title: "KeeOTP",
+            password: try EncryptedValue.encrypt("password", using: roundTripSessionKey),
+            customFields: [
+                "OTP": "key=AAEC%2Fw%3D%3D&type=TOTP&step=30&size=6&encoding=Base64&otpHashMode=SHA1",
+            ],
+            totpConfig: TOTPConfig(
+                secret: try EncryptedValue.encrypt("AAEC/w==", using: roundTripSessionKey),
+                decodedSecret: try EncryptedValue.encrypt(Data([0x00, 0x01, 0x02, 0xFF]), using: roundTripSessionKey)
+            )
+        )
+        let rootGroup = KPGroup(id: UUID(), name: "Root", entries: [entry])
+        let viewModel = EntryEditViewModel(editing: entry, sessionKey: roundTripSessionKey)
+        viewModel.notes = "Edited"
+
+        let draft = DatabaseDraft(rootGroup: rootGroup, meta: KPMeta(), sessionKey: roundTripSessionKey)
+        let updated = try draft.apply(.updateEntry(entryID: entry.id, draft: viewModel.entryDraftPayload))
+        let reparsed = try serializeAndParse((rootGroup: updated.rootGroup, meta: updated.meta))
+        let reloaded = try XCTUnwrap(reparsed.rootGroup.allEntries.first)
+        let reloadedTOTP = try XCTUnwrap(reloaded.totpConfig)
+
+        XCTAssertEqual(reloaded.customFields["OTP"], entry.customFields["OTP"])
+        XCTAssertNil(reloaded.customFields["TimeOtp-Secret-Base32"])
+        XCTAssertEqual(
+            TOTPGenerator.resolveSecret(config: reloadedTOTP, sessionKey: roundTripSessionKey)?.data,
+            Data([0x00, 0x01, 0x02, 0xFF])
+        )
+    }
+
+    @MainActor
+    func test_editSaveReload_preservesKeeOTPLowercaseSourceAndDecodedSecret() throws {
+        let entry = KPEntry(
+            title: "KeeOTP",
+            password: try EncryptedValue.encrypt("password", using: roundTripSessionKey),
+            totpConfig: TOTPConfig(
+                secret: try EncryptedValue.encrypt("AAEC/w==", using: roundTripSessionKey),
+                decodedSecret: try EncryptedValue.encrypt(Data([0x00, 0x01, 0x02, 0xFF]), using: roundTripSessionKey)
+            ),
+            otpURL: "key=AAEC%2Fw%3D%3D&type=TOTP&step=30&size=6&encoding=Base64&otpHashMode=SHA1"
+        )
+        let rootGroup = KPGroup(id: UUID(), name: "Root", entries: [entry])
+        let viewModel = EntryEditViewModel(editing: entry, sessionKey: roundTripSessionKey)
+        viewModel.notes = "Edited"
+
+        let draft = DatabaseDraft(rootGroup: rootGroup, meta: KPMeta(), sessionKey: roundTripSessionKey)
+        let updated = try draft.apply(.updateEntry(entryID: entry.id, draft: viewModel.entryDraftPayload))
+        let reparsed = try serializeAndParse((rootGroup: updated.rootGroup, meta: updated.meta))
+        let reloaded = try XCTUnwrap(reparsed.rootGroup.allEntries.first)
+        let reloadedTOTP = try XCTUnwrap(reloaded.totpConfig)
+
+        XCTAssertEqual(reloaded.otpURL, entry.otpURL)
+        XCTAssertNil(reloaded.customFields["TimeOtp-Secret-Base32"])
+        XCTAssertEqual(
+            TOTPGenerator.resolveSecret(config: reloadedTOTP, sessionKey: roundTripSessionKey)?.data,
+            Data([0x00, 0x01, 0x02, 0xFF])
+        )
+    }
+
     func test_unknownNodes_controlledFixture_capturesCustomData() throws {
         let parsed = try parseFixture(.unknownElements)
         let entry = try controlledUnknownsEntry(in: parsed.rootGroup)

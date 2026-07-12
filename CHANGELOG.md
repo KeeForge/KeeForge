@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+### Fixes
+- Preserve KeeOTP secrets with non-Base32 encodings when editing and saving entries, and reject malformed Base64 KeeOTP secrets.
+
 ## v1.10.0 (2026-07-05)
 
 ### New Features

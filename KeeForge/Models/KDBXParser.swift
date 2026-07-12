@@ -1713,7 +1713,9 @@ private class EntryBuilder {
             guard let normalized = normalizeStrictUnpaddedBase32(key) else { return nil }
             return TOTPGenerator.base32Decode(normalized).flatMap { $0.isEmpty ? nil : $0 }
         case "base64":
-            return Data(base64Encoded: key).flatMap { $0.isEmpty ? nil : $0 }
+            guard let decoded = Data(base64Encoded: key), !decoded.isEmpty,
+                  decoded.base64EncodedString() == key else { return nil }
+            return decoded
         case "hex":
             guard key.count.isMultiple(of: 2), !key.isEmpty else { return nil }
             var bytes: [UInt8] = []

@@ -55,6 +55,7 @@ final class EntryEditViewModel {
 
     private let preservedCustomFields: [String: String]
     private let originalSnapshot: Snapshot
+    private let decodedTOTPSecret: Data?
 
     init(
         mode: Mode,
@@ -67,6 +68,7 @@ final class EntryEditViewModel {
         editableCustomFields: [CustomField] = [],
         preservedCustomFields: [String: String] = [:],
         totpSecret: String = "",
+        totpDecodedSecret: Data? = nil,
         totpPeriod: Int = 30,
         totpDigits: Int = 6,
         totpAlgorithm: TOTPAlgorithm = .sha1,
@@ -83,6 +85,7 @@ final class EntryEditViewModel {
         self.customFields = editableCustomFields
         self.preservedCustomFields = preservedCustomFields
         self.totpSecret = totpSecret
+        self.decodedTOTPSecret = totpDecodedSecret
         self.totpPeriod = totpPeriod
         self.totpDigits = totpDigits
         self.totpAlgorithm = totpAlgorithm
@@ -119,6 +122,12 @@ final class EntryEditViewModel {
         let preservedCustomFields = entry.customFields.filter { PasskeyCredential.allFieldKeys.contains($0.key) }
         let password = (try? entry.password.decrypt(using: sessionKey)) ?? ""
         let totpSecret = (try? entry.totpConfig?.secret.decrypt(using: sessionKey)) ?? ""
+        let decodedTOTPSecret: Data?
+        if let encryptedDecodedSecret = entry.totpConfig?.decodedSecret {
+            decodedTOTPSecret = try? encryptedDecodedSecret.decryptData(using: sessionKey)
+        } else {
+            decodedTOTPSecret = nil
+        }
 
         self.init(
             mode: .edit(entryID: entry.id),
@@ -131,6 +140,7 @@ final class EntryEditViewModel {
             editableCustomFields: editableCustomFields,
             preservedCustomFields: preservedCustomFields,
             totpSecret: totpSecret,
+            totpDecodedSecret: decodedTOTPSecret,
             totpPeriod: entry.totpConfig?.period ?? 30,
             totpDigits: entry.totpConfig?.digits ?? 6,
             totpAlgorithm: entry.totpConfig?.algorithm ?? .sha1,
@@ -224,6 +234,11 @@ final class EntryEditViewModel {
 
         return EntryDraftPayload.TOTPConfiguration(
             secret: secret,
+            decodedSecret: secret == originalSnapshot.totpSecret.trimmingCharacters(in: .whitespacesAndNewlines)
+                && totpPeriod == originalSnapshot.totpPeriod
+                && totpDigits == originalSnapshot.totpDigits
+                && totpAlgorithm == originalSnapshot.totpAlgorithm
+                ? decodedTOTPSecret : nil,
             period: totpPeriod,
             digits: totpDigits,
             algorithm: totpAlgorithm

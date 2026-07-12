@@ -403,6 +403,7 @@ struct DatabaseDraft: Sendable {
 
         return TOTPConfig(
             secret: try EncryptedValue.encrypt(draft.secret, using: sessionKey),
+            decodedSecret: try draft.decodedSecret.map { try EncryptedValue.encrypt($0, using: sessionKey) },
             period: draft.period,
             digits: draft.digits,
             algorithm: draft.algorithm

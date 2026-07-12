@@ -233,6 +233,10 @@ final class KDBXParserTests: XCTestCase {
             XCTAssertNil(try parseSingleEntry(fields: [
                 "otp": "key=JBSWY3DP====&type=TOTP&step=30&size=6&encoding=Base64&otpHashMode=SHA1",
             ]).totpConfig, "A Base32-looking key must not fall back from declared Base64")
+
+            XCTAssertNil(try parseSingleEntry(fields: [
+                "otp": "key=AAEC/w===&type=TOTP&step=30&size=6&encoding=Base64&otpHashMode=SHA1",
+            ]).totpConfig, "Over-padded Base64 must be rejected")
         }
 
         func testKeeOTPRejectsIneligibleMalformedDuplicateAndHOTPInputs() throws {

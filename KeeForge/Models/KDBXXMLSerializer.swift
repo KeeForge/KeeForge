@@ -274,7 +274,8 @@ struct KDBXXMLSerializer {
             )
             knownChildCount += 1
             attachmentAnchor += 1
-        } else if let totpConfig = entry.totpConfig {
+        } else if let totpConfig = entry.totpConfig,
+                  totpConfig.decodedSecret == nil || !hasKeeOTPCustomField(entry) {
             let secret = try totpConfig.secret.decrypt(using: sessionKey)
             let totpFields = [
                 ("TimeOtp-Secret-Base32", secret, true),
@@ -322,6 +323,11 @@ struct KDBXXMLSerializer {
         xml += try trailingOpaqueXML(from: entry.unknownXML, path: [], knownChildCount: knownChildCount)
         xml += "</Entry>"
         return xml
+    }
+
+    private func hasKeeOTPCustomField(_ entry: KPEntry) -> Bool {
+        entry.customFields["OTP"]?.hasPrefix("key=") == true
+            || entry.customFields["Otp"]?.hasPrefix("key=") == true
     }
 
     private mutating func serializeHistory(
