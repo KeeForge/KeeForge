@@ -18,7 +18,8 @@ This folder contains the SwiftUI screens for both supported app UIs: the compact
 - `AttachmentsSection.swift` (used by `EntryDetailView.swift`) owns the read-only entry-attachment list: paperclip rows resolved lazily via `DatabaseViewModel.attachmentData(for:)`, byte-size formatting, dangling-ref rows disabled and marked unavailable, and QuickLook preview/share backed by `AttachmentPreviewFileStore` temp files. `AttachmentQuickLookPreview.swift` is the `QLPreviewController` SwiftUI wrapper it presents in a sheet.
 - `EntryEditView.swift`, `PasswordGeneratorSheet.swift`, and `SaveConflictAlert.swift` own entry form editing, password generation, discard confirmation, and the save-conflict alert choices surfaced from `DatabaseViewModel`.
 - `PasswordInputRow.swift` owns editable password entry controls shared by master-password creation and entry editing; `PasswordDisplay.swift` owns read-only password reveal/display rows plus strength indicators.
-- `SettingsView.swift`, `AcknowledgmentsView.swift`, and `TipJarView.swift` own secondary settings and support surfaces.
+- `SettingsView.swift`, `AcknowledgmentsView.swift`, and `TipJarView.swift` own secondary settings and support surfaces. `SettingsView.swift`'s in-file `AutoFillSettingsView` also surfaces the system AutoFill provider status (`settings.autofill.turn-on` / `settings.autofill.open-ios-settings`) via `AutoFillStatusService`.
+- `AutoFillTipBanner.swift` is the dismissible "Turn On AutoFill" card shown by `DatabaseListView` (top safe-area inset) when KeeForge is not the enabled system AutoFill provider. It exposes `autofill-tip.enable` and `autofill-tip.dismiss`; do not add a container-level accessibility identifier — SwiftUI propagates it onto the child buttons and clobbers their ids.
 - `FaviconView.swift` is a reusable async image wrapper used by list and detail UIs.
 
 ## UI Rules

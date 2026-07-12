@@ -32,6 +32,7 @@ Use this document for UI test methodology. Repo-wide build and test policy stays
 
 - `BackoffUITests` — failed-unlock backoff behavior
 - `AppSettingsUITests` — app settings / tip jar coverage from the database list
+- `AutoFillTipUITests` — "Turn On AutoFill" banner on the database list (forced via `UI_TEST_SHOW_AUTOFILL_TIP=1`; the banner is suppressed in all other UI test classes and screenshots)
 - `EntryEditEdgeUITests` — password generation, conflict handling, discard prompts, and read-only editing affordances
 - `KeyFileUITests` — key file selection and picker flows
 - `CloudAccountEdgeUITests` — sign-out / disconnected cloud account behavior
@@ -272,5 +273,7 @@ Use the app's accessibility identifiers whenever possible, including:
 - `database-row.push-pending-action`
 - `search.results.count`
 - `search.no-results`
+- `autofill-tip.enable` / `autofill-tip.dismiss` (database-list AutoFill tip banner)
+- `settings.autofill.turn-on` / `settings.autofill.open-ios-settings` (Settings → AutoFill provider status row)
 
 If a new screen or interaction needs UI coverage, add an accessibility identifier as part of the feature work rather than relying on fragile label matching.

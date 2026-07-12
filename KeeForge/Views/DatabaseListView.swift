@@ -45,6 +45,7 @@ struct DatabaseListView: View {
     @State private var showDatabaseUsageStats = SettingsService.showDatabaseUsageStats
     @State private var activeCloudProvider: CloudProviderKind?
     @State private var isDatabaseCreationPresented = false
+    @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
         NavigationStack {
@@ -70,6 +71,14 @@ struct DatabaseListView: View {
                     .refreshable {
                         viewModel.refreshBookmarks()
                     }
+                }
+            }
+            .safeAreaInset(edge: .top, spacing: 0) {
+                if viewModel.shouldShowAutoFillTip {
+                    AutoFillTipBanner(
+                        onEnable: { Task { await viewModel.requestEnableAutoFill() } },
+                        onDismiss: { viewModel.dismissAutoFillTip() }
+                    )
                 }
             }
             .navigationTitle("KeeForge")
@@ -103,6 +112,14 @@ struct DatabaseListView: View {
         .onAppear {
             refreshUsageStatsVisibility()
             viewModel.reload()
+        }
+        .task {
+            await viewModel.refreshAutoFillStatus()
+        }
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active {
+                Task { await viewModel.refreshAutoFillStatus() }
+            }
         }
         .onChange(of: showDatabaseUsageStats) { _, _ in
             viewModel.reload()

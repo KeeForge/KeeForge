@@ -1,14 +1,19 @@
+import AuthenticationServices
 import XCTest
 @testable import KeeForge
 
 @MainActor
 final class DatabaseListViewModelTests: XCTestCase {
+    private let autoFillSuiteName = "DatabaseListViewModelTests.AutoFill"
+
     override func setUp() {
         super.setUp()
         DatabaseListStore.clearAll()
         CloudAccountStore.clearAll()
         SharedVaultStore.clearBookmark()
         SettingsService.showDatabaseUsageStats = true
+        AutoFillStatusService.defaults = UserDefaults(suiteName: autoFillSuiteName)!
+        AutoFillStatusService.resetForTesting()
     }
 
     override func tearDown() {
@@ -16,6 +21,12 @@ final class DatabaseListViewModelTests: XCTestCase {
         CloudAccountStore.clearAll()
         SharedVaultStore.clearBookmark()
         SettingsService.showDatabaseUsageStats = true
+        AutoFillStatusService.resetForTesting()
+        AutoFillStatusService.defaults = .standard
+        AutoFillStatusService.enabledProvider = {
+            await ASCredentialIdentityStore.shared.state().isEnabled
+        }
+        UserDefaults.standard.removePersistentDomain(forName: autoFillSuiteName)
         super.tearDown()
     }
 
@@ -188,6 +199,61 @@ final class DatabaseListViewModelTests: XCTestCase {
         let viewModel = DatabaseListViewModel()
 
         XCTAssertNil(viewModel.lastOpenedDescription(for: reference))
+    }
+
+    // MARK: - AutoFill enablement tip
+
+    func testAutoFillTipHiddenBeforeStatusCheck() throws {
+        _ = try DatabaseListStore.add(url: makeTemporaryFileURL(name: "personal.kdbx"))
+        let viewModel = DatabaseListViewModel()
+
+        XCTAssertFalse(viewModel.shouldShowAutoFillTip)
+    }
+
+    func testAutoFillTipShownWhenProviderDisabled() async throws {
+        _ = try DatabaseListStore.add(url: makeTemporaryFileURL(name: "personal.kdbx"))
+        AutoFillStatusService.enabledProvider = { false }
+        let viewModel = DatabaseListViewModel()
+
+        await viewModel.refreshAutoFillStatus()
+
+        XCTAssertTrue(viewModel.shouldShowAutoFillTip)
+    }
+
+    func testAutoFillTipHiddenWhenProviderEnabled() async throws {
+        _ = try DatabaseListStore.add(url: makeTemporaryFileURL(name: "personal.kdbx"))
+        AutoFillStatusService.enabledProvider = { true }
+        let viewModel = DatabaseListViewModel()
+
+        await viewModel.refreshAutoFillStatus()
+
+        XCTAssertFalse(viewModel.shouldShowAutoFillTip)
+    }
+
+    func testAutoFillTipHiddenWhenDatabaseListIsEmpty() async {
+        AutoFillStatusService.enabledProvider = { false }
+        let viewModel = DatabaseListViewModel()
+
+        await viewModel.refreshAutoFillStatus()
+
+        XCTAssertFalse(viewModel.shouldShowAutoFillTip)
+    }
+
+    func testDismissAutoFillTipHidesAndPersists() async throws {
+        _ = try DatabaseListStore.add(url: makeTemporaryFileURL(name: "personal.kdbx"))
+        AutoFillStatusService.enabledProvider = { false }
+        let viewModel = DatabaseListViewModel()
+        await viewModel.refreshAutoFillStatus()
+        XCTAssertTrue(viewModel.shouldShowAutoFillTip)
+
+        viewModel.dismissAutoFillTip()
+
+        XCTAssertFalse(viewModel.shouldShowAutoFillTip)
+        XCTAssertTrue(AutoFillStatusService.tipDismissed)
+
+        let freshViewModel = DatabaseListViewModel()
+        await freshViewModel.refreshAutoFillStatus()
+        XCTAssertFalse(freshViewModel.shouldShowAutoFillTip)
     }
 
     func testPickerPresentationStateKeepsTargetUntilCompletion() {

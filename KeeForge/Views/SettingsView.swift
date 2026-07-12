@@ -246,9 +246,13 @@ private struct SecuritySettingsView: View {
 
 private struct AutoFillSettingsView: View {
     @Binding var quickAutoFillEnabled: Bool
+    @State private var isProviderEnabled: Bool?
+    @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
         Form {
+            providerSection
+
             Section {
                 Toggle("Quick AutoFill", isOn: $quickAutoFillEnabled)
             } footer: {
@@ -263,6 +267,47 @@ private struct AutoFillSettingsView: View {
         }
         .navigationTitle("AutoFill")
         .navigationBarTitleDisplayMode(.inline)
+        .task {
+            isProviderEnabled = await AutoFillStatusService.isAutoFillEnabled()
+        }
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active {
+                Task { isProviderEnabled = await AutoFillStatusService.isAutoFillEnabled() }
+            }
+        }
+    }
+
+    private var providerSection: some View {
+        Section {
+            LabeledContent("AutoFill in iOS", value: providerStatusText)
+
+            if isProviderEnabled == false {
+                Button("Turn On AutoFill") {
+                    Task {
+                        if await AutoFillStatusService.requestEnableAutoFill() == true {
+                            isProviderEnabled = true
+                        }
+                    }
+                }
+                .accessibilityIdentifier("settings.autofill.turn-on")
+            } else {
+                Button("Open iOS AutoFill Settings") {
+                    Task { await AutoFillStatusService.openAutoFillSettings() }
+                }
+                .accessibilityIdentifier("settings.autofill.open-ios-settings")
+            }
+        } footer: {
+            if isProviderEnabled == false {
+                Text("KeeForge isn't enabled as an AutoFill provider yet. Turn it on to fill passwords in Safari and other apps.")
+            } else if isProviderEnabled == true {
+                Text("KeeForge is enabled as an AutoFill provider.")
+            }
+        }
+    }
+
+    private var providerStatusText: String {
+        guard let isProviderEnabled else { return "—" }
+        return isProviderEnabled ? "On" : "Off"
     }
 }
 
