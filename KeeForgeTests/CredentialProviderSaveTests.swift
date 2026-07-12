@@ -74,6 +74,69 @@ final class CredentialProviderSaveTests: XCTestCase {
         XCTAssertEqual(DatabaseListStore.activeAutoFillDatabaseID, reference.id)
     }
 
+    func test_saveNewEntry_twofishLocalSource_preservesCipherInCachedBytes() async throws {
+        let loaded = try KDBXCompatibilitySupport.load(
+            .syntheticTwofish,
+            bundle: Bundle(for: Self.self)
+        )
+        let reference = makeLocalReference()
+        try DatabaseListStore.cacheDatabaseCopy(loaded.sourceData, for: reference)
+        let environment = AutoFillSaveCoordinator.Environment(
+            generatePassword: { "generated-password" },
+            saveDraft: { draft, reference, compositeKey, openTimeSHA512 in
+                switch try await LocalDatabaseSaver.save(
+                    draft: draft,
+                    reference: reference,
+                    compositeKey: compositeKey,
+                    openTimeSHA512: openTimeSHA512
+                ) {
+                case .saved(let newSHA512):
+                    return .saved(
+                        AutoFillSaveCoordinator.SaveOutcome(
+                            savedRootGroup: draft.rootGroup,
+                            newSHA512: newSHA512,
+                            enqueuedPendingUpload: false
+                        )
+                    )
+                case .conflict:
+                    return .conflict
+                }
+            },
+            relativePathForURL: { _ in "unused" },
+            enqueuePendingUpload: { _ in },
+            populateCredentialStore: { _ in },
+            now: { .now }
+        )
+
+        let result = try await AutoFillSaveCoordinator.saveNewEntry(
+            draftPayload: EntryDraftPayload(
+                title: "Twofish AutoFill Entry",
+                username: "autofill-user",
+                password: "autofill-secret",
+                url: "https://twofish.example.com"
+            ),
+            reference: reference,
+            rootGroup: loaded.rootGroup,
+            meta: loaded.meta,
+            sessionKey: loaded.sessionKey,
+            compositeKey: loaded.compositeKey,
+            openTimeSHA512: KDBXCrypto.sha512(loaded.sourceData),
+            environment: environment
+        )
+
+        guard case .saved = result else {
+            return XCTFail("Expected Twofish AutoFill save to succeed")
+        }
+        let cachedData = try Data(contentsOf: DatabaseListStore.cacheLocation(for: reference))
+        let reparsed = try KDBXParser.parseWithMetaAndHeader(
+            data: cachedData,
+            compositeKey: loaded.compositeKey,
+            sessionKey: loaded.sessionKey
+        )
+        XCTAssertEqual(reparsed.header.cipherID, KDBXParser.twofishCipherUUID)
+        XCTAssertTrue(reparsed.rootGroup.allEntries.contains { $0.title == "Twofish AutoFill Entry" })
+    }
+
     func test_saveNewEntry_cloudSource_writesCacheAndEnqueuesMarker_thenCallsCompleteRequest() async throws {
         let reference = makeCloudReference(rev: "rev-9")
         let sessionKey = SymmetricKey(size: .bits256)

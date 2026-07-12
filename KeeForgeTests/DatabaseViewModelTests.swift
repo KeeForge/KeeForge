@@ -573,6 +573,25 @@ final class DatabaseViewModelTests: XCTestCase {
         XCTAssertFalse(details.localizedCaseInsensitiveContains("key file data"))
     }
 
+    func testTwofishHeaderDiagnosticsUseRecognizedCipherName() throws {
+        let loaded = try KDBXCompatibilitySupport.load(
+            .syntheticTwofish,
+            bundle: Bundle(for: Self.self)
+        )
+        let diagnostics = DatabaseOpenDiagnostics.make(
+            reference: try makeReference(),
+            unlockMethod: .password,
+            passwordSupplied: true,
+            keyFileSupplied: false,
+            failedAttemptsBeforeAttempt: 0,
+            encryptedData: loaded.sourceData,
+            cloudSyncStatus: nil
+        )
+
+        XCTAssertTrue(diagnostics.details.contains("cipher=Twofish-256-CBC"))
+        XCTAssertFalse(diagnostics.details.contains("cipher=unknown"))
+    }
+
     func testCloudUnlockShowsProviderSpecificSyncMessageBeforeDecryption() async throws {
         let reference = makeCloudReference()
         let data = try Data(contentsOf: fixtureURL())

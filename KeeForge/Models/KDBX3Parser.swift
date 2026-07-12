@@ -59,17 +59,25 @@ extension KDBXParser {
         let legacyHeader = try parseKDBX3Header(from: data)
         try validateSupportedProtectedFieldStream(legacyHeader.innerRandomStreamID)
 
-        guard legacyHeader.cipherID == aesCipherUUID else {
+        guard let cipher = KDBXOuterCipher(uuid: legacyHeader.cipherID), cipher.supportsKDBX3 else {
             throw KDBXCrypto.CryptoError.unsupportedCipher(legacyHeader.cipherID.hexString)
         }
 
         let masterKey = try deriveKDBX3MasterKey(compositeKey: compositeKey, header: legacyHeader)
         let encryptedPayload = data.subdata(in: legacyHeader.payloadOffset..<data.count)
-        let decryptedPayload = try KDBXCrypto.decryptAES256CBC(
-            data: encryptedPayload,
-            key: masterKey,
-            iv: legacyHeader.encryptionIV
-        )
+        let decryptedPayload: Data
+        do {
+            decryptedPayload = try cipher.decrypt(
+                data: encryptedPayload,
+                key: masterKey,
+                iv: legacyHeader.encryptionIV
+            )
+        } catch KDBXCrypto.CryptoError.decryptionFailed {
+            // KDBX 3.1 has no authenticated outer header. Wrong credentials
+            // commonly surface as a padding failure before stream-start bytes
+            // can be checked, so normalize both paths to the same auth error.
+            throw ParseError.invalidStreamStartBytes
+        }
 
         guard decryptedPayload.count >= legacyHeader.streamStartBytes.count else {
             throw ParseError.invalidStreamStartBytes

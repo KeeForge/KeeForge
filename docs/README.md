@@ -14,6 +14,7 @@ Open this folder when the code alone is not enough and you need the longer-form 
 - `specs/macos-port/epic.md` plus `specs/macos-port/01-macos-target-scaffolding.md` through `07-distribution.md` — staged plan for the native macOS app (SwiftUI multiplatform target, Mac UX, desktop cloud OAuth, macOS AutoFill, security polish, MAS + Developer ID distribution). Planned work, not shipped behavior.
 - `specs/passkey.md` — passkey storage and signing behavior.
 - `specs/totp-autofill.md` — TOTP-related implementation direction.
+- `specs/twofish-support/epic.md` plus slices `01` through `03` — implementation plan for a vetted Twofish crypto package, KDBX 4.x cipher-preserving read/write support, KDBX 3.1 read-only support, and app/AutoFill compatibility gates.
 - `webdav-manual-e2e-checklist.md` — pre-release manual verification pass for WebDAV sync against real servers.
 - `audits/2026-02-26-security-audit-claude.md` and `audits/2026-03-03-security-audit-codex.md` — security review context and follow-up items.
 - The user-facing privacy policy lives at <https://keeforge.com/privacy> (source in the `keeforge.com` repo). Code changes should not contradict it.

@@ -16,6 +16,8 @@ settings:
     CODE_SIGN_STYLE: Automatic
     ENABLE_USER_SCRIPT_SANDBOXING: "YES"
 packages:
+  KeeForgeTwofish:
+    path: Vendor/KeeForgeTwofish
   Argon2Swift:
     url: https://github.com/tmthecoder/Argon2Swift.git
     revision: 53543623fefe68461b7eeea03d7f96677c2fd76d
@@ -49,6 +51,7 @@ targets:
         embed: true
         codeSign: true
       - package: Argon2Swift
+      - package: KeeForgeTwofish
       - package: SwiftyDropbox
       - package: MSAL
     sources:
@@ -83,6 +86,7 @@ targets:
         GENERATE_INFOPLIST_FILE: false
     dependencies:
       - package: Argon2Swift
+      - package: KeeForgeTwofish
     sources:
       - path: AutoFillExtension
         excludes: ["README.md"]
@@ -146,6 +150,7 @@ targets:
         TEST_HOST: "$(BUILT_PRODUCTS_DIR)/KeeForge.app/KeeForge"
     dependencies:
       - target: KeeForge
+      - package: KeeForgeTwofish
     sources:
       - path: KeeForgeTests
         excludes: ["README.md"]

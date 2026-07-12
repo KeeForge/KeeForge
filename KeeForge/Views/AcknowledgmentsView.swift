@@ -24,6 +24,16 @@ struct AcknowledgmentsView: View {
             }
 
             Section {
+                Text(twofishLicense)
+                    .font(.caption)
+                    .monospaced()
+            } header: {
+                Text("Niels Ferguson Twofish Implementation")
+            } footer: {
+                Text("Permissive license with attribution")
+            }
+
+            Section {
                 Text(swiftyDropboxLicense)
                     .font(.caption)
                     .monospaced()
@@ -83,6 +93,18 @@ struct AcknowledgmentsView: View {
 
         - CC0 1.0 Universal : https://creativecommons.org/publicdomain/zero/1.0
         - Apache 2.0        : https://www.apache.org/licenses/LICENSE-2.0
+        """
+
+    private let twofishLicense = """
+        Fast, portable, and easy-to-use Twofish implementation, Version 0.3.
+        Copyright (c) 2002 by Niels Ferguson.
+
+        The author hereby grants a perpetual license to everybody to use this \
+        code for any purpose as long as the copyright message is included in \
+        the source code of this or any derived work.
+
+        This software is provided as-is, without any kind of warranty or \
+        guarantee.
         """
 
     private let swiftyDropboxLicense = """

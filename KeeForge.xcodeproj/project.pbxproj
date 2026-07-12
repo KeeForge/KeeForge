@@ -32,8 +32,10 @@
 		1A60B47E62FDC6A804525EBE /* aes-baseline.kdbx in Resources */ = {isa = PBXBuildFile; fileRef = 934128843AF7AE9BAE055114 /* aes-baseline.kdbx */; };
 		1C32209A1C19E41BAE7F6D4B /* DatabaseCreationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA92B649A6D043A490EDEFE /* DatabaseCreationView.swift */; };
 		1D8B42383A85085F6E8AC2D1 /* GroupListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 35E6EA2FF600FFF3543FF763 /* GroupListView.swift */; };
+		1FA80A53C3A5B065151DDDC3 /* MSAL in Frameworks */ = {isa = PBXBuildFile; productRef = 64B6830B629BBAC2E266834E /* MSAL */; };
 		21223E493E3BBDB67FB211F9 /* OpaqueXMLNodes.swift in Sources */ = {isa = PBXBuildFile; fileRef = E83812EEBF6C270EDFBA5E90 /* OpaqueXMLNodes.swift */; };
 		2134BB330E59C281CF96FDAF /* SharedVaultStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 255524A0026746268CB46642 /* SharedVaultStoreTests.swift */; };
+		239576B93923570EA43C4992 /* KeeForgeTwofish in Frameworks */ = {isa = PBXBuildFile; productRef = 864AF4F1B6915B3F8B6E44D9 /* KeeForgeTwofish */; };
 		250A3D5CA72C0917CA7BD711 /* KeeForgeAutoFill.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 379C9421555E6C13A8335404 /* KeeForgeAutoFill.appex */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		26B6BCD4E53FFDD0B6A936C7 /* CloudSyncModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = A8EFE96A1D98D220EA6E3E53 /* CloudSyncModels.swift */; };
 		27E5C3FE7A91B1BE0625ABD3 /* DatabaseDraft.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DBA8C05ADEAD4DD8BFE6152 /* DatabaseDraft.swift */; };
@@ -47,6 +49,7 @@
 		3464DD123C5DE6781B133B06 /* PasswordInputRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = F40669422B3751841943019C /* PasswordInputRow.swift */; };
 		348E47AD07B0862B131209C0 /* StoreKitManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = C303F1BB7603F55869127E7A /* StoreKitManager.swift */; };
 		352D3826009F6D117BCCC736 /* EntryEditViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 42780494357246F25C55F3FD /* EntryEditViewModelTests.swift */; };
+		35D4C32EACAE43D88453662A /* KDBXOuterCipher.swift in Sources */ = {isa = PBXBuildFile; fileRef = CF9F4F443BDAB986A5BF03E8 /* KDBXOuterCipher.swift */; };
 		385B72B5A83190582FE70E4F /* FaviconView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC9852527A48C28D5D60FCFD /* FaviconView.swift */; };
 		38718C1CC39C44309C0D13F9 /* KDBX3Parser.swift in Sources */ = {isa = PBXBuildFile; fileRef = F136563BB0F4D53B63F68EE5 /* KDBX3Parser.swift */; };
 		397AE855030AD882CF3B5A65 /* ModelLogicTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0330F701821BF808278069A3 /* ModelLogicTests.swift */; };
@@ -55,7 +58,7 @@
 		3C24F70C9805D197748349DF /* AutoFillSearchView.swift in Sources */ = {isa = PBXBuildFile; fileRef = ADAA5D103A016B02FDB65F56 /* AutoFillSearchView.swift */; };
 		3F8C28C064D0F9C97182C02E /* CloudProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0D918BC27841E51EB93E742 /* CloudProvider.swift */; };
 		40317D349277C702F89988EB /* AttachmentPreviewFileStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = BFDA78854986EA7182C73B73 /* AttachmentPreviewFileStore.swift */; };
-		40513FE7EBB0EC663F345EEC /* SwiftyDropbox in Frameworks */ = {isa = PBXBuildFile; productRef = 51EBD2A917385D3E88CA0277 /* SwiftyDropbox */; };
+		40513FE7EBB0EC663F345EEC /* KeeForgeTwofish in Frameworks */ = {isa = PBXBuildFile; productRef = 27663F9D4B6FD8D06613702A /* KeeForgeTwofish */; };
 		430519FCA2B0CF54AF08FDED /* PasswordStrengthEstimator.swift in Sources */ = {isa = PBXBuildFile; fileRef = D110757CD127D7FD4DA8F9AB /* PasswordStrengthEstimator.swift */; };
 		4386503381C758DD632B9755 /* DatabaseReference.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1036AABC590833FFFA1B8A2 /* DatabaseReference.swift */; };
 		452AB47C8137F0971B67A5BF /* SyncedFolderDetector.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4ECEA7AAE4FB7C45606207D1 /* SyncedFolderDetector.swift */; };
@@ -87,6 +90,7 @@
 		5BB5396D932F586B396D5D98 /* kdbx41-public-custom-data.kdbx in Resources */ = {isa = PBXBuildFile; fileRef = B768B63FEA29736435D3E922 /* kdbx41-public-custom-data.kdbx */; };
 		5D1534A2DAB9C6EC61C8551B /* CloudSyncModelsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6037B710DE638D64C1ED6576 /* CloudSyncModelsTests.swift */; };
 		5D2CF3FE49768C76388E382C /* demo.kdbx in Resources */ = {isa = PBXBuildFile; fileRef = F3D5CCD3DC2893DC1A65D6DC /* demo.kdbx */; };
+		5DDCA6E6F91D54EEE081851C /* KeeForgeTwofish in Frameworks */ = {isa = PBXBuildFile; productRef = 421423EA8AC7EF81B1991657 /* KeeForgeTwofish */; };
 		5E17A333954ADDC0205E1B72 /* PasskeyCredential.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7AEBF3F7022FCACFF7195DB7 /* PasskeyCredential.swift */; };
 		5E1E376FC35BF2DB8D73A60B /* SortOrderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DFF14B46CC89D1B7A9138E80 /* SortOrderTests.swift */; };
 		5F95A66284917AA895C4FCAE /* PasswordStrengthEstimatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F8C59064BBAD164E487E1AF /* PasswordStrengthEstimatorTests.swift */; };
@@ -129,7 +133,7 @@
 		897048166743B87F85CACA6E /* DatabaseListViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = F178F4027D7DB837D823C54C /* DatabaseListViewModel.swift */; };
 		8A337E187B2D7B4382CB465A /* PasskeyCrypto.swift in Sources */ = {isa = PBXBuildFile; fileRef = DDEA3048149FA6E823621EA0 /* PasskeyCrypto.swift */; };
 		8A3A063200458F5296146348 /* EntryAttachmentsSmokeUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1C09B67C6FBD95B95F6E4107 /* EntryAttachmentsSmokeUITests.swift */; };
-		8B033D10ABCF3C4C54E2B52C /* MSAL in Frameworks */ = {isa = PBXBuildFile; productRef = 64B6830B629BBAC2E266834E /* MSAL */; };
+		8B033D10ABCF3C4C54E2B52C /* SwiftyDropbox in Frameworks */ = {isa = PBXBuildFile; productRef = 51EBD2A917385D3E88CA0277 /* SwiftyDropbox */; };
 		8BB568B0FC7686569B85396B /* CloudSyncCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2CC241709FEF1D5139F38372 /* CloudSyncCoordinator.swift */; };
 		8E99F20C4C299C88E89B34ED /* test-v1.key in Resources */ = {isa = PBXBuildFile; fileRef = 4C350259754DFA5D42D782A7 /* test-v1.key */; };
 		8EAB80EF201B8AE0EA7F865F /* EntryEdit.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0E36B86BDCAAD4E3C120428 /* EntryEdit.swift */; };
@@ -157,6 +161,7 @@
 		A02D3C44505B3523369922D8 /* DatabaseReference.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1036AABC590833FFFA1B8A2 /* DatabaseReference.swift */; };
 		A39BBA6987CB35923288872C /* AcknowledgmentsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 85EE32527319A5BEDE628232 /* AcknowledgmentsView.swift */; };
 		A5BFF2A90A55B2DCA322D1EB /* OpaqueXMLNodes.swift in Sources */ = {isa = PBXBuildFile; fileRef = E83812EEBF6C270EDFBA5E90 /* OpaqueXMLNodes.swift */; };
+		A91E8FC4271F8638EA091F79 /* KDBXOuterCipher.swift in Sources */ = {isa = PBXBuildFile; fileRef = CF9F4F443BDAB986A5BF03E8 /* KDBXOuterCipher.swift */; };
 		A9B666729B66843DC7CC3747 /* CloudAccountStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 66DF057AA435224858861550 /* CloudAccountStoreTests.swift */; };
 		A9E880DCC3B893C3D6E337EC /* OneDriveCloudProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = B942B75B67043A4CB397BE27 /* OneDriveCloudProvider.swift */; };
 		AB2EDD795CFABEA25AE6EE4A /* WebDAVCloudProviderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D9B34D490C64CC4D568F1384 /* WebDAVCloudProviderTests.swift */; };
@@ -206,6 +211,7 @@
 		D7397FD2EA0BA0D4A1165706 /* DropboxCloudProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6AFBBC10051B412E85947EB5 /* DropboxCloudProvider.swift */; };
 		D7EA74FAC284CF307F6BA24C /* KeyFileProcessorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8C0418ADF1FDFF66CD471789 /* KeyFileProcessorTests.swift */; };
 		D867DA976DABC1214D9E7066 /* CloudSyncModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = A8EFE96A1D98D220EA6E3E53 /* CloudSyncModels.swift */; };
+		D8AF5DE599A6ADBBC0E7FDF6 /* TwofishTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0D923EB4B018FB500295E74 /* TwofishTests.swift */; };
 		DA4E00D5996B327F4D3D589E /* PasskeyDisplayTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A615B59AA50919BA538CDBFF /* PasskeyDisplayTests.swift */; };
 		DA9A4DAF80DA52E6ABF6CD29 /* DatabaseDraftTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3C6C9AB2C5B891BC5B236E08 /* DatabaseDraftTests.swift */; };
 		DB37BBC30E20632BEC1EC52E /* KeyFileUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D15DBC84769C820D86294442 /* KeyFileUITests.swift */; };
@@ -381,6 +387,7 @@
 		8CA9912B84B19D308EAEDF9F /* DatabaseListUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DatabaseListUITests.swift; sourceTree = "<group>"; };
 		8DBB315683B9032E3301FD19 /* DatabaseRowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DatabaseRowView.swift; sourceTree = "<group>"; };
 		8F5D08487A8DF3C72204ADEB /* test-arbitrary.key */ = {isa = PBXFileReference; path = "test-arbitrary.key"; sourceTree = "<group>"; };
+		8F84A786422DE0F907FF9DBA /* BuildConfig.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = BuildConfig.xcconfig; sourceTree = "<group>"; };
 		90677EA696815FC200740F0A /* AutoFillStatusService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AutoFillStatusService.swift; sourceTree = "<group>"; };
 		914A4E61567B1123BF9E137E /* AttachmentTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AttachmentTests.swift; sourceTree = "<group>"; };
 		928A68933B867347BC11592A /* SyncedFolderDetectorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncedFolderDetectorTests.swift; sourceTree = "<group>"; };
@@ -397,7 +404,6 @@
 		A588089AE7F905EFA86465F5 /* WebDAVModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebDAVModels.swift; sourceTree = "<group>"; };
 		A615B59AA50919BA538CDBFF /* PasskeyDisplayTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PasskeyDisplayTests.swift; sourceTree = "<group>"; };
 		A6681D2B1E9D865434D606B7 /* TOTPViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TOTPViewModel.swift; sourceTree = "<group>"; };
-		A7E450AEE70B6004B3A9AE48 /* BuildConfig.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = BuildConfig.xcconfig; sourceTree = "<group>"; };
 		A8EFE96A1D98D220EA6E3E53 /* CloudSyncModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudSyncModels.swift; sourceTree = "<group>"; };
 		A9A57CF2CAD52FAEB0047900 /* CoordinatedFileReader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoordinatedFileReader.swift; sourceTree = "<group>"; };
 		AAA92B649A6D043A490EDEFE /* DatabaseCreationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DatabaseCreationView.swift; sourceTree = "<group>"; };
@@ -427,12 +433,15 @@
 		BFDA78854986EA7182C73B73 /* AttachmentPreviewFileStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AttachmentPreviewFileStore.swift; sourceTree = "<group>"; };
 		C00AB8532846AD90E91C72B2 /* WebDAVConnectView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebDAVConnectView.swift; sourceTree = "<group>"; };
 		C0766AA20A206C0DEE4B732D /* WebDAVCloudProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebDAVCloudProvider.swift; sourceTree = "<group>"; };
+		C0D923EB4B018FB500295E74 /* TwofishTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TwofishTests.swift; sourceTree = "<group>"; };
 		C243B2746CDA396F76E052B6 /* KDBXWriter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KDBXWriter.swift; sourceTree = "<group>"; };
 		C28D00833DC5188EEBB34BE9 /* password-keyfile.kdbx */ = {isa = PBXFileReference; path = "password-keyfile.kdbx"; sourceTree = "<group>"; };
 		C2C726CD862BFFCE77228AAD /* UnlockFlowUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UnlockFlowUITests.swift; sourceTree = "<group>"; };
 		C303F1BB7603F55869127E7A /* StoreKitManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoreKitManager.swift; sourceTree = "<group>"; };
 		CE7654CB864A7BECF13483C8 /* ReviewPromptServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReviewPromptServiceTests.swift; sourceTree = "<group>"; };
 		CF40C9649E6870C49081C9C0 /* CredentialIdentityStoreManagerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CredentialIdentityStoreManagerTests.swift; sourceTree = "<group>"; };
+		CF69E315CB01DC6C5A568375 /* KeeForgeTwofish */ = {isa = PBXFileReference; lastKnownFileType = folder; name = KeeForgeTwofish; path = Vendor/KeeForgeTwofish; sourceTree = SOURCE_ROOT; };
+		CF9F4F443BDAB986A5BF03E8 /* KDBXOuterCipher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KDBXOuterCipher.swift; sourceTree = "<group>"; };
 		CFE6ADCA5903D418C1004C39 /* KDBXXMLSerializer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KDBXXMLSerializer.swift; sourceTree = "<group>"; };
 		D0A537AE058B5206F5260C70 /* test-hex.key */ = {isa = PBXFileReference; path = "test-hex.key"; sourceTree = "<group>"; };
 		D0D918BC27841E51EB93E742 /* CloudProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudProvider.swift; sourceTree = "<group>"; };
@@ -480,13 +489,22 @@
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
+		3A1ED38EE1BC6149ADC6CF71 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				239576B93923570EA43C4992 /* KeeForgeTwofish in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		4BA5DD5F22BF2F3867580095 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
 				96CBA1155C402004E60A33E3 /* Argon2Swift in Frameworks */,
-				40513FE7EBB0EC663F345EEC /* SwiftyDropbox in Frameworks */,
-				8B033D10ABCF3C4C54E2B52C /* MSAL in Frameworks */,
+				40513FE7EBB0EC663F345EEC /* KeeForgeTwofish in Frameworks */,
+				8B033D10ABCF3C4C54E2B52C /* SwiftyDropbox in Frameworks */,
+				1FA80A53C3A5B065151DDDC3 /* MSAL in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -495,6 +513,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				101FE00A9F3480ABB883BD76 /* Argon2Swift in Frameworks */,
+				5DDCA6E6F91D54EEE081851C /* KeeForgeTwofish in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -581,15 +600,6 @@
 			path = TestFixtures/compatibility;
 			sourceTree = "<group>";
 		};
-		3E3DFE826D460043314195BF /* proud-bouncing-trinket */ = {
-			isa = PBXGroup;
-			children = (
-				A7E450AEE70B6004B3A9AE48 /* BuildConfig.xcconfig */,
-			);
-			name = "proud-bouncing-trinket";
-			path = .;
-			sourceTree = "<group>";
-		};
 		5146E7B5F4D432DC9DFE949C /* AppSupport */ = {
 			isa = PBXGroup;
 			children = (
@@ -628,6 +638,15 @@
 			path = Security;
 			sourceTree = "<group>";
 		};
+		6A5915FA3D7637CCB9B1BE74 /* KeeForge */ = {
+			isa = PBXGroup;
+			children = (
+				8F84A786422DE0F907FF9DBA /* BuildConfig.xcconfig */,
+			);
+			name = KeeForge;
+			path = .;
+			sourceTree = "<group>";
+		};
 		71F778658A17A600FECAC9C6 /* TestFixtures */ = {
 			isa = PBXGroup;
 			children = (
@@ -643,6 +662,14 @@
 				ACDB93B40CC051227D2E6D76 /* test.kdbx */,
 			);
 			path = TestFixtures;
+			sourceTree = "<group>";
+		};
+		7D300A2D174014A53DD4DCE3 /* Packages */ = {
+			isa = PBXGroup;
+			children = (
+				CF69E315CB01DC6C5A568375 /* KeeForgeTwofish */,
+			);
+			name = Packages;
 			sourceTree = "<group>";
 		};
 		9F80FAF53100B49B0262BFFA /* Extensions */ = {
@@ -749,10 +776,11 @@
 				A376BB645DDF43A121708494 /* AutoFillExtension */,
 				1BDD193BABF3BD18A4AB9E58 /* compatibility */,
 				9F80FAF53100B49B0262BFFA /* Extensions */,
+				6A5915FA3D7637CCB9B1BE74 /* KeeForge */,
 				F1BE673352A52C0167F2C5CE /* KeeForgeTests */,
 				0DF923CE254AEEBCB0B054B1 /* KeeForgeUITests */,
 				F3F9AA8A28D02AE11AD6854E /* Models */,
-				3E3DFE826D460043314195BF /* proud-bouncing-trinket */,
+				7D300A2D174014A53DD4DCE3 /* Packages */,
 				65E3F4C6ED83A516F2D23EB6 /* Resources */,
 				D35B1898D85AD1D33CE13604 /* round-trip */,
 				0F643F928D1B442EDCF4379B /* Services */,
@@ -816,6 +844,7 @@
 				E358190F2BA4D4AA05650AA4 /* TestDatabaseSupport.swift */,
 				04A1400E503A230DF2633686 /* TOTPGeneratorTests.swift */,
 				A3660A7394A4B715ECCC64FF /* TOTPViewModelTests.swift */,
+				C0D923EB4B018FB500295E74 /* TwofishTests.swift */,
 				4C745531E956F6B374FC606F /* VerifyKeyfileTests.swift */,
 				B16B7DC25FE8C1CEE117E7FD /* WebDAVClientTests.swift */,
 				D9B34D490C64CC4D568F1384 /* WebDAVCloudProviderTests.swift */,
@@ -837,6 +866,7 @@
 				FA5A20BA0FFA29C1067EB5EE /* Group.swift */,
 				F136563BB0F4D53B63F68EE5 /* KDBX3Parser.swift */,
 				F984480E73A82B5043100065 /* KDBXCrypto.swift */,
+				CF9F4F443BDAB986A5BF03E8 /* KDBXOuterCipher.swift */,
 				FB771146F2B327CB67076403 /* KDBXParser.swift */,
 				C243B2746CDA396F76E052B6 /* KDBXWriter.swift */,
 				CFE6ADCA5903D418C1004C39 /* KDBXXMLSerializer.swift */,
@@ -899,6 +929,7 @@
 			buildPhases = (
 				A2EB17F7ED18D681E14D6169 /* Sources */,
 				ADDC81E9E06C723904F997FF /* Resources */,
+				3A1ED38EE1BC6149ADC6CF71 /* Frameworks */,
 			);
 			buildRules = (
 			);
@@ -907,6 +938,7 @@
 			);
 			name = KeeForgeTests;
 			packageProductDependencies = (
+				864AF4F1B6915B3F8B6E44D9 /* KeeForgeTwofish */,
 			);
 			productName = KeeForgeTests;
 			productReference = 0FE57E0CBBA459436725D382 /* KeeForgeTests.xctest */;
@@ -929,6 +961,7 @@
 			name = KeeForge;
 			packageProductDependencies = (
 				E58302AF333F299169355B64 /* Argon2Swift */,
+				27663F9D4B6FD8D06613702A /* KeeForgeTwofish */,
 				51EBD2A917385D3E88CA0277 /* SwiftyDropbox */,
 				64B6830B629BBAC2E266834E /* MSAL */,
 			);
@@ -950,6 +983,7 @@
 			name = KeeForgeAutoFill;
 			packageProductDependencies = (
 				87212E661EACAC1328E27A4E /* Argon2Swift */,
+				421423EA8AC7EF81B1991657 /* KeeForgeTwofish */,
 			);
 			productName = KeeForgeAutoFill;
 			productReference = 379C9421555E6C13A8335404 /* KeeForgeAutoFill.appex */;
@@ -993,6 +1027,7 @@
 				DAD92CB1C500ADA86A291E6B /* XCRemoteSwiftPackageReference "Argon2Swift" */,
 				1406D2AE51BB5512501439B4 /* XCRemoteSwiftPackageReference "microsoft-authentication-library-for-objc" */,
 				0DE6D7E1C06867E37CE51E7D /* XCRemoteSwiftPackageReference "SwiftyDropbox" */,
+				D57ED7FFF6E11FFD4F30B8A1 /* XCLocalSwiftPackageReference "Vendor/KeeForgeTwofish" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = ACD0829002867CB7844115FB /* Products */;
@@ -1114,6 +1149,7 @@
 				85800F363D34B2A7DAAE8B41 /* HapticService.swift in Sources */,
 				38718C1CC39C44309C0D13F9 /* KDBX3Parser.swift in Sources */,
 				2DA76B4703C153EF5009E568 /* KDBXCrypto.swift in Sources */,
+				A91E8FC4271F8638EA091F79 /* KDBXOuterCipher.swift in Sources */,
 				27F56844AAA14A1BA0009462 /* KDBXParser.swift in Sources */,
 				858EED9B6FD7F607B24A3D30 /* KDBXWriter.swift in Sources */,
 				DBDC453546E7D856527A875C /* KDBXXMLSerializer.swift in Sources */,
@@ -1235,6 +1271,7 @@
 				C5CCB8692F1F9D9E2769664A /* TOTPGeneratorTests.swift in Sources */,
 				C2AD719517065CB7FC2BEB4F /* TOTPViewModelTests.swift in Sources */,
 				C025799D1EEC680AC16E22B6 /* TestDatabaseSupport.swift in Sources */,
+				D8AF5DE599A6ADBBC0E7FDF6 /* TwofishTests.swift in Sources */,
 				DC071F7A487715323727D9A4 /* VerifyKeyfileTests.swift in Sources */,
 				6560E50E8DAC0256CE4FD7D6 /* WebDAVClientTests.swift in Sources */,
 				AB2EDD795CFABEA25AE6EE4A /* WebDAVCloudProviderTests.swift in Sources */,
@@ -1267,6 +1304,7 @@
 				854F53222F9E7ECC3CD4257E /* Group.swift in Sources */,
 				71DDCDC9688ACAAB021153E9 /* KDBX3Parser.swift in Sources */,
 				0C55C0F3933E2AC968D8786B /* KDBXCrypto.swift in Sources */,
+				35D4C32EACAE43D88453662A /* KDBXOuterCipher.swift in Sources */,
 				55842C2074D95DB5E37EB360 /* KDBXParser.swift in Sources */,
 				3A1B45646614B8A3AF6B6A3F /* KDBXWriter.swift in Sources */,
 				B937BBF99B6F3ED421F9495C /* KDBXXMLSerializer.swift in Sources */,
@@ -1348,7 +1386,7 @@
 		};
 		433642D014742A51E017BA5F /* Release */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = A7E450AEE70B6004B3A9AE48 /* BuildConfig.xcconfig */;
+			baseConfigurationReference = 8F84A786422DE0F907FF9DBA /* BuildConfig.xcconfig */;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				CLANG_ANALYZER_NONNULL = YES;
@@ -1488,7 +1526,7 @@
 		};
 		F94E35C15125598334295DFD /* Debug */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = A7E450AEE70B6004B3A9AE48 /* BuildConfig.xcconfig */;
+			baseConfigurationReference = 8F84A786422DE0F907FF9DBA /* BuildConfig.xcconfig */;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				CLANG_ANALYZER_NONNULL = YES;
@@ -1648,6 +1686,13 @@
 		};
 /* End XCConfigurationList section */
 
+/* Begin XCLocalSwiftPackageReference section */
+		D57ED7FFF6E11FFD4F30B8A1 /* XCLocalSwiftPackageReference "Vendor/KeeForgeTwofish" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = Vendor/KeeForgeTwofish;
+		};
+/* End XCLocalSwiftPackageReference section */
+
 /* Begin XCRemoteSwiftPackageReference section */
 		0DE6D7E1C06867E37CE51E7D /* XCRemoteSwiftPackageReference "SwiftyDropbox" */ = {
 			isa = XCRemoteSwiftPackageReference;
@@ -1676,6 +1721,14 @@
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
+		27663F9D4B6FD8D06613702A /* KeeForgeTwofish */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = KeeForgeTwofish;
+		};
+		421423EA8AC7EF81B1991657 /* KeeForgeTwofish */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = KeeForgeTwofish;
+		};
 		51EBD2A917385D3E88CA0277 /* SwiftyDropbox */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = 0DE6D7E1C06867E37CE51E7D /* XCRemoteSwiftPackageReference "SwiftyDropbox" */;
@@ -1685,6 +1738,10 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 1406D2AE51BB5512501439B4 /* XCRemoteSwiftPackageReference "microsoft-authentication-library-for-objc" */;
 			productName = MSAL;
+		};
+		864AF4F1B6915B3F8B6E44D9 /* KeeForgeTwofish */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = KeeForgeTwofish;
 		};
 		87212E661EACAC1328E27A4E /* Argon2Swift */ = {
 			isa = XCSwiftPackageProductDependency;

@@ -17,6 +17,7 @@ xcodebuild test -project KeeForge.xcodeproj -scheme KeeForge \
 ## File Map
 
 - Parser, writer, compatibility, and secret handling: `KDBXParserTests.swift`, `KDBXWriterTests.swift`, `KDBXRoundTripTests.swift`, `KDBXCompatibilityTests.swift`, `KDBXCompatibilityArtifactTests.swift`, `EncryptedValueTests.swift`, `TOTPGeneratorTests.swift`, `KeyFileProcessorTests.swift`, `VerifyKeyfileTests.swift`.
+- Twofish primitive and CBC/PKCS#7 coverage: `TwofishTests.swift`; parser/writer and cipher-preservation scenarios remain in the KDBX parser, writer, saver, and compatibility suites.
 - Drafts, view models, and app state: `DatabaseDraftTests.swift`, `DatabaseViewModelTests.swift`, `DatabaseListViewModelTests.swift`, `EntryEditViewModelTests.swift`, `TOTPViewModelTests.swift`, `AutoLockTests.swift`, `SortOrderTests.swift`.
 - Persistence, save pipeline, and shared storage: `DatabaseListStoreTests.swift`, `LocalDatabaseSaverTests.swift`, `CloudDatabaseSaverTests.swift`, `PendingUploadQueueTests.swift`, `PendingUploadDrainerTests.swift`, `DatabaseReferenceTests.swift`, `SharedVaultStoreTests.swift`, `DatabaseReferenceMigrationTests.swift`, `SettingsServiceTests.swift`, `SyncedFolderDetectorTests.swift`.
 - Cloud and multi-database support: `CloudSyncModelsTests.swift`, `CloudProviderTests.swift`, `DropboxCloudProviderTests.swift`, `CloudProviderRegistryTests.swift`, `CloudAccountStoreTests.swift`, `CloudTokenStoreTests.swift`, `CloudFileBrowserViewModelTests.swift`. `DropboxCloudProviderTests.swift` covers Dropbox-specific OAuth scope behavior; OneDrive-specific registry/model coverage lives in the shared cloud tests.
@@ -37,4 +38,5 @@ xcodebuild test -project KeeForge.xcodeproj -scheme KeeForge \
 - `DatabaseDraftTests.swift` is for in-memory edit semantics only.
 - `LocalDatabaseSaverTests.swift`, `CloudDatabaseSaverTests.swift`, and `CredentialProviderSaveTests.swift` are save-path safety tests with representative smoke edits.
 - `KDBXCompatibilityTests.swift` is the authoritative end-to-end compatibility matrix for every supported edit type and rich KDBX fixture shape.
+- The compatibility matrix runs the full edit set for both AES and synthetic Twofish databases, and the artifact gate asks `keepassxc-cli` to open KeeForge-produced Twofish output.
 - `KDBXCompatibilityArtifactTests.swift` emits artifacts consumed by `../ci_scripts/run_kdbx_compatibility_gate.sh`, which validates generated files with `keepassxc-cli`.

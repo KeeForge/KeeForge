@@ -137,13 +137,7 @@ struct DatabaseOpenDiagnostics: Equatable, Sendable {
     }
 
     private static func cipherDescription(_ cipherID: Data) -> String {
-        if cipherID == KDBXParser.aesCipherUUID {
-            return "AES-256"
-        }
-        if cipherID == KDBXParser.chachaCipherUUID {
-            return "ChaCha20"
-        }
-        return "unknown"
+        KDBXOuterCipher(uuid: cipherID)?.displayName ?? "unknown"
     }
 
     private static func compressionDescription(_ compressionFlags: UInt32) -> String {

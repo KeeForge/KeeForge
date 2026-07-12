@@ -79,6 +79,68 @@ final class CloudDatabaseSaverTests: XCTestCase {
         XCTAssertEqual(try Data(contentsOf: backupURL), context.currentData)
     }
 
+    func testSaveTwofishDatabaseUploadsReparsableCipherPreservingBytes() async throws {
+        let loaded = try KDBXCompatibilitySupport.load(
+            .syntheticTwofish,
+            bundle: Bundle(for: Self.self)
+        )
+        let reference = try makeCloudReference(remoteRev: "rev-A")
+        try DatabaseListStore.cacheDatabaseCopy(loaded.sourceData, for: reference)
+        let cleanDraft = DatabaseDraft(
+            rootGroup: loaded.rootGroup,
+            meta: loaded.meta,
+            sessionKey: loaded.sessionKey
+        )
+        let parentGroupID = TestDatabaseSupport.visibleRootGroupID(in: loaded.rootGroup)
+        let dirtyDraft = try cleanDraft.apply(
+            .createEntry(
+                parentGroupID: parentGroupID,
+                draft: EntryDraftPayload(title: "Twofish Cloud Entry", password: "twofish-secret")
+            )
+        )
+        let recorder = UploadRecorder()
+        let environment = makeEnvironment(
+            getMetadata: { _ in
+                CloudFileMetadata(
+                    modifiedDate: Date(timeIntervalSince1970: 150),
+                    contentHash: "remote-hash-A",
+                    size: Int64(loaded.sourceData.count),
+                    rev: "rev-A"
+                )
+            },
+            upload: { _, data, expectedRev, progress in
+                await recorder.record(data: data, expectedRev: expectedRev)
+                progress(1)
+                return CloudFileMetadata(
+                    modifiedDate: Date(timeIntervalSince1970: 200),
+                    contentHash: "remote-hash-B",
+                    size: Int64(data.count),
+                    rev: "rev-B"
+                )
+            }
+        )
+
+        _ = try await CloudDatabaseSaver.save(
+            draft: dirtyDraft,
+            reference: reference,
+            compositeKey: loaded.compositeKey,
+            openTimeSHA512: KDBXCrypto.sha512(loaded.sourceData),
+            expectedRev: "rev-A",
+            environment: environment
+        )
+
+        let uploadCall = await recorder.firstCall()
+        let uploaded = try XCTUnwrap(uploadCall?.data)
+        let reparsed = try KDBXParser.parseWithMetaAndHeader(
+            data: uploaded,
+            compositeKey: loaded.compositeKey,
+            sessionKey: loaded.sessionKey
+        )
+        XCTAssertEqual(reparsed.header.cipherID, KDBXParser.twofishCipherUUID)
+        XCTAssertTrue(reparsed.rootGroup.allEntries.contains { $0.title == "Twofish Cloud Entry" })
+        XCTAssertEqual(try Data(contentsOf: DatabaseListStore.cacheLocation(for: reference)), uploaded)
+    }
+
     func testSaveRevChangedRemotelyReturnsConflictDoesNotWriteCache() async throws {
         let reference = try makeCloudReference(remoteRev: "rev-A")
         let cacheURL = DatabaseListStore.cacheLocation(for: reference)

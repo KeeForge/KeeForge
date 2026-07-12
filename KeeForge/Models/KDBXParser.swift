@@ -15,6 +15,8 @@ enum KDBXParser {
                                      0xBE, 0x58, 0x05, 0x21, 0x6A, 0xFC, 0x5A, 0xFF])
     static let chachaCipherUUID = Data([0xD6, 0x03, 0x8A, 0x2B, 0x8B, 0x6F, 0x4C, 0xB5,
                                         0xA5, 0x24, 0x33, 0x9A, 0x31, 0xDB, 0xB5, 0x9A])
+    static let twofishCipherUUID = Data([0xAD, 0x68, 0xF2, 0x9F, 0x57, 0x6F, 0x4B, 0xB9,
+                                         0xA3, 0x6A, 0xD4, 0x7A, 0xF9, 0x65, 0x34, 0x6C])
 
     // KDF UUIDs
     static let argon2dUUID = Data([0xEF, 0x63, 0x6D, 0xDF, 0x8C, 0x29, 0x44, 0x4B,
@@ -326,18 +328,12 @@ enum KDBXParser {
         let encryptedPayload = try readHMACBlocks(reader: &reader, baseKey: hmacBaseKey)
 
         // 7. Decrypt payload
-        let decryptedPayload: Data
-        if header.cipherID == aesCipherUUID {
-            decryptedPayload = try KDBXCrypto.decryptAES256CBC(
-                data: encryptedPayload, key: masterKey, iv: header.encryptionIV
-            )
-        } else if header.cipherID == chachaCipherUUID {
-            decryptedPayload = try KDBXCrypto.decryptChaCha20(
-                data: encryptedPayload, key: masterKey, nonce: header.encryptionIV
-            )
-        } else {
-            throw KDBXCrypto.CryptoError.unsupportedCipher(header.cipherID.hexString)
-        }
+        let cipher = try KDBXOuterCipher.require(uuid: header.cipherID)
+        let decryptedPayload = try cipher.decrypt(
+            data: encryptedPayload,
+            key: masterKey,
+            iv: header.encryptionIV
+        )
 
         var payloadForInnerHeader = decryptedPayload
         var payloadWasPreDecompressed = false

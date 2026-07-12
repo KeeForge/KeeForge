@@ -46,6 +46,34 @@ final class LocalDatabaseSaverTests: XCTestCase {
         }
     }
 
+    func testSaveTwofishDatabasePreservesCipherAndRefreshesCache() async throws {
+        let databaseURL = try makeScratchTwofishDatabase()
+        let reference = try TestDatabaseSupport.makeReference(for: databaseURL)
+        let context = try makeDirtySaveContext(
+            databaseURL: databaseURL,
+            entryTitle: "Twofish Saved Entry"
+        )
+
+        _ = try await LocalDatabaseSaver.save(
+            draft: context.draft,
+            reference: reference,
+            compositeKey: context.compositeKey,
+            openTimeSHA512: context.openTimeSHA512
+        )
+
+        let savedData = try Data(contentsOf: databaseURL)
+        let reparsed = try KDBXParser.parseWithMetaAndHeader(
+            data: savedData,
+            password: fixturePassword,
+            sessionKey: SymmetricKey(size: .bits256)
+        )
+        XCTAssertEqual(reparsed.header.cipherID, KDBXParser.twofishCipherUUID)
+        XCTAssertTrue(reparsed.rootGroup.allEntries.contains { $0.title == "Twofish Saved Entry" })
+
+        let cachedURL = try XCTUnwrap(DatabaseListStore.cachedDatabaseURL(for: reference))
+        XCTAssertEqual(try Data(contentsOf: cachedURL), savedData)
+    }
+
     func testSaveTakesBackupOfPreviousBytesIntoBackupDirectory() async throws {
         let databaseURL = try makeScratchDatabaseCopy()
         let reference = try TestDatabaseSupport.makeReference(for: databaseURL)
@@ -359,6 +387,43 @@ final class LocalDatabaseSaverTests: XCTestCase {
             attributes: nil
         )
         try Data(contentsOf: fixtureURL).write(to: scratchURL, options: .atomic)
+        return scratchURL
+    }
+
+    private func makeScratchTwofishDatabase() throws -> URL {
+        let fixtureURL = try TestDatabaseSupport.fixtureURL(
+            named: "test",
+            bundle: Bundle(for: LocalDatabaseSaverTests.self)
+        )
+        let sourceData = try Data(contentsOf: fixtureURL)
+        let sessionKey = SymmetricKey(size: .bits256)
+        let parsed = try KDBXParser.parseWithMetaAndHeader(
+            data: sourceData,
+            password: fixturePassword,
+            sessionKey: sessionKey
+        )
+        let compositeKey = KDBXCrypto.compositeKey(password: fixturePassword)
+        let twofishData = try KDBXWriter.write(
+            rootGroup: parsed.rootGroup,
+            meta: parsed.meta,
+            compositeKey: compositeKey,
+            freshHeader: KDBXWriter.FreshHeaderConfiguration(
+                cipherID: KDBXParser.twofishCipherUUID,
+                kdfParameters: parsed.header.kdfParameters,
+                innerHeaderBinaryFields: parsed.header.innerHeaderBinaryFields
+            ),
+            sessionKey: sessionKey
+        )
+
+        let scratchDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let scratchURL = scratchDirectory.appendingPathComponent("twofish-save.kdbx", isDirectory: false)
+        try FileManager.default.createDirectory(
+            at: scratchDirectory,
+            withIntermediateDirectories: true,
+            attributes: nil
+        )
+        try twofishData.write(to: scratchURL, options: .atomic)
         return scratchURL
     }
 

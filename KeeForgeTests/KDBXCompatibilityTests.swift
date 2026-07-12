@@ -8,10 +8,22 @@ final class KDBXCompatibilityTests: XCTestCase {
     }
 
     func test_allSupportedEditScenarios_writeReparseAndOnlyChangeExpectedSemantics() throws {
-        let loaded = try KDBXCompatibilitySupport.load(.syntheticRich, bundle: bundle)
+        for fixture in [
+            KDBXCompatibilitySupport.Fixture.syntheticRich,
+            .syntheticTwofish,
+        ] {
+            let loaded = try KDBXCompatibilitySupport.load(fixture, bundle: bundle)
 
-        for scenario in KDBXCompatibilitySupport.fullEditScenarios() {
-            _ = try scenario.apply(to: loaded)
+            for scenario in KDBXCompatibilitySupport.fullEditScenarios() {
+                let result = try scenario.apply(to: loaded)
+                let reparsed = try KDBXParser.parseWithMetaAndHeader(
+                    data: result.written,
+                    compositeKey: loaded.compositeKey,
+                    sessionKey: loaded.sessionKey
+                )
+                XCTAssertEqual(reparsed.header.cipherID, loaded.header.cipherID)
+                XCTAssertEqual(reparsed.header.kdfParameters["$UUID"] as? Data, loaded.header.kdfParameters["$UUID"] as? Data)
+            }
         }
     }
 
@@ -28,6 +40,7 @@ final class KDBXCompatibilityTests: XCTestCase {
             .unknownRich,
             .kdbx41PublicCustomData,
             .syntheticChaCha,
+            .syntheticTwofish,
         ]
 
         for fixture in fixtures {

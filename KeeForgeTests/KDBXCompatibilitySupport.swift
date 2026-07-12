@@ -101,6 +101,14 @@ enum KDBXCompatibilitySupport {
             keyFileName: nil,
             source: .generated(cipherID: KDBXParser.chachaCipherUUID, hasRecycleBin: true)
         )
+
+        static let syntheticTwofish = Fixture(
+            id: "synthetic-twofish",
+            displayName: "Synthetic Twofish-256-CBC fixture",
+            password: "compatibility-password",
+            keyFileName: nil,
+            source: .generated(cipherID: KDBXParser.twofishCipherUUID, hasRecycleBin: true)
+        )
     }
 
     struct LoadedFixture {
@@ -452,7 +460,14 @@ enum KDBXCompatibilitySupport {
         let noRecycleBinFixture = try load(.syntheticNoRecycleBin, bundle: bundle)
         plans.append((noRecycleBinFixture, recycleBinCreationScenario()))
 
-        let smokeFixtures: [Fixture] = [.aesBaseline, .passwordKeyfile, .unknownRich, .kdbx41PublicCustomData, .syntheticChaCha]
+        let smokeFixtures: [Fixture] = [
+            .aesBaseline,
+            .passwordKeyfile,
+            .unknownRich,
+            .kdbx41PublicCustomData,
+            .syntheticChaCha,
+            .syntheticTwofish,
+        ]
         for fixture in smokeFixtures {
             let loaded = try load(fixture, bundle: bundle)
             plans.append((loaded, fixtureSmokeScenario(fixtureID: fixture.id)))
