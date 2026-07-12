@@ -155,7 +155,7 @@ final class CredentialProviderViewController: ASCredentialProviderViewController
                 )
                 persistCompositeKeyIfPossible(compositeKey, for: databaseReference)
                 recordSuccessfulUnlock(for: databaseReference)
-                let passwordEntries = parsedEntries.filter(\.hasPassword)
+                let passwordEntries = parsedEntries.filter { $0.hasPassword && !$0.isExpired() }
 
                 if let recordIdentifier,
                    let entry = passwordEntries.first(where: { $0.id.uuidString == recordIdentifier }) {
@@ -394,11 +394,7 @@ final class CredentialProviderViewController: ASCredentialProviderViewController
     private func afterUnlock() {
         if let request = pendingPasskeyRequest {
             pendingPasskeyRequest = nil
-            do {
-                try completePasskeyRequest(request)
-            } catch {
-                showErrorAndRetry(error)
-            }
+            completeInteractivePasskeyRequest(request)
         } else if #available(iOS 26.2, *), let savePasswordRequest = pendingSavePasswordRequest {
             pendingSavePasswordRequest = nil
             if parsedFormatVersion?.requiresReadOnlyMode == true {
@@ -530,7 +526,8 @@ final class CredentialProviderViewController: ASCredentialProviderViewController
     }
 
     private func presentPasswordMatchesOrFinish() {
-        let passwordEntries = parsedEntries.filter(\.hasPassword)
+        let allPasswordEntries = parsedEntries.filter(\.hasPassword)
+        let passwordEntries = allPasswordEntries.filter { !$0.isExpired() }
 
         // If we have a target recordIdentifier from QuickType, jump directly to that entry
         if let recordIdentifier = targetRecordIdentifier,
@@ -556,7 +553,7 @@ final class CredentialProviderViewController: ASCredentialProviderViewController
             }
         } else {
             // No matches — show full list but pre-fill search with the domain
-            presentSearchView(entries: passwordEntries, initialSearchText: searchDomain) { [weak self] entry in
+            presentSearchView(entries: allPasswordEntries, initialSearchText: searchDomain) { [weak self] entry in
                 self?.completeRequest(with: entry)
             }
         }
@@ -567,10 +564,14 @@ final class CredentialProviderViewController: ASCredentialProviderViewController
         return parsedEntries.first { $0.id == targetUUID }
     }
 
-    private func passkeyEntry(for identity: ASPasskeyCredentialIdentity) -> KPEntry? {
+    private func passkeyEntry(
+        for identity: ASPasskeyCredentialIdentity,
+        includeExpired: Bool = false
+    ) -> KPEntry? {
         let normalizedRelyingParty = CredentialIdentityStoreManager.normalizedRelyingPartyIdentifier(identity.relyingPartyIdentifier)
 
         let matchesIdentity: (KPEntry) -> Bool = { entry in
+            guard includeExpired || !entry.isExpired() else { return false }
             guard let passkey = entry.passkeyCredential,
                   let credentialIDData = passkey.credentialIDData
             else {
@@ -590,13 +591,17 @@ final class CredentialProviderViewController: ASCredentialProviderViewController
         return parsedEntries.first(where: matchesIdentity)
     }
 
-    private func matchingPasskeyEntries(for requestParameters: ASPasskeyCredentialRequestParameters) -> [KPEntry] {
+    private func matchingPasskeyEntries(
+        for requestParameters: ASPasskeyCredentialRequestParameters,
+        includeExpired: Bool = false
+    ) -> [KPEntry] {
         let normalizedRelyingParty = CredentialIdentityStoreManager.normalizedRelyingPartyIdentifier(
             requestParameters.relyingPartyIdentifier
         )
         let allowedCredentialIDs = Set(requestParameters.allowedCredentials)
 
         return parsedEntries.filter { entry in
+            guard includeExpired || !entry.isExpired() else { return false }
             guard let passkey = entry.passkeyCredential,
                   let credentialIDData = passkey.credentialIDData
             else {
@@ -613,17 +618,28 @@ final class CredentialProviderViewController: ASCredentialProviderViewController
 
     private func presentPasskeyMatchesOrFinish(using requestParameters: ASPasskeyCredentialRequestParameters) {
         let matches = matchingPasskeyEntries(for: requestParameters)
-        guard !matches.isEmpty else {
-            cancelRequest(code: .credentialIdentityNotFound)
-            return
-        }
-
         if matches.count == 1, let entry = matches.first {
             completePasskeyRequest(with: entry, requestParameters: requestParameters)
             return
         }
 
-        presentSearchView(entries: matches) { [weak self] entry in
+        if !matches.isEmpty {
+            presentSearchView(entries: matches) { [weak self] entry in
+                self?.completePasskeyRequest(with: entry, requestParameters: requestParameters)
+            }
+            return
+        }
+
+        let expiredMatches = matchingPasskeyEntries(
+            for: requestParameters,
+            includeExpired: true
+        ).filter { $0.isExpired() }
+        guard !expiredMatches.isEmpty else {
+            cancelRequest(code: .credentialIdentityNotFound)
+            return
+        }
+
+        presentSearchView(entries: expiredMatches) { [weak self] entry in
             self?.completePasskeyRequest(with: entry, requestParameters: requestParameters)
         }
     }
@@ -804,7 +820,7 @@ final class CredentialProviderViewController: ASCredentialProviderViewController
                 recordSuccessfulUnlock(for: databaseReference)
 
                 if #available(iOS 18.0, *) {
-                    let totpEntries = parsedEntries.filter(\.hasTOTP)
+                    let totpEntries = parsedEntries.filter { $0.hasTOTP && !$0.isExpired() }
                     if let recordIdentifier,
                        let entry = totpEntries.first(where: { $0.id.uuidString == recordIdentifier }) {
                         completeOTCRequest(with: entry)
@@ -831,7 +847,13 @@ final class CredentialProviderViewController: ASCredentialProviderViewController
 
         let totpEntries = parsedEntries.filter(\.hasTOTP)
         if let entry = totpEntries.first(where: { $0.id.uuidString == recordIdentifier }) {
-            completeOTCRequest(with: entry)
+            if entry.isExpired() {
+                presentSearchView(entries: [entry]) { [weak self] selectedEntry in
+                    self?.completeOTCRequest(with: selectedEntry)
+                }
+            } else {
+                completeOTCRequest(with: entry)
+            }
         } else {
             cancelRequest(code: .credentialIdentityNotFound)
         }
@@ -902,6 +924,40 @@ final class CredentialProviderViewController: ASCredentialProviderViewController
             relyingPartyID: identity.relyingPartyIdentifier,
             clientDataHash: request.clientDataHash
         )
+    }
+
+    private func completeInteractivePasskeyRequest(_ request: ASPasskeyCredentialRequest) {
+        guard let identity = request.credentialIdentity as? ASPasskeyCredentialIdentity,
+              let entry = passkeyEntry(for: identity, includeExpired: true) else {
+            cancelRequest(code: .credentialIdentityNotFound)
+            return
+        }
+
+        if entry.isExpired() {
+            presentSearchView(entries: [entry]) { [weak self] selectedEntry in
+                guard let self else { return }
+                do {
+                    try self.completePasskeyRequest(
+                        with: selectedEntry,
+                        relyingPartyID: identity.relyingPartyIdentifier,
+                        clientDataHash: request.clientDataHash
+                    )
+                } catch {
+                    self.showErrorAndRetry(error)
+                }
+            }
+            return
+        }
+
+        do {
+            try completePasskeyRequest(
+                with: entry,
+                relyingPartyID: identity.relyingPartyIdentifier,
+                clientDataHash: request.clientDataHash
+            )
+        } catch {
+            showErrorAndRetry(error)
+        }
     }
 
     private func completePasskeyRequest(with entry: KPEntry, requestParameters: ASPasskeyCredentialRequestParameters) {

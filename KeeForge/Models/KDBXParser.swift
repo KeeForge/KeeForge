@@ -1364,6 +1364,20 @@ final class KDBXXMLParser: NSObject, XMLParserDelegate {
                 groupStack[index].lastModificationTime = date
             }
 
+        case "ExpiryTime" where parentName == "Times":
+            if let currentEntry {
+                currentEntry.expiryTime = parseKPDate(
+                    currentText.trimmingCharacters(in: .whitespacesAndNewlines)
+                )
+            }
+
+        case "Expires" where parentName == "Times":
+            if let currentEntry {
+                currentEntry.expires = currentText
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                    .lowercased() == "true"
+            }
+
         case "Tags":
             if let entry = currentEntry {
                 // Track element presence separately from content so that an
@@ -1602,6 +1616,8 @@ private class EntryBuilder {
     var otpURL: String?
     var creationTime: Date?
     var lastModificationTime: Date?
+    var expires = false
+    var expiryTime: Date?
     var history: [KPEntry] = []
     var unknownXML = OpaqueXMLNodes.empty
     var knownChildCount = 0
@@ -1634,6 +1650,8 @@ private class EntryBuilder {
             otpURL: otpURL,
             creationTime: creationTime,
             lastModificationTime: lastModificationTime,
+            expires: expires,
+            expiryTime: expiryTime,
             history: history,
             unknownXML: unknownXML,
             protectedStringKeys: protectedStringKeys,

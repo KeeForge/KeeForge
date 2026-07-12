@@ -363,6 +363,8 @@ struct DatabaseDraft: Sendable {
             otpURL: preservedOtpURL(draft: draft, originalEntry: originalEntry),
             creationTime: originalEntry.creationTime,
             lastModificationTime: timestamp,
+            expires: originalEntry.expires,
+            expiryTime: originalEntry.expiryTime,
             history: history,
             unknownXML: originalEntry.unknownXML,
             protectedStringKeys: preservedProtectedStringKeys(

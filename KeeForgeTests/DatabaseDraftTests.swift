@@ -105,6 +105,8 @@ final class DatabaseDraftTests: XCTestCase {
 
         XCTAssertEqual(updatedEntry.title, "Controlled Unknowns Updated")
         XCTAssertEqual(updatedEntry.unknownXML, originalEntry.unknownXML)
+        XCTAssertEqual(updatedEntry.expires, originalEntry.expires)
+        XCTAssertEqual(updatedEntry.expiryTime, originalEntry.expiryTime)
         XCTAssertFalse(originalEntry.attachments.isEmpty)
         XCTAssertEqual(updatedEntry.attachments, originalEntry.attachments)
     }

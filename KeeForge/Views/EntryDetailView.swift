@@ -34,6 +34,16 @@ struct EntryDetailView: View {
                         }
                     }
 
+                    if entry.isExpired() {
+                        Section {
+                            Label("This entry has expired", systemImage: "exclamationmark.triangle.fill")
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(.red)
+                                .padding(.vertical, 4)
+                                .accessibilityIdentifier("entry-detail.expired-warning")
+                        }
+                    }
+
                     if !entry.username.isEmpty {
                         FieldRow(label: "Username", value: entry.username, icon: "person.fill")
                     }
@@ -93,13 +103,19 @@ struct EntryDetailView: View {
                             }
                         }
                     }
-                    if entry.creationTime != nil || entry.lastModificationTime != nil {
+                    if entry.creationTime != nil ||
+                        entry.lastModificationTime != nil ||
+                        entry.enabledExpiryTime != nil {
                         Section("Details") {
                             if let created = entry.creationTime {
                                 LabeledContent("Created", value: created.formatted(date: .abbreviated, time: .shortened))
                             }
                             if let modified = entry.lastModificationTime {
                                 LabeledContent("Modified", value: modified.formatted(date: .abbreviated, time: .shortened))
+                            }
+                            if let expiry = entry.enabledExpiryTime {
+                                LabeledContent("Expires", value: expiry.formatted(date: .abbreviated, time: .shortened))
+                                    .accessibilityIdentifier("entry-detail.expiry")
                             }
                         }
                     }

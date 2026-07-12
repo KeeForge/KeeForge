@@ -5,6 +5,8 @@
 ### Fixes
 - Fixed the app freezing at launch or while opening a database when an offline SMB or other file-provider location does not respond.
 - Refresh a revealed entry password immediately after the password is edited.
+- Show red warning indicators in lists and a dedicated warning section in entry details when an enabled KeePass expiry time has passed, and show the enabled expiration timestamp in entry details.
+- Exclude expired credentials from proactive and automatic AutoFill while keeping them available for explicit selection in the interactive picker.
 
 ### New Features
 - Allow trusted local WebDAV servers to use unencrypted HTTP through an explicit Advanced connection toggle, while keeping HTTPS required by default and warning that credentials and database traffic will not be encrypted.

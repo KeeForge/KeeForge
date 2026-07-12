@@ -451,7 +451,18 @@ final class DatabaseViewModelTests: XCTestCase {
             customFields: passkeyFields()
         )
         let noteEntry = KPEntry(title: "Note Entry", username: "", password: .empty, url: "")
-        let root = KPGroup(name: "Root", entries: [passwordEntry, passkeyEntry, noteEntry])
+        let expiredEntry = KPEntry(
+            title: "Expired Entry",
+            username: "expired",
+            password: try! EncryptedValue.encrypt("old-secret", using: sessionKey),
+            url: "https://expired.example.com",
+            expires: true,
+            expiryTime: .distantPast
+        )
+        let root = KPGroup(
+            name: "Root",
+            entries: [passwordEntry, passkeyEntry, noteEntry, expiredEntry]
+        )
 
         let identities = DatabaseViewModel.credentialStoreEntries(from: root)
 

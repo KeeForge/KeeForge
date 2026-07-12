@@ -1165,7 +1165,7 @@ final class DatabaseViewModel {
             entries = root.allEntries
         }
 
-        return entries.filter { $0.hasPassword || $0.hasPasskey }
+        return entries.filter { !$0.isExpired() && ($0.hasPassword || $0.hasPasskey) }
     }
 
     static func savedSortOrder() -> SortOrder {

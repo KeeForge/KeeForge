@@ -49,6 +49,15 @@ struct AutoFillSearchView: View {
                                     .foregroundStyle(.secondary)
                             }
                         }
+
+                        Spacer()
+
+                        if entry.isExpired() {
+                            Label("Expired", systemImage: "exclamationmark.triangle.fill")
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(.red)
+                                .accessibilityIdentifier("autofill.entry.expired")
+                        }
                     }
                 }
             }

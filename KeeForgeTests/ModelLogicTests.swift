@@ -24,6 +24,24 @@ final class ModelLogicTests: XCTestCase {
         XCTAssertEqual(KPEntry(iconID: 999).systemIconName, "key.fill")
     }
 
+    func testKPEntryIsExpiredRequiresEnabledPastExpiryTime() {
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        let past = now.addingTimeInterval(-1)
+
+        XCTAssertTrue(
+            KPEntry(expires: true, expiryTime: past).isExpired(at: now)
+        )
+        XCTAssertFalse(
+            KPEntry(expires: true, expiryTime: now.addingTimeInterval(1)).isExpired(at: now)
+        )
+        XCTAssertFalse(
+            KPEntry(expires: false, expiryTime: past).isExpired(at: now)
+        )
+        XCTAssertFalse(KPEntry(expires: true, expiryTime: nil).isExpired(at: now))
+        XCTAssertEqual(KPEntry(expires: true, expiryTime: past).enabledExpiryTime, past)
+        XCTAssertNil(KPEntry(expires: false, expiryTime: past).enabledExpiryTime)
+    }
+
     func testKPGroupSystemIconNameMapsKnownAndDefaultIDs() {
         XCTAssertEqual(KPGroup(name: "a", iconID: 0).systemIconName, "key.fill")
         XCTAssertEqual(KPGroup(name: "a", iconID: 1).systemIconName, "globe")
