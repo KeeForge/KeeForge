@@ -65,7 +65,7 @@ after the next one lands is half a slice.
 ### 6. Write the files
 
 ```
-docs/specs/<feature-kebab-case>/
+docs/specs/<YYYY-MM-DD>-<feature-kebab-case>/   (date = when the spec is written)
 |-- epic.md
 |-- 01-<slice>.md
 |-- 02-<slice>.md
