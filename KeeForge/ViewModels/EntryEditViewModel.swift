@@ -229,16 +229,18 @@ final class EntryEditViewModel {
     }
 
     private func normalizedTOTPConfiguration() -> EntryDraftPayload.TOTPConfiguration? {
-        let secret = totpSecret.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard secret.isEmpty == false else { return nil }
+        let trimmedSecret = totpSecret.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmedSecret.isEmpty == false else { return nil }
+
+        let preservesOriginalConfiguration = trimmedSecret
+                == originalSnapshot.totpSecret.trimmingCharacters(in: .whitespacesAndNewlines)
+            && totpPeriod == originalSnapshot.totpPeriod
+            && totpDigits == originalSnapshot.totpDigits
+            && totpAlgorithm == originalSnapshot.totpAlgorithm
 
         return EntryDraftPayload.TOTPConfiguration(
-            secret: secret,
-            decodedSecret: secret == originalSnapshot.totpSecret.trimmingCharacters(in: .whitespacesAndNewlines)
-                && totpPeriod == originalSnapshot.totpPeriod
-                && totpDigits == originalSnapshot.totpDigits
-                && totpAlgorithm == originalSnapshot.totpAlgorithm
-                ? decodedTOTPSecret : nil,
+            secret: preservesOriginalConfiguration ? originalSnapshot.totpSecret : trimmedSecret,
+            decodedSecret: preservesOriginalConfiguration ? decodedTOTPSecret : nil,
             period: totpPeriod,
             digits: totpDigits,
             algorithm: totpAlgorithm
