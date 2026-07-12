@@ -410,6 +410,35 @@ final class EntryEditSmokeUITests: EntryEditUITestCase {
             "Edited entry title was not visible in the Social group after saving"
         )
     }
+
+    func testRevealedPasswordUpdatesAfterEditing() {
+        let updatedPassword = "updated-visible-password"
+
+        unlockSuccessfully()
+        openEntry(named: discordEntryTitle, inGroup: socialGroupName)
+
+        let revealButton = app.buttons["entry.password.reveal"]
+        XCTAssertTrue(revealButton.waitForExistence(timeout: 5))
+        revealButton.tap()
+        XCTAssertTrue(app.staticTexts["discordpass!@#"].waitForExistence(timeout: 5))
+
+        let editButton = app.buttons["entry-detail.edit"]
+        XCTAssertTrue(editButton.waitForExistence(timeout: 5))
+        editButton.tap()
+
+        let passwordField = app.textFields["entry-edit.password-field"]
+        XCTAssertTrue(passwordField.waitForExistence(timeout: 5))
+        replaceText(in: passwordField, with: updatedPassword)
+
+        let saveButton = app.buttons["entry-edit.save"]
+        saveButton.tap()
+        XCTAssertTrue(waitForSaveCompletion(saveButton: saveButton, timeout: 10))
+
+        XCTAssertTrue(
+            app.staticTexts[updatedPassword].waitForExistence(timeout: 5),
+            "The already-revealed password did not refresh after the edit was saved"
+        )
+    }
 }
 
 @MainActor

@@ -260,6 +260,10 @@ struct PasswordFieldRow: View {
                 )
             }
         }
+        .onChange(of: password) { _, updatedPassword in
+            guard revealed else { return }
+            revealedText = (try? updatedPassword.decrypt(using: sessionKey)) ?? ""
+        }
     }
 
     private func toggleReveal() {
