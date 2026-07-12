@@ -10,9 +10,11 @@ enum CredentialIdentityStoreManager: Sendable {
     #endif
 
     static func populate(with entries: [KPEntry]) {
+        let eligibleEntries = entries.filter { !$0.isExpired() }
+
         #if DEBUG
         Task { @MainActor in
-            populateObserver?(entries)
+            populateObserver?(eligibleEntries)
         }
         #endif
 
@@ -24,27 +26,27 @@ enum CredentialIdentityStoreManager: Sendable {
                 return
             }
 
-            let passwordIds = entries.flatMap(passwordIdentities(for:))
-            let passkeyIds = entries.compactMap(passkeyIdentity(for:))
+            let passwordIds = eligibleEntries.flatMap(passwordIdentities(for:))
+            let passkeyIds = eligibleEntries.compactMap(passkeyIdentity(for:))
 
             var allIdentities: [any ASCredentialIdentity] = passwordIds
             allIdentities.append(contentsOf: passkeyIds)
 
             var otcCount = 0
             if #available(iOS 18.0, *) {
-                let otcIds = entries.compactMap(oneTimeCodeIdentity(for:))
+                let otcIds = eligibleEntries.compactMap(oneTimeCodeIdentity(for:))
                 allIdentities.append(contentsOf: otcIds)
                 otcCount = otcIds.count
             }
 
-            guard !allIdentities.isEmpty else {
-                logger.info("No credential identities to populate")
-                return
-            }
-
             do {
-                try await store.replaceCredentialIdentities(allIdentities)
-                logger.info("Populated identity store with \(passwordIds.count) password + \(passkeyIds.count) passkey + \(otcCount) OTC identities")
+                if allIdentities.isEmpty {
+                    try await store.removeAllCredentialIdentities()
+                    logger.info("Cleared identity store because no eligible credentials remain")
+                } else {
+                    try await store.replaceCredentialIdentities(allIdentities)
+                    logger.info("Populated identity store with \(passwordIds.count) password + \(passkeyIds.count) passkey + \(otcCount) OTC identities")
+                }
             } catch {
                 logger.error("Failed to replace credential identities: \(error.localizedDescription)")
             }

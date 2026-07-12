@@ -7,6 +7,7 @@ enum CredentialMatcher {
         let searchTerms = Set(identifiers.compactMap(searchTerm(for:)).map { $0.lowercased() })
 
         return entries.filter { entry in
+            guard !entry.isExpired() else { return false }
             let allURLs = [entry.url] + entry.additionalURLs
 
             return searchTerms.contains { term in

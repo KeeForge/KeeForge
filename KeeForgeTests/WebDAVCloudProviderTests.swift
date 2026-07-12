@@ -51,6 +51,15 @@ final class WebDAVCloudProviderTests: XCTestCase {
         }
     }
 
+    func testNormalizedBaseURLAllowsHTTPOnlyWithExplicitOptIn() throws {
+        let url = try WebDAVURL.normalizedBaseURL(
+            from: "HTTP://Vault.Local:80/DAV",
+            allowsUnencryptedHTTP: true
+        )
+
+        XCTAssertEqual(url.absoluteString, "http://vault.local/DAV/")
+    }
+
     func testNormalizedBaseURLRejectsEmpty() {
         XCTAssertThrowsError(try WebDAVURL.normalizedBaseURL(from: "   ")) { error in
             XCTAssertEqual(error as? WebDAVURLError, .empty)

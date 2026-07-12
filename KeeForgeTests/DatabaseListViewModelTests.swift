@@ -19,27 +19,14 @@ final class DatabaseListViewModelTests: XCTestCase {
         super.tearDown()
     }
 
-    func testMakeRowStatusUsesAccessCheckerResultForReachability() {
-        let unreachablePathURL = URL(fileURLWithPath: "/tmp/provider-backed/provider.kdbx")
+    func testLocalRowStatusDefersBookmarkAccessUntilOpen() throws {
+        var reference = try DatabaseListStore.add(url: makeTemporaryFileURL(name: "offline-share.kdbx"))
+        reference.bookmarkData = Data("unresolvable-offline-bookmark".utf8)
+        DatabaseListStore.update(reference)
 
-        let status = DatabaseListViewModel.makeRowStatus(
-            resolvedURL: unreachablePathURL,
-            hasStoredKey: true,
-            accessChecker: { _ in true }
-        )
+        let viewModel = DatabaseListViewModel()
 
-        XCTAssertTrue(status.hasStoredKey)
-        XCTAssertFalse(status.hasAccessIssue)
-    }
-
-    func testMakeRowStatusMarksMissingResolvedURLAsUnavailable() {
-        let status = DatabaseListViewModel.makeRowStatus(
-            resolvedURL: nil,
-            hasStoredKey: false
-        )
-
-        XCTAssertFalse(status.hasStoredKey)
-        XCTAssertTrue(status.hasAccessIssue)
+        XCTAssertFalse(viewModel.status(for: reference).hasAccessIssue)
     }
 
     func testSingleDatabaseDoesNotAutoOpenWhenQuickLaunchIsOff() throws {

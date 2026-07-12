@@ -132,6 +132,20 @@ final class CredentialMatcherTests: XCTestCase {
         XCTAssertEqual(matches.count, 1)
     }
 
+    func testExpiredEntryDoesNotMatchAutomatically() {
+        let expiredEntry = KPEntry(
+            title: "GitHub",
+            username: "user",
+            password: EncryptedValue(sealedData: Data([0]), hasValue: true),
+            url: "https://github.com",
+            expires: true,
+            expiryTime: .distantPast
+        )
+        let ids = [ASCredentialServiceIdentifier(identifier: "github.com", type: .domain)]
+
+        XCTAssertTrue(CredentialMatcher.matchedEntries(from: [expiredEntry], for: ids).isEmpty)
+    }
+
     // MARK: - Additional URL Matching
 
     func testMatchesOnAdditionalURL() {

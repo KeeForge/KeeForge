@@ -41,7 +41,10 @@ final class WebDAVCloudProvider: CloudProvider, WebDAVConnecting, Sendable {
     /// Manual connect: normalize the URL, probe with credentials, persist the
     /// credential + account, and return the account.
     func connect(_ configuration: WebDAVConnectionConfiguration) async throws -> CloudAccount {
-        let baseURL = try normalizedBaseURL(from: configuration.serverURL)
+        let baseURL = try normalizedBaseURL(
+            from: configuration.serverURL,
+            allowsUnencryptedHTTP: configuration.allowsUnencryptedHTTP
+        )
         let username = configuration.username
 
         let credential = WebDAVCredential(
@@ -288,11 +291,19 @@ final class WebDAVCloudProvider: CloudProvider, WebDAVConnecting, Sendable {
         return try? JSONDecoder().decode(WebDAVCredential.self, from: data)
     }
 
-    private func normalizedBaseURL(from raw: String) throws -> URL {
+    private func normalizedBaseURL(
+        from raw: String,
+        allowsUnencryptedHTTP: Bool
+    ) throws -> URL {
         do {
-            return try WebDAVURL.normalizedBaseURL(from: raw)
+            return try WebDAVURL.normalizedBaseURL(
+                from: raw,
+                allowsUnencryptedHTTP: allowsUnencryptedHTTP
+            )
         } catch WebDAVURLError.insecureScheme {
-            throw CloudProviderError.unknown("WebDAV requires an https:// server address.")
+            throw CloudProviderError.unknown(
+                "WebDAV requires an https:// server address unless unencrypted HTTP is explicitly allowed."
+            )
         } catch {
             throw CloudProviderError.unknown("The server address is not a valid URL.")
         }

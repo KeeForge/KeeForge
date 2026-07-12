@@ -8,17 +8,24 @@ struct WebDAVConnectionConfiguration: Hashable, Sendable {
     var serverURL: String
     var username: String
     var password: String
+    var allowsUnencryptedHTTP: Bool
 
-    init(serverURL: String, username: String, password: String) {
+    init(
+        serverURL: String,
+        username: String,
+        password: String,
+        allowsUnencryptedHTTP: Bool = false
+    ) {
         self.serverURL = serverURL
         self.username = username
         self.password = password
+        self.allowsUnencryptedHTTP = allowsUnencryptedHTTP
     }
 }
 
 /// Persisted credential payload stored as JSON in `CloudTokenStore` under the
 /// `webdav` provider namespace. The `serverURL` is always the normalized base
-/// URL (https, lowercased scheme+host, exactly one trailing slash).
+/// URL (http or https, lowercased scheme+host, exactly one trailing slash).
 ///
 /// Additional optional fields (e.g. an untrusted-certificate flag) can be added
 /// later without a migration because JSON decoding tolerates missing keys.
@@ -45,11 +52,15 @@ enum WebDAVURLError: Error, Equatable {
 enum WebDAVURL {
     /// Normalizes a user-entered base URL for a WebDAV collection.
     ///
-    /// Rules (v1): require `https`, lowercase scheme + host, drop the default
-    /// `:443` port, and guarantee exactly one trailing slash. The path is left
-    /// otherwise untouched (case and percent-encoding preserved) so that
-    /// server-relative `fileId`s round-trip predictably.
-    static func normalizedBaseURL(from raw: String) throws -> URL {
+    /// Rules (v1): require `https` unless the caller explicitly opts into
+    /// unencrypted HTTP, lowercase scheme + host, drop the scheme's default
+    /// port, and guarantee exactly one trailing slash. The path is otherwise
+    /// untouched (case and percent-encoding preserved) so server-relative
+    /// `fileId`s round-trip predictably.
+    static func normalizedBaseURL(
+        from raw: String,
+        allowsUnencryptedHTTP: Bool = false
+    ) throws -> URL {
         let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { throw WebDAVURLError.empty }
 
@@ -60,7 +71,9 @@ enum WebDAVURL {
         guard let scheme = components.scheme?.lowercased() else {
             throw WebDAVURLError.malformed
         }
-        guard scheme == "https" else { throw WebDAVURLError.insecureScheme }
+        guard scheme == "https" || (scheme == "http" && allowsUnencryptedHTTP) else {
+            throw WebDAVURLError.insecureScheme
+        }
         components.scheme = scheme
 
         guard let host = components.host?.lowercased(), !host.isEmpty else {
@@ -68,7 +81,8 @@ enum WebDAVURL {
         }
         components.host = host
 
-        if components.port == 443 {
+        if (scheme == "https" && components.port == 443)
+            || (scheme == "http" && components.port == 80) {
             components.port = nil
         }
 

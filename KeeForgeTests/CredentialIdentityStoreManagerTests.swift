@@ -364,6 +364,23 @@ final class CredentialIdentityStoreManagerTests: XCTestCase {
         XCTAssertTrue(filtered.isEmpty)
     }
 
+    func testExpiredEntryExcludedFromAutomaticAutoFillFilter() {
+        let entry = KPEntry(
+            title: "Expired",
+            username: "user",
+            password: EncryptedValue(sealedData: Data([0]), hasValue: true),
+            url: "https://example.com",
+            expires: true,
+            expiryTime: .distantPast
+        )
+
+        let filtered = [entry].filter {
+            !$0.isExpired() && ($0.hasPassword || $0.hasPasskey || $0.hasTOTP)
+        }
+
+        XCTAssertTrue(filtered.isEmpty)
+    }
+
     // MARK: - Helpers
 
     private func makeEntry(

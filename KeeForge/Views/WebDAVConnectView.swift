@@ -59,6 +59,19 @@ struct WebDAVConnectView: View {
                     Text("Account")
                 }
 
+                Section {
+                    Toggle("Allow Unencrypted HTTP", isOn: $viewModel.allowsUnencryptedHTTP)
+                        .accessibilityIdentifier("webdav.connect.allow-http-toggle")
+                } header: {
+                    Text("Advanced")
+                } footer: {
+                    if viewModel.allowsUnencryptedHTTP {
+                        Text("HTTP sends your WebDAV username, password, and database traffic without encryption. Only use it on a local network you trust.")
+                    } else {
+                        Text("Keep this off unless your trusted local WebDAV server cannot use HTTPS.")
+                    }
+                }
+
                 if let errorMessage = viewModel.errorMessage {
                     Section {
                         Label {

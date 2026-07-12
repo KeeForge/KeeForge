@@ -406,6 +406,8 @@ final class KDBXRoundTripTests: XCTestCase {
         XCTAssertEqual(lhs.customFields, rhs.customFields, file: file, line: line)
         XCTAssertEqual(lhs.creationTime, rhs.creationTime, file: file, line: line)
         XCTAssertEqual(lhs.lastModificationTime, rhs.lastModificationTime, file: file, line: line)
+        XCTAssertEqual(lhs.expires, rhs.expires, file: file, line: line)
+        XCTAssertEqual(lhs.expiryTime, rhs.expiryTime, file: file, line: line)
         XCTAssertEqual(normalizedOpaqueXML(lhs.unknownXML), normalizedOpaqueXML(rhs.unknownXML), file: file, line: line)
         XCTAssertEqual(lhs.attachments, rhs.attachments, file: file, line: line)
         XCTAssertEqual(lhs.history.count, rhs.history.count, file: file, line: line)
@@ -499,6 +501,30 @@ final class KDBXRoundTripTests: XCTestCase {
             reparsedEntry.creationTime!.timeIntervalSinceReferenceDate,
             accuracy: 1.0
         )
+    }
+
+    func test_entryExpiry_parsesAndSurvivesRoundTrip() throws {
+        let xml = """
+        <KeePassFile><Root><Group><Name>Root</Name><Entry>
+        <Times><ExpiryTime>2020-01-02T03:04:05Z</ExpiryTime><Expires>True</Expires></Times>
+        <String><Key>Title</Key><Value>Expired Entry</Value></String>
+        </Entry></Group></Root></KeePassFile>
+        """
+
+        let parsed = try parseXML(Data(xml.utf8))
+        let entry = try XCTUnwrap(parsed.rootGroup.allEntries.first)
+        XCTAssertTrue(entry.expires)
+        XCTAssertTrue(entry.isExpired(at: Date(timeIntervalSince1970: 1_700_000_000)))
+        XCTAssertEqual(
+            try XCTUnwrap(entry.expiryTime).timeIntervalSince1970,
+            1_577_934_245,
+            accuracy: 1
+        )
+
+        let reparsed = try serializeAndParse(parsed)
+        let reparsedEntry = try XCTUnwrap(reparsed.rootGroup.allEntries.first)
+        XCTAssertEqual(reparsedEntry.expires, entry.expires)
+        XCTAssertEqual(reparsedEntry.expiryTime, entry.expiryTime)
     }
 
     // MARK: - DeletedObjects round-trip

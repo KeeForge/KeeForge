@@ -24,6 +24,9 @@ struct KPEntry: Identifiable, Sendable {
     var otpURL: String?
     var creationTime: Date?
     var lastModificationTime: Date?
+    /// KeePass only considers `expiryTime` active when this flag is true.
+    var expires: Bool
+    var expiryTime: Date?
     var history: [KPEntry]
     var unknownXML: OpaqueXMLNodes
     var protectedStringKeys: Set<String>
@@ -50,6 +53,8 @@ struct KPEntry: Identifiable, Sendable {
         otpURL: String? = nil,
         creationTime: Date? = nil,
         lastModificationTime: Date? = nil,
+        expires: Bool = false,
+        expiryTime: Date? = nil,
         history: [KPEntry] = [],
         unknownXML: OpaqueXMLNodes = .empty,
         protectedStringKeys: Set<String> = [],
@@ -69,6 +74,8 @@ struct KPEntry: Identifiable, Sendable {
         self.otpURL = otpURL
         self.creationTime = creationTime
         self.lastModificationTime = lastModificationTime
+        self.expires = expires
+        self.expiryTime = expiryTime
         self.history = history
         self.unknownXML = unknownXML
         self.protectedStringKeys = protectedStringKeys
@@ -90,6 +97,16 @@ struct KPEntry: Identifiable, Sendable {
 
     /// Whether this entry has a TOTP configuration.
     var hasTOTP: Bool { totpConfig != nil }
+
+    /// The expiry time when expiration is enabled for this entry.
+    var enabledExpiryTime: Date? {
+        expires ? expiryTime : nil
+    }
+
+    /// Whether the entry's enabled expiry time has passed.
+    func isExpired(at date: Date = .now) -> Bool {
+        enabledExpiryTime.map { $0 <= date } == true
+    }
 
     /// Whether this entry contains a passkey credential.
     var hasPasskey: Bool { passkeyCredential != nil }

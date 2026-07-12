@@ -141,6 +141,6 @@ enum AutoFillSaveCoordinator {
         } else {
             entries = root.allEntries
         }
-        return entries
+        return entries.filter { !$0.isExpired() }
     }
 }

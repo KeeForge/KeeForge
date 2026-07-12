@@ -46,8 +46,10 @@ struct UnlockView: View {
             )
         }
         .onAppear {
-            loadAssociatedKeyFileIfNeeded()
             loadUITestKeyFileIfNeeded()
+        }
+        .task {
+            await loadAssociatedKeyFileIfNeeded()
         }
         .onChange(of: viewModel.openFailure?.errorCode) { _, _ in
             copiedErrorDetails = false
@@ -392,9 +394,9 @@ struct UnlockView: View {
         }
     }
 
-    private func loadAssociatedKeyFileIfNeeded() {
+    private func loadAssociatedKeyFileIfNeeded() async {
         guard keyFileData == nil else { return }
-        guard let associatedKeyFile = viewModel.loadAssociatedKeyFile() else { return }
+        guard let associatedKeyFile = await viewModel.loadAssociatedKeyFile() else { return }
         keyFileData = associatedKeyFile.data
         keyFileName = associatedKeyFile.filename
     }

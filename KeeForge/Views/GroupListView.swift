@@ -487,6 +487,14 @@ struct EntryRow: View {
 
             Spacer()
 
+            if entry.isExpired() {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .font(.caption)
+                    .foregroundStyle(.red)
+                    .accessibilityLabel("Expired")
+                    .accessibilityIdentifier("entry-row.expired")
+            }
+
             if entry.hasPasskey {
                 Image(systemName: "person.badge.key.fill")
                     .font(.caption)

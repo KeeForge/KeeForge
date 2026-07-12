@@ -84,6 +84,13 @@
 	<true/>
 	<key>NSFaceIDUsageDescription</key>
 	<string>KeeForge uses Face ID to quickly unlock your password database.</string>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>KeeForge uses your local network to connect to WebDAV servers you add.</string>
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsLocalNetworking</key>
+		<true/>
+	</dict>
 	<key>SKIncludeConsumableInAppPurchaseHistory</key>
 	<true/>
 	<key>UTImportedTypeDeclarations</key>
