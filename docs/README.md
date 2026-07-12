@@ -11,6 +11,7 @@ Open this folder when the code alone is not enough and you need the longer-form 
 - `specs/edit-support/epic.md` plus `specs/edit-support/01-xml-round-trip.md` through `07-autofill-save.md` — staged write-path design for XML round-trip, KDBX writing, draft/save flow, and pending cloud/UI/AutoFill work.
 - `specs/favicon.md` — website icon fetching and caching.
 - `specs/key-file.md` — supported key-file formats and implementation notes.
+- `specs/macos-port/epic.md` plus `specs/macos-port/01-macos-target-scaffolding.md` through `07-distribution.md` — staged plan for the native macOS app (SwiftUI multiplatform target, Mac UX, desktop cloud OAuth, macOS AutoFill, security polish, MAS + Developer ID distribution). Planned work, not shipped behavior.
 - `specs/passkey.md` — passkey storage and signing behavior.
 - `specs/totp-autofill.md` — TOTP-related implementation direction.
 - `webdav-manual-e2e-checklist.md` — pre-release manual verification pass for WebDAV sync against real servers.
