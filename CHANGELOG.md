@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Internal: restructure the AutoFill extension for upcoming macOS support (no user-facing change).
+
 ## v1.10.1 (2026-07-12)
 
 ### New Features
