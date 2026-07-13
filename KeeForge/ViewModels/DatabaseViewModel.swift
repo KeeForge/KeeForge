@@ -1405,6 +1405,11 @@ final class DatabaseViewModel {
     }
 
     private func persistCompositeKeyForBiometricUnlock(_ compositeKey: Data) {
+        // Silently skip when `.biometryCurrentSet` cannot be satisfied — no
+        // enrolled biometrics is the common Mac desktop case (no Touch ID, or
+        // Touch ID never enrolled). `BiometricService.isAvailable` is false in
+        // exactly those situations, so password unlock stays primary, nothing
+        // is stored, no error is surfaced, and there are no retry loops.
         guard BiometricService.isAvailable else { return }
 
         do {

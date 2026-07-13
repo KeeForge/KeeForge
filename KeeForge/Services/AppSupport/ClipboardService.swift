@@ -1,3 +1,4 @@
+#if os(iOS)
 import UIKit
 
 enum ClipboardService {
@@ -11,3 +12,17 @@ enum ClipboardService {
         )
     }
 }
+#else
+import AppKit
+
+enum ClipboardService {
+    // Basic NSPasteboard set for slice 01. NSPasteboard has no expiration
+    // support, so the iOS auto-clear guarantee does not carry over yet; the
+    // full macOS auto-clear behavior (timer-based clearing) lands in slice 02.
+    static func copy(_ string: String) {
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        pasteboard.setString(string, forType: .string)
+    }
+}
+#endif

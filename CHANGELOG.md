@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add experimental macOS build target (not yet released): full KDBX core, local vaults, and unit-test suite running natively on Mac.
+
 ## v1.10.1 (2026-07-12)
 
 ### New Features

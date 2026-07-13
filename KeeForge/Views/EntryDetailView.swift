@@ -1,12 +1,16 @@
 import CryptoKit
 import SwiftUI
+#if os(iOS)
 import UIKit
+#endif
 
 struct EntryDetailView: View {
     let entryID: UUID
     @Bindable var viewModel: DatabaseViewModel
     var onClose: () -> Void = {}
+    #if os(iOS)
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    #endif
     @Environment(\.dismiss) private var dismiss
     @State private var activeEditor: EntryEditViewModel?
 
@@ -19,7 +23,13 @@ struct EntryDetailView: View {
     }
 
     private var showsCompactLockButton: Bool {
+        // `\.horizontalSizeClass` does not exist on macOS; the Mac app always
+        // uses the regular layout.
+        #if os(iOS)
         horizontalSizeClass == .compact
+        #else
+        false
+        #endif
     }
 
     var body: some View {
@@ -185,6 +195,7 @@ struct EntryDetailView: View {
     }
 }
 
+#if os(iOS)
 private struct SelectableNotesText: UIViewRepresentable {
     let text: String
 
@@ -223,6 +234,24 @@ private struct SelectableNotesText: UIViewRepresentable {
         return CGSize(width: width, height: size.height)
     }
 }
+#else
+/// Interim macOS notes rendering — plain `Text` with `.textSelection(.enabled)`
+/// stands in for the UIKit `UITextView` wrapper until slice 02's view polish.
+private struct SelectableNotesText: View {
+    let text: String
+
+    init(_ text: String) {
+        self.text = text
+    }
+
+    var body: some View {
+        Text(text)
+            .font(.body)
+            .textSelection(.enabled)
+            .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+#endif
 
 // MARK: - Field Rows
 

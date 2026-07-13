@@ -3,6 +3,7 @@ options:
   bundleIdPrefix: com.keevault
   deploymentTarget:
     iOS: "17.0"
+    macOS: "14.0"
   xcodeVersion: "16.0"
   minimumXcodeGenVersion: "2.38"
 configFiles:
@@ -72,6 +73,46 @@ targets:
       - path: KeeForge.icon
         buildPhase: resources
 
+  KeeForgeMac:
+    type: application
+    platform: macOS
+    settings:
+      base:
+        INFOPLIST_FILE: KeeForgeMac/Info.plist
+        PRODUCT_BUNDLE_IDENTIFIER: com.keevault.app
+        ENABLE_HARDENED_RUNTIME: "YES"
+        CODE_SIGN_STYLE: Automatic
+        CODE_SIGN_ENTITLEMENTS: KeeForgeMac/KeeForgeMac.entitlements
+        PRODUCT_NAME: KeeForgeMac
+        PRODUCT_MODULE_NAME: KeeForge
+        MARKETING_VERSION: "1.10.1"
+        CURRENT_PROJECT_VERSION: "1"
+        CLOUD_KEYCHAIN_ACCESS_GROUP: $(AppIdentifierPrefix)com.keevault.sharedkeychain
+        GENERATE_INFOPLIST_FILE: false
+        SWIFT_EMIT_LOC_STRINGS: "YES"
+    dependencies:
+      - package: Argon2Swift
+      - package: KeeForgeTwofish
+      - package: SwiftyDropbox
+      - package: MSAL
+    sources:
+      - path: KeeForge/App
+        excludes: ["README.md"]
+      - path: KeeForge/Models
+        excludes: ["README.md"]
+      - path: KeeForge/Services
+        excludes: ["README.md", "**/README.md"]
+      - path: KeeForge/ViewModels
+        excludes: ["README.md"]
+      - path: KeeForge/Views
+        excludes: ["README.md"]
+      - path: KeeForge/Extensions
+        excludes: ["README.md"]
+      - path: KeeForge/Resources
+        excludes: ["README.md", "LaunchScreen.storyboard"]
+      - path: KeeForge.icon
+        buildPhase: resources
+
   KeeForgeAutoFill:
     type: app-extension
     platform: iOS
@@ -114,6 +155,7 @@ targets:
       - path: KeeForge/Views/PasswordInputRow.swift
       - path: KeeForge/Services/Persistence/SecurityScopedBookmarkManager.swift
       - path: KeeForge/Services/Persistence/SyncedFolderDetector.swift
+      - path: KeeForge/Extensions/PlatformCompat.swift
 
   KeeForgeUITests:
     type: bundle.ui-testing
@@ -191,6 +233,59 @@ targets:
       - path: TestFixtures/test-arbitrary.key
         buildPhase: resources
 
+  KeeForgeMacTests:
+    type: bundle.unit-test
+    platform: macOS
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.keevault.app.tests
+        GENERATE_INFOPLIST_FILE: true
+        TEST_TARGET_NAME: KeeForgeMac
+        TEST_HOST: "$(BUILT_PRODUCTS_DIR)/KeeForgeMac.app/Contents/MacOS/KeeForgeMac"
+        BUNDLE_LOADER: "$(TEST_HOST)"
+    dependencies:
+      - target: KeeForgeMac
+      - package: KeeForgeTwofish
+    sources:
+      - path: KeeForgeTests
+        excludes: ["README.md"]
+      - path: TestFixtures/test.kdbx
+        buildPhase: resources
+      - path: TestFixtures/demo.kdbx
+        buildPhase: resources
+      - path: TestFixtures/demo-keyfile.kdbx
+        buildPhase: resources
+      - path: TestFixtures/round-trip/unknown-elements.kdbx
+        buildPhase: resources
+      - path: TestFixtures/compatibility/aes-baseline.kdbx
+        buildPhase: resources
+      - path: TestFixtures/compatibility/password-keyfile.kdbx
+        buildPhase: resources
+      - path: TestFixtures/compatibility/password-keyfile.key
+        buildPhase: resources
+      - path: TestFixtures/compatibility/unknown-rich.kdbx
+        buildPhase: resources
+      - path: TestFixtures/compatibility/kdbx41-public-custom-data.kdbx
+        buildPhase: resources
+      - path: TestFixtures/compatibility/legacy-kdbx31.kdbx
+        buildPhase: resources
+      - path: TestFixtures/compatibility/attachments.kdbx
+        buildPhase: resources
+      - path: TestFixtures/test-v3-backup.kdbx
+        buildPhase: resources
+      - path: TestFixtures/demo-keyfile.key
+        buildPhase: resources
+      - path: TestFixtures/test-binary.key
+        buildPhase: resources
+      - path: TestFixtures/test-hex.key
+        buildPhase: resources
+      - path: TestFixtures/test-v1.key
+        buildPhase: resources
+      - path: TestFixtures/test-v2.keyx
+        buildPhase: resources
+      - path: TestFixtures/test-arbitrary.key
+        buildPhase: resources
+
 schemes:
   KeeForge:
     build:
@@ -213,3 +308,21 @@ schemes:
         - name: KeeForgeUITests
           parallelizable: false
           randomExecutionOrder: false
+
+  KeeForgeMac:
+    build:
+      preActions:
+        - script: |
+            "${SRCROOT}/ci_scripts/prepare_build_config.sh" "${SRCROOT}"
+          settingsTarget: KeeForgeMac
+      targets:
+        KeeForgeMac: all
+    run:
+      config: Debug
+    test:
+      config: Debug
+      gatherCoverageData: false
+      targets:
+        - name: KeeForgeMacTests
+          parallelizable: false
+          randomExecutionOrder: true

@@ -39,7 +39,9 @@ struct GroupListView: View {
     let groupID: UUID
     @Bindable var viewModel: DatabaseViewModel
     var onSelectEntry: ((KPEntry) -> Void)? = nil
+    #if os(iOS)
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    #endif
     @State private var showSettings = false
     @State private var activeEditor: EntryEditViewModel?
     @State private var pendingDeletion: PendingDeletion?
@@ -64,7 +66,13 @@ struct GroupListView: View {
     }
 
     private var showsCompactLockButton: Bool {
+        // `\.horizontalSizeClass` does not exist on macOS; the Mac app always
+        // uses the regular layout.
+        #if os(iOS)
         horizontalSizeClass == .compact
+        #else
+        false
+        #endif
     }
 
     var body: some View {

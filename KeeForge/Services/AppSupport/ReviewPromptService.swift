@@ -38,10 +38,14 @@ enum ReviewPromptService {
 
         hasPrompted = true
 
+        #if os(iOS)
         if let scene = UIApplication.shared.connectedScenes
             .first(where: { $0.activationState == .foregroundActive }) as? UIWindowScene {
             SKStoreReviewController.requestReview(in: scene)
         }
+        #else
+        SKStoreReviewController.requestReview()
+        #endif
     }
 
     static func resetForTesting() {

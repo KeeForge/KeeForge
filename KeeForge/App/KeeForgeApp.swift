@@ -1,6 +1,10 @@
 import AuthenticationServices
 import SwiftUI
+#if os(iOS)
 import UIKit
+#else
+import AppKit
+#endif
 
 @main
 struct KeeForgeApp: App {
@@ -68,7 +72,9 @@ private extension SettingsService.AppearanceMode {
 private struct AppRootView: View {
     @Bindable var listViewModel: DatabaseListViewModel
     @Binding var activeDatabaseViewModel: DatabaseViewModel?
+    #if os(iOS)
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    #endif
     @State private var didResolveInitialRoute = false
 
     var body: some View {
@@ -137,7 +143,13 @@ private struct AppRootView: View {
     }
 
     private var usesRegularLayout: Bool {
+        // `\.horizontalSizeClass` does not exist on macOS; the Mac app always
+        // uses the regular (split-view) layout.
+        #if os(iOS)
         horizontalSizeClass == .regular
+        #else
+        true
+        #endif
     }
 
     private func resolveInitialRouteIfNeeded() async {
@@ -544,11 +556,18 @@ struct DatabaseNavigationView: View {
 
     @MainActor
     private func presentationAnchor() -> ASPresentationAnchor {
+        #if os(iOS)
         let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
         if let window = scenes.flatMap(\.windows).first(where: \.isKeyWindow) {
             return window
         }
         return ASPresentationAnchor()
+        #else
+        if let window = NSApplication.shared.keyWindow ?? NSApplication.shared.windows.first {
+            return window
+        }
+        return ASPresentationAnchor()
+        #endif
     }
 }
 

@@ -77,6 +77,9 @@ enum KeychainService {
             kSecAttrAccount as String: account,
             kSecValueData as String: key,
             kSecAttrAccessControl as String: accessControl,
+            // Required on macOS to use the iOS-style data-protection keychain
+            // instead of the legacy file keychain; harmless no-op on iOS.
+            kSecUseDataProtectionKeychain as String: true,
         ]
 
         let status = SecItemAdd(addQuery as CFDictionary, nil)
@@ -92,6 +95,7 @@ enum KeychainService {
             kSecAttrAccount as String: account,
             kSecReturnData as String: true,
             kSecUseAuthenticationContext as String: context,
+            kSecUseDataProtectionKeychain as String: true,
         ]
 
         var result: AnyObject?
@@ -107,6 +111,7 @@ enum KeychainService {
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
             kSecAttrAccount as String: account,
+            kSecUseDataProtectionKeychain as String: true,
         ]
         SecItemDelete(query as CFDictionary)
     }
@@ -122,6 +127,7 @@ enum KeychainService {
             kSecMatchLimit as String: kSecMatchLimitOne,
             kSecReturnAttributes as String: true,
             kSecUseAuthenticationContext as String: context,
+            kSecUseDataProtectionKeychain as String: true,
         ]
         let status = SecItemCopyMatching(query as CFDictionary, nil)
         // Item exists if we get success, or if auth is needed (interaction not allowed / auth failed)

@@ -1,3 +1,4 @@
+#if os(iOS)
 import UIKit
 
 @MainActor
@@ -95,3 +96,19 @@ private final class ScreenProtectionViewController: UIViewController {
         ])
     }
 }
+#else
+import Foundation
+
+/// macOS stub — `UIScreen.isCaptured` has no direct macOS equivalent. The
+/// layered Mac screen-privacy approach (lock on screen lock/sleep, blur on
+/// resign-active, best-effort capture blocking via `NSWindow.sharingType`)
+/// lands in slice 06 of the macOS port.
+@MainActor
+final class ScreenProtectionService {
+    init() {}
+
+    func showShield() {}
+
+    func hideShield() {}
+}
+#endif

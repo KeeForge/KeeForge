@@ -33,7 +33,7 @@ enum CredentialIdentityStoreManager: Sendable {
             allIdentities.append(contentsOf: passkeyIds)
 
             var otcCount = 0
-            if #available(iOS 18.0, *) {
+            if #available(iOS 18.0, macOS 15.0, *) {
                 let otcIds = eligibleEntries.compactMap(oneTimeCodeIdentity(for:))
                 allIdentities.append(contentsOf: otcIds)
                 otcCount = otcIds.count
@@ -99,7 +99,7 @@ enum CredentialIdentityStoreManager: Sendable {
 
     // MARK: - One-time code identities
 
-    @available(iOS 18.0, *)
+    @available(iOS 18.0, macOS 15.0, *)
     static func oneTimeCodeIdentity(for entry: KPEntry) -> ASOneTimeCodeCredentialIdentity? {
         guard entry.hasTOTP else { return nil }
 

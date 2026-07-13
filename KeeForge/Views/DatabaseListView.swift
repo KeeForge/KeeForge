@@ -84,12 +84,16 @@ struct DatabaseListView: View {
             .navigationTitle("KeeForge")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
+                // `EditButton` does not exist on macOS; list rows reorder via
+                // drag and delete via context menus / swipe actions there.
+                #if os(iOS)
                 if !viewModel.databases.isEmpty {
                     ToolbarItem(placement: .topBarLeading) {
                         EditButton()
                             .accessibilityIdentifier("database.edit.button")
                     }
                 }
+                #endif
 
                 ToolbarItemGroup(placement: .topBarTrailing) {
                     Button {

@@ -71,3 +71,52 @@ jobs:
       #       -destination "$DESTINATION" \
       #       -only-testing:KeeForgeUITests \
       #       | xcpretty
+
+  macos-build-and-test:
+    runs-on: macos-15
+    timeout-minutes: 30
+    env:
+      SCHEME: KeeForgeMac
+      PROJECT: KeeForge.xcodeproj
+      DESTINATION: 'platform=macOS'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Select Xcode
+        run: |
+          # Use latest available Xcode on the runner
+          XCODE_PATH=$(ls -d /Applications/Xcode_*.app 2>/dev/null | sort -V | tail -1)
+          echo "Using Xcode: $XCODE_PATH"
+          sudo xcode-select -s "$XCODE_PATH"
+          xcodebuild -version
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Prepare build config
+        env:
+          DROPBOX_APP_KEY: CI_PLACEHOLDER_DROPBOX_APP_KEY
+        run: BOOTSTRAP_LOCAL_CONFIG_FROM_ENV=1 ./ci_scripts/prepare_build_config.sh .
+
+      - name: Generate project
+        run: xcodegen generate
+
+      # CI runners have no signing account, so the app is ad-hoc signed with
+      # no entitlements (unsandboxed). Local runs keep automatic signing with
+      # the full sandbox entitlements — see project.yml.
+      - name: Build and run macOS unit tests
+        run: |
+          set -o pipefail
+          xcodebuild test \
+            -project "$PROJECT" \
+            -scheme "$SCHEME" \
+            -destination "$DESTINATION" \
+            -only-testing:KeeForgeMacTests \
+            -skipPackagePluginValidation \
+            CODE_SIGN_STYLE=Manual \
+            CODE_SIGN_IDENTITY=- \
+            CODE_SIGN_ENTITLEMENTS= \
+            DEVELOPMENT_TEAM= \
+            PROVISIONING_PROFILE_SPECIFIER= \
+            | xcpretty

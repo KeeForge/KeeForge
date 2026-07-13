@@ -1,7 +1,9 @@
 import AuthenticationServices
 import Foundation
 @preconcurrency import SwiftyDropbox
+#if os(iOS)
 import UIKit
+#endif
 
 private struct StoredDropboxRefreshToken: Codable {
     let uid: String
@@ -82,6 +84,7 @@ final class DropboxCloudProvider: CloudProvider, @unchecked Sendable {
 
     @MainActor
     func authenticate(from anchor: ASPresentationAnchor) async throws -> CloudAccount {
+        #if os(iOS)
         try configureIfNeeded()
 
         guard pendingAuthContinuation == nil else {
@@ -103,6 +106,12 @@ final class DropboxCloudProvider: CloudProvider, @unchecked Sendable {
                 scopeRequest: scopeRequest
             )
         }
+        #else
+        // Desktop OAuth (SwiftyDropbox's authorizeFromControllerV2 desktop
+        // variant + NSWorkspace URL opening) lands in slice 03 of the macOS
+        // port; until then, Dropbox sign-in is unavailable on the Mac.
+        throw CloudProviderError.unknown("Dropbox sign-in isn't available in this Mac build yet.")
+        #endif
     }
 
     @MainActor
@@ -385,6 +394,7 @@ final class DropboxCloudProvider: CloudProvider, @unchecked Sendable {
         DropboxOAuthManager.sharedOAuthManager
     }
 
+    #if os(iOS)
     @MainActor
     private func presentingController(from anchor: ASPresentationAnchor) -> UIViewController? {
         let window = anchor
@@ -409,6 +419,7 @@ final class DropboxCloudProvider: CloudProvider, @unchecked Sendable {
 
         return current
     }
+    #endif
 
     private func configureIfNeeded() throws {
         guard didConfigure == false else { return }
@@ -416,11 +427,19 @@ final class DropboxCloudProvider: CloudProvider, @unchecked Sendable {
             throw CloudProviderError.invalidConfiguration
         }
 
+        #if os(iOS)
         DropboxClientsManager.setupWithAppKeyMultiUser(
             appKey,
             tokenUid: nil,
             secureStorageAccess: DropboxSecureStorageAccess()
         )
+        #else
+        DropboxClientsManager.setupWithAppKeyMultiUserDesktop(
+            appKey,
+            secureStorageAccess: DropboxSecureStorageAccess(),
+            tokenUid: nil
+        )
+        #endif
         didConfigure = true
     }
 

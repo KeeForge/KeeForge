@@ -2,6 +2,8 @@
 
 Use this folder as the main map for the app target. The subfolder READMEs hold the local detail; this file connects the main flows.
 
+These sources are compiled into three targets: `KeeForge` (iOS), `KeeForgeAutoFill` (iOS extension, selected files), and `KeeForgeMac` (experimental native macOS app, same source list minus `Resources/LaunchScreen.storyboard`; Info.plist and entitlements live in `../KeeForgeMac/`). Platform divergence goes through `Extensions/PlatformCompat.swift` for view-layer patterns and small `#if os()` seams in Services; keep all three targets compiling when touching shared files.
+
 ## Open Next
 
 - `App/README.md` — scene lifecycle and root routing

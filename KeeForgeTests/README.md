@@ -24,6 +24,18 @@ xcodebuild test -project KeeForge.xcodeproj -scheme KeeForge \
 - WebDAV sync (Slice 1): `WebDAVClientTests.swift` covers the PROPFIND multistatus parser fixtures (Nextcloud/sabre + `oc:`/`nc:` props, Apache mod_dav, propstat-404, folder/file discrimination, percent-encoded/unicode/absolute hrefs, self-entry skip, Depth 0 `includeSelf`), request construction (Basic auth, Depth headers, PUT conditionals, propfind body), response header extraction, and the HTTP/URLError mapping tables (incl. TLS/ATS → secure-connection, not offline). `WebDAVCloudProviderTests.swift` covers URL normalization + accountId derivation, fileId↔URL round-trip, rev/If-Match semantics, and stub-transport provider behaviors (getMetadata HEAD + 405→PROPFIND fallback, upload If-Match/412-conflict/HEAD-followup, createFile If-None-Match, listFiles filter/sort, notAuthenticated, connect probe/persist). Credential-dependent tests seed `CloudTokenStore` and `XCTSkip` when Keychain is unavailable.
 - AutoFill and passkeys: `CredentialProviderSaveTests.swift`, `CredentialMatcherTests.swift`, `CredentialIdentityStoreManagerTests.swift`, `PasskeyTests.swift`, `PasskeyDisplayTests.swift`.
 - Miscellaneous services: `FaviconServiceTests.swift`, `PasswordGeneratorTests.swift`, `ReviewPromptServiceTests.swift`, `AutoFillStatusServiceTests.swift`, `ModelLogicTests.swift`, `KeychainMigrationTests.swift`.
+- macOS port (slice 01): `SecurityScopedBookmarkManagerTests.swift` proves `.withSecurityScope` bookmark creation/resolution on macOS (plus the plain-bookmark fallback) and unchanged iOS behavior; `AppGroupGuardrailTests.swift` pins `SharedVaultStore`'s group-container write surface to encrypted KDBX payloads, bookmark blobs, and filename metadata only (the container is user-world-readable on macOS 14).
+
+## macOS Test Target
+
+This folder is compiled into both `KeeForgeTests` (iOS) and `KeeForgeMacTests` (macOS, hosted by `KeeForgeMac.app`). Run the Mac suite with:
+
+```bash
+xcodebuild test -project KeeForge.xcodeproj -scheme KeeForgeMac \
+  -destination 'platform=macOS' -only-testing:KeeForgeMacTests -quiet
+```
+
+Keep new tests platform-neutral where possible; gate genuinely platform-specific expectations with `#if os()` and a comment naming the reason.
 
 ## Test Helpers
 

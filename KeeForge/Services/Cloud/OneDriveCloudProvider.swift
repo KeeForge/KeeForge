@@ -1,7 +1,9 @@
 import AuthenticationServices
 import Foundation
 @preconcurrency import MSAL
+#if os(iOS)
 import UIKit
+#endif
 
 final class OneDriveCloudProvider: CloudProvider, @unchecked Sendable {
     static let shared = OneDriveCloudProvider()
@@ -38,6 +40,7 @@ final class OneDriveCloudProvider: CloudProvider, @unchecked Sendable {
 
     @MainActor
     func authenticate(from anchor: ASPresentationAnchor) async throws -> CloudAccount {
+        #if os(iOS)
         let application = try application()
         let webParameters = MSALWebviewParameters(authPresentationViewController: presentingController(from: anchor))
         let parameters = MSALInteractiveTokenParameters(scopes: Self.scopes, webviewParameters: webParameters)
@@ -47,6 +50,11 @@ final class OneDriveCloudProvider: CloudProvider, @unchecked Sendable {
         let account = makeCloudAccount(from: result.account)
         CloudAccountStore.upsert(account)
         return account
+        #else
+        // MSAL's desktop auth presentation lands in slice 03 of the macOS
+        // port; until then, OneDrive sign-in is unavailable on the Mac.
+        throw CloudProviderError.unknown("OneDrive sign-in isn't available in this Mac build yet.")
+        #endif
     }
 
     func isAuthenticated(accountId: String) -> Bool {
@@ -196,7 +204,13 @@ final class OneDriveCloudProvider: CloudProvider, @unchecked Sendable {
 
     @MainActor
     func handleRedirectURL(_ url: URL) -> Bool {
+        #if os(iOS)
         MSALPublicClientApplication.handleMSALResponse(url, sourceApplication: nil)
+        #else
+        // `handleMSALResponse` is iOS-only; the macOS MSAL redirect flow lands
+        // in slice 03 of the macOS port alongside desktop auth presentation.
+        false
+        #endif
     }
 
     // MARK: - Authentication
@@ -288,6 +302,7 @@ final class OneDriveCloudProvider: CloudProvider, @unchecked Sendable {
         return result.accessToken
     }
 
+    #if os(iOS)
     @MainActor
     private func presentingController(from anchor: ASPresentationAnchor) -> UIViewController {
         topViewController(startingAt: anchor.rootViewController) ?? UIViewController()
@@ -311,6 +326,7 @@ final class OneDriveCloudProvider: CloudProvider, @unchecked Sendable {
 
         return current
     }
+    #endif
 
     private func makeCloudAccount(from account: MSALAccount) -> CloudAccount {
         let accountID = account.identifier ?? account.username ?? UUID().uuidString

@@ -1,6 +1,8 @@
 import CryptoKit
 import Foundation
+#if os(iOS)
 import UIKit
+#endif
 
 struct DatabaseCreationRequest: Sendable {
     var displayName: String

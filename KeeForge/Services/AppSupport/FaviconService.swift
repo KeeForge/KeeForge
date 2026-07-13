@@ -1,5 +1,9 @@
 import CryptoKit
+#if canImport(UIKit)
 import UIKit
+#elseif canImport(AppKit)
+import AppKit
+#endif
 
 enum FaviconService: Sendable {
     // MARK: - Configuration
@@ -113,7 +117,7 @@ enum FaviconService: Sendable {
 
     // MARK: - Cached Image
 
-    static func cachedImage(for domain: String) -> UIImage? {
+    static func cachedImage(for domain: String) -> PlatformImage? {
         let path = cachePath(for: domain)
         let fm = FileManager.default
 
@@ -128,12 +132,12 @@ enum FaviconService: Sendable {
         }
 
         guard let data = try? Data(contentsOf: path) else { return nil }
-        return UIImage(data: data)
+        return PlatformImage(data: data)
     }
 
     // MARK: - Fetch
 
-    static func fetchFavicon(for domain: String) async -> UIImage? {
+    static func fetchFavicon(for domain: String) async -> PlatformImage? {
         guard let url = URL(string: "\(faviconBaseURL)\(domain).ico") else { return nil }
 
         do {
@@ -144,7 +148,7 @@ enum FaviconService: Sendable {
                 return nil
             }
 
-            guard let image = UIImage(data: data) else { return nil }
+            guard let image = PlatformImage(data: data) else { return nil }
 
             // Save to disk cache
             ensureCacheDirectory()
@@ -160,7 +164,7 @@ enum FaviconService: Sendable {
     // MARK: - Primary API
 
     /// Returns a cached favicon or fetches one. Returns nil if unavailable.
-    static func favicon(for domain: String) async -> UIImage? {
+    static func favicon(for domain: String) async -> PlatformImage? {
         if let cached = cachedImage(for: domain) {
             return cached
         }

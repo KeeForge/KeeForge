@@ -227,7 +227,7 @@ final class CredentialIdentityStoreManagerTests: XCTestCase {
 
     // MARK: - oneTimeCodeIdentity (iOS 18+)
 
-    @available(iOS 18.0, *)
+    @available(iOS 18.0, macOS 15.0, *)
     func testOTCIdentityForEntryWithTOTP() {
         let id = UUID()
         let entry = makeEntry(
@@ -246,7 +246,7 @@ final class CredentialIdentityStoreManagerTests: XCTestCase {
         XCTAssertEqual(identity?.recordIdentifier, id.uuidString)
     }
 
-    @available(iOS 18.0, *)
+    @available(iOS 18.0, macOS 15.0, *)
     func testOTCIdentityUsesUsernameFallbackWhenTitleEmpty() {
         let entry = makeEntry(
             title: "",
@@ -261,7 +261,7 @@ final class CredentialIdentityStoreManagerTests: XCTestCase {
         XCTAssertEqual(identity?.label, "user@example.com")
     }
 
-    @available(iOS 18.0, *)
+    @available(iOS 18.0, macOS 15.0, *)
     func testOTCIdentityNilWhenNoTOTP() {
         let entry = makeEntry(
             title: "Test",
@@ -273,7 +273,7 @@ final class CredentialIdentityStoreManagerTests: XCTestCase {
         XCTAssertNil(CredentialIdentityStoreManager.oneTimeCodeIdentity(for: entry))
     }
 
-    @available(iOS 18.0, *)
+    @available(iOS 18.0, macOS 15.0, *)
     func testOTCIdentityNilWhenNoURL() {
         let entry = makeEntry(
             title: "Test",
@@ -285,7 +285,7 @@ final class CredentialIdentityStoreManagerTests: XCTestCase {
         XCTAssertNil(CredentialIdentityStoreManager.oneTimeCodeIdentity(for: entry))
     }
 
-    @available(iOS 18.0, *)
+    @available(iOS 18.0, macOS 15.0, *)
     func testOTCIdentityNilWhenNoLabelOrUsername() {
         let entry = makeEntry(
             title: "",
@@ -297,7 +297,7 @@ final class CredentialIdentityStoreManagerTests: XCTestCase {
         XCTAssertNil(CredentialIdentityStoreManager.oneTimeCodeIdentity(for: entry))
     }
 
-    @available(iOS 18.0, *)
+    @available(iOS 18.0, macOS 15.0, *)
     func testOTCIdentityUsesAdditionalURLWhenPrimaryEmpty() {
         let entry = makeEntry(
             title: "Fallback OTC",

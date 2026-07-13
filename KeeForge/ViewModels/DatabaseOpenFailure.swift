@@ -1,6 +1,8 @@
 import Foundation
 import LocalAuthentication
+#if os(iOS)
 import UIKit
+#endif
 
 struct DatabaseOpenDiagnostics: Equatable, Sendable {
     enum UnlockMethod: String, Sendable {
@@ -61,7 +63,12 @@ struct DatabaseOpenDiagnostics: Equatable, Sendable {
 
         lines.append("App Version: \(appVersion)")
         lines.append("Build: \(buildNumber)")
+        #if os(iOS)
         lines.append("OS Version: \(UIDevice.current.systemName) \(UIDevice.current.systemVersion)")
+        #else
+        let osVersion = ProcessInfo.processInfo.operatingSystemVersion
+        lines.append("OS Version: macOS \(osVersion.majorVersion).\(osVersion.minorVersion).\(osVersion.patchVersion)")
+        #endif
         lines.append("Device Model: \(deviceModelIdentifier)")
 
         return DatabaseOpenDiagnostics(lines: lines)
