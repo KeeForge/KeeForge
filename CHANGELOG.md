@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- macOS: Dropbox and OneDrive sign-in and sync, with tokens persisted across relaunch.
 - Add experimental macOS build target (not yet released): full KDBX core, local vaults, and unit-test suite running natively on Mac.
 - Internal: restructure the AutoFill extension for upcoming macOS support (no user-facing change).
 

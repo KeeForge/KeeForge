@@ -14,10 +14,15 @@
 	<array>
 		<string>group.com.keevault.shared</string>
 	</array>
+	<!-- MSAL's macOS token cache defaults to the com.microsoft.identity.universalstorage
+	     keychain group (MSIDKeychainTokenCache / MSIDMacKeychainTokenCache), unlike the
+	     iOS com.microsoft.adalcache group. MSAL verifies this entitlement by suffix
+	     match before enabling the cache, so silent OneDrive token refresh across
+	     relaunch depends on this entry. Keep the shared keychain group first. -->
 	<key>keychain-access-groups</key>
 	<array>
 		<string>$(AppIdentifierPrefix)com.keevault.sharedkeychain</string>
-		<string>$(AppIdentifierPrefix)com.microsoft.adalcache</string>
+		<string>$(AppIdentifierPrefix)com.microsoft.identity.universalstorage</string>
 	</array>
 </dict>
 </plist>

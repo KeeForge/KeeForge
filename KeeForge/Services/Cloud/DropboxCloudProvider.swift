@@ -3,6 +3,8 @@ import Foundation
 @preconcurrency import SwiftyDropbox
 #if os(iOS)
 import UIKit
+#elseif os(macOS)
+import AppKit
 #endif
 
 private struct StoredDropboxRefreshToken: Codable {
@@ -84,7 +86,6 @@ final class DropboxCloudProvider: CloudProvider, @unchecked Sendable {
 
     @MainActor
     func authenticate(from anchor: ASPresentationAnchor) async throws -> CloudAccount {
-        #if os(iOS)
         try configureIfNeeded()
 
         guard pendingAuthContinuation == nil else {
@@ -96,6 +97,7 @@ final class DropboxCloudProvider: CloudProvider, @unchecked Sendable {
 
             let scopeRequest = Self.makeScopeRequest()
 
+            #if os(iOS)
             DropboxClientsManager.authorizeFromControllerV2(
                 UIApplication.shared,
                 controller: presentingController(from: anchor),
@@ -105,13 +107,22 @@ final class DropboxCloudProvider: CloudProvider, @unchecked Sendable {
                 },
                 scopeRequest: scopeRequest
             )
+            #else
+            // Desktop OAuth (PKCE): SwiftyDropbox opens the system browser via
+            // NSWorkspace; the redirect returns through the db-<appkey> URL
+            // scheme, which the SwiftUI onOpenURL handler forwards to
+            // `handleRedirectURL(_:)` below to resume the continuation.
+            DropboxClientsManager.authorizeFromControllerV2(
+                sharedApplication: NSApplication.shared,
+                controller: presentingController(from: anchor),
+                loadingStatusDelegate: nil,
+                openURL: { url in
+                    NSWorkspace.shared.open(url)
+                },
+                scopeRequest: scopeRequest
+            )
+            #endif
         }
-        #else
-        // Desktop OAuth (SwiftyDropbox's authorizeFromControllerV2 desktop
-        // variant + NSWorkspace URL opening) lands in slice 03 of the macOS
-        // port; until then, Dropbox sign-in is unavailable on the Mac.
-        throw CloudProviderError.unknown("Dropbox sign-in isn't available in this Mac build yet.")
-        #endif
     }
 
     @MainActor
@@ -418,6 +429,17 @@ final class DropboxCloudProvider: CloudProvider, @unchecked Sendable {
         }
 
         return current
+    }
+    #endif
+
+    #if os(macOS)
+    // On macOS the presentation anchor is the NSWindow; SwiftyDropbox only
+    // uses the controller to anchor error alerts (auth itself runs in the
+    // default browser), and falls back to the key window's content view
+    // controller when nil.
+    @MainActor
+    private func presentingController(from anchor: ASPresentationAnchor) -> NSViewController? {
+        anchor.contentViewController ?? NSApplication.shared.keyWindow?.contentViewController
     }
     #endif
 
