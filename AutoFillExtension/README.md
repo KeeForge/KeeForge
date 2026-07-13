@@ -4,7 +4,8 @@ This target provides password, passkey, one-time-code, and new-credential save/g
 
 ## Main Files
 
-- `CredentialProviderViewController.swift` is the extension entry point for interactive and silent credential requests.
+- `CredentialProviderCoordinator.swift` is the platform-neutral core: request handling (passwords, passkeys, one-time codes, save/generate-password), vault access and unlock orchestration, credential matching, passkey assertion, and the `cleanup()` teardown lifecycle. It must stay free of UIKit/AppKit so a future macOS shell can host it unchanged; it talks to the shell only through the narrow `CredentialProviderPresenting` protocol ("present this view", "ask this question", "complete with this credential/error").
+- `CredentialProviderViewController.swift` is the thin iOS shell and extension entry point: it forwards system requests to the coordinator, hosts the SwiftUI views in `UIHostingController`s, shows `UIAlertController` prompts, and relays completions/cancellations to the extension context. No matching or vault logic lives here.
 - `AutoFillSearchView.swift` renders the searchable SwiftUI UI shown inside the extension.
 - `AutoFillEntryCreatorView.swift` renders the credential-creation UI used for save-password requests and strong-password generation follow-up.
 
@@ -21,5 +22,7 @@ This target provides password, passkey, one-time-code, and new-credential save/g
 ## Change Carefully
 
 - Keep dependencies extension-safe. If the extension needs another service file, add it explicitly to the `KeeForgeAutoFill` sources in `../project.yml`.
+- Keep `CredentialProviderCoordinator.swift` free of UIKit imports and types. It is also compiled into the `KeeForge` app target (see `../project.yml`) so `KeeForgeTests/CredentialProviderCoordinatorTests.swift` can unit-test it.
+- Every completion path (success, user cancel, error alert dismissal, silent-request failure) must funnel through the coordinator's completion helpers so `cleanup()` — the extension's only "lock" — always clears the session key and parsed vault state.
 - Changes to App Group storage, shared defaults, cached database copy semantics, or Keychain semantics usually affect both targets.
-- Relevant tests are usually in `../KeeForgeTests/CredentialProviderSaveTests.swift`, `../KeeForgeTests/CredentialIdentityStoreManagerTests.swift`, `../KeeForgeTests/CredentialMatcherTests.swift`, `../KeeForgeTests/PasskeyTests.swift`, and `../KeeForgeTests/SharedVaultStoreTests.swift`.
+- Relevant tests are usually in `../KeeForgeTests/CredentialProviderCoordinatorTests.swift`, `../KeeForgeTests/CredentialProviderSaveTests.swift`, `../KeeForgeTests/CredentialIdentityStoreManagerTests.swift`, `../KeeForgeTests/CredentialMatcherTests.swift`, `../KeeForgeTests/PasskeyTests.swift`, and `../KeeForgeTests/SharedVaultStoreTests.swift`.
