@@ -153,7 +153,7 @@ enum FaviconService: Sendable {
             // Save to disk cache
             ensureCacheDirectory()
             let path = cachePath(for: domain)
-            try? data.write(to: path, options: [.atomic, .completeFileProtection])
+            try? data.write(to: path, options: .atomicProtected)
 
             return image
         } catch {

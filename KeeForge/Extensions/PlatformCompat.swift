@@ -119,3 +119,21 @@ extension View {
 }
 
 #endif
+
+// MARK: - File protection
+
+extension Data.WritingOptions {
+    /// Atomic write with the strongest available at-rest protection.
+    ///
+    /// On iOS this applies `.completeFileProtection` (Data Protection class A).
+    /// On macOS there is no per-file Data Protection: setting a protection
+    /// class fails with EPERM (verified on macOS 26), so the option is omitted
+    /// and at-rest encryption is provided by FileVault instead.
+    static var atomicProtected: Data.WritingOptions {
+        #if os(iOS)
+        [.atomic, .completeFileProtection]
+        #else
+        [.atomic]
+        #endif
+    }
+}

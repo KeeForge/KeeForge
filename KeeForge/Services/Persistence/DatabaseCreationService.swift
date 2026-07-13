@@ -487,7 +487,7 @@ enum DatabaseCreationService {
         try CoordinatedFileReader.writeData(
             data,
             to: url,
-            options: [.atomic, .completeFileProtection]
+            options: .atomicProtected
         )
     }
 

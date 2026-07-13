@@ -79,7 +79,7 @@ enum SharedVaultStore {
         try CoordinatedFileReader.writeData(
             data,
             to: cachedURL,
-            options: [.atomic, .completeFileProtection]
+            options: .atomicProtected
         )
         sharedDefaults.set(filename, forKey: databaseFilenameKey)
     }

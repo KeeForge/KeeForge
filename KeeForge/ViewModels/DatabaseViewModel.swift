@@ -1651,7 +1651,7 @@ final class DatabaseViewModel {
             try CoordinatedFileReader.writeData(
                 bytes,
                 to: destinationURL,
-                options: [.atomic, .completeFileProtection]
+                options: .atomicProtected
             )
         }.value
     }

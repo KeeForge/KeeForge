@@ -97,7 +97,7 @@ enum LocalDatabaseSaver {
                 try CoordinatedFileReader.writeData(
                     data,
                     to: url,
-                    options: [.atomic, .completeFileProtection]
+                    options: .atomicProtected
                 )
             },
             pruneBackups: { reference, count in
@@ -304,7 +304,7 @@ enum LocalDatabaseSaver {
                 do {
                     // Keep the staged replacement outside the picked folder because
                     // file-scoped security access may not allow creating sibling temp files.
-                    try data.write(to: tempURL, options: [.completeFileProtection])
+                    try data.write(to: tempURL, options: .atomicProtected)
                     _ = try fileManager.replaceItemAt(
                         coordinatedURL,
                         withItemAt: tempURL,
