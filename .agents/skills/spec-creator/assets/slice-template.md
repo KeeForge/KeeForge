@@ -28,20 +28,25 @@ Rough orientation, not exhaustive.
 
 Concrete scenarios, not "add tests".
 
-- **Unit:** `<TestFile>.swift` — `test_<behavior>_<condition>` (what it asserts), …
+- **Unit:** `<TestFile>.swift` — named scenarios: <behavior> under <condition> (what each asserts), …
+  Leave exact test method names to the implementing agent.
   Run slice: `-only-testing:KeeForgeTests/<TestClass>`
 - **Integration / UI:** only if needed; otherwise `N/A — <reason>`.
 - **Manual:** 2–4 things a human should click through once.
-- **Edge cases that apply:** locked DB, cancellation, offline, large input, background→foreground, …
+- **Edge cases that apply:** cancellation, offline, large input, background→foreground, locked DB *(KeeForge)*, …
 
 ## Exit criteria
 
 - [ ] Unit tests above pass.
 - [ ] Manual checks done.
-- [ ] No force unwraps; secrets via `EncryptedValue`; heavy work off main.
-- [ ] `xcodegen generate` if `project.yml` changed.
-- [ ] CHANGELOG entry under `## Unreleased`.
+- [ ] CHANGELOG entry written, or explicitly deferred to the epic's entry.
+- [ ] *(KeeForge)* No force unwraps; secrets via `EncryptedValue`; heavy work off main.
+- [ ] *(KeeForge)* `xcodegen generate` if `project.yml` changed.
 
 ## CHANGELOG entry
 
 `- <one-line user-visible framing>`
+
+Or, for a groundwork slice with no user-visible behavior of its own:
+`N/A — covered by the epic's entry, lands with slice <NN>.` The epic owns the final
+user-facing entry when slices defer.

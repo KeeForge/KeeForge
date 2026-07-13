@@ -76,6 +76,9 @@ Even for a one-slice feature, create the directory and both files; uniform struc
 saved bytes. Use `assets/epic-template.md` and `assets/slice-template.md`. If a section
 genuinely doesn't apply, write `N/A - <reason>` rather than deleting it.
 
+If the specs directory has an index (KeeForge keeps a spec table in `docs/README.md`), add a
+row for the new spec in the same format as the existing entries.
+
 A good slice spec is typically 100-300 lines. If yours is longer, you're probably prescribing
 implementation details the agent should handle; cut them. Rule of thumb: if you wrote a line
 of code in the spec, ask whether an English sentence would have served equally well.
@@ -88,6 +91,7 @@ Before handing off, verify:
 - Every clarification answer is reflected somewhere in the specs.
 - Every slice has a Testing section that names specific scenarios, not "add tests".
 - The epic's slice list matches the files on disk, with dependencies marked.
+- The specs index (if the repo keeps one) has a row for this spec.
 - No slice prescribes signatures, variable names, or tiny algorithms.
 - If an overlay applies, its checklist is satisfied.
 

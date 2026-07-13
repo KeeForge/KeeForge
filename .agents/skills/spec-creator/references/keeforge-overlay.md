@@ -4,7 +4,7 @@ Apply when the active repo is KeeForge. Additive on top of `SKILL.md`. Coding ag
 
 ## Extra clarify questions
 
-Pull these into the Phase 3 mix when relevant — they almost always beat a generic equivalent:
+Pull these into the step 3 clarify mix when relevant — they almost always beat a generic equivalent:
 
 - **Stable core touch?** Does the feature plausibly modify any of the files `AGENTS.md` lists as stable core? If yes, the epic must justify it.
 - **AutoFill target?** Main app, extension, or both? Shared code stays extension-safe.
@@ -18,7 +18,7 @@ Every slice file under this overlay must include:
 - **Target membership** — which targets each new/changed file belongs to. Shared files list every target.
 - **project.yml impact** — `No changes` or a bullet list, ending with `Run xcodegen generate`.
 - **Accessibility identifiers** (view-layer slices only) — new identifiers added, existing preserved.
-- **CHANGELOG entry** — the one-line entry to add under `## Unreleased`.
+- **CHANGELOG entry** — the one-line entry to add under `## Unreleased`, or an explicit deferral to the epic's entry for groundwork slices with no user-visible behavior.
 
 ## Research source preferences
 
