@@ -216,6 +216,10 @@ struct EntryEditView: View {
         } message: {
             Text(editingErrorMessage ?? "")
         }
+        // Defers external database reloads while this editor is on screen.
+        // Sheets are fine, but a *pushed* child screen would fire onDisappear
+        // and drop the deferral while editing continues — if this view ever
+        // gains a NavigationLink/navigationDestination, rework this pairing.
         .onAppear {
             databaseViewModel.entryEditorDidAppear()
         }

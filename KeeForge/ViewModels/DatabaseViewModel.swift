@@ -1108,10 +1108,20 @@ final class DatabaseViewModel {
                     return true
                 }
                 guard shouldRefresh else { return }
+                // Re-arm the retry only when this run deferred an applicable
+                // reload, so an editor dismissed mid-refresh still gets its
+                // reload. Runs that exit via an error must not retry here:
+                // while a reload is pending the throttles are bypassed, and a
+                // persistent failure (offline, changed master key, stale
+                // bookmark) would otherwise retry in a tight loop. The next
+                // foreground/unlock/editor-close event picks the reload up.
+                var reloadWasDeferredThisRun = false
                 defer {
+                    let shouldRetryDeferredReload = reloadWasDeferredThisRun
                     Task { @MainActor in
                         self.isRefreshingSharedCache = false
-                        if self.pendingExternalDatabaseRefresh,
+                        if shouldRetryDeferredReload,
+                           self.pendingExternalDatabaseRefresh,
                            self.activeEntryEditorCount == 0,
                            self.isDirty == false {
                             self.refreshSharedDatabaseCacheIfPossible()
@@ -1173,16 +1183,16 @@ final class DatabaseViewModel {
                 }
 
                 if let reloadedDatabase {
-                    await MainActor.run {
+                    reloadWasDeferredThisRun = await MainActor.run { () -> Bool in
                         guard expectedLockCycleID == self.lockCycleID,
                               case .unlocked = self.state,
-                              self.openTimeSHA512 == openTimeSHA512ForRefresh else { return }
+                              self.openTimeSHA512 == openTimeSHA512ForRefresh else { return false }
 
                         guard self.isDirty == false,
                               self.isSaving == false,
                               self.activeEntryEditorCount == 0 else {
                             self.pendingExternalDatabaseRefresh = true
-                            return
+                            return true
                         }
 
                         self.databaseReference = reloadedDatabase.reference
@@ -1195,6 +1205,7 @@ final class DatabaseViewModel {
                         AttachmentPreviewFileStore.clearAll()
                         self.pendingExternalDatabaseRefresh = false
                         self.synchronizeSelections()
+                        return false
                     }
                 } else if refreshedSHA512 == openTimeSHA512ForRefresh {
                     await MainActor.run {
