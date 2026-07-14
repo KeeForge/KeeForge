@@ -29,7 +29,7 @@ This folder is the integration layer between app logic and the outside world: Ap
 ## Change Carefully
 
 - Several service files are compiled into both the app and the AutoFill extension; see `../../AutoFillExtension/README.md`. If you add dependencies, keep them extension-safe and update `../../project.yml`.
-- App Group identifiers, bookmark semantics, backup directory layout, and Keychain access group behavior are compatibility boundaries. Avoid casual renames or storage format changes.
+- App Group identifiers, bookmark semantics, backup directory layout, and Keychain access group behavior are compatibility boundaries. Avoid casual renames or storage format changes. Note the platform split for MSAL's token-cache keychain group: `com.microsoft.adalcache` on iOS vs `com.microsoft.identity.universalstorage` on macOS (see `Cloud/README.md` and `KeeForgeMac/KeeForgeMac.entitlements`).
 - Keep SDK-specific cloud behavior behind `CloudProvider`-style abstractions so the rest of the app stays testable.
 - Local and cloud-backed save flows intentionally share the same backup/cache rules but have different conflict checks: local files use open-time SHA512 only, while cloud save layers remote revision verification and typed write-scope failures on top.
 - Pending-upload markers must stay durable, secret-free, and App-Group-relative because AutoFill may return before the main app is foregrounded to upload the cloud cache copy.

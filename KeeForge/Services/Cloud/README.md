@@ -21,3 +21,5 @@ This folder owns provider abstractions plus the cloud-backed open/save pipeline.
 
 - Keep provider-specific behavior behind `CloudProvider` so view models and tests stay decoupled.
 - Pending-upload markers must remain durable, secret-free, and App-Group-relative.
+- Platform auth seams: `DropboxCloudProvider` uses SwiftyDropbox's desktop OAuth on macOS (system browser via `NSWorkspace`; completion returns through the `db-<appkey>` URL scheme into `handleRedirectURL`, same as iOS), while `OneDriveCloudProvider` presents MSAL from the anchor window's `contentViewController` and never handles redirect URLs on macOS (MSAL's web session intercepts them internally; `handleMSALResponse` is iOS-only and there is no macOS broker). Only the presentation layer is platform-gated; token storage, listing, download, and upload code stays shared.
+- MSAL's macOS token cache lives in the `com.microsoft.identity.universalstorage` keychain group (iOS uses `com.microsoft.adalcache`); the group is declared in `KeeForgeMac/KeeForgeMac.entitlements` and silent OneDrive token refresh across relaunch breaks without it.

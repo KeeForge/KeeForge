@@ -25,6 +25,7 @@ xcodebuild test -project KeeForge.xcodeproj -scheme KeeForge \
 - AutoFill and passkeys: `CredentialProviderSaveTests.swift`, `CredentialMatcherTests.swift`, `CredentialIdentityStoreManagerTests.swift`, `PasskeyTests.swift`, `PasskeyDisplayTests.swift`.
 - Miscellaneous services: `FaviconServiceTests.swift`, `PasswordGeneratorTests.swift`, `ReviewPromptServiceTests.swift`, `AutoFillStatusServiceTests.swift`, `ModelLogicTests.swift`, `KeychainMigrationTests.swift`.
 - macOS port (slice 01): `SecurityScopedBookmarkManagerTests.swift` proves `.withSecurityScope` bookmark creation/resolution on macOS (plus the plain-bookmark fallback) and unchanged iOS behavior; `AppGroupGuardrailTests.swift` pins `SharedVaultStore`'s group-container write surface to encrypted KDBX payloads, bookmark blobs, and filename metadata only (the container is user-world-readable on macOS 14).
+- macOS port (slice 03): `CloudProviderDesktopAuthTests.swift` (`#if os(macOS)`, runs in `KeeForgeMacTests` only) asserts the Dropbox/OneDrive mac auth paths stop at the `invalidConfiguration` gate instead of the slice-01 "unavailable" stub, that MSAL webview parameters derive from the anchor window's `contentViewController`, that the mac bundle registers the `db-*`/`msauth.*` redirect schemes, and that OneDrive declines redirect URLs on macOS (MSAL intercepts them internally). Auth-with-real-keys is manual-only; the authenticate tests `XCTSkip` when real keys are configured.
 
 ## macOS Test Target
 

@@ -179,6 +179,7 @@
 		664A0B0C848B0867E1705FE8 /* AutoFillSaveCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 553C63DEBDFFD48E4FC4646E /* AutoFillSaveCoordinator.swift */; };
 		669AE2BCEE3EB36CE02FAE8A /* FeedbackComposerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3A39542F67BB84C9DEB90C0A /* FeedbackComposerView.swift */; };
 		66DF626BAC87ED327A3BD798 /* DatabaseCreationViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 07DCAC6B2242F7FC28617138 /* DatabaseCreationViewModel.swift */; };
+		679B4A120D4F2E4A5C69EB43 /* CloudProviderDesktopAuthTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1190C66ABFC15FE4F0E5745C /* CloudProviderDesktopAuthTests.swift */; };
 		67D9CEC4DF7C559BB2066B9B /* DropboxCloudProviderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F7522B62793839313AC4DC5 /* DropboxCloudProviderTests.swift */; };
 		69A155A062F13101CA760603 /* SyncedFolderDetector.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4ECEA7AAE4FB7C45606207D1 /* SyncedFolderDetector.swift */; };
 		6AAF0C1932C41779B6A95990 /* DatabaseDraft.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DBA8C05ADEAD4DD8BFE6152 /* DatabaseDraft.swift */; };
@@ -447,6 +448,7 @@
 		FE5003592854E50A44225040 /* TOTPViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A6681D2B1E9D865434D606B7 /* TOTPViewModel.swift */; };
 		FEC0FF43A49FF8C94CB3F1E5 /* demo-keyfile.kdbx in Resources */ = {isa = PBXBuildFile; fileRef = 4CC3CF24A57A3BB531DA56C2 /* demo-keyfile.kdbx */; };
 		FF59DF6830F65782916EC576 /* WebDAVPropfindParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 79FDAFFC6E708ACC5B215525 /* WebDAVPropfindParser.swift */; };
+		FFCB9394C9D73CC6D12183A7 /* CloudProviderDesktopAuthTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1190C66ABFC15FE4F0E5745C /* CloudProviderDesktopAuthTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -519,6 +521,7 @@
 		1028DFCD0B2E32B19BDA02FE /* KeeForge.icon */ = {isa = PBXFileReference; lastKnownFileType = wrapper.icon; path = KeeForge.icon; sourceTree = "<group>"; };
 		10A47D12FBB464C7B0F41E94 /* CloudDatabaseSaver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudDatabaseSaver.swift; sourceTree = "<group>"; };
 		10E0212432C502CF3BCFAB93 /* PasswordDisplay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PasswordDisplay.swift; sourceTree = "<group>"; };
+		1190C66ABFC15FE4F0E5745C /* CloudProviderDesktopAuthTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudProviderDesktopAuthTests.swift; sourceTree = "<group>"; };
 		12D87D0DC4FA51C9002E0C2A /* KDBXCompatibilityArtifactTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KDBXCompatibilityArtifactTests.swift; sourceTree = "<group>"; };
 		161DA4B3D8C56EE8B3F0EBF3 /* CloudSyncUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudSyncUITests.swift; sourceTree = "<group>"; };
 		166C906E1AECCEE8FDBC33D7 /* BackoffUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackoffUITests.swift; sourceTree = "<group>"; };
@@ -1066,6 +1069,7 @@
 				66DF057AA435224858861550 /* CloudAccountStoreTests.swift */,
 				FD06FD75C4769929A64951F0 /* CloudDatabaseSaverTests.swift */,
 				E94BF55CC229A5312D864BDE /* CloudFileBrowserViewModelTests.swift */,
+				1190C66ABFC15FE4F0E5745C /* CloudProviderDesktopAuthTests.swift */,
 				EEE77955BBD928FFC22F1048 /* CloudProviderRegistryTests.swift */,
 				70041C9E76CC7196DFCB5AE1 /* CloudProviderTests.swift */,
 				6037B710DE638D64C1ED6576 /* CloudSyncModelsTests.swift */,
@@ -1496,6 +1500,7 @@
 				62FB664BD88A905F2894DE5E /* CloudAccountStoreTests.swift in Sources */,
 				316E7940CB908BAD581E150F /* CloudDatabaseSaverTests.swift in Sources */,
 				F0AEC020E24F92ED603E6B3B /* CloudFileBrowserViewModelTests.swift in Sources */,
+				FFCB9394C9D73CC6D12183A7 /* CloudProviderDesktopAuthTests.swift in Sources */,
 				D5F1B9A600C34772BF703564 /* CloudProviderRegistryTests.swift in Sources */,
 				A4965719DE4433346A5EF843 /* CloudProviderTests.swift in Sources */,
 				DC805C7BC8E85AF772A15E99 /* CloudSyncModelsTests.swift in Sources */,
@@ -1794,6 +1799,7 @@
 				A9B666729B66843DC7CC3747 /* CloudAccountStoreTests.swift in Sources */,
 				CD0DAB7F744AA133D65C7725 /* CloudDatabaseSaverTests.swift in Sources */,
 				B5A7450FC08F867DF42CF9D3 /* CloudFileBrowserViewModelTests.swift in Sources */,
+				679B4A120D4F2E4A5C69EB43 /* CloudProviderDesktopAuthTests.swift in Sources */,
 				E3D7895440CF711F291EEE23 /* CloudProviderRegistryTests.swift in Sources */,
 				BA604F83D5FCE06F038E5875 /* CloudProviderTests.swift in Sources */,
 				5D1534A2DAB9C6EC61C8551B /* CloudSyncModelsTests.swift in Sources */,
