@@ -14,6 +14,7 @@ enum SettingsService {
         static let appearanceMode = "KeeForge.appearanceMode"
         static let hasTipped = "KeeForge.hasTipped"
         static let macLockPolicy = "KeeForge.macLockPolicy"
+        static let blockScreenCapture = "KeeForge.blockScreenCapture"
     }
 
     static let appearanceModeDefaultsKey = Key.appearanceMode
@@ -219,6 +220,27 @@ enum SettingsService {
         }
         set {
             UserDefaults.standard.set(newValue, forKey: Key.hasTipped)
+        }
+    }
+
+    // MARK: - Block Screen Capture (macOS)
+    //
+    // Best-effort request to exclude KeeForge's windows from screenshots and
+    // screen recordings via `NSWindow.sharingType`. Defaults on. macOS-only in
+    // the UI; the key exists cross-platform so the setting round-trips in shared
+    // tests, but iOS ignores it (iOS uses `UIScreen.isCaptured` shielding). App-
+    // local (standard defaults), not App Group-shared — it is a per-device UI
+    // preference, not extension state.
+
+    static var blockScreenCapture: Bool {
+        get {
+            if UserDefaults.standard.object(forKey: Key.blockScreenCapture) == nil {
+                return true
+            }
+            return UserDefaults.standard.bool(forKey: Key.blockScreenCapture)
+        }
+        set {
+            UserDefaults.standard.set(newValue, forKey: Key.blockScreenCapture)
         }
     }
 }

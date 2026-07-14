@@ -15,10 +15,42 @@ enum FaviconService: Sendable {
     // MARK: - Cache Directory
 
     static var cacheDirectory: URL {
-        let groupURL = FileManager.default.containerURL(
+        cacheContainerURL.appendingPathComponent(cacheDirectoryName, isDirectory: true)
+    }
+
+    /// The directory the favicon cache lives inside, chosen per platform.
+    ///
+    /// A favicon cache is a plaintext, per-domain fingerprint of the vault's
+    /// entries, so where it lives is a privacy decision:
+    ///
+    /// - iOS keeps it in the App Group container. The App Group is sandbox-
+    ///   private on iOS, and the AutoFill extension reads the cache there so it
+    ///   can show icons without re-fetching.
+    /// - macOS relocates it into the app's *own* sandbox container
+    ///   (Application Support). On macOS the App Group container is readable by
+    ///   the user's other (non-sandboxed) processes, so a domain fingerprint in
+    ///   the group container would be world-readable to the logged-in user.
+    ///   Keeping it in the app container closes that exposure; the mac AutoFill
+    ///   extension renders without favicons or re-fetches rather than widening
+    ///   the group-container surface.
+    ///
+    /// Extension-safe: uses only Foundation `FileManager` APIs (no UIKit/AppKit).
+    private static var cacheContainerURL: URL {
+        #if os(macOS)
+        if let appSupport = try? FileManager.default.url(
+            for: .applicationSupportDirectory,
+            in: .userDomainMask,
+            appropriateFor: nil,
+            create: true
+        ) {
+            return appSupport
+        }
+        return FileManager.default.temporaryDirectory
+        #else
+        return FileManager.default.containerURL(
             forSecurityApplicationGroupIdentifier: SharedVaultStore.appGroupID
         ) ?? FileManager.default.temporaryDirectory
-        return groupURL.appendingPathComponent(cacheDirectoryName, isDirectory: true)
+        #endif
     }
 
     // MARK: - Domain Extraction

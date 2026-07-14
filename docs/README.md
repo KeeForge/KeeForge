@@ -6,6 +6,8 @@ Files and folders are prefixed with the date the doc was written. Do not update 
 
 The two files without date prefixes at the root, `index.md` and `_config.yml`, are not archive material — they are the published GitHub Pages support page. The user-facing privacy policy lives at <https://keeforge.com/privacy> (source in the `keeforge.com` repo); code changes should not contradict it.
 
+`macos-security-notes.md` (no date prefix) is also not archive material — it is a **living** note describing the per-platform security deltas of the macOS app (in-memory model, App Group world-readability, screen-capture best-effort, clipboard ceiling, attachment previews, and what is not fixable at the app level). Keep it truthful alongside the code; it backs the README security highlights and the in-app Settings copy.
+
 ## `specs/` — Feature Design Specs
 
 Design docs written before or during a feature's implementation. Multi-slice features live in a dated folder with an `epic.md` overview plus numbered slice docs.

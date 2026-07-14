@@ -1,6 +1,61 @@
 import QuickLook
 import SwiftUI
 
+// MARK: - Cross-platform Quick Look presentation
+
+extension View {
+    /// Presents a Quick Look preview of the file at `url` when it is non-nil,
+    /// and calls `onDismiss` when the preview closes so the caller can delete
+    /// the plaintext temp file.
+    ///
+    /// Platform split, kept behind one call site:
+    /// - **macOS** uses SwiftUI's native `.quickLookPreview(_:)` (macOS 12+).
+    ///   The system sets the binding back to `nil` when the panel closes; the
+    ///   wrapper binding turns that into an `onDismiss` call.
+    /// - **iOS** keeps the `QLPreviewController` representable presented in a
+    ///   sheet. The iOS `.quickLookPreview(_:)` modifier does not offer the
+    ///   same full-screen, navigable, shareable preview UX, and the existing
+    ///   presentation is what `EntryAttachmentsSmokeUITests` drives, so iOS is
+    ///   intentionally left on the representable (no iOS behavior change).
+    @ViewBuilder
+    func attachmentQuickLookPreview(
+        url: Binding<URL?>,
+        onDismiss: @escaping () -> Void
+    ) -> some View {
+        #if os(macOS)
+        quickLookPreview(
+            Binding(
+                get: { url.wrappedValue },
+                set: { newValue in
+                    if newValue == nil {
+                        // `onDismiss` (temp-file cleanup) is responsible for
+                        // clearing the source binding, matching the iOS sheet
+                        // path — so it must run while the URL is still set.
+                        onDismiss()
+                    } else {
+                        url.wrappedValue = newValue
+                    }
+                }
+            )
+        )
+        #else
+        sheet(
+            isPresented: Binding(
+                get: { url.wrappedValue != nil },
+                set: { isPresented in
+                    if isPresented == false { onDismiss() }
+                }
+            )
+        ) {
+            if let previewURL = url.wrappedValue {
+                AttachmentQuickLookPreview(url: previewURL)
+                    .ignoresSafeArea()
+            }
+        }
+        #endif
+    }
+}
+
 #if os(iOS)
 /// `UIViewControllerRepresentable` wrapper around `QLPreviewController` that
 /// previews a single file at `url`. The presenter owns the temp file's
@@ -37,31 +92,6 @@ struct AttachmentQuickLookPreview: UIViewControllerRepresentable {
         func previewController(_ controller: QLPreviewController, previewItemAt index: Int) -> QLPreviewItem {
             url as NSURL
         }
-    }
-}
-#else
-/// Interim macOS stub — the native Mac Quick Look preview (QLPreviewPanel /
-/// `.quickLookPreview`) lands in slice 06 of the macOS port. Until then the
-/// sheet names the attachment and points at the share/export action.
-struct AttachmentQuickLookPreview: View {
-    let url: URL
-
-    var body: some View {
-        VStack(spacing: 12) {
-            Image(systemName: "doc")
-                .font(.system(size: 36))
-                .foregroundStyle(.secondary)
-
-            Text(url.lastPathComponent)
-                .font(.headline)
-
-            Text("Attachment preview isn't available on Mac yet. Use the share button to export the file.")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-        }
-        .padding(24)
-        .frame(minWidth: 360, minHeight: 220)
     }
 }
 #endif

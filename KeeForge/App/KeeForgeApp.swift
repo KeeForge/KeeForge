@@ -134,6 +134,8 @@ private struct AppRootView: View {
     @Binding var activeDatabaseViewModel: DatabaseViewModel?
     #if os(iOS)
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    #else
+    @Environment(\.requestReview) private var requestReview
     #endif
     @State private var didResolveInitialRoute = false
 
@@ -146,6 +148,12 @@ private struct AppRootView: View {
             }
         }
         .task {
+            #if os(macOS)
+            // macOS has no scene-based StoreKit review entry point; inject the
+            // SwiftUI RequestReviewAction so ReviewPromptService can present the
+            // modern prompt without a view dependency.
+            ReviewPromptService.requestReviewHandler = { requestReview() }
+            #endif
             await resolveInitialRouteIfNeeded()
         }
         .onOpenURL { url in
