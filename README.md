@@ -38,7 +38,7 @@ KeeForge is a native iOS KeePass client for people who want their vault to stay 
 | **Cloud sync** | Native Dropbox, OneDrive, and WebDAV browsing and read/write sync, cached shared copies for AutoFill, queued extension uploads, and conflict checks. |
 | **Attachments** | View KeePass entry attachments, preview supported files with QuickLook, and share them from short-lived protected temporary files. Attachment editing is not yet supported. |
 | **iPad ready** | Adaptive navigation uses a split-view vault workspace on wider layouts while keeping the compact iPhone flow focused and native. |
-| **Security-minded** | AES-GCM in-memory secret encryption, failed-unlock backoff, screen-capture protection, local-only clipboard, decompression bomb limits, and constant-time HMAC comparison. |
+| **Security-minded** | AES-GCM in-memory secret encryption, failed-unlock backoff, local-only clipboard, decompression bomb limits, and constant-time HMAC comparison. Screen-privacy differs by platform: iOS shields the app while it is being recorded (`UIScreen.isCaptured`); macOS blurs its windows whenever it loses focus and, by default, best-effort blocks screenshots/recordings (`NSWindow.sharingType`, which ScreenCaptureKit-based capture can bypass on macOS 15+). See [`docs/macos-security-notes.md`](docs/macos-security-notes.md). |
 
 ## Privacy
 

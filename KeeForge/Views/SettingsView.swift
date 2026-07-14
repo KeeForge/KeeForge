@@ -18,6 +18,7 @@ struct SettingsView: View {
     @State private var pendingCloudAccountSignOut: CloudAccount?
     @State private var feedbackContext: FeedbackComposerContext?
     @State private var macLockPolicy = SettingsService.macLockPolicy
+    @State private var blockScreenCapture = SettingsService.blockScreenCapture
 
     var body: some View {
         Group {
@@ -47,7 +48,8 @@ struct SettingsView: View {
                 autoLockTimeout: $autoLockTimeout,
                 macLockPolicy: $macLockPolicy,
                 clipboardTimeout: $clipboardTimeout,
-                autoUnlockWithBiometrics: $autoUnlockWithFaceID
+                autoUnlockWithBiometrics: $autoUnlockWithFaceID,
+                blockScreenCapture: $blockScreenCapture
             )
             .tabItem {
                 Label("Security", systemImage: "lock.shield")
@@ -124,6 +126,17 @@ struct SettingsView: View {
             }
             .onChange(of: macLockPolicy) { _, newValue in
                 SettingsService.macLockPolicy = newValue
+            }
+            .onChange(of: blockScreenCapture) { _, newValue in
+                SettingsService.blockScreenCapture = newValue
+                #if os(macOS)
+                // Tell the live screen-protection service to re-apply the
+                // capture policy to already-open windows immediately.
+                NotificationCenter.default.post(
+                    name: ScreenProtectionService.captureBlockingDidChangeNotification,
+                    object: nil
+                )
+                #endif
             }
             .onChange(of: clipboardTimeout) { _, newValue in
                 SettingsService.clipboardTimeout = newValue
@@ -532,6 +545,7 @@ private struct MacSecuritySettingsTab: View {
     @Binding var macLockPolicy: SettingsService.MacLockPolicy
     @Binding var clipboardTimeout: SettingsService.ClipboardTimeout
     @Binding var autoUnlockWithBiometrics: Bool
+    @Binding var blockScreenCapture: Bool
 
     var body: some View {
         Form {
@@ -554,6 +568,15 @@ private struct MacSecuritySettingsTab: View {
                 }
             } footer: {
                 Text("KeeForge always locks on screen lock, screensaver, system sleep, and user switching. The stricter option also locks whenever another app becomes active.")
+            }
+
+            Section {
+                Toggle("Block Screen Capture", isOn: $blockScreenCapture)
+                    .accessibilityIdentifier("settings.block-screen-capture.toggle")
+            } header: {
+                Text("Screen Privacy")
+            } footer: {
+                Text("Asks macOS to exclude KeeForge's windows from screenshots and screen recordings. This is best-effort: on macOS 15 and later, ScreenCaptureKit-based recorders can capture the window anyway. When it works, a screenshot of KeeForge comes out black or fails — that is the protection doing its job. Regardless of this setting, KeeForge blurs its windows whenever it loses focus.")
             }
 
             Section {

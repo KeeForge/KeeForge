@@ -69,24 +69,8 @@ private struct AttachmentRow: View {
         // identifier on the same element would be shadowed by this one, so tests
         // enumerate rows via the `entry.attachment.<index>` prefix instead.
         .accessibilityIdentifier("entry.attachment.\(index)")
-        .sheet(isPresented: previewPresentedBinding) {
-            if let previewURL {
-                AttachmentQuickLookPreview(url: previewURL)
-                    .ignoresSafeArea()
-            }
-        }
+        .attachmentQuickLookPreview(url: $previewURL, onDismiss: cleanUpTempFile)
         .onDisappear(perform: cleanUpTempFile)
-    }
-
-    private var previewPresentedBinding: Binding<Bool> {
-        Binding(
-            get: { previewURL != nil },
-            set: { isPresented in
-                if isPresented == false {
-                    cleanUpTempFile()
-                }
-            }
-        )
     }
 
     private func preparePreview() {

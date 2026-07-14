@@ -12,11 +12,15 @@ final class ReviewPromptServiceTests: XCTestCase {
         ReviewPromptService.defaults = testDefaults
         ReviewPromptService.resetForTesting()
         ReviewPromptService.minimumActions = 10
+        ReviewPromptService.requestReviewHandler = nil
+        ReviewPromptService.isAppStoreBuild = true
     }
 
     override func tearDown() {
         ReviewPromptService.resetForTesting()
         ReviewPromptService.defaults = .standard
+        ReviewPromptService.requestReviewHandler = nil
+        ReviewPromptService.isAppStoreBuild = true
         UserDefaults.standard.removePersistentDomain(forName: suiteName)
         super.tearDown()
     }
@@ -98,5 +102,52 @@ final class ReviewPromptServiceTests: XCTestCase {
 
         XCTAssertEqual(ReviewPromptService.actionCount, 0)
         XCTAssertFalse(ReviewPromptService.hasPrompted)
+    }
+
+    // MARK: - Presenter injection (cross-platform; macOS relies on this hook)
+
+    func testRequestReviewInvokesInjectedHandlerWhenAppropriate() {
+        var invoked = 0
+        ReviewPromptService.requestReviewHandler = { invoked += 1 }
+        ReviewPromptService.actionCount = 9 // recordMeaningfulAction pushes to 10
+
+        ReviewPromptService.requestReviewIfAppropriate()
+
+        XCTAssertEqual(invoked, 1)
+        XCTAssertTrue(ReviewPromptService.hasPrompted)
+    }
+
+    func testRequestReviewDoesNotInvokeHandlerBelowThreshold() {
+        var invoked = 0
+        ReviewPromptService.requestReviewHandler = { invoked += 1 }
+        ReviewPromptService.actionCount = 3
+
+        ReviewPromptService.requestReviewIfAppropriate()
+
+        XCTAssertEqual(invoked, 0)
+        XCTAssertFalse(ReviewPromptService.hasPrompted)
+    }
+
+    func testRequestReviewSkipsHandlerForNonAppStoreBuild() {
+        var invoked = 0
+        ReviewPromptService.requestReviewHandler = { invoked += 1 }
+        ReviewPromptService.isAppStoreBuild = false
+        ReviewPromptService.actionCount = 9
+
+        ReviewPromptService.requestReviewIfAppropriate()
+
+        XCTAssertEqual(invoked, 0, "Non-App-Store builds must not present a StoreKit review prompt")
+    }
+
+    func testRequestReviewPromptsOnlyOnce() {
+        var invoked = 0
+        ReviewPromptService.requestReviewHandler = { invoked += 1 }
+        ReviewPromptService.actionCount = 9
+
+        ReviewPromptService.requestReviewIfAppropriate()
+        ReviewPromptService.actionCount = 100
+        ReviewPromptService.requestReviewIfAppropriate()
+
+        XCTAssertEqual(invoked, 1)
     }
 }

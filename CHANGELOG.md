@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- macOS: screen-privacy protections (blur on focus loss, optional screen-capture blocking), attachment Quick Look, and App Store review prompts.
 - macOS: native menu bar commands, Settings window, and automatic locking on screen lock/sleep; password reveal now always requires device-owner authentication (also hardened on iOS).
 - macOS: Dropbox and OneDrive sign-in and sync, with tokens persisted across relaunch.
 - Add experimental macOS build target (not yet released): full KDBX core, local vaults, and unit-test suite running natively on Mac.
