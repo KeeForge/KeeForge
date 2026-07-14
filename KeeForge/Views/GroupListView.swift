@@ -39,6 +39,11 @@ struct GroupListView: View {
     let groupID: UUID
     @Bindable var viewModel: DatabaseViewModel
     var onSelectEntry: ((KPEntry) -> Void)? = nil
+    /// macOS drill-down: when set, group rows call this instead of pushing a
+    /// `NavigationLink` (pushed sidebar stacks render zero-height on macOS).
+    var onSelectGroup: ((UUID) -> Void)? = nil
+    /// macOS drill-down: when set, a Back toolbar button pops one level.
+    var onNavigateBack: (() -> Void)? = nil
     #if os(iOS)
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     #endif
@@ -48,6 +53,9 @@ struct GroupListView: View {
     @State private var isShowingNewGroupSheet = false
     @State private var newGroupName = ""
     @State private var groupCreationErrorMessage: String?
+    #if os(macOS)
+    @FocusState private var isSearchFieldFocused: Bool
+    #endif
 
     private var resolvedGroup: KPGroup? {
         viewModel.group(withID: groupID)
@@ -107,6 +115,18 @@ struct GroupListView: View {
                     .navigationTitle(resolvedGroup.name)
                     .navigationBarTitleDisplayMode(.large)
                     .toolbar {
+                        if let onNavigateBack {
+                            ToolbarItem(placement: .navigation) {
+                                Button {
+                                    onNavigateBack()
+                                } label: {
+                                    Image(systemName: "chevron.backward")
+                                }
+                                .accessibilityLabel("Back")
+                                .accessibilityIdentifier("group.back")
+                            }
+                        }
+
                         if showsCompactLockButton {
                             ToolbarItem(placement: .topBarLeading) {
                                 Button("Lock") {
@@ -224,27 +244,105 @@ struct GroupListView: View {
                 SearchView(viewModel: viewModel, onSelectEntry: onSelectEntry)
             }
         }
-        .searchable(
-            text: $viewModel.searchText,
-            placement: .navigationBarDrawer(displayMode: .always),
-            prompt: "Search entries"
-        )
-        .navigationDestination(item: $activeEditor) { formViewModel in
-            EntryEditView(
-                formViewModel: formViewModel,
-                databaseViewModel: viewModel
-            ) { _ in
-                activeEditor = nil
+        .modifier(GroupListSearchModifier(view: self))
+        .modifier(GroupListEditorPresentation(view: self))
+    }
+
+    /// Presents the entry editor. iOS pushes it onto the navigation stack;
+    /// macOS presents a sheet (the sidebar drill-down has no stack to push
+    /// onto, and pushed sidebar stacks render zero-height on macOS anyway).
+    private struct GroupListEditorPresentation: ViewModifier {
+        let view: GroupListView
+
+        func body(content: Content) -> some View {
+            #if os(macOS)
+            content
+                .sheet(item: view.$activeEditor) { formViewModel in
+                    NavigationStack {
+                        EntryEditView(
+                            formViewModel: formViewModel,
+                            databaseViewModel: view.viewModel
+                        ) { _ in
+                            view.activeEditor = nil
+                        }
+                    }
+                    .frame(minWidth: 540, minHeight: 560)
+                }
+            #else
+            content
+                .navigationDestination(item: view.$activeEditor) { formViewModel in
+                    EntryEditView(
+                        formViewModel: formViewModel,
+                        databaseViewModel: view.viewModel
+                    ) { _ in
+                        view.activeEditor = nil
+                    }
+                }
+            #endif
+        }
+    }
+
+    /// Attaches the search field.
+    ///
+    /// iOS: every pushed level attaches `.searchable` (navigation-bar drawer),
+    /// unchanged legacy behavior.
+    ///
+    /// macOS: only the ROOT group list attaches `.searchable`. Attaching it on
+    /// every pushed level collapses the pushed List to zero height inside the
+    /// `NavigationSplitView` sidebar column (SwiftUI layout bug observed on
+    /// macOS 26), which made subgroup browsing render an empty sidebar. The
+    /// toolbar search field therefore only appears at the vault root, and the
+    /// menu-bar Find command (⌘F) focuses it there via
+    /// `searchFocusRequestID` + `searchFocused` (macOS 15+).
+    private struct GroupListSearchModifier: ViewModifier {
+        let view: GroupListView
+
+        func body(content: Content) -> some View {
+            #if os(macOS)
+            if view.groupID == view.viewModel.visibleRootGroupID {
+                content
+                    .searchable(
+                        text: view.$viewModel.searchText,
+                        placement: .navigationBarDrawer(displayMode: .always),
+                        prompt: "Search entries"
+                    )
+                    .macSearchFocusedCompat(view.$isSearchFieldFocused)
+                    .onChange(of: view.viewModel.searchFocusRequestID) { _, _ in
+                        view.isSearchFieldFocused = true
+                    }
+            } else {
+                content
             }
+            #else
+            content
+                .searchable(
+                    text: view.$viewModel.searchText,
+                    placement: .navigationBarDrawer(displayMode: .always),
+                    prompt: "Search entries"
+                )
+            #endif
         }
     }
 
     @ViewBuilder
     private func groupRow(for groupID: UUID) -> some View {
-        NavigationLink(value: groupID) {
-            GroupRow(groupID: groupID, viewModel: viewModel)
+        Group {
+            if let onSelectGroup {
+                Button {
+                    onSelectGroup(groupID)
+                } label: {
+                    GroupRow(groupID: groupID, viewModel: viewModel)
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("group.navlink")
+            } else {
+                NavigationLink(value: groupID) {
+                    GroupRow(groupID: groupID, viewModel: viewModel)
+                }
+                .accessibilityIdentifier("group.navlink")
+            }
         }
-        .accessibilityIdentifier("group.navlink")
+        .macHoverHighlight()
         .contextMenu {
             if canDeleteGroup(groupID) {
                 Button(groupDeleteButtonTitle(for: groupID), role: .destructive) {
@@ -281,6 +379,7 @@ struct GroupListView: View {
                 .accessibilityIdentifier("entry.navlink")
             }
         }
+        .macHoverHighlight()
         .contextMenu {
             if viewModel.isReadOnly == false {
                 Button(isRecycleBin ? "Delete Permanently" : "Delete", role: .destructive) {
@@ -636,9 +735,15 @@ struct DatabaseSettingsView: View {
                 }
 
                 Section {
+                    #if os(macOS)
+                    SettingsLink {
+                        Text("App Settings")
+                    }
+                    #else
                     Button("App Settings") {
                         showAppSettings = true
                     }
+                    #endif
                 }
             }
             .navigationTitle("Database Settings")

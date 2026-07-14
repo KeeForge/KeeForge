@@ -16,7 +16,7 @@ This folder is the integration layer between app logic and the outside world: Ap
 - `Cloud` holds provider abstractions plus the cloud-backed open/save pipeline, including `CloudProvider.swift`, `CloudSyncCoordinator.swift`, `CloudDatabaseSaver.swift`, `PendingUploadQueue.swift`, and `PendingUploadDrainer.swift`.
 - `Security` holds device-security integrations such as `BiometricService.swift`, `KeychainService.swift`, `PasskeyCrypto.swift`, and `ScreenProtectionService.swift`.
 - `AutoFill` holds extension-facing helpers such as `AutoFillSaveCoordinator.swift`, `CredentialMatcher.swift`, `CredentialIdentityStoreManager.swift`, and `PasswordGenerator.swift`.
-- `AppSupport` holds app-scoped helpers that do not fit the more sensitive storage/security buckets, including `SettingsService.swift`, `StoreKitManager.swift`, `ReviewPromptService.swift`, `ClipboardService.swift`, `HapticService.swift`, and `FaviconService.swift`.
+- `AppSupport` holds app-scoped helpers that do not fit the more sensitive storage/security buckets, including `SettingsService.swift`, `StoreKitManager.swift`, `ReviewPromptService.swift`, `ClipboardService.swift`, `HapticService.swift`, `FaviconService.swift`, and the macOS-only `MacLockMonitor.swift` (the Mac lock-lifecycle driver; KeeForgeMac target only).
 
 ## Start Here
 

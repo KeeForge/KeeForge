@@ -96,12 +96,21 @@ struct DatabaseListView: View {
                 #endif
 
                 ToolbarItemGroup(placement: .topBarTrailing) {
+                    // macOS uses the standard Settings window (⌘,) instead of
+                    // a sheet, which on the Mac would have no close affordance.
+                    #if os(macOS)
+                    SettingsLink {
+                        Image(systemName: "gearshape")
+                    }
+                    .accessibilityIdentifier("database.settings.button")
+                    #else
                     Button {
                         showSettings = true
                     } label: {
                         Image(systemName: "gearshape")
                     }
                     .accessibilityIdentifier("database.settings.button")
+                    #endif
 
                     Menu {
                         addDatabaseMenuContent

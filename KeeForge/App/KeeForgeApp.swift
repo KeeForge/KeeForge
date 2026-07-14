@@ -12,15 +12,33 @@ struct KeeForgeApp: App {
     @State private var activeDatabaseViewModel: DatabaseViewModel?
     @State private var pendingUploadDrainer = PendingUploadDrainer()
     @State private var screenProtectionService = ScreenProtectionService()
+    #if os(macOS)
+    @State private var macLockMonitor = MacLockMonitor()
+    #endif
     @AppStorage(SettingsService.appearanceModeDefaultsKey) private var appearanceModeRaw = SettingsService.AppearanceMode.system.rawValue
     @Environment(\.scenePhase) private var scenePhase
 
     var body: some Scene {
-        WindowGroup {
+        mainWindow
+
+        #if os(macOS)
+        Settings {
+            SettingsView(viewModel: activeDatabaseViewModel)
+                .preferredColorScheme(appearanceMode.preferredColorScheme)
+        }
+        #endif
+    }
+
+    private var mainWindow: some Scene {
+        let windowGroup = WindowGroup {
             AppRootView(
                 listViewModel: listViewModel,
                 activeDatabaseViewModel: $activeDatabaseViewModel
             )
+            #if os(macOS)
+            .frame(minWidth: 900, minHeight: 560)
+            .focusedSceneValue(\.databaseViewModel, activeDatabaseViewModel)
+            #endif
             .preferredColorScheme(appearanceMode.preferredColorScheme)
             .onChange(of: scenePhase) { _, newPhase in
                 switch newPhase {
@@ -36,7 +54,13 @@ struct KeeForgeApp: App {
                     break
                 case .background:
                     screenProtectionService.showShield()
+                    // macOS: the scene phase moves to .background on window
+                    // minimize / app hide, which must not lock under the
+                    // default policy. MacLockMonitor is the sole lock driver
+                    // on the Mac; see startMacLockMonitoringIfNeeded().
+                    #if os(iOS)
                     activeDatabaseViewModel?.handleSceneDidEnterBackground()
+                    #endif
                 @unknown default:
                     screenProtectionService.showShield()
                 }
@@ -47,8 +71,44 @@ struct KeeForgeApp: App {
                         await listViewModel.drainPendingUploadsOnAppActive()
                     }
                 }
+                startMacLockMonitoringIfNeeded()
             }
         }
+
+        #if os(macOS)
+        return windowGroup
+            .defaultSize(width: 1080, height: 700)
+            .commands {
+                KeeForgeCommands(
+                    listViewModel: listViewModel,
+                    activeDatabaseViewModel: $activeDatabaseViewModel
+                )
+            }
+        #else
+        return windowGroup
+        #endif
+    }
+
+    private func startMacLockMonitoringIfNeeded() {
+        #if os(macOS)
+        // Bindings read live @State storage, so these closures always see the
+        // currently active database session.
+        let activeViewModel = $activeDatabaseViewModel
+        let listViewModel = self.listViewModel
+
+        macLockMonitor.onLockTriggered = { _ in
+            activeViewModel.wrappedValue?.handleSceneDidEnterBackground()
+        }
+        macLockMonitor.onDidBecomeActive = {
+            activeViewModel.wrappedValue?.didManuallyLock = false
+            activeViewModel.wrappedValue?.handleSceneDidBecomeActive()
+            activeViewModel.wrappedValue?.refreshSharedDatabaseCacheIfPossible()
+            Task {
+                await listViewModel.drainPendingUploadsOnAppActive()
+            }
+        }
+        macLockMonitor.start()
+        #endif
     }
 
     private var appearanceMode: SettingsService.AppearanceMode {

@@ -39,6 +39,20 @@
                ReferencedContainer = "container:KeeForge.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
+         <BuildActionEntry
+            buildForTesting = "YES"
+            buildForRunning = "NO"
+            buildForProfiling = "NO"
+            buildForArchiving = "NO"
+            buildForAnalyzing = "NO">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "759B10925CD3A1BCA516F0CD"
+               BuildableName = "KeeForgeMacUITests.xctest"
+               BlueprintName = "KeeForgeMacUITests"
+               ReferencedContainer = "container:KeeForge.xcodeproj">
+            </BuildableReference>
+         </BuildActionEntry>
       </BuildActionEntries>
    </BuildAction>
    <TestAction
@@ -66,6 +80,17 @@
                BlueprintIdentifier = "647734196C81AB568100DEF0"
                BuildableName = "KeeForgeMacTests.xctest"
                BlueprintName = "KeeForgeMacTests"
+               ReferencedContainer = "container:KeeForge.xcodeproj">
+            </BuildableReference>
+         </TestableReference>
+         <TestableReference
+            skipped = "NO"
+            parallelizable = "NO">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "759B10925CD3A1BCA516F0CD"
+               BuildableName = "KeeForgeMacUITests.xctest"
+               BlueprintName = "KeeForgeMacUITests"
                ReferencedContainer = "container:KeeForge.xcodeproj">
             </BuildableReference>
          </TestableReference>

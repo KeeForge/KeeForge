@@ -168,18 +168,7 @@ struct EntryDetailView: View {
                         }
                     }
                 }
-                .navigationDestination(item: $activeEditor) { formViewModel in
-                    EntryEditView(
-                        formViewModel: formViewModel,
-                        databaseViewModel: viewModel
-                    ) { completion in
-                        activeEditor = nil
-                        if completion == .deleted {
-                            onClose()
-                            dismiss()
-                        }
-                    }
-                }
+                .modifier(EntryEditorPresentation(view: self))
             } else {
                 ContentUnavailableView(
                     "Entry Unavailable",
@@ -189,6 +178,43 @@ struct EntryDetailView: View {
                 .onAppear {
                     onClose()
                     dismiss()
+                }
+            }
+        }
+    }
+
+    /// Presents the entry editor. iOS pushes onto the navigation stack;
+    /// macOS presents a sheet (navigation-stack pushes inside the split-view
+    /// columns misrender on macOS).
+    private struct EntryEditorPresentation: ViewModifier {
+        let view: EntryDetailView
+
+        func body(content: Content) -> some View {
+            #if os(macOS)
+            content
+                .sheet(item: view.$activeEditor) { formViewModel in
+                    NavigationStack {
+                        editor(formViewModel)
+                    }
+                    .frame(minWidth: 540, minHeight: 560)
+                }
+            #else
+            content
+                .navigationDestination(item: view.$activeEditor) { formViewModel in
+                    editor(formViewModel)
+                }
+            #endif
+        }
+
+        private func editor(_ formViewModel: EntryEditViewModel) -> some View {
+            EntryEditView(
+                formViewModel: formViewModel,
+                databaseViewModel: view.viewModel
+            ) { completion in
+                view.activeEditor = nil
+                if completion == .deleted {
+                    view.onClose()
+                    view.dismiss()
                 }
             }
         }
@@ -323,21 +349,27 @@ struct PasswordFieldRow: View {
 
     private func authenticateAndReveal() {
         guard !authenticating else { return }
-        if BiometricService.isAvailable {
+        // Gate on device-owner authentication (biometrics OR passcode/login
+        // password/Apple Watch), not on biometrics availability: a Mac
+        // without Touch ID or an iPhone without enrolled Face ID must still
+        // prompt for the login password/passcode instead of revealing with a
+        // single unauthenticated click. Auth is skipped only when the device
+        // has no protection configured at all.
+        if BiometricService.canAuthenticateDeviceOwner {
             authenticating = true
             Task {
                 await MainActor.run {
                     BiometricService.isBiometricAuthInProgress = true
                 }
                 do {
-                    _ = try await BiometricService.authenticate(reason: "View password")
+                    _ = try await BiometricService.authenticateDeviceOwner(reason: "View password")
                     await MainActor.run {
                         HapticService.success()
                         revealedText = (try? password.decrypt(using: sessionKey)) ?? ""
                         revealed = true
                     }
                 } catch {
-                    // Intentionally no-op on failed biometric auth.
+                    // Intentionally no-op on failed authentication.
                 }
                 await MainActor.run {
                     BiometricService.isBiometricAuthInProgress = false
@@ -407,18 +439,21 @@ struct CopyButton: View {
 
     var body: some View {
         Button {
-            if requireAuth && BiometricService.isAvailable {
+            // Same device-owner gate as password reveal: biometrics when
+            // available, passcode/login password/Apple Watch fallback
+            // otherwise. Skipped only when the device has no protection.
+            if requireAuth && BiometricService.canAuthenticateDeviceOwner {
                 Task {
                     await MainActor.run {
                         BiometricService.isBiometricAuthInProgress = true
                     }
                     do {
-                        _ = try await BiometricService.authenticate(reason: "Copy password")
+                        _ = try await BiometricService.authenticateDeviceOwner(reason: "Copy password")
                         await MainActor.run {
                             performCopy()
                         }
                     } catch {
-                        // Intentionally no-op on failed biometric auth.
+                        // Intentionally no-op on failed authentication.
                     }
                     await MainActor.run {
                         BiometricService.isBiometricAuthInProgress = false

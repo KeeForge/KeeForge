@@ -10,6 +10,7 @@ final class SettingsServiceTests: XCTestCase {
     private let quickAutoFillEnabledKey = "KeeForge.quickAutoFillEnabled"
     private let appearanceModeKey = "KeeForge.appearanceMode"
     private let hasTippedKey = "KeeForge.hasTipped"
+    private let macLockPolicyKey = "KeeForge.macLockPolicy"
 
     private var sharedDefaults: UserDefaults {
         UserDefaults(suiteName: SharedVaultStore.appGroupID) ?? .standard
@@ -23,6 +24,7 @@ final class SettingsServiceTests: XCTestCase {
         UserDefaults.standard.removeObject(forKey: showDatabaseUsageStatsKey)
         UserDefaults.standard.removeObject(forKey: appearanceModeKey)
         UserDefaults.standard.removeObject(forKey: hasTippedKey)
+        UserDefaults.standard.removeObject(forKey: macLockPolicyKey)
         sharedDefaults.removeObject(forKey: autoUnlockWithFaceIDKey)
         sharedDefaults.removeObject(forKey: quickAutoFillEnabledKey)
         super.tearDown()
@@ -151,6 +153,25 @@ final class SettingsServiceTests: XCTestCase {
     func testAppearanceModeFallsBackOnInvalidValue() {
         UserDefaults.standard.set("bogus", forKey: appearanceModeKey)
         XCTAssertEqual(SettingsService.appearanceMode, .system)
+    }
+
+    // MARK: - macOS Lock Policy
+
+    func testMacLockPolicyDefaultsToScreenLockOrSleep() {
+        UserDefaults.standard.removeObject(forKey: macLockPolicyKey)
+        XCTAssertEqual(SettingsService.macLockPolicy, .screenLockOrSleep)
+    }
+
+    func testMacLockPolicyPersists() {
+        for value in SettingsService.MacLockPolicy.allCases {
+            SettingsService.macLockPolicy = value
+            XCTAssertEqual(SettingsService.macLockPolicy, value, "Failed for \(value.rawValue)")
+        }
+    }
+
+    func testMacLockPolicyFallsBackOnInvalidValue() {
+        UserDefaults.standard.set("bogus", forKey: macLockPolicyKey)
+        XCTAssertEqual(SettingsService.macLockPolicy, .screenLockOrSleep)
     }
 
     // MARK: - Quick AutoFill

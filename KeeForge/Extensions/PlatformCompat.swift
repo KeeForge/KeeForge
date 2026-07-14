@@ -120,6 +120,55 @@ extension View {
 
 #endif
 
+// MARK: - Search focus (macOS 15 availability shim)
+
+#if os(macOS)
+extension View {
+    /// `searchFocused(_:)` is macOS 15+. On macOS 14 this is a no-op: the
+    /// menu-bar Find command cannot programmatically focus the search field
+    /// there, but search itself still works.
+    @ViewBuilder
+    func macSearchFocusedCompat(_ isFocused: FocusState<Bool>.Binding) -> some View {
+        if #available(macOS 15.0, *) {
+            searchFocused(isFocused)
+        } else {
+            self
+        }
+    }
+}
+#endif
+
+// MARK: - Hover highlight (macOS pointer affordance)
+
+#if os(macOS)
+private struct MacHoverHighlightModifier: ViewModifier {
+    @State private var isHovered = false
+
+    func body(content: Content) -> some View {
+        content
+            .listRowBackground(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(isHovered ? Color.primary.opacity(0.06) : Color.clear)
+            )
+            .onHover { hovering in
+                isHovered = hovering
+            }
+    }
+}
+#endif
+
+extension View {
+    /// Subtle hover highlight for clickable list rows on macOS; no-op on iOS.
+    @ViewBuilder
+    func macHoverHighlight() -> some View {
+        #if os(macOS)
+        modifier(MacHoverHighlightModifier())
+        #else
+        self
+        #endif
+    }
+}
+
 // MARK: - File protection
 
 extension Data.WritingOptions {

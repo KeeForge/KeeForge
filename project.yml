@@ -56,12 +56,14 @@ targets:
       - package: SwiftyDropbox
       - package: MSAL
     sources:
+      # KeeForgeCommands.swift (menu bar) and MacLockMonitor.swift (lock
+      # lifecycle) are macOS-only: members of KeeForgeMac, excluded here.
       - path: KeeForge/App
-        excludes: ["README.md"]
+        excludes: ["README.md", "KeeForgeCommands.swift"]
       - path: KeeForge/Models
         excludes: ["README.md"]
       - path: KeeForge/Services
-        excludes: ["README.md", "**/README.md"]
+        excludes: ["README.md", "**/README.md", "AppSupport/MacLockMonitor.swift"]
       - path: KeeForge/ViewModels
         excludes: ["README.md"]
       - path: KeeForge/Views
@@ -83,6 +85,10 @@ targets:
       base:
         INFOPLIST_FILE: KeeForgeMac/Info.plist
         PRODUCT_BUNDLE_IDENTIFIER: com.keevault.app
+        # Reuse the shared Icon Composer bundle (KeeForge.icon) so the Mac app
+        # has an archivable icon; lower-risk than bumping xcodeVersion since
+        # the installed Xcode (26.x) already compiles it for the iOS target.
+        ASSETCATALOG_COMPILER_APPICON_NAME: KeeForge
         ENABLE_HARDENED_RUNTIME: "YES"
         CODE_SIGN_STYLE: Automatic
         CODE_SIGN_ENTITLEMENTS: KeeForgeMac/KeeForgeMac.entitlements
@@ -236,6 +242,30 @@ targets:
       - path: TestFixtures/test-arbitrary.key
         buildPhase: resources
 
+  KeeForgeMacUITests:
+    type: bundle.ui-testing
+    platform: macOS
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.keevault.app.uitests
+        GENERATE_INFOPLIST_FILE: true
+        TEST_TARGET_NAME: KeeForgeMac
+    dependencies:
+      - target: KeeForgeMac
+    sources:
+      - path: KeeForgeMacUITests
+        excludes: ["README.md"]
+      - path: TestFixtures/test.kdbx
+        buildPhase: resources
+      - path: TestFixtures/demo.kdbx
+        buildPhase: resources
+      - path: TestFixtures/demo-keyfile.kdbx
+        buildPhase: resources
+      - path: TestFixtures/demo-keyfile.key
+        buildPhase: resources
+      - path: TestFixtures/compatibility/attachments.kdbx
+        buildPhase: resources
+
   KeeForgeMacTests:
     type: bundle.unit-test
     platform: macOS
@@ -320,6 +350,7 @@ schemes:
           settingsTarget: KeeForgeMac
       targets:
         KeeForgeMac: all
+        KeeForgeMacUITests: [test]
     run:
       config: Debug
     test:
@@ -329,3 +360,6 @@ schemes:
         - name: KeeForgeMacTests
           parallelizable: false
           randomExecutionOrder: true
+        - name: KeeForgeMacUITests
+          parallelizable: false
+          randomExecutionOrder: false

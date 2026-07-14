@@ -17,16 +17,90 @@ struct SettingsView: View {
     @State private var cloudAccounts = CloudAccountStore.accounts
     @State private var pendingCloudAccountSignOut: CloudAccount?
     @State private var feedbackContext: FeedbackComposerContext?
+    @State private var macLockPolicy = SettingsService.macLockPolicy
 
     var body: some View {
-        NavigationStack {
-            Form {
-                settingsNavigationSection
-                cloudAccountsSection
-                feedbackSection
-                TipJarView()
-                aboutNavigationSection
+        Group {
+            #if os(macOS)
+            macSettingsLayout
+            #else
+            iosSettingsLayout
+            #endif
+        }
+        .preferredColorScheme(preferredColorScheme)
+        .sheet(item: $feedbackContext) { context in
+            FeedbackComposerView(context: context)
+        }
+    }
+
+    #if os(macOS)
+    /// Settings-window layout: the standard macOS tabbed settings shape,
+    /// shown by the `Settings { }` scene (⌘,) and by in-app settings sheets.
+    private var macSettingsLayout: some View {
+        applyingChangeHandlers(macSettingsTabs)
+            .frame(minWidth: 560, minHeight: 480)
+    }
+
+    private var macSettingsTabs: some View {
+        TabView {
+            MacSecuritySettingsTab(
+                autoLockTimeout: $autoLockTimeout,
+                macLockPolicy: $macLockPolicy,
+                clipboardTimeout: $clipboardTimeout,
+                autoUnlockWithBiometrics: $autoUnlockWithFaceID
+            )
+            .tabItem {
+                Label("Security", systemImage: "lock.shield")
             }
+            .accessibilityIdentifier("settings.tab.security")
+
+            MacDisplaySettingsTab(
+                showWebsiteIcons: $showWebsiteIcons,
+                showDatabaseUsageStats: $showDatabaseUsageStats,
+                appearanceMode: $appearanceMode,
+                sortOrder: $sortOrder,
+                sortAscending: $sortAscending
+            )
+            .tabItem {
+                Label("Display", systemImage: "eye")
+            }
+            .accessibilityIdentifier("settings.tab.display")
+
+            Form {
+                cloudAccountsSection
+            }
+            .formStyle(.grouped)
+            .tabItem {
+                Label("Cloud", systemImage: "icloud")
+            }
+            .accessibilityIdentifier("settings.tab.cloud")
+
+            NavigationStack {
+                Form {
+                    feedbackSection
+                    TipJarView()
+                    AboutSectionContent()
+                }
+                .formStyle(.grouped)
+            }
+            .tabItem {
+                Label("About", systemImage: "info.circle")
+            }
+            .accessibilityIdentifier("settings.tab.about")
+        }
+    }
+    #else
+    private var iosSettingsLayout: some View {
+        NavigationStack {
+            applyingChangeHandlers(
+                Form {
+                    settingsNavigationSection
+                    cloudAccountsSection
+                    feedbackSection
+                    TipJarView()
+                    aboutNavigationSection
+                }
+            )
             .navigationTitle("Settings")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -34,12 +108,22 @@ struct SettingsView: View {
                     Button("Done") { dismiss() }
                 }
             }
+        }
+    }
+    #endif
+
+    /// Shared persistence handlers applied to both the iOS and macOS layouts.
+    private func applyingChangeHandlers(_ content: some View) -> some View {
+        content
             .onChange(of: autoLockTimeout) { _, newValue in
                 SettingsService.autoLockTimeout = newValue
                 viewModel?.resetInactivityTimer()
             }
             .onChange(of: lockOnBackground) { _, newValue in
                 SettingsService.lockOnBackground = newValue
+            }
+            .onChange(of: macLockPolicy) { _, newValue in
+                SettingsService.macLockPolicy = newValue
             }
             .onChange(of: clipboardTimeout) { _, newValue in
                 SettingsService.clipboardTimeout = newValue
@@ -75,11 +159,6 @@ struct SettingsView: View {
             .onAppear {
                 cloudAccounts = CloudAccountStore.accounts
             }
-        }
-        .preferredColorScheme(preferredColorScheme)
-        .sheet(item: $feedbackContext) { context in
-            FeedbackComposerView(context: context)
-        }
     }
 
     private var preferredColorScheme: ColorScheme? {
@@ -392,10 +471,16 @@ private struct DisplaySettingsView: View {
 private struct AboutSettingsView: View {
     var body: some View {
         Form {
-            aboutSection
+            AboutSectionContent()
         }
         .navigationTitle("About")
         .navigationBarTitleDisplayMode(.inline)
+    }
+}
+
+private struct AboutSectionContent: View {
+    var body: some View {
+        aboutSection
     }
 
     private var aboutSection: some View {
@@ -437,3 +522,110 @@ private struct AboutSettingsView: View {
         return "\(version) (\(displayCommit))"
     }
 }
+
+#if os(macOS)
+
+// MARK: - macOS settings tabs
+
+private struct MacSecuritySettingsTab: View {
+    @Binding var autoLockTimeout: SettingsService.AutoLockTimeout
+    @Binding var macLockPolicy: SettingsService.MacLockPolicy
+    @Binding var clipboardTimeout: SettingsService.ClipboardTimeout
+    @Binding var autoUnlockWithBiometrics: Bool
+
+    var body: some View {
+        Form {
+            Section {
+                Picker("Lock Automatically", selection: $macLockPolicy) {
+                    ForEach(SettingsService.MacLockPolicy.allCases, id: \.self) { policy in
+                        Text(policy.title).tag(policy)
+                    }
+                }
+                .accessibilityIdentifier("settings.lock-policy.picker")
+
+                Picker("Auto-Lock Timeout", selection: $autoLockTimeout) {
+                    ForEach(SettingsService.AutoLockTimeout.allCases, id: \.self) { option in
+                        Text(option.rawValue).tag(option)
+                    }
+                }
+
+                if BiometricService.isAvailable {
+                    Toggle("Auto-Unlock with Touch ID", isOn: $autoUnlockWithBiometrics)
+                }
+            } footer: {
+                Text("KeeForge always locks on screen lock, screensaver, system sleep, and user switching. The stricter option also locks whenever another app becomes active.")
+            }
+
+            Section {
+                Picker("Clipboard Clear Timeout", selection: $clipboardTimeout) {
+                    ForEach(SettingsService.ClipboardTimeout.allCases, id: \.self) { option in
+                        Text(option.rawValue).tag(option)
+                    }
+                }
+            } header: {
+                Text("Clipboard")
+            } footer: {
+                Text("Copied values are cleared after this timeout (unless you copied something else since) and are hidden from clipboard-manager apps. Unlike iOS, macOS cannot exclude copies from Handoff's Universal Clipboard, so a copied password may briefly appear on your other devices' clipboards.")
+            }
+        }
+        .formStyle(.grouped)
+    }
+}
+
+private struct MacDisplaySettingsTab: View {
+    @Binding var showWebsiteIcons: Bool
+    @Binding var showDatabaseUsageStats: Bool
+    @Binding var appearanceMode: SettingsService.AppearanceMode
+    @Binding var sortOrder: DatabaseViewModel.SortOrder
+    @Binding var sortAscending: Bool
+
+    var body: some View {
+        Form {
+            Section {
+                Picker("Theme", selection: $appearanceMode) {
+                    ForEach(SettingsService.AppearanceMode.allCases, id: \.self) { mode in
+                        Text(mode.title).tag(mode)
+                    }
+                }
+                .accessibilityIdentifier("settings.display.theme-picker")
+            }
+
+            Section {
+                Toggle("Show Usage Stats in Database List", isOn: $showDatabaseUsageStats)
+                    .accessibilityIdentifier("settings.display.usage-stats-toggle")
+
+                Toggle("Download Website Favicons", isOn: $showWebsiteIcons)
+                    .accessibilityIdentifier("settings.display.favicons-toggle")
+            } footer: {
+                if showWebsiteIcons {
+                    Text("Fetches icons from DuckDuckGo. Only the website domain is sent.")
+                }
+            }
+
+            Section("Entry List") {
+                Picker("Default Sort Order", selection: $sortOrder) {
+                    ForEach(DatabaseViewModel.SortOrder.allCases, id: \.self) { order in
+                        Text(order.rawValue).tag(order)
+                    }
+                }
+
+                Picker("Sort Direction", selection: $sortAscending) {
+                    Text("Ascending").tag(true)
+                    Text("Descending").tag(false)
+                }
+            }
+
+            if showWebsiteIcons {
+                Section {
+                    Button("Clear Favicon Cache", role: .destructive) {
+                        FaviconService.clearCache()
+                    }
+                    .accessibilityIdentifier("settings.display.clear-favicon-cache")
+                }
+            }
+        }
+        .formStyle(.grouped)
+    }
+}
+
+#endif

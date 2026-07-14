@@ -244,3 +244,8 @@ extension EntryEditViewModel: Hashable {
         hasher.combine(id)
     }
 }
+
+/// `id` is a stable `UUID`, so identity-based `Identifiable` is sound; used by
+/// `sheet(item:)` for the macOS New Entry command.
+extension EntryEditViewModel: Identifiable {
+}

@@ -47,7 +47,19 @@ struct UnlockView: View {
         }
         .onAppear {
             loadUITestKeyFileIfNeeded()
+            #if os(macOS)
+            // Mac polish: put the keyboard focus straight into the password
+            // field so unlock is type-Return without a click.
+            passwordFocused = true
+            #endif
         }
+        #if os(macOS)
+        // Mac polish: Escape backs out to the database list.
+        .onExitCommand {
+            guard isUnlocking == false else { return }
+            onBackToDatabaseList()
+        }
+        #endif
         .task {
             await loadAssociatedKeyFileIfNeeded()
         }

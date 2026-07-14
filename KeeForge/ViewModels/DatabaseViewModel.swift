@@ -223,6 +223,12 @@ final class DatabaseViewModel {
     var selectedEntryID: UUID? {
         didSet { resetInactivityTimer() }
     }
+    /// Incremented by the macOS menu-bar "New Entry" command (⌘N); the
+    /// unlocked workspace observes it and presents the entry editor.
+    private(set) var newEntryRequestID = 0
+    /// Incremented by the macOS menu-bar "Find" command (⌘F); the group list
+    /// observes it and focuses the search field.
+    private(set) var searchFocusRequestID = 0
     var sortOrder: SortOrder {
         didSet { Self.persistSortOrder(sortOrder) }
     }
@@ -704,9 +710,26 @@ final class DatabaseViewModel {
         saveError = DatabaseSaveError(error)
     }
 
+    /// Requests presenting the entry editor for the currently visible group.
+    /// Used by the macOS menu-bar New Entry command.
+    func requestNewEntry() {
+        guard case .unlocked = state, isReadOnly == false else { return }
+        newEntryRequestID += 1
+    }
+
+    /// Requests focusing the search field. Used by the macOS Find command.
+    func requestSearchFocus() {
+        guard case .unlocked = state else { return }
+        searchFocusRequestID += 1
+    }
+
     func lock(manuallyTriggered: Bool = false) {
         cancelInactivityTimer()
         backgroundEnteredAt = nil
+        // macOS: clear a still-pending secure copy so locking also scrubs the
+        // pasteboard (changeCount-guarded; never clobbers a later user copy).
+        // No-op on iOS, where pasteboard expiration handles this.
+        ClipboardService.clearOwnedContents()
         if manuallyTriggered {
             didManuallyLock = true
         }

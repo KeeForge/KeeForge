@@ -4,6 +4,15 @@ Detailed guidance for adding, running, and fixing XCUITests in `KeeForgeUITests/
 
 Use this document for UI test methodology. Repo-wide build and test policy stays in `AGENTS.md`, and fixture details live in `../TestFixtures/README.md`.
 
+## macOS Smoke Suite
+
+The macOS port has its own UI-test target, `KeeForgeMacUITests/` (target `KeeForgeMacUITests`, scheme `KeeForgeMac`), with a Mac-flavored base class `MacUITestCase` that mirrors this target's fixture-injection launch environment but uses clicks, `typeKey` keyboard shortcuts, and right-click context menus instead of taps/swipes. It reuses the same accessibility identifiers as this suite — preserve them in both places. Notes specific to the Mac suite:
+
+- Run with `xcodebuild test -scheme KeeForgeMac -destination 'platform=macOS,arch=arm64' -only-testing:KeeForgeMacUITests/<Class>`.
+- macOS UI tests require an unlocked, active login session; they fail with "Failed to activate application (Running Background)" when the screen is locked.
+- `MacUITestCase` launches with `-ApplePersistenceIgnoreState YES`; without it, macOS state restoration can restore a zero-window session and no main window ever appears.
+- Reveal/copy-password tests assert up to the device-owner auth prompt boundary (the prompt is a system dialog XCUITest cannot automate); terminating the app in teardown dismisses it.
+
 ## Current Test Classes
 
 ### Release-Smoke Oriented Classes
