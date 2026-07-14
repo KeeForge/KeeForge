@@ -33,6 +33,17 @@ enum DatabaseCreationDestinationChoice: String, CaseIterable, Identifiable {
             .webDAV
         }
     }
+
+    /// Destination choices shown in the New Database picker, filtered by the
+    /// same per-platform cloud availability gate used by the add/import menus.
+    /// Local Files always stays; a cloud choice appears only when its provider
+    /// is available on the current platform.
+    static var availableChoices: [DatabaseCreationDestinationChoice] {
+        allCases.filter { choice in
+            guard let providerKind = choice.cloudProviderKind else { return true }
+            return providerKind.isAvailableOnCurrentPlatform
+        }
+    }
 }
 
 @MainActor @Observable
