@@ -123,36 +123,29 @@ final class WebDAVCloudProvider: CloudProvider, WebDAVConnecting, Sendable {
         let context = try resolveContext(accountId: accountId)
         let fileURL = Self.url(forFileId: fileId, base: context.baseURL)
 
-        let headResponse = try await client.head(url: fileURL, credential: context.credential)
-
-        // Some servers reject HEAD on WebDAV resources (405) — fall back to a
-        // PROPFIND Depth 0 for the same resource.
-        if headResponse.statusCode == 405 {
-            let probe = try await client.probe(url: fileURL, credential: context.credential)
-            if let error = WebDAVClient.mapHTTPStatus(probe.statusCode, isPropfind: true, responseBody: probe.data) {
-                throw error
-            }
-            let resources = try WebDAVPropfindParser.parse(data: probe.data, requestURL: fileURL, includeSelf: true)
-            guard let resource = resources.first else {
-                throw CloudProviderError.fileNotFound
-            }
-            return CloudFileMetadata(
-                modifiedDate: resource.lastModified ?? .now,
-                contentHash: nil,
-                size: resource.contentLength ?? 0,
-                rev: Self.rev(eTag: resource.eTag, lastModified: nil)
-            )
-        }
-
-        if let error = WebDAVClient.mapHTTPStatus(headResponse.statusCode, responseBody: headResponse.data) {
+        // Use the WebDAV-native metadata operation directly. A number of small
+        // local HTTP WebDAV servers accept PROPFIND but leave HEAD requests
+        // unanswered; on a first open that prevented KeeForge from ever
+        // reaching the GET that creates the shared cached copy.
+        let probe = try await client.probe(url: fileURL, credential: context.credential)
+        if let error = WebDAVClient.mapHTTPStatus(probe.statusCode, isPropfind: true, responseBody: probe.data) {
             throw error
         }
 
+        let resources = try WebDAVPropfindParser.parse(
+            data: probe.data,
+            requestURL: fileURL,
+            includeSelf: true
+        )
+        guard let resource = resources.first else {
+            throw CloudProviderError.fileNotFound
+        }
+
         return CloudFileMetadata(
-            modifiedDate: Self.date(fromLastModified: headResponse.lastModified) ?? .now,
+            modifiedDate: resource.lastModified ?? .now,
             contentHash: nil,
-            size: headResponse.contentLength ?? 0,
-            rev: Self.rev(from: headResponse)
+            size: resource.contentLength ?? 0,
+            rev: Self.rev(eTag: resource.eTag, lastModified: nil)
         )
     }
 

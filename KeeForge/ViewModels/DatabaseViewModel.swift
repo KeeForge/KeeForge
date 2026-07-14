@@ -261,6 +261,8 @@ final class DatabaseViewModel {
     private var lastSharedCacheRefreshFingerprint: SharedCacheRefreshFingerprint?
     private var isRefreshingSharedCache = false
     private var lastSharedCacheRefreshAt: Date?
+    private var pendingExternalDatabaseRefresh = false
+    private var activeEntryEditorCount = 0
     private var unlockedMeta: KPMeta?
     /// Decoded inner-header binary pool for the currently unlocked database.
     /// Cleared on lock; attachments are resolved against it lazily.
@@ -757,6 +759,8 @@ final class DatabaseViewModel {
         navigationPath = NavigationPath()
         selectedGroupID = nil
         selectedEntryID = nil
+        pendingExternalDatabaseRefresh = false
+        activeEntryEditorCount = 0
     }
 
     func lockRequest(force: Bool = false, manuallyTriggered: Bool = false) {
@@ -785,6 +789,20 @@ final class DatabaseViewModel {
         draft = nil
         saveConflict = nil
         refreshCredentialStoreForCurrentTreeIfNeeded()
+        if pendingExternalDatabaseRefresh {
+            refreshSharedDatabaseCacheIfPossible()
+        }
+    }
+
+    func entryEditorDidAppear() {
+        activeEntryEditorCount += 1
+    }
+
+    func entryEditorDidDisappear() {
+        activeEntryEditorCount = max(0, activeEntryEditorCount - 1)
+        if activeEntryEditorCount == 0, pendingExternalDatabaseRefresh {
+            refreshSharedDatabaseCacheIfPossible()
+        }
     }
 
     func save() async throws {
@@ -903,6 +921,7 @@ final class DatabaseViewModel {
         failedAttempts = 0
         lockoutUntil = nil
         state = .unlocked
+        pendingExternalDatabaseRefresh = false
         synchronizeSelections()
         startInactivityTimer()
     }
@@ -1053,14 +1072,20 @@ final class DatabaseViewModel {
     func refreshSharedDatabaseCacheIfPossible() {
         let expectedLockCycleID = lockCycleID
         let databaseReference = self.databaseReference
-        let compositeKeyForStoreRefresh: Data?
+        let compositeKeyForRefresh: Data?
+        let openTimeSHA512ForRefresh: Data?
+        let shouldRefreshCredentialStore: Bool
 
         if case .unlocked = state,
-           SettingsService.quickAutoFillEnabled,
-           let compositeKey {
-            compositeKeyForStoreRefresh = compositeKey
+           let compositeKey,
+           let openTimeSHA512 {
+            compositeKeyForRefresh = compositeKey
+            openTimeSHA512ForRefresh = openTimeSHA512
+            shouldRefreshCredentialStore = SettingsService.quickAutoFillEnabled
         } else {
-            compositeKeyForStoreRefresh = nil
+            compositeKeyForRefresh = nil
+            openTimeSHA512ForRefresh = nil
+            shouldRefreshCredentialStore = false
         }
 
         Task.detached(priority: .utility) {
@@ -1072,8 +1097,10 @@ final class DatabaseViewModel {
                 let shouldRefresh = await MainActor.run { () -> Bool in
                     guard self.isRefreshingSharedCache == false else { return false }
                     if let fingerprint {
-                        guard self.lastSharedCacheRefreshFingerprint != fingerprint else { return false }
+                        guard self.pendingExternalDatabaseRefresh
+                                || self.lastSharedCacheRefreshFingerprint != fingerprint else { return false }
                     } else if let lastSharedCacheRefreshAt = self.lastSharedCacheRefreshAt,
+                              self.pendingExternalDatabaseRefresh == false,
                               refreshStart.timeIntervalSince(lastSharedCacheRefreshAt) < Self.sharedCloudRefreshMinimumInterval {
                         return false
                     }
@@ -1084,15 +1111,22 @@ final class DatabaseViewModel {
                 defer {
                     Task { @MainActor in
                         self.isRefreshingSharedCache = false
+                        if self.pendingExternalDatabaseRefresh,
+                           self.activeEntryEditorCount == 0,
+                           self.isDirty == false {
+                            self.refreshSharedDatabaseCacheIfPossible()
+                        }
                     }
                 }
 
                 let data: Data
+                let refreshedReference: DatabaseReference
 
                 if databaseReference.isCloudBacked {
                     let resolution = try await CloudSyncCoordinator.syncIfNeededForOpen(reference: databaseReference)
                     DatabaseListStore.update(resolution.reference)
                     data = resolution.data
+                    refreshedReference = resolution.reference
 
                     await MainActor.run {
                         if self.databaseReference.id == resolution.reference.id {
@@ -1104,16 +1138,75 @@ final class DatabaseViewModel {
                     guard let url = DatabaseListStore.resolveDatabaseURL(for: databaseReference) else { return }
                     data = try Self.readSecurityScopedData(from: url)
                     try DatabaseListStore.cacheDatabaseCopy(data, for: databaseReference.id)
+                    refreshedReference = databaseReference
                 }
 
-                if let compositeKeyForStoreRefresh {
-                    let refreshedRoot = try KDBXParser.parse(
+                let refreshedSHA512 = KDBXCrypto.sha512(data)
+                var reloadedDatabase: ReloadedDatabase?
+                var credentialStoreRoot: KPGroup?
+
+                if let compositeKeyForRefresh,
+                   let openTimeSHA512ForRefresh,
+                   refreshedSHA512 != openTimeSHA512ForRefresh {
+                    let refreshedSessionKey = SymmetricKey(size: .bits256)
+                    let parsed = try KDBXParser.parseWithMetaAndHeader(
                         data: data,
-                        compositeKey: compositeKeyForStoreRefresh,
+                        compositeKey: compositeKeyForRefresh,
+                        sessionKey: refreshedSessionKey
+                    )
+                    reloadedDatabase = ReloadedDatabase(
+                        reference: refreshedReference,
+                        rootGroup: parsed.rootGroup,
+                        meta: parsed.meta,
+                        formatVersion: parsed.header.formatVersion,
+                        sessionKey: refreshedSessionKey,
+                        openTimeSHA512: refreshedSHA512,
+                        binaryPool: BinaryPool(rawFields: parsed.header.innerHeaderBinaryFields)
+                    )
+                    credentialStoreRoot = parsed.rootGroup
+                } else if shouldRefreshCredentialStore, let compositeKeyForRefresh {
+                    credentialStoreRoot = try KDBXParser.parse(
+                        data: data,
+                        compositeKey: compositeKeyForRefresh,
                         sessionKey: SymmetricKey(size: .bits256)
                     )
+                }
+
+                if let reloadedDatabase {
+                    await MainActor.run {
+                        guard expectedLockCycleID == self.lockCycleID,
+                              case .unlocked = self.state,
+                              self.openTimeSHA512 == openTimeSHA512ForRefresh else { return }
+
+                        guard self.isDirty == false,
+                              self.isSaving == false,
+                              self.activeEntryEditorCount == 0 else {
+                            self.pendingExternalDatabaseRefresh = true
+                            return
+                        }
+
+                        self.databaseReference = reloadedDatabase.reference
+                        self.rootGroup = reloadedDatabase.rootGroup
+                        self.unlockedMeta = reloadedDatabase.meta
+                        self.openedFormatVersion = reloadedDatabase.formatVersion
+                        self.sessionKey = reloadedDatabase.sessionKey
+                        self.openTimeSHA512 = reloadedDatabase.openTimeSHA512
+                        self.binaryPool = reloadedDatabase.binaryPool
+                        AttachmentPreviewFileStore.clearAll()
+                        self.pendingExternalDatabaseRefresh = false
+                        self.synchronizeSelections()
+                    }
+                } else if refreshedSHA512 == openTimeSHA512ForRefresh {
+                    await MainActor.run {
+                        if expectedLockCycleID == self.lockCycleID {
+                            self.pendingExternalDatabaseRefresh = false
+                        }
+                    }
+                }
+
+                if shouldRefreshCredentialStore, let credentialStoreRoot {
                     await self.refreshCredentialStoreIfStillUnlocked(
-                        with: refreshedRoot,
+                        with: credentialStoreRoot,
                         expectedLockCycleID: expectedLockCycleID
                     )
                 }
@@ -1361,6 +1454,8 @@ final class DatabaseViewModel {
         lastSharedCacheRefreshFingerprint = nil
         isRefreshingSharedCache = false
         lastSharedCacheRefreshAt = nil
+        pendingExternalDatabaseRefresh = false
+        activeEntryEditorCount = 0
     }
 
     private func finalizeSuccessfulUnlock(

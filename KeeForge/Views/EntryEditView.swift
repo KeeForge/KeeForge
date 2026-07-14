@@ -216,6 +216,12 @@ struct EntryEditView: View {
         } message: {
             Text(editingErrorMessage ?? "")
         }
+        .onAppear {
+            databaseViewModel.entryEditorDidAppear()
+        }
+        .onDisappear {
+            databaseViewModel.entryEditorDidDisappear()
+        }
     }
 
     private var navigationTitle: String {
