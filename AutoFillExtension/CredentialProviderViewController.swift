@@ -1,3 +1,4 @@
+#if os(iOS)
 import AuthenticationServices
 import SwiftUI
 import UIKit
@@ -289,3 +290,5 @@ extension CredentialProviderViewController: CredentialProviderPresenting {
         extensionContext.cancelRequest(withError: error)
     }
 }
+
+#endif

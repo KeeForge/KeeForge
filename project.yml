@@ -100,6 +100,9 @@ targets:
         GENERATE_INFOPLIST_FILE: false
         SWIFT_EMIT_LOC_STRINGS: "YES"
     dependencies:
+      - target: KeeForgeMacAutoFill
+        embed: true
+        codeSign: true
       - package: Argon2Swift
       - package: KeeForgeTwofish
       - package: SwiftyDropbox
@@ -119,6 +122,16 @@ targets:
         excludes: ["README.md"]
       - path: KeeForge/Resources
         excludes: ["README.md", "LaunchScreen.storyboard"]
+      # Platform-neutral AutoFill coordinator is compiled into the Mac app target
+      # too so KeeForgeMacTests (hosted by the app) can unit-test it — mirrors the
+      # iOS KeeForge target. Its save/generate-password paths compile out on macOS.
+      - path: AutoFillExtension/CredentialProviderCoordinator.swift
+      # The macOS AutoFill shell (and the picker view it hosts) are compiled into
+      # the app target as well so KeeForgeMacTests can exercise the shell's
+      # cleanup routing (shell lifecycle tests). Both are `#if os(macOS)` / macOS-
+      # compatible; nothing in the app references them at runtime.
+      - path: AutoFillExtension/CredentialProviderViewControllerMac.swift
+      - path: AutoFillExtension/AutoFillSearchView.swift
       - path: KeeForge.icon
         buildPhase: resources
 
@@ -138,10 +151,17 @@ targets:
       - package: Argon2Swift
       - package: KeeForgeTwofish
     sources:
+      # Exclude the macOS-only Info.plist / entitlements so they are not bundled
+      # as stray resources in the iOS extension.
       - path: AutoFillExtension
-        excludes: ["README.md"]
+        excludes: ["README.md", "InfoMac.plist", "AutoFillExtensionMac.entitlements"]
       - path: KeeForge/Models
         excludes: ["README.md"]
+      # >>> SHARED AUTOFILL ALLOW-LIST (maintenance invariant) >>>
+      # These explicit service/view paths MUST stay literally identical — same
+      # paths, same order — to the KeeForgeMacAutoFill target below. The two
+      # AutoFill extensions share exactly this source set; divergence silently
+      # breaks one platform's extension. Edit both lists together.
       - path: KeeForge/Services/Security/BiometricService.swift
       - path: KeeForge/Services/Security/SecureRandom.swift
       - path: KeeForge/Services/Persistence/DocumentPickerService.swift
@@ -165,6 +185,61 @@ targets:
       - path: KeeForge/Services/Persistence/SecurityScopedBookmarkManager.swift
       - path: KeeForge/Services/Persistence/SyncedFolderDetector.swift
       - path: KeeForge/Extensions/PlatformCompat.swift
+      # <<< SHARED AUTOFILL ALLOW-LIST (maintenance invariant) <<<
+
+  KeeForgeMacAutoFill:
+    type: app-extension
+    platform: macOS
+    deploymentTarget: "14.0"
+    settings:
+      base:
+        INFOPLIST_FILE: AutoFillExtension/InfoMac.plist
+        PRODUCT_BUNDLE_IDENTIFIER: com.keevault.app.autofill
+        ENABLE_HARDENED_RUNTIME: "YES"
+        CODE_SIGN_STYLE: Automatic
+        CODE_SIGN_ENTITLEMENTS: AutoFillExtension/AutoFillExtensionMac.entitlements
+        MARKETING_VERSION: "1.10.1"
+        CURRENT_PROJECT_VERSION: "1"
+        GENERATE_INFOPLIST_FILE: false
+    dependencies:
+      - package: Argon2Swift
+      - package: KeeForgeTwofish
+    sources:
+      # Exclude the iOS-only Info.plist / entitlements so they are not bundled
+      # as stray resources in the macOS extension. The macOS presentation shell
+      # (CredentialProviderViewControllerMac.swift) lives beside the iOS shell in
+      # this folder, each gated by `#if os()`.
+      - path: AutoFillExtension
+        excludes: ["README.md", "Info.plist", "AutoFillExtension.entitlements"]
+      - path: KeeForge/Models
+        excludes: ["README.md"]
+      # >>> SHARED AUTOFILL ALLOW-LIST (maintenance invariant) >>>
+      # MUST stay literally identical — same paths, same order — to the
+      # KeeForgeAutoFill target above. See the note there. Edit both together.
+      - path: KeeForge/Services/Security/BiometricService.swift
+      - path: KeeForge/Services/Security/SecureRandom.swift
+      - path: KeeForge/Services/Persistence/DocumentPickerService.swift
+      - path: KeeForge/Services/AutoFill/AutoFillSaveCoordinator.swift
+      - path: KeeForge/Services/Persistence/DatabaseListStore.swift
+      - path: KeeForge/Services/Security/KeychainService.swift
+      - path: KeeForge/Services/AppSupport/SettingsService.swift
+      - path: KeeForge/Services/Persistence/SharedVaultStore.swift
+      - path: KeeForge/Services/AutoFill/CredentialMatcher.swift
+      - path: KeeForge/Services/AutoFill/CredentialIdentityStoreManager.swift
+      - path: KeeForge/Services/AppSupport/FaviconService.swift
+      - path: KeeForge/Services/Persistence/CoordinatedFileReader.swift
+      - path: KeeForge/Services/Persistence/KeyFileProcessor.swift
+      - path: KeeForge/Services/Persistence/LocalDatabaseSaver.swift
+      - path: KeeForge/Services/Security/PasskeyCrypto.swift
+      - path: KeeForge/Services/Cloud/PendingUploadQueue.swift
+      - path: KeeForge/Services/AutoFill/PasswordGenerator.swift
+      - path: KeeForge/Services/AutoFill/PasswordStrengthEstimator.swift
+      - path: KeeForge/Views/PasswordDisplay.swift
+      - path: KeeForge/Views/PasswordInputRow.swift
+      - path: KeeForge/Services/Persistence/SecurityScopedBookmarkManager.swift
+      - path: KeeForge/Services/Persistence/SyncedFolderDetector.swift
+      - path: KeeForge/Extensions/PlatformCompat.swift
+      # <<< SHARED AUTOFILL ALLOW-LIST (maintenance invariant) <<<
 
   KeeForgeUITests:
     type: bundle.ui-testing

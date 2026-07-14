@@ -1,7 +1,8 @@
-// iOS-only until slice 05 gives CredentialProviderCoordinator macOS target
-// membership (it currently uses iOS-only AuthenticationServices request types).
-#if os(iOS)
-
+// Runs on both iOS and macOS: slice 05 gave CredentialProviderCoordinator
+// macOS target membership. The coordinator's save/generate-password paths are
+// `#if os(iOS)` (those AuthenticationServices types are `API_UNAVAILABLE(macos)`);
+// one-time-code paths are gated `macOS 15.0`. Individual tests below platform-gate
+// only where the underlying API is genuinely unavailable.
 import AuthenticationServices
 import CryptoKit
 import XCTest
@@ -158,8 +159,8 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
     }
 
     func test_cleanup_runsOnOneTimeCodeCompletion() throws {
-        guard #available(iOS 18.0, *) else {
-            throw XCTSkip("One-time-code requests require iOS 18")
+        guard #available(iOS 18.0, macOS 15.0, *) else {
+            throw XCTSkip("One-time-code requests require iOS 18 / macOS 15")
         }
 
         let (coordinator, presenter) = makeCoordinator()
@@ -394,5 +395,3 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
         return "-----BEGIN PRIVATE KEY-----\n\(base64)\n-----END PRIVATE KEY-----"
     }
 }
-
-#endif

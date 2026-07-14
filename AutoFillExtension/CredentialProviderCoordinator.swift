@@ -129,6 +129,10 @@ final class CredentialProviderCoordinator {
     private var isUnlockInProgress = false
     private var didAttemptAutoBiometricUnlock = false
 
+    // Save-password and generate-password requests are iOS-only: the underlying
+    // AuthenticationServices types are `API_UNAVAILABLE(macos)` (verified against
+    // the macOS 26.5 SDK headers), so the whole surface is `#if os(iOS)`.
+    #if os(iOS)
     @available(iOS 26.2, *)
     private var pendingSavePasswordRequest: ASSavePasswordRequest? {
         get { pendingSavePasswordRequestStorage as? ASSavePasswordRequest }
@@ -140,6 +144,7 @@ final class CredentialProviderCoordinator {
         get { pendingGeneratePasswordsRequestStorage as? ASGeneratePasswordsRequest }
         set { pendingGeneratePasswordsRequestStorage = newValue }
     }
+    #endif
 
     init(presenter: (any CredentialProviderPresenting)? = nil) {
         self.presenter = presenter
@@ -192,7 +197,7 @@ final class CredentialProviderCoordinator {
             pendingUnlock = true
         } else if let passwordIdentity = credentialRequest.credentialIdentity as? ASPasswordCredentialIdentity {
             prepareInterfaceToProvideCredential(for: passwordIdentity)
-        } else if #available(iOS 18.0, *), credentialRequest is ASOneTimeCodeCredentialRequest {
+        } else if #available(iOS 18.0, macOS 15.0, *), credentialRequest is ASOneTimeCodeCredentialRequest {
             hasPendingOTCRequest = true
             targetRecordIdentifier = credentialRequest.credentialIdentity.recordIdentifier
             clearPendingCreationRequests()
@@ -208,7 +213,7 @@ final class CredentialProviderCoordinator {
             providePasskeyWithoutUserInteraction(for: passkeyRequest)
         } else if let passwordIdentity = credentialRequest.credentialIdentity as? ASPasswordCredentialIdentity {
             provideCredentialWithoutUserInteraction(for: passwordIdentity)
-        } else if #available(iOS 18.0, *), credentialRequest is ASOneTimeCodeCredentialRequest {
+        } else if #available(iOS 18.0, macOS 15.0, *), credentialRequest is ASOneTimeCodeCredentialRequest {
             provideOTCWithoutUserInteraction(for: credentialRequest)
         } else {
             cancelRequest(code: .failed)
@@ -225,10 +230,12 @@ final class CredentialProviderCoordinator {
             presentReadOnlyAlertAndCancel(message: pendingReadOnlyCancellationMessage)
         } else if pendingGeneratePasswordPresentation {
             pendingGeneratePasswordPresentation = false
+            #if os(iOS)
             if #available(iOS 26.2, *),
                let pendingGeneratePasswordsRequest {
                 presentGeneratePasswordPrompt(for: pendingGeneratePasswordsRequest)
             }
+            #endif
         }
     }
 
@@ -283,6 +290,8 @@ final class CredentialProviderCoordinator {
         cancelRequest(code: .failed)
     }
 
+    // Save-password / generate-password requests are iOS-only (see note above).
+    #if os(iOS)
     @available(iOS 26.2, *)
     func performWithoutUserInteractionIfPossible(savePasswordRequest: ASSavePasswordRequest) {
         cancelRequest(code: .userInteractionRequired)
@@ -341,6 +350,7 @@ final class CredentialProviderCoordinator {
         pendingUnlock = false
         pendingGeneratePasswordPresentation = true
     }
+    #endif
 
     // MARK: - Passkey silent auth
 
@@ -474,24 +484,40 @@ final class CredentialProviderCoordinator {
         if let request = pendingPasskeyRequest {
             pendingPasskeyRequest = nil
             completeInteractivePasskeyRequest(request)
-        } else if #available(iOS 26.2, *), let savePasswordRequest = pendingSavePasswordRequest {
-            pendingSavePasswordRequest = nil
-            if parsedFormatVersion?.requiresReadOnlyMode == true {
-                presentReadOnlyAlertAndCancel(
-                    message: "Legacy KDBX 3.1 databases can be opened, but KeeForge only allows them in read-only mode."
-                )
-                return
-            }
-            presentEntryCreator(for: savePasswordRequest)
+        } else if handlePendingSaveRequestIfNeeded() {
+            // Handled by the iOS-only save-password flow.
         } else if let requestParameters = pendingPasskeyRequestParameters {
             presentPasskeyMatchesOrFinish(using: requestParameters)
         } else if hasPendingOTCRequest {
-            if #available(iOS 18.0, *) {
+            if #available(iOS 18.0, macOS 15.0, *) {
                 completeOTCRequestFromPending()
             }
         } else {
             presentPasswordMatchesOrFinish()
         }
+    }
+
+    /// Handles a pending save-password request after unlock. Save-password is
+    /// iOS-only (`ASSavePasswordRequest` is `API_UNAVAILABLE(macos)`); on macOS
+    /// this is always a no-op that returns `false` so the unlock flow falls
+    /// through to the next branch.
+    private func handlePendingSaveRequestIfNeeded() -> Bool {
+        #if os(iOS)
+        guard #available(iOS 26.2, *), let savePasswordRequest = pendingSavePasswordRequest else {
+            return false
+        }
+        pendingSavePasswordRequest = nil
+        if parsedFormatVersion?.requiresReadOnlyMode == true {
+            presentReadOnlyAlertAndCancel(
+                message: "Legacy KDBX 3.1 databases can be opened, but KeeForge only allows them in read-only mode."
+            )
+            return true
+        }
+        presentEntryCreator(for: savePasswordRequest)
+        return true
+        #else
+        return false
+        #endif
     }
 
     private func currentDatabaseReference() throws -> DatabaseReference {
@@ -547,10 +573,12 @@ final class CredentialProviderCoordinator {
 
     private func clearPendingCreationRequests() {
         pendingGeneratePasswordPresentation = false
+        #if os(iOS)
         if #available(iOS 26.2, *) {
             pendingSavePasswordRequest = nil
             pendingGeneratePasswordsRequest = nil
         }
+        #endif
     }
 
     private func loadEntries(
@@ -736,6 +764,8 @@ final class CredentialProviderCoordinator {
         )
     }
 
+    // Save-password / generate-password presentation is iOS-only (see note above).
+    #if os(iOS)
     @available(iOS 26.2, *)
     private func presentEntryCreator(for savePasswordRequest: ASSavePasswordRequest) {
         let initialDraft = AutoFillSaveCoordinator.initialDraft(
@@ -828,6 +858,7 @@ final class CredentialProviderCoordinator {
         cleanup()
         presenter?.completeGeneratePasswordRequest(passwords: [password])
     }
+    #endif
 
     func presentReadOnlyAlertAndCancel(message: String) {
         presenter?.presentReadOnlyNotice(message: message) { [weak self] in
@@ -863,7 +894,7 @@ final class CredentialProviderCoordinator {
                 persistCompositeKeyIfPossible(compositeKey, for: databaseReference)
                 recordSuccessfulUnlock(for: databaseReference)
 
-                if #available(iOS 18.0, *) {
+                if #available(iOS 18.0, macOS 15.0, *) {
                     let totpEntries = parsedEntries.filter { $0.hasTOTP && !$0.isExpired() }
                     if let recordIdentifier,
                        let entry = totpEntries.first(where: { $0.id.uuidString == recordIdentifier }) {
@@ -880,7 +911,7 @@ final class CredentialProviderCoordinator {
         }
     }
 
-    @available(iOS 18.0, *)
+    @available(iOS 18.0, macOS 15.0, *)
     private func completeOTCRequestFromPending() {
         hasPendingOTCRequest = false
 
@@ -903,7 +934,7 @@ final class CredentialProviderCoordinator {
         }
     }
 
-    @available(iOS 18.0, *)
+    @available(iOS 18.0, macOS 15.0, *)
     func completeOTCRequest(with entry: KPEntry) {
         guard let totpConfig = entry.totpConfig,
               let sessionKey = sessionKey else {
