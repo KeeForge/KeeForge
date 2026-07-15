@@ -168,15 +168,29 @@ final class WebDAVCloudProviderTests: XCTestCase {
 
     // MARK: - Provider: getMetadata
 
-    func testGetMetadataHappyPathViaHead() async throws {
+    func testGetMetadataUsesDepthZeroPropfind() async throws {
         let accountId = try seedCredential(username: "alice")
+        let multistatus = """
+        <?xml version="1.0"?>
+        <d:multistatus xmlns:d="DAV:">
+          <d:response>
+            <d:href>/dav/vault.kdbx</d:href>
+            <d:propstat>
+              <d:prop>
+                <d:resourcetype/>
+                <d:getcontentlength>2048</d:getcontentlength>
+                <d:getetag>"meta-etag"</d:getetag>
+                <d:getlastmodified>Tue, 01 Jul 2025 10:20:30 GMT</d:getlastmodified>
+              </d:prop>
+              <d:status>HTTP/1.1 200 OK</d:status>
+            </d:propstat>
+          </d:response>
+        </d:multistatus>
+        """
         let responder = TransportResponder { request in
-            XCTAssertEqual(request.httpMethod, "HEAD")
-            return StubResponse(status: 200, headers: [
-                "ETag": "\"meta-etag\"",
-                "Content-Length": "2048",
-                "Last-Modified": "Tue, 01 Jul 2025 10:20:30 GMT",
-            ])
+            XCTAssertEqual(request.httpMethod, "PROPFIND")
+            XCTAssertEqual(request.value(forHTTPHeaderField: "Depth"), "0")
+            return StubResponse(status: 207, headers: [:], body: Data(multistatus.utf8))
         }
         let provider = WebDAVCloudProvider(client: WebDAVClient(transport: responder.transport))
 
@@ -187,40 +201,24 @@ final class WebDAVCloudProviderTests: XCTestCase {
         XCTAssertEqual(metadata.size, 2048)
     }
 
-    func testGetMetadataHead405FallsBackToPropfind() async throws {
+    func testGetMetadataRejectsEmptyPropfindResponse() async throws {
         let accountId = try seedCredential(username: "alice")
         let multistatus = """
         <?xml version="1.0"?>
-        <d:multistatus xmlns:d="DAV:">
-          <d:response>
-            <d:href>/dav/vault.kdbx</d:href>
-            <d:propstat>
-              <d:prop>
-                <d:resourcetype/>
-                <d:getcontentlength>777</d:getcontentlength>
-                <d:getetag>"probe-etag"</d:getetag>
-                <d:getlastmodified>Fri, 04 Jul 2025 09:00:00 GMT</d:getlastmodified>
-              </d:prop>
-              <d:status>HTTP/1.1 200 OK</d:status>
-            </d:propstat>
-          </d:response>
-        </d:multistatus>
+        <d:multistatus xmlns:d="DAV:"/>
         """
         let responder = TransportResponder { request in
-            if request.httpMethod == "HEAD" {
-                return StubResponse(status: 405, headers: [:])
-            }
             XCTAssertEqual(request.httpMethod, "PROPFIND")
-            XCTAssertEqual(request.value(forHTTPHeaderField: "Depth"), "0")
             return StubResponse(status: 207, headers: [:], body: Data(multistatus.utf8))
         }
         let provider = WebDAVCloudProvider(client: WebDAVClient(transport: responder.transport))
 
-        let metadata = try await provider.getMetadata(accountId: accountId, fileId: "/vault.kdbx")
-
-        XCTAssertEqual(metadata.rev, "\"probe-etag\"")
-        XCTAssertEqual(metadata.size, 777)
-        XCTAssertNil(metadata.contentHash)
+        do {
+            _ = try await provider.getMetadata(accountId: accountId, fileId: "/vault.kdbx")
+            XCTFail("Expected file-not-found for an empty metadata response")
+        } catch let error as CloudProviderError {
+            XCTAssertEqual(error, .fileNotFound)
+        }
     }
 
     // MARK: - Provider: upload
