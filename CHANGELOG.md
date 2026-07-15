@@ -5,6 +5,7 @@
 - macOS: system-wide AutoFill — passwords and passkeys in Safari, Chromium browsers, and native apps.
 - macOS: screen-privacy protections (blur on focus loss, optional screen-capture blocking), attachment Quick Look, and App Store review prompts.
 - macOS: native menu bar commands, Settings window, and automatic locking on screen lock/sleep; password reveal now always requires device-owner authentication (also hardened on iOS).
+- macOS: press Escape on a database's unlock screen to return to the database list, even while the password field is focused.
 - macOS: Dropbox and OneDrive sign-in and sync implemented but temporarily hidden in the UI (TODO: re-enable after end-to-end validation on Mac); WebDAV fully available.
 - Add experimental macOS build target (not yet released): full KDBX core, local vaults, and unit-test suite running natively on Mac.
 - Internal: restructure the AutoFill extension for upcoming macOS support (no user-facing change).

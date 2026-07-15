@@ -49,17 +49,12 @@ struct UnlockView: View {
             loadUITestKeyFileIfNeeded()
             #if os(macOS)
             // Mac polish: put the keyboard focus straight into the password
-            // field so unlock is type-Return without a click.
+            // field so unlock is type-Return without a click. On macOS the
+            // password field is `MacUnlockPasswordField`, which focuses itself
+            // on appear; this is kept for the visible (plain TextField) branch.
             passwordFocused = true
             #endif
         }
-        #if os(macOS)
-        // Mac polish: Escape backs out to the database list.
-        .onExitCommand {
-            guard isUnlocking == false else { return }
-            onBackToDatabaseList()
-        }
-        #endif
         .task {
             await loadAssociatedKeyFileIfNeeded()
         }
@@ -141,6 +136,30 @@ struct UnlockView: View {
                     .foregroundStyle(.secondary)
 
                 HStack(spacing: 12) {
+                    #if os(macOS)
+                    // A focused NSSecureTextField enables secure event input,
+                    // which routes keystrokes straight to its field editor and
+                    // bypasses every app-level key hook (NSEvent local monitors,
+                    // .keyboardShortcut, .onExitCommand, .onKeyPress). Owning the
+                    // field lets us catch Return/Escape at the field editor's
+                    // doCommandBySelector — the only layer that reliably sees
+                    // them here. See MacUnlockPasswordField.
+                    MacUnlockPasswordField(
+                        text: $password,
+                        isSecure: !isPasswordVisible,
+                        placeholder: "Enter password",
+                        accessibilityIdentifier: "unlock.password.field",
+                        focusOnAppear: true,
+                        onSubmit: unlockWithPassword,
+                        onEscape: {
+                            guard isUnlocking == false else { return }
+                            onBackToDatabaseList()
+                        }
+                    )
+                    .id(isPasswordVisible)
+                    .frame(maxWidth: .infinity)
+                    .frame(minHeight: 21)
+                    #else
                     Group {
                         if isPasswordVisible {
                             TextField("Enter password", text: $password)
@@ -153,6 +172,7 @@ struct UnlockView: View {
                     .submitLabel(.go)
                     .onSubmit(unlockWithPassword)
                     .accessibilityIdentifier("unlock.password.field")
+                    #endif
 
                     Button {
                         isPasswordVisible.toggle()
