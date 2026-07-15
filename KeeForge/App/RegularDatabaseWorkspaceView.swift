@@ -12,8 +12,14 @@ struct RegularDatabaseWorkspaceView: View {
     @State private var presentedSaveError: DatabaseSaveError?
     @State private var isCloudReconnectInFlight = false
     #if os(macOS)
-    /// Editor presented by the menu-bar New Entry command (⌘N).
+    /// Editor presented by the menu-bar New Entry command (⌘N) and the toolbar
+    /// add button — a single shared sheet so presentation stays reliable.
     @State private var commandEditor: EntryEditViewModel?
+    @State private var isShowingNewGroupSheet = false
+    @State private var newGroupName = ""
+    @State private var groupCreationErrorMessage: String?
+    @State private var macCollapsedGroupIDs: Set<UUID> = []
+    @FocusState private var isSearchFieldFocused: Bool
     #endif
 
     var body: some View {
@@ -94,35 +100,44 @@ struct RegularDatabaseWorkspaceView: View {
             .saveConflictAlert(viewModel: viewModel)
     }
 
+    @ViewBuilder
     private var splitView: some View {
+        #if os(macOS)
+        macSplitView
+        #else
         NavigationSplitView {
             sidebarColumn
                 .navigationSplitViewColumnWidth(min: 320, ideal: 380, max: 440)
         } detail: {
-            NavigationStack {
-                if let selectedEntryID = viewModel.selectedEntryID {
-                    EntryDetailView(
-                        entryID: selectedEntryID,
-                        viewModel: viewModel,
-                        onClose: {
-                            viewModel.selectEntry(nil)
-                        }
-                    )
-                } else if viewModel.searchText.isEmpty {
-                    ContentUnavailableView(
-                        "Select an Entry",
-                        systemImage: "key.horizontal",
-                        description: Text("Choose an entry to view or edit its details.")
-                    )
-                    .accessibilityIdentifier("regular-workspace.select-entry-placeholder")
-                } else {
-                    ContentUnavailableView(
-                        "Search Results",
-                        systemImage: "magnifyingglass",
-                        description: Text("Select a matching entry to view its details.")
-                    )
-                    .accessibilityIdentifier("regular-workspace.search-results-placeholder")
-                }
+            detailColumn
+        }
+        #endif
+    }
+
+    private var detailColumn: some View {
+        NavigationStack {
+            if let selectedEntryID = viewModel.selectedEntryID {
+                EntryDetailView(
+                    entryID: selectedEntryID,
+                    viewModel: viewModel,
+                    onClose: {
+                        viewModel.selectEntry(nil)
+                    }
+                )
+            } else if viewModel.searchText.isEmpty {
+                ContentUnavailableView(
+                    "Select an Entry",
+                    systemImage: "key.horizontal",
+                    description: Text("Choose an entry to view or edit its details.")
+                )
+                .accessibilityIdentifier("regular-workspace.select-entry-placeholder")
+            } else {
+                ContentUnavailableView(
+                    "Search Results",
+                    systemImage: "magnifyingglass",
+                    description: Text("Select a matching entry to view its details.")
+                )
+                .accessibilityIdentifier("regular-workspace.search-results-placeholder")
             }
         }
     }
@@ -156,41 +171,12 @@ struct RegularDatabaseWorkspaceView: View {
         }
     }
 
-    /// Sidebar group navigation.
-    ///
-    /// iOS/iPadOS: a `NavigationStack` pushing `GroupListView` levels
-    /// (unchanged legacy behavior).
-    ///
-    /// macOS: flat drill-down — pushed navigation stacks inside a
-    /// `NavigationSplitView` sidebar column render zero-height on macOS
-    /// (observed on macOS 26), so the sidebar re-renders `GroupListView` for
-    /// the current level of `navigationPath` and offers a Back toolbar button
-    /// instead of pushing.
+    #if os(iOS)
+    /// iOS/iPadOS sidebar group navigation: a `NavigationStack` pushing
+    /// `GroupListView` levels (unchanged legacy behavior). macOS uses the
+    /// dedicated three-column `macSplitView` instead.
     @ViewBuilder
     private var sidebarColumn: some View {
-        #if os(macOS)
-        if let rootID = viewModel.visibleRootGroupID {
-            let currentGroupID = navigationPath.last ?? rootID
-            GroupListView(
-                groupID: currentGroupID,
-                viewModel: viewModel,
-                onSelectEntry: selectEntry,
-                onSelectGroup: { groupID in
-                    navigationPath.append(groupID)
-                },
-                onNavigateBack: navigationPath.isEmpty ? nil : {
-                    navigationPath.removeLast()
-                }
-            )
-            .id(currentGroupID)
-        } else {
-            ContentUnavailableView(
-                "Vault Not Loaded",
-                systemImage: "lock.doc",
-                description: Text("Unlock a database to browse groups and entries.")
-            )
-        }
-        #else
         NavigationStack(path: $navigationPath) {
             if let rootID = viewModel.visibleRootGroupID {
                 GroupListView(
@@ -213,18 +199,213 @@ struct RegularDatabaseWorkspaceView: View {
                 )
             }
         }
-        #endif
     }
+    #endif
 
     private func selectEntry(_ entry: KPEntry) {
         viewModel.selectEntry(entry.id)
     }
 
     #if os(macOS)
+    // MARK: - macOS three-column workspace
+
+    /// Canonical Mac password-manager layout: a three-column
+    /// `NavigationSplitView` (group tree / entries / entry detail). Group and
+    /// entry rows stay plain buttons carrying `group.navlink` / `entry.navlink`
+    /// so the existing selection-by-identifier smoke helpers keep working, with
+    /// a manual sidebar-style highlight standing in for native list selection.
+    private var macSplitView: some View {
+        NavigationSplitView {
+            macSidebarColumn
+                .navigationSplitViewColumnWidth(min: 200, ideal: 240, max: 340)
+        } content: {
+            macContentColumn
+                .navigationSplitViewColumnWidth(min: 260, ideal: 320, max: 460)
+        } detail: {
+            detailColumn
+        }
+        .navigationTitle(viewModel.databaseDisplayName)
+        .searchable(text: $viewModel.searchText, prompt: "Search entries")
+        .macSearchFocusedCompat($isSearchFieldFocused)
+        .onChange(of: viewModel.searchFocusRequestID) { _, _ in
+            isSearchFieldFocused = true
+        }
+        .toolbar { macToolbar }
+        .onAppear {
+            if viewModel.selectedGroupID == nil {
+                viewModel.selectedGroupID = viewModel.visibleRootGroupID
+            }
+        }
+        .sheet(isPresented: $isShowingNewGroupSheet) {
+            NewGroupSheet(
+                name: $newGroupName,
+                errorMessage: $groupCreationErrorMessage,
+                onCancel: {
+                    newGroupName = ""
+                    groupCreationErrorMessage = nil
+                    isShowingNewGroupSheet = false
+                },
+                onCreate: { name in
+                    guard let parentID = viewModel.selectedGroupID ?? viewModel.visibleRootGroupID else { return }
+                    do {
+                        try viewModel.createGroup(named: name, in: parentID)
+                        newGroupName = ""
+                        groupCreationErrorMessage = nil
+                        isShowingNewGroupSheet = false
+                        Task { await viewModel.saveHandlingError() }
+                    } catch {
+                        groupCreationErrorMessage = error.localizedDescription
+                    }
+                }
+            )
+        }
+    }
+
+    // MARK: Sidebar (group tree)
+
+    private func macGroupNode(for groupID: UUID) -> MacGroupNode? {
+        guard let group = viewModel.group(withID: groupID) else { return nil }
+        let childNodes = viewModel.sortedGroups(group.groups).compactMap { macGroupNode(for: $0.id) }
+        let isRecycleBin = viewModel.currentRootGroup?.recycleBinUUID == groupID
+        return MacGroupNode(
+            id: groupID,
+            name: group.name,
+            icon: isRecycleBin ? "trash" : group.systemIconName,
+            children: childNodes.isEmpty ? nil : childNodes
+        )
+    }
+
+    @ViewBuilder
+    private var macSidebarColumn: some View {
+        if let rootID = viewModel.visibleRootGroupID, let rootNode = macGroupNode(for: rootID) {
+            List {
+                MacGroupTreeRow(
+                    node: rootNode,
+                    viewModel: viewModel,
+                    collapsedGroupIDs: $macCollapsedGroupIDs
+                )
+            }
+            .listStyle(.sidebar)
+            // Rebuild the tree when the draft changes (group create/delete/
+            // rename). Like the content column, the split view can otherwise
+            // keep a stale sidebar; `macCollapsedGroupIDs` and the selection are
+            // external state, so a rebuild preserves expansion and selection.
+            .id(viewModel.contentRevision)
+        } else {
+            ContentUnavailableView(
+                "Vault Not Loaded",
+                systemImage: "lock.doc",
+                description: Text("Unlock a database to browse groups and entries.")
+            )
+        }
+    }
+
+    // MARK: Content (entries)
+
+    @ViewBuilder
+    private var macContentColumn: some View {
+        if viewModel.searchText.isEmpty {
+            // Keying the entries column to `contentRevision` forces it to rebuild
+            // when the draft changes (e.g. an edit/save renames an entry). The
+            // `content:` column of a three-column `NavigationSplitView` caches
+            // its subtree on macOS and does not otherwise re-evaluate on the
+            // view model's observation changes, even though the detail column
+            // does — so an edited entry would keep its stale row label without
+            // this. Reading `contentRevision` here also re-runs this body so the
+            // id actually updates.
+            MacEntriesColumn(viewModel: viewModel, onSelectEntry: selectEntry)
+                .id(viewModel.contentRevision)
+        } else {
+            SearchView(viewModel: viewModel, onSelectEntry: selectEntry)
+        }
+    }
+
+    // MARK: Toolbar
+
+    @ToolbarContentBuilder
+    private var macToolbar: some ToolbarContent {
+        ToolbarItem(placement: .navigation) {
+            Button {
+                viewModel.lockRequest(manuallyTriggered: true)
+            } label: {
+                Image(systemName: "lock.fill")
+            }
+            .help("Lock Database")
+            .accessibilityIdentifier("lock.button")
+        }
+
+        ToolbarItemGroup(placement: .primaryAction) {
+            if let warningText = viewModel.cloudSyncBannerText {
+                CloudSyncWarningButton(message: warningText)
+            }
+
+            if viewModel.isReadOnly {
+                Image(systemName: "lock.fill")
+                    .foregroundStyle(.orange)
+                    .help("Read-only database")
+                    .accessibilityIdentifier("database.read-only-indicator")
+            } else {
+                Menu {
+                    Button("New Entry", systemImage: "doc.badge.plus") {
+                        viewModel.requestNewEntry()
+                    }
+                    Button("New Group", systemImage: "folder.badge.plus") {
+                        beginNewGroup()
+                    }
+                } label: {
+                    Image(systemName: "plus")
+                }
+                .menuIndicator(.hidden)
+                .help("Add Entry or Group")
+                .accessibilityIdentifier("entry-list.add-entry")
+            }
+
+            Menu {
+                Picker("Sort By", selection: $viewModel.sortOrder) {
+                    ForEach(DatabaseViewModel.SortOrder.allCases, id: \.self) { order in
+                        Text(order.rawValue).tag(order)
+                    }
+                }
+                Picker("Sort Direction", selection: $viewModel.sortAscending) {
+                    Text("Ascending").tag(true)
+                    Text("Descending").tag(false)
+                }
+            } label: {
+                Image(systemName: "arrow.up.arrow.down")
+            }
+            .menuIndicator(.hidden)
+            .help("Sort")
+            .accessibilityIdentifier("sort.menu")
+
+            SettingsLink {
+                Image(systemName: "gearshape")
+            }
+            .help("Settings")
+            .accessibilityIdentifier("settings.button")
+        }
+    }
+
+    private func beginNewGroup() {
+        Task { @MainActor in
+            let result = await viewModel.acknowledgeEditingIfNeeded()
+            guard result == .acknowledged else { return }
+            newGroupName = ""
+            groupCreationErrorMessage = nil
+            isShowingNewGroupSheet = true
+        }
+    }
+
+    #endif
+
+    #if os(macOS)
     @MainActor
     private func beginNewEntryFromCommand() {
         guard commandEditor == nil else { return }
-        guard let targetGroupID = navigationPath.last ?? viewModel.visibleRootGroupID else { return }
+        // Target the group the user is looking at (selected in the sidebar),
+        // falling back to the visible root. When there is no writable target we
+        // do nothing — ⌘N is also disabled in that state in KeeForgeCommands —
+        // rather than presenting an editor with no destination group.
+        guard let targetGroupID = viewModel.selectedGroupID ?? viewModel.visibleRootGroupID else { return }
 
         Task { @MainActor in
             let result = await viewModel.acknowledgeEditingIfNeeded()
@@ -274,3 +455,184 @@ struct RegularDatabaseWorkspaceView: View {
         #endif
     }
 }
+
+#if os(macOS)
+/// The macOS content column: the selected group's entries, each a plain button
+/// carrying `entry.navlink` with a manual selection highlight. A dedicated
+/// `@Bindable` observing view (not an inline `@ViewBuilder` on the workspace) so
+/// it re-renders on `DatabaseViewModel.contentRevision` changes — e.g. after an
+/// edit renames an entry, which an inline computed property missed.
+private struct MacEntriesColumn: View {
+    @Bindable var viewModel: DatabaseViewModel
+    let onSelectEntry: (KPEntry) -> Void
+
+    private var resolvedGroup: KPGroup? {
+        guard let groupID = viewModel.selectedGroupID ?? viewModel.visibleRootGroupID else { return nil }
+        return viewModel.group(withID: groupID)
+    }
+
+    var body: some View {
+        if let group = resolvedGroup {
+            let entries = viewModel.sortedEntries(group.entries)
+            Group {
+                if entries.isEmpty {
+                    ContentUnavailableView(
+                        "No Entries",
+                        systemImage: "tray",
+                        description: Text("This group has no entries.")
+                    )
+                } else {
+                    List {
+                        ForEach(entries) { entry in
+                            entryRow(entry)
+                        }
+                    }
+                    .listStyle(.inset)
+                }
+            }
+            .navigationSubtitle(group.name)
+        } else {
+            ContentUnavailableView(
+                "Select a Group",
+                systemImage: "folder",
+                description: Text("Choose a group to view its entries.")
+            )
+        }
+    }
+
+    @ViewBuilder
+    private func entryRow(_ entry: KPEntry) -> some View {
+        let isSelected = viewModel.selectedEntryID == entry.id
+        Button {
+            onSelectEntry(entry)
+        } label: {
+            EntryRow(entry: entry)
+                .foregroundStyle(isSelected ? Color.white : Color.primary)
+        }
+        .buttonStyle(.plain)
+        .listRowBackground(
+            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                .fill(isSelected ? Color.accentColor : Color.clear)
+        )
+        .accessibilityIdentifier("entry.navlink")
+        .contextMenu {
+            if viewModel.isReadOnly == false {
+                Button("Delete", role: .destructive) {
+                    do {
+                        try viewModel.deleteEntry(
+                            entry.id,
+                            sendToRecycleBin: viewModel.isEntryInRecycleBin(entryID: entry.id) == false
+                        )
+                        Task { await viewModel.saveHandlingError() }
+                    } catch {
+                        viewModel.presentSaveError(error)
+                    }
+                }
+            }
+        }
+    }
+}
+
+/// A node in the macOS sidebar group tree. Precomputed from the draft so the
+/// recursive row view is a plain value tree.
+struct MacGroupNode: Identifiable {
+    let id: UUID
+    let name: String
+    let icon: String
+    let children: [MacGroupNode]?
+}
+
+/// Recursive sidebar row. Concrete (not an opaque `some View` helper) so it can
+/// reference itself for nested groups. Parent groups render as a
+/// `DisclosureGroup` defaulting to expanded; the row itself is a plain button
+/// carrying `group.navlink` with a manual sidebar-style selection highlight.
+private struct MacGroupTreeRow: View {
+    let node: MacGroupNode
+    @Bindable var viewModel: DatabaseViewModel
+    @Binding var collapsedGroupIDs: Set<UUID>
+
+    private var isSelected: Bool {
+        viewModel.selectedGroupID == node.id
+    }
+
+    var body: some View {
+        if let children = node.children {
+            DisclosureGroup(
+                isExpanded: Binding(
+                    get: { collapsedGroupIDs.contains(node.id) == false },
+                    set: { isExpanded in
+                        if isExpanded {
+                            collapsedGroupIDs.remove(node.id)
+                        } else {
+                            collapsedGroupIDs.insert(node.id)
+                        }
+                    }
+                )
+            ) {
+                ForEach(children) { child in
+                    MacGroupTreeRow(
+                        node: child,
+                        viewModel: viewModel,
+                        collapsedGroupIDs: $collapsedGroupIDs
+                    )
+                }
+            } label: {
+                row
+            }
+        } else {
+            row
+        }
+    }
+
+    private var row: some View {
+        Button {
+            viewModel.selectedGroupID = node.id
+        } label: {
+            Label {
+                Text(node.name)
+                    .lineLimit(1)
+            } icon: {
+                Image(systemName: node.icon)
+                    .foregroundStyle(isSelected ? Color.white : Color.accentColor)
+            }
+            .font(.body)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(isSelected ? Color.white : Color.primary)
+        .listRowBackground(
+            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                .fill(isSelected ? Color.accentColor : Color.clear)
+                .padding(.horizontal, 6)
+                .padding(.vertical, 1)
+        )
+        .accessibilityIdentifier("group.navlink")
+        .contextMenu {
+            if canDelete {
+                Button(deleteTitle, role: .destructive) {
+                    deleteGroup()
+                }
+            }
+        }
+    }
+
+    private var canDelete: Bool {
+        viewModel.isReadOnly == false && viewModel.isGroupProtectedFromDeletion(groupID: node.id) == false
+    }
+
+    private var deleteTitle: String {
+        viewModel.isGroupInRecycleBin(groupID: node.id) ? "Delete Permanently" : "Delete"
+    }
+
+    private func deleteGroup() {
+        let sendToRecycleBin = viewModel.isGroupInRecycleBin(groupID: node.id) == false
+        do {
+            try viewModel.deleteGroup(node.id, sendToRecycleBin: sendToRecycleBin)
+            Task { await viewModel.saveHandlingError() }
+        } catch {
+            viewModel.presentSaveError(error)
+        }
+    }
+}
+#endif

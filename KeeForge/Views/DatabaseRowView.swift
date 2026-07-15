@@ -103,13 +103,27 @@ struct DatabaseRowView: View {
 
             Spacer(minLength: 12)
 
+            // macOS uses standard sidebar selection (no disclosure chevron);
+            // iOS keeps the drill-in affordance.
+            #if os(iOS)
             Image(systemName: "chevron.right")
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(.tertiary)
                 .padding(.top, 4)
+            #endif
         }
         .padding(.vertical, 4)
         .contentShape(Rectangle())
+    }
+
+    /// Local (non-cloud) database glyph. The iPhone symbol reads wrong on a
+    /// Mac, so use a drive symbol there; iOS keeps the familiar device glyph.
+    private var localDatabaseSymbolName: String {
+        #if os(macOS)
+        "externaldrive.fill"
+        #else
+        "iphone"
+        #endif
     }
 
     private var conflictText: String {
@@ -135,7 +149,7 @@ struct DatabaseRowView: View {
             .foregroundStyle(Color.accentColor)
             .frame(width: 28, height: 28)
         } else {
-            Image(systemName: "iphone")
+            Image(systemName: localDatabaseSymbolName)
                 .font(.title3)
                 .foregroundStyle(Color.accentColor)
                 .frame(width: 28, height: 28)

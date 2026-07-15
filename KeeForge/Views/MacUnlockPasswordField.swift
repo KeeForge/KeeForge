@@ -53,9 +53,15 @@ struct MacUnlockPasswordField: NSViewRepresentable {
         field.delegate = context.coordinator
         field.placeholderString = placeholder
         field.stringValue = text
-        field.isBordered = false
-        field.drawsBackground = false
-        field.focusRingType = .none
+        // Native bezeled field treatment: the old borderless/no-background
+        // field, sitting inside a filled capsule, read as a disabled control on
+        // macOS. A standard bordered text field with a focus ring reads as an
+        // editable input.
+        field.isBordered = true
+        field.bezelStyle = .roundedBezel
+        field.drawsBackground = true
+        field.focusRingType = .default
+        field.controlSize = .large
         field.font = .monospacedSystemFont(ofSize: NSFont.systemFontSize, weight: .regular)
         field.usesSingleLineMode = true
         field.lineBreakMode = .byClipping

@@ -166,10 +166,12 @@ final class MacSmokeUITests: MacUITestCase {
         XCTAssertTrue(saveButton.waitForExistence(timeout: 5), "Save button missing")
         saveButton.click()
 
-        // macOS StaticTexts expose their text as `value` (label is empty), so
-        // match either attribute.
-        let renamed = app.descendants(matching: .any).matching(
-            NSPredicate(format: "label CONTAINS[c] %@ OR value CONTAINS[c] %@", "Discord Renamed", "Discord Renamed")
+        // The renamed entry surfaces as its content-column row button. Scope the
+        // query to `entry.navlink` buttons: a broad `descendants(.any)` +
+        // CONTAINS scan over the three-column hierarchy times out the
+        // accessibility query on macOS.
+        let renamed = app.buttons.matching(
+            NSPredicate(format: "identifier == 'entry.navlink' AND label CONTAINS[c] %@", "Discord Renamed")
         ).firstMatch
         XCTAssertTrue(renamed.waitForExistence(timeout: 30), "Renamed entry did not appear after save")
     }

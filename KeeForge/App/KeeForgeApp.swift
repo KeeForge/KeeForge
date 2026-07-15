@@ -190,6 +190,11 @@ private struct AppRootView: View {
                     }
                 }
                 .navigationSplitViewStyle(.balanced)
+                #if os(macOS)
+                // Window title stays "KeeForge" until a database is unlocked;
+                // the unlocked workspace sets the title to the database name.
+                .navigationTitle("KeeForge")
+                #endif
             }
         } else {
             if let activeDatabaseViewModel {

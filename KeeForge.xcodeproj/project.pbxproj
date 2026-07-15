@@ -205,6 +205,7 @@
 		69A155A062F13101CA760603 /* SyncedFolderDetector.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4ECEA7AAE4FB7C45606207D1 /* SyncedFolderDetector.swift */; };
 		6AAF0C1932C41779B6A95990 /* DatabaseDraft.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DBA8C05ADEAD4DD8BFE6152 /* DatabaseDraft.swift */; };
 		6AE385563ED9E96B0E62B389 /* KeyFileProcessor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2F67A19B307012E6FFA9545C /* KeyFileProcessor.swift */; };
+		6B84A04EB2748B6AA14D6603 /* MacScreenshotAuditUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6CB88CC16B6EF72B737A8030 /* MacScreenshotAuditUITests.swift */; };
 		6BBAF1981D321C2A67191572 /* UnlockedDatabaseUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 052B9C02DD70272885C3A280 /* UnlockedDatabaseUITests.swift */; };
 		6BF3E31D1B624C7399E6A518 /* demo-keyfile.key in Resources */ = {isa = PBXBuildFile; fileRef = 7AB5EEF311A401337289C014 /* demo-keyfile.key */; };
 		6C80BAC018BC6A4D66F1EE8D /* DatabaseReferenceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B09CBBB037C50562422C91B /* DatabaseReferenceTests.swift */; };
@@ -661,6 +662,7 @@
 		6AFBBC10051B412E85947EB5 /* DropboxCloudProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DropboxCloudProvider.swift; sourceTree = "<group>"; };
 		6C92F73C702B2C95BC3727FC /* unknown-elements.kdbx */ = {isa = PBXFileReference; path = "unknown-elements.kdbx"; sourceTree = "<group>"; };
 		6CB86A3375C87F5074F1AB7D /* UITestWebDAVCloudProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UITestWebDAVCloudProvider.swift; sourceTree = "<group>"; };
+		6CB88CC16B6EF72B737A8030 /* MacScreenshotAuditUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacScreenshotAuditUITests.swift; sourceTree = "<group>"; };
 		6F135327240ED1387C8003A4 /* SecureRandom.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SecureRandom.swift; sourceTree = "<group>"; };
 		70041C9E76CC7196DFCB5AE1 /* CloudProviderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudProviderTests.swift; sourceTree = "<group>"; };
 		707D0691762DF0F7082224A2 /* WebDAVSyncUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebDAVSyncUITests.swift; sourceTree = "<group>"; };
@@ -1015,6 +1017,7 @@
 		94D564740093EF0F011B5A3C /* KeeForgeMacUITests */ = {
 			isa = PBXGroup;
 			children = (
+				6CB88CC16B6EF72B737A8030 /* MacScreenshotAuditUITests.swift */,
 				2AA6343D62E6D446EC5AD832 /* MacSmokeUITests.swift */,
 				BE3F7365E8B09C1E10D9EEBA /* MacUITestCase.swift */,
 				7B69F172792BCB6806380021 /* MacWebDAVSmokeUITests.swift */,
@@ -2038,6 +2041,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				6B84A04EB2748B6AA14D6603 /* MacScreenshotAuditUITests.swift in Sources */,
 				1FA75E9BF4CCDE4BB34A5EE1 /* MacSmokeUITests.swift in Sources */,
 				FDD8325D11F3007AF254C73A /* MacUITestCase.swift in Sources */,
 				A3FB120A5FB52424A9EC9BD9 /* MacWebDAVSmokeUITests.swift in Sources */,
