@@ -223,6 +223,79 @@ final class DatabaseViewModelTests: XCTestCase {
         XCTAssertEqual(populateCallCount, 2)
     }
 
+    func testForegroundRefreshReloadsExternallyReplacedDatabaseAfterEditorCloses() async throws {
+        let originalQuickAutoFillEnabled = SettingsService.quickAutoFillEnabled
+        SettingsService.quickAutoFillEnabled = true
+        defer { SettingsService.quickAutoFillEnabled = originalQuickAutoFillEnabled }
+
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+
+        let databaseURL = directory.appendingPathComponent("refreshed.kdbx")
+        try FileManager.default.copyItem(at: fixtureURL(), to: databaseURL)
+        let reference = try TestDatabaseSupport.makeReference(for: databaseURL)
+        let vm = try makeViewModel(reference: reference)
+
+        await vm.unlock(password: fixturePassword)
+        let originalHash = try XCTUnwrap(vm.openTimeSHA512)
+        let originalEntryIDs = Set(try XCTUnwrap(vm.rootGroup).allEntries.map(\.id))
+
+        let replacementURL = try TestDatabaseSupport.fixtureURL(
+            named: "attachments",
+            subdirectory: "compatibility",
+            bundle: Bundle(for: DatabaseViewModelTests.self)
+        )
+        let replacementData = try Data(contentsOf: replacementURL)
+        let replacementHash = KDBXCrypto.sha512(replacementData)
+        XCTAssertNotEqual(replacementHash, originalHash)
+
+        try replacementData.write(to: databaseURL, options: .atomic)
+        try FileManager.default.setAttributes(
+            [.modificationDate: Date.now.addingTimeInterval(120)],
+            ofItemAtPath: databaseURL.path
+        )
+
+        let deferredRefreshExpectation = expectation(description: "External reload is deferred while editing")
+        let appliedRefreshExpectation = expectation(description: "External reload applies after editor dismissal")
+        var refreshCount = 0
+        CredentialIdentityStoreManager.populateObserver = { _ in
+            refreshCount += 1
+            if refreshCount == 1 {
+                deferredRefreshExpectation.fulfill()
+            } else if refreshCount == 2 {
+                appliedRefreshExpectation.fulfill()
+            }
+        }
+
+        vm.entryEditorDidAppear()
+        vm.refreshSharedDatabaseCacheIfPossible()
+
+        await fulfillment(of: [deferredRefreshExpectation], timeout: 30)
+        XCTAssertEqual(vm.openTimeSHA512, originalHash)
+        XCTAssertEqual(Set(try XCTUnwrap(vm.rootGroup).allEntries.map(\.id)), originalEntryIDs)
+
+        vm.entryEditorDidDisappear()
+
+        await fulfillment(of: [appliedRefreshExpectation], timeout: 30)
+        XCTAssertEqual(vm.openTimeSHA512, replacementHash)
+
+        let reparsed = try KDBXParser.parse(
+            data: replacementData,
+            password: fixturePassword,
+            sessionKey: SymmetricKey(size: .bits256)
+        )
+        XCTAssertEqual(
+            Set(try XCTUnwrap(vm.rootGroup).allEntries.map(\.id)),
+            Set(reparsed.allEntries.map(\.id))
+        )
+        XCTAssertEqual(
+            try Data(contentsOf: DatabaseListStore.cacheLocation(for: reference)),
+            replacementData
+        )
+    }
+
     func testApplyEntryEditRefreshesCredentialStoreFromDraft() async throws {
         let vm = try makeViewModel()
         let refreshExpectation = expectation(description: "Credential store refreshed after edit")

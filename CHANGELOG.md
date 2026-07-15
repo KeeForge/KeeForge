@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Reload an unlocked vault after its local or cloud file changes externally, while deferring the reload until entry editing and unsaved changes are finished.
 - macOS: system-wide AutoFill — passwords and passkeys in Safari, Chromium browsers, and native apps.
 - macOS: screen-privacy protections (blur on focus loss, optional screen-capture blocking), attachment Quick Look, and App Store review prompts.
 - macOS: native menu bar commands, Settings window, and automatic locking on screen lock/sleep; password reveal now always requires device-owner authentication (also hardened on iOS).
