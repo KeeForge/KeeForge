@@ -506,11 +506,11 @@ private struct AboutSectionContent: View {
                 Label("Contact Support", systemImage: "envelope")
             }
 
-            Link(destination: URL(string: "https://github.com/crazytan/KeeForge/issues")!) {
+            Link(destination: URL(string: "https://github.com/KeeForge/KeeForge/issues")!) {
                 Label("Report a Bug", systemImage: "ladybug")
             }
 
-            Link(destination: URL(string: "https://github.com/crazytan/KeeForge")!) {
+            Link(destination: URL(string: "https://github.com/KeeForge/KeeForge")!) {
                 Label("Source Code", systemImage: "chevron.left.forwardslash.chevron.right")
             }
 

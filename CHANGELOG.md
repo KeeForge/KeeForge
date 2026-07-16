@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Update GitHub links (Report a Bug, Source Code, docs) to the new KeeForge org after the repository transfer.
 - Fix local HTTP WebDAV vaults getting stuck on the initial metadata check before KeeForge could download and cache them.
 - Password reveal and copy now always require device-owner authentication, even when biometrics are unavailable (hardening back-ported from the macOS work).
 - Internal: restructure the AutoFill extension for upcoming macOS support (no user-facing change).
