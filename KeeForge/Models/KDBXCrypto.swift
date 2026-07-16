@@ -1,6 +1,7 @@
 import Foundation
 import CryptoKit
 import CommonCrypto
+import KeeForgeTwofish
 import zlib
 import Argon2Swift
 
@@ -324,6 +325,24 @@ enum KDBXCrypto {
         guard status == kCCSuccess else { throw CryptoError.encryptionFailed }
         outData.count = bytesWritten
         return outData
+    }
+
+    // MARK: - Twofish-256-CBC Encrypt/Decrypt
+
+    static func decryptTwofish256CBC(data: Data, key: Data, iv: Data) throws -> Data {
+        do {
+            return try TwofishCBC.decrypt(data, key: key, iv: iv)
+        } catch {
+            throw CryptoError.decryptionFailed
+        }
+    }
+
+    static func encryptTwofish256CBC(data: Data, key: Data, iv: Data) throws -> Data {
+        do {
+            return try TwofishCBC.encrypt(data, key: key, iv: iv)
+        } catch {
+            throw CryptoError.encryptionFailed
+        }
     }
 
     // MARK: - ChaCha20 Encrypt/Decrypt

@@ -121,7 +121,7 @@ struct DatabaseCreationView: View {
 
             Section {
                 Picker("Save To", selection: $viewModel.destinationChoice) {
-                    ForEach(DatabaseCreationDestinationChoice.allCases) { destination in
+                    ForEach(DatabaseCreationDestinationChoice.availableChoices) { destination in
                         Text(destination.title).tag(destination)
                     }
                 }

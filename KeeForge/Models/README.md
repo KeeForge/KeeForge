@@ -5,6 +5,7 @@ This folder holds the data and logic that the rest of the app depends on. It is 
 ## High-Risk Core
 
 - `KDBXParser.swift`, `KDBXWriter.swift`, and `KDBXCrypto.swift` implement KDBX 4.x read/write, KDF handling, XML extraction, HMAC checks, payload framing, and decompression guards.
+- `KDBXOuterCipher.swift` centralizes outer-cipher UUID recognition, IV sizing, diagnostics, and AES-256-CBC, ChaCha20, and Twofish-256-CBC dispatch. The Twofish primitive lives in the locally vendored `Vendor/KeeForgeTwofish` package and is shared with AutoFill.
 - `Entry.swift`, `Group.swift`, `EncryptedValue.swift`, and `TOTPGenerator.swift` define the in-memory representation of secrets and time-based codes.
 - `DatabaseDraft.swift` and `EntryEdit.swift` stage in-memory entry/group creates, updates, and deletes while preserving recycle-bin behavior, protected fields, and unknown XML for later save.
 - Changes here should be small, test-backed, and motivated by a real bug, format update, or security requirement.
@@ -21,4 +22,5 @@ This folder holds the data and logic that the rest of the app depends on. It is 
 - Secrets should stay encrypted in memory until the exact point of use.
 - Keep parsing and crypto work off the main actor.
 - If a format or compatibility change is unclear, check `../../docs/README.md` and the related spec before changing code.
+- Twofish uses strict PKCS#7 validation. Do not add permissive padding recovery without a sanitized interoperability fixture that proves it is required.
 - Relevant unit tests usually live in `../../KeeForgeTests/KDBXParserTests.swift`, `../../KeeForgeTests/KDBXWriterTests.swift`, `../../KeeForgeTests/KDBXRoundTripTests.swift`, `../../KeeForgeTests/DatabaseDraftTests.swift`, `../../KeeForgeTests/EncryptedValueTests.swift`, `../../KeeForgeTests/TOTPGeneratorTests.swift`, `../../KeeForgeTests/KeyFileProcessorTests.swift`, `../../KeeForgeTests/PasskeyTests.swift`, and `../../KeeForgeTests/AttachmentTests.swift`.

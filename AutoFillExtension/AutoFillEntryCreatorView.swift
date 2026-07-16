@@ -1,3 +1,8 @@
+// Save-password requests are iOS-only (`ASSavePasswordRequest` is
+// `API_UNAVAILABLE(macos)` per the macOS 26.5 SDK), so this creator UI — plus
+// its iOS-only text-input modifiers such as `.textContentType(.URL)` — is
+// gated to iOS. The macOS shell stubs `presentEntryCreator` as unreachable.
+#if os(iOS)
 import SwiftUI
 
 enum AutoFillEntryCreatorActionResult {
@@ -158,3 +163,5 @@ struct AutoFillEntryCreatorView: View {
         }
     }
 }
+
+#endif

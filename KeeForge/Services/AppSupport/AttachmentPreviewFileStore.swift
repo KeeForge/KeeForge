@@ -2,7 +2,8 @@ import Foundation
 
 /// Manages short-lived plaintext temp files used to preview or share entry
 /// attachments via QuickLook. Files live under a dedicated subdirectory of
-/// `FileManager.temporaryDirectory`, are written with `.completeFileProtection`,
+/// `FileManager.temporaryDirectory`, are written with `.atomicProtected`
+/// (Data Protection on iOS; FileVault covers at-rest encryption on macOS),
 /// and are tracked so they can be removed as soon as a preview/share sheet
 /// dismisses or the database locks.
 @MainActor
@@ -29,7 +30,7 @@ enum AttachmentPreviewFileStore {
             .appendingPathComponent(sanitizedName)
         try fm.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
 
-        try data.write(to: url, options: [.atomic, .completeFileProtection])
+        try data.write(to: url, options: .atomicProtected)
         trackedURLs.insert(url)
         return url
     }

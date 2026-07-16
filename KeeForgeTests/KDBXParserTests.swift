@@ -462,6 +462,22 @@ final class KDBXParserTests: XCTestCase {
         XCTAssertFalse(entriesByTitle["Slack"]?.hasPassword ?? true)
     }
 
+    func testKDBX31TwofishDatabaseOpensReadOnly() throws {
+        let data = try makeLegacyTwofishFixture()
+        let parsed = try KDBXParser.parseWithMetaAndHeader(
+            data: data,
+            password: legacyFixturePassword,
+            sessionKey: testSessionKey
+        )
+
+        XCTAssertEqual(parsed.header.formatVersion, .kdbx3_1)
+        XCTAssertEqual(parsed.header.cipherID, KDBXParser.twofishCipherUUID)
+        XCTAssertTrue(parsed.header.formatVersion.requiresReadOnlyMode)
+        XCTAssertEqual(parsed.rootGroup.allEntries.count, 5)
+        let twitter = try XCTUnwrap(parsed.rootGroup.allEntries.first { $0.title == "Twitter" })
+        XCTAssertEqual(try twitter.password.decrypt(using: testSessionKey), "tw1tterP@ss!")
+    }
+
     func testKDBX31WrongPasswordFailsCleanly() throws {
         let data = try legacyFixtureData()
 
@@ -720,6 +736,36 @@ final class KDBXParserTests: XCTestCase {
         var mutated = Data(data.prefix(legacyHeader.payloadOffset))
         mutated.append(reencryptedPayload)
         return mutated
+    }
+
+    private func makeLegacyTwofishFixture() throws -> Data {
+        let data = try legacyFixtureData()
+        let legacyHeader = try KDBXParser.parseKDBX3Header(from: data)
+        let compositeKey = KDBXCrypto.compositeKey(password: legacyFixturePassword)
+        let masterKey = try KDBXParser.deriveKDBX3MasterKey(
+            compositeKey: compositeKey,
+            header: legacyHeader
+        )
+        let encryptedPayload = data.subdata(in: legacyHeader.payloadOffset..<data.count)
+        let decryptedPayload = try KDBXCrypto.decryptAES256CBC(
+            data: encryptedPayload,
+            key: masterKey,
+            iv: legacyHeader.encryptionIV
+        )
+        let twofishPayload = try KDBXCrypto.encryptTwofish256CBC(
+            data: decryptedPayload,
+            key: masterKey,
+            iv: legacyHeader.encryptionIV
+        )
+
+        let cipherOffset = try XCTUnwrap(legacyHeaderFieldValueOffset(fieldID: 2, in: data))
+        var convertedHeader = Data(data.prefix(legacyHeader.payloadOffset))
+        convertedHeader.replaceSubrange(
+            cipherOffset..<(cipherOffset + KDBXParser.twofishCipherUUID.count),
+            with: KDBXParser.twofishCipherUUID
+        )
+        convertedHeader.append(twofishPayload)
+        return convertedHeader
     }
 
     private func legacyHeaderFieldValueOffset(fieldID: UInt8, in data: Data) -> Int? {

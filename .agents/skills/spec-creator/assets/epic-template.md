@@ -30,7 +30,9 @@ Things that need a consistent answer across slices and aren't obvious from the c
 
 - **Data model:** …
 - **Threading:** …
+- **Security:** secrets touched, new permissions or network calls, lock-state behavior — carry the clarify answers here, don't leave them buried in the Q&A.
 - **Feature flag / rollout:** …
+- **CHANGELOG:** the final user-facing entry, if individual slices defer theirs to the epic.
 
 ## Out of scope
 

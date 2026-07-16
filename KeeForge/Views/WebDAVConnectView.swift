@@ -28,7 +28,7 @@ struct WebDAVConnectView: View {
                         "Server",
                         text: $viewModel.serverURL,
                         prompt: Text(verbatim: "https://cloud.example.com/…")
-                            .foregroundColor(Color(uiColor: .placeholderText))
+                            .foregroundColor(Color(.placeholderText))
                     )
                         .keyboardType(.URL)
                         .textContentType(.URL)

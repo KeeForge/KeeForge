@@ -45,6 +45,7 @@ struct DatabaseListView: View {
     @State private var showDatabaseUsageStats = SettingsService.showDatabaseUsageStats
     @State private var activeCloudProvider: CloudProviderKind?
     @State private var isDatabaseCreationPresented = false
+    @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
         NavigationStack {
@@ -72,23 +73,44 @@ struct DatabaseListView: View {
                     }
                 }
             }
+            .safeAreaInset(edge: .top, spacing: 0) {
+                if viewModel.shouldShowAutoFillTip {
+                    AutoFillTipBanner(
+                        onEnable: { Task { await viewModel.requestEnableAutoFill() } },
+                        onDismiss: { viewModel.dismissAutoFillTip() }
+                    )
+                }
+            }
             .navigationTitle("KeeForge")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
+                // `EditButton` does not exist on macOS; list rows reorder via
+                // drag and delete via context menus / swipe actions there.
+                #if os(iOS)
                 if !viewModel.databases.isEmpty {
                     ToolbarItem(placement: .topBarLeading) {
                         EditButton()
                             .accessibilityIdentifier("database.edit.button")
                     }
                 }
+                #endif
 
                 ToolbarItemGroup(placement: .topBarTrailing) {
+                    // macOS uses the standard Settings window (⌘,) instead of
+                    // a sheet, which on the Mac would have no close affordance.
+                    #if os(macOS)
+                    SettingsLink {
+                        Image(systemName: "gearshape")
+                    }
+                    .accessibilityIdentifier("database.settings.button")
+                    #else
                     Button {
                         showSettings = true
                     } label: {
                         Image(systemName: "gearshape")
                     }
                     .accessibilityIdentifier("database.settings.button")
+                    #endif
 
                     Menu {
                         addDatabaseMenuContent
@@ -103,6 +125,14 @@ struct DatabaseListView: View {
         .onAppear {
             refreshUsageStatsVisibility()
             viewModel.reload()
+        }
+        .task {
+            await viewModel.refreshAutoFillStatus()
+        }
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active {
+                Task { await viewModel.refreshAutoFillStatus() }
+            }
         }
         .onChange(of: showDatabaseUsageStats) { _, _ in
             viewModel.reload()

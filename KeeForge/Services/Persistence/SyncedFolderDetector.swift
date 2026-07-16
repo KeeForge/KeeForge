@@ -185,10 +185,17 @@ enum SyncedFolderDetector {
                     return
                 }
 
+                #if os(iOS)
                 let providerIdentifier = manager.providerIdentifier
                 continuation.resume(
                     returning: providerIdentifier.isEmpty ? domainIdentifier : providerIdentifier
                 )
+                #else
+                // `NSFileProviderManager.providerIdentifier` is unavailable on
+                // macOS; the domain identifier is the best stable identity.
+                _ = manager
+                continuation.resume(returning: domainIdentifier)
+                #endif
             }
         }
     }

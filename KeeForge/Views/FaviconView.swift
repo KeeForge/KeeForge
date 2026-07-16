@@ -5,7 +5,7 @@ struct FaviconView: View {
     let iconID: Int
     let size: CGFloat
 
-    @State private var image: UIImage?
+    @State private var image: PlatformImage?
     @State private var didAttemptFetch = false
 
     private var domain: String? {
@@ -20,7 +20,7 @@ struct FaviconView: View {
     var body: some View {
         Group {
             if showFavicons, let image {
-                Image(uiImage: image)
+                Image(platformImage: image)
                     .resizable()
                     .aspectRatio(contentMode: .fit)
                     .clipShape(RoundedRectangle(cornerRadius: 4))

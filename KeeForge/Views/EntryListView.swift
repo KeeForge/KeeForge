@@ -62,6 +62,7 @@ struct EntryListView: View {
                 .accessibilityIdentifier("search.entry.navlink")
             }
         }
+        .macHoverHighlight()
         .contextMenu {
             if viewModel.isReadOnly == false {
                 Button(deletionTitle(for: entry), role: .destructive) {

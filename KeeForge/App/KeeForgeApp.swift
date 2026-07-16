@@ -1,6 +1,10 @@
 import AuthenticationServices
 import SwiftUI
+#if os(iOS)
 import UIKit
+#else
+import AppKit
+#endif
 
 @main
 struct KeeForgeApp: App {
@@ -8,15 +12,33 @@ struct KeeForgeApp: App {
     @State private var activeDatabaseViewModel: DatabaseViewModel?
     @State private var pendingUploadDrainer = PendingUploadDrainer()
     @State private var screenProtectionService = ScreenProtectionService()
+    #if os(macOS)
+    @State private var macLockMonitor = MacLockMonitor()
+    #endif
     @AppStorage(SettingsService.appearanceModeDefaultsKey) private var appearanceModeRaw = SettingsService.AppearanceMode.system.rawValue
     @Environment(\.scenePhase) private var scenePhase
 
     var body: some Scene {
-        WindowGroup {
+        mainWindow
+
+        #if os(macOS)
+        Settings {
+            SettingsView(viewModel: activeDatabaseViewModel)
+                .preferredColorScheme(appearanceMode.preferredColorScheme)
+        }
+        #endif
+    }
+
+    private var mainWindow: some Scene {
+        let windowGroup = WindowGroup {
             AppRootView(
                 listViewModel: listViewModel,
                 activeDatabaseViewModel: $activeDatabaseViewModel
             )
+            #if os(macOS)
+            .frame(minWidth: 900, minHeight: 560)
+            .focusedSceneValue(\.databaseViewModel, activeDatabaseViewModel)
+            #endif
             .preferredColorScheme(appearanceMode.preferredColorScheme)
             .onChange(of: scenePhase) { _, newPhase in
                 switch newPhase {
@@ -32,7 +54,13 @@ struct KeeForgeApp: App {
                     break
                 case .background:
                     screenProtectionService.showShield()
+                    // macOS: the scene phase moves to .background on window
+                    // minimize / app hide, which must not lock under the
+                    // default policy. MacLockMonitor is the sole lock driver
+                    // on the Mac; see startMacLockMonitoringIfNeeded().
+                    #if os(iOS)
                     activeDatabaseViewModel?.handleSceneDidEnterBackground()
+                    #endif
                 @unknown default:
                     screenProtectionService.showShield()
                 }
@@ -43,8 +71,44 @@ struct KeeForgeApp: App {
                         await listViewModel.drainPendingUploadsOnAppActive()
                     }
                 }
+                startMacLockMonitoringIfNeeded()
             }
         }
+
+        #if os(macOS)
+        return windowGroup
+            .defaultSize(width: 1080, height: 700)
+            .commands {
+                KeeForgeCommands(
+                    listViewModel: listViewModel,
+                    activeDatabaseViewModel: $activeDatabaseViewModel
+                )
+            }
+        #else
+        return windowGroup
+        #endif
+    }
+
+    private func startMacLockMonitoringIfNeeded() {
+        #if os(macOS)
+        // Bindings read live @State storage, so these closures always see the
+        // currently active database session.
+        let activeViewModel = $activeDatabaseViewModel
+        let listViewModel = self.listViewModel
+
+        macLockMonitor.onLockTriggered = { _ in
+            activeViewModel.wrappedValue?.handleSceneDidEnterBackground()
+        }
+        macLockMonitor.onDidBecomeActive = {
+            activeViewModel.wrappedValue?.didManuallyLock = false
+            activeViewModel.wrappedValue?.handleSceneDidBecomeActive()
+            activeViewModel.wrappedValue?.refreshSharedDatabaseCacheIfPossible()
+            Task {
+                await listViewModel.drainPendingUploadsOnAppActive()
+            }
+        }
+        macLockMonitor.start()
+        #endif
     }
 
     private var appearanceMode: SettingsService.AppearanceMode {
@@ -68,7 +132,11 @@ private extension SettingsService.AppearanceMode {
 private struct AppRootView: View {
     @Bindable var listViewModel: DatabaseListViewModel
     @Binding var activeDatabaseViewModel: DatabaseViewModel?
+    #if os(iOS)
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    #else
+    @Environment(\.requestReview) private var requestReview
+    #endif
     @State private var didResolveInitialRoute = false
 
     var body: some View {
@@ -80,6 +148,12 @@ private struct AppRootView: View {
             }
         }
         .task {
+            #if os(macOS)
+            // macOS has no scene-based StoreKit review entry point; inject the
+            // SwiftUI RequestReviewAction so ReviewPromptService can present the
+            // modern prompt without a view dependency.
+            ReviewPromptService.requestReviewHandler = { requestReview() }
+            #endif
             await resolveInitialRouteIfNeeded()
         }
         .onOpenURL { url in
@@ -116,6 +190,11 @@ private struct AppRootView: View {
                     }
                 }
                 .navigationSplitViewStyle(.balanced)
+                #if os(macOS)
+                // Window title stays "KeeForge" until a database is unlocked;
+                // the unlocked workspace sets the title to the database name.
+                .navigationTitle("KeeForge")
+                #endif
             }
         } else {
             if let activeDatabaseViewModel {
@@ -137,7 +216,13 @@ private struct AppRootView: View {
     }
 
     private var usesRegularLayout: Bool {
+        // `\.horizontalSizeClass` does not exist on macOS; the Mac app always
+        // uses the regular (split-view) layout.
+        #if os(iOS)
         horizontalSizeClass == .regular
+        #else
+        true
+        #endif
     }
 
     private func resolveInitialRouteIfNeeded() async {
@@ -544,11 +629,18 @@ struct DatabaseNavigationView: View {
 
     @MainActor
     private func presentationAnchor() -> ASPresentationAnchor {
+        #if os(iOS)
         let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
         if let window = scenes.flatMap(\.windows).first(where: \.isKeyWindow) {
             return window
         }
         return ASPresentationAnchor()
+        #else
+        if let window = NSApplication.shared.keyWindow ?? NSApplication.shared.windows.first {
+            return window
+        }
+        return ASPresentationAnchor()
+        #endif
     }
 }
 

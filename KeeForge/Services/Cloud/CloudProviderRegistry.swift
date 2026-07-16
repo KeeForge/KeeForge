@@ -1,8 +1,12 @@
 import Foundation
 
 enum CloudProviderRegistry {
+    /// Providers offered in the UI, filtered by the per-platform availability
+    /// gate. `provider(for:)` below is intentionally NOT filtered so that
+    /// already-connected databases keep resolving their provider and stay
+    /// openable even when the provider is hidden from the add/import UI.
     static var availableProviders: [CloudProviderKind] {
-        [.dropbox, .oneDrive, .webDAV]
+        [.dropbox, .oneDrive, .webDAV].filter(\.isAvailableOnCurrentPlatform)
     }
 
     static func provider(for id: String) -> CloudProvider? {

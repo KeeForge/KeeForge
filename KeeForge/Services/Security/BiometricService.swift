@@ -44,4 +44,38 @@ enum BiometricService {
             throw error
         }
     }
+
+    // MARK: - Device-Owner Authentication (biometrics OR passcode/login password)
+
+    /// Whether the system can authenticate the device owner by any means:
+    /// Face ID / Touch ID, the device passcode, the macOS login password, or
+    /// Apple Watch approval.
+    ///
+    /// Reveal/copy gating must use this instead of `isAvailable`: on Macs
+    /// without Touch ID (and iOS devices without enrolled biometrics),
+    /// `.deviceOwnerAuthentication` still prompts for the login password or
+    /// passcode instead of silently skipping authentication.
+    static var canAuthenticateDeviceOwner: Bool {
+        var error: NSError?
+        return LAContext().canEvaluatePolicy(.deviceOwnerAuthentication, error: &error)
+    }
+
+    /// Authenticate with `.deviceOwnerAuthentication`, which allows biometrics
+    /// when available and falls back to the passcode / login password / Apple
+    /// Watch otherwise.
+    static func authenticateDeviceOwner(reason: String) async throws -> LAContext {
+        let context = LAContext()
+        await MainActor.run { isBiometricAuthInProgress = true }
+        do {
+            try await context.evaluatePolicy(
+                .deviceOwnerAuthentication,
+                localizedReason: reason
+            )
+            await MainActor.run { isBiometricAuthInProgress = false }
+            return context
+        } catch {
+            await MainActor.run { isBiometricAuthInProgress = false }
+            throw error
+        }
+    }
 }

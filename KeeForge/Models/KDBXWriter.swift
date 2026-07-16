@@ -1,4 +1,3 @@
-import CommonCrypto
 import CryptoKit
 import Foundation
 
@@ -25,6 +24,7 @@ enum KDBXWriter {
     enum WriteError: Error, LocalizedError {
         case unsupportedSourceFormat(KDBXParser.FileVersion)
         case unsupportedInnerRandomStream(UInt32)
+        case unsupportedCompression(UInt32)
         case unsupportedVariantMapValue(String)
 
         var errorDescription: String? {
@@ -33,6 +33,8 @@ enum KDBXWriter {
                 "Saving legacy KDBX 3.1 databases is not supported yet."
             case .unsupportedInnerRandomStream(let streamID):
                 "Unsupported inner random stream: \(streamID)"
+            case .unsupportedCompression(let compressionFlags):
+                "Unsupported compression mode: \(compressionFlags)"
             case .unsupportedVariantMapValue(let key):
                 "Unsupported variant map value for key: \(key)"
             }
@@ -105,9 +107,17 @@ enum KDBXWriter {
         payload.append(xmlData)
 
         // KeePassXC writes KDBX4 payloads with gzip enabled by default.
-        let compressedPayload = try KDBXCrypto.gzip(payload)
+        let payloadToEncrypt: Data
+        switch header.compressionFlags {
+        case 0:
+            payloadToEncrypt = payload
+        case 1:
+            payloadToEncrypt = try KDBXCrypto.gzip(payload)
+        default:
+            throw WriteError.unsupportedCompression(header.compressionFlags)
+        }
         let encryptedPayload = try encryptPayload(
-            compressedPayload,
+            payloadToEncrypt,
             cipherID: header.cipherID,
             masterKey: keys.masterKey,
             encryptionIV: header.encryptionIV
@@ -153,8 +163,6 @@ enum KDBXWriter {
             )
         }
 
-        header.compressionFlags = 1
-
         if header.masterSeed.isEmpty {
             header.masterSeed = try randomData(count: masterSeedLength)
         }
@@ -173,6 +181,10 @@ enum KDBXWriter {
 
         if header.innerStreamKey.isEmpty {
             header.innerStreamKey = try randomData(count: innerStreamKeyLength)
+        }
+
+        guard header.compressionFlags == 0 || header.compressionFlags == 1 else {
+            throw WriteError.unsupportedCompression(header.compressionFlags)
         }
 
         return header
@@ -211,7 +223,7 @@ enum KDBXWriter {
         appendHeaderField(&outerHeader, field: .cipherID, value: header.cipherID)
 
         var compressionFlags = Data()
-        compressionFlags.appendLE(UInt32(1))
+        compressionFlags.appendLE(header.compressionFlags)
         appendHeaderField(&outerHeader, field: .compressionFlags, value: compressionFlags)
 
         appendHeaderField(&outerHeader, field: .masterSeed, value: header.masterSeed)
@@ -247,23 +259,8 @@ enum KDBXWriter {
         masterKey: Data,
         encryptionIV: Data
     ) throws -> Data {
-        if cipherID == KDBXParser.aesCipherUUID {
-            return try KDBXCrypto.encryptAES256CBC(
-                data: data,
-                key: masterKey,
-                iv: encryptionIV
-            )
-        }
-
-        if cipherID == KDBXParser.chachaCipherUUID {
-            return try KDBXCrypto.encryptChaCha20(
-                data: data,
-                key: masterKey,
-                nonce: encryptionIV
-            )
-        }
-
-        throw KDBXCrypto.CryptoError.unsupportedCipher(cipherID.hexString)
+        let cipher = try KDBXOuterCipher.require(uuid: cipherID)
+        return try cipher.encrypt(data: data, key: masterKey, iv: encryptionIV)
     }
 
     private static func frameIntoHMACBlocks(_ data: Data, baseKey: Data) -> Data {
@@ -383,15 +380,7 @@ enum KDBXWriter {
     }
 
     private static func encryptionIVLength(for cipherID: Data) throws -> Int {
-        if cipherID == KDBXParser.aesCipherUUID {
-            return kCCBlockSizeAES128
-        }
-
-        if cipherID == KDBXParser.chachaCipherUUID {
-            return 12
-        }
-
-        throw KDBXCrypto.CryptoError.unsupportedCipher(cipherID.hexString)
+        try KDBXOuterCipher.require(uuid: cipherID).encryptionIVLength
     }
 
     private static func randomData(count: Int) throws -> Data {

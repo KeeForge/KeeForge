@@ -4,7 +4,36 @@ import XCTest
 @MainActor
 final class CloudProviderRegistryTests: XCTestCase {
     func testAvailableProvidersContainsCloudProviders() {
+        #if os(macOS)
+        // TODO(macos-port): re-enable Dropbox/OneDrive once the macOS cloud
+        // OAuth paths are validated end-to-end. They are hidden from the UI for
+        // now; WebDAV stays available.
+        XCTAssertEqual(CloudProviderRegistry.availableProviders, [.webDAV])
+        #else
         XCTAssertEqual(CloudProviderRegistry.availableProviders, [.dropbox, .oneDrive, .webDAV])
+        #endif
+    }
+
+    func testCloudProviderPlatformAvailability() {
+        #if os(macOS)
+        XCTAssertFalse(CloudProviderKind.dropbox.isAvailableOnCurrentPlatform)
+        XCTAssertFalse(CloudProviderKind.oneDrive.isAvailableOnCurrentPlatform)
+        XCTAssertTrue(CloudProviderKind.webDAV.isAvailableOnCurrentPlatform)
+        #else
+        XCTAssertTrue(CloudProviderKind.dropbox.isAvailableOnCurrentPlatform)
+        XCTAssertTrue(CloudProviderKind.oneDrive.isAvailableOnCurrentPlatform)
+        XCTAssertTrue(CloudProviderKind.webDAV.isAvailableOnCurrentPlatform)
+        #endif
+    }
+
+    func testProviderResolutionStaysUnfilteredForHiddenProviders() {
+        // The UI gate must not affect provider(for:) resolution: an
+        // already-connected Dropbox/OneDrive database must still resolve its
+        // provider (and therefore stay openable) even on platforms where the
+        // provider is hidden from the add/import UI.
+        XCTAssertNotNil(CloudProviderRegistry.provider(for: CloudProviderKind.dropbox.rawValue))
+        XCTAssertNotNil(CloudProviderRegistry.provider(for: CloudProviderKind.oneDrive.rawValue))
+        XCTAssertNotNil(CloudProviderRegistry.provider(for: CloudProviderKind.webDAV.rawValue))
     }
 
     func testProviderReturnsDropboxSharedInstance() {
@@ -35,10 +64,16 @@ final class CloudProviderRegistryTests: XCTestCase {
         XCTAssertFalse(CloudProviderRegistry.handleOpenURL(url))
     }
 
+    // #if os(iOS): `LSApplicationQueriesSchemes` is the iOS-only `canOpenURL`
+    // allowlist required by the MSAL broker (Microsoft Authenticator). It is
+    // meaningless on macOS, where the Mac Info.plist intentionally omits it;
+    // the macOS MSAL auth flow lands in slice 03 of the macOS port.
+    #if os(iOS)
     func testAppInfoPlistIncludesMSALBrokerQuerySchemes() throws {
         let schemes = try XCTUnwrap(Bundle.main.object(forInfoDictionaryKey: "LSApplicationQueriesSchemes") as? [String])
 
         XCTAssertTrue(schemes.contains("msauthv2"))
         XCTAssertTrue(schemes.contains("msauthv3"))
     }
+    #endif
 }

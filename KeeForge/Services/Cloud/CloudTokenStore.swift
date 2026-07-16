@@ -48,6 +48,9 @@ enum CloudTokenStore {
         var query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: "com.keevault.cloud-token.\(provider)",
+            // Required on macOS to use the iOS-style data-protection keychain
+            // instead of the legacy file keychain; harmless no-op on iOS.
+            kSecUseDataProtectionKeychain as String: true,
         ]
 
         if let accountId {

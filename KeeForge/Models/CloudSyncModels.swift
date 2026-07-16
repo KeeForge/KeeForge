@@ -39,6 +39,30 @@ enum CloudProviderKind: String, Codable, CaseIterable, Hashable, Identifiable, S
             false
         }
     }
+
+    /// Whether this provider should be offered in the app's UI on the current
+    /// platform. This is the single choke point that gates which cloud
+    /// providers appear in the Add/Import Database menus and the New Database
+    /// destination picker. It does not touch `provider(for:)` resolution, so
+    /// already-connected databases continue to open and sync.
+    ///
+    /// TODO(macos-port): re-enable after cloud OAuth is validated on macOS.
+    /// The Dropbox and OneDrive macOS OAuth paths (slice 03) are implemented
+    /// and unit-tested but not yet validated end-to-end on a Mac, so they are
+    /// temporarily hidden from the macOS UI. WebDAV stays available on every
+    /// platform. iOS is unaffected (all providers remain visible).
+    var isAvailableOnCurrentPlatform: Bool {
+        #if os(macOS)
+        switch self {
+        case .webDAV:
+            return true
+        case .dropbox, .oneDrive:
+            return false
+        }
+        #else
+        return true
+        #endif
+    }
 }
 
 struct CloudAccount: Identifiable, Codable, Hashable, Sendable {

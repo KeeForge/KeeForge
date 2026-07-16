@@ -247,6 +247,104 @@ final class KDBXWriterTests: XCTestCase {
         try assertTreesEqual(parsed, reparsed)
     }
 
+    func test_writeWithTwofish256CBCCipher_roundTrip() throws {
+        let parsed = try parseFixture(.test)
+
+        let written = try KDBXWriter.write(
+            rootGroup: parsed.rootGroup,
+            meta: parsed.meta,
+            compositeKey: parsed.compositeKey,
+            freshHeader: KDBXWriter.FreshHeaderConfiguration(
+                cipherID: KDBXParser.twofishCipherUUID,
+                kdfParameters: parsed.header.kdfParameters,
+                innerHeaderBinaryFields: parsed.header.innerHeaderBinaryFields
+            ),
+            sessionKey: sessionKey
+        )
+
+        let fileComponents = try readWrittenFileComponents(written, compositeKey: parsed.compositeKey)
+        XCTAssertEqual(fileComponents.header.cipherID, KDBXParser.twofishCipherUUID)
+        XCTAssertEqual(fileComponents.header.encryptionIV.count, 16)
+
+        let encryptedPayload = try readEncryptedPayload(
+            from: written,
+            payloadOffset: fileComponents.payloadOffset,
+            hmacBaseKey: fileComponents.hmacBaseKey
+        )
+        XCTAssertFalse(encryptedPayload.isEmpty)
+        XCTAssertEqual(encryptedPayload.count % 16, 0)
+
+        let decryptedPayload = try decryptPayload(
+            encryptedPayload,
+            header: fileComponents.header,
+            compositeKey: parsed.compositeKey
+        )
+        _ = try parseInnerPayload(decryptedPayload, header: fileComponents.header)
+
+        let reparsed = try parseWrittenFile(written, fixture: .test)
+        try assertTreesEqual(parsed, reparsed)
+    }
+
+    func test_writeWithTwofishReportedArgon2dProfile_roundTrip() throws {
+        let parsed = try parseFixture(.test)
+        let reportedKDFParameters: [String: Any] = [
+            "$UUID": KDBXParser.argon2dUUID,
+            "I": UInt64(3),
+            "M": UInt64(16 * 1024 * 1024),
+            "P": UInt32(4),
+            "V": UInt32(0x13),
+            "S": Data((0..<32).map(UInt8.init)),
+        ]
+
+        let written = try KDBXWriter.write(
+            rootGroup: parsed.rootGroup,
+            meta: parsed.meta,
+            compositeKey: parsed.compositeKey,
+            freshHeader: KDBXWriter.FreshHeaderConfiguration(
+                cipherID: KDBXParser.twofishCipherUUID,
+                kdfParameters: reportedKDFParameters,
+                innerHeaderBinaryFields: parsed.header.innerHeaderBinaryFields
+            ),
+            sessionKey: sessionKey
+        )
+
+        let reparsed = try KDBXParser.parseWithMetaAndHeader(
+            data: written,
+            compositeKey: parsed.compositeKey,
+            sessionKey: sessionKey
+        )
+        XCTAssertEqual(reparsed.header.cipherID, KDBXParser.twofishCipherUUID)
+        XCTAssertEqual(reparsed.header.kdfParameters["$UUID"] as? Data, KDBXParser.argon2dUUID)
+        XCTAssertEqual(reparsed.header.kdfParameters["I"] as? UInt64, 3)
+        XCTAssertEqual(reparsed.header.kdfParameters["M"] as? UInt64, 16 * 1024 * 1024)
+        XCTAssertEqual(reparsed.header.kdfParameters["P"] as? UInt32, 4)
+        try assertTreesEqual(parsed, (rootGroup: reparsed.rootGroup, meta: reparsed.meta))
+    }
+
+    func test_writeReusedTwofishHeader_preservesNoCompression() throws {
+        let parsed = try parseFixture(.test)
+        var twofishHeader = parsed.header
+        twofishHeader.cipherID = KDBXParser.twofishCipherUUID
+        twofishHeader.compressionFlags = 0
+
+        let written = try KDBXWriter.write(
+            rootGroup: parsed.rootGroup,
+            meta: parsed.meta,
+            compositeKey: parsed.compositeKey,
+            header: twofishHeader,
+            sessionKey: sessionKey
+        )
+
+        let reparsed = try KDBXParser.parseWithMetaAndHeader(
+            data: written,
+            compositeKey: parsed.compositeKey,
+            sessionKey: sessionKey
+        )
+        XCTAssertEqual(reparsed.header.cipherID, KDBXParser.twofishCipherUUID)
+        XCTAssertEqual(reparsed.header.compressionFlags, 0)
+        try assertTreesEqual(parsed, (rootGroup: reparsed.rootGroup, meta: reparsed.meta))
+    }
+
     func test_writeWithArgon2idKDF_roundTrip() throws {
         let parsed = try parseFixture(.test)
         var argon2idHeader = parsed.header
@@ -558,23 +656,12 @@ final class KDBXWriterTests: XCTestCase {
         let hmacBaseKey = KDBXCrypto.sha512(hmacPreKey)
 
         let encryptedPayload = try KDBXParser.readHMACBlocks(reader: &reader, baseKey: hmacBaseKey)
-        let decryptedPayload: Data
-
-        if header.cipherID == KDBXParser.aesCipherUUID {
-            decryptedPayload = try KDBXCrypto.decryptAES256CBC(
-                data: encryptedPayload,
-                key: masterKey,
-                iv: header.encryptionIV
-            )
-        } else if header.cipherID == KDBXParser.chachaCipherUUID {
-            decryptedPayload = try KDBXCrypto.decryptChaCha20(
-                data: encryptedPayload,
-                key: masterKey,
-                nonce: header.encryptionIV
-            )
-        } else {
-            throw KDBXCrypto.CryptoError.unsupportedCipher(header.cipherID.hexString)
-        }
+        let cipher = try KDBXOuterCipher.require(uuid: header.cipherID)
+        let decryptedPayload = try cipher.decrypt(
+            data: encryptedPayload,
+            key: masterKey,
+            iv: header.encryptionIV
+        )
 
         let payload = header.compressionFlags == 1 ? try KDBXCrypto.gunzip(decryptedPayload) : decryptedPayload
         var innerReader = DataReader(data: payload)
@@ -604,23 +691,8 @@ final class KDBXWriterTests: XCTestCase {
         masterPreKey.append(transformedKey)
         let masterKey = KDBXCrypto.sha256(masterPreKey)
 
-        if header.cipherID == KDBXParser.aesCipherUUID {
-            return try KDBXCrypto.decryptAES256CBC(
-                data: encryptedPayload,
-                key: masterKey,
-                iv: header.encryptionIV
-            )
-        }
-
-        if header.cipherID == KDBXParser.chachaCipherUUID {
-            return try KDBXCrypto.decryptChaCha20(
-                data: encryptedPayload,
-                key: masterKey,
-                nonce: header.encryptionIV
-            )
-        }
-
-        throw KDBXCrypto.CryptoError.unsupportedCipher(header.cipherID.hexString)
+        let cipher = try KDBXOuterCipher.require(uuid: header.cipherID)
+        return try cipher.decrypt(data: encryptedPayload, key: masterKey, iv: header.encryptionIV)
     }
 
     private func parseInnerPayload(

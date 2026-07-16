@@ -14,7 +14,7 @@
   <a href="https://apps.apple.com/us/app/keeforge/id6759309295">
     <img alt="Download on the App Store" src="https://img.shields.io/badge/App%20Store-Download-0D96F6?style=for-the-badge&logo=appstore&logoColor=white" />
   </a>
-  <img alt="Swift LoC" src="https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Ftokei.kojix2.net%2Fapi%2Fgithub%2Fcrazytan%2FKeeForge%2Flanguages&query=%24.data.languages.Swift.code&label=swift%20loc&color=orange&style=for-the-badge" />
+  <img alt="Swift LoC" src="https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Ftokei.kojix2.net%2Fapi%2Fgithub%2FKeeForge%2FKeeForge%2Flanguages&query=%24.data.languages.Swift.code&label=swift%20loc&color=orange&style=for-the-badge" />
   <a href="LICENSE">
     <img alt="License: GPLv3" src="https://img.shields.io/badge/license-GPLv3-blue?style=for-the-badge" />
   </a>
@@ -38,7 +38,7 @@ KeeForge is a native iOS KeePass client for people who want their vault to stay 
 | **Cloud sync** | Native Dropbox, OneDrive, and WebDAV browsing and read/write sync, cached shared copies for AutoFill, queued extension uploads, and conflict checks. |
 | **Attachments** | View KeePass entry attachments, preview supported files with QuickLook, and share them from short-lived protected temporary files. Attachment editing is not yet supported. |
 | **iPad ready** | Adaptive navigation uses a split-view vault workspace on wider layouts while keeping the compact iPhone flow focused and native. |
-| **Security-minded** | AES-GCM in-memory secret encryption, failed-unlock backoff, screen-capture protection, local-only clipboard, decompression bomb limits, and constant-time HMAC comparison. |
+| **Security-minded** | AES-GCM in-memory secret encryption, failed-unlock backoff, local-only clipboard, decompression bomb limits, and constant-time HMAC comparison. Screen-privacy differs by platform: iOS shields the app while it is being recorded (`UIScreen.isCaptured`); macOS blurs its windows whenever it loses focus and, by default, best-effort blocks screenshots/recordings (`NSWindow.sharingType`, which ScreenCaptureKit-based capture can bypass on macOS 15+). See [`docs/macos-security-notes.md`](docs/macos-security-notes.md). |
 
 ## Privacy
 
@@ -101,7 +101,7 @@ TestFixtures/         # Sample .kdbx databases and key files
 
 - App Store: [KeeForge on the App Store](https://apps.apple.com/us/app/keeforge/id6759309295)
 - Email: [support@keeforge.com](mailto:support@keeforge.com)
-- Issues: [GitHub Issues](https://github.com/crazytan/KeeForge/issues)
+- Issues: [GitHub Issues](https://github.com/KeeForge/KeeForge/issues)
 
 ## Contributing
 

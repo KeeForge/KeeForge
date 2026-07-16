@@ -2,15 +2,43 @@
 
 ## Unreleased
 
+- Update GitHub links (Report a Bug, Source Code, docs) to the new KeeForge org after the repository transfer.
+- Fix local HTTP WebDAV vaults getting stuck on the initial metadata check before KeeForge could download and cache them.
+- Password reveal and copy now always require device-owner authentication, even when biometrics are unavailable (hardening back-ported from the macOS work).
+- Internal: restructure the AutoFill extension for upcoming macOS support (no user-facing change).
+
+## macOS App (in development — ON HOLD, do not release until revisited)
+
+Not part of any iOS release. The `KeeForgeMac` targets build and test green but the Mac app must not ship until the items below are done and the UX has been personally approved.
+
+Done so far (2026-07-12 → 2026-07-15, spec: `docs/specs/2026-07-12-macos-port/`):
+- Native macOS build target: full KDBX core, local vaults, unit suite (701 tests) running natively; App Sandbox + Hardened Runtime, provisioning verified.
+- Menu bar commands, Settings window, automatic locking on screen lock/sleep/screensaver; Escape on the unlock screen returns to the database list.
+- System-wide AutoFill extension (passwords + passkeys) embedded and signed — see TODO on Settings visibility.
+- Screen-privacy protections (blur on focus loss, screen-capture blocking toggle), attachment Quick Look, review prompts, favicon cache kept out of the world-readable group container (`docs/macos-security-notes.md`).
+- Dropbox/OneDrive OAuth implemented but hidden in the UI; WebDAV fully available.
+- Native visual polish pass: three-column sidebar navigation, Mac toolbar, standard input fields, tightened density, window sizing.
+
+TODO before the first macOS release:
+- [ ] User verdict on the UX polish pass (daily-drive the app; after-screenshots reviewed).
+- [ ] AutoFill provider not appearing in System Settings → AutoFill & Passwords despite correct registration/entitlements. Next rungs: reboot, distribution-signed build (comes with slice 07), diff against a known-working provider.
+- [ ] Re-enable Dropbox/OneDrive UI after end-to-end validation on Mac (`TODO(macos-port)` in `CloudSyncModels.swift`); register/verify redirect URIs in the Dropbox and Azure consoles.
+- [ ] Slice 07 — distribution (`07-distribution.md`): App Store Connect Mac platform + universal purchase, TestFlight, Developer ID certificate + provisioning profile for `com.keevault.app.autofill` (xcodebuild cannot auto-create DevID profiles), notarization, Sparkle (EdDSA key, appcast hosting), MAS/Developer ID build-config seam, tip-jar vs Sponsors swap, release-skill/docs updates.
+- [ ] Manual QA: cloud sign-in end-to-end with relaunch token survival; AutoFill matrix (Safari/Chromium/native fill, webauthn.io passkeys, cancel-everywhere relock); reveal-auth prompt on a non-Touch-ID Mac; ⇧⌘4 capture-block behavior recorded on macOS 26.
+
+## v1.10.1 (2026-07-12)
+
+### New Features
+- Allow trusted local WebDAV servers to use unencrypted HTTP through an explicit Advanced connection toggle, while keeping HTTPS required by default and warning that credentials and database traffic will not be encrypted.
+- Open Twofish-encrypted KDBX 4 databases and legacy KDBX 3.1 databases, preserving Twofish when saving editable vaults.
+- Show a dismissible tip on the database list when KeeForge isn't enabled as an iOS AutoFill provider, with one-tap enablement on iOS 18 (deep link into iOS Settings on iOS 17), plus a matching provider status row and enable/open-settings button in Settings → AutoFill.
+
 ### Fixes
 - Preserve KeeOTP secrets with non-Base32 encodings when editing and saving entries, and reject malformed Base64 KeeOTP secrets.
 - Fixed the app freezing at launch or while opening a database when an offline SMB or other file-provider location does not respond.
 - Refresh a revealed entry password immediately after the password is edited.
 - Show red warning indicators in lists and a dedicated warning section in entry details when an enabled KeePass expiry time has passed, and show the enabled expiration timestamp in entry details.
 - Exclude expired credentials from proactive and automatic AutoFill while keeping them available for explicit selection in the interactive picker.
-
-### New Features
-- Allow trusted local WebDAV servers to use unencrypted HTTP through an explicit Advanced connection toggle, while keeping HTTPS required by default and warning that credentials and database traffic will not be encrypted.
 
 ## v1.10.0 (2026-07-05)
 

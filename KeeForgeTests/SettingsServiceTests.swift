@@ -1,5 +1,8 @@
 import XCTest
 @testable import KeeForge
+#if canImport(AppKit)
+import AppKit
+#endif
 
 final class SettingsServiceTests: XCTestCase {
     private let autoLockKey = "KeeForge.autoLockTimeout"
@@ -10,6 +13,8 @@ final class SettingsServiceTests: XCTestCase {
     private let quickAutoFillEnabledKey = "KeeForge.quickAutoFillEnabled"
     private let appearanceModeKey = "KeeForge.appearanceMode"
     private let hasTippedKey = "KeeForge.hasTipped"
+    private let macLockPolicyKey = "KeeForge.macLockPolicy"
+    private let blockScreenCaptureKey = "KeeForge.blockScreenCapture"
 
     private var sharedDefaults: UserDefaults {
         UserDefaults(suiteName: SharedVaultStore.appGroupID) ?? .standard
@@ -23,6 +28,8 @@ final class SettingsServiceTests: XCTestCase {
         UserDefaults.standard.removeObject(forKey: showDatabaseUsageStatsKey)
         UserDefaults.standard.removeObject(forKey: appearanceModeKey)
         UserDefaults.standard.removeObject(forKey: hasTippedKey)
+        UserDefaults.standard.removeObject(forKey: macLockPolicyKey)
+        UserDefaults.standard.removeObject(forKey: blockScreenCaptureKey)
         sharedDefaults.removeObject(forKey: autoUnlockWithFaceIDKey)
         sharedDefaults.removeObject(forKey: quickAutoFillEnabledKey)
         super.tearDown()
@@ -153,6 +160,25 @@ final class SettingsServiceTests: XCTestCase {
         XCTAssertEqual(SettingsService.appearanceMode, .system)
     }
 
+    // MARK: - macOS Lock Policy
+
+    func testMacLockPolicyDefaultsToScreenLockOrSleep() {
+        UserDefaults.standard.removeObject(forKey: macLockPolicyKey)
+        XCTAssertEqual(SettingsService.macLockPolicy, .screenLockOrSleep)
+    }
+
+    func testMacLockPolicyPersists() {
+        for value in SettingsService.MacLockPolicy.allCases {
+            SettingsService.macLockPolicy = value
+            XCTAssertEqual(SettingsService.macLockPolicy, value, "Failed for \(value.rawValue)")
+        }
+    }
+
+    func testMacLockPolicyFallsBackOnInvalidValue() {
+        UserDefaults.standard.set("bogus", forKey: macLockPolicyKey)
+        XCTAssertEqual(SettingsService.macLockPolicy, .screenLockOrSleep)
+    }
+
     // MARK: - Quick AutoFill
 
     func testQuickAutoFillEnabledDefaultsToTrue() {
@@ -175,5 +201,46 @@ final class SettingsServiceTests: XCTestCase {
         SettingsService.quickAutoFillEnabled = false
         XCTAssertFalse(sharedDefaults.bool(forKey: quickAutoFillEnabledKey))
     }
+
+    // MARK: - Block Screen Capture
+
+    func testBlockScreenCaptureDefaultsToOn() {
+        UserDefaults.standard.removeObject(forKey: blockScreenCaptureKey)
+        XCTAssertTrue(SettingsService.blockScreenCapture)
+    }
+
+    func testBlockScreenCapturePersists() {
+        SettingsService.blockScreenCapture = false
+        XCTAssertFalse(SettingsService.blockScreenCapture)
+
+        SettingsService.blockScreenCapture = true
+        XCTAssertTrue(SettingsService.blockScreenCapture)
+    }
+
+    func testBlockScreenCaptureUsesStandardDefaults() {
+        // App-local (per-device UI preference), not App Group-shared.
+        SettingsService.blockScreenCapture = false
+        XCTAssertNil(sharedDefaults.object(forKey: blockScreenCaptureKey))
+    }
+
+    // MARK: - Screen Protection Policy (macOS)
+
+    #if os(macOS)
+    func testWindowSharingTypeMapsToBlockCapture() {
+        XCTAssertEqual(ScreenProtectionService.windowSharingType(blockCapture: true), .none)
+        XCTAssertEqual(ScreenProtectionService.windowSharingType(blockCapture: false), .readOnly)
+    }
+
+    func testPrivacyCoverExcludesSettingsWindow() {
+        // The Settings window shows no secrets and must not get the blur cover.
+        XCTAssertFalse(ScreenProtectionService.shouldPrivacyCover(windowIdentifier: "com_apple_SwiftUI_Settings_window"))
+        XCTAssertFalse(ScreenProtectionService.shouldPrivacyCover(windowIdentifier: "SettingsWindow"))
+    }
+
+    func testPrivacyCoverAppliesToVaultAndUnknownWindows() {
+        XCTAssertTrue(ScreenProtectionService.shouldPrivacyCover(windowIdentifier: nil))
+        XCTAssertTrue(ScreenProtectionService.shouldPrivacyCover(windowIdentifier: "com_apple_SwiftUI_Window-1"))
+    }
+    #endif
 
 }

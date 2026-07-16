@@ -1,7 +1,11 @@
 import AuthenticationServices
 import Foundation
 @preconcurrency import MSAL
+#if os(iOS)
 import UIKit
+#elseif os(macOS)
+import AppKit
+#endif
 
 final class OneDriveCloudProvider: CloudProvider, @unchecked Sendable {
     static let shared = OneDriveCloudProvider()
@@ -39,7 +43,11 @@ final class OneDriveCloudProvider: CloudProvider, @unchecked Sendable {
     @MainActor
     func authenticate(from anchor: ASPresentationAnchor) async throws -> CloudAccount {
         let application = try application()
+        #if os(iOS)
         let webParameters = MSALWebviewParameters(authPresentationViewController: presentingController(from: anchor))
+        #else
+        let webParameters = Self.makeWebviewParameters(from: anchor)
+        #endif
         let parameters = MSALInteractiveTokenParameters(scopes: Self.scopes, webviewParameters: webParameters)
         parameters.promptType = .selectAccount
 
@@ -196,7 +204,16 @@ final class OneDriveCloudProvider: CloudProvider, @unchecked Sendable {
 
     @MainActor
     func handleRedirectURL(_ url: URL) -> Bool {
+        #if os(iOS)
         MSALPublicClientApplication.handleMSALResponse(url, sourceApplication: nil)
+        #else
+        // MSAL compiles `handleMSALResponse` only for TARGET_OS_IPHONE. On
+        // macOS interactive auth runs inside an ASWebAuthenticationSession /
+        // WKWebView that intercepts the msauth redirect internally, and there
+        // is no broker round-trip that re-enters the app, so there is nothing
+        // to forward here. Returning false lets other URL handlers run.
+        false
+        #endif
     }
 
     // MARK: - Authentication
@@ -288,6 +305,7 @@ final class OneDriveCloudProvider: CloudProvider, @unchecked Sendable {
         return result.accessToken
     }
 
+    #if os(iOS)
     @MainActor
     private func presentingController(from anchor: ASPresentationAnchor) -> UIViewController {
         topViewController(startingAt: anchor.rootViewController) ?? UIViewController()
@@ -311,6 +329,25 @@ final class OneDriveCloudProvider: CloudProvider, @unchecked Sendable {
 
         return current
     }
+    #endif
+
+    #if os(macOS)
+    /// Builds the MSAL web-view presentation configuration for macOS.
+    ///
+    /// `MSALWebviewParameters(authPresentationViewController:)` accepts an
+    /// `NSViewController` on macOS; it is derived from the anchor window's
+    /// `contentViewController`. There is no MSAL broker on macOS, so
+    /// interactive auth always uses the system web session presented from
+    /// this controller. Internal (not private) so unit tests can assert the
+    /// mac path produces a well-formed configuration.
+    @MainActor
+    static func makeWebviewParameters(from anchor: ASPresentationAnchor) -> MSALWebviewParameters {
+        let controller = anchor.contentViewController
+            ?? NSApplication.shared.keyWindow?.contentViewController
+            ?? NSViewController()
+        return MSALWebviewParameters(authPresentationViewController: controller)
+    }
+    #endif
 
     private func makeCloudAccount(from account: MSALAccount) -> CloudAccount {
         let accountID = account.identifier ?? account.username ?? UUID().uuidString

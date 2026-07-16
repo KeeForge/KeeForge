@@ -3,6 +3,7 @@ options:
   bundleIdPrefix: com.keevault
   deploymentTarget:
     iOS: "17.0"
+    macOS: "14.0"
   xcodeVersion: "16.0"
   minimumXcodeGenVersion: "2.38"
 configFiles:
@@ -16,6 +17,8 @@ settings:
     CODE_SIGN_STYLE: Automatic
     ENABLE_USER_SCRIPT_SANDBOXING: "YES"
 packages:
+  KeeForgeTwofish:
+    path: Vendor/KeeForgeTwofish
   Argon2Swift:
     url: https://github.com/tmthecoder/Argon2Swift.git
     revision: 53543623fefe68461b7eeea03d7f96677c2fd76d
@@ -39,7 +42,7 @@ targets:
         CODE_SIGN_ENTITLEMENTS: KeeForge/KeeForge.entitlements
         PRODUCT_NAME: KeeForge
         PRODUCT_MODULE_NAME: KeeForge
-        MARKETING_VERSION: "1.10.0"
+        MARKETING_VERSION: "1.10.1"
         CURRENT_PROJECT_VERSION: "1"
         CLOUD_KEYCHAIN_ACCESS_GROUP: $(AppIdentifierPrefix)com.keevault.sharedkeychain
         GENERATE_INFOPLIST_FILE: false
@@ -49,6 +52,59 @@ targets:
         embed: true
         codeSign: true
       - package: Argon2Swift
+      - package: KeeForgeTwofish
+      - package: SwiftyDropbox
+      - package: MSAL
+    sources:
+      # KeeForgeCommands.swift (menu bar) and MacLockMonitor.swift (lock
+      # lifecycle) are macOS-only: members of KeeForgeMac, excluded here.
+      - path: KeeForge/App
+        excludes: ["README.md", "KeeForgeCommands.swift"]
+      - path: KeeForge/Models
+        excludes: ["README.md"]
+      - path: KeeForge/Services
+        excludes: ["README.md", "**/README.md", "AppSupport/MacLockMonitor.swift"]
+      - path: KeeForge/ViewModels
+        excludes: ["README.md"]
+      - path: KeeForge/Views
+        excludes: ["README.md"]
+      - path: KeeForge/Extensions
+        excludes: ["README.md"]
+      - path: KeeForge/Resources
+        excludes: ["README.md"]
+      # Platform-neutral AutoFill coordinator is compiled into the app target
+      # too so KeeForgeTests (hosted by the app) can unit-test it.
+      - path: AutoFillExtension/CredentialProviderCoordinator.swift
+      - path: KeeForge.icon
+        buildPhase: resources
+
+  KeeForgeMac:
+    type: application
+    platform: macOS
+    settings:
+      base:
+        INFOPLIST_FILE: KeeForgeMac/Info.plist
+        PRODUCT_BUNDLE_IDENTIFIER: com.keevault.app
+        # Reuse the shared Icon Composer bundle (KeeForge.icon) so the Mac app
+        # has an archivable icon; lower-risk than bumping xcodeVersion since
+        # the installed Xcode (26.x) already compiles it for the iOS target.
+        ASSETCATALOG_COMPILER_APPICON_NAME: KeeForge
+        ENABLE_HARDENED_RUNTIME: "YES"
+        CODE_SIGN_STYLE: Automatic
+        CODE_SIGN_ENTITLEMENTS: KeeForgeMac/KeeForgeMac.entitlements
+        PRODUCT_NAME: KeeForgeMac
+        PRODUCT_MODULE_NAME: KeeForge
+        MARKETING_VERSION: "1.10.1"
+        CURRENT_PROJECT_VERSION: "1"
+        CLOUD_KEYCHAIN_ACCESS_GROUP: $(AppIdentifierPrefix)com.keevault.sharedkeychain
+        GENERATE_INFOPLIST_FILE: false
+        SWIFT_EMIT_LOC_STRINGS: "YES"
+    dependencies:
+      - target: KeeForgeMacAutoFill
+        embed: true
+        codeSign: true
+      - package: Argon2Swift
+      - package: KeeForgeTwofish
       - package: SwiftyDropbox
       - package: MSAL
     sources:
@@ -65,7 +121,17 @@ targets:
       - path: KeeForge/Extensions
         excludes: ["README.md"]
       - path: KeeForge/Resources
-        excludes: ["README.md"]
+        excludes: ["README.md", "LaunchScreen.storyboard"]
+      # Platform-neutral AutoFill coordinator is compiled into the Mac app target
+      # too so KeeForgeMacTests (hosted by the app) can unit-test it — mirrors the
+      # iOS KeeForge target. Its save/generate-password paths compile out on macOS.
+      - path: AutoFillExtension/CredentialProviderCoordinator.swift
+      # The macOS AutoFill shell (and the picker view it hosts) are compiled into
+      # the app target as well so KeeForgeMacTests can exercise the shell's
+      # cleanup routing (shell lifecycle tests). Both are `#if os(macOS)` / macOS-
+      # compatible; nothing in the app references them at runtime.
+      - path: AutoFillExtension/CredentialProviderViewControllerMac.swift
+      - path: AutoFillExtension/AutoFillSearchView.swift
       - path: KeeForge.icon
         buildPhase: resources
 
@@ -78,16 +144,24 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: com.keevault.app.autofill
         CODE_SIGN_STYLE: Automatic
         CODE_SIGN_ENTITLEMENTS: AutoFillExtension/AutoFillExtension.entitlements
-        MARKETING_VERSION: "1.10.0"
+        MARKETING_VERSION: "1.10.1"
         CURRENT_PROJECT_VERSION: "1"
         GENERATE_INFOPLIST_FILE: false
     dependencies:
       - package: Argon2Swift
+      - package: KeeForgeTwofish
     sources:
+      # Exclude the macOS-only Info.plist / entitlements so they are not bundled
+      # as stray resources in the iOS extension.
       - path: AutoFillExtension
-        excludes: ["README.md"]
+        excludes: ["README.md", "InfoMac.plist", "AutoFillExtensionMac.entitlements"]
       - path: KeeForge/Models
         excludes: ["README.md"]
+      # >>> SHARED AUTOFILL ALLOW-LIST (maintenance invariant) >>>
+      # These explicit service/view paths MUST stay literally identical — same
+      # paths, same order — to the KeeForgeMacAutoFill target below. The two
+      # AutoFill extensions share exactly this source set; divergence silently
+      # breaks one platform's extension. Edit both lists together.
       - path: KeeForge/Services/Security/BiometricService.swift
       - path: KeeForge/Services/Security/SecureRandom.swift
       - path: KeeForge/Services/Persistence/DocumentPickerService.swift
@@ -110,6 +184,62 @@ targets:
       - path: KeeForge/Views/PasswordInputRow.swift
       - path: KeeForge/Services/Persistence/SecurityScopedBookmarkManager.swift
       - path: KeeForge/Services/Persistence/SyncedFolderDetector.swift
+      - path: KeeForge/Extensions/PlatformCompat.swift
+      # <<< SHARED AUTOFILL ALLOW-LIST (maintenance invariant) <<<
+
+  KeeForgeMacAutoFill:
+    type: app-extension
+    platform: macOS
+    deploymentTarget: "14.0"
+    settings:
+      base:
+        INFOPLIST_FILE: AutoFillExtension/InfoMac.plist
+        PRODUCT_BUNDLE_IDENTIFIER: com.keevault.app.autofill
+        ENABLE_HARDENED_RUNTIME: "YES"
+        CODE_SIGN_STYLE: Automatic
+        CODE_SIGN_ENTITLEMENTS: AutoFillExtension/AutoFillExtensionMac.entitlements
+        MARKETING_VERSION: "1.10.1"
+        CURRENT_PROJECT_VERSION: "1"
+        GENERATE_INFOPLIST_FILE: false
+    dependencies:
+      - package: Argon2Swift
+      - package: KeeForgeTwofish
+    sources:
+      # Exclude the iOS-only Info.plist / entitlements so they are not bundled
+      # as stray resources in the macOS extension. The macOS presentation shell
+      # (CredentialProviderViewControllerMac.swift) lives beside the iOS shell in
+      # this folder, each gated by `#if os()`.
+      - path: AutoFillExtension
+        excludes: ["README.md", "Info.plist", "AutoFillExtension.entitlements"]
+      - path: KeeForge/Models
+        excludes: ["README.md"]
+      # >>> SHARED AUTOFILL ALLOW-LIST (maintenance invariant) >>>
+      # MUST stay literally identical — same paths, same order — to the
+      # KeeForgeAutoFill target above. See the note there. Edit both together.
+      - path: KeeForge/Services/Security/BiometricService.swift
+      - path: KeeForge/Services/Security/SecureRandom.swift
+      - path: KeeForge/Services/Persistence/DocumentPickerService.swift
+      - path: KeeForge/Services/AutoFill/AutoFillSaveCoordinator.swift
+      - path: KeeForge/Services/Persistence/DatabaseListStore.swift
+      - path: KeeForge/Services/Security/KeychainService.swift
+      - path: KeeForge/Services/AppSupport/SettingsService.swift
+      - path: KeeForge/Services/Persistence/SharedVaultStore.swift
+      - path: KeeForge/Services/AutoFill/CredentialMatcher.swift
+      - path: KeeForge/Services/AutoFill/CredentialIdentityStoreManager.swift
+      - path: KeeForge/Services/AppSupport/FaviconService.swift
+      - path: KeeForge/Services/Persistence/CoordinatedFileReader.swift
+      - path: KeeForge/Services/Persistence/KeyFileProcessor.swift
+      - path: KeeForge/Services/Persistence/LocalDatabaseSaver.swift
+      - path: KeeForge/Services/Security/PasskeyCrypto.swift
+      - path: KeeForge/Services/Cloud/PendingUploadQueue.swift
+      - path: KeeForge/Services/AutoFill/PasswordGenerator.swift
+      - path: KeeForge/Services/AutoFill/PasswordStrengthEstimator.swift
+      - path: KeeForge/Views/PasswordDisplay.swift
+      - path: KeeForge/Views/PasswordInputRow.swift
+      - path: KeeForge/Services/Persistence/SecurityScopedBookmarkManager.swift
+      - path: KeeForge/Services/Persistence/SyncedFolderDetector.swift
+      - path: KeeForge/Extensions/PlatformCompat.swift
+      # <<< SHARED AUTOFILL ALLOW-LIST (maintenance invariant) <<<
 
   KeeForgeUITests:
     type: bundle.ui-testing
@@ -146,6 +276,84 @@ targets:
         TEST_HOST: "$(BUILT_PRODUCTS_DIR)/KeeForge.app/KeeForge"
     dependencies:
       - target: KeeForge
+      - package: KeeForgeTwofish
+    sources:
+      - path: KeeForgeTests
+        excludes: ["README.md"]
+      - path: TestFixtures/test.kdbx
+        buildPhase: resources
+      - path: TestFixtures/demo.kdbx
+        buildPhase: resources
+      - path: TestFixtures/demo-keyfile.kdbx
+        buildPhase: resources
+      - path: TestFixtures/round-trip/unknown-elements.kdbx
+        buildPhase: resources
+      - path: TestFixtures/compatibility/aes-baseline.kdbx
+        buildPhase: resources
+      - path: TestFixtures/compatibility/password-keyfile.kdbx
+        buildPhase: resources
+      - path: TestFixtures/compatibility/password-keyfile.key
+        buildPhase: resources
+      - path: TestFixtures/compatibility/unknown-rich.kdbx
+        buildPhase: resources
+      - path: TestFixtures/compatibility/kdbx41-public-custom-data.kdbx
+        buildPhase: resources
+      - path: TestFixtures/compatibility/legacy-kdbx31.kdbx
+        buildPhase: resources
+      - path: TestFixtures/compatibility/attachments.kdbx
+        buildPhase: resources
+      - path: TestFixtures/test-v3-backup.kdbx
+        buildPhase: resources
+      - path: TestFixtures/demo-keyfile.key
+        buildPhase: resources
+      - path: TestFixtures/test-binary.key
+        buildPhase: resources
+      - path: TestFixtures/test-hex.key
+        buildPhase: resources
+      - path: TestFixtures/test-v1.key
+        buildPhase: resources
+      - path: TestFixtures/test-v2.keyx
+        buildPhase: resources
+      - path: TestFixtures/test-arbitrary.key
+        buildPhase: resources
+
+  KeeForgeMacUITests:
+    type: bundle.ui-testing
+    platform: macOS
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.keevault.app.uitests
+        GENERATE_INFOPLIST_FILE: true
+        TEST_TARGET_NAME: KeeForgeMac
+    dependencies:
+      - target: KeeForgeMac
+    sources:
+      - path: KeeForgeMacUITests
+        excludes: ["README.md"]
+      - path: TestFixtures/test.kdbx
+        buildPhase: resources
+      - path: TestFixtures/demo.kdbx
+        buildPhase: resources
+      - path: TestFixtures/demo-keyfile.kdbx
+        buildPhase: resources
+      - path: TestFixtures/demo-keyfile.key
+        buildPhase: resources
+      - path: TestFixtures/compatibility/attachments.kdbx
+        buildPhase: resources
+
+  KeeForgeMacTests:
+    type: bundle.unit-test
+    platform: macOS
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.keevault.app.tests
+        GENERATE_INFOPLIST_FILE: true
+        TEST_TARGET_NAME: KeeForgeMac
+        TEST_HOST: "$(BUILT_PRODUCTS_DIR)/KeeForgeMac.app/Contents/MacOS/KeeForgeMac"
+        BUNDLE_LOADER: "$(TEST_HOST)"
+    dependencies:
+      - target: KeeForgeMac
+      - package: KeeForgeTwofish
     sources:
       - path: KeeForgeTests
         excludes: ["README.md"]
@@ -206,5 +414,27 @@ schemes:
           parallelizable: false
           randomExecutionOrder: true
         - name: KeeForgeUITests
+          parallelizable: false
+          randomExecutionOrder: false
+
+  KeeForgeMac:
+    build:
+      preActions:
+        - script: |
+            "${SRCROOT}/ci_scripts/prepare_build_config.sh" "${SRCROOT}"
+          settingsTarget: KeeForgeMac
+      targets:
+        KeeForgeMac: all
+        KeeForgeMacUITests: [test]
+    run:
+      config: Debug
+    test:
+      config: Debug
+      gatherCoverageData: false
+      targets:
+        - name: KeeForgeMacTests
+          parallelizable: false
+          randomExecutionOrder: true
+        - name: KeeForgeMacUITests
           parallelizable: false
           randomExecutionOrder: false

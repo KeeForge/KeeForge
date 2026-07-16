@@ -25,7 +25,7 @@ struct UnlockView: View {
             .padding(.horizontal, 22)
             .padding(.top, 24)
             .padding(.bottom, 20)
-            .frame(maxWidth: 520)
+            .frame(maxWidth: unlockContentMaxWidth)
             .frame(maxWidth: .infinity)
         }
         .background(UnlockViewBackground())
@@ -47,6 +47,13 @@ struct UnlockView: View {
         }
         .onAppear {
             loadUITestKeyFileIfNeeded()
+            #if os(macOS)
+            // Mac polish: put the keyboard focus straight into the password
+            // field so unlock is type-Return without a click. On macOS the
+            // password field is `MacUnlockPasswordField`, which focuses itself
+            // on appear; this is kept for the visible (plain TextField) branch.
+            passwordFocused = true
+            #endif
         }
         .task {
             await loadAssociatedKeyFileIfNeeded()
@@ -129,6 +136,30 @@ struct UnlockView: View {
                     .foregroundStyle(.secondary)
 
                 HStack(spacing: 12) {
+                    #if os(macOS)
+                    // A focused NSSecureTextField enables secure event input,
+                    // which routes keystrokes straight to its field editor and
+                    // bypasses every app-level key hook (NSEvent local monitors,
+                    // .keyboardShortcut, .onExitCommand, .onKeyPress). Owning the
+                    // field lets us catch Return/Escape at the field editor's
+                    // doCommandBySelector — the only layer that reliably sees
+                    // them here. See MacUnlockPasswordField.
+                    MacUnlockPasswordField(
+                        text: $password,
+                        isSecure: !isPasswordVisible,
+                        placeholder: "Enter password",
+                        accessibilityIdentifier: "unlock.password.field",
+                        focusOnAppear: true,
+                        onSubmit: unlockWithPassword,
+                        onEscape: {
+                            guard isUnlocking == false else { return }
+                            onBackToDatabaseList()
+                        }
+                    )
+                    .id(isPasswordVisible)
+                    .frame(maxWidth: .infinity)
+                    .frame(minHeight: 21)
+                    #else
                     Group {
                         if isPasswordVisible {
                             TextField("Enter password", text: $password)
@@ -141,6 +172,7 @@ struct UnlockView: View {
                     .submitLabel(.go)
                     .onSubmit(unlockWithPassword)
                     .accessibilityIdentifier("unlock.password.field")
+                    #endif
 
                     Button {
                         isPasswordVisible.toggle()
@@ -153,16 +185,7 @@ struct UnlockView: View {
                     .accessibilityLabel(isPasswordVisible ? "Hide master password" : "Show master password")
                     .accessibilityIdentifier("unlock.password-visibility-button")
                 }
-                .padding(.horizontal, 16)
-                .padding(.vertical, 15)
-                .background(
-                    RoundedRectangle(cornerRadius: 18, style: .continuous)
-                        .fill(Color(.secondarySystemBackground))
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 18, style: .continuous)
-                        .strokeBorder(Color.primary.opacity(0.08), lineWidth: 1)
-                )
+                .modifier(UnlockPasswordRowContainer())
             }
 
             keyFileRow
@@ -173,6 +196,7 @@ struct UnlockView: View {
                     .padding(.vertical, 4)
             }
             .buttonStyle(.borderedProminent)
+            .macControlSizeLarge()
             .disabled((password.isEmpty && keyFileData == nil) || isUnlocking)
             .accessibilityIdentifier("unlock.button")
 
@@ -325,16 +349,7 @@ struct UnlockView: View {
                 .font(.subheadline)
                 .accessibilityIdentifier("unlock.keyfile.select")
             }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 14)
-            .background(
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    .fill(Color(.secondarySystemBackground))
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    .strokeBorder(Color.primary.opacity(0.08), lineWidth: 1)
-            )
+            .modifier(UnlockInputContainer())
         }
         .accessibilityIdentifier("unlock.keyfile.row")
     }
@@ -350,6 +365,14 @@ struct UnlockView: View {
                     .buttonStyle(.borderedProminent)
             }
         }
+    }
+
+    private var unlockContentMaxWidth: CGFloat {
+        #if os(macOS)
+        460
+        #else
+        520
+        #endif
     }
 
     private var isUnlocking: Bool {
@@ -430,6 +453,79 @@ struct UnlockView: View {
         case .failure(let error):
             selectionAlert = DocumentPickerService.pickerFailureAlert(for: error)
         }
+    }
+}
+
+/// Password-row container. On macOS the `MacUnlockPasswordField` already draws
+/// its own bezel, so the row only needs layout (adding a second border would
+/// double up); iOS keeps the filled capsule around the plain `SecureField`.
+private struct UnlockPasswordRowContainer: ViewModifier {
+    func body(content: Content) -> some View {
+        #if os(macOS)
+        content
+        #else
+        content
+            .padding(.horizontal, 16)
+            .padding(.vertical, 15)
+            .background(
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .fill(Color(.secondarySystemBackground))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .strokeBorder(Color.primary.opacity(0.08), lineWidth: 1)
+            )
+        #endif
+    }
+}
+
+/// Field-row container for the unlock form.
+///
+/// iOS keeps the filled, rounded capsule (the platform's grouped-input look).
+/// On macOS that same `secondarySystemBackground` fill reads as a large,
+/// disabled control, so the container becomes a light bezel: the native
+/// `MacUnlockPasswordField` already draws its own field chrome, and the
+/// key-file row gets a subtle text-field background with a hairline border.
+private struct UnlockInputContainer: ViewModifier {
+    func body(content: Content) -> some View {
+        #if os(macOS)
+        content
+            .padding(.horizontal, 8)
+            .padding(.vertical, 6)
+            .background(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(Color(nsColor: .textBackgroundColor))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .strokeBorder(Color(nsColor: .separatorColor), lineWidth: 1)
+            )
+        #else
+        content
+            .padding(.horizontal, 16)
+            .padding(.vertical, 15)
+            .background(
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .fill(Color(.secondarySystemBackground))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .strokeBorder(Color.primary.opacity(0.08), lineWidth: 1)
+            )
+        #endif
+    }
+}
+
+extension View {
+    /// Uses the large control size on macOS (proper prominent-button height);
+    /// no-op on iOS where the default control size already reads well.
+    @ViewBuilder
+    func macControlSizeLarge() -> some View {
+        #if os(macOS)
+        controlSize(.large)
+        #else
+        self
+        #endif
     }
 }
 

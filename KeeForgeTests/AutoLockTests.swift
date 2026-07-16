@@ -1,11 +1,15 @@
 import XCTest
 @testable import KeeForge
+#if os(macOS)
+import AppKit
+#endif
 
 @MainActor
 final class AutoLockTests: XCTestCase {
     private let fixturePassword = "testpassword123"
     private var savedAutoLockTimeout: SettingsService.AutoLockTimeout!
     private var savedLockOnBackground: Bool!
+    private var savedMacLockPolicy: SettingsService.MacLockPolicy!
 
     override func setUp() async throws {
         try await super.setUp()
@@ -13,11 +17,13 @@ final class AutoLockTests: XCTestCase {
         SharedVaultStore.clearBookmark()
         savedAutoLockTimeout = SettingsService.autoLockTimeout
         savedLockOnBackground = SettingsService.lockOnBackground
+        savedMacLockPolicy = SettingsService.macLockPolicy
     }
 
     override func tearDown() async throws {
         SettingsService.autoLockTimeout = savedAutoLockTimeout
         SettingsService.lockOnBackground = savedLockOnBackground
+        SettingsService.macLockPolicy = savedMacLockPolicy
         DatabaseListStore.clearAll()
         SharedVaultStore.clearBookmark()
         try await super.tearDown()
@@ -221,6 +227,117 @@ final class AutoLockTests: XCTestCase {
             return
         }
     }
+
+    // MARK: - macOS trigger mapping (MacLockMonitor → lock paths)
+
+    #if os(macOS)
+    private struct MacTriggerHarness {
+        let appCenter = NotificationCenter()
+        let workspaceCenter = NotificationCenter()
+        let distributedCenter = NotificationCenter()
+        let monitor: MacLockMonitor
+
+        @MainActor
+        init(viewModel: DatabaseViewModel) {
+            monitor = MacLockMonitor(
+                notificationCenter: appCenter,
+                workspaceNotificationCenter: workspaceCenter,
+                distributedNotificationCenter: distributedCenter
+            )
+            monitor.onLockTriggered = { _ in
+                viewModel.handleSceneDidEnterBackground()
+            }
+            monitor.start()
+        }
+    }
+
+    private func assertLocked(
+        _ vm: DatabaseViewModel,
+        _ message: String,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        guard case .locked = vm.state else {
+            XCTFail(message, file: file, line: line)
+            return
+        }
+    }
+
+    func testMacScreenLockTriggerLocksUnlockedVault() async throws {
+        SettingsService.lockOnBackground = true
+        SettingsService.macLockPolicy = .screenLockOrSleep
+        let vm = try await makeUnlockedViewModel()
+        let harness = MacTriggerHarness(viewModel: vm)
+        defer { harness.monitor.stop() }
+
+        harness.distributedCenter.post(name: MacLockMonitor.screenIsLockedNotification, object: nil)
+
+        assertLocked(vm, "Expected .locked after the screen-lock trigger")
+    }
+
+    func testMacScreensaverTriggerLocksUnlockedVault() async throws {
+        SettingsService.lockOnBackground = true
+        SettingsService.macLockPolicy = .screenLockOrSleep
+        let vm = try await makeUnlockedViewModel()
+        let harness = MacTriggerHarness(viewModel: vm)
+        defer { harness.monitor.stop() }
+
+        harness.distributedCenter.post(name: MacLockMonitor.screensaverDidStartNotification, object: nil)
+
+        assertLocked(vm, "Expected .locked after the screensaver trigger")
+    }
+
+    func testMacSleepTriggerLocksUnlockedVault() async throws {
+        SettingsService.lockOnBackground = true
+        SettingsService.macLockPolicy = .screenLockOrSleep
+        let vm = try await makeUnlockedViewModel()
+        let harness = MacTriggerHarness(viewModel: vm)
+        defer { harness.monitor.stop() }
+
+        harness.workspaceCenter.post(name: NSWorkspace.willSleepNotification, object: nil)
+
+        assertLocked(vm, "Expected .locked after the system-sleep trigger")
+    }
+
+    func testMacSessionResignTriggerLocksUnlockedVault() async throws {
+        SettingsService.lockOnBackground = true
+        SettingsService.macLockPolicy = .screenLockOrSleep
+        let vm = try await makeUnlockedViewModel()
+        let harness = MacTriggerHarness(viewModel: vm)
+        defer { harness.monitor.stop() }
+
+        harness.workspaceCenter.post(name: NSWorkspace.sessionDidResignActiveNotification, object: nil)
+
+        assertLocked(vm, "Expected .locked after the session-resign trigger")
+    }
+
+    func testMacAppDeactivationDoesNotLockUnderDefaultPolicy() async throws {
+        SettingsService.lockOnBackground = true
+        SettingsService.macLockPolicy = .screenLockOrSleep
+        let vm = try await makeUnlockedViewModel()
+        let harness = MacTriggerHarness(viewModel: vm)
+        defer { harness.monitor.stop() }
+
+        harness.appCenter.post(name: NSApplication.didResignActiveNotification, object: nil)
+
+        guard case .unlocked = vm.state else {
+            XCTFail("App deactivation must not lock under the default macOS policy")
+            return
+        }
+    }
+
+    func testMacAppDeactivationLocksUnderStrictPolicy() async throws {
+        SettingsService.lockOnBackground = true
+        SettingsService.macLockPolicy = .appDeactivates
+        let vm = try await makeUnlockedViewModel()
+        let harness = MacTriggerHarness(viewModel: vm)
+        defer { harness.monitor.stop() }
+
+        harness.appCenter.post(name: NSApplication.didResignActiveNotification, object: nil)
+
+        assertLocked(vm, "Expected .locked after app deactivation under the strict policy")
+    }
+    #endif
 
     private func makeUnlockedViewModel() async throws -> DatabaseViewModel {
         let vm = try makeViewModel()

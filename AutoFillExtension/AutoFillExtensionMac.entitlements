@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>com.apple.developer.authentication-services.autofill-credential-provider</key>
+	<true/>
+	<key>com.apple.security.app-sandbox</key>
+	<true/>
+	<key>com.apple.security.application-groups</key>
+	<array>
+		<string>group.com.keevault.shared</string>
+	</array>
+	<!-- keychain-access-groups MUST stay in the SAME ORDER as the iOS
+	     AutoFillExtension.entitlements: items stored without an explicit
+	     kSecAttrAccessGroup land in the FIRST listed group, so reordering
+	     would strand the shared composite keys the extension reads. The mac
+	     extension mirrors the iOS extension exactly (single shared group);
+	     MSAL's keychain group is app-only and intentionally absent here. -->
+	<key>keychain-access-groups</key>
+	<array>
+		<string>$(AppIdentifierPrefix)com.keevault.sharedkeychain</string>
+	</array>
+</dict>
+</plist>

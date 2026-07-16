@@ -13,6 +13,8 @@ enum SettingsService {
         static let quickAutoFillEnabled = "KeeForge.quickAutoFillEnabled"
         static let appearanceMode = "KeeForge.appearanceMode"
         static let hasTipped = "KeeForge.hasTipped"
+        static let macLockPolicy = "KeeForge.macLockPolicy"
+        static let blockScreenCapture = "KeeForge.blockScreenCapture"
     }
 
     static let appearanceModeDefaultsKey = Key.appearanceMode
@@ -54,6 +56,49 @@ enum SettingsService {
             case .thirtySeconds: 30
             case .oneMinute: 60
             }
+        }
+    }
+
+    // MARK: - macOS Lock Policy
+    //
+    // Mapping from the iOS lock model to macOS:
+    //
+    // On iOS, `lockOnBackground == true` plus the `.immediately` auto-lock
+    // default means the vault locks whenever the app leaves the foreground.
+    // macOS has no equivalent single "backgrounded" moment — apps deactivate
+    // constantly during normal window switching — so the iOS default maps to
+    // locking on the deterministic "user walked away" system events instead:
+    // screen lock, screensaver start, system sleep, and fast-user-switch
+    // session resign (`MacLockMonitor` observes all of these). That is
+    // `MacLockPolicy.screenLockOrSleep`, the macOS default.
+    //
+    // The stricter `.appDeactivates` option additionally locks on
+    // `NSApplication.didResignActiveNotification`, i.e. every time KeeForge
+    // stops being the frontmost app.
+
+    enum MacLockPolicy: String, CaseIterable, Sendable {
+        case screenLockOrSleep = "screenLockOrSleep"
+        case appDeactivates = "appDeactivates"
+
+        var title: String {
+            switch self {
+            case .screenLockOrSleep:
+                return "When the Screen Locks or Sleeps"
+            case .appDeactivates:
+                return "When KeeForge Is Not the Active App"
+            }
+        }
+    }
+
+    static var macLockPolicy: MacLockPolicy {
+        get {
+            guard let raw = UserDefaults.standard.string(forKey: Key.macLockPolicy) else {
+                return .screenLockOrSleep
+            }
+            return MacLockPolicy(rawValue: raw) ?? .screenLockOrSleep
+        }
+        set {
+            UserDefaults.standard.set(newValue.rawValue, forKey: Key.macLockPolicy)
         }
     }
 
@@ -175,6 +220,27 @@ enum SettingsService {
         }
         set {
             UserDefaults.standard.set(newValue, forKey: Key.hasTipped)
+        }
+    }
+
+    // MARK: - Block Screen Capture (macOS)
+    //
+    // Best-effort request to exclude KeeForge's windows from screenshots and
+    // screen recordings via `NSWindow.sharingType`. Defaults on. macOS-only in
+    // the UI; the key exists cross-platform so the setting round-trips in shared
+    // tests, but iOS ignores it (iOS uses `UIScreen.isCaptured` shielding). App-
+    // local (standard defaults), not App Group-shared — it is a per-device UI
+    // preference, not extension state.
+
+    static var blockScreenCapture: Bool {
+        get {
+            if UserDefaults.standard.object(forKey: Key.blockScreenCapture) == nil {
+                return true
+            }
+            return UserDefaults.standard.bool(forKey: Key.blockScreenCapture)
+        }
+        set {
+            UserDefaults.standard.set(newValue, forKey: Key.blockScreenCapture)
         }
     }
 }

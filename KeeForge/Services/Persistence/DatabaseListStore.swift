@@ -324,7 +324,7 @@ enum DatabaseListStore {
         try CoordinatedFileReader.writeData(
             data,
             to: cacheURL(for: databaseID),
-            options: [.atomic, .completeFileProtection]
+            options: .atomicProtected
         )
     }
 
@@ -339,7 +339,7 @@ enum DatabaseListStore {
         try CoordinatedFileReader.writeData(
             data,
             to: url,
-            options: [.atomic, .completeFileProtection]
+            options: .atomicProtected
         )
     }
 
@@ -488,7 +488,7 @@ enum DatabaseListStore {
             try CoordinatedFileReader.writeData(
                 encoded,
                 to: databaseListURL,
-                options: [.atomic, .completeFileProtection]
+                options: .atomicProtected
             )
             sharedDefaults.set(currentMigrationVersion, forKey: migrationVersionKey)
         } catch {

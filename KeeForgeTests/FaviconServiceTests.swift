@@ -177,9 +177,42 @@ final class FaviconServiceTests: XCTestCase {
         XCTAssertFalse(fm.fileExists(atPath: dir.path))
     }
 
-    func testCacheDirectoryInAppGroup() {
+    func testCacheDirectoryLocation() {
         let dir = FaviconService.cacheDirectory
         XCTAssertTrue(dir.path.contains("favicons"))
+
+        let groupURL = FileManager.default.containerURL(
+            forSecurityApplicationGroupIdentifier: SharedVaultStore.appGroupID
+        )
+
+        #if os(macOS)
+        // On macOS the App Group container is world-readable to the user's
+        // other processes, so the favicon cache (a plaintext domain fingerprint
+        // of the vault) must live in the app's own sandbox container instead.
+        if let groupURL {
+            XCTAssertFalse(
+                dir.path.hasPrefix(groupURL.path),
+                "macOS favicon cache must not live inside the App Group container"
+            )
+        }
+        XCTAssertFalse(
+            dir.path.contains("Group Containers"),
+            "macOS favicon cache must not live in a Group Container"
+        )
+        XCTAssertTrue(
+            dir.path.contains("Application Support"),
+            "macOS favicon cache should live in the app's Application Support directory"
+        )
+        #else
+        // iOS keeps the cache in the App Group container so the AutoFill
+        // extension can read it.
+        if let groupURL {
+            XCTAssertTrue(
+                dir.path.hasPrefix(groupURL.path),
+                "iOS favicon cache should live inside the App Group container"
+            )
+        }
+        #endif
     }
 
     // MARK: - Settings

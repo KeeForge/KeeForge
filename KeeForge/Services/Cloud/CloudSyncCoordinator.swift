@@ -153,10 +153,15 @@ enum CloudSyncCoordinator {
         }
 
         try fileManager.moveItem(at: tempURL, to: destinationURL)
+        #if os(iOS)
+        // iOS Data Protection; on macOS setting a protection class either
+        // fails or leaves the file unreadable — FileVault covers at-rest
+        // encryption there instead (see Data.WritingOptions.atomicProtected).
         try fileManager.setAttributes(
             [.protectionKey: FileProtectionType.complete],
             ofItemAtPath: destinationURL.path
         )
+        #endif
     }
 
     static func pushAfterSave(

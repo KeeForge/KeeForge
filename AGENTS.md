@@ -23,7 +23,7 @@ Entry point for coding agents working on KeeForge. This file is intentionally br
 - `KeeForgeUITests/README.md` — XCUITest workflow and flake-avoidance guidance
 - `TestFixtures/README.md` — bundled databases, passwords, and key files
 - `ci_scripts/README.md` — Xcode Cloud bootstrap behavior
-- `docs/README.md` — long-form specs, audits, and implementation notes
+- `docs/README.md` — archive of past design specs, audits, and notes (historical; not guaranteed to match current code)
 
 ## Repo-Wide Rules
 

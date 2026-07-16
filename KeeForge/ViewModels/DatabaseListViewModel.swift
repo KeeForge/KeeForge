@@ -44,6 +44,8 @@ final class DatabaseListViewModel {
     private(set) var databases: [DatabaseReference] = []
     private(set) var rowStatuses: [UUID: DatabaseRowStatus] = [:]
     private(set) var pendingUploadAlert: PendingUploadAlert?
+    private(set) var isAutoFillProviderEnabled: Bool?
+    private(set) var isAutoFillTipDismissed = AutoFillStatusService.tipDismissed
     private var didConsumeInitialLaunchSelection = false
     private let pendingUploadDrainer: PendingUploadDrainer
 
@@ -183,6 +185,32 @@ final class DatabaseListViewModel {
 
     func dismissPendingUploadAlert() {
         pendingUploadAlert = nil
+    }
+
+    // MARK: - AutoFill enablement tip
+
+    var shouldShowAutoFillTip: Bool {
+        !databases.isEmpty
+            && isAutoFillProviderEnabled == false
+            && !isAutoFillTipDismissed
+            && !AutoFillStatusService.isTipSuppressedForUITesting
+    }
+
+    func refreshAutoFillStatus() async {
+        isAutoFillProviderEnabled = await AutoFillStatusService.isAutoFillEnabled()
+    }
+
+    func requestEnableAutoFill() async {
+        // nil means the iOS 17 deep-link path; the scene-active re-check
+        // picks up the result when the user returns from Settings.
+        if await AutoFillStatusService.requestEnableAutoFill() == true {
+            isAutoFillProviderEnabled = true
+        }
+    }
+
+    func dismissAutoFillTip() {
+        AutoFillStatusService.tipDismissed = true
+        isAutoFillTipDismissed = true
     }
 
     // MARK: - Private

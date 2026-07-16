@@ -1,5 +1,9 @@
 import CryptoKit
+#if canImport(UIKit)
 import UIKit
+#elseif canImport(AppKit)
+import AppKit
+#endif
 
 enum FaviconService: Sendable {
     // MARK: - Configuration
@@ -11,10 +15,42 @@ enum FaviconService: Sendable {
     // MARK: - Cache Directory
 
     static var cacheDirectory: URL {
-        let groupURL = FileManager.default.containerURL(
+        cacheContainerURL.appendingPathComponent(cacheDirectoryName, isDirectory: true)
+    }
+
+    /// The directory the favicon cache lives inside, chosen per platform.
+    ///
+    /// A favicon cache is a plaintext, per-domain fingerprint of the vault's
+    /// entries, so where it lives is a privacy decision:
+    ///
+    /// - iOS keeps it in the App Group container. The App Group is sandbox-
+    ///   private on iOS, and the AutoFill extension reads the cache there so it
+    ///   can show icons without re-fetching.
+    /// - macOS relocates it into the app's *own* sandbox container
+    ///   (Application Support). On macOS the App Group container is readable by
+    ///   the user's other (non-sandboxed) processes, so a domain fingerprint in
+    ///   the group container would be world-readable to the logged-in user.
+    ///   Keeping it in the app container closes that exposure; the mac AutoFill
+    ///   extension renders without favicons or re-fetches rather than widening
+    ///   the group-container surface.
+    ///
+    /// Extension-safe: uses only Foundation `FileManager` APIs (no UIKit/AppKit).
+    private static var cacheContainerURL: URL {
+        #if os(macOS)
+        if let appSupport = try? FileManager.default.url(
+            for: .applicationSupportDirectory,
+            in: .userDomainMask,
+            appropriateFor: nil,
+            create: true
+        ) {
+            return appSupport
+        }
+        return FileManager.default.temporaryDirectory
+        #else
+        return FileManager.default.containerURL(
             forSecurityApplicationGroupIdentifier: SharedVaultStore.appGroupID
         ) ?? FileManager.default.temporaryDirectory
-        return groupURL.appendingPathComponent(cacheDirectoryName, isDirectory: true)
+        #endif
     }
 
     // MARK: - Domain Extraction
@@ -113,7 +149,7 @@ enum FaviconService: Sendable {
 
     // MARK: - Cached Image
 
-    static func cachedImage(for domain: String) -> UIImage? {
+    static func cachedImage(for domain: String) -> PlatformImage? {
         let path = cachePath(for: domain)
         let fm = FileManager.default
 
@@ -128,12 +164,12 @@ enum FaviconService: Sendable {
         }
 
         guard let data = try? Data(contentsOf: path) else { return nil }
-        return UIImage(data: data)
+        return PlatformImage(data: data)
     }
 
     // MARK: - Fetch
 
-    static func fetchFavicon(for domain: String) async -> UIImage? {
+    static func fetchFavicon(for domain: String) async -> PlatformImage? {
         guard let url = URL(string: "\(faviconBaseURL)\(domain).ico") else { return nil }
 
         do {
@@ -144,12 +180,12 @@ enum FaviconService: Sendable {
                 return nil
             }
 
-            guard let image = UIImage(data: data) else { return nil }
+            guard let image = PlatformImage(data: data) else { return nil }
 
             // Save to disk cache
             ensureCacheDirectory()
             let path = cachePath(for: domain)
-            try? data.write(to: path, options: [.atomic, .completeFileProtection])
+            try? data.write(to: path, options: .atomicProtected)
 
             return image
         } catch {
@@ -160,7 +196,7 @@ enum FaviconService: Sendable {
     // MARK: - Primary API
 
     /// Returns a cached favicon or fetches one. Returns nil if unavailable.
-    static func favicon(for domain: String) async -> UIImage? {
+    static func favicon(for domain: String) async -> PlatformImage? {
         if let cached = cachedImage(for: domain) {
             return cached
         }

@@ -1,7 +1,11 @@
 import AuthenticationServices
 import Foundation
 @preconcurrency import SwiftyDropbox
+#if os(iOS)
 import UIKit
+#elseif os(macOS)
+import AppKit
+#endif
 
 private struct StoredDropboxRefreshToken: Codable {
     let uid: String
@@ -93,6 +97,7 @@ final class DropboxCloudProvider: CloudProvider, @unchecked Sendable {
 
             let scopeRequest = Self.makeScopeRequest()
 
+            #if os(iOS)
             DropboxClientsManager.authorizeFromControllerV2(
                 UIApplication.shared,
                 controller: presentingController(from: anchor),
@@ -102,6 +107,21 @@ final class DropboxCloudProvider: CloudProvider, @unchecked Sendable {
                 },
                 scopeRequest: scopeRequest
             )
+            #else
+            // Desktop OAuth (PKCE): SwiftyDropbox opens the system browser via
+            // NSWorkspace; the redirect returns through the db-<appkey> URL
+            // scheme, which the SwiftUI onOpenURL handler forwards to
+            // `handleRedirectURL(_:)` below to resume the continuation.
+            DropboxClientsManager.authorizeFromControllerV2(
+                sharedApplication: NSApplication.shared,
+                controller: presentingController(from: anchor),
+                loadingStatusDelegate: nil,
+                openURL: { url in
+                    NSWorkspace.shared.open(url)
+                },
+                scopeRequest: scopeRequest
+            )
+            #endif
         }
     }
 
@@ -385,6 +405,7 @@ final class DropboxCloudProvider: CloudProvider, @unchecked Sendable {
         DropboxOAuthManager.sharedOAuthManager
     }
 
+    #if os(iOS)
     @MainActor
     private func presentingController(from anchor: ASPresentationAnchor) -> UIViewController? {
         let window = anchor
@@ -409,6 +430,18 @@ final class DropboxCloudProvider: CloudProvider, @unchecked Sendable {
 
         return current
     }
+    #endif
+
+    #if os(macOS)
+    // On macOS the presentation anchor is the NSWindow; SwiftyDropbox only
+    // uses the controller to anchor error alerts (auth itself runs in the
+    // default browser), and falls back to the key window's content view
+    // controller when nil.
+    @MainActor
+    private func presentingController(from anchor: ASPresentationAnchor) -> NSViewController? {
+        anchor.contentViewController ?? NSApplication.shared.keyWindow?.contentViewController
+    }
+    #endif
 
     private func configureIfNeeded() throws {
         guard didConfigure == false else { return }
@@ -416,11 +449,19 @@ final class DropboxCloudProvider: CloudProvider, @unchecked Sendable {
             throw CloudProviderError.invalidConfiguration
         }
 
+        #if os(iOS)
         DropboxClientsManager.setupWithAppKeyMultiUser(
             appKey,
             tokenUid: nil,
             secureStorageAccess: DropboxSecureStorageAccess()
         )
+        #else
+        DropboxClientsManager.setupWithAppKeyMultiUserDesktop(
+            appKey,
+            secureStorageAccess: DropboxSecureStorageAccess(),
+            tokenUid: nil
+        )
+        #endif
         didConfigure = true
     }
 
