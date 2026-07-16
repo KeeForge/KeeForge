@@ -6,6 +6,27 @@ import XCTest
 enum KDBXCompatibilitySupport {
     static let artifactManifestName = "kdbx-compatibility-manifest.json"
 
+    struct KeeOTPCase {
+        let fieldName: String
+        let encoding: String
+        let encodedKey: String
+        let secret: String
+        let decodedSecret: Data
+
+        var rawQuery: String {
+            "key=\(encodedKey)&Type=TOTP&step=30&size=6&Encoding=\(encoding)&otpHashMode=SHA1&vendor=keep%2Bme"
+        }
+    }
+
+    static let keeOTPCases: [KeeOTPCase] = ["otp", "OTP"].flatMap { fieldName in
+        [
+            KeeOTPCase(fieldName: fieldName, encoding: "Base32", encodedKey: "JBSWY3DP", secret: "JBSWY3DP", decodedSecret: Data("Hello".utf8)),
+            KeeOTPCase(fieldName: fieldName, encoding: "Base64", encodedKey: "AAEC%2Fw%3D%3D", secret: "AAEC/w==", decodedSecret: Data([0x00, 0x01, 0x02, 0xFF])),
+            KeeOTPCase(fieldName: fieldName, encoding: "Hex", encodedKey: "000102ff", secret: "000102ff", decodedSecret: Data([0x00, 0x01, 0x02, 0xFF])),
+            KeeOTPCase(fieldName: fieldName, encoding: "UTF8", encodedKey: "p%C3%A4ss", secret: "päss", decodedSecret: Data("päss".utf8)),
+        ]
+    }
+
     /// Recorded SHA-256 hashes for `TestFixtures/compatibility/attachments.kdbx`
     /// content, generated deterministically via `pykeepass` (see
     /// `TestFixtures/README.md`). `keepassxc-cli db-create` only produces
@@ -467,7 +488,65 @@ enum KDBXCompatibilitySupport {
         let attachmentsFixtureForSoftDelete = try load(.attachments, bundle: bundle)
         plans.append((attachmentsFixtureForSoftDelete, attachmentsFixtureSoftDeleteScenario()))
 
+        let keeOTPFixture = try load(.syntheticRich, bundle: bundle)
+        keeOTPFixture.rootGroup.entries.append(contentsOf: try keeOTPCases.map {
+            try makeKeeOTPEntry($0, sessionKey: keeOTPFixture.sessionKey)
+        })
+        plans.append((keeOTPFixture, keeOTPArtifactScenario()))
+
         return plans
+    }
+
+    private static func keeOTPArtifactScenario() -> Scenario {
+        Scenario(
+            id: "keeotp-source-matrix",
+            title: "KeeOTP source spelling and encoding matrix",
+            artifactFileName: "synthetic-rich-keeotp-source-matrix.kdbx",
+            // KeePassXC 2.7.12 skips entries whose raw KeeOTP field uses its
+            // unsupported key/query format. The artifact still contains all
+            // eight source variants; the external opener probe uses the
+            // ordinary entry in this same database while the XCTest matrix
+            // proves KeeOTP semantics.
+            expectedSearchTerms: ["Compat Update Target"],
+            expectedGroupPaths: [],
+            makeEdit: { loaded in
+                let entry = try XCTUnwrap(findEntry(titled: "Compat Update Target", in: loaded.rootGroup))
+                return .updateEntry(
+                    entryID: entry.id,
+                    draft: EntryDraftPayload(
+                        title: entry.title,
+                        username: entry.username,
+                        password: try entry.password.decrypt(using: loaded.sessionKey),
+                        url: entry.url,
+                        notes: "KeeOTP artifact matrix",
+                        customFields: entry.customFields,
+                        tags: entry.tags
+                    )
+                )
+            },
+            assertChange: { before, after, _ in
+                for testCase in keeOTPCases {
+                    let title = "KeeOTP \(testCase.fieldName) \(testCase.encoding)"
+                    let entryID = try XCTUnwrap(before.entryID(titled: title))
+                    XCTAssertEqual(after.entries[entryID], before.entries[entryID])
+                }
+            }
+        )
+    }
+
+    private static func makeKeeOTPEntry(_ testCase: KeeOTPCase, sessionKey: SymmetricKey) throws -> KPEntry {
+        let source = KeeOTPSource(fieldName: testCase.fieldName, rawQuery: testCase.rawQuery)
+        return KPEntry(
+            title: "KeeOTP \(testCase.fieldName) \(testCase.encoding)",
+            password: try EncryptedValue.encrypt("password", using: sessionKey),
+            totpConfig: TOTPConfig(
+                secret: try EncryptedValue.encrypt(testCase.secret, using: sessionKey),
+                decodedSecret: try EncryptedValue.encrypt(testCase.decodedSecret, using: sessionKey),
+                keeOTPSource: source
+            ),
+            otpURL: testCase.fieldName == "otp" ? testCase.rawQuery : nil,
+            protectedStringKeys: ["Password"]
+        )
     }
 
     static func assertLegacyFixtureIsReadOnly(bundle: Bundle) throws {

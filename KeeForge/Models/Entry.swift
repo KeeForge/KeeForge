@@ -113,7 +113,9 @@ struct KPEntry: Identifiable, Sendable {
 
     /// Custom fields excluding internal KPEX passkey fields (for display purposes).
     var displayCustomFields: [String: String] {
-        customFields.filter { !PasskeyCredential.allFieldKeys.contains($0.key) }
+        customFields.filter {
+            !PasskeyCredential.allFieldKeys.contains($0.key) && $0.key != totpConfig?.keeOTPSource?.fieldName
+        }
     }
 
     /// System icon name based on KeePass icon ID
@@ -139,6 +141,7 @@ struct TOTPConfig: Sendable {
     let secret: EncryptedValue
     /// Pre-decoded secret bytes for formats whose declared encoding is not Base32.
     let decodedSecret: EncryptedValue?
+    let keeOTPSource: KeeOTPSource?
     let period: Int
     let digits: Int
     let algorithm: TOTPAlgorithm
@@ -146,15 +149,41 @@ struct TOTPConfig: Sendable {
     init(
         secret: EncryptedValue,
         decodedSecret: EncryptedValue? = nil,
+        keeOTPSource: KeeOTPSource? = nil,
         period: Int = 30,
         digits: Int = 6,
         algorithm: TOTPAlgorithm = .sha1
     ) {
         self.secret = secret
         self.decodedSecret = decodedSecret
+        self.keeOTPSource = keeOTPSource
         self.period = period
         self.digits = digits
         self.algorithm = algorithm
+    }
+}
+
+struct KeeOTPSource: Codable, Equatable, Sendable {
+    let fieldName: String
+    let rawQuery: String
+
+    func rewriting(secret: String? = nil, period: Int, digits: Int, algorithm: TOTPAlgorithm) -> KeeOTPSource {
+        let replacements = [
+            "key": secret,
+            "encoding": secret == nil ? nil : "Base32",
+            "step": String(period),
+            "size": String(digits),
+            "otphashmode": algorithm.rawValue,
+        ]
+        let rewritten = rawQuery.split(separator: "&", omittingEmptySubsequences: false).map { component in
+            let parts = component.split(separator: "=", maxSplits: 1, omittingEmptySubsequences: false)
+            guard let decodedName = String(parts[0]).removingPercentEncoding,
+                  let replacement = replacements[decodedName.lowercased()] ?? nil else {
+                return String(component)
+            }
+            return "\(parts[0])=\(replacement)"
+        }.joined(separator: "&")
+        return KeeOTPSource(fieldName: fieldName, rawQuery: rewritten)
     }
 }
 

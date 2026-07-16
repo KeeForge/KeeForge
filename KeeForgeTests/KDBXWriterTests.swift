@@ -77,10 +77,10 @@ final class KDBXWriterTests: XCTestCase {
         let entry = KPEntry(
             title: "KeeOTP Entry",
             password: try EncryptedValue.encrypt("password", using: sessionKey),
-            customFields: ["OTP": keeOTPQuery],
             totpConfig: TOTPConfig(
                 secret: try EncryptedValue.encrypt(originalSecret, using: sessionKey),
-                decodedSecret: try EncryptedValue.encrypt(Data(originalSecret.utf8), using: sessionKey)
+                decodedSecret: try EncryptedValue.encrypt(Data(originalSecret.utf8), using: sessionKey),
+                keeOTPSource: KeeOTPSource(fieldName: "OTP", rawQuery: keeOTPQuery)
             )
         )
         var rootGroup = parsed.rootGroup
@@ -116,7 +116,7 @@ final class KDBXWriterTests: XCTestCase {
         let reloadedEntry = try XCTUnwrap(reloaded.rootGroup.allEntries.first { $0.id == entry.id })
         let reloadedConfig = try XCTUnwrap(reloadedEntry.totpConfig)
         XCTAssertEqual(reloadedEntry.title, "Unrelated Edit")
-        XCTAssertEqual(reloadedEntry.customFields["OTP"], keeOTPQuery)
+        XCTAssertEqual(reloadedConfig.keeOTPSource?.rawQuery, keeOTPQuery)
         XCTAssertEqual(try reloadedConfig.secret.decrypt(using: sessionKey), originalSecret)
         XCTAssertEqual(try reloadedConfig.decodedSecret?.decryptData(using: sessionKey), Data(originalSecret.utf8))
     }

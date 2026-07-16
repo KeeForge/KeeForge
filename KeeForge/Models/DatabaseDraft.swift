@@ -330,8 +330,11 @@ struct DatabaseDraft: Sendable {
             notes: draft.notes,
             tags: draft.tags,
             hasTagsElement: !draft.tags.isEmpty,
-            customFields: draft.customFields,
+            customFields: activeCustomFields(from: draft),
             totpConfig: try makeTOTPConfig(from: draft.totpConfig),
+            otpURL: draft.totpConfig?.keeOTPSource?.fieldName == "otp"
+                ? draft.totpConfig?.keeOTPSource?.rawQuery
+                : nil,
             creationTime: timestamp,
             lastModificationTime: timestamp
         )
@@ -358,9 +361,11 @@ struct DatabaseDraft: Sendable {
             iconID: originalEntry.iconID,
             tags: draft.tags,
             hasTagsElement: originalEntry.hasTagsElement || !draft.tags.isEmpty,
-            customFields: draft.customFields,
+            customFields: activeCustomFields(from: draft),
             totpConfig: try makeTOTPConfig(from: draft.totpConfig),
-            otpURL: preservedOtpURL(draft: draft, originalEntry: originalEntry),
+            otpURL: draft.totpConfig?.keeOTPSource?.fieldName == "otp"
+                ? draft.totpConfig?.keeOTPSource?.rawQuery
+                : nil,
             creationTime: originalEntry.creationTime,
             lastModificationTime: timestamp,
             expires: originalEntry.expires,
@@ -375,27 +380,6 @@ struct DatabaseDraft: Sendable {
         )
     }
 
-    private func preservedOtpURL(
-        draft: EntryDraftPayload,
-        originalEntry: KPEntry
-    ) -> String? {
-        guard let url = originalEntry.otpURL,
-              let draftConfig = draft.totpConfig,
-              let originalConfig = originalEntry.totpConfig,
-              let originalSecret = try? originalConfig.secret.decrypt(using: sessionKey)
-        else {
-            return nil
-        }
-        guard draftConfig.secret == originalSecret,
-              draftConfig.period == originalConfig.period,
-              draftConfig.digits == originalConfig.digits,
-              draftConfig.algorithm == originalConfig.algorithm
-        else {
-            return nil
-        }
-        return url
-    }
-
     private func makeTOTPConfig(
         from draft: EntryDraftPayload.TOTPConfiguration?
     ) throws -> TOTPConfig? {
@@ -406,10 +390,20 @@ struct DatabaseDraft: Sendable {
         return TOTPConfig(
             secret: try EncryptedValue.encrypt(draft.secret, using: sessionKey),
             decodedSecret: try draft.decodedSecret.map { try EncryptedValue.encrypt($0, using: sessionKey) },
+            keeOTPSource: draft.keeOTPSource,
             period: draft.period,
             digits: draft.digits,
             algorithm: draft.algorithm
         )
+    }
+
+    private func activeCustomFields(from draft: EntryDraftPayload) -> [String: String] {
+        let activeSourceField = draft.totpConfig?.keeOTPSource?.fieldName
+        let fields = draft.customFields.filter {
+            $0.key != activeSourceField && !$0.key.hasPrefix("TimeOtp-")
+                && $0.key != "TOTP Settings" && $0.key != "TOTP Seed"
+        }
+        return fields
     }
 
     private func preservedProtectedStringKeys(

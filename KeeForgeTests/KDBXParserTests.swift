@@ -210,6 +210,8 @@ final class KDBXParserTests: XCTestCase {
                 XCTAssertEqual(config.digits, 6)
                 XCTAssertEqual(config.algorithm, .sha1)
                 XCTAssertEqual(TOTPGenerator.resolveSecret(config: config, sessionKey: testSessionKey)?.data, Data("hello world".utf8))
+                XCTAssertEqual(config.keeOTPSource, KeeOTPSource(fieldName: fieldName, rawQuery: "key=hello%20world&type=TOTP&step=30&size=6&encoding=UTF8&otpHashMode=SHA1"))
+                XCTAssertNil(entry.displayCustomFields[fieldName])
             }
         }
 
@@ -275,6 +277,15 @@ final class KDBXParserTests: XCTestCase {
             XCTAssertEqual(config.digits, 8)
             XCTAssertEqual(config.period, 30)
             XCTAssertEqual(try config.secret.decrypt(using: testSessionKey), "JBSWY3DP")
+            XCTAssertNil(config.keeOTPSource)
+        }
+
+        func testInvalidOTPAndOtpCustomFieldsRemainVisible() throws {
+            for fieldName in ["OTP", "Otp"] {
+                let entry = try parseSingleEntry(fields: [fieldName: "ordinary custom value"])
+                XCTAssertEqual(entry.displayCustomFields[fieldName], "ordinary custom value")
+                XCTAssertNil(entry.totpConfig)
+            }
         }
 
         func testNativeAndLegacyTOTPBaselinesRemainSupported() throws {

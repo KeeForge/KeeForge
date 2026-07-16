@@ -3,6 +3,12 @@ import XCTest
 @testable import KeeForge
 
 final class KDBXCompatibilityTests: XCTestCase {
+    private enum KeeOTPMutation: String, CaseIterable {
+        case preserve
+        case period
+        case secret
+    }
+
     private var bundle: Bundle {
         Bundle(for: Self.self)
     }
@@ -133,5 +139,118 @@ final class KDBXCompatibilityTests: XCTestCase {
         // softDelete: recycling one dedup entry doesn't disturb its sibling.
         let softDeleteLoaded = try KDBXCompatibilitySupport.load(.attachments, bundle: bundle)
         _ = try KDBXCompatibilitySupport.attachmentsFixtureSoftDeleteScenario().apply(to: softDeleteLoaded)
+    }
+
+    @MainActor
+    func test_keeOTPCompatibilityMatrix_preservesAndIntentionallyMutatesSources() throws {
+        for testCase in KDBXCompatibilitySupport.keeOTPCases {
+            for mutation in KeeOTPMutation.allCases {
+                let reloaded = try editSaveReloadKeeOTP(testCase, mutation: mutation)
+                let config = try XCTUnwrap(reloaded.totpConfig, "\(testCase.fieldName) \(testCase.encoding) \(mutation.rawValue)")
+                let source = try XCTUnwrap(config.keeOTPSource)
+
+                XCTAssertEqual(source.fieldName, testCase.fieldName)
+                XCTAssertFalse(reloaded.customFields.keys.contains { $0.hasPrefix("TimeOtp-") })
+                XCTAssertNil(reloaded.customFields["OTP"])
+                XCTAssertNil(reloaded.customFields["Otp"])
+
+                switch mutation {
+                case .preserve:
+                    XCTAssertEqual(source.rawQuery, testCase.rawQuery)
+                    XCTAssertEqual(config.period, 30)
+                    XCTAssertEqual(resolvedSecret(config), testCase.decodedSecret)
+                case .period:
+                    XCTAssertTrue(source.rawQuery.contains("step=45"))
+                    XCTAssertTrue(source.rawQuery.contains("Encoding=\(testCase.encoding)"))
+                    XCTAssertTrue(source.rawQuery.contains("vendor=keep%2Bme"))
+                    XCTAssertEqual(config.period, 45)
+                    XCTAssertEqual(resolvedSecret(config), testCase.decodedSecret)
+                case .secret:
+                    XCTAssertTrue(source.rawQuery.contains("key=JBSWY3DP"))
+                    XCTAssertTrue(source.rawQuery.contains("Encoding=Base32"))
+                    XCTAssertTrue(source.rawQuery.contains("vendor=keep%2Bme"))
+                    XCTAssertEqual(resolvedSecret(config), Data("Hello".utf8))
+                }
+            }
+        }
+    }
+
+    @MainActor
+    func test_keeOTPRemovalAndMalformedReplacementRemainSafe() throws {
+        let testCase = try XCTUnwrap(KDBXCompatibilitySupport.keeOTPCases.first { $0.fieldName == "OTP" && $0.encoding == "Base64" })
+        let entry = try makeKeeOTPEntry(testCase)
+        let root = KPGroup(name: "Root", entries: [entry])
+        let viewModel = EntryEditViewModel(editing: entry, sessionKey: entrySessionKey)
+        viewModel.totpSecret = "not base32!"
+
+        var updated = try DatabaseDraft(rootGroup: root, meta: KPMeta(), sessionKey: entrySessionKey)
+            .apply(.updateEntry(entryID: entry.id, draft: viewModel.entryDraftPayload))
+        var reloaded = try writeAndReload(updated)
+        XCTAssertEqual(reloaded.totpConfig?.keeOTPSource?.rawQuery, testCase.rawQuery)
+        XCTAssertEqual(reloaded.totpConfig?.period, 30)
+        XCTAssertEqual(reloaded.totpConfig.flatMap(resolvedSecret), testCase.decodedSecret)
+
+        let removalViewModel = EntryEditViewModel(editing: reloaded, sessionKey: entrySessionKey)
+        removalViewModel.totpSecret = ""
+        updated = try DatabaseDraft(rootGroup: KPGroup(name: "Root", entries: [reloaded]), meta: KPMeta(), sessionKey: entrySessionKey)
+            .apply(.updateEntry(entryID: reloaded.id, draft: removalViewModel.entryDraftPayload))
+        reloaded = try writeAndReload(updated)
+        XCTAssertNil(reloaded.totpConfig)
+        XCTAssertNil(reloaded.otpURL)
+        XCTAssertFalse(reloaded.customFields.keys.contains { $0.hasPrefix("TimeOtp-") || $0 == "OTP" || $0 == "Otp" })
+    }
+
+    private let entrySessionKey = SymmetricKey(size: .bits256)
+
+    @MainActor
+    private func editSaveReloadKeeOTP(
+        _ testCase: KDBXCompatibilitySupport.KeeOTPCase,
+        mutation: KeeOTPMutation
+    ) throws -> KPEntry {
+        let entry = try makeKeeOTPEntry(testCase)
+        let viewModel = EntryEditViewModel(editing: entry, sessionKey: entrySessionKey)
+        switch mutation.rawValue {
+        case "period": viewModel.totpPeriod = 45
+        case "secret": viewModel.totpSecret = "JBSWY3DP"
+        default: viewModel.notes = "Unrelated edit"
+        }
+        let updated = try DatabaseDraft(
+            rootGroup: KPGroup(name: "Root", entries: [entry]),
+            meta: KPMeta(),
+            sessionKey: entrySessionKey
+        ).apply(.updateEntry(entryID: entry.id, draft: viewModel.entryDraftPayload))
+        return try writeAndReload(updated)
+    }
+
+    private func makeKeeOTPEntry(_ testCase: KDBXCompatibilitySupport.KeeOTPCase) throws -> KPEntry {
+        let source = KeeOTPSource(fieldName: testCase.fieldName, rawQuery: testCase.rawQuery)
+        return KPEntry(
+            title: "KeeOTP \(testCase.fieldName) \(testCase.encoding)",
+            password: try EncryptedValue.encrypt("password", using: entrySessionKey),
+            customFields: testCase.fieldName == "otp" ? [:] : [testCase.fieldName: testCase.rawQuery],
+            totpConfig: TOTPConfig(
+                secret: try EncryptedValue.encrypt(testCase.secret, using: entrySessionKey),
+                decodedSecret: try EncryptedValue.encrypt(testCase.decodedSecret, using: entrySessionKey),
+                keeOTPSource: source
+            ),
+            otpURL: testCase.fieldName == "otp" ? testCase.rawQuery : nil
+        )
+    }
+
+    private func writeAndReload(_ draft: DatabaseDraft) throws -> KPEntry {
+        let loaded = try KDBXCompatibilitySupport.load(.syntheticRich, bundle: bundle, sessionKey: entrySessionKey)
+        let data = try KDBXWriter.write(
+            rootGroup: draft.rootGroup,
+            meta: draft.meta,
+            compositeKey: loaded.compositeKey,
+            header: loaded.header,
+            sessionKey: draft.writerSessionKey
+        )
+        let reparsed = try KDBXParser.parse(data: data, compositeKey: loaded.compositeKey, sessionKey: entrySessionKey)
+        return try XCTUnwrap(reparsed.allEntries.first)
+    }
+
+    private func resolvedSecret(_ config: TOTPConfig) -> Data? {
+        TOTPGenerator.resolveSecret(config: config, sessionKey: entrySessionKey)?.data
     }
 }

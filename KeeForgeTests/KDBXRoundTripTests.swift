@@ -61,15 +61,17 @@ final class KDBXRoundTripTests: XCTestCase {
 
     @MainActor
     func test_editSaveReload_preservesKeeOTPDecodedSecretAndUppercaseSource() throws {
+        let rawQuery = "key=AAEC%2Fw%3D%3D&type=TOTP&step=30&size=6&encoding=Base64&otpHashMode=SHA1"
         let entry = KPEntry(
             title: "KeeOTP",
             password: try EncryptedValue.encrypt("password", using: roundTripSessionKey),
             customFields: [
-                "OTP": "key=AAEC%2Fw%3D%3D&type=TOTP&step=30&size=6&encoding=Base64&otpHashMode=SHA1",
+                "OTP": rawQuery,
             ],
             totpConfig: TOTPConfig(
                 secret: try EncryptedValue.encrypt("AAEC/w==", using: roundTripSessionKey),
-                decodedSecret: try EncryptedValue.encrypt(Data([0x00, 0x01, 0x02, 0xFF]), using: roundTripSessionKey)
+                decodedSecret: try EncryptedValue.encrypt(Data([0x00, 0x01, 0x02, 0xFF]), using: roundTripSessionKey),
+                keeOTPSource: KeeOTPSource(fieldName: "OTP", rawQuery: rawQuery)
             )
         )
         let rootGroup = KPGroup(id: UUID(), name: "Root", entries: [entry])
@@ -82,7 +84,8 @@ final class KDBXRoundTripTests: XCTestCase {
         let reloaded = try XCTUnwrap(reparsed.rootGroup.allEntries.first)
         let reloadedTOTP = try XCTUnwrap(reloaded.totpConfig)
 
-        XCTAssertEqual(reloaded.customFields["OTP"], entry.customFields["OTP"])
+        XCTAssertEqual(reloadedTOTP.keeOTPSource, KeeOTPSource(fieldName: "OTP", rawQuery: rawQuery))
+        XCTAssertNil(reloaded.customFields["OTP"])
         XCTAssertNil(reloaded.customFields["TimeOtp-Secret-Base32"])
         XCTAssertEqual(
             TOTPGenerator.resolveSecret(config: reloadedTOTP, sessionKey: roundTripSessionKey)?.data,
@@ -92,14 +95,16 @@ final class KDBXRoundTripTests: XCTestCase {
 
     @MainActor
     func test_editSaveReload_preservesKeeOTPLowercaseSourceAndDecodedSecret() throws {
+        let rawQuery = "key=AAEC%2Fw%3D%3D&type=TOTP&step=30&size=6&encoding=Base64&otpHashMode=SHA1"
         let entry = KPEntry(
             title: "KeeOTP",
             password: try EncryptedValue.encrypt("password", using: roundTripSessionKey),
             totpConfig: TOTPConfig(
                 secret: try EncryptedValue.encrypt("AAEC/w==", using: roundTripSessionKey),
-                decodedSecret: try EncryptedValue.encrypt(Data([0x00, 0x01, 0x02, 0xFF]), using: roundTripSessionKey)
+                decodedSecret: try EncryptedValue.encrypt(Data([0x00, 0x01, 0x02, 0xFF]), using: roundTripSessionKey),
+                keeOTPSource: KeeOTPSource(fieldName: "otp", rawQuery: rawQuery)
             ),
-            otpURL: "key=AAEC%2Fw%3D%3D&type=TOTP&step=30&size=6&encoding=Base64&otpHashMode=SHA1"
+            otpURL: rawQuery
         )
         let rootGroup = KPGroup(id: UUID(), name: "Root", entries: [entry])
         let viewModel = EntryEditViewModel(editing: entry, sessionKey: roundTripSessionKey)
@@ -122,14 +127,16 @@ final class KDBXRoundTripTests: XCTestCase {
     @MainActor
     func test_editSaveReload_preservesKeeOTPLowercaseUTF8SourceWhitespace() throws {
         let secret = " leading and trailing "
+        let rawQuery = "key=%20leading%20and%20trailing%20&type=TOTP&step=30&size=6&encoding=UTF8&otpHashMode=SHA1"
         let entry = KPEntry(
             title: "KeeOTP",
             password: try EncryptedValue.encrypt("password", using: roundTripSessionKey),
             totpConfig: TOTPConfig(
                 secret: try EncryptedValue.encrypt(secret, using: roundTripSessionKey),
-                decodedSecret: try EncryptedValue.encrypt(Data(secret.utf8), using: roundTripSessionKey)
+                decodedSecret: try EncryptedValue.encrypt(Data(secret.utf8), using: roundTripSessionKey),
+                keeOTPSource: KeeOTPSource(fieldName: "otp", rawQuery: rawQuery)
             ),
-            otpURL: "key=%20leading%20and%20trailing%20&type=TOTP&step=30&size=6&encoding=UTF8&otpHashMode=SHA1"
+            otpURL: rawQuery
         )
         let rootGroup = KPGroup(id: UUID(), name: "Root", entries: [entry])
         let viewModel = EntryEditViewModel(editing: entry, sessionKey: roundTripSessionKey)

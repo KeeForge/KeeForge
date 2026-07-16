@@ -16,11 +16,11 @@ enum TOTPGenerator {
     static func resolveSecret(config: TOTPConfig, sessionKey: SymmetricKey) -> ResolvedSecret? {
         let secretData: Data?
         if let decodedSecret = config.decodedSecret {
-        secretData = try? decodedSecret.decryptData(using: sessionKey)
+            secretData = try? decodedSecret.decryptData(using: sessionKey)
         } else if let secretString = try? config.secret.decrypt(using: sessionKey) {
-        secretData = base32Decode(secretString)
+            secretData = base32Decode(secretString)
         } else {
-        secretData = nil
+            secretData = nil
         }
         guard let secretData, !secretData.isEmpty else { return nil }
         return ResolvedSecret(data: secretData, key: SymmetricKey(data: secretData))
