@@ -135,19 +135,19 @@ enum KDBXParser {
 
         var errorDescription: String? {
             switch self {
-            case .invalidSignature: "Not a valid KDBX file"
+            case .invalidSignature: String(localized: "Not a valid KDBX file")
             case .unsupportedVersion:
-                "This database uses an older KeePass format that KeeForge does not support yet."
-            case .truncatedFile: "File is truncated"
-            case .headerFieldMissing(let f): "Missing header field: \(f)"
-            case .xmlParsingFailed: "Failed to parse database XML"
-            case .invalidBlockHMAC: "Block HMAC invalid — wrong password or corrupted file"
-            case .invalidLegacyBlockHash: "The database appears corrupted or incomplete."
-            case .invalidStreamStartBytes: "Decryption failed — wrong password?"
-            case .innerHeaderInvalid: "Invalid inner header"
-            case .unsupportedProtectedFieldStream: "This database uses an unsupported protected-field stream."
-            case .malformedVariantMap: "Malformed variant map in header"
-            case .kdfParameterOutOfRange(let p): "KDF parameter out of range: \(p)"
+                String(localized: "This database uses an older KeePass format that KeeForge does not support yet.")
+            case .truncatedFile: String(localized: "File is truncated")
+            case .headerFieldMissing(let f): String(localized: "Missing header field: \(f)")
+            case .xmlParsingFailed: String(localized: "Failed to parse database XML")
+            case .invalidBlockHMAC: String(localized: "Block HMAC invalid — wrong password or corrupted file")
+            case .invalidLegacyBlockHash: String(localized: "The database appears corrupted or incomplete.")
+            case .invalidStreamStartBytes: String(localized: "Decryption failed — wrong password?")
+            case .innerHeaderInvalid: String(localized: "Invalid inner header")
+            case .unsupportedProtectedFieldStream: String(localized: "This database uses an unsupported protected-field stream.")
+            case .malformedVariantMap: String(localized: "Malformed variant map in header")
+            case .kdfParameterOutOfRange(let p): String(localized: "KDF parameter out of range: \(p)")
             }
         }
     }

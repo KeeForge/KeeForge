@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Add full German localization (iOS app, macOS app, and AutoFill extension): 648 strings across UI, error messages, alerts, and Info.plist usage descriptions, plus a localization test suite that gates translation completeness, format-specifier parity, and app/extension consistency.
 - Update GitHub links (Report a Bug, Source Code, docs) to the new KeeForge org after the repository transfer.
 - Fix local HTTP WebDAV vaults getting stuck on the initial metadata check before KeeForge could download and cache them.
 - Password reveal and copy now always require device-owner authentication, even when biometrics are unavailable (hardening back-ported from the macOS work).

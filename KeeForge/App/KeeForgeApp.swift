@@ -741,7 +741,7 @@ struct CloudSyncWarningButton: View {
     @State private var isShowingDetails = false
 
     private var explanation: String {
-        "\(message)\n\nKeeForge opened the cached copy for now. Cloud sync needs attention before this database can be refreshed from its provider."
+        String(localized: "\(message)\n\nKeeForge opened the cached copy for now. Cloud sync needs attention before this database can be refreshed from its provider.")
     }
 
     var body: some View {

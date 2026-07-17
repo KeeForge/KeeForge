@@ -114,7 +114,7 @@ final class OneDriveCloudProvider: CloudProvider, @unchecked Sendable {
         do {
             let (downloadURL, response) = try await URLSession.shared.download(for: request)
             guard let httpResponse = response as? HTTPURLResponse else {
-                throw CloudProviderError.unknown("OneDrive download failed.")
+                throw CloudProviderError.unknown(String(localized: "OneDrive download failed."))
             }
 
             guard (200..<300).contains(httpResponse.statusCode) else {
@@ -193,7 +193,7 @@ final class OneDriveCloudProvider: CloudProvider, @unchecked Sendable {
         )
 
         guard let file = Self.makeCloudFile(from: item) else {
-            throw CloudProviderError.unknown("OneDrive upload did not return a file.")
+            throw CloudProviderError.unknown(String(localized: "OneDrive upload did not return a file."))
         }
 
         return CloudCreatedFile(
@@ -366,7 +366,7 @@ final class OneDriveCloudProvider: CloudProvider, @unchecked Sendable {
         progress: @escaping @Sendable (Double) -> Void
     ) async throws -> OneDriveDriveItem {
         guard data.isEmpty == false else {
-            throw CloudProviderError.unknown("OneDrive cannot upload an empty database.")
+            throw CloudProviderError.unknown(String(localized: "OneDrive cannot upload an empty database."))
         }
 
         var request = authorizedRequest(
@@ -394,7 +394,7 @@ final class OneDriveCloudProvider: CloudProvider, @unchecked Sendable {
         )
 
         guard let uploadURL = URL(string: session.uploadURL) else {
-            throw CloudProviderError.unknown("OneDrive returned an invalid upload URL.")
+            throw CloudProviderError.unknown(String(localized: "OneDrive returned an invalid upload URL."))
         }
 
         var offset = 0
@@ -411,7 +411,7 @@ final class OneDriveCloudProvider: CloudProvider, @unchecked Sendable {
 
             let (responseData, response) = try await URLSession.shared.data(for: chunkRequest)
             guard let httpResponse = response as? HTTPURLResponse else {
-                throw CloudProviderError.unknown("OneDrive upload failed.")
+                throw CloudProviderError.unknown(String(localized: "OneDrive upload failed."))
             }
 
             switch httpResponse.statusCode {
@@ -428,7 +428,7 @@ final class OneDriveCloudProvider: CloudProvider, @unchecked Sendable {
         }
 
         guard let completedItem else {
-            throw CloudProviderError.unknown("OneDrive upload did not complete.")
+            throw CloudProviderError.unknown(String(localized: "OneDrive upload did not complete."))
         }
         return completedItem
     }
@@ -440,7 +440,7 @@ final class OneDriveCloudProvider: CloudProvider, @unchecked Sendable {
         do {
             let (data, response) = try await URLSession.shared.data(for: request)
             guard let httpResponse = response as? HTTPURLResponse else {
-                throw CloudProviderError.unknown("OneDrive request failed.")
+                throw CloudProviderError.unknown(String(localized: "OneDrive request failed."))
             }
 
             guard (200..<300).contains(httpResponse.statusCode) else {
@@ -530,15 +530,15 @@ final class OneDriveCloudProvider: CloudProvider, @unchecked Sendable {
         case 409, 412:
             return CloudProviderError.conflict(remoteRev: nil)
         case 400 where message?.localizedCaseInsensitiveContains("quota") == true:
-            return CloudProviderError.unknown(message ?? "OneDrive quota is unavailable.")
+            return CloudProviderError.unknown(message ?? String(localized: "OneDrive quota is unavailable."))
         default:
-            return CloudProviderError.unknown(message ?? "OneDrive request failed with HTTP \(statusCode).")
+            return CloudProviderError.unknown(message ?? String(localized: "OneDrive request failed with HTTP \(statusCode)."))
         }
     }
 
     private static func mapMSALError(_ error: Error?) -> Error {
         guard let error else {
-            return CloudProviderError.unknown("OneDrive sign-in failed.")
+            return CloudProviderError.unknown(String(localized: "OneDrive sign-in failed."))
         }
 
         let nsError = error as NSError

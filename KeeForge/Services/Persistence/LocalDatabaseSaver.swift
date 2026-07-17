@@ -19,11 +19,11 @@ enum SaveError: Error, LocalizedError, Equatable {
     var errorDescription: String? {
         switch self {
         case .databaseIsReadOnly:
-            "This database is read-only."
+            String(localized: "This database is read-only.")
         case .databaseLocationUnavailable:
-            "The database file could not be located."
+            String(localized: "The database file could not be located.")
         case .saveContextUnavailable:
-            "The database is not ready to save."
+            String(localized: "The database is not ready to save.")
         }
     }
 }

@@ -52,8 +52,8 @@ enum DocumentPickerService {
 
     static func invalidDatabaseSelectionAlert() -> SelectionAlert {
         SelectionAlert(
-            title: "Invalid File",
-            message: "Please select a KeePass .kdbx database."
+            title: String(localized: "Invalid File"),
+            message: String(localized: "Please select a KeePass .kdbx database.")
         )
     }
 
@@ -62,7 +62,7 @@ enum DocumentPickerService {
         guard nsError.code != NSUserCancelledError else { return nil }
 
         return SelectionAlert(
-            title: "Couldn’t Open File",
+            title: String(localized: "Couldn’t Open File"),
             message: nsError.localizedDescription
         )
     }

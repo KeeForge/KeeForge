@@ -30,7 +30,7 @@ enum BiometricService {
 
     static func authenticate(reason: String) async throws -> LAContext {
         let context = LAContext()
-        context.localizedFallbackTitle = "Use Password"
+        context.localizedFallbackTitle = String(localized: "Use Password")
         await MainActor.run { isBiometricAuthInProgress = true }
         do {
             try await context.evaluatePolicy(

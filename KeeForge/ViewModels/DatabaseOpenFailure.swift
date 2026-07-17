@@ -243,7 +243,7 @@ struct DatabaseOpenFailure: Equatable, Sendable {
     }
 
     var privacyNote: String {
-        "Database contents, passwords, key files, and raw vault files are never included. Visible diagnostics may include app/device metadata and short file hash prefixes."
+        String(localized: "Database contents, passwords, key files, and raw vault files are never included. Visible diagnostics may include app/device metadata and short file hash prefixes.")
     }
 
     var reportDetails: String {
@@ -289,8 +289,8 @@ struct DatabaseOpenFailure: Equatable, Sendable {
     ) -> DatabaseOpenFailure {
         if error is CoordinatedFileReader.TimeoutError {
             return DatabaseOpenFailure(
-                title: "Database Server Unavailable",
-                summary: "The database file did not respond. Check that the server is reachable or connect to its network or VPN, then try again.",
+                title: String(localized: "Database Server Unavailable"),
+                summary: String(localized: "The database file did not respond. Check that the server is reachable or connect to its network or VPN, then try again."),
                 technicalDetails: technicalDetails(for: error),
                 errorCode: "file.read_timeout",
                 category: .fileAccess,
@@ -321,8 +321,8 @@ struct DatabaseOpenFailure: Equatable, Sendable {
         }
 
         return DatabaseOpenFailure(
-            title: isCloudBacked ? "Couldn't Open Cloud Database" : "Couldn't Open Database",
-            summary: "KeeForge hit an unexpected problem while opening this database.",
+            title: isCloudBacked ? String(localized: "Couldn't Open Cloud Database") : String(localized: "Couldn't Open Database"),
+            summary: String(localized: "KeeForge hit an unexpected problem while opening this database."),
             technicalDetails: technicalDetails(for: error),
             errorCode: isCloudBacked ? "cloud.unexpected" : "open.unexpected",
             category: isCloudBacked ? .cloud : .unexpected,
@@ -342,8 +342,8 @@ struct DatabaseOpenFailure: Equatable, Sendable {
         switch error {
         case .invalidKey, .decryptionFailed, .hmacMismatch:
             return DatabaseOpenFailure(
-                title: "Couldn't Unlock Database",
-                summary: "The password or key file didn't unlock this database. If you're sure they are correct, the file may be corrupted.",
+                title: String(localized: "Couldn't Unlock Database"),
+                summary: String(localized: "The password or key file didn't unlock this database. If you're sure they are correct, the file may be corrupted."),
                 technicalDetails: technicalDetails(for: error),
                 errorCode: "auth.invalid_credentials",
                 category: .authentication,
@@ -352,8 +352,8 @@ struct DatabaseOpenFailure: Equatable, Sendable {
             )
         case .unsupportedCipher:
             return DatabaseOpenFailure(
-                title: "Unsupported Database Format",
-                summary: "This database uses an encryption format that KeeForge does not support yet.",
+                title: String(localized: "Unsupported Database Format"),
+                summary: String(localized: "This database uses an encryption format that KeeForge does not support yet."),
                 technicalDetails: technicalDetails(for: error),
                 errorCode: "format.unsupported_cipher",
                 category: .unsupportedFormat,
@@ -362,8 +362,8 @@ struct DatabaseOpenFailure: Equatable, Sendable {
             )
         case .unsupportedKDF:
             return DatabaseOpenFailure(
-                title: "Unsupported Database Format",
-                summary: "This database uses a key-derivation format that KeeForge does not support yet.",
+                title: String(localized: "Unsupported Database Format"),
+                summary: String(localized: "This database uses a key-derivation format that KeeForge does not support yet."),
                 technicalDetails: technicalDetails(for: error),
                 errorCode: "format.unsupported_kdf",
                 category: .unsupportedFormat,
@@ -372,8 +372,8 @@ struct DatabaseOpenFailure: Equatable, Sendable {
             )
         case .encryptionFailed, .compressionFailed, .decompressionFailed:
             return DatabaseOpenFailure(
-                title: "Couldn't Open Database",
-                summary: "KeeForge hit an unexpected problem while processing this database.",
+                title: String(localized: "Couldn't Open Database"),
+                summary: String(localized: "KeeForge hit an unexpected problem while processing this database."),
                 technicalDetails: technicalDetails(for: error),
                 errorCode: "open.crypto_failed",
                 category: .unexpected,
@@ -387,8 +387,8 @@ struct DatabaseOpenFailure: Equatable, Sendable {
         switch error {
         case .invalidBlockHMAC, .invalidStreamStartBytes:
             return DatabaseOpenFailure(
-                title: "Couldn't Unlock Database",
-                summary: "The password or key file didn't unlock this database. If you're sure they are correct, the file may be corrupted.",
+                title: String(localized: "Couldn't Unlock Database"),
+                summary: String(localized: "The password or key file didn't unlock this database. If you're sure they are correct, the file may be corrupted."),
                 technicalDetails: technicalDetails(for: error),
                 errorCode: "auth.invalid_credentials",
                 category: .authentication,
@@ -397,8 +397,8 @@ struct DatabaseOpenFailure: Equatable, Sendable {
             )
         case .unsupportedVersion:
             return DatabaseOpenFailure(
-                title: "Unsupported Database Format",
-                summary: "This database uses a KeePass format that KeeForge does not support yet.",
+                title: String(localized: "Unsupported Database Format"),
+                summary: String(localized: "This database uses a KeePass format that KeeForge does not support yet."),
                 technicalDetails: technicalDetails(for: error),
                 errorCode: "format.unsupported_version",
                 category: .unsupportedFormat,
@@ -407,8 +407,8 @@ struct DatabaseOpenFailure: Equatable, Sendable {
             )
         case .unsupportedProtectedFieldStream:
             return DatabaseOpenFailure(
-                title: "Unsupported Database Format",
-                summary: "This database uses a protected-field format that KeeForge does not support yet.",
+                title: String(localized: "Unsupported Database Format"),
+                summary: String(localized: "This database uses a protected-field format that KeeForge does not support yet."),
                 technicalDetails: technicalDetails(for: error),
                 errorCode: "format.unsupported_protected_stream",
                 category: .unsupportedFormat,
@@ -417,8 +417,8 @@ struct DatabaseOpenFailure: Equatable, Sendable {
             )
         case .invalidSignature:
             return DatabaseOpenFailure(
-                title: "Not a KeePass Database",
-                summary: "KeeForge couldn't recognize this file as a valid KDBX database.",
+                title: String(localized: "Not a KeePass Database"),
+                summary: String(localized: "KeeForge couldn't recognize this file as a valid KDBX database."),
                 technicalDetails: technicalDetails(for: error),
                 errorCode: "format.invalid_signature",
                 category: .unsupportedFormat,
@@ -427,8 +427,8 @@ struct DatabaseOpenFailure: Equatable, Sendable {
             )
         default:
             return DatabaseOpenFailure(
-                title: "Couldn't Open Database",
-                summary: "KeeForge couldn't finish reading this database file.",
+                title: String(localized: "Couldn't Open Database"),
+                summary: String(localized: "KeeForge couldn't finish reading this database file."),
                 technicalDetails: technicalDetails(for: error),
                 errorCode: "open.parse_failed",
                 category: .unexpected,
@@ -442,8 +442,8 @@ struct DatabaseOpenFailure: Equatable, Sendable {
         switch error {
         case .notAuthenticated:
             return DatabaseOpenFailure(
-                title: "Reconnect Cloud Account",
-                summary: "KeeForge needs you to reconnect this cloud account before it can open the database.",
+                title: String(localized: "Reconnect Cloud Account"),
+                summary: String(localized: "KeeForge needs you to reconnect this cloud account before it can open the database."),
                 technicalDetails: technicalDetails(for: error),
                 errorCode: "cloud.not_authenticated",
                 category: .cloud,
@@ -452,8 +452,8 @@ struct DatabaseOpenFailure: Equatable, Sendable {
             )
         case .networkUnavailable:
             return DatabaseOpenFailure(
-                title: "Network Unavailable",
-                summary: "KeeForge couldn't reach the cloud provider. Try again when your connection is back.",
+                title: String(localized: "Network Unavailable"),
+                summary: String(localized: "KeeForge couldn't reach the cloud provider. Try again when your connection is back."),
                 technicalDetails: technicalDetails(for: error),
                 errorCode: "cloud.network_unavailable",
                 category: .cloud,
@@ -462,8 +462,8 @@ struct DatabaseOpenFailure: Equatable, Sendable {
             )
         case .fileNotFound:
             return DatabaseOpenFailure(
-                title: "Cloud Database Unavailable",
-                summary: "KeeForge couldn't find this cloud database. It may have moved, been deleted, or the account may need to reconnect.",
+                title: String(localized: "Cloud Database Unavailable"),
+                summary: String(localized: "KeeForge couldn't find this cloud database. It may have moved, been deleted, or the account may need to reconnect."),
                 technicalDetails: technicalDetails(for: error),
                 errorCode: "cloud.file_not_found",
                 category: .cloud,
@@ -472,8 +472,8 @@ struct DatabaseOpenFailure: Equatable, Sendable {
             )
         case .authenticationCancelled:
             return DatabaseOpenFailure(
-                title: "Cloud Sign-In Cancelled",
-                summary: "The cloud sign-in flow was cancelled before KeeForge could open the database.",
+                title: String(localized: "Cloud Sign-In Cancelled"),
+                summary: String(localized: "The cloud sign-in flow was cancelled before KeeForge could open the database."),
                 technicalDetails: technicalDetails(for: error),
                 errorCode: "cloud.authentication_cancelled",
                 category: .cloud,
@@ -482,8 +482,8 @@ struct DatabaseOpenFailure: Equatable, Sendable {
             )
         case .invalidConfiguration:
             return DatabaseOpenFailure(
-                title: "Cloud Sync Not Configured",
-                summary: "This build of KeeForge is missing the cloud sync configuration it needs to open that database.",
+                title: String(localized: "Cloud Sync Not Configured"),
+                summary: String(localized: "This build of KeeForge is missing the cloud sync configuration it needs to open that database."),
                 technicalDetails: technicalDetails(for: error),
                 errorCode: "cloud.invalid_configuration",
                 category: .cloud,
@@ -492,8 +492,8 @@ struct DatabaseOpenFailure: Equatable, Sendable {
             )
         case .writeScopeRequired:
             return DatabaseOpenFailure(
-                title: "Reconnect Cloud Account",
-                summary: "KeeForge needs refreshed cloud access before it can continue with this database.",
+                title: String(localized: "Reconnect Cloud Account"),
+                summary: String(localized: "KeeForge needs refreshed cloud access before it can continue with this database."),
                 technicalDetails: technicalDetails(for: error),
                 errorCode: "cloud.write_scope_required",
                 category: .cloud,
@@ -502,8 +502,8 @@ struct DatabaseOpenFailure: Equatable, Sendable {
             )
         case .conflict, .unknown:
             return DatabaseOpenFailure(
-                title: "Couldn't Open Cloud Database",
-                summary: "KeeForge hit an unexpected cloud-sync problem while opening this database.",
+                title: String(localized: "Couldn't Open Cloud Database"),
+                summary: String(localized: "KeeForge hit an unexpected cloud-sync problem while opening this database."),
                 technicalDetails: technicalDetails(for: error),
                 errorCode: "cloud.unexpected",
                 category: .cloud,
@@ -525,21 +525,21 @@ struct DatabaseOpenFailure: Equatable, Sendable {
 
         switch code {
         case .userCancel, .appCancel, .systemCancel:
-            summary = "Biometric unlock was cancelled before KeeForge could open the database."
+            summary = String(localized: "Biometric unlock was cancelled before KeeForge could open the database.")
             errorCode = "biometric.cancelled"
         case .authenticationFailed:
-            summary = "Face ID or Touch ID didn't verify, so KeeForge could not continue unlocking."
+            summary = String(localized: "Face ID or Touch ID didn't verify, so KeeForge could not continue unlocking.")
             errorCode = "biometric.authentication_failed"
         case .biometryNotAvailable, .biometryNotEnrolled, .biometryLockout:
-            summary = "Biometric unlock isn't available right now. You can still use your password and key file."
+            summary = String(localized: "Biometric unlock isn't available right now. You can still use your password and key file.")
             errorCode = "biometric.unavailable"
         default:
-            summary = "KeeForge couldn't finish the biometric unlock flow."
+            summary = String(localized: "KeeForge couldn't finish the biometric unlock flow.")
             errorCode = "biometric.unexpected"
         }
 
         return DatabaseOpenFailure(
-            title: "Biometric Unlock Failed",
+            title: String(localized: "Biometric Unlock Failed"),
             summary: summary,
             technicalDetails: technicalDetails(for: error),
             errorCode: errorCode,
@@ -559,8 +559,8 @@ struct DatabaseOpenFailure: Equatable, Sendable {
         switch code {
         case .fileReadNoSuchFile:
             return DatabaseOpenFailure(
-                title: "Database File Unavailable",
-                summary: "KeeForge couldn't find the selected database file. It may have moved, been deleted, or the saved bookmark may need to be refreshed.",
+                title: String(localized: "Database File Unavailable"),
+                summary: String(localized: "KeeForge couldn't find the selected database file. It may have moved, been deleted, or the saved bookmark may need to be refreshed."),
                 technicalDetails: technicalDetails(for: error),
                 errorCode: "file.not_found",
                 category: .fileAccess,
@@ -569,8 +569,8 @@ struct DatabaseOpenFailure: Equatable, Sendable {
             )
         case .fileReadNoPermission:
             return DatabaseOpenFailure(
-                title: "Database Permission Needed",
-                summary: "KeeForge no longer has permission to read this database file. Choose it again from the database list to refresh access.",
+                title: String(localized: "Database Permission Needed"),
+                summary: String(localized: "KeeForge no longer has permission to read this database file. Choose it again from the database list to refresh access."),
                 technicalDetails: technicalDetails(for: error),
                 errorCode: "file.permission_denied",
                 category: .fileAccess,
@@ -579,8 +579,8 @@ struct DatabaseOpenFailure: Equatable, Sendable {
             )
         default:
             return DatabaseOpenFailure(
-                title: "Couldn't Access Database File",
-                summary: "KeeForge couldn't access the selected database file.",
+                title: String(localized: "Couldn't Access Database File"),
+                summary: String(localized: "KeeForge couldn't access the selected database file."),
                 technicalDetails: technicalDetails(for: error),
                 errorCode: "file.read_failed",
                 category: .fileAccess,

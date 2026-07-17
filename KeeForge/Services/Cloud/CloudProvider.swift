@@ -71,19 +71,19 @@ enum CloudProviderError: LocalizedError, Equatable {
     var errorDescription: String? {
         switch self {
         case .invalidConfiguration:
-            "Cloud sync is not configured for this build."
+            String(localized: "Cloud sync is not configured for this build.")
         case .authenticationCancelled:
-            "Authentication was cancelled."
+            String(localized: "Authentication was cancelled.")
         case .notAuthenticated:
-            "Please reconnect this cloud account."
+            String(localized: "Please reconnect this cloud account.")
         case .networkUnavailable:
-            "No network connection. Using the cached copy if available."
+            String(localized: "No network connection. Using the cached copy if available.")
         case .fileNotFound:
-            "The remote database could not be found."
+            String(localized: "The remote database could not be found.")
         case .conflict:
-            "This database changed in the cloud. Reload before saving again."
+            String(localized: "This database changed in the cloud. Reload before saving again.")
         case .writeScopeRequired:
-            "Reconnect this cloud account to save changes."
+            String(localized: "Reconnect this cloud account to save changes.")
         case .unknown(let message):
             message
         }

@@ -9,9 +9,9 @@ enum DatabaseListStore {
         var errorDescription: String? {
             switch self {
             case .duplicateFile(_, let filename):
-                return "“\(filename)” is already in your database list."
+                return String(localized: "“\(filename)” is already in your database list.")
             case .duplicateCreatedFilename(let filename):
-                return "“\(filename)” is already used by a KeeForge-only database."
+                return String(localized: "“\(filename)” is already used by a KeeForge-only database.")
             }
         }
     }

@@ -183,7 +183,7 @@ struct GroupListView: View {
                                 Menu {
                                     Picker("Sort By", selection: $viewModel.sortOrder) {
                                         ForEach(DatabaseViewModel.SortOrder.allCases, id: \.self) { order in
-                                            Text(order.rawValue).tag(order)
+                                            Text(order.title).tag(order)
                                         }
                                     }
 
@@ -478,15 +478,23 @@ struct GroupListView: View {
     }
 
     private func groupDeletionMessage(for action: PendingGroupDeletion) -> String {
-        let contents = "\(countText(action.entryCount, singular: "entry", plural: "entries")) and \(countText(action.nestedGroupCount, singular: "nested group", plural: "nested groups"))"
+        let contents = "\(entryCountText(action.entryCount)) and \(nestedGroupCountText(action.nestedGroupCount))"
         if action.sendToRecycleBin {
-            return "\"\(action.groupName)\" contains \(contents). The group and its contents will be moved to the recycle bin."
+            return String(localized: "\"\(action.groupName)\" contains \(contents). The group and its contents will be moved to the recycle bin.")
         }
-        return "\"\(action.groupName)\" contains \(contents). The group and its contents will be removed immediately and cannot be restored from KeeForge."
+        return String(localized: "\"\(action.groupName)\" contains \(contents). The group and its contents will be removed immediately and cannot be restored from KeeForge.")
     }
 
-    private func countText(_ count: Int, singular: String, plural: String) -> String {
-        "\(count) \(count == 1 ? singular : plural)"
+    private func entryCountText(_ count: Int) -> String {
+        count == 1
+            ? String(localized: "1 entry")
+            : String(localized: "\(count) entries")
+    }
+
+    private func nestedGroupCountText(_ count: Int) -> String {
+        count == 1
+            ? String(localized: "1 nested group")
+            : String(localized: "\(count) nested groups")
     }
 }
 

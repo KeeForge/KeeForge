@@ -34,8 +34,8 @@ struct FeedbackComposerContext: Identifiable, Equatable, Sendable {
     static var general: FeedbackComposerContext {
         FeedbackComposerContext(
             id: "general-feedback",
-            title: "Send Feedback",
-            prompt: "Tell us what happened or what would make KeeForge better.",
+            title: String(localized: "Send Feedback"),
+            prompt: String(localized: "Tell us what happened or what would make KeeForge better."),
             initialMessage: "",
             errorCode: "",
             errorCategory: "",
@@ -46,9 +46,9 @@ struct FeedbackComposerContext: Identifiable, Equatable, Sendable {
     static func databaseOpenFailure(_ failure: DatabaseOpenFailure) -> FeedbackComposerContext {
         FeedbackComposerContext(
             id: "open-failure-\(failure.errorCode)",
-            title: "Send Feedback",
-            prompt: "Tell us what you were doing when KeeForge tried to open the database.",
-            initialMessage: "KeeForge couldn't open my database.",
+            title: String(localized: "Send Feedback"),
+            prompt: String(localized: "Tell us what you were doing when KeeForge tried to open the database."),
+            initialMessage: String(localized: "KeeForge couldn't open my database."),
             errorCode: failure.errorCode,
             errorCategory: failure.category.rawValue,
             details: failure.reportDetails
@@ -68,9 +68,9 @@ enum FeedbackSubmissionError: LocalizedError, Equatable, Sendable {
     var errorDescription: String? {
         switch self {
         case .messageRequired:
-            "Add a short message before sending feedback."
+            String(localized: "Add a short message before sending feedback.")
         case .invalidResponse:
-            "KeeForge couldn't submit the feedback right now. Please try again later."
+            String(localized: "KeeForge couldn't submit the feedback right now. Please try again later.")
         }
     }
 }

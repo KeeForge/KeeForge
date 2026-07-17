@@ -178,20 +178,20 @@ extension CredentialProviderViewController: CredentialProviderPresenting {
         onCancel: @escaping () -> Void
     ) {
         let alert = NSAlert()
-        alert.messageText = "Unlock KeeForge"
-        alert.informativeText = "Enter your master password or use biometrics."
+        alert.messageText = String(localized: "Unlock KeeForge")
+        alert.informativeText = String(localized: "Enter your master password or use biometrics.")
 
         let passwordField = NSSecureTextField(frame: NSRect(x: 0, y: 0, width: 240, height: 24))
-        passwordField.placeholderString = "Master Password"
+        passwordField.placeholderString = String(localized: "Master Password")
         alert.accessoryView = passwordField
         alert.window.initialFirstResponder = passwordField
 
         // Button order defines response codes: first = rightmost/default.
-        alert.addButton(withTitle: "Unlock")            // .alertFirstButtonReturn
+        alert.addButton(withTitle: String(localized: "Unlock"))            // .alertFirstButtonReturn
         if biometricOptionTitle != nil {
-            alert.addButton(withTitle: biometricOptionTitle ?? "Use Biometrics") // .alertSecondButtonReturn
+            alert.addButton(withTitle: biometricOptionTitle ?? String(localized: "Use Biometrics")) // .alertSecondButtonReturn
         }
-        alert.addButton(withTitle: "Cancel")            // second or third
+        alert.addButton(withTitle: String(localized: "Cancel"))            // second or third
 
         let response = runModalAlert(alert)
         switch response {
@@ -210,10 +210,10 @@ extension CredentialProviderViewController: CredentialProviderPresenting {
         onCancel: @escaping () -> Void
     ) {
         let alert = NSAlert()
-        alert.messageText = "Unlock Failed"
+        alert.messageText = String(localized: "Unlock Failed")
         alert.informativeText = message
-        alert.addButton(withTitle: "Try Again")  // .alertFirstButtonReturn
-        alert.addButton(withTitle: "Cancel")      // .alertSecondButtonReturn
+        alert.addButton(withTitle: String(localized: "Try Again"))  // .alertFirstButtonReturn
+        alert.addButton(withTitle: String(localized: "Cancel"))      // .alertSecondButtonReturn
 
         if runModalAlert(alert) == .alertFirstButtonReturn {
             onRetry()
@@ -227,9 +227,9 @@ extension CredentialProviderViewController: CredentialProviderPresenting {
         onAcknowledge: @escaping () -> Void
     ) {
         let alert = NSAlert()
-        alert.messageText = "Read-only Database"
+        alert.messageText = String(localized: "Read-only Database")
         alert.informativeText = message
-        alert.addButton(withTitle: "OK")
+        alert.addButton(withTitle: String(localized: "OK"))
         _ = runModalAlert(alert)
         onAcknowledge()
     }

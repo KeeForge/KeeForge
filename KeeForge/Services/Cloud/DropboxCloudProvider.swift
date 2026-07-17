@@ -89,7 +89,7 @@ final class DropboxCloudProvider: CloudProvider, @unchecked Sendable {
         try configureIfNeeded()
 
         guard pendingAuthContinuation == nil else {
-            throw CloudProviderError.unknown("Another Dropbox sign-in is already in progress.")
+            throw CloudProviderError.unknown(String(localized: "Another Dropbox sign-in is already in progress."))
         }
 
         return try await withCheckedThrowingContinuation { continuation in
@@ -241,7 +241,7 @@ final class DropboxCloudProvider: CloudProvider, @unchecked Sendable {
                         continuation: continuation
                     )
                 } else {
-                    continuation.resume(throwing: CloudProviderError.unknown("Dropbox upload failed."))
+                    continuation.resume(throwing: CloudProviderError.unknown(String(localized: "Dropbox upload failed.")))
                 }
             }
         }
@@ -282,7 +282,7 @@ final class DropboxCloudProvider: CloudProvider, @unchecked Sendable {
                         continuation: continuation
                     )
                 } else {
-                    continuation.resume(throwing: CloudProviderError.unknown("Dropbox upload failed."))
+                    continuation.resume(throwing: CloudProviderError.unknown(String(localized: "Dropbox upload failed.")))
                 }
             }
         }
@@ -644,7 +644,7 @@ final class DropboxCloudProvider: CloudProvider, @unchecked Sendable {
 
     private static func mapGetMetadataError(_ error: CallError<Files.GetMetadataError>?) -> Error {
         guard let error else {
-            return CloudProviderError.unknown("Dropbox metadata request failed.")
+            return CloudProviderError.unknown(String(localized: "Dropbox metadata request failed."))
         }
 
         if case .routeError(let boxed, _, _, _) = error,
@@ -658,7 +658,7 @@ final class DropboxCloudProvider: CloudProvider, @unchecked Sendable {
 
     private static func mapDownloadError(_ error: CallError<Files.DownloadError>?) -> Error {
         guard let error else {
-            return CloudProviderError.unknown("Dropbox download failed.")
+            return CloudProviderError.unknown(String(localized: "Dropbox download failed."))
         }
 
         if case .routeError(let boxed, _, _, _) = error,
@@ -672,7 +672,7 @@ final class DropboxCloudProvider: CloudProvider, @unchecked Sendable {
 
     private static func mapListFolderError(_ error: CallError<Files.ListFolderError>?) -> Error {
         guard let error else {
-            return CloudProviderError.unknown("Dropbox folder listing failed.")
+            return CloudProviderError.unknown(String(localized: "Dropbox folder listing failed."))
         }
 
         if case .routeError(let boxed, _, _, _) = error,
@@ -686,7 +686,7 @@ final class DropboxCloudProvider: CloudProvider, @unchecked Sendable {
 
     private static func mapListFolderContinueError(_ error: CallError<Files.ListFolderContinueError>?) -> Error {
         guard let error else {
-            return CloudProviderError.unknown("Dropbox folder listing failed.")
+            return CloudProviderError.unknown(String(localized: "Dropbox folder listing failed."))
         }
 
         return mapGenericDropboxError(error)
@@ -694,7 +694,7 @@ final class DropboxCloudProvider: CloudProvider, @unchecked Sendable {
 
     private static func mapSearchError(_ error: CallError<Files.SearchError>?) -> Error {
         guard let error else {
-            return CloudProviderError.unknown("Dropbox search failed.")
+            return CloudProviderError.unknown(String(localized: "Dropbox search failed."))
         }
 
         return mapGenericDropboxError(error)
@@ -702,7 +702,7 @@ final class DropboxCloudProvider: CloudProvider, @unchecked Sendable {
 
     private static func mapUploadError(_ error: CallError<Files.UploadError>?) -> Error {
         guard let error else {
-            return CloudProviderError.unknown("Dropbox upload failed.")
+            return CloudProviderError.unknown(String(localized: "Dropbox upload failed."))
         }
 
         if case .routeError(let boxed, _, _, _) = error,
@@ -716,7 +716,7 @@ final class DropboxCloudProvider: CloudProvider, @unchecked Sendable {
 
     private static func mapGenericDropboxError(_ error: Error?) -> Error {
         guard let error else {
-            return CloudProviderError.unknown("Dropbox request failed.")
+            return CloudProviderError.unknown(String(localized: "Dropbox request failed."))
         }
 
         let nsError = error as NSError
@@ -729,7 +729,7 @@ final class DropboxCloudProvider: CloudProvider, @unchecked Sendable {
 
     private static func mapGenericDropboxError<E>(_ error: CallError<E>?) -> Error {
         guard let error else {
-            return CloudProviderError.unknown("Dropbox request failed.")
+            return CloudProviderError.unknown(String(localized: "Dropbox request failed."))
         }
 
         return mapGenericDropboxError(error)

@@ -12,9 +12,9 @@ struct KDFDescriptor: Equatable, Sendable {
     var userFacingDescription: String {
         switch identifier {
         case "missing UUID":
-            return "The database is missing key derivation metadata."
+            return String(localized: "The database is missing key derivation metadata.")
         case "missing salt":
-            return "The database is missing key derivation salt data."
+            return String(localized: "The database is missing key derivation salt data.")
         default:
             return displayName
         }
@@ -85,14 +85,14 @@ enum KDBXCrypto {
 
         var errorDescription: String? {
             switch self {
-            case .invalidKey: "Invalid master key"
-            case .encryptionFailed: "Encryption failed"
-            case .decryptionFailed: "Decryption failed — wrong password?"
-            case .hmacMismatch: "HMAC verification failed — file corrupted or wrong password"
-            case .unsupportedCipher(let c): "Unsupported cipher: \(c)"
-            case .unsupportedKDF(let descriptor): "Unsupported key derivation function: \(descriptor.userFacingDescription)"
-            case .compressionFailed: "Compression failed"
-            case .decompressionFailed: "Decompression failed"
+            case .invalidKey: String(localized: "Invalid master key")
+            case .encryptionFailed: String(localized: "Encryption failed")
+            case .decryptionFailed: String(localized: "Decryption failed — wrong password?")
+            case .hmacMismatch: String(localized: "HMAC verification failed — file corrupted or wrong password")
+            case .unsupportedCipher(let c): String(localized: "Unsupported cipher: \(c)")
+            case .unsupportedKDF(let descriptor): String(localized: "Unsupported key derivation function: \(descriptor.userFacingDescription)")
+            case .compressionFailed: String(localized: "Compression failed")
+            case .decompressionFailed: String(localized: "Decompression failed")
             }
         }
     }

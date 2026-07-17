@@ -11,13 +11,13 @@ struct DatabaseDraft: Sendable {
         var errorDescription: String? {
             switch self {
             case .groupNotFound(let groupID):
-                "Group not found: \(groupID.uuidString)"
+                String(localized: "Group not found: \(groupID.uuidString)")
             case .entryNotFound(let entryID):
-                "Entry not found: \(entryID.uuidString)"
+                String(localized: "Entry not found: \(entryID.uuidString)")
             case .duplicateGroupName(_, let name):
-                "\"\(name)\" already exists in this group."
+                String(localized: "\"\(name)\" already exists in this group.")
             case .protectedGroup:
-                "This group cannot be deleted."
+                String(localized: "This group cannot be deleted.")
             }
         }
     }
@@ -508,7 +508,7 @@ struct DatabaseDraft: Sendable {
         let timestamp = Date.now
         return KPGroup(
             id: id,
-            name: "Recycle Bin",
+            name: String(localized: "Recycle Bin"),
             iconID: 43,
             entries: [entry],
             creationTime: timestamp,
@@ -520,7 +520,7 @@ struct DatabaseDraft: Sendable {
         let timestamp = Date.now
         return KPGroup(
             id: id,
-            name: "Recycle Bin",
+            name: String(localized: "Recycle Bin"),
             iconID: 43,
             groups: [group],
             creationTime: timestamp,

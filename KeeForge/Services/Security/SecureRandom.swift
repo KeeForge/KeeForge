@@ -8,7 +8,7 @@ enum SecureRandom {
         var errorDescription: String? {
             switch self {
             case .generationFailed:
-                "Secure random data could not be generated."
+                String(localized: "Secure random data could not be generated.")
             }
         }
     }

@@ -56,28 +56,28 @@ struct AutoFillEntryCreatorView: View {
                 }
 
                 Section("Basics") {
-                    basicFieldRow("Title") {
+                    basicFieldRow(String(localized: "Title")) {
                         TextField("Title", text: $draft.title)
                             .textInputAutocapitalization(.words)
                             .autocorrectionDisabled()
                             .accessibilityIdentifier("autofill-entry-creator.title-field")
                     }
 
-                    basicFieldRow("Username") {
+                    basicFieldRow(String(localized: "Username")) {
                         TextField("Username", text: $draft.username)
                             .textInputAutocapitalization(.never)
                             .autocorrectionDisabled()
                             .accessibilityIdentifier("autofill-entry-creator.username-field")
                     }
 
-                    basicFieldRow("Password") {
+                    basicFieldRow(String(localized: "Password")) {
                         SecureField("Password", text: $draft.password)
                             .passwordInputStyle()
                             .disabled(true)
                             .accessibilityIdentifier("autofill-entry-creator.password-field")
                     }
 
-                    basicFieldRow("URL") {
+                    basicFieldRow(String(localized: "URL")) {
                         TextField("URL", text: $draft.url)
                             .textInputAutocapitalization(.never)
                             .autocorrectionDisabled()

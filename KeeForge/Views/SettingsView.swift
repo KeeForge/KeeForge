@@ -318,13 +318,13 @@ private struct SecuritySettingsView: View {
 
                 Picker("Auto-Lock Timeout", selection: $autoLockTimeout) {
                     ForEach(SettingsService.AutoLockTimeout.allCases, id: \.self) { option in
-                        Text(option.rawValue).tag(option)
+                        Text(option.title).tag(option)
                     }
                 }
 
                 Picker("Clipboard Clear Timeout", selection: $clipboardTimeout) {
                     ForEach(SettingsService.ClipboardTimeout.allCases, id: \.self) { option in
-                        Text(option.rawValue).tag(option)
+                        Text(option.title).tag(option)
                     }
                 }
             } footer: {
@@ -469,7 +469,7 @@ private struct DisplaySettingsView: View {
         Section("Entry List") {
             Picker("Default Sort Order", selection: $sortOrder) {
                 ForEach(DatabaseViewModel.SortOrder.allCases, id: \.self) { order in
-                    Text(order.rawValue).tag(order)
+                    Text(order.title).tag(order)
                 }
             }
 
@@ -559,7 +559,7 @@ private struct MacSecuritySettingsTab: View {
 
                 Picker("Auto-Lock Timeout", selection: $autoLockTimeout) {
                     ForEach(SettingsService.AutoLockTimeout.allCases, id: \.self) { option in
-                        Text(option.rawValue).tag(option)
+                        Text(option.title).tag(option)
                     }
                 }
 
@@ -582,7 +582,7 @@ private struct MacSecuritySettingsTab: View {
             Section {
                 Picker("Clipboard Clear Timeout", selection: $clipboardTimeout) {
                     ForEach(SettingsService.ClipboardTimeout.allCases, id: \.self) { option in
-                        Text(option.rawValue).tag(option)
+                        Text(option.title).tag(option)
                     }
                 }
             } header: {
@@ -628,7 +628,7 @@ private struct MacDisplaySettingsTab: View {
             Section("Entry List") {
                 Picker("Default Sort Order", selection: $sortOrder) {
                     ForEach(DatabaseViewModel.SortOrder.allCases, id: \.self) { order in
-                        Text(order.rawValue).tag(order)
+                        Text(order.title).tag(order)
                     }
                 }
 

@@ -35,17 +35,17 @@ final class WebDAVConnectViewModel {
         let trimmedUsername = username.trimmingCharacters(in: .whitespacesAndNewlines)
 
         guard trimmedServerURL.isEmpty == false else {
-            errorMessage = "Enter the WebDAV server address."
+            errorMessage = String(localized: "Enter the WebDAV server address.")
             return nil
         }
 
         guard trimmedUsername.isEmpty == false else {
-            errorMessage = "Enter your username."
+            errorMessage = String(localized: "Enter your username.")
             return nil
         }
 
         guard password.isEmpty == false else {
-            errorMessage = "Enter your password."
+            errorMessage = String(localized: "Enter your password.")
             return nil
         }
 
@@ -55,9 +55,9 @@ final class WebDAVConnectViewModel {
 
         guard usesHTTPS || (usesHTTP && allowsUnencryptedHTTP) else {
             if usesHTTP {
-                errorMessage = "Turn on Allow Unencrypted HTTP in Advanced to use an http:// server address."
+                errorMessage = String(localized: "Turn on Allow Unencrypted HTTP in Advanced to use an http:// server address.")
             } else {
-                errorMessage = "The server address must start with https://."
+                errorMessage = String(localized: "The server address must start with https://.")
             }
             return nil
         }
@@ -82,7 +82,7 @@ final class WebDAVConnectViewModel {
 
     private static func connectionMessage(for error: Error) -> String {
         if let cloudError = error as? CloudProviderError, cloudError == .notAuthenticated {
-            return "The WebDAV username or password was rejected."
+            return String(localized: "The WebDAV username or password was rejected.")
         }
 
         return error.localizedDescription

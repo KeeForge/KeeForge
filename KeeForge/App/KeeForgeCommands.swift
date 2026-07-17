@@ -122,7 +122,7 @@ struct KeeForgeCommands: Commands {
             // otherwise. Only skipped when the device has no protection at all.
             if BiometricService.canAuthenticateDeviceOwner {
                 do {
-                    _ = try await BiometricService.authenticateDeviceOwner(reason: "Copy password")
+                    _ = try await BiometricService.authenticateDeviceOwner(reason: String(localized: "Copy password"))
                 } catch {
                     return
                 }

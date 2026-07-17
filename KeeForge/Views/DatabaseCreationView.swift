@@ -92,7 +92,7 @@ struct DatabaseCreationView: View {
                 onFailure: { error in
                     let provider = selectedCloudProvider ?? .dropbox
                     selectionAlert = DocumentPickerService.SelectionAlert(
-                        title: "Couldn’t Open \(provider.displayName)",
+                        title: String(localized: "Couldn’t Open \(provider.displayName)"),
                         message: error.localizedDescription
                     )
                 }
@@ -184,10 +184,10 @@ struct DatabaseCreationView: View {
     private var destinationFooter: String {
         switch viewModel.destinationChoice {
         case .files:
-            return "After you tap Create, Files will ask where to save the encrypted .kdbx database."
+            return String(localized: "After you tap Create, Files will ask where to save the encrypted .kdbx database.")
         case .dropbox, .oneDrive, .webDAV:
-            let providerName = selectedCloudProvider?.displayName ?? "cloud"
-            return "After you tap Create, choose the \(providerName) folder for the encrypted .kdbx database."
+            let providerName = selectedCloudProvider?.displayName ?? String(localized: "cloud")
+            return String(localized: "After you tap Create, choose the \(providerName) folder for the encrypted .kdbx database.")
         }
     }
 

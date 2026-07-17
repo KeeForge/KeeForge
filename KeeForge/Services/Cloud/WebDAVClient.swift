@@ -171,26 +171,26 @@ struct WebDAVClient: Sendable {
         case 403:
             // Not .writeScopeRequired: its message ("Reconnect this cloud
             // account") is wrong advice for a WebDAV permission denial.
-            return .unknown("The server denied access. Check that this account has permission for this file or folder.")
+            return .unknown(String(localized: "The server denied access. Check that this account has permission for this file or folder."))
         case 404, 410:
             return .fileNotFound
         case 405, 501:
             if isPropfind {
-                return .unknown("This server does not look like a WebDAV server (HTTP \(statusCode)). Check the server address.")
+                return .unknown(String(localized: "This server does not look like a WebDAV server (HTTP \(statusCode)). Check the server address."))
             }
-            return .unknown("The server rejected this request (HTTP \(statusCode)).")
+            return .unknown(String(localized: "The server rejected this request (HTTP \(statusCode))."))
         case 412:
             return .conflict(remoteRev: nil)
         case 423:
-            return .unknown("The remote database is locked by another client. Try again shortly.")
+            return .unknown(String(localized: "The remote database is locked by another client. Try again shortly."))
         case 413:
-            return .unknown("The database is too large for this server (HTTP 413).")
+            return .unknown(String(localized: "The database is too large for this server (HTTP 413)."))
         case 507:
-            return .unknown("The server is out of storage space (HTTP 507).")
+            return .unknown(String(localized: "The server is out of storage space (HTTP 507)."))
         case 500...599:
-            return .unknown("The server reported an error (HTTP \(statusCode)). Try again shortly.")
+            return .unknown(String(localized: "The server reported an error (HTTP \(statusCode)). Try again shortly."))
         default:
-            return .unknown("The server returned an unexpected response (HTTP \(statusCode)).")
+            return .unknown(String(localized: "The server returned an unexpected response (HTTP \(statusCode))."))
         }
     }
 
@@ -209,7 +209,7 @@ struct WebDAVClient: Sendable {
              NSURLErrorClientCertificateRejected,     // -1205
              NSURLErrorClientCertificateRequired,     // -1206
              NSURLErrorAppTransportSecurityRequiresSecureConnection: // -1022
-            return .unknown("Could not establish a secure connection. The server's certificate is invalid, or it does not support HTTPS.")
+            return .unknown(String(localized: "Could not establish a secure connection. The server's certificate is invalid, or it does not support HTTPS."))
 
         // Offline / reachability family.
         case NSURLErrorNotConnectedToInternet,
@@ -271,7 +271,7 @@ struct WebDAVClient: Sendable {
         return { request in
             let (data, response) = try await session.data(for: request)
             guard let httpResponse = response as? HTTPURLResponse else {
-                throw CloudProviderError.unknown("The server returned an unexpected response.")
+                throw CloudProviderError.unknown(String(localized: "The server returned an unexpected response."))
             }
             return (data, httpResponse)
         }

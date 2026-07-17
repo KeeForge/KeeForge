@@ -41,6 +41,16 @@ enum SettingsService {
             case .never: nil
             }
         }
+
+        var title: String {
+            switch self {
+            case .immediately: String(localized: "Immediately")
+            case .thirtySeconds: String(localized: "30 Seconds")
+            case .oneMinute: String(localized: "1 Minute")
+            case .fiveMinutes: String(localized: "5 Minutes")
+            case .never: String(localized: "Never")
+            }
+        }
     }
 
     // MARK: - Clipboard Timeout
@@ -55,6 +65,14 @@ enum SettingsService {
             case .tenSeconds: 10
             case .thirtySeconds: 30
             case .oneMinute: 60
+            }
+        }
+
+        var title: String {
+            switch self {
+            case .tenSeconds: String(localized: "10 Seconds")
+            case .thirtySeconds: String(localized: "30 Seconds")
+            case .oneMinute: String(localized: "1 Minute")
             }
         }
     }
@@ -83,9 +101,9 @@ enum SettingsService {
         var title: String {
             switch self {
             case .screenLockOrSleep:
-                return "When the Screen Locks or Sleeps"
+                return String(localized: "When the Screen Locks or Sleeps")
             case .appDeactivates:
-                return "When KeeForge Is Not the Active App"
+                return String(localized: "When KeeForge Is Not the Active App")
             }
         }
     }
@@ -112,11 +130,11 @@ enum SettingsService {
         var title: String {
             switch self {
             case .system:
-                return "System Default"
+                return String(localized: "System Default")
             case .light:
-                return "Light"
+                return String(localized: "Light")
             case .dark:
-                return "Dark"
+                return String(localized: "Dark")
             }
         }
     }

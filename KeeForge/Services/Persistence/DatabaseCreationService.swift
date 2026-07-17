@@ -94,13 +94,13 @@ enum DatabaseCreationService {
         var errorDescription: String? {
             switch self {
             case .invalidName:
-                "Enter a valid database name."
+                String(localized: "Enter a valid database name.")
             case .missingKeyComponent:
-                "Add a master password, key file, or both."
+                String(localized: "Add a master password, key file, or both.")
             case .destinationUnavailable:
-                "Choose a writable Files destination."
+                String(localized: "Choose a writable Files destination.")
             case .generatedFileFailedToReopen:
-                "The new database could not be verified after encryption."
+                String(localized: "The new database could not be verified after encryption.")
             }
         }
     }
@@ -367,7 +367,7 @@ enum DatabaseCreationService {
             groups: [
                 KPGroup(
                     id: recycleBinID,
-                    name: "Recycle Bin",
+                    name: String(localized: "Recycle Bin"),
                     iconID: 43,
                     isExpanded: false,
                     creationTime: now,

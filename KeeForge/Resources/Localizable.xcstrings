@@ -1,0 +1,5261 @@
+{
+  "sourceLanguage": "en",
+  "strings": {
+    "": {},
+    "\"%@\" already exists in this group.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "„%@“ ist in dieser Gruppe bereits vorhanden."
+          }
+        }
+      }
+    },
+    "\"%@\" contains %@. The group and its contents will be moved to the recycle bin.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "\"%1$@\" contains %2$@. The group and its contents will be moved to the recycle bin."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "„%1$@“ enthält %2$@. Die Gruppe und ihr Inhalt werden in den Papierkorb verschoben."
+          }
+        }
+      }
+    },
+    "\"%@\" contains %@. The group and its contents will be removed immediately and cannot be restored from KeeForge.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "\"%1$@\" contains %2$@. The group and its contents will be removed immediately and cannot be restored from KeeForge."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "„%1$@“ enthält %2$@. Die Gruppe und ihr Inhalt werden sofort gelöscht und können in KeeForge nicht wiederhergestellt werden."
+          }
+        }
+      }
+    },
+    "“%@” is already in your database list.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "„%@“ ist bereits in Ihrer Datenbankliste enthalten."
+          }
+        }
+      }
+    },
+    "“%@” is already used by a KeeForge-only database.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "„%@“ wird bereits von einer Datenbank verwendet, die nur in KeeForge verfügbar ist."
+          }
+        }
+      }
+    },
+    "“%@” will be removed from KeeForge, including its cached copy and saved biometric key.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "„%@“ wird aus KeeForge entfernt, einschließlich der Cache-Kopie und des gespeicherten biometrischen Schlüssels."
+          }
+        }
+      }
+    },
+    "%@\n\nKeeForge opened the cached copy for now. Cloud sync needs attention before this database can be refreshed from its provider.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@\n\nKeeForge hat vorerst die Cache-Kopie geöffnet. Die Cloud-Synchronisierung erfordert Ihre Aufmerksamkeit, bevor diese Datenbank vom Anbieter aktualisiert werden kann."
+          }
+        }
+      }
+    },
+    "%@ - %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "%1$@ - %2$@"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ – %2$@"
+          }
+        }
+      }
+    },
+    "%@ (~%lld bits)": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "%1$@ (~%2$lld bits)"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ (~%2$lld Bit)"
+          }
+        }
+      }
+    },
+    "%lld": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld"
+          }
+        }
+      }
+    },
+    "%lld characters": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld Zeichen"
+          }
+        }
+      }
+    },
+    "%lld entries": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld Einträge"
+          }
+        }
+      }
+    },
+    "%lld nested groups": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld verschachtelte Gruppen"
+          }
+        }
+      }
+    },
+    "1 entry": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "1 Eintrag"
+          }
+        }
+      }
+    },
+    "1 Minute": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "1 Minute"
+          }
+        }
+      }
+    },
+    "1 nested group": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "1 verschachtelte Gruppe"
+          }
+        }
+      }
+    },
+    "5 Minutes": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "5 Minuten"
+          }
+        }
+      }
+    },
+    "10 Seconds": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "10 Sekunden"
+          }
+        }
+      }
+    },
+    "30 Seconds": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "30 Sekunden"
+          }
+        }
+      }
+    },
+    "A database with this name already exists in this cloud folder.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Eine Datenbank mit diesem Namen ist in diesem Cloud-Ordner bereits vorhanden."
+          }
+        }
+      }
+    },
+    "About": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Über"
+          }
+        }
+      }
+    },
+    "Account": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Konto"
+          }
+        }
+      }
+    },
+    "Acknowledgments": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Danksagungen"
+          }
+        }
+      }
+    },
+    "Add a master password, key file, or both.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fügen Sie ein Master-Passwort, eine Schlüsseldatei oder beides hinzu."
+          }
+        }
+      }
+    },
+    "Add a short message before sending feedback.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fügen Sie vor dem Senden des Feedbacks eine kurze Nachricht hinzu."
+          }
+        }
+      }
+    },
+    "Add Entry or Group": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Eintrag oder Gruppe hinzufügen"
+          }
+        }
+      }
+    },
+    "Added": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hinzugefügt"
+          }
+        }
+      }
+    },
+    "Advanced": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Erweitert"
+          }
+        }
+      }
+    },
+    "After you tap Create, choose the %@ folder for the encrypted .kdbx database.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nachdem Sie auf „Erstellen“ getippt haben, wählen Sie den Ordner „%@“ für die verschlüsselte .kdbx-Datenbank."
+          }
+        }
+      }
+    },
+    "After you tap Create, Files will ask where to save the encrypted .kdbx database.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nachdem Sie auf „Erstellen“ getippt haben, fragt „Dateien“, wo die verschlüsselte .kdbx-Datenbank gesichert werden soll."
+          }
+        }
+      }
+    },
+    "Allow Unencrypted HTTP": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unverschlüsseltes HTTP erlauben"
+          }
+        }
+      }
+    },
+    "another app": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "andere App"
+          }
+        }
+      }
+    },
+    "Another Dropbox sign-in is already in progress.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Eine andere Anmeldung bei Dropbox läuft bereits."
+          }
+        }
+      }
+    },
+    "App": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "App"
+          }
+        }
+      }
+    },
+    "App Settings": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "App-Einstellungen"
+          }
+        }
+      }
+    },
+    "Argon2 Reference Implementation": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Argon2-Referenzimplementierung"
+          }
+        }
+      }
+    },
+    "Argon2Swift": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Argon2Swift"
+          }
+        }
+      }
+    },
+    "Ascending": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aufsteigend"
+          }
+        }
+      }
+    },
+    "Asks macOS to exclude KeeForge's windows from screenshots and screen recordings. This is best-effort: on macOS 15 and later, ScreenCaptureKit-based recorders can capture the window anyway. When it works, a screenshot of KeeForge comes out black or fails — that is the protection doing its job. Regardless of this setting, KeeForge blurs its windows whenever it loses focus.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fordert macOS auf, KeeForge-Fenster von Bildschirmfotos und -aufnahmen auszuschließen. Dies bietet nur eingeschränkten Schutz: Unter macOS 15 und neuer können auf ScreenCaptureKit basierende Aufnahmeprogramme das Fenster trotzdem erfassen. Wenn der Schutz funktioniert, ist KeeForge auf einem Bildschirmfoto schwarz oder die Aufnahme schlägt fehl – dann erfüllt der Schutz seinen Zweck. Unabhängig von dieser Einstellung macht KeeForge seine Fenster unkenntlich, sobald die App den Fokus verliert."
+          }
+        }
+      }
+    },
+    "Associated File": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zugehörige Datei"
+          }
+        }
+      }
+    },
+    "Attached Error Details": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Angehängte Fehlerdetails"
+          }
+        }
+      }
+    },
+    "Attachments": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Anhänge"
+          }
+        }
+      }
+    },
+    "Authentication was cancelled.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Authentifizierung wurde abgebrochen."
+          }
+        }
+      }
+    },
+    "Auto-Lock Timeout": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zeit bis zur automatischen Sperre"
+          }
+        }
+      }
+    },
+    "Auto-Unlock with Face ID": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Automatisch mit Face ID entsperren"
+          }
+        }
+      }
+    },
+    "Auto-Unlock with Face ID prompts after a database is opened. When background locking is off, KeeForge still uses the auto-lock timeout and locks the next time the app becomes active after that deadline has passed.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nach dem Öffnen einer Datenbank fordert KeeForge zur Entsperrung mit Face ID auf. Wenn das Sperren im Hintergrund deaktiviert ist, verwendet KeeForge weiterhin die Zeit bis zur automatischen Sperre und sperrt die Datenbank, sobald die App nach Ablauf dieser Frist wieder aktiv wird."
+          }
+        }
+      }
+    },
+    "Auto-Unlock with Touch ID": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Automatisch mit Touch ID entsperren"
+          }
+        }
+      }
+    },
+    "AutoFill": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "AutoFill"
+          }
+        }
+      }
+    },
+    "AutoFill in iOS": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "AutoFill unter iOS"
+          }
+        }
+      }
+    },
+    "AutoFill with KeeForge": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "AutoFill mit KeeForge"
+          }
+        }
+      }
+    },
+    "Back": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zurück"
+          }
+        }
+      }
+    },
+    "Back to Database List": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zur Datenbankliste"
+          }
+        }
+      }
+    },
+    "Basics": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Grundlagen"
+          }
+        }
+      }
+    },
+    "Biometric unlock": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Biometrisches Entsperren"
+          }
+        }
+      }
+    },
+    "Biometric Unlock Failed": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Biometrisches Entsperren fehlgeschlagen"
+          }
+        }
+      }
+    },
+    "Biometric unlock isn't available right now. You can still use your password and key file.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Biometrisches Entsperren ist derzeit nicht verfügbar. Sie können weiterhin Ihr Passwort und Ihre Schlüsseldatei verwenden."
+          }
+        }
+      }
+    },
+    "Biometric unlock was cancelled before KeeForge could open the database.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Das biometrische Entsperren wurde abgebrochen, bevor KeeForge die Datenbank öffnen konnte."
+          }
+        }
+      }
+    },
+    "Block HMAC invalid — wrong password or corrupted file": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Block-HMAC ungültig — falsches Passwort oder beschädigte Datei"
+          }
+        }
+      }
+    },
+    "Block Screen Capture": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bildschirmaufnahmen blockieren"
+          }
+        }
+      }
+    },
+    "Buy Me a Coffee": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kaffee spendieren"
+          }
+        }
+      }
+    },
+    "Cache unavailable": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cache nicht verfügbar"
+          }
+        }
+      }
+    },
+    "Cancel": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Abbrechen"
+          }
+        }
+      }
+    },
+    "Category": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kategorie"
+          }
+        }
+      }
+    },
+    "CC0 1.0 Universal / Apache 2.0 (dual-licensed)": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "CC0 1.0 Universal / Apache 2.0 (Doppellizenz)"
+          }
+        }
+      }
+    },
+    "Change Key File": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Schlüsseldatei ändern"
+          }
+        }
+      }
+    },
+    "Changes not saved": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Änderungen nicht gesichert"
+          }
+        }
+      }
+    },
+    "Character Sets": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zeichensätze"
+          }
+        }
+      }
+    },
+    "Choose a database from the sidebar to unlock and browse it.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wählen Sie eine Datenbank in der Seitenleiste aus, um sie zu entsperren und zu durchsuchen."
+          }
+        }
+      }
+    },
+    "Choose a group to view its entries.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wählen Sie eine Gruppe aus, um ihre Einträge anzuzeigen."
+          }
+        }
+      }
+    },
+    "Choose a writable Files destination.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wählen Sie ein beschreibbares Ziel in „Dateien“ aus."
+          }
+        }
+      }
+    },
+    "Choose an entry to view or edit its details.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wählen Sie einen Eintrag aus, um seine Details anzuzeigen oder zu bearbeiten."
+          }
+        }
+      }
+    },
+    "Choose Credential": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zugangsdaten auswählen"
+          }
+        }
+      }
+    },
+    "Choose Different File": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Andere Datei auswählen"
+          }
+        }
+      }
+    },
+    "Choose how to remove this entry.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wählen Sie aus, wie dieser Eintrag entfernt werden soll."
+          }
+        }
+      }
+    },
+    "Clear Favicon Cache": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Favicon-Cache leeren"
+          }
+        }
+      }
+    },
+    "Clear key file": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Schlüsseldatei leeren"
+          }
+        }
+      }
+    },
+    "Clear Key File": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Schlüsseldatei leeren"
+          }
+        }
+      }
+    },
+    "Clipboard": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zwischenablage"
+          }
+        }
+      }
+    },
+    "Clipboard Clear Timeout": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Löschfrist der Zwischenablage"
+          }
+        }
+      }
+    },
+    "Close": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Schließen"
+          }
+        }
+      }
+    },
+    "Close Database": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Datenbank schließen"
+          }
+        }
+      }
+    },
+    "cloud": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cloud"
+          }
+        }
+      }
+    },
+    "Cloud": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cloud"
+          }
+        }
+      }
+    },
+    "Cloud Accounts": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cloud-Konten"
+          }
+        }
+      }
+    },
+    "Cloud Database Unavailable": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cloud-Datenbank nicht verfügbar"
+          }
+        }
+      }
+    },
+    "Cloud databases are cached locally and refreshed whenever you open them in the main app. AutoFill uses the cached copy only.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cloud-Datenbanken werden lokal zwischengespeichert und bei jedem Öffnen in der Haupt-App aktualisiert. AutoFill verwendet nur die Cache-Kopie."
+          }
+        }
+      }
+    },
+    "Cloud Provider Unavailable": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cloud-Anbieter nicht verfügbar"
+          }
+        }
+      }
+    },
+    "Cloud Sign-In Cancelled": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cloud-Anmeldung abgebrochen"
+          }
+        }
+      }
+    },
+    "Cloud Sync": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cloud-Synchronisierung"
+          }
+        }
+      }
+    },
+    "Cloud sync is not configured for this build.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die Cloud-Synchronisierung ist für diesen Build nicht konfiguriert."
+          }
+        }
+      }
+    },
+    "Cloud Sync Needs Attention": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cloud-Synchronisierung erfordert Ihre Aufmerksamkeit"
+          }
+        }
+      }
+    },
+    "Cloud Sync Not Configured": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cloud-Synchronisierung nicht konfiguriert"
+          }
+        }
+      }
+    },
+    "Cloud sync warning": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Warnung zur Cloud-Synchronisierung"
+          }
+        }
+      }
+    },
+    "Code": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Code"
+          }
+        }
+      }
+    },
+    "Compression failed": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Komprimierung fehlgeschlagen"
+          }
+        }
+      }
+    },
+    "Concurrent edits from another device or app could overwrite your changes.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gleichzeitige Bearbeitungen auf einem anderen Gerät oder in einer anderen App könnten Ihre Änderungen überschreiben."
+          }
+        }
+      }
+    },
+    "Connect": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Verbinden"
+          }
+        }
+      }
+    },
+    "Connect %@": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ verbinden"
+          }
+        }
+      }
+    },
+    "Connect Another Account": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Weiteres Konto verbinden"
+          }
+        }
+      }
+    },
+    "Connect WebDAV": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mit WebDAV verbinden"
+          }
+        }
+      }
+    },
+    "Contact Support": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Support kontaktieren"
+          }
+        }
+      }
+    },
+    "Continue editing": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bearbeitung fortsetzen"
+          }
+        }
+      }
+    },
+    "Copied values are cleared after this timeout (unless you copied something else since) and are hidden from clipboard-manager apps. Unlike iOS, macOS cannot exclude copies from Handoff's Universal Clipboard, so a copied password may briefly appear on your other devices' clipboards.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kopierte Werte werden nach Ablauf dieser Frist gelöscht (sofern Sie zwischenzeitlich nichts anderes kopiert haben) und vor Apps zur Verwaltung der Zwischenablage verborgen. Anders als iOS kann macOS Kopien nicht von der universellen Zwischenablage von Handoff ausschließen. Daher kann ein kopiertes Passwort kurzzeitig in den Zwischenablagen Ihrer anderen Geräte erscheinen."
+          }
+        }
+      }
+    },
+    "Copy Error Details": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fehlerdetails kopieren"
+          }
+        }
+      }
+    },
+    "Copy password": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Passwort kopieren"
+          }
+        }
+      }
+    },
+    "Copy Password": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Passwort kopieren"
+          }
+        }
+      }
+    },
+    "Copy Username": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Benutzername kopieren"
+          }
+        }
+      }
+    },
+    "Could not establish a secure connection. The server's certificate is invalid, or it does not support HTTPS.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Es konnte keine sichere Verbindung hergestellt werden. Das Zertifikat des Servers ist ungültig oder der Server unterstützt HTTPS nicht."
+          }
+        }
+      }
+    },
+    "Could not extract EC P-256 key data": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "EC-P-256-Schlüsseldaten konnten nicht extrahiert werden"
+          }
+        }
+      }
+    },
+    "Could not securely store the WebDAV credentials.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die WebDAV-Zugangsdaten konnten nicht sicher gespeichert werden."
+          }
+        }
+      }
+    },
+    "Couldn't Access Database File": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Auf die Datenbankdatei konnte nicht zugegriffen werden"
+          }
+        }
+      }
+    },
+    "Couldn’t Create Group": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gruppe konnte nicht erstellt werden"
+          }
+        }
+      }
+    },
+    "Couldn’t Load Files": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dateien konnten nicht geladen werden"
+          }
+        }
+      }
+    },
+    "Couldn’t Load Folders": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ordner konnten nicht geladen werden"
+          }
+        }
+      }
+    },
+    "Couldn’t Open %@": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "„%@“ konnte nicht geöffnet werden"
+          }
+        }
+      }
+    },
+    "Couldn't Open Cloud Database": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cloud-Datenbank konnte nicht geöffnet werden"
+          }
+        }
+      }
+    },
+    "Couldn't Open Database": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Datenbank konnte nicht geöffnet werden"
+          }
+        }
+      }
+    },
+    "Couldn’t Open File": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Datei konnte nicht geöffnet werden"
+          }
+        }
+      }
+    },
+    "Couldn't Push Pending Changes": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ausstehende Änderungen konnten nicht hochgeladen werden"
+          }
+        }
+      }
+    },
+    "Couldn't Save Database": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Datenbank konnte nicht gesichert werden"
+          }
+        }
+      }
+    },
+    "Couldn't Send Feedback": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Feedback konnte nicht gesendet werden"
+          }
+        }
+      }
+    },
+    "Couldn't Unlock Database": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Datenbank konnte nicht entsperrt werden"
+          }
+        }
+      }
+    },
+    "Couldn’t Update Entry": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Eintrag konnte nicht aktualisiert werden"
+          }
+        }
+      }
+    },
+    "Create": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Erstellen"
+          }
+        }
+      }
+    },
+    "Create a new KeePass database or import an existing .kdbx file.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Erstellen Sie eine neue KeePass-Datenbank oder importieren Sie eine vorhandene .kdbx-Datei."
+          }
+        }
+      }
+    },
+    "Create Here": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hier erstellen"
+          }
+        }
+      }
+    },
+    "Create New Database": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Neue Datenbank erstellen"
+          }
+        }
+      }
+    },
+    "Created": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Erstellt"
+          }
+        }
+      }
+    },
+    "Creating Database": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Datenbank wird erstellt"
+          }
+        }
+      }
+    },
+    "Credential suggestions appear in the keyboard bar. Requires Face ID to unlock when tapped.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vorschläge für Zugangsdaten werden in der Tastaturleiste angezeigt. Beim Antippen ist Face ID zum Entsperren erforderlich."
+          }
+        }
+      }
+    },
+    "Custom Fields": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Benutzerdefinierte Felder"
+          }
+        }
+      }
+    },
+    "Custom Name": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Benutzerdefinierter Name"
+          }
+        }
+      }
+    },
+    "Dark": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dunkel"
+          }
+        }
+      }
+    },
+    "Database": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Datenbank"
+          }
+        }
+      }
+    },
+    "Database changed — open KeeForge to save": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Datenbank geändert — zum Sichern KeeForge öffnen"
+          }
+        }
+      }
+    },
+    "Database contents, passwords, key files, and raw vault files are never included. Visible diagnostics may include app/device metadata and short file hash prefixes.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Datenbankinhalte, Passwörter, Schlüsseldateien und unverarbeitete Tresordateien werden niemals einbezogen. Sichtbare Diagnosedaten können App- und Gerätemetadaten sowie kurze Präfixe von Datei-Hashes enthalten."
+          }
+        }
+      }
+    },
+    "Database Details": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Datenbankdetails"
+          }
+        }
+      }
+    },
+    "Database File Unavailable": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Datenbankdatei nicht verfügbar"
+          }
+        }
+      }
+    },
+    "Database name": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Datenbankname"
+          }
+        }
+      }
+    },
+    "Database Permission Needed": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Berechtigung für Datenbank erforderlich"
+          }
+        }
+      }
+    },
+    "Database Server Unavailable": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Datenbankserver nicht verfügbar"
+          }
+        }
+      }
+    },
+    "Database Settings": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Datenbankeinstellungen"
+          }
+        }
+      }
+    },
+    "Date Created": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Erstellungsdatum"
+          }
+        }
+      }
+    },
+    "Date Modified": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Änderungsdatum"
+          }
+        }
+      }
+    },
+    "Decompression failed": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dekomprimierung fehlgeschlagen"
+          }
+        }
+      }
+    },
+    "Decrypting your database securely...": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ihre Datenbank wird sicher entschlüsselt …"
+          }
+        }
+      }
+    },
+    "Decryption failed — wrong password?": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Entschlüsselung fehlgeschlagen — falsches Passwort?"
+          }
+        }
+      }
+    },
+    "Default Sort Order": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Standardsortierung"
+          }
+        }
+      }
+    },
+    "Delete": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Löschen"
+          }
+        }
+      }
+    },
+    "Delete Entry": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Eintrag löschen"
+          }
+        }
+      }
+    },
+    "Delete Entry?": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Eintrag löschen?"
+          }
+        }
+      }
+    },
+    "Delete Group?": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gruppe löschen?"
+          }
+        }
+      }
+    },
+    "Delete Permanently": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Endgültig löschen"
+          }
+        }
+      }
+    },
+    "Delete Permanently?": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Endgültig löschen?"
+          }
+        }
+      }
+    },
+    "Descending": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Absteigend"
+          }
+        }
+      }
+    },
+    "Destination": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ziel"
+          }
+        }
+      }
+    },
+    "Details": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Details"
+          }
+        }
+      }
+    },
+    "Digits": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ziffern"
+          }
+        }
+      }
+    },
+    "Discard Changes": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Änderungen verwerfen"
+          }
+        }
+      }
+    },
+    "Discard changes?": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Änderungen verwerfen?"
+          }
+        }
+      }
+    },
+    "Disconnect": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Verbindung trennen"
+          }
+        }
+      }
+    },
+    "Disconnect %@? KeeForge will keep any cached cloud databases until you remove them.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Verbindung zu %@ trennen? KeeForge behält alle Cloud-Datenbanken im Cache, bis Sie sie entfernen."
+          }
+        }
+      }
+    },
+    "Disconnect Cloud Account?": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cloud-Konto trennen?"
+          }
+        }
+      }
+    },
+    "Dismiss": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Schließen"
+          }
+        }
+      }
+    },
+    "Display": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Darstellung"
+          }
+        }
+      }
+    },
+    "Done": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fertig"
+          }
+        }
+      }
+    },
+    "Download Website Favicons": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Website-Favicons laden"
+          }
+        }
+      }
+    },
+    "Dropbox download failed.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dropbox-Download fehlgeschlagen."
+          }
+        }
+      }
+    },
+    "Dropbox folder listing failed.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dropbox-Ordnerliste konnte nicht geladen werden."
+          }
+        }
+      }
+    },
+    "Dropbox metadata request failed.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dropbox-Metadatenabfrage fehlgeschlagen."
+          }
+        }
+      }
+    },
+    "Dropbox request failed.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dropbox-Anfrage fehlgeschlagen."
+          }
+        }
+      }
+    },
+    "Dropbox search failed.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dropbox-Suche fehlgeschlagen."
+          }
+        }
+      }
+    },
+    "Dropbox upload failed.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dropbox-Upload fehlgeschlagen."
+          }
+        }
+      }
+    },
+    "Edit": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bearbeiten"
+          }
+        }
+      }
+    },
+    "Edit Entry": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Eintrag bearbeiten"
+          }
+        }
+      }
+    },
+    "Editing": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bearbeitung"
+          }
+        }
+      }
+    },
+    "Empty Group": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Leere Gruppe"
+          }
+        }
+      }
+    },
+    "Encryption failed": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Verschlüsselung fehlgeschlagen"
+          }
+        }
+      }
+    },
+    "Enter a valid database name.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Geben Sie einen gültigen Datenbanknamen ein."
+          }
+        }
+      }
+    },
+    "Enter password": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Passwort eingeben"
+          }
+        }
+      }
+    },
+    "Enter the WebDAV server address.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Geben Sie die Adresse des WebDAV-Servers ein."
+          }
+        }
+      }
+    },
+    "Enter your master password or use biometrics.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Geben Sie Ihr Master-Passwort ein oder verwenden Sie biometrisches Entsperren."
+          }
+        }
+      }
+    },
+    "Enter your password.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Geben Sie Ihr Passwort ein."
+          }
+        }
+      }
+    },
+    "Enter your username.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Geben Sie Ihren Benutzernamen ein."
+          }
+        }
+      }
+    },
+    "Entries": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Einträge"
+          }
+        }
+      }
+    },
+    "Entry List": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Eintragsliste"
+          }
+        }
+      }
+    },
+    "Entry not found: %@": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Eintrag nicht gefunden: %@"
+          }
+        }
+      }
+    },
+    "Entry Unavailable": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Eintrag nicht verfügbar"
+          }
+        }
+      }
+    },
+    "Error Code": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fehlercode"
+          }
+        }
+      }
+    },
+    "Error details copied.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fehlerdetails kopiert."
+          }
+        }
+      }
+    },
+    "Example: https://cloud.example.com/remote.php/dav/files/USERNAME/ — for Nextcloud, use an app password": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Beispiel: https://cloud.example.com/remote.php/dav/files/USERNAME/ — verwenden Sie für Nextcloud ein App-Passwort"
+          }
+        }
+      }
+    },
+    "Exclude Ambiguous Characters": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Verwechselbare Zeichen ausschließen"
+          }
+        }
+      }
+    },
+    "Expired": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Abgelaufen"
+          }
+        }
+      }
+    },
+    "Expires": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Läuft ab"
+          }
+        }
+      }
+    },
+    "Face ID or Touch ID didn't verify, so KeeForge could not continue unlocking.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Face ID oder Touch ID konnte Ihre Identität nicht bestätigen. Daher konnte KeeForge nicht mit dem Entsperren fortfahren."
+          }
+        }
+      }
+    },
+    "Failed to create biometric access control": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Biometrische Zugriffssteuerung konnte nicht erstellt werden"
+          }
+        }
+      }
+    },
+    "Failed to create signing key": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Signierschlüssel konnte nicht erstellt werden"
+          }
+        }
+      }
+    },
+    "Failed to parse database XML": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Datenbank-XML konnte nicht analysiert werden"
+          }
+        }
+      }
+    },
+    "Failed to sign assertion": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Assertion konnte nicht signiert werden"
+          }
+        }
+      }
+    },
+    "Feedback Sent": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Feedback gesendet"
+          }
+        }
+      }
+    },
+    "Fetches icons from DuckDuckGo. Only the website domain is sent.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ruft Symbole von DuckDuckGo ab. Nur die Domain der Website wird übertragen."
+          }
+        }
+      }
+    },
+    "File is truncated": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Datei ist abgeschnitten"
+          }
+        }
+      }
+    },
+    "File unavailable": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Datei nicht verfügbar"
+          }
+        }
+      }
+    },
+    "Filename": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dateiname"
+          }
+        }
+      }
+    },
+    "Files": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dateien"
+          }
+        }
+      }
+    },
+    "Find": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Suchen"
+          }
+        }
+      }
+    },
+    "Generate password": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Passwort generieren"
+          }
+        }
+      }
+    },
+    "Good": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gut"
+          }
+        }
+      }
+    },
+    "Group Name": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gruppenname"
+          }
+        }
+      }
+    },
+    "Group not found: %@": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gruppe nicht gefunden: %@"
+          }
+        }
+      }
+    },
+    "Group Unavailable": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gruppe nicht verfügbar"
+          }
+        }
+      }
+    },
+    "Groups": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gruppen"
+          }
+        }
+      }
+    },
+    "Hidden password": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Verborgenes Passwort"
+          }
+        }
+      }
+    },
+    "Hide %@": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ ausblenden"
+          }
+        }
+      }
+    },
+    "Hide master password": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Master-Passwort ausblenden"
+          }
+        }
+      }
+    },
+    "HMAC verification failed — file corrupted or wrong password": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "HMAC-Überprüfung fehlgeschlagen — Datei beschädigt oder falsches Passwort"
+          }
+        }
+      }
+    },
+    "HTTP sends your WebDAV username, password, and database traffic without encryption. Only use it on a local network you trust.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "HTTP überträgt Ihren WebDAV-Benutzernamen, Ihr Passwort und den Datenbankverkehr unverschlüsselt. Verwenden Sie es nur in einem lokalen Netzwerk, dem Sie vertrauen."
+          }
+        }
+      }
+    },
+    "iCloud may sync changes from another device while you're editing. We recommend keeping all writes on one device.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "iCloud synchronisiert möglicherweise Änderungen von einem anderen Gerät, während Sie die Datenbank bearbeiten. Es wird empfohlen, alle Schreibvorgänge auf ein Gerät zu beschränken."
+          }
+        }
+      }
+    },
+    "Identity": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Identität"
+          }
+        }
+      }
+    },
+    "Immediately": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sofort"
+          }
+        }
+      }
+    },
+    "Import Existing Database": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vorhandene Datenbank importieren"
+          }
+        }
+      }
+    },
+    "Invalid File": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ungültige Datei"
+          }
+        }
+      }
+    },
+    "Invalid inner header": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ungültiger innerer Header"
+          }
+        }
+      }
+    },
+    "Invalid master key": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ungültiger Master-Schlüssel"
+          }
+        }
+      }
+    },
+    "Invalid PEM-encoded private key": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ungültiger PEM-codierter privater Schlüssel"
+          }
+        }
+      }
+    },
+    "KDF parameter out of range: %@": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "KDF-Parameter außerhalb des zulässigen Bereichs: %@"
+          }
+        }
+      }
+    },
+    "KeeForge": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "KeeForge"
+          }
+        }
+      }
+    },
+    "KeeForge always locks on screen lock, screensaver, system sleep, and user switching. The stricter option also locks whenever another app becomes active.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "KeeForge sperrt sich immer bei Bildschirmsperre, Bildschirmschoner, Ruhezustand des Systems und Benutzerwechsel. Die strengere Option sperrt außerdem, sobald eine andere App aktiv wird."
+          }
+        }
+      }
+    },
+    "KeeForge couldn't access the selected database file.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "KeeForge konnte nicht auf die ausgewählte Datenbankdatei zugreifen."
+          }
+        }
+      }
+    },
+    "KeeForge couldn't find the selected database file. It may have moved, been deleted, or the saved bookmark may need to be refreshed.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "KeeForge konnte die ausgewählte Datenbankdatei nicht finden. Sie wurde möglicherweise verschoben oder gelöscht, oder das gespeicherte Lesezeichen muss aktualisiert werden."
+          }
+        }
+      }
+    },
+    "KeeForge couldn't find this cloud database. It may have moved, been deleted, or the account may need to reconnect.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "KeeForge konnte diese Cloud-Datenbank nicht finden. Sie wurde möglicherweise verschoben oder gelöscht, oder das Konto muss erneut verbunden werden."
+          }
+        }
+      }
+    },
+    "KeeForge couldn't finish reading this database file.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "KeeForge konnte das Lesen dieser Datenbankdatei nicht abschließen."
+          }
+        }
+      }
+    },
+    "KeeForge couldn't finish the biometric unlock flow.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "KeeForge konnte das biometrische Entsperren nicht abschließen."
+          }
+        }
+      }
+    },
+    "KeeForge couldn't open my database.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "KeeForge konnte meine Datenbank nicht öffnen."
+          }
+        }
+      }
+    },
+    "KeeForge couldn't reach the cloud provider. Try again when your connection is back.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "KeeForge konnte den Cloud-Anbieter nicht erreichen. Versuchen Sie es erneut, sobald Ihre Verbindung wiederhergestellt ist."
+          }
+        }
+      }
+    },
+    "KeeForge couldn't recognize this file as a valid KDBX database.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "KeeForge konnte diese Datei nicht als gültige KDBX-Datenbank erkennen."
+          }
+        }
+      }
+    },
+    "KeeForge couldn't submit the feedback right now. Please try again later.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "KeeForge konnte das Feedback derzeit nicht senden. Versuchen Sie es später erneut."
+          }
+        }
+      }
+    },
+    "KeeForge creates KDBX 4 databases encrypted with AES-256 and Argon2id key derivation. Choose a long, unique master password: it protects the entire database and cannot be recovered if forgotten.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "KeeForge erstellt KDBX-4-Datenbanken, die mit AES-256 verschlüsselt sind und Argon2id zur Schlüsselableitung verwenden. Wählen Sie ein langes, einzigartiges Master-Passwort: Es schützt die gesamte Datenbank und kann nicht wiederhergestellt werden, wenn Sie es vergessen."
+          }
+        }
+      }
+    },
+    "KeeForge currently autofills from the last database you successfully opened.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "KeeForge verwendet AutoFill derzeit mit der Datenbank, die Sie zuletzt erfolgreich geöffnet haben."
+          }
+        }
+      }
+    },
+    "KeeForge hit an unexpected cloud-sync problem while opening this database.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Beim Öffnen dieser Datenbank ist in KeeForge ein unerwartetes Problem mit der Cloud-Synchronisierung aufgetreten."
+          }
+        }
+      }
+    },
+    "KeeForge hit an unexpected problem while opening this database.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Beim Öffnen dieser Datenbank ist in KeeForge ein unerwartetes Problem aufgetreten."
+          }
+        }
+      }
+    },
+    "KeeForge hit an unexpected problem while processing this database.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Beim Verarbeiten dieser Datenbank ist in KeeForge ein unerwartetes Problem aufgetreten."
+          }
+        }
+      }
+    },
+    "KeeForge is enabled as an AutoFill provider.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "KeeForge ist als AutoFill-Anbieter aktiviert."
+          }
+        }
+      }
+    },
+    "KeeForge is free and open source. Tips help support development. ❤️": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "KeeForge ist kostenlos und quelloffen. Trinkgelder unterstützen die Entwicklung. ❤️"
+          }
+        }
+      }
+    },
+    "KeeForge is temporarily slowing down unlock attempts. Try again in %lld seconds.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "KeeForge verlangsamt Entsperrversuche vorübergehend. Versuchen Sie es in %lld Sekunden erneut."
+          }
+        }
+      }
+    },
+    "KeeForge is writing the updated database securely.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "KeeForge schreibt die aktualisierte Datenbank sicher."
+          }
+        }
+      }
+    },
+    "KeeForge isn't enabled as an AutoFill provider yet. Turn it on to fill passwords in Safari and other apps.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "KeeForge ist noch nicht als AutoFill-Anbieter aktiviert. Aktivieren Sie KeeForge, um Passwörter in Safari und anderen Apps auszufüllen."
+          }
+        }
+      }
+    },
+    "KeeForge needs refreshed cloud access before it can continue with this database.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "KeeForge benötigt aktualisierten Cloud-Zugriff, bevor diese Datenbank weiterverwendet werden kann."
+          }
+        }
+      }
+    },
+    "KeeForge needs you to reconnect this cloud account before it can open the database.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sie müssen dieses Cloud-Konto erneut verbinden, bevor KeeForge die Datenbank öffnen kann."
+          }
+        }
+      }
+    },
+    "KeeForge no longer has permission to read this database file. Choose it again from the database list to refresh access.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "KeeForge hat keine Leseberechtigung für diese Datenbankdatei mehr. Wählen Sie sie erneut in der Datenbankliste aus, um den Zugriff zu aktualisieren."
+          }
+        }
+      }
+    },
+    "Keep Editing": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Weiter bearbeiten"
+          }
+        }
+      }
+    },
+    "Keep read-only": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Schreibgeschützt lassen"
+          }
+        }
+      }
+    },
+    "Keep this database openable but block create, edit, and delete actions until you turn editing back on.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lassen Sie diese Datenbank weiterhin öffnen, aber blockieren Sie das Erstellen, Bearbeiten und Löschen, bis Sie die Bearbeitung wieder aktivieren."
+          }
+        }
+      }
+    },
+    "Keep this off unless your trusted local WebDAV server cannot use HTTPS.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lassen Sie diese Option deaktiviert, sofern Ihr vertrauenswürdiger lokaler WebDAV-Server kein HTTPS verwenden kann."
+          }
+        }
+      }
+    },
+    "Key File": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Schlüsseldatei"
+          }
+        }
+      }
+    },
+    "Key file hash verification failed — file may be corrupted": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hash-Überprüfung der Schlüsseldatei fehlgeschlagen — Datei möglicherweise beschädigt"
+          }
+        }
+      }
+    },
+    "Key file is empty": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Schlüsseldatei ist leer"
+          }
+        }
+      }
+    },
+    "Key file XML contains invalid key data": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Schlüsseldatei-XML enthält ungültige Schlüsseldaten"
+          }
+        }
+      }
+    },
+    "Keychain retrieve failed (status %d)": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Schlüsselbund-Abruf fehlgeschlagen (Status %d)"
+          }
+        }
+      }
+    },
+    "Keychain store failed (status %d)": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Speichern im Schlüsselbund fehlgeschlagen (Status %d)"
+          }
+        }
+      }
+    },
+    "Last Opened": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zuletzt geöffnet"
+          }
+        }
+      }
+    },
+    "Last opened %@": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zuletzt geöffnet: %@"
+          }
+        }
+      }
+    },
+    "Last Sync": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Letzte Synchronisierung"
+          }
+        }
+      }
+    },
+    "Legacy KDBX 3.1 databases can be opened, but KeeForge intentionally keeps them read-only.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ältere KDBX-3.1-Datenbanken können geöffnet werden, KeeForge lässt sie jedoch bewusst nur schreibgeschützt zu."
+          }
+        }
+      }
+    },
+    "Legacy KDBX 3.1 databases can be opened, but KeeForge only allows them in read-only mode.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ältere KDBX-3.1-Datenbanken können geöffnet werden, KeeForge lässt sie jedoch nur im schreibgeschützten Modus zu."
+          }
+        }
+      }
+    },
+    "Length": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Länge"
+          }
+        }
+      }
+    },
+    "Light": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hell"
+          }
+        }
+      }
+    },
+    "Loading…": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wird geladen …"
+          }
+        }
+      }
+    },
+    "Local Files": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lokale Dateien"
+          }
+        }
+      }
+    },
+    "Lock": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sperren"
+          }
+        }
+      }
+    },
+    "Lock and Discard": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sperren und verwerfen"
+          }
+        }
+      }
+    },
+    "Lock and discard unsaved changes?": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sperren und ungesicherte Änderungen verwerfen?"
+          }
+        }
+      }
+    },
+    "Lock Automatically": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Automatisch sperren"
+          }
+        }
+      }
+    },
+    "Lock Database": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Datenbank sperren"
+          }
+        }
+      }
+    },
+    "Lock When App Goes to Background": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bei Wechsel in den Hintergrund sperren"
+          }
+        }
+      }
+    },
+    "Lowercase": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kleinbuchstaben"
+          }
+        }
+      }
+    },
+    "Malformed variant map in header": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fehlerhafte Varianten-Map im Header"
+          }
+        }
+      }
+    },
+    "Master Password": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Master-Passwort"
+          }
+        }
+      }
+    },
+    "Message": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nachricht"
+          }
+        }
+      }
+    },
+    "Metadata": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Metadaten"
+          }
+        }
+      }
+    },
+    "Microsoft Authentication Library (MSAL)": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Microsoft Authentication Library (MSAL)"
+          }
+        }
+      }
+    },
+    "Missing header field: %@": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fehlendes Header-Feld: %@"
+          }
+        }
+      }
+    },
+    "MIT License": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MIT-Lizenz"
+          }
+        }
+      }
+    },
+    "Modified": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Geändert"
+          }
+        }
+      }
+    },
+    "Move to Recycle Bin": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "In den Papierkorb verschieben"
+          }
+        }
+      }
+    },
+    "Name": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Name"
+          }
+        }
+      }
+    },
+    "Network Unavailable": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Netzwerk nicht verfügbar"
+          }
+        }
+      }
+    },
+    "Never": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nie"
+          }
+        }
+      }
+    },
+    "New Database": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Neue Datenbank"
+          }
+        }
+      }
+    },
+    "New Entry": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Neuer Eintrag"
+          }
+        }
+      }
+    },
+    "New Group": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Neue Gruppe"
+          }
+        }
+      }
+    },
+    "Nickname": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kurzname"
+          }
+        }
+      }
+    },
+    "Niels Ferguson Twofish Implementation": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Niels Fergusons Twofish-Implementierung"
+          }
+        }
+      }
+    },
+    "No cloud accounts connected": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Keine Cloud-Konten verbunden"
+          }
+        }
+      }
+    },
+    "No Databases": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Keine Datenbanken"
+          }
+        }
+      }
+    },
+    "No Entries": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Keine Einträge"
+          }
+        }
+      }
+    },
+    "No entries matched \"%@\".": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Keine Einträge entsprechen „%@“."
+          }
+        }
+      }
+    },
+    "No Folders": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Keine Ordner"
+          }
+        }
+      }
+    },
+    "No GitHub or email required. KeeForge only sends the message you type, plus visible attached error details. Database-open reports may include visible app/device metadata, cloud sync status, and short file hash prefixes, but never database contents, passwords, key files, or raw vault files.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kein GitHub-Konto und keine E-Mail-Adresse erforderlich. KeeForge sendet nur die von Ihnen eingegebene Nachricht sowie die sichtbaren angehängten Fehlerdetails. Berichte zum Öffnen von Datenbanken können sichtbare App- und Gerätemetadaten, den Status der Cloud-Synchronisierung und kurze Präfixe von Datei-Hashes enthalten, aber niemals Datenbankinhalte, Passwörter, Schlüsseldateien oder unverarbeitete Tresordateien."
+          }
+        }
+      }
+    },
+    "No KeePass databases were found in this location.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "An diesem Speicherort wurden keine KeePass-Datenbanken gefunden."
+          }
+        }
+      }
+    },
+    "No network connection. Using the cached copy if available.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Keine Netzwerkverbindung. Die Cache-Kopie wird verwendet, falls verfügbar."
+          }
+        }
+      }
+    },
+    "No Results": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Keine Ergebnisse"
+          }
+        }
+      }
+    },
+    "None": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Keine"
+          }
+        }
+      }
+    },
+    "None selected": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nichts ausgewählt"
+          }
+        }
+      }
+    },
+    "Not a KeePass Database": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Keine KeePass-Datenbank"
+          }
+        }
+      }
+    },
+    "Not a valid KDBX file": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Keine gültige KDBX-Datei"
+          }
+        }
+      }
+    },
+    "Note: Dropbox may warn that KeeForge has low number of users. That is normal for an indie app. KeeForge is open source and will only use the database file you choose to open or create.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hinweis: Dropbox weist möglicherweise darauf hin, dass KeeForge nur wenige Benutzer hat. Das ist bei einer unabhängigen App normal. KeeForge ist quelloffen und greift nur auf die Datenbankdatei zu, die Sie öffnen oder erstellen."
+          }
+        }
+      }
+    },
+    "Notes": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Notizen"
+          }
+        }
+      }
+    },
+    "OK": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "OK"
+          }
+        }
+      }
+    },
+    "One-Time Password": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Einmalpasswort"
+          }
+        }
+      }
+    },
+    "OneDrive cannot upload an empty database.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "OneDrive kann keine leere Datenbank hochladen."
+          }
+        }
+      }
+    },
+    "OneDrive download failed.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "OneDrive-Download fehlgeschlagen."
+          }
+        }
+      }
+    },
+    "OneDrive quota is unavailable.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "OneDrive-Kontingent ist nicht verfügbar."
+          }
+        }
+      }
+    },
+    "OneDrive request failed with HTTP %lld.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "OneDrive-Anfrage mit HTTP %lld fehlgeschlagen."
+          }
+        }
+      }
+    },
+    "OneDrive request failed.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "OneDrive-Anfrage fehlgeschlagen."
+          }
+        }
+      }
+    },
+    "OneDrive returned an invalid upload URL.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "OneDrive hat eine ungültige Upload-URL zurückgegeben."
+          }
+        }
+      }
+    },
+    "OneDrive sign-in failed.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "OneDrive-Anmeldung fehlgeschlagen."
+          }
+        }
+      }
+    },
+    "OneDrive upload did not complete.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "OneDrive-Upload wurde nicht abgeschlossen."
+          }
+        }
+      }
+    },
+    "OneDrive upload did not return a file.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "OneDrive-Upload hat keine Datei zurückgegeben."
+          }
+        }
+      }
+    },
+    "OneDrive upload failed.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "OneDrive-Upload fehlgeschlagen."
+          }
+        }
+      }
+    },
+    "Open Database": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Datenbank öffnen"
+          }
+        }
+      }
+    },
+    "Open iOS AutoFill Settings": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "iOS-AutoFill-Einstellungen öffnen"
+          }
+        }
+      }
+    },
+    "Opening %@": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ wird geöffnet"
+          }
+        }
+      }
+    },
+    "Passkey": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Passkey"
+          }
+        }
+      }
+    },
+    "Passkey credential not found": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Passkey-Zugangsdaten nicht gefunden"
+          }
+        }
+      }
+    },
+    "Passkey entry is missing the private key": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Beim Passkey-Eintrag fehlt der private Schlüssel"
+          }
+        }
+      }
+    },
+    "Passkey Relying Party": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Passkey-Relying-Party"
+          }
+        }
+      }
+    },
+    "Passkey sign-in with KeeForge": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Passkey-Anmeldung mit KeeForge"
+          }
+        }
+      }
+    },
+    "Passkey Username": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Passkey-Benutzername"
+          }
+        }
+      }
+    },
+    "Password": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Passwort"
+          }
+        }
+      }
+    },
+    "Password confirmation does not match.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die Passwortbestätigung stimmt nicht überein."
+          }
+        }
+      }
+    },
+    "Password Generator": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Passwortgenerator"
+          }
+        }
+      }
+    },
+    "Password strength: %@": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Passwortstärke: %@"
+          }
+        }
+      }
+    },
+    "Path": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pfad"
+          }
+        }
+      }
+    },
+    "Pending %lld": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld ausstehend"
+          }
+        }
+      }
+    },
+    "Permissive license with attribution": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Freizügige Lizenz mit Namensnennung"
+          }
+        }
+      }
+    },
+    "Please reconnect this cloud account.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bitte verbinden Sie dieses Cloud-Konto erneut."
+          }
+        }
+      }
+    },
+    "Please select a KeePass .kdbx database.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bitte wählen Sie eine KeePass-Datenbank im .kdbx-Format aus."
+          }
+        }
+      }
+    },
+    "Preserved Read-Only Data": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Beibehaltene schreibgeschützte Daten"
+          }
+        }
+      }
+    },
+    "Privacy": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Datenschutz"
+          }
+        }
+      }
+    },
+    "Provider": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Anbieter"
+          }
+        }
+      }
+    },
+    "Push pending changes": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ausstehende Änderungen hochladen"
+          }
+        }
+      }
+    },
+    "Quick AutoFill": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Schnelles AutoFill"
+          }
+        }
+      }
+    },
+    "Quick Launch": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Schnellstart"
+          }
+        }
+      }
+    },
+    "QUICK LAUNCH": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "SCHNELLSTART"
+          }
+        }
+      }
+    },
+    "Quick Launch opens this database automatically on app launch.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Beim App-Start wird diese Datenbank automatisch per Schnellstart geöffnet."
+          }
+        }
+      }
+    },
+    "READ ONLY": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "SCHREIBGESCHÜTZT"
+          }
+        }
+      }
+    },
+    "Read-only": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Schreibgeschützt"
+          }
+        }
+      }
+    },
+    "Read-only database": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Schreibgeschützte Datenbank"
+          }
+        }
+      }
+    },
+    "Read-only Database": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Schreibgeschützte Datenbank"
+          }
+        }
+      }
+    },
+    "Reconnect %@": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ erneut verbinden"
+          }
+        }
+      }
+    },
+    "Reconnect %@ to save changes.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Verbinden Sie %@ erneut, um Änderungen zu sichern."
+          }
+        }
+      }
+    },
+    "Reconnect Cloud Account": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cloud-Konto erneut verbinden"
+          }
+        }
+      }
+    },
+    "Reconnect this cloud account to save changes.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Verbinden Sie dieses Cloud-Konto erneut, um Änderungen zu sichern."
+          }
+        }
+      }
+    },
+    "Recycle Bin": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Papierkorb"
+          }
+        }
+      }
+    },
+    "Regenerate": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Neu generieren"
+          }
+        }
+      }
+    },
+    "Reload and Re-edit": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Neu laden und erneut bearbeiten"
+          }
+        }
+      }
+    },
+    "Remote Modified": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Remote geändert"
+          }
+        }
+      }
+    },
+    "Remove": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Entfernen"
+          }
+        }
+      }
+    },
+    "Remove Database?": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Datenbank entfernen?"
+          }
+        }
+      }
+    },
+    "Rename": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Umbenennen"
+          }
+        }
+      }
+    },
+    "Rename Database": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Datenbank umbenennen"
+          }
+        }
+      }
+    },
+    "Report a Bug": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fehler melden"
+          }
+        }
+      }
+    },
+    "results:%lld": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ergebnisse: %lld"
+          }
+        }
+      }
+    },
+    "Retry Save": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sichern erneut versuchen"
+          }
+        }
+      }
+    },
+    "Save": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sichern"
+          }
+        }
+      }
+    },
+    "Save as Conflict Copy": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Als Konfliktkopie sichern"
+          }
+        }
+      }
+    },
+    "Save Conflict": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Konflikt beim Sichern"
+          }
+        }
+      }
+    },
+    "Save To": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sichern unter"
+          }
+        }
+      }
+    },
+    "Saving changes": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Änderungen werden gesichert"
+          }
+        }
+      }
+    },
+    "Saving changes...": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Änderungen werden gesichert …"
+          }
+        }
+      }
+    },
+    "Saving legacy KDBX 3.1 databases is not supported yet.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Das Sichern älterer KDBX-3.1-Datenbanken wird noch nicht unterstützt."
+          }
+        }
+      }
+    },
+    "Screen Privacy": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bildschirmdatenschutz"
+          }
+        }
+      }
+    },
+    "Search": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Suchen"
+          }
+        }
+      }
+    },
+    "Search entries": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Einträge durchsuchen"
+          }
+        }
+      }
+    },
+    "Search Entries": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Einträge durchsuchen"
+          }
+        }
+      }
+    },
+    "Search Results": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Suchergebnisse"
+          }
+        }
+      }
+    },
+    "Secure random data could not be generated.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sichere Zufallsdaten konnten nicht erzeugt werden."
+          }
+        }
+      }
+    },
+    "Security": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sicherheit"
+          }
+        }
+      }
+    },
+    "Select": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Auswählen"
+          }
+        }
+      }
+    },
+    "Select a Database": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Datenbank auswählen"
+          }
+        }
+      }
+    },
+    "Select a Group": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gruppe auswählen"
+          }
+        }
+      }
+    },
+    "Select a matching entry to view its details.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wählen Sie einen passenden Eintrag aus, um seine Details anzuzeigen."
+          }
+        }
+      }
+    },
+    "Select an Entry": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Eintrag auswählen"
+          }
+        }
+      }
+    },
+    "Select Key File": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Schlüsseldatei auswählen"
+          }
+        }
+      }
+    },
+    "Selected": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ausgewählt"
+          }
+        }
+      }
+    },
+    "Send": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Senden"
+          }
+        }
+      }
+    },
+    "Send Feedback": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Feedback senden"
+          }
+        }
+      }
+    },
+    "Server": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Server"
+          }
+        }
+      }
+    },
+    "Set Key File": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Schlüsseldatei festlegen"
+          }
+        }
+      }
+    },
+    "Settings": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Einstellungen"
+          }
+        }
+      }
+    },
+    "Show %@": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ einblenden"
+          }
+        }
+      }
+    },
+    "Show master password": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Master-Passwort einblenden"
+          }
+        }
+      }
+    },
+    "Show Usage Stats in Database List": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nutzungsstatistik in der Datenbankliste anzeigen"
+          }
+        }
+      }
+    },
+    "Shows why this database needs attention": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zeigt, weshalb diese Datenbank Aufmerksamkeit erfordert"
+          }
+        }
+      }
+    },
+    "Sign in to browse your %@ databases.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Melden Sie sich an, um Ihre %@-Datenbanken zu durchsuchen."
+          }
+        }
+      }
+    },
+    "Sign in to browse your %@ folders.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Melden Sie sich an, um Ihre %@-Ordner zu durchsuchen."
+          }
+        }
+      }
+    },
+    "Sign Out": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Abmelden"
+          }
+        }
+      }
+    },
+    "Signing out disconnects future syncs but keeps cached cloud databases available until you remove them.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Beim Abmelden werden zukünftige Synchronisierungen getrennt, zwischengespeicherte Cloud-Datenbanken bleiben jedoch verfügbar, bis Sie sie entfernen."
+          }
+        }
+      }
+    },
+    "Sort": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sortieren"
+          }
+        }
+      }
+    },
+    "Sort By": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sortieren nach"
+          }
+        }
+      }
+    },
+    "Sort Direction": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sortierreihenfolge"
+          }
+        }
+      }
+    },
+    "Source Code": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Quellcode"
+          }
+        }
+      }
+    },
+    "Status": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Status"
+          }
+        }
+      }
+    },
+    "Suggested Password": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vorgeschlagenes Passwort"
+          }
+        }
+      }
+    },
+    "Support": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Support"
+          }
+        }
+      }
+    },
+    "SwiftyDropbox": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "SwiftyDropbox"
+          }
+        }
+      }
+    },
+    "Symbols": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Symbole"
+          }
+        }
+      }
+    },
+    "Syncing with %@...": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Synchronisierung mit %@ …"
+          }
+        }
+      }
+    },
+    "System Default": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Systemstandard"
+          }
+        }
+      }
+    },
+    "Tags": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tags"
+          }
+        }
+      }
+    },
+    "Tell us what happened or what would make KeeForge better.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Teilen Sie uns mit, was passiert ist oder wie KeeForge verbessert werden könnte."
+          }
+        }
+      }
+    },
+    "Tell us what you were doing when KeeForge tried to open the database.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Beschreiben Sie, was Sie getan haben, als KeeForge versuchte, die Datenbank zu öffnen."
+          }
+        }
+      }
+    },
+    "Thank you for tipping!": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vielen Dank für Ihr Trinkgeld!"
+          }
+        }
+      }
+    },
+    "Thank You! 🎉": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vielen Dank! 🎉"
+          }
+        }
+      }
+    },
+    "Thanks for helping improve KeeForge.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vielen Dank, dass Sie zur Verbesserung von KeeForge beitragen."
+          }
+        }
+      }
+    },
+    "The %@ app on this device — and on any other device signed into the same account — could overwrite your changes if you both edit the database at the same time. Continue editing only if you keep all writes confined to one device at a time.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die %@-App auf diesem Gerät — und auf jedem anderen Gerät, das mit demselben Konto angemeldet ist — könnte Ihre Änderungen überschreiben, wenn Sie die Datenbank gleichzeitig bearbeiten. Setzen Sie die Bearbeitung nur fort, wenn alle Schreibvorgänge jeweils auf ein Gerät beschränkt bleiben."
+          }
+        }
+      }
+    },
+    "The cloud sign-in flow was cancelled before KeeForge could open the database.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die Cloud-Anmeldung wurde abgebrochen, bevor KeeForge die Datenbank öffnen konnte."
+          }
+        }
+      }
+    },
+    "The database appears corrupted or incomplete.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die Datenbank scheint beschädigt oder unvollständig zu sein."
+          }
+        }
+      }
+    },
+    "The database changed outside KeeForge. Reload it or save your draft as a sibling conflict copy.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die Datenbank wurde außerhalb von KeeForge geändert. Laden Sie sie neu oder sichern Sie Ihren Entwurf als Konfliktkopie neben der Datenbank."
+          }
+        }
+      }
+    },
+    "The database file could not be located.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die Datenbankdatei konnte nicht gefunden werden."
+          }
+        }
+      }
+    },
+    "The database file did not respond in time. Check that its server or network connection is available.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die Datenbankdatei hat nicht rechtzeitig geantwortet. Prüfen Sie, ob der Server oder die Netzwerkverbindung verfügbar ist."
+          }
+        }
+      }
+    },
+    "The database file did not respond. Check that the server is reachable or connect to its network or VPN, then try again.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die Datenbankdatei hat nicht geantwortet. Prüfen Sie, ob der Server erreichbar ist, oder stellen Sie eine Verbindung zum zugehörigen Netzwerk oder VPN her. Versuchen Sie es dann erneut."
+          }
+        }
+      }
+    },
+    "The database is missing key derivation metadata.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Der Datenbank fehlen Metadaten zur Schlüsselableitung."
+          }
+        }
+      }
+    },
+    "The database is missing key derivation salt data.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Der Datenbank fehlen Salt-Daten zur Schlüsselableitung."
+          }
+        }
+      }
+    },
+    "The database is not ready to save.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die Datenbank kann noch nicht gesichert werden."
+          }
+        }
+      }
+    },
+    "The database is too large for this server (HTTP 413).": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die Datenbank ist für diesen Server zu groß (HTTP 413)."
+          }
+        }
+      }
+    },
+    "The entry will be moved to the recycle bin.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Der Eintrag wird in den Papierkorb verschoben."
+          }
+        }
+      }
+    },
+    "The new database could not be verified after encryption.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die neue Datenbank konnte nach der Verschlüsselung nicht verifiziert werden."
+          }
+        }
+      }
+    },
+    "The password or key file didn't unlock this database. If you're sure they are correct, the file may be corrupted.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die Datenbank konnte mit dem Passwort oder der Schlüsseldatei nicht entsperrt werden. Wenn Sie sicher sind, dass Ihre Angaben korrekt sind, ist die Datei möglicherweise beschädigt."
+          }
+        }
+      }
+    },
+    "The remote database could not be found.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die Remote-Datenbank konnte nicht gefunden werden."
+          }
+        }
+      }
+    },
+    "The remote database is locked by another client. Try again shortly.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die Remote-Datenbank ist durch einen anderen Client gesperrt. Versuchen Sie es in Kürze erneut."
+          }
+        }
+      }
+    },
+    "The request is no longer available.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die Anfrage ist nicht mehr verfügbar."
+          }
+        }
+      }
+    },
+    "The server address is not a valid URL.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die Serveradresse ist keine gültige URL."
+          }
+        }
+      }
+    },
+    "The server address must start with https://.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die Serveradresse muss mit https:// beginnen."
+          }
+        }
+      }
+    },
+    "The server denied access. Check that this account has permission for this file or folder.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Der Server hat den Zugriff verweigert. Prüfen Sie, ob dieses Konto die Berechtigung für diese Datei oder diesen Ordner besitzt."
+          }
+        }
+      }
+    },
+    "The server is out of storage space (HTTP 507).": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Auf dem Server ist kein Speicherplatz mehr verfügbar (HTTP 507)."
+          }
+        }
+      }
+    },
+    "The server rejected this request (HTTP %lld).": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Der Server hat diese Anfrage abgelehnt (HTTP %lld)."
+          }
+        }
+      }
+    },
+    "The server reported an error (HTTP %lld). Try again shortly.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Der Server hat einen Fehler gemeldet (HTTP %lld). Versuchen Sie es in Kürze erneut."
+          }
+        }
+      }
+    },
+    "The server returned an unexpected response (HTTP %lld).": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Der Server hat eine unerwartete Antwort zurückgegeben (HTTP %lld)."
+          }
+        }
+      }
+    },
+    "The server returned an unexpected response.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Der Server hat eine unerwartete Antwort zurückgegeben."
+          }
+        }
+      }
+    },
+    "The WebDAV username or password was rejected.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Der WebDAV-Benutzername oder das Passwort wurde abgelehnt."
+          }
+        }
+      }
+    },
+    "Theme": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Erscheinungsbild"
+          }
+        }
+      }
+    },
+    "This account is disconnected. KeeForge keeps the cached copy until you remove the database.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dieses Konto ist getrennt. KeeForge behält die Cache-Kopie, bis Sie die Datenbank entfernen."
+          }
+        }
+      }
+    },
+    "This build of KeeForge is missing the cloud sync configuration it needs to open that database.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Diesem KeeForge-Build fehlt die Cloud-Synchronisierungskonfiguration, die zum Öffnen dieser Datenbank erforderlich ist."
+          }
+        }
+      }
+    },
+    "This cloud provider is not available in the current build.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dieser Cloud-Anbieter ist im aktuellen Build nicht verfügbar."
+          }
+        }
+      }
+    },
+    "This database changed in the cloud. Reload before saving again.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Diese Datenbank wurde in der Cloud geändert. Laden Sie sie vor dem erneuten Sichern neu."
+          }
+        }
+      }
+    },
+    "This database file is in iCloud Drive.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Diese Datenbankdatei befindet sich in iCloud Drive."
+          }
+        }
+      }
+    },
+    "This database file is stored in Box.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Diese Datenbankdatei ist in Box gespeichert."
+          }
+        }
+      }
+    },
+    "This database file is stored in Dropbox.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Diese Datenbankdatei ist in Dropbox gespeichert."
+          }
+        }
+      }
+    },
+    "This database file is stored in Google Drive.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Diese Datenbankdatei ist in Google Drive gespeichert."
+          }
+        }
+      }
+    },
+    "This database file is stored in OneDrive.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Diese Datenbankdatei ist in OneDrive gespeichert."
+          }
+        }
+      }
+    },
+    "This database file may be synced by another app on this device.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Diese Datenbankdatei wird möglicherweise von einer anderen App auf diesem Gerät synchronisiert."
+          }
+        }
+      }
+    },
+    "This database is read-only.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Diese Datenbank ist schreibgeschützt."
+          }
+        }
+      }
+    },
+    "This database is read-only. Open KeeForge to enable editing.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Diese Datenbank ist schreibgeschützt. Öffnen Sie KeeForge, um die Bearbeitung zu aktivieren."
+          }
+        }
+      }
+    },
+    "This database is unavailable. Return to the database list to remove it or refresh its bookmark.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Diese Datenbank ist nicht verfügbar. Kehren Sie zur Datenbankliste zurück, um sie zu entfernen oder ihr Lesezeichen zu aktualisieren."
+          }
+        }
+      }
+    },
+    "This database uses a KeePass format that KeeForge does not support yet.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Diese Datenbank verwendet ein KeePass-Format, das KeeForge noch nicht unterstützt."
+          }
+        }
+      }
+    },
+    "This database uses a key-derivation format that KeeForge does not support yet.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Diese Datenbank verwendet ein Format zur Schlüsselableitung, das KeeForge noch nicht unterstützt."
+          }
+        }
+      }
+    },
+    "This database uses a protected-field format that KeeForge does not support yet.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Diese Datenbank verwendet ein Format für geschützte Felder, das KeeForge noch nicht unterstützt."
+          }
+        }
+      }
+    },
+    "This database uses an encryption format that KeeForge does not support yet.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Diese Datenbank verwendet ein Verschlüsselungsformat, das KeeForge noch nicht unterstützt."
+          }
+        }
+      }
+    },
+    "This database uses an older KeePass format that KeeForge does not support yet.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Diese Datenbank verwendet ein älteres KeePass-Format, das KeeForge noch nicht unterstützt."
+          }
+        }
+      }
+    },
+    "This database uses an unsupported protected-field stream.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Diese Datenbank verwendet einen nicht unterstützten Datenstrom für geschützte Felder."
+          }
+        }
+      }
+    },
+    "This entry has expired": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dieser Eintrag ist abgelaufen"
+          }
+        }
+      }
+    },
+    "This entry is already in the recycle bin. It will be permanently deleted.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dieser Eintrag befindet sich bereits im Papierkorb. Er wird endgültig gelöscht."
+          }
+        }
+      }
+    },
+    "This entry no longer exists in the current draft.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dieser Eintrag ist im aktuellen Entwurf nicht mehr vorhanden."
+          }
+        }
+      }
+    },
+    "This entry will be removed immediately and cannot be restored from KeeForge.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dieser Eintrag wird sofort gelöscht und kann in KeeForge nicht wiederhergestellt werden."
+          }
+        }
+      }
+    },
+    "This group cannot be deleted.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Diese Gruppe kann nicht gelöscht werden."
+          }
+        }
+      }
+    },
+    "This group has no entries.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Diese Gruppe enthält keine Einträge."
+          }
+        }
+      }
+    },
+    "This group no longer exists in the current draft.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Diese Gruppe ist im aktuellen Entwurf nicht mehr vorhanden."
+          }
+        }
+      }
+    },
+    "This location has no subfolders.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dieser Speicherort enthält keine Unterordner."
+          }
+        }
+      }
+    },
+    "This password is weak. You can still create the database, but a longer unique password is safer.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dieses Passwort ist schwach. Sie können die Datenbank trotzdem erstellen, ein längeres, einzigartiges Passwort ist jedoch sicherer."
+          }
+        }
+      }
+    },
+    "This server does not look like a WebDAV server (HTTP %lld). Check the server address.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dieser Server scheint kein WebDAV-Server zu sein (HTTP %lld). Prüfen Sie die Serveradresse."
+          }
+        }
+      }
+    },
+    "Tip again": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Erneut Trinkgeld geben"
+          }
+        }
+      }
+    },
+    "Tip Jar": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Trinkgeldkasse"
+          }
+        }
+      }
+    },
+    "Tip Jar is not available right now.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Trinkgeldkasse ist derzeit nicht verfügbar."
+          }
+        }
+      }
+    },
+    "Title": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Titel"
+          }
+        }
+      }
+    },
+    "To fill passwords from KeeForge in Safari and other apps, enable KeeForge in iOS AutoFill settings.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Um Passwörter aus KeeForge in Safari und anderen Apps auszufüllen, aktivieren Sie KeeForge in den iOS-AutoFill-Einstellungen."
+          }
+        }
+      }
+    },
+    "Too Many Failed Attempts": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zu viele Fehlversuche"
+          }
+        }
+      }
+    },
+    "Try Again": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Erneut versuchen"
+          }
+        }
+      }
+    },
+    "Turn on Allow Unencrypted HTTP in Advanced to use an http:// server address.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aktivieren Sie unter „Erweitert“ die Option „Unverschlüsseltes HTTP erlauben“, um eine http://-Serveradresse zu verwenden."
+          }
+        }
+      }
+    },
+    "Turn On AutoFill": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "AutoFill aktivieren"
+          }
+        }
+      }
+    },
+    "Turn On…": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aktivieren …"
+          }
+        }
+      }
+    },
+    "Type to search by title, username, URL, or notes.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Suchen Sie nach Titel, Benutzername, URL oder Notizen."
+          }
+        }
+      }
+    },
+    "Unavailable": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nicht verfügbar"
+          }
+        }
+      }
+    },
+    "Unknown KeePass XML will be preserved when you save this entry.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unbekanntes KeePass-XML bleibt beim Sichern dieses Eintrags erhalten."
+          }
+        }
+      }
+    },
+    "Unlock": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Entsperren"
+          }
+        }
+      }
+    },
+    "Unlock a database to browse groups and entries.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Entsperren Sie eine Datenbank, um Gruppen und Einträge zu durchsuchen."
+          }
+        }
+      }
+    },
+    "Unlock a database to view groups and entries.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Entsperren Sie eine Datenbank, um Gruppen und Einträge anzuzeigen."
+          }
+        }
+      }
+    },
+    "Unlock Database": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Datenbank entsperren"
+          }
+        }
+      }
+    },
+    "Unlock Failed": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Entsperren fehlgeschlagen"
+          }
+        }
+      }
+    },
+    "Unlock KeeForge": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "KeeForge entsperren"
+          }
+        }
+      }
+    },
+    "Unlock KeeForge for AutoFill": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "KeeForge für AutoFill entsperren"
+          }
+        }
+      }
+    },
+    "Unlock your password database": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Entsperren Sie Ihre Passwortdatenbank"
+          }
+        }
+      }
+    },
+    "Unsupported cipher: %@": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nicht unterstütztes Verschlüsselungsverfahren: %@"
+          }
+        }
+      }
+    },
+    "Unsupported compression mode: %u": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nicht unterstützter Komprimierungsmodus: %u"
+          }
+        }
+      }
+    },
+    "Unsupported Database Format": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nicht unterstütztes Datenbankformat"
+          }
+        }
+      }
+    },
+    "Unsupported inner random stream: %u": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nicht unterstützter innerer Zufallsdatenstrom: %u"
+          }
+        }
+      }
+    },
+    "Unsupported key derivation function: %@": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nicht unterstützte Schlüsselableitungsfunktion: %@"
+          }
+        }
+      }
+    },
+    "Unsupported variant map value for key: %@": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nicht unterstützter Wert der Varianten-Map für Schlüssel: %@"
+          }
+        }
+      }
+    },
+    "Uppercase": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Großbuchstaben"
+          }
+        }
+      }
+    },
+    "URL": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "URL"
+          }
+        }
+      }
+    },
+    "Use a custom name for %@.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Verwenden Sie einen benutzerdefinierten Namen für %@."
+          }
+        }
+      }
+    },
+    "Use Biometrics": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Biometrie verwenden"
+          }
+        }
+      }
+    },
+    "Use Face ID": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Face ID verwenden"
+          }
+        }
+      }
+    },
+    "Use filename": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dateiname verwenden"
+          }
+        }
+      }
+    },
+    "Use Password": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Passwort verwenden"
+          }
+        }
+      }
+    },
+    "Use Touch ID": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Touch ID verwenden"
+          }
+        }
+      }
+    },
+    "Username": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Benutzername"
+          }
+        }
+      }
+    },
+    "Using the cached copy offline.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die Cache-Kopie wird offline verwendet."
+          }
+        }
+      }
+    },
+    "Using the cached copy. Reconnect this cloud account to refresh.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die Cache-Kopie wird verwendet. Verbinden Sie dieses Cloud-Konto erneut, um sie zu aktualisieren."
+          }
+        }
+      }
+    },
+    "Vault Not Loaded": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tresor nicht geladen"
+          }
+        }
+      }
+    },
+    "Version": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Version"
+          }
+        }
+      }
+    },
+    "Very good": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sehr gut"
+          }
+        }
+      }
+    },
+    "Very weak": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sehr schwach"
+          }
+        }
+      }
+    },
+    "Weak": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Schwach"
+          }
+        }
+      }
+    },
+    "When KeeForge Is Not the Active App": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wenn KeeForge nicht die aktive App ist"
+          }
+        }
+      }
+    },
+    "When off, KeeForge hides last-opened activity from the locked database list.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wenn diese Option deaktiviert ist, blendet KeeForge die zuletzt geöffnete Aktivität in der gesperrten Datenbankliste aus."
+          }
+        }
+      }
+    },
+    "When the Screen Locks or Sleeps": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wenn der Bildschirm gesperrt ist oder das Gerät im Ruhezustand ist"
+          }
+        }
+      }
+    },
+    "You can still open this database, but create, edit, and delete actions stay blocked until you turn editing back on.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sie können diese Datenbank weiterhin öffnen, aber das Erstellen, Bearbeiten und Löschen bleibt blockiert, bis Sie die Bearbeitung wieder aktivieren."
+          }
+        }
+      }
+    },
+    "Your entry changes haven't been saved to this database draft yet.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ihre Änderungen am Eintrag wurden noch nicht in diesem Datenbankentwurf gesichert."
+          }
+        }
+      }
+    },
+    "Your support helps keep KeeForge free and open source.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ihre Unterstützung hilft, KeeForge kostenlos und quelloffen zu halten."
+          }
+        }
+      }
+    },
+    "Your support means the world. Thank you for helping keep KeeForge alive!": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ihre Unterstützung bedeutet uns die Welt. Vielen Dank, dass Sie KeeForge am Leben erhalten!"
+          }
+        }
+      }
+    },
+    "Your unsaved entry changes will be lost.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ihre ungesicherten Änderungen am Eintrag gehen verloren."
+          }
+        }
+      }
+    }
+  },
+  "version": "1.0"
+}

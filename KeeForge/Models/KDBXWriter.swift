@@ -30,13 +30,13 @@ enum KDBXWriter {
         var errorDescription: String? {
             switch self {
             case .unsupportedSourceFormat:
-                "Saving legacy KDBX 3.1 databases is not supported yet."
+                String(localized: "Saving legacy KDBX 3.1 databases is not supported yet.")
             case .unsupportedInnerRandomStream(let streamID):
-                "Unsupported inner random stream: \(streamID)"
+                String(localized: "Unsupported inner random stream: \(streamID)")
             case .unsupportedCompression(let compressionFlags):
-                "Unsupported compression mode: \(compressionFlags)"
+                String(localized: "Unsupported compression mode: \(compressionFlags)")
             case .unsupportedVariantMapValue(let key):
-                "Unsupported variant map value for key: \(key)"
+                String(localized: "Unsupported variant map value for key: \(key)")
             }
         }
     }

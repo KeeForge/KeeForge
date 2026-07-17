@@ -16,9 +16,9 @@ enum KeyFileProcessor {
 
         var errorDescription: String? {
             switch self {
-            case .emptyKeyFile: "Key file is empty"
-            case .xmlKeyDataInvalid: "Key file XML contains invalid key data"
-            case .xmlHashMismatch: "Key file hash verification failed — file may be corrupted"
+            case .emptyKeyFile: String(localized: "Key file is empty")
+            case .xmlKeyDataInvalid: String(localized: "Key file XML contains invalid key data")
+            case .xmlHashMismatch: String(localized: "Key file hash verification failed — file may be corrupted")
             }
         }
     }

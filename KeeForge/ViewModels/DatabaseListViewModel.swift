@@ -163,7 +163,7 @@ final class DatabaseListViewModel {
         guard showsUsageStats else { return nil }
         guard let lastOpenedAt = reference.lastOpenedAt else { return nil }
         let relative = Self.relativeDateFormatter.localizedString(for: lastOpenedAt, relativeTo: .now)
-        return "Last opened \(relative)"
+        return String(localized: "Last opened \(relative)")
     }
 
     func detailSubtitle(for reference: DatabaseReference) -> String? {
@@ -298,21 +298,21 @@ final class DatabaseListViewModel {
             alert = PendingUploadAlert(
                 databaseId: issue.databaseId,
                 kind: .writeScopeRequired,
-                title: "Reconnect Cloud Account",
+                title: String(localized: "Reconnect Cloud Account"),
                 message: issue.message
             )
         case .notAuthenticated:
             alert = PendingUploadAlert(
                 databaseId: issue.databaseId,
                 kind: .notAuthenticated,
-                title: "Reconnect Cloud Account",
+                title: String(localized: "Reconnect Cloud Account"),
                 message: issue.message
             )
         case .message:
             alert = PendingUploadAlert(
                 databaseId: issue.databaseId,
                 kind: .message,
-                title: "Couldn't Push Pending Changes",
+                title: String(localized: "Couldn't Push Pending Changes"),
                 message: issue.message
             )
         }

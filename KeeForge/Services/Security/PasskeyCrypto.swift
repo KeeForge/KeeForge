@@ -156,12 +156,12 @@ enum PasskeyError: Error, LocalizedError {
 
     var errorDescription: String? {
         switch self {
-        case .invalidPEM: "Invalid PEM-encoded private key"
-        case .invalidKeyData: "Could not extract EC P-256 key data"
-        case .keyCreationFailed: "Failed to create signing key"
-        case .signatureFailed: "Failed to sign assertion"
-        case .credentialNotFound: "Passkey credential not found"
-        case .missingPrivateKey: "Passkey entry is missing the private key"
+        case .invalidPEM: String(localized: "Invalid PEM-encoded private key")
+        case .invalidKeyData: String(localized: "Could not extract EC P-256 key data")
+        case .keyCreationFailed: String(localized: "Failed to create signing key")
+        case .signatureFailed: String(localized: "Failed to sign assertion")
+        case .credentialNotFound: String(localized: "Passkey credential not found")
+        case .missingPrivateKey: String(localized: "Passkey entry is missing the private key")
         }
     }
 }

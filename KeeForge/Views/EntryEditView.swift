@@ -221,9 +221,9 @@ struct EntryEditView: View {
     private var navigationTitle: String {
         switch formViewModel.mode {
         case .create:
-            "New Entry"
+            String(localized: "New Entry")
         case .edit:
-            "Edit Entry"
+            String(localized: "Edit Entry")
         }
     }
 

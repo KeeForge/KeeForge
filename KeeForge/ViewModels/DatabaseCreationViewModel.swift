@@ -11,7 +11,7 @@ enum DatabaseCreationDestinationChoice: String, CaseIterable, Identifiable {
     var title: String {
         switch self {
         case .files:
-            "Local Files"
+            String(localized: "Local Files")
         case .dropbox:
             "Dropbox"
         case .oneDrive:
@@ -61,14 +61,14 @@ final class DatabaseCreationViewModel {
     var creationError: String?
 
     var keyFileSummary: String {
-        keyFileFilename ?? "None"
+        keyFileFilename ?? String(localized: "None")
     }
 
     var passwordStrengthWarning: String? {
         guard let estimate = PasswordStrengthEstimator.estimate(password) else { return nil }
         switch estimate.level {
         case .veryWeak, .weak:
-            return "This password is weak. You can still create the database, but a longer unique password is safer."
+            return String(localized: "This password is weak. You can still create the database, but a longer unique password is safer.")
         case .good, .veryGood:
             return nil
         }
@@ -211,7 +211,7 @@ final class DatabaseCreationViewModel {
         }
 
         guard password == confirmPassword else {
-            validationError = "Password confirmation does not match."
+            validationError = String(localized: "Password confirmation does not match.")
             return false
         }
 
@@ -225,7 +225,7 @@ final class DatabaseCreationViewModel {
 
     private func cloudCreationMessage(for error: Error) -> String {
         if case CloudProviderError.conflict = error {
-            return "A database with this name already exists in this cloud folder."
+            return String(localized: "A database with this name already exists in this cloud folder.")
         }
 
         return error.localizedDescription

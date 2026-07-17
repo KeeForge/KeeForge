@@ -147,9 +147,9 @@ enum KeychainService {
 
         var errorDescription: String? {
             switch self {
-            case .accessControlFailed: "Failed to create biometric access control"
-            case .storeFailed(let s): "Keychain store failed (status \(s))"
-            case .retrieveFailed(let s): "Keychain retrieve failed (status \(s))"
+            case .accessControlFailed: String(localized: "Failed to create biometric access control")
+            case .storeFailed(let s): String(localized: "Keychain store failed (status \(s))")
+            case .retrieveFailed(let s): String(localized: "Keychain retrieve failed (status \(s))")
             }
         }
     }

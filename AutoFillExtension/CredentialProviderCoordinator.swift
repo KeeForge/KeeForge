@@ -256,7 +256,7 @@ final class CredentialProviderCoordinator {
             do {
                 let databaseReference = try currentDatabaseReference()
 
-                let context = try await BiometricService.authenticate(reason: "AutoFill with KeeForge")
+                let context = try await BiometricService.authenticate(reason: String(localized: "AutoFill with KeeForge"))
                 let compositeKey = try retrieveCompositeKey(for: databaseReference, context: context)
                 try await loadEntries(
                     compositeKey: compositeKey,
@@ -314,7 +314,7 @@ final class CredentialProviderCoordinator {
             didAttemptAutoBiometricUnlock = false
             pendingUnlock = false
             pendingGeneratePasswordPresentation = false
-            pendingReadOnlyCancellationMessage = "This database is read-only. Open KeeForge to enable editing."
+            pendingReadOnlyCancellationMessage = String(localized: "This database is read-only. Open KeeForge to enable editing.")
             return
         }
 
@@ -369,7 +369,7 @@ final class CredentialProviderCoordinator {
             do {
                 let databaseReference = try currentDatabaseReference()
 
-                let context = try await BiometricService.authenticate(reason: "Passkey sign-in with KeeForge")
+                let context = try await BiometricService.authenticate(reason: String(localized: "Passkey sign-in with KeeForge"))
                 let compositeKey = try retrieveCompositeKey(for: databaseReference, context: context)
                 try await loadEntries(
                     compositeKey: compositeKey,
@@ -431,9 +431,9 @@ final class CredentialProviderCoordinator {
 
     private var biometricActionTitle: String {
         switch BiometricService.availableType {
-        case .faceID: "Use Face ID"
-        case .touchID: "Use Touch ID"
-        case .none: "Use Biometrics"
+        case .faceID: String(localized: "Use Face ID")
+        case .touchID: String(localized: "Use Touch ID")
+        case .none: String(localized: "Use Biometrics")
         }
     }
 
@@ -465,7 +465,7 @@ final class CredentialProviderCoordinator {
             do {
                 let databaseReference = try currentDatabaseReference()
 
-                let context = try await BiometricService.authenticate(reason: "Unlock KeeForge for AutoFill")
+                let context = try await BiometricService.authenticate(reason: String(localized: "Unlock KeeForge for AutoFill"))
                 let compositeKey = try retrieveCompositeKey(for: databaseReference, context: context)
                 try await loadEntries(
                     compositeKey: compositeKey,
@@ -509,7 +509,7 @@ final class CredentialProviderCoordinator {
         pendingSavePasswordRequest = nil
         if parsedFormatVersion?.requiresReadOnlyMode == true {
             presentReadOnlyAlertAndCancel(
-                message: "Legacy KDBX 3.1 databases can be opened, but KeeForge only allows them in read-only mode."
+                message: String(localized: "Legacy KDBX 3.1 databases can be opened, but KeeForge only allows them in read-only mode.")
             )
             return true
         }
@@ -778,7 +778,7 @@ final class CredentialProviderCoordinator {
             initialDraft: initialDraft,
             onSave: { [weak self] draftPayload in
                 guard let self else {
-                    return .showError("The request is no longer available.")
+                    return .showError(String(localized: "The request is no longer available."))
                 }
                 return await self.saveNewEntry(
                     draftPayload: draftPayload,
@@ -824,7 +824,7 @@ final class CredentialProviderCoordinator {
                 presenter?.completeSavePasswordRequest()
                 return .completed
             case .conflict:
-                return .showWarningAndCancel("Database changed — open KeeForge to save")
+                return .showWarningAndCancel(String(localized: "Database changed — open KeeForge to save"))
             }
         } catch {
             return .showError(error.localizedDescription)
@@ -885,7 +885,7 @@ final class CredentialProviderCoordinator {
             do {
                 let databaseReference = try currentDatabaseReference()
 
-                let context = try await BiometricService.authenticate(reason: "AutoFill with KeeForge")
+                let context = try await BiometricService.authenticate(reason: String(localized: "AutoFill with KeeForge"))
                 let compositeKey = try retrieveCompositeKey(for: databaseReference, context: context)
                 try await loadEntries(
                     compositeKey: compositeKey,

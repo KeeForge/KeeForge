@@ -44,17 +44,17 @@ struct SyncedFolderWarning: Sendable, Equatable {
     var title: String {
         switch location {
         case .iCloudDrive:
-            "This database file is in iCloud Drive."
+            String(localized: "This database file is in iCloud Drive.")
         case .dropbox:
-            "This database file is stored in Dropbox."
+            String(localized: "This database file is stored in Dropbox.")
         case .googleDrive:
-            "This database file is stored in Google Drive."
+            String(localized: "This database file is stored in Google Drive.")
         case .oneDrive:
-            "This database file is stored in OneDrive."
+            String(localized: "This database file is stored in OneDrive.")
         case .box:
-            "This database file is stored in Box."
+            String(localized: "This database file is stored in Box.")
         case .unknownThirdParty:
-            "This database file may be synced by another app on this device."
+            String(localized: "This database file may be synced by another app on this device.")
         case .notSynced:
             ""
         }
@@ -63,23 +63,23 @@ struct SyncedFolderWarning: Sendable, Equatable {
     var message: String {
         switch location {
         case .iCloudDrive:
-            return "iCloud may sync changes from another device while you're editing. We recommend keeping all writes on one device."
+            return String(localized: "iCloud may sync changes from another device while you're editing. We recommend keeping all writes on one device.")
         case .dropbox, .googleDrive, .oneDrive, .box:
-            let providerName = location.providerDisplayName ?? "another app"
-            return "The \(providerName) app on this device — and on any other device signed into the same account — could overwrite your changes if you both edit the database at the same time. Continue editing only if you keep all writes confined to one device at a time."
+            let providerName = location.providerDisplayName ?? String(localized: "another app")
+            return String(localized: "The \(providerName) app on this device — and on any other device signed into the same account — could overwrite your changes if you both edit the database at the same time. Continue editing only if you keep all writes confined to one device at a time.")
         case .unknownThirdParty:
-            return "Concurrent edits from another device or app could overwrite your changes."
+            return String(localized: "Concurrent edits from another device or app could overwrite your changes.")
         case .notSynced:
             return ""
         }
     }
 
     var continueButtonTitle: String {
-        "Continue editing"
+        String(localized: "Continue editing")
     }
 
     var keepReadOnlyButtonTitle: String {
-        "Keep read-only"
+        String(localized: "Keep read-only")
     }
 }
 

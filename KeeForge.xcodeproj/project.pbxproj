@@ -24,6 +24,7 @@
 		0872A78E6214B60FA91F0194 /* AttachmentQuickLookPreview.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6AA206874A10ED8FC3270063 /* AttachmentQuickLookPreview.swift */; };
 		087594118C4C8877C032E574 /* Argon2Swift in Frameworks */ = {isa = PBXBuildFile; productRef = FC84449470CDFBFCDFD519BB /* Argon2Swift */; };
 		08E9FCB1777A21ED0FF41DB4 /* AcknowledgmentsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 85EE32527319A5BEDE628232 /* AcknowledgmentsView.swift */; };
+		09362745917126AC3B21F167 /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = FC41BE38D387242D08AB7810 /* Localizable.xcstrings */; };
 		09FBAFFF781352378D9795B4 /* EntryEdit.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0E36B86BDCAAD4E3C120428 /* EntryEdit.swift */; };
 		0ABB90E3E16BDE2C9D2E0998 /* PendingUploadQueue.swift in Sources */ = {isa = PBXBuildFile; fileRef = E6B7062FC711FD8F8EA1BEE3 /* PendingUploadQueue.swift */; };
 		0AEFD1CCD9D0F4F9F069D5E5 /* DatabaseListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 88EB38F9BBED091894FDB7DE /* DatabaseListView.swift */; };
@@ -37,6 +38,7 @@
 		0DFF7C87E66AB78D968C59C0 /* WebDAVCloudProviderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D9B34D490C64CC4D568F1384 /* WebDAVCloudProviderTests.swift */; };
 		0E00E166755E9935BA8C31C4 /* AutoFillStatusServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2BFDB1A93AED371325A651F2 /* AutoFillStatusServiceTests.swift */; };
 		0E360F4B6E34A3F83A656E6B /* MacLockMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8E58AED27B2CFC27BC007533 /* MacLockMonitor.swift */; };
+		0E8053247FA51EB6D8516ED5 /* InfoPlist.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = ECCFEAA0C574981A7B48A938 /* InfoPlist.xcstrings */; };
 		0EB03258C2F1161D1641359B /* CredentialProviderShellMacTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 77A9A874F4FED71AA9FE88D8 /* CredentialProviderShellMacTests.swift */; };
 		0EEE9DF85014DFA4D3137969 /* demo-keyfile.kdbx in Resources */ = {isa = PBXBuildFile; fileRef = 4CC3CF24A57A3BB531DA56C2 /* demo-keyfile.kdbx */; };
 		0F9F0E23DADEEE7527C6BAE0 /* DatabaseCreationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2FFC8C91D571F07AF7531393 /* DatabaseCreationService.swift */; };
@@ -63,6 +65,7 @@
 		1E9386AAE54BC4C0D33B1F5B /* CredentialIdentityStoreManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 280C8E252110A0DEC3BE5283 /* CredentialIdentityStoreManager.swift */; };
 		1FA75E9BF4CCDE4BB34A5EE1 /* MacSmokeUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2AA6343D62E6D446EC5AD832 /* MacSmokeUITests.swift */; };
 		1FA80A53C3A5B065151DDDC3 /* MSAL in Frameworks */ = {isa = PBXBuildFile; productRef = 64B6830B629BBAC2E266834E /* MSAL */; };
+		1FC2BE613C35E9359707D14E /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = FC41BE38D387242D08AB7810 /* Localizable.xcstrings */; };
 		1FF21BCE569E82D9BB9E0DD9 /* CloudFileBrowserView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8130C3F91180C3B88DF9EE9D /* CloudFileBrowserView.swift */; };
 		207C6503A89DD512BBA1D567 /* AutoFillSearchView.swift in Sources */ = {isa = PBXBuildFile; fileRef = ADAA5D103A016B02FDB65F56 /* AutoFillSearchView.swift */; };
 		21223E493E3BBDB67FB211F9 /* OpaqueXMLNodes.swift in Sources */ = {isa = PBXBuildFile; fileRef = E83812EEBF6C270EDFBA5E90 /* OpaqueXMLNodes.swift */; };
@@ -139,6 +142,7 @@
 		466ACD61E778357A956E010A /* PlatformCompat.swift in Sources */ = {isa = PBXBuildFile; fileRef = FFB6EEC55FC21C0E0612931E /* PlatformCompat.swift */; };
 		4994CC6E9C1FB4ABBDC4F0B0 /* AppGroupGuardrailTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 784030A42906B5F3F8E2076B /* AppGroupGuardrailTests.swift */; };
 		4C6D06A5403B81089C4798A1 /* KDBXCrypto.swift in Sources */ = {isa = PBXBuildFile; fileRef = F984480E73A82B5043100065 /* KDBXCrypto.swift */; };
+		4D30FCB68BBE9018CEF25F42 /* LocalizationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B531885B533C74F391440B2B /* LocalizationTests.swift */; };
 		4D396A9321B96E0F08BAAAE3 /* FaviconService.swift in Sources */ = {isa = PBXBuildFile; fileRef = EBF4936791DF8FD3F2E5B144 /* FaviconService.swift */; };
 		4D76B84A3B1ACD775BE44EF0 /* ScreenProtectionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C411976FE19647F13726F1F /* ScreenProtectionService.swift */; };
 		4DF48E0EDE883700B9F68CFC /* DatabaseListViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = F178F4027D7DB837D823C54C /* DatabaseListViewModel.swift */; };
@@ -202,6 +206,7 @@
 		67588569A4F91D0F594C89F8 /* Entry.swift in Sources */ = {isa = PBXBuildFile; fileRef = AEF7A2480DF3853AFF0AF02B /* Entry.swift */; };
 		679B4A120D4F2E4A5C69EB43 /* CloudProviderDesktopAuthTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1190C66ABFC15FE4F0E5745C /* CloudProviderDesktopAuthTests.swift */; };
 		67D9CEC4DF7C559BB2066B9B /* DropboxCloudProviderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F7522B62793839313AC4DC5 /* DropboxCloudProviderTests.swift */; };
+		6902D7545C0B8C8C552AEE5C /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = 6D8AAE0BC5540DB06342C80C /* Localizable.xcstrings */; };
 		69A155A062F13101CA760603 /* SyncedFolderDetector.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4ECEA7AAE4FB7C45606207D1 /* SyncedFolderDetector.swift */; };
 		6AAF0C1932C41779B6A95990 /* DatabaseDraft.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DBA8C05ADEAD4DD8BFE6152 /* DatabaseDraft.swift */; };
 		6AE385563ED9E96B0E62B389 /* KeyFileProcessor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2F67A19B307012E6FFA9545C /* KeyFileProcessor.swift */; };
@@ -319,6 +324,7 @@
 		A65B92FF831C88C93F890C88 /* SecurityScopedBookmarkManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA3FF6C98ADE49FE6BDB7B6D /* SecurityScopedBookmarkManager.swift */; };
 		A91E8FC4271F8638EA091F79 /* KDBXOuterCipher.swift in Sources */ = {isa = PBXBuildFile; fileRef = CF9F4F443BDAB986A5BF03E8 /* KDBXOuterCipher.swift */; };
 		A9372B7A678C99EF8A54C687 /* PasswordGeneratorSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2EFC7C32376B08C5FA4229D9 /* PasswordGeneratorSheet.swift */; };
+		A974C7B2BE0AE30AB71C184A /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = 6D8AAE0BC5540DB06342C80C /* Localizable.xcstrings */; };
 		A98AFA63703AD98F209F803F /* PasswordStrengthEstimator.swift in Sources */ = {isa = PBXBuildFile; fileRef = D110757CD127D7FD4DA8F9AB /* PasswordStrengthEstimator.swift */; };
 		A9B666729B66843DC7CC3747 /* CloudAccountStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 66DF057AA435224858861550 /* CloudAccountStoreTests.swift */; };
 		A9E0B44D2DC253A2564C099B /* legacy-kdbx31.kdbx in Resources */ = {isa = PBXBuildFile; fileRef = FED8CAC6F5E34BB1CB405728 /* legacy-kdbx31.kdbx */; };
@@ -399,6 +405,7 @@
 		CCE1F7A47815FC633689DB86 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A785C829BFA44B1D7EC69DC /* SettingsView.swift */; };
 		CD0DAB7F744AA133D65C7725 /* CloudDatabaseSaverTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FD06FD75C4769929A64951F0 /* CloudDatabaseSaverTests.swift */; };
 		CD4C2C7C9B5073AE8F9E6731 /* BackoffUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 166C906E1AECCEE8FDBC33D7 /* BackoffUITests.swift */; };
+		CDC4CE8E4E0796BAD33B1A4B /* InfoPlist.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = 68FE916D34E1B688CC1CC521 /* InfoPlist.xcstrings */; };
 		CF96995D0062E1729BEDFFEA /* KeychainMigrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0BB465F403FF88189ACE559 /* KeychainMigrationTests.swift */; };
 		D0017FAB9AB8A8FBBDA92361 /* UnlockView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E2DA7B253B27404C400DB1B5 /* UnlockView.swift */; };
 		D0F0C7BDEA86EC9821E0A191 /* PasskeyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B8F8B108FB789996AD3C0BD /* PasskeyTests.swift */; };
@@ -420,6 +427,7 @@
 		D7EA74FAC284CF307F6BA24C /* KeyFileProcessorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8C0418ADF1FDFF66CD471789 /* KeyFileProcessorTests.swift */; };
 		D867DA976DABC1214D9E7066 /* CloudSyncModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = A8EFE96A1D98D220EA6E3E53 /* CloudSyncModels.swift */; };
 		D8AF5DE599A6ADBBC0E7FDF6 /* TwofishTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0D923EB4B018FB500295E74 /* TwofishTests.swift */; };
+		D8E93E95B6B7E206F55F993E /* LocalizationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B531885B533C74F391440B2B /* LocalizationTests.swift */; };
 		D9BA1A855C5E14A6B9D0FF3C /* SecureRandom.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6F135327240ED1387C8003A4 /* SecureRandom.swift */; };
 		DA2774F54BE4C3E24D709359 /* PasswordInputRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = F40669422B3751841943019C /* PasswordInputRow.swift */; };
 		DA357E2776602D6ECFA54FE4 /* LocalDatabaseSaverTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B514D9E533F3FF2EB1978959 /* LocalDatabaseSaverTests.swift */; };
@@ -438,6 +446,7 @@
 		DFACF9C48405A21B5374AC8C /* DocumentPickerService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B37093A769E7D22F7C7EC7C /* DocumentPickerService.swift */; };
 		E152AFB67F2E8119575474B7 /* test-arbitrary.key in Resources */ = {isa = PBXBuildFile; fileRef = 8F5D08487A8DF3C72204ADEB /* test-arbitrary.key */; };
 		E18998A392523968184EBBA0 /* test-binary.key in Resources */ = {isa = PBXBuildFile; fileRef = B7EDDD48D0CB18EA1D45220E /* test-binary.key */; };
+		E1DF22A43D253D808DA87AA7 /* InfoPlist.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = 68FE916D34E1B688CC1CC521 /* InfoPlist.xcstrings */; };
 		E2CDA12E526C8DFBFBBC2D16 /* CredentialProviderViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5DFD74CE6911EB771A4B7FBD /* CredentialProviderViewController.swift */; };
 		E2F7F325220AD98CB6287A1B /* AttachmentTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 914A4E61567B1123BF9E137E /* AttachmentTests.swift */; };
 		E2F7F73F314AF29EEB91F8EB /* CloudSyncUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 161DA4B3D8C56EE8B3F0EBF3 /* CloudSyncUITests.swift */; };
@@ -453,6 +462,7 @@
 		E60416895805E16DEF217A8F /* KDBXCompatibilityTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1F996FD4C85163E8005264E /* KDBXCompatibilityTests.swift */; };
 		E6DE92BF4AF8F01D671B9329 /* BiometricService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1C17D7E75C6066F4A179AB5F /* BiometricService.swift */; };
 		E71096533AC4FD4261EE3626 /* SecurityScopedBookmarkManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA3FF6C98ADE49FE6BDB7B6D /* SecurityScopedBookmarkManager.swift */; };
+		E74C80CC00040B23E68289C6 /* InfoPlist.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = ECCFEAA0C574981A7B48A938 /* InfoPlist.xcstrings */; };
 		E77BF5F41D48BD25D55204A9 /* ReviewPromptServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE7654CB864A7BECF13483C8 /* ReviewPromptServiceTests.swift */; };
 		E90EAA422907A6D9AF9F9963 /* Attachment.swift in Sources */ = {isa = PBXBuildFile; fileRef = 17350EF5DF6C5C2E97B61A34 /* Attachment.swift */; };
 		E988466A7F70C886BD596793 /* DatabaseOpenFailure.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA9143FF2DDC5D17637F0F7C /* DatabaseOpenFailure.swift */; };
@@ -657,12 +667,14 @@
 		63CD5B20E6190897E216C7F3 /* CredentialProviderViewControllerMac.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CredentialProviderViewControllerMac.swift; sourceTree = "<group>"; };
 		65027967D3D168FF503B9FC7 /* KeeForgeMacTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = KeeForgeMacTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		66DF057AA435224858861550 /* CloudAccountStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudAccountStoreTests.swift; sourceTree = "<group>"; };
+		68FE916D34E1B688CC1CC521 /* InfoPlist.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = InfoPlist.xcstrings; sourceTree = "<group>"; };
 		6A60D769EF54ACAE8FAFEC73 /* AutoLockTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AutoLockTests.swift; sourceTree = "<group>"; };
 		6AA206874A10ED8FC3270063 /* AttachmentQuickLookPreview.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AttachmentQuickLookPreview.swift; sourceTree = "<group>"; };
 		6AFBBC10051B412E85947EB5 /* DropboxCloudProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DropboxCloudProvider.swift; sourceTree = "<group>"; };
 		6C92F73C702B2C95BC3727FC /* unknown-elements.kdbx */ = {isa = PBXFileReference; path = "unknown-elements.kdbx"; sourceTree = "<group>"; };
 		6CB86A3375C87F5074F1AB7D /* UITestWebDAVCloudProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UITestWebDAVCloudProvider.swift; sourceTree = "<group>"; };
 		6CB88CC16B6EF72B737A8030 /* MacScreenshotAuditUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacScreenshotAuditUITests.swift; sourceTree = "<group>"; };
+		6D8AAE0BC5540DB06342C80C /* Localizable.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = Localizable.xcstrings; sourceTree = "<group>"; };
 		6F135327240ED1387C8003A4 /* SecureRandom.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SecureRandom.swift; sourceTree = "<group>"; };
 		70041C9E76CC7196DFCB5AE1 /* CloudProviderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudProviderTests.swift; sourceTree = "<group>"; };
 		707D0691762DF0F7082224A2 /* WebDAVSyncUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebDAVSyncUITests.swift; sourceTree = "<group>"; };
@@ -724,6 +736,7 @@
 		B33D0F39A86A065A638C40AF /* DatabaseViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DatabaseViewModel.swift; sourceTree = "<group>"; };
 		B4817DCDBE10FCB59D878033 /* KDBXWriterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KDBXWriterTests.swift; sourceTree = "<group>"; };
 		B514D9E533F3FF2EB1978959 /* LocalDatabaseSaverTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalDatabaseSaverTests.swift; sourceTree = "<group>"; };
+		B531885B533C74F391440B2B /* LocalizationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalizationTests.swift; sourceTree = "<group>"; };
 		B6594B5A580C44B4042FE110 /* EncryptedValue.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EncryptedValue.swift; sourceTree = "<group>"; };
 		B768B63FEA29736435D3E922 /* kdbx41-public-custom-data.kdbx */ = {isa = PBXFileReference; path = "kdbx41-public-custom-data.kdbx"; sourceTree = "<group>"; };
 		B7B6F08C62E668E72877D297 /* LocalDatabaseSaver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalDatabaseSaver.swift; sourceTree = "<group>"; };
@@ -775,6 +788,7 @@
 		E94BF55CC229A5312D864BDE /* CloudFileBrowserViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudFileBrowserViewModelTests.swift; sourceTree = "<group>"; };
 		EA6878B6041AE23174ADDCE6 /* AutoFillEntryCreatorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AutoFillEntryCreatorView.swift; sourceTree = "<group>"; };
 		EBF4936791DF8FD3F2E5B144 /* FaviconService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FaviconService.swift; sourceTree = "<group>"; };
+		ECCFEAA0C574981A7B48A938 /* InfoPlist.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = InfoPlist.xcstrings; sourceTree = "<group>"; };
 		ED991255A4FDFF53325EC964 /* test-v2.keyx */ = {isa = PBXFileReference; path = "test-v2.keyx"; sourceTree = "<group>"; };
 		EEE77955BBD928FFC22F1048 /* CloudProviderRegistryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudProviderRegistryTests.swift; sourceTree = "<group>"; };
 		F010A269DB2C2D6FD2B162EF /* UITestDropboxCloudProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UITestDropboxCloudProvider.swift; sourceTree = "<group>"; };
@@ -792,6 +806,7 @@
 		FA5A20BA0FFA29C1067EB5EE /* Group.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Group.swift; sourceTree = "<group>"; };
 		FA9143FF2DDC5D17637F0F7C /* DatabaseOpenFailure.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DatabaseOpenFailure.swift; sourceTree = "<group>"; };
 		FB771146F2B327CB67076403 /* KDBXParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KDBXParser.swift; sourceTree = "<group>"; };
+		FC41BE38D387242D08AB7810 /* Localizable.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = Localizable.xcstrings; sourceTree = "<group>"; };
 		FD06FD75C4769929A64951F0 /* CloudDatabaseSaverTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudDatabaseSaverTests.swift; sourceTree = "<group>"; };
 		FD42E436B84E873D08B91ACA /* PasswordGenerator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PasswordGenerator.swift; sourceTree = "<group>"; };
 		FE8A26125D7268C217C403DD /* DatabaseListStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DatabaseListStoreTests.swift; sourceTree = "<group>"; };
@@ -962,7 +977,9 @@
 			isa = PBXGroup;
 			children = (
 				3FFF736116CE4861D823A5B6 /* Assets.xcassets */,
+				ECCFEAA0C574981A7B48A938 /* InfoPlist.xcstrings */,
 				1918E2A2912B83E28D34C5E2 /* LaunchScreen.storyboard */,
+				FC41BE38D387242D08AB7810 /* Localizable.xcstrings */,
 			);
 			name = Resources;
 			path = KeeForge/Resources;
@@ -1047,6 +1064,8 @@
 				63CD5B20E6190897E216C7F3 /* CredentialProviderViewControllerMac.swift */,
 				7234D6EDEF49F76E532EFD03 /* Info.plist */,
 				A5700AAC680C379D3F00971C /* InfoMac.plist */,
+				68FE916D34E1B688CC1CC521 /* InfoPlist.xcstrings */,
+				6D8AAE0BC5540DB06342C80C /* Localizable.xcstrings */,
 			);
 			path = AutoFillExtension;
 			sourceTree = "<group>";
@@ -1197,6 +1216,7 @@
 				B0BB465F403FF88189ACE559 /* KeychainMigrationTests.swift */,
 				8C0418ADF1FDFF66CD471789 /* KeyFileProcessorTests.swift */,
 				B514D9E533F3FF2EB1978959 /* LocalDatabaseSaverTests.swift */,
+				B531885B533C74F391440B2B /* LocalizationTests.swift */,
 				266DACD09B3263F9CCEDE2A6 /* MacLockMonitorTests.swift */,
 				0330F701821BF808278069A3 /* ModelLogicTests.swift */,
 				A615B59AA50919BA538CDBFF /* PasskeyDisplayTests.swift */,
@@ -1279,6 +1299,7 @@
 			buildConfigurationList = 6BCF7818D98577B4B0B1BB9B /* Build configuration list for PBXNativeTarget "KeeForgeMacAutoFill" */;
 			buildPhases = (
 				1190D6A598A1A40EC185A0B9 /* Sources */,
+				181B05C5E07C185657105E60 /* Resources */,
 				CC47710AECC18045687580DE /* Frameworks */,
 			);
 			buildRules = (
@@ -1429,6 +1450,7 @@
 			buildConfigurationList = 11E695B8FAF6D93A188EF0C0 /* Build configuration list for PBXNativeTarget "KeeForgeAutoFill" */;
 			buildPhases = (
 				F2242A79CB86BB829C11C1F6 /* Sources */,
+				04BD6506D4B156DB01C19210 /* Resources */,
 				E85BF72D7E706E2B2F1648E0 /* Frameworks */,
 			);
 			buildRules = (
@@ -1488,6 +1510,7 @@
 			hasScannedForEncodings = 0;
 			knownRegions = (
 				Base,
+				de,
 				en,
 			);
 			mainGroup = ED085A8C1666D500B09A3437;
@@ -1516,6 +1539,24 @@
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
+		04BD6506D4B156DB01C19210 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				E1DF22A43D253D808DA87AA7 /* InfoPlist.xcstrings in Resources */,
+				6902D7545C0B8C8C552AEE5C /* Localizable.xcstrings in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		181B05C5E07C185657105E60 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				CDC4CE8E4E0796BAD33B1A4B /* InfoPlist.xcstrings in Resources */,
+				A974C7B2BE0AE30AB71C184A /* Localizable.xcstrings in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		3C69B6AF1AB83EDE85877156 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -1533,7 +1574,9 @@
 			buildActionMask = 2147483647;
 			files = (
 				BE8A0B0A4A034961DB88DD3A /* Assets.xcassets in Resources */,
+				0E8053247FA51EB6D8516ED5 /* InfoPlist.xcstrings in Resources */,
 				85B6D69E0E714772F3080902 /* KeeForge.icon in Resources */,
+				09362745917126AC3B21F167 /* Localizable.xcstrings in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1567,8 +1610,10 @@
 			buildActionMask = 2147483647;
 			files = (
 				9441CDEE74E78B413B9B6034 /* Assets.xcassets in Resources */,
+				E74C80CC00040B23E68289C6 /* InfoPlist.xcstrings in Resources */,
 				55A34A82938974B326D41AA0 /* KeeForge.icon in Resources */,
 				9DB0CADADD671CB695D0A79A /* LaunchScreen.storyboard in Resources */,
+				1FC2BE613C35E9359707D14E /* Localizable.xcstrings in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1707,6 +1752,7 @@
 				533B163B3E29E293187B55B0 /* KeyFileProcessorTests.swift in Sources */,
 				CF96995D0062E1729BEDFFEA /* KeychainMigrationTests.swift in Sources */,
 				DA357E2776602D6ECFA54FE4 /* LocalDatabaseSaverTests.swift in Sources */,
+				4D30FCB68BBE9018CEF25F42 /* LocalizationTests.swift in Sources */,
 				96B55711C527B55CE836FDF0 /* MacLockMonitorTests.swift in Sources */,
 				DAD9626B04202BC16C04CF1A /* ModelLogicTests.swift in Sources */,
 				F123B769FAA4D561F933870C /* PasskeyDisplayTests.swift in Sources */,
@@ -2012,6 +2058,7 @@
 				D7EA74FAC284CF307F6BA24C /* KeyFileProcessorTests.swift in Sources */,
 				BFAC75E3B9EC2BB3E1B11FAB /* KeychainMigrationTests.swift in Sources */,
 				FD74E090AFCDCDA19FDD6F6F /* LocalDatabaseSaverTests.swift in Sources */,
+				D8E93E95B6B7E206F55F993E /* LocalizationTests.swift in Sources */,
 				7144C6048A793ACF7AD5E2B5 /* MacLockMonitorTests.swift in Sources */,
 				397AE855030AD882CF3B5A65 /* ModelLogicTests.swift in Sources */,
 				DA4E00D5996B327F4D3D589E /* PasskeyDisplayTests.swift in Sources */,
@@ -2187,6 +2234,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
 				MARKETING_VERSION = 1.10.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.keevault.app;
 				PRODUCT_MODULE_NAME = KeeForge;
@@ -2211,10 +2259,12 @@
 					"@executable_path/../Frameworks",
 					"@executable_path/../../../../Frameworks",
 				);
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
 				MARKETING_VERSION = 1.10.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.keevault.app.autofill;
 				SDKROOT = macosx;
+				SWIFT_EMIT_LOC_STRINGS = YES;
 			};
 			name = Debug;
 		};
@@ -2363,10 +2413,12 @@
 					"@executable_path/../Frameworks",
 					"@executable_path/../../../../Frameworks",
 				);
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
 				MARKETING_VERSION = 1.10.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.keevault.app.autofill;
 				SDKROOT = macosx;
+				SWIFT_EMIT_LOC_STRINGS = YES;
 			};
 			name = Release;
 		};
@@ -2386,6 +2438,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
 				MARKETING_VERSION = 1.10.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.keevault.app;
 				PRODUCT_MODULE_NAME = KeeForge;
@@ -2408,9 +2461,11 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
 				MARKETING_VERSION = 1.10.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.keevault.app.autofill;
 				SDKROOT = iphoneos;
+				SWIFT_EMIT_LOC_STRINGS = YES;
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};
 			name = Release;
@@ -2465,6 +2520,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
 				MARKETING_VERSION = 1.10.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.keevault.app;
 				PRODUCT_MODULE_NAME = KeeForge;
@@ -2555,9 +2611,11 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
 				MARKETING_VERSION = 1.10.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.keevault.app.autofill;
 				SDKROOT = iphoneos;
+				SWIFT_EMIT_LOC_STRINGS = YES;
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};
 			name = Debug;
@@ -2577,6 +2635,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
 				MARKETING_VERSION = 1.10.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.keevault.app;
 				PRODUCT_MODULE_NAME = KeeForge;

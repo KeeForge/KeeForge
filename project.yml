@@ -1,6 +1,7 @@
 name: KeeForge
 options:
   bundleIdPrefix: com.keevault
+  developmentLanguage: en
   deploymentTarget:
     iOS: "17.0"
     macOS: "14.0"
@@ -47,6 +48,7 @@ targets:
         CLOUD_KEYCHAIN_ACCESS_GROUP: $(AppIdentifierPrefix)com.keevault.sharedkeychain
         GENERATE_INFOPLIST_FILE: false
         SWIFT_EMIT_LOC_STRINGS: "YES"
+        LOCALIZATION_PREFERS_STRING_CATALOGS: "YES"
     dependencies:
       - target: KeeForgeAutoFill
         embed: true
@@ -99,6 +101,7 @@ targets:
         CLOUD_KEYCHAIN_ACCESS_GROUP: $(AppIdentifierPrefix)com.keevault.sharedkeychain
         GENERATE_INFOPLIST_FILE: false
         SWIFT_EMIT_LOC_STRINGS: "YES"
+        LOCALIZATION_PREFERS_STRING_CATALOGS: "YES"
     dependencies:
       - target: KeeForgeMacAutoFill
         embed: true
@@ -147,6 +150,8 @@ targets:
         MARKETING_VERSION: "1.10.1"
         CURRENT_PROJECT_VERSION: "1"
         GENERATE_INFOPLIST_FILE: false
+        SWIFT_EMIT_LOC_STRINGS: "YES"
+        LOCALIZATION_PREFERS_STRING_CATALOGS: "YES"
     dependencies:
       - package: Argon2Swift
       - package: KeeForgeTwofish
@@ -201,6 +206,8 @@ targets:
         MARKETING_VERSION: "1.10.1"
         CURRENT_PROJECT_VERSION: "1"
         GENERATE_INFOPLIST_FILE: false
+        SWIFT_EMIT_LOC_STRINGS: "YES"
+        LOCALIZATION_PREFERS_STRING_CATALOGS: "YES"
     dependencies:
       - package: Argon2Swift
       - package: KeeForgeTwofish

@@ -63,7 +63,7 @@ final class WebDAVCloudProvider: CloudProvider, WebDAVConnecting, Sendable {
 
         guard let payload = try? JSONEncoder().encode(credential),
               CloudTokenStore.setTokenData(payload, provider: id, accountId: accountId) else {
-            throw CloudProviderError.unknown("Could not securely store the WebDAV credentials.")
+            throw CloudProviderError.unknown(String(localized: "Could not securely store the WebDAV credentials."))
         }
 
         let account = CloudAccount(
@@ -298,7 +298,7 @@ final class WebDAVCloudProvider: CloudProvider, WebDAVConnecting, Sendable {
                 "WebDAV requires an https:// server address unless unencrypted HTTP is explicitly allowed."
             )
         } catch {
-            throw CloudProviderError.unknown("The server address is not a valid URL.")
+            throw CloudProviderError.unknown(String(localized: "The server address is not a valid URL."))
         }
     }
 

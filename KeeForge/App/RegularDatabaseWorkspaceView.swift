@@ -363,7 +363,7 @@ struct RegularDatabaseWorkspaceView: View {
             Menu {
                 Picker("Sort By", selection: $viewModel.sortOrder) {
                     ForEach(DatabaseViewModel.SortOrder.allCases, id: \.self) { order in
-                        Text(order.rawValue).tag(order)
+                        Text(order.title).tag(order)
                     }
                 }
                 Picker("Sort Direction", selection: $viewModel.sortAscending) {

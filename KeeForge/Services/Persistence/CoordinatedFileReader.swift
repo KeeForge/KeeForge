@@ -5,7 +5,7 @@ enum CoordinatedFileReader {
         case timedOut
 
         var errorDescription: String? {
-            "The database file did not respond in time. Check that its server or network connection is available."
+            String(localized: "The database file did not respond in time. Check that its server or network connection is available.")
         }
     }
 

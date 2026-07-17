@@ -10,13 +10,13 @@ struct PasswordStrengthEstimate: Equatable, Sendable {
         var title: String {
             switch self {
             case .veryWeak:
-                "Very weak"
+                String(localized: "Very weak")
             case .weak:
-                "Weak"
+                String(localized: "Weak")
             case .good:
-                "Good"
+                String(localized: "Good")
             case .veryGood:
-                "Very good"
+                String(localized: "Very good")
             }
         }
 
@@ -42,7 +42,7 @@ struct PasswordStrengthEstimate: Equatable, Sendable {
     }
 
     var summary: String {
-        "\(level.title) (~\(roundedEntropyBits) bits)"
+        String(localized: "\(level.title) (~\(roundedEntropyBits) bits)")
     }
 }
 

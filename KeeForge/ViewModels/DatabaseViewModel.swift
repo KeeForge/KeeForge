@@ -131,6 +131,19 @@ final class DatabaseViewModel {
         case title = "Title"
         case createdDate = "Date Created"
         case modifiedDate = "Date Modified"
+
+        /// Localized display text. `rawValue` is persisted in `UserDefaults`
+        /// and must stay stable (English) across locales.
+        var title: String {
+            switch self {
+            case .title:
+                String(localized: "Title")
+            case .createdDate:
+                String(localized: "Date Created")
+            case .modifiedDate:
+                String(localized: "Date Modified")
+            }
+        }
     }
 
     typealias CloudSyncOperation = @Sendable (
@@ -175,7 +188,7 @@ final class DatabaseViewModel {
 
     private static let sortOrderKey = "KeeForge.sortOrder"
     private static let sortAscendingKey = "KeeForge.sortAscending"
-    private static let decryptingStatusMessage = "Decrypting your database securely..."
+    private static let decryptingStatusMessage = String(localized: "Decrypting your database securely...")
     private static let sharedCloudRefreshMinimumInterval: TimeInterval = 30
     private static let localDatabaseReadTimeout: Duration = .seconds(10)
 
@@ -537,7 +550,7 @@ final class DatabaseViewModel {
         var cloudSyncStatus: CloudSyncResolution.Status?
 
         do {
-            let context = try await BiometricService.authenticate(reason: "Unlock your password database")
+            let context = try await BiometricService.authenticate(reason: String(localized: "Unlock your password database"))
             let compositeKey = try retrieveStoredCompositeKey(context: context)
             let readResult = try await readDatabaseData()
             let data = readResult.data
@@ -1214,8 +1227,8 @@ final class DatabaseViewModel {
     // MARK: - Private
 
     private static func syncStatusMessage(for reference: DatabaseReference) -> String {
-        let providerName = reference.cloudProviderKind?.displayName ?? "cloud"
-        return "Syncing with \(providerName)..."
+        let providerName = reference.cloudProviderKind?.displayName ?? String(localized: "cloud")
+        return String(localized: "Syncing with \(providerName)...")
     }
 
     private struct UnlockPayload: Sendable {
@@ -1416,8 +1429,8 @@ final class DatabaseViewModel {
 
     private func lockoutFailure(seconds: Int, diagnostics: DatabaseOpenDiagnostics? = nil) -> DatabaseOpenFailure {
         DatabaseOpenFailure(
-            title: "Too Many Failed Attempts",
-            summary: "KeeForge is temporarily slowing down unlock attempts. Try again in \(seconds) seconds.",
+            title: String(localized: "Too Many Failed Attempts"),
+            summary: String(localized: "KeeForge is temporarily slowing down unlock attempts. Try again in \(seconds) seconds."),
             technicalDetails: "Unlock temporarily rate-limited after repeated authentication failures.",
             errorCode: "auth.locked_out",
             category: .authentication,

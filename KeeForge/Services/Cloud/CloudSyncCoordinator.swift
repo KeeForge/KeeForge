@@ -19,9 +19,9 @@ struct CloudSyncResolution: Sendable {
         case .current, .downloaded:
             nil
         case .offlineCached:
-            "Using the cached copy offline."
+            String(localized: "Using the cached copy offline.")
         case .disconnectedCached:
-            "Using the cached copy. Reconnect this cloud account to refresh."
+            String(localized: "Using the cached copy. Reconnect this cloud account to refresh.")
         case .cachedWithError(let message):
             message
         }

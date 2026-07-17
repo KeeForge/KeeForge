@@ -151,22 +151,22 @@ extension CredentialProviderViewController: CredentialProviderPresenting {
         onCancel: @escaping () -> Void
     ) {
         let alert = UIAlertController(
-            title: "Unlock KeeForge",
-            message: "Enter your master password or use biometrics.",
+            title: String(localized: "Unlock KeeForge"),
+            message: String(localized: "Enter your master password or use biometrics."),
             preferredStyle: .alert
         )
 
         alert.addTextField { field in
-            field.placeholder = "Master Password"
+            field.placeholder = String(localized: "Master Password")
             field.isSecureTextEntry = true
             field.textContentType = .password
         }
 
-        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel) { _ in
+        alert.addAction(UIAlertAction(title: String(localized: "Cancel"), style: .cancel) { _ in
             onCancel()
         })
 
-        alert.addAction(UIAlertAction(title: "Unlock", style: .default) { [weak alert] _ in
+        alert.addAction(UIAlertAction(title: String(localized: "Unlock"), style: .default) { [weak alert] _ in
             onSubmitPassword(alert?.textFields?.first?.text)
         })
 
@@ -185,16 +185,16 @@ extension CredentialProviderViewController: CredentialProviderPresenting {
         onCancel: @escaping () -> Void
     ) {
         let alert = UIAlertController(
-            title: "Unlock Failed",
+            title: String(localized: "Unlock Failed"),
             message: message,
             preferredStyle: .alert
         )
 
-        alert.addAction(UIAlertAction(title: "Try Again", style: .default) { _ in
+        alert.addAction(UIAlertAction(title: String(localized: "Try Again"), style: .default) { _ in
             onRetry()
         })
 
-        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel) { _ in
+        alert.addAction(UIAlertAction(title: String(localized: "Cancel"), style: .cancel) { _ in
             onCancel()
         })
 
@@ -206,12 +206,12 @@ extension CredentialProviderViewController: CredentialProviderPresenting {
         onAcknowledge: @escaping () -> Void
     ) {
         let alert = UIAlertController(
-            title: "Read-only Database",
+            title: String(localized: "Read-only Database"),
             message: message,
             preferredStyle: .alert
         )
 
-        alert.addAction(UIAlertAction(title: "OK", style: .default) { _ in
+        alert.addAction(UIAlertAction(title: String(localized: "OK"), style: .default) { _ in
             onAcknowledge()
         })
 
@@ -225,20 +225,20 @@ extension CredentialProviderViewController: CredentialProviderPresenting {
         onCancel: @escaping () -> Void
     ) {
         let alert = UIAlertController(
-            title: "Generate Password",
+            title: String(localized: "Generate Password"),
             message: password,
             preferredStyle: .alert
         )
 
-        alert.addAction(UIAlertAction(title: "Regenerate", style: .default) { _ in
+        alert.addAction(UIAlertAction(title: String(localized: "Regenerate"), style: .default) { _ in
             onRegenerate()
         })
 
-        alert.addAction(UIAlertAction(title: "Use Password", style: .default) { _ in
+        alert.addAction(UIAlertAction(title: String(localized: "Use Password"), style: .default) { _ in
             onUse()
         })
 
-        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel) { _ in
+        alert.addAction(UIAlertAction(title: String(localized: "Cancel"), style: .cancel) { _ in
             onCancel()
         })
 
