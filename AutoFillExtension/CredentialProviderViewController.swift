@@ -42,6 +42,11 @@ final class CredentialProviderViewController: ASCredentialProviderViewController
         coordinator.prepareCredentialList(for: serviceIdentifiers, requestParameters: requestParameters)
     }
 
+    @available(iOS 18.0, *)
+    override func prepareOneTimeCodeCredentialList(for serviceIdentifiers: [ASCredentialServiceIdentifier]) {
+        coordinator.prepareOneTimeCodeCredentialList(for: serviceIdentifiers)
+    }
+
     override func prepareInterfaceToProvideCredential(for credentialRequest: ASCredentialRequest) {
         coordinator.prepareInterfaceToProvideCredential(for: credentialRequest)
     }

@@ -120,6 +120,7 @@ final class CredentialProviderCoordinator {
     var pendingPasskeyRequest: ASPasskeyCredentialRequest?
     var pendingPasskeyRequestParameters: ASPasskeyCredentialRequestParameters?
     var hasPendingOTCRequest = false
+    var hasPendingOTCListRequest = false
     var pendingGeneratePasswordPresentation = false
     var pendingReadOnlyCancellationMessage: String?
     var pendingSavePasswordRequestStorage: Any?
@@ -158,6 +159,25 @@ final class CredentialProviderCoordinator {
         pendingPasskeyRequest = nil
         pendingPasskeyRequestParameters = nil
         hasPendingOTCRequest = false
+        hasPendingOTCListRequest = false
+        clearPendingCreationRequests()
+        didAttemptAutoBiometricUnlock = false
+        pendingUnlock = true
+    }
+
+    // MARK: One-time-code credential list (iOS 18+ / macOS 15+)
+
+    /// Interactive list request for a one-time-code field: the user tapped an
+    /// OTP field and chose this provider from the AutoFill UI, so there is no
+    /// pre-matched credential identity. Unlock, then present matching TOTP
+    /// entries (or the full TOTP list) for manual selection.
+    func prepareOneTimeCodeCredentialList(for serviceIdentifiers: [ASCredentialServiceIdentifier]) {
+        self.serviceIdentifiers = serviceIdentifiers
+        targetRecordIdentifier = nil
+        pendingPasskeyRequest = nil
+        pendingPasskeyRequestParameters = nil
+        hasPendingOTCRequest = false
+        hasPendingOTCListRequest = true
         clearPendingCreationRequests()
         didAttemptAutoBiometricUnlock = false
         pendingUnlock = true
@@ -198,7 +218,9 @@ final class CredentialProviderCoordinator {
         } else if let passwordIdentity = credentialRequest.credentialIdentity as? ASPasswordCredentialIdentity {
             prepareInterfaceToProvideCredential(for: passwordIdentity)
         } else if #available(iOS 18.0, macOS 15.0, *), credentialRequest is ASOneTimeCodeCredentialRequest {
+            serviceIdentifiers = [credentialRequest.credentialIdentity.serviceIdentifier]
             hasPendingOTCRequest = true
+            hasPendingOTCListRequest = false
             targetRecordIdentifier = credentialRequest.credentialIdentity.recordIdentifier
             clearPendingCreationRequests()
             didAttemptAutoBiometricUnlock = false
@@ -310,6 +332,7 @@ final class CredentialProviderCoordinator {
             pendingPasskeyRequest = nil
             pendingPasskeyRequestParameters = nil
             hasPendingOTCRequest = false
+            hasPendingOTCListRequest = false
             clearPendingCreationRequests()
             didAttemptAutoBiometricUnlock = false
             pendingUnlock = false
@@ -323,6 +346,7 @@ final class CredentialProviderCoordinator {
         pendingPasskeyRequest = nil
         pendingPasskeyRequestParameters = nil
         hasPendingOTCRequest = false
+        hasPendingOTCListRequest = false
         pendingGeneratePasswordsRequest = nil
         pendingSavePasswordRequest = savePasswordRequest
         didAttemptAutoBiometricUnlock = false
@@ -344,6 +368,7 @@ final class CredentialProviderCoordinator {
         pendingPasskeyRequest = nil
         pendingPasskeyRequestParameters = nil
         hasPendingOTCRequest = false
+        hasPendingOTCListRequest = false
         pendingSavePasswordRequest = nil
         pendingGeneratePasswordsRequest = generatePasswordsRequest
         didAttemptAutoBiometricUnlock = false
@@ -491,6 +516,12 @@ final class CredentialProviderCoordinator {
         } else if hasPendingOTCRequest {
             if #available(iOS 18.0, macOS 15.0, *) {
                 completeOTCRequestFromPending()
+            }
+        } else if hasPendingOTCListRequest {
+            if #available(iOS 18.0, macOS 15.0, *) {
+                presentOTCMatchesOrFinish()
+            } else {
+                cancelRequest(code: .failed)
             }
         } else {
             presentPasswordMatchesOrFinish()
@@ -915,13 +946,9 @@ final class CredentialProviderCoordinator {
     private func completeOTCRequestFromPending() {
         hasPendingOTCRequest = false
 
-        guard let recordIdentifier = targetRecordIdentifier else {
-            cancelRequest(code: .failed)
-            return
-        }
-
         let totpEntries = parsedEntries.filter(\.hasTOTP)
-        if let entry = totpEntries.first(where: { $0.id.uuidString == recordIdentifier }) {
+        if let recordIdentifier = targetRecordIdentifier,
+           let entry = totpEntries.first(where: { $0.id.uuidString == recordIdentifier }) {
             if entry.isExpired() {
                 presentSearchView(entries: [entry]) { [weak self] selectedEntry in
                     self?.completeOTCRequest(with: selectedEntry)
@@ -930,7 +957,45 @@ final class CredentialProviderCoordinator {
                 completeOTCRequest(with: entry)
             }
         } else {
+            // The identity's record identifier is missing or stale (e.g. the
+            // entry changed since the identity store was last populated).
+            // Fall back to the interactive picker instead of failing.
+            presentOTCMatchesOrFinish()
+        }
+    }
+
+    /// Interactive one-time-code selection: complete immediately on a single
+    /// service match, otherwise present the picker (matches, or all TOTP
+    /// entries with the domain pre-filled). Mirrors `presentPasswordMatchesOrFinish`.
+    @available(iOS 18.0, macOS 15.0, *)
+    func presentOTCMatchesOrFinish() {
+        hasPendingOTCListRequest = false
+
+        let allTOTPEntries = parsedEntries.filter(\.hasTOTP)
+        let totpEntries = allTOTPEntries.filter { !$0.isExpired() }
+
+        guard !allTOTPEntries.isEmpty else {
             cancelRequest(code: .credentialIdentityNotFound)
+            return
+        }
+
+        let matches = CredentialMatcher.matchedEntries(from: totpEntries, for: serviceIdentifiers)
+
+        if matches.count == 1, let entry = matches.first {
+            completeOTCRequest(with: entry)
+            return
+        }
+
+        let searchDomain = serviceIdentifiers.first.flatMap { CredentialMatcher.searchTerm(for: $0) } ?? ""
+
+        if !matches.isEmpty {
+            presentSearchView(entries: matches, initialSearchText: "") { [weak self] entry in
+                self?.completeOTCRequest(with: entry)
+            }
+        } else {
+            presentSearchView(entries: allTOTPEntries, initialSearchText: searchDomain) { [weak self] entry in
+                self?.completeOTCRequest(with: entry)
+            }
         }
     }
 
@@ -971,6 +1036,7 @@ final class CredentialProviderCoordinator {
         pendingPasskeyRequest = nil
         pendingPasskeyRequestParameters = nil
         hasPendingOTCRequest = false
+        hasPendingOTCListRequest = false
         clearPendingCreationRequests()
     }
 

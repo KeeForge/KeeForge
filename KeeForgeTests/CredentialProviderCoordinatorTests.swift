@@ -182,6 +182,134 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
         assertCleanedUp(coordinator)
     }
 
+    // MARK: - One-time-code list requests (issue #20)
+
+    func test_otcList_singleMatch_completesWithCode() throws {
+        guard #available(iOS 18.0, macOS 15.0, *) else {
+            throw XCTSkip("One-time-code requests require iOS 18 / macOS 15")
+        }
+
+        let (coordinator, presenter) = makeCoordinator()
+        let sessionKey = SymmetricKey(size: .bits256)
+        let matching = KPEntry(
+            title: "GitHub",
+            url: "https://github.com/login",
+            totpConfig: TOTPConfig(
+                secret: try EncryptedValue.encrypt("JBSWY3DPEHPK3PXP", using: sessionKey)
+            )
+        )
+        let other = KPEntry(
+            title: "Example",
+            url: "https://example.com",
+            totpConfig: TOTPConfig(
+                secret: try EncryptedValue.encrypt("JBSWY3DPEHPK3PXP", using: sessionKey)
+            )
+        )
+
+        coordinator.prepareOneTimeCodeCredentialList(for: [githubServiceIdentifier()])
+        XCTAssertTrue(coordinator.hasPendingOTCListRequest, "List request must be recorded for post-unlock handling")
+        seedUnlockedVaultState(coordinator, entries: [matching, other], sessionKey: sessionKey)
+
+        coordinator.presentOTCMatchesOrFinish()
+
+        let code = try XCTUnwrap(presenter.completedOneTimeCode, "A single service match should complete without a picker")
+        XCTAssertEqual(code.count, 6)
+        XCTAssertNotEqual(code, "------")
+        assertCleanedUp(coordinator)
+    }
+
+    func test_otcList_multipleMatches_presentsPickerAndCompletesOnSelection() throws {
+        guard #available(iOS 18.0, macOS 15.0, *) else {
+            throw XCTSkip("One-time-code requests require iOS 18 / macOS 15")
+        }
+
+        let (coordinator, presenter) = makeCoordinator()
+        let sessionKey = SymmetricKey(size: .bits256)
+        let entries = try ["GitHub", "GitHub Work"].map { title in
+            KPEntry(
+                title: title,
+                url: "https://github.com/login",
+                totpConfig: TOTPConfig(
+                    secret: try EncryptedValue.encrypt("JBSWY3DPEHPK3PXP", using: sessionKey)
+                )
+            )
+        }
+
+        coordinator.prepareOneTimeCodeCredentialList(for: [githubServiceIdentifier()])
+        seedUnlockedVaultState(coordinator, entries: entries, sessionKey: sessionKey)
+
+        coordinator.presentOTCMatchesOrFinish()
+
+        let searchView = try XCTUnwrap(presenter.searchView, "Multiple matches should present the picker")
+        XCTAssertEqual(searchView.entries.count, 2)
+        XCTAssertEqual(searchView.initialSearchText, "")
+
+        searchView.onSelect(entries[0])
+
+        let code = try XCTUnwrap(presenter.completedOneTimeCode)
+        XCTAssertEqual(code.count, 6)
+        assertCleanedUp(coordinator)
+    }
+
+    func test_otcList_noMatches_presentsAllTOTPEntriesWithDomainPrefilled() throws {
+        guard #available(iOS 18.0, macOS 15.0, *) else {
+            throw XCTSkip("One-time-code requests require iOS 18 / macOS 15")
+        }
+
+        let (coordinator, presenter) = makeCoordinator()
+        let sessionKey = SymmetricKey(size: .bits256)
+        let totpEntry = KPEntry(
+            title: "Example",
+            url: "https://example.com",
+            totpConfig: TOTPConfig(
+                secret: try EncryptedValue.encrypt("JBSWY3DPEHPK3PXP", using: sessionKey)
+            )
+        )
+        let passwordOnlyEntry = KPEntry(
+            title: "No TOTP",
+            username: "user",
+            password: try EncryptedValue.encrypt("hunter2", using: sessionKey),
+            url: "https://github.com/login"
+        )
+
+        coordinator.prepareOneTimeCodeCredentialList(for: [githubServiceIdentifier()])
+        seedUnlockedVaultState(coordinator, entries: [totpEntry, passwordOnlyEntry], sessionKey: sessionKey)
+
+        coordinator.presentOTCMatchesOrFinish()
+
+        let searchView = try XCTUnwrap(presenter.searchView, "No matches should still present the full TOTP list")
+        XCTAssertEqual(searchView.entries.map(\.title), ["Example"], "Only TOTP-capable entries belong in the OTC picker")
+        XCTAssertEqual(searchView.initialSearchText, "github.com")
+
+        searchView.onSelect(totpEntry)
+
+        XCTAssertNotNil(presenter.completedOneTimeCode)
+        assertCleanedUp(coordinator)
+    }
+
+    func test_otcList_noTOTPEntries_cancelsWithCredentialIdentityNotFound() throws {
+        guard #available(iOS 18.0, macOS 15.0, *) else {
+            throw XCTSkip("One-time-code requests require iOS 18 / macOS 15")
+        }
+
+        let (coordinator, presenter) = makeCoordinator()
+        let sessionKey = SymmetricKey(size: .bits256)
+        let passwordOnlyEntry = KPEntry(
+            title: "No TOTP",
+            username: "user",
+            password: try EncryptedValue.encrypt("hunter2", using: sessionKey),
+            url: "https://github.com/login"
+        )
+
+        coordinator.prepareOneTimeCodeCredentialList(for: [githubServiceIdentifier()])
+        seedUnlockedVaultState(coordinator, entries: [passwordOnlyEntry], sessionKey: sessionKey)
+
+        coordinator.presentOTCMatchesOrFinish()
+
+        XCTAssertEqual(presenter.cancelledError?.code, .credentialIdentityNotFound)
+        assertCleanedUp(coordinator)
+    }
+
     func test_cleanup_runsOnPasskeyAssertionCompletion() throws {
         let (coordinator, presenter) = makeCoordinator()
         let sessionKey = SymmetricKey(size: .bits256)
@@ -382,6 +510,7 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
         XCTAssertNil(coordinator.pendingPasskeyRequest, "pending passkey request must be cleared", file: file, line: line)
         XCTAssertNil(coordinator.pendingPasskeyRequestParameters, "pending passkey parameters must be cleared", file: file, line: line)
         XCTAssertFalse(coordinator.hasPendingOTCRequest, "pending OTC flag must be cleared", file: file, line: line)
+        XCTAssertFalse(coordinator.hasPendingOTCListRequest, "pending OTC list flag must be cleared", file: file, line: line)
         XCTAssertNil(coordinator.pendingReadOnlyCancellationMessage, "pending read-only message must be cleared", file: file, line: line)
         XCTAssertNil(coordinator.pendingSavePasswordRequestStorage, "pending save request must be cleared", file: file, line: line)
         XCTAssertNil(coordinator.pendingGeneratePasswordsRequestStorage, "pending generate request must be cleared", file: file, line: line)
