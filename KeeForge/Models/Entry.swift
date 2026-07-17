@@ -168,22 +168,32 @@ struct KeeOTPSource: Codable, Equatable, Sendable {
     let rawQuery: String
 
     func rewriting(secret: String? = nil, period: Int, digits: Int, algorithm: TOTPAlgorithm) -> KeeOTPSource {
-        let replacements = [
+        let replacements: [String: String?] = [
             "key": secret,
             "encoding": secret == nil ? nil : "Base32",
             "step": String(period),
             "size": String(digits),
             "otphashmode": algorithm.rawValue,
         ]
-        let rewritten = rawQuery.split(separator: "&", omittingEmptySubsequences: false).map { component in
+        var pendingNames = Set(replacements.keys)
+        var components = rawQuery.split(separator: "&", omittingEmptySubsequences: false).map { component -> String in
             let parts = component.split(separator: "=", maxSplits: 1, omittingEmptySubsequences: false)
-            guard let decodedName = String(parts[0]).removingPercentEncoding,
-                  let replacement = replacements[decodedName.lowercased()] ?? nil else {
+            guard let decodedName = String(parts[0]).removingPercentEncoding else {
                 return String(component)
             }
+            let name = decodedName.lowercased()
+            guard pendingNames.contains(name) else { return String(component) }
+            pendingNames.remove(name)
+            guard let replacement = replacements[name] ?? nil else { return String(component) }
             return "\(parts[0])=\(replacement)"
-        }.joined(separator: "&")
-        return KeeOTPSource(fieldName: fieldName, rawQuery: rewritten)
+        }
+        // KeeOtp2 omits default-valued parameters, so a rewritten value may
+        // have no component to replace; append it under its canonical name.
+        for name in ["key", "encoding", "step", "size", "otphashmode"] where pendingNames.contains(name) {
+            guard let value = replacements[name] ?? nil else { continue }
+            components.append("\(name == "otphashmode" ? "otpHashMode" : name)=\(value)")
+        }
+        return KeeOTPSource(fieldName: fieldName, rawQuery: components.joined(separator: "&"))
     }
 }
 

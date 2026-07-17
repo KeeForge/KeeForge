@@ -261,19 +261,23 @@ struct KDBXXMLSerializer {
         knownChildCount += 1
         attachmentAnchor += 1
 
-        if let source = entry.totpConfig?.keeOTPSource {
+        let keeOTPSource = entry.totpConfig?.keeOTPSource
+        if let source = keeOTPSource, source.fieldName == "otp" {
             // Keep the KeeOTP field spelling and raw query unless the editor
             // explicitly rewrote the source.
             xml += try opaqueXML(from: entry.unknownXML, path: [], insertionIndex: knownChildCount)
             xml += try attachmentsXML()
             xml += try serializeString(
-                key: source.fieldName,
+                key: "otp",
                 value: source.rawQuery,
-                isProtected: entry.protectedStringKeys.contains(source.fieldName)
+                isProtected: entry.protectedStringKeys.contains("otp")
             )
             knownChildCount += 1
             attachmentAnchor += 1
         } else if let otpURL = entry.otpURL {
+            // Preserve the original otpauth:// URI so issuer/label and any
+            // custom query parameters survive the round-trip. Splitting into
+            // TimeOtp-* fields drops everything outside the canonical set.
             xml += try opaqueXML(from: entry.unknownXML, path: [], insertionIndex: knownChildCount)
             xml += try attachmentsXML()
             xml += try serializeString(
@@ -283,7 +287,22 @@ struct KDBXXMLSerializer {
             )
             knownChildCount += 1
             attachmentAnchor += 1
-        } else if let totpConfig = entry.totpConfig {
+        }
+        if let source = keeOTPSource, source.fieldName != "otp" {
+            // A KeeOTP source in a custom-named field is managed here (it is
+            // stripped from customFields at parse time) and coexists with any
+            // unrelated value in the standard otp slot above.
+            xml += try opaqueXML(from: entry.unknownXML, path: [], insertionIndex: knownChildCount)
+            xml += try attachmentsXML()
+            xml += try serializeString(
+                key: source.fieldName,
+                value: source.rawQuery,
+                isProtected: entry.protectedStringKeys.contains(source.fieldName)
+            )
+            knownChildCount += 1
+            attachmentAnchor += 1
+        }
+        if keeOTPSource == nil, entry.otpURL == nil, let totpConfig = entry.totpConfig {
             let secret = try totpConfig.secret.decrypt(using: sessionKey)
             let totpFields = [
                 ("TimeOtp-Secret-Base32", secret, true),

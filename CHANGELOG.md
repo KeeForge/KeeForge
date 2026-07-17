@@ -3,6 +3,7 @@
 ## Unreleased
 
 - Add full German localization (iOS app, macOS app, and AutoFill extension): 648 strings across UI, error messages, alerts, and Info.plist usage descriptions, plus a localization test suite that gates translation completeness, format-specifier parity, and app/extension consistency.
+- Show TOTP codes for entries created by the KeeOTP/KeeOtp2 plugins (`key=...` values in the otp/OTP/Otp fields, with Base32, Base64, Hex, and UTF8 secret encodings, and KeeOtp2's defaults for omitted parameters), preserving the original field spelling and query verbatim when editing and saving.
 - Update GitHub links (Report a Bug, Source Code, docs) to the new KeeForge org after the repository transfer.
 - Fix local HTTP WebDAV vaults getting stuck on the initial metadata check before KeeForge could download and cache them.
 - Password reveal and copy now always require device-owner authentication, even when biometrics are unavailable (hardening back-ported from the macOS work).
@@ -35,7 +36,6 @@ TODO before the first macOS release:
 - Show a dismissible tip on the database list when KeeForge isn't enabled as an iOS AutoFill provider, with one-tap enablement on iOS 18 (deep link into iOS Settings on iOS 17), plus a matching provider status row and enable/open-settings button in Settings → AutoFill.
 
 ### Fixes
-- Preserve KeeOTP secrets with non-Base32 encodings when editing and saving entries, and reject malformed Base64 KeeOTP secrets.
 - Fixed the app freezing at launch or while opening a database when an offline SMB or other file-provider location does not respond.
 - Refresh a revealed entry password immediately after the password is edited.
 - Show red warning indicators in lists and a dedicated warning section in entry details when an enabled KeePass expiry time has passed, and show the enabled expiration timestamp in entry details.

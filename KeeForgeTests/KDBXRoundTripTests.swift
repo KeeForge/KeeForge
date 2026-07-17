@@ -156,6 +156,61 @@ final class KDBXRoundTripTests: XCTestCase {
         )
     }
 
+    @MainActor
+    func test_editSaveReload_preservesOtpauthURLOnUnrelatedEdit() throws {
+        let uri = "otpauth://totp/Example:user@example.com?secret=JBSWY3DPEHPK3PXP&issuer=Example&period=30&digits=6&algorithm=SHA1"
+        let entry = KPEntry(
+            title: "Otpauth Entry",
+            password: try EncryptedValue.encrypt("password", using: roundTripSessionKey),
+            totpConfig: TOTPConfig(secret: try EncryptedValue.encrypt("JBSWY3DPEHPK3PXP", using: roundTripSessionKey)),
+            otpURL: uri
+        )
+        let rootGroup = KPGroup(id: UUID(), name: "Root", entries: [entry])
+        let viewModel = EntryEditViewModel(editing: entry, sessionKey: roundTripSessionKey)
+        viewModel.notes = "Edited"
+
+        let draft = DatabaseDraft(rootGroup: rootGroup, meta: KPMeta(), sessionKey: roundTripSessionKey)
+        let updated = try draft.apply(.updateEntry(entryID: entry.id, draft: viewModel.entryDraftPayload))
+        let reparsed = try serializeAndParse((rootGroup: updated.rootGroup, meta: updated.meta))
+        let reloaded = try XCTUnwrap(reparsed.rootGroup.allEntries.first)
+
+        XCTAssertEqual(
+            reloaded.otpURL, uri,
+            "The otpauth:// URI (issuer, label, custom parameters) must survive edits that leave TOTP unchanged"
+        )
+        XCTAssertNil(reloaded.customFields["TimeOtp-Secret-Base32"])
+    }
+
+    @MainActor
+    func test_editSaveReload_minimalKeeOTPSourceGainsRewrittenParameters() throws {
+        let entry = KPEntry(
+            title: "KeeOTP Minimal",
+            password: try EncryptedValue.encrypt("password", using: roundTripSessionKey),
+            totpConfig: TOTPConfig(
+                secret: try EncryptedValue.encrypt("JBSWY3DP", using: roundTripSessionKey),
+                decodedSecret: try EncryptedValue.encrypt(Data("Hello".utf8), using: roundTripSessionKey),
+                keeOTPSource: KeeOTPSource(fieldName: "otp", rawQuery: "key=JBSWY3DP")
+            ),
+            otpURL: "key=JBSWY3DP"
+        )
+        let rootGroup = KPGroup(id: UUID(), name: "Root", entries: [entry])
+        let viewModel = EntryEditViewModel(editing: entry, sessionKey: roundTripSessionKey)
+        viewModel.totpPeriod = 45
+
+        let draft = DatabaseDraft(rootGroup: rootGroup, meta: KPMeta(), sessionKey: roundTripSessionKey)
+        let updated = try draft.apply(.updateEntry(entryID: entry.id, draft: viewModel.entryDraftPayload))
+        let reparsed = try serializeAndParse((rootGroup: updated.rootGroup, meta: updated.meta))
+        let reloaded = try XCTUnwrap(reparsed.rootGroup.allEntries.first)
+        let reloadedTOTP = try XCTUnwrap(reloaded.totpConfig)
+
+        XCTAssertEqual(reloadedTOTP.period, 45, "A period edit must survive even when the source omitted the step parameter")
+        XCTAssertTrue(reloadedTOTP.keeOTPSource?.rawQuery.contains("step=45") == true)
+        XCTAssertEqual(
+            TOTPGenerator.resolveSecret(config: reloadedTOTP, sessionKey: roundTripSessionKey)?.data,
+            Data("Hello".utf8)
+        )
+    }
+
     func test_unknownNodes_controlledFixture_capturesCustomData() throws {
         let parsed = try parseFixture(.unknownElements)
         let entry = try controlledUnknownsEntry(in: parsed.rootGroup)

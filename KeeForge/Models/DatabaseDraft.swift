@@ -363,9 +363,7 @@ struct DatabaseDraft: Sendable {
             hasTagsElement: originalEntry.hasTagsElement || !draft.tags.isEmpty,
             customFields: activeCustomFields(from: draft),
             totpConfig: try makeTOTPConfig(from: draft.totpConfig),
-            otpURL: draft.totpConfig?.keeOTPSource?.fieldName == "otp"
-                ? draft.totpConfig?.keeOTPSource?.rawQuery
-                : nil,
+            otpURL: updatedOtpURL(draft: draft, originalEntry: originalEntry),
             creationTime: originalEntry.creationTime,
             lastModificationTime: timestamp,
             expires: originalEntry.expires,
@@ -378,6 +376,39 @@ struct DatabaseDraft: Sendable {
             ),
             attachments: originalEntry.attachments
         )
+    }
+
+    private func updatedOtpURL(
+        draft: EntryDraftPayload,
+        originalEntry: KPEntry
+    ) -> String? {
+        guard let source = draft.totpConfig?.keeOTPSource else {
+            return preservedOtpURL(draft: draft, originalEntry: originalEntry)
+        }
+        // A KeeOTP source in a custom-named field never owns the otp slot;
+        // whatever the entry stored there must survive verbatim.
+        return source.fieldName == "otp" ? source.rawQuery : originalEntry.otpURL
+    }
+
+    private func preservedOtpURL(
+        draft: EntryDraftPayload,
+        originalEntry: KPEntry
+    ) -> String? {
+        guard let url = originalEntry.otpURL,
+              let draftConfig = draft.totpConfig,
+              let originalConfig = originalEntry.totpConfig,
+              let originalSecret = try? originalConfig.secret.decrypt(using: sessionKey)
+        else {
+            return nil
+        }
+        guard draftConfig.secret == originalSecret,
+              draftConfig.period == originalConfig.period,
+              draftConfig.digits == originalConfig.digits,
+              draftConfig.algorithm == originalConfig.algorithm
+        else {
+            return nil
+        }
+        return url
     }
 
     private func makeTOTPConfig(
@@ -410,7 +441,10 @@ struct DatabaseDraft: Sendable {
         from entry: KPEntry,
         customFields: [String: String]
     ) -> Set<String> {
-        let editableKeys = Set(customFields.keys).union(["Title", "UserName", "URL", "Notes"])
+        // OTP source fields are serialized outside customFields, so their
+        // protection flags must survive edits alongside the editable keys.
+        let editableKeys = Set(customFields.keys)
+            .union(["Title", "UserName", "URL", "Notes", "otp", "OTP", "Otp"])
         return entry.protectedStringKeys.intersection(editableKeys)
     }
 

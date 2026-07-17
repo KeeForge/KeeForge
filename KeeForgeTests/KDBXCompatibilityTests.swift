@@ -159,8 +159,12 @@ final class KDBXCompatibilityTests: XCTestCase {
         for testCase in KDBXCompatibilitySupport.keeOTPCases {
             for mutation in KeeOTPMutation.allCases {
                 let reloaded = try editSaveReloadKeeOTP(testCase, mutation: mutation)
-                let config = try XCTUnwrap(reloaded.totpConfig, "\(testCase.fieldName) \(testCase.encoding) \(mutation.rawValue)")
+                let config = try XCTUnwrap(reloaded.totpConfig, "\(testCase.fieldName) \(testCase.label) \(mutation.rawValue)")
                 let source = try XCTUnwrap(config.keeOTPSource)
+                // Minimal sources omit default-valued parameters, so only
+                // assert on parameters the original query carried.
+                let hadEncoding = testCase.rawQuery.contains("Encoding=")
+                let hadVendor = testCase.rawQuery.contains("vendor=")
 
                 XCTAssertEqual(source.fieldName, testCase.fieldName)
                 XCTAssertFalse(reloaded.customFields.keys.contains { $0.hasPrefix("TimeOtp-") })
@@ -174,14 +178,14 @@ final class KDBXCompatibilityTests: XCTestCase {
                     XCTAssertEqual(resolvedSecret(config), testCase.decodedSecret)
                 case .period:
                     XCTAssertTrue(source.rawQuery.contains("step=45"))
-                    XCTAssertTrue(source.rawQuery.contains("Encoding=\(testCase.encoding)"))
-                    XCTAssertTrue(source.rawQuery.contains("vendor=keep%2Bme"))
+                    if hadEncoding { XCTAssertTrue(source.rawQuery.contains("Encoding=\(testCase.encoding)")) }
+                    if hadVendor { XCTAssertTrue(source.rawQuery.contains("vendor=keep%2Bme")) }
                     XCTAssertEqual(config.period, 45)
                     XCTAssertEqual(resolvedSecret(config), testCase.decodedSecret)
                 case .secret:
                     XCTAssertTrue(source.rawQuery.contains("key=JBSWY3DP"))
-                    XCTAssertTrue(source.rawQuery.contains("Encoding=Base32"))
-                    XCTAssertTrue(source.rawQuery.contains("vendor=keep%2Bme"))
+                    if hadEncoding { XCTAssertTrue(source.rawQuery.contains("Encoding=Base32")) }
+                    if hadVendor { XCTAssertTrue(source.rawQuery.contains("vendor=keep%2Bme")) }
                     XCTAssertEqual(resolvedSecret(config), Data("Hello".utf8))
                 }
             }
@@ -238,7 +242,7 @@ final class KDBXCompatibilityTests: XCTestCase {
     private func makeKeeOTPEntry(_ testCase: KDBXCompatibilitySupport.KeeOTPCase) throws -> KPEntry {
         let source = KeeOTPSource(fieldName: testCase.fieldName, rawQuery: testCase.rawQuery)
         return KPEntry(
-            title: "KeeOTP \(testCase.fieldName) \(testCase.encoding)",
+            title: "KeeOTP \(testCase.fieldName) \(testCase.label)",
             password: try EncryptedValue.encrypt("password", using: entrySessionKey),
             customFields: testCase.fieldName == "otp" ? [:] : [testCase.fieldName: testCase.rawQuery],
             totpConfig: TOTPConfig(

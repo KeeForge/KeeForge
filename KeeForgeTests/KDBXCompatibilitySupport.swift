@@ -12,9 +12,14 @@ enum KDBXCompatibilitySupport {
         let encodedKey: String
         let secret: String
         let decodedSecret: Data
+        var queryOverride: String?
 
         var rawQuery: String {
-            "key=\(encodedKey)&Type=TOTP&step=30&size=6&Encoding=\(encoding)&otpHashMode=SHA1&vendor=keep%2Bme"
+            queryOverride ?? "key=\(encodedKey)&Type=TOTP&step=30&size=6&Encoding=\(encoding)&otpHashMode=SHA1&vendor=keep%2Bme"
+        }
+
+        var label: String {
+            queryOverride == nil ? encoding : "\(encoding) Minimal"
         }
     }
 
@@ -24,6 +29,12 @@ enum KDBXCompatibilitySupport {
             KeeOTPCase(fieldName: fieldName, encoding: "Base64", encodedKey: "AAEC%2Fw%3D%3D", secret: "AAEC/w==", decodedSecret: Data([0x00, 0x01, 0x02, 0xFF])),
             KeeOTPCase(fieldName: fieldName, encoding: "Hex", encodedKey: "000102ff", secret: "000102ff", decodedSecret: Data([0x00, 0x01, 0x02, 0xFF])),
             KeeOTPCase(fieldName: fieldName, encoding: "UTF8", encodedKey: "p%C3%A4ss", secret: "päss", decodedSecret: Data("päss".utf8)),
+            // KeeOtp2 omits parameters at their defaults; this is the most
+            // common real-world payload shape.
+            KeeOTPCase(
+                fieldName: fieldName, encoding: "Base32", encodedKey: "JBSWY3DP", secret: "JBSWY3DP",
+                decodedSecret: Data("Hello".utf8), queryOverride: "key=JBSWY3DP"
+            ),
         ]
     }
 
@@ -523,7 +534,7 @@ enum KDBXCompatibilitySupport {
             artifactFileName: "synthetic-rich-keeotp-source-matrix.kdbx",
             // KeePassXC 2.7.12 skips entries whose raw KeeOTP field uses its
             // unsupported key/query format. The artifact still contains all
-            // eight source variants; the external opener probe uses the
+            // source variants; the external opener probe uses the
             // ordinary entry in this same database while the XCTest matrix
             // proves KeeOTP semantics.
             expectedSearchTerms: ["Compat Update Target"],
@@ -545,7 +556,7 @@ enum KDBXCompatibilitySupport {
             },
             assertChange: { before, after, _ in
                 for testCase in keeOTPCases {
-                    let title = "KeeOTP \(testCase.fieldName) \(testCase.encoding)"
+                    let title = "KeeOTP \(testCase.fieldName) \(testCase.label)"
                     let entryID = try XCTUnwrap(before.entryID(titled: title))
                     XCTAssertEqual(after.entries[entryID], before.entries[entryID])
                 }
@@ -556,7 +567,7 @@ enum KDBXCompatibilitySupport {
     private static func makeKeeOTPEntry(_ testCase: KeeOTPCase, sessionKey: SymmetricKey) throws -> KPEntry {
         let source = KeeOTPSource(fieldName: testCase.fieldName, rawQuery: testCase.rawQuery)
         return KPEntry(
-            title: "KeeOTP \(testCase.fieldName) \(testCase.encoding)",
+            title: "KeeOTP \(testCase.fieldName) \(testCase.label)",
             password: try EncryptedValue.encrypt("password", using: sessionKey),
             totpConfig: TOTPConfig(
                 secret: try EncryptedValue.encrypt(testCase.secret, using: sessionKey),

@@ -81,7 +81,8 @@ final class KDBXWriterTests: XCTestCase {
                 secret: try EncryptedValue.encrypt(originalSecret, using: sessionKey),
                 decodedSecret: try EncryptedValue.encrypt(Data(originalSecret.utf8), using: sessionKey),
                 keeOTPSource: KeeOTPSource(fieldName: "OTP", rawQuery: keeOTPQuery)
-            )
+            ),
+            protectedStringKeys: ["OTP"]
         )
         var rootGroup = parsed.rootGroup
         rootGroup.entries.append(entry)
@@ -109,7 +110,10 @@ final class KDBXWriterTests: XCTestCase {
         )
 
         let savedXML = try XCTUnwrap(String(data: decryptWrittenXML(savedData, compositeKey: parsed.compositeKey), encoding: .utf8))
-        XCTAssertTrue(savedXML.contains("<Key>OTP</Key>"))
+        XCTAssertTrue(
+            savedXML.contains("<Key>OTP</Key><Value Protected=\"True\""),
+            "The KeeOTP source field must keep its memory-protection flag across edits"
+        )
         XCTAssertFalse(savedXML.contains("TimeOtp-"))
 
         let reloaded = try parseWrittenFile(savedData, fixture: .test)

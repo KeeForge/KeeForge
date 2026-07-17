@@ -1629,10 +1629,10 @@ private class EntryBuilder {
     func build(sessionKey: SymmetricKey) -> KPEntry {
         let encryptedPassword = (try? EncryptedValue.encrypt(password, using: sessionKey)) ?? .empty
         let totpConfig = buildTOTPConfig(sessionKey: sessionKey)
-        let validKeeOTPFieldNames = Set(["OTP", "Otp"].filter { fieldName in
-            guard let value = customFields[fieldName], value.hasPrefix("key=") else { return false }
-            return parseKeeOTPTOTP(value, fieldName: fieldName, sessionKey: sessionKey) != nil
-        })
+        // Only the field that actually backs the TOTP config is managed by
+        // the serializer; other otp-named fields must stay in customFields
+        // so they round-trip.
+        let keeOTPFieldName = totpConfig?.keeOTPSource?.fieldName
         return KPEntry(
             id: uuid ?? UUID(),
             title: title,
@@ -1645,7 +1645,7 @@ private class EntryBuilder {
             hasTagsElement: hasTagsElement,
             customFields: customFields.filter {
                 !$0.key.hasPrefix("TimeOtp-") && $0.key != "TOTP Settings" && $0.key != "TOTP Seed"
-                    && !validKeeOTPFieldNames.contains($0.key)
+                    && $0.key != keeOTPFieldName
             },
             totpConfig: totpConfig,
             otpURL: otpURL,
@@ -1707,14 +1707,33 @@ private class EntryBuilder {
             if mappedNames.contains(name) { params[name] = value }
         }
 
-        guard let key = params["key"], !key.isEmpty,
-              let encoding = params["encoding"],
-              params["type"]?.uppercased() == "TOTP",
-              let stepValue = params["step"], let step = Int(stepValue), step > 0,
-              let sizeValue = params["size"], let size = Int(sizeValue), [6, 8].contains(size),
-              let hash = params["otphashmode"],
-              let algorithm = TOTPAlgorithm(rawValue: hash.uppercased()),
-              let decoded = decodeKeeOTPSecret(key, encoding: encoding), !decoded.isEmpty,
+        // KeeOtp2 omits parameters that hold their defaults (a plain TOTP
+        // entry is just "key=SECRET", and "type" is only written for HOTP),
+        // so only `key` is required; the rest are validated when present.
+        guard let key = params["key"], !key.isEmpty else { return nil }
+        if let type = params["type"], type.uppercased() != "TOTP" { return nil }
+        let step: Int
+        if let stepValue = params["step"] {
+            guard let parsed = Int(stepValue), parsed > 0 else { return nil }
+            step = parsed
+        } else {
+            step = 30
+        }
+        let size: Int
+        if let sizeValue = params["size"] {
+            guard let parsed = Int(sizeValue), [6, 8].contains(parsed) else { return nil }
+            size = parsed
+        } else {
+            size = 6
+        }
+        let algorithm: TOTPAlgorithm
+        if let hash = params["otphashmode"] {
+            guard let parsed = TOTPAlgorithm(rawValue: hash.uppercased()) else { return nil }
+            algorithm = parsed
+        } else {
+            algorithm = .sha1
+        }
+        guard let decoded = decodeKeeOTPSecret(key, encoding: params["encoding"] ?? "Base32"), !decoded.isEmpty,
               let encryptedKey = try? EncryptedValue.encrypt(key, using: sessionKey),
               let encryptedDecoded = try? EncryptedValue.encrypt(decoded, using: sessionKey) else { return nil }
 

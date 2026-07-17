@@ -197,113 +197,144 @@ final class KDBXParserTests: XCTestCase {
         }
     }
 
-        // MARK: - KeeOTP TOTP Compatibility
+    // MARK: - KeeOTP TOTP Compatibility
 
-        func testKeeOTPEligibleFieldNamesAndQueryDecoding() throws {
-            for fieldName in ["otp", "OTP", "Otp"] {
-                let entry = try parseSingleEntry(fields: [
-                    fieldName: "key=hello%20world&type=TOTP&step=30&size=6&encoding=UTF8&otpHashMode=SHA1",
-                ])
-
-                let config = try XCTUnwrap(entry.totpConfig, "Expected KeeOTP config for \(fieldName)")
-                XCTAssertEqual(config.period, 30)
-                XCTAssertEqual(config.digits, 6)
-                XCTAssertEqual(config.algorithm, .sha1)
-                XCTAssertEqual(TOTPGenerator.resolveSecret(config: config, sessionKey: testSessionKey)?.data, Data("hello world".utf8))
-                XCTAssertEqual(config.keeOTPSource, KeeOTPSource(fieldName: fieldName, rawQuery: "key=hello%20world&type=TOTP&step=30&size=6&encoding=UTF8&otpHashMode=SHA1"))
-                XCTAssertNil(entry.displayCustomFields[fieldName])
-            }
-        }
-
-        func testKeeOTPSupportsEachDeclaredEncodingWithoutFallback() throws {
-            let cases: [(String, String, Data)] = [
-                ("Base32", "JBSWY3DP", Data("Hello".utf8)),
-                ("Base32", "jbswy3dp", Data("Hello".utf8)), // KeeOtp2 emits lowercase Base32 keys.
-                ("Base64", "AAEC/w==", Data([0x00, 0x01, 0x02, 0xFF])),
-                ("Hex", "000102ff", Data([0x00, 0x01, 0x02, 0xFF])),
-                ("UTF8", "p%C3%A4ss", Data("päss".utf8)),
-            ]
-
-            for (encoding, key, expected) in cases {
-                let entry = try parseSingleEntry(fields: [
-                    "otp": "key=\(key)&type=TOTP&step=30&size=8&encoding=\(encoding)&otpHashMode=SHA256",
-                ])
-                let config = try XCTUnwrap(entry.totpConfig, "Expected \(encoding) config")
-                XCTAssertEqual(TOTPGenerator.resolveSecret(config: config, sessionKey: testSessionKey)?.data, expected)
-            }
-
-            XCTAssertNil(try parseSingleEntry(fields: [
-                "otp": "key=JBSWY3DP====&type=TOTP&step=30&size=6&encoding=Base64&otpHashMode=SHA1",
-            ]).totpConfig, "A Base32-looking key must not fall back from declared Base64")
-
-            XCTAssertNil(try parseSingleEntry(fields: [
-                "otp": "key=AAEC/w===&type=TOTP&step=30&size=6&encoding=Base64&otpHashMode=SHA1",
-            ]).totpConfig, "Over-padded Base64 must be rejected")
-        }
-
-        func testKeeOTPRejectsIneligibleMalformedDuplicateAndHOTPInputs() throws {
-            let rejected = [
-                ["Other": "key=JBSWY3DP&type=TOTP&step=30&size=6&encoding=Base32&otpHashMode=SHA1"],
-                ["otp": "prefix=1&key=JBSWY3DP&type=TOTP&step=30&size=6&encoding=Base32&otpHashMode=SHA1"],
-                ["otp": "key=&type=TOTP&step=30&size=6&encoding=UTF8&otpHashMode=SHA1"],
-                ["otp": "key=JBS%20WY3DP&type=TOTP&step=30&size=6&encoding=Base32&otpHashMode=SHA1"],
-                ["otp": "key=JBSWY3DP%3D&type=TOTP&step=30&size=6&encoding=Base32&otpHashMode=SHA1"],
-                ["otp": "key=JBSWY3DK&type=TOTP&step=30&size=6&encoding=Base32&otpHashMode=SHA1"],
-                ["otp": "key=JBSWY3Dı&type=TOTP&step=30&size=6&encoding=Base32&otpHashMode=SHA1"],
-                ["otp": "key=JBŚWY3DP&type=TOTP&step=30&size=6&encoding=Base32&otpHashMode=SHA1"],
-                ["otp": "key=MZ&type=TOTP&step=30&size=6&encoding=Base32&otpHashMode=SHA1"],
-                ["otp": "key=***&type=TOTP&step=30&size=6&encoding=Base32&otpHashMode=SHA1"],
-                ["otp": "key=0g&type=TOTP&step=30&size=6&encoding=Hex&otpHashMode=SHA1"],
-                ["otp": "key=abc&type=TOTP&step=30&size=6&encoding=Unknown&otpHashMode=SHA1"],
-                ["otp": "key=abc&type=HOTP&step=30&size=6&encoding=UTF8&otpHashMode=SHA1&counter=4"],
-                ["otp": "key=abc&type=TOTP&step=0&size=6&encoding=UTF8&otpHashMode=SHA1"],
-                ["otp": "key=abc&type=TOTP&step=30&size=7&encoding=UTF8&otpHashMode=SHA1"],
-                ["otp": "key=abc&type=TOTP&step=30&size=6&encoding=UTF8&otpHashMode=MD5"],
-                ["otp": "key=abc&key=def&type=TOTP&step=30&size=6&encoding=UTF8&otpHashMode=SHA1"],
-            ]
-
-            for fields in rejected {
-                XCTAssertNil(try parseSingleEntry(fields: fields).totpConfig, "Unexpected config for \(fields)")
-            }
-        }
-
-        func testEstablishedOTPSourceKeepsPrecedenceOverKeeOTP() throws {
+    func testKeeOTPEligibleFieldNamesAndQueryDecoding() throws {
+        for fieldName in ["otp", "OTP", "Otp"] {
             let entry = try parseSingleEntry(fields: [
-                "otp": "otpauth://totp/Test?secret=JBSWY3DP&digits=8",
-                "OTP": "key=other&type=TOTP&step=60&size=6&encoding=UTF8&otpHashMode=SHA512",
+                fieldName: "key=hello%20world&type=TOTP&step=30&size=6&encoding=UTF8&otpHashMode=SHA1",
             ])
 
-            let config = try XCTUnwrap(entry.totpConfig)
-            XCTAssertEqual(config.digits, 8)
+            let config = try XCTUnwrap(entry.totpConfig, "Expected KeeOTP config for \(fieldName)")
             XCTAssertEqual(config.period, 30)
-            XCTAssertEqual(try config.secret.decrypt(using: testSessionKey), "JBSWY3DP")
-            XCTAssertNil(config.keeOTPSource)
+            XCTAssertEqual(config.digits, 6)
+            XCTAssertEqual(config.algorithm, .sha1)
+            XCTAssertEqual(TOTPGenerator.resolveSecret(config: config, sessionKey: testSessionKey)?.data, Data("hello world".utf8))
+            XCTAssertEqual(config.keeOTPSource, KeeOTPSource(fieldName: fieldName, rawQuery: "key=hello%20world&type=TOTP&step=30&size=6&encoding=UTF8&otpHashMode=SHA1"))
+            XCTAssertNil(entry.displayCustomFields[fieldName])
         }
+    }
 
-        func testInvalidOTPAndOtpCustomFieldsRemainVisible() throws {
-            for fieldName in ["OTP", "Otp"] {
-                let entry = try parseSingleEntry(fields: [fieldName: "ordinary custom value"])
-                XCTAssertEqual(entry.displayCustomFields[fieldName], "ordinary custom value")
-                XCTAssertNil(entry.totpConfig)
-            }
-        }
+    func testKeeOTPSupportsEachDeclaredEncodingWithoutFallback() throws {
+        let cases: [(String, String, Data)] = [
+            ("Base32", "JBSWY3DP", Data("Hello".utf8)),
+            ("Base32", "jbswy3dp", Data("Hello".utf8)), // KeeOtp2 emits lowercase Base32 keys.
+            ("Base64", "AAEC/w==", Data([0x00, 0x01, 0x02, 0xFF])),
+            ("Hex", "000102ff", Data([0x00, 0x01, 0x02, 0xFF])),
+            ("UTF8", "p%C3%A4ss", Data("päss".utf8)),
+        ]
 
-        func testNativeAndLegacyTOTPBaselinesRemainSupported() throws {
-            let native = try parseSingleEntry(fields: [
-                "TimeOtp-Secret-Base32": "JBSWY3DP", "TimeOtp-Period": "45", "TimeOtp-Length": "8",
+        for (encoding, key, expected) in cases {
+            let entry = try parseSingleEntry(fields: [
+                "otp": "key=\(key)&type=TOTP&step=30&size=8&encoding=\(encoding)&otpHashMode=SHA256",
             ])
-            XCTAssertEqual(native.totpConfig?.period, 45)
-            XCTAssertEqual(native.totpConfig?.digits, 8)
-
-            let legacy = try parseSingleEntry(fields: ["TOTP Seed": "JBSWY3DP", "TOTP Settings": "60;6"])
-            XCTAssertEqual(legacy.totpConfig?.period, 60)
-            XCTAssertEqual(legacy.totpConfig?.digits, 6)
-
-            let unsupportedOTPURI = try parseSingleEntry(fields: ["otp": "otp://totp/Test?secret=JBSWY3DP"])
-            XCTAssertNil(unsupportedOTPURI.totpConfig, "otp:// has no existing parser path to preserve")
+            let config = try XCTUnwrap(entry.totpConfig, "Expected \(encoding) config")
+            XCTAssertEqual(TOTPGenerator.resolveSecret(config: config, sessionKey: testSessionKey)?.data, expected)
         }
 
-        // MARK: - Group Membership Tests
+        XCTAssertNil(try parseSingleEntry(fields: [
+            "otp": "key=JBSWY3DP====&type=TOTP&step=30&size=6&encoding=Base64&otpHashMode=SHA1",
+        ]).totpConfig, "A Base32-looking key must not fall back from declared Base64")
+
+        XCTAssertNil(try parseSingleEntry(fields: [
+            "otp": "key=AAEC/w===&type=TOTP&step=30&size=6&encoding=Base64&otpHashMode=SHA1",
+        ]).totpConfig, "Over-padded Base64 must be rejected")
+    }
+
+    func testKeeOTPRejectsIneligibleMalformedDuplicateAndHOTPInputs() throws {
+        let rejected = [
+            ["Other": "key=JBSWY3DP&type=TOTP&step=30&size=6&encoding=Base32&otpHashMode=SHA1"],
+            ["otp": "prefix=1&key=JBSWY3DP&type=TOTP&step=30&size=6&encoding=Base32&otpHashMode=SHA1"],
+            ["otp": "key=&type=TOTP&step=30&size=6&encoding=UTF8&otpHashMode=SHA1"],
+            ["otp": "key=JBS%20WY3DP&type=TOTP&step=30&size=6&encoding=Base32&otpHashMode=SHA1"],
+            ["otp": "key=JBSWY3DP%3D&type=TOTP&step=30&size=6&encoding=Base32&otpHashMode=SHA1"],
+            ["otp": "key=JBSWY3DK&type=TOTP&step=30&size=6&encoding=Base32&otpHashMode=SHA1"],
+            ["otp": "key=JBSWY3Dı&type=TOTP&step=30&size=6&encoding=Base32&otpHashMode=SHA1"],
+            ["otp": "key=JBŚWY3DP&type=TOTP&step=30&size=6&encoding=Base32&otpHashMode=SHA1"],
+            ["otp": "key=MZ&type=TOTP&step=30&size=6&encoding=Base32&otpHashMode=SHA1"],
+            ["otp": "key=***&type=TOTP&step=30&size=6&encoding=Base32&otpHashMode=SHA1"],
+            ["otp": "key=0g&type=TOTP&step=30&size=6&encoding=Hex&otpHashMode=SHA1"],
+            ["otp": "key=abc&type=TOTP&step=30&size=6&encoding=Unknown&otpHashMode=SHA1"],
+            ["otp": "key=abc&type=HOTP&step=30&size=6&encoding=UTF8&otpHashMode=SHA1&counter=4"],
+            ["otp": "key=abc&type=TOTP&step=0&size=6&encoding=UTF8&otpHashMode=SHA1"],
+            ["otp": "key=abc&type=TOTP&step=30&size=7&encoding=UTF8&otpHashMode=SHA1"],
+            ["otp": "key=abc&type=TOTP&step=30&size=6&encoding=UTF8&otpHashMode=MD5"],
+            ["otp": "key=abc&key=def&type=TOTP&step=30&size=6&encoding=UTF8&otpHashMode=SHA1"],
+        ]
+
+        for fields in rejected {
+            XCTAssertNil(try parseSingleEntry(fields: fields).totpConfig, "Unexpected config for \(fields)")
+        }
+    }
+
+    func testEstablishedOTPSourceKeepsPrecedenceOverKeeOTP() throws {
+        let entry = try parseSingleEntry(fields: [
+            "otp": "otpauth://totp/Test?secret=JBSWY3DP&digits=8",
+            "OTP": "key=other&type=TOTP&step=60&size=6&encoding=UTF8&otpHashMode=SHA512",
+        ])
+
+        let config = try XCTUnwrap(entry.totpConfig)
+        XCTAssertEqual(config.digits, 8)
+        XCTAssertEqual(config.period, 30)
+        XCTAssertEqual(try config.secret.decrypt(using: testSessionKey), "JBSWY3DP")
+        XCTAssertNil(config.keeOTPSource)
+        XCTAssertEqual(
+            entry.customFields["OTP"],
+            "key=other&type=TOTP&step=60&size=6&encoding=UTF8&otpHashMode=SHA512",
+            "A KeeOTP field that is not the active TOTP source must stay in customFields so it survives saves"
+        )
+    }
+
+    func testKeeOTPAppliesKeeOtp2DefaultsForOmittedParameters() throws {
+        // KeeOtp2 only writes non-default parameters; a plain TOTP entry is
+        // just "key=SECRET" and "type" is only ever written for HOTP.
+        let minimal = try parseSingleEntry(fields: ["otp": "key=JBSWY3DP"])
+        let config = try XCTUnwrap(minimal.totpConfig, "Minimal KeeOTP payloads must be recognized")
+        XCTAssertEqual(config.period, 30)
+        XCTAssertEqual(config.digits, 6)
+        XCTAssertEqual(config.algorithm, .sha1)
+        XCTAssertEqual(TOTPGenerator.resolveSecret(config: config, sessionKey: testSessionKey)?.data, Data("Hello".utf8))
+        XCTAssertEqual(config.keeOTPSource, KeeOTPSource(fieldName: "otp", rawQuery: "key=JBSWY3DP"))
+
+        let partial = try parseSingleEntry(fields: ["OTP": "key=JBSWY3DP&step=45"])
+        let partialConfig = try XCTUnwrap(partial.totpConfig)
+        XCTAssertEqual(partialConfig.period, 45)
+        XCTAssertEqual(partialConfig.digits, 6)
+
+        XCTAssertNil(
+            try parseSingleEntry(fields: ["otp": "key=JBSWY3DP&type=HOTP&counter=4"]).totpConfig,
+            "HOTP payloads must be rejected even when other parameters are omitted"
+        )
+        XCTAssertNil(
+            try parseSingleEntry(fields: ["otp": "key=JBSWY3DP&step=abc"]).totpConfig,
+            "Present-but-invalid parameters must still be rejected"
+        )
+    }
+
+    func testInvalidOTPAndOtpCustomFieldsRemainVisible() throws {
+        for fieldName in ["OTP", "Otp"] {
+            let entry = try parseSingleEntry(fields: [fieldName: "ordinary custom value"])
+            XCTAssertEqual(entry.displayCustomFields[fieldName], "ordinary custom value")
+            XCTAssertNil(entry.totpConfig)
+        }
+    }
+
+    func testNativeAndLegacyTOTPBaselinesRemainSupported() throws {
+        let native = try parseSingleEntry(fields: [
+            "TimeOtp-Secret-Base32": "JBSWY3DP", "TimeOtp-Period": "45", "TimeOtp-Length": "8",
+        ])
+        XCTAssertEqual(native.totpConfig?.period, 45)
+        XCTAssertEqual(native.totpConfig?.digits, 8)
+
+        let legacy = try parseSingleEntry(fields: ["TOTP Seed": "JBSWY3DP", "TOTP Settings": "60;6"])
+        XCTAssertEqual(legacy.totpConfig?.period, 60)
+        XCTAssertEqual(legacy.totpConfig?.digits, 6)
+
+        let unsupportedOTPURI = try parseSingleEntry(fields: ["otp": "otp://totp/Test?secret=JBSWY3DP"])
+        XCTAssertNil(unsupportedOTPURI.totpConfig, "otp:// has no existing parser path to preserve")
+    }
+
+    // MARK: - Group Membership Tests
 
     func testEntriesAreInCorrectGroups() throws {
         let root = try parseFixture()
@@ -631,19 +662,19 @@ final class KDBXParserTests: XCTestCase {
 
     private func parseSingleEntry(fields: [String: String]) throws -> KPEntry {
         let strings = fields.map { key, value in
-        "<String><Key>\(xmlEscape(key))</Key><Value>\(xmlEscape(value))</Value></String>"
+            "<String><Key>\(xmlEscape(key))</Key><Value>\(xmlEscape(value))</Value></String>"
         }.joined()
         let xml = "<KeePassFile><Root><Group><Name>Test</Name><Entry><String><Key>Title</Key><Value>OTP</Value></String>\(strings)</Entry></Group></Root></KeePassFile>"
         let parsed = try KDBXParser.parseXML(
-        xmlData: Data(xml.utf8), innerStreamKey: Data(), innerStreamID: 0, sessionKey: testSessionKey
+            xmlData: Data(xml.utf8), innerStreamKey: Data(), innerStreamID: 0, sessionKey: testSessionKey
         )
         return try XCTUnwrap(parsed.rootGroup.allEntries.first)
     }
 
     private func xmlEscape(_ value: String) -> String {
         value.replacingOccurrences(of: "&", with: "&amp;")
-        .replacingOccurrences(of: "<", with: "&lt;")
-        .replacingOccurrences(of: ">", with: "&gt;")
+            .replacingOccurrences(of: "<", with: "&lt;")
+            .replacingOccurrences(of: ">", with: "&gt;")
     }
 
     private func referenceAESKDFTransform(compositeKey: Data, seed: Data, rounds: UInt64) throws -> Data {
