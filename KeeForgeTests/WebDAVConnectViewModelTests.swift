@@ -59,7 +59,7 @@ final class WebDAVConnectViewModelTests: XCTestCase {
         XCTAssertEqual(connector.connectCallCount, 0)
         XCTAssertEqual(
             viewModel.errorMessage,
-            "Turn on Allow Unencrypted HTTP in Advanced to use an http:// server address."
+            String(localized: "Turn on Allow Unencrypted HTTP in Advanced to use an http:// server address.")
         )
         XCTAssertFalse(viewModel.isConnecting)
     }
@@ -117,7 +117,10 @@ final class WebDAVConnectViewModelTests: XCTestCase {
 
         XCTAssertNil(account)
         XCTAssertEqual(connector.connectCallCount, 1)
-        XCTAssertEqual(viewModel.errorMessage, "The WebDAV username or password was rejected.")
+        XCTAssertEqual(
+            viewModel.errorMessage,
+            String(localized: "The WebDAV username or password was rejected.")
+        )
         XCTAssertFalse(viewModel.isConnecting)
     }
 

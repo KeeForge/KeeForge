@@ -642,13 +642,13 @@ final class DatabaseViewModelTests: XCTestCase {
         await gate.waitUntilPaused()
 
         XCTAssertState(vm.state, is: .unlocking)
-        XCTAssertEqual(vm.unlockStatusMessage, "Syncing with Dropbox...")
+        XCTAssertEqual(vm.unlockStatusMessage, DatabaseViewModel.syncStatusMessage(for: reference))
 
         await gate.resume()
         await unlockTask.value
 
         XCTAssertState(vm.state, is: .unlocked)
-        XCTAssertEqual(vm.unlockStatusMessage, "Decrypting your database securely...")
+        XCTAssertEqual(vm.unlockStatusMessage, DatabaseViewModel.decryptingStatusMessage)
     }
 
     func testCloudUnlockShowsOfflineBannerWhenCachedCopyDecryptsSuccessfully() async throws {
@@ -669,7 +669,7 @@ final class DatabaseViewModelTests: XCTestCase {
         await vm.unlock(password: fixturePassword)
 
         XCTAssertState(vm.state, is: .unlocked)
-        XCTAssertEqual(vm.cloudSyncBannerText, "Using the cached copy offline.")
+        XCTAssertEqual(vm.cloudSyncBannerText, CloudSyncResolution.offlineCachedBannerMessage)
     }
 
     func testCloudUnlockTransitionsToErrorWhenSyncFails() async {
@@ -1186,7 +1186,7 @@ final class DatabaseViewModelTests: XCTestCase {
         let updatedReference = try XCTUnwrap(DatabaseListStore.databases.first(where: { $0.id == reference.id }))
 
         XCTAssertEqual(result, .acknowledged)
-        XCTAssertEqual(capturedWarning?.title, "This database file is stored in Dropbox.")
+        XCTAssertEqual(capturedWarning?.location, .dropbox)
         XCTAssertNotNil(updatedReference.editsAcknowledgedAt)
         XCTAssertNil(vm.syncedFolderWarning)
     }
@@ -1644,7 +1644,7 @@ final class CloudSyncCoordinatorTests: XCTestCase {
 
         XCTAssertEqual(resolution.status, .offlineCached)
         XCTAssertEqual(resolution.data, Data("cached-offline-copy".utf8))
-        XCTAssertEqual(resolution.bannerMessage, "Using the cached copy offline.")
+        XCTAssertEqual(resolution.bannerMessage, CloudSyncResolution.offlineCachedBannerMessage)
         XCTAssertEqual(provider.metadataCallCount, 1)
         XCTAssertEqual(provider.downloadCallCount, 0)
         XCTAssertEqual(
@@ -1667,10 +1667,7 @@ final class CloudSyncCoordinatorTests: XCTestCase {
 
         XCTAssertEqual(resolution.status, .disconnectedCached)
         XCTAssertEqual(resolution.data, Data("cached-disconnected-copy".utf8))
-        XCTAssertEqual(
-            resolution.bannerMessage,
-            "Using the cached copy. Reconnect this cloud account to refresh."
-        )
+        XCTAssertEqual(resolution.bannerMessage, CloudSyncResolution.disconnectedCachedBannerMessage)
         XCTAssertEqual(
             resolution.reference.cloudSyncMetadata?.lastSyncError,
             CloudProviderError.notAuthenticated.errorDescription

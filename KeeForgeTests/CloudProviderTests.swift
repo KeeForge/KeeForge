@@ -6,7 +6,7 @@ final class CloudProviderTests: XCTestCase {
     func testMessageReturnsCloudProviderDescription() {
         XCTAssertEqual(
             CloudProviderError.message(for: CloudProviderError.notAuthenticated),
-            "Please reconnect this cloud account."
+            String(localized: "Please reconnect this cloud account.")
         )
     }
 

@@ -515,8 +515,9 @@ final class KDBXParserTests: XCTestCase {
         XCTAssertThrowsError(
             try KDBXParser.parse(data: data, password: "definitely-wrong", sessionKey: testSessionKey)
         ) { error in
-            XCTAssertTrue(
-                error.localizedDescription.localizedCaseInsensitiveContains("wrong password"),
+            XCTAssertEqual(
+                error.localizedDescription,
+                String(localized: "Decryption failed — wrong password?"),
                 "Expected a friendly wrong-password failure, got: \(error.localizedDescription)"
             )
         }
@@ -559,7 +560,7 @@ final class KDBXParserTests: XCTestCase {
             XCTAssertEqual(error as? KDBXParser.ParseError, .unsupportedProtectedFieldStream(1))
             XCTAssertEqual(
                 error.localizedDescription,
-                "This database uses an unsupported protected-field stream."
+                String(localized: "This database uses an unsupported protected-field stream.")
             )
         }
     }
@@ -602,7 +603,10 @@ final class KDBXParserTests: XCTestCase {
         let descriptor = KDFDescriptor(identifier: "c9d9f39a628a4460bf740d08c18a4fea", displayName: "AES-KDF")
         let error = KDBXCrypto.CryptoError.unsupportedKDF(descriptor)
 
-        XCTAssertEqual(error.errorDescription, "Unsupported key derivation function: AES-KDF")
+        XCTAssertEqual(
+            error.errorDescription,
+            String(localized: "Unsupported key derivation function: \("AES-KDF")")
+        )
     }
 
     func testGunzipKnownCompressedData() throws {

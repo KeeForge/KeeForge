@@ -14,14 +14,19 @@ struct CloudSyncResolution: Sendable {
     let data: Data
     let status: Status
 
+    /// Shared with tests so banner assertions stay locale-agnostic.
+    static let offlineCachedBannerMessage = String(localized: "Using the cached copy offline.")
+    /// Shared with tests so banner assertions stay locale-agnostic.
+    static let disconnectedCachedBannerMessage = String(localized: "Using the cached copy. Reconnect this cloud account to refresh.")
+
     var bannerMessage: String? {
         switch status {
         case .current, .downloaded:
             nil
         case .offlineCached:
-            String(localized: "Using the cached copy offline.")
+            Self.offlineCachedBannerMessage
         case .disconnectedCached:
-            String(localized: "Using the cached copy. Reconnect this cloud account to refresh.")
+            Self.disconnectedCachedBannerMessage
         case .cachedWithError(let message):
             message
         }

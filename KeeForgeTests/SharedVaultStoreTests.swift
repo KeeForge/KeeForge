@@ -55,7 +55,10 @@ final class SharedVaultStoreTests: XCTestCase {
     func testInvalidDatabaseSelectionAlertUsesFriendlyCopy() {
         XCTAssertEqual(
             DocumentPickerService.invalidDatabaseSelectionAlert(),
-            .init(title: "Invalid File", message: "Please select a KeePass .kdbx database.")
+            .init(
+                title: String(localized: "Invalid File"),
+                message: String(localized: "Please select a KeePass .kdbx database.")
+            )
         )
     }
 
@@ -108,7 +111,7 @@ final class SharedVaultStoreTests: XCTestCase {
 
         XCTAssertEqual(
             DocumentPickerService.pickerFailureAlert(for: error),
-            .init(title: "Couldn’t Open File", message: "File provider unavailable.")
+            .init(title: String(localized: "Couldn’t Open File"), message: "File provider unavailable.")
         )
     }
 

@@ -188,7 +188,8 @@ final class DatabaseViewModel {
 
     private static let sortOrderKey = "KeeForge.sortOrder"
     private static let sortAscendingKey = "KeeForge.sortAscending"
-    private static let decryptingStatusMessage = String(localized: "Decrypting your database securely...")
+    /// Shared with tests so status-message assertions stay locale-agnostic.
+    static let decryptingStatusMessage = String(localized: "Decrypting your database securely...")
     private static let sharedCloudRefreshMinimumInterval: TimeInterval = 30
     private static let localDatabaseReadTimeout: Duration = .seconds(10)
 
@@ -1226,7 +1227,8 @@ final class DatabaseViewModel {
 
     // MARK: - Private
 
-    private static func syncStatusMessage(for reference: DatabaseReference) -> String {
+    /// Shared with tests so status-message assertions stay locale-agnostic.
+    static func syncStatusMessage(for reference: DatabaseReference) -> String {
         let providerName = reference.cloudProviderKind?.displayName ?? String(localized: "cloud")
         return String(localized: "Syncing with \(providerName)...")
     }
