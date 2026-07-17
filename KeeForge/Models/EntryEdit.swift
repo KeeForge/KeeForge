@@ -3,17 +3,23 @@ import Foundation
 struct EntryDraftPayload: Codable, Sendable, Equatable {
     struct TOTPConfiguration: Codable, Sendable, Equatable {
         var secret: String
+        var decodedSecret: Data?
+        var keeOTPSource: KeeOTPSource?
         var period: Int
         var digits: Int
         var algorithm: TOTPAlgorithm
 
         init(
             secret: String,
+            decodedSecret: Data? = nil,
+            keeOTPSource: KeeOTPSource? = nil,
             period: Int = 30,
             digits: Int = 6,
             algorithm: TOTPAlgorithm = .sha1
         ) {
             self.secret = secret
+            self.decodedSecret = decodedSecret
+            self.keeOTPSource = keeOTPSource
             self.period = period
             self.digits = digits
             self.algorithm = algorithm

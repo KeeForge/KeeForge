@@ -64,6 +64,17 @@ final class KDBXCompatibilityArtifactTests: XCTestCase {
         manifestAttachment.lifetime = .keepAlways
         add(manifestAttachment)
     }
+
+    func testKeeOTPArtifactUsesStandardExternalProbe() throws {
+        let plan = try KDBXCompatibilitySupport.artifactPlans(bundle: bundle)
+            .first { $0.scenario.id == "keeotp-source-matrix" }
+
+        XCTAssertEqual(plan?.scenario.expectedSearchTerms, ["Compat Update Target"])
+        XCTAssertEqual(
+            plan?.fixture.rootGroup.entries.filter { $0.title.hasPrefix("KeeOTP ") }.count,
+            KDBXCompatibilitySupport.keeOTPCases.count
+        )
+    }
 }
 
 private extension JSONEncoder {

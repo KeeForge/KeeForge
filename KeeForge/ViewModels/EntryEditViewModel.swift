@@ -55,6 +55,8 @@ final class EntryEditViewModel {
 
     private let preservedCustomFields: [String: String]
     private let originalSnapshot: Snapshot
+    private let decodedTOTPSecret: Data?
+    private let keeOTPSource: KeeOTPSource?
 
     init(
         mode: Mode,
@@ -67,6 +69,8 @@ final class EntryEditViewModel {
         editableCustomFields: [CustomField] = [],
         preservedCustomFields: [String: String] = [:],
         totpSecret: String = "",
+        totpDecodedSecret: Data? = nil,
+        keeOTPSource: KeeOTPSource? = nil,
         totpPeriod: Int = 30,
         totpDigits: Int = 6,
         totpAlgorithm: TOTPAlgorithm = .sha1,
@@ -83,6 +87,8 @@ final class EntryEditViewModel {
         self.customFields = editableCustomFields
         self.preservedCustomFields = preservedCustomFields
         self.totpSecret = totpSecret
+        self.decodedTOTPSecret = totpDecodedSecret
+        self.keeOTPSource = keeOTPSource
         self.totpPeriod = totpPeriod
         self.totpDigits = totpDigits
         self.totpAlgorithm = totpAlgorithm
@@ -116,9 +122,17 @@ final class EntryEditViewModel {
         let editableCustomFields = entry.displayCustomFields
             .sorted(by: { $0.key.localizedCaseInsensitiveCompare($1.key) == .orderedAscending })
             .map { CustomField(key: $0.key, value: $0.value) }
-        let preservedCustomFields = entry.customFields.filter { PasskeyCredential.allFieldKeys.contains($0.key) }
+        let preservedCustomFields = entry.customFields.filter {
+            PasskeyCredential.allFieldKeys.contains($0.key) || $0.key == entry.totpConfig?.keeOTPSource?.fieldName
+        }
         let password = (try? entry.password.decrypt(using: sessionKey)) ?? ""
         let totpSecret = (try? entry.totpConfig?.secret.decrypt(using: sessionKey)) ?? ""
+        let decodedTOTPSecret: Data?
+        if let encryptedDecodedSecret = entry.totpConfig?.decodedSecret {
+            decodedTOTPSecret = try? encryptedDecodedSecret.decryptData(using: sessionKey)
+        } else {
+            decodedTOTPSecret = nil
+        }
 
         self.init(
             mode: .edit(entryID: entry.id),
@@ -131,6 +145,8 @@ final class EntryEditViewModel {
             editableCustomFields: editableCustomFields,
             preservedCustomFields: preservedCustomFields,
             totpSecret: totpSecret,
+            totpDecodedSecret: decodedTOTPSecret,
+            keeOTPSource: entry.totpConfig?.keeOTPSource,
             totpPeriod: entry.totpConfig?.period ?? 30,
             totpDigits: entry.totpConfig?.digits ?? 6,
             totpAlgorithm: entry.totpConfig?.algorithm ?? .sha1,
@@ -219,15 +235,71 @@ final class EntryEditViewModel {
     }
 
     private func normalizedTOTPConfiguration() -> EntryDraftPayload.TOTPConfiguration? {
-        let secret = totpSecret.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard secret.isEmpty == false else { return nil }
+        let trimmedSecret = totpSecret.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmedSecret.isEmpty == false else { return nil }
+
+        let secretChanged = trimmedSecret != originalSnapshot.totpSecret.trimmingCharacters(in: .whitespacesAndNewlines)
+        if secretChanged, keeOTPSource != nil,
+           Self.canonicalBase32Secret(trimmedSecret) == nil {
+            return EntryDraftPayload.TOTPConfiguration(
+                secret: originalSnapshot.totpSecret,
+                decodedSecret: decodedTOTPSecret,
+                keeOTPSource: keeOTPSource,
+                period: originalSnapshot.totpPeriod,
+                digits: originalSnapshot.totpDigits,
+                algorithm: originalSnapshot.totpAlgorithm
+            )
+        }
+
+        let settingsChanged = totpPeriod != originalSnapshot.totpPeriod
+            || totpDigits != originalSnapshot.totpDigits
+            || totpAlgorithm != originalSnapshot.totpAlgorithm
+        let rewrittenSource = secretChanged || settingsChanged
+            ? keeOTPSource?.rewriting(
+                secret: secretChanged ? Self.canonicalBase32Secret(trimmedSecret) : nil,
+                period: totpPeriod,
+                digits: totpDigits,
+                algorithm: totpAlgorithm
+            )
+            : keeOTPSource
 
         return EntryDraftPayload.TOTPConfiguration(
-            secret: secret,
+            secret: secretChanged ? trimmedSecret : originalSnapshot.totpSecret,
+            decodedSecret: secretChanged ? nil : decodedTOTPSecret,
+            keeOTPSource: rewrittenSource,
             period: totpPeriod,
             digits: totpDigits,
             algorithm: totpAlgorithm
         )
+    }
+
+    private static func canonicalBase32Secret(_ value: String) -> String? {
+        let normalized = value.uppercased()
+        guard !normalized.isEmpty,
+              normalized.utf8.allSatisfy({ (65...90).contains($0) || (50...55).contains($0) }),
+              let decoded = TOTPGenerator.base32Decode(normalized), !decoded.isEmpty,
+              base32Encode(decoded) == normalized else { return nil }
+        return normalized
+    }
+
+    private static func base32Encode(_ data: Data) -> String {
+        let alphabet = Array("ABCDEFGHIJKLMNOPQRSTUVWXYZ234567".utf8)
+        var result: [UInt8] = []
+        var accumulator = 0
+        var bitCount = 0
+        for byte in data {
+            accumulator = (accumulator << 8) | Int(byte)
+            bitCount += 8
+            while bitCount >= 5 {
+                bitCount -= 5
+                result.append(alphabet[(accumulator >> bitCount) & 31])
+                accumulator &= (1 << bitCount) - 1
+            }
+        }
+        if bitCount > 0 {
+            result.append(alphabet[(accumulator << (5 - bitCount)) & 31])
+        }
+        return String(decoding: result, as: UTF8.self)
     }
 
     private static func tagsText(from tags: [String]) -> String {

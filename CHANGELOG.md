@@ -35,6 +35,7 @@ TODO before the first macOS release:
 - Show a dismissible tip on the database list when KeeForge isn't enabled as an iOS AutoFill provider, with one-tap enablement on iOS 18 (deep link into iOS Settings on iOS 17), plus a matching provider status row and enable/open-settings button in Settings → AutoFill.
 
 ### Fixes
+- Preserve KeeOTP secrets with non-Base32 encodings when editing and saving entries, and reject malformed Base64 KeeOTP secrets.
 - Fixed the app freezing at launch or while opening a database when an offline SMB or other file-provider location does not respond.
 - Refresh a revealed entry password immediately after the password is edited.
 - Show red warning indicators in lists and a dedicated warning section in entry details when an enabled KeePass expiry time has passed, and show the enabled expiration timestamp in entry details.

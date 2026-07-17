@@ -261,10 +261,19 @@ struct KDBXXMLSerializer {
         knownChildCount += 1
         attachmentAnchor += 1
 
-        if let otpURL = entry.otpURL {
-            // Preserve the original otpauth:// URI so issuer/label and any
-            // custom query parameters survive the round-trip. Splitting into
-            // TimeOtp-* fields drops everything outside the canonical set.
+        if let source = entry.totpConfig?.keeOTPSource {
+            // Keep the KeeOTP field spelling and raw query unless the editor
+            // explicitly rewrote the source.
+            xml += try opaqueXML(from: entry.unknownXML, path: [], insertionIndex: knownChildCount)
+            xml += try attachmentsXML()
+            xml += try serializeString(
+                key: source.fieldName,
+                value: source.rawQuery,
+                isProtected: entry.protectedStringKeys.contains(source.fieldName)
+            )
+            knownChildCount += 1
+            attachmentAnchor += 1
+        } else if let otpURL = entry.otpURL {
             xml += try opaqueXML(from: entry.unknownXML, path: [], insertionIndex: knownChildCount)
             xml += try attachmentsXML()
             xml += try serializeString(

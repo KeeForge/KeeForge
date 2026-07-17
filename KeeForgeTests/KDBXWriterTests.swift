@@ -69,6 +69,58 @@ final class KDBXWriterTests: XCTestCase {
         try assertTreesEqual(parsed, reparsed)
     }
 
+    @MainActor
+    func testEditingKeeOTPWithWhitespacePreservesDecodedSecretAndAvoidsTimeOtpFields() throws {
+        let parsed = try parseFixture(.test)
+        let keeOTPQuery = "key=%20leading%20and%20trailing%20&type=TOTP&step=30&size=6&encoding=UTF8&otpHashMode=SHA1"
+        let originalSecret = " leading and trailing "
+        let entry = KPEntry(
+            title: "KeeOTP Entry",
+            password: try EncryptedValue.encrypt("password", using: sessionKey),
+            totpConfig: TOTPConfig(
+                secret: try EncryptedValue.encrypt(originalSecret, using: sessionKey),
+                decodedSecret: try EncryptedValue.encrypt(Data(originalSecret.utf8), using: sessionKey),
+                keeOTPSource: KeeOTPSource(fieldName: "OTP", rawQuery: keeOTPQuery)
+            )
+        )
+        var rootGroup = parsed.rootGroup
+        rootGroup.entries.append(entry)
+
+        let initialData = try KDBXWriter.write(
+            rootGroup: rootGroup,
+            meta: parsed.meta,
+            compositeKey: parsed.compositeKey,
+            header: parsed.header,
+            sessionKey: sessionKey
+        )
+        let initiallyParsed = try parseWrittenFile(initialData, fixture: .test)
+        let parsedEntry = try XCTUnwrap(initiallyParsed.rootGroup.allEntries.first { $0.id == entry.id })
+
+        let viewModel = EntryEditViewModel(editing: parsedEntry, sessionKey: sessionKey)
+        viewModel.title = "Unrelated Edit"
+        let draft = DatabaseDraft(rootGroup: initiallyParsed.rootGroup, meta: initiallyParsed.meta, sessionKey: sessionKey)
+        let updatedDraft = try draft.apply(.updateEntry(entryID: entry.id, draft: viewModel.entryDraftPayload))
+        let savedData = try KDBXWriter.write(
+            rootGroup: updatedDraft.rootGroup,
+            meta: updatedDraft.meta,
+            compositeKey: parsed.compositeKey,
+            header: parsed.header,
+            sessionKey: updatedDraft.writerSessionKey
+        )
+
+        let savedXML = try XCTUnwrap(String(data: decryptWrittenXML(savedData, compositeKey: parsed.compositeKey), encoding: .utf8))
+        XCTAssertTrue(savedXML.contains("<Key>OTP</Key>"))
+        XCTAssertFalse(savedXML.contains("TimeOtp-"))
+
+        let reloaded = try parseWrittenFile(savedData, fixture: .test)
+        let reloadedEntry = try XCTUnwrap(reloaded.rootGroup.allEntries.first { $0.id == entry.id })
+        let reloadedConfig = try XCTUnwrap(reloadedEntry.totpConfig)
+        XCTAssertEqual(reloadedEntry.title, "Unrelated Edit")
+        XCTAssertEqual(reloadedConfig.keeOTPSource?.rawQuery, keeOTPQuery)
+        XCTAssertEqual(try reloadedConfig.secret.decrypt(using: sessionKey), originalSecret)
+        XCTAssertEqual(try reloadedConfig.decodedSecret?.decryptData(using: sessionKey), Data(originalSecret.utf8))
+    }
+
     func test_writeRoundTrip_demo_kdbx_returnsEqualTree() throws {
         let parsed = try parseFixture(.demo)
         XCTAssertEqual(parsed.header.cipherID, KDBXParser.aesCipherUUID)
