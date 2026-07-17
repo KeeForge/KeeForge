@@ -1576,8 +1576,11 @@ final class DatabaseViewModel {
         reference: DatabaseReference
     ) async throws -> LocalDatabaseReadResult {
         try await CoordinatedFileReader.performBlocking(timeout: localDatabaseReadTimeout) {
-            guard let url = DatabaseListStore.resolveDatabaseURL(for: reference) else {
+            guard let location = DatabaseListStore.locateDatabaseFile(for: reference) else {
                 throw CocoaError(.fileReadNoSuchFile)
+            }
+            guard case .available(let url) = location else {
+                throw DatabaseListStore.LocalDatabaseFileError.databaseInTrash
             }
 
             let hasSecurityScope = url.startAccessingSecurityScopedResource()
@@ -1674,8 +1677,27 @@ final class DatabaseViewModel {
         bytes: Data
     ) async throws {
         try await Task.detached(priority: .utility) {
-            let originalURL = DatabaseListStore.resolveDatabaseURL(for: reference) ?? DatabaseListStore.cacheLocation(for: reference)
-            let usesSecurityScope = reference.bookmarkData != nil
+            let originalURL: URL
+            let usesSecurityScope: Bool
+            if reference.bookmarkData == nil {
+                // App-only databases live in the shared cache; the conflict
+                // copy lands next to it, where the database itself is read.
+                originalURL = DatabaseListStore.cacheLocation(for: reference)
+                usesSecurityScope = false
+            } else {
+                // A bookmarked database must resolve to a usable file — the
+                // cache directory is not user-visible, so writing the copy
+                // there would silently strand it. Failing keeps the draft
+                // alive for the user to retry.
+                guard let location = DatabaseListStore.locateDatabaseFile(for: reference) else {
+                    throw SaveError.databaseLocationUnavailable
+                }
+                guard case .available(let url) = location else {
+                    throw DatabaseListStore.LocalDatabaseFileError.databaseInTrash
+                }
+                originalURL = url
+                usesSecurityScope = true
+            }
             let hasSecurityScope = usesSecurityScope ? originalURL.startAccessingSecurityScopedResource() : false
             defer {
                 if hasSecurityScope {
@@ -1734,8 +1756,11 @@ final class DatabaseViewModel {
             data = resolution.data
             updatedReference = resolution.reference
         } else {
-            guard let url = DatabaseListStore.resolveDatabaseURL(for: reference) else {
+            guard let location = DatabaseListStore.locateDatabaseFile(for: reference) else {
                 throw SaveError.databaseLocationUnavailable
+            }
+            guard case .available(let url) = location else {
+                throw DatabaseListStore.LocalDatabaseFileError.databaseInTrash
             }
             data = try readSecurityScopedData(from: url)
             updatedReference = reference

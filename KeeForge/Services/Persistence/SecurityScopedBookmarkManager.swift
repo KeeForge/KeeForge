@@ -28,6 +28,30 @@ enum SecurityScopedBookmarkManager {
         )
     }
 
+    /// Whether `url` points inside a trash directory ("Recently Deleted" in the
+    /// Files app). Bookmarks track file identity, so Files operations like
+    /// Delete or Replace leave a resolvable bookmark aimed at the old copy in
+    /// `.Trash`; callers that read or write databases must treat that copy as
+    /// unavailable. `getRelationship` is authoritative where it works, but it
+    /// misses some file-provider trash domains, so an exact `.Trash` path
+    /// component is also honored. For the relationship check to see files
+    /// outside the sandbox, call this while security-scoped access to `url`
+    /// is active.
+    static func isInTrashDirectory(_ url: URL) -> Bool {
+        var relationship = FileManager.URLRelationship.other
+        if (try? FileManager.default.getRelationship(
+            &relationship,
+            of: .trashDirectory,
+            in: [],
+            toItemAt: url
+        )) != nil,
+            relationship == .contains {
+            return true
+        }
+
+        return url.pathComponents.contains(".Trash")
+    }
+
     static func resolveURL(from bookmarkData: Data) -> (url: URL, isStale: Bool)? {
         var isStale = false
         if let url = try? URL(

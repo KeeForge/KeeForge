@@ -192,6 +192,30 @@ final class DatabaseViewModelTests: XCTestCase {
         XCTAssertFalse(vm.openFailure?.countsTowardFailedAttempts ?? true)
     }
 
+    func testUnlockFailsWhenDatabaseFileIsInRecentlyDeleted() async throws {
+        // A bookmark follows its file into the Files app's Recently Deleted
+        // (".Trash"), so unlock must refuse the stale copy with a dedicated
+        // failure instead of silently opening it.
+        let fileManager = FileManager.default
+        let trashDirectoryURL = fileManager.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+            .appendingPathComponent(".Trash", isDirectory: true)
+        try fileManager.createDirectory(at: trashDirectoryURL, withIntermediateDirectories: true)
+        let trashedURL = trashDirectoryURL.appendingPathComponent("test.kdbx")
+        try fileManager.copyItem(at: fixtureURL(), to: trashedURL)
+        let reference = try TestDatabaseSupport.makeReference(for: trashedURL)
+        let vm = DatabaseViewModel(databaseReference: reference)
+
+        await vm.unlock(password: fixturePassword)
+
+        XCTAssertState(vm.state, is: .error)
+        XCTAssertEqual(vm.openFailure?.errorCode, "file.in_recently_deleted")
+        XCTAssertEqual(vm.openFailure?.category, .fileAccess)
+        XCTAssertFalse(vm.openFailure?.countsTowardFailedAttempts ?? true)
+        XCTAssertNil(vm.rootGroup)
+        XCTAssertNil(DatabaseListStore.cachedDatabaseURL(for: reference.id))
+    }
+
     func testBlockingFileAccessTimesOutWithoutBlockingCallerActor() async {
         do {
             let _: Data = try await CoordinatedFileReader.performBlocking(timeout: .milliseconds(20)) {
