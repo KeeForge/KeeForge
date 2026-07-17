@@ -54,7 +54,7 @@ struct EntryEditView: View {
 
                 basicFieldRow("Password") {
                     PasswordInputRow(
-                        title: "Password",
+                        title: String(localized: "Password"),
                         text: $formViewModel.password,
                         isVisible: $isPasswordVisible,
                         fieldAccessibilityIdentifier: "entry-edit.password-field",

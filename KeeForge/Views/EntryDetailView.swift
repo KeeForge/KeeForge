@@ -55,7 +55,7 @@ struct EntryDetailView: View {
                     }
 
                     if !entry.username.isEmpty {
-                        FieldRow(label: "Username", value: entry.username, icon: "person.fill")
+                        FieldRow(label: String(localized: "Username"), value: entry.username, icon: "person.fill", accessibilityKey: "username")
                     }
 
                     if entry.hasPassword {
@@ -67,7 +67,7 @@ struct EntryDetailView: View {
                     }
 
                     ForEach(Array(entry.additionalURLs.enumerated()), id: \.offset) { index, url in
-                        URLFieldRow(url: url, label: "URL \(index + 2)")
+                        URLFieldRow(url: url, label: String(localized: "URL \(index + 2)"))
                     }
 
                     if let totpConfig = entry.totpConfig {
@@ -83,8 +83,8 @@ struct EntryDetailView: View {
 
                     if let passkey = entry.passkeyCredential {
                         Section("Passkey") {
-                            FieldRow(label: "Relying Party", value: passkey.relyingParty, icon: "person.badge.key.fill")
-                            FieldRow(label: "Username", value: passkey.username, icon: "person.fill")
+                            FieldRow(label: String(localized: "Relying Party"), value: passkey.relyingParty, icon: "person.badge.key.fill", accessibilityKey: "relying_party")
+                            FieldRow(label: String(localized: "Username"), value: passkey.username, icon: "person.fill", accessibilityKey: "username")
                         }
                     }
 
@@ -285,6 +285,9 @@ struct FieldRow: View {
     let label: String
     let value: String
     let icon: String
+    // Locale-independent copy-button ID; defaults to the normalized label so
+    // user-defined custom field keys keep their existing identifiers.
+    var accessibilityKey: String?
 
     var body: some View {
         Section(label) {
@@ -301,7 +304,7 @@ struct FieldRow: View {
     }
 
     private var normalizedLabel: String {
-        label.lowercased().replacingOccurrences(of: " ", with: "_")
+        accessibilityKey ?? label.lowercased().replacingOccurrences(of: " ", with: "_")
     }
 }
 
@@ -386,7 +389,7 @@ struct PasswordFieldRow: View {
 
 struct URLFieldRow: View {
     let url: String
-    var label: String = "URL"
+    var label: String = String(localized: "URL")
     @Environment(\.openURL) private var openURL
 
     var body: some View {

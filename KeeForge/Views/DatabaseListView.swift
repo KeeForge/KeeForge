@@ -527,7 +527,7 @@ struct DatabaseListView: View {
         provider: CloudProviderKind
     ) -> DocumentPickerService.SelectionAlert {
         DocumentPickerService.SelectionAlert(
-            title: "Couldn’t Open \(provider.displayName)",
+            title: String(localized: "Couldn’t Open \(provider.displayName)"),
             message: error.localizedDescription
         )
     }

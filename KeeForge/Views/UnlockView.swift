@@ -147,7 +147,7 @@ struct UnlockView: View {
                     MacUnlockPasswordField(
                         text: $password,
                         isSecure: !isPasswordVisible,
-                        placeholder: "Enter password",
+                        placeholder: String(localized: "Enter password"),
                         accessibilityIdentifier: "unlock.password.field",
                         focusOnAppear: true,
                         onSubmit: unlockWithPassword,

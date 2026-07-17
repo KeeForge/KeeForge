@@ -133,7 +133,7 @@ struct DatabaseCreationView: View {
 
             Section {
                 PasswordInputRow(
-                    title: "Master password",
+                    title: String(localized: "Master password"),
                     text: $viewModel.password,
                     isVisible: $isMasterPasswordVisible,
                     fieldAccessibilityIdentifier: "database-create.password-field",
@@ -141,7 +141,7 @@ struct DatabaseCreationView: View {
                 )
 
                 PasswordInputRow(
-                    title: "Confirm password",
+                    title: String(localized: "Confirm password"),
                     text: $viewModel.confirmPassword,
                     isVisible: $isConfirmPasswordVisible,
                     fieldAccessibilityIdentifier: "database-create.confirm-password-field",

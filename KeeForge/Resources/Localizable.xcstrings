@@ -5255,6 +5255,46 @@
           }
         }
       }
+    },
+    "Master password": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Master-Passwort"
+          }
+        }
+      }
+    },
+    "Confirm password": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Passwort bestätigen"
+          }
+        }
+      }
+    },
+    "Relying Party": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Relying Party"
+          }
+        }
+      }
+    },
+    "URL %lld": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "URL %lld"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

@@ -49,7 +49,7 @@ struct WebDAVConnectView: View {
                         .accessibilityIdentifier("webdav.connect.username-field")
 
                     PasswordInputRow(
-                        title: "Password",
+                        title: String(localized: "Password"),
                         text: $viewModel.password,
                         isVisible: $isPasswordVisible,
                         fieldAccessibilityIdentifier: "webdav.connect.password-field",

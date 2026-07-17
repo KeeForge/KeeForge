@@ -1,64 +1,75 @@
 {
-  "identifier" : "8A5C5C5A-0000-0000-0000-000000000001",
-  "nonRenewingSubscriptions" : [
-
-  ],
-  "products" : [
+  "identifier": "8A5C5C5A-0000-0000-0000-000000000001",
+  "nonRenewingSubscriptions": [],
+  "products": [
     {
-      "displayPrice" : "1.99",
-      "familyShareable" : false,
-      "internalID" : "tip.small",
-      "localizations" : [
+      "displayPrice": "1.99",
+      "familyShareable": false,
+      "internalID": "tip.small",
+      "localizations": [
         {
-          "description" : "A small tip to support KeeForge",
-          "displayName" : "Small Tip",
-          "locale" : "en_US"
+          "description": "A small tip to support KeeForge",
+          "displayName": "Small Tip",
+          "locale": "en_US"
+        },
+        {
+          "description": "Ein kleines Trinkgeld zur Unterstützung von KeeForge",
+          "displayName": "Kleines Trinkgeld",
+          "locale": "de_DE"
         }
       ],
-      "productID" : "com.keevault.app.tip.small",
-      "referenceName" : "Small Tip",
-      "type" : "Consumable"
+      "productID": "com.keevault.app.tip.small",
+      "referenceName": "Small Tip",
+      "type": "Consumable"
     },
     {
-      "displayPrice" : "4.99",
-      "familyShareable" : false,
-      "internalID" : "tip.nice",
-      "localizations" : [
+      "displayPrice": "4.99",
+      "familyShareable": false,
+      "internalID": "tip.nice",
+      "localizations": [
         {
-          "description" : "A nice tip to support KeeForge",
-          "displayName" : "Nice Tip",
-          "locale" : "en_US"
+          "description": "A nice tip to support KeeForge",
+          "displayName": "Nice Tip",
+          "locale": "en_US"
+        },
+        {
+          "description": "Ein nettes Trinkgeld zur Unterstützung von KeeForge",
+          "displayName": "Nettes Trinkgeld",
+          "locale": "de_DE"
         }
       ],
-      "productID" : "com.keevault.app.tip.nice",
-      "referenceName" : "Nice Tip",
-      "type" : "Consumable"
+      "productID": "com.keevault.app.tip.nice",
+      "referenceName": "Nice Tip",
+      "type": "Consumable"
     },
     {
-      "displayPrice" : "9.99",
-      "familyShareable" : false,
-      "internalID" : "tip.big",
-      "localizations" : [
+      "displayPrice": "9.99",
+      "familyShareable": false,
+      "internalID": "tip.big",
+      "localizations": [
         {
-          "description" : "A big tip to support KeeForge",
-          "displayName" : "Big Tip",
-          "locale" : "en_US"
+          "description": "A big tip to support KeeForge",
+          "displayName": "Big Tip",
+          "locale": "en_US"
+        },
+        {
+          "description": "Ein großes Trinkgeld zur Unterstützung von KeeForge",
+          "displayName": "Großes Trinkgeld",
+          "locale": "de_DE"
         }
       ],
-      "productID" : "com.keevault.app.tip.big",
-      "referenceName" : "Big Tip",
-      "type" : "Consumable"
+      "productID": "com.keevault.app.tip.big",
+      "referenceName": "Big Tip",
+      "type": "Consumable"
     }
   ],
-  "settings" : {
-    "_applicationInternalID" : "6759309295",
-    "_developerTeamID" : "XXXXXXXXXX"
+  "settings": {
+    "_applicationInternalID": "6759309295",
+    "_developerTeamID": "XXXXXXXXXX"
   },
-  "subscriptionGroups" : [
-
-  ],
-  "version" : {
-    "major" : 4,
-    "minor" : 0
+  "subscriptionGroups": [],
+  "version": {
+    "major": 4,
+    "minor": 0
   }
 }
