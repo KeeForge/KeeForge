@@ -367,7 +367,7 @@ enum DatabaseCreationService {
             groups: [
                 KPGroup(
                     id: recycleBinID,
-                    name: String(localized: "Recycle Bin"),
+                    name: DatabaseDraft.localizedRecycleBinName,
                     iconID: 43,
                     isExpanded: false,
                     creationTime: now,

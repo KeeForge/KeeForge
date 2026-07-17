@@ -315,7 +315,9 @@ enum KDBXCompatibilitySupport {
             title: "Soft delete creates a recycle bin when missing",
             artifactFileName: "synthetic-no-recycle-bin-recycle-bin-creation.kdbx",
             expectedSearchTerms: ["Compat Soft Delete Target"],
-            expectedGroupPaths: ["Recycle Bin"],
+            // The bin is created during this edit, so its name follows the
+            // UI language (ecosystem-standard; see DatabaseDraft.localizedRecycleBinName).
+            expectedGroupPaths: [DatabaseDraft.localizedRecycleBinName],
             makeEdit: { loaded in
                 let entry = try XCTUnwrap(findEntry(titled: "Compat Soft Delete Target", in: loaded.rootGroup))
                 return .deleteEntry(entryID: entry.id, sendToRecycleBin: true)
@@ -329,7 +331,7 @@ enum KDBXCompatibilitySupport {
                 XCTAssertTrue(after.meta.hasRecycleBinUUIDElement)
                 let recycleBinID = try XCTUnwrap(after.meta.recycleBinUUID)
                 let recycleBinGroup = try XCTUnwrap(after.groups[recycleBinID])
-                XCTAssertEqual(recycleBinGroup.name, "Recycle Bin")
+                XCTAssertEqual(recycleBinGroup.name, DatabaseDraft.localizedRecycleBinName)
                 XCTAssertTrue(recycleBinGroup.entryIDs.contains(entryID))
                 XCTAssertEqual(after.entries.count, before.entries.count)
                 XCTAssertEqual(after.groups.count, before.groups.count + 1)
@@ -422,7 +424,9 @@ enum KDBXCompatibilitySupport {
             title: "Soft delete entry preserves sibling dedup attachment",
             artifactFileName: "attachments-soft-delete-entry.kdbx",
             expectedSearchTerms: ["Dedup Entry B"],
-            expectedGroupPaths: ["Recycle Bin"],
+            // The attachments fixture has no recycle bin, so this edit creates
+            // one with the UI-language name.
+            expectedGroupPaths: [DatabaseDraft.localizedRecycleBinName],
             makeEdit: { loaded in
                 let entry = try XCTUnwrap(findEntry(titled: "Dedup Entry A", in: loaded.rootGroup))
                 return .deleteEntry(entryID: entry.id, sendToRecycleBin: true)

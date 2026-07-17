@@ -96,7 +96,7 @@ final class DatabaseCreationServiceTests: XCTestCase {
         XCTAssertEqual(created.rootGroup.name, "Root")
         XCTAssertEqual(created.rootGroup.groups.count, 1)
         XCTAssertEqual(visibleRoot.name, "Structure")
-        XCTAssertEqual(recycleBin.name, "Recycle Bin")
+        XCTAssertEqual(recycleBin.name, DatabaseDraft.localizedRecycleBinName)
         XCTAssertEqual(created.meta.recycleBinUUID, recycleBin.id)
         XCTAssertTrue(created.meta.hasRecycleBinUUIDElement)
     }

@@ -504,11 +504,19 @@ struct DatabaseDraft: Sendable {
         return .create(id: UUID())
     }
 
+    /// Group name written into the database when a recycle bin is created.
+    /// Localized to the UI language, matching KeePass 2.x, KeePassXC,
+    /// KeePassium, and Strongbox; clients locate the bin via
+    /// Meta/RecycleBinUUID, so the name itself is cosmetic.
+    static var localizedRecycleBinName: String {
+        String(localized: "Recycle Bin")
+    }
+
     private func makeRecycleBinGroup(id: UUID, entry: KPEntry) -> KPGroup {
         let timestamp = Date.now
         return KPGroup(
             id: id,
-            name: String(localized: "Recycle Bin"),
+            name: Self.localizedRecycleBinName,
             iconID: 43,
             entries: [entry],
             creationTime: timestamp,
@@ -520,7 +528,7 @@ struct DatabaseDraft: Sendable {
         let timestamp = Date.now
         return KPGroup(
             id: id,
-            name: String(localized: "Recycle Bin"),
+            name: Self.localizedRecycleBinName,
             iconID: 43,
             groups: [group],
             creationTime: timestamp,
