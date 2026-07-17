@@ -8,7 +8,7 @@ This folder owns database references, cached copies, file access, and local-save
 - `DatabaseCreationService.swift` prepares new KDBX databases and registers local or cloud-created references after the durable copy is available.
 - `LocalDatabaseSaver.swift` handles atomic local saves, open-time conflict detection, backup rotation, and shared-cache refresh.
 - `SharedVaultStore.swift` reads and writes the shared cached database copy used by the app and AutoFill extension.
-- `SecurityScopedBookmarkManager.swift` and `CoordinatedFileReader.swift` handle bookmark resolution and coordinated file access.
+- `SecurityScopedBookmarkManager.swift` and `CoordinatedFileReader.swift` handle bookmark resolution and coordinated file access. Bookmarks track file identity, so a Files-app Delete or Replace leaves them resolving to the old copy in Recently Deleted; `DatabaseListStore.locateDatabaseFile(for:)` classifies that as `.inTrash` and every database read/save path treats it as unavailable instead of silently using the stale copy.
 - `DocumentPickerService.swift`, `KeyFileProcessor.swift`, and `SyncedFolderDetector.swift` cover file picking, key-file parsing, and synced-folder classification.
 
 ## Change Carefully

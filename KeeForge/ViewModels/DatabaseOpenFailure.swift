@@ -287,6 +287,19 @@ struct DatabaseOpenFailure: Equatable, Sendable {
         isCloudBacked: Bool,
         diagnostics: DatabaseOpenDiagnostics? = nil
     ) -> DatabaseOpenFailure {
+        if case DatabaseListStore.LocalDatabaseFileError.databaseInTrash = error {
+            return DatabaseOpenFailure(
+                title: String(localized: "Database Is in Recently Deleted"),
+                summary: String(localized: "The database file was moved to Recently Deleted in the Files app — it may have been deleted, or replaced by a newer copy. Restore it in Files, or remove this database in KeeForge and add the current file again."),
+                technicalDetails: technicalDetails(for: error),
+                errorCode: "file.in_recently_deleted",
+                category: .fileAccess,
+                countsTowardFailedAttempts: false,
+                canChooseDifferentFile: true,
+                diagnostics: diagnostics
+            )
+        }
+
         if error is CoordinatedFileReader.TimeoutError {
             return DatabaseOpenFailure(
                 title: String(localized: "Database Server Unavailable"),

@@ -44,6 +44,36 @@
         }
       }
     },
+    "Database Is in Recently Deleted": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Datenbank befindet sich in „Zuletzt gelöscht“"
+          }
+        }
+      }
+    },
+    "The database file is in Recently Deleted in the Files app. Restore it in Files, or remove this database and add the current file again.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die Datenbankdatei befindet sich in „Zuletzt gelöscht“ in der Dateien-App. Stellen Sie sie in der Dateien-App wieder her, oder entfernen Sie diese Datenbank und fügen Sie die aktuelle Datei erneut hinzu."
+          }
+        }
+      }
+    },
+    "The database file was moved to Recently Deleted in the Files app — it may have been deleted, or replaced by a newer copy. Restore it in Files, or remove this database in KeeForge and add the current file again.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die Datenbankdatei wurde in der Dateien-App nach „Zuletzt gelöscht“ verschoben – sie wurde möglicherweise gelöscht oder durch eine neuere Kopie ersetzt. Stellen Sie sie in der Dateien-App wieder her, oder entfernen Sie diese Datenbank in KeeForge und fügen Sie die aktuelle Datei erneut hinzu."
+          }
+        }
+      }
+    },
     "“%@” is already in your database list.": {
       "localizations": {
         "de": {

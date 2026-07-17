@@ -362,12 +362,59 @@ enum DatabaseListStore {
         return cacheURL(for: reference.id)
     }
 
-    static func resolveDatabaseURL(for reference: DatabaseReference) -> URL? {
-        resolveURL(from: reference.bookmarkData) { refreshedBookmarkData in
+    enum LocalDatabaseFileLocation: Equatable, Sendable {
+        case available(URL)
+        case inTrash(URL)
+    }
+
+    enum LocalDatabaseFileError: Error, LocalizedError, Equatable, Sendable {
+        case databaseInTrash
+
+        var errorDescription: String? {
+            String(localized: "The database file is in Recently Deleted in the Files app. Restore it in Files, or remove this database and add the current file again.")
+        }
+    }
+
+    /// Resolves a local database's bookmark and classifies the result. iOS
+    /// bookmarks follow file identity, so after a Files-app Delete or Replace
+    /// the bookmark still resolves — to the old copy sitting in Recently
+    /// Deleted. That copy must never be read, written, cached, or re-minted
+    /// into a fresh bookmark: restoring the file in Files keeps the original
+    /// bookmark valid, and once the trashed copy is purged, resolution falls
+    /// back to the stored path and rebinds to whatever file now lives there.
+    static func locateDatabaseFile(for reference: DatabaseReference) -> LocalDatabaseFileLocation? {
+        guard let bookmarkData = reference.bookmarkData,
+              let resolved = SecurityScopedBookmarkManager.resolveURL(from: bookmarkData) else {
+            return nil
+        }
+
+        let url = resolved.url
+        let accessed = url.startAccessingSecurityScopedResource()
+        defer {
+            if accessed {
+                url.stopAccessingSecurityScopedResource()
+            }
+        }
+
+        if SecurityScopedBookmarkManager.isInTrashDirectory(url) {
+            return .inTrash(url)
+        }
+
+        if resolved.isStale,
+           let refreshedBookmarkData = try? SecurityScopedBookmarkManager.makeBookmarkData(for: url) {
             var refreshedReference = reference
             refreshedReference.bookmarkData = refreshedBookmarkData
             update(refreshedReference)
         }
+
+        return .available(url)
+    }
+
+    static func resolveDatabaseURL(for reference: DatabaseReference) -> URL? {
+        guard case .available(let url) = locateDatabaseFile(for: reference) else {
+            return nil
+        }
+        return url
     }
 
     static func resolveKeyFileURL(for reference: DatabaseReference) -> URL? {

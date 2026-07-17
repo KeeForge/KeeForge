@@ -12,6 +12,16 @@
         }
       }
     },
+    "The database file is in Recently Deleted in the Files app. Restore it in Files, or remove this database and add the current file again.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die Datenbankdatei befindet sich in „Zuletzt gelöscht“ in der Dateien-App. Stellen Sie sie in der Dateien-App wieder her, oder entfernen Sie diese Datenbank und fügen Sie die aktuelle Datei erneut hinzu."
+          }
+        }
+      }
+    },
     "“%@” is already in your database list.": {
       "localizations": {
         "de": {

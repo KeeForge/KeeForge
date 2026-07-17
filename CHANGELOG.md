@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Fix local databases silently opening a stale copy after the file was deleted or replaced in the Files app (#13): iOS bookmarks follow the old file into Recently Deleted, so KeeForge now detects a trashed database file, refuses to open or save to it, and explains how to restore or re-add the current file.
+
 - Add full German localization (iOS app, macOS app, and AutoFill extension): 648 strings across UI, error messages, alerts, and Info.plist usage descriptions, plus a localization test suite that gates translation completeness, format-specifier parity, and app/extension consistency.
 - Show TOTP codes for entries created by the KeeOTP/KeeOtp2 plugins (`key=...` values in the otp/OTP/Otp fields, with Base32, Base64, Hex, and UTF8 secret encodings, and KeeOtp2's defaults for omitted parameters), preserving the original field spelling and query verbatim when editing and saving.
 - Update GitHub links (Report a Bug, Source Code, docs) to the new KeeForge org after the repository transfer.

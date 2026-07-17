@@ -232,6 +232,73 @@ final class DatabaseListStoreTests: XCTestCase {
         XCTAssertEqual(DatabaseListStore.activeAutoFillDatabaseID, first.id)
     }
 
+    func testLocateDatabaseFileReturnsAvailableForRegularFile() throws {
+        let url = try makeTemporaryFileURL(name: "regular.kdbx")
+        let reference = try DatabaseListStore.add(url: url)
+
+        let location = try XCTUnwrap(DatabaseListStore.locateDatabaseFile(for: reference))
+
+        guard case .available(let resolvedURL) = location else {
+            XCTFail("Expected .available, got \(location)")
+            return
+        }
+        XCTAssertEqual(resolvedURL.path, url.path)
+        XCTAssertEqual(DatabaseListStore.resolveDatabaseURL(for: reference)?.path, url.path)
+    }
+
+    func testLocateDatabaseFileReportsTrashedFile() throws {
+        let trashedURL = try makeTemporaryFileURL(name: ".Trash/personal.kdbx")
+        let reference = try TestDatabaseSupport.makeReference(for: trashedURL)
+
+        let location = try XCTUnwrap(DatabaseListStore.locateDatabaseFile(for: reference))
+
+        guard case .inTrash(let resolvedURL) = location else {
+            XCTFail("Expected .inTrash, got \(location)")
+            return
+        }
+        XCTAssertTrue(resolvedURL.pathComponents.contains(".Trash"))
+        XCTAssertNil(DatabaseListStore.resolveDatabaseURL(for: reference))
+    }
+
+    func testLocateDatabaseFileFollowsMoveIntoTrashAndDoesNotRefreshBookmark() throws {
+        // Mirrors deleting the database in the Files app: the bookmarked file
+        // keeps its identity and moves into ".Trash". Resolution follows the
+        // identity there; the result must be classified as trashed instead of
+        // silently serving the stale copy, and the (now stale) bookmark must
+        // not be re-minted against the trashed location — restoring the file
+        // in Files keeps the original bookmark valid.
+        //
+        // (The Files-app "Replace" flow — a new file taking over the original
+        // path — cannot be reproduced on a plain filesystem: without a file
+        // provider in the middle, resolution rebinds to the path. On device
+        // the bookmark keeps following the old provider item into the trash,
+        // which is this same classification path.)
+        let originalURL = try makeTemporaryFileURL(name: "deleted.kdbx", contents: Data("old contents".utf8))
+        let reference = try DatabaseListStore.add(url: originalURL)
+
+        let fileManager = FileManager.default
+        let trashDirectoryURL = originalURL
+            .deletingLastPathComponent()
+            .appendingPathComponent(".Trash", isDirectory: true)
+        try fileManager.createDirectory(at: trashDirectoryURL, withIntermediateDirectories: true)
+        try fileManager.moveItem(
+            at: originalURL,
+            to: trashDirectoryURL.appendingPathComponent("deleted.kdbx")
+        )
+
+        let location = try XCTUnwrap(DatabaseListStore.locateDatabaseFile(for: reference))
+
+        guard case .inTrash(let resolvedURL) = location else {
+            XCTFail("Expected .inTrash, got \(location)")
+            return
+        }
+        XCTAssertTrue(resolvedURL.pathComponents.contains(".Trash"))
+        XCTAssertNil(DatabaseListStore.resolveDatabaseURL(for: reference))
+
+        let storedReference = try XCTUnwrap(DatabaseListStore.databases.first(where: { $0.id == reference.id }))
+        XCTAssertEqual(storedReference.bookmarkData, reference.bookmarkData)
+    }
+
     private func makeTemporaryFileURL(name: String, contents: Data = Data("fixture".utf8)) throws -> URL {
         let url = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString)

@@ -64,6 +64,32 @@ final class SecurityScopedBookmarkManagerTests: XCTestCase {
     }
     #endif
 
+    func testIsInTrashDirectoryMatchesExactTrashPathComponent() throws {
+        let trashedURL = try makeTemporaryFileURL(name: ".Trash/trashed.kdbx")
+
+        XCTAssertTrue(SecurityScopedBookmarkManager.isInTrashDirectory(trashedURL))
+    }
+
+    func testIsInTrashDirectoryMatchesNestedTrashSubfolder() throws {
+        let trashedURL = try makeTemporaryFileURL(name: ".Trash/subfolder/trashed.kdbx")
+
+        XCTAssertTrue(SecurityScopedBookmarkManager.isInTrashDirectory(trashedURL))
+    }
+
+    func testIsInTrashDirectoryIgnoresSimilarlyNamedFolders() throws {
+        // Only the exact ".Trash" component counts; a user folder that merely
+        // starts with the same prefix must stay fully usable.
+        let lookalikeURL = try makeTemporaryFileURL(name: ".TrashCan/database.kdbx")
+
+        XCTAssertFalse(SecurityScopedBookmarkManager.isInTrashDirectory(lookalikeURL))
+    }
+
+    func testIsInTrashDirectoryIsFalseForRegularFiles() throws {
+        let url = try makeTemporaryFileURL(name: "regular.kdbx")
+
+        XCTAssertFalse(SecurityScopedBookmarkManager.isInTrashDirectory(url))
+    }
+
     private func makeTemporaryFileURL(name: String) throws -> URL {
         let url = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString)
