@@ -3,12 +3,12 @@
   "nonRenewingSubscriptions": [],
   "products": [
     {
-      "displayPrice": "1.99",
+      "displayPrice": "3.99",
       "familyShareable": false,
       "internalID": "tip.small",
       "localizations": [
         {
-          "description": "A small tip to support KeeForge",
+          "description": "A tip to support KeeForge development",
           "displayName": "Small Tip",
           "locale": "en_US"
         },
@@ -23,12 +23,12 @@
       "type": "Consumable"
     },
     {
-      "displayPrice": "4.99",
+      "displayPrice": "6.99",
       "familyShareable": false,
       "internalID": "tip.nice",
       "localizations": [
         {
-          "description": "A nice tip to support KeeForge",
+          "description": "A tip to support KeeForge development",
           "displayName": "Nice Tip",
           "locale": "en_US"
         },
@@ -43,12 +43,12 @@
       "type": "Consumable"
     },
     {
-      "displayPrice": "9.99",
+      "displayPrice": "14.99",
       "familyShareable": false,
       "internalID": "tip.big",
       "localizations": [
         {
-          "description": "A big tip to support KeeForge",
+          "description": "A generous tip to support KeeForge development",
           "displayName": "Big Tip",
           "locale": "en_US"
         },
