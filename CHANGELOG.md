@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Send Feedback now supports optional follow-up: enable "Allow Follow-Up" and enter an email so we can reply about that specific report. Nothing is sent unless you opt in.
+- Send Feedback now supports attaching a single photo. Photos are downscaled and re-encoded as JPEG on-device (metadata such as location is stripped) and capped at 5 MB.
+
 - Fix AutoFill showing a blank sheet when picking KeeForge on a one-time-code field (#20): the extension never handled the interactive verification-code list request, so choosing AutoFill → Passwords on a TOTP form did nothing. It now unlocks the vault and fills the code directly when a single entry matches the site, or shows the TOTP entry picker otherwise; a stale QuickType code suggestion also falls back to the picker instead of failing.
 
 - Fix local databases silently opening a stale copy after the file was deleted or replaced in the Files app (#13): iOS bookmarks follow the old file into Recently Deleted, so KeeForge now detects a trashed database file, refuses to open or save to it, and explains how to restore or re-add the current file.

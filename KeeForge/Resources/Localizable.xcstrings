@@ -3036,12 +3036,12 @@
         }
       }
     },
-    "No GitHub or email required. KeeForge only sends the message you type, plus visible attached error details. Database-open reports may include visible app/device metadata, cloud sync status, and short file hash prefixes, but never database contents, passwords, key files, or raw vault files.": {
+    "No GitHub or email required. KeeForge only sends the message you type, plus visible attached error details, the follow-up email if you enable follow-up, and the photo if you attach one. Database-open reports may include visible app/device metadata, cloud sync status, and short file hash prefixes, but never database contents, passwords, key files, or raw vault files.": {
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Kein GitHub-Konto und keine E-Mail-Adresse erforderlich. KeeForge sendet nur die von Ihnen eingegebene Nachricht sowie die sichtbaren angehängten Fehlerdetails. Berichte zum Öffnen von Datenbanken können sichtbare App- und Gerätemetadaten, den Status der Cloud-Synchronisierung und kurze Präfixe von Datei-Hashes enthalten, aber niemals Datenbankinhalte, Passwörter, Schlüsseldateien oder unverarbeitete Tresordateien."
+            "value": "Kein GitHub-Konto und keine E-Mail-Adresse erforderlich. KeeForge sendet nur die von Ihnen eingegebene Nachricht, die sichtbaren angehängten Fehlerdetails, Ihre E-Mail-Adresse, falls Sie Rückfragen erlauben, und das Foto, falls Sie eines anhängen. Berichte zum Öffnen von Datenbanken können sichtbare App- und Gerätemetadaten, den Status der Cloud-Synchronisierung und kurze Präfixe von Datei-Hashes enthalten, aber niemals Datenbankinhalte, Passwörter, Schlüsseldateien oder unverarbeitete Tresordateien."
           }
         }
       }
@@ -5322,6 +5322,146 @@
           "stringUnit": {
             "state": "translated",
             "value": "URL %lld"
+          }
+        }
+      }
+    },
+    "Allow Follow-Up": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rückfragen erlauben"
+          }
+        }
+      }
+    },
+    "Follow-Up": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rückfragen"
+          }
+        }
+      }
+    },
+    "Email": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "E-Mail"
+          }
+        }
+      }
+    },
+    "Your email is used only to reply about this feedback.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ihre E-Mail-Adresse wird nur verwendet, um auf dieses Feedback zu antworten."
+          }
+        }
+      }
+    },
+    "Photo": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Foto"
+          }
+        }
+      }
+    },
+    "Attach Photo": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Foto anhängen"
+          }
+        }
+      }
+    },
+    "Attached Photo": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Angehängtes Foto"
+          }
+        }
+      }
+    },
+    "Remove Photo": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Foto entfernen"
+          }
+        }
+      }
+    },
+    "Couldn't Attach Photo": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Foto konnte nicht angehängt werden"
+          }
+        }
+      }
+    },
+    "Optional. One photo, resized and sent as a JPEG. Photo metadata such as location is removed.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Optional. Ein Foto, das verkleinert und als JPEG gesendet wird. Foto-Metadaten wie der Aufnahmeort werden entfernt."
+          }
+        }
+      }
+    },
+    "Enter an email address for follow-up, or turn follow-up off.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Geben Sie eine E-Mail-Adresse für Rückfragen ein oder deaktivieren Sie Rückfragen."
+          }
+        }
+      }
+    },
+    "Enter a valid email address for follow-up.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Geben Sie eine gültige E-Mail-Adresse für Rückfragen ein."
+          }
+        }
+      }
+    },
+    "The attached photo is too large. Choose a smaller photo.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Das angehängte Foto ist zu groß. Wählen Sie ein kleineres Foto."
+          }
+        }
+      }
+    },
+    "KeeForge couldn't read that photo. Choose a different one.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "KeeForge konnte dieses Foto nicht lesen. Wählen Sie ein anderes aus."
           }
         }
       }
