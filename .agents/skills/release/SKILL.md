@@ -22,7 +22,8 @@ release is gated in two tag stages:
 
 1. `rc/{version}` tag → Xcode Cloud **"Tests (RC)"** workflow (test-only, all suites).
 2. `v{version}` tag (pushed only after the RC run is green) → Xcode Cloud **"Release"**
-   workflow (test + archive).
+   workflow (archive-only; the RC run is the sole test gate, so never tag a commit the RC
+   did not test).
 
 The only test that still runs locally is the KDBX compatibility gate, because Xcode Cloud
 does not install KeePassXC.
@@ -204,7 +205,7 @@ Only after the RC run is green.
    either move them out or go back to Step 6 and cut a new RC — never release a commit the RC
    run did not test.
 2. Tag the exact tested commit and push (this triggers the Xcode Cloud **"Release"** workflow —
-   test + archive):
+   archive-only; tests are not re-run here, which is why step 1 above is mandatory):
    ```bash
    git tag -a v{version} -m "Release v{version}" $(git rev-list -n1 rc/{version})
    git push origin v{version}
