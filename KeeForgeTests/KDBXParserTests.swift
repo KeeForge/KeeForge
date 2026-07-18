@@ -657,6 +657,48 @@ final class KDBXParserTests: XCTestCase {
         XCTAssertEqual(ids.count, Set(ids).count, "Entry UUIDs should be unique")
     }
 
+    // MARK: - Custom Icons
+
+    func testCustomIconsParsedAndPreservedAsOpaqueXML() throws {
+        let iconUUID = UUID()
+        let iconUUIDBase64 = kpUUIDBase64(iconUUID)
+        let pngBase64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=="
+        let xml = """
+        <KeePassFile><Meta><Generator>Test</Generator>\
+        <CustomIcons><Icon><UUID>\(iconUUIDBase64)</UUID><Data>\(pngBase64)</Data></Icon></CustomIcons>\
+        </Meta><Root><Group><Name>Root</Name><CustomIconUUID>\(iconUUIDBase64)</CustomIconUUID>\
+        <Entry><String><Key>Title</Key><Value>Custom</Value></String>\
+        <CustomIconUUID>\(iconUUIDBase64)</CustomIconUUID></Entry>\
+        </Group></Root></KeePassFile>
+        """
+        let parsed = try KDBXParser.parseXML(
+            xmlData: Data(xml.utf8), innerStreamKey: Data(), innerStreamID: 0, sessionKey: testSessionKey
+        )
+
+        // The icon table is decoded for display…
+        XCTAssertEqual(parsed.meta.customIcons[iconUUID], Data(base64Encoded: pngBase64))
+
+        let group = try XCTUnwrap(parsed.rootGroup.groups.first)
+        let entry = try XCTUnwrap(parsed.rootGroup.allEntries.first)
+        XCTAssertEqual(group.customIconUUID, iconUUID)
+        XCTAssertEqual(entry.customIconUUID, iconUUID)
+
+        // …while the source elements stay in the opaque XML so the writer
+        // round-trips them verbatim.
+        XCTAssertTrue(parsed.meta.unknownXML.nodes.contains { $0.xml.contains("<CustomIcons>") })
+        XCTAssertTrue(group.unknownXML.nodes.contains { $0.xml.contains("<CustomIconUUID>") })
+        XCTAssertTrue(entry.unknownXML.nodes.contains { $0.xml.contains("<CustomIconUUID>") })
+    }
+
+    func testEntryWithoutCustomIconHasNilCustomIconUUID() throws {
+        let entry = try parseSingleEntry(fields: [:])
+        XCTAssertNil(entry.customIconUUID)
+    }
+
+    private func kpUUIDBase64(_ uuid: UUID) -> String {
+        withUnsafeBytes(of: uuid.uuid) { Data($0) }.base64EncodedString()
+    }
+
     // MARK: - Helpers
 
     private func parseFixture() throws -> KPGroup {

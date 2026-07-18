@@ -13,11 +13,11 @@
 ### Fixes
 
 - Search is now diacritic-insensitive in both directions: searching "Café" finds entries stored as "cafe" and vice versa, matching how the search index was already folded.
+- Show the correct icon for entries and groups: all 69 KeePass standard icons are now mapped to symbols (previously only 4 were, so most entries fell back to a generic key), and custom icons embedded in the database (`Meta/CustomIcons`) are now displayed for entries and groups. Custom icon XML continues to round-trip untouched on save.
 - A search box containing only whitespace now shows the neutral search placeholder instead of a "No entries matched" message quoting the blank query.
 - Locking a database on iOS now immediately clears a password copied via KeeForge from the clipboard (changeCount-guarded, so content copied elsewhere afterward is never touched) instead of leaving it until the clipboard timeout expires.
 - Decrypted attachment-preview temp files left behind by a crash or force-quit are now purged at the next app launch instead of lingering until the next lock.
 - Coordinated file reads and writes now surface a recoverable error instead of crashing if an unresponsive file provider returns without running the file accessor.
-
 - Fix a cloud-sync data-loss risk where a credential saved through AutoFill (while another device had newer changes) could be silently lost. The queued upload now verifies its bytes against the saved snapshot before pushing, the shared cache is backed up before a sync-down overwrites it, and the drainer no longer force-pushes over a genuine cross-device conflict.
 - Fix overlapping cloud upload drains (app foreground plus the AutoFill "enqueued" notification firing together) that could create duplicate cloud revisions or resurrect an already-completed upload; drains are now coalesced and serialized, and a dropped queue marker can no longer be recreated by a losing drain.
 - Fix concurrent writes to the database list (a background cloud upload racing a rename/read-only/quick-launch edit) that could revert one change or manufacture a spurious "changed outside KeeForge" conflict; all list writes are now serialized. Cloud saves also write their local backup before uploading, and the staged conflict-download file now gets full data protection on iOS.

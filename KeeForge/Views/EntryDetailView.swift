@@ -38,7 +38,12 @@ struct EntryDetailView: View {
                 List {
                     Section {
                         HStack {
-                            FaviconView(url: entry.url, iconID: entry.iconID, size: 40)
+                            FaviconView(
+                                url: entry.url,
+                                iconID: entry.iconID,
+                                size: 40,
+                                customIconData: viewModel.customIconData(for: entry)
+                            )
                             Text(entry.title.isEmpty ? "(untitled)" : entry.title)
                                 .font(.title2.bold())
                         }

@@ -51,13 +51,13 @@ struct EntryListView: View {
                 Button {
                     onSelectEntry(entry)
                 } label: {
-                    EntryRow(entry: entry)
+                    EntryRow(entry: entry, customIconData: viewModel.customIconData(for: entry))
                 }
                 .buttonStyle(.plain)
                 .accessibilityIdentifier("search.entry.navlink")
             } else {
                 NavigationLink(value: entry) {
-                    EntryRow(entry: entry)
+                    EntryRow(entry: entry, customIconData: viewModel.customIconData(for: entry))
                 }
                 .accessibilityIdentifier("search.entry.navlink")
             }

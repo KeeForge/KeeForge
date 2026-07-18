@@ -61,6 +61,10 @@ struct KPMeta: Sendable, Hashable {
     var historyMaxSize: Int64?
     var unknownXML: OpaqueXMLNodes
     var deletedObjects: [KPDeletedObject]
+    /// Decoded image data of `Meta/CustomIcons`, keyed by icon UUID. Read-only
+    /// display copy: the source elements stay in `unknownXML` so the writer
+    /// round-trips them verbatim.
+    var customIcons: [UUID: Data]
 
     static let defaultMaintenanceHistoryDays = 365
     static let defaultHistoryMaxItems = 10
@@ -73,7 +77,8 @@ struct KPMeta: Sendable, Hashable {
         historyMaxItems: Int? = nil,
         historyMaxSize: Int64? = nil,
         unknownXML: OpaqueXMLNodes = .empty,
-        deletedObjects: [KPDeletedObject] = []
+        deletedObjects: [KPDeletedObject] = [],
+        customIcons: [UUID: Data] = [:]
     ) {
         self.recycleBinUUID = recycleBinUUID
         self.hasRecycleBinUUIDElement = hasRecycleBinUUIDElement
@@ -82,6 +87,7 @@ struct KPMeta: Sendable, Hashable {
         self.historyMaxSize = historyMaxSize
         self.unknownXML = unknownXML
         self.deletedObjects = deletedObjects
+        self.customIcons = customIcons
     }
 
     var resolvedMaintenanceHistoryDays: Int {

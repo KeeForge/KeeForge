@@ -630,6 +630,20 @@ final class DatabaseViewModel {
         return groupIndex[groupID]
     }
 
+    /// Decoded image data of the entry's custom icon, if the database defines
+    /// one for it in `Meta/CustomIcons`.
+    func customIconData(for entry: KPEntry) -> Data? {
+        guard let uuid = entry.customIconUUID else { return nil }
+        return unlockedMeta?.customIcons[uuid]
+    }
+
+    /// Decoded image data of the group's custom icon, if the database defines
+    /// one for it in `Meta/CustomIcons`.
+    func customIconData(for group: KPGroup) -> Data? {
+        guard let uuid = group.customIconUUID else { return nil }
+        return unlockedMeta?.customIcons[uuid]
+    }
+
     /// Resolves and decodes attachment bytes for `attachment` against the
     /// currently unlocked database's inner-header binary pool. Decoding runs
     /// off the main thread; returns `nil` for dangling refs or when no

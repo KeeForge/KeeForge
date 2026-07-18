@@ -5,6 +5,10 @@ final class KPGroup: Identifiable, @unchecked Sendable {
     var id: UUID
     var name: String
     var iconID: Int
+    /// UUID referencing `Meta/CustomIcons`, when the group uses a custom icon.
+    /// Read-only display copy: the source `<CustomIconUUID>` element stays in
+    /// `unknownXML` so the writer round-trips it verbatim.
+    var customIconUUID: UUID?
     var entries: [KPEntry]
     var groups: [KPGroup]
     var isExpanded: Bool
@@ -18,6 +22,7 @@ final class KPGroup: Identifiable, @unchecked Sendable {
         id: UUID = UUID(),
         name: String,
         iconID: Int = 48,
+        customIconUUID: UUID? = nil,
         entries: [KPEntry] = [],
         groups: [KPGroup] = [],
         isExpanded: Bool = true,
@@ -29,6 +34,7 @@ final class KPGroup: Identifiable, @unchecked Sendable {
         self.id = id
         self.name = name
         self.iconID = iconID
+        self.customIconUUID = customIconUUID
         self.entries = entries
         self.groups = groups
         self.isExpanded = isExpanded
@@ -62,6 +68,7 @@ final class KPGroup: Identifiable, @unchecked Sendable {
             id: id,
             name: name,
             iconID: iconID,
+            customIconUUID: customIconUUID,
             entries: entries,
             groups: updatedGroups,
             isExpanded: isExpanded,
@@ -74,15 +81,6 @@ final class KPGroup: Identifiable, @unchecked Sendable {
 
     /// System icon name based on KeePass icon ID
     var systemIconName: String {
-        switch iconID {
-        case 0: "key.fill"
-        case 1: "globe"
-        case 2: "exclamationmark.triangle"
-        case 3: "server.rack"
-        case 43: "trash"
-        case 48: "folder.fill"
-        case 49: "folder.fill"
-        default: "folder.fill"
-        }
+        KPEntry.systemIconName(for: iconID, fallback: "folder.fill")
     }
 }

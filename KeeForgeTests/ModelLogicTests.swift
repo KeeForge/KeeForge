@@ -19,9 +19,23 @@ final class ModelLogicTests: XCTestCase {
     func testKPEntrySystemIconNameMapsKnownAndDefaultIDs() {
         XCTAssertEqual(KPEntry(iconID: 0).systemIconName, "key.fill")
         XCTAssertEqual(KPEntry(iconID: 1).systemIconName, "globe")
-        XCTAssertEqual(KPEntry(iconID: 62).systemIconName, "creditcard.fill")
-        XCTAssertEqual(KPEntry(iconID: 68).systemIconName, "at")
+        XCTAssertEqual(KPEntry(iconID: 19).systemIconName, "envelope.fill")
+        XCTAssertEqual(KPEntry(iconID: 37).systemIconName, "building.columns.fill")
+        XCTAssertEqual(KPEntry(iconID: 66).systemIconName, "banknote.fill")
+        XCTAssertEqual(KPEntry(iconID: 68).systemIconName, "iphone")
         XCTAssertEqual(KPEntry(iconID: 999).systemIconName, "key.fill")
+        XCTAssertEqual(KPEntry(iconID: -1).systemIconName, "key.fill")
+    }
+
+    func testStandardIconTableCoversAllKDBXStandardIcons() {
+        // KDBX 4.x defines standard icons 0 through 68; every one must map to
+        // a concrete symbol rather than falling through to the default.
+        for iconID in 0...68 {
+            XCTAssertNotNil(
+                KPEntry.standardIconNames[iconID],
+                "Missing SF Symbol mapping for standard icon \(iconID)"
+            )
+        }
     }
 
     func testKPEntryIsExpiredRequiresEnabledPastExpiryTime() {
@@ -45,9 +59,9 @@ final class ModelLogicTests: XCTestCase {
     func testKPGroupSystemIconNameMapsKnownAndDefaultIDs() {
         XCTAssertEqual(KPGroup(name: "a", iconID: 0).systemIconName, "key.fill")
         XCTAssertEqual(KPGroup(name: "a", iconID: 1).systemIconName, "globe")
-        XCTAssertEqual(KPGroup(name: "a", iconID: 2).systemIconName, "exclamationmark.triangle")
+        XCTAssertEqual(KPGroup(name: "a", iconID: 2).systemIconName, "exclamationmark.triangle.fill")
         XCTAssertEqual(KPGroup(name: "a", iconID: 3).systemIconName, "server.rack")
-        XCTAssertEqual(KPGroup(name: "a", iconID: 43).systemIconName, "trash")
+        XCTAssertEqual(KPGroup(name: "a", iconID: 43).systemIconName, "trash.fill")
         XCTAssertEqual(KPGroup(name: "a", iconID: 48).systemIconName, "folder.fill")
         XCTAssertEqual(KPGroup(name: "a", iconID: 49).systemIconName, "folder.fill")
         XCTAssertEqual(KPGroup(name: "a", iconID: 999).systemIconName, "folder.fill")

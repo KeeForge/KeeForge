@@ -368,13 +368,13 @@ struct GroupListView: View {
                 Button {
                     onSelectEntry(entry)
                 } label: {
-                    EntryRow(entry: entry)
+                    EntryRow(entry: entry, customIconData: viewModel.customIconData(for: entry))
                 }
                 .buttonStyle(.plain)
                 .accessibilityIdentifier("entry.navlink")
             } else {
                 NavigationLink(value: entry) {
-                    EntryRow(entry: entry)
+                    EntryRow(entry: entry, customIconData: viewModel.customIconData(for: entry))
                 }
                 .accessibilityIdentifier("entry.navlink")
             }
@@ -563,9 +563,20 @@ struct GroupRow: View {
         Group {
             if let group {
                 HStack {
-                    Image(systemName: isRecycleBin ? "trash" : group.systemIconName)
-                        .foregroundStyle(.tint)
-                        .frame(width: 28)
+                    if !isRecycleBin,
+                       let iconData = viewModel.customIconData(for: group),
+                       let icon = PlatformImage(data: iconData) {
+                        Image(platformImage: icon)
+                            .resizable()
+                            .aspectRatio(contentMode: .fit)
+                            .clipShape(RoundedRectangle(cornerRadius: 4))
+                            .frame(width: 22, height: 22)
+                            .frame(width: 28)
+                    } else {
+                        Image(systemName: isRecycleBin ? "trash" : group.systemIconName)
+                            .foregroundStyle(.tint)
+                            .frame(width: 28)
+                    }
 
                     VStack(alignment: .leading) {
                         Text(group.name)
@@ -584,10 +595,11 @@ struct GroupRow: View {
 
 struct EntryRow: View {
     let entry: KPEntry
+    var customIconData: Data? = nil
 
     var body: some View {
         HStack {
-            FaviconView(url: entry.url, iconID: entry.iconID, size: 24)
+            FaviconView(url: entry.url, iconID: entry.iconID, size: 24, customIconData: customIconData)
                 .frame(width: 28)
 
             VStack(alignment: .leading) {

@@ -4,9 +4,16 @@ struct FaviconView: View {
     let url: String?
     let iconID: Int
     let size: CGFloat
+    /// Image data of the entry's custom icon from `Meta/CustomIcons`. Takes
+    /// precedence over favicons and the standard-icon fallback.
+    var customIconData: Data? = nil
 
     @State private var image: PlatformImage?
     @State private var didAttemptFetch = false
+
+    private var customIcon: PlatformImage? {
+        customIconData.flatMap { PlatformImage(data: $0) }
+    }
 
     private var domain: String? {
         guard let url else { return nil }
@@ -19,7 +26,12 @@ struct FaviconView: View {
 
     var body: some View {
         Group {
-            if showFavicons, let image {
+            if let customIcon {
+                Image(platformImage: customIcon)
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+                    .clipShape(RoundedRectangle(cornerRadius: 4))
+            } else if showFavicons, let image {
                 Image(platformImage: image)
                     .resizable()
                     .aspectRatio(contentMode: .fit)
@@ -31,7 +43,7 @@ struct FaviconView: View {
         }
         .frame(width: size, height: size)
         .task(id: domain) {
-            guard showFavicons, let domain, !didAttemptFetch else { return }
+            guard customIconData == nil, showFavicons, let domain, !didAttemptFetch else { return }
             // Check cache first (synchronous)
             if let cached = FaviconService.cachedImage(for: domain) {
                 image = cached
@@ -52,19 +64,5 @@ struct FaviconView: View {
         Image(systemName: KPEntry.systemIconName(for: iconID))
             .foregroundStyle(.tint)
             .font(.system(size: size * 0.6))
-    }
-}
-
-// MARK: - Static icon name helper
-
-extension KPEntry {
-    static func systemIconName(for iconID: Int) -> String {
-        switch iconID {
-        case 0: "key.fill"
-        case 1: "globe"
-        case 62: "creditcard.fill"
-        case 68: "at"
-        default: "key.fill"
-        }
     }
 }

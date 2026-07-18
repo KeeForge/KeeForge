@@ -750,6 +750,7 @@ final class KDBXXMLParser: NSObject, XMLParserDelegate {
         var id = UUID()
         var name = ""
         var iconID = 48
+        var customIconUUID: UUID?
         var entries: [KPEntry] = []
         var groups: [KPGroup] = []
         var isExpanded = true
@@ -764,6 +765,7 @@ final class KDBXXMLParser: NSObject, XMLParserDelegate {
                 id: id,
                 name: name,
                 iconID: iconID,
+                customIconUUID: customIconUUID,
                 entries: entries,
                 groups: groups,
                 isExpanded: isExpanded,
@@ -783,6 +785,7 @@ final class KDBXXMLParser: NSObject, XMLParserDelegate {
         var historyMaxSize: Int64?
         var unknownXML = OpaqueXMLNodes.empty
         var knownChildCount = 0
+        var customIcons: [UUID: Data] = [:]
 
         func build() -> KPMeta {
             KPMeta(
@@ -791,7 +794,8 @@ final class KDBXXMLParser: NSObject, XMLParserDelegate {
                 maintenanceHistoryDays: maintenanceHistoryDays,
                 historyMaxItems: historyMaxItems,
                 historyMaxSize: historyMaxSize,
-                unknownXML: unknownXML
+                unknownXML: unknownXML,
+                customIcons: customIcons
             )
         }
     }
@@ -1068,6 +1072,9 @@ final class KDBXXMLParser: NSObject, XMLParserDelegate {
     private var currentBinaryRefWasParsable = true
     private var historyDepth = 0
     private var inMeta = false
+    private var inCustomIcons = false
+    private var currentCustomIconUUID: UUID?
+    private var currentCustomIconData: Data?
     private var captureStack: [XMLCaptureElement] = []
 
     private var protectedValueCipher: ProtectedValueCipher
@@ -1132,6 +1139,13 @@ final class KDBXXMLParser: NSObject, XMLParserDelegate {
         case "Meta":
             inMeta = true
             currentMeta = MetaBuilder()
+
+        case "CustomIcons" where inMeta:
+            inCustomIcons = true
+
+        case "Icon" where inCustomIcons:
+            currentCustomIconUUID = nil
+            currentCustomIconData = nil
 
         case "Group":
             groupStack.append(GroupBuilder())
@@ -1227,6 +1241,32 @@ final class KDBXXMLParser: NSObject, XMLParserDelegate {
         case "HistoryMaxSize":
             if inMeta {
                 currentMeta.historyMaxSize = Int64(currentText.trimmingCharacters(in: .whitespacesAndNewlines))
+            }
+
+        case "CustomIcons":
+            inCustomIcons = false
+
+        case "Icon" where inCustomIcons:
+            if let uuid = currentCustomIconUUID, let data = currentCustomIconData {
+                currentMeta.customIcons[uuid] = data
+            }
+            currentCustomIconUUID = nil
+            currentCustomIconData = nil
+
+        case "UUID" where inCustomIcons:
+            currentCustomIconUUID = parseKPUUID(currentText)
+
+        case "Data" where inCustomIcons && parentName == "Icon":
+            currentCustomIconData = Data(
+                base64Encoded: currentText.trimmingCharacters(in: .whitespacesAndNewlines),
+                options: .ignoreUnknownCharacters
+            )
+
+        case "CustomIconUUID":
+            if let currentEntry {
+                currentEntry.customIconUUID = parseKPUUID(currentText)
+            } else if !inMeta, let index = groupStack.indices.last {
+                groupStack[index].customIconUUID = parseKPUUID(currentText)
             }
 
         case "Group":
@@ -1603,6 +1643,7 @@ private class EntryBuilder {
     var url = ""
     var notes = ""
     var iconID = 0
+    var customIconUUID: UUID?
     var tags: [String] = []
     var hasTagsElement = false
     var customFields: [String: String] = [:]
@@ -1641,6 +1682,7 @@ private class EntryBuilder {
             url: url,
             notes: notes,
             iconID: iconID,
+            customIconUUID: customIconUUID,
             tags: tags,
             hasTagsElement: hasTagsElement,
             customFields: customFields.filter {

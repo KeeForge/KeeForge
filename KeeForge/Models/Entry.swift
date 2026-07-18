@@ -9,6 +9,10 @@ struct KPEntry: Identifiable, Sendable {
     var url: String
     var notes: String
     var iconID: Int
+    /// UUID referencing `Meta/CustomIcons`, when the entry uses a custom icon.
+    /// Read-only display copy: the source `<CustomIconUUID>` element stays in
+    /// `unknownXML` so the writer round-trips it verbatim.
+    var customIconUUID: UUID?
     var tags: [String]
     /// Whether the source XML had a `<Tags>` element, even if empty. Writers
     /// use this to preserve an empty `<Tags></Tags>` that would otherwise be
@@ -46,6 +50,7 @@ struct KPEntry: Identifiable, Sendable {
         url: String = "",
         notes: String = "",
         iconID: Int = 0,
+        customIconUUID: UUID? = nil,
         tags: [String] = [],
         hasTagsElement: Bool = false,
         customFields: [String: String] = [:],
@@ -67,6 +72,7 @@ struct KPEntry: Identifiable, Sendable {
         self.url = url
         self.notes = notes
         self.iconID = iconID
+        self.customIconUUID = customIconUUID
         self.tags = tags
         self.hasTagsElement = hasTagsElement
         self.customFields = customFields
@@ -120,13 +126,86 @@ struct KPEntry: Identifiable, Sendable {
 
     /// System icon name based on KeePass icon ID
     var systemIconName: String {
-        switch iconID {
-        case 0: "key.fill"
-        case 1: "globe"
-        case 62: "creditcard.fill"
-        case 68: "at"
-        default: "key.fill"
-        }
+        Self.systemIconName(for: iconID)
+    }
+
+    /// SF Symbol approximations for the KDBX standard icon set (PwIcon 0–68).
+    /// Indices follow the KeePass 2.x `PwIcons` enum; unmapped IDs fall back
+    /// to the caller-provided default.
+    static let standardIconNames: [Int: String] = [
+        0: "key.fill",                              // Key
+        1: "globe",                                 // World
+        2: "exclamationmark.triangle.fill",         // Warning
+        3: "server.rack",                           // NetworkServer
+        4: "pin.fill",                              // MarkedDirectory
+        5: "bubble.left.and.bubble.right.fill",     // UserCommunication
+        6: "gearshape.2.fill",                      // Parts
+        7: "note.text",                             // Notepad
+        8: "powerplug.fill",                        // WorldSocket
+        9: "person.text.rectangle.fill",            // Identity
+        10: "doc.text.fill",                        // PaperReady
+        11: "camera.fill",                          // Digicam
+        12: "antenna.radiowaves.left.and.right",    // IRCommunication
+        13: "key.horizontal.fill",                  // MultiKeys
+        14: "bolt.fill",                            // Energy
+        15: "scanner.fill",                         // Scanner
+        16: "globe.americas.fill",                  // WorldStar
+        17: "opticaldisc.fill",                     // CDRom
+        18: "display",                              // Monitor
+        19: "envelope.fill",                        // EMail
+        20: "gearshape.fill",                       // Configuration
+        21: "list.clipboard.fill",                  // ClipboardReady
+        22: "doc.badge.plus",                       // PaperNew
+        23: "desktopcomputer",                      // Screen
+        24: "bolt.circle.fill",                     // EnergyCareful
+        25: "tray.full.fill",                       // EMailBox
+        26: "internaldrive.fill",                   // Disk
+        27: "externaldrive.fill",                   // Drive
+        28: "play.rectangle.fill",                  // PaperQ
+        29: "lock.fill",                            // TerminalEncrypted
+        30: "terminal.fill",                        // Console
+        31: "printer.fill",                         // Printer
+        32: "square.grid.3x3.fill",                 // ProgramIcons
+        33: "play.circle.fill",                     // Run
+        34: "slider.horizontal.3",                  // Settings
+        35: "network",                              // WorldComputer
+        36: "archivebox.fill",                      // Archive
+        37: "building.columns.fill",                // Homebanking
+        38: "pc",                                   // DriveWindows
+        39: "clock.fill",                           // Clock
+        40: "mail.and.text.magnifyingglass",        // EMailSearch
+        41: "flag.fill",                            // PaperFlag
+        42: "memorychip.fill",                      // Memory
+        43: "trash.fill",                           // TrashBin
+        44: "square.and.pencil",                    // Note
+        45: "xmark.circle.fill",                    // Expired
+        46: "info.circle.fill",                     // Info
+        47: "shippingbox.fill",                     // Package
+        48: "folder.fill",                          // Folder
+        49: "folder.fill",                          // FolderOpen
+        50: "folder.fill.badge.gearshape",          // FolderPackage
+        51: "lock.open.fill",                       // LockOpen
+        52: "lock.doc.fill",                        // PaperLocked
+        53: "checkmark.circle.fill",                // Checked
+        54: "pencil",                               // Pen
+        55: "photo.fill",                           // Thumbnail
+        56: "book.fill",                            // Book
+        57: "list.bullet",                          // List
+        58: "person.badge.key.fill",                // UserKey
+        59: "hammer.fill",                          // Tool
+        60: "house.fill",                           // Home
+        61: "star.fill",                            // Star
+        62: "laptopcomputer",                       // Tux
+        63: "signature",                            // Feather
+        64: "apple.logo",                           // Apple
+        65: "text.book.closed.fill",                // Wiki
+        66: "banknote.fill",                        // Money
+        67: "rosette",                              // Certificate
+        68: "iphone",                               // BlackBerry
+    ]
+
+    static func systemIconName(for iconID: Int, fallback: String = "key.fill") -> String {
+        standardIconNames[iconID] ?? fallback
     }
 
     func cloneForHistory() -> KPEntry {

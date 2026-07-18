@@ -506,7 +506,7 @@ private struct MacEntriesColumn: View {
         Button {
             onSelectEntry(entry)
         } label: {
-            EntryRow(entry: entry)
+            EntryRow(entry: entry, customIconData: viewModel.customIconData(for: entry))
                 .foregroundStyle(isSelected ? Color.white : Color.primary)
         }
         .buttonStyle(.plain)
