@@ -2,6 +2,20 @@
 
 ## Unreleased
 
+### Fixes
+
+- Fix a cloud-sync data-loss risk where a credential saved through AutoFill (while another device had newer changes) could be silently lost. The queued upload now verifies its bytes against the saved snapshot before pushing, the shared cache is backed up before a sync-down overwrites it, and the drainer no longer force-pushes over a genuine cross-device conflict.
+- Fix overlapping cloud upload drains (app foreground plus the AutoFill "enqueued" notification firing together) that could create duplicate cloud revisions or resurrect an already-completed upload; drains are now coalesced and serialized, and a dropped queue marker can no longer be recreated by a losing drain.
+- Fix concurrent writes to the database list (a background cloud upload racing a rename/read-only/quick-launch edit) that could revert one change or manufacture a spurious "changed outside KeeForge" conflict; all list writes are now serialized. Cloud saves also write their local backup before uploading, and the staged conflict-download file now gets full data protection on iOS.
+- Remove the UI-test cloud provider doubles from release builds. They previously shipped gated only by a launch argument, which on macOS let a local process substitute a fake sync provider against the real app; they are now compiled out of release entirely.
+- Revealed passwords are no longer system-selectable, so copying always goes through KeeForge's expiring, local-only clipboard path instead of a system copy that bypassed auto-clear, Universal Clipboard exclusion, and clear-on-lock.
+- Recognize passkeys created by Strongbox and older KeePassXC builds that use the legacy `KPEX_PASSKEY_GENERATED_USER_ID` / `KPXC_PASSKEY_USERNAME` field names, so those entries register for AutoFill and sign-in instead of appearing to have no passkey.
+- Fix databases that lack a RecycleBinUUID element accumulating duplicated Meta XML (Generator, DatabaseName, CustomData, …) on every save, which compounded across edits and could confuse other KeePass clients.
+- Fix the password generator letting every character-set toggle be switched off and then displaying a lowercase password while all toggles read "off"; the sheet now keeps at least one set enabled so the shown toggles match the generated password.
+- Fix the Tip Jar: the StoreKit transaction listener now starts at launch so out-of-app completions (Ask to Buy, deferred payments) finish correctly, pending and failed purchases now surface feedback instead of nothing, and a transient product-load failure no longer wipes an already-loaded tip list.
+- Fix WebDAV browsing of folders whose names contain a literal `%XX` sequence (previously shown as phantom self-nested folders), cap the response size accepted from a WebDAV server to prevent a memory-exhaustion denial of service, and accept pasted server addresses containing spaces or non-ASCII characters instead of rejecting them as malformed.
+- Fix the cloud file browser flashing a spurious "cancelled" error and, with a slow server, showing stale results while typing in search.
+
 ## v1.10.2 (2026-07-17)
 
 ### New Features
