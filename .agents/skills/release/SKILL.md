@@ -42,9 +42,11 @@ suggest the next minor bump (e.g. 1.5.0 to 1.6.0). Ask the user to confirm befor
 5. If any check fails, explain the problem and ask the user how to proceed (e.g. a corrected version). Do not proceed until validation passes.
 
 **Resume exception:** if the working tree is dirty but the only changes are this release's own
-edits (`project.yml`, `CHANGELOG.md`, and `KeeForge.xcodeproj` already showing the expected new
-version), a previous run of this skill likely stopped at a test failure. Confirm with the user,
-then resume from Step 4 instead of redoing Steps 2-3 or demanding a reset.
+edits (`project.yml`, `CHANGELOG.md`, `KeeForge.xcodeproj`,
+`KeeForge/Services/AppSupport/WhatsNewPresentationService.swift`, and
+`KeeForge/Resources/Localizable.xcstrings` already showing the expected new version/content), a
+previous run of this skill likely stopped at a test failure. Confirm with the user, then resume
+from Step 5 instead of redoing Steps 2-4 or demanding a reset.
 
 ## Step 2: Update CHANGELOG.md
 
@@ -75,7 +77,31 @@ then resume from Step 4 instead of redoing Steps 2-3 or demanding a reset.
 The `## Unreleased` heading stays, but its content moves to the new version section.
 Use today's date for the release date — get it from `date +%F`, don't guess.
 
-## Step 3: Update project.yml
+## Step 3: Review and fix What's New content
+
+Perform this review for every release, even if the content already looks complete:
+
+1. Use only the new version's `### New Features` bullets in `CHANGELOG.md` as source material.
+   Exclude fixes, security hardening, known issues, and internal changes. If there are no New
+   Features, confirm that `WhatsNewCatalog` has no case for this version and continue without an
+   empty sheet.
+2. Inspect the matching version case in
+   `KeeForge/Services/AppSupport/WhatsNewPresentationService.swift`. Add it if needed, or fix it
+   when it is stale, incomplete, overly technical, or inaccurate.
+3. Rewrite each included feature as short, benefit-led copy for ordinary users. Do not copy issue
+   numbers, implementation details, test coverage, internal terminology, or raw changelog prose.
+4. Check platform accuracy. Keep features available on both iOS and macOS shared; set the
+   `platforms` argument for features available on only one platform. Never advertise an iOS-only
+   feature in the Mac sheet or vice versa.
+5. Add or update every affected key and its German translation in
+   `KeeForge/Resources/Localizable.xcstrings`. The localization tests in Step 5 are the gate.
+6. Re-read the completed sheet content as a user. Fix unclear titles, repetitive descriptions,
+   missing major features, or claims that are not supported by the release.
+
+Do not proceed until the catalog either has polished, accurate content for the new version or has
+been deliberately omitted because the release contains no new features.
+
+## Step 4: Update project.yml
 
 Update **both** the `KeeForge` and `KeeForgeAutoFill` targets:
 
@@ -86,7 +112,7 @@ Both targets must always have identical version values. Use precise string-repla
 for these changes. There are exactly 4 values to update: 2 `MARKETING_VERSION`
 values and 2 `CURRENT_PROJECT_VERSION` values.
 
-## Step 4: Regenerate Xcode project and run tests
+## Step 5: Regenerate Xcode project and run tests
 
 Since `project.yml` changed, regenerate the `.xcodeproj` before building:
 
@@ -96,7 +122,7 @@ xcodegen generate
 
 Then run the release verification tests in a fresh `bash` session. Release validation is an
 explicit full-suite exception to the usual smallest-slice testing rule: run every existing unit
-test, every existing UI test, and the KDBX compatibility gate (Step 4b) before committing,
+test, every existing UI test, and the KDBX compatibility gate (Step 5b) before committing,
 tagging, or pushing.
 
 Use target-level `-only-testing:` selectors so the command remains explicit while covering each
@@ -136,7 +162,7 @@ Failure policy:
   needed a retry. If any test fails again, treat it as a real failure: stop and report. Never
   retry more than once, and never re-run the whole suite to "get a green run".
 
-## Step 4b: Run the KDBX compatibility gate
+## Step 5b: Run the KDBX compatibility gate
 
 This is a required local release gate — Xcode Cloud does not install KeePassXC, so the release
 machine is the only place KeeForge-produced databases get cross-validated against another
@@ -149,13 +175,15 @@ ci_scripts/run_kdbx_compatibility_gate.sh
 If `keepassxc-cli` is not installed, stop and ask the user to install KeePassXC (or point
 `KEEPASSXC_CLI` at the binary). Do not skip this gate or proceed past a gate failure.
 
-## Step 5: Commit, tag, and push
+## Step 6: Commit, tag, and push
 
 Only reach this step if all tests and the compatibility gate pass.
 
 1. Stage the changed files (the `.xcodeproj` is tracked and changes when `xcodegen generate` runs):
    ```bash
-   git add project.yml CHANGELOG.md KeeForge.xcodeproj
+   git add project.yml CHANGELOG.md KeeForge.xcodeproj \
+     KeeForge/Services/AppSupport/WhatsNewPresentationService.swift \
+     KeeForge/Resources/Localizable.xcstrings
    ```
 2. Commit with message: `Release v{version}`
 3. Create an annotated tag:

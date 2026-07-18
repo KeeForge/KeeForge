@@ -4,6 +4,7 @@
 
 - Send Feedback now supports optional follow-up: enable "Allow Follow-Up" and enter an email so we can reply about that specific report. Nothing is sent unless you opt in.
 - Send Feedback now supports attaching a single photo. Photos are downscaled and re-encoded as JPEG on-device (metadata such as location is stripped) and capped at 5 MB.
+- Add a user-friendly What's New sheet that appears once per feature-bearing version on both iOS and macOS, with platform-specific feature filtering and release copy curated from the changelog's New Features section.
 
 - Fix AutoFill showing a blank sheet when picking KeeForge on a one-time-code field (#20): the extension never handled the interactive verification-code list request, so choosing AutoFill → Passwords on a TOTP form did nothing. It now unlocks the vault and fills the code directly when a single entry matches the site, or shows the TOTP entry picker otherwise; a stale QuickType code suggestion also falls back to the picker instead of failing.
 

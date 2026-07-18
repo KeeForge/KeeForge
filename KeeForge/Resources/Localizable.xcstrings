@@ -1046,6 +1046,16 @@
         }
       }
     },
+    "Connect to local WebDAV servers": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mit lokalen WebDAV-Servern verbinden"
+          }
+        }
+      }
+    },
     "Connect WebDAV": {
       "localizations": {
         "de": {
@@ -2556,6 +2566,16 @@
         }
       }
     },
+    "If AutoFill is off, KeeForge now lets you know and helps you turn it on right from your database list or Settings.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wenn AutoFill deaktiviert ist, weist KeeForge Sie jetzt darauf hin und hilft Ihnen, es direkt über die Datenbankliste oder die Einstellungen zu aktivieren."
+          }
+        }
+      }
+    },
     "Keep Editing": {
       "localizations": {
         "de": {
@@ -3272,6 +3292,26 @@
           "stringUnit": {
             "state": "translated",
             "value": "iOS-AutoFill-Einstellungen öffnen"
+          }
+        }
+      }
+    },
+    "KeeForge can now open older KeePass 3.1 vaults and databases protected with Twofish — and keeps their original encryption when you save.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "KeeForge kann jetzt ältere KeePass-3.1-Tresore und mit Twofish geschützte Datenbanken öffnen – und behält beim Speichern deren ursprüngliche Verschlüsselung bei."
+          }
+        }
+      }
+    },
+    "Open more KeePass databases": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mehr KeePass-Datenbanken öffnen"
           }
         }
       }
@@ -5202,6 +5242,46 @@
           "stringUnit": {
             "state": "translated",
             "value": "Schwach"
+          }
+        }
+      }
+    },
+    "Set up AutoFill more easily": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "AutoFill einfacher einrichten"
+          }
+        }
+      }
+    },
+    "Use KeeForge with a trusted local WebDAV server even when it doesn't support HTTPS. The option lives under Advanced and includes a clear security warning.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Verwenden Sie KeeForge mit einem vertrauenswürdigen lokalen WebDAV-Server, auch wenn dieser HTTPS nicht unterstützt. Die Option befindet sich unter „Erweitert“ und enthält einen deutlichen Sicherheitshinweis."
+          }
+        }
+      }
+    },
+    "What's New": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Neuigkeiten"
+          }
+        }
+      }
+    },
+    "What's New in KeeForge": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Neu in KeeForge"
           }
         }
       }

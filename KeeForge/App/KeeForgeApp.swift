@@ -138,6 +138,8 @@ private struct AppRootView: View {
     @Environment(\.requestReview) private var requestReview
     #endif
     @State private var didResolveInitialRoute = false
+    @State private var whatsNewRelease: WhatsNewRelease?
+    @State private var pendingAutoOpenReference: DatabaseReference?
 
     var body: some View {
         Group {
@@ -154,10 +156,26 @@ private struct AppRootView: View {
             // modern prompt without a view dependency.
             ReviewPromptService.requestReviewHandler = { requestReview() }
             #endif
-            await resolveInitialRouteIfNeeded()
+            await resolveInitialExperienceIfNeeded()
         }
         .onOpenURL { url in
             handleOpenURL(url)
+        }
+        .sheet(item: $whatsNewRelease, onDismiss: finishWhatsNewPresentation) { release in
+            WhatsNewView(release: release)
+                #if os(macOS)
+                .frame(
+                    minWidth: 520,
+                    idealWidth: 560,
+                    maxWidth: 640,
+                    minHeight: 500,
+                    idealHeight: 620,
+                    maxHeight: 760
+                )
+                #else
+                .presentationDetents([.large])
+                .presentationDragIndicator(.visible)
+                #endif
         }
     }
 
@@ -225,17 +243,44 @@ private struct AppRootView: View {
         #endif
     }
 
-    private func resolveInitialRouteIfNeeded() async {
+    private func resolveInitialExperienceIfNeeded() async {
         guard didResolveInitialRoute == false else { return }
         defer { didResolveInitialRoute = true }
 
         guard activeDatabaseViewModel == nil else { return }
-        guard let databaseReference = listViewModel.databaseToAutoOpenOnLaunch() else { return }
-        openDatabase(databaseReference)
+
+        let release = WhatsNewPresentationService.releaseToPresent()
+        let databaseReference = listViewModel.databaseToAutoOpenOnLaunch()
+
+        if let release {
+            // Keep the database list behind the release notes. In particular,
+            // defer Quick Launch so its unlock sheet cannot compete with the
+            // app-level What's New sheet.
+            pendingAutoOpenReference = databaseReference
+            whatsNewRelease = release
+        } else if let databaseReference {
+            openDatabase(databaseReference)
+        }
     }
 
     private func openDatabase(_ reference: DatabaseReference) {
         activeDatabaseViewModel = DatabaseViewModel(databaseReference: reference)
+    }
+
+    private func openDatabaseAfterLaunchPresentation(_ reference: DatabaseReference) {
+        if whatsNewRelease == nil {
+            openDatabase(reference)
+        } else {
+            // An explicit deep link takes precedence over any Quick Launch
+            // route that was waiting for the sheet to close.
+            pendingAutoOpenReference = reference
+        }
+    }
+
+    private func finishWhatsNewPresentation() {
+        guard let pendingAutoOpenReference else { return }
+        self.pendingAutoOpenReference = nil
+        openDatabase(pendingAutoOpenReference)
     }
 
     private func openCreatedDatabase(_ createdDatabase: CreatedDatabase) {
@@ -255,16 +300,16 @@ private struct AppRootView: View {
 
         do {
             let reference = try listViewModel.addDatabase(from: url)
-            openDatabase(reference)
+            openDatabaseAfterLaunchPresentation(reference)
         } catch DatabaseListStore.AddDatabaseError.duplicateFile(let existingReferenceID, _) {
             if let existing = listViewModel.databases.first(where: { $0.id == existingReferenceID }) {
-                openDatabase(existing)
+                openDatabaseAfterLaunchPresentation(existing)
             }
         } catch {
             if let existing = listViewModel.databases.first(where: {
                 $0.filename == url.lastPathComponent
             }) {
-                openDatabase(existing)
+                openDatabaseAfterLaunchPresentation(existing)
             }
         }
     }
