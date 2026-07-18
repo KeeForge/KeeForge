@@ -50,6 +50,21 @@ enum DatabaseListStore {
     private nonisolated(unsafe) static var remainingUITestLocalSaveConflicts: Int?
     private nonisolated(unsafe) static var consumedUITestLocalSaveConflicts = 0
 
+    /// Serializes every load/mutate/save of `database-list.json`. Detached
+    /// cloud-upload tasks call `update(_:)` while main-actor writers mutate the
+    /// same file; without this each mutator's read-modify-write could interleave
+    /// and clobber a concurrent change. The lock is recursive because compound
+    /// mutators (e.g. `setReadOnly`, `markDatabaseOpened`) run their whole
+    /// read-modify-write under it and then re-enter through `loadDatabases()` /
+    /// `saveDatabases()` on the same thread.
+    private nonisolated(unsafe) static let stateLock = NSRecursiveLock()
+
+    private static func withStateLock<T>(_ body: () throws -> T) rethrows -> T {
+        stateLock.lock()
+        defer { stateLock.unlock() }
+        return try body()
+    }
+
     private struct UITestDatabasePayload: Decodable {
         let filename: String
         let base64: String
@@ -133,16 +148,19 @@ enum DatabaseListStore {
 
     @discardableResult
     static func add(url: URL) throws -> DatabaseReference {
-        var currentDatabases = loadDatabases()
-        if let duplicate = existingLocalReference(matching: url, in: currentDatabases) {
-            throw AddDatabaseError.duplicateFile(
-                existingReferenceID: duplicate.id,
-                filename: duplicate.displayName
-            )
+        let reference = try withStateLock { () throws -> DatabaseReference in
+            var currentDatabases = loadDatabases()
+            if let duplicate = existingLocalReference(matching: url, in: currentDatabases) {
+                throw AddDatabaseError.duplicateFile(
+                    existingReferenceID: duplicate.id,
+                    filename: duplicate.displayName
+                )
+            }
+            let reference = try makeReference(from: url)
+            currentDatabases.append(reference)
+            saveDatabases(currentDatabases)
+            return reference
         }
-        let reference = try makeReference(from: url)
-        currentDatabases.append(reference)
-        saveDatabases(currentDatabases)
         cacheInitialCopyIfPossible(from: url, for: reference.id)
         return reference
     }
@@ -153,64 +171,72 @@ enum DatabaseListStore {
         accountId: String,
         file: CloudFile
     ) -> DatabaseReference {
-        if let existing = loadDatabases().first(where: {
-            guard let metadata = $0.cloudSyncMetadata else { return false }
-            return metadata.provider == provider && metadata.accountId == accountId && metadata.fileId == file.id
-        }) {
-            return existing
-        }
+        withStateLock {
+            if let existing = loadDatabases().first(where: {
+                guard let metadata = $0.cloudSyncMetadata else { return false }
+                return metadata.provider == provider && metadata.accountId == accountId && metadata.fileId == file.id
+            }) {
+                return existing
+            }
 
-        var currentDatabases = loadDatabases()
-        let reference = DatabaseReference(
-            id: UUID(),
-            nickname: nil,
-            filename: file.name,
-            bookmarkData: nil,
-            keyFileBookmarkData: nil,
-            keyFileFilename: nil,
-            isQuickLaunch: false,
-            lastOpenedAt: nil,
-            addedAt: .now,
-            colorTag: nil,
-            legacyKeychainFilename: nil,
-            source: .cloud(
-                CloudSyncMetadata(
-                    provider: provider,
-                    accountId: accountId,
-                    fileId: file.id,
-                    displayPath: file.path,
-                    remoteContentHash: nil,
-                    remoteModifiedAt: file.modifiedDate,
-                    lastSyncedAt: nil,
-                    lastSyncError: nil
+            var currentDatabases = loadDatabases()
+            let reference = DatabaseReference(
+                id: UUID(),
+                nickname: nil,
+                filename: file.name,
+                bookmarkData: nil,
+                keyFileBookmarkData: nil,
+                keyFileFilename: nil,
+                isQuickLaunch: false,
+                lastOpenedAt: nil,
+                addedAt: .now,
+                colorTag: nil,
+                legacyKeychainFilename: nil,
+                source: .cloud(
+                    CloudSyncMetadata(
+                        provider: provider,
+                        accountId: accountId,
+                        fileId: file.id,
+                        displayPath: file.path,
+                        remoteContentHash: nil,
+                        remoteModifiedAt: file.modifiedDate,
+                        lastSyncedAt: nil,
+                        lastSyncError: nil
+                    )
                 )
             )
-        )
-        currentDatabases.append(reference)
-        saveDatabases(currentDatabases)
-        return reference
+            currentDatabases.append(reference)
+            saveDatabases(currentDatabases)
+            return reference
+        }
     }
 
     static func addCreatedLocal(_ reference: DatabaseReference) throws {
-        var currentDatabases = loadDatabases()
-        try validateCreatedLocal(reference, in: currentDatabases)
-        currentDatabases.append(reference)
-        saveDatabases(currentDatabases)
+        try withStateLock {
+            var currentDatabases = loadDatabases()
+            try validateCreatedLocal(reference, in: currentDatabases)
+            currentDatabases.append(reference)
+            saveDatabases(currentDatabases)
+        }
     }
 
     static func addCreatedCloud(_ reference: DatabaseReference) throws {
-        var currentDatabases = loadDatabases()
-        try validateCreatedCloud(reference, in: currentDatabases)
-        currentDatabases.append(reference)
-        saveDatabases(currentDatabases)
+        try withStateLock {
+            var currentDatabases = loadDatabases()
+            try validateCreatedCloud(reference, in: currentDatabases)
+            currentDatabases.append(reference)
+            saveDatabases(currentDatabases)
+        }
     }
 
     static func addAppOnlyCreatedLocal(_ reference: DatabaseReference, encryptedBytes: Data) throws {
-        var currentDatabases = loadDatabases()
-        try validateAppOnlyCreatedLocal(reference, in: currentDatabases)
-        try cacheDatabaseCopy(encryptedBytes, for: reference)
-        currentDatabases.append(reference)
-        saveDatabases(currentDatabases)
+        try withStateLock {
+            var currentDatabases = loadDatabases()
+            try validateAppOnlyCreatedLocal(reference, in: currentDatabases)
+            try cacheDatabaseCopy(encryptedBytes, for: reference)
+            currentDatabases.append(reference)
+            saveDatabases(currentDatabases)
+        }
     }
 
     static func validateCreatedLocal(_ reference: DatabaseReference) throws {
@@ -237,78 +263,92 @@ enum DatabaseListStore {
     }
 
     static func remove(id: UUID) {
-        let currentDatabases = loadDatabases()
-        guard let removedReference = currentDatabases.first(where: { $0.id == id }) else { return }
-        let shouldClearCredentialStore = activeAutoFillDatabase?.id == id
+        withStateLock {
+            let currentDatabases = loadDatabases()
+            guard let removedReference = currentDatabases.first(where: { $0.id == id }) else { return }
+            let shouldClearCredentialStore = activeAutoFillDatabase?.id == id
 
-        KeychainService.deleteCompositeKey(for: removedReference.id)
-        if let legacyFilename = removedReference.legacyKeychainFilename {
-            KeychainService.deleteLegacyCompositeKey(forFilename: legacyFilename)
-        }
+            KeychainService.deleteCompositeKey(for: removedReference.id)
+            if let legacyFilename = removedReference.legacyKeychainFilename {
+                KeychainService.deleteLegacyCompositeKey(forFilename: legacyFilename)
+            }
 
-        try? FileManager.default.removeItem(at: cacheLocation(for: removedReference))
-        try? FileManager.default.removeItem(at: databaseBackupDirectoryURL(for: removedReference))
-        try? PendingUploadQueue.removeAllMarkers(for: removedReference.id)
+            try? FileManager.default.removeItem(at: cacheLocation(for: removedReference))
+            try? FileManager.default.removeItem(at: databaseBackupDirectoryURL(for: removedReference))
+            try? PendingUploadQueue.removeAllMarkers(for: removedReference.id)
 
-        let remainingDatabases = currentDatabases.filter { $0.id != id }
-        if activeAutoFillDatabaseID == id {
-            activeAutoFillDatabaseID = nil
-        }
-        saveDatabases(remainingDatabases)
+            let remainingDatabases = currentDatabases.filter { $0.id != id }
+            if activeAutoFillDatabaseID == id {
+                activeAutoFillDatabaseID = nil
+            }
+            saveDatabases(remainingDatabases)
 
-        if shouldClearCredentialStore {
-            CredentialIdentityStoreManager.clearStore()
+            if shouldClearCredentialStore {
+                CredentialIdentityStoreManager.clearStore()
+            }
         }
     }
 
     static func update(_ reference: DatabaseReference) {
-        var currentDatabases = loadDatabases()
+        withStateLock {
+            var currentDatabases = loadDatabases()
 
-        if let index = currentDatabases.firstIndex(where: { $0.id == reference.id }) {
-            currentDatabases[index] = reference
-        } else {
-            currentDatabases.append(reference)
+            if let index = currentDatabases.firstIndex(where: { $0.id == reference.id }) {
+                currentDatabases[index] = reference
+            } else {
+                currentDatabases.append(reference)
+            }
+
+            saveDatabases(currentDatabases)
         }
-
-        saveDatabases(currentDatabases)
     }
 
     static func setReadOnly(_ isReadOnly: Bool, for reference: DatabaseReference) {
-        guard var updatedReference = loadDatabases().first(where: { $0.id == reference.id }) else { return }
-        updatedReference.isReadOnly = isReadOnly
-        update(updatedReference)
+        withStateLock {
+            guard var updatedReference = loadDatabases().first(where: { $0.id == reference.id }) else { return }
+            updatedReference.isReadOnly = isReadOnly
+            update(updatedReference)
+        }
     }
 
     static func acknowledgeEdits(for reference: DatabaseReference, at date: Date = .now) {
-        guard var updatedReference = loadDatabases().first(where: { $0.id == reference.id }) else { return }
-        updatedReference.editsAcknowledgedAt = date
-        update(updatedReference)
+        withStateLock {
+            guard var updatedReference = loadDatabases().first(where: { $0.id == reference.id }) else { return }
+            updatedReference.editsAcknowledgedAt = date
+            update(updatedReference)
+        }
     }
 
     static func move(from source: IndexSet, to destination: Int) {
-        var currentDatabases = loadDatabases()
-        let movingItems = source.map { currentDatabases[$0] }
-        for index in source.sorted(by: >) {
-            currentDatabases.remove(at: index)
-        }
+        withStateLock {
+            var currentDatabases = loadDatabases()
+            let movingItems = source.map { currentDatabases[$0] }
+            for index in source.sorted(by: >) {
+                currentDatabases.remove(at: index)
+            }
 
-        let insertionIndex = min(destination, currentDatabases.count)
-        currentDatabases.insert(contentsOf: movingItems, at: insertionIndex)
-        saveDatabases(currentDatabases)
+            let insertionIndex = min(destination, currentDatabases.count)
+            currentDatabases.insert(contentsOf: movingItems, at: insertionIndex)
+            saveDatabases(currentDatabases)
+        }
     }
 
     static func markDatabaseOpened(id: UUID, at date: Date = .now) {
-        guard var reference = loadDatabases().first(where: { $0.id == id }) else { return }
-        reference.lastOpenedAt = date
-        update(reference)
-        activeAutoFillDatabaseID = id
+        withStateLock {
+            guard var reference = loadDatabases().first(where: { $0.id == id }) else { return }
+            reference.lastOpenedAt = date
+            update(reference)
+            activeAutoFillDatabaseID = id
+        }
     }
 
     static func clearLegacyKeychainFilename(for id: UUID) {
-        guard var reference = loadDatabases().first(where: { $0.id == id }) else { return }
-        guard reference.legacyKeychainFilename != nil else { return }
-        reference.legacyKeychainFilename = nil
-        update(reference)
+        withStateLock {
+            guard var reference = loadDatabases().first(where: { $0.id == id }) else { return }
+            guard reference.legacyKeychainFilename != nil else { return }
+            reference.legacyKeychainFilename = nil
+            update(reference)
+        }
     }
 
     static func cacheDatabaseCopy(_ data: Data, for databaseID: UUID) throws {
@@ -437,35 +477,39 @@ enum DatabaseListStore {
     }
 
     static func migrateFromSharedVaultStore() {
-        bootstrapForUITestingIfNeeded()
+        withStateLock {
+            bootstrapForUITestingIfNeeded()
 
-        guard !FileManager.default.fileExists(atPath: databaseListURL.path) else {
-            sharedDefaults.set(currentMigrationVersion, forKey: migrationVersionKey)
-            return
-        }
+            guard !FileManager.default.fileExists(atPath: databaseListURL.path) else {
+                sharedDefaults.set(currentMigrationVersion, forKey: migrationVersionKey)
+                return
+            }
 
-        guard let migratedReference = migratedLegacyReference() else {
-            sharedDefaults.set(currentMigrationVersion, forKey: migrationVersionKey)
-            return
-        }
+            guard let migratedReference = migratedLegacyReference() else {
+                sharedDefaults.set(currentMigrationVersion, forKey: migrationVersionKey)
+                return
+            }
 
-        saveDatabases([migratedReference])
-        if activeAutoFillDatabaseID == nil {
-            activeAutoFillDatabaseID = migratedReference.id
+            saveDatabases([migratedReference])
+            if activeAutoFillDatabaseID == nil {
+                activeAutoFillDatabaseID = migratedReference.id
+            }
+            copyLegacyCachedDatabaseIfNeeded(to: migratedReference.id)
         }
-        copyLegacyCachedDatabaseIfNeeded(to: migratedReference.id)
     }
 
     static func clearAll() {
-        let currentDatabases = loadDatabases()
-        currentDatabases.forEach { remove(id: $0.id) }
-        try? FileManager.default.removeItem(at: databaseListURL)
-        try? FileManager.default.removeItem(at: backupsRootURL)
-        try? PendingUploadQueue.clearAll()
-        activeAutoFillDatabaseID = nil
-        sharedDefaults.removeObject(forKey: migrationVersionKey)
-        remainingUITestLocalSaveConflicts = nil
-        consumedUITestLocalSaveConflicts = 0
+        withStateLock {
+            let currentDatabases = loadDatabases()
+            currentDatabases.forEach { remove(id: $0.id) }
+            try? FileManager.default.removeItem(at: databaseListURL)
+            try? FileManager.default.removeItem(at: backupsRootURL)
+            try? PendingUploadQueue.clearAll()
+            activeAutoFillDatabaseID = nil
+            sharedDefaults.removeObject(forKey: migrationVersionKey)
+            remainingUITestLocalSaveConflicts = nil
+            consumedUITestLocalSaveConflicts = 0
+        }
     }
 
     static func consumeUITestLocalSaveConflictSequence() -> Int? {
@@ -499,52 +543,56 @@ enum DatabaseListStore {
     // MARK: - Private
 
     private static func loadDatabases() -> [DatabaseReference] {
-        bootstrapForUITestingIfNeeded()
-        migrateFromSharedVaultStoreIfNeeded()
+        withStateLock {
+            bootstrapForUITestingIfNeeded()
+            migrateFromSharedVaultStoreIfNeeded()
 
-        guard let data = try? Data(contentsOf: databaseListURL) else {
-            return []
+            guard let data = try? Data(contentsOf: databaseListURL) else {
+                return []
+            }
+
+            guard let decoded = try? JSONDecoder().decode([DatabaseReference].self, from: data) else {
+                return []
+            }
+
+            return normalized(decoded)
         }
-
-        guard let decoded = try? JSONDecoder().decode([DatabaseReference].self, from: data) else {
-            return []
-        }
-
-        return normalized(decoded)
     }
 
     private static func saveDatabases(_ references: [DatabaseReference]) {
-        let normalizedReferences = normalized(references)
-        let encoded: Data
+        withStateLock {
+            let normalizedReferences = normalized(references)
+            let encoded: Data
 
-        do {
-            let encoder = JSONEncoder()
-            encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-            encoded = try encoder.encode(normalizedReferences)
-        } catch {
-            return
-        }
+            do {
+                let encoder = JSONEncoder()
+                encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+                encoded = try encoder.encode(normalizedReferences)
+            } catch {
+                return
+            }
 
-        do {
-            let parentDirectory = databaseListURL.deletingLastPathComponent()
-            try FileManager.default.createDirectory(
-                at: parentDirectory,
-                withIntermediateDirectories: true,
-                attributes: nil
-            )
-            try CoordinatedFileReader.writeData(
-                encoded,
-                to: databaseListURL,
-                options: .atomicProtected
-            )
-            sharedDefaults.set(currentMigrationVersion, forKey: migrationVersionKey)
-        } catch {
-            return
-        }
+            do {
+                let parentDirectory = databaseListURL.deletingLastPathComponent()
+                try FileManager.default.createDirectory(
+                    at: parentDirectory,
+                    withIntermediateDirectories: true,
+                    attributes: nil
+                )
+                try CoordinatedFileReader.writeData(
+                    encoded,
+                    to: databaseListURL,
+                    options: .atomicProtected
+                )
+                sharedDefaults.set(currentMigrationVersion, forKey: migrationVersionKey)
+            } catch {
+                return
+            }
 
-        if let activeAutoFillDatabaseID,
-           normalizedReferences.contains(where: { $0.id == activeAutoFillDatabaseID }) == false {
-            self.activeAutoFillDatabaseID = nil
+            if let activeAutoFillDatabaseID,
+               normalizedReferences.contains(where: { $0.id == activeAutoFillDatabaseID }) == false {
+                self.activeAutoFillDatabaseID = nil
+            }
         }
     }
 

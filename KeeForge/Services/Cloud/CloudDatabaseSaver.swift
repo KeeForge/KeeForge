@@ -153,17 +153,24 @@ enum CloudDatabaseSaver {
         }
         let newData = try environment.encryptDraft(draft, compositeKey, header)
 
+        // Back up the pre-save local bytes before uploading. `currentData` is
+        // available up front, so writing the backup first keeps every local
+        // file operation ahead of the remote change. If the backup instead
+        // ran after a successful upload, a local write failure there would
+        // report the whole save as failed even though the remote already
+        // advanced — surfacing as a spurious "changed outside KeeForge"
+        // conflict on the next retry.
+        let backupDirectoryURL = environment.backupDirectoryURL(reference)
+        try environment.createDirectory(backupDirectoryURL)
+
+        let backupURL = backupDirectoryURL.appendingPathComponent(
+            backupFilename(for: environment.now()),
+            isDirectory: false
+        )
+        try environment.writeBackup(currentData, backupURL)
+
         do {
             let uploadedMetadata = try await environment.upload(reference, newData, expectedRev, { _ in })
-
-            let backupDirectoryURL = environment.backupDirectoryURL(reference)
-            try environment.createDirectory(backupDirectoryURL)
-
-            let backupURL = backupDirectoryURL.appendingPathComponent(
-                backupFilename(for: environment.now()),
-                isDirectory: false
-            )
-            try environment.writeBackup(currentData, backupURL)
 
             _ = try environment.applyUploadedBytes(reference, newData, uploadedMetadata)
             try? environment.pruneBackups(reference, 5)
@@ -305,6 +312,16 @@ enum CloudDatabaseSaver {
             to: tempURL,
             progress: { _ in }
         )
+        #if os(iOS)
+        // iOS Data Protection; every other on-disk copy of database bytes gets
+        // class A, so the staged ciphertext must too. On macOS setting a
+        // protection class either fails or leaves the file unreadable —
+        // FileVault covers at-rest encryption there instead.
+        try FileManager.default.setAttributes(
+            [.protectionKey: FileProtectionType.complete],
+            ofItemAtPath: tempURL.path
+        )
+        #endif
         return try Data(contentsOf: tempURL)
     }
 }

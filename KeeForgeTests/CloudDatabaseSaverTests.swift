@@ -184,7 +184,10 @@ final class CloudDatabaseSaverTests: XCTestCase {
         XCTAssertEqual(remoteSHA512, KDBXCrypto.sha512(remoteData))
         XCTAssertEqual(conflictData, remoteData)
         XCTAssertEqual(try Data(contentsOf: cacheURL), context.currentData)
-        XCTAssertTrue(DatabaseListStore.recentBackups(for: reference).isEmpty)
+        // The pre-save backup is written before the upload, so a conflicting
+        // upload still leaves a backup of the pre-save local bytes behind.
+        let backupURL = try XCTUnwrap(DatabaseListStore.recentBackups(for: reference).first)
+        XCTAssertEqual(try Data(contentsOf: backupURL), context.currentData)
     }
 
     func testSaveRemoteRevChangedBeforeUploadReturnsConflictWithoutUploadAttempt() async throws {
@@ -328,7 +331,10 @@ final class CloudDatabaseSaverTests: XCTestCase {
 
         XCTAssertEqual(uploadCallCount, 1)
         XCTAssertEqual(try Data(contentsOf: cacheURL), context.currentData)
-        XCTAssertTrue(DatabaseListStore.recentBackups(for: reference).isEmpty)
+        // The pre-save backup is written before the upload, so a failed upload
+        // still leaves a backup of the pre-save local bytes behind.
+        let backupURL = try XCTUnwrap(DatabaseListStore.recentBackups(for: reference).first)
+        XCTAssertEqual(try Data(contentsOf: backupURL), context.currentData)
     }
 
     func testSaveNetworkFailureDoesNotCorruptCache() async throws {
@@ -370,7 +376,10 @@ final class CloudDatabaseSaverTests: XCTestCase {
 
         XCTAssertEqual(uploadCallCount, 1)
         XCTAssertEqual(try Data(contentsOf: cacheURL), context.currentData)
-        XCTAssertTrue(DatabaseListStore.recentBackups(for: reference).isEmpty)
+        // The pre-save backup is written before the upload, so a failed upload
+        // still leaves a backup of the pre-save local bytes behind.
+        let backupURL = try XCTUnwrap(DatabaseListStore.recentBackups(for: reference).first)
+        XCTAssertEqual(try Data(contentsOf: backupURL), context.currentData)
     }
 
     func testSaveSavesBackupLikeLocalSaverAndPrunesToFiveNewest() async throws {

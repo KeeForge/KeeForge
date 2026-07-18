@@ -299,6 +299,45 @@ final class DatabaseListStoreTests: XCTestCase {
         XCTAssertEqual(storedReference.bookmarkData, reference.bookmarkData)
     }
 
+    func testConcurrentUpdatesDoNotLoseWrites() async throws {
+        // Detached cloud-upload tasks call `update(_:)` off the main actor while
+        // main-actor writers mutate the same `database-list.json`. Each
+        // mutator's load-modify-save must run atomically, or concurrent updates
+        // clobber one another's changes with a stale snapshot.
+        let referenceCount = 32
+        let references: [DatabaseReference] = (0..<referenceCount).map { index in
+            DatabaseListStore.addCloud(
+                provider: CloudProviderKind.dropbox.rawValue,
+                accountId: "acct-1",
+                file: CloudFile(
+                    id: "/Vaults/concurrent-\(index).kdbx",
+                    name: "concurrent-\(index).kdbx",
+                    path: "/Vaults/concurrent-\(index).kdbx",
+                    isFolder: false,
+                    modifiedDate: nil,
+                    size: nil
+                )
+            )
+        }
+
+        await withTaskGroup(of: Void.self) { group in
+            for reference in references {
+                group.addTask {
+                    var mutated = reference
+                    mutated.nickname = "nick-\(reference.id.uuidString)"
+                    DatabaseListStore.update(mutated)
+                }
+            }
+        }
+
+        let stored = DatabaseListStore.databases
+        XCTAssertEqual(stored.count, referenceCount)
+        for reference in references {
+            let match = stored.first(where: { $0.id == reference.id })
+            XCTAssertEqual(match?.nickname, "nick-\(reference.id.uuidString)")
+        }
+    }
+
     private func makeTemporaryFileURL(name: String, contents: Data = Data("fixture".utf8)) throws -> URL {
         let url = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString)
