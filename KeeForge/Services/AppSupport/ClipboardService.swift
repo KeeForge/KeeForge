@@ -1,20 +1,44 @@
 #if os(iOS)
 import UIKit
 
+/// iOS pasteboard behavior.
+///
+/// Every copy expires automatically via `UIPasteboard`'s `.expirationDate`
+/// option and stays off Universal Clipboard via `.localOnly`. On database
+/// lock, `clearOwnedContents()` additionally scrubs a still-pending copy
+/// early — otherwise a password copied just before locking would linger on
+/// the pasteboard for the rest of its expiration window. The clear is
+/// guarded by `changeCount` (mirroring the macOS branch below) so content
+/// the user copied elsewhere afterwards is never clobbered.
+@MainActor
 enum ClipboardService {
+    private static var ownedChangeCount: Int?
+
     static func copy(_ string: String) {
-        UIPasteboard.general.setItems(
+        let pasteboard = UIPasteboard.general
+        pasteboard.setItems(
             [[UIPasteboard.typeAutomatic: string]],
             options: [
                 .expirationDate: Date().addingTimeInterval(SettingsService.clipboardTimeout.seconds),
                 .localOnly: true,
             ]
         )
+        ownedChangeCount = pasteboard.changeCount
     }
 
-    /// iOS relies on `UIPasteboard`'s built-in expiration; there is nothing to
-    /// clear eagerly on lock. No-op so shared call sites stay clean.
-    static func clearOwnedContents() {}
+    /// Clears the pasteboard only if the most recent write is still ours
+    /// (changeCount guard) so we never clobber something the user copied
+    /// afterwards. Called on database lock; natural expiration also bumps
+    /// `changeCount`, so an already-expired copy is left untouched here.
+    static func clearOwnedContents() {
+        defer { ownedChangeCount = nil }
+        guard let ownedChangeCount else { return }
+
+        let pasteboard = UIPasteboard.general
+        if pasteboard.changeCount == ownedChangeCount {
+            pasteboard.items = []
+        }
+    }
 }
 #else
 import AppKit

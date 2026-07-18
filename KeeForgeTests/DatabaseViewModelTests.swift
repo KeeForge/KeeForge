@@ -779,6 +779,47 @@ final class DatabaseViewModelTests: XCTestCase {
         XCTAssertTrue(vm.searchResults.isEmpty)
     }
 
+    func testSearchResultsMatchDiacriticInsensitively() async throws {
+        let created = try await DatabaseCreationService.create(
+            request: DatabaseCreationRequest(
+                displayName: "Diacritics",
+                destination: .appOnlyAcknowledged,
+                password: "diacritics password"
+            )
+        )
+        let vm = DatabaseViewModel(createdDatabase: created)
+        let parentGroupID = try XCTUnwrap(vm.visibleRootGroupID)
+
+        try vm.applyEntryEdit(
+            .createEntry(
+                parentGroupID: parentGroupID,
+                draft: EntryDraftPayload(title: "Café Münchén")
+            )
+        )
+
+        for query in ["Café", "cafe", "CAFÉ", "Münchén", "munchen"] {
+            vm.searchText = query
+            XCTAssertTrue(
+                vm.searchResults.contains(where: { $0.title == "Café Münchén" }),
+                "Expected diacritic-insensitive match for query \"\(query)\""
+            )
+        }
+    }
+
+    func testWhitespaceOnlySearchQueryIsTreatedAsEmpty() async throws {
+        let vm = try makeViewModel()
+        await vm.unlock(password: fixturePassword)
+
+        XCTAssertTrue(vm.isSearchQueryEmpty)
+
+        vm.searchText = "   \n"
+        XCTAssertTrue(vm.isSearchQueryEmpty)
+        XCTAssertTrue(vm.searchResults.isEmpty)
+
+        vm.searchText = "a"
+        XCTAssertFalse(vm.isSearchQueryEmpty)
+    }
+
     func testLockClearsSensitiveAndNavigationState() async throws {
         let vm = try makeViewModel()
         await vm.unlock(password: fixturePassword)

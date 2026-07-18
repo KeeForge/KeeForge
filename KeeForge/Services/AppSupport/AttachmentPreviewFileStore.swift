@@ -43,6 +43,17 @@ enum AttachmentPreviewFileStore {
         trackedURLs.remove(url)
     }
 
+    /// Deletes any preview files left behind by a previous process that
+    /// terminated without locking (crash, force-quit, jetsam), so plaintext
+    /// attachment bytes from an earlier session never persist into this one.
+    /// Called once at app launch, before any preview is written; the
+    /// `trackedURLs` guard makes stray later calls a no-op while a preview
+    /// from the current session is live.
+    static func purgeOrphanedFiles() {
+        guard trackedURLs.isEmpty else { return }
+        try? FileManager.default.removeItem(at: directory)
+    }
+
     /// Removes every tracked temp file. Called on database lock so plaintext
     /// attachment bytes never outlive the unlocked session.
     static func clearAll() {

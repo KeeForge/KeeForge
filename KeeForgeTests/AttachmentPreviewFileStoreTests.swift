@@ -49,6 +49,34 @@ final class AttachmentPreviewFileStoreTests: XCTestCase {
         AttachmentPreviewFileStore.remove(fallbackURL)
     }
 
+    func testPurgeOrphanedFilesDeletesLeftoversFromPriorSession() throws {
+        // Simulate a file orphaned by a crashed prior process: it exists on
+        // disk under the preview directory but is not tracked in memory.
+        let fm = FileManager.default
+        let orphanDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("attachment-previews", isDirectory: true)
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try fm.createDirectory(at: orphanDirectory, withIntermediateDirectories: true)
+        let orphan = orphanDirectory.appendingPathComponent("stale.txt")
+        try Data("stale".utf8).write(to: orphan)
+
+        AttachmentPreviewFileStore.purgeOrphanedFiles()
+
+        XCTAssertFalse(fm.fileExists(atPath: orphan.path))
+        XCTAssertFalse(fm.fileExists(atPath: orphanDirectory.path))
+    }
+
+    func testPurgeOrphanedFilesKeepsLivePreviewsFromCurrentSession() throws {
+        let url = try AttachmentPreviewFileStore.write(Data("live".utf8), suggestedName: "live.txt")
+
+        AttachmentPreviewFileStore.purgeOrphanedFiles()
+
+        XCTAssertTrue(FileManager.default.fileExists(atPath: url.path))
+        XCTAssertEqual(try Data(contentsOf: url), Data("live".utf8))
+
+        AttachmentPreviewFileStore.remove(url)
+    }
+
     func testDistinctWritesWithSameNameDoNotCollide() throws {
         let first = try AttachmentPreviewFileStore.write(Data("first".utf8), suggestedName: "same.txt")
         let second = try AttachmentPreviewFileStore.write(Data("second".utf8), suggestedName: "same.txt")

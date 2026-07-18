@@ -292,14 +292,18 @@ final class CredentialProviderCoordinator {
                    let entry = passwordEntries.first(where: { $0.id.uuidString == recordIdentifier }) {
                     completeRequest(with: entry)
                 } else {
-                    let matches = CredentialMatcher.matchedEntries(
+                    // Zero-interaction fallback: only an unambiguous host-based
+                    // match may be filled without the user picking an entry.
+                    let matches = CredentialMatcher.strictMatchedEntries(
                         from: passwordEntries,
                         for: [credentialIdentity.serviceIdentifier]
                     )
-                    if let entry = matches.first {
+                    if matches.count == 1, let entry = matches.first {
                         completeRequest(with: entry)
-                    } else {
+                    } else if matches.isEmpty {
                         cancelRequest(code: .credentialIdentityNotFound)
+                    } else {
+                        cancelRequest(code: .userInteractionRequired)
                     }
                 }
             } catch {
@@ -677,8 +681,11 @@ final class CredentialProviderCoordinator {
         }
 
         let matches = CredentialMatcher.matchedEntries(from: passwordEntries, for: serviceIdentifiers)
+        let strictMatches = CredentialMatcher.strictMatchedEntries(from: passwordEntries, for: serviceIdentifiers)
 
-        if matches.count == 1, let entry = matches.first {
+        // Auto-complete without a picker only when the single candidate matched
+        // on host, not on a weaker URL/title substring signal.
+        if matches.count == 1, strictMatches.count == 1, let entry = strictMatches.first {
             completeRequest(with: entry)
             return
         }
@@ -980,8 +987,11 @@ final class CredentialProviderCoordinator {
         }
 
         let matches = CredentialMatcher.matchedEntries(from: totpEntries, for: serviceIdentifiers)
+        let strictMatches = CredentialMatcher.strictMatchedEntries(from: totpEntries, for: serviceIdentifiers)
 
-        if matches.count == 1, let entry = matches.first {
+        // Auto-complete without a picker only when the single candidate matched
+        // on host, not on a weaker URL/title substring signal.
+        if matches.count == 1, strictMatches.count == 1, let entry = strictMatches.first {
             completeOTCRequest(with: entry)
             return
         }

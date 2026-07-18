@@ -52,7 +52,12 @@ enum CoordinatedFileReader {
         if let coordinatorError {
             throw coordinatorError
         }
-        return try result!.get()
+
+        guard let result else {
+            throw CocoaError(.fileReadUnknown)
+        }
+
+        return try result.get()
     }
 
     static func readDataPrefix(from url: URL, byteCount: Int) throws -> Data {
@@ -99,7 +104,12 @@ enum CoordinatedFileReader {
         if let coordinatorError {
             throw coordinatorError
         }
-        try writeResult!.get()
+
+        guard let writeResult else {
+            throw CocoaError(.fileWriteUnknown)
+        }
+
+        try writeResult.get()
     }
 }
 

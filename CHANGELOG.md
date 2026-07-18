@@ -2,7 +2,17 @@
 
 ## Unreleased
 
+### Security
+
+- AutoFill no longer fills a credential without user selection unless the stored URL's host exactly matches or is a subdomain of the requested site; URL- and title-substring matches (e.g. `mybank.com` for a `bank.com` request) now only appear in the interactive picker, and the no-interaction fallback with several candidates defers to the picker instead of filling the first match.
+
 ### Fixes
+
+- Search is now diacritic-insensitive in both directions: searching "Café" finds entries stored as "cafe" and vice versa, matching how the search index was already folded.
+- A search box containing only whitespace now shows the neutral search placeholder instead of a "No entries matched" message quoting the blank query.
+- Locking a database on iOS now immediately clears a password copied via KeeForge from the clipboard (changeCount-guarded, so content copied elsewhere afterward is never touched) instead of leaving it until the clipboard timeout expires.
+- Decrypted attachment-preview temp files left behind by a crash or force-quit are now purged at the next app launch instead of lingering until the next lock.
+- Coordinated file reads and writes now surface a recoverable error instead of crashing if an unresponsive file provider returns without running the file accessor.
 
 - Fix a cloud-sync data-loss risk where a credential saved through AutoFill (while another device had newer changes) could be silently lost. The queued upload now verifies its bytes against the saved snapshot before pushing, the shared cache is backed up before a sync-down overwrites it, and the drainer no longer force-pushes over a genuine cross-device conflict.
 - Fix overlapping cloud upload drains (app foreground plus the AutoFill "enqueued" notification firing together) that could create duplicate cloud revisions or resurrect an already-completed upload; drains are now coalesced and serialized, and a dropped queue marker can no longer be recreated by a losing drain.

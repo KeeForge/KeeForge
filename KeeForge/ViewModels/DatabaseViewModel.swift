@@ -220,6 +220,11 @@ final class DatabaseViewModel {
             updateSearchResults()
         }
     }
+    /// Whether the search query is empty after trimming whitespace, matching
+    /// how `updateSearchResults()` decides there is nothing to search.
+    var isSearchQueryEmpty: Bool {
+        searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
     var isSearchActive = false {
         didSet { resetInactivityTimer() }
     }
@@ -740,9 +745,8 @@ final class DatabaseViewModel {
     func lock(manuallyTriggered: Bool = false) {
         cancelInactivityTimer()
         backgroundEnteredAt = nil
-        // macOS: clear a still-pending secure copy so locking also scrubs the
+        // Clear a still-pending secure copy so locking also scrubs the
         // pasteboard (changeCount-guarded; never clobbers a later user copy).
-        // No-op on iOS, where pasteboard expiration handles this.
         ClipboardService.clearOwnedContents()
         if manuallyTriggered {
             didManuallyLock = true
@@ -1319,7 +1323,9 @@ final class DatabaseViewModel {
             return
         }
 
-        let query = trimmedQuery.lowercased()
+        let query = trimmedQuery
+            .folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
+            .lowercased()
         searchResults = searchableEntries.filter { entry in
             searchableEntryText[entry.id]?.contains(query) == true
         }

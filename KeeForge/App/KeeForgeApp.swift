@@ -66,6 +66,11 @@ struct KeeForgeApp: App {
                 }
             }
             .task {
+                // Sweep plaintext attachment-preview temp files orphaned by a
+                // previous process that died without locking (crash, force-quit).
+                // Runs before any preview can be written this session; the
+                // store skips the sweep if a live preview is already tracked.
+                AttachmentPreviewFileStore.purgeOrphanedFiles()
                 // Start the StoreKit transaction listener at launch so out-of-app
                 // completions (Ask to Buy, deferred SCA, purchases interrupted
                 // before finishing) are delivered and finished even if the Tip Jar

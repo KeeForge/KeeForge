@@ -1,7 +1,28 @@
 import AuthenticationServices
 
 enum CredentialMatcher {
+    /// Host-based matches only: a stored URL's host equals the requested
+    /// domain or is a dotted subdomain of it (`login.paypal.com` matches
+    /// `paypal.com`, but `mybank.com` does NOT match `bank.com`). These are
+    /// the only matches safe to fill without an explicit user selection.
+    static func strictMatchedEntries(from entries: [KPEntry], for identifiers: [ASCredentialServiceIdentifier]) -> [KPEntry] {
+        matchedEntries(from: entries, for: identifiers, strict: true)
+    }
+
+    /// Broad matches for interactive pickers: host matches plus URL and
+    /// title substring matches. Substring matches can surface wrong-origin
+    /// entries (`mybank.com` for a `bank.com` request), so results must
+    /// never be filled without the user explicitly choosing from a list —
+    /// use `strictMatchedEntries` to decide any auto-complete path.
     static func matchedEntries(from entries: [KPEntry], for identifiers: [ASCredentialServiceIdentifier]) -> [KPEntry] {
+        matchedEntries(from: entries, for: identifiers, strict: false)
+    }
+
+    private static func matchedEntries(
+        from entries: [KPEntry],
+        for identifiers: [ASCredentialServiceIdentifier],
+        strict: Bool
+    ) -> [KPEntry] {
         guard !identifiers.isEmpty else { return [] }
 
         let searchTerms = Set(identifiers.compactMap(searchTerm(for:)).map { $0.lowercased() })
@@ -16,11 +37,11 @@ enum CredentialMatcher {
                     if let host, host == term || host.hasSuffix(".\(term)") {
                         return true
                     }
-                    if urlString.lowercased().contains(term) {
+                    if !strict, urlString.lowercased().contains(term) {
                         return true
                     }
                 }
-                return entry.title.lowercased().contains(term)
+                return !strict && entry.title.lowercased().contains(term)
             }
         }
     }

@@ -10,7 +10,7 @@ struct SearchView: View {
 
     var body: some View {
         Group {
-            if viewModel.searchText.isEmpty {
+            if viewModel.isSearchQueryEmpty {
                 ContentUnavailableView(
                     "Search Entries",
                     systemImage: "magnifyingglass",

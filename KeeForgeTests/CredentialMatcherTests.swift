@@ -146,6 +146,90 @@ final class CredentialMatcherTests: XCTestCase {
         XCTAssertTrue(CredentialMatcher.matchedEntries(from: [expiredEntry], for: ids).isEmpty)
     }
 
+    // MARK: - Strict vs fuzzy tiering
+
+    func testStrictDoesNotMatchHostSubstring() {
+        // Requesting bank.com must NOT surface a stored mybank.com entry as a
+        // strict (auto-fillable) match, even though "mybank.com" contains "bank.com".
+        let entries = [makeEntry(title: "My Bank", url: "https://mybank.com/login", username: "u", password: "p")]
+        let ids = [ASCredentialServiceIdentifier(identifier: "bank.com", type: .domain)]
+        XCTAssertTrue(CredentialMatcher.strictMatchedEntries(from: entries, for: ids).isEmpty)
+        // The fuzzy tier may still surface it for an interactive picker.
+        XCTAssertEqual(CredentialMatcher.matchedEntries(from: entries, for: ids).count, 1)
+    }
+
+    func testStrictDoesNotMatchPartialLabelSubstring() {
+        // Requesting pal.com must not strictly match a stored paypal.com entry.
+        let entries = [makeEntry(title: "PayPal", url: "https://paypal.com", username: "u", password: "p")]
+        let ids = [ASCredentialServiceIdentifier(identifier: "pal.com", type: .domain)]
+        XCTAssertTrue(CredentialMatcher.strictMatchedEntries(from: entries, for: ids).isEmpty)
+    }
+
+    func testStrictMatchesExactHost() {
+        let entries = [makeEntry(title: "PayPal", url: "https://paypal.com/signin", username: "u", password: "p")]
+        let ids = [ASCredentialServiceIdentifier(identifier: "paypal.com", type: .domain)]
+        XCTAssertEqual(CredentialMatcher.strictMatchedEntries(from: entries, for: ids).count, 1)
+    }
+
+    func testStrictMatchesDottedSubdomain() {
+        let entries = [makeEntry(title: "PayPal", url: "https://login.paypal.com", username: "u", password: "p")]
+        let ids = [ASCredentialServiceIdentifier(identifier: "paypal.com", type: .domain)]
+        XCTAssertEqual(CredentialMatcher.strictMatchedEntries(from: entries, for: ids).count, 1)
+    }
+
+    func testStrictDoesNotMatchTermInURLPath() {
+        // A term appearing in the path of an unrelated host must not strictly match.
+        let entries = [makeEntry(title: "Evil", url: "https://evil.example/bank.com/login", username: "u", password: "p")]
+        let ids = [ASCredentialServiceIdentifier(identifier: "bank.com", type: .domain)]
+        XCTAssertTrue(CredentialMatcher.strictMatchedEntries(from: entries, for: ids).isEmpty)
+        XCTAssertEqual(CredentialMatcher.matchedEntries(from: entries, for: ids).count, 1)
+    }
+
+    func testStrictDoesNotMatchTitleSubstring() {
+        // Title-only signal is too weak for auto-fill; only the picker may use it.
+        let entries = [makeEntry(title: "github.com backup codes", url: "", username: "u", password: "p")]
+        let ids = [ASCredentialServiceIdentifier(identifier: "github.com", type: .domain)]
+        XCTAssertTrue(CredentialMatcher.strictMatchedEntries(from: entries, for: ids).isEmpty)
+        XCTAssertEqual(CredentialMatcher.matchedEntries(from: entries, for: ids).count, 1)
+    }
+
+    func testStrictMatchesAdditionalURLHost() {
+        let entries = [makeEntry(title: "GitHub", url: "https://example.org", username: "u", password: "p",
+                                 customFields: ["KP2A_URL_1": "https://gist.github.com"])]
+        let ids = [ASCredentialServiceIdentifier(identifier: "github.com", type: .domain)]
+        XCTAssertEqual(CredentialMatcher.strictMatchedEntries(from: entries, for: ids).count, 1)
+    }
+
+    func testStrictSkipsExpiredEntries() {
+        let expiredEntry = KPEntry(
+            title: "GitHub",
+            username: "user",
+            password: EncryptedValue(sealedData: Data([0]), hasValue: true),
+            url: "https://github.com",
+            expires: true,
+            expiryTime: .distantPast
+        )
+        let ids = [ASCredentialServiceIdentifier(identifier: "github.com", type: .domain)]
+        XCTAssertTrue(CredentialMatcher.strictMatchedEntries(from: [expiredEntry], for: ids).isEmpty)
+    }
+
+    func testStrictIsSubsetOfFuzzy() {
+        let entries = [
+            makeEntry(title: "PayPal", url: "https://paypal.com", username: "a", password: "p"),
+            makeEntry(title: "My Bank", url: "https://mybank.com", username: "b", password: "p"),
+            makeEntry(title: "paypal.com note", url: "", username: "c", password: "p"),
+        ]
+        let ids = [ASCredentialServiceIdentifier(identifier: "paypal.com", type: .domain)]
+        let strict = CredentialMatcher.strictMatchedEntries(from: entries, for: ids)
+        let fuzzy = CredentialMatcher.matchedEntries(from: entries, for: ids)
+        XCTAssertEqual(strict.count, 1)
+        XCTAssertEqual(strict.first?.username, "a")
+        XCTAssertEqual(fuzzy.count, 2)
+        for entry in strict {
+            XCTAssertTrue(fuzzy.contains { $0.id == entry.id })
+        }
+    }
+
     // MARK: - Additional URL Matching
 
     func testMatchesOnAdditionalURL() {
