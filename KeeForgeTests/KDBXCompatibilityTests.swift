@@ -89,6 +89,71 @@ final class KDBXCompatibilityTests: XCTestCase {
         XCTAssertTrue(afterMetaUnknownXML.contains("RoundTripMetaValue-Expected"))
     }
 
+    func test_metaWithoutRecycleBinUUID_doesNotDuplicateOpaqueMetaChildrenAcrossSaves() throws {
+        // Regression: serializeMeta emitted the index-0 opaque fragments
+        // unconditionally, then re-emitted them at the next emission site
+        // whenever RecycleBinUUID was absent (knownChildCount never advanced
+        // past 0). Every save doubled the pre-RecycleBinUUID Meta children.
+        let loaded = try KDBXCompatibilitySupport.load(.syntheticRich, bundle: bundle, sessionKey: entrySessionKey)
+
+        var unknownXML = OpaqueXMLNodes()
+        // Opaque Meta children recorded before the first modeled element all
+        // sit at insertionIndex 0 (see KDBXParser.recordOpaqueXML, "Meta").
+        unknownXML.append(xml: "<Generator>KeeForge-Sweep</Generator>", insertionIndex: 0)
+        unknownXML.append(xml: "<DatabaseName>Sweep Meta Fixture</DatabaseName>", insertionIndex: 0)
+        unknownXML.append(
+            xml: "<CustomData><Item><Key>SweepMetaKey</Key><Value>SweepMetaValue</Value></Item></CustomData>",
+            insertionIndex: 0
+        )
+
+        // Omit RecycleBinUUID but keep a modeled element (MaintenanceHistoryDays)
+        // so the mid-list emission site is exercised, not only trailingOpaqueXML.
+        let meta = KPMeta(
+            recycleBinUUID: nil,
+            hasRecycleBinUUIDElement: false,
+            maintenanceHistoryDays: KPMeta.defaultMaintenanceHistoryDays,
+            unknownXML: unknownXML
+        )
+
+        func writeAndReparseMeta(_ meta: KPMeta) throws -> KPMeta {
+            let data = try KDBXWriter.write(
+                rootGroup: loaded.rootGroup,
+                meta: meta,
+                compositeKey: loaded.compositeKey,
+                header: loaded.header,
+                sessionKey: entrySessionKey
+            )
+            return try KDBXParser.parseWithMeta(
+                data: data,
+                compositeKey: loaded.compositeKey,
+                sessionKey: entrySessionKey
+            ).meta
+        }
+
+        func assertNoDuplication(_ reparsed: KPMeta, _ label: String) {
+            XCTAssertNil(reparsed.recycleBinUUID, label)
+            XCTAssertFalse(reparsed.hasRecycleBinUUIDElement, label)
+            XCTAssertEqual(reparsed.maintenanceHistoryDays, KPMeta.defaultMaintenanceHistoryDays, label)
+            for marker in ["<Generator>", "<DatabaseName>", "<CustomData>", "SweepMetaValue"] {
+                let count = reparsed.unknownXML.nodes.filter { $0.xml.contains(marker) }.count
+                XCTAssertEqual(count, 1, "\(label): opaque Meta child \(marker) duplicated")
+            }
+            // Every fragment survives at its original position; none dropped.
+            XCTAssertEqual(reparsed.unknownXML.nodes.count, 3, label)
+            XCTAssertTrue(reparsed.unknownXML.nodes.allSatisfy { $0.insertionIndex == 0 }, label)
+        }
+
+        let firstSave = try writeAndReparseMeta(meta)
+        assertNoDuplication(firstSave, "first save")
+
+        // A second save of the already-reparsed Meta must remain stable — the
+        // pre-fix bug compounded the duplication on every save.
+        let secondSave = try writeAndReparseMeta(firstSave)
+        assertNoDuplication(secondSave, "second save")
+
+        XCTAssertEqual(firstSave.unknownXML.nodes, secondSave.unknownXML.nodes)
+    }
+
     func test_kdbx41Fixture_capturesAndPreservesUnknownOuterHeaderFields() throws {
         let loaded = try KDBXCompatibilitySupport.load(.kdbx41PublicCustomData, bundle: bundle)
 

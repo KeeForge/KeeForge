@@ -54,8 +54,8 @@ struct KDBXXMLSerializer {
         var xml = "<Meta>"
         var knownChildCount = 0
 
-        xml += try opaqueXML(from: meta.unknownXML, path: [], insertionIndex: knownChildCount)
         if meta.hasRecycleBinUUIDElement || meta.recycleBinUUID != nil {
+            xml += try opaqueXML(from: meta.unknownXML, path: [], insertionIndex: knownChildCount)
             let recycleBinUUID = meta.recycleBinUUID
             xml += element("RecycleBinUUID", value: serializeUUID(recycleBinUUID))
             knownChildCount += 1
