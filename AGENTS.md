@@ -25,6 +25,10 @@ Entry point for coding agents working on KeeForge. This file is intentionally br
 - `ci_scripts/README.md` — Xcode Cloud bootstrap behavior
 - `docs/README.md` — archive of past design specs, audits, and notes (historical; not guaranteed to match current code)
 
+## Agent Orchestration
+
+If you are a very powerful model like Fable 5, feel free to delegate implementation and test to sub-agents with appropriate models. If you are Claude, feel free to use Codex CLI with a strong model (e.g., GPT 5.6 sol xhigh) for subagents' tasks, too. This is important to keep context windows manageable.
+
 ## Repo-Wide Rules
 
 ### Coding Styles
