@@ -14,6 +14,7 @@ final class StoreKitManager {
     enum PurchaseResult: Equatable {
         case success
         case cancelled
+        case pending
         case error(String)
     }
 
@@ -28,6 +29,19 @@ final class StoreKitManager {
     private var updatesTask: Task<Void, Never>?
 
     private init() {
+        start()
+    }
+
+    /// Starts the `Transaction.updates` listener if it is not already running.
+    ///
+    /// Idempotent, so it is safe to call from both `init` and app launch. Touch
+    /// `StoreKitManager.shared` (which calls this via `init`) early at launch so
+    /// out-of-app transaction completions — Ask to Buy approvals, deferred SCA,
+    /// and purchases interrupted before `finish()` — are delivered and finished
+    /// even when the Tip Jar is never opened. The singleton guarantees a single
+    /// listener regardless of how many callers touch `shared`.
+    func start() {
+        guard updatesTask == nil else { return }
         updatesTask = listenForTransactions()
     }
 
@@ -66,10 +80,23 @@ final class StoreKitManager {
             let products = try await Product.products(for: Self.tipProductIDs)
             tips = products.sorted { $0.price < $1.price }
         } catch {
-            tips = []
+            // A transient load failure (e.g. no network) must not wipe a list
+            // that was already fetched successfully. Leave any previously loaded
+            // tips in place; if nothing was ever loaded, `tips` stays empty and
+            // the view surfaces the "not available" state once loading finishes.
         }
     }
 
+    /// Best-effort reconciliation of the persisted tip flag from StoreKit history.
+    ///
+    /// Tips are consumable products, so completed purchases only appear in
+    /// `Transaction.all` on iOS 18+/macOS 15+ (and only with
+    /// `SKIncludeConsumableInAppPurchaseHistory` set in Info.plist, which it is).
+    /// On our minimum deployment targets (iOS 17 / macOS 14) this history can be
+    /// empty even for someone who has tipped, so the persisted
+    /// `SettingsService.hasTipped` flag remains the source of truth. This method
+    /// only ever *promotes* `hasTipped` to true via `rememberTip()` and never
+    /// regresses a previously recorded tip back to false.
     func refreshTipHistory() async {
         for await result in Transaction.all {
             guard case .verified(let transaction) = result else { continue }
@@ -98,7 +125,11 @@ final class StoreKitManager {
             case .userCancelled:
                 purchaseResult = .cancelled
             case .pending:
-                purchaseResult = .cancelled
+                // Ask to Buy / deferred SCA: the purchase is neither done nor
+                // cancelled. Surface it distinctly so the user gets honest
+                // feedback instead of silence. The `Transaction.updates`
+                // listener finishes it once (and if) it is approved.
+                purchaseResult = .pending
             @unknown default:
                 purchaseResult = .error("Unknown purchase result.")
             }

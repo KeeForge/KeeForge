@@ -4,8 +4,15 @@ import SwiftUI
 struct TipJarView: View {
     private var store: StoreKitManager { StoreKitManager.shared }
     @State private var showThankYou = false
+    @State private var purchaseNotice: PurchaseNotice?
 
     @State private var loadingDone = false
+
+    private struct PurchaseNotice: Identifiable {
+        let id = UUID()
+        let title: String
+        let message: String
+    }
 
     var body: some View {
         Section {
@@ -34,14 +41,34 @@ struct TipJarView: View {
             loadingDone = true
         }
         .onChange(of: store.purchaseResult) { _, result in
-            if case .success = result {
+            switch result {
+            case .success:
                 showThankYou = true
+            case .pending:
+                purchaseNotice = PurchaseNotice(
+                    title: "Purchase Pending",
+                    message: "Your tip needs approval before it completes (for example, via Ask to Buy). It'll finish automatically once approved."
+                )
+            case .error(let message):
+                purchaseNotice = PurchaseNotice(
+                    title: "Purchase Failed",
+                    message: message
+                )
+            case .cancelled, nil:
+                break
             }
         }
         .alert("Thank You! 🎉", isPresented: $showThankYou) {
             Button("OK", role: .cancel) {}
         } message: {
             Text("Your support means the world. Thank you for helping keep KeeForge alive!")
+        }
+        .alert(item: $purchaseNotice) { notice in
+            Alert(
+                title: Text(notice.title),
+                message: Text(notice.message),
+                dismissButton: .default(Text("OK"))
+            )
         }
     }
 

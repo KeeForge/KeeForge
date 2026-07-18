@@ -66,6 +66,11 @@ struct KeeForgeApp: App {
                 }
             }
             .task {
+                // Start the StoreKit transaction listener at launch so out-of-app
+                // completions (Ask to Buy, deferred SCA, purchases interrupted
+                // before finishing) are delivered and finished even if the Tip Jar
+                // is never opened. Idempotent and a single shared listener.
+                StoreKitManager.shared.start()
                 pendingUploadDrainer.startObserving {
                     Task {
                         await listViewModel.drainPendingUploadsOnAppActive()
