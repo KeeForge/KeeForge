@@ -56,6 +56,14 @@ enum BiometricService {
     /// `.deviceOwnerAuthentication` still prompts for the login password or
     /// passcode instead of silently skipping authentication.
     static var canAuthenticateDeviceOwner: Bool {
+        // Under UI testing, never route reveal/copy through the system
+        // device-owner prompt: XCUITest cannot dismiss the Face ID/passcode
+        // sheet, so on CI simulators that DO have a passcode enrolled the
+        // reveal flow would hang. Production builds (no `-ui-testing` launch
+        // argument) are unaffected.
+        if ProcessInfo.processInfo.arguments.contains("-ui-testing") {
+            return false
+        }
         var error: NSError?
         return LAContext().canEvaluatePolicy(.deviceOwnerAuthentication, error: &error)
     }

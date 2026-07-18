@@ -23,6 +23,17 @@ final class EntryAttachmentsSmokeUITests: UnlockedDatabaseUITestCase {
         XCTAssertTrue(firstRow.label.contains("note-ü.txt"), "Expected first row to show 'note-ü.txt', got: \(firstRow.label)")
         XCTAssertTrue(secondRow.label.contains("pixel.png"), "Expected second row to show 'pixel.png', got: \(secondRow.label)")
 
+        // Both index-prefixed rows are present for this entry; assert the row
+        // count here — before opening the QuickLook preview — so it does not
+        // depend on the detail view re-rendering after the sheet is dismissed,
+        // a race that is flaky on slower CI simulators. The tap → preview →
+        // dismiss round-trip is covered separately by
+        // testTappingAttachmentRowOpensAndDismissesQuickLookPreview.
+        let attachmentRows = app.buttons.matching(
+            NSPredicate(format: "identifier BEGINSWITH 'entry.attachment.' AND NOT identifier ENDSWITH 'share'")
+        )
+        XCTAssertGreaterThanOrEqual(attachmentRows.count, 2, "Expected at least two attachment rows")
+
         // Tapping a row resolves its bytes; the resolved size is rendered by
         // ByteCountFormatter as "<n> bytes" in a caption that SwiftUI folds
         // into the row button's own accessibility label (e.g.
@@ -34,22 +45,6 @@ final class EntryAttachmentsSmokeUITests: UnlockedDatabaseUITestCase {
         ).firstMatch
         XCTAssertTrue(resolvedFirstRow.waitForExistence(timeout: 10), "Expected a formatted byte-count caption after resolving the first attachment")
         dismissQuickLookIfPresented()
-
-        // Dismissing the QuickLook sheet returns to the entry detail, but the
-        // attachment rows re-render asynchronously. Wait for the second row to
-        // come back before counting so we don't observe a mid-rebuild state
-        // where only the first row exists (flaky on slower CI simulators).
-        XCTAssertTrue(
-            secondRow.waitForExistence(timeout: 10),
-            "Second attachment row did not re-render after dismissing the QuickLook preview"
-        )
-
-        // Each row is a distinct button identified by its index prefix; there
-        // should be at least two of them for this entry.
-        let attachmentRows = app.buttons.matching(
-            NSPredicate(format: "identifier BEGINSWITH 'entry.attachment.' AND NOT identifier ENDSWITH 'share'")
-        )
-        XCTAssertGreaterThanOrEqual(attachmentRows.count, 2, "Expected at least two attachment rows")
     }
 
     func testTappingAttachmentRowOpensAndDismissesQuickLookPreview() {
