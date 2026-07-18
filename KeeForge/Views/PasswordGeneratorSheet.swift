@@ -37,13 +37,13 @@ struct PasswordGeneratorSheet: View {
 
                 Section("Character Sets") {
                     VStack(alignment: .leading, spacing: 12) {
-                        Toggle("Uppercase", isOn: $options.includeUppercase)
+                        Toggle("Uppercase", isOn: charsetBinding(\.includeUppercase))
                             .accessibilityIdentifier("password-generator.charset-toggle.uppercase")
-                        Toggle("Lowercase", isOn: $options.includeLowercase)
+                        Toggle("Lowercase", isOn: charsetBinding(\.includeLowercase))
                             .accessibilityIdentifier("password-generator.charset-toggle.lowercase")
-                        Toggle("Digits", isOn: $options.includeDigits)
+                        Toggle("Digits", isOn: charsetBinding(\.includeDigits))
                             .accessibilityIdentifier("password-generator.charset-toggle.digits")
-                        Toggle("Symbols", isOn: $options.includeSymbols)
+                        Toggle("Symbols", isOn: charsetBinding(\.includeSymbols))
                             .accessibilityIdentifier("password-generator.charset-toggle.symbols")
                         Toggle("Exclude Ambiguous Characters", isOn: $options.excludeAmbiguous)
                             .accessibilityIdentifier("password-generator.charset-toggle.ambiguous")
@@ -84,5 +84,35 @@ struct PasswordGeneratorSheet: View {
 
     private func regenerate() {
         generatedPassword = PasswordGenerator.generate(options: options)
+    }
+
+    private var enabledCharsetCount: Int {
+        [
+            options.includeUppercase,
+            options.includeLowercase,
+            options.includeDigits,
+            options.includeSymbols
+        ]
+        .filter { $0 }
+        .count
+    }
+
+    /// Binding for a character-set toggle that refuses to disable the last
+    /// enabled set. This keeps the UI in sync with `PasswordGenerator`, which
+    /// silently re-enables lowercase when every set is off — otherwise the
+    /// toggles would show all sets disabled while the password still contained
+    /// lowercase characters.
+    private func charsetBinding(
+        _ keyPath: WritableKeyPath<PasswordGenerator.Options, Bool>
+    ) -> Binding<Bool> {
+        Binding(
+            get: { options[keyPath: keyPath] },
+            set: { newValue in
+                if newValue == false && enabledCharsetCount <= 1 {
+                    return
+                }
+                options[keyPath: keyPath] = newValue
+            }
+        )
     }
 }

@@ -50,6 +50,49 @@ final class PasswordGeneratorTests: XCTestCase {
 
         XCTAssertGreaterThanOrEqual(entropy, 80)
     }
+
+    func testGenerateWithAllCharsetsDisabledFallsBackToLowercase() {
+        var generator = SeededGenerator(seed: 99)
+        let password = PasswordGenerator.generate(
+            options: PasswordGenerator.Options(
+                length: 16,
+                includeUppercase: false,
+                includeLowercase: false,
+                includeDigits: false,
+                includeSymbols: false,
+                excludeAmbiguous: false
+            ),
+            using: &generator
+        )
+
+        // The generator never returns an empty password: when every character
+        // set is disabled it normalizes by re-enabling lowercase. The sheet's
+        // charset toggles enforce the same >=1-enabled invariant in the UI so
+        // the visible toggles never diverge from the generated password.
+        XCTAssertEqual(password.count, 16)
+        XCTAssertFalse(password.isEmpty)
+        XCTAssertTrue(password.allSatisfy { $0.isLowercase })
+    }
+
+    func testGenerateWithAllCharsetsDisabledExcludingAmbiguousStaysLowercase() {
+        var generator = SeededGenerator(seed: 123)
+        let password = PasswordGenerator.generate(
+            options: PasswordGenerator.Options(
+                length: 24,
+                includeUppercase: false,
+                includeLowercase: false,
+                includeDigits: false,
+                includeSymbols: false,
+                excludeAmbiguous: true
+            ),
+            using: &generator
+        )
+
+        XCTAssertEqual(password.count, 24)
+        XCTAssertTrue(password.allSatisfy { $0.isLowercase })
+        // Ambiguous lowercase ('l') is still filtered out via the normalized fallback.
+        XCTAssertTrue(password.allSatisfy { $0 != "l" })
+    }
 }
 
 private struct SeededGenerator: RandomNumberGenerator {

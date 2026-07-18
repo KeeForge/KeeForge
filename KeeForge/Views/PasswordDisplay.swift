@@ -26,8 +26,11 @@ struct PasswordDisplayRow<Actions: View>: View {
                     .frame(width: 24)
 
                 if let revealedText {
+                    // Deliberately no `.textSelection(.enabled)` here: the system
+                    // copy path would bypass ClipboardService (no expiry, no
+                    // localOnly/ConcealedType, no clear-on-lock). The sanctioned
+                    // CopyButton -> ClipboardService.copy is the only copy path.
                     PasswordDisplayText(revealedText)
-                        .textSelection(.enabled)
                         .lineLimit(nil)
                         .fixedSize(horizontal: false, vertical: true)
                 } else {
