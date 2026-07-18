@@ -5,6 +5,10 @@
 <h1 align="center">KeeForge</h1>
 
 <p align="center">
+  English | <a href="README.de.md">Deutsch</a>
+</p>
+
+<p align="center">
   A free, open-source KeePass manager for iPhone and iPad.
   <br />
   Native SwiftUI, local-first storage, AutoFill, passkeys, TOTP, cloud sync, KDBX editing, and attachment viewing.
