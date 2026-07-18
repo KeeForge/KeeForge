@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## v1.10.2 (2026-07-17)
+
 ### New Features
 
 - Send Feedback now supports optional follow-up: enable "Allow Follow-Up" and enter an email so we can reply about that specific report. Nothing is sent unless you opt in.
@@ -15,6 +17,9 @@
 - Fix AutoFill showing a blank sheet when picking KeeForge on a one-time-code field (#20): the extension never handled the interactive verification-code list request, so choosing AutoFill → Passwords on a TOTP form did nothing. It now unlocks the vault and fills the code directly when a single entry matches the site, or shows the TOTP entry picker otherwise; a stale QuickType code suggestion also falls back to the picker instead of failing.
 - Fix local databases silently opening a stale copy after the file was deleted or replaced in the Files app (#13): iOS bookmarks follow the old file into Recently Deleted, so KeeForge now detects a trashed database file, refuses to open or save to it, and explains how to restore or re-add the current file.
 - Fix local HTTP WebDAV vaults getting stuck on the initial metadata check before KeeForge could download and cache them.
+
+### Security
+
 - Password reveal and copy now always require device-owner authentication, even when biometrics are unavailable (hardening back-ported from the macOS work).
 
 ## macOS App (in development — ON HOLD, do not release until revisited)

@@ -53,6 +53,27 @@ enum WhatsNewCatalog {
         let features: [WhatsNewFeature]
 
         switch version {
+        case "1.10.2":
+            features = [
+                WhatsNewFeature(
+                    id: "feedback-options",
+                    title: "Send richer feedback",
+                    detail: "Attach a photo when it helps explain an issue, and optionally add an email address if you'd like a reply.",
+                    systemImage: "photo"
+                ),
+                WhatsNewFeature(
+                    id: "german-localization",
+                    title: "Use KeeForge in German",
+                    detail: "KeeForge is now fully translated into German throughout the app and AutoFill.",
+                    systemImage: "globe"
+                ),
+                WhatsNewFeature(
+                    id: "keeotp-codes",
+                    title: "Use KeeOTP verification codes",
+                    detail: "KeeForge now recognizes one-time passwords saved by the KeeOTP and KeeOtp2 plugins, so you can use their verification codes normally.",
+                    systemImage: "timer"
+                ),
+            ]
         case "1.10.1":
             features = [
                 WhatsNewFeature(

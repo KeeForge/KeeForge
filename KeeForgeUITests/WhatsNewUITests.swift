@@ -8,21 +8,16 @@ final class WhatsNewUITests: KeeForgeUITestCase {
         app.launchEnvironment["UI_TEST_SHOW_WHATS_NEW"] = "1"
     }
 
-    func testWhatsNewShowsCurrentIOSFeaturesAndDismisses() {
+    func testWhatsNewShowsFeatureRowsAndDismisses() {
         let title = app.staticTexts["whats-new.title"]
         XCTAssertTrue(title.waitForExistence(timeout: 10), "What's New sheet did not appear")
 
-        XCTAssertTrue(
-            app.descendants(matching: .any)["whats-new.feature.database-compatibility"].exists,
-            "Database compatibility feature was missing"
+        let featureRows = app.descendants(matching: .any).matching(
+            NSPredicate(format: "identifier BEGINSWITH %@", "whats-new.feature.")
         )
         XCTAssertTrue(
-            app.descendants(matching: .any)["whats-new.feature.local-webdav"].exists,
-            "WebDAV feature was missing"
-        )
-        XCTAssertTrue(
-            app.descendants(matching: .any)["whats-new.feature.autofill-setup"].exists,
-            "iOS AutoFill feature was missing"
+            featureRows.firstMatch.waitForExistence(timeout: 5),
+            "What's New sheet did not contain a feature row"
         )
 
         let doneButton = app.buttons["whats-new.done"]

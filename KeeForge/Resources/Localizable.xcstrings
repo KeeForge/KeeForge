@@ -5545,6 +5545,66 @@
           }
         }
       }
+    },
+    "Send richer feedback": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aussagekräftigeres Feedback senden"
+          }
+        }
+      }
+    },
+    "Attach a photo when it helps explain an issue, and optionally add an email address if you'd like a reply.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fügen Sie bei Bedarf ein Foto hinzu und geben Sie optional eine E-Mail-Adresse an, wenn Sie eine Antwort wünschen."
+          }
+        }
+      }
+    },
+    "Use KeeForge in German": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "KeeForge auf Deutsch verwenden"
+          }
+        }
+      }
+    },
+    "KeeForge is now fully translated into German throughout the app and AutoFill.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "KeeForge ist jetzt in der gesamten App und in AutoFill vollständig ins Deutsche übersetzt."
+          }
+        }
+      }
+    },
+    "Use KeeOTP verification codes": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "KeeOTP-Bestätigungscodes verwenden"
+          }
+        }
+      }
+    },
+    "KeeForge now recognizes one-time passwords saved by the KeeOTP and KeeOtp2 plugins, so you can use their verification codes normally.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "KeeForge erkennt jetzt Einmalpasswörter, die von den Plugins KeeOTP und KeeOtp2 gespeichert wurden, sodass Sie deren Bestätigungscodes wie gewohnt verwenden können."
+          }
+        }
+      }
     }
   },
   "version": "1.0"

@@ -42,7 +42,7 @@ The macOS port has its own UI-test target, `KeeForgeMacUITests/` (target `KeeFor
 - `BackoffUITests` — failed-unlock backoff behavior
 - `AppSettingsUITests` — app settings / tip jar coverage from the database list
 - `AutoFillTipUITests` — "Turn On AutoFill" banner on the database list (forced via `UI_TEST_SHOW_AUTOFILL_TIP=1`; the banner is suppressed in all other UI test classes and screenshots)
-- `WhatsNewUITests` — current iOS feature content and dismissal (forced via `UI_TEST_SHOW_WHATS_NEW=1`; the release sheet is suppressed in all other UI test classes and screenshots)
+- `WhatsNewUITests` — feature-sheet structure and dismissal (forced via `UI_TEST_SHOW_WHATS_NEW=1`; the release sheet is suppressed in all other UI test classes and screenshots)
 - `EntryEditEdgeUITests` — password generation, conflict handling, discard prompts, and read-only editing affordances
 - `KeyFileUITests` — key file selection and picker flows
 - `CloudAccountEdgeUITests` — sign-out / disconnected cloud account behavior

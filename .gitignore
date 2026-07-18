@@ -80,3 +80,4 @@ Secrets/
 !.claude/skills/
 !.claude/skills/**
 .claude/skills/**/.DS_Store
+scratch/

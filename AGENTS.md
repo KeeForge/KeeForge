@@ -41,6 +41,7 @@ If you are a very powerful model like Fable 5, feel free to delegate implementat
 
 ### Workflows
 
+- Put temporary agent artifacts such as handoff prompts, investigation notes, and scratch scripts under `scratch/`; it is gitignored and must not contain files intended to ship.
 - If you add, remove, or retarget source files, update `project.yml` and run `xcodegen generate`.
 - When adding new files, update the nearest folder-local `README.md` if the file changes that folder's map, ownership notes, or workflow guidance.
 - Do not update `docs/specs` for new code changes unless explicitly asked. These specs are mostly historical artifacts, not living implementation docs.
