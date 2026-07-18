@@ -728,6 +728,7 @@
 		8DBB315683B9032E3301FD19 /* DatabaseRowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DatabaseRowView.swift; sourceTree = "<group>"; };
 		8E58AED27B2CFC27BC007533 /* MacLockMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacLockMonitor.swift; sourceTree = "<group>"; };
 		8F5D08487A8DF3C72204ADEB /* test-arbitrary.key */ = {isa = PBXFileReference; path = "test-arbitrary.key"; sourceTree = "<group>"; };
+		8F84A786422DE0F907FF9DBA /* BuildConfig.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = BuildConfig.xcconfig; sourceTree = "<group>"; };
 		90677EA696815FC200740F0A /* AutoFillStatusService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AutoFillStatusService.swift; sourceTree = "<group>"; };
 		914A4E61567B1123BF9E137E /* AttachmentTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AttachmentTests.swift; sourceTree = "<group>"; };
 		928A68933B867347BC11592A /* SyncedFolderDetectorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncedFolderDetectorTests.swift; sourceTree = "<group>"; };
@@ -811,7 +812,6 @@
 		E358190F2BA4D4AA05650AA4 /* TestDatabaseSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TestDatabaseSupport.swift; sourceTree = "<group>"; };
 		E3C128E145557767D1EFDF84 /* CloudTokenStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudTokenStoreTests.swift; sourceTree = "<group>"; };
 		E6B7062FC711FD8F8EA1BEE3 /* PendingUploadQueue.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PendingUploadQueue.swift; sourceTree = "<group>"; };
-		E6EB2E2C6BA2939B5A40F3A7 /* BuildConfig.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = BuildConfig.xcconfig; sourceTree = "<group>"; };
 		E70FC2B01C80D00375D97318 /* EntryEditView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EntryEditView.swift; sourceTree = "<group>"; };
 		E83812EEBF6C270EDFBA5E90 /* OpaqueXMLNodes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpaqueXMLNodes.swift; sourceTree = "<group>"; };
 		E94BF55CC229A5312D864BDE /* CloudFileBrowserViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudFileBrowserViewModelTests.swift; sourceTree = "<group>"; };
@@ -1030,6 +1030,15 @@
 			path = Security;
 			sourceTree = "<group>";
 		};
+		6A5915FA3D7637CCB9B1BE74 /* KeeForge */ = {
+			isa = PBXGroup;
+			children = (
+				8F84A786422DE0F907FF9DBA /* BuildConfig.xcconfig */,
+			);
+			name = KeeForge;
+			path = .;
+			sourceTree = "<group>";
+		};
 		71F778658A17A600FECAC9C6 /* TestFixtures */ = {
 			isa = PBXGroup;
 			children = (
@@ -1159,15 +1168,6 @@
 			path = "TestFixtures/round-trip";
 			sourceTree = "<group>";
 		};
-		D84FFF12C4459D9658E7947B /* keepass-database-metadata-6b77a9 */ = {
-			isa = PBXGroup;
-			children = (
-				E6EB2E2C6BA2939B5A40F3A7 /* BuildConfig.xcconfig */,
-			);
-			name = "keepass-database-metadata-6b77a9";
-			path = .;
-			sourceTree = "<group>";
-		};
 		E7125F33479895937960E6A0 /* ViewModels */ = {
 			isa = PBXGroup;
 			children = (
@@ -1193,10 +1193,10 @@
 				A376BB645DDF43A121708494 /* AutoFillExtension */,
 				1BDD193BABF3BD18A4AB9E58 /* compatibility */,
 				9F80FAF53100B49B0262BFFA /* Extensions */,
+				6A5915FA3D7637CCB9B1BE74 /* KeeForge */,
 				94D564740093EF0F011B5A3C /* KeeForgeMacUITests */,
 				F1BE673352A52C0167F2C5CE /* KeeForgeTests */,
 				0DF923CE254AEEBCB0B054B1 /* KeeForgeUITests */,
-				D84FFF12C4459D9658E7947B /* keepass-database-metadata-6b77a9 */,
 				F3F9AA8A28D02AE11AD6854E /* Models */,
 				7D300A2D174014A53DD4DCE3 /* Packages */,
 				65E3F4C6ED83A516F2D23EB6 /* Resources */,
@@ -1444,6 +1444,7 @@
 			buildConfigurationList = B084A0D9C3F99B64FCBBD5B8 /* Build configuration list for PBXNativeTarget "KeeForgeTests" */;
 			buildPhases = (
 				A2EB17F7ED18D681E14D6169 /* Sources */,
+				804041F2AB24067D2581A5CF /* Bundle raw .xcstrings catalogs for LocalizationTests */,
 				ADDC81E9E06C723904F997FF /* Resources */,
 				3A1ED38EE1BC6149ADC6CF71 /* Frameworks */,
 			);
@@ -1695,6 +1696,36 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXResourcesBuildPhase section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		804041F2AB24067D2581A5CF /* Bundle raw .xcstrings catalogs for LocalizationTests */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+				"$(SRCROOT)/KeeForge/Resources/Localizable.xcstrings",
+				"$(SRCROOT)/KeeForge/Resources/InfoPlist.xcstrings",
+				"$(SRCROOT)/AutoFillExtension/Localizable.xcstrings",
+				"$(SRCROOT)/AutoFillExtension/InfoPlist.xcstrings",
+			);
+			name = "Bundle raw .xcstrings catalogs for LocalizationTests";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+				"$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/KeeForge_Localizable.xcstrings",
+				"$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/KeeForge_InfoPlist.xcstrings",
+				"$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/AutoFillExtension_Localizable.xcstrings",
+				"$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/AutoFillExtension_InfoPlist.xcstrings",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "set -euo pipefail\n\n# TARGET_BUILD_DIR (not BUILT_PRODUCTS_DIR) is the location the test\n# bundle is actually assembled and run from — for a host-app-embedded\n# unit test that is KeeForge.app/PlugIns/KeeForgeTests.xctest, which is\n# what Bundle(for:) resolves to at runtime.\ndest=\"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}\"\nmkdir -p \"${dest}\"\n\ncopy_catalog() {\n  src=\"$1\"\n  dst=\"$2\"\n  if [ ! -f \"${src}\" ]; then\n    echo \"error: raw xcstrings source missing: ${src}\" >&2\n    exit 1\n  fi\n  /bin/cp -f \"${src}\" \"${dest}/${dst}\"\n}\n\ncopy_catalog \"${SRCROOT}/KeeForge/Resources/Localizable.xcstrings\" \"KeeForge_Localizable.xcstrings\"\ncopy_catalog \"${SRCROOT}/KeeForge/Resources/InfoPlist.xcstrings\" \"KeeForge_InfoPlist.xcstrings\"\ncopy_catalog \"${SRCROOT}/AutoFillExtension/Localizable.xcstrings\" \"AutoFillExtension_Localizable.xcstrings\"\ncopy_catalog \"${SRCROOT}/AutoFillExtension/InfoPlist.xcstrings\" \"AutoFillExtension_InfoPlist.xcstrings\"\n";
+		};
+/* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		1190D6A598A1A40EC185A0B9 /* Sources */ = {
@@ -2330,7 +2361,7 @@
 		};
 		433642D014742A51E017BA5F /* Release */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = E6EB2E2C6BA2939B5A40F3A7 /* BuildConfig.xcconfig */;
+			baseConfigurationReference = 8F84A786422DE0F907FF9DBA /* BuildConfig.xcconfig */;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				CLANG_ANALYZER_NONNULL = YES;
@@ -2593,7 +2624,7 @@
 		};
 		F94E35C15125598334295DFD /* Debug */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = E6EB2E2C6BA2939B5A40F3A7 /* BuildConfig.xcconfig */;
+			baseConfigurationReference = 8F84A786422DE0F907FF9DBA /* BuildConfig.xcconfig */;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				CLANG_ANALYZER_NONNULL = YES;

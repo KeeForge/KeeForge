@@ -281,6 +281,54 @@ targets:
         GENERATE_INFOPLIST_FILE: true
         TEST_TARGET_NAME: KeeForge
         TEST_HOST: "$(BUILT_PRODUCTS_DIR)/KeeForge.app/KeeForge"
+    # Copy the four RAW .xcstrings catalog sources verbatim into the built
+    # .xctest bundle so LocalizationTests can read them from its own bundle at
+    # runtime. On Xcode Cloud the test action ("test-without-building") runs on
+    # separate machines that DON'T have the source checkout at
+    # /Volumes/workspace/repository, so reading catalogs off disk fails there.
+    # Bundling them makes the catalogs travel with the test artifacts.
+    # Names are disambiguated (two Localizable.xcstrings, two InfoPlist.xcstrings
+    # would otherwise collide). The catalogs are copied by a script — NOT added
+    # as target resources — so Xcode does not compile them (a compiled catalog
+    # drops the per-key `state` field the test inspects).
+    postCompileScripts:
+      - name: Bundle raw .xcstrings catalogs for LocalizationTests
+        runOnlyWhenInstalling: false
+        basedOnDependencyAnalysis: false
+        inputFiles:
+          - $(SRCROOT)/KeeForge/Resources/Localizable.xcstrings
+          - $(SRCROOT)/KeeForge/Resources/InfoPlist.xcstrings
+          - $(SRCROOT)/AutoFillExtension/Localizable.xcstrings
+          - $(SRCROOT)/AutoFillExtension/InfoPlist.xcstrings
+        outputFiles:
+          - $(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/KeeForge_Localizable.xcstrings
+          - $(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/KeeForge_InfoPlist.xcstrings
+          - $(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/AutoFillExtension_Localizable.xcstrings
+          - $(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/AutoFillExtension_InfoPlist.xcstrings
+        script: |
+          set -euo pipefail
+
+          # TARGET_BUILD_DIR (not BUILT_PRODUCTS_DIR) is the location the test
+          # bundle is actually assembled and run from — for a host-app-embedded
+          # unit test that is KeeForge.app/PlugIns/KeeForgeTests.xctest, which is
+          # what Bundle(for:) resolves to at runtime.
+          dest="${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}"
+          mkdir -p "${dest}"
+
+          copy_catalog() {
+            src="$1"
+            dst="$2"
+            if [ ! -f "${src}" ]; then
+              echo "error: raw xcstrings source missing: ${src}" >&2
+              exit 1
+            fi
+            /bin/cp -f "${src}" "${dest}/${dst}"
+          }
+
+          copy_catalog "${SRCROOT}/KeeForge/Resources/Localizable.xcstrings" "KeeForge_Localizable.xcstrings"
+          copy_catalog "${SRCROOT}/KeeForge/Resources/InfoPlist.xcstrings" "KeeForge_InfoPlist.xcstrings"
+          copy_catalog "${SRCROOT}/AutoFillExtension/Localizable.xcstrings" "AutoFillExtension_Localizable.xcstrings"
+          copy_catalog "${SRCROOT}/AutoFillExtension/InfoPlist.xcstrings" "AutoFillExtension_InfoPlist.xcstrings"
     dependencies:
       - target: KeeForge
       - package: KeeForgeTwofish

@@ -251,8 +251,9 @@ Key helpers:
 
 - `app` — preconfigured `XCUIApplication` with fixture data injected through launch environment
 - `unlock(password:)` — type password and tap unlock
-- `unlockSuccessfully()` — unlock with the default fixture password and assert success
+- `unlockSuccessfully()` — unlock with the default fixture password and assert success; retries the whole unlock up to three times when the vault reports a wrong-password error (a race under CI's parallel simulators where the password is typed before the field/keyboard is ready), and only surfaces the real error on the final attempt
 - `waitForVaultToUnlock()` — poll until unlock succeeds or surface the last visible error
+- `KeeForgeUITestCase.ciElementTimeout` (15s) — shared, generous element-appearance timeout for spots that are slow to settle on Xcode Cloud's slower, four-way-parallel simulators; prefer it (over per-line 5s literals) for waits on the known-flaky paths
 - `openDatabase(named:)` — open a known fixture-backed database row instead of whichever row appears first
 - `openAnyEntry()` — navigate into a non-empty group and open an entry
 - `revealElement(_:in:direction:maxSwipes:)` — scroll until an element is visible and hittable

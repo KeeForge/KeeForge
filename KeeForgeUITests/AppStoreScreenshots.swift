@@ -285,9 +285,9 @@ final class AppStoreScreenshots: KeeForgeUITestCase {
         saveScreenshot(.entryDetail)
 
         let editButton = app.buttons["entry-detail.edit"]
-        XCTAssertTrue(editButton.waitForExistence(timeout: 5), "Edit button should be visible from entry detail")
+        XCTAssertTrue(editButton.waitForExistence(timeout: Self.ciElementTimeout), "Edit button should be visible from entry detail")
         editButton.tap()
-        XCTAssertTrue(app.textFields["entry-edit.title-field"].waitForExistence(timeout: 5), "Entry editor should appear")
+        XCTAssertTrue(app.textFields["entry-edit.title-field"].waitForExistence(timeout: Self.ciElementTimeout), "Entry editor should appear")
         saveScreenshot(.entryEdit)
 
         let cancelButton = app.buttons["entry-edit.cancel"]

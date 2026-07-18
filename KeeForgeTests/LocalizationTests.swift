@@ -2,11 +2,15 @@ import XCTest
 @testable import KeeForge
 
 /// Gates the four `.xcstrings` catalogs against silently shipping untranslated
-/// or drifted German strings. Reads the raw JSON catalog sources straight off
-/// the checkout (located via `#filePath`, the same way other tests resolve
-/// repo-relative fixtures) rather than the compiled catalogs the app bundles,
-/// so a new English key with no German translation fails here before it ever
-/// reaches a build.
+/// or drifted German strings. Reads the raw JSON catalog sources — not the
+/// compiled catalogs the app bundles — so a new English key with no German
+/// translation fails here before it ever reaches a build.
+///
+/// The raw catalogs are copied verbatim into this test bundle at build time by
+/// a `postCompileScripts` phase on the `KeeForgeTests` target (see `project.yml`),
+/// under disambiguated names. Reading them from `Bundle(for:)` — rather than
+/// off the source checkout — keeps the test correct on Xcode Cloud, where the
+/// test action runs on machines that do not have the repository checkout.
 final class LocalizationTests: XCTestCase {
 
     // MARK: - String catalog decoding
@@ -35,32 +39,35 @@ final class LocalizationTests: XCTestCase {
 
     // MARK: - Catalog locations
 
-    /// `#filePath` resolves at compile time to this source file's absolute
-    /// path on disk. Unit tests run in the simulator but the simulator can
-    /// still read the host filesystem, so this is enough to walk back up to
-    /// the repository root without hardcoding a developer-specific path.
-    private static let repositoryRoot: URL = {
-        URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent() // KeeForgeTests/
-            .deletingLastPathComponent() // repository root
-    }()
+    /// A raw catalog bundled into the test bundle. `name` is the catalog's
+    /// logical repo-relative path (preserved for assertions and messages);
+    /// `bundleResource` is the disambiguated filename the `postBuildScripts`
+    /// phase copies it to inside the `.xctest` bundle.
+    private struct CatalogSource {
+        let name: String
+        let bundleResource: String
+    }
 
-    private static let catalogRelativePaths: [String] = [
-        "KeeForge/Resources/Localizable.xcstrings",
-        "KeeForge/Resources/InfoPlist.xcstrings",
-        "AutoFillExtension/Localizable.xcstrings",
-        "AutoFillExtension/InfoPlist.xcstrings",
+    private static let catalogSources: [CatalogSource] = [
+        CatalogSource(name: "KeeForge/Resources/Localizable.xcstrings", bundleResource: "KeeForge_Localizable"),
+        CatalogSource(name: "KeeForge/Resources/InfoPlist.xcstrings", bundleResource: "KeeForge_InfoPlist"),
+        CatalogSource(name: "AutoFillExtension/Localizable.xcstrings", bundleResource: "AutoFillExtension_Localizable"),
+        CatalogSource(name: "AutoFillExtension/InfoPlist.xcstrings", bundleResource: "AutoFillExtension_InfoPlist"),
     ]
 
     private func loadCatalogs() throws -> [Catalog] {
-        try Self.catalogRelativePaths.map { relativePath in
-            let url = Self.repositoryRoot.appendingPathComponent(relativePath)
+        let bundle = Bundle(for: LocalizationTests.self)
+        return try Self.catalogSources.map { source in
+            let url = try XCTUnwrap(
+                bundle.url(forResource: source.bundleResource, withExtension: "xcstrings"),
+                "Could not locate bundled catalog \(source.bundleResource).xcstrings for \(source.name)"
+            )
             let data = try XCTUnwrap(
                 try? Data(contentsOf: url),
-                "Could not read catalog at \(url.path)"
+                "Could not read catalog at \(url.path) for \(source.name)"
             )
             let decoded = try JSONDecoder().decode(StringCatalog.self, from: data)
-            return Catalog(name: relativePath, strings: decoded.strings)
+            return Catalog(name: source.name, strings: decoded.strings)
         }
     }
 
@@ -68,7 +75,7 @@ final class LocalizationTests: XCTestCase {
 
     func testAllNonEmptyKeysHaveTranslatedGermanValue() throws {
         let catalogs = try loadCatalogs()
-        XCTAssertEqual(catalogs.count, Self.catalogRelativePaths.count)
+        XCTAssertEqual(catalogs.count, Self.catalogSources.count)
 
         for catalog in catalogs {
             let nonEmptyKeys = catalog.strings.keys.filter { $0.isEmpty == false }

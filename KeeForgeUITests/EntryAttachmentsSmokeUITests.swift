@@ -35,6 +35,15 @@ final class EntryAttachmentsSmokeUITests: UnlockedDatabaseUITestCase {
         XCTAssertTrue(resolvedFirstRow.waitForExistence(timeout: 10), "Expected a formatted byte-count caption after resolving the first attachment")
         dismissQuickLookIfPresented()
 
+        // Dismissing the QuickLook sheet returns to the entry detail, but the
+        // attachment rows re-render asynchronously. Wait for the second row to
+        // come back before counting so we don't observe a mid-rebuild state
+        // where only the first row exists (flaky on slower CI simulators).
+        XCTAssertTrue(
+            secondRow.waitForExistence(timeout: 10),
+            "Second attachment row did not re-render after dismissing the QuickLook preview"
+        )
+
         // Each row is a distinct button identified by its index prefix; there
         // should be at least two of them for this entry.
         let attachmentRows = app.buttons.matching(

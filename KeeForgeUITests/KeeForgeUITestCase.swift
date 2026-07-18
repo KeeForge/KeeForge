@@ -9,6 +9,12 @@ class KeeForgeUITestCase: XCTestCase {
     private static let uiTestKeyFileFilenameEnv = "UI_TEST_KEYFILE_FILENAME"
     private static let passwordDeleteCount = 128
 
+    /// Generous element-appearance timeout tuned for Xcode Cloud's slower,
+    /// 4-way-parallel simulators, where sheets and detail screens can take
+    /// noticeably longer to settle than on a local machine. Local runs settle
+    /// well under this, so raising it costs nothing on the happy path.
+    static let ciElementTimeout: TimeInterval = 15
+
     struct DatabaseFixture {
         let resourceName: String
         let resourceExtension: String
@@ -125,12 +131,64 @@ class KeeForgeUITestCase: XCTestCase {
     }
 
     func unlockSuccessfully(file: StaticString = #filePath, line: UInt = #line) {
+        // Unlocking is flaky under Cloud's 4-way-parallel simulators: the
+        // password can be typed before the field/keyboard is fully ready, which
+        // surfaces as a "wrong password" error even though the fixture password
+        // is correct. Retry the whole unlock a couple of times when the vault
+        // reports an unlock error, and only fall through to the asserting waiter
+        // (which surfaces the real error message) on the final attempt.
+        let maxAttempts = 3
+        for _ in 1 ..< maxAttempts {
+            unlock(password: "testpassword123")
+            if pollUnlockOutcome(timeout: 30) == .unlocked {
+                return
+            }
+            // Let the unlock screen settle (error shown, field re-enabled)
+            // before re-entering the password.
+            _ = app.secureTextFields["unlock.password.field"].waitForExistence(timeout: 5)
+        }
+
         unlock(password: "testpassword123")
         waitForVaultToUnlock(file: file, line: line)
     }
 
+    private enum UnlockOutcome {
+        case unlocked
+        case failed
+    }
+
+    /// Polls until the vault unlocks (a `lock.button` appears), a non-empty
+    /// unlock error surfaces, or `timeout` elapses. Non-asserting so callers
+    /// can retry; `waitForVaultToUnlock` remains the asserting variant.
+    private func pollUnlockOutcome(timeout: TimeInterval) -> UnlockOutcome {
+        let lockButtonQuery = app.buttons.matching(identifier: "lock.button")
+        let errorLabel = app.staticTexts["unlock.error.label"]
+        let deadline = Date().addingTimeInterval(timeout)
+
+        repeat {
+            if lockButtonQuery.allElementsBoundByIndex.contains(where: \.exists) {
+                return .unlocked
+            }
+            if errorLabel.exists,
+               errorLabel.label.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false {
+                return .failed
+            }
+            RunLoop.current.run(until: Date().addingTimeInterval(0.25))
+        } while Date() < deadline
+
+        return .failed
+    }
+
     func replaceText(in element: XCUIElement, with text: String) {
-        element.tap()
+        // Make sure the field is actually present and focusable before typing;
+        // tapping (or coordinate-tapping) a not-yet-ready field is a common
+        // source of dropped keystrokes on slower CI simulators.
+        _ = element.waitForExistence(timeout: 10)
+        if element.isHittable {
+            element.tap()
+        } else {
+            element.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+        }
         let deleteSequence = String(repeating: XCUIKeyboardKey.delete.rawValue, count: Self.passwordDeleteCount)
         element.typeText(deleteSequence)
         element.typeText(text)

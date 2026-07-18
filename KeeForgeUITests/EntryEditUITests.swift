@@ -418,9 +418,9 @@ final class EntryEditSmokeUITests: EntryEditUITestCase {
         openEntry(named: discordEntryTitle, inGroup: socialGroupName)
 
         let revealButton = app.buttons["entry.password.reveal"]
-        XCTAssertTrue(revealButton.waitForExistence(timeout: 5))
+        XCTAssertTrue(revealButton.waitForExistence(timeout: Self.ciElementTimeout))
         revealButton.tap()
-        XCTAssertTrue(app.staticTexts["discordpass!@#"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["discordpass!@#"].waitForExistence(timeout: Self.ciElementTimeout))
 
         let editButton = app.buttons["entry-detail.edit"]
         XCTAssertTrue(editButton.waitForExistence(timeout: 5))
@@ -435,7 +435,7 @@ final class EntryEditSmokeUITests: EntryEditUITestCase {
         XCTAssertTrue(waitForSaveCompletion(saveButton: saveButton, timeout: 10))
 
         XCTAssertTrue(
-            app.staticTexts[updatedPassword].waitForExistence(timeout: 5),
+            app.staticTexts[updatedPassword].waitForExistence(timeout: Self.ciElementTimeout),
             "The already-revealed password did not refresh after the edit was saved"
         )
     }
@@ -682,11 +682,11 @@ final class EntryEditEdgeUITests: EntryEditUITestCase {
         generatorButton.tap()
 
         let regenerateButton = app.buttons["password-generator.regenerate"]
-        XCTAssertTrue(regenerateButton.waitForExistence(timeout: 5))
+        XCTAssertTrue(regenerateButton.waitForExistence(timeout: Self.ciElementTimeout))
         regenerateButton.tap()
 
         let useButton = app.buttons["password-generator.use"]
-        XCTAssertTrue(useButton.waitForExistence(timeout: 5))
+        XCTAssertTrue(useButton.waitForExistence(timeout: Self.ciElementTimeout))
         useButton.tap()
 
         let passwordField = app.textFields["entry-edit.password-field"]
