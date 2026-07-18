@@ -14,25 +14,31 @@ enum CloudProviderRegistry {
 
         switch provider {
         case .dropbox:
+            #if DEBUG
             if UITestDropboxCloudProvider.isEnabled {
                 return UITestDropboxCloudProvider.shared
             }
+            #endif
             return DropboxCloudProvider.shared
         case .oneDrive:
             return OneDriveCloudProvider.shared
         case .webDAV:
+            #if DEBUG
             if UITestWebDAVCloudProvider.isEnabled {
                 return UITestWebDAVCloudProvider.shared
             }
+            #endif
             return WebDAVCloudProvider.shared
         }
     }
 
     @MainActor
     static func handleOpenURL(_ url: URL) -> Bool {
+        #if DEBUG
         if UITestDropboxCloudProvider.isEnabled {
             return false
         }
+        #endif
         return DropboxCloudProvider.shared.handleRedirectURL(url)
             || OneDriveCloudProvider.shared.handleRedirectURL(url)
     }

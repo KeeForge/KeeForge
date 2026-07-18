@@ -1,3 +1,4 @@
+#if DEBUG
 import AuthenticationServices
 import Foundation
 
@@ -366,3 +367,4 @@ struct RecordedUpload: Equatable, Sendable {
     let expectedRev: String?
     let data: Data
 }
+#endif

@@ -1,3 +1,4 @@
+#if DEBUG
 import AuthenticationServices
 import Foundation
 
@@ -385,3 +386,4 @@ private extension UITestWebDAVCloudProvider {
         return trimmed
     }
 }
+#endif
