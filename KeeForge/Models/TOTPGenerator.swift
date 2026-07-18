@@ -29,8 +29,15 @@ enum TOTPGenerator {
     static func generateCode(config: TOTPConfig, resolvedSecret: ResolvedSecret?, date: Date = Date()) -> String {
         guard let resolvedSecret else { return "------" }
 
+        // Parsers sanitize file-supplied values, but configs can also arrive
+        // from edit drafts: clamp so a rogue period can never divide by zero
+        // (or trap converting a negative to UInt64) and a rogue digit count
+        // can never overflow the 10^digits modulus below.
+        let period = UInt64(max(1, config.period))
+        let digits = min(max(config.digits, 1), 9)
+
         let timeInterval = UInt64(date.timeIntervalSince1970)
-        let counter = timeInterval / UInt64(config.period)
+        let counter = timeInterval / period
 
         var bigEndianCounter = counter.bigEndian
         let counterData = Data(bytes: &bigEndianCounter, count: 8)
@@ -53,13 +60,14 @@ enum TOTPGenerator {
             return slice.loadUnaligned(as: UInt32.self).bigEndian & 0x7FFF_FFFF
         }
 
-        let modulus = UInt32(pow(10.0, Double(config.digits)))
+        let modulus = UInt32(pow(10.0, Double(digits)))
         let code = truncated % modulus
-        return String(format: "%0\(config.digits)d", code)
+        return String(format: "%0\(digits)d", code)
     }
 
     /// Seconds remaining in current TOTP period
     static func secondsRemaining(period: Int, date: Date = Date()) -> Int {
+        let period = max(1, period)
         let elapsed = Int(date.timeIntervalSince1970) % period
         return period - elapsed
     }

@@ -59,6 +59,28 @@ final class TOTPGeneratorTests: XCTestCase {
         XCTAssertEqual(code, "------")
     }
 
+    func testGenerateCodeClampsRoguePeriodAndDigits() {
+        // Configs normally arrive sanitized from the parser, but edit drafts
+        // construct them too: a non-positive period must not divide by zero
+        // (or trap converting to UInt64), and oversized digit counts must not
+        // overflow the 10^digits modulus.
+        for period in [0, -5] {
+            let config = TOTPConfig(secret: encryptSecret("JBSWY3DP"), period: period, digits: 6, algorithm: .sha1)
+            XCTAssertNotEqual(
+                TOTPGenerator.generateCode(config: config, sessionKey: testKey, date: Date(timeIntervalSince1970: 59)),
+                "------"
+            )
+        }
+
+        let oversizedDigits = TOTPConfig(secret: encryptSecret("JBSWY3DP"), period: 30, digits: 20, algorithm: .sha1)
+        let code = TOTPGenerator.generateCode(
+            config: oversizedDigits, sessionKey: testKey, date: Date(timeIntervalSince1970: 59)
+        )
+        XCTAssertEqual(code.count, 9)
+
+        XCTAssertEqual(TOTPGenerator.secondsRemaining(period: 0, date: Date(timeIntervalSince1970: 74)), 1)
+    }
+
     func testSecondsRemainingAtBoundaryReturnsFullPeriod() {
         let date = Date(timeIntervalSince1970: 60)
 

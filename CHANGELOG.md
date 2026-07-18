@@ -12,6 +12,9 @@
 
 ### Fixes
 
+- Fix a crash when unlocking a database on a WebDAV server whose base URL path contains characters that need percent-encoding, such as mailbox.org's "Meine Dateien" folder: building the file URL mixed the decoded base path into a percent-encoded path and hit a Foundation fatal error on every unlock attempt. Local copies of the same database were unaffected.
+- Fix a crash when opening a database containing an `otpauth://` entry with duplicate query parameter names (e.g. `secret` appearing twice, in any letter case); the first occurrence now wins, matching the KeeOTP parser.
+- Fix a potential crash rendering TOTP codes for entries with a zero or negative period or an oversized digit count in their OTP settings; out-of-range values now fall back to the standard 30-second/6-digit defaults.
 - Search is now diacritic-insensitive in both directions: searching "Café" finds entries stored as "cafe" and vice versa, matching how the search index was already folded.
 - Show the correct icon for entries and groups: all 69 KeePass standard icons are now mapped to symbols (previously only 4 were, so most entries fell back to a generic key), and custom icons embedded in the database (`Meta/CustomIcons`) are now displayed for entries and groups. Custom icon XML continues to round-trip untouched on save.
 - A search box containing only whitespace now shows the neutral search placeholder instead of a "No entries matched" message quoting the blank query.

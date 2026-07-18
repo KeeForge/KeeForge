@@ -334,6 +334,38 @@ final class KDBXParserTests: XCTestCase {
         XCTAssertNil(unsupportedOTPURI.totpConfig, "otp:// has no existing parser path to preserve")
     }
 
+    func testOTPAuthURIDuplicateQueryNamesDoNotTrapFirstWins() throws {
+        // Duplicate query names (including case-folded duplicates) previously
+        // fed `Dictionary(uniqueKeysWithValues:)` and crashed the unlock parse.
+        let entry = try parseSingleEntry(fields: [
+            "otp": "otpauth://totp/Test?secret=JBSWY3DP&Secret=OTHER&period=45&period=60",
+        ])
+
+        let config = try XCTUnwrap(entry.totpConfig)
+        XCTAssertEqual(try config.secret.decrypt(using: testSessionKey), "JBSWY3DP")
+        XCTAssertEqual(config.period, 45)
+    }
+
+    func testFileSuppliedTOTPTimingValuesAreSanitized() throws {
+        // Zero/negative periods previously divided by zero in `TOTPGenerator`,
+        // and digit counts above 9 overflowed the 10^digits modulus.
+        let uri = try parseSingleEntry(fields: [
+            "otp": "otpauth://totp/Test?secret=JBSWY3DP&period=0&digits=20",
+        ])
+        XCTAssertEqual(uri.totpConfig?.period, 30)
+        XCTAssertEqual(uri.totpConfig?.digits, 6)
+
+        let native = try parseSingleEntry(fields: [
+            "TimeOtp-Secret-Base32": "JBSWY3DP", "TimeOtp-Period": "-5", "TimeOtp-Length": "0",
+        ])
+        XCTAssertEqual(native.totpConfig?.period, 30)
+        XCTAssertEqual(native.totpConfig?.digits, 6)
+
+        let legacy = try parseSingleEntry(fields: ["TOTP Seed": "JBSWY3DP", "TOTP Settings": "0;12"])
+        XCTAssertEqual(legacy.totpConfig?.period, 30)
+        XCTAssertEqual(legacy.totpConfig?.digits, 6)
+    }
+
     // MARK: - Group Membership Tests
 
     func testEntriesAreInCorrectGroups() throws {

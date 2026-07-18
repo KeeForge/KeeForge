@@ -1711,8 +1711,8 @@ private class EntryBuilder {
         // KeePassXC TimeOtp fields
         if let secret = customFields["TimeOtp-Secret-Base32"], !secret.isEmpty {
             let encryptedSecret = (try? EncryptedValue.encrypt(secret, using: sessionKey)) ?? .empty
-            let period = Int(customFields["TimeOtp-Period"] ?? "30") ?? 30
-            let digits = Int(customFields["TimeOtp-Length"] ?? "6") ?? 6
+            let period = Self.sanitizedTOTPPeriod(Int(customFields["TimeOtp-Period"] ?? "30"))
+            let digits = Self.sanitizedTOTPDigits(Int(customFields["TimeOtp-Length"] ?? "6"))
             let algo = TOTPAlgorithm(rawValue: customFields["TimeOtp-Algorithm"] ?? "SHA1") ?? .sha1
             return TOTPConfig(secret: encryptedSecret, period: period, digits: digits, algorithm: algo)
         }
@@ -1722,8 +1722,8 @@ private class EntryBuilder {
             let encryptedSeed = (try? EncryptedValue.encrypt(seed, using: sessionKey)) ?? .empty
             let settings = customFields["TOTP Settings"] ?? "30;6"
             let parts = settings.components(separatedBy: ";")
-            let period = Int(parts.first ?? "30") ?? 30
-            let digits = Int(parts.count > 1 ? parts[1] : "6") ?? 6
+            let period = Self.sanitizedTOTPPeriod(Int(parts.first ?? "30"))
+            let digits = Self.sanitizedTOTPDigits(Int(parts.count > 1 ? parts[1] : "6"))
             return TOTPConfig(secret: encryptedSeed, period: period, digits: digits)
         }
 
@@ -1847,18 +1847,36 @@ private class EntryBuilder {
 
     private func parseTOTPFromURI(_ uri: String, sessionKey: SymmetricKey) -> TOTPConfig? {
         guard let components = URLComponents(string: uri) else { return nil }
-        let params = Dictionary(uniqueKeysWithValues:
-            (components.queryItems ?? []).compactMap { item in
-                item.value.map { (item.name.lowercased(), $0) }
-            }
-        )
+        // First occurrence wins; `Dictionary(uniqueKeysWithValues:)` traps on
+        // duplicate query names (e.g. "?secret=A&Secret=A"), which is
+        // file-controlled input.
+        var params: [String: String] = [:]
+        for item in components.queryItems ?? [] {
+            let name = item.name.lowercased()
+            guard params[name] == nil, let value = item.value else { continue }
+            params[name] = value
+        }
 
         guard let secret = params["secret"] else { return nil }
         let encryptedSecret = (try? EncryptedValue.encrypt(secret, using: sessionKey)) ?? .empty
-        let period = Int(params["period"] ?? "30") ?? 30
-        let digits = Int(params["digits"] ?? "6") ?? 6
+        let period = Self.sanitizedTOTPPeriod(Int(params["period"] ?? "30"))
+        let digits = Self.sanitizedTOTPDigits(Int(params["digits"] ?? "6"))
         let algorithm = TOTPAlgorithm(rawValue: (params["algorithm"] ?? "SHA1").uppercased()) ?? .sha1
 
         return TOTPConfig(secret: encryptedSecret, period: period, digits: digits, algorithm: algorithm)
+    }
+
+    /// File-supplied TOTP timing values must never reach `TOTPGenerator` in a
+    /// form that traps (zero/negative periods divide by zero; digit counts
+    /// above 9 overflow the 10^digits modulus). Out-of-range values fall back
+    /// to the RFC 6238 defaults, matching how unparsable values already behave.
+    private static func sanitizedTOTPPeriod(_ value: Int?) -> Int {
+        guard let value, value > 0 else { return 30 }
+        return value
+    }
+
+    private static func sanitizedTOTPDigits(_ value: Int?) -> Int {
+        guard let value, (1...9).contains(value) else { return 6 }
+        return value
     }
 }

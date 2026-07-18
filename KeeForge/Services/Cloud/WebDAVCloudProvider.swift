@@ -336,7 +336,10 @@ final class WebDAVCloudProvider: CloudProvider, WebDAVConnecting, Sendable {
         guard var components = URLComponents(url: base, resolvingAgainstBaseURL: false) else {
             return base
         }
-        var basePath = base.path
+        // The prefix must stay percent-encoded: `base.path` decodes, and mixing a
+        // decoded base (e.g. mailbox.org's ".../Meine Dateien/") into the
+        // `percentEncodedPath` setter is a fatalError, not a thrown error.
+        var basePath = components.percentEncodedPath
         if !basePath.hasSuffix("/") {
             basePath += "/"
         }

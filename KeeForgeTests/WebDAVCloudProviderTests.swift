@@ -126,6 +126,30 @@ final class WebDAVCloudProviderTests: XCTestCase {
         }
     }
 
+    func testFileURLResolutionWithPercentEncodedBasePath() throws {
+        // mailbox.org (Open-Xchange) layout: the drive root folder is literally
+        // named "Meine Dateien", so the normalized base URL carries a
+        // percent-encoded space. Building the file URL from the *decoded* base
+        // path used to hit the `percentEncodedPath` setter's fatalError — a
+        // hard crash on every unlock of a database under such a base.
+        let base = try WebDAVURL.normalizedBaseURL(
+            from: "https://dav.mailbox.org/servlet/webdav.infostore/Meine Dateien"
+        )
+        XCTAssertEqual(base.absoluteString, "https://dav.mailbox.org/servlet/webdav.infostore/Meine%20Dateien/")
+
+        let fileURL = WebDAVCloudProvider.url(forFileId: "/Tresor/Passwörter 2026.kdbx", base: base)
+        XCTAssertEqual(
+            fileURL.absoluteString,
+            "https://dav.mailbox.org/servlet/webdav.infostore/Meine%20Dateien/Tresor/Passw%C3%B6rter%202026.kdbx"
+        )
+
+        let folderURL = WebDAVCloudProvider.url(forFolderPath: "/Tresor", base: base)
+        XCTAssertEqual(
+            folderURL.absoluteString,
+            "https://dav.mailbox.org/servlet/webdav.infostore/Meine%20Dateien/Tresor/"
+        )
+    }
+
     func testFolderPathURLResolution() throws {
         let base = try XCTUnwrap(URL(string: "https://host.example.com/dav/"))
 
