@@ -1136,12 +1136,42 @@
         }
       }
     },
-    "Could not establish a secure connection. The server's certificate is invalid, or it does not support HTTPS.": {
+    "Could not establish a secure connection because the server's certificate is invalid, expired, or untrusted.": {
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Es konnte keine sichere Verbindung hergestellt werden. Das Zertifikat des Servers ist ungültig oder der Server unterstützt HTTPS nicht."
+            "value": "Es konnte keine sichere Verbindung hergestellt werden, da das Zertifikat des Servers ungültig, abgelaufen oder nicht vertrauenswürdig ist."
+          }
+        }
+      }
+    },
+    "Could not establish a secure connection. The server requires a client certificate, which KeeForge does not support.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Es konnte keine sichere Verbindung hergestellt werden. Der Server verlangt ein Client-Zertifikat, das von KeeForge nicht unterstützt wird."
+          }
+        }
+      }
+    },
+    "Could not establish a secure connection. The server's TLS settings are likely outdated or incompatible with this device. Ask the server operator to enable TLS 1.3, or TLS 1.2 with modern (ECDHE + AES-GCM) cipher suites.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Es konnte keine sichere Verbindung hergestellt werden. Die TLS-Einstellungen des Servers sind vermutlich veraltet oder mit diesem Gerät nicht kompatibel. Bitten Sie den Serverbetreiber, TLS 1.3 oder TLS 1.2 mit modernen Cipher-Suiten (ECDHE + AES-GCM) zu aktivieren."
+          }
+        }
+      }
+    },
+    "Could not establish a secure connection. This device requires an https:// server address.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Es konnte keine sichere Verbindung hergestellt werden. Dieses Gerät erfordert eine Serveradresse, die mit https:// beginnt."
           }
         }
       }

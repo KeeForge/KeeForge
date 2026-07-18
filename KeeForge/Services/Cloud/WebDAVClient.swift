@@ -195,21 +195,31 @@ struct WebDAVClient: Sendable {
     }
 
     /// Maps a `URLError` to a `CloudProviderError`. Offline-family errors map to
-    /// `.networkUnavailable`; TLS/ATS failures map to explicit `.unknown` cert
+    /// `.networkUnavailable`; TLS/ATS failures map to explicit `.unknown`
     /// messages so they are never mislabeled as "offline".
     static func mapURLError(_ error: URLError) -> CloudProviderError {
         switch error.code.rawValue {
         // TLS / App Transport Security failures. These MUST NOT be treated as
-        // "offline" — surface an explicit certificate/HTTPS message instead.
-        case NSURLErrorSecureConnectionFailed,        // -1200
-             NSURLErrorServerCertificateHasBadDate,   // -1201
+        // "offline" — surface an explicit secure-connection message instead.
+
+        // Handshake failure: the certificate may be perfectly valid here (a
+        // server offering no cipher suites this device implements fails the
+        // same way), so blame the server's TLS configuration, not the cert.
+        case NSURLErrorSecureConnectionFailed:        // -1200
+            return .unknown(String(localized: "Could not establish a secure connection. The server's TLS settings are likely outdated or incompatible with this device. Ask the server operator to enable TLS 1.3, or TLS 1.2 with modern (ECDHE + AES-GCM) cipher suites."))
+
+        case NSURLErrorServerCertificateHasBadDate,   // -1201
              NSURLErrorServerCertificateUntrusted,    // -1202
              NSURLErrorServerCertificateHasUnknownRoot, // -1203
-             NSURLErrorServerCertificateNotYetValid,  // -1204
-             NSURLErrorClientCertificateRejected,     // -1205
-             NSURLErrorClientCertificateRequired,     // -1206
-             NSURLErrorAppTransportSecurityRequiresSecureConnection: // -1022
-            return .unknown(String(localized: "Could not establish a secure connection. The server's certificate is invalid, or it does not support HTTPS."))
+             NSURLErrorServerCertificateNotYetValid:  // -1204
+            return .unknown(String(localized: "Could not establish a secure connection because the server's certificate is invalid, expired, or untrusted."))
+
+        case NSURLErrorClientCertificateRejected,     // -1205
+             NSURLErrorClientCertificateRequired:     // -1206
+            return .unknown(String(localized: "Could not establish a secure connection. The server requires a client certificate, which KeeForge does not support."))
+
+        case NSURLErrorAppTransportSecurityRequiresSecureConnection: // -1022
+            return .unknown(String(localized: "Could not establish a secure connection. This device requires an https:// server address."))
 
         // Offline / reachability family.
         case NSURLErrorNotConnectedToInternet,

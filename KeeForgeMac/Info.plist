@@ -77,7 +77,14 @@
 	<string>KeeForge uses your local network to connect to WebDAV servers you add.</string>
 	<key>NSAppTransportSecurity</key>
 	<dict>
-		<key>NSAllowsLocalNetworking</key>
+		<!--
+		Same rationale as KeeForge/Info.plist: user-specified WebDAV servers
+		often lack ATS-approved forward-secrecy ciphers, and ATS has no
+		per-domain exception for user-entered hosts. NSAllowsLocalNetworking
+		must not be re-added alongside NSAllowsArbitraryLoads (it would make
+		the system ignore the arbitrary-loads key).
+		-->
+		<key>NSAllowsArbitraryLoads</key>
 		<true/>
 	</dict>
 	<key>SKIncludeConsumableInAppPurchaseHistory</key>

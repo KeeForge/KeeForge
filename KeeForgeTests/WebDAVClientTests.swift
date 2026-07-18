@@ -539,21 +539,40 @@ final class WebDAVClientTests: XCTestCase {
     }
 
     func testMapURLErrorTLSAndATSMapToSecureConnectionNotOffline() {
-        let tlsRawCodes = [
-            NSURLErrorSecureConnectionFailed,          // -1200
-            NSURLErrorServerCertificateUntrusted,      // -1202
-            NSURLErrorServerCertificateHasUnknownRoot, // -1203
-            NSURLErrorAppTransportSecurityRequiresSecureConnection, // -1022
+        // (code, required message fragment). Each TLS/ATS family gets its own
+        // actionable message: a handshake failure must point at the server's
+        // TLS configuration — NOT the certificate, which may be valid (e.g. a
+        // server offering only cipher suites this device does not implement).
+        let tlsCases: [(Int, String)] = [
+            (NSURLErrorSecureConnectionFailed, "tls settings"),            // -1200
+            (NSURLErrorServerCertificateHasBadDate, "certificate"),        // -1201
+            (NSURLErrorServerCertificateUntrusted, "certificate"),         // -1202
+            (NSURLErrorServerCertificateHasUnknownRoot, "certificate"),    // -1203
+            (NSURLErrorServerCertificateNotYetValid, "certificate"),       // -1204
+            (NSURLErrorClientCertificateRejected, "client certificate"),   // -1205
+            (NSURLErrorClientCertificateRequired, "client certificate"),   // -1206
+            (NSURLErrorAppTransportSecurityRequiresSecureConnection, "https://"), // -1022
         ]
-        for raw in tlsRawCodes {
+        for (raw, fragment) in tlsCases {
             let error = URLError(URLError.Code(rawValue: raw))
             let mapped = WebDAVClient.mapURLError(error)
             guard case .unknown(let message) = mapped else {
                 XCTFail("Expected \(raw) → .unknown secure-connection message, got \(mapped)")
                 continue
             }
-            XCTAssertTrue(message.lowercased().contains("secure"))
+            XCTAssertTrue(message.lowercased().contains("secure"), "Code \(raw) message must mention the secure connection")
+            XCTAssertTrue(
+                message.lowercased().contains(fragment),
+                "Code \(raw) message must contain \"\(fragment)\", got: \(message)"
+            )
             XCTAssertNotEqual(mapped, .networkUnavailable, "TLS code \(raw) must NOT be .networkUnavailable")
+        }
+
+        // A handshake failure must not blame the certificate.
+        if case .unknown(let handshakeMessage) = WebDAVClient.mapURLError(
+            URLError(URLError.Code(rawValue: NSURLErrorSecureConnectionFailed))
+        ) {
+            XCTAssertFalse(handshakeMessage.lowercased().contains("certificate"))
         }
     }
 
