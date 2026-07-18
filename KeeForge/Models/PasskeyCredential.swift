@@ -34,18 +34,31 @@ extension PasskeyCredential {
     static let usernameKey = "KPEX_PASSKEY_USERNAME"
     static let userHandleKey = "KPEX_PASSKEY_USER_HANDLE"
 
-    /// All KPEX passkey field keys, used to filter them from the generic custom fields display.
+    /// Legacy field name used by Strongbox / older KeePassXC as the credential ID.
+    static let legacyCredentialIDKey = "KPEX_PASSKEY_GENERATED_USER_ID"
+    /// Legacy KPXC-prefixed username field written by older KeePassXC builds.
+    static let legacyUsernameKey = "KPXC_PASSKEY_USERNAME"
+
+    /// All passkey field keys (current and legacy), used to filter them from
+    /// the generic custom fields display.
     static let allFieldKeys: Set<String> = [
         credentialIDKey, privateKeyPEMKey, relyingPartyKey, usernameKey, userHandleKey,
+        legacyCredentialIDKey, legacyUsernameKey,
     ]
 
     /// Attempt to parse a passkey credential from an entry's custom fields.
     /// Returns nil if any required field is missing or empty.
+    ///
+    /// For compatibility with passkeys written by Strongbox and older KeePassXC
+    /// builds, the credential ID and username fall back to legacy field names when
+    /// the current KPEX keys are absent.
     init?(customFields: [String: String]) {
-        guard let credentialID = customFields[Self.credentialIDKey], !credentialID.isEmpty,
+        guard let credentialID = Self.nonEmptyValue(in: customFields,
+                                                    keys: Self.credentialIDKey, Self.legacyCredentialIDKey),
               let privateKeyPEM = customFields[Self.privateKeyPEMKey], !privateKeyPEM.isEmpty,
               let relyingParty = customFields[Self.relyingPartyKey], !relyingParty.isEmpty,
-              let username = customFields[Self.usernameKey], !username.isEmpty,
+              let username = Self.nonEmptyValue(in: customFields,
+                                                keys: Self.usernameKey, Self.legacyUsernameKey),
               let userHandle = customFields[Self.userHandleKey], !userHandle.isEmpty
         else {
             return nil
@@ -56,6 +69,16 @@ extension PasskeyCredential {
         self.relyingParty = relyingParty
         self.username = username
         self.userHandle = userHandle
+    }
+
+    /// Return the first non-empty value found for the given keys, in order.
+    private static func nonEmptyValue(in customFields: [String: String], keys: String...) -> String? {
+        for key in keys {
+            if let value = customFields[key], !value.isEmpty {
+                return value
+            }
+        }
+        return nil
     }
 }
 

@@ -57,6 +57,64 @@ final class PasskeyCredentialTests: XCTestCase {
         XCTAssertNil(PasskeyCredential(customFields: [:]))
     }
 
+    // MARK: - Legacy field name compatibility
+
+    func testParsesLegacyCredentialIDAndUsernameKeys() {
+        // Passkeys written by Strongbox / older KeePassXC use legacy field names
+        // for the credential ID and username.
+        let fields: [String: String] = [
+            PasskeyCredential.legacyCredentialIDKey: "dGVzdC1jcmVkZW50aWFsLWlk",
+            PasskeyCredential.privateKeyPEMKey: "-----BEGIN PRIVATE KEY-----\nMIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQgZz8y\n-----END PRIVATE KEY-----",
+            PasskeyCredential.relyingPartyKey: "example.com",
+            PasskeyCredential.legacyUsernameKey: "alice@example.com",
+            PasskeyCredential.userHandleKey: "dXNlci1oYW5kbGU",
+        ]
+        let passkey = PasskeyCredential(customFields: fields)
+        XCTAssertNotNil(passkey)
+        XCTAssertEqual(passkey?.credentialID, "dGVzdC1jcmVkZW50aWFsLWlk")
+        XCTAssertEqual(passkey?.username, "alice@example.com")
+        XCTAssertEqual(passkey?.relyingParty, "example.com")
+    }
+
+    func testCurrentKeysTakePrecedenceOverLegacyKeys() {
+        var fields = makePasskeyFields()
+        fields[PasskeyCredential.legacyCredentialIDKey] = "bGVnYWN5LWlk"
+        fields[PasskeyCredential.legacyUsernameKey] = "legacy@example.com"
+        let passkey = PasskeyCredential(customFields: fields)
+        XCTAssertEqual(passkey?.credentialID, "dGVzdC1jcmVkZW50aWFsLWlk")
+        XCTAssertEqual(passkey?.username, "alice@example.com")
+    }
+
+    func testFallsBackToLegacyKeyWhenCurrentKeyEmpty() {
+        var fields = makePasskeyFields()
+        fields[PasskeyCredential.credentialIDKey] = ""
+        fields[PasskeyCredential.legacyCredentialIDKey] = "dGVzdC1jcmVkZW50aWFsLWlk"
+        let passkey = PasskeyCredential(customFields: fields)
+        XCTAssertEqual(passkey?.credentialID, "dGVzdC1jcmVkZW50aWFsLWlk")
+    }
+
+    func testAllFieldKeysIncludesLegacyKeys() {
+        XCTAssertTrue(PasskeyCredential.allFieldKeys.contains(PasskeyCredential.legacyCredentialIDKey))
+        XCTAssertTrue(PasskeyCredential.allFieldKeys.contains(PasskeyCredential.legacyUsernameKey))
+    }
+
+    func testDisplayCustomFieldsExcludesLegacyPasskeyKeys() {
+        let fields: [String: String] = [
+            PasskeyCredential.legacyCredentialIDKey: "dGVzdC1jcmVkZW50aWFsLWlk",
+            PasskeyCredential.privateKeyPEMKey: "-----BEGIN PRIVATE KEY-----\nMIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQgZz8y\n-----END PRIVATE KEY-----",
+            PasskeyCredential.relyingPartyKey: "example.com",
+            PasskeyCredential.legacyUsernameKey: "alice@example.com",
+            PasskeyCredential.userHandleKey: "dXNlci1oYW5kbGU",
+            "CustomNote": "hello",
+        ]
+        let entry = makeEntry(customFields: fields)
+        let displayFields = entry.displayCustomFields
+        XCTAssertEqual(displayFields.count, 1)
+        XCTAssertEqual(displayFields["CustomNote"], "hello")
+        XCTAssertNil(displayFields[PasskeyCredential.legacyCredentialIDKey])
+        XCTAssertNil(displayFields[PasskeyCredential.legacyUsernameKey])
+    }
+
     // MARK: - Base64URL decoding
 
     func testCredentialIDDataDecodes() {
