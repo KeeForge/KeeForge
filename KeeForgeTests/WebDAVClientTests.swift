@@ -208,6 +208,46 @@ final class WebDAVClientTests: XCTestCase {
         XCTAssertEqual(file.name, "My Passwörter.kdbx")
     }
 
+    func testParseLiteralPercentInBasePathDecodedExactlyOnce() throws {
+        // A folder literally named "a%41b": on the wire each path segment is
+        // percent-encoded once, so the "%" is sent as "%25" (i.e. "a%2541b").
+        // Both the request URL path and the hrefs therefore decode EXACTLY ONCE
+        // to "/a%41b/...". A second (buggy) decode would turn "%41" into "A",
+        // breaking self-entry skipping and base-prefix stripping.
+        let xml = """
+        <?xml version="1.0"?>
+        <d:multistatus xmlns:d="DAV:">
+          <d:response>
+            <d:href>/a%2541b/</d:href>
+            <d:propstat>
+              <d:prop><d:resourcetype><d:collection/></d:resourcetype></d:prop>
+              <d:status>HTTP/1.1 200 OK</d:status>
+            </d:propstat>
+          </d:response>
+          <d:response>
+            <d:href>/a%2541b/vault.kdbx</d:href>
+            <d:propstat>
+              <d:prop>
+                <d:resourcetype/>
+                <d:getcontentlength>10</d:getcontentlength>
+              </d:prop>
+              <d:status>HTTP/1.1 200 OK</d:status>
+            </d:propstat>
+          </d:response>
+        </d:multistatus>
+        """
+        let requestURL = try XCTUnwrap(URL(string: "https://host.example.com/a%2541b/"))
+        let resources = try WebDAVPropfindParser.parse(data: Data(xml.utf8), requestURL: requestURL)
+
+        // The folder's own entry (decodes to "/a%41b/") is recognized as self and
+        // skipped; only the file remains, with its base prefix correctly stripped.
+        XCTAssertEqual(resources.count, 1)
+        let file = try XCTUnwrap(resources.first)
+        XCTAssertEqual(file.path, "/vault.kdbx")
+        XCTAssertEqual(file.name, "vault.kdbx")
+        XCTAssertFalse(file.isFolder)
+    }
+
     func testParseAbsoluteURLHrefs() throws {
         let xml = """
         <?xml version="1.0"?>
@@ -520,6 +560,44 @@ final class WebDAVClientTests: XCTestCase {
     func testMapURLErrorUserCancelledAuthentication() {
         let error = URLError(URLError.Code(rawValue: NSURLErrorUserCancelledAuthentication))
         XCTAssertEqual(WebDAVClient.mapURLError(error), .notAuthenticated)
+    }
+
+    // MARK: - URL normalization
+
+    func testNormalizedBaseURLEncodesSpacesAndNonASCIIInsteadOfFailing() throws {
+        // A pasted address with a space and an umlaut must normalize (percent-
+        // encoding the invalid characters) rather than throw .malformed.
+        let url = try WebDAVURL.normalizedBaseURL(from: "https://cloud.example.com/Pässwörter/My Vaults")
+        XCTAssertEqual(url.scheme, "https")
+        XCTAssertEqual(url.host, "cloud.example.com")
+        // ä→%C3%A4, ö→%C3%B6, space→%20, and exactly one trailing slash is added.
+        XCTAssertEqual(
+            url.absoluteString,
+            "https://cloud.example.com/P%C3%A4ssw%C3%B6rter/My%20Vaults/"
+        )
+    }
+
+    func testNormalizedBaseURLStillRejectsGarbageInput() {
+        // Encoding invalid characters must not paper over genuinely unparseable
+        // input; this still surfaces as .malformed.
+        XCTAssertThrowsError(try WebDAVURL.normalizedBaseURL(from: "not a url ::::")) { error in
+            XCTAssertEqual(error as? WebDAVURLError, .malformed)
+        }
+    }
+
+    // MARK: - Response size limits
+
+    func testResponseByteLimitDiffersForPropfindVersusDownload() throws {
+        let url = try XCTUnwrap(URL(string: "https://cloud.example.com/dav/vault.kdbx"))
+        var propfind = URLRequest(url: url)
+        propfind.httpMethod = "PROPFIND"
+        var get = URLRequest(url: url)
+        get.httpMethod = "GET"
+
+        XCTAssertEqual(WebDAVClient.responseByteLimit(for: propfind), WebDAVClient.maxPropfindResponseBytes)
+        XCTAssertEqual(WebDAVClient.responseByteLimit(for: get), WebDAVClient.maxBodyResponseBytes)
+        XCTAssertLessThan(WebDAVClient.maxPropfindResponseBytes, WebDAVClient.maxBodyResponseBytes)
+        XCTAssertGreaterThan(WebDAVClient.maxPropfindResponseBytes, 0)
     }
 }
 

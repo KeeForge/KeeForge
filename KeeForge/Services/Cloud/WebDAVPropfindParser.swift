@@ -111,7 +111,12 @@ private final class MultistatusDelegate: NSObject, XMLParserDelegate {
     private var textBuffer = ""
 
     init(requestURL: URL, includeSelf: Bool) {
-        let decoded = requestURL.path.removingPercentEncoding ?? requestURL.path
+        // `URL.path` is already percent-decoded exactly once, mirroring the single
+        // decode `decodedPath(fromHref:)` applies to each href. Do NOT decode
+        // again: a second pass corrupts base-prefix stripping and self-entry
+        // matching for any component containing a literal "%XX" (e.g. a folder
+        // named "a%41b" would collapse to "aAb" and stop matching its hrefs).
+        let decoded = requestURL.path
         self.basePath = Self.normalizedDirectoryPath(decoded)
         self.selfDecodedPath = Self.stripTrailingSlash(decoded)
         self.includeSelf = includeSelf

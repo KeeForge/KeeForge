@@ -247,6 +247,29 @@ struct WebDAVClient: Sendable {
         return Data(xml.utf8)
     }()
 
+    // MARK: - Response size limits
+
+    /// Hard ceiling for PROPFIND multistatus XML. Directory listings are tiny in
+    /// practice; anything approaching this is pathological.
+    static let maxPropfindResponseBytes: Int64 = 64 * 1024 * 1024   // 64 MiB
+
+    /// Hard ceiling for any other response body (notably a GET of the database).
+    /// A KDBX file is typically well under this; the cap only exists to bound the
+    /// amount an untrusted server can make us buffer.
+    static let maxBodyResponseBytes: Int64 = 512 * 1024 * 1024       // 512 MiB
+
+    /// The byte ceiling to enforce for a given request. Without a ceiling,
+    /// `URLSession` buffers the entire response in memory (bounded only by the
+    /// 300s resource timeout), so a malicious or misconfigured server could
+    /// stream an unbounded body and trigger a jetsam memory kill.
+    static func responseByteLimit(for request: URLRequest) -> Int64 {
+        request.httpMethod == "PROPFIND" ? maxPropfindResponseBytes : maxBodyResponseBytes
+    }
+
+    static func responseTooLargeError() -> CloudProviderError {
+        .unknown(String(localized: "The server returned an unexpectedly large response. The transfer was stopped to protect memory."))
+    }
+
     // MARK: - Live transport
 
     /// Builds the production transport backed by an ephemeral `URLSession` that
@@ -269,9 +292,29 @@ struct WebDAVClient: Sendable {
         )
 
         return { request in
-            let (data, response) = try await session.data(for: request)
+            let byteLimit = Self.responseByteLimit(for: request)
+            // Stream the response so the accumulated bytes can be capped; the
+            // session delegate (same-origin redirect + Authorization stripping)
+            // still applies because `bytes(for:)` uses the session's delegate.
+            let (byteStream, response) = try await session.bytes(for: request)
             guard let httpResponse = response as? HTTPURLResponse else {
                 throw CloudProviderError.unknown(String(localized: "The server returned an unexpected response."))
+            }
+            // Reject an honestly-advertised over-limit body before downloading it.
+            if httpResponse.expectedContentLength > byteLimit {
+                throw Self.responseTooLargeError()
+            }
+            var data = Data()
+            if httpResponse.expectedContentLength > 0 {
+                data.reserveCapacity(Int(min(httpResponse.expectedContentLength, byteLimit)))
+            }
+            // Also cap the accumulated bytes: a server may omit or understate
+            // Content-Length while streaming an unbounded body.
+            for try await byte in byteStream {
+                if Int64(data.count) >= byteLimit {
+                    throw Self.responseTooLargeError()
+                }
+                data.append(byte)
             }
             return (data, httpResponse)
         }

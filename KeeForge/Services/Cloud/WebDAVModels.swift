@@ -64,7 +64,11 @@ enum WebDAVURL {
         let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { throw WebDAVURLError.empty }
 
-        guard var components = URLComponents(string: trimmed) else {
+        // `encodingInvalidCharacters: true` (iOS 17+/macOS 14+) percent-encodes
+        // spaces and non-ASCII characters instead of rejecting the string, so a
+        // pasted address like a Nextcloud path with an umlaut normalizes cleanly
+        // rather than failing as "malformed".
+        guard var components = URLComponents(string: trimmed, encodingInvalidCharacters: true) else {
             throw WebDAVURLError.malformed
         }
 
