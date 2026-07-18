@@ -56,6 +56,32 @@ final class PendingUploadQueueTests: XCTestCase {
         XCTAssertTrue(PendingUploadQueue.listMarkers(for: storedMarker.marker.databaseId, environment: environment).isEmpty)
     }
 
+    func test_update_afterDrop_doesNotResurrectMarker() throws {
+        // Models a concurrent drain that already dropped the marker: a late
+        // `update`/`markConflicted` must fail rather than recreate the file and
+        // leave a phantom pending upload behind.
+        let environment = makeEnvironment()
+        let storedMarker = try PendingUploadQueue.enqueue(makeMarker(), environment: environment)
+
+        try PendingUploadQueue.drop(storedMarker, environment: environment)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: storedMarker.fileURL.path))
+
+        var stale = storedMarker
+        stale.marker.lastSyncError = "late conflict"
+
+        XCTAssertThrowsError(try PendingUploadQueue.update(stale, environment: environment)) { error in
+            XCTAssertEqual(error as? PendingUploadQueue.UpdateError, .markerNoLongerExists)
+        }
+        XCTAssertThrowsError(
+            try PendingUploadQueue.markConflicted(stale, message: "late", environment: environment)
+        )
+
+        XCTAssertFalse(FileManager.default.fileExists(atPath: storedMarker.fileURL.path))
+        XCTAssertTrue(
+            PendingUploadQueue.listMarkers(for: storedMarker.marker.databaseId, environment: environment).isEmpty
+        )
+    }
+
     func test_markConflicted_persistsAcrossRestart() throws {
         let environment = makeEnvironment()
         let storedMarker = try PendingUploadQueue.enqueue(makeMarker(), environment: environment)

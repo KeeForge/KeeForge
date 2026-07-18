@@ -78,6 +78,7 @@ enum CloudSyncCoordinator {
                 try await downloadLatestCopy(
                     provider: provider,
                     metadata: metadata,
+                    reference: updatedReference,
                     destinationURL: cacheURL,
                     progress: progress
                 )
@@ -134,6 +135,7 @@ enum CloudSyncCoordinator {
     private static func downloadLatestCopy(
         provider: CloudProvider,
         metadata: CloudSyncMetadata,
+        reference: DatabaseReference,
         destinationURL: URL,
         progress: @escaping @Sendable (Double) -> Void
     ) async throws {
@@ -154,6 +156,15 @@ enum CloudSyncCoordinator {
         )
 
         if fileManager.fileExists(atPath: destinationURL.path) {
+            // The shared cache is the *only* home of an AutoFill save until its
+            // pending upload drains. If a marker is still queued for this
+            // database, the current cache bytes have not reached the cloud yet,
+            // so preserve a recoverable backup before the remote copy replaces
+            // them. The drainer's SHA-512 check then surfaces the overwrite as a
+            // conflict instead of silently losing the local change.
+            if !PendingUploadQueue.listMarkers(for: reference.id).isEmpty {
+                try backUpCacheBeforePendingOverwrite(at: destinationURL, reference: reference)
+            }
             try fileManager.removeItem(at: destinationURL)
         }
 
@@ -167,6 +178,52 @@ enum CloudSyncCoordinator {
             ofItemAtPath: destinationURL.path
         )
         #endif
+    }
+
+    /// Copies the soon-to-be-overwritten cache into the database's timestamped
+    /// backup directory so a not-yet-uploaded AutoFill save stays recoverable
+    /// through the existing restore UI. Best-effort by design: a backup failure
+    /// must not block the sync-down, and the drainer's SHA-512 guard is the
+    /// second line of defense against pushing the wrong bytes.
+    private static func backUpCacheBeforePendingOverwrite(
+        at cacheURL: URL,
+        reference: DatabaseReference
+    ) throws {
+        let fileManager = FileManager.default
+        guard fileManager.fileExists(atPath: cacheURL.path) else { return }
+
+        let backupDirectory = DatabaseListStore.databaseBackupDirectoryURL(for: reference)
+        try fileManager.createDirectory(at: backupDirectory, withIntermediateDirectories: true, attributes: nil)
+
+        let backupURL = backupDirectory.appendingPathComponent(
+            pendingOverwriteBackupFilename(for: .now),
+            isDirectory: false
+        )
+        if fileManager.fileExists(atPath: backupURL.path) {
+            try fileManager.removeItem(at: backupURL)
+        }
+        try fileManager.copyItem(at: cacheURL, to: backupURL)
+    }
+
+    /// Matches the `yyyyMMdd-HHmmss-uuuuuu.kdbx` shape used by the local and
+    /// cloud savers so these backups sort correctly alongside them in the
+    /// restore list.
+    private static func pendingOverwriteBackupFilename(for date: Date) -> String {
+        let utcCalendar = Calendar(identifier: .gregorian)
+        let utcTimeZone = TimeZone(secondsFromGMT: 0) ?? .current
+        let components = utcCalendar.dateComponents(in: utcTimeZone, from: date)
+        let microseconds = (components.nanosecond ?? 0) / 1_000
+
+        return String(
+            format: "%04d%02d%02d-%02d%02d%02d-%06d.kdbx",
+            components.year ?? 0,
+            components.month ?? 0,
+            components.day ?? 0,
+            components.hour ?? 0,
+            components.minute ?? 0,
+            components.second ?? 0,
+            microseconds
+        )
     }
 
     static func pushAfterSave(

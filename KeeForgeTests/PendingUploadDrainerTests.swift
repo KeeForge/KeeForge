@@ -68,6 +68,70 @@ final class PendingUploadDrainerTests: XCTestCase {
         XCTAssertEqual(recorder.updatedMarkers.first?.marker.lastSyncError, CloudProviderError.conflict(remoteRev: "rev-2").localizedDescription)
     }
 
+    func test_drain_payloadShaMismatch_marksConflicted_doesNotPush() async {
+        // The shared cache was overwritten after the AutoFill save, so the bytes
+        // no longer hash to the SHA-512 recorded on the marker. They must never
+        // be pushed (that would upload the wrong content and drop the marker as
+        // saved); the marker is surfaced as a conflict instead.
+        let reference = makeCloudReference(rev: "rev-1")
+        let storedMarker = makeStoredMarker(databaseId: reference.id, expectedRev: "rev-1")
+        let recorder = Recorder()
+        let drainer = PendingUploadDrainer(
+            environment: makeEnvironment(
+                markers: [storedMarker],
+                reference: reference,
+                recorder: recorder,
+                sha512: { _ in Data("clobbered-sha".utf8) },
+                pushPendingUpload: { _, _, _ in
+                    XCTFail("Clobbered payload must never be pushed")
+                    return .saved(updatedReference: reference)
+                }
+            )
+        )
+
+        let outcome = await drainer.drainAll()
+
+        XCTAssertTrue(outcome.drainedDatabaseIDs.isEmpty)
+        XCTAssertEqual(outcome.conflictDatabaseIDs, [reference.id])
+        XCTAssertTrue(recorder.droppedMarkerIDs.isEmpty)
+        XCTAssertEqual(recorder.updatedMarkers.count, 1)
+        XCTAssertEqual(
+            recorder.updatedMarkers.first?.marker.lastSyncError,
+            CloudProviderError.conflict(remoteRev: nil).localizedDescription
+        )
+    }
+
+    func test_drain_crossDeviceConflict_isNotAutoRebased() async {
+        // A sync-down replaced the cache with another device's copy, so the
+        // payload no longer matches the recorded SHA-512, even though the
+        // reference has already reconciled to that remote head (rev-2). The old
+        // rebase heuristic keyed only on `expectedCloudRevision == remoteRev`
+        // and would have force-pushed this device's stale bytes over the
+        // cross-device change. It must now be left conflicted for the user.
+        let reference = makeCloudReference(rev: "rev-2")
+        let storedMarker = makeStoredMarker(databaseId: reference.id, expectedRev: "rev-1")
+        let recorder = Recorder()
+        let drainer = PendingUploadDrainer(
+            environment: makeEnvironment(
+                markers: [storedMarker],
+                reference: reference,
+                recorder: recorder,
+                sha512: { _ in Data("foreign-copy-sha".utf8) },
+                pushPendingUpload: { _, _, _ in
+                    XCTFail("A cross-device conflict must not be force-pushed")
+                    return .saved(updatedReference: reference)
+                }
+            )
+        )
+
+        let outcome = await drainer.drainAll()
+
+        XCTAssertTrue(outcome.drainedDatabaseIDs.isEmpty)
+        XCTAssertEqual(outcome.conflictDatabaseIDs, [reference.id])
+        XCTAssertTrue(recorder.droppedMarkerIDs.isEmpty)
+        XCTAssertEqual(recorder.pushedExpectedRevisions, [])
+    }
+
     func test_drain_offline_keepsMarkerUnchanged() async {
         let reference = makeCloudReference()
         let storedMarker = makeStoredMarker(databaseId: reference.id, expectedRev: reference.expectedCloudRevision)
@@ -207,6 +271,8 @@ final class PendingUploadDrainerTests: XCTestCase {
         reference: DatabaseReference? = nil,
         referenceResolver: (@Sendable (UUID) -> DatabaseReference?)? = nil,
         recorder: Recorder = Recorder(),
+        readBytes: (@Sendable (String) throws -> Data)? = nil,
+        sha512: (@Sendable (Data) -> Data)? = nil,
         pushPendingUpload: @escaping @Sendable (DatabaseReference, Data, String?) async throws -> CloudDatabaseSaver.PendingUploadPushResult
     ) -> PendingUploadDrainer.Environment {
         PendingUploadDrainer.Environment(
@@ -227,9 +293,12 @@ final class PendingUploadDrainerTests: XCTestCase {
                 guard let reference, reference.id == databaseId else { return nil }
                 return reference
             },
-            readBytes: { _ in
+            readBytes: readBytes ?? { _ in
                 Data("encrypted-bytes".utf8)
             },
+            // Default matches `makeStoredMarker`'s `openTimeSHA512` so the
+            // payload-integrity guard treats the cached bytes as unchanged.
+            sha512: sha512 ?? { _ in Data("open-sha".utf8) },
             pushPendingUpload: pushPendingUpload,
             conflictMessage: { remoteRev in
                 CloudProviderError.conflict(remoteRev: remoteRev).localizedDescription

@@ -3,6 +3,13 @@ import Darwin
 import Foundation
 
 enum PendingUploadQueue {
+    enum UpdateError: Error, Equatable {
+        /// The marker file was dropped (typically by a concurrent drain) before
+        /// this update ran. Persisting anyway would resurrect a marker that has
+        /// already been handled, so callers must treat this as a lost race.
+        case markerNoLongerExists
+    }
+
     struct Marker: Codable, Equatable, Sendable {
         let databaseId: UUID
         let encryptedBytesCacheURL: String
@@ -147,6 +154,13 @@ enum PendingUploadQueue {
     }
 
     static func update(_ storedMarker: StoredMarker, environment: Environment) throws -> StoredMarker {
+        // Compare-and-swap against the on-disk marker: if a concurrent drain has
+        // already dropped the file, refuse to recreate it. Without this guard an
+        // in-flight `markConflicted`/rebase could resurrect a marker the drainer
+        // just completed, leaving a phantom pending upload behind.
+        guard FileManager.default.fileExists(atPath: storedMarker.fileURL.path) else {
+            throw UpdateError.markerNoLongerExists
+        }
         try persist(storedMarker, environment: environment)
         return storedMarker
     }
