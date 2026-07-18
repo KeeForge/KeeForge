@@ -2,20 +2,20 @@
 
 ## Unreleased
 
+### New Features
+
 - Send Feedback now supports optional follow-up: enable "Allow Follow-Up" and enter an email so we can reply about that specific report. Nothing is sent unless you opt in.
 - Send Feedback now supports attaching a single photo. Photos are downscaled and re-encoded as JPEG on-device (metadata such as location is stripped) and capped at 5 MB.
 - Add a user-friendly What's New sheet that appears once per feature-bearing version on both iOS and macOS, with platform-specific feature filtering and release copy curated from the changelog's New Features section.
-
-- Fix AutoFill showing a blank sheet when picking KeeForge on a one-time-code field (#20): the extension never handled the interactive verification-code list request, so choosing AutoFill → Passwords on a TOTP form did nothing. It now unlocks the vault and fills the code directly when a single entry matches the site, or shows the TOTP entry picker otherwise; a stale QuickType code suggestion also falls back to the picker instead of failing.
-
-- Fix local databases silently opening a stale copy after the file was deleted or replaced in the Files app (#13): iOS bookmarks follow the old file into Recently Deleted, so KeeForge now detects a trashed database file, refuses to open or save to it, and explains how to restore or re-add the current file.
-
 - Add full German localization (iOS app, macOS app, and AutoFill extension): 648 strings across UI, error messages, alerts, and Info.plist usage descriptions, plus a localization test suite that gates translation completeness, format-specifier parity, and app/extension consistency.
 - Show TOTP codes for entries created by the KeeOTP/KeeOtp2 plugins (`key=...` values in the otp/OTP/Otp fields, with Base32, Base64, Hex, and UTF8 secret encodings, and KeeOtp2's defaults for omitted parameters), preserving the original field spelling and query verbatim when editing and saving.
-- Update GitHub links (Report a Bug, Source Code, docs) to the new KeeForge org after the repository transfer.
+
+### Fixes
+
+- Fix AutoFill showing a blank sheet when picking KeeForge on a one-time-code field (#20): the extension never handled the interactive verification-code list request, so choosing AutoFill → Passwords on a TOTP form did nothing. It now unlocks the vault and fills the code directly when a single entry matches the site, or shows the TOTP entry picker otherwise; a stale QuickType code suggestion also falls back to the picker instead of failing.
+- Fix local databases silently opening a stale copy after the file was deleted or replaced in the Files app (#13): iOS bookmarks follow the old file into Recently Deleted, so KeeForge now detects a trashed database file, refuses to open or save to it, and explains how to restore or re-add the current file.
 - Fix local HTTP WebDAV vaults getting stuck on the initial metadata check before KeeForge could download and cache them.
 - Password reveal and copy now always require device-owner authentication, even when biometrics are unavailable (hardening back-ported from the macOS work).
-- Internal: restructure the AutoFill extension for upcoming macOS support (no user-facing change).
 
 ## macOS App (in development — ON HOLD, do not release until revisited)
 
