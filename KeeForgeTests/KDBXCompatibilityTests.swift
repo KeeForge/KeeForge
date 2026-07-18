@@ -282,6 +282,144 @@ final class KDBXCompatibilityTests: XCTestCase {
         XCTAssertFalse(reloaded.customFields.keys.contains { $0.hasPrefix("TimeOtp-") || $0 == "OTP" || $0 == "Otp" })
     }
 
+    func test_passkeyPrivateKey_divertedOnParse_andPreservedThroughEditSaveReload() throws {
+        let loaded = try KDBXCompatibilitySupport.load(.syntheticRich, bundle: bundle, sessionKey: entrySessionKey)
+        let entry = try XCTUnwrap(firstEntry(titled: "Compat Update Target", in: loaded.rootGroup))
+
+        // Parse diverts the PEM out of customFields into the sealed value.
+        XCTAssertNil(entry.customFields[PasskeyCredential.privateKeyPEMKey])
+        XCTAssertEqual(
+            try XCTUnwrap(entry.passkeyPrivateKey).decrypt(using: entrySessionKey),
+            "private-key-pem"
+        )
+        XCTAssertTrue(entry.protectedStringKeys.contains(PasskeyCredential.privateKeyPEMKey))
+        XCTAssertNotNil(entry.passkeyCredential)
+
+        // An unrelated edit must carry the sealed key through draft, write,
+        // and reparse — including into the history snapshot the edit creates.
+        let payload = EntryDraftPayload(
+            title: entry.title,
+            username: entry.username,
+            password: try entry.password.decrypt(using: entrySessionKey),
+            url: entry.url,
+            notes: "Edited for passkey preservation",
+            customFields: entry.customFields,
+            tags: entry.tags,
+            totpConfig: (entry.totpConfig).map {
+                EntryDraftPayload.TOTPConfiguration(
+                    secret: (try? $0.secret.decrypt(using: entrySessionKey)) ?? "",
+                    period: $0.period,
+                    digits: $0.digits,
+                    algorithm: $0.algorithm
+                )
+            }
+        )
+        let updatedDraft = try DatabaseDraft(
+            rootGroup: loaded.rootGroup,
+            meta: loaded.meta,
+            sessionKey: entrySessionKey
+        ).apply(.updateEntry(entryID: entry.id, draft: payload))
+
+        let written = try KDBXWriter.write(
+            rootGroup: updatedDraft.rootGroup,
+            meta: updatedDraft.meta,
+            compositeKey: loaded.compositeKey,
+            header: loaded.header,
+            sessionKey: updatedDraft.writerSessionKey
+        )
+        let reparsed = try KDBXParser.parseWithMeta(
+            data: written,
+            compositeKey: loaded.compositeKey,
+            sessionKey: entrySessionKey
+        )
+        let reloaded = try XCTUnwrap(firstEntry(titled: "Compat Update Target", in: reparsed.rootGroup))
+
+        XCTAssertEqual(reloaded.notes, "Edited for passkey preservation")
+        XCTAssertNil(reloaded.customFields[PasskeyCredential.privateKeyPEMKey])
+        XCTAssertEqual(
+            try XCTUnwrap(reloaded.passkeyPrivateKey).decrypt(using: entrySessionKey),
+            "private-key-pem"
+        )
+        XCTAssertTrue(reloaded.protectedStringKeys.contains(PasskeyCredential.privateKeyPEMKey))
+
+        // History entries flow through the same EntryBuilder, so the pre-edit
+        // snapshot must carry the diverted key too.
+        let historySnapshot = try XCTUnwrap(reloaded.history.first)
+        XCTAssertNil(historySnapshot.customFields[PasskeyCredential.privateKeyPEMKey])
+        XCTAssertEqual(
+            try XCTUnwrap(historySnapshot.passkeyPrivateKey).decrypt(using: entrySessionKey),
+            "private-key-pem"
+        )
+    }
+
+    func test_passkeyEntry_serializeParseSerialize_isByteIdenticalAndReprotected() throws {
+        let pem = "-----BEGIN PRIVATE KEY-----\nCOMPAT-BYTE-IDENTITY\n-----END PRIVATE KEY-----"
+        let innerStreamKey = Data("KeeForge Passkey Inner Stream Key".utf8)
+        let entry = KPEntry(
+            title: "Passkey Byte Identity",
+            username: "alice",
+            password: try EncryptedValue.encrypt("password", using: entrySessionKey),
+            customFields: [
+                "AAA Leading": "before-pem",
+                PasskeyCredential.credentialIDKey: "dGVzdC1jcmVkZW50aWFsLWlk",
+                PasskeyCredential.relyingPartyKey: "example.com",
+                PasskeyCredential.usernameKey: "alice@example.com",
+                PasskeyCredential.userHandleKey: "dXNlci1oYW5kbGU",
+                "ZZZ Trailing": "after-pem",
+            ],
+            passkeyPrivateKey: try EncryptedValue.encrypt(pem, using: entrySessionKey),
+            protectedStringKeys: [PasskeyCredential.privateKeyPEMKey]
+        )
+        let rootGroup = KPGroup(name: "Root", entries: [entry])
+        let meta = KPMeta()
+
+        var firstSerializer = KDBXXMLSerializer(
+            rootGroup: rootGroup,
+            meta: meta,
+            innerStreamKey: innerStreamKey,
+            sessionKey: entrySessionKey
+        )
+        let firstXML = try firstSerializer.serialize()
+        let firstXMLString = String(decoding: firstXML, as: UTF8.self)
+
+        // The diverted key is re-emitted under its original field name as a
+        // Protected value; the plaintext PEM never appears in the XML.
+        XCTAssertTrue(
+            firstXMLString.contains("<Key>\(PasskeyCredential.privateKeyPEMKey)</Key><Value Protected=\"True\">")
+        )
+        XCTAssertFalse(firstXMLString.contains("COMPAT-BYTE-IDENTITY"))
+
+        let reparsed = try KDBXXMLParser(
+            data: firstXML,
+            innerStreamKey: innerStreamKey,
+            innerStreamID: KDBXParser.innerStreamChaCha20,
+            sessionKey: entrySessionKey
+        ).parse()
+        let reparsedEntry = try XCTUnwrap(firstEntry(titled: "Passkey Byte Identity", in: reparsed.rootGroup))
+
+        XCTAssertNil(reparsedEntry.customFields[PasskeyCredential.privateKeyPEMKey])
+        XCTAssertEqual(
+            try XCTUnwrap(reparsedEntry.passkeyPrivateKey).decrypt(using: entrySessionKey),
+            pem
+        )
+        XCTAssertEqual(reparsedEntry.customFields["AAA Leading"], "before-pem")
+        XCTAssertEqual(reparsedEntry.customFields["ZZZ Trailing"], "after-pem")
+
+        var secondSerializer = KDBXXMLSerializer(
+            rootGroup: reparsed.rootGroup,
+            meta: reparsed.meta,
+            innerStreamKey: innerStreamKey,
+            sessionKey: entrySessionKey
+        )
+        let secondXML = try secondSerializer.serialize()
+
+        XCTAssertEqual(firstXML, secondXML, "Passkey round-trip must be byte-identical")
+    }
+
+    private func firstEntry(titled title: String, in group: KPGroup) -> KPEntry? {
+        group.allEntries.first { $0.title == title }
+    }
+
     private let entrySessionKey = SymmetricKey(size: .bits256)
 
     @MainActor

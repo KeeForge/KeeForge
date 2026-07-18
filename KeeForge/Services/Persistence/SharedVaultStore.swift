@@ -17,6 +17,36 @@ enum SharedVaultStore {
             ?? FileManager.default.temporaryDirectory
     }
 
+    /// The `UserDefaults` backing cloud-account records, chosen per platform.
+    ///
+    /// Cloud-account records carry PII (Dropbox/OneDrive account emails,
+    /// WebDAV "user@host/path" strings), so where they live is a privacy
+    /// decision — the same one `FaviconService.cacheContainerURL` makes:
+    ///
+    /// - iOS keeps them in the App Group suite. The App Group is
+    ///   sandbox-private on iOS, so nothing outside the app family can read
+    ///   it. (The AutoFill extensions do not read this key today; iOS
+    ///   behavior is simply left unchanged.)
+    /// - macOS relocates them to the app's *own* sandbox defaults
+    ///   (`UserDefaults.standard`). On macOS 14 the App Group container is
+    ///   readable by the logged-in user's other (non-sandboxed) processes,
+    ///   so account emails and server paths in the group suite would be
+    ///   world-readable to the logged-in user.
+    ///
+    /// Lives here (not on `CloudAccountStore`) because `DatabaseListStore`'s
+    /// UI-test bootstrap seeds the same defaults and is compiled into the
+    /// AutoFill extensions, which do not include `CloudAccountStore.swift`.
+    /// `CloudAccountStore.defaults` wraps this and additionally performs the
+    /// one-time macOS scrub migration of any value an earlier build wrote to
+    /// the group suite. Extension-safe: pure Foundation.
+    static var cloudAccountDefaults: UserDefaults {
+        #if os(macOS)
+        return .standard
+        #else
+        return UserDefaults(suiteName: appGroupID) ?? .standard
+        #endif
+    }
+
     static var databaseCacheDirectory: URL {
         sharedContainerURL.appendingPathComponent(databaseCacheDirectoryName, isDirectory: true)
     }

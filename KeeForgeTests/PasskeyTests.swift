@@ -5,11 +5,14 @@ import XCTest
 
 final class PasskeyCredentialTests: XCTestCase {
 
+    private let sessionKey = SymmetricKey(size: .bits256)
+
+    private static let testPEM = "-----BEGIN PRIVATE KEY-----\nMIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQgZz8y\n-----END PRIVATE KEY-----"
+
     // MARK: - PasskeyCredential parsing
 
-    func testParsesValidPasskeyFields() {
-        let fields = makePasskeyFields()
-        let passkey = PasskeyCredential(customFields: fields)
+    func testParsesValidPasskeyFields() throws {
+        let passkey = PasskeyCredential(customFields: makePasskeyFields(), privateKey: try makeSealedKey())
         XCTAssertNotNil(passkey)
         XCTAssertEqual(passkey?.relyingParty, "example.com")
         XCTAssertEqual(passkey?.username, "alice@example.com")
@@ -17,79 +20,94 @@ final class PasskeyCredentialTests: XCTestCase {
         XCTAssertEqual(passkey?.userHandle, "dXNlci1oYW5kbGU")
     }
 
-    func testReturnsNilWhenCredentialIDMissing() {
+    func testPrivateKeyPEMDecryptsWithSessionKey() throws {
+        let passkey = try XCTUnwrap(
+            PasskeyCredential(customFields: makePasskeyFields(), privateKey: try makeSealedKey())
+        )
+        XCTAssertEqual(try passkey.privateKeyPEM(using: sessionKey), Self.testPEM)
+    }
+
+    func testPrivateKeyPEMIsUnreadableWithWrongSessionKey() throws {
+        let passkey = try XCTUnwrap(
+            PasskeyCredential(customFields: makePasskeyFields(), privateKey: try makeSealedKey())
+        )
+        XCTAssertThrowsError(try passkey.privateKeyPEM(using: SymmetricKey(size: .bits256)))
+    }
+
+    func testReturnsNilWhenCredentialIDMissing() throws {
         var fields = makePasskeyFields()
         fields.removeValue(forKey: PasskeyCredential.credentialIDKey)
-        XCTAssertNil(PasskeyCredential(customFields: fields))
+        XCTAssertNil(PasskeyCredential(customFields: fields, privateKey: try makeSealedKey()))
     }
 
     func testReturnsNilWhenPrivateKeyMissing() {
-        var fields = makePasskeyFields()
-        fields.removeValue(forKey: PasskeyCredential.privateKeyPEMKey)
-        XCTAssertNil(PasskeyCredential(customFields: fields))
+        XCTAssertNil(PasskeyCredential(customFields: makePasskeyFields(), privateKey: nil))
     }
 
-    func testReturnsNilWhenRelyingPartyMissing() {
+    func testReturnsNilWhenPrivateKeyEmpty() {
+        XCTAssertNil(PasskeyCredential(customFields: makePasskeyFields(), privateKey: .empty))
+    }
+
+    func testReturnsNilWhenRelyingPartyMissing() throws {
         var fields = makePasskeyFields()
         fields.removeValue(forKey: PasskeyCredential.relyingPartyKey)
-        XCTAssertNil(PasskeyCredential(customFields: fields))
+        XCTAssertNil(PasskeyCredential(customFields: fields, privateKey: try makeSealedKey()))
     }
 
-    func testReturnsNilWhenUsernameMissing() {
+    func testReturnsNilWhenUsernameMissing() throws {
         var fields = makePasskeyFields()
         fields.removeValue(forKey: PasskeyCredential.usernameKey)
-        XCTAssertNil(PasskeyCredential(customFields: fields))
+        XCTAssertNil(PasskeyCredential(customFields: fields, privateKey: try makeSealedKey()))
     }
 
-    func testReturnsNilWhenUserHandleMissing() {
+    func testReturnsNilWhenUserHandleMissing() throws {
         var fields = makePasskeyFields()
         fields.removeValue(forKey: PasskeyCredential.userHandleKey)
-        XCTAssertNil(PasskeyCredential(customFields: fields))
+        XCTAssertNil(PasskeyCredential(customFields: fields, privateKey: try makeSealedKey()))
     }
 
-    func testReturnsNilWhenFieldEmpty() {
+    func testReturnsNilWhenFieldEmpty() throws {
         var fields = makePasskeyFields()
         fields[PasskeyCredential.relyingPartyKey] = ""
-        XCTAssertNil(PasskeyCredential(customFields: fields))
+        XCTAssertNil(PasskeyCredential(customFields: fields, privateKey: try makeSealedKey()))
     }
 
-    func testReturnsNilForEmptyCustomFields() {
-        XCTAssertNil(PasskeyCredential(customFields: [:]))
+    func testReturnsNilForEmptyCustomFields() throws {
+        XCTAssertNil(PasskeyCredential(customFields: [:], privateKey: try makeSealedKey()))
     }
 
     // MARK: - Legacy field name compatibility
 
-    func testParsesLegacyCredentialIDAndUsernameKeys() {
+    func testParsesLegacyCredentialIDAndUsernameKeys() throws {
         // Passkeys written by Strongbox / older KeePassXC use legacy field names
         // for the credential ID and username.
         let fields: [String: String] = [
             PasskeyCredential.legacyCredentialIDKey: "dGVzdC1jcmVkZW50aWFsLWlk",
-            PasskeyCredential.privateKeyPEMKey: "-----BEGIN PRIVATE KEY-----\nMIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQgZz8y\n-----END PRIVATE KEY-----",
             PasskeyCredential.relyingPartyKey: "example.com",
             PasskeyCredential.legacyUsernameKey: "alice@example.com",
             PasskeyCredential.userHandleKey: "dXNlci1oYW5kbGU",
         ]
-        let passkey = PasskeyCredential(customFields: fields)
+        let passkey = PasskeyCredential(customFields: fields, privateKey: try makeSealedKey())
         XCTAssertNotNil(passkey)
         XCTAssertEqual(passkey?.credentialID, "dGVzdC1jcmVkZW50aWFsLWlk")
         XCTAssertEqual(passkey?.username, "alice@example.com")
         XCTAssertEqual(passkey?.relyingParty, "example.com")
     }
 
-    func testCurrentKeysTakePrecedenceOverLegacyKeys() {
+    func testCurrentKeysTakePrecedenceOverLegacyKeys() throws {
         var fields = makePasskeyFields()
         fields[PasskeyCredential.legacyCredentialIDKey] = "bGVnYWN5LWlk"
         fields[PasskeyCredential.legacyUsernameKey] = "legacy@example.com"
-        let passkey = PasskeyCredential(customFields: fields)
+        let passkey = PasskeyCredential(customFields: fields, privateKey: try makeSealedKey())
         XCTAssertEqual(passkey?.credentialID, "dGVzdC1jcmVkZW50aWFsLWlk")
         XCTAssertEqual(passkey?.username, "alice@example.com")
     }
 
-    func testFallsBackToLegacyKeyWhenCurrentKeyEmpty() {
+    func testFallsBackToLegacyKeyWhenCurrentKeyEmpty() throws {
         var fields = makePasskeyFields()
         fields[PasskeyCredential.credentialIDKey] = ""
         fields[PasskeyCredential.legacyCredentialIDKey] = "dGVzdC1jcmVkZW50aWFsLWlk"
-        let passkey = PasskeyCredential(customFields: fields)
+        let passkey = PasskeyCredential(customFields: fields, privateKey: try makeSealedKey())
         XCTAssertEqual(passkey?.credentialID, "dGVzdC1jcmVkZW50aWFsLWlk")
     }
 
@@ -98,16 +116,15 @@ final class PasskeyCredentialTests: XCTestCase {
         XCTAssertTrue(PasskeyCredential.allFieldKeys.contains(PasskeyCredential.legacyUsernameKey))
     }
 
-    func testDisplayCustomFieldsExcludesLegacyPasskeyKeys() {
+    func testDisplayCustomFieldsExcludesLegacyPasskeyKeys() throws {
         let fields: [String: String] = [
             PasskeyCredential.legacyCredentialIDKey: "dGVzdC1jcmVkZW50aWFsLWlk",
-            PasskeyCredential.privateKeyPEMKey: "-----BEGIN PRIVATE KEY-----\nMIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQgZz8y\n-----END PRIVATE KEY-----",
             PasskeyCredential.relyingPartyKey: "example.com",
             PasskeyCredential.legacyUsernameKey: "alice@example.com",
             PasskeyCredential.userHandleKey: "dXNlci1oYW5kbGU",
             "CustomNote": "hello",
         ]
-        let entry = makeEntry(customFields: fields)
+        let entry = makeEntry(customFields: fields, passkeyPrivateKey: try makeSealedKey())
         let displayFields = entry.displayCustomFields
         XCTAssertEqual(displayFields.count, 1)
         XCTAssertEqual(displayFields["CustomNote"], "hello")
@@ -117,24 +134,26 @@ final class PasskeyCredentialTests: XCTestCase {
 
     // MARK: - Base64URL decoding
 
-    func testCredentialIDDataDecodes() {
-        let passkey = PasskeyCredential(customFields: makePasskeyFields())!
-        let data = passkey.credentialIDData
-        XCTAssertNotNil(data)
-        XCTAssertEqual(String(data: data!, encoding: .utf8), "test-credential-id")
+    func testCredentialIDDataDecodes() throws {
+        let passkey = try XCTUnwrap(
+            PasskeyCredential(customFields: makePasskeyFields(), privateKey: try makeSealedKey())
+        )
+        let data = try XCTUnwrap(passkey.credentialIDData)
+        XCTAssertEqual(String(data: data, encoding: .utf8), "test-credential-id")
     }
 
-    func testUserHandleDataDecodes() {
-        let passkey = PasskeyCredential(customFields: makePasskeyFields())!
-        let data = passkey.userHandleData
-        XCTAssertNotNil(data)
-        XCTAssertEqual(String(data: data!, encoding: .utf8), "user-handle")
+    func testUserHandleDataDecodes() throws {
+        let passkey = try XCTUnwrap(
+            PasskeyCredential(customFields: makePasskeyFields(), privateKey: try makeSealedKey())
+        )
+        let data = try XCTUnwrap(passkey.userHandleData)
+        XCTAssertEqual(String(data: data, encoding: .utf8), "user-handle")
     }
 
     // MARK: - KPEntry integration
 
-    func testEntryHasPasskeyWhenFieldsPresent() {
-        let entry = makeEntry(customFields: makePasskeyFields())
+    func testEntryHasPasskeyWhenFieldsPresent() throws {
+        let entry = makeEntry(customFields: makePasskeyFields(), passkeyPrivateKey: try makeSealedKey())
         XCTAssertTrue(entry.hasPasskey)
         XCTAssertNotNil(entry.passkeyCredential)
     }
@@ -145,10 +164,18 @@ final class PasskeyCredentialTests: XCTestCase {
         XCTAssertNil(entry.passkeyCredential)
     }
 
-    func testDisplayCustomFieldsExcludesPasskeyFields() {
+    func testEntryHasNoPasskeyWithoutDivertedPrivateKey() {
+        // Metadata alone is not a usable passkey; the private key rides on
+        // KPEntry.passkeyPrivateKey after the parser diverts it.
+        let entry = makeEntry(customFields: makePasskeyFields())
+        XCTAssertFalse(entry.hasPasskey)
+        XCTAssertNil(entry.passkeyCredential)
+    }
+
+    func testDisplayCustomFieldsExcludesPasskeyFields() throws {
         var fields = makePasskeyFields()
         fields["CustomNote"] = "hello"
-        let entry = makeEntry(customFields: fields)
+        let entry = makeEntry(customFields: fields, passkeyPrivateKey: try makeSealedKey())
         let displayFields = entry.displayCustomFields
         XCTAssertEqual(displayFields.count, 1)
         XCTAssertEqual(displayFields["CustomNote"], "hello")
@@ -157,8 +184,8 @@ final class PasskeyCredentialTests: XCTestCase {
         }
     }
 
-    func testDisplayCustomFieldsEmptyWhenOnlyPasskeyFields() {
-        let entry = makeEntry(customFields: makePasskeyFields())
+    func testDisplayCustomFieldsEmptyWhenOnlyPasskeyFields() throws {
+        let entry = makeEntry(customFields: makePasskeyFields(), passkeyPrivateKey: try makeSealedKey())
         XCTAssertTrue(entry.displayCustomFields.isEmpty)
     }
 
@@ -183,8 +210,8 @@ final class PasskeyCredentialTests: XCTestCase {
 
     // MARK: - CredentialIdentityStoreManager passkey identity
 
-    func testPasskeyIdentityCreatedForPasskeyEntry() {
-        let entry = makeEntry(customFields: makePasskeyFields())
+    func testPasskeyIdentityCreatedForPasskeyEntry() throws {
+        let entry = makeEntry(customFields: makePasskeyFields(), passkeyPrivateKey: try makeSealedKey())
         let identity = CredentialIdentityStoreManager.passkeyIdentity(for: entry)
         XCTAssertNotNil(identity)
         XCTAssertEqual(identity?.relyingPartyIdentifier, "example.com")
@@ -202,20 +229,27 @@ final class PasskeyCredentialTests: XCTestCase {
     private func makePasskeyFields() -> [String: String] {
         [
             PasskeyCredential.credentialIDKey: "dGVzdC1jcmVkZW50aWFsLWlk",
-            PasskeyCredential.privateKeyPEMKey: "-----BEGIN PRIVATE KEY-----\nMIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQgZz8y\n-----END PRIVATE KEY-----",
             PasskeyCredential.relyingPartyKey: "example.com",
             PasskeyCredential.usernameKey: "alice@example.com",
             PasskeyCredential.userHandleKey: "dXNlci1oYW5kbGU",
         ]
     }
 
-    private func makeEntry(customFields: [String: String]) -> KPEntry {
+    private func makeSealedKey() throws -> EncryptedValue {
+        try EncryptedValue.encrypt(Self.testPEM, using: sessionKey)
+    }
+
+    private func makeEntry(
+        customFields: [String: String],
+        passkeyPrivateKey: EncryptedValue? = nil
+    ) -> KPEntry {
         KPEntry(
             title: "Test Entry",
             username: "alice",
             password: .empty,
             url: "https://example.com",
-            customFields: customFields
+            customFields: customFields,
+            passkeyPrivateKey: passkeyPrivateKey
         )
     }
 }
@@ -223,6 +257,8 @@ final class PasskeyCredentialTests: XCTestCase {
 // MARK: - PasskeyCrypto Tests
 
 final class PasskeyCryptoTests: XCTestCase {
+
+    private let sessionKey = SymmetricKey(size: .bits256)
 
     func testPEMParsingAndSigning() throws {
         // Generate a test P-256 key and export as PEM
@@ -266,6 +302,43 @@ final class PasskeyCryptoTests: XCTestCase {
         XCTAssertTrue(isValid)
     }
 
+    func testSigningWithSessionSealedPrivateKey() throws {
+        // The full just-in-time path: seal the PEM under the session key as
+        // the parser does, decrypt through PasskeyCredential, and sign.
+        let key = P256.Signing.PrivateKey()
+        let credential = try XCTUnwrap(
+            PasskeyCredential(
+                customFields: [
+                    PasskeyCredential.credentialIDKey: "dGVzdC1jcmVkZW50aWFsLWlk",
+                    PasskeyCredential.relyingPartyKey: "example.com",
+                    PasskeyCredential.usernameKey: "alice@example.com",
+                    PasskeyCredential.userHandleKey: "dXNlci1oYW5kbGU",
+                ],
+                privateKey: try EncryptedValue.encrypt(pemEncode(key), using: sessionKey)
+            )
+        )
+
+        let privateKey = try PasskeyCrypto.privateKey(
+            fromPEM: credential.privateKeyPEM(using: sessionKey)
+        )
+        XCTAssertEqual(privateKey.publicKey.x963Representation, key.publicKey.x963Representation)
+
+        let clientDataHash = Data(SHA256.hash(data: Data("test-client-data".utf8)))
+        let (authData, signature) = try PasskeyCrypto.signAssertion(
+            relyingPartyID: "example.com",
+            clientDataHash: clientDataHash,
+            privateKey: privateKey
+        )
+        var signedData = authData
+        signedData.append(clientDataHash)
+        XCTAssertTrue(
+            try key.publicKey.isValidSignature(
+                P256.Signing.ECDSASignature(derRepresentation: signature),
+                for: signedData
+            )
+        )
+    }
+
     func testAuthenticatorDataWithCustomCounter() {
         let authData = PasskeyCrypto.buildAuthenticatorData(
             relyingPartyID: "test.example.com",
@@ -307,7 +380,7 @@ final class PasskeyCryptoTests: XCTestCase {
         XCTAssertEqual(privateKey.publicKey.x963Representation, key.publicKey.x963Representation)
     }
 
-    func testPasskeyIdentityUsesRawLowercasedRelyingPartyIdentifier() {
+    func testPasskeyIdentityUsesRawLowercasedRelyingPartyIdentifier() throws {
         let entry = KPEntry(
             title: "Passkey Entry",
             username: "",
@@ -315,11 +388,14 @@ final class PasskeyCryptoTests: XCTestCase {
             url: "https://example.com",
             customFields: [
                 PasskeyCredential.credentialIDKey: "dGVzdC1jcmVkZW50aWFsLWlk",
-                PasskeyCredential.privateKeyPEMKey: "-----BEGIN PRIVATE KEY-----\nMIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQgZz8y\n-----END PRIVATE KEY-----",
                 PasskeyCredential.relyingPartyKey: "https://www.Example.com/login",
                 PasskeyCredential.usernameKey: "alice@example.com",
                 PasskeyCredential.userHandleKey: "dXNlci1oYW5kbGU",
-            ]
+            ],
+            passkeyPrivateKey: try EncryptedValue.encrypt(
+                pemEncode(P256.Signing.PrivateKey()),
+                using: sessionKey
+            )
         )
         let identity = CredentialIdentityStoreManager.passkeyIdentity(for: entry)
 

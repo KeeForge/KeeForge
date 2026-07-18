@@ -612,6 +612,10 @@ struct CompatibilitySnapshot {
         let tags: [String]
         let hasTagsElement: Bool
         let customFields: [String: String]
+        /// Decrypted passkey private key PEM diverted out of customFields
+        /// (`KPEntry.passkeyPrivateKey`), so drops or corruption of the
+        /// sealed key are caught by snapshot equality.
+        let passkeyPrivateKeyPEM: String?
         let totp: TOTP?
         let otpURL: String?
         let creationTime: Date?
@@ -754,6 +758,7 @@ struct CompatibilitySnapshot {
             tags: entry.tags,
             hasTagsElement: entry.hasTagsElement,
             customFields: entry.customFields,
+            passkeyPrivateKeyPEM: try entry.passkeyPrivateKey.map { try $0.decrypt(using: sessionKey) },
             totp: capturedTOTP,
             otpURL: entry.otpURL,
             creationTime: entry.creationTime,
@@ -806,7 +811,11 @@ private extension KDBXCompatibilitySupport {
                 let created = try XCTUnwrap(after.entries[createdID])
                 XCTAssertEqual(created.username, "created-user")
                 XCTAssertEqual(created.password, "created-secret")
-                XCTAssertEqual(created.customFields[PasskeyCredential.privateKeyPEMKey], "created-private-key")
+                // The PEM supplied via the draft's custom fields is diverted
+                // into the sealed passkeyPrivateKey and never stays in
+                // customFields.
+                XCTAssertNil(created.customFields[PasskeyCredential.privateKeyPEMKey])
+                XCTAssertEqual(created.passkeyPrivateKeyPEM, "created-private-key")
                 XCTAssertEqual(created.totp?.secret, "JBSWY3DPEHPK3PXP")
             }
         )
@@ -847,7 +856,9 @@ private extension KDBXCompatibilitySupport {
                 XCTAssertEqual(updated.title, "Compat Update Target Updated")
                 XCTAssertEqual(updated.username, "updated-user")
                 XCTAssertEqual(updated.password, "updated-password")
-                XCTAssertEqual(updated.customFields[PasskeyCredential.privateKeyPEMKey], original.customFields[PasskeyCredential.privateKeyPEMKey])
+                XCTAssertNil(updated.customFields[PasskeyCredential.privateKeyPEMKey])
+                XCTAssertEqual(updated.passkeyPrivateKeyPEM, original.passkeyPrivateKeyPEM)
+                XCTAssertNotNil(updated.passkeyPrivateKeyPEM)
                 XCTAssertTrue(updated.protectedStringKeys.contains(PasskeyCredential.privateKeyPEMKey))
                 XCTAssertEqual(updated.unknownXML, original.unknownXML)
                 XCTAssertEqual(updated.history.count, original.history.count + 1)

@@ -1,3 +1,4 @@
+import CryptoKit
 import Foundation
 
 /// Represents a passkey (FIDO2/WebAuthn) credential stored in a KDBX entry,
@@ -5,8 +6,11 @@ import Foundation
 struct PasskeyCredential: Sendable {
     /// Base64URL-encoded credential ID
     let credentialID: String
-    /// ECDSA P-256 private key in PEM format
-    let privateKeyPEM: String
+    /// ECDSA P-256 private key in PEM format, sealed with the per-session
+    /// key. The plaintext PEM is only recoverable via
+    /// `privateKeyPEM(using:)` and becomes permanently unreadable on lock,
+    /// when the session key is discarded.
+    let privateKey: EncryptedValue
     /// Relying party identifier (e.g. "google.com")
     let relyingParty: String
     /// Username associated with the passkey
@@ -22,6 +26,12 @@ struct PasskeyCredential: Sendable {
     /// Raw user handle bytes, decoded from Base64URL.
     var userHandleData: Data? {
         base64URLDecode(userHandle)
+    }
+
+    /// Decrypt the private key PEM just-in-time for signing. Callers must not
+    /// retain the returned string beyond the signing operation.
+    func privateKeyPEM(using sessionKey: SymmetricKey) throws -> String {
+        try privateKey.decrypt(using: sessionKey)
     }
 }
 
@@ -46,16 +56,19 @@ extension PasskeyCredential {
         legacyCredentialIDKey, legacyUsernameKey,
     ]
 
-    /// Attempt to parse a passkey credential from an entry's custom fields.
-    /// Returns nil if any required field is missing or empty.
+    /// Attempt to parse a passkey credential from an entry's custom fields
+    /// plus the session-key-sealed private key that the parser diverted out of
+    /// `customFields` (`KPEntry.passkeyPrivateKey`). Returns nil if any
+    /// required metadata field is missing or empty, or if there is no
+    /// non-empty private key.
     ///
     /// For compatibility with passkeys written by Strongbox and older KeePassXC
     /// builds, the credential ID and username fall back to legacy field names when
     /// the current KPEX keys are absent.
-    init?(customFields: [String: String]) {
+    init?(customFields: [String: String], privateKey: EncryptedValue?) {
         guard let credentialID = Self.nonEmptyValue(in: customFields,
                                                     keys: Self.credentialIDKey, Self.legacyCredentialIDKey),
-              let privateKeyPEM = customFields[Self.privateKeyPEMKey], !privateKeyPEM.isEmpty,
+              let privateKey, privateKey.hasValue,
               let relyingParty = customFields[Self.relyingPartyKey], !relyingParty.isEmpty,
               let username = Self.nonEmptyValue(in: customFields,
                                                 keys: Self.usernameKey, Self.legacyUsernameKey),
@@ -65,7 +78,7 @@ extension PasskeyCredential {
         }
 
         self.credentialID = credentialID
-        self.privateKeyPEM = privateKeyPEM
+        self.privateKey = privateKey
         self.relyingParty = relyingParty
         self.username = username
         self.userHandle = userHandle

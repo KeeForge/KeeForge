@@ -19,6 +19,11 @@ struct KPEntry: Identifiable, Sendable {
     /// indistinguishable from "no tags at all".
     var hasTagsElement: Bool
     var customFields: [String: String]
+    /// Passkey private key PEM (`KPEX_PASSKEY_PRIVATE_KEY_PEM`), diverted out
+    /// of `customFields` at parse time and sealed with the per-session key so
+    /// the plaintext PEM does not survive lock. The serializer re-emits it as
+    /// a String field at its original (sorted) position among custom fields.
+    var passkeyPrivateKey: EncryptedValue?
     /// Raw TOTP config: either otpauth:// URI or key/settings
     var totpConfig: TOTPConfig?
     /// Original `otp` key value (an `otpauth://` URI) if the source used the
@@ -54,6 +59,7 @@ struct KPEntry: Identifiable, Sendable {
         tags: [String] = [],
         hasTagsElement: Bool = false,
         customFields: [String: String] = [:],
+        passkeyPrivateKey: EncryptedValue? = nil,
         totpConfig: TOTPConfig? = nil,
         otpURL: String? = nil,
         creationTime: Date? = nil,
@@ -76,6 +82,7 @@ struct KPEntry: Identifiable, Sendable {
         self.tags = tags
         self.hasTagsElement = hasTagsElement
         self.customFields = customFields
+        self.passkeyPrivateKey = passkeyPrivateKey
         self.totpConfig = totpConfig
         self.otpURL = otpURL
         self.creationTime = creationTime
@@ -96,9 +103,10 @@ struct KPEntry: Identifiable, Sendable {
             .filter { !$0.isEmpty }
     }
 
-    /// Passkey credential parsed from KPEX_PASSKEY_* custom fields, if present.
+    /// Passkey credential parsed from KPEX_PASSKEY_* custom fields plus the
+    /// diverted, session-key-sealed private key, if present.
     var passkeyCredential: PasskeyCredential? {
-        PasskeyCredential(customFields: customFields)
+        PasskeyCredential(customFields: customFields, privateKey: passkeyPrivateKey)
     }
 
     /// Whether this entry has a TOTP configuration.

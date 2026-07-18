@@ -331,6 +331,7 @@ struct DatabaseDraft: Sendable {
             tags: draft.tags,
             hasTagsElement: !draft.tags.isEmpty,
             customFields: activeCustomFields(from: draft),
+            passkeyPrivateKey: try draftPasskeyPrivateKey(from: draft, fallback: nil),
             totpConfig: try makeTOTPConfig(from: draft.totpConfig),
             otpURL: draft.totpConfig?.keeOTPSource?.fieldName == "otp"
                 ? draft.totpConfig?.keeOTPSource?.rawQuery
@@ -362,6 +363,10 @@ struct DatabaseDraft: Sendable {
             tags: draft.tags,
             hasTagsElement: originalEntry.hasTagsElement || !draft.tags.isEmpty,
             customFields: activeCustomFields(from: draft),
+            passkeyPrivateKey: try draftPasskeyPrivateKey(
+                from: draft,
+                fallback: originalEntry.passkeyPrivateKey
+            ),
             totpConfig: try makeTOTPConfig(from: draft.totpConfig),
             otpURL: updatedOtpURL(draft: draft, originalEntry: originalEntry),
             creationTime: originalEntry.creationTime,
@@ -433,18 +438,36 @@ struct DatabaseDraft: Sendable {
         let fields = draft.customFields.filter {
             $0.key != activeSourceField && !$0.key.hasPrefix("TimeOtp-")
                 && $0.key != "TOTP Settings" && $0.key != "TOTP Seed"
+                && $0.key != PasskeyCredential.privateKeyPEMKey
         }
         return fields
+    }
+
+    /// The passkey private key is stored session-key sealed outside
+    /// customFields. A draft normally carries no PEM custom field (the edit
+    /// form never exposes it), so the original sealed key is inherited; a PEM
+    /// supplied through a hand-added custom field (paste-import) is sealed
+    /// here instead of passing through as plaintext.
+    private func draftPasskeyPrivateKey(
+        from draft: EntryDraftPayload,
+        fallback: EncryptedValue?
+    ) throws -> EncryptedValue? {
+        guard let pem = draft.customFields[PasskeyCredential.privateKeyPEMKey] else {
+            return fallback
+        }
+        return try EncryptedValue.encrypt(pem, using: sessionKey)
     }
 
     private func preservedProtectedStringKeys(
         from entry: KPEntry,
         customFields: [String: String]
     ) -> Set<String> {
-        // OTP source fields are serialized outside customFields, so their
-        // protection flags must survive edits alongside the editable keys.
+        // OTP source fields and the diverted passkey private key are
+        // serialized outside customFields, so their protection flags must
+        // survive edits alongside the editable keys.
         let editableKeys = Set(customFields.keys)
             .union(["Title", "UserName", "URL", "Notes", "otp", "OTP", "Otp"])
+            .union([PasskeyCredential.privateKeyPEMKey])
         return entry.protectedStringKeys.intersection(editableKeys)
     }
 
@@ -497,6 +520,11 @@ struct DatabaseDraft: Sendable {
 
         for (key, value) in entry.customFields {
             size += Int64(key.utf8.count + value.utf8.count)
+        }
+
+        if let passkeyPrivateKey = entry.passkeyPrivateKey {
+            // Sealed size approximates the PEM length without decrypting.
+            size += Int64(passkeyPrivateKey.sealedData.count)
         }
 
         if let totpConfig = entry.totpConfig {

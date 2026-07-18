@@ -9,6 +9,8 @@
 ### Security
 
 - AutoFill no longer fills a credential without user selection unless the stored URL's host exactly matches or is a subdomain of the requested site; URL- and title-substring matches (e.g. `mybank.com` for a `bank.com` request) now only appear in the interactive picker, and the no-interaction fallback with several candidates defers to the picker instead of filling the first match.
+- Passkey private keys are now re-encrypted in memory with the per-session key like passwords and TOTP secrets, and decrypted only at the moment of signing; locking the vault makes them unreadable instead of leaving the key as a plain string in memory.
+- macOS: cloud-account records (provider account emails, WebDAV server/user strings) are now stored in the app's own sandbox defaults instead of the App Group container, which on macOS 14 is readable by the user's other non-sandboxed processes; a one-time migration scrubs any previously written value from the group container. iOS storage is unchanged.
 
 ### Fixes
 

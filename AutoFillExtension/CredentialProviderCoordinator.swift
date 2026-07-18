@@ -1130,13 +1130,18 @@ final class CredentialProviderCoordinator {
     func completePasskeyRequest(with entry: KPEntry, relyingPartyID: String, clientDataHash: Data) throws {
         guard let passkey = entry.passkeyCredential,
               let credentialIDData = passkey.credentialIDData,
-              let userHandleData = passkey.userHandleData
+              let userHandleData = passkey.userHandleData,
+              let sessionKey
         else {
             cancelRequest(code: .failed)
             return
         }
 
-        let privateKey = try PasskeyCrypto.privateKey(fromPEM: passkey.privateKeyPEM)
+        // Decrypt the PEM just-in-time for signing; the plaintext string is
+        // not retained beyond constructing the CryptoKit key.
+        let privateKey = try PasskeyCrypto.privateKey(
+            fromPEM: passkey.privateKeyPEM(using: sessionKey)
+        )
 
         let (authenticatorData, signature) = try PasskeyCrypto.signAssertion(
             relyingPartyID: relyingPartyID,

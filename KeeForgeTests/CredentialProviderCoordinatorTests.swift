@@ -319,11 +319,11 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
             url: "https://example.com",
             customFields: [
                 PasskeyCredential.credentialIDKey: "dGVzdC1jcmVkZW50aWFsLWlk",
-                PasskeyCredential.privateKeyPEMKey: pemEncode(privateKey),
                 PasskeyCredential.relyingPartyKey: "example.com",
                 PasskeyCredential.usernameKey: "alice@example.com",
                 PasskeyCredential.userHandleKey: "dXNlci1oYW5kbGU",
-            ]
+            ],
+            passkeyPrivateKey: try EncryptedValue.encrypt(pemEncode(privateKey), using: sessionKey)
         )
 
         seedUnlockedVaultState(coordinator, entries: [entry], sessionKey: sessionKey)

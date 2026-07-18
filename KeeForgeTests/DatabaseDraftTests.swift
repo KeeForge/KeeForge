@@ -196,9 +196,12 @@ final class DatabaseDraftTests: XCTestCase {
 
         XCTAssertEqual(try updatedEntry.password.decrypt(using: sessionKey), "new-password")
         XCTAssertNotEqual(updatedEntry.password.sealedData, tree.parentEntry.password.sealedData)
+        // The diverted passkey private key is not part of the draft payload
+        // and must be inherited from the original entry, still sealed.
+        XCTAssertNil(updatedEntry.customFields["KPEX_PASSKEY_PRIVATE_KEY_PEM"])
         XCTAssertEqual(
-            updatedEntry.customFields["KPEX_PASSKEY_PRIVATE_KEY_PEM"],
-            tree.parentEntry.customFields["KPEX_PASSKEY_PRIVATE_KEY_PEM"]
+            try updatedEntry.passkeyPrivateKey?.decrypt(using: sessionKey),
+            "pem-data"
         )
         XCTAssertTrue(updatedEntry.protectedStringKeys.contains("KPEX_PASSKEY_PRIVATE_KEY_PEM"))
     }
@@ -539,7 +542,7 @@ final class DatabaseDraftTests: XCTestCase {
             url: "https://example.com",
             notes: "Original notes",
             tags: ["existing"],
-            customFields: ["KPEX_PASSKEY_PRIVATE_KEY_PEM": "pem-data"],
+            passkeyPrivateKey: try EncryptedValue.encrypt("pem-data", using: sessionKey),
             creationTime: createdAt,
             lastModificationTime: modifiedAt,
             protectedStringKeys: ["KPEX_PASSKEY_PRIVATE_KEY_PEM"]

@@ -13,6 +13,24 @@ in memory, lock clears the session key and invalidates access, and composite key
 live in the Keychain rather than as raw master passwords. macOS is at parity with
 iOS here.
 
+Passkeys have the same parity: the imported private key PEM
+(`KPEX_PASSKEY_PRIVATE_KEY_PEM`) is diverted out of `customFields` at parse time
+and held as a session-key-sealed `EncryptedValue` (`KPEntry.passkeyPrivateKey`),
+exactly like the entry password and TOTP secrets. It is decrypted just-in-time
+for WebAuthn signing in the AutoFill extension and becomes unreadable on lock.
+
+Accepted residuals of this model (on both platforms):
+
+- Protected values captured inside `unknownXML` opaque fragments are re-rendered
+  with embedded plaintext for round-tripping (`KDBXParser`'s protected-value
+  re-render), so a protected field inside an unrecognized element still lives as
+  a plaintext string until the entry is freed.
+- Other user-defined `Protected="True"` custom fields remain plaintext `String`s
+  in `customFields`; only the password, TOTP secrets, and the passkey private
+  key are session-key sealed today.
+- Transient `String`/`Data` copies made during parsing and signing cannot be
+  zeroized (see "Swift `String` does not zeroize" below).
+
 ## App Group container world-readability (macOS 14)
 
 On iOS the App Group container (`group.com.keevault.shared`) is sandbox-private.
@@ -32,6 +50,20 @@ macOS:
   Support), which is not group-shared. The macOS AutoFill extension therefore
   renders without favicons or re-fetches them rather than widening the
   group-container exposure. (`FaviconService.cacheDirectory`.)
+
+The same relocation applies to **cloud-account records** (the
+`KeeForge.cloudAccounts` defaults key). These records carry PII — Dropbox and
+OneDrive account emails, WebDAV `user@host/path` display strings — so:
+
+- **iOS** keeps them in the App Group `UserDefaults` suite (sandbox-private;
+  unchanged behavior). The AutoFill extensions do not read this key.
+- **macOS** stores them in the app's own sandbox defaults
+  (`UserDefaults.standard`). On first access, `CloudAccountStore` runs a
+  one-time migration that copies any value an earlier build wrote to the group
+  suite into standard defaults (without clobbering an existing value) and then
+  deletes it from the group suite, scrubbing previously written PII from the
+  world-readable container. (`SharedVaultStore.cloudAccountDefaults`,
+  `CloudAccountStore.migrateAccounts(from:to:)`.)
 
 ## Screen privacy — layered, and best-effort on macOS 15+
 

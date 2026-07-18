@@ -1674,6 +1674,16 @@ private class EntryBuilder {
         // the serializer; other otp-named fields must stay in customFields
         // so they round-trip.
         let keeOTPFieldName = totpConfig?.keeOTPSource?.fieldName
+        // Divert the passkey private key PEM out of customFields and seal it
+        // with the per-session key, mirroring the TOTP secret diversion, so
+        // the plaintext PEM does not outlive lock. Only the canonical
+        // KPEX_PASSKEY_PRIVATE_KEY_PEM spelling carries a PEM (the legacy
+        // Strongbox/KeePassXC aliases only rename the credential ID and
+        // username fields; see PasskeyCredential). The serializer re-emits
+        // this field at its original position among the sorted custom fields.
+        let passkeyPrivateKey = customFields[PasskeyCredential.privateKeyPEMKey].map {
+            (try? EncryptedValue.encrypt($0, using: sessionKey)) ?? .empty
+        }
         return KPEntry(
             id: uuid ?? UUID(),
             title: title,
@@ -1688,7 +1698,9 @@ private class EntryBuilder {
             customFields: customFields.filter {
                 !$0.key.hasPrefix("TimeOtp-") && $0.key != "TOTP Settings" && $0.key != "TOTP Seed"
                     && $0.key != keeOTPFieldName
+                    && $0.key != PasskeyCredential.privateKeyPEMKey
             },
+            passkeyPrivateKey: passkeyPrivateKey,
             totpConfig: totpConfig,
             otpURL: otpURL,
             creationTime: creationTime,

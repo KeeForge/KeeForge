@@ -472,7 +472,11 @@ final class DatabaseViewModelTests: XCTestCase {
             username: "",
             password: .empty,
             url: "https://example.com",
-            customFields: passkeyFields()
+            customFields: passkeyFields(),
+            passkeyPrivateKey: try! EncryptedValue.encrypt(
+                "-----BEGIN PRIVATE KEY-----\nMIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQgZz8y\n-----END PRIVATE KEY-----",
+                using: sessionKey
+            )
         )
         let noteEntry = KPEntry(title: "Note Entry", username: "", password: .empty, url: "")
         let expiredEntry = KPEntry(
@@ -1480,7 +1484,6 @@ final class DatabaseViewModelTests: XCTestCase {
     private func passkeyFields() -> [String: String] {
         [
             PasskeyCredential.credentialIDKey: "dGVzdC1jcmVkZW50aWFsLWlk",
-            PasskeyCredential.privateKeyPEMKey: "-----BEGIN PRIVATE KEY-----\nMIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQgZz8y\n-----END PRIVATE KEY-----",
             PasskeyCredential.relyingPartyKey: "example.com",
             PasskeyCredential.usernameKey: "alice@example.com",
             PasskeyCredential.userHandleKey: "dXNlci1oYW5kbGU",

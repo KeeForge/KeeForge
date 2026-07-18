@@ -652,6 +652,14 @@ enum DatabaseListStore {
                 return updatedReference
             }
         }
+        // Cloud accounts live in platform-chosen defaults (app-sandbox
+        // standard defaults on macOS, the App Group suite on iOS — see
+        // `SharedVaultStore.cloudAccountDefaults`), so seed them there rather
+        // than in the group suite directly. `CloudAccountStore` reads the
+        // same defaults. Also scrub the group suite so, on macOS, a stale
+        // legacy value can't be migrated back in mid-test (on iOS the two are
+        // the same suite, so the second remove is a harmless no-op).
+        SharedVaultStore.cloudAccountDefaults.removeObject(forKey: cloudAccountsStorageKey)
         sharedDefaults.removeObject(forKey: cloudAccountsStorageKey)
         try? PendingUploadQueue.clearAll()
         try? FileManager.default.removeItem(at: SharedVaultStore.databaseCacheDirectory)
@@ -659,7 +667,7 @@ enum DatabaseListStore {
 
         if let cloudAccounts = uiTestCloudAccounts(),
            let encodedAccounts = try? JSONEncoder().encode(cloudAccounts) {
-            sharedDefaults.set(encodedAccounts, forKey: cloudAccountsStorageKey)
+            SharedVaultStore.cloudAccountDefaults.set(encodedAccounts, forKey: cloudAccountsStorageKey)
         }
 
         saveDatabases(references)

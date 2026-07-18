@@ -15,11 +15,11 @@ final class EntryEditViewModelTests: XCTestCase {
             customFields: [
                 "Environment": "Production",
                 PasskeyCredential.credentialIDKey: "credential-id",
-                PasskeyCredential.privateKeyPEMKey: "private-key",
                 PasskeyCredential.relyingPartyKey: "example.com",
                 PasskeyCredential.usernameKey: "alice@example.com",
                 PasskeyCredential.userHandleKey: "user-handle",
-            ]
+            ],
+            passkeyPrivateKey: try EncryptedValue.encrypt("private-key", using: sessionKey)
         )
 
         let viewModel = EntryEditViewModel(editing: entry, sessionKey: sessionKey)
@@ -31,6 +31,10 @@ final class EntryEditViewModelTests: XCTestCase {
         XCTAssertEqual(payload.customFields["Environment"], "Production")
         XCTAssertEqual(payload.customFields[PasskeyCredential.credentialIDKey], "credential-id")
         XCTAssertEqual(payload.customFields[PasskeyCredential.usernameKey], "alice@example.com")
+        // The sealed private key never enters the draft payload; DatabaseDraft
+        // inherits it from the original entry when applying the edit.
+        XCTAssertNil(payload.customFields[PasskeyCredential.privateKeyPEMKey])
+        XCTAssertNotNil(viewModel.passkeyCredential)
     }
 
     func testEditingEntryDecryptsExistingPasswordIntoFormState() throws {
