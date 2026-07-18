@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### New Features
+
+- Database Details now shows file metadata read from the database's plaintext header without unlocking it: KDBX format version, file size, last-modified date, encryption algorithm, key-derivation settings (Argon2/AES-KDF parameters), and compression. Cloud databases report the locally cached copy.
+
 ### Security
 
 - AutoFill no longer fills a credential without user selection unless the stored URL's host exactly matches or is a subdomain of the requested site; URL- and title-substring matches (e.g. `mybank.com` for a `bank.com` request) now only appear in the interactive picker, and the no-interaction fallback with several candidates defers to the picker instead of filling the first match.

@@ -15,6 +15,7 @@ This folder holds the data and logic that the rest of the app depends on. It is 
 - `DatabaseReference.swift` is the persisted identifier for a known database, including bookmarks, nicknames, quick-launch state, read-only and edit-acknowledgment flags, and cloud metadata.
 - `CloudSyncModels.swift` describes cloud provider files and sync metadata used by the database list and sync coordinator, including provider-specific optimistic-concurrency tokens such as Dropbox `rev` and OneDrive eTag/cTag values.
 - `PasskeyCredential.swift` parses KeePassXC-style custom fields into passkey data used by the app and AutoFill extension.
+- `KDBXFileSummary.swift` is a credential-free summary of a KDBX file's plaintext outer header (format version, cipher, compression, KDF settings) for display in Database Details; it reuses the parser's header routines read-only and accepts a bounded file prefix.
 - `Attachment.swift` defines `KPAttachment` (name + pool ref, structurally parsed from `<Entry>/<Binary>`) and `BinaryPool`, which lazily decodes `Header.innerHeaderBinaryFields` (stripping the leading protection-flag byte) on subscript access by ref. Read-only in Phase 1: the writer only ever re-emits the inner-header binary pool verbatim: no ref renumbering, no new pool entries. Dangling refs (no pool entry at that index) are tolerated and resolve to `nil` rather than failing the parse.
 
 ## Notes For Agents

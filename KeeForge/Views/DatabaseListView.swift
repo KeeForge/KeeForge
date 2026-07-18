@@ -542,6 +542,8 @@ private struct DatabaseDetailsView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var nickname = ""
     @State private var isQuickLaunch = false
+    @State private var fileInfo: DatabaseFileInfo?
+    @State private var isLoadingFileInfo = true
 
     private var currentReference: DatabaseReference {
         viewModel.databases.first(where: { $0.id == reference.id }) ?? reference
@@ -615,6 +617,16 @@ private struct DatabaseDetailsView: View {
                     }
                 }
 
+                Section {
+                    databaseFileRows
+                } header: {
+                    Text("Database File")
+                } footer: {
+                    if currentReference.isCloudBacked {
+                        Text("Values reflect the locally cached copy of this database.")
+                    }
+                }
+
                 if let cloudState = viewModel.cloudState(for: reference),
                    let metadata = currentReference.cloudSyncMetadata {
                     Section {
@@ -662,6 +674,10 @@ private struct DatabaseDetailsView: View {
             }
             .navigationTitle(currentReference.displayName)
             .navigationBarTitleDisplayMode(.inline)
+            .task {
+                fileInfo = await DatabaseFileInfoLoader.load(for: currentReference)
+                isLoadingFileInfo = false
+            }
             .onAppear {
                 syncFormStateFromCurrentReference()
             }
@@ -683,6 +699,49 @@ private struct DatabaseDetailsView: View {
                     .accessibilityIdentifier("database-details.close")
                 }
             }
+        }
+    }
+
+    @ViewBuilder
+    private var databaseFileRows: some View {
+        if let fileInfo {
+            if let summary = fileInfo.summary {
+                LabeledContent("Format", value: summary.formatDisplayName)
+            }
+
+            if let sizeBytes = fileInfo.fileSizeBytes {
+                LabeledContent("Size", value: sizeBytes.formatted(.byteCount(style: .file)))
+            }
+
+            if let modifiedAt = fileInfo.modifiedAt {
+                LabeledContent("Modified", value: dateText(modifiedAt))
+            }
+
+            if let summary = fileInfo.summary {
+                LabeledContent("Encryption", value: summary.cipherDisplayName)
+
+                LabeledContent("Key Derivation") {
+                    VStack(alignment: .trailing, spacing: 2) {
+                        Text(summary.keyDerivationDisplayName)
+                        if let detail = summary.keyDerivationDetailText {
+                            Text(detail)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
+
+                LabeledContent("Compression", value: summary.compressionDisplayName)
+            }
+        } else if isLoadingFileInfo {
+            HStack(spacing: 12) {
+                ProgressView()
+                Text("Reading database file…")
+                    .foregroundStyle(.secondary)
+            }
+        } else {
+            Text("File details are unavailable.")
+                .foregroundStyle(.secondary)
         }
     }
 

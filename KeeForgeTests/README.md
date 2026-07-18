@@ -16,7 +16,7 @@ xcodebuild test -project KeeForge.xcodeproj -scheme KeeForge \
 
 ## File Map
 
-- Parser, writer, compatibility, and secret handling: `KDBXParserTests.swift`, `KDBXWriterTests.swift`, `KDBXRoundTripTests.swift`, `KDBXCompatibilityTests.swift`, `KDBXCompatibilityArtifactTests.swift`, `EncryptedValueTests.swift`, `TOTPGeneratorTests.swift`, `KeyFileProcessorTests.swift`, `VerifyKeyfileTests.swift`.
+- Parser, writer, compatibility, and secret handling: `KDBXParserTests.swift`, `KDBXWriterTests.swift`, `KDBXRoundTripTests.swift`, `KDBXCompatibilityTests.swift`, `KDBXCompatibilityArtifactTests.swift`, `EncryptedValueTests.swift`, `TOTPGeneratorTests.swift`, `KeyFileProcessorTests.swift`, `VerifyKeyfileTests.swift`, `KDBXFileSummaryTests.swift` (header-only metadata summary for Database Details, including prefix-only parsing), `DatabaseFileInfoLoaderTests.swift` (bookmark-resolved size/date/header loading for the details sheet).
 - Twofish primitive and CBC/PKCS#7 coverage: `TwofishTests.swift`; parser/writer and cipher-preservation scenarios remain in the KDBX parser, writer, saver, and compatibility suites.
 - Drafts, view models, and app state: `DatabaseDraftTests.swift`, `DatabaseViewModelTests.swift`, `DatabaseListViewModelTests.swift`, `EntryEditViewModelTests.swift`, `TOTPViewModelTests.swift`, `AutoLockTests.swift`, `SortOrderTests.swift`.
 - Persistence, save pipeline, and shared storage: `DatabaseListStoreTests.swift`, `LocalDatabaseSaverTests.swift`, `CloudDatabaseSaverTests.swift`, `PendingUploadQueueTests.swift`, `PendingUploadDrainerTests.swift`, `DatabaseReferenceTests.swift`, `SharedVaultStoreTests.swift`, `DatabaseReferenceMigrationTests.swift`, `SettingsServiceTests.swift`, `SyncedFolderDetectorTests.swift`.
