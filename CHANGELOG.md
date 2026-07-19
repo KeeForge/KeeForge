@@ -14,6 +14,7 @@
 
 ### Fixes
 
+- Raise the minimum supported iOS version to 18.0. On iOS 17 the app could wedge into an unresponsive state when opening the entry editor from an entry's detail screen: a SwiftUI `NavigationStack` bug on iOS 17 mishandled the nested navigation destination used to push the editor, spinning the main run loop so the editor never appeared. The issue is resolved on iOS 18 and later, so iOS 17 is no longer supported rather than shipping a build where entries cannot be edited. (macOS behavior, which presents the editor as a sheet, was unaffected.)
 - Fix a crash when unlocking a database on a WebDAV server whose base URL path contains characters that need percent-encoding, such as mailbox.org's "Meine Dateien" folder: building the file URL mixed the decoded base path into a percent-encoded path and hit a Foundation fatal error on every unlock attempt. Local copies of the same database were unaffected.
 - Fix a crash when opening a database containing an `otpauth://` entry with duplicate query parameter names (e.g. `secret` appearing twice, in any letter case); the first occurrence now wins, matching the KeeOTP parser.
 - Fix a potential crash rendering TOTP codes for entries with a zero or negative period or an oversized digit count in their OTP settings; out-of-range values now fall back to the standard 30-second/6-digit defaults.

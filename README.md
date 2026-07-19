@@ -52,7 +52,7 @@ Read the [privacy policy](https://keeforge.com/privacy).
 
 ## Requirements
 
-- iOS 17+
+- iOS 18+
 - Xcode 16+
 - [XcodeGen](https://github.com/yonaskolb/XcodeGen)
 - Swift 6 with strict concurrency
@@ -67,7 +67,7 @@ xcodegen generate
 open KeeForge.xcodeproj
 ```
 
-Select an iOS 17+ simulator or device, then build and run the `KeeForge` scheme.
+Select an iOS 18+ simulator or device, then build and run the `KeeForge` scheme.
 
 For command-line verification, prefer the smallest relevant test slice:
 
