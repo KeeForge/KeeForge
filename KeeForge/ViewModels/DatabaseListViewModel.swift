@@ -119,15 +119,31 @@ final class DatabaseListViewModel {
         }
     }
 
+    /// Installed by the app root (`AppRootView` in `KeeForgeApp.swift`, which
+    /// is the one place that knows the active `DatabaseViewModel`): called
+    /// with the id of a database whose AutoFill participation was just turned
+    /// on, so the owner can refresh that database's credential identities
+    /// immediately when it is the currently unlocked session (and no-op
+    /// otherwise). The registry layer cannot know what is unlocked, which is
+    /// why the enable-while-unlocked immediacy lives at this layer; for every
+    /// other database enabling stays lazy — identities appear on next unlock.
+    var autoFillEnabledRefreshHandler: ((UUID) -> Void)?
+
     /// Toggles a database's AutoFill participation (surfaced by the settings
     /// UI in slice 05 of the selectable-AutoFill epic). Unlike the other flag
     /// setters this delegates to `DatabaseListStore.setAutoFillEnabled` rather
     /// than the generic `update`, because the store owns the disable
-    /// consequences: clearing the credential identity store and reassigning
-    /// the active AutoFill pointer when the active database is disabled.
+    /// consequences: targeted removal of exactly that database's credential
+    /// identities and reassigning the active AutoFill pointer when the active
+    /// database is disabled. Enabling is lazy in the store; when the toggled
+    /// database is the currently unlocked session, the app-root-installed
+    /// `autoFillEnabledRefreshHandler` republishes its identities immediately.
     func setAutoFillEnabled(_ isEnabled: Bool, for reference: DatabaseReference) {
         DatabaseListStore.setAutoFillEnabled(isEnabled, for: reference)
         reload()
+        if isEnabled {
+            autoFillEnabledRefreshHandler?(reference.id)
+        }
     }
 
     func setKeyFile(url: URL?, for reference: DatabaseReference) throws {

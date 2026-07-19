@@ -296,7 +296,11 @@ enum DatabaseListStore {
         withStateLock {
             let currentDatabases = loadDatabases()
             guard let removedReference = currentDatabases.first(where: { $0.id == id }) else { return }
-            let shouldClearCredentialStore = activeAutoFillDatabase?.id == id
+            // Computed before the registry mutation drops the reference; also
+            // decides the legacy sweep below (legacy bare-UUID identities can
+            // only have been published by the then-active database — see
+            // `setAutoFillEnabled`).
+            let wasActiveAutoFillDatabase = activeAutoFillDatabase?.id == id
 
             KeychainService.deleteCompositeKey(for: removedReference.id)
             if let legacyFilename = removedReference.legacyKeychainFilename {
@@ -313,9 +317,14 @@ enum DatabaseListStore {
             }
             saveDatabases(remainingDatabases)
 
-            if shouldClearCredentialStore {
-                CredentialIdentityStoreManager.clearStore()
-            }
+            // Every removal drops the database's published identities —
+            // targeted, works while locked, leaves other databases'
+            // suggestions in place. (Pre-slice-04 only removing the *active*
+            // database cleared anything, and it wiped the whole store.)
+            CredentialIdentityStoreManager.removeIdentities(
+                forDatabase: id,
+                includingLegacyIdentifiers: wasActiveAutoFillDatabase
+            )
         }
     }
 
@@ -342,16 +351,25 @@ enum DatabaseListStore {
     }
 
     /// Owns the consequences of toggling a database's AutoFill participation
-    /// (mirroring how `remove(id:)` owns removal consequences): when the
-    /// currently active AutoFill database is disabled, the credential identity
-    /// store is cleared and the active pointer is handed to the most recently
-    /// opened AutoFill-enabled database, or cleared when none exists.
+    /// (mirroring how `remove(id:)` owns removal consequences): disabling
+    /// removes exactly that database's published identities — targeted, needs
+    /// no unlock, other databases' suggestions stay untouched — and, when the
+    /// disabled database was the active AutoFill database, hands the active
+    /// pointer to the most recently opened AutoFill-enabled database (or
+    /// clears it when none exists).
     ///
-    /// Clearing the whole store is interim coarse behavior — identities carry
-    /// no database attribution yet, so the disabled database's identities can
-    /// only be removed by wiping everything; other enabled databases repopulate
-    /// lazily on their next unlock. Targeted per-database removal replaces this
-    /// in slice 04 of the selectable-AutoFill epic.
+    /// `includingLegacyIdentifiers` mirrors `wasActive` because legacy
+    /// bare-UUID identities carry no database attribution: they can only have
+    /// been published by the pre-tagging whole-store-replace era, in which
+    /// exactly one database — the then-active one — ever populated the store.
+    /// So the store's legacy identities belong to the disabled database
+    /// precisely when it was the active one.
+    ///
+    /// Enabling is lazy here: identities appear on the database's next unlock
+    /// (entries live inside the encrypted KDBX; nothing can be published from
+    /// the registry alone). The immediate-refresh-when-already-unlocked path
+    /// lives at the view-model layer (`DatabaseListViewModel.setAutoFillEnabled`),
+    /// which can see the open session; this store cannot.
     static func setAutoFillEnabled(_ isEnabled: Bool, for reference: DatabaseReference) {
         withStateLock {
             guard var updatedReference = loadDatabases().first(where: { $0.id == reference.id }) else { return }
@@ -361,10 +379,15 @@ enum DatabaseListStore {
             updatedReference.autoFillEnabled = isEnabled
             update(updatedReference)
 
-            guard isEnabled == false, wasActive else { return }
+            guard isEnabled == false else { return }
 
-            activeAutoFillDatabaseID = nextActiveAutoFillDatabaseID(excluding: reference.id)
-            CredentialIdentityStoreManager.clearStore()
+            if wasActive {
+                activeAutoFillDatabaseID = nextActiveAutoFillDatabaseID(excluding: reference.id)
+            }
+            CredentialIdentityStoreManager.removeIdentities(
+                forDatabase: reference.id,
+                includingLegacyIdentifiers: wasActive
+            )
         }
     }
 

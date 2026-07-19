@@ -235,8 +235,10 @@ the file is already in the app target and both extension allow-lists — `projec
   `oneTimeCodeIdentity(for:in:)`.
 - `#if DEBUG` seams (all `@MainActor` statics, reset to nil in `setUp`/`tearDown`):
   `populateObserver: ((UUID, [KPEntry]) -> Void)?` (was `([KPEntry]) -> Void`),
-  `clearObserver: (() -> Void)?` (unchanged), **new** `removeDatabaseObserver: ((UUID) -> Void)?`
-  (fires on `removeIdentities(forDatabase:)`), and **new**
+  `clearObserver: (() -> Void)?` (unchanged), **new** `removeDatabaseObserver` (fires on
+  `removeIdentities(forDatabase:)`; slice 04 extended it to `((UUID, Bool) -> Void)?` — the second
+  argument is the `includingLegacyIdentifiers` flag, so write closures as `{ id, _ in … }` unless
+  asserting the flag), and **new**
   `storeProviderOverride: (any CredentialIdentityStoreProviding)?` — when non-nil every operation uses it
   instead of the system store.
 - `AutoFillSaveCoordinator.Environment.populateCredentialStore` is now `@Sendable (UUID, [KPEntry]) -> Void`;
@@ -344,7 +346,8 @@ Manager behavior against `FakeCredentialIdentityStore` (install via `storeProvid
   `removeIdentities(for:in:)`, and `removeIdentities(forDatabase:)` all leave `stored` and `calls`
   untouched (system-settings-disabled edge; the OS already cleared the real store).
 - `testRemoveDatabaseObserverReceivesDatabaseID` — `removeDatabaseObserver` fires with the id passed to
-  targeted removal (the seam slice 04's `DatabaseListStore` tests will rely on).
+  targeted removal (and, since slice 04, the `includingLegacyIdentifiers` flag as its second argument —
+  the seam slice 04's `DatabaseListStore` tests rely on).
 
 ### `KeeForgeTests/CredentialProviderCoordinatorTests.swift` (new cases)
 
@@ -637,7 +640,225 @@ xcodebuild test -project KeeForge.xcodeproj -scheme KeeForge \
 
 ## Slice 04: Multi-database aggregation and targeted removal
 
-_To be filled by the slice 04 implementation._
+### Implementation summary (what the tests pin down)
+
+- `CredentialIdentityStoreManager.populate(with:for:)` **kept its name** (all callers —
+  `DatabaseViewModel.populateCredentialStoreIfNeeded`, `AutoFillSaveCoordinator.Environment.live` —
+  are unchanged) but is now a **per-database refresh** with this decision tree, run inside its
+  fire-and-forget `Task` after the `isEnabled()` gate and identity building:
+  1. Enumerate via `store.credentialIdentities()`.
+  2. If enumeration returned **nil** (macOS 14.0–14.3) **or** no stored identity parses to
+     `.current` with a *different* database id → atomic whole-store path exactly as pre-slice-04:
+     `replaceCredentialIdentities(databaseIdentities)`, or `removeAllCredentialIdentities()` when
+     the refreshing database has no eligible identities. (Also purges `.legacy` and
+     `.unrecognized` identifiers as a side effect of the full replace.)
+  3. Otherwise (another database's identities are present) → additive refresh: one
+     `removeCredentialIdentities` for the subset parsing to `.current` owned by the refreshing
+     database **plus** every `.legacy` identity (skipped when that subset is empty), then one
+     `saveCredentialIdentities(databaseIdentities)` (skipped when the new set is empty — so an
+     emptied database removes only its own + legacy identities and other databases keep theirs;
+     `removeAll` never runs on this branch). `.unrecognized` identifiers are left untouched on
+     this branch.
+  - Expired-entry filtering, the `populateObserver` firing shape `(databaseID, eligibleEntries)`,
+    off-main execution, and count-only (secret-free) logging are unchanged.
+- `DatabaseListStore.setAutoFillEnabled(_:for:)` **off** no longer calls `clearStore()`:
+  it calls `CredentialIdentityStoreManager.removeIdentities(forDatabase: reference.id,
+  includingLegacyIdentifiers: wasActive)` for **every** disable (active or not), and reassigns the
+  pointer via `nextActiveAutoFillDatabaseID(excluding:)` only when `wasActive` (`wasActive` is
+  resolved through `activeAutoFillDatabase`, so a legacy-fallback-active database counts).
+  Rationale for the flag: legacy bare-UUID identities were only ever published by the
+  whole-store-replace era's single active database, so they belong to the disabled database
+  exactly when it was the active one.
+- `DatabaseListStore.remove(id:)` now calls `removeIdentities(forDatabase: id,
+  includingLegacyIdentifiers: wasActiveAutoFillDatabase)` for **every** removal (pre-slice-04 only
+  an *active* removal cleared anything, and it wiped the whole store). Pointer cleanup is
+  unchanged: `activeAutoFillDatabaseID` goes to `nil` when it pointed at the removed id (removal
+  does *not* hand off to the next-most-recent database; only disable does).
+- `DatabaseListViewModel` gained `autoFillEnabledRefreshHandler: ((UUID) -> Void)?`;
+  `setAutoFillEnabled(_:for:)` invokes it with `reference.id` after store delegation + `reload()`
+  **only when enabling**. `AppRootView` (in `KeeForgeApp.swift`) installs the production handler in
+  its `.task`: it captures the `$activeDatabaseViewModel` binding and calls
+  `populateCredentialStoreIfUnlocked()` when the enabled id matches the active session's
+  `databaseReference.id` (no-op otherwise — enabling any other database stays lazy).
+  `populateCredentialStoreIfUnlocked()` itself guards on `rootGroup != nil` (nil while locked) and
+  re-reads the registry flag, so the handler is safe to call unconditionally.
+- `SettingsView`'s global Quick AutoFill handler is behaviorally unchanged (comment only): **on**
+  still calls `viewModel?.populateCredentialStoreIfUnlocked()` — the app's single open session is
+  "every currently unlocked database", and the slice 01 registry gate inside
+  `populateCredentialStoreIfNeeded` already restricts it to an *enabled* database; **off** still
+  calls `clearStore()`.
+- `AutoFillSaveCoordinator.saveNewEntry` needed no change: its
+  `environment.populateCredentialStore` → `populate(with:for:)` call is now a per-database refresh
+  automatically, so an in-extension save no longer wipes other databases' suggestions.
+- Seam change: `removeDatabaseObserver` is now `((UUID, Bool) -> Void)?` — fires with
+  `(databaseID, includingLegacyIdentifiers)`.
+- macOS 14.0–14.3 (no enumeration API): `populate` always takes the whole-replace branch and the
+  targeted removals in `removeIdentities(forDatabase:)` log-and-skip — i.e. the platform keeps the
+  pre-aggregation single-active behavior end to end; a disabled/removed database's suggestions
+  linger there until any enabled database's next refresh whole-replaces the store.
+
+### Required migrations of existing/earlier-documented tests (behavior changed in this slice)
+
+- **Existing committed test**
+  `DatabaseListStoreTests.testRemoveClearsCredentialStoreWhenRemovingActiveAutoFillDatabase`
+  now fails as written: `remove(id:)` no longer calls `clearStore()`. Rewrite it (suggested name
+  `testRemoveActiveDatabaseTriggersTargetedRemovalIncludingLegacy`) to expect
+  `removeDatabaseObserver` firing with `(first.id, true)` and keep the
+  `activeAutoFillDatabaseID == nil` assertion; additionally assert `clearObserver` stays silent.
+- **Existing committed test**
+  `DatabaseListStoreTests.testRemoveDoesNotClearCredentialStoreWhenRemovingInactiveDatabase`
+  still passes as written (`clearObserver` is still untouched); optionally extend it to assert
+  `removeDatabaseObserver` now fires with `(second.id, false)`.
+- **Slice 01 documented cases** (not yet written): in
+  `testDisablingActiveDatabaseClearsStoreAndReassignsPointer` and
+  `testDisablingActiveDatabaseWithNoOtherOpenedEnabledDatabaseClearsPointer`, replace the
+  `clearObserver` expectation with `removeDatabaseObserver` firing `(reference.id, true)` (pointer
+  assertions unchanged; rename accordingly, e.g.
+  `testDisablingActiveDatabaseTargetedRemovesAndReassignsPointer`).
+  `testDisablingInactiveDatabaseLeavesStoreAndPointerUntouched`: the pointer assertion and the
+  negative `clearObserver` assertion stand, but disabling an inactive database now *does* fire
+  `removeDatabaseObserver` with `(reference.id, false)` — assert that instead of "nothing happens".
+  `testSetAutoFillEnabledOnLockedDatabaseNeedsNoUnlock`: "still clears/reassigns" becomes "still
+  targeted-removes/reassigns". `testEnablingDisabledDatabaseDoesNotPopulateOrClaimPointer` is
+  still correct at the store layer (store-level enable stays lazy; immediacy lives in the
+  view-model hook, tested below).
+- **Slice 03 documented cases** that install `removeDatabaseObserver` closures
+  (`test_resolution_unknownDatabaseRemovesItsIdentitiesAndFallsBackToDefault`,
+  `test_resolution_disabledDatabaseTreatedAsUnknown`,
+  `test_silentFill_staleIdentifierCleansUpAndCancelsUserInteractionRequired`): the closure now
+  takes two arguments — use `{ id, _ in … }`; the coordinator's cleanup calls pass the default
+  `includingLegacyIdentifiers: false`.
+
+### Seams to use
+
+- `FakeCredentialIdentityStore` (slice 02 infrastructure) via `storeProviderOverride`, installed
+  with `await MainActor.run { … }`; mutation expectations through its `onMutation` hook; negative
+  cases via `XCTFail`-ing hook + ~100 ms sleep. Seed multi-database state by pre-filling
+  `fake.stored` with identities built by the real builders
+  (`passwordIdentities(for:in:)` / `passkeyIdentity(for:in:)`) plus hand-made
+  `ASPasswordCredentialIdentity(serviceIdentifier:user:recordIdentifier:)` for legacy
+  (`entryID.uuidString`) and garbage (`"not-an-identifier"`) identifiers.
+- **Fake addition for this slice:** give the fake an enumeration hook,
+  `var onEnumerate: (@Sendable () -> Void)?`, invoked inside `credentialIdentities()` before
+  returning — the "store cleared externally between enumerate and mutate" edge case empties
+  `fake.stored` from that hook mid-refresh.
+- Observers: `populateObserver` (`(UUID, [KPEntry])`), `clearObserver`, and the two-argument
+  `removeDatabaseObserver` (`(UUID, Bool)`), reset in `setUp`/`tearDown` as before.
+- View-model layer: `DatabaseListViewModel.autoFillEnabledRefreshHandler` is a plain settable
+  closure — tests install their own handler (mirroring `AppRootView`'s) that calls
+  `databaseViewModel.populateCredentialStoreIfUnlocked()`, so the production wiring's behavior is
+  reproduced without SwiftUI. Existing helpers: `makeViewModel(reference:)`, fixture passwords,
+  `DatabaseListStore.update(_:)` / `markDatabaseOpened(id:at:)` / `clearAll()`.
+
+### `KeeForgeTests/CredentialIdentityStoreManagerTests.swift` (new cases, fake store)
+
+Refresh decision tree:
+
+- `testRefreshOfTwoDatabasesYieldsUnion` — `populate(with: aEntries, for: a)` then
+  `populate(with: bEntries, for: b)`: the store ends holding A's *and* B's identities (first call
+  whole-replaces, second detects A's tagged identities and goes additive — assert `calls` shows
+  `replace` then `remove`/`save`, not two `replace`s).
+- `testRefreshUsesWholeStoreReplaceWhenNoOtherDatabasePresent` — store empty (and again seeded
+  with only A's own stale identities): `populate(with:for: a)` records exactly one
+  `replaceCredentialIdentities`, no `saveCredentialIdentities`.
+- `testRefreshAfterEntryDeletionRemovesOnlyThatEntrysIdentities` — seed A(e1, e2) + B(e3);
+  `populate(with: [e1], for: a)`: e2's identities are gone, e1's present, B's untouched (the
+  deleted-entries-never-linger guarantee, no periodic sweep).
+- `testRefreshPurgesLegacyIdentifiers` — seed one legacy bare-UUID identity + B's tagged ones;
+  `populate(with:for: a)`: legacy removed, B intact, A's set saved.
+- `testRefreshLeavesUnrecognizedIdentifiersInAdditiveMode` — seed a garbage-identifier identity +
+  B's; refresh A: the garbage identity survives (documented: it dies only via whole-store replace
+  or `clearStore()`).
+- `testRefreshWithNoEligibleEntriesRemovesOwnAndLegacyOnlyWhenOthersPresent` — seed A + B +
+  legacy; `populate(with: [], for: a)`: A's and the legacy identity are removed, B's remain, and
+  `removeAllCredentialIdentities` is **not** called.
+- `testRefreshWithNoEligibleEntriesAndNoOthersEmptiesStore` — seed only A's identities;
+  `populate(with: [], for: a)`: `removeAllCredentialIdentities` (pre-aggregation behavior kept).
+- `testRefreshFallsBackToWholeReplaceWhenEnumerationUnavailable` — `enumerationUnavailable =
+  true`, seed B's identities; refresh A: `replaceCredentialIdentities` wipes B (macOS 14.0–14.3
+  contract — other databases repopulate lazily on next unlock).
+- `testRefreshSurvivesStoreClearedBetweenEnumerateAndMutate` — via `onEnumerate` empty
+  `fake.stored` after seeding B (so the refresh decided "additive" on stale data): the refresh
+  completes without error and A's identities are saved (briefly-stale worst case accepted by the
+  epic).
+- `testDisabledStoreNoOpsRefresh` — `isEnabledValue = false`: `populate` records no calls at all
+  (extends slice 02's `testDisabledStoreMakesEveryOperationANoOp` to the new enumerate path).
+- Slice 02's `testPopulateFiltersExpiredEntries` and the tagging tests stay green unmodified
+  (filtering and identity building are untouched).
+
+### `KeeForgeTests/DatabaseViewModelTests.swift` (new cases, observers + fake store)
+
+- `testUnlockRefreshesOnlyTheUnlockedDatabase` — seed the fake with B's tagged identities,
+  persist + unlock enabled database A: `populateObserver` fires once with A's id, and after
+  `onMutation` settles the fake still contains B's identities alongside A's (unlock no longer
+  wipes other databases).
+- `testGlobalToggleOnRefreshesOnlyUnlockedEnabledDatabase` — the SettingsView "on" path is
+  `populateCredentialStoreIfUnlocked()`: with the open database enabled it fires
+  `populateObserver` with that database's id; with the open database disabled in the registry it
+  stays silent (slice 01's `testPopulateCredentialStoreIfUnlockedRereadsFlagFromRegistry` already
+  pins the silent half — reference it rather than duplicating).
+- `testToggleOnOfOpenDatabaseRefreshesImmediatelyThroughHandler` — unlock database A; build a
+  `DatabaseListViewModel` and install
+  `listViewModel.autoFillEnabledRefreshHandler = { id in guard id == viewModel.databaseReference.id
+  else { return }; viewModel.populateCredentialStoreIfUnlocked() }` (the `AppRootView` wiring);
+  `listViewModel.setAutoFillEnabled(false, for: aRef)` then `(true, for: aRef)`:
+  `populateObserver` fires with A's id after the re-enable (immediate refresh through the hook,
+  no re-unlock).
+- `testToggleOnOfNonOpenDatabaseStaysLazy` — same handler; enable a *different* registered
+  database: `populateObserver` never fires (XCTFail observer + sleep) — lazy until its unlock.
+- `testToggleOffOfBackgroundDatabaseTriggersRemovalNotClear` — with A unlocked,
+  `listViewModel.setAutoFillEnabled(false, for: bRef)` (B locked, not active):
+  `removeDatabaseObserver` fires with `(b.id, false)`; `clearObserver` and the handler stay
+  silent.
+
+### `KeeForgeTests/DatabaseListStoreTests.swift` (new cases)
+
+- `testRemovingNonActiveDatabaseTriggersTargetedIdentityRemoval` — pointer at `first`;
+  `remove(id: second.id)`: `removeDatabaseObserver` fires with `(second.id, false)`, pointer still
+  `first.id`, `clearObserver` silent (fixes the epic's "removal gap"; complements the migrated
+  active-removal test above).
+- `testRemovalWorksWithEverythingLocked` — references added but never unlocked (no composite key,
+  no cached copy, no `KPEntry` anywhere); seed the fake with identities tagged for the removed id:
+  `remove(id:)` removes exactly that subset — pure enumeration, no entry data.
+- `testDisablingActiveDatabasePassesLegacyFlag` / `testDisablingInactiveDatabasePassesFalse` —
+  covered by the migrated slice 01 cases above; keep the flag assertions there rather than adding
+  duplicates.
+
+### Run command
+
+```bash
+xcodebuild test -project KeeForge.xcodeproj -scheme KeeForge \
+  -destination 'platform=iOS Simulator,name=iPhone 17 Pro' \
+  -only-testing:KeeForgeTests/CredentialIdentityStoreManagerTests \
+  -only-testing:KeeForgeTests/DatabaseViewModelTests \
+  -only-testing:KeeForgeTests/DatabaseListStoreTests -quiet
+```
+
+Slice 04 edited no `.xcstrings` catalogs (no new user-facing strings), added no files
+(`project.yml` untouched), and changed no accessibility identifiers. CHANGELOG is explicitly
+deferred to the epic's slice 05 entry.
+
+### Edge cases that apply (from the slice spec)
+
+- All databases locked during removal → `testRemovalWorksWithEverythingLocked`.
+- Store cleared externally between enumerate and mutate →
+  `testRefreshSurvivesStoreClearedBetweenEnumerateAndMutate` (unit) + manual.
+- In-extension save racing a main-app refresh → not unit-testable (two processes); manual check
+  below; the accepted worst case is a briefly stale/duplicate suggestion until the next refresh.
+- Background→foreground refresh → slice 01's foreground-refresh tests plus
+  `testUnlockRefreshesOnlyTheUnlockedDatabase` cover the path
+  (`refreshCredentialStoreForCurrentTreeIfNeeded` funnels into the same refresh).
+
+### Manual checks (device, extension enabled)
+
+- Unlock Personal, then Work: QuickType shows entries from both; each fills via its owning
+  database (slice 03 resolution).
+- Delete an entry from Work and save: only that suggestion disappears.
+- Disable Work while locked: its suggestions vanish, Personal's remain; re-enable while Work is
+  open in the app: suggestions reappear without re-unlock.
+- Remove Work from the app while locked and not active: its suggestions vanish, Personal's remain.
+- Save a new credential from the extension while the main app has another database unlocked:
+  both databases' suggestions coexist afterwards.
 
 ---
 

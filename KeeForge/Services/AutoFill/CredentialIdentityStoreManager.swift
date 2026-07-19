@@ -146,11 +146,12 @@ enum CredentialIdentityStoreManager: Sendable {
     /// Test hooks, fired on the main actor when the corresponding operation
     /// is invoked (fire-and-forget, before the async store work completes).
     /// `populateObserver` receives the owning database id and the eligible
-    /// (non-expired) entries; `removeDatabaseObserver` receives the database
-    /// id passed to targeted removal.
+    /// (non-expired) entries per refresh; `removeDatabaseObserver` receives
+    /// the database id passed to targeted removal together with the
+    /// `includingLegacyIdentifiers` flag it was invoked with.
     @MainActor static var populateObserver: ((UUID, [KPEntry]) -> Void)?
     @MainActor static var clearObserver: (() -> Void)?
-    @MainActor static var removeDatabaseObserver: ((UUID) -> Void)?
+    @MainActor static var removeDatabaseObserver: ((UUID, Bool) -> Void)?
     /// Fires with the exact record-identifier string passed to
     /// `removeIdentity(withRecordIdentifier:)`.
     @MainActor static var removeIdentityObserver: ((String) -> Void)?
@@ -168,14 +169,44 @@ enum CredentialIdentityStoreManager: Sendable {
         return SystemCredentialIdentityStore()
     }
 
-    /// Publishes `entries` as this provider's credential identities, tagged
-    /// as owned by `databaseID` (the owning `DatabaseReference.id`).
+    /// Publishes `entries` as the credential identities of the database with
+    /// id `databaseID` (the owning `DatabaseReference.id`). Since slice 04 of
+    /// the selectable-AutoFill epic this is a **per-database refresh**, not a
+    /// whole-store replace: other enabled databases' identities survive, so
+    /// QuickType aggregates suggestions across every enabled database.
     ///
-    /// Publication is still whole-store replacement — one database's
-    /// identities at a time; the full replace also naturally purges any
-    /// legacy-format identities left by pre-feature builds. Additive
-    /// multi-database publication lands in slice 04 of the selectable-
-    /// AutoFill epic.
+    /// Refresh decision tree:
+    /// 1. Enumerate the store.
+    /// 2. If enumeration is unavailable (`credentialIdentities()` returns
+    ///    nil — macOS 14.0–14.3) **or** it shows no other database's
+    ///    identities (a `.current` tag owned by a different database), do an
+    ///    atomic whole-store `replaceCredentialIdentities` exactly as before
+    ///    aggregation (`removeAllCredentialIdentities` when this database has
+    ///    no eligible identities). With no other publishers this is
+    ///    equivalent to a per-database refresh, and the full replace also
+    ///    purges legacy (bare-UUID) and unrecognized identifiers.
+    /// 3. Otherwise remove the identities this database owns **plus** every
+    ///    legacy-format identity (pre-tagging publications, only ever made by
+    ///    the then-active database and superseded by this refresh), then
+    ///    additively `saveCredentialIdentities` the current set. When the
+    ///    current set is empty only the removal happens — other databases'
+    ///    identities are kept, never wiped.
+    ///
+    /// Because each refresh first drops the database's own stale identities,
+    /// a deleted entry can never linger past its database's next refresh; no
+    /// Strongbox-style periodic full clear is needed.
+    ///
+    /// macOS 14.0–14.3 consequence of step 2's fallback: without enumeration
+    /// every refresh is a full replace, so other databases' suggestions
+    /// vanish until their next unlock repopulates them (KeePassium-style lazy
+    /// repopulation — the pre-aggregation single-active behavior, and the
+    /// only option without an enumeration API).
+    ///
+    /// Accepted cross-process race (see the epic's cross-slice notes): the
+    /// main app and the extension can both mutate the store (unlock vs.
+    /// in-extension save), and enumerate-then-mutate is not atomic. Worst
+    /// case is a briefly stale or duplicate suggestion, corrected by the
+    /// affected database's next refresh; no IPC or locking is layered on top.
     static func populate(with entries: [KPEntry], for databaseID: UUID) {
         let eligibleEntries = entries.filter { !$0.isExpired() }
 
@@ -195,33 +226,65 @@ enum CredentialIdentityStoreManager: Sendable {
             let passwordIds = eligibleEntries.flatMap { passwordIdentities(for: $0, in: databaseID) }
             let passkeyIds = eligibleEntries.compactMap { passkeyIdentity(for: $0, in: databaseID) }
 
-            var allIdentities: [any ASCredentialIdentity] = passwordIds
-            allIdentities.append(contentsOf: passkeyIds)
+            var databaseIdentities: [any ASCredentialIdentity] = passwordIds
+            databaseIdentities.append(contentsOf: passkeyIds)
 
             var otcCount = 0
             if #available(iOS 18.0, macOS 15.0, *) {
                 let otcIds = eligibleEntries.compactMap { oneTimeCodeIdentity(for: $0, in: databaseID) }
-                allIdentities.append(contentsOf: otcIds)
+                databaseIdentities.append(contentsOf: otcIds)
                 otcCount = otcIds.count
             }
 
+            let storedIdentities = await store.credentialIdentities()
+            let otherDatabaseIdentitiesPresent = storedIdentities?.contains { identity in
+                guard let recordIdentifier = identity.recordIdentifier,
+                      case .current(let parsed) = CredentialRecordIdentifier.parse(recordIdentifier)
+                else { return false }
+                return parsed.databaseID != databaseID
+            } ?? false
+
             do {
-                if allIdentities.isEmpty {
+                if let storedIdentities, otherDatabaseIdentitiesPresent {
+                    // Additive per-database refresh: drop this database's own
+                    // (possibly stale) identities plus every legacy bare-UUID
+                    // identity, then save the current set. `.unrecognized`
+                    // identifiers are left for a later whole-store replace or
+                    // `clearStore()` to purge.
+                    let identitiesToRemove = storedIdentities.filter { identity in
+                        guard let recordIdentifier = identity.recordIdentifier else { return false }
+                        switch CredentialRecordIdentifier.parse(recordIdentifier) {
+                        case .current(let parsed):
+                            return parsed.databaseID == databaseID
+                        case .legacy:
+                            return true
+                        case .unrecognized:
+                            return false
+                        }
+                    }
+                    if !identitiesToRemove.isEmpty {
+                        try await store.removeCredentialIdentities(identitiesToRemove)
+                    }
+                    if !databaseIdentities.isEmpty {
+                        try await store.saveCredentialIdentities(databaseIdentities)
+                    }
+                    logger.info("Refreshed one database's identities: removed \(identitiesToRemove.count) stale, saved \(passwordIds.count) password + \(passkeyIds.count) passkey + \(otcCount) OTC identities")
+                } else if databaseIdentities.isEmpty {
                     try await store.removeAllCredentialIdentities()
                     logger.info("Cleared identity store because no eligible credentials remain")
                 } else {
-                    try await store.replaceCredentialIdentities(allIdentities)
+                    try await store.replaceCredentialIdentities(databaseIdentities)
                     logger.info("Populated identity store with \(passwordIds.count) password + \(passkeyIds.count) passkey + \(otcCount) OTC identities")
                 }
             } catch {
-                logger.error("Failed to replace credential identities: \(error.localizedDescription)")
+                logger.error("Failed to refresh credential identities: \(error.localizedDescription)")
             }
         }
     }
 
     /// Wipe-everything primitive: empties the entire identity store (global
-    /// Quick AutoFill toggle off, database-removal fallback, and the
-    /// Clear AutoFill Entries action).
+    /// Quick AutoFill toggle off, the extension's stale legacy/unrecognized-
+    /// identifier cleanup, and the Clear AutoFill Entries action).
     static func clearStore() {
         #if DEBUG
         Task { @MainActor in
@@ -284,17 +347,23 @@ enum CredentialIdentityStoreManager: Sendable {
     /// the caller knows the store's legacy identities belong to `databaseID`
     /// (they can only have been published by the active database — e.g.
     /// slice 04's per-database refresh, or disabling the active database).
-    /// `.unrecognized` (stale) identifiers are left untouched; any later
-    /// populate replaces the whole store and purges them.
+    /// `.unrecognized` (stale) identifiers are left untouched; a later
+    /// whole-store replace (a refresh that finds no other database's
+    /// identities, or `clearStore()`) purges them.
     ///
     /// On macOS 14.0–14.3 store enumeration is unavailable
     /// (`credentialIdentities()` returns nil); this logs and removes nothing,
     /// so callers needing a hard guarantee there must fall back to
-    /// `clearStore()` + lazy repopulation.
+    /// `clearStore()` + lazy repopulation. The slice 04 lifecycle callers
+    /// (`DatabaseListStore.setAutoFillEnabled` / `remove(id:)`) deliberately
+    /// do not: on that OS every `populate` is a whole-store replace anyway,
+    /// so a disabled/removed database's stale suggestions linger only until
+    /// any enabled database's next refresh, and the extension already treats
+    /// them as stale on tap.
     static func removeIdentities(forDatabase databaseID: UUID, includingLegacyIdentifiers: Bool = false) {
         #if DEBUG
         Task { @MainActor in
-            removeDatabaseObserver?(databaseID)
+            removeDatabaseObserver?(databaseID, includingLegacyIdentifiers)
         }
         #endif
 

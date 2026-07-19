@@ -160,6 +160,19 @@ private struct AppRootView: View {
             }
         }
         .task {
+            // Enabling AutoFill for the currently unlocked database must
+            // republish its identities immediately (epic: both toggle
+            // directions take effect at once for an open database). The list
+            // view model owns the toggle but only this root knows the active
+            // session, so it installs the bridge. Bindings read live @State
+            // storage, so the closure always sees the current session (same
+            // pattern as startMacLockMonitoringIfNeeded).
+            let activeViewModel = $activeDatabaseViewModel
+            listViewModel.autoFillEnabledRefreshHandler = { databaseID in
+                guard let databaseViewModel = activeViewModel.wrappedValue,
+                      databaseViewModel.databaseReference.id == databaseID else { return }
+                databaseViewModel.populateCredentialStoreIfUnlocked()
+            }
             #if os(macOS)
             // macOS has no scene-based StoreKit review entry point; inject the
             // SwiftUI RequestReviewAction so ReviewPromptService can present the
