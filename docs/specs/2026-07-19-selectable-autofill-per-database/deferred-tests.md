@@ -20,7 +20,19 @@
       the diff re-committed. Then run `-only-testing:KeeForgeTests/LocalizationTests`.
 - [ ] Full build of all targets (`KeeForge`, `KeeForgeAutoFill`, `KeeForgeMacAutoFill`) —
       the implementation was written without a compiler; fix any first-build breakage before
-      starting on tests.
+      starting on tests. Known likely first-build spots (all flagged in code review, none
+      verifiable on Linux):
+      - `SystemCredentialIdentityStore.credentialIdentities()` calls
+        `ASCredentialIdentityStore.credentialIdentities(forService: nil)` relying on the
+        default for `credentialIdentityTypes:`; if the call is ambiguous on the real SDK,
+        pass the option-set argument explicitly.
+      - The closure stored in `DatabaseListViewModel.autoFillEnabledRefreshHandler`
+        (installed from `AppRootView.task` and from `SettingsView`'s fallback) relies on the
+        same isolation-erasing conversion as the committed `MacLockMonitor` wiring; if the
+        compiler objects, type the property `(@MainActor (UUID) -> Void)?`.
+      - `DatabaseListStore` declares both `static var activeAutoFillDatabase` and
+        `private static func activeAutoFillDatabase(in:)` — legal overloading, but worth a
+        first-build glance.
 - [ ] `-only-testing:KeeForgeTests/AppGroupGuardrailTests` — the registry gained a plain
       bool field; guardrail must stay green.
 
