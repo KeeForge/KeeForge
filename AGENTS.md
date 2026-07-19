@@ -51,6 +51,13 @@ If you are a very powerful model like Fable 5, feel free to delegate implementat
 - Do not use MCP tools to run Xcode tests. Start a fresh `bash` session and run the test command there instead.
 - Update `CHANGELOG.md` for feature or bug-fix commits. Add entries only under `## Unreleased`. It's okay to skip if the bug fix is for an unreleased feature.
 
+### Localization
+
+- UI text is localized with Xcode String Catalogs (`.xcstrings`), source language `en`. Currently shipped locales: `en`, `de`.
+- Four catalogs: `Localizable.xcstrings` + `InfoPlist.xcstrings` under `KeeForge/Resources/`, mirrored under `AutoFillExtension/`. Reach user-facing strings via `String(localized:)` (or SwiftUI's automatic catalog lookup) — never hardcode display text.
+- Every English key needs a translation in each shipped locale; `KeeForgeTests/LocalizationTests.swift` fails the build on missing or drifted translations. Run it after touching any catalog.
+- When adding a new locale, also translate the user-facing docs: the `README.md` files, and the separate `keeforge.com` website repo (its content needs the same locale coverage).
+
 ### Research Notes
 
 - When asked for reference implementations, consult `https://github.com/keepassium/keepassium` and `https://github.com/strongbox-password-safe/Strongbox`.
