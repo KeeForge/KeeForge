@@ -3,8 +3,8 @@ name: release
 description: >
   Create a new release candidate for the KeeForge iOS app. Bumps the version in project.yml,
   updates CHANGELOG.md, runs the local KDBX compatibility gate, commits, and pushes an
-  rc/<version> tag so Xcode Cloud runs the full test suite; once that cloud run passes, pushes
-  the v<version> tag to trigger the Xcode Cloud build-and-archive workflow.
+  rc/{version} tag so Xcode Cloud runs the full test suite; once that cloud run passes, pushes
+  the v{version} tag to trigger the Xcode Cloud build-and-archive workflow.
   Use this skill whenever the user wants to cut a release, create a release candidate,
   bump the version, ship a new version, or prepare a build for TestFlight/App Store.
   Triggers on phrases like "release", "new version", "bump version", "cut a release",
@@ -100,10 +100,14 @@ Use today's date for the release date — get it from `date +%F`, don't guess.
 
 Perform this review for every release, even if the content already looks complete:
 
-1. Use only the new version's `### New Features` bullets in `CHANGELOG.md` as source material.
-   Exclude fixes, security hardening, known issues, and internal changes. If there are no New
-   Features, confirm that `WhatsNewCatalog` has no case for this version and continue without an
-   empty sheet.
+1. Review the new version's `### New Features` and `### Fixes` bullets in `CHANGELOG.md` as
+   source material. Generally keep the sheet to at most three items: prioritize the most important
+   user-facing features, then use any remaining slots for notable bug fixes. A fix is notable when
+   it materially improves a common workflow, prevents a crash or data-loss risk, or delivers a
+   broad reliability improvement. Exclude routine polish, security hardening, known issues, and
+   internal changes. If there are no eligible items, confirm that `WhatsNewCatalog` has no case for
+   this version and continue without an empty sheet. Confirm with the user if the proposal looks
+   good before proceeding.
 2. Inspect the matching version case in
    `KeeForge/Services/AppSupport/WhatsNewPresentationService.swift`. Add it if needed, or fix it
    when it is stale, incomplete, overly technical, or inaccurate.
@@ -119,7 +123,7 @@ Perform this review for every release, even if the content already looks complet
    missing major features, or claims that are not supported by the release.
 
 Do not proceed until the catalog either has polished, accurate content for the new version or has
-been deliberately omitted because the release contains no new features.
+been deliberately omitted because the release contains no eligible user-facing highlights.
 
 ## Step 4: Update project.yml
 
@@ -163,7 +167,7 @@ Only reach this step if the KDBX gate passed.
      KeeForge/Services/AppSupport/WhatsNewPresentationService.swift \
      KeeForge/Resources/Localizable.xcstrings
    ```
-2. Commit with message: `Release v{version}`
+2. Commit with message: `Release candidate v{version}`
 3. Push the commit:
    ```bash
    git push origin main
