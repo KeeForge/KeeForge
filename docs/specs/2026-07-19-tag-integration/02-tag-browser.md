@@ -41,10 +41,13 @@ all tags and drill into any tag's entries, on iPhone, iPad, and macOS.
 
 **Out:**
 
-- Any write operation: tag editing, rename, delete (slice 03).
+- Group-tag inheritance: this slice browses entries' own tags; slice 03 widens the same
+  screens to effective tags with no UI rework (the browser must not assume its data source
+  is entry-own tags anywhere).
+- Editor tag suggestions (slice 04) or any write operation.
 - Tag chips or counts anywhere else (list rows, search results).
-- A Strongbox-style "popular tags" cloud on the root screen — the single row keeps the root
-  list calm; revisit only if users ask.
+- A Strongbox-style "popular tags" cloud on the root screen — considered and rejected by the
+  maintainer to keep the root list calm.
 
 ## Implementation requirements
 
@@ -127,4 +130,4 @@ all tags and drill into any tag's entries, on iPhone, iPad, and macOS.
 
 `- Added a tag browser: browse all tags with entry counts from the database root (and the macOS sidebar), and jump to a tag from any entry's detail screen. Search matches tags.`
 
-(Replaced by slice 03's final entry when it lands.)
+(Replaced by slice 03's entry when it lands.)

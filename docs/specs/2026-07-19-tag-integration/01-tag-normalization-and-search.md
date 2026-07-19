@@ -31,7 +31,10 @@ the slice's user-visible win.
 **Out:**
 
 - Any new screens or navigation (slice 02).
-- Tag suggestions in the editor, rename/delete, the tags-only draft edit (slice 03).
+- Group tags and inheritance: the index covers entries' own tags until slice 03 widens it to
+  effective tags (own + ancestor groups'). Structure the index so that widening is a change
+  to what feeds it, not a redesign.
+- Editor tag suggestions (slice 04).
 - Parser/writer changes: the parser already reads both separators; the writer keeps emitting
   comma-joined tags. No stable-core file changes in this slice.
 
