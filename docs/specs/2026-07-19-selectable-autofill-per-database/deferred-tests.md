@@ -1068,4 +1068,243 @@ xcodebuild test -project KeeForge.xcodeproj -scheme KeeForge \
 
 ## Slice 06: Extension database switcher
 
-_To be filled by the slice 06 implementation._
+### Implementation summary (what the tests pin down)
+
+- `CredentialProviderDatabaseSwitcherContext` (new struct in
+  `AutoFillExtension/CredentialProviderCoordinator.swift`, so it compiles into `KeeForge`,
+  `KeeForgeMac`, and both extension targets): `databases: [DatabaseReference]`,
+  `currentDatabaseID: UUID?`, `onSwitch: (DatabaseReference, String) -> Void` — the second
+  argument is the live search text at tap time.
+- `CredentialProviderPresenting.presentSearchView` gained a third parameter,
+  `databaseSwitcher: CredentialProviderDatabaseSwitcherContext?` (after `initialSearchText`).
+  Both shells wrap `onSwitch` in their dismissal handling exactly like `onSelect`/`onCancel`
+  (iOS: `dismiss(animated: false)` completion; macOS: `dismissHostedContent()` first), so by the
+  time the coordinator's switch entry point runs, `isDisplayingContent` is false and the unlock
+  prompt can present.
+- Coordinator-internal `presentSearchView(entries:initialSearchText:includesDatabaseSwitcher:onSelect:)`:
+  `includesDatabaseSwitcher: true` at the six genuine list-flow call sites (password matches +
+  full list in `presentPasswordMatchesOrFinish`; passkey matches + expired-matches lists in
+  `presentPasskeyMatchesOrFinish`; OTC matches + full list in `presentOTCMatchesOrFinish`);
+  false (the default) for the two by-identity expired-entry confirmations
+  (`completeOTCRequestFromPending`'s expired path, `completeInteractivePasskeyRequest`'s expired
+  path) — those show one specific credential of one specific database and their pending request
+  object was already consumed, so a switch could not re-serve them.
+- Private `makeDatabaseSwitcherContext()` — the single gate: reads
+  `DatabaseListStore.autoFillEnabledDatabases`; returns **nil when fewer than two are enabled**
+  (the view shows the picker iff the context is non-nil), so disabled databases are never listed
+  and a lone enabled database gets no switcher; `currentDatabaseID = activeDatabaseReference?.id`.
+- `AutoFillSearchView` gained `databaseSwitcher: CredentialProviderDatabaseSwitcherContext? = nil`
+  (defaulted init parameter — existing constructions compile unchanged). UI: toolbar `Menu` at
+  `.primaryAction` labeled `"Switch Database"` (symbol `cylinder.split.1x2`), one `Button` per
+  database showing `displayName`, the currently open one rendered as a checkmark `Label`.
+  **Tapping the current database is a view-level no-op** (the Button action guards on
+  `currentDatabaseID`), so the shells never dismiss the search view for a switch the coordinator
+  would ignore.
+- `switchDatabase(to:currentSearchText:)` (internal, the new entry point):
+  1. Guards: `!isUnlockInProgress`, `sessionKey != nil` (a vault must currently be open — the
+     switcher only exists on post-unlock search views), `activeDatabaseReference` set, and
+     target id ≠ current id (same-database switch is ignored; plain return).
+  2. Stashes the typed text into `pendingSwitchSearchText`.
+  3. Re-validates the target against the registry (`DatabaseListStore.databases`, must still
+     exist with `autoFillEnabled`): a stale target (disabled/removed by the main app since the
+     switcher was built) calls `afterUnlock()` to re-present the current database's UI instead
+     of dead-ending the already-dismissed shell.
+  4. Sets `pendingSwitchPreviousDatabaseReference = current`, pins
+     `activeDatabaseReference = target` (the fresh registry copy), resets
+     `didAttemptAutoBiometricUnlock` (the new database gets its own auto-biometric attempt),
+     and calls `presentUnlockPromptIfNeeded()` — the standard unlock flow, keyed to the target's
+     own keychain composite key.
+- **Cancel semantics: swap-on-success.** There is deliberately **no teardown at switch time**:
+  the previous database's vault state — `parsedEntries`, `parsedRootGroup`, `parsedMeta`,
+  `parsedFormatVersion`, `sessionKey`, `compositeKey`, `openTimeSHA512` — stays live while the
+  new unlock is pending and is only overwritten wholesale by a successful `loadEntries`.
+  `recordSuccessfulUnlock` is the commit point: it clears
+  `pendingSwitchPreviousDatabaseReference`, re-pins, and calls `markDatabaseOpened` (updates
+  `lastOpenedAt` + the active pointer through the slice-01 gated setter — the switched-to
+  database becomes the session's save/passkey target via `activeDatabaseReference` and the
+  next-launch default via `defaultAutoFillDatabase`). Cancelling the unlock prompt **or** the
+  unlock-error alert routes through `cancelRequestOrRestoreSwitchedDatabase()`: with a switch
+  pending it restores (re-pin previous reference + `afterUnlock()` re-present from the retained
+  vault state, consuming the search-text stash) and does **not** cancel the request; without one
+  it cancels `.userCanceled` exactly as before.
+- Preserved across a switch in both directions (never touched by switching):
+  `serviceIdentifiers`, `pendingPasskeyRequestParameters`, `hasPendingOTCListRequest`,
+  `targetRecordIdentifier`, plus the typed search text via `pendingSwitchSearchText` (consumed
+  by the next `presentSearchView`, overriding the computed initial text).
+- OTC contract change: `presentOTCMatchesOrFinish()` **no longer consumes**
+  `hasPendingOTCListRequest` (it stays set until a completion path runs `cleanup()`), so
+  `afterUnlock()` after a switch — or an unlock retry — re-runs the OTC picker instead of
+  falling through to the password list. `completeOTCRequestFromPending()`'s stale-identity
+  fallback now **re-arms** `hasPendingOTCListRequest = true` (the by-identity request degrades
+  into a list request) before presenting the fallback picker.
+- `cleanup()` additionally clears `pendingSwitchPreviousDatabaseReference` and
+  `pendingSwitchSearchText`.
+
+### Required migrations of existing tests (compile fixes — do these first)
+
+- `CredentialProviderCoordinatorTests.PresenterSpy.presentSearchView` must add the
+  `databaseSwitcher: CredentialProviderDatabaseSwitcherContext?` parameter; extend the
+  `SearchView` record struct with a `databaseSwitcher` field and store it. No existing
+  assertion changes — they only touch `entries`/`initialSearchText`/`onSelect`/`onCancel`.
+- Recommended: extend `assertCleanedUp` with
+  `XCTAssertNil(coordinator.pendingSwitchPreviousDatabaseReference)` and
+  `XCTAssertNil(coordinator.pendingSwitchSearchText)`.
+- The existing `test_otcList_*` cases stay green despite the flag-retention change: they assert
+  `hasPendingOTCListRequest` only via `assertCleanedUp` **after** a completion path already ran
+  `cleanup()` (which still clears it). The prepare-time assertion at
+  `test_otcList_singleMatch_completesWithCode` (flag true after prepare) is unaffected.
+- `CredentialProviderShellMacTests` compiles unchanged (no presenter conformance there; the
+  production shell was updated in this slice).
+
+### Seams to use
+
+- `presenter.searchView.databaseSwitcher` — the spy-recorded context is the main seam: inspect
+  `databases`/`currentDatabaseID`, and invoke `onSwitch(reference, "typed text")` to simulate a
+  tap. `PresenterSpy.isDisplayingContent` defaults to false, which matches the production
+  precondition (the shell dismisses the search view before forwarding the switch).
+- Registry seeding as in slices 01/03: `TestDatabaseSupport.makeReference(for:lastOpenedAt:)`
+  (+ the `autoFillEnabled:` builder parameter documented in slice 01),
+  `DatabaseListStore.update(_:)` / `markDatabaseOpened(id:at:)` /
+  `setAutoFillEnabled(_:for:)` / `clearAll()` in setUp/tearDown.
+- Vault seeding: the existing `seedUnlockedVaultState(_:entries:sessionKey:)` helper **plus a
+  direct `coordinator.activeDatabaseReference = referenceA` write** — `switchDatabase` guards on
+  both `sessionKey` and the pin.
+- Real unlock of the switched-to database: write the `TestFixtures/test.kdbx` fixture bytes
+  (password `testpassword123`) to `DatabaseListStore.cacheLocation(for: targetReference)`, then
+  drive `presenter.unlockPrompt.onSubmitPassword("testpassword123")`. The unlock task is async —
+  add a spy hook `onSearchViewPresented: (() -> Void)?` (mirroring the existing
+  `onUnlockErrorPresented`) fired from `presentSearchView`, and await it with an expectation.
+- `BiometricService.isAvailable` is false under simulator tests, so a switch always lands on the
+  password prompt; the biometric-cancel-mid-switch path is covered indirectly (biometric cancel
+  throws into `showErrorAndRetry`, the same error-alert path tested below) plus manually.
+
+### `KeeForgeTests/CredentialProviderCoordinatorTests.swift` (new cases)
+
+Switcher presence and source list:
+
+- `test_searchView_carriesSwitcherWithTwoEnabledDatabases` — register enabled A and B, pin A
+  (`activeDatabaseReference = A`), seed vault, `presentPasswordMatchesOrFinish()`:
+  `searchView.databaseSwitcher` is non-nil, its `databases` ids are exactly `[A.id, B.id]`, and
+  `currentDatabaseID == A.id` (checkmark contract).
+- `test_searchView_omitsSwitcherWithSingleEnabledDatabase` — only A registered: presented
+  `searchView.databaseSwitcher == nil` (picker hidden below two enabled databases).
+- `test_searchView_switcherNeverListsDisabledDatabases` — A and C enabled, B registered with
+  `autoFillEnabled == false`: listed ids are exactly `{A.id, C.id}`; then
+  `setAutoFillEnabled(false, for: C)` and re-present: switcher is nil (only one enabled left).
+  *(The spec's "disabled databases never appear in the switcher's source list".)*
+- `test_byIdentityExpiredConfirmations_carryNoSwitcher` (`@available(iOS 18.0, *)` for the OTC
+  half) — with two enabled databases registered, drive `completeOTCRequestFromPending()` with an
+  expired matching TOTP target (and/or `completeInteractivePasskeyRequest` with an expired
+  passkey entry): the presented confirmation's `databaseSwitcher` is nil.
+
+Switch flow (spec: "switch to another enabled database triggers its unlock flow and retargets
+search/save/passkey registration"):
+
+- `test_switch_presentsUnlockPromptPinnedToTargetAndRetainsPreviousVault` — from the two-database
+  search, invoke `databaseSwitcher.onSwitch(B, "typed")`: `presenter.unlockPrompt` is presented,
+  `activeDatabaseReference?.id == B.id`, `pendingSwitchPreviousDatabaseReference?.id == A.id`,
+  `pendingSwitchSearchText == "typed"`, and the previous vault is untouched (`sessionKey`
+  non-nil, `parsedEntries` unchanged) — the unlock/biometric/key pipeline now targets B while
+  A remains restorable.
+- `test_switch_toCurrentDatabaseIsIgnored` — `coordinator.switchDatabase(to: A)` while A is
+  open: no unlock prompt, no stash, all state untouched (production additionally filters this at
+  the view level so the shell never dismisses for it).
+- `test_switch_toDatabaseDisabledSinceListingRepresentsCurrentSearch` — build the search with A
+  and B enabled, then `setAutoFillEnabled(false, for: B)` **before** invoking `onSwitch(B, "")`:
+  no unlock prompt, `activeDatabaseReference` still A, no stash, and the search view is
+  presented again (the coordinator re-presents instead of dead-ending the dismissed shell) —
+  the "database disabled in the app between extension launches" edge.
+- `test_switchUnlockSuccess_retargetsSessionAndDefault` — seed the cache for B with fixture
+  bytes; switch with typed text; submit the fixture password; await `onSearchViewPresented`:
+  the re-presented `searchView.entries` are B's parsed entries, `initialSearchText` equals the
+  preserved typed text, `activeDatabaseReference?.id == B.id`,
+  `pendingSwitchPreviousDatabaseReference` is nil (switch committed),
+  `DatabaseListStore.activeAutoFillDatabaseID == B.id`, B's `lastOpenedAt` was updated, and
+  `DatabaseListStore.defaultAutoFillDatabase?.id == B.id`. The last three pin the retarget
+  contract: in-session save/passkey registration read `activeDatabaseReference` (see
+  `saveNewEntry`), and the next extension launch's identifier-less flows resolve
+  `defaultAutoFillDatabase` — both now point at B.
+- `test_switchDuringOTCList_reRunsOTCPickerAfterUnlock` (`@available(iOS 18.0, *)`) —
+  `prepareOneTimeCodeCredentialList`, seed a TOTP vault for A, `presentOTCMatchesOrFinish()`
+  (multi-match picker), switch to B, then cancel the unlock: the re-presented picker contains
+  TOTP entries again (not the password list) and `hasPendingOTCListRequest` is still true —
+  pins the flag-retention change.
+- `test_otcStaleFallback_reArmsListFlag` (`@available(iOS 18.0, *)`) — drive
+  `completeOTCRequestFromPending()` with a stale `targetRecordIdentifier` and ≥2 TOTP entries:
+  the fallback picker is presented and `hasPendingOTCListRequest == true` (by-identity request
+  converted to a list request so a subsequent switch re-serves it).
+- *(Optional)* passkey-parameters retarget: `pendingPasskeyRequestParameters` survives a switch
+  by construction (it is never consumed by presentation), but
+  `ASPasskeyCredentialRequestParameters` has no public initializer that could be verified in
+  this environment — check on a Mac whether it is test-constructible; if not, the OTC and
+  password cases above cover the shared `afterUnlock` dispatch, and the field's preservation is
+  implicitly pinned by `test_switchCancel_restoresPreviousDatabaseAndRepresentsSearch` below
+  (which asserts the request context is untouched). Document the gap inline if skipped.
+
+Cancel semantics (spec: "cancelling the switch unlock leaves the previous database active" —
+implemented as **swap-on-success**, so "active" means: still pinned, still unlocked in memory,
+its search re-presented; the request is NOT cancelled):
+
+- `test_switchCancel_restoresPreviousDatabaseAndRepresentsSearch` — after
+  `test_switch_presentsUnlockPromptPinnedToTargetAndRetainsPreviousVault`'s setup, invoke
+  `unlockPrompt.onCancel()`: `presenter.cancelledError` stays nil, `activeDatabaseReference?.id
+  == A.id`, `pendingSwitchPreviousDatabaseReference` is nil, the search view is re-presented
+  from A's retained entries with `initialSearchText == "typed"` (stash consumed), and selecting
+  an entry from it still completes the request with A's credential (A's `sessionKey` was never
+  torn down).
+- `test_switchUnlockErrorCancel_restoresPreviousDatabase` — switch A→B with no cached bytes for
+  B, `unlockPrompt.onSubmitPassword("wrong")`, await `onUnlockErrorPresented`, invoke
+  `unlockError.onCancel()`: same restoration assertions as above. This is also the
+  biometric-cancel-mid-switch shape: a cancelled biometric prompt throws into the same
+  `showErrorAndRetry` → error-alert → Cancel path.
+- `test_switchUnlockErrorRetry_staysPinnedToTarget` — same setup, invoke `unlockError.onRetry()`:
+  the unlock prompt is presented again and `activeDatabaseReference?.id == B.id` (the retry loop
+  keeps targeting the switched-to database; only Cancel restores).
+
+### Run command
+
+```bash
+xcodebuild test -project KeeForge.xcodeproj -scheme KeeForge \
+  -destination 'platform=iOS Simulator,name=iPhone 17 Pro' \
+  -only-testing:KeeForgeTests/CredentialProviderCoordinatorTests -quiet
+```
+
+### Toolchain notes for this slice (Mac required)
+
+- **Strings:** one new key in `AutoFillExtension/Localizable.xcstrings` (both extension
+  targets; `InfoPlist.xcstrings` untouched): `"Switch Database"` with `de` unit
+  `"Datenbank wechseln"`, inserted by hand between `"Show %@"` and `"System Default"`. Run
+  `swift scripts/normalize-xcstrings.swift` on a Mac, re-commit any reordering diff, then
+  `-only-testing:KeeForgeTests/LocalizationTests`. Database display names in the menu are user
+  data (not localized); the checkmark row reuses no new strings.
+- **New accessibility identifiers** (all existing search-view ids preserved):
+  `autofill.database-switcher` on the toolbar menu control, and
+  `autofill.database-switcher.<database-id-uuidString>` on each row (uppercase UUID, matching
+  slice 05's `settings.autofill.database-toggle.<uuid>` per-row convention).
+- **CHANGELOG:** `- Switch between databases inside the AutoFill panel.` added under
+  `## Unreleased` in this slice.
+- No new files; `project.yml` untouched; `xcodegen generate` not required.
+
+### Manual checks (device + mac extension; requires ≥2 databases enabled)
+
+- Personal (default) and Work both enabled: invoke AutoFill manually on a Work-only site, open
+  the toolbar switcher (Personal is checkmarked), pick Work → Work's biometric/password unlock →
+  the search re-appears with Work's entries and the previously typed search text → fill
+  completes.
+- Save a new credential while switched (a subsequent iOS save-password request): it lands in
+  Work; relaunch AutoFill manually and confirm Work is now the default database.
+- Cancel the switch unlock via the password prompt's Cancel: Personal's search returns, with
+  entries and search text intact; selecting an entry still fills (no re-unlock needed).
+- Biometric cancel mid-switch (Face ID device, auto-unlock enabled): switching auto-triggers
+  Face ID for Work; cancel it → error alert → Cancel → Personal's search returns; Try Again →
+  Face ID again for Work.
+- Switch to a cloud (cache-only) database: unlock parses the App Group cached copy without
+  touching the bookmark; switch succeeds offline.
+- Disable Work in the main app, return to the extension (or relaunch): the switcher no longer
+  lists Work; with only one database left enabled, the switcher control disappears entirely.
+- With exactly one enabled database from the start: no switcher control in the search toolbar.
+- OTC flow: invoke the code picker with both databases enabled, switch to a database with no
+  TOTP entries — accepted behavior is the standard flow's: the request ends with
+  "not found" (same as if that database had been the default). Verify no crash/dead UI.
+- German (`de`): the menu control announces/labels "Datenbank wechseln"; VoiceOver reads each
+  row's database name and the checkmark state on the current one.

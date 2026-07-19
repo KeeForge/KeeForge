@@ -96,12 +96,28 @@ extension CredentialProviderViewController: CredentialProviderPresenting {
     func presentSearchView(
         entries: [KPEntry],
         initialSearchText: String,
+        databaseSwitcher: CredentialProviderDatabaseSwitcherContext?,
         onSelect: @escaping (KPEntry) -> Void,
         onCancel: @escaping () -> Void
     ) {
+        // A database switch presents the unlock prompt next, so the search
+        // view must be dismissed first — wrap `onSwitch` in the same
+        // dismissal handling as `onSelect`/`onCancel`.
+        let wrappedSwitcher = databaseSwitcher.map { switcher in
+            CredentialProviderDatabaseSwitcherContext(
+                databases: switcher.databases,
+                currentDatabaseID: switcher.currentDatabaseID,
+                onSwitch: { [weak self] reference, currentSearchText in
+                    self?.dismiss(animated: false) {
+                        switcher.onSwitch(reference, currentSearchText)
+                    }
+                }
+            )
+        }
         let searchView = AutoFillSearchView(
             entries: entries,
             initialSearchText: initialSearchText,
+            databaseSwitcher: wrappedSwitcher,
             onSelect: { [weak self] entry in
                 self?.dismiss(animated: false) {
                     onSelect(entry)

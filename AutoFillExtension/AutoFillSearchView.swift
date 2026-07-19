@@ -5,12 +5,25 @@ struct AutoFillSearchView: View {
     let onSelect: (KPEntry) -> Void
     let onCancel: () -> Void
     let initialSearchText: String
+    /// Non-nil only when the coordinator offers the in-search database
+    /// switcher (two or more AutoFill-enabled databases). Selecting a
+    /// database other than the currently open one invokes
+    /// `databaseSwitcher.onSwitch` with it and the current search text;
+    /// selecting the currently open (checkmarked) database does nothing.
+    let databaseSwitcher: CredentialProviderDatabaseSwitcherContext?
 
     @State private var searchText: String
 
-    init(entries: [KPEntry], initialSearchText: String = "", onSelect: @escaping (KPEntry) -> Void, onCancel: @escaping () -> Void) {
+    init(
+        entries: [KPEntry],
+        initialSearchText: String = "",
+        databaseSwitcher: CredentialProviderDatabaseSwitcherContext? = nil,
+        onSelect: @escaping (KPEntry) -> Void,
+        onCancel: @escaping () -> Void
+    ) {
         self.entries = entries
         self.initialSearchText = initialSearchText
+        self.databaseSwitcher = databaseSwitcher
         self.onSelect = onSelect
         self.onCancel = onCancel
         self._searchText = State(initialValue: initialSearchText)
@@ -70,8 +83,40 @@ struct AutoFillSearchView: View {
                         onCancel()
                     }
                 }
+                if let databaseSwitcher {
+                    ToolbarItem(placement: .primaryAction) {
+                        databaseSwitcherMenu(databaseSwitcher)
+                    }
+                }
             }
         }
+    }
+
+    /// Lightweight per-database picker: lists AutoFill-enabled databases only,
+    /// marks the currently open one with a checkmark, and hands taps on any
+    /// other database to the coordinator (with the live search text so the
+    /// re-presented search can keep it). Tapping the current database is a
+    /// no-op at the view level so the shells never dismiss the search view
+    /// for a switch the coordinator would ignore.
+    private func databaseSwitcherMenu(_ databaseSwitcher: CredentialProviderDatabaseSwitcherContext) -> some View {
+        Menu {
+            ForEach(databaseSwitcher.databases) { database in
+                Button {
+                    guard database.id != databaseSwitcher.currentDatabaseID else { return }
+                    databaseSwitcher.onSwitch(database, searchText)
+                } label: {
+                    if database.id == databaseSwitcher.currentDatabaseID {
+                        Label(database.displayName, systemImage: "checkmark")
+                    } else {
+                        Text(database.displayName)
+                    }
+                }
+                .accessibilityIdentifier("autofill.database-switcher.\(database.id.uuidString)")
+            }
+        } label: {
+            Label("Switch Database", systemImage: "cylinder.split.1x2")
+        }
+        .accessibilityIdentifier("autofill.database-switcher")
     }
 }
 

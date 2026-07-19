@@ -826,6 +826,16 @@
         }
       }
     },
+    "Switch Database" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Datenbank wechseln"
+          }
+        }
+      }
+    },
     "System Default" : {
       "localizations" : {
         "de" : {

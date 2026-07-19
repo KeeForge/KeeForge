@@ -19,6 +19,21 @@ enum CredentialProviderEntrySaveOutcome: Sendable {
     case showError(String)
 }
 
+/// The in-search database switcher offered by `AutoFillSearchView`: the
+/// AutoFill-enabled databases to list, which one is currently open (marked
+/// with a checkmark), and the coordinator callback that performs the switch.
+/// `onSwitch` receives the tapped database plus the search text the user had
+/// typed at that moment, so the re-presented search can keep it. The
+/// coordinator builds the context (nil when fewer than two databases are
+/// enabled — nothing to switch to); the shells wrap `onSwitch` in their
+/// dismissal handling, exactly like `onSelect`/`onCancel`, and pass the
+/// context through to the view otherwise untouched.
+struct CredentialProviderDatabaseSwitcherContext {
+    let databases: [DatabaseReference]
+    let currentDatabaseID: UUID?
+    let onSwitch: (DatabaseReference, String) -> Void
+}
+
 /// The narrow seam between the coordinator and a platform presentation shell.
 ///
 /// The shell needs no knowledge of matching or vault logic; the surface is
@@ -33,9 +48,14 @@ protocol CredentialProviderPresenting: AnyObject {
 
     // MARK: "Present this view"
 
+    /// `databaseSwitcher` is non-nil only when the search UI should offer the
+    /// in-search database switcher (two or more AutoFill-enabled databases).
+    /// Shells wrap its `onSwitch` in their dismissal handling, exactly like
+    /// `onSelect`/`onCancel`.
     func presentSearchView(
         entries: [KPEntry],
         initialSearchText: String,
+        databaseSwitcher: CredentialProviderDatabaseSwitcherContext?,
         onSelect: @escaping (KPEntry) -> Void,
         onCancel: @escaping () -> Void
     )
@@ -136,6 +156,18 @@ final class CredentialProviderCoordinator {
     var pendingSavePasswordRequestStorage: Any?
     var pendingGeneratePasswordsRequestStorage: Any?
     var pendingUnlock = false
+    /// Non-nil while a database switch started from the search view's switcher
+    /// waits for the new database's unlock. Holds the previously open database
+    /// so a cancelled switch can fall back to it. The previous vault state
+    /// itself (parsed entries/groups, session key, composite key, open-time
+    /// hash) is deliberately retained during the switch — only a successful
+    /// `loadEntries` for the new database overwrites it, and
+    /// `recordSuccessfulUnlock` commits the switch by clearing this field.
+    var pendingSwitchPreviousDatabaseReference: DatabaseReference?
+    /// The search text the user had typed when starting a database switch.
+    /// Consumed by the next search presentation so the re-presented search —
+    /// the new database's on success, the previous one's on cancel — keeps it.
+    var pendingSwitchSearchText: String?
 
     private var isUnlockInProgress = false
     private var didAttemptAutoBiometricUnlock = false
@@ -494,7 +526,7 @@ final class CredentialProviderCoordinator {
                 self?.unlockWithBiometrics()
             },
             onCancel: { [weak self] in
-                self?.cancelRequest(code: .userCanceled)
+                self?.cancelRequestOrRestoreSwitchedDatabase()
             }
         )
     }
@@ -629,6 +661,92 @@ final class CredentialProviderCoordinator {
         }
     }
 
+    // MARK: - Database switching
+
+    /// Entry point for the search view's database switcher. Runs the standard
+    /// unlock flow for `reference` (auto/biometric unlock with that database's
+    /// own composite key, or the password prompt) and, once unlocked,
+    /// `afterUnlock()` re-presents the pending flow's UI with the new
+    /// database's entries against the unchanged request context
+    /// (`serviceIdentifiers`, `pendingPasskeyRequestParameters`,
+    /// `hasPendingOTCListRequest`, `targetRecordIdentifier` — none of them are
+    /// touched by switching).
+    ///
+    /// Swap-on-success semantics: the previous database's vault state is
+    /// deliberately retained while the new unlock is pending — a successful
+    /// `loadEntries` overwrites it wholesale and `recordSuccessfulUnlock`
+    /// commits the switch (active pointer + `lastOpenedAt`, making the chosen
+    /// database the session's save/passkey target and the default for the
+    /// next launch). Cancelling the unlock instead restores the previous
+    /// database by re-pinning it and re-presenting from the retained state,
+    /// so a cancelled switch never strands the user without their still-open
+    /// database.
+    func switchDatabase(to reference: DatabaseReference, currentSearchText: String = "") {
+        guard !isUnlockInProgress,
+              sessionKey != nil,
+              let currentReference = activeDatabaseReference,
+              reference.id != currentReference.id else { return }
+
+        // Preserve the typed search text for whichever search is presented
+        // next (the new database's on success, the previous one's on cancel).
+        pendingSwitchSearchText = currentSearchText
+
+        // Re-validate against the registry: the switcher list was built when
+        // the search appeared, and the main app may have disabled or removed
+        // the database since (cross-process). A stale target re-presents the
+        // current database's UI — the shell already dismissed the search view
+        // before invoking the switch, so plain returning would dead-end.
+        guard let target = DatabaseListStore.databases.first(where: { $0.id == reference.id }),
+              target.autoFillEnabled else {
+            afterUnlock()
+            return
+        }
+
+        pendingSwitchPreviousDatabaseReference = currentReference
+        activeDatabaseReference = target
+        // The new database gets its own auto-biometric attempt, exactly like
+        // a fresh interactive request against it.
+        didAttemptAutoBiometricUnlock = false
+        presentUnlockPromptIfNeeded()
+    }
+
+    /// Builds the search view's database switcher context: all AutoFill-enabled
+    /// databases, or nil when fewer than two are enabled (the picker is shown
+    /// only when there is something to switch to). Databases with AutoFill
+    /// disabled are never listed — the extension treats them as nonexistent.
+    private func makeDatabaseSwitcherContext() -> CredentialProviderDatabaseSwitcherContext? {
+        let enabledDatabases = DatabaseListStore.autoFillEnabledDatabases
+        guard enabledDatabases.count >= 2 else { return nil }
+        return CredentialProviderDatabaseSwitcherContext(
+            databases: enabledDatabases,
+            currentDatabaseID: activeDatabaseReference?.id,
+            onSwitch: { [weak self] reference, currentSearchText in
+                self?.switchDatabase(to: reference, currentSearchText: currentSearchText)
+            }
+        )
+    }
+
+    /// Shared cancel handler for the unlock prompt and the unlock-error alert:
+    /// during a pending database switch, cancelling falls back to the previous
+    /// database instead of cancelling the whole request.
+    private func cancelRequestOrRestoreSwitchedDatabase() {
+        if restorePreviousDatabaseAfterCancelledSwitch() { return }
+        cancelRequest(code: .userCanceled)
+    }
+
+    /// Cancelling a switch's unlock falls back to the previous database: its
+    /// vault state was never torn down, so re-pinning it and re-presenting
+    /// the pending flow's UI from the retained state is enough. Returns false
+    /// when no switch is pending (the caller then cancels the request as
+    /// before).
+    private func restorePreviousDatabaseAfterCancelledSwitch() -> Bool {
+        guard let previousReference = pendingSwitchPreviousDatabaseReference else { return false }
+        pendingSwitchPreviousDatabaseReference = nil
+        activeDatabaseReference = previousReference
+        afterUnlock()
+        return true
+    }
+
     /// Zero-enabled-databases empty state: every interactive flow lands here
     /// when there is nothing the extension may unlock or save into.
     /// Dismissal cancels with `.userCanceled`, mirroring the search view's
@@ -756,6 +874,10 @@ final class CredentialProviderCoordinator {
     }
 
     private func recordSuccessfulUnlock(for databaseReference: DatabaseReference) {
+        // A successful unlock commits any pending database switch: the
+        // previous database's state has just been overwritten by the new
+        // load, so there is nothing to fall back to anymore.
+        pendingSwitchPreviousDatabaseReference = nil
         activeDatabaseReference = databaseReference
         DatabaseListStore.markDatabaseOpened(id: databaseReference.id)
     }
@@ -896,12 +1018,12 @@ final class CredentialProviderCoordinator {
 
         if !matches.isEmpty {
             // Multiple matches — show them, with domain pre-filled for further filtering
-            presentSearchView(entries: matches, initialSearchText: "") { [weak self] entry in
+            presentSearchView(entries: matches, initialSearchText: "", includesDatabaseSwitcher: true) { [weak self] entry in
                 self?.completeRequest(with: entry)
             }
         } else {
             // No matches — show full list but pre-fill search with the domain
-            presentSearchView(entries: allPasswordEntries, initialSearchText: searchDomain) { [weak self] entry in
+            presentSearchView(entries: allPasswordEntries, initialSearchText: searchDomain, includesDatabaseSwitcher: true) { [weak self] entry in
                 self?.completeRequest(with: entry)
             }
         }
@@ -982,7 +1104,7 @@ final class CredentialProviderCoordinator {
         }
 
         if !matches.isEmpty {
-            presentSearchView(entries: matches) { [weak self] entry in
+            presentSearchView(entries: matches, includesDatabaseSwitcher: true) { [weak self] entry in
                 self?.completePasskeyRequest(with: entry, requestParameters: requestParameters)
             }
             return
@@ -997,15 +1119,31 @@ final class CredentialProviderCoordinator {
             return
         }
 
-        presentSearchView(entries: expiredMatches) { [weak self] entry in
+        presentSearchView(entries: expiredMatches, includesDatabaseSwitcher: true) { [weak self] entry in
             self?.completePasskeyRequest(with: entry, requestParameters: requestParameters)
         }
     }
 
-    private func presentSearchView(entries: [KPEntry], initialSearchText: String = "", onSelect: @escaping (KPEntry) -> Void) {
+    /// Shared search-view presentation. `includesDatabaseSwitcher` is true for
+    /// the genuine list/search flows (password, passkey-parameters, and OTC
+    /// list pickers) whose pending request context survives a database switch;
+    /// the by-identity expired-entry confirmations keep it false — they show a
+    /// single specific credential of a specific database, and their pending
+    /// request was already consumed, so a switch could not re-serve them.
+    /// A search text stashed by a pending switch overrides the computed
+    /// initial text so the re-presented search keeps what the user had typed.
+    private func presentSearchView(
+        entries: [KPEntry],
+        initialSearchText: String = "",
+        includesDatabaseSwitcher: Bool = false,
+        onSelect: @escaping (KPEntry) -> Void
+    ) {
+        let restoredSearchText = pendingSwitchSearchText
+        pendingSwitchSearchText = nil
         presenter?.presentSearchView(
             entries: entries,
-            initialSearchText: initialSearchText,
+            initialSearchText: restoredSearchText ?? initialSearchText,
+            databaseSwitcher: includesDatabaseSwitcher ? makeDatabaseSwitcherContext() : nil,
             onSelect: onSelect,
             onCancel: { [weak self] in
                 self?.cancelRequest(code: .userCanceled)
@@ -1186,8 +1324,11 @@ final class CredentialProviderCoordinator {
             // The identity's record identifier is missing or stale (e.g. the
             // entry changed since the identity store was last populated).
             // Drop the stale identity, then fall back to the interactive
-            // picker instead of failing.
+            // picker instead of failing. Re-arm the list flag so the request
+            // now behaves like an OTC list request — a database switch from
+            // the fallback picker re-runs the OTC picker after unlock.
             removeStaleIdentityIfEntryMissing(recordIdentifier: targetRecordIdentifier)
+            hasPendingOTCListRequest = true
             presentOTCMatchesOrFinish()
         }
     }
@@ -1195,10 +1336,13 @@ final class CredentialProviderCoordinator {
     /// Interactive one-time-code selection: complete immediately on a single
     /// service match, otherwise present the picker (matches, or all TOTP
     /// entries with the domain pre-filled). Mirrors `presentPasswordMatchesOrFinish`.
+    ///
+    /// `hasPendingOTCListRequest` is deliberately NOT consumed here: it stays
+    /// set until a completion path runs `cleanup()`, so `afterUnlock()` after
+    /// a database switch (or an unlock retry) re-runs this OTC picker instead
+    /// of falling through to the password list.
     @available(iOS 18.0, macOS 15.0, *)
     func presentOTCMatchesOrFinish() {
-        hasPendingOTCListRequest = false
-
         let allTOTPEntries = parsedEntries.filter(\.hasTOTP)
         let totpEntries = allTOTPEntries.filter { !$0.isExpired() }
 
@@ -1220,11 +1364,11 @@ final class CredentialProviderCoordinator {
         let searchDomain = serviceIdentifiers.first.flatMap { CredentialMatcher.searchTerm(for: $0) } ?? ""
 
         if !matches.isEmpty {
-            presentSearchView(entries: matches, initialSearchText: "") { [weak self] entry in
+            presentSearchView(entries: matches, initialSearchText: "", includesDatabaseSwitcher: true) { [weak self] entry in
                 self?.completeOTCRequest(with: entry)
             }
         } else {
-            presentSearchView(entries: allTOTPEntries, initialSearchText: searchDomain) { [weak self] entry in
+            presentSearchView(entries: allTOTPEntries, initialSearchText: searchDomain, includesDatabaseSwitcher: true) { [weak self] entry in
                 self?.completeOTCRequest(with: entry)
             }
         }
@@ -1268,6 +1412,8 @@ final class CredentialProviderCoordinator {
         pendingPasskeyRequestParameters = nil
         hasPendingOTCRequest = false
         hasPendingOTCListRequest = false
+        pendingSwitchPreviousDatabaseReference = nil
+        pendingSwitchSearchText = nil
         clearPendingCreationRequests()
     }
 
@@ -1405,7 +1551,10 @@ final class CredentialProviderCoordinator {
                 self?.presentUnlockPromptIfNeeded()
             },
             onCancel: { [weak self] in
-                self?.cancelRequest(code: .userCanceled)
+                // During a pending database switch (e.g. wrong password or a
+                // cancelled biometric prompt for the switched-to database),
+                // cancelling falls back to the previous database.
+                self?.cancelRequestOrRestoreSwitchedDatabase()
             }
         )
     }
