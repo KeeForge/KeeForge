@@ -122,15 +122,27 @@ enum DatabaseListStore {
     }
 
     static var activeAutoFillDatabase: DatabaseReference? {
+        activeAutoFillDatabase(in: loadDatabases())
+    }
+
+    /// The extension's default database for AutoFill flows that carry no
+    /// record identifier — manual credential search, the one-time-code list,
+    /// passkey parameter requests, and in-extension save (slice 03 of the
+    /// selectable-AutoFill epic): the active pointer's reference when it is
+    /// AutoFill-enabled (including the legacy keychain-filename fallback,
+    /// exactly like `activeAutoFillDatabase`), else the most recently opened
+    /// AutoFill-enabled database, else nil. Never returns a database with
+    /// AutoFill disabled.
+    static var defaultAutoFillDatabase: DatabaseReference? {
         let currentDatabases = loadDatabases()
 
-        if let activeAutoFillDatabaseID,
-           let reference = currentDatabases.first(where: { $0.id == activeAutoFillDatabaseID }),
-           reference.autoFillEnabled {
-            return reference
+        if let activeReference = activeAutoFillDatabase(in: currentDatabases) {
+            return activeReference
         }
 
-        return fallbackAutoFillDatabase(in: currentDatabases)
+        return currentDatabases
+            .filter { $0.autoFillEnabled && $0.lastOpenedAt != nil }
+            .max { ($0.lastOpenedAt ?? .distantPast) < ($1.lastOpenedAt ?? .distantPast) }
     }
 
     /// Databases that participate in AutoFill. Only these may publish
@@ -972,6 +984,20 @@ enum DatabaseListStore {
         } catch {
             return
         }
+    }
+
+    /// Shared body of the `activeAutoFillDatabase` getter and the
+    /// `defaultAutoFillDatabase` fallback chain: the pointed-to reference when
+    /// it exists and is AutoFill-enabled, else the gated legacy-filename
+    /// fallback. Behavior is identical to the pre-slice-03 getter.
+    private static func activeAutoFillDatabase(in currentDatabases: [DatabaseReference]) -> DatabaseReference? {
+        if let activeAutoFillDatabaseID,
+           let reference = currentDatabases.first(where: { $0.id == activeAutoFillDatabaseID }),
+           reference.autoFillEnabled {
+            return reference
+        }
+
+        return fallbackAutoFillDatabase(in: currentDatabases)
     }
 
     private static func fallbackAutoFillDatabase(in references: [DatabaseReference]) -> DatabaseReference? {

@@ -394,7 +394,244 @@ are not required for this slice.
 
 ## Slice 03: Extension identity-to-database resolution
 
-_To be filled by the slice 03 implementation._
+### Implementation summary (what the tests pin down)
+
+- `DatabaseListStore.defaultAutoFillDatabase` (new, shared with both extension targets) — the default
+  database for identifier-less flows: private `activeAutoFillDatabase(in:)` (pointer-if-enabled → gated
+  legacy-filename fallback; extracted verbatim from the getter, whose public behavior is unchanged), else the
+  most recently opened reference with `autoFillEnabled && lastOpenedAt != nil`, else nil. Never returns a
+  disabled database.
+- `CredentialIdentityStoreManager.removeIdentity(withRecordIdentifier:)` (new) — enumerate the store, remove
+  every identity whose `recordIdentifier` **equals the given string exactly** (an entry's password, passkey,
+  and OTC identities share one identifier string, so all suggestion types for that entry go). Gated on
+  `isEnabled()`; no-op with an error log when `credentialIdentities()` returns nil (macOS 14.0–14.3). New
+  `#if DEBUG` seam: `removeIdentityObserver: ((String) -> Void)?` fires with the exact identifier string.
+- Coordinator resolution (all in `CredentialProviderCoordinator`):
+  - private `resolveRequestDatabase(forRecordIdentifier:)` → `.database(ref)` / `.stale(fallback:)` /
+    `.unavailable`. Mapping: nil identifier → default database or `.unavailable`; `.current` → owning
+    reference from `DatabaseListStore.databases` iff registered **and** `autoFillEnabled`, else schedules
+    `removeIdentities(forDatabase: id)` and returns `.stale(fallback: default)`; `.legacy` → default
+    database or `.unavailable`; `.unrecognized` → schedules `clearStore()` and returns `.stale`.
+  - private `resolveInteractiveRequestDatabase()` — called at the top of `presentUnlockPromptIfNeeded()`;
+    returns the already-pinned `activeDatabaseReference` if set, else resolves
+    `targetRecordIdentifier` and pins the result. On `.stale` it **nils `targetRecordIdentifier`** (so the
+    post-unlock lookup can't dead-end) and continues on the fallback; returns nil (→ empty state) for
+    `.unavailable` or stale-without-fallback.
+  - private `resolveSilentRequestDatabase(forRecordIdentifier:)` — same, but stale/unavailable → nil and the
+    silent entry points cancel with `.userInteractionRequired` (system relaunches interactively).
+  - Rerouted entry points: `provideCredentialWithoutUserInteraction(for: ASPasswordCredentialIdentity)`,
+    `providePasskeyWithoutUserInteraction(for:)`, `provideOTCWithoutUserInteraction(for:)` (all resolve
+    **before** the biometrics guard), and every interactive flow via `presentUnlockPromptIfNeeded()`.
+    `prepareInterface(for: ASSavePasswordRequest)` now targets `defaultAutoFillDatabase` and pins
+    `activeDatabaseReference` at prepare time; zero enabled → sets new internal flag
+    `pendingNoEnabledDatabasesPresentation` (consumed by `presentationDidBecomeActive()`, reset by
+    `clearPendingCreationRequests()`/`cleanup()`) instead of the old `cancelRequest(.failed)`.
+    `performWithoutUserInteractionIfPossible(savePasswordRequest:)` still cancels `.userInteractionRequired`;
+    generate-password flows still touch no database at all (deliberate).
+  - `canUseBiometrics(for:)` / `shouldAutoUnlockWithBiometrics(for:)` are now parameterized on the resolved
+    reference (keychain key + legacy filename of the *owning* database, never the active pointer's).
+  - `currentDatabaseReference()` falls back to `defaultAutoFillDatabase` (was `activeAutoFillDatabase`) when
+    nothing is pinned; `persistCompositeKeyIfPossible` refreshes `activeDatabaseReference` by **id** from
+    `DatabaseListStore.databases` after legacy-keychain migration (no longer via the active pointer).
+- Entry-missing-after-unlock cleanup: private `removeStaleIdentityIfEntryMissing(recordIdentifier:)` — only
+  when `findEntry(byRecordIdentifier:)` over `parsedEntries` is nil (an existing-but-expired entry is left
+  alone): `.current` → `removeIdentity(withRecordIdentifier:)`; `.legacy`/`.unrecognized` → `clearStore()`.
+  Call sites: `presentPasswordMatchesOrFinish` (then falls through to matching/search), the silent password
+  path (then strict-match fallback), both OTC paths (silent → `.credentialIdentityNotFound`; pending →
+  `presentOTCMatchesOrFinish()`), and both passkey completion guards (then `.credentialIdentityNotFound`).
+- Empty state: coordinator `presentNoEnabledDatabasesState()` → new `CredentialProviderPresenting`
+  requirement `presentNoEnabledDatabasesState(onDismiss:)` → `AutoFillNoEnabledDatabasesView` (in
+  `AutoFillSearchView.swift`, shared by both shells; `ContentUnavailableView` + toolbar Cancel). Dismissal
+  cancels `.userCanceled`. Both shells (`CredentialProviderViewController` iOS + Mac) implement it.
+- Access flips for testability (per this file's slice 02/03 sections): `completeOTCRequestFromPending()` and
+  `completeInteractivePasskeyRequest(_:)` are now internal.
+- Active-pointer semantics (deliberate): `recordSuccessfulUnlock` is unchanged — unlocking a resolved
+  non-active database calls `markDatabaseOpened(id:)`, which updates `lastOpenedAt` **and moves the active
+  pointer to it** (the slice 01 gated setter permits it because only enabled databases resolve).
+
+### Required migrations of existing tests (compile/behavior fixes — do these first)
+
+- `CredentialProviderCoordinatorTests.PresenterSpy` must implement the new protocol method — record it like
+  the other prompts: `struct NoEnabledDatabasesState { let onDismiss: () -> Void }`, property
+  `noEnabledDatabasesState`, assignment in `presentNoEnabledDatabasesState(onDismiss:)`.
+- `test_cleanup_runsOnCancel` and `test_cleanup_runsOnError` drive `presentationDidBecomeActive()` with an
+  **empty registry**; they now get the empty state instead of an unlock prompt. Seed a resolvable default
+  first: `let reference = TestDatabaseSupport.makeReference(for: makeTemporaryFileURL(name:))`;
+  `DatabaseListStore.update(reference)`; `DatabaseListStore.activeAutoFillDatabaseID = reference.id`
+  (the pointer alone is not enough — `defaultAutoFillDatabase` requires the reference to be **registered**;
+  registration alone is not enough either, because a never-opened reference has `lastOpenedAt == nil`).
+  Unlock still fails in `test_cleanup_runsOnError` (no cached copy/bookmark → `showErrorAndRetry`).
+- `CredentialProviderShellMacTests` and both shells compile unchanged apart from the added method; no
+  behavior migration.
+
+### Seams to use
+
+- `CredentialIdentityStoreManager.storeProviderOverride` + the slice 02 `FakeCredentialIdentityStore`
+  (install with `await MainActor.run { … }`, `onMutation` → expectation, reset in setUp/tearDown) for
+  store-level assertions; the lighter observers `removeDatabaseObserver` / `removeIdentityObserver` /
+  `clearObserver` for coordinator-level "which cleanup API fired" assertions (all fire via
+  `Task { @MainActor … }` → `expectation` + `await fulfillment(of:timeout: 1)`; negative cases:
+  `XCTFail`-ing observer + ~100 ms sleep).
+- Coordinator vault seeding (class doc: state is internal for tests): `seedUnlockedVaultState(_:entries:sessionKey:)`
+  plus direct writes to `targetRecordIdentifier`, `activeDatabaseReference`, `hasPendingOTCRequest`,
+  `pendingNoEnabledDatabasesPresentation`, `serviceIdentifiers`.
+- Registry seeding: `DatabaseListStore.clearAll()` in setUp/tearDown; `DatabaseListStore.update(_:)` to
+  register references (extend the reference builders with `autoFillEnabled:`/`lastOpenedAt:` as slice 01
+  documented); `DatabaseListStore.markDatabaseOpened(id:at:)` to control `lastOpenedAt` ordering;
+  identifiers built with `CredentialRecordIdentifier(databaseID:entryID:).encoded`.
+- `ASPasswordCredentialIdentity(serviceIdentifier:user:recordIdentifier:)` is publicly constructible for
+  interactive-resolution tests; `BiometricService.isAvailable` is false under simulator tests, so silent
+  paths short-circuit at the biometrics guard — silent-path resolution is asserted via the cleanup
+  observers + the `.userInteractionRequired` cancellation, not via a completed fill.
+
+### `KeeForgeTests/DatabaseListStoreTests.swift` (default-database order)
+
+- `testDefaultAutoFillDatabaseReturnsEnabledPointerReference` — pointer at enabled A, B opened more
+  recently: returns A (pointer wins over recency).
+- `testDefaultAutoFillDatabasePrefersLegacyFallbackOverMostRecentlyOpened` — pointer nil, A with
+  `legacyKeychainFilename` set (enabled, never opened), B enabled and opened: returns A (the
+  `activeAutoFillDatabase` chain, including its legacy fallback, takes precedence; recency is only the
+  final fallback).
+- `testDefaultAutoFillDatabaseFallsBackToMostRecentlyOpenedEnabled` — pointer nil, no legacy references,
+  A opened at t1, B opened at t2 > t1: returns B; disable B → returns A (disabled skipped).
+- `testDefaultAutoFillDatabaseIgnoresNeverOpenedReferences` — pointer nil, one enabled reference with
+  `lastOpenedAt == nil`: returns nil.
+- `testDefaultAutoFillDatabaseNilWithZeroEnabledDatabases` — all references disabled (or registry empty):
+  returns nil.
+- Slice 01's `activeAutoFillDatabase` tests must stay green unmodified (pins that the `activeAutoFillDatabase(in:)`
+  extraction changed nothing for existing callers).
+
+### `KeeForgeTests/CredentialIdentityStoreManagerTests.swift` (single-identity removal)
+
+Against `FakeCredentialIdentityStore` via `storeProviderOverride`:
+
+- `testRemoveIdentityWithRecordIdentifierRemovesAllTypesForThatIdentifierOnly` — seed password + passkey
+  (+ OTC where available) identities for entries A and B (distinct encoded identifiers);
+  `removeIdentity(withRecordIdentifier: aID)` removes every identity carrying exactly `aID`; B's remain.
+- `testRemoveIdentityWithRecordIdentifierNoMatchIsNoOp` — unknown identifier: no
+  `removeCredentialIdentities` call recorded in `calls`.
+- `testRemoveIdentityWithRecordIdentifierSkipsWhenEnumerationUnavailable` — `enumerationUnavailable = true`:
+  no removal (macOS 14.0–14.3 contract).
+- `testRemoveIdentityWithRecordIdentifierNoOpWhenStoreDisabled` — `isEnabledValue = false`: untouched.
+- `testRemoveIdentityObserverReceivesExactIdentifierString` — observer fires with the string passed in.
+
+### `KeeForgeTests/CredentialProviderCoordinatorTests.swift` (resolution + stale handling + empty state)
+
+Resolution (interactive; drive `prepareInterfaceToProvideCredential(for:)` +
+`presentationDidBecomeActive()`, then inspect `coordinator.activeDatabaseReference` / `presenter.unlockPrompt`):
+
+- `test_resolution_currentIdentifierPinsOwningDatabaseNotActivePointer` — register enabled A and B, pointer
+  at A; identity `recordIdentifier = CredentialRecordIdentifier(databaseID: B.id, entryID: e).encoded`:
+  unlock prompt is presented and `activeDatabaseReference?.id == B.id` (the unlock/biometric/key/load
+  pipeline all key off this pin; this is the "unlocks *that* database" contract).
+- `test_resolution_legacyIdentifierPinsDefaultDatabase` — bare-UUID identifier, pointer at A:
+  `activeDatabaseReference?.id == A.id` and `targetRecordIdentifier` is preserved (legacy still fills).
+- `test_resolution_unknownDatabaseRemovesItsIdentitiesAndFallsBackToDefault` — identifier tagged with an
+  unregistered UUID: `removeDatabaseObserver` fires with that UUID, `targetRecordIdentifier` becomes nil,
+  pin lands on default A, unlock prompt presented (never a dead tap).
+- `test_resolution_disabledDatabaseTreatedAsUnknown` — B registered with `autoFillEnabled == false`,
+  identifier tagged B: `removeDatabaseObserver` fires with `B.id`, fallback to A as above.
+- `test_resolution_unrecognizedIdentifierClearsStoreAndFallsBack` — `recordIdentifier = "v9:garbage"`:
+  `clearObserver` fires, fallback to default A, unlock prompt presented.
+- `test_resolution_staleIdentifierWithZeroEnabledDatabasesShowsEmptyState` — empty registry + tagged
+  identifier: `presenter.noEnabledDatabasesState` set, no unlock prompt; its `onDismiss()` →
+  `cancelledError == .userCanceled` + `assertCleanedUp`.
+- `test_manualListWithZeroEnabledDatabasesShowsEmptyState` — `prepareCredentialList(for:)` on an empty
+  registry (and again with one disabled reference): empty state instead of unlock prompt.
+- `test_presentationDidBecomeActive_pendingNoEnabledDatabasesFlag_presentsEmptyState` — set
+  `pendingNoEnabledDatabasesPresentation = true` (the save-prepare deferral), `pendingUnlock = false`, call
+  `presentationDidBecomeActive()`: empty state presented and the flag consumed. This is the testable half
+  of the save-unavailable path; see the save section below for the request-object caveat.
+
+Entry missing after successful unlock (seed the vault, no real unlock needed):
+
+- `test_passwordFill_missingEntryRemovesThatIdentityAndFallsBackToSearch` — seed entries *without* the
+  target; `targetRecordIdentifier = v2:<db>:<missingEntry>`; `presentPasswordMatchesOrFinish()`:
+  `removeIdentityObserver` fires with the exact identifier and the search view is presented.
+- `test_passwordFill_missingLegacyEntryClearsStore` — bare-UUID target not in entries: `clearObserver`
+  fires; search view still presented.
+- `test_passwordFill_expiredEntryIsNotTreatedAsMissing` — target entry present but expired: neither
+  observer fires (XCTFail observer + sleep); interactive fallback as before.
+- `test_otcPending_missingEntryRemovesIdentityAndPresentsPicker` (`@available(iOS 18.0, *)`) — seed TOTP
+  entries, `targetRecordIdentifier` tagged for a missing entry, call `completeOTCRequestFromPending()`
+  (now internal): `removeIdentityObserver` fires, picker presented (`presentOTCMatchesOrFinish` fallback).
+- `test_interactivePasskey_missingEntryRemovesIdentityAndCancelsNotFound` — build an
+  `ASPasskeyCredentialRequest` whose identity (`ASPasskeyCredentialIdentity(relyingPartyIdentifier:userName:credentialID:userHandle:recordIdentifier:)`)
+  carries a tagged identifier for an entry absent from the seeded vault; `completeInteractivePasskeyRequest(_:)`
+  (now internal): `removeIdentityObserver` fires, `cancelledError == .credentialIdentityNotFound`.
+- `test_passkeyResolution_recordIdentifierStillResolvesEntry` — regression on slice 02's
+  `passkeyEntry(for:)` path: a seeded passkey entry with matching tagged identifier completes assertion
+  (proves resolution changes didn't break the happy path).
+
+Silent-path resolution (biometrics unavailable under test, so assert cleanup + cancellation):
+
+- `test_silentFill_staleIdentifierCleansUpAndCancelsUserInteractionRequired` —
+  `provideCredentialWithoutUserInteraction(for:)` with an unknown-database identity:
+  `removeDatabaseObserver` fires and `cancelledError == .userInteractionRequired` (interactive relaunch
+  contract); same shape for `.unrecognized` → `clearObserver`.
+- `test_silentFill_zeroEnabledDatabasesCancelsUserInteractionRequired` — empty registry, identifier-less
+  identity: `.userInteractionRequired`, no observer fires.
+
+### `KeeForgeTests/CredentialProviderSaveTests.swift` (save targets the default enabled database)
+
+- `test_saveNewEntry_*` existing tests stay green (the save engine itself is untouched by this slice).
+- `test_defaultDatabaseSelectionForSave` — the coordinator's save-prepare targeting is
+  `DatabaseListStore.defaultAutoFillDatabase` + the `activeDatabaseReference` pin; the selection ordering is
+  fully covered by the `DatabaseListStoreTests` cases above. Driving `prepareInterface(for:
+  ASSavePasswordRequest)` directly requires constructing an `ASSavePasswordRequest` (iOS 26.2; check on a
+  Mac whether it is test-constructible — it was not verifiable in this environment). If it is: assert (a)
+  with A enabled+opened and B disabled, prepare pins A even when B was opened later; (b) with zero enabled
+  databases, `pendingUnlock == false` and `pendingNoEnabledDatabasesPresentation == true` (no `.failed`
+  cancellation). If it is not constructible, the pin + flag behavior is already covered by
+  `test_presentationDidBecomeActive_pendingNoEnabledDatabasesFlag_presentsEmptyState` plus the store tests;
+  document the gap inline in the test file.
+
+### Optional (mac shell)
+
+- `CredentialProviderShellMacTests`: `test_presentNoEnabledDatabasesState_hostsEmptyStateAndDismissCancels`
+  — shell hosts `AutoFillNoEnabledDatabasesView` (`isDisplayingContent == true`), invoking `onDismiss`
+  routes through the coordinator to `cancelRequest` on the injected `requestCompleter`.
+
+### Run command
+
+```bash
+xcodebuild test -project KeeForge.xcodeproj -scheme KeeForge \
+  -destination 'platform=iOS Simulator,name=iPhone 17 Pro' \
+  -only-testing:KeeForgeTests/CredentialProviderCoordinatorTests \
+  -only-testing:KeeForgeTests/CredentialProviderSaveTests \
+  -only-testing:KeeForgeTests/CredentialIdentityStoreManagerTests \
+  -only-testing:KeeForgeTests/DatabaseListStoreTests -quiet
+```
+
+### Toolchain notes for this slice
+
+- **Strings:** two new keys in `AutoFillExtension/Localizable.xcstrings` (used by both extension targets;
+  `InfoPlist.xcstrings` untouched): `"No Databases for AutoFill"` and
+  `"Turn on AutoFill for a database in KeeForge’s settings to use it here."` (note the U+2019 apostrophe —
+  the SwiftUI literal and the catalog key must stay byte-identical), each with a translated `de` unit; the
+  empty state's button reuses the existing `"Cancel"` key. Run `swift scripts/normalize-xcstrings.swift` on
+  a Mac (key order was inserted per `localizedStandardCompare` by hand) and then
+  `-only-testing:KeeForgeTests/LocalizationTests`.
+- **New accessibility identifiers:** `autofill.no-enabled-databases` (empty-state label) and
+  `autofill.no-enabled-databases.cancel` (its Cancel action). All existing search/creator identifiers are
+  preserved.
+- No new files; `project.yml` untouched (all changes live in files already in the app target and both
+  extension allow-lists).
+
+### Manual checks (device + mac extension smoke)
+
+- Two databases set up and unlocked at least once each: tap a QuickType suggestion belonging to the
+  *non-active* database → that database's biometric/password unlock → fill completes; the active pointer
+  now follows the tapped database.
+- Disable AutoFill for the only database, invoke AutoFill manually → empty state with the settings hint;
+  Cancel returns to the caller. Save-password sheet likewise shows the empty state instead of failing.
+- Remove a database from the app, tap one of its lingering suggestions → interactive fallback on the
+  remaining database (or empty state) and the suggestion disappears afterward.
+- Delete a single entry, unlock via its stale suggestion → falls back to search and exactly that
+  suggestion disappears; other suggestions survive.
+- Edge cases: locked owning database (unlock prompt, silent request → `userInteractionRequired`), cloud
+  database with cache-only access, biometric-cancel falling back to the password prompt, extension launch
+  right after the system cleared the store.
 
 ---
 

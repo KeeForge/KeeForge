@@ -169,6 +169,16 @@ extension CredentialProviderViewController: CredentialProviderPresenting {
         onCancel()
     }
 
+    func presentNoEnabledDatabasesState(onDismiss: @escaping () -> Void) {
+        let emptyStateView = AutoFillNoEnabledDatabasesView(
+            onDismiss: { [weak self] in
+                self?.dismissHostedContent()
+                onDismiss()
+            }
+        )
+        hostContent(emptyStateView)
+    }
+
     // MARK: "Ask this question"
 
     func presentUnlockPrompt(

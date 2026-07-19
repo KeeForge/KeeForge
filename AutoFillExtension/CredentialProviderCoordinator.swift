@@ -46,6 +46,11 @@ protocol CredentialProviderPresenting: AnyObject {
         onCancel: @escaping () -> Void
     )
 
+    /// Empty state for the zero-enabled-databases case: tells the user to
+    /// turn on AutoFill for a database in KeeForge's settings. Dismissal is
+    /// the only action; the coordinator cancels the request from `onDismiss`.
+    func presentNoEnabledDatabasesState(onDismiss: @escaping () -> Void)
+
     // MARK: "Ask this question"
 
     /// Prompt for the master password (with an optional biometric action).
@@ -122,6 +127,11 @@ final class CredentialProviderCoordinator {
     var hasPendingOTCRequest = false
     var hasPendingOTCListRequest = false
     var pendingGeneratePasswordPresentation = false
+    /// Deferred presentation of the zero-enabled-databases empty state, used
+    /// by request entry points that run before the shell is on screen (the
+    /// save-password prepare path). Interactive unlock flows present the
+    /// empty state directly from `presentUnlockPromptIfNeeded` instead.
+    var pendingNoEnabledDatabasesPresentation = false
     var pendingReadOnlyCancellationMessage: String?
     var pendingSavePasswordRequestStorage: Any?
     var pendingGeneratePasswordsRequestStorage: Any?
@@ -247,6 +257,9 @@ final class CredentialProviderCoordinator {
         if pendingUnlock {
             pendingUnlock = false
             presentUnlockPromptIfNeeded()
+        } else if pendingNoEnabledDatabasesPresentation {
+            pendingNoEnabledDatabasesPresentation = false
+            presentNoEnabledDatabasesState()
         } else if let pendingReadOnlyCancellationMessage {
             self.pendingReadOnlyCancellationMessage = nil
             presentReadOnlyAlertAndCancel(message: pendingReadOnlyCancellationMessage)
@@ -267,17 +280,24 @@ final class CredentialProviderCoordinator {
             return
         }
 
-        guard canUseBiometrics else {
+        let recordIdentifier = credentialIdentity.recordIdentifier
+
+        // Resolve the owning database before evaluating biometrics: the
+        // request must unlock the database that published the identity, and
+        // its keychain state — not the active database's — decides whether a
+        // zero-interaction unlock is possible.
+        guard let databaseReference = resolveSilentRequestDatabase(forRecordIdentifier: recordIdentifier) else {
             cancelRequest(code: .userInteractionRequired)
             return
         }
 
-        let recordIdentifier = credentialIdentity.recordIdentifier
+        guard canUseBiometrics(for: databaseReference) else {
+            cancelRequest(code: .userInteractionRequired)
+            return
+        }
 
         Task {
             do {
-                let databaseReference = try currentDatabaseReference()
-
                 let context = try await BiometricService.authenticate(reason: String(localized: "AutoFill with KeeForge"))
                 let compositeKey = try retrieveCompositeKey(for: databaseReference, context: context)
                 try await loadEntries(
@@ -292,6 +312,7 @@ final class CredentialProviderCoordinator {
                    let entry = entryMatching(recordIdentifier: recordIdentifier, in: passwordEntries) {
                     completeRequest(with: entry)
                 } else {
+                    removeStaleIdentityIfEntryMissing(recordIdentifier: recordIdentifier)
                     // Zero-interaction fallback: only an unambiguous host-based
                     // match may be filled without the user picking an entry.
                     let matches = CredentialMatcher.strictMatchedEntries(
@@ -325,8 +346,21 @@ final class CredentialProviderCoordinator {
 
     @available(iOS 26.2, *)
     func prepareInterface(for savePasswordRequest: ASSavePasswordRequest) {
-        guard let databaseReference = DatabaseListStore.activeAutoFillDatabase else {
-            cancelRequest(code: .failed)
+        // Save targets the default database: the active pointer when enabled,
+        // else the most recently opened enabled database. With no enabled
+        // database, saving is unavailable rather than failing — the deferred
+        // empty state explains how to enable one.
+        guard let databaseReference = DatabaseListStore.defaultAutoFillDatabase else {
+            serviceIdentifiers = [savePasswordRequest.serviceIdentifier]
+            targetRecordIdentifier = nil
+            pendingPasskeyRequest = nil
+            pendingPasskeyRequestParameters = nil
+            hasPendingOTCRequest = false
+            hasPendingOTCListRequest = false
+            clearPendingCreationRequests()
+            didAttemptAutoBiometricUnlock = false
+            pendingUnlock = false
+            pendingNoEnabledDatabasesPresentation = true
             return
         }
 
@@ -355,6 +389,9 @@ final class CredentialProviderCoordinator {
         pendingSavePasswordRequest = savePasswordRequest
         didAttemptAutoBiometricUnlock = false
         pendingGeneratePasswordPresentation = false
+        // Pin the save target now so the unlock flow and `saveNewEntry` both
+        // operate on the same reference.
+        activeDatabaseReference = databaseReference
         pendingUnlock = true
     }
 
@@ -377,6 +414,7 @@ final class CredentialProviderCoordinator {
         pendingGeneratePasswordsRequest = generatePasswordsRequest
         didAttemptAutoBiometricUnlock = false
         pendingUnlock = false
+        pendingNoEnabledDatabasesPresentation = false
         pendingGeneratePasswordPresentation = true
     }
     #endif
@@ -389,15 +427,22 @@ final class CredentialProviderCoordinator {
             return
         }
 
-        guard canUseBiometrics else {
+        // Passkey assertions resolve their owning database exactly like
+        // password fills: by the identity's record identifier.
+        guard let databaseReference = resolveSilentRequestDatabase(
+            forRecordIdentifier: request.credentialIdentity.recordIdentifier
+        ) else {
+            cancelRequest(code: .userInteractionRequired)
+            return
+        }
+
+        guard canUseBiometrics(for: databaseReference) else {
             cancelRequest(code: .userInteractionRequired)
             return
         }
 
         Task {
             do {
-                let databaseReference = try currentDatabaseReference()
-
                 let context = try await BiometricService.authenticate(reason: String(localized: "Passkey sign-in with KeeForge"))
                 let compositeKey = try retrieveCompositeKey(for: databaseReference, context: context)
                 try await loadEntries(
@@ -419,14 +464,25 @@ final class CredentialProviderCoordinator {
     func presentUnlockPromptIfNeeded() {
         guard presenter?.isDisplayingContent != true, !isUnlockInProgress else { return }
 
-        if shouldAutoUnlockWithBiometrics {
+        // Pin the request to its target database before any unlock UI: the
+        // owning database for identifier-carrying requests (QuickType tap,
+        // passkey/OTC by identity), the default database otherwise. With
+        // nothing eligible to unlock — no enabled databases, or a stale
+        // identifier with no fallback — show the explanatory empty state
+        // instead of an unlock prompt that could never succeed.
+        guard let databaseReference = resolveInteractiveRequestDatabase() else {
+            presentNoEnabledDatabasesState()
+            return
+        }
+
+        if shouldAutoUnlockWithBiometrics(for: databaseReference) {
             didAttemptAutoBiometricUnlock = true
             unlockWithBiometrics()
             return
         }
 
         presenter?.presentUnlockPrompt(
-            biometricOptionTitle: canUseBiometrics ? biometricActionTitle : nil,
+            biometricOptionTitle: canUseBiometrics(for: databaseReference) ? biometricActionTitle : nil,
             onSubmitPassword: { [weak self] password in
                 guard let self, let password, !password.isEmpty else {
                     self?.presentUnlockPromptIfNeeded()
@@ -443,19 +499,144 @@ final class CredentialProviderCoordinator {
         )
     }
 
-    private var shouldAutoUnlockWithBiometrics: Bool {
+    private func shouldAutoUnlockWithBiometrics(for databaseReference: DatabaseReference) -> Bool {
         guard !didAttemptAutoBiometricUnlock else { return false }
         guard SettingsService.autoUnlockWithFaceID else { return false }
-        return canUseBiometrics
+        return canUseBiometrics(for: databaseReference)
     }
 
-    private var canUseBiometrics: Bool {
+    /// Whether biometric unlock is possible for the given database — checked
+    /// against that database's own keychain composite key, never the active
+    /// database's (a QuickType tap may target any enabled database).
+    private func canUseBiometrics(for databaseReference: DatabaseReference) -> Bool {
         guard BiometricService.isAvailable else { return false }
-        guard let databaseReference = DatabaseListStore.activeAutoFillDatabase else { return false }
         return KeychainService.hasStoredKey(
             for: databaseReference.id,
             legacyFilename: databaseReference.legacyKeychainFilename
         )
+    }
+
+    // MARK: - Request-to-database resolution
+
+    /// How a request maps onto a database once its record identifier (if any)
+    /// has been considered.
+    private enum RequestDatabaseResolution {
+        /// Unlock this database.
+        case database(DatabaseReference)
+        /// The identifier was stale — unparseable, or its database is unknown
+        /// or has AutoFill disabled. Cleanup of the offending identities has
+        /// been scheduled; continue interactively on `fallback` when present.
+        case stale(fallback: DatabaseReference?)
+        /// No identifier and no enabled database to default to.
+        case unavailable
+    }
+
+    /// Resolves the database a request should unlock. A database with
+    /// AutoFill disabled is treated as nonexistent throughout.
+    ///
+    /// - `.current` identifiers resolve to their owning database, provided it
+    ///   is still registered and AutoFill-enabled; otherwise that database's
+    ///   remaining identities are removed (targeted, works while locked) and
+    ///   the request degrades to the default database.
+    /// - `.legacy` identifiers carry no attribution and mean "the default
+    ///   database" (pre-feature suggestions keep filling until a refresh
+    ///   replaces them).
+    /// - `.unrecognized` identifiers are unattributable, so the whole store
+    ///   is cleared (it rebuilds lazily on the next unlock of each enabled
+    ///   database) and the request degrades to the default database.
+    /// - No identifier (manual search, OTC list, passkey parameters) → the
+    ///   default database.
+    private func resolveRequestDatabase(forRecordIdentifier recordIdentifier: String?) -> RequestDatabaseResolution {
+        guard let recordIdentifier else {
+            guard let fallback = DatabaseListStore.defaultAutoFillDatabase else { return .unavailable }
+            return .database(fallback)
+        }
+
+        switch CredentialRecordIdentifier.parse(recordIdentifier) {
+        case .current(let identifier):
+            if let reference = DatabaseListStore.databases.first(where: { $0.id == identifier.databaseID }),
+               reference.autoFillEnabled {
+                return .database(reference)
+            }
+            CredentialIdentityStoreManager.removeIdentities(forDatabase: identifier.databaseID)
+            return .stale(fallback: DatabaseListStore.defaultAutoFillDatabase)
+        case .legacy:
+            guard let fallback = DatabaseListStore.defaultAutoFillDatabase else { return .unavailable }
+            return .database(fallback)
+        case .unrecognized:
+            CredentialIdentityStoreManager.clearStore()
+            return .stale(fallback: DatabaseListStore.defaultAutoFillDatabase)
+        }
+    }
+
+    /// Interactive-flow resolution: pins `activeDatabaseReference` so the
+    /// unlock prompt, biometric availability, composite-key retrieval, and
+    /// data load all target the same reference (also across error-retry
+    /// loops). Returns nil when the zero-enabled-databases empty state should
+    /// be shown instead of an unlock prompt.
+    private func resolveInteractiveRequestDatabase() -> DatabaseReference? {
+        if let activeDatabaseReference { return activeDatabaseReference }
+
+        switch resolveRequestDatabase(forRecordIdentifier: targetRecordIdentifier) {
+        case .database(let reference):
+            activeDatabaseReference = reference
+            return reference
+        case .stale(let fallback):
+            // The tapped suggestion cannot be honored and its cleanup is
+            // already scheduled. Drop the per-entry target so the post-unlock
+            // lookup does not dead-end, then continue interactively on the
+            // fallback database — never a dead tap.
+            targetRecordIdentifier = nil
+            guard let fallback else { return nil }
+            activeDatabaseReference = fallback
+            return fallback
+        case .unavailable:
+            return nil
+        }
+    }
+
+    /// Silent-flow resolution: nil means the request cannot proceed without
+    /// interaction (stale identifier — cleanup already scheduled — or no
+    /// enabled database). Callers cancel with `.userInteractionRequired` so
+    /// the system relaunches the extension interactively, where the fallback
+    /// search or empty state takes over.
+    private func resolveSilentRequestDatabase(forRecordIdentifier recordIdentifier: String?) -> DatabaseReference? {
+        switch resolveRequestDatabase(forRecordIdentifier: recordIdentifier) {
+        case .database(let reference):
+            activeDatabaseReference = reference
+            return reference
+        case .stale, .unavailable:
+            return nil
+        }
+    }
+
+    /// After a successful unlock, a record identifier that matches no parsed
+    /// entry is a stale suggestion (the entry was deleted or recycled since
+    /// publication). Remove exactly that identity — legacy and unrecognized
+    /// identifiers carry no attribution, so those clear the whole store —
+    /// before the caller falls back to its interactive/matching path. Entries
+    /// that exist but are currently filtered (e.g. expired) are left alone;
+    /// the owning database's next refresh reconciles them.
+    private func removeStaleIdentityIfEntryMissing(recordIdentifier: String?) {
+        guard let recordIdentifier else { return }
+        guard findEntry(byRecordIdentifier: recordIdentifier) == nil else { return }
+
+        switch CredentialRecordIdentifier.parse(recordIdentifier) {
+        case .current:
+            CredentialIdentityStoreManager.removeIdentity(withRecordIdentifier: recordIdentifier)
+        case .legacy, .unrecognized:
+            CredentialIdentityStoreManager.clearStore()
+        }
+    }
+
+    /// Zero-enabled-databases empty state: every interactive flow lands here
+    /// when there is nothing the extension may unlock or save into.
+    /// Dismissal cancels with `.userCanceled`, mirroring the search view's
+    /// cancel path.
+    func presentNoEnabledDatabasesState() {
+        presenter?.presentNoEnabledDatabasesState { [weak self] in
+            self?.cancelRequest(code: .userCanceled)
+        }
     }
 
     private var biometricActionTitle: String {
@@ -555,12 +736,18 @@ final class CredentialProviderCoordinator {
         #endif
     }
 
+    /// The database this request is pinned to. Resolution normally pins it
+    /// before unlock (interactive flows via `resolveInteractiveRequestDatabase`,
+    /// silent flows via `resolveSilentRequestDatabase`, save via its prepare
+    /// path); the default-database fallback here only covers unlock calls
+    /// that skipped resolution (e.g. tests driving the unlock helpers
+    /// directly).
     private func currentDatabaseReference() throws -> DatabaseReference {
         if let activeDatabaseReference {
             return activeDatabaseReference
         }
 
-        guard let databaseReference = DatabaseListStore.activeAutoFillDatabase else {
+        guard let databaseReference = DatabaseListStore.defaultAutoFillDatabase else {
             throw ASExtensionError(.failed)
         }
 
@@ -581,7 +768,13 @@ final class CredentialProviderCoordinator {
             if let legacyFilename = databaseReference.legacyKeychainFilename {
                 KeychainService.deleteLegacyCompositeKey(forFilename: legacyFilename)
                 DatabaseListStore.clearLegacyKeychainFilename(for: databaseReference.id)
-                activeDatabaseReference = DatabaseListStore.activeAutoFillDatabase
+                // Re-read the pinned reference by id so the in-session copy
+                // drops the just-deleted legacy keychain filename. The active
+                // pointer may legitimately be a different database now that
+                // requests resolve their owning database, so it must not be
+                // consulted here.
+                activeDatabaseReference = DatabaseListStore.databases.first { $0.id == databaseReference.id }
+                    ?? databaseReference
             }
         } catch {
             return
@@ -608,6 +801,9 @@ final class CredentialProviderCoordinator {
 
     private func clearPendingCreationRequests() {
         pendingGeneratePasswordPresentation = false
+        // Only the save-prepare path sets this; reset it wherever creation
+        // pendings are reset (every request entry point plus cleanup()).
+        pendingNoEnabledDatabasesPresentation = false
         #if os(iOS)
         if #available(iOS 26.2, *) {
             pendingSavePasswordRequest = nil
@@ -674,10 +870,15 @@ final class CredentialProviderCoordinator {
         let passwordEntries = allPasswordEntries.filter { !$0.isExpired() }
 
         // If we have a target recordIdentifier from QuickType, jump directly to that entry
-        if let recordIdentifier = targetRecordIdentifier,
-           let entry = entryMatching(recordIdentifier: recordIdentifier, in: passwordEntries) {
-            completeRequest(with: entry)
-            return
+        if let recordIdentifier = targetRecordIdentifier {
+            if let entry = entryMatching(recordIdentifier: recordIdentifier, in: passwordEntries) {
+                completeRequest(with: entry)
+                return
+            }
+            // The suggestion's entry is gone from its (successfully unlocked)
+            // database: drop the stale identity, then fall through to the
+            // interactive matching/search below.
+            removeStaleIdentityIfEntryMissing(recordIdentifier: recordIdentifier)
         }
 
         let matches = CredentialMatcher.matchedEntries(from: passwordEntries, for: serviceIdentifiers)
@@ -706,13 +907,12 @@ final class CredentialProviderCoordinator {
         }
     }
 
-    /// Resolves a QuickType record identifier against entries of the active
-    /// (only-open) database. Both the current database-tagged format and the
-    /// legacy bare-entry-UUID format match on the entry UUID — the extension
-    /// still only ever opens the active database; resolving the *owning*
-    /// database from a tagged identifier is slice 03 of the selectable-
-    /// AutoFill epic. Unrecognized (stale) identifiers resolve to nil so
-    /// every caller falls back to its existing not-found / interactive path.
+    /// Matches a record identifier against entries of the request's resolved
+    /// (and unlocked) database. Which database that is was decided earlier by
+    /// `resolveRequestDatabase(forRecordIdentifier:)`; here both the current
+    /// database-tagged format and the legacy bare-entry-UUID format match on
+    /// the entry UUID alone. Unrecognized (stale) identifiers resolve to nil
+    /// so every caller falls back to its not-found / interactive path.
     private func entryMatching(recordIdentifier: String, in entries: [KPEntry]) -> KPEntry? {
         guard let entryID = CredentialRecordIdentifier.parse(recordIdentifier).entryID else { return nil }
         return entries.first { $0.id == entryID }
@@ -923,17 +1123,22 @@ final class CredentialProviderCoordinator {
             return
         }
 
-        guard canUseBiometrics else {
+        let recordIdentifier = credentialRequest.credentialIdentity.recordIdentifier
+
+        // One-time-code requests resolve their owning database exactly like
+        // password fills: by the identity's record identifier.
+        guard let databaseReference = resolveSilentRequestDatabase(forRecordIdentifier: recordIdentifier) else {
             cancelRequest(code: .userInteractionRequired)
             return
         }
 
-        let recordIdentifier = credentialRequest.credentialIdentity.recordIdentifier
+        guard canUseBiometrics(for: databaseReference) else {
+            cancelRequest(code: .userInteractionRequired)
+            return
+        }
 
         Task {
             do {
-                let databaseReference = try currentDatabaseReference()
-
                 let context = try await BiometricService.authenticate(reason: String(localized: "AutoFill with KeeForge"))
                 let compositeKey = try retrieveCompositeKey(for: databaseReference, context: context)
                 try await loadEntries(
@@ -949,6 +1154,7 @@ final class CredentialProviderCoordinator {
                        let entry = entryMatching(recordIdentifier: recordIdentifier, in: totpEntries) {
                         completeOTCRequest(with: entry)
                     } else {
+                        removeStaleIdentityIfEntryMissing(recordIdentifier: recordIdentifier)
                         cancelRequest(code: .credentialIdentityNotFound)
                     }
                 } else {
@@ -960,8 +1166,10 @@ final class CredentialProviderCoordinator {
         }
     }
 
+    // Internal (not private) so unit tests can drive the pending-OTC
+    // resolution and stale-identity fallback without the system harness.
     @available(iOS 18.0, macOS 15.0, *)
-    private func completeOTCRequestFromPending() {
+    func completeOTCRequestFromPending() {
         hasPendingOTCRequest = false
 
         let totpEntries = parsedEntries.filter(\.hasTOTP)
@@ -977,7 +1185,9 @@ final class CredentialProviderCoordinator {
         } else {
             // The identity's record identifier is missing or stale (e.g. the
             // entry changed since the identity store was last populated).
-            // Fall back to the interactive picker instead of failing.
+            // Drop the stale identity, then fall back to the interactive
+            // picker instead of failing.
+            removeStaleIdentityIfEntryMissing(recordIdentifier: targetRecordIdentifier)
             presentOTCMatchesOrFinish()
         }
     }
@@ -1081,6 +1291,9 @@ final class CredentialProviderCoordinator {
     private func completePasskeyRequest(_ request: ASPasskeyCredentialRequest) throws {
         guard let identity = request.credentialIdentity as? ASPasskeyCredentialIdentity,
               let entry = passkeyEntry(for: identity) else {
+            // The database unlocked but its passkey is gone: remove the stale
+            // identity so the suggestion disappears instead of dead-tapping.
+            removeStaleIdentityIfEntryMissing(recordIdentifier: request.credentialIdentity.recordIdentifier)
             cancelRequest(code: .credentialIdentityNotFound)
             return
         }
@@ -1092,9 +1305,14 @@ final class CredentialProviderCoordinator {
         )
     }
 
-    private func completeInteractivePasskeyRequest(_ request: ASPasskeyCredentialRequest) {
+    // Internal (not private) so unit tests can drive the post-unlock passkey
+    // path, including the stale-identity removal on a missing entry.
+    func completeInteractivePasskeyRequest(_ request: ASPasskeyCredentialRequest) {
         guard let identity = request.credentialIdentity as? ASPasskeyCredentialIdentity,
               let entry = passkeyEntry(for: identity, includeExpired: true) else {
+            // The database unlocked but its passkey is gone: remove the stale
+            // identity so the suggestion disappears instead of dead-tapping.
+            removeStaleIdentityIfEntryMissing(recordIdentifier: request.credentialIdentity.recordIdentifier)
             cancelRequest(code: .credentialIdentityNotFound)
             return
         }

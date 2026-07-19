@@ -151,6 +151,9 @@ enum CredentialIdentityStoreManager: Sendable {
     @MainActor static var populateObserver: ((UUID, [KPEntry]) -> Void)?
     @MainActor static var clearObserver: (() -> Void)?
     @MainActor static var removeDatabaseObserver: ((UUID) -> Void)?
+    /// Fires with the exact record-identifier string passed to
+    /// `removeIdentity(withRecordIdentifier:)`.
+    @MainActor static var removeIdentityObserver: ((String) -> Void)?
     /// Test seam: when non-nil, every operation runs against this store
     /// instead of the system one. Reset to nil in setUp/tearDown.
     @MainActor static var storeProviderOverride: (any CredentialIdentityStoreProviding)?
@@ -324,6 +327,50 @@ enum CredentialIdentityStoreManager: Sendable {
             do {
                 try await store.removeCredentialIdentities(identitiesToRemove)
                 logger.info("Removed \(identitiesToRemove.count) credential identities for one database")
+            } catch {
+                logger.error("Failed to remove credential identities: \(error.localizedDescription)")
+            }
+        }
+    }
+
+    /// Removes every published identity whose `recordIdentifier` equals the
+    /// given string exactly. An entry publishes its password, passkey, and
+    /// one-time-code identities under one identifier string, so this removes
+    /// all suggestion types for exactly one entry — used by the extension when
+    /// a tapped suggestion's entry no longer exists in its successfully
+    /// unlocked database: the single stale suggestion disappears without
+    /// touching the rest of the store.
+    ///
+    /// Like `removeIdentities(forDatabase:)` this works purely by store
+    /// enumeration, so it needs no entry data and works while every database
+    /// is locked. On macOS 14.0–14.3 (no enumeration API) it logs and removes
+    /// nothing; the stale identity dies at the owning database's next
+    /// full-store refresh instead.
+    static func removeIdentity(withRecordIdentifier recordIdentifier: String) {
+        #if DEBUG
+        Task { @MainActor in
+            removeIdentityObserver?(recordIdentifier)
+        }
+        #endif
+
+        Task {
+            let store = await currentStore()
+            guard await store.isEnabled() else {
+                logger.info("Identity store is not enabled; skipping single-identity removal")
+                return
+            }
+
+            guard let storedIdentities = await store.credentialIdentities() else {
+                logger.error("Identity-store enumeration unavailable on this OS; single-identity removal skipped")
+                return
+            }
+
+            let identitiesToRemove = storedIdentities.filter { $0.recordIdentifier == recordIdentifier }
+            guard !identitiesToRemove.isEmpty else { return }
+
+            do {
+                try await store.removeCredentialIdentities(identitiesToRemove)
+                logger.info("Removed \(identitiesToRemove.count) stale credential identities for one record identifier")
             } catch {
                 logger.error("Failed to remove credential identities: \(error.localizedDescription)")
             }

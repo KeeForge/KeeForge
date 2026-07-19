@@ -74,3 +74,30 @@ struct AutoFillSearchView: View {
         }
     }
 }
+
+/// Empty state shown when no database participates in AutoFill (every
+/// database disabled, or none registered): tells the user to turn on
+/// AutoFill for a database in KeeForge's settings. Shared by both extension
+/// shells; dismissing is the only action and cancels the request.
+struct AutoFillNoEnabledDatabasesView: View {
+    let onDismiss: () -> Void
+
+    var body: some View {
+        NavigationStack {
+            ContentUnavailableView {
+                Label("No Databases for AutoFill", systemImage: "lock.slash")
+                    .accessibilityIdentifier("autofill.no-enabled-databases")
+            } description: {
+                Text("Turn on AutoFill for a database in KeeForge’s settings to use it here.")
+            }
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") {
+                        onDismiss()
+                    }
+                    .accessibilityIdentifier("autofill.no-enabled-databases.cancel")
+                }
+            }
+        }
+    }
+}

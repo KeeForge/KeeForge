@@ -636,6 +636,16 @@
         }
       }
     },
+    "No Databases for AutoFill" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Keine Datenbanken für AutoFill"
+          }
+        }
+      }
+    },
     "None" : {
       "localizations" : {
         "de" : {
@@ -1042,6 +1052,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Erneut versuchen"
+          }
+        }
+      }
+    },
+    "Turn on AutoFill for a database in KeeForge’s settings to use it here." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aktivieren Sie AutoFill für eine Datenbank in den KeeForge-Einstellungen, um sie hier zu verwenden."
           }
         }
       }

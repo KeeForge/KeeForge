@@ -14,7 +14,7 @@ This target provides password, passkey, one-time-code, and new-credential save/g
 
 ## How It Works
 
-- The extension looks up the active database through `../KeeForge/Services/Persistence/DatabaseListStore.swift` and reads the shared cached database copy from the App Group container.
+- The extension resolves each request's target database through `../KeeForge/Services/Persistence/DatabaseListStore.swift` and reads the shared cached database copy from the App Group container. Requests that carry a record identifier (QuickType tap, silent fill, passkey/one-time-code by identity) unlock the database that owns the identity; identifier-less flows (manual search, save) use `DatabaseListStore.defaultAutoFillDatabase`. Databases with AutoFill disabled are treated as nonexistent, stale identities are cleaned up on tap, and with zero enabled databases the shells show `AutoFillNoEnabledDatabasesView` instead of an unlock prompt.
 - It reuses `../KeeForge/Models` plus a selected subset of service files declared explicitly in `../project.yml`.
 - The shared model layer links the local `KeeForgeTwofish` package, so Twofish-encrypted databases use the same parser and cipher-preserving writer in the app and extension.
 - Unlock can use stored composite keys plus biometrics for quick AutoFill, or fall back to interactive password entry.

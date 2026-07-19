@@ -147,6 +147,19 @@ extension CredentialProviderViewController: CredentialProviderPresenting {
         present(host, animated: true)
     }
 
+    func presentNoEnabledDatabasesState(onDismiss: @escaping () -> Void) {
+        let emptyStateView = AutoFillNoEnabledDatabasesView(
+            onDismiss: { [weak self] in
+                self?.dismiss(animated: false) {
+                    onDismiss()
+                }
+            }
+        )
+        let host = UIHostingController(rootView: emptyStateView)
+        host.modalPresentationStyle = .fullScreen
+        present(host, animated: true)
+    }
+
     // MARK: "Ask this question"
 
     func presentUnlockPrompt(
