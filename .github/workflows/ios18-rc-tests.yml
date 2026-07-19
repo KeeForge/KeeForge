@@ -9,8 +9,9 @@ name: iOS 18 RC Tests
 # iOS 17).
 #
 # Trigger mirrors the Xcode Cloud RC gate (rc/* tag push) and also allows manual
-# dispatch. It is supplementary coverage and does not gate the release; the
-# Xcode Cloud RC run remains the primary gate documented in .claude/skills/release.
+# dispatch. This workflow and Xcode Cloud are both release gates documented in
+# .agents/skills/release/SKILL.md. The job ignores the rc/* deletion event emitted
+# when the release skill atomically promotes the successful RC tag to v*.
 
 on:
   push:
@@ -24,6 +25,7 @@ concurrency:
 
 jobs:
   ios18-tests:
+    if: github.event_name == 'workflow_dispatch' || github.event.deleted == false
     runs-on: macos-15
     # Full unit + UI suites on a single (non-parallel) runner run longer than
     # Xcode Cloud's 4-way-parallel RC run; give them room.

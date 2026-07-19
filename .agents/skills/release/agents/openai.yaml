@@ -1,4 +1,4 @@
 interface:
   display_name: "KeeForge Release"
-  short_description: "Cut KeeForge release candidates"
+  short_description: "Release KeeForge through dual CI gates"
   default_prompt: "Use $release to prepare a KeeForge release candidate for version {version}."

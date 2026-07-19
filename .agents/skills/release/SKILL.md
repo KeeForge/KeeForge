@@ -3,8 +3,9 @@ name: release
 description: >
   Create a new release candidate for the KeeForge iOS app. Bumps the version in project.yml,
   updates CHANGELOG.md, runs the local KDBX compatibility gate, commits, and pushes an
-  rc/{version} tag so Xcode Cloud runs the full test suite; once that cloud run passes, pushes
-  the v{version} tag to trigger the Xcode Cloud build-and-archive workflow.
+  rc/{version} tag so Xcode Cloud and the iOS 18 GitHub Actions workflow run the full test suite;
+  once both gates pass or any test failures pass an exact local-device reproduction, atomically
+  promotes the RC tag to v{version} to trigger the Xcode Cloud build-and-archive workflow.
   Use this skill whenever the user wants to cut a release, create a release candidate,
   bump the version, ship a new version, or prepare a build for TestFlight/App Store.
   Triggers on phrases like "release", "new version", "bump version", "cut a release",
@@ -17,16 +18,17 @@ Create a new release candidate for the KeeForge iOS app. This is a sequential, h
 workflow: each step depends on the previous one succeeding. Do not skip steps or proceed
 past a failure.
 
-Test execution model: the full unit and UI suites run on **Xcode Cloud**, not locally. The
-release is gated in two tag stages:
+Test execution model: the full unit and UI suites run on **Xcode Cloud** and **GitHub Actions**.
+Do not run them locally up front. Run focused local XCTest reproductions only when a cloud test
+fails. The release is gated in two tag stages:
 
-1. `rc/{version}` tag → Xcode Cloud **"Tests (RC)"** workflow (test-only, all suites).
-2. `v{version}` tag (pushed only after the RC run is green) → Xcode Cloud **"Release"**
-   workflow (archive-only; the RC run is the sole test gate, so never tag a commit the RC
-   did not test).
+1. `rc/{version}` tag → Xcode Cloud **"Tests (RC)"** and GitHub Actions
+   **"iOS 18 RC Tests"** workflows (test-only, all suites).
+2. Promote the successful `rc/{version}` tag to `v{version}` only after both test gates are
+   accepted. The `v{version}` tag triggers Xcode Cloud's **"Release"** workflow (archive-only).
+   Never promote a commit that the two RC workflows did not test.
 
-The only test that still runs locally is the KDBX compatibility gate, because Xcode Cloud
-does not install KeePassXC.
+The KDBX compatibility gate always runs locally because Xcode Cloud does not install KeePassXC.
 
 ## Usage
 
@@ -64,8 +66,8 @@ edits (`project.yml`, `CHANGELOG.md`, `KeeForge.xcodeproj`,
 `KeeForge/Resources/Localizable.xcstrings` already showing the expected new version/content), a
 previous run of this skill likely stopped at a gate failure. Confirm with the user, then resume
 from Step 5 instead of redoing Steps 2-4 or demanding a reset. Similarly, if the release commit
-is already pushed and an `rc/{version}` tag exists, resume from Step 7 (check the cloud run)
-rather than recreating the commit.
+is already pushed and an `rc/{version}` tag exists, record that exact tag as the active RC tag and
+resume from Step 7 rather than recreating the commit.
 
 ## Step 2: Update CHANGELOG.md
 
@@ -144,7 +146,8 @@ Since `project.yml` changed, regenerate the `.xcodeproj` before building:
 xcodegen generate
 ```
 
-Do **not** run the full unit or UI test suites locally — they run on Xcode Cloud in Step 7.
+Do **not** run the full unit or UI test suites locally up front — both cloud systems run them in
+Step 7. Local XCTest runs are allowed there only to adjudicate specific failed cloud tests.
 
 Run the KDBX compatibility gate in a fresh `bash` session. This is a required local release
 gate — Xcode Cloud does not install KeePassXC, so the release machine is the only place
@@ -172,8 +175,8 @@ Only reach this step if the KDBX gate passed.
    ```bash
    git push origin main
    ```
-4. Create and push the RC tag (this triggers the Xcode Cloud **"Tests (RC)"** workflow —
-   test-only, no archive):
+4. Create and push the RC tag. This triggers both the Xcode Cloud **"Tests (RC)"** workflow and
+   `.github/workflows/ios18-rc-tests.yml` on GitHub Actions (test-only, no archive):
    ```bash
    git tag -a rc/{version} -m "RC for v{version}"
    git push origin rc/{version}
@@ -182,38 +185,81 @@ Only reach this step if the KDBX gate passed.
    instead: `rc/{version}-2`, then `rc/{version}-3`, and so on. Never delete or force-move an
    existing tag — a re-pushed same-name tag does not reliably retrigger Xcode Cloud.
 
-## Step 7: Wait for the Xcode Cloud RC test run to pass
+## Step 7: Wait for both RC test workflows
 
-The RC tag push starts the **"Tests (RC)"** workflow: the full `KeeForgeTests` and
-`KeeForgeUITests` suites on parallel iPhone simulators. A run takes roughly 40-60 minutes.
+The RC tag push starts two independent full-suite runs. Do not promote the tag until both runs
+reach a terminal state, and verify both runs tested the commit pointed to by the active RC tag.
 
-1. Where to check: App Store Connect → KeeForge → Xcode Cloud → Builds, under the
-   `rc/{version}` group (workflow "Tests (RC)"). If browser access is available, monitor it
-   directly; otherwise ask the user to confirm the outcome (Xcode Cloud also emails them on
-   completion).
-2. The gate is the **Test - iOS action passing on every destination** (green check, 0 test
-   failures).
-3. Failure policy — hard stop:
-   - Do not push the `v{version}` tag.
-   - Diagnose from the build's Tests/Issues tabs. Fix on `main` as a new commit (never amend
-     or force-push the release commit).
-   - Push a **new** RC tag on the fix commit (`rc/{version}-2`, `-3`, ...) and repeat this step.
-   - Only proceed when a Tests (RC) run is green on the exact commit that will be released.
+1. Monitor Xcode Cloud in App Store Connect → KeeForge → Xcode Cloud → Builds, under the active
+   RC tag group (workflow **"Tests (RC)"**). If browser access is available, monitor it directly;
+   otherwise ask the user to confirm the result. The gate covers the **Test - iOS action on every
+   destination**.
+2. Monitor GitHub Actions workflow `.github/workflows/ios18-rc-tests.yml` (**"iOS 18 RC Tests"**).
+   Prefer `gh run list --workflow ios18-rc-tests.yml --event push` to find the run whose
+   `headBranch` is the active RC tag and whose `headSha` is the RC commit, then use
+   `gh run watch <run-id> --exit-status`. The `ios18-tests` job must complete successfully.
+3. Record each run's URL, commit SHA, status, and conclusion. Both must target the RC commit. A
+   gate is accepted when it is green or when every actual XCTest failure from that gate passes
+   the exact local reproduction below.
+4. If either run reports XCTest failures, wait for the other run to finish too, then validate
+   every failed test locally:
+   - Read the cloud logs or result bundle and record each failed test identifier plus its simulator
+     device type and exact iOS runtime version. For GitHub Actions, get the chosen iOS 18 runtime
+     from the **Create iOS 18 simulator** log; its device is iPhone SE (3rd generation). For Xcode
+     Cloud, get the device and OS from each failed test destination.
+   - Confirm the same runtime is installed locally with `xcrun simctl list runtimes` and the same
+     device type is available with `xcrun simctl list devicetypes`. Install the exact runtime or
+     stop if the device/OS pair cannot be reproduced; do not substitute `OS=latest`.
+   - In a fresh `bash` session, regenerate the project and run only the failed identifiers on each
+     matching device/OS pair. Always include at least one `-only-testing:` selector:
 
-## Step 8: Push the release tag
+     ```bash
+     xcodegen generate
+     xcodebuild test -project KeeForge.xcodeproj -scheme KeeForge \
+       -destination 'platform=iOS Simulator,name={exact device},OS={exact version}' \
+       -only-testing:{test-target/test-class/test-method} -quiet
+     ```
 
-Only after the RC run is green.
+     Use separate commands when failures came from different device/OS pairs. Preserve the local
+     commands and results in the release handoff.
+   - If every failed cloud test passes locally on its exact device/OS pair, classify those cloud
+     failures as CI-only flakes and accept that gate. Proceed once the other gate is also accepted.
+   - If any failed test also fails locally, stop. Diagnose and fix it on `main` as a new commit
+     (never amend or force-push the release commit), push a new RC tag (`rc/{version}-2`, `-3`, ...),
+     and repeat Step 7 for both workflows.
+5. A build, configuration, infrastructure, cancellation, or "tests did not run" failure is not an
+   XCTest failure and cannot be overridden by a local pass. Rerun that workflow on the same RC
+   commit, or fix the cause and cut a new RC. Do not proceed until both gates are accepted.
 
-1. Confirm `main` still points at the RC-tested commit (`git rev-parse main` equals the commit
-   the green RC tag points to, `git rev-list -n1 rc/{version}`). If commits landed in between,
-   either move them out or go back to Step 6 and cut a new RC — never release a commit the RC
-   run did not test.
-2. Tag the exact tested commit and push (this triggers the Xcode Cloud **"Release"** workflow —
-   archive-only; tests are not re-run here, which is why step 1 above is mandatory):
+## Step 8: Promote the RC tag to the official version
+
+Only after both Step 7 gates are accepted. The active RC tag may be `rc/{version}` or a suffixed
+retry such as `rc/{version}-2`.
+
+1. Fetch and confirm local `main`, `origin/main`, and the active RC tag all resolve to the exact
+   commit tested by both workflows. If commits landed on `main` in between, go back to Step 6 and
+   cut a new RC; never release an untested commit.
+2. Create the annotated official tag at that exact commit. Git has no native tag-rename command,
+   so promote the remote tag with one atomic ref update: add `v{version}` and delete the active RC
+   tag in the same push. This leaves no state where the remote has only one half of the rename and
+   triggers Xcode Cloud's archive-only **"Release"** workflow.
+
    ```bash
-   git tag -a v{version} -m "Release v{version}" $(git rev-list -n1 rc/{version})
-   git push origin v{version}
+   git fetch origin --tags
+   rc_tag='rc/{version}' # use the actual successful tag, including any retry suffix
+   rc_commit=$(git rev-list -n1 "$rc_tag")
+   test "$(git rev-parse main)" = "$rc_commit"
+   test "$(git rev-parse origin/main)" = "$rc_commit"
+   git tag -a 'v{version}' -m 'Release v{version}' "$rc_commit"
+   git push --atomic origin 'refs/tags/v{version}' ":refs/tags/$rc_tag"
+   git tag -d "$rc_tag"
    ```
 
-After pushing, confirm success and remind the user that Xcode Cloud will pick up the
-`v{version}` tag and start the build, test, TestFlight, and App Store Review pipeline.
+   Never force-push either tag. If the atomic push fails, the remote refs remain unchanged; stop
+   and diagnose before retrying.
+3. Verify the remote contains `v{version}`, no longer contains the promoted RC tag, and that
+   `v{version}^{}` resolves to the recorded RC commit. Earlier failed, suffixed RC-attempt tags may
+   remain for audit history.
+
+After promotion, confirm success and remind the user that Xcode Cloud will pick up the
+`v{version}` tag and start the build, TestFlight, and App Store Review pipeline.
