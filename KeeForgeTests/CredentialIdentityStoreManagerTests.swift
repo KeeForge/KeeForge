@@ -227,8 +227,11 @@ final class CredentialIdentityStoreManagerTests: XCTestCase {
 
     // MARK: - oneTimeCodeIdentity (iOS 18+)
 
-    @available(iOS 18.0, macOS 15.0, *)
-    func testOTCIdentityForEntryWithTOTP() {
+    func testOTCIdentityForEntryWithTOTP() throws {
+        guard #available(iOS 18.0, macOS 15.0, *) else {
+            throw XCTSkip("One-time code identities require iOS 18 / macOS 15")
+        }
+
         let id = UUID()
         let entry = makeEntry(
             id: id,
@@ -246,8 +249,11 @@ final class CredentialIdentityStoreManagerTests: XCTestCase {
         XCTAssertEqual(identity?.recordIdentifier, id.uuidString)
     }
 
-    @available(iOS 18.0, macOS 15.0, *)
-    func testOTCIdentityUsesUsernameFallbackWhenTitleEmpty() {
+    func testOTCIdentityUsesUsernameFallbackWhenTitleEmpty() throws {
+        guard #available(iOS 18.0, macOS 15.0, *) else {
+            throw XCTSkip("One-time code identities require iOS 18 / macOS 15")
+        }
+
         let entry = makeEntry(
             title: "",
             url: "https://example.com",
@@ -261,8 +267,11 @@ final class CredentialIdentityStoreManagerTests: XCTestCase {
         XCTAssertEqual(identity?.label, "user@example.com")
     }
 
-    @available(iOS 18.0, macOS 15.0, *)
-    func testOTCIdentityNilWhenNoTOTP() {
+    func testOTCIdentityNilWhenNoTOTP() throws {
+        guard #available(iOS 18.0, macOS 15.0, *) else {
+            throw XCTSkip("One-time code identities require iOS 18 / macOS 15")
+        }
+
         let entry = makeEntry(
             title: "Test",
             url: "https://example.com",
@@ -273,8 +282,11 @@ final class CredentialIdentityStoreManagerTests: XCTestCase {
         XCTAssertNil(CredentialIdentityStoreManager.oneTimeCodeIdentity(for: entry))
     }
 
-    @available(iOS 18.0, macOS 15.0, *)
-    func testOTCIdentityNilWhenNoURL() {
+    func testOTCIdentityNilWhenNoURL() throws {
+        guard #available(iOS 18.0, macOS 15.0, *) else {
+            throw XCTSkip("One-time code identities require iOS 18 / macOS 15")
+        }
+
         let entry = makeEntry(
             title: "Test",
             url: "",
@@ -285,8 +297,11 @@ final class CredentialIdentityStoreManagerTests: XCTestCase {
         XCTAssertNil(CredentialIdentityStoreManager.oneTimeCodeIdentity(for: entry))
     }
 
-    @available(iOS 18.0, macOS 15.0, *)
-    func testOTCIdentityNilWhenNoLabelOrUsername() {
+    func testOTCIdentityNilWhenNoLabelOrUsername() throws {
+        guard #available(iOS 18.0, macOS 15.0, *) else {
+            throw XCTSkip("One-time code identities require iOS 18 / macOS 15")
+        }
+
         let entry = makeEntry(
             title: "",
             url: "https://example.com",
@@ -297,8 +312,11 @@ final class CredentialIdentityStoreManagerTests: XCTestCase {
         XCTAssertNil(CredentialIdentityStoreManager.oneTimeCodeIdentity(for: entry))
     }
 
-    @available(iOS 18.0, macOS 15.0, *)
-    func testOTCIdentityUsesAdditionalURLWhenPrimaryEmpty() {
+    func testOTCIdentityUsesAdditionalURLWhenPrimaryEmpty() throws {
+        guard #available(iOS 18.0, macOS 15.0, *) else {
+            throw XCTSkip("One-time code identities require iOS 18 / macOS 15")
+        }
+
         let entry = makeEntry(
             title: "Fallback OTC",
             url: "",

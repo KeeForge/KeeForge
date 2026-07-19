@@ -184,14 +184,46 @@ class KeeForgeUITestCase: XCTestCase {
         // tapping (or coordinate-tapping) a not-yet-ready field is a common
         // source of dropped keystrokes on slower CI simulators.
         _ = element.waitForExistence(timeout: 10)
+        focusFieldForTyping(element)
+        let deleteSequence = String(repeating: XCUIKeyboardKey.delete.rawValue, count: Self.passwordDeleteCount)
+        element.typeText(deleteSequence)
+        element.typeText(text)
+    }
+
+    /// Taps `element` to give it keyboard focus before typing. On compact
+    /// devices (e.g. iPhone SE) a form field lower on screen can sit underneath
+    /// the software keyboard raised by a previously-focused field; a plain
+    /// center tap then lands on the keyboard, focus never moves, and the
+    /// following `typeText` fails with "Neither element nor any descendant has
+    /// keyboard focus". Scroll the field clear of the keyboard first. On tall
+    /// devices nothing is occluded, so the scroll loop is a no-op.
+    private func focusFieldForTyping(_ element: XCUIElement) {
+        scrollFieldClearOfKeyboard(element)
         if element.isHittable {
             element.tap()
         } else {
             element.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
         }
-        let deleteSequence = String(repeating: XCUIKeyboardKey.delete.rawValue, count: Self.passwordDeleteCount)
-        element.typeText(deleteSequence)
-        element.typeText(text)
+    }
+
+    private func scrollFieldClearOfKeyboard(_ element: XCUIElement) {
+        let keyboard = app.keyboards.firstMatch
+        // No keyboard up yet → the field can't be occluded by one.
+        guard keyboard.exists, element.exists else { return }
+        guard let container = scrollableContainer(), container.exists else { return }
+
+        var attempts = 0
+        while attempts < 6,
+              keyboard.exists,
+              element.exists,
+              element.frame.maxY > keyboard.frame.minY - 12 {
+            // Gentle upward drag (≈20% of the container) so the field rises
+            // above the keyboard without overshooting past the top edge.
+            let start = container.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.62))
+            let end = container.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.42))
+            start.press(forDuration: 0.05, thenDragTo: end)
+            attempts += 1
+        }
     }
 
     func databaseRow(containing text: String) -> XCUIElement {

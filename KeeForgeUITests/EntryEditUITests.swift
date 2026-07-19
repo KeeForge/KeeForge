@@ -681,12 +681,15 @@ final class EntryEditEdgeUITests: EntryEditUITestCase {
         XCTAssertTrue(generatorButton.waitForExistence(timeout: 5))
         generatorButton.tap()
 
+        // The generator sheet is a tall Form; on compact devices (iPhone SE)
+        // the Regenerate / Use Password buttons sit below the fold and aren't
+        // in the accessibility tree until scrolled into view.
         let regenerateButton = app.buttons["password-generator.regenerate"]
-        XCTAssertTrue(regenerateButton.waitForExistence(timeout: Self.ciElementTimeout))
+        XCTAssertTrue(revealElement(regenerateButton), "Regenerate button was not reachable")
         regenerateButton.tap()
 
         let useButton = app.buttons["password-generator.use"]
-        XCTAssertTrue(useButton.waitForExistence(timeout: Self.ciElementTimeout))
+        XCTAssertTrue(revealElement(useButton), "Use Password button was not reachable")
         useButton.tap()
 
         let passwordField = app.textFields["entry-edit.password-field"]

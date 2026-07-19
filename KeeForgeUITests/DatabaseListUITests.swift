@@ -42,21 +42,21 @@ final class DatabaseListUITests: KeeForgeUITestCase {
         XCTAssertTrue(editButton.waitForExistence(timeout: 10), "Edit button not found")
         editButton.tap()
 
-        let firstHandle = reorderHandle(containing: "alpha")
-        let secondHandle = reorderHandle(containing: "bravo")
-        XCTAssertTrue(firstHandle.waitForExistence(timeout: 5), "Alpha reorder handle not found")
-        XCTAssertTrue(secondHandle.waitForExistence(timeout: 5), "Bravo reorder handle not found")
-    }
-
-    private func reorderHandle(containing text: String) -> XCUIElement {
-        let predicate = NSPredicate(format: "label CONTAINS[c] %@ AND label BEGINSWITH[c] 'Reorder'", text)
-
-        let buttons = app.buttons.matching(predicate).firstMatch
-        if buttons.exists {
-            return buttons
-        }
-
-        let anyElements = app.descendants(matching: .any).matching(predicate).firstMatch
-        return anyElements
+        // The system reorder control's accessibility label varies by iOS
+        // version: "Reorder <row>" on iOS 26, but just "Reorder" on iOS 17.5.
+        // Match on the "Reorder" prefix (not the row name) and assert one handle
+        // appears per database row, which holds across both.
+        let reorderHandles = app.buttons.matching(
+            NSPredicate(format: "label BEGINSWITH[c] 'Reorder'")
+        )
+        XCTAssertTrue(
+            reorderHandles.firstMatch.waitForExistence(timeout: 5),
+            "Reorder handles did not appear in edit mode"
+        )
+        XCTAssertGreaterThanOrEqual(
+            reorderHandles.count,
+            2,
+            "Expected a reorder handle for each database row"
+        )
     }
 }
