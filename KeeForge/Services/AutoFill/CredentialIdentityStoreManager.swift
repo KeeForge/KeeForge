@@ -1,40 +1,203 @@
 @preconcurrency import AuthenticationServices
 import OSLog
 
+// MARK: - Record identifier
+
+/// The record identifier KeeForge attaches to every credential identity it
+/// publishes to the system credential identity store — password, passkey, and
+/// one-time-code identities alike. This type is the ONLY place the identifier
+/// format is encoded or parsed; every call site (publication, targeted
+/// removal, and the extension's entry lookup) goes through it.
+///
+/// Wire format (current, version `v2`):
+///
+///     v2:<database-uuid>:<entry-uuid>
+///
+/// A colon-joined, version-prefixed compact string (KeePassium-style, not
+/// JSON) where `<database-uuid>` is the owning `DatabaseReference.id` and
+/// `<entry-uuid>` is the KeePass entry's UUID, both in `UUID.uuidString`
+/// form. A colon can never appear inside a UUID string, so the join is
+/// unambiguous. Parsing classifies three shapes:
+///
+/// - `.current` — the tagged `v2:` format above.
+/// - `.legacy` — a bare entry UUID, published by pre-feature builds
+///   (implicitly "v1"). It means "entry in the active AutoFill database" and
+///   keeps pre-update QuickType suggestions filling until the next full-store
+///   refresh replaces them with tagged identities.
+/// - `.unrecognized` — anything else (garbage, unknown version prefix,
+///   truncated or malformed fields); treated as stale, so callers fall back
+///   to their existing not-found / interactive paths.
+struct CredentialRecordIdentifier: Hashable, Sendable {
+    /// `DatabaseReference.id` of the database that owns the entry.
+    let databaseID: UUID
+    /// UUID of the KeePass entry inside that database.
+    let entryID: UUID
+
+    private static let versionPrefix = "v2"
+    private static let separator: Character = ":"
+
+    /// The string stored in `ASCredentialIdentity.recordIdentifier`.
+    var encoded: String {
+        "\(Self.versionPrefix)\(Self.separator)\(databaseID.uuidString)\(Self.separator)\(entryID.uuidString)"
+    }
+
+    /// Classification of a record identifier read back from the system store.
+    enum ParseResult: Hashable, Sendable {
+        case current(CredentialRecordIdentifier)
+        case legacy(entryID: UUID)
+        case unrecognized
+
+        /// The entry UUID for both resolvable formats; `nil` for stale strings.
+        var entryID: UUID? {
+            switch self {
+            case .current(let identifier): identifier.entryID
+            case .legacy(let entryID): entryID
+            case .unrecognized: nil
+            }
+        }
+
+        /// The owning database for the current format only. Legacy
+        /// identifiers carry no attribution — whether they belong to a given
+        /// database (via the active pointer) is the caller's decision.
+        var databaseID: UUID? {
+            switch self {
+            case .current(let identifier): identifier.databaseID
+            case .legacy, .unrecognized: nil
+            }
+        }
+    }
+
+    static func parse(_ rawValue: String) -> ParseResult {
+        if let bareEntryID = UUID(uuidString: rawValue) {
+            return .legacy(entryID: bareEntryID)
+        }
+
+        let parts = rawValue.split(separator: separator, omittingEmptySubsequences: false)
+        guard parts.count == 3,
+              String(parts[0]) == versionPrefix,
+              let databaseID = UUID(uuidString: String(parts[1])),
+              let entryID = UUID(uuidString: String(parts[2]))
+        else {
+            return .unrecognized
+        }
+
+        return .current(CredentialRecordIdentifier(databaseID: databaseID, entryID: entryID))
+    }
+}
+
+// MARK: - Store seam
+
+/// Abstraction over the `ASCredentialIdentityStore` operations
+/// `CredentialIdentityStoreManager` uses, so unit tests can drive the
+/// populate / enumerate / filter / remove logic against an in-memory fake
+/// (an `actor` conformance satisfies the async requirements naturally).
+/// Production uses `SystemCredentialIdentityStore`, and tests swap the store
+/// via `CredentialIdentityStoreManager.storeProviderOverride`.
+protocol CredentialIdentityStoreProviding: Sendable {
+    /// Mirrors `ASCredentialIdentityStore.state().isEnabled`: whether the
+    /// user has enabled this provider in the system AutoFill settings.
+    func isEnabled() async -> Bool
+    func replaceCredentialIdentities(_ identities: [any ASCredentialIdentity]) async throws
+    func saveCredentialIdentities(_ identities: [any ASCredentialIdentity]) async throws
+    func removeCredentialIdentities(_ identities: [any ASCredentialIdentity]) async throws
+    func removeAllCredentialIdentities() async throws
+    /// Every identity this app has published, or `nil` where store
+    /// enumeration is unavailable:
+    /// `credentialIdentities(forService:credentialIdentityTypes:)` needs
+    /// iOS 17.4 / macOS 14.4, and within KeeForge's deployment targets
+    /// (iOS 18.0, macOS 14.0) only macOS 14.0–14.3 falls short.
+    func credentialIdentities() async -> [any ASCredentialIdentity]?
+}
+
+/// Production conformance wrapping `ASCredentialIdentityStore.shared`.
+struct SystemCredentialIdentityStore: CredentialIdentityStoreProviding {
+    func isEnabled() async -> Bool {
+        await ASCredentialIdentityStore.shared.state().isEnabled
+    }
+
+    func replaceCredentialIdentities(_ identities: [any ASCredentialIdentity]) async throws {
+        try await ASCredentialIdentityStore.shared.replaceCredentialIdentities(identities)
+    }
+
+    func saveCredentialIdentities(_ identities: [any ASCredentialIdentity]) async throws {
+        try await ASCredentialIdentityStore.shared.saveCredentialIdentities(identities)
+    }
+
+    func removeCredentialIdentities(_ identities: [any ASCredentialIdentity]) async throws {
+        try await ASCredentialIdentityStore.shared.removeCredentialIdentities(identities)
+    }
+
+    func removeAllCredentialIdentities() async throws {
+        try await ASCredentialIdentityStore.shared.removeAllCredentialIdentities()
+    }
+
+    func credentialIdentities() async -> [any ASCredentialIdentity]? {
+        guard #available(iOS 17.4, macOS 14.4, *) else { return nil }
+        return await ASCredentialIdentityStore.shared.credentialIdentities(forService: nil)
+    }
+}
+
+// MARK: - Manager
+
 enum CredentialIdentityStoreManager: Sendable {
     private static let logger = Logger(subsystem: "KeeForge", category: "CredentialIdentityStore")
 
     #if DEBUG
-    @MainActor static var populateObserver: (([KPEntry]) -> Void)?
+    /// Test hooks, fired on the main actor when the corresponding operation
+    /// is invoked (fire-and-forget, before the async store work completes).
+    /// `populateObserver` receives the owning database id and the eligible
+    /// (non-expired) entries; `removeDatabaseObserver` receives the database
+    /// id passed to targeted removal.
+    @MainActor static var populateObserver: ((UUID, [KPEntry]) -> Void)?
     @MainActor static var clearObserver: (() -> Void)?
+    @MainActor static var removeDatabaseObserver: ((UUID) -> Void)?
+    /// Test seam: when non-nil, every operation runs against this store
+    /// instead of the system one. Reset to nil in setUp/tearDown.
+    @MainActor static var storeProviderOverride: (any CredentialIdentityStoreProviding)?
     #endif
 
-    static func populate(with entries: [KPEntry]) {
+    private static func currentStore() async -> any CredentialIdentityStoreProviding {
+        #if DEBUG
+        if let override = await MainActor.run(body: { storeProviderOverride }) {
+            return override
+        }
+        #endif
+        return SystemCredentialIdentityStore()
+    }
+
+    /// Publishes `entries` as this provider's credential identities, tagged
+    /// as owned by `databaseID` (the owning `DatabaseReference.id`).
+    ///
+    /// Publication is still whole-store replacement — one database's
+    /// identities at a time; the full replace also naturally purges any
+    /// legacy-format identities left by pre-feature builds. Additive
+    /// multi-database publication lands in slice 04 of the selectable-
+    /// AutoFill epic.
+    static func populate(with entries: [KPEntry], for databaseID: UUID) {
         let eligibleEntries = entries.filter { !$0.isExpired() }
 
         #if DEBUG
         Task { @MainActor in
-            populateObserver?(eligibleEntries)
+            populateObserver?(databaseID, eligibleEntries)
         }
         #endif
 
         Task {
-            let store = ASCredentialIdentityStore.shared
-            let state = await store.state()
-            guard state.isEnabled else {
+            let store = await currentStore()
+            guard await store.isEnabled() else {
                 logger.info("Identity store is not enabled; skipping populate")
                 return
             }
 
-            let passwordIds = eligibleEntries.flatMap(passwordIdentities(for:))
-            let passkeyIds = eligibleEntries.compactMap(passkeyIdentity(for:))
+            let passwordIds = eligibleEntries.flatMap { passwordIdentities(for: $0, in: databaseID) }
+            let passkeyIds = eligibleEntries.compactMap { passkeyIdentity(for: $0, in: databaseID) }
 
             var allIdentities: [any ASCredentialIdentity] = passwordIds
             allIdentities.append(contentsOf: passkeyIds)
 
             var otcCount = 0
             if #available(iOS 18.0, macOS 15.0, *) {
-                let otcIds = eligibleEntries.compactMap(oneTimeCodeIdentity(for:))
+                let otcIds = eligibleEntries.compactMap { oneTimeCodeIdentity(for: $0, in: databaseID) }
                 allIdentities.append(contentsOf: otcIds)
                 otcCount = otcIds.count
             }
@@ -53,6 +216,9 @@ enum CredentialIdentityStoreManager: Sendable {
         }
     }
 
+    /// Wipe-everything primitive: empties the entire identity store (global
+    /// Quick AutoFill toggle off, database-removal fallback, and the
+    /// Clear AutoFill Entries action).
     static func clearStore() {
         #if DEBUG
         Task { @MainActor in
@@ -61,9 +227,8 @@ enum CredentialIdentityStoreManager: Sendable {
         #endif
 
         Task {
-            let store = ASCredentialIdentityStore.shared
-            let state = await store.state()
-            guard state.isEnabled else { return }
+            let store = await currentStore()
+            guard await store.isEnabled() else { return }
 
             do {
                 try await store.removeAllCredentialIdentities()
@@ -74,23 +239,91 @@ enum CredentialIdentityStoreManager: Sendable {
         }
     }
 
-    static func removeIdentities(for entries: [KPEntry]) {
+    /// Removes the identities that `populate` would publish for `entries`.
+    ///
+    /// Callers must pass the id of the database the entries live in.
+    /// `removeCredentialIdentities(_:)`'s matching semantics are not formally
+    /// documented by Apple (empirically, password identities are keyed on
+    /// service identifier + user), so the only contract-safe approach is to
+    /// rebuild the identities byte-identical to what was published —
+    /// including the database-tagged record identifier — and every caller of
+    /// this API has the open database at hand, so the id costs nothing.
+    /// One-time-code identities are intentionally not rebuilt here (matching
+    /// today's behavior); they are cleaned up by the owning database's next
+    /// full-store refresh.
+    static func removeIdentities(for entries: [KPEntry], in databaseID: UUID) {
         Task {
-            let store = ASCredentialIdentityStore.shared
-            let state = await store.state()
-            guard state.isEnabled else { return }
+            let store = await currentStore()
+            guard await store.isEnabled() else { return }
 
-            let passwordIds = entries.flatMap(passwordIdentities(for:))
-            let passkeyIds = entries.compactMap(passkeyIdentity(for:))
-            guard !passwordIds.isEmpty || !passkeyIds.isEmpty else { return }
+            let passwordIds = entries.flatMap { passwordIdentities(for: $0, in: databaseID) }
+            let passkeyIds = entries.compactMap { passkeyIdentity(for: $0, in: databaseID) }
+
+            var identitiesToRemove: [any ASCredentialIdentity] = passwordIds
+            identitiesToRemove.append(contentsOf: passkeyIds)
+            guard !identitiesToRemove.isEmpty else { return }
 
             do {
-                if !passwordIds.isEmpty {
-                    try await store.removeCredentialIdentities(passwordIds)
+                try await store.removeCredentialIdentities(identitiesToRemove)
+            } catch {
+                logger.error("Failed to remove credential identities: \(error.localizedDescription)")
+            }
+        }
+    }
+
+    /// Targeted per-database removal: enumerates the system store and removes
+    /// exactly the identities whose record identifier is tagged with
+    /// `databaseID`. Works with every database locked — enumeration reads
+    /// only the OS-managed store; no entry data or decryption is involved.
+    ///
+    /// Legacy bare-UUID identifiers carry no database attribution, so they
+    /// are skipped by default; pass `includingLegacyIdentifiers: true` when
+    /// the caller knows the store's legacy identities belong to `databaseID`
+    /// (they can only have been published by the active database — e.g.
+    /// slice 04's per-database refresh, or disabling the active database).
+    /// `.unrecognized` (stale) identifiers are left untouched; any later
+    /// populate replaces the whole store and purges them.
+    ///
+    /// On macOS 14.0–14.3 store enumeration is unavailable
+    /// (`credentialIdentities()` returns nil); this logs and removes nothing,
+    /// so callers needing a hard guarantee there must fall back to
+    /// `clearStore()` + lazy repopulation.
+    static func removeIdentities(forDatabase databaseID: UUID, includingLegacyIdentifiers: Bool = false) {
+        #if DEBUG
+        Task { @MainActor in
+            removeDatabaseObserver?(databaseID)
+        }
+        #endif
+
+        Task {
+            let store = await currentStore()
+            guard await store.isEnabled() else {
+                logger.info("Identity store is not enabled; skipping targeted removal")
+                return
+            }
+
+            guard let storedIdentities = await store.credentialIdentities() else {
+                logger.error("Identity-store enumeration unavailable on this OS; targeted removal skipped")
+                return
+            }
+
+            let identitiesToRemove = storedIdentities.filter { identity in
+                guard let recordIdentifier = identity.recordIdentifier else { return false }
+                switch CredentialRecordIdentifier.parse(recordIdentifier) {
+                case .current(let parsed):
+                    return parsed.databaseID == databaseID
+                case .legacy:
+                    return includingLegacyIdentifiers
+                case .unrecognized:
+                    return false
                 }
-                if !passkeyIds.isEmpty {
-                    try await store.removeCredentialIdentities(passkeyIds)
-                }
+            }
+
+            guard !identitiesToRemove.isEmpty else { return }
+
+            do {
+                try await store.removeCredentialIdentities(identitiesToRemove)
+                logger.info("Removed \(identitiesToRemove.count) credential identities for one database")
             } catch {
                 logger.error("Failed to remove credential identities: \(error.localizedDescription)")
             }
@@ -100,7 +333,7 @@ enum CredentialIdentityStoreManager: Sendable {
     // MARK: - One-time code identities
 
     @available(iOS 18.0, macOS 15.0, *)
-    static func oneTimeCodeIdentity(for entry: KPEntry) -> ASOneTimeCodeCredentialIdentity? {
+    static func oneTimeCodeIdentity(for entry: KPEntry, in databaseID: UUID) -> ASOneTimeCodeCredentialIdentity? {
         guard entry.hasTOTP else { return nil }
 
         let allURLs = [entry.url] + entry.additionalURLs
@@ -114,13 +347,13 @@ enum CredentialIdentityStoreManager: Sendable {
         return ASOneTimeCodeCredentialIdentity(
             serviceIdentifier: serviceIdentifier,
             label: label,
-            recordIdentifier: entry.id.uuidString
+            recordIdentifier: CredentialRecordIdentifier(databaseID: databaseID, entryID: entry.id).encoded
         )
     }
 
     // MARK: - Passkey identities
 
-    static func passkeyIdentity(for entry: KPEntry) -> ASPasskeyCredentialIdentity? {
+    static func passkeyIdentity(for entry: KPEntry, in databaseID: UUID) -> ASPasskeyCredentialIdentity? {
         guard let passkey = entry.passkeyCredential,
               let credentialIDData = passkey.credentialIDData,
               let userHandleData = passkey.userHandleData
@@ -134,7 +367,7 @@ enum CredentialIdentityStoreManager: Sendable {
             userName: passkey.username,
             credentialID: credentialIDData,
             userHandle: userHandleData,
-            recordIdentifier: entry.id.uuidString
+            recordIdentifier: CredentialRecordIdentifier(databaseID: databaseID, entryID: entry.id).encoded
         )
     }
 
@@ -154,7 +387,7 @@ enum CredentialIdentityStoreManager: Sendable {
 
     // MARK: - Internal (visible to tests via @testable import)
 
-    static func passwordIdentities(for entry: KPEntry) -> [ASPasswordCredentialIdentity] {
+    static func passwordIdentities(for entry: KPEntry, in databaseID: UUID) -> [ASPasswordCredentialIdentity] {
         let username = entry.username.isEmpty ? entry.title : entry.username
         guard !username.isEmpty else { return [] }
         guard entry.hasPassword else { return [] }
@@ -168,7 +401,7 @@ enum CredentialIdentityStoreManager: Sendable {
             return ASPasswordCredentialIdentity(
                 serviceIdentifier: serviceIdentifier,
                 user: username,
-                recordIdentifier: entry.id.uuidString
+                recordIdentifier: CredentialRecordIdentifier(databaseID: databaseID, entryID: entry.id).encoded
             )
         }
     }

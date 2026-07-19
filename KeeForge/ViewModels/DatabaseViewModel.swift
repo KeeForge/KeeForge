@@ -1630,7 +1630,10 @@ final class DatabaseViewModel {
             .first { $0.id == databaseReference.id } ?? databaseReference
         guard currentReference.autoFillEnabled else { return }
         DatabaseListStore.activeAutoFillDatabaseID = databaseReference.id
-        CredentialIdentityStoreManager.populate(with: Self.credentialStoreEntries(from: root))
+        CredentialIdentityStoreManager.populate(
+            with: Self.credentialStoreEntries(from: root),
+            for: databaseReference.id
+        )
     }
 
     private func cacheDatabaseCopy(_ data: Data) throws {

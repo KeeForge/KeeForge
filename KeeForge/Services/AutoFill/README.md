@@ -6,7 +6,7 @@ This folder holds extension-facing helpers shared between the main app and the A
 
 - `AutoFillSaveCoordinator.swift` stages and saves new credentials, refreshes shared caches, and queues deferred cloud uploads when needed.
 - `CredentialMatcher.swift` matches KeePass entries to web domains and usernames for AutoFill suggestions.
-- `CredentialIdentityStoreManager.swift` mirrors unlocked entries into the system credential identity store.
+- `CredentialIdentityStoreManager.swift` mirrors unlocked entries into the system credential identity store. It also owns `CredentialRecordIdentifier` (the sole encoder/parser of the database-tagged record-identifier format on published identities) and the `CredentialIdentityStoreProviding` seam (production: `SystemCredentialIdentityStore`; tests swap a fake via the `#if DEBUG` `storeProviderOverride`).
 - `PasswordGenerator.swift` provides the reusable strong-password generator used by both the app and AutoFill flows.
 
 ## Change Carefully

@@ -19,7 +19,9 @@ enum AutoFillSaveCoordinator {
         var saveDraft: @Sendable (DatabaseDraft, DatabaseReference, Data, Data) async throws -> SaveResult
         var relativePathForURL: @Sendable (URL) throws -> String
         var enqueuePendingUpload: @Sendable (PendingUploadQueue.Marker) throws -> Void
-        var populateCredentialStore: @Sendable ([KPEntry]) -> Void
+        /// Publishes the given entries as credential identities owned by the
+        /// database with the given `DatabaseReference.id`.
+        var populateCredentialStore: @Sendable (UUID, [KPEntry]) -> Void
         var now: @Sendable () -> Date
 
         static let live = Environment(
@@ -52,8 +54,8 @@ enum AutoFillSaveCoordinator {
             enqueuePendingUpload: { marker in
                 _ = try PendingUploadQueue.enqueue(marker)
             },
-            populateCredentialStore: { entries in
-                CredentialIdentityStoreManager.populate(with: entries)
+            populateCredentialStore: { databaseID, entries in
+                CredentialIdentityStoreManager.populate(with: entries, for: databaseID)
             },
             now: { .now }
         )
@@ -125,7 +127,7 @@ enum AutoFillSaveCoordinator {
             // AutoFill epic makes disabled databases unreachable there).
             if reference.autoFillEnabled {
                 DatabaseListStore.activeAutoFillDatabaseID = reference.id
-                environment.populateCredentialStore(credentialStoreEntries(from: outcome.savedRootGroup))
+                environment.populateCredentialStore(reference.id, credentialStoreEntries(from: outcome.savedRootGroup))
             }
 
             return .saved(

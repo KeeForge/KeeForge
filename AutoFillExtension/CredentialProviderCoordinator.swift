@@ -289,7 +289,7 @@ final class CredentialProviderCoordinator {
                 let passwordEntries = parsedEntries.filter { $0.hasPassword && !$0.isExpired() }
 
                 if let recordIdentifier,
-                   let entry = passwordEntries.first(where: { $0.id.uuidString == recordIdentifier }) {
+                   let entry = entryMatching(recordIdentifier: recordIdentifier, in: passwordEntries) {
                     completeRequest(with: entry)
                 } else {
                     // Zero-interaction fallback: only an unambiguous host-based
@@ -675,7 +675,7 @@ final class CredentialProviderCoordinator {
 
         // If we have a target recordIdentifier from QuickType, jump directly to that entry
         if let recordIdentifier = targetRecordIdentifier,
-           let entry = passwordEntries.first(where: { $0.id.uuidString == recordIdentifier }) {
+           let entry = entryMatching(recordIdentifier: recordIdentifier, in: passwordEntries) {
             completeRequest(with: entry)
             return
         }
@@ -706,9 +706,20 @@ final class CredentialProviderCoordinator {
         }
     }
 
+    /// Resolves a QuickType record identifier against entries of the active
+    /// (only-open) database. Both the current database-tagged format and the
+    /// legacy bare-entry-UUID format match on the entry UUID — the extension
+    /// still only ever opens the active database; resolving the *owning*
+    /// database from a tagged identifier is slice 03 of the selectable-
+    /// AutoFill epic. Unrecognized (stale) identifiers resolve to nil so
+    /// every caller falls back to its existing not-found / interactive path.
+    private func entryMatching(recordIdentifier: String, in entries: [KPEntry]) -> KPEntry? {
+        guard let entryID = CredentialRecordIdentifier.parse(recordIdentifier).entryID else { return nil }
+        return entries.first { $0.id == entryID }
+    }
+
     private func findEntry(byRecordIdentifier recordIdentifier: String) -> KPEntry? {
-        guard let targetUUID = UUID(uuidString: recordIdentifier) else { return nil }
-        return parsedEntries.first { $0.id == targetUUID }
+        entryMatching(recordIdentifier: recordIdentifier, in: parsedEntries)
     }
 
     private func passkeyEntry(
@@ -935,7 +946,7 @@ final class CredentialProviderCoordinator {
                 if #available(iOS 18.0, macOS 15.0, *) {
                     let totpEntries = parsedEntries.filter { $0.hasTOTP && !$0.isExpired() }
                     if let recordIdentifier,
-                       let entry = totpEntries.first(where: { $0.id.uuidString == recordIdentifier }) {
+                       let entry = entryMatching(recordIdentifier: recordIdentifier, in: totpEntries) {
                         completeOTCRequest(with: entry)
                     } else {
                         cancelRequest(code: .credentialIdentityNotFound)
@@ -955,7 +966,7 @@ final class CredentialProviderCoordinator {
 
         let totpEntries = parsedEntries.filter(\.hasTOTP)
         if let recordIdentifier = targetRecordIdentifier,
-           let entry = totpEntries.first(where: { $0.id.uuidString == recordIdentifier }) {
+           let entry = entryMatching(recordIdentifier: recordIdentifier, in: totpEntries) {
             if entry.isExpired() {
                 presentSearchView(entries: [entry]) { [weak self] selectedEntry in
                     self?.completeOTCRequest(with: selectedEntry)
