@@ -239,7 +239,7 @@ struct DatabaseListView: View {
                 viewModel.reload()
             }
         ) {
-            SettingsView()
+            SettingsView(listViewModel: viewModel)
         }
         .sheet(
             item: $activeCloudProvider,
@@ -592,6 +592,21 @@ private struct DatabaseDetailsView: View {
                     Text("Editing")
                 } footer: {
                     Text("You can still open this database, but create, edit, and delete actions stay blocked until you turn editing back on.")
+                }
+
+                Section {
+                    Toggle(
+                        "Include in AutoFill",
+                        isOn: Binding(
+                            get: { currentReference.autoFillEnabled },
+                            set: { viewModel.setAutoFillEnabled($0, for: reference) }
+                        )
+                    )
+                    .accessibilityIdentifier("database-details.autofill-toggle")
+                } header: {
+                    Text("AutoFill")
+                } footer: {
+                    Text("When off, passwords, passkeys, and verification codes from this database are neither suggested nor available in AutoFill. After you turn it back on, suggestions return the next time you unlock this database.")
                 }
 
                 Section("Key File") {

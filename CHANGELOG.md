@@ -21,6 +21,8 @@ TODO before the first macOS release:
 
 ## Unreleased
 
+- Choose which databases appear in AutoFill, get suggestions from all of them at once, and clear AutoFill suggestions in Settings.
+
 ## v1.10.3 (2026-07-18)
 
 ### New Features

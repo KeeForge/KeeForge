@@ -23,7 +23,7 @@ struct KeeForgeApp: App {
 
         #if os(macOS)
         Settings {
-            SettingsView(viewModel: activeDatabaseViewModel)
+            SettingsView(viewModel: activeDatabaseViewModel, listViewModel: listViewModel)
                 .preferredColorScheme(appearanceMode.preferredColorScheme)
         }
         #endif

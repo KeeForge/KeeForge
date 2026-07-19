@@ -864,7 +864,205 @@ deferred to the epic's slice 05 entry.
 
 ## Slice 05: Settings UI and Clear AutoFill Entries
 
-_To be filled by the slice 05 implementation._
+### Implementation summary (what the tests pin down)
+
+- `DatabaseDetailsView` (in `KeeForge/Views/DatabaseListView.swift`) gained an "AutoFill" section
+  (between Editing and Key File), mirroring the Read-only idiom exactly: a
+  `Toggle("Include in AutoFill")` bound via `Binding(get: { currentReference.autoFillEnabled },
+  set: { viewModel.setAutoFillEnabled($0, for: reference) })`, accessibility id
+  `database-details.autofill-toggle`, footer stating the full scope (passwords, passkeys,
+  verification codes neither suggested nor available while off; suggestions return on next
+  unlock after re-enable). `viewModel` here is the app's shared `DatabaseListViewModel`, whose
+  `autoFillEnabledRefreshHandler` AppRootView installed (slice 04) — so both toggle directions
+  take immediate effect for the open database.
+- `SettingsView` gained `var listViewModel: DatabaseListViewModel? = nil`. Passers of the app
+  instance: the database list's settings sheet (`SettingsView(listViewModel: viewModel)` in
+  `DatabaseListView.swift`) and the macOS Settings scene
+  (`SettingsView(viewModel:listViewModel:)` in `KeeForgeApp.swift`). The open-database App
+  Settings path (`DatabaseSettingsView` → `SettingsView(viewModel:)` in `GroupListView.swift`,
+  iOS-only — macOS uses a `SettingsLink` to the scene) cannot reach the app instance, so
+  `SettingsView.installFallbackListViewModelIfNeeded()` (called from the shared
+  `applyingChangeHandlers` `.onAppear`) builds a local `DatabaseListViewModel` stored in
+  `@State fallbackListViewModel` and installs the **same bridge AppRootView installs**, closed
+  over the sheet's session `viewModel` (`guard id == sessionViewModel.databaseReference.id`,
+  then `populateCredentialStoreIfUnlocked()`); that session is the app's only unlocked
+  database, so enable-while-unlocked immediacy is preserved on every path.
+  `resolvedListViewModel` (`listViewModel ?? fallbackListViewModel`) feeds the AutoFill
+  `NavigationLink` destination (wrapped in `if let`; always non-nil after first `onAppear`).
+- `AutoFillSettingsView` (in `KeeForge/Views/SettingsView.swift`) now takes
+  `let listViewModel: DatabaseListViewModel` (non-optional) and calls `listViewModel.reload()`
+  on appear. New UI, all routed through `DatabaseListViewModel.setAutoFillEnabled` — **never**
+  `DatabaseListStore` directly:
+  - `databasesSection`: header "Databases"; one `Toggle(reference.displayName)` per registered
+    database bound like the details toggle, id
+    `settings.autofill.database-toggle.<DatabaseReference.id.uuidString>` (uppercase UUID, the
+    `WhatsNewView`/`AttachmentsSection` interpolation convention); empty-state line
+    "No databases added yet" when zero registered; footer warning
+    "AutoFill is on, but no databases are selected." shown iff `quickAutoFillEnabled` is true
+    and no registered database has `autoFillEnabled` (also shows alongside the empty state —
+    deliberate).
+  - `clearEntriesSection`: destructive `Button("Clear AutoFill Entries")`
+    (`settings.autofill.clear-entries`) → `confirmationDialog("Clear AutoFill Entries?")` with
+    destructive `Button("Clear Entries")` (`settings.autofill.clear-entries.confirm`) calling
+    `CredentialIdentityStoreManager.clearStore()`, plus a Cancel button. Deliberately **no
+    republish** after clearing (empty store now; rebuild on next unlock of enabled databases).
+  - The Quick AutoFill footer's stale single-active sentence ("KeeForge currently autofills
+    from the last database you successfully opened.") was replaced by
+    "KeeForge suggests credentials from the databases selected below." (old key removed from
+    the catalog); the keyboard-bar sub-line is unchanged.
+- Two surfaces, one state: both surfaces bind through the same `@Observable` view model and
+  `setAutoFillEnabled` ends in `reload()`, so a flip in either place re-renders the other.
+- `AutoFillSettingsView` compiles into `KeeForgeMac` (shared file) but is unreachable there
+  (`macSettingsTabs` has no AutoFill tab); the fallback never activates on macOS because the
+  Settings scene passes the app instance. No `SettingsService` change; no new files;
+  `project.yml` untouched.
+
+### Seams to use
+
+- `CredentialIdentityStoreManager.removeDatabaseObserver` (`(UUID, Bool)` — id +
+  `includingLegacyIdentifiers`), `populateObserver` (`(UUID, [KPEntry])`), `clearObserver`
+  (`() -> Void`): all `#if DEBUG` `@MainActor` statics firing via `Task { @MainActor in … }` —
+  positive assertions use `expectation` + `await fulfillment(of:timeout: 1)`, negative ones the
+  `XCTFail`-ing observer + ~100 ms sleep pattern; reset all to nil in `setUp`/`tearDown`.
+- `DatabaseListViewModel.autoFillEnabledRefreshHandler` — plain settable closure; tests install
+  a recording closure directly (no SwiftUI needed) to pin when the view model invokes it.
+- Existing `DatabaseListViewModelTests` fixtures: `DatabaseListStore.clearAll()` in
+  `setUp`/`tearDown` (already present), `makeTemporaryFileURL(name:)`,
+  `DatabaseListStore.add(url:)` / `update(_:)` / `markDatabaseOpened(id:)`.
+
+### `KeeForgeTests/DatabaseListViewModelTests.swift` (the existing home of `setReadOnly` coverage)
+
+- `testSetAutoFillEnabledFalsePersistsAndTriggersTargetedRemoval` *(new)* — add one reference;
+  `viewModel.setAutoFillEnabled(false, for: reference)`: the flag sticks on a fresh
+  `DatabaseListStore.databases` read **and** on `viewModel.databases` (the `reload()` half),
+  `DatabaseListStore.autoFillEnabledDatabases` excludes it, and `removeDatabaseObserver` fires
+  with `(reference.id, _)` — proves the view model routes through
+  `DatabaseListStore.setAutoFillEnabled` (slice-04 targeted removal), not the generic `update`
+  bypass. Assert `clearObserver` stays silent. (Supersedes slice 01's optional
+  `testSetAutoFillEnabledDelegatesToStoreAndReloads`.)
+- `testSetAutoFillEnabledTrueInvokesRefreshHandlerWithDatabaseID` *(new)* — install a recording
+  `autoFillEnabledRefreshHandler`; disable then re-enable the reference: the handler is called
+  exactly once, with `reference.id`, and only for the enable (this is the seam the settings
+  toggles rely on for enable-while-unlocked immediacy; the full unlock-session integration is
+  slice 04's `DatabaseViewModelTests.testToggleOnOfOpenDatabaseRefreshesImmediatelyThroughHandler`
+  — do not duplicate it here).
+- `testSetAutoFillEnabledFalseDoesNotInvokeRefreshHandler` *(new)* — recording handler + disable
+  only: handler never called (disable is removal-only; nothing to republish).
+- `testDisablingActiveDatabaseThroughViewModelReassignsPointerAndPassesLegacyFlag` *(new)* —
+  two references, both `markDatabaseOpened`, pointer on the first;
+  `viewModel.setAutoFillEnabled(false, for: first)`: `removeDatabaseObserver` fires with
+  `(first.id, true)` and `DatabaseListStore.activeAutoFillDatabaseID` moves to the second —
+  the slice-01/04 store consequences run unchanged when driven through the UI's entry point.
+- The store-layer disable/enable matrix (locked databases, legacy fallback, sweep bypass) is
+  fully documented in slices 01 and 04 under `DatabaseListStoreTests` — slice 05 adds no store
+  behavior, so nothing new there.
+
+### `KeeForgeTests/SettingsServiceTests.swift` — unchanged semantics (note only)
+
+Slice 05 touched neither `SettingsService` nor the global Quick AutoFill `onChange` handler
+(behaviorally final since slice 04): `quickAutoFillEnabled` still defaults to true and
+persists to the shared-defaults key `KeeForge.quickAutoFillEnabled`. No new cases; just re-run
+`-only-testing:KeeForgeTests/SettingsServiceTests` to confirm green.
+
+### UI tests (XCUITest)
+
+**Finding:** no existing UI test covers the database-details sheet today — grepping
+`KeeForgeUITests/` for `database-details` (and `database-row.details`) has zero hits. The
+home-screen list class is `DatabaseListUITests` (`KeeForgeUITests/DatabaseListUITests.swift`);
+the settings flow lives in `AppSettingsUITests` (base `AppSettingsUITestCase` with
+`openAppSettings()` / `revealInSettings(_:)` / `closeSettings()`, both in
+`KeeForgeUITests/UnlockedDatabaseUITests.swift`). Keep to those two classes; run one class at a
+time per `KeeForgeUITests/README.md`.
+
+- `DatabaseListUITests.testDatabaseDetailsAutoFillTogglePersistsAcrossReopen` *(new)* —
+  long-press the first `database.row`, tap the context-menu action `database-row.details`;
+  assert the sheet shows the switch `database-details.autofill-toggle` with value `"1"`
+  (`(toggle.value as? String) == "1"`; default enabled); flip it; close via
+  `database-details.close`; reopen the same row's details sheet and assert the value is now
+  `"0"` — persistence through `database-list.json` across sheet reopen. (Flip it back — or rely
+  on the base class's per-test fixture reseed — so later tests see the default.) All existing
+  `database-details.*` ids (`nickname-field`, `quick-launch-toggle`, `key-file-select`,
+  `close`) and `database-row.*` ids are unchanged.
+- `AppSettingsUITests.testAutoFillSettingsListsDatabaseTogglesAndCancelableClear` *(new)* —
+  `openAppSettings()`; tap `settings.autofill.link`; assert at least one per-database toggle
+  exists via `app.switches.matching(NSPredicate(format: "identifier BEGINSWITH
+  'settings.autofill.database-toggle.'"))` (the suffix is the database UUID, unknown to the
+  test); `revealInSettings(app.buttons["settings.autofill.clear-entries"])` and tap it; assert
+  the confirmation appears (`app.buttons["settings.autofill.clear-entries.confirm"]`, label
+  "Clear Entries"); tap "Cancel"; assert the confirm button is gone and
+  `settings.autofill.clear-entries` is still present — the cancel path leaves the store
+  untouched (no identity-store assertion possible from XCUITest; the clear primitive itself is
+  unit-covered by slice 02's `testClearStoreEmptiesStore`). Existing `settings.autofill.*` ids
+  (`link`, `turn-on`, `open-ios-settings`) are unchanged.
+- *(Optional, two-surfaces-one-state)* extend the `DatabaseListUITests` case: after flipping in
+  the details sheet, open Settings → AutoFill and assert the matching
+  `settings.autofill.database-toggle.*` switch reads `"0"`. Skip if it makes the smoke test
+  flaky — the shared-view-model wiring is already unit-pinned.
+
+### Run commands
+
+```bash
+xcodebuild test -project KeeForge.xcodeproj -scheme KeeForge \
+  -destination 'platform=iOS Simulator,name=iPhone 17 Pro' \
+  -only-testing:KeeForgeTests/DatabaseListViewModelTests \
+  -only-testing:KeeForgeTests/SettingsServiceTests -quiet
+```
+
+Then, one class at a time:
+
+```bash
+xcodebuild test -project KeeForge.xcodeproj -scheme KeeForge \
+  -destination 'platform=iOS Simulator,name=iPhone 17 Pro' \
+  -only-testing:KeeForgeUITests/DatabaseListUITests -quiet
+
+xcodebuild test -project KeeForge.xcodeproj -scheme KeeForge \
+  -destination 'platform=iOS Simulator,name=iPhone 17 Pro' \
+  -only-testing:KeeForgeUITests/AppSettingsUITests -quiet
+```
+
+### Toolchain notes for this slice (Mac required)
+
+- **Strings:** ten new keys in `KeeForge/Resources/Localizable.xcstrings` (app catalog only;
+  extension catalogs untouched), each with a translated `de` unit: `"Include in AutoFill"`,
+  the details footer (`"When off, passwords, passkeys, and verification codes …"`),
+  `"Databases"`, `"No databases added yet"`,
+  `"AutoFill is on, but no databases are selected."`,
+  `"KeeForge suggests credentials from the databases selected below."`,
+  `"Clear AutoFill Entries"`, `"Clear AutoFill Entries?"`, `"Clear Entries"`, and the
+  confirmation message (`"This removes all suggestions from AutoFill. …"`). One key was
+  **removed** (now-unused stale copy):
+  `"KeeForge currently autofills from the last database you successfully opened."`.
+  The catalog was edited as raw JSON on Linux — run `swift scripts/normalize-xcstrings.swift`
+  on a Mac, re-commit any reordering diff, then
+  `-only-testing:KeeForgeTests/LocalizationTests`.
+- **New accessibility identifiers** (all existing ones preserved):
+  `database-details.autofill-toggle`,
+  `settings.autofill.database-toggle.<database-id-uuidString>`,
+  `settings.autofill.clear-entries`, `settings.autofill.clear-entries.confirm`.
+- **CHANGELOG:** the epic's user-facing entry was added under `## Unreleased` in this slice.
+- No new files; `project.yml` untouched; `xcodegen generate` not required.
+
+### Manual checks (device, extension enabled)
+
+- Flip the toggle in the database-details sheet, open Settings → AutoFill: the same state shows
+  there; flip it back from Settings and reopen the details sheet — both surfaces stay in sync.
+- Disable a database (while it is locked): its suggestions disappear from QuickType; other
+  databases' remain. Re-enable: suggestions return only after its next unlock.
+- With the database open in the app, toggle off then on from **each** of the three settings
+  paths — details sheet, database-list Settings sheet, and the open-database Database Settings →
+  App Settings sheet (the fallback path) — and confirm suggestions reappear immediately without
+  re-unlocking on all three.
+- Clear AutoFill Entries → confirm: QuickType is empty (including for the currently open
+  database — deliberately no republish); unlock an enabled database and watch its suggestions
+  return. Cancel path leaves suggestions in place.
+- Zero databases registered: Databases section shows the empty-state line. All databases
+  toggled off with Quick AutoFill on: warning footer appears; turning Quick AutoFill off hides
+  it.
+- German (`de`): both new sections, the confirmation dialog, and the details footer render
+  sensibly (long compound words must not truncate oddly).
+- VoiceOver: each per-database toggle announces the database display name and on/off state;
+  the details toggle announces "Include in AutoFill"; the clear button and its confirmation
+  actions are reachable and the destructive action is announced as such.
 
 ---
 

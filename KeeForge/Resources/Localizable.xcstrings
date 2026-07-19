@@ -594,6 +594,16 @@
         }
       }
     },
+    "AutoFill is on, but no databases are selected." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AutoFill ist aktiviert, aber es sind keine Datenbanken ausgewählt."
+          }
+        }
+      }
+    },
     "AutoFill with KeeForge" : {
       "localizations" : {
         "de" : {
@@ -840,6 +850,36 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Wählen Sie aus, wie dieser Eintrag entfernt werden soll."
+          }
+        }
+      }
+    },
+    "Clear AutoFill Entries" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AutoFill-Einträge löschen"
+          }
+        }
+      }
+    },
+    "Clear AutoFill Entries?" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AutoFill-Einträge löschen?"
+          }
+        }
+      }
+    },
+    "Clear Entries" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Einträge löschen"
           }
         }
       }
@@ -1610,6 +1650,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Datenbankeinstellungen"
+          }
+        }
+      }
+    },
+    "Databases" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Datenbanken"
           }
         }
       }
@@ -2484,6 +2534,16 @@
         }
       }
     },
+    "Include in AutoFill" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "In AutoFill einbeziehen"
+          }
+        }
+      }
+    },
     "Invalid File" : {
       "localizations" : {
         "de" : {
@@ -2674,16 +2734,6 @@
         }
       }
     },
-    "KeeForge currently autofills from the last database you successfully opened." : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "KeeForge verwendet AutoFill derzeit mit der Datenbank, die Sie zuletzt erfolgreich geöffnet haben."
-          }
-        }
-      }
-    },
     "KeeForge hit an unexpected cloud-sync problem while opening this database." : {
       "localizations" : {
         "de" : {
@@ -2810,6 +2860,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "KeeForge erkennt jetzt Einmalpasswörter, die von den Plugins KeeOTP und KeeOtp2 gespeichert wurden, sodass Sie deren Bestätigungscodes wie gewohnt verwenden können."
+          }
+        }
+      }
+    },
+    "KeeForge suggests credentials from the databases selected below." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge schlägt Zugangsdaten aus den unten ausgewählten Datenbanken vor."
           }
         }
       }
@@ -3280,6 +3340,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Keine Datenbanken"
+          }
+        }
+      }
+    },
+    "No databases added yet" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Noch keine Datenbanken hinzugefügt"
           }
         }
       }
@@ -5184,6 +5254,16 @@
         }
       }
     },
+    "This removes all suggestions from AutoFill. Suggestions return the next time you unlock each database that has AutoFill turned on." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dadurch werden alle Vorschläge aus AutoFill entfernt. Die Vorschläge erscheinen wieder, sobald Sie eine Datenbank mit aktiviertem AutoFill das nächste Mal entsperren."
+          }
+        }
+      }
+    },
     "This server does not look like a WebDAV server (HTTP %lld). Check the server address." : {
       "localizations" : {
         "de" : {
@@ -5740,6 +5820,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Wenn diese Option deaktiviert ist, blendet KeeForge die zuletzt geöffnete Aktivität in der gesperrten Datenbankliste aus."
+          }
+        }
+      }
+    },
+    "When off, passwords, passkeys, and verification codes from this database are neither suggested nor available in AutoFill. After you turn it back on, suggestions return the next time you unlock this database." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wenn diese Option deaktiviert ist, werden Passwörter, Passkeys und Bestätigungscodes aus dieser Datenbank in AutoFill weder vorgeschlagen noch sind sie dort verfügbar. Nach dem erneuten Aktivieren erscheinen die Vorschläge wieder, sobald Sie diese Datenbank das nächste Mal entsperren."
           }
         }
       }

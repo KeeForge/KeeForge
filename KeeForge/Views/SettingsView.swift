@@ -2,6 +2,13 @@ import SwiftUI
 
 struct SettingsView: View {
     var viewModel: DatabaseViewModel? = nil
+    /// The app's shared `DatabaseListViewModel` — the instance whose
+    /// `autoFillEnabledRefreshHandler` AppRootView installed. Passed in by the
+    /// database list's settings sheet and the macOS Settings scene so the
+    /// per-database AutoFill toggles hit that hook. Contexts that cannot reach
+    /// it (the open-database App Settings sheet) leave it nil and get the
+    /// fallback below.
+    var listViewModel: DatabaseListViewModel? = nil
     @Environment(\.dismiss) private var dismiss
 
     @State private var autoLockTimeout = SettingsService.autoLockTimeout
@@ -19,6 +26,7 @@ struct SettingsView: View {
     @State private var feedbackContext: FeedbackComposerContext?
     @State private var macLockPolicy = SettingsService.macLockPolicy
     @State private var blockScreenCapture = SettingsService.blockScreenCapture
+    @State private var fallbackListViewModel: DatabaseListViewModel?
 
     var body: some View {
         Group {
@@ -180,7 +188,34 @@ struct SettingsView: View {
             }
             .onAppear {
                 cloudAccounts = CloudAccountStore.accounts
+                installFallbackListViewModelIfNeeded()
             }
+    }
+
+    private var resolvedListViewModel: DatabaseListViewModel? {
+        listViewModel ?? fallbackListViewModel
+    }
+
+    /// The AutoFill settings screen must toggle databases through the app's
+    /// `DatabaseListViewModel` so `setAutoFillEnabled` runs the
+    /// `autoFillEnabledRefreshHandler` hook (immediate republish when the
+    /// toggled database is the currently unlocked session). The open-database
+    /// App Settings sheet (`DatabaseSettingsView` in `GroupListView.swift`)
+    /// cannot reach that instance through the view hierarchy, so this creates
+    /// a local list view model and installs the same bridge `AppRootView`
+    /// installs — against the session `viewModel` this sheet was opened with,
+    /// which is the app's only unlocked database, so the behavior is
+    /// identical.
+    private func installFallbackListViewModelIfNeeded() {
+        guard listViewModel == nil, fallbackListViewModel == nil else { return }
+        let fallback = DatabaseListViewModel()
+        let sessionViewModel = viewModel
+        fallback.autoFillEnabledRefreshHandler = { databaseID in
+            guard let sessionViewModel,
+                  sessionViewModel.databaseReference.id == databaseID else { return }
+            sessionViewModel.populateCredentialStoreIfUnlocked()
+        }
+        fallbackListViewModel = fallback
     }
 
     private var preferredColorScheme: ColorScheme? {
@@ -209,7 +244,12 @@ struct SettingsView: View {
             .accessibilityIdentifier("settings.security.link")
 
             NavigationLink {
-                AutoFillSettingsView(quickAutoFillEnabled: $quickAutoFillEnabled)
+                if let resolvedListViewModel {
+                    AutoFillSettingsView(
+                        quickAutoFillEnabled: $quickAutoFillEnabled,
+                        listViewModel: resolvedListViewModel
+                    )
+                }
             } label: {
                 Label("AutoFill", systemImage: "text.cursor")
             }
@@ -347,7 +387,14 @@ private struct SecuritySettingsView: View {
 
 private struct AutoFillSettingsView: View {
     @Binding var quickAutoFillEnabled: Bool
+    /// The app's shared list view model (or `SettingsView`'s fallback bridge).
+    /// All per-database toggles must go through its `setAutoFillEnabled` —
+    /// never `DatabaseListStore` directly — so disabling does targeted
+    /// identity removal and enabling republishes the open session immediately
+    /// via the installed `autoFillEnabledRefreshHandler`.
+    let listViewModel: DatabaseListViewModel
     @State private var isProviderEnabled: Bool?
+    @State private var isClearEntriesConfirmationPresented = false
     @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
@@ -358,16 +405,22 @@ private struct AutoFillSettingsView: View {
                 Toggle("Quick AutoFill", isOn: $quickAutoFillEnabled)
             } footer: {
                 VStack(alignment: .leading, spacing: 8) {
-                    Text("KeeForge currently autofills from the last database you successfully opened.")
+                    Text("KeeForge suggests credentials from the databases selected below.")
 
                     if quickAutoFillEnabled {
                         Text("Credential suggestions appear in the keyboard bar. Requires Face ID to unlock when tapped.")
                     }
                 }
             }
+
+            databasesSection
+            clearEntriesSection
         }
         .navigationTitle("AutoFill")
         .navigationBarTitleDisplayMode(.inline)
+        .onAppear {
+            listViewModel.reload()
+        }
         .task {
             isProviderEnabled = await AutoFillStatusService.isAutoFillEnabled()
         }
@@ -376,6 +429,62 @@ private struct AutoFillSettingsView: View {
                 Task { isProviderEnabled = await AutoFillStatusService.isAutoFillEnabled() }
             }
         }
+    }
+
+    private var databasesSection: some View {
+        Section {
+            if listViewModel.databases.isEmpty {
+                Text("No databases added yet")
+                    .foregroundStyle(.secondary)
+            } else {
+                ForEach(listViewModel.databases) { reference in
+                    Toggle(
+                        reference.displayName,
+                        isOn: Binding(
+                            get: { currentReference(for: reference).autoFillEnabled },
+                            set: { listViewModel.setAutoFillEnabled($0, for: reference) }
+                        )
+                    )
+                    .accessibilityIdentifier("settings.autofill.database-toggle.\(reference.id.uuidString)")
+                }
+            }
+        } header: {
+            Text("Databases")
+        } footer: {
+            if quickAutoFillEnabled,
+               listViewModel.databases.contains(where: { $0.autoFillEnabled }) == false {
+                Text("AutoFill is on, but no databases are selected.")
+            }
+        }
+    }
+
+    private var clearEntriesSection: some View {
+        Section {
+            Button("Clear AutoFill Entries", role: .destructive) {
+                isClearEntriesConfirmationPresented = true
+            }
+            .accessibilityIdentifier("settings.autofill.clear-entries")
+            .confirmationDialog(
+                "Clear AutoFill Entries?",
+                isPresented: $isClearEntriesConfirmationPresented
+            ) {
+                // Deliberately no republish of the currently open database
+                // after clearing: the user asked for an empty store now.
+                // Suggestions rebuild as enabled databases are next unlocked.
+                Button("Clear Entries", role: .destructive) {
+                    CredentialIdentityStoreManager.clearStore()
+                }
+                .accessibilityIdentifier("settings.autofill.clear-entries.confirm")
+
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text("This removes all suggestions from AutoFill. Suggestions return the next time you unlock each database that has AutoFill turned on.")
+            }
+        }
+    }
+
+    private func currentReference(for reference: DatabaseReference) -> DatabaseReference {
+        listViewModel.databases.first(where: { $0.id == reference.id }) ?? reference
     }
 
     private var providerSection: some View {
