@@ -1,41 +1,41 @@
 {
-  "sourceLanguage": "en",
-  "strings": {
-    "CFBundleDisplayName": {
-      "extractionState": "manual",
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "KeeForge AutoFill"
+  "sourceLanguage" : "en",
+  "strings" : {
+    "CFBundleDisplayName" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge AutoFill"
           }
         },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "KeeForge AutoFill"
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge AutoFill"
           }
         }
       }
     },
-    "CFBundleName": {
-      "comment": "Bundle name",
-      "extractionState": "extracted_with_value",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "new",
-            "value": "KeeForgeAutoFill"
+    "CFBundleName" : {
+      "comment" : "Bundle name",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForgeAutoFill"
           }
         },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "KeeForgeAutoFill"
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "KeeForgeAutoFill"
           }
         }
       }
     }
   },
-  "version": "1.0"
+  "version" : "1.0"
 }

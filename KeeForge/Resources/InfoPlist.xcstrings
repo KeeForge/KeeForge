@@ -1,68 +1,68 @@
 {
-  "sourceLanguage": "en",
-  "strings": {
-    "CFBundleName": {
-      "comment": "Bundle name",
-      "extractionState": "extracted_with_value",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "new",
-            "value": "KeeForge"
+  "sourceLanguage" : "en",
+  "strings" : {
+    "CFBundleName" : {
+      "comment" : "Bundle name",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge"
           }
         },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "KeeForge"
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "KeeForge"
           }
         }
       }
     },
-    "KeePass Database (kdbx)": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "KeePass-Datenbank (kdbx)"
+    "KeePass Database (kdbx)" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeePass-Datenbank (kdbx)"
           }
         }
       }
     },
-    "NSFaceIDUsageDescription": {
-      "extractionState": "manual",
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "KeeForge verwendet Face ID, um Ihre Passwortdatenbank schnell zu entsperren."
+    "NSFaceIDUsageDescription" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge verwendet Face ID, um Ihre Passwortdatenbank schnell zu entsperren."
           }
         },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "KeeForge uses Face ID to quickly unlock your password database."
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge uses Face ID to quickly unlock your password database."
           }
         }
       }
     },
-    "NSLocalNetworkUsageDescription": {
-      "extractionState": "manual",
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "KeeForge verwendet Ihr lokales Netzwerk, um eine Verbindung zu den von Ihnen hinzugefügten WebDAV-Servern herzustellen."
+    "NSLocalNetworkUsageDescription" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge verwendet Ihr lokales Netzwerk, um eine Verbindung zu den von Ihnen hinzugefügten WebDAV-Servern herzustellen."
           }
         },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "KeeForge uses your local network to connect to WebDAV servers you add."
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge uses your local network to connect to WebDAV servers you add."
           }
         }
       }
     }
   },
-  "version": "1.0"
+  "version" : "1.0"
 }

@@ -53,6 +53,22 @@ enum WhatsNewCatalog {
         let features: [WhatsNewFeature]
 
         switch version {
+        case "1.10.3":
+            features = [
+                WhatsNewFeature(
+                    id: "database-file-details",
+                    title: "View database details",
+                    detail: "See your database's format, file size, last update, encryption, key-derivation settings, and compression without unlocking it.",
+                    systemImage: "doc.text"
+                ),
+                WhatsNewFeature(
+                    id: "reliability-improvements",
+                    title: "A more reliable KeeForge",
+                    detail: "This update includes a broad set of fixes and refinements across unlocking, search, AutoFill, cloud sync, WebDAV, passkeys, one-time codes, and more.",
+                    systemImage: "checkmark.circle",
+                    platforms: [.iOS]
+                ),
+            ]
         case "1.10.2":
             features = [
                 WhatsNewFeature(

@@ -21,6 +21,8 @@ TODO before the first macOS release:
 
 ## Unreleased
 
+## v1.10.3 (2026-07-18)
+
 ### New Features
 
 - Database Details now shows file metadata read from the database's plaintext header without unlocking it: KDBX format version, file size, last-modified date, encryption algorithm, key-derivation settings (Argon2/AES-KDF parameters), and compression. Cloud databases report the locally cached copy.

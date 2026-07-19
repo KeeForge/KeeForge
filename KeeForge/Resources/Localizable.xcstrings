@@ -254,6 +254,16 @@
         }
       }
     },
+    "A more reliable KeeForge" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ein zuverlässigeres KeeForge"
+          }
+        }
+      }
+    },
     "About" : {
       "localizations" : {
         "de" : {
@@ -4174,6 +4184,16 @@
         }
       }
     },
+    "See your database's format, file size, last update, encryption, key-derivation settings, and compression without unlocking it." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sehen Sie Format, Dateigröße, letzte Änderung, Verschlüsselung, Einstellungen zur Schlüsselableitung und Komprimierung Ihrer Datenbank, ohne sie zu entsperren."
+          }
+        }
+      }
+    },
     "Select" : {
       "localizations" : {
         "de" : {
@@ -5174,6 +5194,16 @@
         }
       }
     },
+    "This update includes a broad set of fixes and refinements across unlocking, search, AutoFill, cloud sync, WebDAV, passkeys, one-time codes, and more." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dieses Update enthält zahlreiche Fehlerbehebungen und Verbesserungen für Entsperren, Suche, AutoFill, Cloud-Synchronisierung, WebDAV, Passkeys, Einmalcodes und mehr."
+          }
+        }
+      }
+    },
     "Tip again" : {
       "localizations" : {
         "de" : {
@@ -5650,6 +5680,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Sehr schwach"
+          }
+        }
+      }
+    },
+    "View database details" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Datenbankdetails anzeigen"
           }
         }
       }
