@@ -8,15 +8,23 @@ final class DatabaseListStoreTests: XCTestCase {
         DatabaseListStore.clearAll()
         CloudAccountStore.clearAll()
         SharedVaultStore.clearBookmark()
-        CredentialIdentityStoreManager.clearObserver = nil
+        resetCredentialIdentityStoreSeams()
     }
 
     override func tearDown() async throws {
         DatabaseListStore.clearAll()
         CloudAccountStore.clearAll()
         SharedVaultStore.clearBookmark()
-        CredentialIdentityStoreManager.clearObserver = nil
+        resetCredentialIdentityStoreSeams()
         try await super.tearDown()
+    }
+
+    private func resetCredentialIdentityStoreSeams() {
+        CredentialIdentityStoreManager.populateObserver = nil
+        CredentialIdentityStoreManager.clearObserver = nil
+        CredentialIdentityStoreManager.removeDatabaseObserver = nil
+        CredentialIdentityStoreManager.removeIdentityObserver = nil
+        CredentialIdentityStoreManager.storeProviderOverride = nil
     }
 
     func testAddPersistsDatabaseReference() throws {
@@ -201,19 +209,31 @@ final class DatabaseListStoreTests: XCTestCase {
         XCTAssertTrue(DatabaseListStore.databases.isEmpty)
     }
 
-    func testRemoveClearsCredentialStoreWhenRemovingActiveAutoFillDatabase() async throws {
+    func testRemoveActiveDatabaseTriggersTargetedRemovalIncludingLegacy() async throws {
         let first = try DatabaseListStore.add(url: makeTemporaryFileURL(name: "active.kdbx"))
         _ = try DatabaseListStore.add(url: makeTemporaryFileURL(name: "other.kdbx"))
         DatabaseListStore.activeAutoFillDatabaseID = first.id
 
-        let clearExpectation = expectation(description: "Credential store cleared")
+        // Since slice 04, removal never wipes the whole store — it removes
+        // exactly the removed database's identities, sweeping legacy
+        // bare-UUID identifiers only when the removed database was active.
         CredentialIdentityStoreManager.clearObserver = {
-            clearExpectation.fulfill()
+            XCTFail("Removal must use targeted identity removal, never a whole-store clear")
+        }
+
+        let removalExpectation = expectation(description: "Targeted identity removal for the removed database")
+        CredentialIdentityStoreManager.removeDatabaseObserver = { databaseID, includingLegacyIdentifiers in
+            XCTAssertEqual(databaseID, first.id)
+            XCTAssertTrue(
+                includingLegacyIdentifiers,
+                "Removing the active database must sweep legacy bare-UUID identifiers"
+            )
+            removalExpectation.fulfill()
         }
 
         DatabaseListStore.remove(id: first.id)
 
-        await fulfillment(of: [clearExpectation], timeout: 1)
+        await fulfillment(of: [removalExpectation], timeout: 1)
         XCTAssertNil(DatabaseListStore.activeAutoFillDatabaseID)
     }
 
@@ -226,8 +246,19 @@ final class DatabaseListStoreTests: XCTestCase {
             XCTFail("Credential store should remain populated for the active AutoFill database")
         }
 
+        let removalExpectation = expectation(description: "Targeted identity removal for the inactive database")
+        CredentialIdentityStoreManager.removeDatabaseObserver = { databaseID, includingLegacyIdentifiers in
+            XCTAssertEqual(databaseID, second.id)
+            XCTAssertFalse(
+                includingLegacyIdentifiers,
+                "Removing an inactive database must not sweep legacy identifiers"
+            )
+            removalExpectation.fulfill()
+        }
+
         DatabaseListStore.remove(id: second.id)
 
+        await fulfillment(of: [removalExpectation], timeout: 1)
         try? await Task.sleep(for: .milliseconds(100))
         XCTAssertEqual(DatabaseListStore.activeAutoFillDatabaseID, first.id)
     }

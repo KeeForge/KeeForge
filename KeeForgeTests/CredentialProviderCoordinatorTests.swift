@@ -17,17 +17,28 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
     override func setUp() async throws {
         try await super.setUp()
         DatabaseListStore.clearAll()
+        resetCredentialIdentityStoreSeams()
     }
 
     override func tearDown() async throws {
         DatabaseListStore.clearAll()
+        resetCredentialIdentityStoreSeams()
         try await super.tearDown()
+    }
+
+    private func resetCredentialIdentityStoreSeams() {
+        CredentialIdentityStoreManager.populateObserver = nil
+        CredentialIdentityStoreManager.clearObserver = nil
+        CredentialIdentityStoreManager.removeDatabaseObserver = nil
+        CredentialIdentityStoreManager.removeIdentityObserver = nil
+        CredentialIdentityStoreManager.storeProviderOverride = nil
     }
 
     // MARK: - Required cleanup-path tests
 
     func test_cleanup_runsOnCancel() throws {
         let (coordinator, presenter) = makeCoordinator()
+        try seedResolvableDefaultDatabase()
 
         coordinator.prepareCredentialList(for: [githubServiceIdentifier()])
         coordinator.presentationDidBecomeActive()
@@ -44,6 +55,7 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
 
     func test_cleanup_runsOnError() async throws {
         let (coordinator, presenter) = makeCoordinator()
+        try seedResolvableDefaultDatabase()
 
         coordinator.prepareCredentialList(for: [githubServiceIdentifier()])
         coordinator.presentationDidBecomeActive()
@@ -56,7 +68,8 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
         let errorPresented = expectation(description: "unlock error presented")
         presenter.onUnlockErrorPresented = { errorPresented.fulfill() }
 
-        // No active AutoFill database is configured, so unlocking fails.
+        // The seeded default database has no valid KDBX bytes behind it (the
+        // bookmarked file is a placeholder, no cached copy), so unlocking fails.
         prompt.onSubmitPassword("wrong-password")
         await fulfillment(of: [errorPresented], timeout: 10)
 
@@ -366,14 +379,20 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
         struct SearchView {
             let entries: [KPEntry]
             let initialSearchText: String
+            let databaseSwitcher: CredentialProviderDatabaseSwitcherContext?
             let onSelect: (KPEntry) -> Void
             let onCancel: () -> Void
+        }
+
+        struct NoEnabledDatabasesState {
+            let onDismiss: () -> Void
         }
 
         var unlockPrompt: UnlockPrompt?
         var unlockError: UnlockError?
         var readOnlyNotice: ReadOnlyNotice?
         var searchView: SearchView?
+        var noEnabledDatabasesState: NoEnabledDatabasesState?
 
         var completedCredential: ASPasswordCredential?
         var completedAssertion: ASPasskeyAssertionCredential?
@@ -388,15 +407,21 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
         func presentSearchView(
             entries: [KPEntry],
             initialSearchText: String,
+            databaseSwitcher: CredentialProviderDatabaseSwitcherContext?,
             onSelect: @escaping (KPEntry) -> Void,
             onCancel: @escaping () -> Void
         ) {
             searchView = SearchView(
                 entries: entries,
                 initialSearchText: initialSearchText,
+                databaseSwitcher: databaseSwitcher,
                 onSelect: onSelect,
                 onCancel: onCancel
             )
+        }
+
+        func presentNoEnabledDatabasesState(onDismiss: @escaping () -> Void) {
+            noEnabledDatabasesState = NoEnabledDatabasesState(onDismiss: onDismiss)
         }
 
         func presentEntryCreator(
@@ -478,6 +503,37 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
         ASCredentialServiceIdentifier(identifier: "github.com", type: .domain)
     }
 
+    /// Registers an AutoFill-enabled database and points the active pointer
+    /// at it so identifier-less interactive flows resolve a default database.
+    /// Since slice 03 an empty registry presents the no-enabled-databases
+    /// empty state instead of the unlock prompt, so cleanup-path tests that
+    /// drive the unlock prompt must seed a resolvable default first.
+    /// (`defaultAutoFillDatabase` requires the reference to be *registered*;
+    /// the pointer alone is not enough, and registration alone is not enough
+    /// either because a never-opened reference has `lastOpenedAt == nil`.)
+    @discardableResult
+    private func seedResolvableDefaultDatabase() throws -> DatabaseReference {
+        let reference = try TestDatabaseSupport.makeReference(
+            for: makeTemporaryFileURL(name: "default.kdbx")
+        )
+        DatabaseListStore.update(reference)
+        DatabaseListStore.activeAutoFillDatabaseID = reference.id
+        return reference
+    }
+
+    private func makeTemporaryFileURL(name: String) throws -> URL {
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString)
+            .appendingPathComponent(name)
+        try FileManager.default.createDirectory(
+            at: url.deletingLastPathComponent(),
+            withIntermediateDirectories: true,
+            attributes: nil
+        )
+        try Data("fixture".utf8).write(to: url)
+        return url
+    }
+
     /// Seed the coordinator with state equivalent to an unlocked vault so that
     /// teardown is observable.
     private func seedUnlockedVaultState(
@@ -514,6 +570,8 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
         XCTAssertNil(coordinator.pendingReadOnlyCancellationMessage, "pending read-only message must be cleared", file: file, line: line)
         XCTAssertNil(coordinator.pendingSavePasswordRequestStorage, "pending save request must be cleared", file: file, line: line)
         XCTAssertNil(coordinator.pendingGeneratePasswordsRequestStorage, "pending generate request must be cleared", file: file, line: line)
+        XCTAssertNil(coordinator.pendingSwitchPreviousDatabaseReference, "pending switch reference must be cleared", file: file, line: line)
+        XCTAssertNil(coordinator.pendingSwitchSearchText, "pending switch search text must be cleared", file: file, line: line)
     }
 
     /// Encode a P256 private key as PKCS#8 PEM (same shape the passkey

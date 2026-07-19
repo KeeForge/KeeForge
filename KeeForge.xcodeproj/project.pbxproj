@@ -405,9 +405,11 @@
 		C4D13E507ED4BBBD3D80D503 /* DatabaseListViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6371CF6584F8950C4679FE28 /* DatabaseListViewModelTests.swift */; };
 		C4ECF537DE2F150E57DD1970 /* UITestWebDAVCloudProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6CB86A3375C87F5074F1AB7D /* UITestWebDAVCloudProvider.swift */; };
 		C52B2F51F746E10EC4C00BBD /* OpaqueXMLNodes.swift in Sources */ = {isa = PBXBuildFile; fileRef = E83812EEBF6C270EDFBA5E90 /* OpaqueXMLNodes.swift */; };
+		C54D08A95677FAB4F5961AC2 /* FakeCredentialIdentityStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 21C31F1CDC14DD303A473E73 /* FakeCredentialIdentityStore.swift */; };
 		C55677C1569E249BCCCFAE5B /* password-keyfile.key in Resources */ = {isa = PBXBuildFile; fileRef = 0809F99F0AAE2475591DAE55 /* password-keyfile.key */; };
 		C575383EAE8DF5EFCE9E4066 /* PasswordGeneratorSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2EFC7C32376B08C5FA4229D9 /* PasswordGeneratorSheet.swift */; };
 		C5CCB8692F1F9D9E2769664A /* TOTPGeneratorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 04A1400E503A230DF2633686 /* TOTPGeneratorTests.swift */; };
+		C6C31ADA7F27B5228505D6D1 /* FakeCredentialIdentityStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 21C31F1CDC14DD303A473E73 /* FakeCredentialIdentityStore.swift */; };
 		C71B2634B38C3F412381687B /* CloudProviderRegistry.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7852EA57A46BC264E0B5916B /* CloudProviderRegistry.swift */; };
 		C7B7066500C66AE348DDC591 /* PasswordDisplay.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10E0212432C502CF3BCFAB93 /* PasswordDisplay.swift */; };
 		C7DD96B8E5EE88DE0DC36407 /* EntryDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0904281BA49959779229086D /* EntryDetailView.swift */; };
@@ -640,6 +642,7 @@
 		1C1B7D9F6B63224D55DF5C4A /* KeeForge.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = KeeForge.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		1C50DE2069FA6AFBD2DE3E76 /* KeeForgeUITests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = KeeForgeUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		1DBA8C05ADEAD4DD8BFE6152 /* DatabaseDraft.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DatabaseDraft.swift; sourceTree = "<group>"; };
+		21C31F1CDC14DD303A473E73 /* FakeCredentialIdentityStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FakeCredentialIdentityStore.swift; sourceTree = "<group>"; };
 		2317B165FEAEFCF3181EE596 /* KeychainService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainService.swift; sourceTree = "<group>"; };
 		255524A0026746268CB46642 /* SharedVaultStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SharedVaultStoreTests.swift; sourceTree = "<group>"; };
 		266DACD09B3263F9CCEDE2A6 /* MacLockMonitorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacLockMonitorTests.swift; sourceTree = "<group>"; };
@@ -691,6 +694,7 @@
 		63CD5B20E6190897E216C7F3 /* CredentialProviderViewControllerMac.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CredentialProviderViewControllerMac.swift; sourceTree = "<group>"; };
 		65027967D3D168FF503B9FC7 /* KeeForgeMacTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = KeeForgeMacTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		66DF057AA435224858861550 /* CloudAccountStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudAccountStoreTests.swift; sourceTree = "<group>"; };
+		683809623332F9B85CACB432 /* BuildConfig.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = BuildConfig.xcconfig; sourceTree = "<group>"; };
 		68FE916D34E1B688CC1CC521 /* InfoPlist.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = InfoPlist.xcstrings; sourceTree = "<group>"; };
 		6A60D769EF54ACAE8FAFEC73 /* AutoLockTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AutoLockTests.swift; sourceTree = "<group>"; };
 		6AA206874A10ED8FC3270063 /* AttachmentQuickLookPreview.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AttachmentQuickLookPreview.swift; sourceTree = "<group>"; };
@@ -728,7 +732,6 @@
 		8DBB315683B9032E3301FD19 /* DatabaseRowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DatabaseRowView.swift; sourceTree = "<group>"; };
 		8E58AED27B2CFC27BC007533 /* MacLockMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacLockMonitor.swift; sourceTree = "<group>"; };
 		8F5D08487A8DF3C72204ADEB /* test-arbitrary.key */ = {isa = PBXFileReference; path = "test-arbitrary.key"; sourceTree = "<group>"; };
-		8F84A786422DE0F907FF9DBA /* BuildConfig.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = BuildConfig.xcconfig; sourceTree = "<group>"; };
 		90677EA696815FC200740F0A /* AutoFillStatusService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AutoFillStatusService.swift; sourceTree = "<group>"; };
 		914A4E61567B1123BF9E137E /* AttachmentTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AttachmentTests.swift; sourceTree = "<group>"; };
 		928A68933B867347BC11592A /* SyncedFolderDetectorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncedFolderDetectorTests.swift; sourceTree = "<group>"; };
@@ -973,6 +976,15 @@
 			path = KeeForge/Views;
 			sourceTree = "<group>";
 		};
+		174E84E1F12EA1C83C16DD96 /* selectable-autofill-validation-19efda */ = {
+			isa = PBXGroup;
+			children = (
+				683809623332F9B85CACB432 /* BuildConfig.xcconfig */,
+			);
+			name = "selectable-autofill-validation-19efda";
+			path = .;
+			sourceTree = "<group>";
+		};
 		1BDD193BABF3BD18A4AB9E58 /* compatibility */ = {
 			isa = PBXGroup;
 			children = (
@@ -1028,15 +1040,6 @@
 				6F135327240ED1387C8003A4 /* SecureRandom.swift */,
 			);
 			path = Security;
-			sourceTree = "<group>";
-		};
-		6A5915FA3D7637CCB9B1BE74 /* KeeForge */ = {
-			isa = PBXGroup;
-			children = (
-				8F84A786422DE0F907FF9DBA /* BuildConfig.xcconfig */,
-			);
-			name = KeeForge;
-			path = .;
 			sourceTree = "<group>";
 		};
 		71F778658A17A600FECAC9C6 /* TestFixtures */ = {
@@ -1193,7 +1196,6 @@
 				A376BB645DDF43A121708494 /* AutoFillExtension */,
 				1BDD193BABF3BD18A4AB9E58 /* compatibility */,
 				9F80FAF53100B49B0262BFFA /* Extensions */,
-				6A5915FA3D7637CCB9B1BE74 /* KeeForge */,
 				94D564740093EF0F011B5A3C /* KeeForgeMacUITests */,
 				F1BE673352A52C0167F2C5CE /* KeeForgeTests */,
 				0DF923CE254AEEBCB0B054B1 /* KeeForgeUITests */,
@@ -1201,6 +1203,7 @@
 				7D300A2D174014A53DD4DCE3 /* Packages */,
 				65E3F4C6ED83A516F2D23EB6 /* Resources */,
 				D35B1898D85AD1D33CE13604 /* round-trip */,
+				174E84E1F12EA1C83C16DD96 /* selectable-autofill-validation-19efda */,
 				0F643F928D1B442EDCF4379B /* Services */,
 				71F778658A17A600FECAC9C6 /* TestFixtures */,
 				E7125F33479895937960E6A0 /* ViewModels */,
@@ -1241,6 +1244,7 @@
 				0F7522B62793839313AC4DC5 /* DropboxCloudProviderTests.swift */,
 				FEDEBBDC91EBD1B2FBB3716B /* EncryptedValueTests.swift */,
 				42780494357246F25C55F3FD /* EntryEditViewModelTests.swift */,
+				21C31F1CDC14DD303A473E73 /* FakeCredentialIdentityStore.swift */,
 				E3217CA8D7D14799D216386B /* FaviconServiceTests.swift */,
 				BF77C387846CFF3B94A08369 /* FeedbackSubmissionServiceTests.swift */,
 				12D87D0DC4FA51C9002E0C2A /* KDBXCompatibilityArtifactTests.swift */,
@@ -1814,6 +1818,7 @@
 				657D59F2C3762853C5A04D65 /* DropboxCloudProviderTests.swift in Sources */,
 				81234DB453AFE697C39405B0 /* EncryptedValueTests.swift in Sources */,
 				6D7B0F0F5E4A1157EE41A4F3 /* EntryEditViewModelTests.swift in Sources */,
+				C6C31ADA7F27B5228505D6D1 /* FakeCredentialIdentityStore.swift in Sources */,
 				1344E56D5FE0305764940D0B /* FaviconServiceTests.swift in Sources */,
 				8BB6422DAD2503E2052570CC /* FeedbackSubmissionServiceTests.swift in Sources */,
 				FC18F2D74F2225EA32347264 /* KDBXCompatibilityArtifactTests.swift in Sources */,
@@ -2133,6 +2138,7 @@
 				67D9CEC4DF7C559BB2066B9B /* DropboxCloudProviderTests.swift in Sources */,
 				F9F8C9E33B5C2D486617E10B /* EncryptedValueTests.swift in Sources */,
 				352D3826009F6D117BCCC736 /* EntryEditViewModelTests.swift in Sources */,
+				C54D08A95677FAB4F5961AC2 /* FakeCredentialIdentityStore.swift in Sources */,
 				B253A58297B36B63A5838DCB /* FaviconServiceTests.swift in Sources */,
 				5276D337E44553DACFDCD0B9 /* FeedbackSubmissionServiceTests.swift in Sources */,
 				D6658D15D44EC32031377D96 /* KDBXCompatibilityArtifactTests.swift in Sources */,
@@ -2361,7 +2367,7 @@
 		};
 		433642D014742A51E017BA5F /* Release */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = 8F84A786422DE0F907FF9DBA /* BuildConfig.xcconfig */;
+			baseConfigurationReference = 683809623332F9B85CACB432 /* BuildConfig.xcconfig */;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				CLANG_ANALYZER_NONNULL = YES;
@@ -2624,7 +2630,7 @@
 		};
 		F94E35C15125598334295DFD /* Debug */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = 8F84A786422DE0F907FF9DBA /* BuildConfig.xcconfig */;
+			baseConfigurationReference = 683809623332F9B85CACB432 /* BuildConfig.xcconfig */;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				CLANG_ANALYZER_NONNULL = YES;

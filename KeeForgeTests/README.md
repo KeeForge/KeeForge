@@ -43,6 +43,7 @@ Keep new tests platform-neutral where possible; gate genuinely platform-specific
 ## Test Helpers
 
 - `TestDatabaseSupport.swift` builds fixture URLs, supports fixture subdirectories, and creates bookmark-backed `DatabaseReference` values for tests.
+- `FakeCredentialIdentityStore.swift` is the lock-guarded in-memory `CredentialIdentityStoreProviding` fake; install it via `CredentialIdentityStoreManager.storeProviderOverride` and drive assertions through its `stored`/`calls`/`onMutation`/`onEnumerate` surface.
 - `KDBXCompatibilitySupport.swift` is the shared compatibility harness. Keep the all-edit compatibility matrix there and in `KDBXCompatibilityTests.swift`; do not duplicate it in writer, draft, or saver tests.
 - Shared databases and key files are documented in `../TestFixtures/README.md`.
 

@@ -3,6 +3,9 @@ import XCTest
 @testable import KeeForge
 
 final class CredentialIdentityStoreManagerTests: XCTestCase {
+    /// Owning-database id passed to the identity builders; every produced
+    /// identity's record identifier is tagged with it (slice 02).
+    private let someDatabaseID = UUID()
 
     // MARK: - domainFromURLString
 
@@ -50,7 +53,7 @@ final class CredentialIdentityStoreManagerTests: XCTestCase {
 
     func testIdentityWithUsernameAndURL() {
         let entry = makeEntry(title: "GitHub", url: "https://github.com", username: "octocat", hasPassword: true)
-        let identities = CredentialIdentityStoreManager.passwordIdentities(for: entry)
+        let identities = CredentialIdentityStoreManager.passwordIdentities(for: entry, in: someDatabaseID)
 
         XCTAssertEqual(identities.count, 1)
         XCTAssertEqual(identities.first?.user, "octocat")
@@ -58,19 +61,22 @@ final class CredentialIdentityStoreManagerTests: XCTestCase {
         XCTAssertEqual(identities.first?.serviceIdentifier.type, .domain)
     }
 
-    func testIdentityRecordIdentifierIsEntryUUID() {
+    func testIdentityRecordIdentifierIsTaggedDatabaseAndEntryEncoding() {
         let id = UUID()
         let entry = makeEntry(id: id, title: "Test", url: "https://example.com", username: "user", hasPassword: true)
-        let identities = CredentialIdentityStoreManager.passwordIdentities(for: entry)
+        let identities = CredentialIdentityStoreManager.passwordIdentities(for: entry, in: someDatabaseID)
 
-        XCTAssertEqual(identities.first?.recordIdentifier, id.uuidString)
+        XCTAssertEqual(
+            identities.first?.recordIdentifier,
+            CredentialRecordIdentifier(databaseID: someDatabaseID, entryID: id).encoded
+        )
     }
 
     // MARK: - passwordIdentities: username fallback to title
 
     func testIdentityFallsBackToTitleWhenUsernameEmpty() {
         let entry = makeEntry(title: "Work Account", url: "https://example.com", username: "", hasPassword: true)
-        let identities = CredentialIdentityStoreManager.passwordIdentities(for: entry)
+        let identities = CredentialIdentityStoreManager.passwordIdentities(for: entry, in: someDatabaseID)
 
         XCTAssertEqual(identities.count, 1)
         XCTAssertEqual(identities.first?.user, "Work Account")
@@ -80,22 +86,22 @@ final class CredentialIdentityStoreManagerTests: XCTestCase {
 
     func testIdentityEmptyWhenNoUsernameAndNoTitle() {
         let entry = makeEntry(title: "", url: "https://example.com", username: "", hasPassword: true)
-        XCTAssertTrue(CredentialIdentityStoreManager.passwordIdentities(for: entry).isEmpty)
+        XCTAssertTrue(CredentialIdentityStoreManager.passwordIdentities(for: entry, in: someDatabaseID).isEmpty)
     }
 
     func testIdentityEmptyWhenNoPassword() {
         let entry = makeEntry(title: "Test", url: "https://example.com", username: "user", hasPassword: false)
-        XCTAssertTrue(CredentialIdentityStoreManager.passwordIdentities(for: entry).isEmpty)
+        XCTAssertTrue(CredentialIdentityStoreManager.passwordIdentities(for: entry, in: someDatabaseID).isEmpty)
     }
 
     func testIdentityEmptyWhenURLEmpty() {
         let entry = makeEntry(title: "No URL", url: "", username: "user", hasPassword: true)
-        XCTAssertTrue(CredentialIdentityStoreManager.passwordIdentities(for: entry).isEmpty)
+        XCTAssertTrue(CredentialIdentityStoreManager.passwordIdentities(for: entry, in: someDatabaseID).isEmpty)
     }
 
     func testIdentityEmptyWhenURLWhitespace() {
         let entry = makeEntry(title: "Bad URL", url: "   ", username: "user", hasPassword: true)
-        XCTAssertTrue(CredentialIdentityStoreManager.passwordIdentities(for: entry).isEmpty)
+        XCTAssertTrue(CredentialIdentityStoreManager.passwordIdentities(for: entry, in: someDatabaseID).isEmpty)
     }
 
     // MARK: - passwordIdentities: multiple URLs (additionalURLs via KP2A_URL_*)
@@ -108,7 +114,7 @@ final class CredentialIdentityStoreManagerTests: XCTestCase {
             hasPassword: true,
             customFields: ["KP2A_URL_1": "https://gitlab.com"]
         )
-        let identities = CredentialIdentityStoreManager.passwordIdentities(for: entry)
+        let identities = CredentialIdentityStoreManager.passwordIdentities(for: entry, in: someDatabaseID)
         let domains = Set(identities.map { $0.serviceIdentifier.identifier })
 
         XCTAssertEqual(identities.count, 2)
@@ -124,7 +130,7 @@ final class CredentialIdentityStoreManagerTests: XCTestCase {
             hasPassword: true,
             customFields: ["KP2A_URL_1": "https://backup.example.com"]
         )
-        let identities = CredentialIdentityStoreManager.passwordIdentities(for: entry)
+        let identities = CredentialIdentityStoreManager.passwordIdentities(for: entry, in: someDatabaseID)
 
         XCTAssertEqual(identities.count, 1)
         XCTAssertEqual(identities.first?.serviceIdentifier.identifier, "example.com")
@@ -138,7 +144,7 @@ final class CredentialIdentityStoreManagerTests: XCTestCase {
             hasPassword: true,
             customFields: ["KP2A_URL_1": "", "KP2A_URL_2": ""]
         )
-        XCTAssertTrue(CredentialIdentityStoreManager.passwordIdentities(for: entry).isEmpty)
+        XCTAssertTrue(CredentialIdentityStoreManager.passwordIdentities(for: entry, in: someDatabaseID).isEmpty)
     }
 
     func testAdditionalURLsSkipsEmptyValues() {
@@ -153,7 +159,7 @@ final class CredentialIdentityStoreManagerTests: XCTestCase {
                 "KP2A_URL_2": "https://second.example.com",
             ]
         )
-        let identities = CredentialIdentityStoreManager.passwordIdentities(for: entry)
+        let identities = CredentialIdentityStoreManager.passwordIdentities(for: entry, in: someDatabaseID)
 
         XCTAssertEqual(identities.count, 1)
         XCTAssertEqual(identities.first?.serviceIdentifier.identifier, "example.com")
@@ -163,7 +169,7 @@ final class CredentialIdentityStoreManagerTests: XCTestCase {
 
     func testIdentityWithBareDomainURL() {
         let entry = makeEntry(title: "Bare", url: "example.com", username: "user", hasPassword: true)
-        let identities = CredentialIdentityStoreManager.passwordIdentities(for: entry)
+        let identities = CredentialIdentityStoreManager.passwordIdentities(for: entry, in: someDatabaseID)
 
         XCTAssertEqual(identities.count, 1)
         XCTAssertEqual(identities.first?.serviceIdentifier.identifier, "example.com")
@@ -180,7 +186,7 @@ final class CredentialIdentityStoreManagerTests: XCTestCase {
             hasPassword: true,
             customFields: ["KP2A_URL_1": "https://www.example.com"]
         )
-        let identities = CredentialIdentityStoreManager.passwordIdentities(for: entry)
+        let identities = CredentialIdentityStoreManager.passwordIdentities(for: entry, in: someDatabaseID)
 
         XCTAssertEqual(identities.count, 1)
         XCTAssertEqual(identities.first?.serviceIdentifier.identifier, "example.com")
@@ -241,12 +247,15 @@ final class CredentialIdentityStoreManagerTests: XCTestCase {
             hasPassword: false,
             hasTOTP: true
         )
-        let identity = CredentialIdentityStoreManager.oneTimeCodeIdentity(for: entry)
+        let identity = CredentialIdentityStoreManager.oneTimeCodeIdentity(for: entry, in: someDatabaseID)
 
         XCTAssertNotNil(identity)
         XCTAssertEqual(identity?.label, "GitHub")
         XCTAssertEqual(identity?.serviceIdentifier.identifier, "github.com")
-        XCTAssertEqual(identity?.recordIdentifier, id.uuidString)
+        XCTAssertEqual(
+            identity?.recordIdentifier,
+            CredentialRecordIdentifier(databaseID: someDatabaseID, entryID: id).encoded
+        )
     }
 
     func testOTCIdentityUsesUsernameFallbackWhenTitleEmpty() throws {
@@ -261,7 +270,7 @@ final class CredentialIdentityStoreManagerTests: XCTestCase {
             hasPassword: false,
             hasTOTP: true
         )
-        let identity = CredentialIdentityStoreManager.oneTimeCodeIdentity(for: entry)
+        let identity = CredentialIdentityStoreManager.oneTimeCodeIdentity(for: entry, in: someDatabaseID)
 
         XCTAssertNotNil(identity)
         XCTAssertEqual(identity?.label, "user@example.com")
@@ -279,7 +288,7 @@ final class CredentialIdentityStoreManagerTests: XCTestCase {
             hasPassword: true,
             hasTOTP: false
         )
-        XCTAssertNil(CredentialIdentityStoreManager.oneTimeCodeIdentity(for: entry))
+        XCTAssertNil(CredentialIdentityStoreManager.oneTimeCodeIdentity(for: entry, in: someDatabaseID))
     }
 
     func testOTCIdentityNilWhenNoURL() throws {
@@ -294,7 +303,7 @@ final class CredentialIdentityStoreManagerTests: XCTestCase {
             hasPassword: false,
             hasTOTP: true
         )
-        XCTAssertNil(CredentialIdentityStoreManager.oneTimeCodeIdentity(for: entry))
+        XCTAssertNil(CredentialIdentityStoreManager.oneTimeCodeIdentity(for: entry, in: someDatabaseID))
     }
 
     func testOTCIdentityNilWhenNoLabelOrUsername() throws {
@@ -309,7 +318,7 @@ final class CredentialIdentityStoreManagerTests: XCTestCase {
             hasPassword: false,
             hasTOTP: true
         )
-        XCTAssertNil(CredentialIdentityStoreManager.oneTimeCodeIdentity(for: entry))
+        XCTAssertNil(CredentialIdentityStoreManager.oneTimeCodeIdentity(for: entry, in: someDatabaseID))
     }
 
     func testOTCIdentityUsesAdditionalURLWhenPrimaryEmpty() throws {
@@ -325,7 +334,7 @@ final class CredentialIdentityStoreManagerTests: XCTestCase {
             hasTOTP: true,
             customFields: ["KP2A_URL_1": "https://backup.example.com"]
         )
-        let identity = CredentialIdentityStoreManager.oneTimeCodeIdentity(for: entry)
+        let identity = CredentialIdentityStoreManager.oneTimeCodeIdentity(for: entry, in: someDatabaseID)
 
         XCTAssertNotNil(identity)
         XCTAssertEqual(identity?.serviceIdentifier.identifier, "example.com")

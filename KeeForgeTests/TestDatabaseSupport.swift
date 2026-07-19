@@ -30,7 +30,8 @@ enum TestDatabaseSupport {
         isQuickLaunch: Bool = false,
         lastOpenedAt: Date? = nil,
         addedAt: Date = .now,
-        legacyKeychainFilename: String? = nil
+        legacyKeychainFilename: String? = nil,
+        autoFillEnabled: Bool = true
     ) throws -> DatabaseReference {
         let bookmarkData = try makeBookmarkData(for: url)
 
@@ -55,7 +56,8 @@ enum TestDatabaseSupport {
             lastOpenedAt: lastOpenedAt,
             addedAt: addedAt,
             colorTag: nil,
-            legacyKeychainFilename: legacyKeychainFilename
+            legacyKeychainFilename: legacyKeychainFilename,
+            autoFillEnabled: autoFillEnabled
         )
     }
 

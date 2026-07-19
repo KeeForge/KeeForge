@@ -6,6 +6,9 @@ import XCTest
 final class PasskeyCredentialTests: XCTestCase {
 
     private let sessionKey = SymmetricKey(size: .bits256)
+    /// Owning-database id passed to the identity builder; the produced
+    /// identity's record identifier is tagged with it (slice 02).
+    private let someDatabaseID = UUID()
 
     private static let testPEM = "-----BEGIN PRIVATE KEY-----\nMIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQgZz8y\n-----END PRIVATE KEY-----"
 
@@ -212,16 +215,19 @@ final class PasskeyCredentialTests: XCTestCase {
 
     func testPasskeyIdentityCreatedForPasskeyEntry() throws {
         let entry = makeEntry(customFields: makePasskeyFields(), passkeyPrivateKey: try makeSealedKey())
-        let identity = CredentialIdentityStoreManager.passkeyIdentity(for: entry)
+        let identity = CredentialIdentityStoreManager.passkeyIdentity(for: entry, in: someDatabaseID)
         XCTAssertNotNil(identity)
         XCTAssertEqual(identity?.relyingPartyIdentifier, "example.com")
         XCTAssertEqual(identity?.userName, "alice@example.com")
-        XCTAssertEqual(identity?.recordIdentifier, entry.id.uuidString)
+        XCTAssertEqual(
+            identity?.recordIdentifier,
+            CredentialRecordIdentifier(databaseID: someDatabaseID, entryID: entry.id).encoded
+        )
     }
 
     func testPasskeyIdentityNilForNonPasskeyEntry() {
         let entry = makeEntry(customFields: [:])
-        XCTAssertNil(CredentialIdentityStoreManager.passkeyIdentity(for: entry))
+        XCTAssertNil(CredentialIdentityStoreManager.passkeyIdentity(for: entry, in: someDatabaseID))
     }
 
     // MARK: - Helpers
@@ -397,7 +403,7 @@ final class PasskeyCryptoTests: XCTestCase {
                 using: sessionKey
             )
         )
-        let identity = CredentialIdentityStoreManager.passkeyIdentity(for: entry)
+        let identity = CredentialIdentityStoreManager.passkeyIdentity(for: entry, in: UUID())
 
         // passkeyIdentity uses raw RP identifier (trim + lowercase only, no URL normalization)
         XCTAssertEqual(identity?.relyingPartyIdentifier, "https://www.example.com/login")

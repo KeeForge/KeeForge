@@ -14,14 +14,23 @@ final class DatabaseViewModelTests: XCTestCase {
         DatabaseListStore.clearAll()
         CloudAccountStore.clearAll()
         SharedVaultStore.clearBookmark()
+        resetCredentialIdentityStoreSeams()
     }
 
     override func tearDown() async throws {
         DatabaseListStore.clearAll()
         CloudAccountStore.clearAll()
         SharedVaultStore.clearBookmark()
-        CredentialIdentityStoreManager.populateObserver = nil
+        resetCredentialIdentityStoreSeams()
         try await super.tearDown()
+    }
+
+    private func resetCredentialIdentityStoreSeams() {
+        CredentialIdentityStoreManager.populateObserver = nil
+        CredentialIdentityStoreManager.clearObserver = nil
+        CredentialIdentityStoreManager.removeDatabaseObserver = nil
+        CredentialIdentityStoreManager.removeIdentityObserver = nil
+        CredentialIdentityStoreManager.storeProviderOverride = nil
     }
 
     func testInitialStateIsLockedWithSavedDatabaseReference() throws {
@@ -230,10 +239,13 @@ final class DatabaseViewModelTests: XCTestCase {
 
     func testForegroundRefreshRepopulatesCredentialStoreWhenUnlocked() async throws {
         let vm = try makeViewModel()
+        let expectedDatabaseID = vm.databaseReference.id
 
         let refreshExpectation = expectation(description: "Credential store repopulated after refresh")
         var populateCallCount = 0
-        CredentialIdentityStoreManager.populateObserver = { _ in
+        var observedDatabaseIDs: [UUID] = []
+        CredentialIdentityStoreManager.populateObserver = { databaseID, _ in
+            observedDatabaseIDs.append(databaseID)
             populateCallCount += 1
             if populateCallCount == 2 {
                 refreshExpectation.fulfill()
@@ -245,6 +257,11 @@ final class DatabaseViewModelTests: XCTestCase {
 
         await fulfillment(of: [refreshExpectation], timeout: 30)
         XCTAssertEqual(populateCallCount, 2)
+        XCTAssertEqual(
+            observedDatabaseIDs,
+            [expectedDatabaseID, expectedDatabaseID],
+            "Every populate must be tagged with the unlocked database's id"
+        )
     }
 
     func testApplyEntryEditRefreshesCredentialStoreFromDraft() async throws {
@@ -252,7 +269,7 @@ final class DatabaseViewModelTests: XCTestCase {
         let refreshExpectation = expectation(description: "Credential store refreshed after edit")
         var observedEntries: [[KPEntry]] = []
 
-        CredentialIdentityStoreManager.populateObserver = { entries in
+        CredentialIdentityStoreManager.populateObserver = { _, entries in
             observedEntries.append(entries)
             if observedEntries.count == 2 {
                 refreshExpectation.fulfill()
@@ -328,7 +345,7 @@ final class DatabaseViewModelTests: XCTestCase {
         let refreshExpectation = expectation(description: "Credential store refreshed after group recycle")
         var observedEntries: [[KPEntry]] = []
 
-        CredentialIdentityStoreManager.populateObserver = { entries in
+        CredentialIdentityStoreManager.populateObserver = { _, entries in
             observedEntries.append(entries)
             if observedEntries.count == 2 {
                 refreshExpectation.fulfill()
@@ -393,7 +410,7 @@ final class DatabaseViewModelTests: XCTestCase {
         let refreshExpectation = expectation(description: "Credential store refreshed after recycle bin move")
         var observedEntries: [[KPEntry]] = []
 
-        CredentialIdentityStoreManager.populateObserver = { entries in
+        CredentialIdentityStoreManager.populateObserver = { _, entries in
             observedEntries.append(entries)
             if observedEntries.count == 2 {
                 refreshExpectation.fulfill()
@@ -432,7 +449,7 @@ final class DatabaseViewModelTests: XCTestCase {
 
         let recycleExpectation = expectation(description: "Credential store refreshed after recycle bin move")
         var observedRecycleRefresh = false
-        CredentialIdentityStoreManager.populateObserver = { _ in
+        CredentialIdentityStoreManager.populateObserver = { _, _ in
             guard observedRecycleRefresh == false else { return }
             observedRecycleRefresh = true
             recycleExpectation.fulfill()
@@ -444,7 +461,7 @@ final class DatabaseViewModelTests: XCTestCase {
         let refreshExpectation = expectation(description: "Credential store refreshed after permanent delete")
         var refreshedEntries: [KPEntry] = []
         var observedPermanentDeleteRefresh = false
-        CredentialIdentityStoreManager.populateObserver = { entries in
+        CredentialIdentityStoreManager.populateObserver = { _, entries in
             guard observedPermanentDeleteRefresh == false else { return }
             observedPermanentDeleteRefresh = true
             refreshedEntries = entries
@@ -887,7 +904,7 @@ final class DatabaseViewModelTests: XCTestCase {
         )
         let refreshExpectation = expectation(description: "Credential store repopulated after save")
         var populateCallCount = 0
-        CredentialIdentityStoreManager.populateObserver = { _ in
+        CredentialIdentityStoreManager.populateObserver = { _, _ in
             populateCallCount += 1
             if populateCallCount == 2 {
                 refreshExpectation.fulfill()

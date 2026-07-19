@@ -8,13 +8,21 @@ final class CredentialProviderSaveTests: XCTestCase {
     override func setUp() async throws {
         try await super.setUp()
         DatabaseListStore.clearAll()
-        CredentialIdentityStoreManager.populateObserver = nil
+        resetCredentialIdentityStoreSeams()
     }
 
     override func tearDown() async throws {
         DatabaseListStore.clearAll()
-        CredentialIdentityStoreManager.populateObserver = nil
+        resetCredentialIdentityStoreSeams()
         try await super.tearDown()
+    }
+
+    private func resetCredentialIdentityStoreSeams() {
+        CredentialIdentityStoreManager.populateObserver = nil
+        CredentialIdentityStoreManager.clearObserver = nil
+        CredentialIdentityStoreManager.removeDatabaseObserver = nil
+        CredentialIdentityStoreManager.removeIdentityObserver = nil
+        CredentialIdentityStoreManager.storeProviderOverride = nil
     }
 
     func test_prepareDraft_usesPrefilledTitleUsernameAndProvidedPassword() {
@@ -104,7 +112,7 @@ final class CredentialProviderSaveTests: XCTestCase {
             },
             relativePathForURL: { _ in "unused" },
             enqueuePendingUpload: { _ in },
-            populateCredentialStore: { _ in },
+            populateCredentialStore: { _, _ in },
             now: { .now }
         )
 
@@ -267,7 +275,8 @@ final class CredentialProviderSaveTests: XCTestCase {
             enqueuePendingUpload: { marker in
                 recorder.enqueuedMarkers.append(marker)
             },
-            populateCredentialStore: { entries in
+            populateCredentialStore: { databaseID, entries in
+                recorder.populatedDatabaseIDs.append(databaseID)
                 recorder.populatedEntryTitles.append(entries.map(\.title).sorted())
             },
             now: {
@@ -276,7 +285,11 @@ final class CredentialProviderSaveTests: XCTestCase {
         )
     }
 
-    private func makeLocalReference(id: UUID = UUID(), isReadOnly: Bool = false) -> DatabaseReference {
+    private func makeLocalReference(
+        id: UUID = UUID(),
+        isReadOnly: Bool = false,
+        autoFillEnabled: Bool = true
+    ) -> DatabaseReference {
         DatabaseReference(
             id: id,
             nickname: nil,
@@ -289,11 +302,17 @@ final class CredentialProviderSaveTests: XCTestCase {
             addedAt: Date(timeIntervalSince1970: 0),
             colorTag: nil,
             legacyKeychainFilename: nil,
-            isReadOnly: isReadOnly
+            isReadOnly: isReadOnly,
+            autoFillEnabled: autoFillEnabled
         )
     }
 
-    private func makeCloudReference(id: UUID = UUID(), rev: String?, isReadOnly: Bool = false) -> DatabaseReference {
+    private func makeCloudReference(
+        id: UUID = UUID(),
+        rev: String?,
+        isReadOnly: Bool = false,
+        autoFillEnabled: Bool = true
+    ) -> DatabaseReference {
         DatabaseReference(
             id: id,
             nickname: nil,
@@ -307,6 +326,7 @@ final class CredentialProviderSaveTests: XCTestCase {
             colorTag: nil,
             legacyKeychainFilename: nil,
             isReadOnly: isReadOnly,
+            autoFillEnabled: autoFillEnabled,
             editsAcknowledgedAt: nil,
             source: .cloud(
                 CloudSyncMetadata(
@@ -335,6 +355,7 @@ final class CredentialProviderSaveTests: XCTestCase {
         var saveCalls: [SaveCall] = []
         var enqueuedMarkers: [PendingUploadQueue.Marker] = []
         var populatedEntryTitles: [[String]] = []
+        var populatedDatabaseIDs: [UUID] = []
         var relativePathInputs: [URL] = []
     }
 }
