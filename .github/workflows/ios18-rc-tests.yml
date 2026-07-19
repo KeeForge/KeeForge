@@ -1,0 +1,117 @@
+name: iOS 18 RC Tests
+
+# Minimum-OS coverage that Xcode Cloud cannot currently provide: its "Tests (RC)"
+# workflow can only pin the latest runtime (iOS 26.5) or iOS 16.4 — there is no
+# iOS 18.x runtime to pin — so this job runs the full unit + UI suites on an
+# iOS 18 simulator on GitHub-hosted runners, which ship iOS 18.0–18.5 runtimes.
+#
+# Trigger mirrors the Xcode Cloud RC gate: it runs on rc/* tag pushes (and can
+# be dispatched manually to validate the runner setup without cutting an RC).
+# It is supplementary coverage and does not gate the release; the Xcode Cloud RC
+# run remains the primary gate documented in .claude/skills/release.
+
+on:
+  push:
+    tags:
+      - 'rc/*'
+  workflow_dispatch:
+
+concurrency:
+  group: ios18-rc-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ios18-tests:
+    runs-on: macos-15
+    # Full unit + UI suites on a single (non-parallel) runner run longer than
+    # Xcode Cloud's 4-way-parallel RC run; give them room.
+    timeout-minutes: 120
+    env:
+      SCHEME: KeeForge
+      PROJECT: KeeForge.xcodeproj
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Select Xcode
+        run: |
+          # Use the latest stable Xcode on the runner — the same one that builds
+          # the project elsewhere — rather than pinning an older Xcode that may
+          # not compile the current sources. A modern Xcode can still drive an
+          # older (iOS 18) simulator runtime.
+          XCODE_PATH=$(ls -d /Applications/Xcode_*.app 2>/dev/null | sort -V | tail -1)
+          echo "Using Xcode: $XCODE_PATH"
+          sudo xcode-select -s "$XCODE_PATH"
+          xcodebuild -version
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Prepare build config
+        env:
+          DROPBOX_APP_KEY: CI_PLACEHOLDER_DROPBOX_APP_KEY
+        run: BOOTSTRAP_LOCAL_CONFIG_FROM_ENV=1 ./ci_scripts/prepare_build_config.sh .
+
+      - name: Generate project
+        run: xcodegen generate
+
+      - name: Create iOS 18 simulator
+        id: sim
+        run: |
+          set -euo pipefail
+          echo "Installed runtimes:"
+          xcrun simctl list runtimes
+
+          # Pick the newest installed, available iOS 18.x runtime. Fail loudly if
+          # the runner image has rotated the iOS 18 runtimes out (Apple/GitHub
+          # periodically deprecate older simulator runtimes on macos-15).
+          RUNTIME=$(xcrun simctl list runtimes --json | python3 -c '
+          import json, sys
+          runtimes = [
+              r for r in json.load(sys.stdin)["runtimes"]
+              if r.get("isAvailable") and r["identifier"].startswith("com.apple.CoreSimulator.SimRuntime.iOS-18")
+          ]
+          runtimes.sort(key=lambda r: [int(p) for p in r["version"].split(".")])
+          if not runtimes:
+              sys.exit("No iOS 18.x simulator runtime is available on this runner image.")
+          print(runtimes[-1]["identifier"])
+          ')
+          echo "Using runtime: $RUNTIME"
+
+          # iPhone SE (3rd gen): compact width, which is the layout that surfaced
+          # the iOS 17 editor-navigation hang this job exists to catch.
+          UDID=$(xcrun simctl create "KeeForge-iOS18" \
+            "com.apple.CoreSimulator.SimDeviceType.iPhone-SE-3rd-generation" "$RUNTIME")
+          echo "Created simulator: $UDID"
+          xcrun simctl boot "$UDID" || true
+          echo "udid=$UDID" >> "$GITHUB_OUTPUT"
+
+      - name: Build for testing
+        run: |
+          set -o pipefail
+          xcodebuild build-for-testing \
+            -project "$PROJECT" \
+            -scheme "$SCHEME" \
+            -destination "platform=iOS Simulator,id=${{ steps.sim.outputs.udid }}" \
+            -skipPackagePluginValidation \
+            | xcpretty
+
+      - name: Unit tests (KeeForgeTests)
+        run: |
+          set -o pipefail
+          xcodebuild test-without-building \
+            -project "$PROJECT" \
+            -scheme "$SCHEME" \
+            -destination "platform=iOS Simulator,id=${{ steps.sim.outputs.udid }}" \
+            -only-testing:KeeForgeTests \
+            | xcpretty
+
+      - name: UI tests (KeeForgeUITests)
+        run: |
+          set -o pipefail
+          xcodebuild test-without-building \
+            -project "$PROJECT" \
+            -scheme "$SCHEME" \
+            -destination "platform=iOS Simulator,id=${{ steps.sim.outputs.udid }}" \
+            -only-testing:KeeForgeUITests \
+            | xcpretty
