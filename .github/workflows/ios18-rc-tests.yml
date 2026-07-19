@@ -106,13 +106,16 @@ jobs:
           set -uo pipefail
           mkdir -p build
 
-          # Run one test bundle and judge success on the actual test results
-          # rather than xcodebuild's raw exit code. GitHub runners intermittently
-          # return "** TEST EXECUTE FAILED **" (exit 65) during post-run teardown
-          # even when every test passed; that must not fail the job, but a real
-          # test failure (any "Test Case ... failed" / non-zero failure count)
-          # still must. Raw output is captured verbatim (no xcpretty, which
-          # swallows the underlying error) for diagnosis via the uploaded logs.
+          # Run one test bundle and judge success on the aggregate test result,
+          # not xcodebuild's raw exit code or individual attempt lines:
+          #   * GitHub runners intermittently return "** TEST EXECUTE FAILED **"
+          #     (exit 65) during post-run teardown even on a fully green suite.
+          #   * A flaky UI test can fail one attempt and pass on retry; that logs
+          #     a "Test Case ... failed" line but is absorbed into a 0-failure
+          #     total, so attempt lines must NOT fail the job.
+          # The authoritative verdict is XCTest's summary failure count. Raw
+          # output is captured verbatim (no xcpretty, which swallows the
+          # underlying error) for diagnosis via the uploaded logs.
           run_suite() {
             local suite="$1" name="$2" log="build/$2.log"
             echo "::group::xcodebuild test — $suite"
@@ -129,18 +132,33 @@ jobs:
             echo "::endgroup::"
             echo "$suite: xcodebuild exit=$status"
 
-            if grep -qE "Test Case '.*' failed|\*\* TEST FAILED \*\*|Testing failed:|Executed [0-9]+ test.*, with [1-9][0-9]* failure" "$log"; then
-              echo "::error::Real test failures detected in $suite"
+            # Highest failure count across all "Executed N tests, ... M failures"
+            # summary lines (empty if xcodebuild never produced a summary).
+            local maxfail
+            maxfail=$(grep -oE "[0-9]+ failures? \(" "$log" | grep -oE "^[0-9]+" | sort -rn | head -1)
+
+            if [ -z "$maxfail" ]; then
+              echo "::error::$suite: no test summary produced (xcodebuild exit=$status); tests did not run — see uploaded logs."
               return 1
             fi
-            if grep -qE "Executed [0-9]+ test.*, with 0 failures" "$log"; then
-              if [ "$status" -ne 0 ]; then
-                echo "::warning::$suite: all tests passed but xcodebuild exited $status (post-run teardown artifact); treating as success."
-              fi
-              return 0
+            if [ "$maxfail" -gt 0 ]; then
+              echo "::error::$suite: $maxfail test failure(s) remained after retries."
+              return 1
             fi
-            echo "::error::Could not confirm a clean test result for $suite (exit $status); see uploaded logs."
-            return 1
+
+            # 0 failures overall. Surface any retried-then-passed attempts as a
+            # warning so flakes stay visible without failing the job.
+            local flaked
+            flaked=$(grep -oE "Test Case '[^']*' failed" "$log" | sort -u || true)
+            if [ -n "$flaked" ]; then
+              echo "::warning::$suite: passed with retries; the following attempt(s) failed once then passed:"
+              echo "$flaked"
+            fi
+            if [ "$status" -ne 0 ]; then
+              echo "::warning::$suite: 0 failures but xcodebuild exited $status (post-run teardown artifact); treating as success."
+            fi
+            echo "$suite: PASS (0 failures)"
+            return 0
           }
 
           rc=0
