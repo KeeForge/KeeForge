@@ -28,20 +28,13 @@ enum AutoFillStatusService {
         return await enabledProvider()
     }
 
-    /// iOS 18+: shows the system prompt in-app and returns whether the
-    /// provider ended up enabled. iOS 17: deep-links to iOS AutoFill settings
-    /// and returns nil (result unknown until the scene becomes active again).
-    /// macOS: no-op until the Mac AutoFill extension ships (slice 05 of the
-    /// macOS port); `requestToTurnOnCredentialProviderExtension` needs
-    /// macOS 15 and there is no extension to enable yet.
+    /// iOS: shows the system prompt in-app and returns whether the provider
+    /// ended up enabled. macOS: no-op until the Mac AutoFill extension ships
+    /// (slice 05 of the macOS port); `requestToTurnOnCredentialProviderExtension`
+    /// needs macOS 15 and there is no extension to enable yet.
     static func requestEnableAutoFill() async -> Bool? {
         #if os(iOS)
-        if #available(iOS 18.0, *) {
-            return await ASSettingsHelper.requestToTurnOnCredentialProviderExtension()
-        } else {
-            await openAutoFillSettings()
-            return nil
-        }
+        return await ASSettingsHelper.requestToTurnOnCredentialProviderExtension()
         #else
         return nil
         #endif

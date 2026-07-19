@@ -92,9 +92,10 @@ final class StoreKitManager {
     /// Tips are consumable products, so completed purchases only appear in
     /// `Transaction.all` on iOS 18+/macOS 15+ (and only with
     /// `SKIncludeConsumableInAppPurchaseHistory` set in Info.plist, which it is).
-    /// On our minimum deployment targets (iOS 17 / macOS 14) this history can be
-    /// empty even for someone who has tipped, so the persisted
-    /// `SettingsService.hasTipped` flag remains the source of truth. This method
+    /// Our iOS minimum is now 18, but the macOS minimum is still 14, so on
+    /// macOS 14 this history can be empty even for someone who has tipped;
+    /// the persisted `SettingsService.hasTipped` flag remains the source of
+    /// truth. This method
     /// only ever *promotes* `hasTipped` to true via `rememberTip()` and never
     /// regresses a previously recorded tip back to false.
     func refreshTipHistory() async {

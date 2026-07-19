@@ -201,8 +201,8 @@ final class DatabaseListViewModel {
     }
 
     func requestEnableAutoFill() async {
-        // nil means the iOS 17 deep-link path; the scene-active re-check
-        // picks up the result when the user returns from Settings.
+        // A nil result means the request was a no-op (macOS, where the AutoFill
+        // extension does not ship yet); only flip the flag on a confirmed enable.
         if await AutoFillStatusService.requestEnableAutoFill() == true {
             isAutoFillProviderEnabled = true
         }
