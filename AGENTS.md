@@ -57,6 +57,7 @@ If you are a very powerful model like Fable 5, feel free to delegate implementat
 - Four catalogs: `Localizable.xcstrings` + `InfoPlist.xcstrings` under `KeeForge/Resources/`, mirrored under `AutoFillExtension/`. Reach user-facing strings via `String(localized:)` (or SwiftUI's automatic catalog lookup) — never hardcode display text.
 - Every English key needs a translation in each shipped locale; `KeeForgeTests/LocalizationTests.swift` fails the build on missing or drifted translations. Run it after touching any catalog.
 - When adding a new locale, also translate the user-facing docs: the `README.md` files, and the separate `keeforge.com` website repo (its content needs the same locale coverage).
+- Xcode reserializes `.xcstrings` into its own canonical style on open/build, so editing a catalog as plain JSON causes a large reordering diff next time. After any programmatic catalog edit, run `swift scripts/normalize-xcstrings.swift` (no args = all catalogs; `--check` gates CI) so committed bytes match Xcode's.
 
 ### Research Notes
 
