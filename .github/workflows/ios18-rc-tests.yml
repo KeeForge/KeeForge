@@ -1,14 +1,16 @@
 name: iOS 18 RC Tests
 
-# Minimum-OS coverage that Xcode Cloud cannot currently provide: its "Tests (RC)"
-# workflow can only pin the latest runtime (iOS 26.5) or iOS 16.4 — there is no
-# iOS 18.x runtime to pin — so this job runs the full unit + UI suites on an
-# iOS 18 simulator on GitHub-hosted runners, which ship iOS 18.0–18.5 runtimes.
+# Minimum-OS coverage that Xcode Cloud cannot currently provide: since the
+# deployment target moved to iOS 18, its "Tests (RC)" action can only pin the
+# latest runtime (iOS 26.5) or iOS 16.4 — there is no iOS 18.x runtime to pin.
+# GitHub-hosted macos-15 runners do ship iOS 18.0–18.5 runtimes, so this job
+# runs the full unit + UI suites on an iOS 18 simulator to catch minimum-OS
+# regressions (like the iOS 17 editor-navigation hang that motivated dropping
+# iOS 17).
 #
-# Trigger mirrors the Xcode Cloud RC gate: it runs on rc/* tag pushes (and can
-# be dispatched manually to validate the runner setup without cutting an RC).
-# It is supplementary coverage and does not gate the release; the Xcode Cloud RC
-# run remains the primary gate documented in .claude/skills/release.
+# Trigger mirrors the Xcode Cloud RC gate (rc/* tag push) and also allows manual
+# dispatch. It is supplementary coverage and does not gate the release; the
+# Xcode Cloud RC run remains the primary gate documented in .claude/skills/release.
 
 on:
   push:
@@ -89,29 +91,70 @@ jobs:
       - name: Build for testing
         run: |
           set -o pipefail
+          mkdir -p build
           xcodebuild build-for-testing \
             -project "$PROJECT" \
             -scheme "$SCHEME" \
             -destination "platform=iOS Simulator,id=${{ steps.sim.outputs.udid }}" \
             -skipPackagePluginValidation \
-            | xcpretty
+            2>&1 | tee build/build-for-testing.log | xcpretty
 
-      - name: Unit tests (KeeForgeTests)
+      - name: Run tests (iOS 18)
+        env:
+          UDID: ${{ steps.sim.outputs.udid }}
         run: |
-          set -o pipefail
-          xcodebuild test-without-building \
-            -project "$PROJECT" \
-            -scheme "$SCHEME" \
-            -destination "platform=iOS Simulator,id=${{ steps.sim.outputs.udid }}" \
-            -only-testing:KeeForgeTests \
-            | xcpretty
+          set -uo pipefail
+          mkdir -p build
 
-      - name: UI tests (KeeForgeUITests)
-        run: |
-          set -o pipefail
-          xcodebuild test-without-building \
-            -project "$PROJECT" \
-            -scheme "$SCHEME" \
-            -destination "platform=iOS Simulator,id=${{ steps.sim.outputs.udid }}" \
-            -only-testing:KeeForgeUITests \
-            | xcpretty
+          # Run one test bundle and judge success on the actual test results
+          # rather than xcodebuild's raw exit code. GitHub runners intermittently
+          # return "** TEST EXECUTE FAILED **" (exit 65) during post-run teardown
+          # even when every test passed; that must not fail the job, but a real
+          # test failure (any "Test Case ... failed" / non-zero failure count)
+          # still must. Raw output is captured verbatim (no xcpretty, which
+          # swallows the underlying error) for diagnosis via the uploaded logs.
+          run_suite() {
+            local suite="$1" name="$2" log="build/$2.log"
+            echo "::group::xcodebuild test — $suite"
+            set +e
+            xcodebuild test-without-building \
+              -project "$PROJECT" \
+              -scheme "$SCHEME" \
+              -destination "platform=iOS Simulator,id=$UDID" \
+              -only-testing:"$suite" \
+              -resultBundlePath "build/$name.xcresult" \
+              2>&1 | tee "$log"
+            local status=${PIPESTATUS[0]}
+            set -e
+            echo "::endgroup::"
+            echo "$suite: xcodebuild exit=$status"
+
+            if grep -qE "Test Case '.*' failed|\*\* TEST FAILED \*\*|Testing failed:|Executed [0-9]+ test.*, with [1-9][0-9]* failure" "$log"; then
+              echo "::error::Real test failures detected in $suite"
+              return 1
+            fi
+            if grep -qE "Executed [0-9]+ test.*, with 0 failures" "$log"; then
+              if [ "$status" -ne 0 ]; then
+                echo "::warning::$suite: all tests passed but xcodebuild exited $status (post-run teardown artifact); treating as success."
+              fi
+              return 0
+            fi
+            echo "::error::Could not confirm a clean test result for $suite (exit $status); see uploaded logs."
+            return 1
+          }
+
+          rc=0
+          run_suite "KeeForgeTests" "unit" || rc=1
+          run_suite "KeeForgeUITests" "ui" || rc=1
+          exit "$rc"
+
+      - name: Upload test logs and result bundles
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios18-test-results
+          path: |
+            build/*.log
+            build/*.xcresult
+          if-no-files-found: warn
+          retention-days: 14
