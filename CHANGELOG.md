@@ -1,5 +1,24 @@
 # Changelog
 
+## macOS App (in development — ON HOLD, do not release until revisited)
+
+Not part of any iOS release. The `KeeForgeMac` targets build and test green but the Mac app must not ship until the items below are done and the UX has been personally approved.
+
+Done so far (2026-07-12 → 2026-07-15, spec: `docs/specs/2026-07-12-macos-port/`):
+- Native macOS build target: full KDBX core, local vaults, unit suite (701 tests) running natively; App Sandbox + Hardened Runtime, provisioning verified.
+- Menu bar commands, Settings window, automatic locking on screen lock/sleep/screensaver; Escape on the unlock screen returns to the database list.
+- System-wide AutoFill extension (passwords + passkeys) embedded and signed — see TODO on Settings visibility.
+- Screen-privacy protections (blur on focus loss, screen-capture blocking toggle), attachment Quick Look, review prompts, favicon cache kept out of the world-readable group container (`docs/macos-security-notes.md`).
+- Dropbox/OneDrive OAuth implemented but hidden in the UI; WebDAV fully available.
+- Native visual polish pass: three-column sidebar navigation, Mac toolbar, standard input fields, tightened density, window sizing.
+
+TODO before the first macOS release:
+- [ ] User verdict on the UX polish pass (daily-drive the app; after-screenshots reviewed).
+- [ ] AutoFill provider not appearing in System Settings → AutoFill & Passwords despite correct registration/entitlements. Next rungs: reboot, distribution-signed build (comes with slice 07), diff against a known-working provider.
+- [ ] Re-enable Dropbox/OneDrive UI after end-to-end validation on Mac (`TODO(macos-port)` in `CloudSyncModels.swift`); register/verify redirect URIs in the Dropbox and Azure consoles.
+- [ ] Slice 07 — distribution (`07-distribution.md`): App Store Connect Mac platform + universal purchase, TestFlight, Developer ID certificate + provisioning profile for `com.keevault.app.autofill` (xcodebuild cannot auto-create DevID profiles), notarization, Sparkle (EdDSA key, appcast hosting), MAS/Developer ID build-config seam, tip-jar vs Sponsors swap, release-skill/docs updates.
+- [ ] Manual QA: cloud sign-in end-to-end with relaunch token survival; AutoFill matrix (Safari/Chromium/native fill, webauthn.io passkeys, cancel-everywhere relock); reveal-auth prompt on a non-Touch-ID Mac; ⇧⌘4 capture-block behavior recorded on macOS 26.
+
 ## Unreleased
 
 ### New Features
@@ -58,25 +77,6 @@
 ### Security
 
 - Password reveal and copy now always require device-owner authentication, even when biometrics are unavailable (hardening back-ported from the macOS work).
-
-## macOS App (in development — ON HOLD, do not release until revisited)
-
-Not part of any iOS release. The `KeeForgeMac` targets build and test green but the Mac app must not ship until the items below are done and the UX has been personally approved.
-
-Done so far (2026-07-12 → 2026-07-15, spec: `docs/specs/2026-07-12-macos-port/`):
-- Native macOS build target: full KDBX core, local vaults, unit suite (701 tests) running natively; App Sandbox + Hardened Runtime, provisioning verified.
-- Menu bar commands, Settings window, automatic locking on screen lock/sleep/screensaver; Escape on the unlock screen returns to the database list.
-- System-wide AutoFill extension (passwords + passkeys) embedded and signed — see TODO on Settings visibility.
-- Screen-privacy protections (blur on focus loss, screen-capture blocking toggle), attachment Quick Look, review prompts, favicon cache kept out of the world-readable group container (`docs/macos-security-notes.md`).
-- Dropbox/OneDrive OAuth implemented but hidden in the UI; WebDAV fully available.
-- Native visual polish pass: three-column sidebar navigation, Mac toolbar, standard input fields, tightened density, window sizing.
-
-TODO before the first macOS release:
-- [ ] User verdict on the UX polish pass (daily-drive the app; after-screenshots reviewed).
-- [ ] AutoFill provider not appearing in System Settings → AutoFill & Passwords despite correct registration/entitlements. Next rungs: reboot, distribution-signed build (comes with slice 07), diff against a known-working provider.
-- [ ] Re-enable Dropbox/OneDrive UI after end-to-end validation on Mac (`TODO(macos-port)` in `CloudSyncModels.swift`); register/verify redirect URIs in the Dropbox and Azure consoles.
-- [ ] Slice 07 — distribution (`07-distribution.md`): App Store Connect Mac platform + universal purchase, TestFlight, Developer ID certificate + provisioning profile for `com.keevault.app.autofill` (xcodebuild cannot auto-create DevID profiles), notarization, Sparkle (EdDSA key, appcast hosting), MAS/Developer ID build-config seam, tip-jar vs Sponsors swap, release-skill/docs updates.
-- [ ] Manual QA: cloud sign-in end-to-end with relaunch token survival; AutoFill matrix (Safari/Chromium/native fill, webauthn.io passkeys, cancel-everywhere relock); reveal-auth prompt on a non-Touch-ID Mac; ⇧⌘4 capture-block behavior recorded on macOS 26.
 
 ## v1.10.1 (2026-07-12)
 
