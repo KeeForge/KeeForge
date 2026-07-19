@@ -1,0 +1,4 @@
+interface:
+  display_name: "Publish KeeForge App Store Version"
+  short_description: "Prepare KeeForge for App Store review"
+  default_prompt: "Use $publish-app-store-version to prepare KeeForge version {version} in App Store Connect and stop before final submission."
