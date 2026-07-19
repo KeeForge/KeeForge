@@ -119,8 +119,14 @@ enum AutoFillSaveCoordinator {
                 }.value
             }
 
-            DatabaseListStore.activeAutoFillDatabaseID = reference.id
-            environment.populateCredentialStore(credentialStoreEntries(from: outcome.savedRootGroup))
+            // Defensive: a database with AutoFill disabled must neither become
+            // the active AutoFill database nor publish identities, even if the
+            // extension somehow saved into it (slice 03 of the selectable-
+            // AutoFill epic makes disabled databases unreachable there).
+            if reference.autoFillEnabled {
+                DatabaseListStore.activeAutoFillDatabaseID = reference.id
+                environment.populateCredentialStore(credentialStoreEntries(from: outcome.savedRootGroup))
+            }
 
             return .saved(
                 SaveOutcome(

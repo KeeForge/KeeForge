@@ -1621,6 +1621,14 @@ final class DatabaseViewModel {
 
     private func populateCredentialStoreIfNeeded(root: KPGroup) {
         guard SettingsService.quickAutoFillEnabled else { return }
+        // Check the persisted registry (not just the in-memory copy, which can
+        // be stale after the list screen toggles the flag): a database with
+        // AutoFill disabled must neither claim the active pointer nor publish
+        // identities — whatever database last populated the credential store
+        // keeps its suggestions untouched.
+        let currentReference = DatabaseListStore.databases
+            .first { $0.id == databaseReference.id } ?? databaseReference
+        guard currentReference.autoFillEnabled else { return }
         DatabaseListStore.activeAutoFillDatabaseID = databaseReference.id
         CredentialIdentityStoreManager.populate(with: Self.credentialStoreEntries(from: root))
     }

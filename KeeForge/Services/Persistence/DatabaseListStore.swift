@@ -102,10 +102,21 @@ enum DatabaseListStore {
             return UUID(uuidString: rawValue)
         }
         set {
-            if let newValue {
-                sharedDefaults.set(newValue.uuidString, forKey: activeAutoFillDatabaseIDKey)
-            } else {
-                sharedDefaults.removeObject(forKey: activeAutoFillDatabaseIDKey)
+            withStateLock {
+                if let newValue {
+                    // A database with AutoFill disabled can never become the
+                    // active AutoFill database; refuse the write and keep the
+                    // current pointer. IDs unknown to the persisted registry
+                    // pass through unchanged (e.g. references that have not
+                    // been saved to the list yet).
+                    let knownReference = decodeStoredDatabases().first { $0.id == newValue }
+                    if knownReference?.autoFillEnabled == false {
+                        return
+                    }
+                    sharedDefaults.set(newValue.uuidString, forKey: activeAutoFillDatabaseIDKey)
+                } else {
+                    sharedDefaults.removeObject(forKey: activeAutoFillDatabaseIDKey)
+                }
             }
         }
     }
@@ -114,11 +125,18 @@ enum DatabaseListStore {
         let currentDatabases = loadDatabases()
 
         if let activeAutoFillDatabaseID,
-           let reference = currentDatabases.first(where: { $0.id == activeAutoFillDatabaseID }) {
+           let reference = currentDatabases.first(where: { $0.id == activeAutoFillDatabaseID }),
+           reference.autoFillEnabled {
             return reference
         }
 
         return fallbackAutoFillDatabase(in: currentDatabases)
+    }
+
+    /// Databases that participate in AutoFill. Only these may publish
+    /// credential identities or become the active AutoFill database.
+    static var autoFillEnabledDatabases: [DatabaseReference] {
+        loadDatabases().filter(\.autoFillEnabled)
     }
 
     static func databaseBackupDirectoryURL(for reference: DatabaseReference) -> URL {
@@ -311,6 +329,33 @@ enum DatabaseListStore {
         }
     }
 
+    /// Owns the consequences of toggling a database's AutoFill participation
+    /// (mirroring how `remove(id:)` owns removal consequences): when the
+    /// currently active AutoFill database is disabled, the credential identity
+    /// store is cleared and the active pointer is handed to the most recently
+    /// opened AutoFill-enabled database, or cleared when none exists.
+    ///
+    /// Clearing the whole store is interim coarse behavior — identities carry
+    /// no database attribution yet, so the disabled database's identities can
+    /// only be removed by wiping everything; other enabled databases repopulate
+    /// lazily on their next unlock. Targeted per-database removal replaces this
+    /// in slice 04 of the selectable-AutoFill epic.
+    static func setAutoFillEnabled(_ isEnabled: Bool, for reference: DatabaseReference) {
+        withStateLock {
+            guard var updatedReference = loadDatabases().first(where: { $0.id == reference.id }) else { return }
+            guard updatedReference.autoFillEnabled != isEnabled else { return }
+
+            let wasActive = activeAutoFillDatabase?.id == reference.id
+            updatedReference.autoFillEnabled = isEnabled
+            update(updatedReference)
+
+            guard isEnabled == false, wasActive else { return }
+
+            activeAutoFillDatabaseID = nextActiveAutoFillDatabaseID(excluding: reference.id)
+            CredentialIdentityStoreManager.clearStore()
+        }
+    }
+
     static func acknowledgeEdits(for reference: DatabaseReference, at date: Date = .now) {
         withStateLock {
             guard var updatedReference = loadDatabases().first(where: { $0.id == reference.id }) else { return }
@@ -338,7 +383,13 @@ enum DatabaseListStore {
             guard var reference = loadDatabases().first(where: { $0.id == id }) else { return }
             reference.lastOpenedAt = date
             update(reference)
-            activeAutoFillDatabaseID = id
+            // Opening a database with AutoFill disabled must not make it the
+            // active AutoFill database; the previous pointer stays in place.
+            // (The `activeAutoFillDatabaseID` setter also refuses disabled
+            // ids; this guard just makes the write path explicit.)
+            if reference.autoFillEnabled {
+                activeAutoFillDatabaseID = id
+            }
         }
     }
 
@@ -546,7 +597,16 @@ enum DatabaseListStore {
         withStateLock {
             bootstrapForUITestingIfNeeded()
             migrateFromSharedVaultStoreIfNeeded()
+            return decodeStoredDatabases()
+        }
+    }
 
+    /// Decodes `database-list.json` without triggering UI-test bootstrap or
+    /// legacy migration. The `activeAutoFillDatabaseID` setter's gate uses
+    /// this because it can run mid-migration, where re-entering
+    /// `loadDatabases()` could recurse back into the migration path.
+    private static func decodeStoredDatabases() -> [DatabaseReference] {
+        withStateLock {
             guard let data = try? Data(contentsOf: databaseListURL) else {
                 return []
             }
@@ -590,7 +650,7 @@ enum DatabaseListStore {
             }
 
             if let activeAutoFillDatabaseID,
-               normalizedReferences.contains(where: { $0.id == activeAutoFillDatabaseID }) == false {
+               normalizedReferences.contains(where: { $0.id == activeAutoFillDatabaseID && $0.autoFillEnabled }) == false {
                 self.activeAutoFillDatabaseID = nil
             }
         }
@@ -915,7 +975,17 @@ enum DatabaseListStore {
     }
 
     private static func fallbackAutoFillDatabase(in references: [DatabaseReference]) -> DatabaseReference? {
-        references.first { $0.legacyKeychainFilename != nil }
+        references.first { $0.legacyKeychainFilename != nil && $0.autoFillEnabled }
+    }
+
+    /// The id the active pointer should fall to after `excludedID` stops being
+    /// eligible: the most recently opened AutoFill-enabled database, or nil
+    /// when no other enabled database has ever been opened.
+    private static func nextActiveAutoFillDatabaseID(excluding excludedID: UUID) -> UUID? {
+        loadDatabases()
+            .filter { $0.autoFillEnabled && $0.id != excludedID && $0.lastOpenedAt != nil }
+            .max { ($0.lastOpenedAt ?? .distantPast) < ($1.lastOpenedAt ?? .distantPast) }?
+            .id
     }
 
     private static func existingLocalReference(

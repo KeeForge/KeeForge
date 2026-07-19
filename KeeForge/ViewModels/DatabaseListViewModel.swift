@@ -119,6 +119,17 @@ final class DatabaseListViewModel {
         }
     }
 
+    /// Toggles a database's AutoFill participation (surfaced by the settings
+    /// UI in slice 05 of the selectable-AutoFill epic). Unlike the other flag
+    /// setters this delegates to `DatabaseListStore.setAutoFillEnabled` rather
+    /// than the generic `update`, because the store owns the disable
+    /// consequences: clearing the credential identity store and reassigning
+    /// the active AutoFill pointer when the active database is disabled.
+    func setAutoFillEnabled(_ isEnabled: Bool, for reference: DatabaseReference) {
+        DatabaseListStore.setAutoFillEnabled(isEnabled, for: reference)
+        reload()
+    }
+
     func setKeyFile(url: URL?, for reference: DatabaseReference) throws {
         try update(reference) { updatedReference in
             if let url {
