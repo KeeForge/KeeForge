@@ -57,7 +57,7 @@ enum DatabaseListStore {
     /// mutators (e.g. `setReadOnly`, `markDatabaseOpened`) run their whole
     /// read-modify-write under it and then re-enter through `loadDatabases()` /
     /// `saveDatabases()` on the same thread.
-    private nonisolated(unsafe) static let stateLock = NSRecursiveLock()
+    private static let stateLock = NSRecursiveLock()
 
     private static func withStateLock<T>(_ body: () throws -> T) rethrows -> T {
         stateLock.lock()
