@@ -70,10 +70,11 @@ enum ReviewPromptService {
         }
 
         #if os(iOS)
-        // iOS keeps the existing scene-based path (not deprecated on iOS).
+        // iOS keeps the scene-based path via `AppStore.requestReview(in:)`,
+        // which replaced the deprecated `SKStoreReviewController` in iOS 18.
         if let scene = UIApplication.shared.connectedScenes
             .first(where: { $0.activationState == .foregroundActive }) as? UIWindowScene {
-            SKStoreReviewController.requestReview(in: scene)
+            AppStore.requestReview(in: scene)
         }
         #else
         // macOS: `SKStoreReviewController.requestReview()` was the slice-01
