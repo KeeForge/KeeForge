@@ -6,17 +6,18 @@ import XCTest
 final class DatabaseListViewModelTests: XCTestCase {
     private let autoFillSuiteName = "DatabaseListViewModelTests.AutoFill"
 
-    override func setUp() {
-        super.setUp()
+    override func setUp() async throws {
+        try await super.setUp()
         DatabaseListStore.clearAll()
         CloudAccountStore.clearAll()
         SharedVaultStore.clearBookmark()
         SettingsService.showDatabaseUsageStats = true
         AutoFillStatusService.defaults = UserDefaults(suiteName: autoFillSuiteName)!
         AutoFillStatusService.resetForTesting()
+        resetCredentialIdentityStoreSeams()
     }
 
-    override func tearDown() {
+    override func tearDown() async throws {
         DatabaseListStore.clearAll()
         CloudAccountStore.clearAll()
         SharedVaultStore.clearBookmark()
@@ -27,7 +28,16 @@ final class DatabaseListViewModelTests: XCTestCase {
             await ASCredentialIdentityStore.shared.state().isEnabled
         }
         UserDefaults.standard.removePersistentDomain(forName: autoFillSuiteName)
-        super.tearDown()
+        resetCredentialIdentityStoreSeams()
+        try await super.tearDown()
+    }
+
+    private func resetCredentialIdentityStoreSeams() {
+        CredentialIdentityStoreManager.populateObserver = nil
+        CredentialIdentityStoreManager.clearObserver = nil
+        CredentialIdentityStoreManager.removeDatabaseObserver = nil
+        CredentialIdentityStoreManager.removeIdentityObserver = nil
+        CredentialIdentityStoreManager.storeProviderOverride = nil
     }
 
     func testLocalRowStatusDefersBookmarkAccessUntilOpen() throws {
@@ -93,6 +103,96 @@ final class DatabaseListViewModelTests: XCTestCase {
         let updatedReference = try XCTUnwrap(DatabaseListStore.databases.first(where: { $0.id == reference.id }))
         XCTAssertEqual(updatedReference.nickname, "Work Vault")
         XCTAssertEqual(viewModel.databases.first(where: { $0.id == reference.id })?.displayName, "Work Vault")
+    }
+
+    // MARK: - Per-database AutoFill toggle
+
+    func testSetAutoFillEnabledFalsePersistsAndTriggersTargetedRemoval() async throws {
+        let reference = try DatabaseListStore.add(url: makeTemporaryFileURL(name: "autofill-off.kdbx"))
+        let viewModel = DatabaseListViewModel()
+
+        // Routing through DatabaseListStore.setAutoFillEnabled (not the
+        // generic update bypass) means the store's targeted removal runs —
+        // and a whole-store clear must never happen for a single disable.
+        CredentialIdentityStoreManager.clearObserver = {
+            XCTFail("Disabling one database must use targeted identity removal, never a whole-store clear")
+        }
+
+        let removalExpectation = expectation(description: "Targeted identity removal for the disabled database")
+        CredentialIdentityStoreManager.removeDatabaseObserver = { databaseID, _ in
+            XCTAssertEqual(databaseID, reference.id)
+            removalExpectation.fulfill()
+        }
+
+        viewModel.setAutoFillEnabled(false, for: reference)
+
+        await fulfillment(of: [removalExpectation], timeout: 1)
+        try? await Task.sleep(for: .milliseconds(100))
+
+        let storedReference = try XCTUnwrap(DatabaseListStore.databases.first(where: { $0.id == reference.id }))
+        XCTAssertFalse(storedReference.autoFillEnabled)
+        let reloadedReference = try XCTUnwrap(viewModel.databases.first(where: { $0.id == reference.id }))
+        XCTAssertFalse(reloadedReference.autoFillEnabled, "reload() should refresh the view model's copy of the flag")
+        XCTAssertFalse(DatabaseListStore.autoFillEnabledDatabases.contains(where: { $0.id == reference.id }))
+    }
+
+    func testSetAutoFillEnabledTrueInvokesRefreshHandlerWithDatabaseID() throws {
+        let reference = try DatabaseListStore.add(url: makeTemporaryFileURL(name: "refresh-on-enable.kdbx"))
+        let viewModel = DatabaseListViewModel()
+
+        var refreshedDatabaseIDs: [UUID] = []
+        viewModel.autoFillEnabledRefreshHandler = { refreshedDatabaseIDs.append($0) }
+
+        viewModel.setAutoFillEnabled(false, for: reference)
+        viewModel.setAutoFillEnabled(true, for: reference)
+
+        XCTAssertEqual(
+            refreshedDatabaseIDs,
+            [reference.id],
+            "The refresh handler must fire exactly once, with the reference's id, and only for the enable"
+        )
+    }
+
+    func testSetAutoFillEnabledFalseDoesNotInvokeRefreshHandler() throws {
+        let reference = try DatabaseListStore.add(url: makeTemporaryFileURL(name: "no-refresh-on-disable.kdbx"))
+        let viewModel = DatabaseListViewModel()
+
+        viewModel.autoFillEnabledRefreshHandler = { _ in
+            XCTFail("Disable is removal-only; there is nothing to republish, so the refresh handler must stay silent")
+        }
+
+        viewModel.setAutoFillEnabled(false, for: reference)
+
+        let storedReference = try XCTUnwrap(DatabaseListStore.databases.first(where: { $0.id == reference.id }))
+        XCTAssertFalse(storedReference.autoFillEnabled)
+    }
+
+    func testDisablingActiveDatabaseThroughViewModelReassignsPointerAndPassesLegacyFlag() async throws {
+        let first = try DatabaseListStore.add(url: makeTemporaryFileURL(name: "active.kdbx"))
+        let second = try DatabaseListStore.add(url: makeTemporaryFileURL(name: "fallback.kdbx"))
+        DatabaseListStore.markDatabaseOpened(id: second.id, at: Date(timeIntervalSinceNow: -60))
+        DatabaseListStore.markDatabaseOpened(id: first.id, at: .now)
+        XCTAssertEqual(DatabaseListStore.activeAutoFillDatabaseID, first.id)
+        let viewModel = DatabaseListViewModel()
+
+        let removalExpectation = expectation(description: "Targeted identity removal for the disabled active database")
+        CredentialIdentityStoreManager.removeDatabaseObserver = { databaseID, includingLegacyIdentifiers in
+            XCTAssertEqual(databaseID, first.id)
+            XCTAssertTrue(
+                includingLegacyIdentifiers,
+                "Disabling the active database must sweep legacy bare-UUID identifiers"
+            )
+            removalExpectation.fulfill()
+        }
+
+        viewModel.setAutoFillEnabled(false, for: first)
+
+        await fulfillment(of: [removalExpectation], timeout: 1)
+        XCTAssertEqual(
+            DatabaseListStore.activeAutoFillDatabaseID,
+            second.id,
+            "The pointer must move to the most recently opened remaining enabled database"
+        )
     }
 
     func testAddCloudDatabaseCreatesCloudReferenceFromSelection() {

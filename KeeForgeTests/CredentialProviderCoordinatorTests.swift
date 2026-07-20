@@ -352,6 +352,960 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
         assertCleanedUp(coordinator)
     }
 
+    // MARK: - Record-identifier resolution in the fill paths (slice 02)
+
+    func test_passwordFill_resolvesCurrentFormatIdentifier() throws {
+        let (coordinator, presenter) = makeCoordinator()
+        let sessionKey = SymmetricKey(size: .bits256)
+        let entries = try makeTwoGitHubEntries(sessionKey: sessionKey)
+
+        coordinator.serviceIdentifiers = [githubServiceIdentifier()]
+        seedUnlockedVaultState(coordinator, entries: entries, sessionKey: sessionKey)
+        // Target the SECOND entry: without identifier resolution the two
+        // matching entries would present a picker, so a direct completion
+        // with this entry proves the tagged identifier resolved it.
+        coordinator.targetRecordIdentifier = CredentialRecordIdentifier(
+            databaseID: UUID(),
+            entryID: entries[1].id
+        ).encoded
+
+        coordinator.presentPasswordMatchesOrFinish()
+
+        let credential = try XCTUnwrap(presenter.completedCredential, "Tagged identifier should complete without a picker")
+        XCTAssertEqual(credential.user, "worktocat")
+        XCTAssertEqual(credential.password, "hunter3")
+        XCTAssertNil(presenter.searchView, "A resolvable identifier must not fall back to the search view")
+        assertCleanedUp(coordinator)
+    }
+
+    func test_passwordFill_resolvesLegacyIdentifier() throws {
+        let (coordinator, presenter) = makeCoordinator()
+        let sessionKey = SymmetricKey(size: .bits256)
+        let entries = try makeTwoGitHubEntries(sessionKey: sessionKey)
+
+        coordinator.serviceIdentifiers = [githubServiceIdentifier()]
+        seedUnlockedVaultState(coordinator, entries: entries, sessionKey: sessionKey)
+        // Pre-feature builds published bare entry UUIDs; those suggestions
+        // must keep filling after the update.
+        coordinator.targetRecordIdentifier = entries[1].id.uuidString
+
+        coordinator.presentPasswordMatchesOrFinish()
+
+        let credential = try XCTUnwrap(presenter.completedCredential, "Legacy identifier should complete without a picker")
+        XCTAssertEqual(credential.user, "worktocat")
+        XCTAssertEqual(credential.password, "hunter3")
+        XCTAssertNil(presenter.searchView)
+        assertCleanedUp(coordinator)
+    }
+
+    func test_passwordFill_unrecognizedIdentifierFallsBackToInteractivePath() async throws {
+        let (coordinator, presenter) = makeCoordinator()
+        let sessionKey = SymmetricKey(size: .bits256)
+        let entries = try makeTwoGitHubEntries(sessionKey: sessionKey)
+
+        coordinator.serviceIdentifiers = [githubServiceIdentifier()]
+        seedUnlockedVaultState(coordinator, entries: entries, sessionKey: sessionKey)
+        coordinator.targetRecordIdentifier = "v9:garbage"
+
+        // An unrecognized identifier is unattributable, so the whole store is
+        // scheduled for a clear before the interactive fallback.
+        let storeCleared = expectation(description: "clearStore scheduled")
+        CredentialIdentityStoreManager.clearObserver = { storeCleared.fulfill() }
+
+        coordinator.presentPasswordMatchesOrFinish()
+
+        await fulfillment(of: [storeCleared], timeout: 1)
+        XCTAssertNil(presenter.completedCredential, "A stale identifier must never complete directly")
+        let searchView = try XCTUnwrap(presenter.searchView, "The interactive matching fallback must present — never a dead tap")
+        XCTAssertEqual(searchView.entries.count, 2)
+    }
+
+    func test_passwordFill_currentIdentifierForForeignEntryFallsBack() throws {
+        let (coordinator, presenter) = makeCoordinator()
+        let sessionKey = SymmetricKey(size: .bits256)
+        let entries = try makeTwoGitHubEntries(sessionKey: sessionKey)
+
+        coordinator.serviceIdentifiers = [githubServiceIdentifier()]
+        seedUnlockedVaultState(coordinator, entries: entries, sessionKey: sessionKey)
+        // A well-formed tagged identifier whose entry UUID is not in the
+        // unlocked vault (e.g. another database's entry): matching is by
+        // entry UUID within the resolved database only, so it falls back.
+        coordinator.targetRecordIdentifier = CredentialRecordIdentifier(
+            databaseID: UUID(),
+            entryID: UUID()
+        ).encoded
+
+        coordinator.presentPasswordMatchesOrFinish()
+
+        XCTAssertNil(presenter.completedCredential)
+        let searchView = try XCTUnwrap(presenter.searchView, "A foreign-entry identifier must fall back to the matching/search path")
+        XCTAssertEqual(searchView.entries.count, 2)
+    }
+
+    func test_passkeyLookup_resolvesTaggedRecordIdentifier() throws {
+        let (coordinator, presenter) = makeCoordinator()
+        let sessionKey = SymmetricKey(size: .bits256)
+        // Two passkey entries sharing relying party AND credential ID but
+        // with different user handles: the fallback identity match would pick
+        // the first, so an assertion carrying the second entry's user handle
+        // proves `findEntry(byRecordIdentifier:)` resolved the tagged string.
+        let firstKey = P256.Signing.PrivateKey()
+        let secondKey = P256.Signing.PrivateKey()
+        let firstHandle = Data("user-handle".utf8)
+        let secondHandle = Data("user-handle-2".utf8)
+        let firstEntry = try makePasskeyEntry(
+            title: "Passkey One",
+            userHandleBase64: firstHandle.base64EncodedString(),
+            privateKey: firstKey,
+            sessionKey: sessionKey
+        )
+        let secondEntry = try makePasskeyEntry(
+            title: "Passkey Two",
+            userHandleBase64: secondHandle.base64EncodedString(),
+            privateKey: secondKey,
+            sessionKey: sessionKey
+        )
+
+        seedUnlockedVaultState(coordinator, entries: [firstEntry, secondEntry], sessionKey: sessionKey)
+
+        let request = makePasskeyRequest(
+            recordIdentifier: CredentialRecordIdentifier(
+                databaseID: UUID(),
+                entryID: secondEntry.id
+            ).encoded,
+            userHandle: secondHandle
+        )
+
+        coordinator.completeInteractivePasskeyRequest(request)
+
+        let credential = try XCTUnwrap(presenter.completedAssertion)
+        XCTAssertEqual(credential.relyingParty, "example.com")
+        XCTAssertEqual(
+            credential.userHandle,
+            secondHandle,
+            "The tagged record identifier must select the second entry over the first ambient match"
+        )
+        assertCleanedUp(coordinator)
+    }
+
+    func test_otcPendingRequest_resolvesCurrentAndLegacyIdentifiers() async throws {
+        guard #available(iOS 18.0, macOS 15.0, *) else {
+            throw XCTSkip("One-time-code requests require iOS 18 / macOS 15")
+        }
+
+        // Current (tagged) identifier completes directly.
+        let sessionKey = SymmetricKey(size: .bits256)
+        let (taggedCoordinator, taggedPresenter) = makeCoordinator()
+        let taggedEntries = [
+            try makeTOTPEntry(title: "GitHub", sessionKey: sessionKey),
+            try makeTOTPEntry(title: "GitHub Work", sessionKey: sessionKey),
+        ]
+        taggedCoordinator.serviceIdentifiers = [githubServiceIdentifier()]
+        seedUnlockedVaultState(taggedCoordinator, entries: taggedEntries, sessionKey: sessionKey)
+        taggedCoordinator.hasPendingOTCRequest = true
+        taggedCoordinator.targetRecordIdentifier = CredentialRecordIdentifier(
+            databaseID: UUID(),
+            entryID: taggedEntries[1].id
+        ).encoded
+
+        taggedCoordinator.completeOTCRequestFromPending()
+
+        let taggedCode = try XCTUnwrap(taggedPresenter.completedOneTimeCode, "Tagged identifier should complete the OTC request")
+        XCTAssertEqual(taggedCode.count, 6)
+        XCTAssertNotEqual(taggedCode, "------")
+        assertCleanedUp(taggedCoordinator)
+
+        // Legacy (bare-UUID) identifier completes directly.
+        let (legacyCoordinator, legacyPresenter) = makeCoordinator()
+        let legacyEntries = [
+            try makeTOTPEntry(title: "GitHub", sessionKey: sessionKey),
+            try makeTOTPEntry(title: "GitHub Work", sessionKey: sessionKey),
+        ]
+        legacyCoordinator.serviceIdentifiers = [githubServiceIdentifier()]
+        seedUnlockedVaultState(legacyCoordinator, entries: legacyEntries, sessionKey: sessionKey)
+        legacyCoordinator.hasPendingOTCRequest = true
+        legacyCoordinator.targetRecordIdentifier = legacyEntries[1].id.uuidString
+
+        legacyCoordinator.completeOTCRequestFromPending()
+
+        let legacyCode = try XCTUnwrap(legacyPresenter.completedOneTimeCode, "Legacy identifier should complete the OTC request")
+        XCTAssertEqual(legacyCode.count, 6)
+        assertCleanedUp(legacyCoordinator)
+
+        // Unrecognized identifier falls back to the interactive picker.
+        let (staleCoordinator, stalePresenter) = makeCoordinator()
+        let staleEntries = [
+            try makeTOTPEntry(title: "GitHub", sessionKey: sessionKey),
+            try makeTOTPEntry(title: "GitHub Work", sessionKey: sessionKey),
+        ]
+        staleCoordinator.serviceIdentifiers = [githubServiceIdentifier()]
+        seedUnlockedVaultState(staleCoordinator, entries: staleEntries, sessionKey: sessionKey)
+        staleCoordinator.hasPendingOTCRequest = true
+        staleCoordinator.targetRecordIdentifier = "v9:garbage"
+
+        let storeCleared = expectation(description: "clearStore scheduled for the unattributable identifier")
+        CredentialIdentityStoreManager.clearObserver = { storeCleared.fulfill() }
+
+        staleCoordinator.completeOTCRequestFromPending()
+
+        await fulfillment(of: [storeCleared], timeout: 1)
+        XCTAssertNil(stalePresenter.completedOneTimeCode, "A stale identifier must not complete directly")
+        let picker = try XCTUnwrap(stalePresenter.searchView, "The OTC picker fallback must present")
+        XCTAssertEqual(picker.entries.count, 2)
+    }
+
+    // MARK: - Interactive request-to-database resolution (slice 03)
+
+    func test_resolution_currentIdentifierPinsOwningDatabaseNotActivePointer() throws {
+        let (coordinator, presenter) = makeCoordinator()
+        let databaseA = try makeRegisteredDatabase(named: "a.kdbx")
+        let databaseB = try makeRegisteredDatabase(named: "b.kdbx")
+        DatabaseListStore.activeAutoFillDatabaseID = databaseA.id
+
+        let identifier = CredentialRecordIdentifier(databaseID: databaseB.id, entryID: UUID()).encoded
+        coordinator.prepareInterfaceToProvideCredential(for: makePasswordIdentity(recordIdentifier: identifier))
+        coordinator.presentationDidBecomeActive()
+
+        XCTAssertNotNil(presenter.unlockPrompt, "The owning database's unlock prompt must be requested")
+        XCTAssertEqual(
+            coordinator.activeDatabaseReference?.id,
+            databaseB.id,
+            "The request must pin the identifier's owning database, not the active pointer"
+        )
+        XCTAssertEqual(coordinator.targetRecordIdentifier, identifier, "A resolvable identifier must be preserved for the post-unlock lookup")
+    }
+
+    func test_resolution_legacyIdentifierPinsDefaultDatabase() throws {
+        let (coordinator, presenter) = makeCoordinator()
+        let databaseA = try makeRegisteredDatabase(named: "a.kdbx")
+        try makeRegisteredDatabase(named: "b.kdbx")
+        DatabaseListStore.activeAutoFillDatabaseID = databaseA.id
+
+        let identifier = UUID().uuidString
+        coordinator.prepareInterfaceToProvideCredential(for: makePasswordIdentity(recordIdentifier: identifier))
+        coordinator.presentationDidBecomeActive()
+
+        XCTAssertNotNil(presenter.unlockPrompt)
+        XCTAssertEqual(
+            coordinator.activeDatabaseReference?.id,
+            databaseA.id,
+            "A legacy identifier carries no attribution and must pin the default database"
+        )
+        XCTAssertEqual(coordinator.targetRecordIdentifier, identifier, "Legacy identifiers still fill after unlock")
+    }
+
+    func test_resolution_unknownDatabaseRemovesItsIdentitiesAndFallsBackToDefault() async throws {
+        let (coordinator, presenter) = makeCoordinator()
+        let databaseA = try makeRegisteredDatabase(named: "a.kdbx")
+        DatabaseListStore.activeAutoFillDatabaseID = databaseA.id
+
+        let unknownDatabaseID = UUID()
+        let removalScheduled = expectation(description: "targeted removal scheduled for the unknown database")
+        CredentialIdentityStoreManager.removeDatabaseObserver = { databaseID, _ in
+            XCTAssertEqual(databaseID, unknownDatabaseID)
+            removalScheduled.fulfill()
+        }
+
+        let identifier = CredentialRecordIdentifier(databaseID: unknownDatabaseID, entryID: UUID()).encoded
+        coordinator.prepareInterfaceToProvideCredential(for: makePasswordIdentity(recordIdentifier: identifier))
+        coordinator.presentationDidBecomeActive()
+
+        await fulfillment(of: [removalScheduled], timeout: 1)
+        XCTAssertNil(coordinator.targetRecordIdentifier, "The stale per-entry target must be dropped so post-unlock lookup can't dead-end")
+        XCTAssertEqual(coordinator.activeDatabaseReference?.id, databaseA.id, "The request degrades to the default database")
+        XCTAssertNotNil(presenter.unlockPrompt, "Never a dead tap — the fallback unlock prompt must present")
+    }
+
+    func test_resolution_disabledDatabaseTreatedAsUnknown() async throws {
+        let (coordinator, presenter) = makeCoordinator()
+        let databaseA = try makeRegisteredDatabase(named: "a.kdbx")
+        let databaseB = try makeRegisteredDatabase(named: "b.kdbx", autoFillEnabled: false)
+        DatabaseListStore.activeAutoFillDatabaseID = databaseA.id
+
+        let removalScheduled = expectation(description: "targeted removal scheduled for the disabled database")
+        CredentialIdentityStoreManager.removeDatabaseObserver = { databaseID, _ in
+            XCTAssertEqual(databaseID, databaseB.id)
+            removalScheduled.fulfill()
+        }
+
+        let identifier = CredentialRecordIdentifier(databaseID: databaseB.id, entryID: UUID()).encoded
+        coordinator.prepareInterfaceToProvideCredential(for: makePasswordIdentity(recordIdentifier: identifier))
+        coordinator.presentationDidBecomeActive()
+
+        await fulfillment(of: [removalScheduled], timeout: 1)
+        XCTAssertNil(coordinator.targetRecordIdentifier)
+        XCTAssertEqual(coordinator.activeDatabaseReference?.id, databaseA.id)
+        XCTAssertNotNil(presenter.unlockPrompt)
+    }
+
+    func test_resolution_unrecognizedIdentifierClearsStoreAndFallsBack() async throws {
+        let (coordinator, presenter) = makeCoordinator()
+        let databaseA = try makeRegisteredDatabase(named: "a.kdbx")
+        DatabaseListStore.activeAutoFillDatabaseID = databaseA.id
+
+        let storeCleared = expectation(description: "clearStore scheduled for the unattributable identifier")
+        CredentialIdentityStoreManager.clearObserver = { storeCleared.fulfill() }
+
+        coordinator.prepareInterfaceToProvideCredential(for: makePasswordIdentity(recordIdentifier: "v9:garbage"))
+        coordinator.presentationDidBecomeActive()
+
+        await fulfillment(of: [storeCleared], timeout: 1)
+        XCTAssertNil(coordinator.targetRecordIdentifier)
+        XCTAssertEqual(coordinator.activeDatabaseReference?.id, databaseA.id)
+        XCTAssertNotNil(presenter.unlockPrompt)
+    }
+
+    func test_resolution_staleIdentifierWithZeroEnabledDatabasesShowsEmptyState() async throws {
+        let (coordinator, presenter) = makeCoordinator()
+
+        let unknownDatabaseID = UUID()
+        let removalScheduled = expectation(description: "targeted removal scheduled")
+        CredentialIdentityStoreManager.removeDatabaseObserver = { _, _ in removalScheduled.fulfill() }
+
+        let identifier = CredentialRecordIdentifier(databaseID: unknownDatabaseID, entryID: UUID()).encoded
+        coordinator.prepareInterfaceToProvideCredential(for: makePasswordIdentity(recordIdentifier: identifier))
+        coordinator.presentationDidBecomeActive()
+
+        await fulfillment(of: [removalScheduled], timeout: 1)
+        XCTAssertNil(presenter.unlockPrompt, "With no fallback database there is nothing to unlock")
+        let emptyState = try XCTUnwrap(presenter.noEnabledDatabasesState, "The explanatory empty state must present instead")
+
+        emptyState.onDismiss()
+
+        XCTAssertEqual(presenter.cancelledError?.code, .userCanceled)
+        assertCleanedUp(coordinator)
+    }
+
+    func test_manualListWithZeroEnabledDatabasesShowsEmptyState() throws {
+        // Empty registry.
+        let (emptyRegistryCoordinator, emptyRegistryPresenter) = makeCoordinator()
+        emptyRegistryCoordinator.prepareCredentialList(for: [githubServiceIdentifier()])
+        emptyRegistryCoordinator.presentationDidBecomeActive()
+
+        XCTAssertNil(emptyRegistryPresenter.unlockPrompt)
+        XCTAssertNotNil(emptyRegistryPresenter.noEnabledDatabasesState, "An empty registry must present the empty state")
+
+        // One registered but AutoFill-disabled database.
+        let (disabledCoordinator, disabledPresenter) = makeCoordinator()
+        let disabledReference = try makeRegisteredDatabase(named: "disabled.kdbx", autoFillEnabled: false)
+        DatabaseListStore.markDatabaseOpened(id: disabledReference.id)
+
+        disabledCoordinator.prepareCredentialList(for: [githubServiceIdentifier()])
+        disabledCoordinator.presentationDidBecomeActive()
+
+        XCTAssertNil(disabledPresenter.unlockPrompt)
+        XCTAssertNotNil(disabledPresenter.noEnabledDatabasesState, "A disabled database is treated as nonexistent")
+    }
+
+    func test_presentationDidBecomeActive_pendingNoEnabledDatabasesFlag_presentsEmptyState() {
+        let (coordinator, presenter) = makeCoordinator()
+        // The save-prepare path defers the empty state until the shell is on
+        // screen; `presentationDidBecomeActive` must consume the flag.
+        coordinator.pendingNoEnabledDatabasesPresentation = true
+
+        coordinator.presentationDidBecomeActive()
+
+        XCTAssertNotNil(presenter.noEnabledDatabasesState)
+        XCTAssertNil(presenter.unlockPrompt)
+        XCTAssertFalse(coordinator.pendingNoEnabledDatabasesPresentation, "The deferral flag must be consumed")
+    }
+
+    // MARK: - Entry missing after successful unlock (slice 03)
+
+    func test_passwordFill_missingEntryRemovesThatIdentityAndFallsBackToSearch() async throws {
+        let (coordinator, presenter) = makeCoordinator()
+        let sessionKey = SymmetricKey(size: .bits256)
+        let entries = try makeTwoGitHubEntries(sessionKey: sessionKey)
+
+        coordinator.serviceIdentifiers = [githubServiceIdentifier()]
+        seedUnlockedVaultState(coordinator, entries: entries, sessionKey: sessionKey)
+        let missingIdentifier = CredentialRecordIdentifier(databaseID: UUID(), entryID: UUID()).encoded
+        coordinator.targetRecordIdentifier = missingIdentifier
+
+        let identityRemoved = expectation(description: "exactly the stale identity removed")
+        CredentialIdentityStoreManager.removeIdentityObserver = { recordIdentifier in
+            XCTAssertEqual(recordIdentifier, missingIdentifier)
+            identityRemoved.fulfill()
+        }
+
+        coordinator.presentPasswordMatchesOrFinish()
+
+        await fulfillment(of: [identityRemoved], timeout: 1)
+        XCTAssertNil(presenter.completedCredential)
+        let searchView = try XCTUnwrap(presenter.searchView, "The search fallback must present after the stale-identity removal")
+        XCTAssertEqual(searchView.entries.count, 2)
+    }
+
+    func test_passwordFill_missingLegacyEntryClearsStore() async throws {
+        let (coordinator, presenter) = makeCoordinator()
+        let sessionKey = SymmetricKey(size: .bits256)
+        let entries = try makeTwoGitHubEntries(sessionKey: sessionKey)
+
+        coordinator.serviceIdentifiers = [githubServiceIdentifier()]
+        seedUnlockedVaultState(coordinator, entries: entries, sessionKey: sessionKey)
+        coordinator.targetRecordIdentifier = UUID().uuidString
+
+        let storeCleared = expectation(description: "unattributable legacy identifier clears the store")
+        CredentialIdentityStoreManager.clearObserver = { storeCleared.fulfill() }
+
+        coordinator.presentPasswordMatchesOrFinish()
+
+        await fulfillment(of: [storeCleared], timeout: 1)
+        XCTAssertNil(presenter.completedCredential)
+        XCTAssertNotNil(presenter.searchView, "The search fallback still presents")
+    }
+
+    func test_passwordFill_expiredEntryIsNotTreatedAsMissing() async throws {
+        let (coordinator, presenter) = makeCoordinator()
+        let sessionKey = SymmetricKey(size: .bits256)
+        let expiredEntry = KPEntry(
+            title: "GitHub",
+            username: "octocat",
+            password: try EncryptedValue.encrypt("hunter2", using: sessionKey),
+            url: "https://github.com/login",
+            expires: true,
+            expiryTime: .distantPast
+        )
+
+        coordinator.serviceIdentifiers = [githubServiceIdentifier()]
+        seedUnlockedVaultState(coordinator, entries: [expiredEntry], sessionKey: sessionKey)
+        coordinator.targetRecordIdentifier = CredentialRecordIdentifier(
+            databaseID: UUID(),
+            entryID: expiredEntry.id
+        ).encoded
+
+        CredentialIdentityStoreManager.removeIdentityObserver = { _ in
+            XCTFail("An existing-but-expired entry must not have its identity removed")
+        }
+        CredentialIdentityStoreManager.clearObserver = {
+            XCTFail("An existing-but-expired entry must not clear the store")
+        }
+
+        coordinator.presentPasswordMatchesOrFinish()
+
+        try? await Task.sleep(for: .milliseconds(150))
+        XCTAssertNil(presenter.completedCredential, "Expired entries are filtered from direct completion")
+        let searchView = try XCTUnwrap(presenter.searchView, "The interactive fallback presents as before")
+        XCTAssertEqual(searchView.entries.map(\.id), [expiredEntry.id])
+    }
+
+    func test_otcPending_missingEntryRemovesIdentityAndPresentsPicker() async throws {
+        guard #available(iOS 18.0, macOS 15.0, *) else {
+            throw XCTSkip("One-time-code requests require iOS 18 / macOS 15")
+        }
+
+        let (coordinator, presenter) = makeCoordinator()
+        let sessionKey = SymmetricKey(size: .bits256)
+        let entries = [
+            try makeTOTPEntry(title: "GitHub", sessionKey: sessionKey),
+            try makeTOTPEntry(title: "GitHub Work", sessionKey: sessionKey),
+        ]
+
+        coordinator.serviceIdentifiers = [githubServiceIdentifier()]
+        seedUnlockedVaultState(coordinator, entries: entries, sessionKey: sessionKey)
+        coordinator.hasPendingOTCRequest = true
+        let missingIdentifier = CredentialRecordIdentifier(databaseID: UUID(), entryID: UUID()).encoded
+        coordinator.targetRecordIdentifier = missingIdentifier
+
+        let identityRemoved = expectation(description: "stale OTC identity removed")
+        CredentialIdentityStoreManager.removeIdentityObserver = { recordIdentifier in
+            XCTAssertEqual(recordIdentifier, missingIdentifier)
+            identityRemoved.fulfill()
+        }
+
+        coordinator.completeOTCRequestFromPending()
+
+        await fulfillment(of: [identityRemoved], timeout: 1)
+        XCTAssertNil(presenter.completedOneTimeCode)
+        let picker = try XCTUnwrap(presenter.searchView, "The OTC picker fallback must present")
+        XCTAssertEqual(picker.entries.count, 2)
+    }
+
+    func test_interactivePasskey_missingEntryRemovesIdentityAndCancelsNotFound() async throws {
+        let (coordinator, presenter) = makeCoordinator()
+        let sessionKey = SymmetricKey(size: .bits256)
+        // The unlocked vault holds no passkey entries at all, so the request's
+        // identity cannot resolve by identifier or by ambient rp/credentialID.
+        let passwordOnly = try makeTwoGitHubEntries(sessionKey: sessionKey)
+        seedUnlockedVaultState(coordinator, entries: passwordOnly, sessionKey: sessionKey)
+
+        let missingIdentifier = CredentialRecordIdentifier(databaseID: UUID(), entryID: UUID()).encoded
+        let identityRemoved = expectation(description: "stale passkey identity removed")
+        CredentialIdentityStoreManager.removeIdentityObserver = { recordIdentifier in
+            XCTAssertEqual(recordIdentifier, missingIdentifier)
+            identityRemoved.fulfill()
+        }
+
+        coordinator.completeInteractivePasskeyRequest(makePasskeyRequest(recordIdentifier: missingIdentifier))
+
+        await fulfillment(of: [identityRemoved], timeout: 1)
+        XCTAssertEqual(presenter.cancelledError?.code, .credentialIdentityNotFound)
+        assertCleanedUp(coordinator)
+    }
+
+    func test_passkeyResolution_recordIdentifierStillResolvesEntry() throws {
+        let (coordinator, presenter) = makeCoordinator()
+        let sessionKey = SymmetricKey(size: .bits256)
+        let privateKey = P256.Signing.PrivateKey()
+        let entry = try makePasskeyEntry(privateKey: privateKey, sessionKey: sessionKey)
+
+        seedUnlockedVaultState(coordinator, entries: [entry], sessionKey: sessionKey)
+
+        let request = makePasskeyRequest(
+            recordIdentifier: CredentialRecordIdentifier(databaseID: UUID(), entryID: entry.id).encoded
+        )
+
+        coordinator.completeInteractivePasskeyRequest(request)
+
+        let credential = try XCTUnwrap(presenter.completedAssertion, "The tagged-identifier happy path must still complete")
+        XCTAssertEqual(credential.relyingParty, "example.com")
+        assertCleanedUp(coordinator)
+    }
+
+    // MARK: - Silent-path resolution (slice 03)
+
+    // `BiometricService.isAvailable` is false under simulator tests, so the
+    // silent paths can never complete a fill here; resolution is asserted via
+    // the scheduled cleanup observers plus the `.userInteractionRequired`
+    // cancellation (the system then relaunches the extension interactively).
+
+    func test_silentFill_staleIdentifierCleansUpAndCancelsUserInteractionRequired() async throws {
+        SettingsService.quickAutoFillEnabled = true
+
+        // Unknown-database identifier → targeted removal + interactive relaunch.
+        let (unknownCoordinator, unknownPresenter) = makeCoordinator()
+        let unknownDatabaseID = UUID()
+        let removalScheduled = expectation(description: "targeted removal scheduled")
+        CredentialIdentityStoreManager.removeDatabaseObserver = { databaseID, _ in
+            XCTAssertEqual(databaseID, unknownDatabaseID)
+            removalScheduled.fulfill()
+        }
+
+        unknownCoordinator.provideCredentialWithoutUserInteraction(
+            for: makePasswordIdentity(
+                recordIdentifier: CredentialRecordIdentifier(databaseID: unknownDatabaseID, entryID: UUID()).encoded
+            )
+        )
+
+        await fulfillment(of: [removalScheduled], timeout: 1)
+        XCTAssertEqual(unknownPresenter.cancelledError?.code, .userInteractionRequired)
+        assertCleanedUp(unknownCoordinator)
+
+        // Unrecognized identifier → whole-store clear + interactive relaunch.
+        CredentialIdentityStoreManager.removeDatabaseObserver = nil
+        let (staleCoordinator, stalePresenter) = makeCoordinator()
+        let storeCleared = expectation(description: "clearStore scheduled")
+        CredentialIdentityStoreManager.clearObserver = { storeCleared.fulfill() }
+
+        staleCoordinator.provideCredentialWithoutUserInteraction(
+            for: makePasswordIdentity(recordIdentifier: "v9:garbage")
+        )
+
+        await fulfillment(of: [storeCleared], timeout: 1)
+        XCTAssertEqual(stalePresenter.cancelledError?.code, .userInteractionRequired)
+        assertCleanedUp(staleCoordinator)
+    }
+
+    func test_silentFill_zeroEnabledDatabasesCancelsUserInteractionRequired() async throws {
+        SettingsService.quickAutoFillEnabled = true
+        let (coordinator, presenter) = makeCoordinator()
+
+        CredentialIdentityStoreManager.removeDatabaseObserver = { _, _ in
+            XCTFail("An identifier-less request with no databases schedules no targeted removal")
+        }
+        CredentialIdentityStoreManager.clearObserver = {
+            XCTFail("An identifier-less request with no databases must not clear the store")
+        }
+        CredentialIdentityStoreManager.removeIdentityObserver = { _ in
+            XCTFail("An identifier-less request with no databases must not remove identities")
+        }
+
+        coordinator.provideCredentialWithoutUserInteraction(
+            for: makePasswordIdentity(recordIdentifier: nil)
+        )
+
+        XCTAssertEqual(presenter.cancelledError?.code, .userInteractionRequired)
+        try? await Task.sleep(for: .milliseconds(150))
+        assertCleanedUp(coordinator)
+    }
+
+    // MARK: - Database switcher: presence and source list (slice 06)
+
+    func test_searchView_carriesSwitcherWithTwoEnabledDatabases() throws {
+        let scenario = try makePresentedTwoDatabaseSearch()
+
+        let searchView = try XCTUnwrap(scenario.presenter.searchView)
+        let switcher = try XCTUnwrap(searchView.databaseSwitcher, "Two enabled databases must offer the switcher")
+        XCTAssertEqual(switcher.databases.map(\.id), [scenario.databaseA.id, scenario.databaseB.id])
+        XCTAssertEqual(switcher.currentDatabaseID, scenario.databaseA.id, "The open database carries the checkmark")
+    }
+
+    func test_searchView_omitsSwitcherWithSingleEnabledDatabase() throws {
+        let (coordinator, presenter) = makeCoordinator()
+        let databaseA = try makeRegisteredDatabase(named: "only.kdbx")
+        let sessionKey = SymmetricKey(size: .bits256)
+
+        coordinator.serviceIdentifiers = [githubServiceIdentifier()]
+        seedUnlockedVaultState(coordinator, entries: try makeTwoGitHubEntries(sessionKey: sessionKey), sessionKey: sessionKey)
+        coordinator.activeDatabaseReference = databaseA
+
+        coordinator.presentPasswordMatchesOrFinish()
+
+        let searchView = try XCTUnwrap(presenter.searchView)
+        XCTAssertNil(searchView.databaseSwitcher, "A lone enabled database has nothing to switch to")
+    }
+
+    func test_searchView_switcherNeverListsDisabledDatabases() throws {
+        let (coordinator, presenter) = makeCoordinator()
+        let databaseA = try makeRegisteredDatabase(named: "a.kdbx")
+        try makeRegisteredDatabase(named: "b.kdbx", autoFillEnabled: false)
+        let databaseC = try makeRegisteredDatabase(named: "c.kdbx")
+        let sessionKey = SymmetricKey(size: .bits256)
+
+        coordinator.serviceIdentifiers = [githubServiceIdentifier()]
+        seedUnlockedVaultState(coordinator, entries: try makeTwoGitHubEntries(sessionKey: sessionKey), sessionKey: sessionKey)
+        coordinator.activeDatabaseReference = databaseA
+
+        coordinator.presentPasswordMatchesOrFinish()
+
+        let switcher = try XCTUnwrap(presenter.searchView?.databaseSwitcher)
+        XCTAssertEqual(
+            Set(switcher.databases.map(\.id)),
+            [databaseA.id, databaseC.id],
+            "Disabled databases never appear in the switcher's source list"
+        )
+
+        DatabaseListStore.setAutoFillEnabled(false, for: databaseC)
+        presenter.searchView = nil
+        coordinator.presentPasswordMatchesOrFinish()
+
+        let representedSearchView = try XCTUnwrap(presenter.searchView)
+        XCTAssertNil(representedSearchView.databaseSwitcher, "One enabled database left — the switcher disappears")
+    }
+
+    func test_byIdentityExpiredConfirmations_carryNoSwitcher() throws {
+        guard #available(iOS 18.0, macOS 15.0, *) else {
+            throw XCTSkip("One-time-code requests require iOS 18 / macOS 15")
+        }
+
+        let databaseA = try makeRegisteredDatabase(named: "a.kdbx")
+        try makeRegisteredDatabase(named: "b.kdbx")
+        let sessionKey = SymmetricKey(size: .bits256)
+
+        // OTC by-identity expired confirmation: single specific credential,
+        // pending request already consumed — no switcher even though two
+        // databases are enabled.
+        let (otcCoordinator, otcPresenter) = makeCoordinator()
+        let expiredTOTP = try makeTOTPEntry(title: "Expired TOTP", sessionKey: sessionKey, expired: true)
+        otcCoordinator.serviceIdentifiers = [githubServiceIdentifier()]
+        seedUnlockedVaultState(otcCoordinator, entries: [expiredTOTP], sessionKey: sessionKey)
+        otcCoordinator.activeDatabaseReference = databaseA
+        otcCoordinator.hasPendingOTCRequest = true
+        otcCoordinator.targetRecordIdentifier = CredentialRecordIdentifier(
+            databaseID: databaseA.id,
+            entryID: expiredTOTP.id
+        ).encoded
+
+        otcCoordinator.completeOTCRequestFromPending()
+
+        let otcConfirmation = try XCTUnwrap(otcPresenter.searchView, "The expired-entry confirmation must present")
+        XCTAssertEqual(otcConfirmation.entries.map(\.id), [expiredTOTP.id])
+        XCTAssertNil(otcConfirmation.databaseSwitcher, "By-identity expired confirmations carry no switcher")
+
+        // Passkey by-identity expired confirmation: same contract.
+        let (passkeyCoordinator, passkeyPresenter) = makeCoordinator()
+        let privateKey = P256.Signing.PrivateKey()
+        let expiredPasskey = try makePasskeyEntry(privateKey: privateKey, sessionKey: sessionKey, expired: true)
+        seedUnlockedVaultState(passkeyCoordinator, entries: [expiredPasskey], sessionKey: sessionKey)
+        passkeyCoordinator.activeDatabaseReference = databaseA
+
+        passkeyCoordinator.completeInteractivePasskeyRequest(
+            makePasskeyRequest(
+                recordIdentifier: CredentialRecordIdentifier(
+                    databaseID: databaseA.id,
+                    entryID: expiredPasskey.id
+                ).encoded
+            )
+        )
+
+        let passkeyConfirmation = try XCTUnwrap(passkeyPresenter.searchView)
+        XCTAssertEqual(passkeyConfirmation.entries.map(\.id), [expiredPasskey.id])
+        XCTAssertNil(passkeyConfirmation.databaseSwitcher)
+    }
+
+    // MARK: - Database switcher: switch flow (slice 06)
+
+    func test_switch_presentsUnlockPromptPinnedToTargetAndRetainsPreviousVault() throws {
+        let scenario = try makePresentedTwoDatabaseSearch()
+        let switcher = try XCTUnwrap(scenario.presenter.searchView?.databaseSwitcher)
+        let target = try XCTUnwrap(switcher.databases.first { $0.id == scenario.databaseB.id })
+
+        switcher.onSwitch(target, "typed")
+
+        XCTAssertNotNil(scenario.presenter.unlockPrompt, "The switched-to database's unlock prompt must present")
+        XCTAssertEqual(scenario.coordinator.activeDatabaseReference?.id, scenario.databaseB.id)
+        XCTAssertEqual(scenario.coordinator.pendingSwitchPreviousDatabaseReference?.id, scenario.databaseA.id)
+        XCTAssertEqual(scenario.coordinator.pendingSwitchSearchText, "typed")
+        XCTAssertNotNil(scenario.coordinator.sessionKey, "The previous vault stays live while the switch unlock is pending")
+        XCTAssertEqual(scenario.coordinator.parsedEntries.count, 2, "The previous vault's entries remain restorable")
+    }
+
+    func test_switch_toCurrentDatabaseIsIgnored() throws {
+        let scenario = try makePresentedTwoDatabaseSearch()
+        scenario.presenter.unlockPrompt = nil
+
+        scenario.coordinator.switchDatabase(to: scenario.databaseA, currentSearchText: "typed")
+
+        XCTAssertNil(scenario.presenter.unlockPrompt, "Switching to the open database is a no-op")
+        XCTAssertNil(scenario.coordinator.pendingSwitchSearchText)
+        XCTAssertNil(scenario.coordinator.pendingSwitchPreviousDatabaseReference)
+        XCTAssertEqual(scenario.coordinator.activeDatabaseReference?.id, scenario.databaseA.id)
+        XCTAssertNotNil(scenario.coordinator.sessionKey)
+    }
+
+    func test_switch_toDatabaseDisabledSinceListingRepresentsCurrentSearch() throws {
+        let scenario = try makePresentedTwoDatabaseSearch()
+        let switcher = try XCTUnwrap(scenario.presenter.searchView?.databaseSwitcher)
+        let target = try XCTUnwrap(switcher.databases.first { $0.id == scenario.databaseB.id })
+
+        // The main app disabled the target between building the switcher and
+        // the tap (cross-process): the shell has already dismissed the search
+        // view, so the coordinator must re-present rather than dead-end.
+        DatabaseListStore.setAutoFillEnabled(false, for: scenario.databaseB)
+        scenario.presenter.searchView = nil
+
+        switcher.onSwitch(target, "")
+
+        XCTAssertNil(scenario.presenter.unlockPrompt, "No unlock for a no-longer-eligible target")
+        XCTAssertEqual(scenario.coordinator.activeDatabaseReference?.id, scenario.databaseA.id)
+        XCTAssertNil(scenario.coordinator.pendingSwitchPreviousDatabaseReference)
+        XCTAssertNil(scenario.coordinator.pendingSwitchSearchText, "The stash is consumed by the re-presentation")
+        let representedSearchView = try XCTUnwrap(scenario.presenter.searchView, "The current database's search re-presents")
+        XCTAssertEqual(representedSearchView.entries.count, 2)
+        XCTAssertNil(representedSearchView.databaseSwitcher, "Only one enabled database remains")
+    }
+
+    func test_switchUnlockSuccess_retargetsSessionAndDefault() async throws {
+        // A service identifier matching nothing in either vault keeps both
+        // databases' flows on the search view (no single-match auto-complete
+        // against the fixture's real entries).
+        let scenario = try makePresentedTwoDatabaseSearch(
+            serviceIdentifier: ASCredentialServiceIdentifier(identifier: "no-such-service.example", type: .domain)
+        )
+        let switcher = try XCTUnwrap(scenario.presenter.searchView?.databaseSwitcher)
+        let target = try XCTUnwrap(switcher.databases.first { $0.id == scenario.databaseB.id })
+
+        // Give the switched-to database real KDBX bytes in the shared cache.
+        let fixtureData = try Data(
+            contentsOf: TestDatabaseSupport.fixtureURL(named: "test", bundle: Bundle(for: Self.self))
+        )
+        try DatabaseListStore.cacheDatabaseCopy(fixtureData, for: scenario.databaseB)
+
+        switcher.onSwitch(target, "git")
+        let prompt = try XCTUnwrap(scenario.presenter.unlockPrompt)
+
+        scenario.presenter.searchView = nil
+        let searchRepresented = expectation(description: "the new database's search presented")
+        scenario.presenter.onSearchViewPresented = { searchRepresented.fulfill() }
+        scenario.presenter.onUnlockErrorPresented = {
+            XCTFail("Unlocking the fixture must succeed: \(scenario.presenter.unlockError?.message ?? "unknown error")")
+        }
+
+        prompt.onSubmitPassword("testpassword123")
+        await fulfillment(of: [searchRepresented], timeout: 60)
+
+        let searchView = try XCTUnwrap(scenario.presenter.searchView)
+        XCTAssertFalse(searchView.entries.isEmpty, "The re-presented search shows the new database's entries")
+        XCTAssertFalse(
+            searchView.entries.map(\.title).contains("GitHub Work"),
+            "The previous database's seeded entries must have been replaced by the fixture's"
+        )
+        XCTAssertEqual(searchView.initialSearchText, "git", "The typed search text survives the switch")
+
+        XCTAssertEqual(scenario.coordinator.activeDatabaseReference?.id, scenario.databaseB.id)
+        XCTAssertNil(scenario.coordinator.pendingSwitchPreviousDatabaseReference, "A successful unlock commits the switch")
+        XCTAssertNil(scenario.coordinator.pendingSwitchSearchText)
+
+        // Retarget contract: in-session save/passkey registration read
+        // `activeDatabaseReference`, and the next launch's identifier-less
+        // flows resolve `defaultAutoFillDatabase` — all now point at B.
+        XCTAssertEqual(DatabaseListStore.activeAutoFillDatabaseID, scenario.databaseB.id)
+        XCTAssertNotNil(
+            DatabaseListStore.databases.first { $0.id == scenario.databaseB.id }?.lastOpenedAt,
+            "The switched-to database records the unlock"
+        )
+        XCTAssertEqual(DatabaseListStore.defaultAutoFillDatabase?.id, scenario.databaseB.id)
+    }
+
+    func test_switchDuringOTCList_reRunsOTCPickerAfterUnlock() throws {
+        guard #available(iOS 18.0, macOS 15.0, *) else {
+            throw XCTSkip("One-time-code requests require iOS 18 / macOS 15")
+        }
+
+        let (coordinator, presenter) = makeCoordinator()
+        let databaseA = try makeRegisteredDatabase(named: "a.kdbx")
+        let databaseB = try makeRegisteredDatabase(named: "b.kdbx")
+        let sessionKey = SymmetricKey(size: .bits256)
+        let totpEntries = [
+            try makeTOTPEntry(title: "GitHub", sessionKey: sessionKey),
+            try makeTOTPEntry(title: "GitHub Work", sessionKey: sessionKey),
+        ]
+
+        coordinator.prepareOneTimeCodeCredentialList(for: [githubServiceIdentifier()])
+        seedUnlockedVaultState(coordinator, entries: totpEntries, sessionKey: sessionKey)
+        coordinator.activeDatabaseReference = databaseA
+
+        coordinator.presentOTCMatchesOrFinish()
+        let switcher = try XCTUnwrap(presenter.searchView?.databaseSwitcher, "The OTC picker offers the switcher")
+        let target = try XCTUnwrap(switcher.databases.first { $0.id == databaseB.id })
+
+        switcher.onSwitch(target, "gh")
+        let prompt = try XCTUnwrap(presenter.unlockPrompt)
+        presenter.searchView = nil
+
+        prompt.onCancel()
+
+        XCTAssertNil(presenter.cancelledError, "Cancelling a switch unlock must not cancel the request")
+        let picker = try XCTUnwrap(presenter.searchView, "The OTC picker re-presents after the cancelled switch")
+        XCTAssertEqual(
+            picker.entries.map(\.title).sorted(),
+            ["GitHub", "GitHub Work"],
+            "The re-presented picker holds the TOTP entries again, not the password list"
+        )
+        XCTAssertEqual(picker.initialSearchText, "gh", "The typed text survives the cancelled switch")
+        XCTAssertTrue(coordinator.hasPendingOTCListRequest, "The OTC list flag is retained until a completion path cleans up")
+        XCTAssertEqual(coordinator.activeDatabaseReference?.id, databaseA.id)
+    }
+
+    func test_otcStaleFallback_reArmsListFlag() throws {
+        guard #available(iOS 18.0, macOS 15.0, *) else {
+            throw XCTSkip("One-time-code requests require iOS 18 / macOS 15")
+        }
+
+        let (coordinator, presenter) = makeCoordinator()
+        let sessionKey = SymmetricKey(size: .bits256)
+        let totpEntries = [
+            try makeTOTPEntry(title: "GitHub", sessionKey: sessionKey),
+            try makeTOTPEntry(title: "GitHub Work", sessionKey: sessionKey),
+        ]
+
+        coordinator.serviceIdentifiers = [githubServiceIdentifier()]
+        seedUnlockedVaultState(coordinator, entries: totpEntries, sessionKey: sessionKey)
+        coordinator.hasPendingOTCRequest = true
+        coordinator.targetRecordIdentifier = CredentialRecordIdentifier(databaseID: UUID(), entryID: UUID()).encoded
+
+        coordinator.completeOTCRequestFromPending()
+
+        XCTAssertNotNil(presenter.searchView, "The fallback picker must present")
+        XCTAssertFalse(coordinator.hasPendingOTCRequest)
+        XCTAssertTrue(
+            coordinator.hasPendingOTCListRequest,
+            "The by-identity request degrades into a list request so a switch can re-serve it"
+        )
+    }
+
+    // NOTE(deferred-tests slice 06, optional passkey-parameters retarget):
+    // verified against the iOS 26.5 SDK on a Mac —
+    // `ASPasskeyCredentialRequestParameters` declares `init` as
+    // `NS_UNAVAILABLE` with readonly properties and gains no Swift
+    // convenience initializer, so it is not test-constructible and the
+    // parameters-driven passkey list flow cannot be driven from unit tests.
+    // `pendingPasskeyRequestParameters` survives a switch by construction
+    // (nothing in `switchDatabase` touches the pending request context); the
+    // shared `afterUnlock` dispatch that would re-serve it is pinned by
+    // `test_switchDuringOTCList_reRunsOTCPickerAfterUnlock` and
+    // `test_switchCancel_restoresPreviousDatabaseAndRepresentsSearch`.
+
+    // MARK: - Database switcher: cancel semantics (slice 06)
+
+    func test_switchCancel_restoresPreviousDatabaseAndRepresentsSearch() throws {
+        let scenario = try makePresentedTwoDatabaseSearch()
+        let switcher = try XCTUnwrap(scenario.presenter.searchView?.databaseSwitcher)
+        let target = try XCTUnwrap(switcher.databases.first { $0.id == scenario.databaseB.id })
+
+        switcher.onSwitch(target, "typed")
+        let prompt = try XCTUnwrap(scenario.presenter.unlockPrompt)
+        scenario.presenter.searchView = nil
+
+        prompt.onCancel()
+
+        XCTAssertNil(scenario.presenter.cancelledError, "Cancelling a switch unlock must not cancel the request")
+        XCTAssertEqual(scenario.coordinator.activeDatabaseReference?.id, scenario.databaseA.id)
+        XCTAssertNil(scenario.coordinator.pendingSwitchPreviousDatabaseReference)
+        XCTAssertNil(scenario.coordinator.pendingSwitchSearchText, "The stash is consumed by the re-presentation")
+
+        let searchView = try XCTUnwrap(scenario.presenter.searchView, "The previous database's search re-presents from retained state")
+        XCTAssertEqual(searchView.entries.count, 2)
+        XCTAssertEqual(searchView.initialSearchText, "typed")
+
+        // The previous vault was never torn down: selecting still completes.
+        searchView.onSelect(scenario.entries[0])
+        let credential = try XCTUnwrap(scenario.presenter.completedCredential)
+        XCTAssertEqual(credential.user, "octocat")
+        XCTAssertEqual(credential.password, "hunter2")
+        assertCleanedUp(scenario.coordinator)
+    }
+
+    func test_switchUnlockErrorCancel_restoresPreviousDatabase() async throws {
+        let scenario = try makePresentedTwoDatabaseSearch()
+        let switcher = try XCTUnwrap(scenario.presenter.searchView?.databaseSwitcher)
+        let target = try XCTUnwrap(switcher.databases.first { $0.id == scenario.databaseB.id })
+
+        switcher.onSwitch(target, "typed")
+        let prompt = try XCTUnwrap(scenario.presenter.unlockPrompt)
+
+        // The target has no cached KDBX bytes (its bookmarked file holds
+        // placeholder bytes), so any password fails. This is also the
+        // biometric-cancel-mid-switch shape: a cancelled biometric prompt
+        // throws into the same showErrorAndRetry → error alert → Cancel path.
+        let errorPresented = expectation(description: "unlock error presented")
+        scenario.presenter.onUnlockErrorPresented = { errorPresented.fulfill() }
+        prompt.onSubmitPassword("wrong-password")
+        await fulfillment(of: [errorPresented], timeout: 10)
+
+        scenario.presenter.searchView = nil
+        let unlockError = try XCTUnwrap(scenario.presenter.unlockError)
+
+        unlockError.onCancel()
+
+        XCTAssertNil(scenario.presenter.cancelledError, "Cancelling a switch's failed unlock must not cancel the request")
+        XCTAssertEqual(scenario.coordinator.activeDatabaseReference?.id, scenario.databaseA.id)
+        XCTAssertNil(scenario.coordinator.pendingSwitchPreviousDatabaseReference)
+        XCTAssertNotNil(scenario.coordinator.sessionKey, "The previous vault survives the failed switch")
+
+        let searchView = try XCTUnwrap(scenario.presenter.searchView)
+        XCTAssertEqual(searchView.entries.count, 2)
+        XCTAssertEqual(searchView.initialSearchText, "typed")
+    }
+
+    func test_switchUnlockErrorRetry_staysPinnedToTarget() async throws {
+        let scenario = try makePresentedTwoDatabaseSearch()
+        let switcher = try XCTUnwrap(scenario.presenter.searchView?.databaseSwitcher)
+        let target = try XCTUnwrap(switcher.databases.first { $0.id == scenario.databaseB.id })
+
+        switcher.onSwitch(target, "typed")
+        let prompt = try XCTUnwrap(scenario.presenter.unlockPrompt)
+
+        let errorPresented = expectation(description: "unlock error presented")
+        scenario.presenter.onUnlockErrorPresented = { errorPresented.fulfill() }
+        prompt.onSubmitPassword("wrong-password")
+        await fulfillment(of: [errorPresented], timeout: 10)
+
+        scenario.presenter.unlockPrompt = nil
+        let unlockError = try XCTUnwrap(scenario.presenter.unlockError)
+
+        unlockError.onRetry()
+
+        XCTAssertNotNil(scenario.presenter.unlockPrompt, "Retry re-presents the unlock prompt")
+        XCTAssertEqual(
+            scenario.coordinator.activeDatabaseReference?.id,
+            scenario.databaseB.id,
+            "The retry loop keeps targeting the switched-to database; only Cancel restores"
+        )
+        XCTAssertEqual(scenario.coordinator.pendingSwitchPreviousDatabaseReference?.id, scenario.databaseA.id)
+        XCTAssertEqual(scenario.coordinator.pendingSwitchSearchText, "typed", "The stash is untouched until a search presents")
+    }
+
     // MARK: - Helpers
 
     @MainActor
@@ -403,6 +1357,10 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
 
         var onUnlockErrorPresented: (() -> Void)?
         var onCompleteRequest: ((ASPasswordCredential) -> Void)?
+        /// Fired after every `presentSearchView` recording, mirroring
+        /// `onUnlockErrorPresented` — lets async flows (a real unlock task)
+        /// await the re-presented search with an expectation.
+        var onSearchViewPresented: (() -> Void)?
 
         func presentSearchView(
             entries: [KPEntry],
@@ -418,6 +1376,7 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
                 onSelect: onSelect,
                 onCancel: onCancel
             )
+            onSearchViewPresented?()
         }
 
         func presentNoEnabledDatabasesState(onDismiss: @escaping () -> Void) {
@@ -532,6 +1491,151 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
         )
         try Data("fixture".utf8).write(to: url)
         return url
+    }
+
+    /// Registers an AutoFill-participating database in the shared registry.
+    /// The bookmarked file holds placeholder bytes, so unlocking it fails —
+    /// resolution/switcher tests that need a real unlock write fixture bytes
+    /// to `DatabaseListStore.cacheLocation(for:)` separately.
+    @discardableResult
+    private func makeRegisteredDatabase(
+        named name: String,
+        autoFillEnabled: Bool = true
+    ) throws -> DatabaseReference {
+        let reference = try TestDatabaseSupport.makeReference(
+            for: makeTemporaryFileURL(name: name),
+            autoFillEnabled: autoFillEnabled
+        )
+        DatabaseListStore.update(reference)
+        return reference
+    }
+
+    private func makePasswordIdentity(recordIdentifier: String?) -> ASPasswordCredentialIdentity {
+        ASPasswordCredentialIdentity(
+            serviceIdentifier: githubServiceIdentifier(),
+            user: "octocat",
+            recordIdentifier: recordIdentifier
+        )
+    }
+
+    private struct SwitcherScenario {
+        let coordinator: CredentialProviderCoordinator
+        let presenter: PresenterSpy
+        let databaseA: DatabaseReference
+        let databaseB: DatabaseReference
+        let entries: [KPEntry]
+    }
+
+    /// Registers two AutoFill-enabled databases, seeds an unlocked vault
+    /// pinned to the first, and presents the password search view — the
+    /// starting position of every switcher-driven test. Database A's vault
+    /// holds the two GitHub entries; database B's bookmarked file holds
+    /// placeholder bytes, so its unlock fails unless the test writes fixture
+    /// bytes to its shared cache first.
+    private func makePresentedTwoDatabaseSearch(
+        serviceIdentifier: ASCredentialServiceIdentifier? = nil
+    ) throws -> SwitcherScenario {
+        let (coordinator, presenter) = makeCoordinator()
+        let databaseA = try makeRegisteredDatabase(named: "switch-a.kdbx")
+        let databaseB = try makeRegisteredDatabase(named: "switch-b.kdbx")
+        let sessionKey = SymmetricKey(size: .bits256)
+        let entries = try makeTwoGitHubEntries(sessionKey: sessionKey)
+
+        coordinator.serviceIdentifiers = [serviceIdentifier ?? githubServiceIdentifier()]
+        seedUnlockedVaultState(coordinator, entries: entries, sessionKey: sessionKey)
+        coordinator.activeDatabaseReference = databaseA
+
+        coordinator.presentPasswordMatchesOrFinish()
+
+        return SwitcherScenario(
+            coordinator: coordinator,
+            presenter: presenter,
+            databaseA: databaseA,
+            databaseB: databaseB,
+            entries: entries
+        )
+    }
+
+    /// Two password entries matching the github.com service identifier —
+    /// enough matches that the interactive path presents a picker instead of
+    /// auto-completing, so identifier-driven completions are unambiguous.
+    private func makeTwoGitHubEntries(sessionKey: SymmetricKey) throws -> [KPEntry] {
+        [
+            KPEntry(
+                title: "GitHub",
+                username: "octocat",
+                password: try EncryptedValue.encrypt("hunter2", using: sessionKey),
+                url: "https://github.com/login"
+            ),
+            KPEntry(
+                title: "GitHub Work",
+                username: "worktocat",
+                password: try EncryptedValue.encrypt("hunter3", using: sessionKey),
+                url: "https://github.com/enterprise"
+            ),
+        ]
+    }
+
+    private func makeTOTPEntry(
+        title: String,
+        url: String = "https://github.com/login",
+        sessionKey: SymmetricKey,
+        expired: Bool = false
+    ) throws -> KPEntry {
+        KPEntry(
+            title: title,
+            url: url,
+            totpConfig: TOTPConfig(
+                secret: try EncryptedValue.encrypt("JBSWY3DPEHPK3PXP", using: sessionKey)
+            ),
+            expires: expired,
+            expiryTime: expired ? .distantPast : nil
+        )
+    }
+
+    /// A passkey entry for relying party `example.com` whose credential ID is
+    /// the base64 of "test-credential-id" (shared across entries so identity
+    /// lookups can be disambiguated purely by record identifier/user handle).
+    private func makePasskeyEntry(
+        title: String = "Passkey Entry",
+        userHandleBase64: String = "dXNlci1oYW5kbGU",
+        privateKey: P256.Signing.PrivateKey,
+        sessionKey: SymmetricKey,
+        expired: Bool = false
+    ) throws -> KPEntry {
+        KPEntry(
+            title: title,
+            url: "https://example.com",
+            customFields: [
+                PasskeyCredential.credentialIDKey: "dGVzdC1jcmVkZW50aWFsLWlk",
+                PasskeyCredential.relyingPartyKey: "example.com",
+                PasskeyCredential.usernameKey: "alice@example.com",
+                PasskeyCredential.userHandleKey: userHandleBase64,
+            ],
+            passkeyPrivateKey: try EncryptedValue.encrypt(pemEncode(privateKey), using: sessionKey),
+            expires: expired,
+            expiryTime: expired ? .distantPast : nil
+        )
+    }
+
+    private func makePasskeyRequest(
+        recordIdentifier: String?,
+        credentialID: Data = Data("test-credential-id".utf8),
+        userHandle: Data = Data("user-handle".utf8)
+    ) -> ASPasskeyCredentialRequest {
+        let identity = ASPasskeyCredentialIdentity(
+            relyingPartyIdentifier: "example.com",
+            userName: "alice@example.com",
+            credentialID: credentialID,
+            userHandle: userHandle,
+            recordIdentifier: recordIdentifier
+        )
+        return ASPasskeyCredentialRequest(
+            credentialIdentity: identity,
+            clientDataHash: Data(repeating: 7, count: 32),
+            userVerificationPreference: .preferred,
+            supportedAlgorithms: [.ES256]
+        )
     }
 
     /// Seed the coordinator with state equivalent to an unlocked vault so that

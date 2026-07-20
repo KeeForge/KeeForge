@@ -283,6 +283,82 @@ final class AppSettingsUITests: AppSettingsUITestCase {
         XCTAssertTrue(usageStatsToggle.waitForExistence(timeout: 5), "Display settings should expose the database list usage-stats toggle")
     }
 
+    func testAutoFillSettingsListsDatabaseTogglesAndCancelableClear() {
+        openAppSettings()
+
+        let autoFillLink = app.descendants(matching: .any).matching(identifier: "settings.autofill.link").firstMatch
+        revealInSettings(autoFillLink, maxSwipes: 2)
+        tapElement(autoFillLink)
+
+        // The suffix is the database's UUID, unknown to the test, so match on
+        // the identifier prefix and require at least one per-database toggle
+        // for the seeded fixture.
+        let databaseToggles = app.switches.matching(
+            NSPredicate(format: "identifier BEGINSWITH 'settings.autofill.database-toggle.'")
+        )
+        XCTAssertTrue(
+            databaseToggles.firstMatch.waitForExistence(timeout: Self.ciElementTimeout),
+            "AutoFill settings should list a toggle for the seeded database"
+        )
+
+        let clearButton = app.buttons["settings.autofill.clear-entries"]
+        revealInSettings(clearButton)
+        tapElement(clearButton)
+
+        // SwiftUI exposes the confirmation action as two nested buttons that
+        // both carry the identifier, so resolve with firstMatch.
+        let confirmButton = app.buttons["settings.autofill.clear-entries.confirm"].firstMatch
+        XCTAssertTrue(
+            confirmButton.waitForExistence(timeout: 5),
+            "Clear AutoFill Entries confirmation did not appear"
+        )
+        XCTAssertEqual(confirmButton.label, "Clear Entries")
+
+        cancelConfirmationDialog()
+
+        let dismissDeadline = Date().addingTimeInterval(10)
+        while confirmButton.exists, Date() < dismissDeadline {
+            RunLoop.current.run(until: Date().addingTimeInterval(0.25))
+        }
+        XCTAssertFalse(confirmButton.exists, "Confirmation should dismiss after Cancel")
+        XCTAssertTrue(
+            clearButton.waitForExistence(timeout: 5),
+            "Clear AutoFill Entries button should remain after canceling"
+        )
+    }
+
+    /// Cancels the currently presented confirmation dialog. Older iOS
+    /// versions render `confirmationDialog` as an action sheet with an
+    /// explicit Cancel button; iOS 26 renders it as a popover whose only
+    /// button is the destructive action, and canceling means tapping the
+    /// system "dismiss popup" region outside the popover.
+    private func cancelConfirmationDialog(file: StaticString = #filePath, line: UInt = #line) {
+        let cancelButton = app.buttons["Cancel"].firstMatch
+        if cancelButton.waitForExistence(timeout: 2) {
+            tapElement(cancelButton)
+            return
+        }
+
+        let dismissRegion = app.otherElements["PopoverDismissRegion"].firstMatch
+        XCTAssertTrue(
+            dismissRegion.waitForExistence(timeout: 5),
+            "Neither a Cancel button nor a popover dismiss region was visible",
+            file: file,
+            line: line
+        )
+
+        // Tap a point inside the dismiss region but outside the popover
+        // itself (a center tap can land on the popover, which sits on top).
+        let windowFrame = app.windows.firstMatch.frame
+        let popoverFrame = app.popovers.firstMatch.exists ? app.popovers.firstMatch.frame : .zero
+        let targetY: CGFloat = popoverFrame.minY - windowFrame.minY > 60
+            ? popoverFrame.minY - 30
+            : min(popoverFrame.maxY + 30, windowFrame.maxY - 10)
+        app.coordinate(withNormalizedOffset: .zero)
+            .withOffset(CGVector(dx: windowFrame.midX, dy: targetY))
+            .tap()
+    }
+
     func testSettingsPageShowsSupportAndAboutSections() {
         openAppSettings()
 

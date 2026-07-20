@@ -514,6 +514,289 @@ final class DatabaseViewModelTests: XCTestCase {
         XCTAssertEqual(Set(identities.map(\.id)), Set([passwordEntry.id, passkeyEntry.id]))
     }
 
+    func testUnlockDisabledDatabaseDoesNotPopulateOrClaimActivePointer() async throws {
+        let otherReference = try makeReference()
+        DatabaseListStore.update(otherReference)
+        DatabaseListStore.markDatabaseOpened(id: otherReference.id)
+
+        let disabledReference = try makeReference(autoFillEnabled: false)
+        DatabaseListStore.update(disabledReference)
+
+        CredentialIdentityStoreManager.populateObserver = { _, _ in
+            XCTFail("Unlocking an AutoFill-disabled database must not populate the credential store")
+        }
+
+        let vm = try makeViewModel(reference: disabledReference)
+        await vm.unlock(password: fixturePassword)
+
+        XCTAssertState(vm.state, is: .unlocked)
+        try? await Task.sleep(for: .milliseconds(100))
+
+        XCTAssertEqual(DatabaseListStore.activeAutoFillDatabaseID, otherReference.id)
+        let storedReference = try XCTUnwrap(
+            DatabaseListStore.databases.first(where: { $0.id == disabledReference.id })
+        )
+        XCTAssertNotNil(storedReference.lastOpenedAt, "markDatabaseOpened still records the open time")
+        XCTAssertFalse(storedReference.autoFillEnabled)
+    }
+
+    func testUnlockEnabledDatabasePopulatesAndSetsActivePointer() async throws {
+        let reference = try makeReference()
+        DatabaseListStore.update(reference)
+        let vm = try makeViewModel(reference: reference)
+
+        let populateExpectation = expectation(description: "Credential store populated after unlocking an enabled database")
+        var observedDatabaseID: UUID?
+        var observedEntries: [KPEntry] = []
+        var didObservePopulate = false
+        CredentialIdentityStoreManager.populateObserver = { databaseID, entries in
+            guard didObservePopulate == false else { return }
+            didObservePopulate = true
+            observedDatabaseID = databaseID
+            observedEntries = entries
+            populateExpectation.fulfill()
+        }
+
+        await vm.unlock(password: fixturePassword)
+
+        await fulfillment(of: [populateExpectation], timeout: 30)
+        XCTAssertState(vm.state, is: .unlocked)
+        XCTAssertEqual(observedDatabaseID, reference.id)
+        XCTAssertFalse(observedEntries.isEmpty)
+        let unlockedRoot = try XCTUnwrap(vm.rootGroup)
+        XCTAssertEqual(
+            Set(observedEntries.map(\.id)),
+            Set(DatabaseViewModel.credentialStoreEntries(from: unlockedRoot).map(\.id))
+        )
+        XCTAssertEqual(DatabaseListStore.activeAutoFillDatabaseID, reference.id)
+    }
+
+    func testSaveOnDisabledDatabaseDoesNotRepopulateStore() async throws {
+        let reference = try makeReference()
+        DatabaseListStore.update(reference)
+        let vm = try makeViewModel(
+            reference: reference,
+            localSaveOperation: { _, _, _, _ in
+                .saved(newSHA512: Data("saved-hash".utf8))
+            }
+        )
+        await unlockAwaitingInitialPopulate(vm)
+
+        DatabaseListStore.setAutoFillEnabled(false, for: reference)
+        CredentialIdentityStoreManager.populateObserver = { _, _ in
+            XCTFail("Saving a database disabled for AutoFill must not repopulate the credential store")
+        }
+
+        vm.draft = try makeDirtyDraft(from: vm, entryTitle: "Saved While Disabled")
+        try await vm.save()
+
+        try? await Task.sleep(for: .milliseconds(100))
+        XCTAssertNil(vm.draft)
+        XCTAssertNil(DatabaseListStore.activeAutoFillDatabaseID)
+    }
+
+    func testPopulateCredentialStoreIfUnlockedRereadsFlagFromRegistry() async throws {
+        let reference = try makeReference()
+        DatabaseListStore.update(reference)
+        let vm = try makeViewModel(reference: reference)
+        await unlockAwaitingInitialPopulate(vm)
+
+        // Disable in the persisted registry only; the view model keeps its
+        // (now stale) enabled in-memory copy, so silence proves the guard
+        // re-reads the registry.
+        DatabaseListStore.setAutoFillEnabled(false, for: reference)
+        XCTAssertTrue(vm.databaseReference.autoFillEnabled)
+        CredentialIdentityStoreManager.populateObserver = { _, _ in
+            XCTFail("The foreground refresh must re-read the persisted AutoFill flag and stay silent")
+        }
+
+        vm.populateCredentialStoreIfUnlocked()
+
+        try? await Task.sleep(for: .milliseconds(100))
+        XCTAssertNil(DatabaseListStore.activeAutoFillDatabaseID)
+    }
+
+    func testUnlockRefreshesOnlyTheUnlockedDatabase() async throws {
+        let fake = FakeCredentialIdentityStore()
+        let otherDatabaseID = UUID()
+        let otherEntry = KPEntry(
+            title: "Other Database Entry",
+            username: "bob",
+            password: try EncryptedValue.encrypt("other-secret", using: SymmetricKey(size: .bits256)),
+            url: "https://other-database.example.com"
+        )
+        fake.stored = CredentialIdentityStoreManager.passwordIdentities(for: otherEntry, in: otherDatabaseID)
+        XCTAssertFalse(fake.stored.isEmpty)
+        CredentialIdentityStoreManager.storeProviderOverride = fake
+
+        let mutationExpectation = expectation(description: "Unlock refresh mutated the fake store")
+        fake.onMutation = {
+            mutationExpectation.fulfill()
+        }
+
+        let reference = try makeReference()
+        DatabaseListStore.update(reference)
+        let vm = try makeViewModel(reference: reference)
+
+        let populateExpectation = expectation(description: "Populate observer fired for the unlocked database")
+        var observedDatabaseIDs: [UUID] = []
+        CredentialIdentityStoreManager.populateObserver = { databaseID, _ in
+            observedDatabaseIDs.append(databaseID)
+            populateExpectation.fulfill()
+        }
+
+        await vm.unlock(password: fixturePassword)
+
+        await fulfillment(of: [populateExpectation, mutationExpectation], timeout: 30)
+        XCTAssertEqual(observedDatabaseIDs, [reference.id])
+
+        let storedDatabaseIDs = Set(fake.stored.compactMap { identity -> UUID? in
+            guard let recordIdentifier = identity.recordIdentifier,
+                  case .current(let parsed) = CredentialRecordIdentifier.parse(recordIdentifier)
+            else { return nil }
+            return parsed.databaseID
+        })
+        XCTAssertEqual(
+            storedDatabaseIDs,
+            [reference.id, otherDatabaseID],
+            "The unlocked database's refresh must keep the other database's identities"
+        )
+        XCTAssertFalse(fake.calls.contains("replaceCredentialIdentities"))
+        XCTAssertFalse(fake.calls.contains("removeAllCredentialIdentities"))
+    }
+
+    func testGlobalToggleOnRefreshesOnlyUnlockedEnabledDatabase() async throws {
+        // The Settings screen's Quick AutoFill "on" handler calls
+        // populateCredentialStoreIfUnlocked() on the open session. The silent
+        // half (open database disabled in the registry) is pinned by
+        // testPopulateCredentialStoreIfUnlockedRereadsFlagFromRegistry.
+        let reference = try makeReference()
+        DatabaseListStore.update(reference)
+        let vm = try makeViewModel(reference: reference)
+        await unlockAwaitingInitialPopulate(vm)
+
+        let refreshExpectation = expectation(description: "Toggle-on refresh populated the open database")
+        var observedDatabaseID: UUID?
+        var didObserveRefresh = false
+        CredentialIdentityStoreManager.populateObserver = { databaseID, _ in
+            guard didObserveRefresh == false else { return }
+            didObserveRefresh = true
+            observedDatabaseID = databaseID
+            refreshExpectation.fulfill()
+        }
+
+        vm.populateCredentialStoreIfUnlocked()
+
+        await fulfillment(of: [refreshExpectation], timeout: 30)
+        XCTAssertEqual(observedDatabaseID, reference.id)
+    }
+
+    func testToggleOnOfOpenDatabaseRefreshesImmediatelyThroughHandler() async throws {
+        let reference = try makeReference()
+        DatabaseListStore.update(reference)
+        let vm = try makeViewModel(reference: reference)
+        await unlockAwaitingInitialPopulate(vm)
+
+        let listViewModel = DatabaseListViewModel()
+        var handlerInvocations: [UUID] = []
+        // The AppRootView wiring: refresh immediately when the just-enabled
+        // database is the currently unlocked session, no-op otherwise.
+        listViewModel.autoFillEnabledRefreshHandler = { databaseID in
+            handlerInvocations.append(databaseID)
+            guard databaseID == vm.databaseReference.id else { return }
+            vm.populateCredentialStoreIfUnlocked()
+        }
+
+        let refreshExpectation = expectation(description: "Re-enabling the open database republished immediately")
+        var observedDatabaseID: UUID?
+        var didObserveRefresh = false
+        CredentialIdentityStoreManager.populateObserver = { databaseID, _ in
+            guard didObserveRefresh == false else { return }
+            didObserveRefresh = true
+            observedDatabaseID = databaseID
+            refreshExpectation.fulfill()
+        }
+
+        listViewModel.setAutoFillEnabled(false, for: reference)
+        listViewModel.setAutoFillEnabled(true, for: reference)
+
+        await fulfillment(of: [refreshExpectation], timeout: 30)
+        XCTAssertEqual(observedDatabaseID, reference.id)
+        XCTAssertEqual(handlerInvocations, [reference.id], "The handler runs only for the enable")
+        XCTAssertEqual(DatabaseListStore.activeAutoFillDatabaseID, reference.id)
+    }
+
+    func testToggleOnOfNonOpenDatabaseStaysLazy() async throws {
+        let reference = try makeReference()
+        DatabaseListStore.update(reference)
+        let backgroundReference = try makeReference(autoFillEnabled: false)
+        DatabaseListStore.update(backgroundReference)
+
+        let vm = try makeViewModel(reference: reference)
+        await unlockAwaitingInitialPopulate(vm)
+
+        let listViewModel = DatabaseListViewModel()
+        var handlerInvocations: [UUID] = []
+        listViewModel.autoFillEnabledRefreshHandler = { databaseID in
+            handlerInvocations.append(databaseID)
+            guard databaseID == vm.databaseReference.id else { return }
+            vm.populateCredentialStoreIfUnlocked()
+        }
+        CredentialIdentityStoreManager.populateObserver = { _, _ in
+            XCTFail("Enabling a database that is not the open session must stay lazy")
+        }
+
+        listViewModel.setAutoFillEnabled(true, for: backgroundReference)
+
+        try? await Task.sleep(for: .milliseconds(100))
+        XCTAssertEqual(handlerInvocations, [backgroundReference.id])
+        let storedBackgroundReference = try XCTUnwrap(
+            DatabaseListStore.databases.first(where: { $0.id == backgroundReference.id })
+        )
+        XCTAssertTrue(storedBackgroundReference.autoFillEnabled, "The enable itself must still persist")
+    }
+
+    func testToggleOffOfBackgroundDatabaseTriggersRemovalNotClear() async throws {
+        let reference = try makeReference()
+        DatabaseListStore.update(reference)
+        let backgroundReference = try makeReference()
+        DatabaseListStore.update(backgroundReference)
+
+        let vm = try makeViewModel(reference: reference)
+        await unlockAwaitingInitialPopulate(vm)
+        XCTAssertEqual(DatabaseListStore.activeAutoFillDatabaseID, reference.id)
+
+        let listViewModel = DatabaseListViewModel()
+        var handlerInvocations: [UUID] = []
+        listViewModel.autoFillEnabledRefreshHandler = { databaseID in
+            handlerInvocations.append(databaseID)
+        }
+        CredentialIdentityStoreManager.populateObserver = { _, _ in
+            XCTFail("Disabling a background database must not repopulate anything")
+        }
+        CredentialIdentityStoreManager.clearObserver = {
+            XCTFail("Disabling one database must not clear the whole credential store")
+        }
+        let removalExpectation = expectation(description: "Targeted removal for the disabled background database")
+        var observedRemoval: (databaseID: UUID, includingLegacyIdentifiers: Bool)?
+        var didObserveRemoval = false
+        CredentialIdentityStoreManager.removeDatabaseObserver = { databaseID, includingLegacyIdentifiers in
+            guard didObserveRemoval == false else { return }
+            didObserveRemoval = true
+            observedRemoval = (databaseID, includingLegacyIdentifiers)
+            removalExpectation.fulfill()
+        }
+
+        listViewModel.setAutoFillEnabled(false, for: backgroundReference)
+
+        await fulfillment(of: [removalExpectation], timeout: 30)
+        try? await Task.sleep(for: .milliseconds(100))
+        XCTAssertEqual(observedRemoval?.databaseID, backgroundReference.id)
+        XCTAssertEqual(observedRemoval?.includingLegacyIdentifiers, false)
+        XCTAssertTrue(handlerInvocations.isEmpty, "The refresh handler runs only for enables")
+        XCTAssertEqual(DatabaseListStore.activeAutoFillDatabaseID, reference.id)
+    }
+
     func testUnlockWithWrongPasswordTransitionsToError() async throws {
         let vm = try makeViewModel()
         let data = try Data(contentsOf: fixtureURL())
@@ -1451,8 +1734,26 @@ final class DatabaseViewModelTests: XCTestCase {
         )
     }
 
-    private func makeReference() throws -> DatabaseReference {
-        try TestDatabaseSupport.makeReference(for: fixtureURL())
+    private func makeReference(autoFillEnabled: Bool = true) throws -> DatabaseReference {
+        try TestDatabaseSupport.makeReference(for: fixtureURL(), autoFillEnabled: autoFillEnabled)
+    }
+
+    /// Unlocks the view model and waits for the unlock-triggered credential
+    /// store populate to settle, so callers can install their own observers
+    /// (including `XCTFail`-ing ones) without catching the initial refresh.
+    private func unlockAwaitingInitialPopulate(_ viewModel: DatabaseViewModel) async {
+        let initialPopulateExpectation = expectation(description: "Initial credential store populate after unlock")
+        var didObserveInitialPopulate = false
+        CredentialIdentityStoreManager.populateObserver = { _, _ in
+            guard didObserveInitialPopulate == false else { return }
+            didObserveInitialPopulate = true
+            initialPopulateExpectation.fulfill()
+        }
+
+        await viewModel.unlock(password: fixturePassword)
+
+        await fulfillment(of: [initialPopulateExpectation], timeout: 30)
+        CredentialIdentityStoreManager.populateObserver = nil
     }
 
     private func makeCleanDraft(from viewModel: DatabaseViewModel) throws -> DatabaseDraft {

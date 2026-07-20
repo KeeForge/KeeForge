@@ -12,13 +12,16 @@
 
 ## Toolchain follow-ups (run once, before/while writing tests)
 
-- [ ] `xcodegen generate` — only needed if any new source/test files are added while writing
+- [x] `xcodegen generate` — only needed if any new source/test files are added while writing
       the tests below (no new source files were added by the implementation itself).
-- [ ] `swift scripts/normalize-xcstrings.swift` — the implementation edited
+      *(Run 2026-07-19 after adding `KeeForgeTests/FakeCredentialIdentityStore.swift`.)*
+- [x] `swift scripts/normalize-xcstrings.swift` — the implementation edited
       `.xcstrings` catalogs as plain JSON; Linux cannot reproduce Xcode's
       `localizedStandardCompare` key order, so the catalogs must be normalized on a Mac and
       the diff re-committed. Then run `-only-testing:KeeForgeTests/LocalizationTests`.
-- [ ] Full build of all targets (`KeeForge`, `KeeForgeAutoFill`, `KeeForgeMacAutoFill`) —
+      *(Run 2026-07-19: the script produced no diff — the hand-ordered catalogs were already
+      canonical; `LocalizationTests` green.)*
+- [x] Full build of all targets (`KeeForge`, `KeeForgeAutoFill`, `KeeForgeMacAutoFill`) —
       the implementation was written without a compiler; fix any first-build breakage before
       starting on tests. Known likely first-build spots (all flagged in code review, none
       verifiable on Linux):
@@ -33,18 +36,32 @@
       - `DatabaseListStore` declares both `static var activeAutoFillDatabase` and
         `private static func activeAutoFillDatabase(in:)` — legal overloading, but worth a
         first-build glance.
-- [ ] `-only-testing:KeeForgeTests/AppGroupGuardrailTests` — the registry gained a plain
-      bool field; guardrail must stay green.
+      *(Built 2026-07-19 on Xcode 26.6: all four targets — incl. `KeeForgeMac` — compiled
+      cleanly with zero warnings; none of the three flagged risk spots materialized.)*
+- [x] `-only-testing:KeeForgeTests/AppGroupGuardrailTests` — the registry gained a plain
+      bool field; guardrail must stay green. *(Green.)*
 
 ## Slice checklist
 
-- [ ] Slice 01 — AutoFill-enabled flag and publication gating
-- [ ] Slice 02 — Database-tagged credential identities
-- [ ] Slice 03 — Extension identity-to-database resolution
-- [ ] Slice 04 — Multi-database aggregation and targeted removal
-- [ ] Slice 05 — Settings UI and Clear AutoFill Entries
-- [ ] Slice 06 — Extension database switcher
+- [x] Slice 01 — AutoFill-enabled flag and publication gating
+- [x] Slice 02 — Database-tagged credential identities
+- [x] Slice 03 — Extension identity-to-database resolution
+- [x] Slice 04 — Multi-database aggregation and targeted removal
+- [x] Slice 05 — Settings UI and Clear AutoFill Entries
+- [x] Slice 06 — Extension database switcher
 - [ ] Manual test pass (aggregated from the slice sections; device + mac extension)
+
+> **Validation session 2026-07-19 (Mac).** All slice test sections above were written and are
+> green (unit suites verified in two consecutive runs each; the two slice 05 XCUITests pass
+> per-class). Naming note: `-only-testing:KeeForgeTests/PasskeyTests` matches nothing —
+> `PasskeyTests.swift` contains the classes `PasskeyCredentialTests` and `PasskeyCryptoTests`;
+> use those in test filters. The `ASSavePasswordRequest` open question resolved: it IS
+> test-constructible (iOS 26.2+ `init(serviceIdentifier:credential:sessionID:event:)`), so
+> slice 03's save-prepare targeting is covered by real `prepareInterface(for:)` tests in
+> `CredentialProviderSaveTests`. `ASPasskeyCredentialRequestParameters` is NOT
+> test-constructible (`init` unavailable); that optional slice 06 case is covered indirectly
+> (gap documented inline in `CredentialProviderCoordinatorTests`). Only the manual
+> device/mac-extension pass remains.
 
 ---
 

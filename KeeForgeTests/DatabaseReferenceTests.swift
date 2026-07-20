@@ -23,6 +23,7 @@ final class DatabaseReferenceTests: XCTestCase {
 
         XCTAssertFalse(decoded.isReadOnly)
         XCTAssertNil(decoded.editsAcknowledgedAt)
+        XCTAssertTrue(decoded.autoFillEnabled)
     }
 
     func testEncodeDecodeWithNewFieldsRoundTrips() throws {
@@ -39,6 +40,7 @@ final class DatabaseReferenceTests: XCTestCase {
             colorTag: "green",
             legacyKeychainFilename: "legacy",
             isReadOnly: true,
+            autoFillEnabled: false,
             editsAcknowledgedAt: Date(timeIntervalSince1970: 30),
             source: .cloud(
                 CloudSyncMetadata(
@@ -59,6 +61,30 @@ final class DatabaseReferenceTests: XCTestCase {
         let decoded = try JSONDecoder().decode(DatabaseReference.self, from: data)
 
         XCTAssertEqual(decoded, reference)
+    }
+
+    func testEncodeAlwaysEmitsAutoFillEnabledKey() throws {
+        let reference = DatabaseReference(
+            id: UUID(),
+            nickname: nil,
+            filename: "vault.kdbx",
+            bookmarkData: nil,
+            keyFileBookmarkData: nil,
+            keyFileFilename: nil,
+            isQuickLaunch: false,
+            lastOpenedAt: nil,
+            addedAt: Date(timeIntervalSince1970: 10),
+            colorTag: nil,
+            legacyKeychainFilename: nil
+        )
+
+        let data = try JSONEncoder().encode(reference)
+        let json = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+
+        // Pins the unconditional `encode` (not `encodeIfPresent`): a registry
+        // written by this build always carries an explicit value for the flag.
+        XCTAssertNotNil(json["autoFillEnabled"])
+        XCTAssertEqual(json["autoFillEnabled"] as? Bool, true)
     }
 }
 

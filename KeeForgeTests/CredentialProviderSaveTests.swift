@@ -243,6 +243,105 @@ final class CredentialProviderSaveTests: XCTestCase {
         XCTAssertNil(DatabaseListStore.activeAutoFillDatabaseID)
     }
 
+    func test_saveNewEntry_autoFillDisabledReference_doesNotSetActiveOrPopulate() async throws {
+        let reference = makeLocalReference(autoFillEnabled: false)
+        let sessionKey = SymmetricKey(size: .bits256)
+        let root = KPGroup(name: "Root", groups: [KPGroup(name: "MyDatabase")])
+        let recorder = SaveRecorder()
+
+        let result = try await AutoFillSaveCoordinator.saveNewEntry(
+            draftPayload: EntryDraftPayload(
+                title: "Disabled Entry",
+                username: "alex",
+                password: "secret",
+                url: "https://example.com"
+            ),
+            reference: reference,
+            rootGroup: root,
+            meta: KPMeta(),
+            sessionKey: sessionKey,
+            compositeKey: Data("composite-key".utf8),
+            openTimeSHA512: Data("open-sha".utf8),
+            environment: makeEnvironment(recorder: recorder)
+        )
+
+        guard case .saved(let outcome) = result else {
+            return XCTFail("Expected save to succeed even with AutoFill disabled")
+        }
+
+        XCTAssertEqual(outcome.savedRootGroup.allEntries.count, 1)
+        XCTAssertEqual(outcome.savedRootGroup.allEntries.first?.title, "Disabled Entry")
+        XCTAssertTrue(recorder.populatedEntryTitles.isEmpty)
+        XCTAssertTrue(recorder.populatedDatabaseIDs.isEmpty)
+        XCTAssertNil(DatabaseListStore.activeAutoFillDatabaseID)
+    }
+
+    // MARK: - Save-prepare default database selection (slice 03)
+
+    func test_defaultDatabaseSelectionForSave_prepareInterfacePinsEnabledDatabaseOverDisabledOpenedLater() throws {
+        guard #available(iOS 26.2, *) else {
+            throw XCTSkip("ASSavePasswordRequest requires iOS 26.2")
+        }
+
+        let enabled = makeLocalReference()
+        let disabled = makeLocalReference(autoFillEnabled: false)
+        DatabaseListStore.update(enabled)
+        DatabaseListStore.update(disabled)
+        DatabaseListStore.markDatabaseOpened(id: enabled.id, at: Date(timeIntervalSince1970: 1_000))
+        DatabaseListStore.markDatabaseOpened(id: disabled.id, at: Date(timeIntervalSince1970: 2_000))
+        // Clear the pointer `markDatabaseOpened` just set so the resolution
+        // exercises the most-recently-opened-enabled fallback, proving the
+        // disabled-but-opened-later database is skipped rather than merely
+        // outranked by the pointer.
+        DatabaseListStore.activeAutoFillDatabaseID = nil
+
+        let presenter = SavePresenterSpy()
+        let coordinator = CredentialProviderCoordinator(presenter: presenter)
+
+        coordinator.prepareInterface(for: makeSavePasswordRequest())
+
+        XCTAssertEqual(coordinator.activeDatabaseReference?.id, enabled.id)
+        XCTAssertTrue(coordinator.pendingUnlock)
+        XCTAssertFalse(coordinator.pendingNoEnabledDatabasesPresentation)
+        XCTAssertTrue(presenter.cancelledErrorCodes.isEmpty)
+    }
+
+    func test_defaultDatabaseSelectionForSave_zeroEnabledDatabases_defersEmptyStateWithoutCancelling() throws {
+        guard #available(iOS 26.2, *) else {
+            throw XCTSkip("ASSavePasswordRequest requires iOS 26.2")
+        }
+
+        let disabled = makeLocalReference(autoFillEnabled: false)
+        DatabaseListStore.update(disabled)
+        DatabaseListStore.markDatabaseOpened(id: disabled.id, at: Date(timeIntervalSince1970: 1_000))
+
+        let presenter = SavePresenterSpy()
+        let coordinator = CredentialProviderCoordinator(presenter: presenter)
+
+        coordinator.prepareInterface(for: makeSavePasswordRequest())
+
+        XCTAssertFalse(coordinator.pendingUnlock)
+        XCTAssertTrue(coordinator.pendingNoEnabledDatabasesPresentation)
+        XCTAssertNil(coordinator.activeDatabaseReference)
+        XCTAssertTrue(
+            presenter.cancelledErrorCodes.isEmpty,
+            "Zero enabled databases must defer the empty state, not cancel with .failed"
+        )
+    }
+
+    @available(iOS 26.2, *)
+    private func makeSavePasswordRequest() -> ASSavePasswordRequest {
+        ASSavePasswordRequest(
+            serviceIdentifier: ASCredentialServiceIdentifier(
+                identifier: "https://accounts.example.com/sign-in",
+                type: .URL
+            ),
+            credential: ASPasswordCredential(user: "alex", password: "secret"),
+            sessionID: "session-1",
+            event: .userInitiated
+        )
+    }
+
     private func makeEnvironment(
         recorder: SaveRecorder,
         saveDraft: (@Sendable (DatabaseDraft, DatabaseReference, Data, Data) async throws -> AutoFillSaveCoordinator.SaveResult)? = nil,
@@ -357,5 +456,66 @@ final class CredentialProviderSaveTests: XCTestCase {
         var populatedEntryTitles: [[String]] = []
         var populatedDatabaseIDs: [UUID] = []
         var relativePathInputs: [URL] = []
+    }
+
+    /// Minimal `CredentialProviderPresenting` conformance for the save-prepare
+    /// tests: `prepareInterface(for: ASSavePasswordRequest)` only mutates
+    /// coordinator state, so the spy just records that no request cancellation
+    /// (the pre-slice-03 `.failed` behavior) sneaks back in.
+    @MainActor
+    private final class SavePresenterSpy: CredentialProviderPresenting {
+        var isDisplayingContent = false
+        private(set) var cancelledErrorCodes: [ASExtensionError.Code] = []
+
+        func presentSearchView(
+            entries: [KPEntry],
+            initialSearchText: String,
+            databaseSwitcher: CredentialProviderDatabaseSwitcherContext?,
+            onSelect: @escaping (KPEntry) -> Void,
+            onCancel: @escaping () -> Void
+        ) {}
+
+        func presentEntryCreator(
+            initialDraft: EntryDraftPayload,
+            onSave: @escaping @Sendable (EntryDraftPayload) async -> CredentialProviderEntrySaveOutcome,
+            onCancel: @escaping () -> Void
+        ) {}
+
+        func presentNoEnabledDatabasesState(onDismiss: @escaping () -> Void) {}
+
+        func presentUnlockPrompt(
+            biometricOptionTitle: String?,
+            onSubmitPassword: @escaping (String?) -> Void,
+            onChooseBiometrics: @escaping () -> Void,
+            onCancel: @escaping () -> Void
+        ) {}
+
+        func presentUnlockError(
+            message: String,
+            onRetry: @escaping () -> Void,
+            onCancel: @escaping () -> Void
+        ) {}
+
+        func presentReadOnlyNotice(
+            message: String,
+            onAcknowledge: @escaping () -> Void
+        ) {}
+
+        func presentGeneratedPassword(
+            _ password: String,
+            onUse: @escaping () -> Void,
+            onRegenerate: @escaping () -> Void,
+            onCancel: @escaping () -> Void
+        ) {}
+
+        func completeRequest(withSelectedCredential credential: ASPasswordCredential) {}
+        func completeAssertionRequest(using credential: ASPasskeyAssertionCredential) {}
+        func completeOneTimeCodeRequest(code: String) {}
+        func completeSavePasswordRequest() {}
+        func completeGeneratePasswordRequest(passwords: [String]) {}
+
+        func cancelRequest(withError error: ASExtensionError) {
+            cancelledErrorCodes.append(error.code)
+        }
     }
 }

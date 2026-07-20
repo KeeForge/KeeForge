@@ -45,6 +45,24 @@ final class DatabaseReferenceMigrationTests: XCTestCase {
         XCTAssertEqual(firstRead.id, secondRead.id)
     }
 
+    func testMigrationFromSharedVaultStoreProducesAutoFillEnabledReference() throws {
+        let sourceData = Data("legacy-cache".utf8)
+        let url = try makeTemporaryFileURL(name: "legacy.kdbx", contents: sourceData)
+
+        try SharedVaultStore.saveBookmark(for: url)
+        try SharedVaultStore.cacheDatabaseCopy(sourceData, sourceURL: url)
+
+        let migratedReference = try XCTUnwrap(DatabaseListStore.databases.first)
+        XCTAssertTrue(migratedReference.autoFillEnabled)
+
+        // Even with the pointer cleared, the gated legacy fallback (which
+        // requires `legacyKeychainFilename != nil && autoFillEnabled`) must
+        // accept the migrated reference.
+        DatabaseListStore.activeAutoFillDatabaseID = nil
+        XCTAssertNil(DatabaseListStore.activeAutoFillDatabaseID)
+        XCTAssertEqual(DatabaseListStore.activeAutoFillDatabase?.id, migratedReference.id)
+    }
+
     func testActiveAutoFillDatabaseFallsBackToMigratedDatabaseWhenUnset() throws {
         let url = try makeTemporaryFileURL(name: "autofill.kdbx")
         try SharedVaultStore.saveBookmark(for: url)

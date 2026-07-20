@@ -1,3 +1,4 @@
+@preconcurrency import AuthenticationServices
 import XCTest
 @testable import KeeForge
 
@@ -261,6 +262,358 @@ final class DatabaseListStoreTests: XCTestCase {
         await fulfillment(of: [removalExpectation], timeout: 1)
         try? await Task.sleep(for: .milliseconds(100))
         XCTAssertEqual(DatabaseListStore.activeAutoFillDatabaseID, first.id)
+    }
+
+    func testRemovingNonActiveDatabaseTriggersTargetedIdentityRemoval() async throws {
+        let active = try DatabaseListStore.add(url: makeTemporaryFileURL(name: "kept.kdbx"))
+        let removed = try DatabaseListStore.add(url: makeTemporaryFileURL(name: "dropped.kdbx"))
+        DatabaseListStore.activeAutoFillDatabaseID = active.id
+
+        // Pre-slice-04 "removal gap": removing a non-active database left its
+        // published identities behind. Every removal now targeted-removes.
+        CredentialIdentityStoreManager.clearObserver = {
+            XCTFail("Removing a non-active database must never clear the whole store")
+        }
+
+        let removalExpectation = expectation(description: "Targeted identity removal for the removed database")
+        CredentialIdentityStoreManager.removeDatabaseObserver = { databaseID, includingLegacyIdentifiers in
+            XCTAssertEqual(databaseID, removed.id)
+            XCTAssertFalse(includingLegacyIdentifiers)
+            removalExpectation.fulfill()
+        }
+
+        DatabaseListStore.remove(id: removed.id)
+
+        await fulfillment(of: [removalExpectation], timeout: 1)
+        try? await Task.sleep(for: .milliseconds(100))
+        XCTAssertEqual(DatabaseListStore.activeAutoFillDatabaseID, active.id)
+        XCTAssertEqual(DatabaseListStore.databases.map(\.id), [active.id])
+    }
+
+    func testRemovalWorksWithEverythingLocked() async throws {
+        // Both references have only ever been added — never unlocked, so no
+        // composite key and no KPEntry exists anywhere. Targeted removal must
+        // work purely by store enumeration.
+        let removed = try DatabaseListStore.add(url: makeTemporaryFileURL(name: "locked-removed.kdbx"))
+        let surviving = try DatabaseListStore.add(url: makeTemporaryFileURL(name: "locked-surviving.kdbx"))
+
+        let removedIdentifiers = [
+            CredentialRecordIdentifier(databaseID: removed.id, entryID: UUID()).encoded,
+            CredentialRecordIdentifier(databaseID: removed.id, entryID: UUID()).encoded,
+        ]
+        let survivingIdentifier = CredentialRecordIdentifier(databaseID: surviving.id, entryID: UUID()).encoded
+        let legacyIdentifier = UUID().uuidString
+
+        let fake = FakeCredentialIdentityStore()
+        fake.stored = (removedIdentifiers + [survivingIdentifier, legacyIdentifier]).map { recordIdentifier in
+            ASPasswordCredentialIdentity(
+                serviceIdentifier: ASCredentialServiceIdentifier(identifier: "example.com", type: .domain),
+                user: "user",
+                recordIdentifier: recordIdentifier
+            )
+        }
+        let mutationExpectation = expectation(description: "Targeted removal mutates the fake store")
+        fake.onMutation = { mutationExpectation.fulfill() }
+        CredentialIdentityStoreManager.storeProviderOverride = fake
+
+        DatabaseListStore.remove(id: removed.id)
+
+        await fulfillment(of: [mutationExpectation], timeout: 1)
+        fake.onMutation = nil
+
+        // Exactly the removed database's subset goes; the other database's
+        // identity survives, and so does the legacy bare-UUID one (the
+        // removed database was not the active AutoFill database).
+        XCTAssertEqual(fake.calls, ["removeCredentialIdentities"])
+        XCTAssertEqual(
+            Set(fake.stored.compactMap(\.recordIdentifier)),
+            [survivingIdentifier, legacyIdentifier]
+        )
+    }
+
+    func testSetAutoFillEnabledPersistsAcrossReload() throws {
+        let disabled = try DatabaseListStore.add(url: makeTemporaryFileURL(name: "disabled.kdbx"))
+        let enabled = try DatabaseListStore.add(url: makeTemporaryFileURL(name: "enabled.kdbx"))
+
+        DatabaseListStore.setAutoFillEnabled(false, for: disabled)
+
+        // `databases` re-decodes database-list.json on every access, so this
+        // is also the background→foreground reload guarantee.
+        let storedReferences = DatabaseListStore.databases
+        XCTAssertEqual(storedReferences.first(where: { $0.id == disabled.id })?.autoFillEnabled, false)
+        XCTAssertEqual(storedReferences.first(where: { $0.id == enabled.id })?.autoFillEnabled, true)
+        XCTAssertEqual(DatabaseListStore.autoFillEnabledDatabases.map(\.id), [enabled.id])
+    }
+
+    func testActiveAutoFillDatabaseIDSetterRefusesDisabledDatabase() throws {
+        let enabled = try DatabaseListStore.add(url: makeTemporaryFileURL(name: "enabled.kdbx"))
+        let disabled = try TestDatabaseSupport.makeReference(
+            for: makeTemporaryFileURL(name: "disabled.kdbx"),
+            autoFillEnabled: false
+        )
+        DatabaseListStore.update(disabled)
+        DatabaseListStore.activeAutoFillDatabaseID = enabled.id
+
+        DatabaseListStore.activeAutoFillDatabaseID = disabled.id
+
+        XCTAssertEqual(DatabaseListStore.activeAutoFillDatabaseID, enabled.id)
+    }
+
+    func testActiveAutoFillDatabaseIDSetterAllowsUnknownID() throws {
+        // References that have not been saved to the registry yet (e.g. the
+        // AutoFill extension's save flow before first persist) must be able
+        // to claim the pointer.
+        let registered = try DatabaseListStore.add(url: makeTemporaryFileURL(name: "registered.kdbx"))
+        DatabaseListStore.activeAutoFillDatabaseID = registered.id
+        let unknownID = UUID()
+
+        DatabaseListStore.activeAutoFillDatabaseID = unknownID
+
+        XCTAssertEqual(DatabaseListStore.activeAutoFillDatabaseID, unknownID)
+    }
+
+    func testMarkDatabaseOpenedOnDisabledDatabaseKeepsPreviousActivePointer() throws {
+        let active = try DatabaseListStore.add(url: makeTemporaryFileURL(name: "active.kdbx"))
+        DatabaseListStore.markDatabaseOpened(id: active.id)
+        let disabled = try TestDatabaseSupport.makeReference(
+            for: makeTemporaryFileURL(name: "disabled.kdbx"),
+            autoFillEnabled: false
+        )
+        DatabaseListStore.update(disabled)
+        let openedDate = Date(timeIntervalSince1970: 2_000)
+
+        DatabaseListStore.markDatabaseOpened(id: disabled.id, at: openedDate)
+
+        let storedDisabled = try XCTUnwrap(DatabaseListStore.databases.first(where: { $0.id == disabled.id }))
+        XCTAssertEqual(storedDisabled.lastOpenedAt, openedDate)
+        XCTAssertEqual(DatabaseListStore.activeAutoFillDatabaseID, active.id)
+    }
+
+    func testDisablingActiveDatabaseTargetedRemovesAndReassignsPointer() async throws {
+        let older = try DatabaseListStore.add(url: makeTemporaryFileURL(name: "older.kdbx"))
+        let newer = try DatabaseListStore.add(url: makeTemporaryFileURL(name: "newer.kdbx"))
+        DatabaseListStore.markDatabaseOpened(id: older.id, at: Date(timeIntervalSince1970: 1_000))
+        DatabaseListStore.markDatabaseOpened(id: newer.id, at: Date(timeIntervalSince1970: 2_000))
+        XCTAssertEqual(DatabaseListStore.activeAutoFillDatabaseID, newer.id)
+
+        CredentialIdentityStoreManager.clearObserver = {
+            XCTFail("Disabling must use targeted identity removal, never a whole-store clear")
+        }
+
+        let removalExpectation = expectation(description: "Targeted identity removal for the disabled database")
+        CredentialIdentityStoreManager.removeDatabaseObserver = { databaseID, includingLegacyIdentifiers in
+            XCTAssertEqual(databaseID, newer.id)
+            XCTAssertTrue(
+                includingLegacyIdentifiers,
+                "Disabling the active database must sweep legacy bare-UUID identifiers"
+            )
+            removalExpectation.fulfill()
+        }
+
+        DatabaseListStore.setAutoFillEnabled(false, for: newer)
+
+        await fulfillment(of: [removalExpectation], timeout: 1)
+        XCTAssertEqual(DatabaseListStore.activeAutoFillDatabaseID, older.id)
+    }
+
+    func testDisablingActiveDatabaseWithNoOtherOpenedEnabledDatabaseClearsPointer() async throws {
+        let active = try DatabaseListStore.add(url: makeTemporaryFileURL(name: "active.kdbx"))
+        _ = try DatabaseListStore.add(url: makeTemporaryFileURL(name: "never-opened.kdbx"))
+        DatabaseListStore.markDatabaseOpened(id: active.id)
+        XCTAssertEqual(DatabaseListStore.activeAutoFillDatabaseID, active.id)
+
+        let removalExpectation = expectation(description: "Targeted identity removal for the disabled database")
+        CredentialIdentityStoreManager.removeDatabaseObserver = { databaseID, includingLegacyIdentifiers in
+            XCTAssertEqual(databaseID, active.id)
+            XCTAssertTrue(includingLegacyIdentifiers)
+            removalExpectation.fulfill()
+        }
+
+        DatabaseListStore.setAutoFillEnabled(false, for: active)
+
+        await fulfillment(of: [removalExpectation], timeout: 1)
+        // The only other database has never been opened, so no reassignment
+        // target exists.
+        XCTAssertNil(DatabaseListStore.activeAutoFillDatabaseID)
+    }
+
+    func testDisablingInactiveDatabaseRemovesOnlyItsIdentitiesAndKeepsPointer() async throws {
+        let active = try DatabaseListStore.add(url: makeTemporaryFileURL(name: "active.kdbx"))
+        let inactive = try DatabaseListStore.add(url: makeTemporaryFileURL(name: "inactive.kdbx"))
+        DatabaseListStore.markDatabaseOpened(id: active.id)
+
+        CredentialIdentityStoreManager.clearObserver = {
+            XCTFail("Disabling a non-active database must not clear the whole store")
+        }
+
+        let removalExpectation = expectation(description: "Targeted identity removal for the inactive database")
+        CredentialIdentityStoreManager.removeDatabaseObserver = { databaseID, includingLegacyIdentifiers in
+            XCTAssertEqual(databaseID, inactive.id)
+            XCTAssertFalse(
+                includingLegacyIdentifiers,
+                "Disabling a non-active database must not sweep legacy identifiers"
+            )
+            removalExpectation.fulfill()
+        }
+
+        DatabaseListStore.setAutoFillEnabled(false, for: inactive)
+
+        await fulfillment(of: [removalExpectation], timeout: 1)
+        try? await Task.sleep(for: .milliseconds(100))
+        XCTAssertEqual(DatabaseListStore.activeAutoFillDatabaseID, active.id)
+    }
+
+    func testEnablingDisabledDatabaseDoesNotPopulateOrClaimPointer() async throws {
+        let active = try DatabaseListStore.add(url: makeTemporaryFileURL(name: "active.kdbx"))
+        let disabled = try DatabaseListStore.add(url: makeTemporaryFileURL(name: "disabled.kdbx"))
+        DatabaseListStore.markDatabaseOpened(id: active.id)
+
+        // Let the disable's own observer task settle before installing the
+        // XCTFail observers below, or it would fire into them.
+        let disableExpectation = expectation(description: "Disable consequences settle")
+        CredentialIdentityStoreManager.removeDatabaseObserver = { _, _ in disableExpectation.fulfill() }
+        DatabaseListStore.setAutoFillEnabled(false, for: disabled)
+        await fulfillment(of: [disableExpectation], timeout: 1)
+
+        CredentialIdentityStoreManager.populateObserver = { _, _ in
+            XCTFail("Enabling is lazy; identities appear on the database's next unlock")
+        }
+        CredentialIdentityStoreManager.clearObserver = {
+            XCTFail("Enabling must not clear the identity store")
+        }
+        CredentialIdentityStoreManager.removeDatabaseObserver = { _, _ in
+            XCTFail("Enabling must not trigger targeted identity removal")
+        }
+
+        DatabaseListStore.setAutoFillEnabled(true, for: disabled)
+
+        try? await Task.sleep(for: .milliseconds(100))
+        XCTAssertEqual(DatabaseListStore.databases.first(where: { $0.id == disabled.id })?.autoFillEnabled, true)
+        XCTAssertEqual(DatabaseListStore.activeAutoFillDatabaseID, active.id)
+    }
+
+    func testFallbackAutoFillDatabaseSkipsDisabledLegacyDatabase() throws {
+        let reference = try TestDatabaseSupport.makeReference(
+            for: makeTemporaryFileURL(name: "legacy.kdbx"),
+            legacyKeychainFilename: "legacy.kdbx",
+            autoFillEnabled: false
+        )
+        DatabaseListStore.update(reference)
+        XCTAssertNil(DatabaseListStore.activeAutoFillDatabaseID)
+
+        XCTAssertNil(DatabaseListStore.activeAutoFillDatabase)
+
+        // Control: the same reference is served by the legacy fallback once
+        // enabled, so the nil above comes from the flag gate.
+        DatabaseListStore.setAutoFillEnabled(true, for: reference)
+        XCTAssertEqual(DatabaseListStore.activeAutoFillDatabase?.id, reference.id)
+    }
+
+    func testSaveSweepClearsPointerWhenFlagFlippedViaGenericUpdate() async throws {
+        let reference = try DatabaseListStore.add(url: makeTemporaryFileURL(name: "bypass.kdbx"))
+        DatabaseListStore.markDatabaseOpened(id: reference.id)
+        XCTAssertEqual(DatabaseListStore.activeAutoFillDatabaseID, reference.id)
+
+        // Flipping the flag through the generic `update(_:)` bypasses
+        // `setAutoFillEnabled`'s consequences: the save sweep must still
+        // clear the now-invalid pointer, but no identity-store cleanup runs —
+        // `setAutoFillEnabled` is the designated API for that.
+        CredentialIdentityStoreManager.clearObserver = {
+            XCTFail("Generic update must not clear the identity store")
+        }
+        CredentialIdentityStoreManager.removeDatabaseObserver = { _, _ in
+            XCTFail("Generic update must not trigger targeted identity removal")
+        }
+
+        var updatedReference = try XCTUnwrap(DatabaseListStore.databases.first(where: { $0.id == reference.id }))
+        updatedReference.autoFillEnabled = false
+        DatabaseListStore.update(updatedReference)
+
+        try? await Task.sleep(for: .milliseconds(100))
+        XCTAssertNil(DatabaseListStore.activeAutoFillDatabaseID)
+        XCTAssertEqual(DatabaseListStore.databases.first(where: { $0.id == reference.id })?.autoFillEnabled, false)
+    }
+
+    func testSetAutoFillEnabledOnLockedDatabaseNeedsNoUnlock() async throws {
+        // `locked` has only ever been added — never opened or unlocked, so no
+        // composite key exists and `lastOpenedAt` is nil. Flag flips are
+        // registry-only: disabling it needs no unlock and still runs the full
+        // active-pointer consequences.
+        let locked = try DatabaseListStore.add(url: makeTemporaryFileURL(name: "locked.kdbx"))
+        let opened = try DatabaseListStore.add(url: makeTemporaryFileURL(name: "opened.kdbx"))
+        DatabaseListStore.markDatabaseOpened(id: opened.id, at: Date(timeIntervalSince1970: 1_000))
+        DatabaseListStore.activeAutoFillDatabaseID = locked.id
+
+        let removalExpectation = expectation(description: "Targeted identity removal for the locked database")
+        CredentialIdentityStoreManager.removeDatabaseObserver = { databaseID, includingLegacyIdentifiers in
+            XCTAssertEqual(databaseID, locked.id)
+            XCTAssertTrue(includingLegacyIdentifiers)
+            removalExpectation.fulfill()
+        }
+
+        DatabaseListStore.setAutoFillEnabled(false, for: locked)
+
+        await fulfillment(of: [removalExpectation], timeout: 1)
+        XCTAssertEqual(DatabaseListStore.databases.first(where: { $0.id == locked.id })?.autoFillEnabled, false)
+        XCTAssertEqual(DatabaseListStore.activeAutoFillDatabaseID, opened.id)
+    }
+
+    func testDefaultAutoFillDatabaseReturnsEnabledPointerReference() throws {
+        let pointed = try DatabaseListStore.add(url: makeTemporaryFileURL(name: "pointed.kdbx"))
+        let recent = try DatabaseListStore.add(url: makeTemporaryFileURL(name: "recent.kdbx"))
+        DatabaseListStore.markDatabaseOpened(id: pointed.id, at: Date(timeIntervalSince1970: 1_000))
+        DatabaseListStore.markDatabaseOpened(id: recent.id, at: Date(timeIntervalSince1970: 2_000))
+        DatabaseListStore.activeAutoFillDatabaseID = pointed.id
+
+        // The pointer wins over recency.
+        XCTAssertEqual(DatabaseListStore.defaultAutoFillDatabase?.id, pointed.id)
+    }
+
+    func testDefaultAutoFillDatabasePrefersLegacyFallbackOverMostRecentlyOpened() throws {
+        let legacyReference = try TestDatabaseSupport.makeReference(
+            for: makeTemporaryFileURL(name: "legacy.kdbx"),
+            legacyKeychainFilename: "legacy.kdbx"
+        )
+        DatabaseListStore.update(legacyReference)
+        let opened = try DatabaseListStore.add(url: makeTemporaryFileURL(name: "opened.kdbx"))
+        DatabaseListStore.markDatabaseOpened(id: opened.id, at: Date(timeIntervalSince1970: 2_000))
+        DatabaseListStore.activeAutoFillDatabaseID = nil
+
+        // The whole `activeAutoFillDatabase` chain — including its legacy
+        // keychain-filename fallback — takes precedence; recency is only the
+        // final fallback.
+        XCTAssertEqual(DatabaseListStore.defaultAutoFillDatabase?.id, legacyReference.id)
+    }
+
+    func testDefaultAutoFillDatabaseFallsBackToMostRecentlyOpenedEnabled() throws {
+        let older = try DatabaseListStore.add(url: makeTemporaryFileURL(name: "older.kdbx"))
+        let newer = try DatabaseListStore.add(url: makeTemporaryFileURL(name: "newer.kdbx"))
+        DatabaseListStore.markDatabaseOpened(id: older.id, at: Date(timeIntervalSince1970: 1_000))
+        DatabaseListStore.markDatabaseOpened(id: newer.id, at: Date(timeIntervalSince1970: 2_000))
+        DatabaseListStore.activeAutoFillDatabaseID = nil
+
+        XCTAssertEqual(DatabaseListStore.defaultAutoFillDatabase?.id, newer.id)
+
+        DatabaseListStore.setAutoFillEnabled(false, for: newer)
+
+        XCTAssertEqual(DatabaseListStore.defaultAutoFillDatabase?.id, older.id)
+    }
+
+    func testDefaultAutoFillDatabaseIgnoresNeverOpenedReferences() throws {
+        _ = try DatabaseListStore.add(url: makeTemporaryFileURL(name: "never-opened.kdbx"))
+        XCTAssertNil(DatabaseListStore.activeAutoFillDatabaseID)
+
+        XCTAssertNil(DatabaseListStore.defaultAutoFillDatabase)
+    }
+
+    func testDefaultAutoFillDatabaseNilWithZeroEnabledDatabases() throws {
+        XCTAssertNil(DatabaseListStore.defaultAutoFillDatabase)
+
+        let reference = try DatabaseListStore.add(url: makeTemporaryFileURL(name: "disabled.kdbx"))
+        DatabaseListStore.markDatabaseOpened(id: reference.id)
+        DatabaseListStore.setAutoFillEnabled(false, for: reference)
+
+        XCTAssertNil(DatabaseListStore.defaultAutoFillDatabase)
     }
 
     func testLocateDatabaseFileReturnsAvailableForRegularFile() throws {

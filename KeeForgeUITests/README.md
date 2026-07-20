@@ -286,5 +286,8 @@ Use the app's accessibility identifiers whenever possible, including:
 - `search.no-results`
 - `autofill-tip.enable` / `autofill-tip.dismiss` (database-list AutoFill tip banner)
 - `settings.autofill.turn-on` / `settings.autofill.open-ios-settings` (Settings → AutoFill provider status row)
+- `database-details.autofill-toggle` (database-details sheet, per-database AutoFill toggle)
+- `settings.autofill.database-toggle.<database-id-uuidString>` (Settings → AutoFill per-database toggles; match with a BEGINSWITH predicate)
+- `settings.autofill.clear-entries` / `settings.autofill.clear-entries.confirm` (Clear AutoFill Entries button + destructive confirmation; the confirm identifier matches two nested buttons — use `.firstMatch`)
 
 If a new screen or interaction needs UI coverage, add an accessibility identifier as part of the feature work rather than relying on fragile label matching.
