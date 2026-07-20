@@ -505,6 +505,97 @@ final class KDBXWriterTests: XCTestCase {
         }
     }
 
+    func test_writeReusedHeaderTwice_rotatesMasterSeedIVInnerStreamKeyAndKDFSalt() throws {
+        let parsed = try parseFixture(.test)
+        let originalSalt = try XCTUnwrap(parsed.header.kdfParameters["S"] as? Data)
+
+        let firstData = try KDBXWriter.write(
+            rootGroup: parsed.rootGroup,
+            meta: parsed.meta,
+            compositeKey: parsed.compositeKey,
+            header: parsed.header,
+            sessionKey: sessionKey
+        )
+        let secondData = try KDBXWriter.write(
+            rootGroup: parsed.rootGroup,
+            meta: parsed.meta,
+            compositeKey: parsed.compositeKey,
+            header: parsed.header,
+            sessionKey: sessionKey
+        )
+
+        let first = try KDBXParser.parseWithMetaAndHeader(
+            data: firstData,
+            compositeKey: parsed.compositeKey,
+            sessionKey: sessionKey
+        )
+        let second = try KDBXParser.parseWithMetaAndHeader(
+            data: secondData,
+            compositeKey: parsed.compositeKey,
+            sessionKey: sessionKey
+        )
+
+        let firstSalt = try XCTUnwrap(first.header.kdfParameters["S"] as? Data)
+        let secondSalt = try XCTUnwrap(second.header.kdfParameters["S"] as? Data)
+
+        // Original file, first save, and second save must differ pairwise in
+        // each of these header values.
+        assertAllDistinct(
+            [parsed.header.masterSeed, first.header.masterSeed, second.header.masterSeed],
+            "master seed"
+        )
+        assertAllDistinct(
+            [parsed.header.encryptionIV, first.header.encryptionIV, second.header.encryptionIV],
+            "encryption IV"
+        )
+        assertAllDistinct(
+            [parsed.header.innerStreamKey, first.header.innerStreamKey, second.header.innerStreamKey],
+            "inner stream key"
+        )
+        assertAllDistinct([originalSalt, firstSalt, secondSalt], "KDF salt")
+
+        XCTAssertEqual(firstSalt.count, originalSalt.count)
+        XCTAssertEqual(secondSalt.count, originalSalt.count)
+        XCTAssertEqual(
+            first.header.kdfParameters["$UUID"] as? Data,
+            parsed.header.kdfParameters["$UUID"] as? Data
+        )
+        XCTAssertEqual(first.header.kdfParameters["I"] as? UInt64, parsed.header.kdfParameters["I"] as? UInt64)
+        XCTAssertEqual(first.header.kdfParameters["M"] as? UInt64, parsed.header.kdfParameters["M"] as? UInt64)
+        XCTAssertEqual(first.header.kdfParameters["P"] as? UInt32, parsed.header.kdfParameters["P"] as? UInt32)
+
+        try assertTreesEqual(parsed, (rootGroup: first.rootGroup, meta: first.meta))
+        try assertTreesEqual(parsed, (rootGroup: second.rootGroup, meta: second.meta))
+    }
+
+    func test_writeFreshHeader_rotatesProvidedKDFSalt() throws {
+        let parsed = try parseFixture(.test)
+        let providedSalt = try XCTUnwrap(parsed.header.kdfParameters["S"] as? Data)
+
+        let written = try KDBXWriter.write(
+            rootGroup: parsed.rootGroup,
+            meta: parsed.meta,
+            compositeKey: parsed.compositeKey,
+            freshHeader: KDBXWriter.FreshHeaderConfiguration(
+                cipherID: KDBXParser.chachaCipherUUID,
+                kdfParameters: parsed.header.kdfParameters,
+                innerHeaderBinaryFields: parsed.header.innerHeaderBinaryFields
+            ),
+            sessionKey: sessionKey
+        )
+
+        let reparsed = try KDBXParser.parseWithMetaAndHeader(
+            data: written,
+            compositeKey: parsed.compositeKey,
+            sessionKey: sessionKey
+        )
+        let writtenSalt = try XCTUnwrap(reparsed.header.kdfParameters["S"] as? Data)
+
+        XCTAssertNotEqual(writtenSalt, providedSalt)
+        XCTAssertEqual(writtenSalt.count, providedSalt.count)
+        try assertTreesEqual(parsed, (rootGroup: reparsed.rootGroup, meta: reparsed.meta))
+    }
+
     func test_writeAndDecrypt_protectedValueStaysOpaque() throws {
         let parsed = try parseFixture(.test)
 
@@ -522,6 +613,25 @@ final class KDBXWriterTests: XCTestCase {
         XCTAssertTrue(xmlString.contains("Protected=\"True\""))
         XCTAssertFalse(xmlString.contains(">githubpass789</Value>"))
         XCTAssertFalse(xmlString.contains(">twitterpass123</Value>"))
+    }
+
+    private func assertAllDistinct(
+        _ values: [Data],
+        _ label: String,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        for lhsIndex in values.indices {
+            for rhsIndex in values.indices where rhsIndex > lhsIndex {
+                XCTAssertNotEqual(
+                    values[lhsIndex],
+                    values[rhsIndex],
+                    "\(label) must be freshly randomized on every save",
+                    file: file,
+                    line: line
+                )
+            }
+        }
     }
 
     private func parseFixture(_ fixture: Fixture) throws -> ParsedFixture {

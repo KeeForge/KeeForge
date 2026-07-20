@@ -50,6 +50,7 @@ enum KDBXWriter {
     private static let hmacBlockSize = 1_048_576
     private static let innerStreamKeyLength = 64
     private static let masterSeedLength = 32
+    private static let defaultKDFSaltLength = 32
 
     static func write(
         rootGroup: KPGroup,
@@ -153,22 +154,14 @@ enum KDBXWriter {
                 formatVersion: .kdbx4(minor: defaultHeaderMinorVersion),
                 cipherID: configuration.cipherID,
                 compressionFlags: 1,
-                masterSeed: try randomData(count: masterSeedLength),
-                encryptionIV: try randomData(count: try encryptionIVLength(for: configuration.cipherID)),
+                masterSeed: Data(),
+                encryptionIV: Data(),
                 kdfParameters: configuration.kdfParameters,
                 headerData: Data(),
                 innerStreamID: configuration.innerStreamID,
-                innerStreamKey: try randomData(count: innerStreamKeyLength),
+                innerStreamKey: Data(),
                 innerHeaderBinaryFields: configuration.innerHeaderBinaryFields
             )
-        }
-
-        if header.masterSeed.isEmpty {
-            header.masterSeed = try randomData(count: masterSeedLength)
-        }
-
-        if header.encryptionIV.isEmpty {
-            header.encryptionIV = try randomData(count: try encryptionIVLength(for: header.cipherID))
         }
 
         if header.innerStreamID == 0 {
@@ -179,15 +172,26 @@ enum KDBXWriter {
             throw WriteError.unsupportedInnerRandomStream(header.innerStreamID)
         }
 
-        if header.innerStreamKey.isEmpty {
-            header.innerStreamKey = try randomData(count: innerStreamKeyLength)
-        }
-
         guard header.compressionFlags == 0 || header.compressionFlags == 1 else {
             throw WriteError.unsupportedCompression(header.compressionFlags)
         }
 
+        // KeePass 2.x / KeePassXC generate fresh random header material on
+        // every save; only the KDF cost parameters (iterations, memory,
+        // parallelism) carry over — the salt value itself must rotate.
+        header.masterSeed = try randomData(count: masterSeedLength)
+        header.encryptionIV = try randomData(count: try encryptionIVLength(for: header.cipherID))
+        header.innerStreamKey = try randomData(count: innerStreamKeyLength)
+        header.kdfParameters["S"] = try randomData(count: kdfSaltLength(for: header.kdfParameters))
+
         return header
+    }
+
+    private static func kdfSaltLength(for kdfParameters: [String: Any]) -> Int {
+        if let existingSalt = kdfParameters["S"] as? Data, !existingSalt.isEmpty {
+            return existingSalt.count
+        }
+        return defaultKDFSaltLength
     }
 
     private static func deriveKeys(
