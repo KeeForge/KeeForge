@@ -47,6 +47,7 @@ The macOS port has its own UI-test target, `KeeForgeMacUITests/` (target `KeeFor
 - `KeyFileUITests` — key file selection and picker flows
 - `CloudAccountEdgeUITests` — sign-out / disconnected cloud account behavior
 - `AppStoreScreenshots` — screenshot capture flow using demo fixtures
+- `AutoFillStoreInspectorSmokeUITests` — DEBUG-only AutoFill store inspector smoke test; launches with `-autofill-store-inspector`, asserts the inspector presents at the app root and `autofill-inspector.enabled-state` reads "disabled" (safe on unprovisioned simulators). Does not extend `KeeForgeUITestCase` — the inspector replaces the normal root, so no fixture/unlock applies.
 
 Database-list and cloud UI tests are the current place to cover pending-upload badges / actions; the repo does not currently have a dedicated simulator harness for the system AutoFill save sheet itself.
 
@@ -97,6 +98,65 @@ xcodebuild test -project KeeForge.xcodeproj -scheme KeeForge \
 ```
 
 Do not run the full UI suite unless explicitly asked. It is slow and makes failures harder to isolate.
+
+## AutoFill Store Harness Simulator
+
+The AutoFill **store-validation** tests (the harness suite spec'd under
+`docs/specs/2026-07-20-autofill-store-validation-harness/`) assert against the **real**
+`ASCredentialIdentityStore`, which only goes live once a simulator has KeeForge enabled as its
+system credential (AutoFill) provider. That state cannot be set from XCUITest — it lives in the
+Settings app and persists on the device until it is erased. So those tests assume a dedicated,
+one-time-provisioned simulator, **not** the default `iPhone 17 Pro` device the suites above use.
+On any unprovisioned simulator the store is disabled and the harness tests skip cleanly
+(`XCTSkip`) rather than fail.
+
+### Provisioning
+
+Run the provisioning script (local Mac only — it drives everything through `xcrun simctl`, no
+Simulator.app required):
+
+```bash
+scripts/provision-autofill-harness-sim.sh
+```
+
+It resolves the newest installed iOS runtime and an iPhone-class device type, creates (or reuses)
+a simulator named **`KeeForge-AutoFill-Harness`**, boots it, builds and installs the Debug
+`KeeForge.app`, opens Settings, and then polls until KeeForge reports it is enabled. The one
+manual step is printed while it polls:
+
+> Settings → General → AutoFill & Passwords → turn **KeeForge** on (optionally turn Apple's
+> "Passwords" provider off for a cleaner signal).
+
+Flags:
+
+- `--erase` — erase the device first for a from-scratch rebuild. **Erasing wipes provider
+  enablement**, so you will have to flip the toggle again.
+- `--app-path <path>` — install a prebuilt `.app` instead of building.
+- `--timeout <seconds>` — verification poll timeout (default `300`); lower it to exercise the
+  failure path quickly.
+
+Verification uses a fixed app-side contract: launching the installed Debug build with
+`-autofill-store-status-log` makes it emit exactly one machine-greppable line (via `print` and
+NSLog), which the script reads from the simulator's unified log:
+
+```
+KEEFORGE-AUTOFILL-STORE-STATUS: enabled=<true|false> enumeration=<available|unavailable>
+```
+
+The script exits `0` only once it sees `enabled=true`. Distinct non-zero exits carry actionable
+one-line messages: `3` duplicate harness devices (delete the extras), `6` the installed build
+never emitted the status line (rebuild/reinstall a Debug build that supports the argument), `7`
+verification timed out with the toggle still off, plus `2` usage, `4`/`5` build/install, `8`
+missing `jq`/`xcrun`. The script header documents the full table and internal testing knobs.
+
+### Re-verifying
+
+Provider enablement persists until the device is erased, so a first successful run makes every
+later run verify immediately with no manual step — re-run the script any time to confirm the
+device is still provisioned. To rebuild from scratch (e.g. after an OS/runtime change), pass
+`--erase` and flip the toggle again. To spot-check by hand, launch the installed build with the
+slice-01 inspector argument (`-autofill-store-inspector`) and confirm
+`autofill-inspector.enabled-state` reads "enabled".
 
 ## UI Test Fix Workflow
 
@@ -289,5 +349,21 @@ Use the app's accessibility identifiers whenever possible, including:
 - `database-details.autofill-toggle` (database-details sheet, per-database AutoFill toggle)
 - `settings.autofill.database-toggle.<database-id-uuidString>` (Settings → AutoFill per-database toggles; match with a BEGINSWITH predicate)
 - `settings.autofill.clear-entries` / `settings.autofill.clear-entries.confirm` (Clear AutoFill Entries button + destructive confirmation; the confirm identifier matches two nested buttons — use `.firstMatch`)
+- AutoFill store inspector (DEBUG-only; presented at the app root by the `-autofill-store-inspector` launch argument). Counts and states are exposed as element **values** (read `element.value`, not the label):
+  - `autofill-inspector.enabled-state` (value `enabled` / `disabled`)
+  - `autofill-inspector.enumeration-state` (value `available` / `unavailable`)
+  - `autofill-inspector.total-count`
+  - `autofill-inspector.refresh`
+  - `autofill-inspector.database.<database-id-uuidString>.count` (uppercase UUID, same convention as `settings.autofill.database-toggle.<uuid>`)
+  - `autofill-inspector.legacy.count` / `autofill-inspector.unrecognized.count` (rendered only when non-empty)
+
+### DEBUG-only harness launch arguments
+
+Two developer-tooling launch arguments (no effect in Release; wired in `../KeeForge/App/KeeForgeApp.swift`):
+
+- `-autofill-store-inspector` — replaces the normal database-list root with the DEBUG AutoFill store inspector above.
+- `-autofill-store-status-log` — at launch, queries the system store off-main and emits exactly one line to both stdout (`print`, captured by `simctl launch --console-pty`) and the unified log (`NSLog`):
+  `KEEFORGE-AUTOFILL-STORE-STATUS: enabled=<true|false> enumeration=<available|unavailable>`.
+  The provisioning script polls for this exact line. The argument is otherwise behavior-neutral and composes with `-autofill-store-inspector` (both can be passed together).
 
 If a new screen or interaction needs UI coverage, add an accessibility identifier as part of the feature work rather than relying on fragile label matching.
