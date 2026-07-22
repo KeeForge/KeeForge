@@ -18,6 +18,11 @@ Thanks for helping improve KeeForge.
 
 Pull requests require at least one approving review before merge. KeeForge uses squash merges, so please keep the pull request focused and give it a clear title.
 
+Two status checks must pass before a pull request can merge:
+
+- **unit-tests** — runs the `KeeForgeTests` unit suite on an iOS simulator via GitHub Actions.
+- **DCO** — verifies every commit is signed off (see below).
+
 ## Developer Certificate of Origin
 
 KeeForge uses the [Developer Certificate of Origin 1.1](https://developercertificate.org/) (DCO). By signing off a commit, you certify that you have the right to submit the contribution under the repository's open-source license.

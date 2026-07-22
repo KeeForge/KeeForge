@@ -298,9 +298,12 @@ final class LocalDatabaseSaverTests: XCTestCase {
             }
         }
 
-        await fulfillment(of: [readerStarted], timeout: 1)
+        await fulfillment(of: [readerStarted], timeout: 5)
 
-        let result = try await withTimeout(seconds: 5) {
+        // Generous budget: a deadlock never resolves, so this still catches one,
+        // while a slow CI runner doing a real KDBX save (Argon2 + crypto) does
+        // not false-fail. GitHub runners have exceeded the previous 5s budget.
+        let result = try await withTimeout(seconds: 30) {
             try await LocalDatabaseSaver.save(
                 draft: context.draft,
                 reference: reference,
