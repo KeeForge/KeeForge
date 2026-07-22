@@ -15,6 +15,7 @@ import UIKit
 @MainActor
 final class CredentialProviderViewController: ASCredentialProviderViewController {
     private lazy var coordinator = CredentialProviderCoordinator(presenter: self)
+    private var hasAppeared = false
 
     // MARK: - Lifecycle
 
@@ -23,9 +24,15 @@ final class CredentialProviderViewController: ASCredentialProviderViewController
         view.backgroundColor = .clear
     }
 
-    override func viewWillAppear(_ animated: Bool) {
-        super.viewWillAppear(animated)
+    override func viewDidAppear(_ animated: Bool) {
+        super.viewDidAppear(animated)
+        hasAppeared = true
         coordinator.presentationDidBecomeActive()
+    }
+
+    override func viewDidDisappear(_ animated: Bool) {
+        super.viewDidDisappear(animated)
+        hasAppeared = false
     }
 
     // MARK: - Request forwarding
@@ -87,6 +94,10 @@ final class CredentialProviderViewController: ASCredentialProviderViewController
 // MARK: - CredentialProviderPresenting
 
 extension CredentialProviderViewController: CredentialProviderPresenting {
+    var isPresentationActive: Bool {
+        hasAppeared
+    }
+
     var isDisplayingContent: Bool {
         presentedViewController != nil
     }
