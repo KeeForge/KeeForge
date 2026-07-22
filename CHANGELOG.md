@@ -23,7 +23,7 @@ TODO before the first macOS release:
 
 - Choose which databases appear in AutoFill, get suggestions from all of them at once, and clear AutoFill suggestions in Settings.
 - Switch between databases inside the AutoFill panel.
-- Saving a database now regenerates the file header's random material — master seed, encryption IV, inner stream key, and KDF salt — on every save, matching KeePass 2.x and KeePassXC. KDF cost settings (Argon2 iterations/memory/parallelism, AES-KDF rounds) are preserved, and saved files remain fully compatible with other KeePass clients. Thanks to Kinglike1337 for the contribution.
+- Saving a database now regenerates the file header's random material — master seed, encryption IV, inner stream key, and KDF salt — on every save, matching KeePass 2.x and KeePassXC. KDF cost settings (Argon2 iterations/memory/parallelism, AES-KDF rounds) are preserved, and saved files remain fully compatible with other KeePass clients. Thanks to [Kinglike1337](https://github.com/Kinglike1337) for the contribution.
 
 ## v1.10.3 (2026-07-18)
 
