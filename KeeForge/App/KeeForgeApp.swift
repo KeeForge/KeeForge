@@ -31,10 +31,7 @@ struct KeeForgeApp: App {
 
     private var mainWindow: some Scene {
         let windowGroup = WindowGroup {
-            AppRootView(
-                listViewModel: listViewModel,
-                activeDatabaseViewModel: $activeDatabaseViewModel
-            )
+            rootView
             #if os(macOS)
             .frame(minWidth: 900, minHeight: 560)
             .focusedSceneValue(\.databaseViewModel, activeDatabaseViewModel)
@@ -82,6 +79,12 @@ struct KeeForgeApp: App {
                     }
                 }
                 startMacLockMonitoringIfNeeded()
+                #if DEBUG
+                // Developer-tooling probe for the AutoFill store-validation
+                // harness: emit one machine-readable store-status line when
+                // launched with `-autofill-store-status-log`. No-op otherwise.
+                AutoFillStoreStatusLog.emitIfRequested()
+                #endif
             }
         }
 
@@ -96,6 +99,29 @@ struct KeeForgeApp: App {
             }
         #else
         return windowGroup
+        #endif
+    }
+
+    /// Root content for the main window. In DEBUG builds the
+    /// `-autofill-store-inspector` launch argument replaces the normal database
+    /// list with the AutoFill store inspector (developer tooling); Release
+    /// builds always show the normal root.
+    @ViewBuilder
+    private var rootView: some View {
+        #if DEBUG
+        if AutoFillStoreInspectorView.isPresentationRequested {
+            AutoFillStoreInspectorView()
+        } else {
+            AppRootView(
+                listViewModel: listViewModel,
+                activeDatabaseViewModel: $activeDatabaseViewModel
+            )
+        }
+        #else
+        AppRootView(
+            listViewModel: listViewModel,
+            activeDatabaseViewModel: $activeDatabaseViewModel
+        )
         #endif
     }
 
