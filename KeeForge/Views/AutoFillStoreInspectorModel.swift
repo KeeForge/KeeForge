@@ -60,6 +60,10 @@ struct InspectorStoreSnapshot: Sendable {
     let databaseBuckets: [InspectorDatabaseBucket]
     let legacyRows: [InspectorIdentityRow]
     let unrecognizedRows: [InspectorIdentityRow]
+    /// Which channel the store seam served the identities from
+    /// (`CredentialIdentitySource`). The store-state facts (`isEnabled`,
+    /// `enumerationAvailable`) stay API-truth regardless of this value.
+    let source: CredentialIdentitySource
 }
 
 // MARK: - Pure grouping helpers
@@ -110,19 +114,34 @@ enum AutoFillStoreInspectorGrouping {
         legacyRows: [InspectorIdentityRow],
         unrecognizedRows: [InspectorIdentityRow]
     ) {
+        bucketize(
+            identities.map { (row(for: $0), $0.recordIdentifier ?? "") },
+            databaseName: databaseName
+        )
+    }
+
+    /// Shared bucketing core: classifies each `(row, recordIdentifier)` pair by
+    /// parsed record identifier and sorts the database buckets deterministically.
+    private static func bucketize(
+        _ pairs: [(row: InspectorIdentityRow, recordIdentifier: String)],
+        databaseName: (UUID) -> String?
+    ) -> (
+        databaseBuckets: [InspectorDatabaseBucket],
+        legacyRows: [InspectorIdentityRow],
+        unrecognizedRows: [InspectorIdentityRow]
+    ) {
         var rowsByDatabase: [UUID: [InspectorIdentityRow]] = [:]
         var legacyRows: [InspectorIdentityRow] = []
         var unrecognizedRows: [InspectorIdentityRow] = []
 
-        for identity in identities {
-            let identityRow = row(for: identity)
-            switch CredentialRecordIdentifier.parse(identity.recordIdentifier ?? "") {
+        for pair in pairs {
+            switch CredentialRecordIdentifier.parse(pair.recordIdentifier) {
             case .current(let parsed):
-                rowsByDatabase[parsed.databaseID, default: []].append(identityRow)
+                rowsByDatabase[parsed.databaseID, default: []].append(pair.row)
             case .legacy:
-                legacyRows.append(identityRow)
+                legacyRows.append(pair.row)
             case .unrecognized:
-                unrecognizedRows.append(identityRow)
+                unrecognizedRows.append(pair.row)
             }
         }
 
@@ -147,10 +166,14 @@ enum AutoFillStoreInspectorGrouping {
 
     /// Wraps `makeBuckets` with the store-level facts. A `nil` `identities`
     /// means enumeration is unavailable (`credentialIdentities()` returned nil):
-    /// the snapshot then reports no buckets and a zero total count.
+    /// the snapshot then reports no buckets and a zero total count. `source` is
+    /// the seam's report of which channel served the identities — the API or
+    /// the simulator DB fallback — and is surfaced verbatim (it does not alter
+    /// `enumerationAvailable`, which stays API-truth).
     static func makeSnapshot(
         isEnabled: Bool,
         identities: [any ASCredentialIdentity]?,
+        source: CredentialIdentitySource = .api,
         databaseName: (UUID) -> String?
     ) -> InspectorStoreSnapshot {
         guard let identities else {
@@ -160,7 +183,8 @@ enum AutoFillStoreInspectorGrouping {
                 totalCount: 0,
                 databaseBuckets: [],
                 legacyRows: [],
-                unrecognizedRows: []
+                unrecognizedRows: [],
+                source: source
             )
         }
 
@@ -171,7 +195,8 @@ enum AutoFillStoreInspectorGrouping {
             totalCount: identities.count,
             databaseBuckets: grouped.databaseBuckets,
             legacyRows: grouped.legacyRows,
-            unrecognizedRows: grouped.unrecognizedRows
+            unrecognizedRows: grouped.unrecognizedRows,
+            source: source
         )
     }
 }

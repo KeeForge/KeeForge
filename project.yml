@@ -177,6 +177,11 @@ targets:
       - path: KeeForge/Services/Persistence/SharedVaultStore.swift
       - path: KeeForge/Services/AutoFill/CredentialMatcher.swift
       - path: KeeForge/Services/AutoFill/CredentialIdentityStoreManager.swift
+      # DEBUG + simulator-only backing-store fallback reader, referenced by the
+      # seam in CredentialIdentityStoreManager.swift under
+      # `#if DEBUG && targetEnvironment(simulator)`. Compiles to nothing in
+      # Release / on-device, so the shipped extension is unaffected.
+      - path: KeeForge/Services/AutoFill/AutoFillIdentityStoreFallbackReader.swift
       - path: KeeForge/Services/AppSupport/FaviconService.swift
       - path: KeeForge/Services/Persistence/CoordinatedFileReader.swift
       - path: KeeForge/Services/Persistence/KeyFileProcessor.swift
@@ -233,6 +238,11 @@ targets:
       - path: KeeForge/Services/Persistence/SharedVaultStore.swift
       - path: KeeForge/Services/AutoFill/CredentialMatcher.swift
       - path: KeeForge/Services/AutoFill/CredentialIdentityStoreManager.swift
+      # DEBUG + simulator-only backing-store fallback reader, referenced by the
+      # seam in CredentialIdentityStoreManager.swift under
+      # `#if DEBUG && targetEnvironment(simulator)`. Compiles to nothing in
+      # Release / on-device, so the shipped extension is unaffected.
+      - path: KeeForge/Services/AutoFill/AutoFillIdentityStoreFallbackReader.swift
       - path: KeeForge/Services/AppSupport/FaviconService.swift
       - path: KeeForge/Services/Persistence/CoordinatedFileReader.swift
       - path: KeeForge/Services/Persistence/KeyFileProcessor.swift
@@ -270,6 +280,8 @@ targets:
       - path: TestFixtures/demo-keyfile.key
         buildPhase: resources
       - path: TestFixtures/compatibility/attachments.kdbx
+        buildPhase: resources
+      - path: TestFixtures/autofill-union.kdbx
         buildPhase: resources
 
   KeeForgeTests:

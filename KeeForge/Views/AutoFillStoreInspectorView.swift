@@ -47,15 +47,25 @@ final class AutoFillStoreInspectorViewModel {
     /// the generic executor, so both the enumeration and the parsing stay off
     /// main (repo rule), and only the Sendable `InspectorStoreSnapshot` crosses
     /// back to the caller.
+    ///
+    /// The store seam owns the API-vs-fallback decision (a single fallback,
+    /// shared with the app's own store maintenance): `credentialIdentitiesWithSource`
+    /// returns the identities plus which channel served them. This method just
+    /// surfaces that: `source == .fallbackDB` when the seam read the backing DB,
+    /// `.api` otherwise. `isEnabled` and `enumerationAvailable` are ALWAYS
+    /// API-truth (`enumerationAvailable == (identities != nil)`, and the seam
+    /// only ever substitutes fallback rows for a non-`nil` empty API result), so
+    /// enumeration-state is unaffected by the fallback.
     nonisolated static func buildSnapshot(
         store: any CredentialIdentityStoreProviding,
         databaseName: @Sendable (UUID) -> String?
     ) async -> InspectorStoreSnapshot {
         let isEnabled = await store.isEnabled()
-        let identities = await store.credentialIdentities()
+        let enumeration = await store.credentialIdentitiesWithSource()
         return AutoFillStoreInspectorGrouping.makeSnapshot(
             isEnabled: isEnabled,
-            identities: identities,
+            identities: enumeration.identities,
+            source: enumeration.source,
             databaseName: databaseName
         )
     }
@@ -154,6 +164,11 @@ struct AutoFillStoreInspectorView: View {
                 field: "Total identities",
                 value: "\(snapshot.totalCount)",
                 identifier: "autofill-inspector.total-count"
+            )
+            valueRow(
+                field: "Source",
+                value: snapshot.source.rawValue,
+                identifier: "autofill-inspector.source"
             )
         } header: {
             Text(verbatim: "Store State")
