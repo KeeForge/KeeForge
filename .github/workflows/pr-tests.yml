@@ -1,0 +1,126 @@
+name: PR Tests
+
+# Required unit-test gate for pull requests.
+#
+# The earlier push/PR workflow (ci.yml) was demoted to manual dispatch because
+# xcodebuild's raw exit code is unreliable on GitHub-hosted runners — green
+# suites intermittently exit 65 during post-run teardown. This gate reuses the
+# aggregate-verdict approach from ios18-rc-tests.yml: judge success on
+# XCTest's summary failure count, not the process exit code, so flaky
+# teardown never fails a green run. Scope is unit tests only (KeeForgeTests);
+# UI tests remain release-gated via rc/* tags.
+
+on:
+  pull_request:
+    branches:
+      - main
+
+concurrency:
+  group: pr-tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  unit-tests:
+    runs-on: macos-15
+    timeout-minutes: 45
+    env:
+      SCHEME: KeeForge
+      PROJECT: KeeForge.xcodeproj
+      DESTINATION: 'platform=iOS Simulator,name=iPhone 17 Pro,OS=latest'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Select Xcode
+        run: |
+          # Use latest available Xcode on the runner
+          XCODE_PATH=$(ls -d /Applications/Xcode_*.app 2>/dev/null | sort -V | tail -1)
+          echo "Using Xcode: $XCODE_PATH"
+          sudo xcode-select -s "$XCODE_PATH"
+          xcodebuild -version
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Prepare build config
+        env:
+          DROPBOX_APP_KEY: CI_PLACEHOLDER_DROPBOX_APP_KEY
+        run: BOOTSTRAP_LOCAL_CONFIG_FROM_ENV=1 ./ci_scripts/prepare_build_config.sh .
+
+      - name: Generate project
+        run: xcodegen generate
+
+      - name: Build for testing
+        run: |
+          set -o pipefail
+          mkdir -p build
+          xcodebuild build-for-testing \
+            -project "$PROJECT" \
+            -scheme "$SCHEME" \
+            -destination "$DESTINATION" \
+            -skipPackagePluginValidation \
+            2>&1 | tee build/build-for-testing.log | xcpretty
+
+      - name: Run unit tests
+        run: |
+          set -uo pipefail
+          mkdir -p build
+          log=build/unit.log
+
+          # Judge success on the aggregate test result, not xcodebuild's raw
+          # exit code or individual attempt lines:
+          #   * GitHub runners intermittently return "** TEST EXECUTE FAILED **"
+          #     (exit 65) during post-run teardown even on a fully green suite.
+          #   * A flaky test can fail one attempt and pass on retry; that logs
+          #     a "Test Case ... failed" line but is absorbed into a 0-failure
+          #     total, so attempt lines must NOT fail the job.
+          # The authoritative verdict is XCTest's summary failure count. Raw
+          # output is captured verbatim (no xcpretty, which swallows the
+          # underlying error) for diagnosis via the uploaded logs.
+          set +e
+          xcodebuild test-without-building \
+            -project "$PROJECT" \
+            -scheme "$SCHEME" \
+            -destination "$DESTINATION" \
+            -only-testing:KeeForgeTests \
+            -resultBundlePath build/unit.xcresult \
+            2>&1 | tee "$log"
+          status=${PIPESTATUS[0]}
+          set -e
+          echo "KeeForgeTests: xcodebuild exit=$status"
+
+          # Highest failure count across all "Executed N tests, ... M failures"
+          # summary lines (empty if xcodebuild never produced a summary).
+          maxfail=$(grep -oE "[0-9]+ failures? \(" "$log" | grep -oE "^[0-9]+" | sort -rn | head -1)
+
+          if [ -z "$maxfail" ]; then
+            echo "::error::KeeForgeTests: no test summary produced (xcodebuild exit=$status); tests did not run — see uploaded logs."
+            exit 1
+          fi
+          if [ "$maxfail" -gt 0 ]; then
+            echo "::error::KeeForgeTests: $maxfail test failure(s) remained after retries."
+            exit 1
+          fi
+
+          # 0 failures overall. Surface any retried-then-passed attempts as a
+          # warning so flakes stay visible without failing the job.
+          flaked=$(grep -oE "Test Case '[^']*' failed" "$log" | sort -u || true)
+          if [ -n "$flaked" ]; then
+            echo "::warning::KeeForgeTests: passed with retries; the following attempt(s) failed once then passed:"
+            echo "$flaked"
+          fi
+          if [ "$status" -ne 0 ]; then
+            echo "::warning::KeeForgeTests: 0 failures but xcodebuild exited $status (post-run teardown artifact); treating as success."
+          fi
+          echo "KeeForgeTests: PASS (0 failures)"
+
+      - name: Upload test logs and result bundles
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pr-unit-test-results
+          path: |
+            build/*.log
+            build/*.xcresult
+          if-no-files-found: warn
+          retention-days: 14
