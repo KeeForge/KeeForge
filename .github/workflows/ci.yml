@@ -1,8 +1,10 @@
 name: CI (Manual)
 
 on:
-  # Temporarily disable automatic GitHub Actions runs while the workflow is too flaky
-  # to justify push/PR noise. Manual dispatch keeps the workflow available on demand.
+  # Automatic runs stay disabled: this workflow judges success on xcodebuild's
+  # raw exit code, which is too flaky on GitHub runners for push/PR noise.
+  # The required PR gate is pr-tests.yml (aggregate-verdict unit tests);
+  # manual dispatch keeps this fuller build+test matrix available on demand.
   workflow_dispatch:
 
 concurrency:
