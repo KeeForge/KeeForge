@@ -49,6 +49,10 @@ The macOS port has its own UI-test target, `KeeForgeMacUITests/` (target `KeeFor
 - `AppStoreScreenshots` — screenshot capture flow using demo fixtures
 - `AutoFillStoreInspectorSmokeUITests` — DEBUG-only AutoFill store inspector smoke test; launches with `-autofill-store-inspector`, asserts the inspector presents at the app root and `autofill-inspector.enabled-state` reads "disabled" (safe on unprovisioned simulators). Does not extend `KeeForgeUITestCase` — the inspector replaces the normal root, so no fixture/unlock applies.
 
+### Harness-Only Classes
+
+- `AutoFillStoreUITests` — store-lifecycle assertions against the **real** `ASCredentialIdentityStore`; runs only on the provisioned harness simulator (see the next section) and all-skips everywhere else via its per-test skip guard.
+
 Database-list and cloud UI tests are the current place to cover pending-upload badges / actions; the repo does not currently have a dedicated simulator harness for the system AutoFill save sheet itself.
 
 ## Running UI Tests
@@ -157,6 +161,58 @@ device is still provisioned. To rebuild from scratch (e.g. after an OS/runtime c
 `--erase` and flip the toggle again. To spot-check by hand, launch the installed build with the
 slice-01 inspector argument (`-autofill-store-inspector`) and confirm
 `autofill-inspector.enabled-state` reads "enabled".
+
+### Harness Suite: `AutoFillStoreUITests`
+
+The opt-in slice 03 class (`AutoFillStoreUITests.swift`) drives real app flows and asserts,
+through the inspector, that the real system store ends up in the documented state for each
+AutoFill lifecycle transition. Run it against the harness simulator only:
+
+```bash
+xcodebuild test -project KeeForge.xcodeproj -scheme KeeForge \
+  -destination 'platform=iOS Simulator,name=KeeForge-AutoFill-Harness' \
+  -only-testing:KeeForgeUITests/AutoFillStoreUITests
+```
+
+**Covered lifecycle scenarios** (identity presence and ownership in the store — never
+Safari/QuickType behavior):
+
+1. Publication on unlock — the unlocked database's tagged section appears with its full
+   eligible-identity count; a never-unlocked database has no section.
+2. Targeted removal on per-database disable (details-sheet toggle, database locked) — that
+   section empties; the store stays enabled and enumerable.
+3. Lazy republish on re-enable — count stays zero after re-enabling; the database's next
+   unlock (same reference, across relaunches) republishes.
+4. Clear AutoFill Entries — with identities verified present, the confirmed clear action
+   brings the total count to zero.
+5. Multi-database union and single-section removal — two unlocked databases hold their
+   sections simultaneously; disabling one (Settings toggle) removes only its section.
+
+**Skip guard / exclusion from normal runs.** Every test's `setUp` probes the store through the
+inspector first and `XCTSkip`s when the store is disabled or enumeration is unavailable, so the
+class is effectively excluded from the default suites: on any unprovisioned simulator
+(including the default `iPhone 17 Pro`) it reports all-skipped quickly — only the first test
+pays a probe launch; the result is cached for the rest of the process. Never add it to
+release-smoke selections; it is opt-in by destination.
+
+**Replaced manual checks** from
+[`docs/specs/2026-07-19-selectable-autofill-per-database/deferred-tests.md`](../docs/specs/2026-07-19-selectable-autofill-per-database/deferred-tests.md)
+(the store-state halves; anything QuickType/Safari-visible stays with the Tier-3 agent
+routine):
+
+- Slice 04 manual — "Unlock Personal, then Work: QuickType shows entries from both": the
+  both-databases-published union is now asserted at the store level (scenario 5). "Disable
+  Work while locked: its suggestions vanish, Personal's remain": automated (scenarios 2 and 5).
+- Slice 05 manual — "Disable a database (while it is locked): its suggestions disappear …
+  Re-enable: suggestions return only after its next unlock": automated (scenarios 2 and 3).
+  "Clear AutoFill Entries → confirm: QuickType is empty … unlock an enabled database and watch
+  its suggestions return": automated at the store level (scenarios 4 and 3; the cancel path was
+  already covered by `AppSettingsUITests.testAutoFillSettingsListsDatabaseTogglesAndCancelableClear`).
+
+**Still manual / Tier-3** (not replaced by this class): filling via the owning database and
+every other QuickType/Safari-rendered check, extension flows (save, switcher, empty state),
+entry-deletion suggestion sweeps, database *removal* cleanup, immediate republish when
+re-enabling the currently open database, and the German/VoiceOver passes.
 
 ## UI Test Fix Workflow
 
@@ -290,6 +346,13 @@ Password: `testpassword123`
 
 Used by `EntryAttachmentsSmokeUITests`. Single `Attachments` group with `Multi Attachment Entry` (attachments `note-ü.txt` and `pixel.png`), `Dedup Entry A` / `Dedup Entry B` (both attach identically-named/identical-content `shared.bin`), and `No Attachment Entry`. See `../TestFixtures/README.md` for recorded SHA-256 hashes.
 
+### AutoFill Union Fixture
+
+`TestFixtures/autofill-union.kdbx`  
+Password: `testpassword123`
+
+Used by `AutoFillStoreUITests` as its second ("bravo") database: one `Union` group whose three entries publish exactly 3 password + 1 one-time-code AutoFill identities, with every service domain and username disjoint from `test.kdbx`'s — the simulator's credential-identity store dedups identities sharing a (service, user) pair across databases, so the multi-database union scenario needs non-overlapping fixtures. Details and regeneration recipe in `../TestFixtures/README.md`.
+
 ### Key File Fixtures
 
 - `test-binary.key`
@@ -353,9 +416,14 @@ Use the app's accessibility identifiers whenever possible, including:
   - `autofill-inspector.enabled-state` (value `enabled` / `disabled`)
   - `autofill-inspector.enumeration-state` (value `available` / `unavailable`)
   - `autofill-inspector.total-count`
+  - `autofill-inspector.source` (value `api` / `fallback-db` — which channel supplied the identity rows; see the note below)
   - `autofill-inspector.refresh`
   - `autofill-inspector.database.<database-id-uuidString>.count` (uppercase UUID, same convention as `settings.autofill.database-toggle.<uuid>`)
   - `autofill-inspector.legacy.count` / `autofill-inspector.unrecognized.count` (rendered only when non-empty)
+
+  **Simulator enumeration caveat / seam-level fallback.** On simulator runtimes (verified iOS 18.5 and 26.5) the enumeration API `ASCredentialIdentityStore.credentialIdentities(...)` always returns an *empty array* despite persisted writes (the saves succeed and QuickType consumes them). This breaks not only the inspector but the app's *own* store maintenance (`CredentialIdentityStoreManager.populate` / `removeIdentities(forDatabase:)` enumerate-then-mutate). The fix is a single DEBUG + simulator-only fallback at the store seam (`SystemCredentialIdentityStore.credentialIdentities()`): when the API returns empty it reconstructs the real identities from the backing SQLite file (`<app-data-container>/SystemData/com.apple.AuthenticationServices/Identities/Identities.db`, read-only, metadata + public passkey identifiers only), so per-database maintenance behaves device-equivalently on simulators. The inspector surfaces which channel served the rows via `autofill-inspector.source` = `api` (API served, or everything empty) / `fallback-db` (seam read the backing DB). `autofill-inspector.total-count` and the per-database/legacy/unrecognized rows therefore reflect the true store contents on the harness even though the API reads empty. **`autofill-inspector.enumeration-state` stays API-truth** (`available` when the API returns a non-nil array — which on the harness it does, just empty — `unavailable` only when the API returns nil, e.g. macOS 14.0–14.3): it is *not* affected by the fallback and does not indicate whether rows were found.
+
+  **Write-side simulator limitation (affects `testMultiDatabaseUnionAndSingleSectionRemoval`).** Separately from the enumeration read bug, the simulator's `saveCredentialIdentities` dedups identities that share `(service_id, user)` across databases, ignoring `recordIdentifier` (verified on the harness: publishing two databases' worth of identical-domain identities leaves only one database's set). `AutoFillStoreUITests`'s two fixtures are copies of the same `test.kdbx`, so on a simulator their identities collapse to one database's `identitiesPerFixtureDatabase` rather than the union. `testDisableViaDetailsSheetEmptiesOnlyThatDatabase` (single database, distinct record identifiers) passes on the harness with the seam fallback; `testMultiDatabaseUnionAndSingleSectionRemoval` cannot reach the union count on a simulator regardless of the enumeration fallback — validating union on a simulator would require the two fixtures to use *distinct* domains.
 
 ### DEBUG-only harness launch arguments
 

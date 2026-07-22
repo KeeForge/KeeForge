@@ -87,6 +87,40 @@ struct CredentialRecordIdentifier: Hashable, Sendable {
 
 // MARK: - Store seam
 
+#if DEBUG
+/// Which channel supplied an enumeration result. DEBUG-only developer-tooling
+/// signal for the AutoFill store inspector; production maintenance never
+/// branches on it. Raw values match the inspector's `autofill-inspector.source`
+/// accessibility value.
+enum CredentialIdentitySource: String, Sendable, Hashable {
+    /// The enumeration API served the rows (the normal path), or everything was
+    /// empty, or enumeration was unavailable (`nil`).
+    case api = "api"
+    /// The API returned an empty list but the backing `Identities.db` had rows —
+    /// the simulator-enumeration-bug fallback (see
+    /// `AutoFillIdentitiesDatabaseReader`).
+    case fallbackDB = "fallback-db"
+}
+
+/// Pure selection helper shared by the seam and its unit tests: given the
+/// enumeration API's result, decide whether to serve it or the reconstructed
+/// fallback rows. The API always wins when it is non-`nil` and non-empty (and a
+/// `nil` result — enumeration unavailable — is passed through as `.api`); only
+/// an *empty, non-`nil`* API result yields to a non-empty fallback.
+enum CredentialIdentityFallback {
+    static func resolve(
+        apiIdentities: [any ASCredentialIdentity]?,
+        fallback: () -> [any ASCredentialIdentity]
+    ) -> (identities: [any ASCredentialIdentity]?, source: CredentialIdentitySource) {
+        guard let apiIdentities, apiIdentities.isEmpty else {
+            return (apiIdentities, .api)
+        }
+        let reconstructed = fallback()
+        return reconstructed.isEmpty ? (apiIdentities, .api) : (reconstructed, .fallbackDB)
+    }
+}
+#endif
+
 /// Abstraction over the `ASCredentialIdentityStore` operations
 /// `CredentialIdentityStoreManager` uses, so unit tests can drive the
 /// populate / enumerate / filter / remove logic against an in-memory fake
@@ -106,7 +140,22 @@ protocol CredentialIdentityStoreProviding: Sendable {
     /// `credentialIdentities(forService:credentialIdentityTypes:)` needs
     /// iOS 17.4 / macOS 14.4, and within KeeForge's deployment targets
     /// (iOS 18.0, macOS 14.0) only macOS 14.0–14.3 falls short.
+    ///
+    /// In DEBUG simulator builds this transparently substitutes the backing-DB
+    /// fallback when the enumeration API returns empty (see
+    /// `credentialIdentitiesWithSource()`), so the app's own store maintenance
+    /// behaves device-equivalently on simulators. On device / Release it is the
+    /// raw API result.
     func credentialIdentities() async -> [any ASCredentialIdentity]?
+
+    #if DEBUG
+    /// Like `credentialIdentities()` but also reports whether the result came
+    /// from the enumeration API or the simulator DB fallback. Used only by the
+    /// DEBUG store inspector to surface `autofill-inspector.source`; production
+    /// maintenance uses `credentialIdentities()`.
+    func credentialIdentitiesWithSource() async
+        -> (identities: [any ASCredentialIdentity]?, source: CredentialIdentitySource)
+    #endif
 }
 
 /// Production conformance wrapping `ASCredentialIdentityStore.shared`.
@@ -132,9 +181,33 @@ struct SystemCredentialIdentityStore: CredentialIdentityStoreProviding {
     }
 
     func credentialIdentities() async -> [any ASCredentialIdentity]? {
+        #if DEBUG
+        return await credentialIdentitiesWithSource().identities
+        #else
         guard #available(iOS 17.4, macOS 14.4, *) else { return nil }
         return await ASCredentialIdentityStore.shared.credentialIdentities(forService: nil)
+        #endif
     }
+
+    #if DEBUG
+    func credentialIdentitiesWithSource() async
+        -> (identities: [any ASCredentialIdentity]?, source: CredentialIdentitySource) {
+        guard #available(iOS 17.4, macOS 14.4, *) else { return (nil, .api) }
+        let apiIdentities = await ASCredentialIdentityStore.shared.credentialIdentities(forService: nil)
+        #if targetEnvironment(simulator)
+        // Simulator enumeration bug: the API returns empty despite persisted
+        // writes. Substitute the reconstructed backing-DB rows when the API is
+        // empty so `populate` / `removeIdentities(forDatabase:)` see the real
+        // store, exactly as they would on a device.
+        let reconstructed: [any ASCredentialIdentity] = apiIdentities.isEmpty
+            ? await AutoFillIdentitiesDatabaseReader().reconstructedIdentities()
+            : []
+        return CredentialIdentityFallback.resolve(apiIdentities: apiIdentities) { reconstructed }
+        #else
+        return (apiIdentities, .api)
+        #endif
+    }
+    #endif
 }
 
 // MARK: - Manager
