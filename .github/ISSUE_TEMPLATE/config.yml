@@ -1,5 +1,3 @@
+# GitHub adds a "Report a security vulnerability" card automatically
+# because private vulnerability reporting is enabled — no contact_links needed.
 blank_issues_enabled: true
-contact_links:
-  - name: Security vulnerability
-    url: https://github.com/KeeForge/KeeForge/security/advisories/new
-    about: Please report security vulnerabilities privately via a security advisory, not a public issue.
