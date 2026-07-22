@@ -86,6 +86,46 @@
 		-->
 		<key>NSAllowsArbitraryLoads</key>
 		<true/>
+		<!--
+		First-party hosts the app controls are modern HTTPS, so ATS stays
+		enforced for them via per-domain exceptions. Listing a domain here
+		re-applies ATS to it (forward secrecy, TLS 1.2, no cleartext HTTP)
+		while everything unlisted still falls under NSAllowsArbitraryLoads
+		above, so user-entered WebDAV hosts are unaffected.
+		-->
+		<key>NSExceptionDomains</key>
+		<dict>
+			<key>duckduckgo.com</key>
+			<dict>
+				<key>NSIncludesSubdomains</key>
+				<true/>
+			</dict>
+			<key>keeforge.com</key>
+			<dict>
+				<key>NSIncludesSubdomains</key>
+				<true/>
+			</dict>
+			<key>dropbox.com</key>
+			<dict>
+				<key>NSIncludesSubdomains</key>
+				<true/>
+			</dict>
+			<key>dropboxapi.com</key>
+			<dict>
+				<key>NSIncludesSubdomains</key>
+				<true/>
+			</dict>
+			<key>microsoft.com</key>
+			<dict>
+				<key>NSIncludesSubdomains</key>
+				<true/>
+			</dict>
+			<key>microsoftonline.com</key>
+			<dict>
+				<key>NSIncludesSubdomains</key>
+				<true/>
+			</dict>
+		</dict>
 	</dict>
 	<key>SKIncludeConsumableInAppPurchaseHistory</key>
 	<true/>
