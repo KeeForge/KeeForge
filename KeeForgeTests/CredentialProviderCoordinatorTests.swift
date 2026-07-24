@@ -36,6 +36,33 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
 
     // MARK: - Required cleanup-path tests
 
+    func test_requestPreparedBeforeAppearance_waitsForActivePresentation() throws {
+        let (coordinator, presenter) = makeCoordinator()
+        try seedResolvableDefaultDatabase()
+
+        coordinator.prepareCredentialList(for: [githubServiceIdentifier()])
+
+        XCTAssertNil(presenter.unlockPrompt)
+
+        presenter.isPresentationActive = true
+        coordinator.presentationDidBecomeActive()
+
+        XCTAssertNotNil(presenter.unlockPrompt)
+    }
+
+    func test_requestPreparedAfterAppearance_activatesPresentation() async throws {
+        let (coordinator, presenter) = makeCoordinator()
+        try seedResolvableDefaultDatabase()
+        presenter.isPresentationActive = true
+        let promptPresented = expectation(description: "unlock prompt presented")
+        presenter.onUnlockPromptPresented = { promptPresented.fulfill() }
+
+        coordinator.prepareCredentialList(for: [githubServiceIdentifier()])
+
+        await fulfillment(of: [promptPresented], timeout: 1)
+        XCTAssertNotNil(presenter.unlockPrompt)
+    }
+
     func test_cleanup_runsOnCancel() throws {
         let (coordinator, presenter) = makeCoordinator()
         try seedResolvableDefaultDatabase()
@@ -1310,6 +1337,7 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
 
     @MainActor
     private final class PresenterSpy: CredentialProviderPresenting {
+        var isPresentationActive = false
         var isDisplayingContent = false
 
         struct UnlockPrompt {
@@ -1356,6 +1384,7 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
         var cancelledError: ASExtensionError?
 
         var onUnlockErrorPresented: (() -> Void)?
+        var onUnlockPromptPresented: (() -> Void)?
         var onCompleteRequest: ((ASPasswordCredential) -> Void)?
         /// Fired after every `presentSearchView` recording, mirroring
         /// `onUnlockErrorPresented` — lets async flows (a real unlock task)
@@ -1401,6 +1430,7 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
                 onChooseBiometrics: onChooseBiometrics,
                 onCancel: onCancel
             )
+            onUnlockPromptPresented?()
         }
 
         func presentUnlockError(

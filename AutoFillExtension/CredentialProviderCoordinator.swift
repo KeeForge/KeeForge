@@ -42,6 +42,10 @@ struct CredentialProviderDatabaseSwitcherContext {
 /// `cleanup()` before asking the shell to complete or cancel the request.
 @MainActor
 protocol CredentialProviderPresenting: AnyObject {
+    /// Whether the shell's view hierarchy is currently on screen and can
+    /// safely present interactive UI.
+    var isPresentationActive: Bool { get }
+
     /// Whether the shell is currently showing modal content. Used to avoid
     /// double-presenting the unlock prompt (mirrors `presentedViewController != nil`).
     var isDisplayingContent: Bool { get }
@@ -205,6 +209,7 @@ final class CredentialProviderCoordinator {
         clearPendingCreationRequests()
         didAttemptAutoBiometricUnlock = false
         pendingUnlock = true
+        activatePresentationIfPossible()
     }
 
     // MARK: One-time-code credential list (iOS 18+ / macOS 15+)
@@ -223,6 +228,7 @@ final class CredentialProviderCoordinator {
         clearPendingCreationRequests()
         didAttemptAutoBiometricUnlock = false
         pendingUnlock = true
+        activatePresentationIfPossible()
     }
 
     func prepareInterfaceToProvideCredential(for credentialIdentity: ASPasswordCredentialIdentity) {
@@ -235,6 +241,7 @@ final class CredentialProviderCoordinator {
         // Delay unlock until the shell is fully presented,
         // otherwise biometric auth fails with "not interactive".
         pendingUnlock = true
+        activatePresentationIfPossible()
     }
 
     // MARK: Passkey credential request (iOS 17+)
@@ -247,6 +254,7 @@ final class CredentialProviderCoordinator {
         clearPendingCreationRequests()
         didAttemptAutoBiometricUnlock = false
         pendingUnlock = true
+        activatePresentationIfPossible()
     }
 
     func prepareInterfaceToProvideCredential(for credentialRequest: ASCredentialRequest) {
@@ -257,6 +265,7 @@ final class CredentialProviderCoordinator {
             clearPendingCreationRequests()
             didAttemptAutoBiometricUnlock = false
             pendingUnlock = true
+            activatePresentationIfPossible()
         } else if let passwordIdentity = credentialRequest.credentialIdentity as? ASPasswordCredentialIdentity {
             prepareInterfaceToProvideCredential(for: passwordIdentity)
         } else if #available(iOS 18.0, macOS 15.0, *), credentialRequest is ASOneTimeCodeCredentialRequest {
@@ -267,6 +276,7 @@ final class CredentialProviderCoordinator {
             clearPendingCreationRequests()
             didAttemptAutoBiometricUnlock = false
             pendingUnlock = true
+            activatePresentationIfPossible()
         } else {
             cancelRequest(code: .failed)
         }
@@ -284,7 +294,7 @@ final class CredentialProviderCoordinator {
         }
     }
 
-    /// Called by the shell once its view hierarchy is on screen (viewWillAppear).
+    /// Called by the shell once its view hierarchy is on screen.
     func presentationDidBecomeActive() {
         if pendingUnlock {
             pendingUnlock = false
@@ -303,6 +313,17 @@ final class CredentialProviderCoordinator {
                 presentGeneratePasswordPrompt(for: pendingGeneratePasswordsRequest)
             }
             #endif
+        }
+    }
+
+    private func activatePresentationIfPossible() {
+        guard presenter?.isPresentationActive == true else { return }
+
+        // Defer until the request callback has returned before asking UIKit or
+        // AppKit to present another controller or alert.
+        Task { @MainActor [weak self] in
+            guard let self, presenter?.isPresentationActive == true else { return }
+            presentationDidBecomeActive()
         }
     }
 
@@ -393,6 +414,7 @@ final class CredentialProviderCoordinator {
             didAttemptAutoBiometricUnlock = false
             pendingUnlock = false
             pendingNoEnabledDatabasesPresentation = true
+            activatePresentationIfPossible()
             return
         }
 
@@ -408,6 +430,7 @@ final class CredentialProviderCoordinator {
             pendingUnlock = false
             pendingGeneratePasswordPresentation = false
             pendingReadOnlyCancellationMessage = String(localized: "This database is read-only. Open KeeForge to enable editing.")
+            activatePresentationIfPossible()
             return
         }
 
@@ -425,6 +448,7 @@ final class CredentialProviderCoordinator {
         // operate on the same reference.
         activeDatabaseReference = databaseReference
         pendingUnlock = true
+        activatePresentationIfPossible()
     }
 
     @available(iOS 26.2, *)
@@ -448,6 +472,7 @@ final class CredentialProviderCoordinator {
         pendingUnlock = false
         pendingNoEnabledDatabasesPresentation = false
         pendingGeneratePasswordPresentation = true
+        activatePresentationIfPossible()
     }
     #endif
 
