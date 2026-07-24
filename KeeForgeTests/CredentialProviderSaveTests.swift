@@ -464,6 +464,7 @@ final class CredentialProviderSaveTests: XCTestCase {
     /// (the pre-slice-03 `.failed` behavior) sneaks back in.
     @MainActor
     private final class SavePresenterSpy: CredentialProviderPresenting {
+        var isPresentationActive = false
         var isDisplayingContent = false
         private(set) var cancelledErrorCodes: [ASExtensionError.Code] = []
 

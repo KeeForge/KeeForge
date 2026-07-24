@@ -57,6 +57,7 @@ final class CredentialProviderViewController: ASCredentialProviderViewController
 
     private var hostingController: NSHostingController<AnyView>?
     private var isShowingHostedContent = false
+    private var hasAppeared = false
     /// Guards `cancelActiveRequestIfNeeded()` so a normal completion is never
     /// double-cancelled on window close / view disappearance.
     private var didFinishRequest = false
@@ -76,11 +77,13 @@ final class CredentialProviderViewController: ASCredentialProviderViewController
 
     override func viewDidAppear() {
         super.viewDidAppear()
+        hasAppeared = true
         coordinator.presentationDidBecomeActive()
     }
 
     override func viewDidDisappear() {
         super.viewDidDisappear()
+        hasAppeared = false
         // Window close / dismissal has no iOS analogue; make sure a still-pending
         // request tears the vault down instead of leaking an unlocked session.
         cancelActiveRequestIfNeeded()
@@ -130,6 +133,10 @@ final class CredentialProviderViewController: ASCredentialProviderViewController
 // MARK: - CredentialProviderPresenting
 
 extension CredentialProviderViewController: CredentialProviderPresenting {
+    var isPresentationActive: Bool {
+        hasAppeared
+    }
+
     var isDisplayingContent: Bool {
         isShowingHostedContent
     }

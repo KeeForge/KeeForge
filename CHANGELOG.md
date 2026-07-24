@@ -21,6 +21,7 @@ TODO before the first macOS release:
 
 ## Unreleased
 
+- Fix the AutoFill provider remaining on an empty view when an interactive request arrives after its presentation lifecycle callback.
 - App Transport Security now stays enforced for the app's own fixed hosts — favicons (DuckDuckGo), feedback, and the Dropbox/Microsoft cloud endpoints — via per-domain exceptions. The global arbitrary-loads allowance remains only for user-entered WebDAV servers, many of which still require legacy TLS ciphers that ATS otherwise rejects.
 - Choose which databases appear in AutoFill, get suggestions from all of them at once, and clear AutoFill suggestions in Settings.
 - Switch between databases inside the AutoFill panel.
