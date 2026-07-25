@@ -10,6 +10,11 @@ import UIKit
 /// the pasteboard for the rest of its expiration window. The clear is
 /// guarded by `changeCount` (mirroring the macOS branch below) so content
 /// the user copied elsewhere afterwards is never clobbered.
+///
+/// The one lock that does *not* scrub is iOS backgrounding, because that is
+/// when the user switches to another app to paste (see
+/// `DatabaseViewModel.lock(manuallyTriggered:preservingClipboard:)`); the
+/// expiration date bounds the copy there instead.
 @MainActor
 enum ClipboardService {
     private static var ownedChangeCount: Int?
@@ -52,7 +57,11 @@ import AppKit
 /// - a timer clears the pasteboard after `SettingsService.clipboardTimeout`,
 ///   guarded by `changeCount` so a later user copy is never clobbered;
 /// - `clearOwnedContents()` is invoked on database lock, with the same
-///   `changeCount` guard.
+///   `changeCount` guard. Every Mac lock trigger (screen lock, screensaver,
+///   sleep, user switching, explicit lock) scrubs; the iOS
+///   backgrounding exemption does not apply here, since none of those mean
+///   the user is switching apps to paste — and macOS has no expiration or
+///   Universal Clipboard exclusion to fall back on.
 ///
 /// There is no macOS equivalent of iOS's `.localOnly` (Universal Clipboard
 /// exclusion) — Settings documents this honest regression.
