@@ -334,6 +334,7 @@ enum KDBXCompatibilitySupport {
             createEntryScenario(),
             updateEntryScenario(),
             createGroupScenario(),
+            hideGroupFromAutoFillScenario(),
             softDeleteEntryScenario(),
             softDeleteGroupScenario(),
             hardDeleteRecycledEntryScenario(),
@@ -643,6 +644,7 @@ struct CompatibilitySnapshot {
         let name: String
         let iconID: Int
         let isExpanded: Bool
+        let searchingEnabled: KPInheritableBool?
         let creationTime: Date?
         let lastModificationTime: Date?
         let recycleBinUUID: UUID?
@@ -656,6 +658,7 @@ struct CompatibilitySnapshot {
                 name: name,
                 iconID: iconID,
                 isExpanded: isExpanded,
+                searchingEnabled: searchingEnabled,
                 creationTime: creationTime,
                 lastModificationTime: lastModificationTime,
                 recycleBinUUID: recycleBinUUID,
@@ -669,6 +672,9 @@ struct CompatibilitySnapshot {
         let name: String
         let iconID: Int
         let isExpanded: Bool
+        /// Covered here so an unrelated edit cannot silently drop or flip a
+        /// group's `<EnableSearching>` without a compatibility scenario failing.
+        let searchingEnabled: KPInheritableBool?
         let creationTime: Date?
         let lastModificationTime: Date?
         let recycleBinUUID: UUID?
@@ -708,6 +714,7 @@ struct CompatibilitySnapshot {
             name: group.name,
             iconID: group.iconID,
             isExpanded: group.isExpanded,
+            searchingEnabled: group.searchingEnabled,
             creationTime: group.creationTime,
             lastModificationTime: group.lastModificationTime,
             recycleBinUUID: group.recycleBinUUID,
@@ -891,6 +898,55 @@ private extension KDBXCompatibilitySupport {
                 let created = try XCTUnwrap(after.groups[createdID])
                 XCTAssertTrue(created.entryIDs.isEmpty)
                 XCTAssertTrue(created.groupIDs.isEmpty)
+            }
+        )
+    }
+
+    /// Hiding a group from AutoFill writes `<EnableSearching>False</EnableSearching>`
+    /// into a group that previously had no such element. The artifact proves the
+    /// result still opens in KeePassXC and that the surrounding tree is untouched;
+    /// `expectedSearchTerms` deliberately names an entry *outside* the hidden
+    /// group, because a KeePass-family client is entitled to skip the hidden one.
+    static func hideGroupFromAutoFillScenario() -> Scenario {
+        Scenario(
+            id: "hide-group-from-autofill",
+            title: "Hide group from AutoFill via EnableSearching",
+            artifactFileName: "synthetic-rich-hide-group-from-autofill.kdbx",
+            expectedSearchTerms: ["Compat Untouched Entry"],
+            expectedGroupPaths: ["Compat Group Delete Target"],
+            makeEdit: { loaded in
+                let group = try XCTUnwrap(
+                    findGroup(named: "Compat Nested Child Group", in: loaded.rootGroup)
+                )
+                return .setGroupSearchingEnabled(groupID: group.id, value: .disabled)
+            },
+            assertChange: { before, after, _ in
+                let targetID = try XCTUnwrap(before.groupID(named: "Compat Nested Child Group"))
+                let beforeGroup = try XCTUnwrap(before.groups[targetID])
+                XCTAssertNil(
+                    beforeGroup.searchingEnabled,
+                    "Fixture precondition: the target group starts without the element"
+                )
+
+                try assertUnchangedEntries(before: before, after: after)
+                // Only the edited group may differ, and only in this flag plus
+                // its modification time.
+                try assertSurvivingGroupsPreserveScalars(
+                    before: before,
+                    after: after,
+                    excluding: [targetID]
+                )
+                assertMetaUnchanged(before: before, after: after)
+                XCTAssertEqual(after.groups.count, before.groups.count)
+
+                let afterGroup = try XCTUnwrap(after.groups[targetID])
+                XCTAssertEqual(afterGroup.searchingEnabled, .disabled)
+                XCTAssertEqual(afterGroup.name, beforeGroup.name)
+                XCTAssertEqual(afterGroup.iconID, beforeGroup.iconID)
+                XCTAssertEqual(afterGroup.entryIDs, beforeGroup.entryIDs)
+                XCTAssertEqual(afterGroup.groupIDs, beforeGroup.groupIDs)
+                XCTAssertEqual(afterGroup.unknownXML, beforeGroup.unknownXML)
+                XCTAssertEqual(afterGroup.creationTime, beforeGroup.creationTime)
             }
         )
     }

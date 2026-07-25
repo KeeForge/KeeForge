@@ -827,4 +827,94 @@ final class KDBXRoundTripTests: XCTestCase {
         XCTAssertEqual(nested.searchingEnabled, .disabled)
         XCTAssertEqual(nested.name, "Nested")
     }
+
+    /// An unparsable `<EnableSearching>` is preserved opaquely, so hiding that
+    /// same group later used to emit the preserved copy *and* the new
+    /// structured element, leaving two of them in one group. KeeForge would
+    /// still read its own output correctly, but another client resolving the
+    /// first one would silently ignore the user's choice.
+    func test_enableSearching_toggleAfterUnrecognizedValue_writesExactlyOneElement() throws {
+        let xml = """
+        <KeePassFile><Root><Group><Name>Root</Name>
+        <Group><UUID>rG5FhCLXQ0GDRLRUEBEHUw==</UUID><Name>Weird</Name>\
+        <Notes>keep me</Notes>\
+        <EnableSearching>maybe</EnableSearching></Group>
+        </Group></Root></KeePassFile>
+        """
+
+        let parsed = try parseXML(Data(xml.utf8))
+        let container = try XCTUnwrap(parsed.rootGroup.groups.first)
+        let weird = try XCTUnwrap(container.groups.first)
+        XCTAssertNil(weird.searchingEnabled, "Precondition: \"maybe\" is not a tri-state value")
+
+        let draft = DatabaseDraft(
+            rootGroup: parsed.rootGroup,
+            meta: parsed.meta,
+            sessionKey: roundTripSessionKey
+        )
+        let updated = try draft.apply(
+            .setGroupSearchingEnabled(groupID: weird.id, value: .disabled)
+        )
+
+        var serializer = KDBXXMLSerializer(
+            rootGroup: updated.rootGroup,
+            meta: updated.meta,
+            innerStreamKey: roundTripInnerStreamKey,
+            sessionKey: roundTripSessionKey
+        )
+        let xmlString = String(data: try serializer.serialize(), encoding: .utf8)!
+
+        XCTAssertEqual(
+            xmlString.components(separatedBy: "<EnableSearching>").count - 1,
+            1,
+            "The stale opaque element must be replaced, not duplicated"
+        )
+        XCTAssertTrue(xmlString.contains("<EnableSearching>False</EnableSearching>"))
+        XCTAssertFalse(xmlString.contains("maybe"))
+        XCTAssertTrue(
+            xmlString.contains("<Notes>keep me</Notes>"),
+            "Only the superseded element is dropped; other opaque siblings stay"
+        )
+
+        let reparsed = try parseXML(Data(xmlString.utf8))
+        let reparsedContainer = try XCTUnwrap(reparsed.rootGroup.groups.first)
+        let reparsedWeird = try XCTUnwrap(reparsedContainer.groups.first)
+        XCTAssertEqual(reparsedWeird.searchingEnabled, .disabled)
+    }
+
+    /// Untouched groups must keep an unparsable value verbatim — the fix above
+    /// is scoped to the group the user actually edited.
+    func test_enableSearching_unrecognizedValue_survivesAnEditToAnotherGroup() throws {
+        let xml = """
+        <KeePassFile><Root><Group><Name>Root</Name>
+        <Group><UUID>rG5FhCLXQ0GDRLRUEBEHUw==</UUID><Name>Weird</Name>\
+        <EnableSearching>maybe</EnableSearching></Group>
+        <Group><UUID>u9nSbYQCTk6Vg0kJ0YQ1Qw==</UUID><Name>Other</Name></Group>
+        </Group></Root></KeePassFile>
+        """
+
+        let parsed = try parseXML(Data(xml.utf8))
+        let container = try XCTUnwrap(parsed.rootGroup.groups.first)
+        let other = try XCTUnwrap(container.groups.first { $0.name == "Other" })
+
+        let draft = DatabaseDraft(
+            rootGroup: parsed.rootGroup,
+            meta: parsed.meta,
+            sessionKey: roundTripSessionKey
+        )
+        let updated = try draft.apply(
+            .setGroupSearchingEnabled(groupID: other.id, value: .disabled)
+        )
+
+        var serializer = KDBXXMLSerializer(
+            rootGroup: updated.rootGroup,
+            meta: updated.meta,
+            innerStreamKey: roundTripInnerStreamKey,
+            sessionKey: roundTripSessionKey
+        )
+        let xmlString = String(data: try serializer.serialize(), encoding: .utf8)!
+
+        XCTAssertTrue(xmlString.contains("<EnableSearching>maybe</EnableSearching>"))
+        XCTAssertTrue(xmlString.contains("<EnableSearching>False</EnableSearching>"))
+    }
 }

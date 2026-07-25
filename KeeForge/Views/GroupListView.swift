@@ -593,8 +593,15 @@ struct GroupRow: View {
         viewModel.currentRootGroup?.recycleBinUUID == groupID
     }
 
+    /// Matches `canChangeAutoFillExclusion`: the badge is only shown where the
+    /// context menu can actually act on it. KeePass and KeePassXC set
+    /// `<EnableSearching>False</EnableSearching>` on the recycle bins they
+    /// create, so without the second check every trashed subgroup in a
+    /// KeePass-made database would inherit an unactionable badge.
     private var isExcludedFromAutoFill: Bool {
-        isRecycleBin == false && viewModel.isGroupExcludedFromAutoFill(groupID: groupID)
+        isRecycleBin == false
+            && viewModel.isGroupInRecycleBin(groupID: groupID) == false
+            && viewModel.isGroupExcludedFromAutoFill(groupID: groupID)
     }
 
     var body: some View {
