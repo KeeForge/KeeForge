@@ -141,6 +141,17 @@ struct KDBXXMLSerializer {
             knownChildCount += 1
         }
 
+        // Positioned after `<Times>`/`<IsExpanded>` and before the children,
+        // which is where KeePass writes it — the opaque-XML insertion indices
+        // recorded by the parser are relative to that same sequence. Absent
+        // (`nil`) means the source group had no element, so none is written and
+        // `knownChildCount` stays put, mirroring the parser exactly.
+        if let searchingEnabled = group.searchingEnabled {
+            xml += try opaqueXML(from: group.unknownXML, path: [], insertionIndex: knownChildCount)
+            xml += element("EnableSearching", value: searchingEnabled.xmlValue)
+            knownChildCount += 1
+        }
+
         for entry in group.entries {
             xml += try opaqueXML(from: group.unknownXML, path: [], insertionIndex: knownChildCount)
             xml += try serializeEntry(entry)

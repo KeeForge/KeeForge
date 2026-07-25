@@ -60,10 +60,27 @@ struct EntryDraftPayload: Codable, Sendable, Equatable {
     }
 }
 
+/// Codable mirror of `KPInheritableBool`, kept separate so the KDBX model type
+/// doesn't have to carry a serialization format for the pending-edit log.
+enum InheritableBoolPayload: String, Codable, Sendable, Equatable {
+    case inherit
+    case enabled
+    case disabled
+
+    var modelValue: KPInheritableBool {
+        switch self {
+        case .inherit: return .inherit
+        case .enabled: return .enabled
+        case .disabled: return .disabled
+        }
+    }
+}
+
 enum EntryEdit: Codable, Sendable, Equatable {
     case createEntry(parentGroupID: UUID, draft: EntryDraftPayload)
     case createGroup(parentGroupID: UUID, name: String)
     case updateEntry(entryID: UUID, draft: EntryDraftPayload)
     case deleteEntry(entryID: UUID, sendToRecycleBin: Bool)
     case deleteGroup(groupID: UUID, sendToRecycleBin: Bool)
+    case setGroupSearchingEnabled(groupID: UUID, value: InheritableBoolPayload)
 }

@@ -6,7 +6,7 @@ This folder holds the data and logic that the rest of the app depends on. It is 
 
 - `KDBXParser.swift`, `KDBXWriter.swift`, and `KDBXCrypto.swift` implement KDBX 4.x read/write, KDF handling, XML extraction, HMAC checks, payload framing, and decompression guards.
 - `KDBXOuterCipher.swift` centralizes outer-cipher UUID recognition, IV sizing, diagnostics, and AES-256-CBC, ChaCha20, and Twofish-256-CBC dispatch. The Twofish primitive lives in the locally vendored `Vendor/KeeForgeTwofish` package and is shared with AutoFill.
-- `Entry.swift`, `Group.swift`, `EncryptedValue.swift`, and `TOTPGenerator.swift` define the in-memory representation of secrets and time-based codes.
+- `Entry.swift`, `Group.swift`, `EncryptedValue.swift`, and `TOTPGenerator.swift` define the in-memory representation of secrets and time-based codes. `Group.swift` also carries the tri-state `<EnableSearching>` flag (`KPInheritableBool`): `nil` means the source group had no such element and the writer must not invent one, while `.inherit` is an element that is present and explicitly defers to the parent. Making it structured shifts the opaque-XML insertion indices of the unmodelled group siblings around it, so the parser only counts it as known when its value parsed, and the writer emits it in the same position KeePass does — after `<Times>`/`<IsExpanded>`, before the children.
 - `DatabaseDraft.swift` and `EntryEdit.swift` stage in-memory entry/group creates, updates, and deletes while preserving recycle-bin behavior, protected fields, and unknown XML for later save.
 - Changes here should be small, test-backed, and motivated by a real bug, format update, or security requirement.
 

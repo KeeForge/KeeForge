@@ -1,5 +1,45 @@
 import Foundation
 
+/// A KDBX tri-state group flag, as used by `<EnableSearching>` and
+/// `<EnableAutoType>`: an explicit yes/no, or `inherit` (serialized as `null`)
+/// meaning "take the parent's answer".
+enum KPInheritableBool: Sendable, Hashable {
+    case inherit
+    case enabled
+    case disabled
+
+    /// `nil` for `inherit`, so callers can fall back to the parent value with
+    /// a single `??`.
+    var boolValue: Bool? {
+        switch self {
+        case .inherit: return nil
+        case .enabled: return true
+        case .disabled: return false
+        }
+    }
+
+    /// Parses a KDBX element body. Returns `nil` for anything unrecognized so
+    /// the caller can leave the source element in `unknownXML` untouched
+    /// instead of rewriting it into something the original app didn't write.
+    static func parse(_ rawValue: String) -> KPInheritableBool? {
+        switch rawValue.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() {
+        case "null": return .inherit
+        case "true": return .enabled
+        case "false": return .disabled
+        default: return nil
+        }
+    }
+
+    /// KeePass casing: `True`/`False` for the booleans, lowercase `null` for inherit.
+    var xmlValue: String {
+        switch self {
+        case .inherit: return "null"
+        case .enabled: return "True"
+        case .disabled: return "False"
+        }
+    }
+}
+
 /// Represents a KeePass group (folder) containing entries and subgroups
 final class KPGroup: Identifiable, @unchecked Sendable {
     var id: UUID
@@ -12,6 +52,10 @@ final class KPGroup: Identifiable, @unchecked Sendable {
     var entries: [KPEntry]
     var groups: [KPGroup]
     var isExpanded: Bool
+    /// KDBX `<EnableSearching>`. `nil` means the source group had no such
+    /// element at all, which behaves like `.inherit` but is kept distinct so
+    /// the writer doesn't add an element the original app never wrote.
+    var searchingEnabled: KPInheritableBool?
     var creationTime: Date?
     var lastModificationTime: Date?
     /// UUID of the Recycle Bin group (only meaningful on the root group)
@@ -26,6 +70,7 @@ final class KPGroup: Identifiable, @unchecked Sendable {
         entries: [KPEntry] = [],
         groups: [KPGroup] = [],
         isExpanded: Bool = true,
+        searchingEnabled: KPInheritableBool? = nil,
         creationTime: Date? = nil,
         lastModificationTime: Date? = nil,
         recycleBinUUID: UUID? = nil,
@@ -38,6 +83,7 @@ final class KPGroup: Identifiable, @unchecked Sendable {
         self.entries = entries
         self.groups = groups
         self.isExpanded = isExpanded
+        self.searchingEnabled = searchingEnabled
         self.creationTime = creationTime
         self.lastModificationTime = lastModificationTime
         self.recycleBinUUID = recycleBinUUID
@@ -53,6 +99,34 @@ final class KPGroup: Identifiable, @unchecked Sendable {
     func allEntries(excludingGroupID groupID: UUID) -> [KPEntry] {
         guard id != groupID else { return [] }
         return entries + groups.flatMap { $0.allEntries(excludingGroupID: groupID) }
+    }
+
+    /// Recursively collects the entries AutoFill is allowed to offer, honouring
+    /// `<EnableSearching>` down the tree.
+    ///
+    /// A group with `.disabled` contributes nothing, and its subgroups inherit
+    /// that unless they override it with an explicit `.enabled` — matching how
+    /// KeePass resolves the flag. Groups without the element (or with
+    /// `.inherit`) take the parent's answer; the root defaults to enabled.
+    ///
+    /// In-app browsing and the in-app search deliberately keep using
+    /// `allEntries`: hiding a group from AutoFill is not meant to hide it from
+    /// the person who owns the database.
+    func autoFillEntries(
+        excludingGroupID excludedGroupID: UUID? = nil,
+        inheritedSearchingEnabled: Bool = true
+    ) -> [KPEntry] {
+        guard id != excludedGroupID else { return [] }
+
+        let isSearchable = searchingEnabled?.boolValue ?? inheritedSearchingEnabled
+        let ownEntries = isSearchable ? entries : []
+
+        return ownEntries + groups.flatMap {
+            $0.autoFillEntries(
+                excludingGroupID: excludedGroupID,
+                inheritedSearchingEnabled: isSearchable
+            )
+        }
     }
 
     /// Returns a new version of this group with one direct child group replaced.
@@ -72,6 +146,7 @@ final class KPGroup: Identifiable, @unchecked Sendable {
             entries: entries,
             groups: updatedGroups,
             isExpanded: isExpanded,
+            searchingEnabled: searchingEnabled,
             creationTime: creationTime,
             lastModificationTime: lastModificationTime,
             recycleBinUUID: recycleBinUUID,

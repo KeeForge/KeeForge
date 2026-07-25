@@ -110,6 +110,88 @@ final class DatabaseViewModelTests: XCTestCase {
         XCTAssertFalse(vm.isDirty)
     }
 
+    /// End-to-end proof for #14: hide a group, save through the real save path,
+    /// then read the encrypted file back from disk and check that AutoFill's
+    /// actual entry source no longer offers the entry.
+    func testHiddenGroupSurvivesSaveAndStaysOutOfCredentialStore() async throws {
+        let password = "hidden group save password"
+        let created = try await DatabaseCreationService.create(
+            request: DatabaseCreationRequest(
+                displayName: "Hidden Group Persistence",
+                destination: .appOnlyAcknowledged,
+                password: password
+            )
+        )
+        let vm = DatabaseViewModel(createdDatabase: created)
+        let rootGroupID = try XCTUnwrap(vm.visibleRootGroupID)
+
+        try vm.createGroup(named: "Banking", in: rootGroupID)
+        let hiddenGroupID = try XCTUnwrap(
+            vm.group(withID: rootGroupID)?.groups.first(where: { $0.name == "Banking" })?.id
+        )
+        try vm.applyEntryEdit(
+            .createEntry(
+                parentGroupID: hiddenGroupID,
+                draft: EntryDraftPayload(
+                    title: "Bank Login",
+                    username: "alice",
+                    password: "bank-secret",
+                    url: "https://bank.example.com"
+                )
+            )
+        )
+        try vm.applyEntryEdit(
+            .createEntry(
+                parentGroupID: rootGroupID,
+                draft: EntryDraftPayload(
+                    title: "Mail Login",
+                    username: "alice",
+                    password: "mail-secret",
+                    url: "https://mail.example.com"
+                )
+            )
+        )
+
+        try vm.setGroupExcludedFromAutoFill(true, groupID: hiddenGroupID)
+        try await vm.save()
+
+        let cachedURL = try XCTUnwrap(DatabaseListStore.cachedDatabaseURL(for: created.reference))
+        let reparsedRoot = try KDBXParser.parse(
+            data: Data(contentsOf: cachedURL),
+            password: password,
+            sessionKey: SymmetricKey(size: .bits256)
+        )
+
+        let reparsedHiddenGroup = try XCTUnwrap(
+            Self.findGroup(withID: hiddenGroupID, in: reparsedRoot)
+        )
+        XCTAssertEqual(
+            reparsedHiddenGroup.searchingEnabled,
+            .disabled,
+            "The flag must survive a real encrypted save and reload"
+        )
+
+        let offeredTitles = Set(
+            DatabaseViewModel.credentialStoreEntries(from: reparsedRoot).map(\.title)
+        )
+        XCTAssertTrue(
+            offeredTitles.contains("Mail Login"),
+            "Entries outside the hidden group must still be offered"
+        )
+        XCTAssertFalse(
+            offeredTitles.contains("Bank Login"),
+            "The hidden group's entry must not reach AutoFill after a save and reload"
+        )
+    }
+
+    private static func findGroup(withID groupID: UUID, in group: KPGroup) -> KPGroup? {
+        if group.id == groupID { return group }
+        for childGroup in group.groups {
+            if let match = findGroup(withID: groupID, in: childGroup) { return match }
+        }
+        return nil
+    }
+
     func testSetNicknamePersistsAndRefreshesCurrentReference() throws {
         let reference = try makeReference()
         DatabaseListStore.update(reference)
@@ -382,6 +464,85 @@ final class DatabaseViewModelTests: XCTestCase {
         XCTAssertTrue(vm.isGroupInRecycleBin(groupID: socialGroup.id))
     }
 
+    func testHidingGroupFromAutoFillMarksItAndItsSubgroupsExcluded() async throws {
+        let vm = try makeViewModel()
+        await vm.unlock(password: fixturePassword)
+
+        let rootGroupID = try XCTUnwrap(vm.visibleRootGroupID)
+        try vm.createGroup(named: "Hidden Parent", in: rootGroupID)
+        let parent = try XCTUnwrap(vm.visibleRootGroup?.groups.first(where: { $0.name == "Hidden Parent" }))
+        try vm.createGroup(named: "Hidden Child", in: parent.id)
+        let child = try XCTUnwrap(vm.group(withID: parent.id)?.groups.first)
+
+        XCTAssertFalse(vm.isGroupExcludedFromAutoFill(groupID: parent.id))
+        XCTAssertFalse(vm.isGroupExcludedFromAutoFill(groupID: child.id))
+
+        try vm.setGroupExcludedFromAutoFill(true, groupID: parent.id)
+
+        XCTAssertTrue(vm.isGroupExcludedFromAutoFill(groupID: parent.id))
+        XCTAssertTrue(vm.isGroupExcludedFromAutoFill(groupID: child.id))
+        XCTAssertFalse(
+            vm.isGroupExclusionInherited(groupID: parent.id),
+            "The parent carries the flag itself"
+        )
+        XCTAssertTrue(
+            vm.isGroupExclusionInherited(groupID: child.id),
+            "The child is only excluded through its parent"
+        )
+        XCTAssertFalse(vm.isGroupExcludedFromAutoFill(groupID: rootGroupID))
+    }
+
+    func testShowingGroupInAutoFillAgainOverridesExcludedParent() async throws {
+        let vm = try makeViewModel()
+        await vm.unlock(password: fixturePassword)
+
+        let rootGroupID = try XCTUnwrap(vm.visibleRootGroupID)
+        try vm.createGroup(named: "Excluded Parent", in: rootGroupID)
+        let parent = try XCTUnwrap(vm.visibleRootGroup?.groups.first(where: { $0.name == "Excluded Parent" }))
+        try vm.createGroup(named: "Exception", in: parent.id)
+        let child = try XCTUnwrap(vm.group(withID: parent.id)?.groups.first)
+
+        try vm.setGroupExcludedFromAutoFill(true, groupID: parent.id)
+        try vm.setGroupExcludedFromAutoFill(false, groupID: child.id)
+
+        XCTAssertTrue(vm.isGroupExcludedFromAutoFill(groupID: parent.id))
+        XCTAssertFalse(vm.isGroupExcludedFromAutoFill(groupID: child.id))
+    }
+
+    func testHidingGroupFromAutoFillRemovesItsEntriesFromCredentialStore() async throws {
+        let vm = try makeViewModel()
+        var observedEntries: [[KPEntry]] = []
+        let refreshExpectation = expectation(description: "Credential store refreshed after hiding a group")
+
+        CredentialIdentityStoreManager.populateObserver = { _, entries in
+            observedEntries.append(entries)
+            if observedEntries.count == 2 {
+                refreshExpectation.fulfill()
+            }
+        }
+
+        await vm.unlock(password: fixturePassword)
+
+        let workGroup = try XCTUnwrap(vm.visibleRootGroup?.groups.first(where: { $0.name == "Work" }))
+        let hiddenEntry = try XCTUnwrap(workGroup.allEntries.first(where: { !$0.title.isEmpty }))
+        let hiddenEntryIDs = Set(workGroup.allEntries.map(\.id))
+
+        try vm.setGroupExcludedFromAutoFill(true, groupID: workGroup.id)
+
+        await fulfillment(of: [refreshExpectation], timeout: 30)
+
+        XCTAssertTrue(
+            hiddenEntryIDs.isDisjoint(with: Set(observedEntries.last?.map(\.id) ?? [])),
+            "Entries of a hidden group must not reach the credential store"
+        )
+
+        vm.searchText = hiddenEntry.title
+        XCTAssertTrue(
+            vm.searchResults.contains(where: { $0.id == hiddenEntry.id }),
+            "Hiding a group from AutoFill must not hide it from the in-app search"
+        )
+    }
+
     func testGroupDeletionSummaryCountsEntriesAndNestedGroups() async throws {
         let vm = try makeViewModel()
         await vm.unlock(password: fixturePassword)
@@ -512,6 +673,64 @@ final class DatabaseViewModelTests: XCTestCase {
         let identities = DatabaseViewModel.credentialStoreEntries(from: root)
 
         XCTAssertEqual(Set(identities.map(\.id)), Set([passwordEntry.id, passkeyEntry.id]))
+    }
+
+    func testCredentialStoreEntriesSkipsGroupsHiddenFromAutoFill() throws {
+        let sessionKey = SymmetricKey(size: .bits256)
+        func makeEntry(_ title: String) throws -> KPEntry {
+            KPEntry(
+                title: title,
+                username: "user",
+                password: try EncryptedValue.encrypt("secret", using: sessionKey),
+                url: "https://example.com"
+            )
+        }
+
+        let visible = try makeEntry("Visible")
+        let hidden = try makeEntry("Hidden")
+        let deeplyHidden = try makeEntry("Deeply Hidden")
+        let reEnabled = try makeEntry("Re-enabled")
+
+        let root = KPGroup(
+            name: "Root",
+            entries: [visible],
+            groups: [
+                KPGroup(
+                    name: "Secret",
+                    entries: [hidden],
+                    groups: [
+                        KPGroup(name: "Deeper", entries: [deeplyHidden]),
+                        KPGroup(name: "Exception", entries: [reEnabled], searchingEnabled: .enabled),
+                    ],
+                    searchingEnabled: .disabled
+                )
+            ]
+        )
+
+        let identities = DatabaseViewModel.credentialStoreEntries(from: root)
+
+        XCTAssertEqual(Set(identities.map(\.id)), Set([visible.id, reEnabled.id]))
+    }
+
+    func testSaveCoordinatorCredentialStoreEntriesSkipsGroupsHiddenFromAutoFill() throws {
+        let sessionKey = SymmetricKey(size: .bits256)
+        let visible = KPEntry(
+            title: "Visible",
+            password: try EncryptedValue.encrypt("secret", using: sessionKey)
+        )
+        let hidden = KPEntry(
+            title: "Hidden",
+            password: try EncryptedValue.encrypt("secret", using: sessionKey)
+        )
+        let root = KPGroup(
+            name: "Root",
+            entries: [visible],
+            groups: [KPGroup(name: "Secret", entries: [hidden], searchingEnabled: .disabled)]
+        )
+
+        let entries = AutoFillSaveCoordinator.credentialStoreEntries(from: root)
+
+        XCTAssertEqual(Set(entries.map(\.id)), Set([visible.id]))
     }
 
     func testUnlockDisabledDatabaseDoesNotPopulateOrClaimActivePointer() async throws {

@@ -527,6 +527,70 @@ final class DatabaseDraftTests: XCTestCase {
         XCTAssertEqual(updatedParentGroup.entries.count, 1_001)
     }
 
+    func test_setGroupSearchingEnabled_disablesGroupAndTouchesModificationTime() throws {
+        let tree = try makeSyntheticTree(includeRecycleBin: false)
+        let draft = DatabaseDraft(rootGroup: tree.rootGroup, meta: tree.meta, sessionKey: sessionKey)
+        let originalGroup = try XCTUnwrap(findGroup(withID: tree.parentGroupID, in: tree.rootGroup))
+        XCTAssertNil(originalGroup.searchingEnabled)
+
+        let updatedDraft = try draft.apply(
+            .setGroupSearchingEnabled(groupID: tree.parentGroupID, value: .disabled)
+        )
+
+        let updatedGroup = try XCTUnwrap(findGroup(withID: tree.parentGroupID, in: updatedDraft.rootGroup))
+        XCTAssertEqual(updatedGroup.searchingEnabled, .disabled)
+        XCTAssertGreaterThan(
+            try XCTUnwrap(updatedGroup.lastModificationTime),
+            try XCTUnwrap(originalGroup.lastModificationTime)
+        )
+        XCTAssertEqual(updatedGroup.name, originalGroup.name)
+        XCTAssertEqual(updatedGroup.entries.count, originalGroup.entries.count)
+        XCTAssertEqual(updatedGroup.groups.count, originalGroup.groups.count)
+        XCTAssertTrue(updatedDraft.isDirty)
+    }
+
+    func test_setGroupSearchingEnabled_leavesSiblingsAndChildrenAlone() throws {
+        let tree = try makeSyntheticTree(includeRecycleBin: false)
+        let draft = DatabaseDraft(rootGroup: tree.rootGroup, meta: tree.meta, sessionKey: sessionKey)
+
+        let updatedDraft = try draft.apply(
+            .setGroupSearchingEnabled(groupID: tree.parentGroupID, value: .disabled)
+        )
+
+        let originalUntouched = try XCTUnwrap(findGroup(withID: tree.untouchedGroupID, in: tree.rootGroup))
+        let updatedUntouched = try XCTUnwrap(findGroup(withID: tree.untouchedGroupID, in: updatedDraft.rootGroup))
+        try assertGroupsEqual(originalUntouched, updatedUntouched)
+
+        let updatedParent = try XCTUnwrap(findGroup(withID: tree.parentGroupID, in: updatedDraft.rootGroup))
+        for subgroup in updatedParent.groups {
+            XCTAssertNil(
+                subgroup.searchingEnabled,
+                "Children inherit at read time; the edit must not stamp them"
+            )
+        }
+    }
+
+    func test_setGroupSearchingEnabled_reEnablingWritesExplicitValue() throws {
+        let tree = try makeSyntheticTree(includeRecycleBin: false)
+        let draft = DatabaseDraft(rootGroup: tree.rootGroup, meta: tree.meta, sessionKey: sessionKey)
+
+        let updatedDraft = try draft
+            .apply(.setGroupSearchingEnabled(groupID: tree.parentGroupID, value: .disabled))
+            .apply(.setGroupSearchingEnabled(groupID: tree.parentGroupID, value: .enabled))
+
+        let updatedGroup = try XCTUnwrap(findGroup(withID: tree.parentGroupID, in: updatedDraft.rootGroup))
+        XCTAssertEqual(updatedGroup.searchingEnabled, .enabled)
+    }
+
+    func test_setGroupSearchingEnabled_unknownGroup_throws() throws {
+        let tree = try makeSyntheticTree(includeRecycleBin: false)
+        let draft = DatabaseDraft(rootGroup: tree.rootGroup, meta: tree.meta, sessionKey: sessionKey)
+
+        XCTAssertThrowsError(
+            try draft.apply(.setGroupSearchingEnabled(groupID: UUID(), value: .disabled))
+        )
+    }
+
     private func makeSyntheticTree(
         includeRecycleBin: Bool,
         parentEntryOverride: KPEntry? = nil,
@@ -724,6 +788,7 @@ final class DatabaseDraftTests: XCTestCase {
         XCTAssertEqual(lhs.name, rhs.name, file: file, line: line)
         XCTAssertEqual(lhs.iconID, rhs.iconID, file: file, line: line)
         XCTAssertEqual(lhs.isExpanded, rhs.isExpanded, file: file, line: line)
+        XCTAssertEqual(lhs.searchingEnabled, rhs.searchingEnabled, file: file, line: line)
         XCTAssertEqual(lhs.creationTime, rhs.creationTime, file: file, line: line)
         XCTAssertEqual(lhs.lastModificationTime, rhs.lastModificationTime, file: file, line: line)
         XCTAssertEqual(lhs.recycleBinUUID, rhs.recycleBinUUID, file: file, line: line)

@@ -344,6 +344,13 @@ struct GroupListView: View {
         }
         .macHoverHighlight()
         .contextMenu {
+            if canChangeAutoFillExclusion(groupID) {
+                Button(autoFillExclusionButtonTitle(for: groupID)) {
+                    toggleAutoFillExclusion(groupID)
+                }
+                .accessibilityIdentifier("group-row.autofill-exclusion-context")
+            }
+
             if canDeleteGroup(groupID) {
                 Button(groupDeleteButtonTitle(for: groupID), role: .destructive) {
                     preparePendingGroupDeletion(groupID)
@@ -416,6 +423,33 @@ struct GroupListView: View {
 
     private func groupDeleteButtonTitle(for groupID: UUID) -> String {
         viewModel.isGroupInRecycleBin(groupID: groupID) ? "Delete Permanently" : "Delete"
+    }
+
+    private func canChangeAutoFillExclusion(_ groupID: UUID) -> Bool {
+        viewModel.isReadOnly == false
+            && viewModel.currentRootGroup?.recycleBinUUID != groupID
+            && viewModel.isGroupInRecycleBin(groupID: groupID) == false
+    }
+
+    private func autoFillExclusionButtonTitle(for groupID: UUID) -> String {
+        if viewModel.isGroupExcludedFromAutoFill(groupID: groupID) {
+            return viewModel.isGroupExclusionInherited(groupID: groupID)
+                ? String(localized: "Show in AutoFill (Overrides Parent)")
+                : String(localized: "Show in AutoFill")
+        }
+        return String(localized: "Hide from AutoFill")
+    }
+
+    private func toggleAutoFillExclusion(_ groupID: UUID) {
+        let shouldExclude = viewModel.isGroupExcludedFromAutoFill(groupID: groupID) == false
+        do {
+            try viewModel.setGroupExcludedFromAutoFill(shouldExclude, groupID: groupID)
+            Task {
+                await viewModel.saveHandlingError()
+            }
+        } catch {
+            viewModel.presentSaveError(error)
+        }
     }
 
     private func groupDeleteContextIdentifier(for groupID: UUID) -> String {
@@ -559,6 +593,10 @@ struct GroupRow: View {
         viewModel.currentRootGroup?.recycleBinUUID == groupID
     }
 
+    private var isExcludedFromAutoFill: Bool {
+        isRecycleBin == false && viewModel.isGroupExcludedFromAutoFill(groupID: groupID)
+    }
+
     var body: some View {
         Group {
             if let group {
@@ -584,6 +622,15 @@ struct GroupRow: View {
                         Text("\(viewModel.entryCount(forGroupID: groupID)) entries")
                             .font(.caption)
                             .foregroundStyle(.secondary)
+                    }
+
+                    if isExcludedFromAutoFill {
+                        Spacer(minLength: 4)
+                        Image(systemName: "key.slash")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .accessibilityLabel("Hidden from AutoFill")
+                            .accessibilityIdentifier("group-row.autofill-excluded")
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)

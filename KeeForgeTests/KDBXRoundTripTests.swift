@@ -465,6 +465,7 @@ final class KDBXRoundTripTests: XCTestCase {
         XCTAssertEqual(lhs.name, rhs.name, file: file, line: line)
         XCTAssertEqual(lhs.iconID, rhs.iconID, file: file, line: line)
         XCTAssertEqual(lhs.isExpanded, rhs.isExpanded, file: file, line: line)
+        XCTAssertEqual(lhs.searchingEnabled, rhs.searchingEnabled, file: file, line: line)
         XCTAssertEqual(lhs.creationTime, rhs.creationTime, file: file, line: line)
         XCTAssertEqual(lhs.lastModificationTime, rhs.lastModificationTime, file: file, line: line)
         XCTAssertEqual(lhs.recycleBinUUID, rhs.recycleBinUUID, file: file, line: line)
@@ -693,5 +694,137 @@ final class KDBXRoundTripTests: XCTestCase {
         let reparsedEntry = try XCTUnwrap(reparsed.rootGroup.allEntries.first)
         XCTAssertTrue(reparsedEntry.hasTagsElement, "hasTagsElement should survive round-trip")
         XCTAssertTrue(reparsedEntry.tags.isEmpty, "tags array should remain empty")
+    }
+
+    // MARK: - EnableSearching round-trip
+
+    func test_enableSearching_allThreeStates_surviveRoundTrip() throws {
+        let xml = """
+        <KeePassFile><Root><Group><Name>Root</Name>
+        <Group><Name>Off</Name><EnableSearching>False</EnableSearching></Group>
+        <Group><Name>On</Name><EnableSearching>True</EnableSearching></Group>
+        <Group><Name>Inherit</Name><EnableSearching>null</EnableSearching></Group>
+        <Group><Name>NoElement</Name></Group>
+        </Group></Root></KeePassFile>
+        """
+
+        let parsed = try parseXML(Data(xml.utf8))
+        let reparsed = try serializeAndParse(parsed)
+
+        for tree in [parsed, reparsed] {
+            // `rootGroup` is the synthetic wrapper for `<Root>`; the group named
+            // "Root" in the XML is its single child.
+            let container = try XCTUnwrap(tree.rootGroup.groups.first)
+            let groups = Dictionary(
+                uniqueKeysWithValues: container.groups.map { ($0.name, $0) }
+            )
+            XCTAssertEqual(groups["Off"]?.searchingEnabled, .disabled)
+            XCTAssertEqual(groups["On"]?.searchingEnabled, .enabled)
+            XCTAssertEqual(groups["Inherit"]?.searchingEnabled, .inherit)
+            XCTAssertNil(
+                groups["NoElement"]?.searchingEnabled,
+                "A group without the element must stay without it"
+            )
+        }
+    }
+
+    func test_enableSearching_absentElement_isNotAddedOnWrite() throws {
+        let root = KPGroup(name: "Root", groups: [KPGroup(name: "Plain")])
+
+        var serializer = KDBXXMLSerializer(
+            rootGroup: root,
+            meta: KPMeta(),
+            innerStreamKey: roundTripInnerStreamKey,
+            sessionKey: roundTripSessionKey
+        )
+        let xmlString = String(data: try serializer.serialize(), encoding: .utf8)!
+
+        XCTAssertFalse(
+            xmlString.contains("EnableSearching"),
+            "Writing a group that never had the element must not invent one"
+        )
+    }
+
+    /// The value KeeForge writes has to be one KeePass itself accepts, so a
+    /// database stays usable in both apps.
+    func test_enableSearching_writesKeePassCasing() throws {
+        let root = KPGroup(
+            name: "Root",
+            groups: [KPGroup(name: "Hidden", searchingEnabled: .disabled)]
+        )
+
+        var serializer = KDBXXMLSerializer(
+            rootGroup: root,
+            meta: KPMeta(),
+            innerStreamKey: roundTripInnerStreamKey,
+            sessionKey: roundTripSessionKey
+        )
+        let xmlString = String(data: try serializer.serialize(), encoding: .utf8)!
+
+        XCTAssertTrue(xmlString.contains("<EnableSearching>False</EnableSearching>"))
+    }
+
+    /// An unparsable value must fall through to the opaque-XML path rather than
+    /// being silently rewritten or dropped.
+    func test_enableSearching_unrecognizedValue_isPreservedVerbatim() throws {
+        let xml = """
+        <KeePassFile><Root><Group><Name>Root</Name>
+        <Group><Name>Weird</Name><EnableSearching>maybe</EnableSearching></Group>
+        </Group></Root></KeePassFile>
+        """
+
+        let parsed = try parseXML(Data(xml.utf8))
+        let container = try XCTUnwrap(parsed.rootGroup.groups.first)
+        let weird = try XCTUnwrap(container.groups.first)
+        XCTAssertNil(weird.searchingEnabled, "\"maybe\" is not a tri-state value")
+
+        var serializer = KDBXXMLSerializer(
+            rootGroup: parsed.rootGroup,
+            meta: parsed.meta,
+            innerStreamKey: roundTripInnerStreamKey,
+            sessionKey: roundTripSessionKey
+        )
+        let xmlString = String(data: try serializer.serialize(), encoding: .utf8)!
+
+        XCTAssertTrue(
+            xmlString.contains("<EnableSearching>maybe</EnableSearching>"),
+            "Unknown values must round-trip untouched"
+        )
+    }
+
+    /// Regression guard for the opaque-XML position bookkeeping: making
+    /// `<EnableSearching>` a structured element shifts the insertion indices of
+    /// the unmodelled siblings around it, and none of them may be lost.
+    func test_enableSearching_doesNotDisturbSurroundingUnknownElements() throws {
+        let xml = """
+        <KeePassFile><Root><Group><Name>Root</Name>
+        <Group><UUID>rG5FhCLXQ0GDRLRUEBEHUw==</UUID><Name>Nested</Name><Notes>group notes</Notes>\
+        <IconID>48</IconID><IsExpanded>True</IsExpanded>\
+        <DefaultAutoTypeSequence>{USERNAME}</DefaultAutoTypeSequence>\
+        <EnableAutoType>null</EnableAutoType>\
+        <EnableSearching>False</EnableSearching>\
+        <LastTopVisibleEntry>AAAAAAAAAAAAAAAAAAAAAA==</LastTopVisibleEntry></Group>
+        </Group></Root></KeePassFile>
+        """
+
+        let parsed = try parseXML(Data(xml.utf8))
+        var serializer = KDBXXMLSerializer(
+            rootGroup: parsed.rootGroup,
+            meta: parsed.meta,
+            innerStreamKey: roundTripInnerStreamKey,
+            sessionKey: roundTripSessionKey
+        )
+        let xmlString = String(data: try serializer.serialize(), encoding: .utf8)!
+
+        XCTAssertTrue(xmlString.contains("<Notes>group notes</Notes>"))
+        XCTAssertTrue(xmlString.contains("<DefaultAutoTypeSequence>{USERNAME}</DefaultAutoTypeSequence>"))
+        XCTAssertTrue(xmlString.contains("<EnableAutoType>null</EnableAutoType>"))
+        XCTAssertTrue(xmlString.contains("<LastTopVisibleEntry>AAAAAAAAAAAAAAAAAAAAAA==</LastTopVisibleEntry>"))
+
+        let reparsed = try parseXML(Data(xmlString.utf8))
+        let container = try XCTUnwrap(reparsed.rootGroup.groups.first)
+        let nested = try XCTUnwrap(container.groups.first)
+        XCTAssertEqual(nested.searchingEnabled, .disabled)
+        XCTAssertEqual(nested.name, "Nested")
     }
 }

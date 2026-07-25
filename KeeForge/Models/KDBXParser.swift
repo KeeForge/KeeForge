@@ -754,6 +754,7 @@ final class KDBXXMLParser: NSObject, XMLParserDelegate {
         var entries: [KPEntry] = []
         var groups: [KPGroup] = []
         var isExpanded = true
+        var searchingEnabled: KPInheritableBool?
         var creationTime: Date?
         var lastModificationTime: Date?
         var unknownXML = OpaqueXMLNodes.empty
@@ -769,6 +770,7 @@ final class KDBXXMLParser: NSObject, XMLParserDelegate {
                 entries: entries,
                 groups: groups,
                 isExpanded: isExpanded,
+                searchingEnabled: searchingEnabled,
                 creationTime: creationTime,
                 lastModificationTime: lastModificationTime,
                 recycleBinUUID: recycleBinUUID,
@@ -1070,6 +1072,10 @@ final class KDBXXMLParser: NSObject, XMLParserDelegate {
     private var inKey = false
     private var currentBinaryRef: Int?
     private var currentBinaryRefWasParsable = true
+    /// False when the just-closed `<EnableSearching>` held a value we don't
+    /// understand, so `recordOpaqueXML` keeps it as an opaque node instead of
+    /// counting it as structured and losing it on write.
+    private var currentEnableSearchingWasParsable = false
     private var historyDepth = 0
     private var inMeta = false
     private var inCustomIcons = false
@@ -1442,6 +1448,14 @@ final class KDBXXMLParser: NSObject, XMLParserDelegate {
                 groupStack[index].isExpanded = currentText.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() != "false"
             }
 
+        case "EnableSearching" where parentName == "Group":
+            currentEnableSearchingWasParsable = false
+            if currentEntry == nil, !inMeta, let index = groupStack.indices.last,
+               let value = KPInheritableBool.parse(currentText) {
+                groupStack[index].searchingEnabled = value
+                currentEnableSearchingWasParsable = true
+            }
+
         default:
             break
         }
@@ -1523,6 +1537,8 @@ final class KDBXXMLParser: NSObject, XMLParserDelegate {
             guard let index = groupStack.indices.last else { return }
             switch elementName {
             case "UUID", "Name", "IconID", "IsExpanded", "Times", "Entry", "Group":
+                groupStack[index].knownChildCount += 1
+            case "EnableSearching" where currentEnableSearchingWasParsable:
                 groupStack[index].knownChildCount += 1
             default:
                 groupStack[index].unknownXML.append(
