@@ -3,6 +3,9 @@ import XCTest
 #if os(macOS)
 import AppKit
 #endif
+#if os(iOS)
+import UIKit
+#endif
 
 @MainActor
 final class AutoLockTests: XCTestCase {
@@ -150,6 +153,35 @@ final class AutoLockTests: XCTestCase {
             return
         }
     }
+
+#if os(iOS)
+    func testBackgroundLockLeavesCopiedValueOnPasteboard() async throws {
+        SettingsService.autoLockTimeout = .fiveMinutes
+        SettingsService.lockOnBackground = true
+        let vm = try await makeUnlockedViewModel()
+
+        ClipboardService.copy("COPY-PROBE-BACKGROUND")
+        vm.handleSceneDidEnterBackground()
+
+        guard case .locked = vm.state else {
+            XCTFail("Expected .locked after backgrounding with background lock enabled")
+            return
+        }
+        // Backgrounding is exactly when the user switches away to paste, so the
+        // automatic lock must leave the pasteboard intact.
+        XCTAssertEqual(UIPasteboard.general.string, "COPY-PROBE-BACKGROUND")
+    }
+
+    func testManualLockScrubsCopiedValueFromPasteboard() async throws {
+        SettingsService.autoLockTimeout = .fiveMinutes
+        let vm = try await makeUnlockedViewModel()
+
+        ClipboardService.copy("COPY-PROBE-MANUAL")
+        vm.lock(manuallyTriggered: true)
+
+        XCTAssertNotEqual(UIPasteboard.general.string, "COPY-PROBE-MANUAL")
+    }
+#endif
 
     func testBackgroundLockDisabledPreservesVaultAndResumesRemainingTime() async throws {
         SettingsService.autoLockTimeout = .fiveMinutes
