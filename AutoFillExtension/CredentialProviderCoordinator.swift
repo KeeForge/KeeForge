@@ -981,13 +981,10 @@ final class CredentialProviderCoordinator {
         self.parsedMeta = parsed.meta
         self.parsedFormatVersion = parsed.header.formatVersion
 
-        let allEntries: [KPEntry]
-        if let recycleBinID = parsed.rootGroup.recycleBinUUID {
-            allEntries = parsed.rootGroup.allEntries(excludingGroupID: recycleBinID)
-        } else {
-            allEntries = parsed.rootGroup.allEntries
-        }
-        parsedEntries = allEntries.filter { $0.hasPassword || $0.hasPasskey || $0.hasTOTP }
+        let offerableEntries = parsed.rootGroup.autoFillEntries(
+            excludingGroupID: parsed.rootGroup.recycleBinUUID
+        )
+        parsedEntries = offerableEntries.filter { $0.hasPassword || $0.hasPasskey || $0.hasTOTP }
     }
 
     private func loadDatabaseData(for databaseReference: DatabaseReference) throws -> Data {
