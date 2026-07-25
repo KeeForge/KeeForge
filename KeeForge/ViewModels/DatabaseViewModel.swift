@@ -787,21 +787,29 @@ final class DatabaseViewModel {
         searchFocusRequestID += 1
     }
 
-    func lock(manuallyTriggered: Bool = false) {
+    func lock(manuallyTriggered: Bool = false, preservingClipboard: Bool = false) {
         cancelInactivityTimer()
         backgroundEnteredAt = nil
         if manuallyTriggered {
             didManuallyLock = true
-            // Scrub a still-pending secure copy when the user explicitly locks
-            // (changeCount-guarded; never clobbers a later user copy).
-            //
-            // Automatic locks deliberately leave the pasteboard alone: entering
-            // the background is exactly the moment the user switches to another
-            // app to paste, so scrubbing there made every copy arrive empty.
-            // The secret stays time-bounded regardless, because
-            // `ClipboardService.copy` already stamps it with the configured
-            // clipboard-clear timeout as an expiration date and keeps it off
-            // Universal Clipboard.
+        }
+        // Locking scrubs a still-pending secure copy (changeCount-guarded, so a
+        // later user copy is never clobbered).
+        //
+        // `preservingClipboard` is the one exception, and only iOS
+        // backgrounding sets it: that is the moment the user switches to
+        // another app to paste, so scrubbing there made every copy arrive
+        // empty (#34). The secret is still bounded there — on iOS
+        // `ClipboardService.copy` stamps every copy with the clipboard-clear
+        // timeout as a system-enforced expiration date and marks it
+        // `.localOnly`.
+        //
+        // Every other lock means the user walked away rather than switched
+        // away — the foreground inactivity timeout, and on macOS screen lock,
+        // screensaver, sleep, and user switching — so those still scrub. That
+        // matters most on macOS, which has neither `.expirationDate` nor
+        // `.localOnly` (see `docs/macos-security-notes.md`).
+        if preservingClipboard == false {
             ClipboardService.clearOwnedContents()
         }
         beginNewLockCycle()
@@ -830,20 +838,29 @@ final class DatabaseViewModel {
         selectedEntryID = nil
     }
 
-    func lockRequest(force: Bool = false, manuallyTriggered: Bool = false) {
+    func lockRequest(
+        force: Bool = false,
+        manuallyTriggered: Bool = false,
+        preservingClipboard: Bool = false
+    ) {
         guard case .unlocked = state else {
             if force {
-                lock(manuallyTriggered: manuallyTriggered)
+                lock(manuallyTriggered: manuallyTriggered, preservingClipboard: preservingClipboard)
             }
             return
         }
 
         if force || isDirty == false {
             discardDraft()
-            lock(manuallyTriggered: manuallyTriggered)
+            lock(manuallyTriggered: manuallyTriggered, preservingClipboard: preservingClipboard)
             return
         }
 
+        // A dirty draft defers the lock behind the discard/save confirmation,
+        // which the user only resolves once they are back in KeeForge — no
+        // lock has happened yet, so the copy survives the trip regardless, and
+        // resolving it in the foreground should scrub like any other
+        // in-app lock. `preservingClipboard` deliberately does not carry over.
         pendingLockRequest = PendingLockRequest(manuallyTriggered: manuallyTriggered)
     }
 
@@ -1069,7 +1086,21 @@ final class DatabaseViewModel {
         guard case .unlocked = state else { return }
 
         if SettingsService.lockOnBackground {
+            // iOS: the app is being backgrounded, very often because the user
+            // is switching to another app to paste what they just copied, so
+            // the lock leaves the pasteboard alone (#34). The scene phase
+            // cannot tell that apart from a device-lock backgrounding, so the
+            // copy can outlive a screen lock by up to the clipboard-clear
+            // timeout — bounded, and `.localOnly` throughout.
+            //
+            // macOS: this same entry point is driven by `MacLockMonitor`
+            // (screen lock, screensaver, sleep, user switching), which always
+            // means the user walked away from the machine — scrub there.
+            #if os(iOS)
+            lockRequest(preservingClipboard: true)
+            #else
             lockRequest()
+            #endif
             return
         }
 

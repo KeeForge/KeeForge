@@ -13,6 +13,7 @@ final class AutoLockTests: XCTestCase {
     private var savedAutoLockTimeout: SettingsService.AutoLockTimeout!
     private var savedLockOnBackground: Bool!
     private var savedMacLockPolicy: SettingsService.MacLockPolicy!
+    private var savedClipboardTimeout: SettingsService.ClipboardTimeout!
 
     override func setUp() async throws {
         try await super.setUp()
@@ -21,15 +22,40 @@ final class AutoLockTests: XCTestCase {
         savedAutoLockTimeout = SettingsService.autoLockTimeout
         savedLockOnBackground = SettingsService.lockOnBackground
         savedMacLockPolicy = SettingsService.macLockPolicy
+        savedClipboardTimeout = SettingsService.clipboardTimeout
+        // The clipboard assertions below race the copy's expiration date, so
+        // pin the longest timeout rather than inheriting whatever a previous
+        // test left in UserDefaults.
+        SettingsService.clipboardTimeout = .oneMinute
     }
 
     override func tearDown() async throws {
         SettingsService.autoLockTimeout = savedAutoLockTimeout
         SettingsService.lockOnBackground = savedLockOnBackground
         SettingsService.macLockPolicy = savedMacLockPolicy
+        SettingsService.clipboardTimeout = savedClipboardTimeout
+        // These tests write to the real system pasteboard; do not leave a probe
+        // value behind for the rest of the suite (or the simulator).
+        clearPasteboard()
         DatabaseListStore.clearAll()
         SharedVaultStore.clearBookmark()
         try await super.tearDown()
+    }
+
+    private func clearPasteboard() {
+        #if os(iOS)
+        UIPasteboard.general.items = []
+        #else
+        NSPasteboard.general.clearContents()
+        #endif
+    }
+
+    private var pasteboardString: String? {
+        #if os(iOS)
+        UIPasteboard.general.string
+        #else
+        NSPasteboard.general.string(forType: .string)
+        #endif
     }
 
     func testLockClearsRootGroup() async throws {
@@ -169,8 +195,26 @@ final class AutoLockTests: XCTestCase {
         }
         // Backgrounding is exactly when the user switches away to paste, so the
         // automatic lock must leave the pasteboard intact.
-        XCTAssertEqual(UIPasteboard.general.string, "COPY-PROBE-BACKGROUND")
+        XCTAssertEqual(pasteboardString, "COPY-PROBE-BACKGROUND")
     }
+
+    /// The background exemption must not outlive the trip it was written for:
+    /// once the user is back in KeeForge, an explicit lock still scrubs.
+    func testManualLockAfterBackgroundLockStillScrubsCopiedValue() async throws {
+        SettingsService.autoLockTimeout = .fiveMinutes
+        SettingsService.lockOnBackground = true
+        let vm = try await makeUnlockedViewModel()
+
+        ClipboardService.copy("COPY-PROBE-ROUNDTRIP")
+        vm.handleSceneDidEnterBackground()
+        XCTAssertEqual(pasteboardString, "COPY-PROBE-ROUNDTRIP")
+
+        await vm.unlock(password: fixturePassword)
+        vm.lock(manuallyTriggered: true)
+
+        XCTAssertNil(pasteboardString)
+    }
+#endif
 
     func testManualLockScrubsCopiedValueFromPasteboard() async throws {
         SettingsService.autoLockTimeout = .fiveMinutes
@@ -179,7 +223,43 @@ final class AutoLockTests: XCTestCase {
         ClipboardService.copy("COPY-PROBE-MANUAL")
         vm.lock(manuallyTriggered: true)
 
-        XCTAssertNotEqual(UIPasteboard.general.string, "COPY-PROBE-MANUAL")
+        XCTAssertNil(pasteboardString)
+    }
+
+    /// The inactivity timeout fires with the app in the foreground — the user
+    /// walked away rather than switched away — so it is not exempt.
+    func testInactivityLockScrubsCopiedValueFromPasteboard() async throws {
+        SettingsService.autoLockTimeout = .fiveMinutes
+        let vm = try await makeUnlockedViewModel()
+
+        ClipboardService.copy("COPY-PROBE-INACTIVITY")
+        vm.lockRequest()
+
+        guard case .locked = vm.state else {
+            XCTFail("Expected .locked after an inactivity lock request")
+            return
+        }
+        XCTAssertNil(pasteboardString)
+    }
+
+#if os(macOS)
+    /// On the Mac the background entry point is `MacLockMonitor` (screen lock,
+    /// screensaver, sleep, user switching), and macOS has neither
+    /// `.expirationDate` nor `.localOnly` — so it must never take the iOS
+    /// backgrounding exemption.
+    func testMacSystemLockScrubsCopiedValueFromPasteboard() async throws {
+        SettingsService.autoLockTimeout = .fiveMinutes
+        SettingsService.lockOnBackground = true
+        let vm = try await makeUnlockedViewModel()
+
+        ClipboardService.copy("COPY-PROBE-MAC-SYSTEM-LOCK")
+        vm.handleSceneDidEnterBackground()
+
+        guard case .locked = vm.state else {
+            XCTFail("Expected .locked after a Mac system lock trigger")
+            return
+        }
+        XCTAssertNil(pasteboardString)
     }
 #endif
 

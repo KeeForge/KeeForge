@@ -278,6 +278,10 @@ final class CredentialProviderSaveTests: XCTestCase {
 
     // MARK: - Save-prepare default database selection (slice 03)
 
+    // `ASSavePasswordRequest` is unavailable on macOS, not merely gated by an
+    // availability version, so `@available(iOS 26.2, *)` alone does not keep
+    // these out of the `KeeForgeMacTests` build.
+#if os(iOS)
     func test_defaultDatabaseSelectionForSave_prepareInterfacePinsEnabledDatabaseOverDisabledOpenedLater() throws {
         guard #available(iOS 26.2, *) else {
             throw XCTSkip("ASSavePasswordRequest requires iOS 26.2")
@@ -341,6 +345,7 @@ final class CredentialProviderSaveTests: XCTestCase {
             event: .userInitiated
         )
     }
+#endif
 
     private func makeEnvironment(
         recorder: SaveRecorder,

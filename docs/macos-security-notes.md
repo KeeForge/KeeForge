@@ -97,6 +97,15 @@ Clipboard**, so a copied password may briefly appear on the user's other devices
 clipboards. iOS can set `.localOnly`/expiry; macOS cannot. This is surfaced
 honestly in Settings → Security.
 
+Clear-on-lock is unconditional on macOS. iOS exempts one case — backgrounding
+the app, which is when the user switches away to paste (issue #34) — but that
+exemption deliberately stops at the platform line: it leans on the
+system-enforced `.expirationDate` and `.localOnly` that macOS does not have, and
+every Mac lock trigger (screen lock, screensaver, sleep, user switching) means
+the user walked away from the machine rather than switched apps. Since the
+macOS clear timer is an in-process `Task`, it does not survive app termination,
+which makes the scrub-on-lock the real bound here.
+
 ## Attachment previews rely on FileVault
 
 Attachment preview/share writes short-lived plaintext temp files that are removed
