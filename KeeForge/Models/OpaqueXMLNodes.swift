@@ -14,6 +14,19 @@ struct OpaqueXMLNodes: Sendable, Hashable {
             self.insertionIndex = insertionIndex
             self.xml = xml
         }
+
+        /// Name of the fragment's outermost start tag, or `nil` when the
+        /// fragment does not begin with one (comments, processing
+        /// instructions, stray text).
+        var elementName: String? {
+            guard xml.hasPrefix("<") else { return nil }
+            let body = xml.dropFirst()
+            guard let first = body.first, first != "/", first != "!", first != "?" else {
+                return nil
+            }
+            let name = body.prefix { !$0.isWhitespace && $0 != ">" && $0 != "/" }
+            return name.isEmpty ? nil : String(name)
+        }
     }
 
     var nodes: [Node]
@@ -30,6 +43,18 @@ struct OpaqueXMLNodes: Sendable, Hashable {
 
     mutating func append(xml: String, path: [String] = [], insertionIndex: Int) {
         nodes.append(Node(path: path, insertionIndex: insertionIndex, xml: xml))
+    }
+
+    /// Drops preserved direct-child fragments with this element name.
+    ///
+    /// Needed when an element that was kept opaque (because its value did not
+    /// parse) becomes structured through a user edit: the writer emits the
+    /// structured element unconditionally, so leaving the original in place
+    /// would put two of them in the same parent. Only the fragments are
+    /// removed — every other node keeps its `insertionIndex`, so sibling
+    /// positioning is unaffected.
+    mutating func removeDirectChildren(named elementName: String) {
+        nodes.removeAll { $0.path.isEmpty && $0.elementName == elementName }
     }
 
     func xmlFragments(path: [String] = [], insertionIndex: Int) -> [String] {

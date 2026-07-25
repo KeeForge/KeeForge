@@ -184,7 +184,16 @@ struct DatabaseDraft: Sendable {
 
         let timestamp = Date.now
         let updatedRootGroup = try rebuildGroup(in: currentRootGroupStorage, targetPath: groupPath[...]) { group in
-            KPGroup(
+            // If the source file carried an `<EnableSearching>` whose value we
+            // could not parse, the parser left it in `unknownXML`. Now that the
+            // element is structured for this group, drop the preserved copy —
+            // otherwise the writer emits both and the group ends up with two
+            // `<EnableSearching>` children, which other KeePass clients may
+            // resolve the other way round.
+            var unknownXML = group.unknownXML
+            unknownXML.removeDirectChildren(named: "EnableSearching")
+
+            return KPGroup(
                 id: group.id,
                 name: group.name,
                 iconID: group.iconID,
@@ -196,7 +205,7 @@ struct DatabaseDraft: Sendable {
                 creationTime: group.creationTime,
                 lastModificationTime: timestamp,
                 recycleBinUUID: group.recycleBinUUID,
-                unknownXML: group.unknownXML
+                unknownXML: unknownXML
             )
         }
 
