@@ -277,6 +277,9 @@ final class DatabaseViewModel {
     private var searchableEntryText: [UUID: String] = [:]
     private var recycleBinEntryIDs: Set<UUID> = []
     private var recycleBinGroupIDs: Set<UUID> = []
+    /// Groups whose resolved `<EnableSearching>` is false, including the ones
+    /// that only inherit it from an ancestor.
+    private var autoFillExcludedGroupIDs: Set<UUID> = []
     private var lastSharedCacheRefreshFingerprint: SharedCacheRefreshFingerprint?
     private var isRefreshingSharedCache = false
     private var lastSharedCacheRefreshAt: Date?
@@ -725,6 +728,34 @@ final class DatabaseViewModel {
         let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
         guard trimmedName.isEmpty == false else { return }
         try applyEntryEdit(.createGroup(parentGroupID: parentGroupID, name: trimmedName))
+    }
+
+    /// Whether AutoFill currently skips this group, taking an inherited
+    /// `<EnableSearching>` from an ancestor into account. Resolved once per
+    /// tree rebuild, like `isGroupInRecycleBin`.
+    func isGroupExcludedFromAutoFill(groupID: UUID) -> Bool {
+        _ = contentRevision
+        return autoFillExcludedGroupIDs.contains(groupID)
+    }
+
+    /// True when the exclusion comes from an ancestor rather than from this
+    /// group, so the UI can explain why a group is skipped without a toggle
+    /// that looks broken.
+    func isGroupExclusionInherited(groupID: UUID) -> Bool {
+        _ = contentRevision
+        guard groupIndex[groupID]?.searchingEnabled?.boolValue == nil else { return false }
+        return autoFillExcludedGroupIDs.contains(groupID)
+    }
+
+    func setGroupExcludedFromAutoFill(_ excluded: Bool, groupID: UUID) throws {
+        // Re-including writes an explicit `True` rather than `inherit`, so that
+        // a group inside an excluded parent can actually be turned back on.
+        try applyEntryEdit(
+            .setGroupSearchingEnabled(
+                groupID: groupID,
+                value: excluded ? .disabled : .enabled
+            )
+        )
     }
 
     func saveHandlingError() async {
@@ -1213,13 +1244,7 @@ final class DatabaseViewModel {
     }
 
     static func credentialStoreEntries(from root: KPGroup) -> [KPEntry] {
-        let entries: [KPEntry]
-        if let recycleBinID = root.recycleBinUUID {
-            entries = root.allEntries(excludingGroupID: recycleBinID)
-        } else {
-            entries = root.allEntries
-        }
-
+        let entries = root.autoFillEntries(excludingGroupID: root.recycleBinUUID)
         return entries.filter { !$0.isExpired() && ($0.hasPassword || $0.hasPasskey) }
     }
 
@@ -1272,6 +1297,7 @@ final class DatabaseViewModel {
             searchableEntryText = [:]
             recycleBinEntryIDs = []
             recycleBinGroupIDs = []
+            autoFillExcludedGroupIDs = []
             searchResults = []
             contentRevision += 1
             selectedGroupID = nil
@@ -1286,13 +1312,21 @@ final class DatabaseViewModel {
         var nextSearchableEntryText: [UUID: String] = [:]
         var nextRecycleBinEntryIDs = Set<UUID>()
         var nextRecycleBinGroupIDs = Set<UUID>()
+        var nextAutoFillExcludedGroupIDs = Set<UUID>()
         let recycleBinID = root.recycleBinUUID
 
         @discardableResult
-        func index(group: KPGroup, includeInSearch: Bool) -> Int {
+        func index(group: KPGroup, includeInSearch: Bool, autoFillEnabled: Bool) -> Int {
             nextGroupIndex[group.id] = group
             if includeInSearch == false, group.id != recycleBinID {
                 nextRecycleBinGroupIDs.insert(group.id)
+            }
+
+            // Mirrors `KPGroup.autoFillEntries`: an absent element or `.inherit`
+            // takes the parent's answer, an explicit value overrides it.
+            let resolvedAutoFillEnabled = group.searchingEnabled?.boolValue ?? autoFillEnabled
+            if resolvedAutoFillEnabled == false {
+                nextAutoFillExcludedGroupIDs.insert(group.id)
             }
 
             var totalEntryCount = 0
@@ -1309,14 +1343,18 @@ final class DatabaseViewModel {
 
             for childGroup in group.groups {
                 let childIncludedInSearch = includeInSearch && childGroup.id != recycleBinID
-                totalEntryCount += index(group: childGroup, includeInSearch: childIncludedInSearch)
+                totalEntryCount += index(
+                    group: childGroup,
+                    includeInSearch: childIncludedInSearch,
+                    autoFillEnabled: resolvedAutoFillEnabled
+                )
             }
 
             nextGroupEntryCounts[group.id] = totalEntryCount
             return totalEntryCount
         }
 
-        index(group: root, includeInSearch: true)
+        index(group: root, includeInSearch: true, autoFillEnabled: true)
 
         entryIndex = nextEntryIndex
         groupIndex = nextGroupIndex
@@ -1325,6 +1363,7 @@ final class DatabaseViewModel {
         searchableEntryText = nextSearchableEntryText
         recycleBinEntryIDs = nextRecycleBinEntryIDs
         recycleBinGroupIDs = nextRecycleBinGroupIDs
+        autoFillExcludedGroupIDs = nextAutoFillExcludedGroupIDs
         contentRevision += 1
         synchronizeSelections()
         updateSearchResults()

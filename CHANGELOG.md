@@ -22,6 +22,7 @@ TODO before the first macOS release:
 ## Unreleased
 
 - Choose which databases appear in AutoFill, get suggestions from all of them at once, and clear AutoFill suggestions in Settings.
+- Hide individual groups from AutoFill. Long-press a group and pick "Hide from AutoFill": its entries stop appearing in QuickType suggestions and in the AutoFill panel's search, while staying fully visible when browsing the database in the app. Subgroups follow their parent unless you turn one back on explicitly. The setting is stored in the standard KDBX `<EnableSearching>` group field, so it is shared with KeePass and KeePassXC instead of living in app-only state.
 - Switch between databases inside the AutoFill panel.
 - Saving a database now regenerates the file header's random material — master seed, encryption IV, inner stream key, and KDF salt — on every save, matching KeePass 2.x and KeePassXC. KDF cost settings (Argon2 iterations/memory/parallelism, AES-KDF rounds) are preserved, and saved files remain fully compatible with other KeePass clients. Thanks to Kinglike1337 for the contribution.
 

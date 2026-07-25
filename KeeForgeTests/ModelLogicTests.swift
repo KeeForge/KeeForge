@@ -84,4 +84,117 @@ final class ModelLogicTests: XCTestCase {
         XCTAssertEqual(lhs, rhs)
         XCTAssertEqual(Set([lhs, rhs]).count, 1)
     }
+
+    // MARK: - autoFillEntries / EnableSearching
+
+    func testAutoFillEntriesIncludesEverythingByDefault() {
+        let root = KPGroup(
+            name: "Root",
+            entries: [KPEntry(title: "top")],
+            groups: [KPGroup(name: "Child", entries: [KPEntry(title: "nested")])]
+        )
+
+        XCTAssertEqual(titles(root.autoFillEntries()), ["top", "nested"])
+    }
+
+    func testAutoFillEntriesSkipsDisabledGroupAndItsSubgroups() {
+        let root = KPGroup(
+            name: "Root",
+            entries: [KPEntry(title: "top")],
+            groups: [
+                KPGroup(
+                    name: "Secret",
+                    entries: [KPEntry(title: "hidden")],
+                    groups: [KPGroup(name: "Deeper", entries: [KPEntry(title: "alsoHidden")])],
+                    searchingEnabled: .disabled
+                ),
+                KPGroup(name: "Normal", entries: [KPEntry(title: "visible")]),
+            ]
+        )
+
+        XCTAssertEqual(titles(root.autoFillEntries()), ["top", "visible"])
+    }
+
+    func testAutoFillEntriesTreatsInheritAndAbsentElementTheSame() {
+        func makeRoot(child: KPInheritableBool?) -> KPGroup {
+            KPGroup(
+                name: "Root",
+                groups: [
+                    KPGroup(
+                        name: "Secret",
+                        groups: [
+                            KPGroup(
+                                name: "Child",
+                                entries: [KPEntry(title: "nested")],
+                                searchingEnabled: child
+                            )
+                        ],
+                        searchingEnabled: .disabled
+                    )
+                ]
+            )
+        }
+
+        XCTAssertEqual(titles(makeRoot(child: .inherit).autoFillEntries()), [])
+        XCTAssertEqual(titles(makeRoot(child: nil).autoFillEntries()), [])
+    }
+
+    func testAutoFillEntriesLetsSubgroupOverrideDisabledParent() {
+        let root = KPGroup(
+            name: "Root",
+            groups: [
+                KPGroup(
+                    name: "Secret",
+                    entries: [KPEntry(title: "hidden")],
+                    groups: [
+                        KPGroup(
+                            name: "Exception",
+                            entries: [KPEntry(title: "visible")],
+                            searchingEnabled: .enabled
+                        )
+                    ],
+                    searchingEnabled: .disabled
+                )
+            ]
+        )
+
+        XCTAssertEqual(titles(root.autoFillEntries()), ["visible"])
+    }
+
+    func testAutoFillEntriesStillHonoursExcludedGroupID() {
+        let recycleBinID = UUID()
+        let root = KPGroup(
+            name: "Root",
+            entries: [KPEntry(title: "top")],
+            groups: [
+                KPGroup(id: recycleBinID, name: "Recycle Bin", entries: [KPEntry(title: "trashed")])
+            ]
+        )
+
+        XCTAssertEqual(titles(root.autoFillEntries(excludingGroupID: recycleBinID)), ["top"])
+    }
+
+    func testAutoFillEntriesWithNilExclusionKeepsWholeTree() {
+        let root = KPGroup(
+            name: "Root",
+            entries: [KPEntry(title: "top")],
+            groups: [KPGroup(name: "Child", entries: [KPEntry(title: "nested")])]
+        )
+
+        XCTAssertEqual(titles(root.autoFillEntries(excludingGroupID: nil)), ["top", "nested"])
+    }
+
+    func testInheritableBoolParsingIsCaseInsensitiveAndRejectsGarbage() {
+        XCTAssertEqual(KPInheritableBool.parse("True"), .enabled)
+        XCTAssertEqual(KPInheritableBool.parse("true"), .enabled)
+        XCTAssertEqual(KPInheritableBool.parse("FALSE"), .disabled)
+        XCTAssertEqual(KPInheritableBool.parse(" null \n"), .inherit)
+        XCTAssertNil(KPInheritableBool.parse(""))
+        XCTAssertNil(KPInheritableBool.parse("0"))
+        XCTAssertNil(KPInheritableBool.parse("yes"))
+    }
+
+    private func titles(_ entries: [KPEntry]) -> [String] {
+        entries.map(\.title)
+    }
 }

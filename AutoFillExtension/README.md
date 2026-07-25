@@ -21,6 +21,7 @@ This target provides password, passkey, one-time-code, and new-credential save/g
 - Unlock can use stored composite keys plus biometrics for quick AutoFill, or fall back to interactive password entry.
 - Password and passkey requests both parse the database locally; the extension does not depend on the main app being open.
 - Expired entries are excluded from proactive identities and automatic password, passkey, and one-time-code fulfillment. They remain available in the interactive picker with an explicit warning and require a manual tap.
+- Groups whose KDBX `<EnableSearching>` resolves to false are skipped entirely: neither the proactive identity store nor the extension's own entry list sees their entries. The filtering lives in one place, `KPGroup.autoFillEntries(excludingGroupID:inheritedSearchingEnabled:)`, which all three AutoFill entry sources call — `DatabaseViewModel.credentialStoreEntries`, `AutoFillSaveCoordinator.credentialStoreEntries`, and the coordinator's own parse. In-app browsing and the in-app search are deliberately unaffected; hiding a group from AutoFill is not meant to hide it from its owner.
 - Save-password requests now prefill a new entry via `../KeeForge/Services/AutoFill/AutoFillSaveCoordinator.swift`, save encrypted bytes through `../KeeForge/Services/Persistence/LocalDatabaseSaver.swift`, and enqueue `../KeeForge/Services/Cloud/PendingUploadQueue.swift` markers for cloud-backed databases before returning success.
 
 ## Platforms And Targets

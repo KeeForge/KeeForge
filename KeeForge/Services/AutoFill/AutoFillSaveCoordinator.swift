@@ -143,12 +143,7 @@ enum AutoFillSaveCoordinator {
     }
 
     static func credentialStoreEntries(from root: KPGroup) -> [KPEntry] {
-        let entries: [KPEntry]
-        if let recycleBinID = root.recycleBinUUID {
-            entries = root.allEntries(excludingGroupID: recycleBinID)
-        } else {
-            entries = root.allEntries
-        }
+        let entries = root.autoFillEntries(excludingGroupID: root.recycleBinUUID)
         return entries.filter { !$0.isExpired() }
     }
 }

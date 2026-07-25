@@ -2434,6 +2434,16 @@
         }
       }
     },
+    "Hidden from AutoFill" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aus AutoFill ausgeblendet"
+          }
+        }
+      }
+    },
     "Hidden password" : {
       "localizations" : {
         "de" : {
@@ -2450,6 +2460,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%@ ausblenden"
+          }
+        }
+      }
+    },
+    "Hide from AutoFill" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aus AutoFill ausblenden"
           }
         }
       }
@@ -4410,6 +4430,26 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%@ einblenden"
+          }
+        }
+      }
+    },
+    "Show in AutoFill" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "In AutoFill anzeigen"
+          }
+        }
+      }
+    },
+    "Show in AutoFill (Overrides Parent)" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "In AutoFill anzeigen (überschreibt übergeordnete Gruppe)"
           }
         }
       }

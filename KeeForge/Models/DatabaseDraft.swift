@@ -100,6 +100,8 @@ struct DatabaseDraft: Sendable {
             updatedState = try applyDelete(entryID: entryID, sendToRecycleBin: sendToRecycleBin)
         case .deleteGroup(let groupID, let sendToRecycleBin):
             updatedState = try applyDeleteGroup(groupID: groupID, sendToRecycleBin: sendToRecycleBin)
+        case .setGroupSearchingEnabled(let groupID, let value):
+            updatedState = try applySetGroupSearchingEnabled(groupID: groupID, value: value.modelValue)
         }
 
         updatedState.rootGroup.recycleBinUUID = updatedState.meta.recycleBinUUID
@@ -167,6 +169,35 @@ struct DatabaseDraft: Sendable {
             var updatedGroups = group.groups
             updatedGroups.append(newGroup)
             return copyGroup(group, groups: updatedGroups)
+        }
+
+        return (updatedRootGroup, currentMetaStorage)
+    }
+
+    private func applySetGroupSearchingEnabled(
+        groupID: UUID,
+        value: KPInheritableBool
+    ) throws -> (rootGroup: KPGroup, meta: KPMeta) {
+        guard let groupPath = pathToGroup(withID: groupID, in: currentRootGroupStorage) else {
+            throw DraftError.groupNotFound(groupID)
+        }
+
+        let timestamp = Date.now
+        let updatedRootGroup = try rebuildGroup(in: currentRootGroupStorage, targetPath: groupPath[...]) { group in
+            KPGroup(
+                id: group.id,
+                name: group.name,
+                iconID: group.iconID,
+                customIconUUID: group.customIconUUID,
+                entries: group.entries,
+                groups: group.groups,
+                isExpanded: group.isExpanded,
+                searchingEnabled: value,
+                creationTime: group.creationTime,
+                lastModificationTime: timestamp,
+                recycleBinUUID: group.recycleBinUUID,
+                unknownXML: group.unknownXML
+            )
         }
 
         return (updatedRootGroup, currentMetaStorage)
@@ -758,6 +789,7 @@ struct DatabaseDraft: Sendable {
             entries: entries ?? group.entries,
             groups: groups ?? group.groups,
             isExpanded: group.isExpanded,
+            searchingEnabled: group.searchingEnabled,
             creationTime: group.creationTime,
             lastModificationTime: group.lastModificationTime,
             recycleBinUUID: recycleBinUUID,
@@ -776,6 +808,7 @@ private extension KPGroup {
             entries: entries,
             groups: groups.map { $0.deepCopy() },
             isExpanded: isExpanded,
+            searchingEnabled: searchingEnabled,
             creationTime: creationTime,
             lastModificationTime: lastModificationTime,
             recycleBinUUID: recycleBinUUID,
