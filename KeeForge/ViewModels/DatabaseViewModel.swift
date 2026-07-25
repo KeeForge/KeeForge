@@ -759,11 +759,19 @@ final class DatabaseViewModel {
     func lock(manuallyTriggered: Bool = false) {
         cancelInactivityTimer()
         backgroundEnteredAt = nil
-        // Clear a still-pending secure copy so locking also scrubs the
-        // pasteboard (changeCount-guarded; never clobbers a later user copy).
-        ClipboardService.clearOwnedContents()
         if manuallyTriggered {
             didManuallyLock = true
+            // Scrub a still-pending secure copy when the user explicitly locks
+            // (changeCount-guarded; never clobbers a later user copy).
+            //
+            // Automatic locks deliberately leave the pasteboard alone: entering
+            // the background is exactly the moment the user switches to another
+            // app to paste, so scrubbing there made every copy arrive empty.
+            // The secret stays time-bounded regardless, because
+            // `ClipboardService.copy` already stamps it with the configured
+            // clipboard-clear timeout as an expiration date and keeps it off
+            // Universal Clipboard.
+            ClipboardService.clearOwnedContents()
         }
         beginNewLockCycle()
         state = .locked
