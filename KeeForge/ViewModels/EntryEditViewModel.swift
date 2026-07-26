@@ -57,6 +57,16 @@ final class EntryEditViewModel {
     private let originalSnapshot: Snapshot
     private let decodedTOTPSecret: Data?
     private let keeOTPSource: KeeOTPSource?
+    /// The database's distinct tags as of the moment the editor opened, already
+    /// in display order. A snapshot on purpose: the editor is modal over a
+    /// stable tree, so the strip does not chase concurrent external changes —
+    /// only the user's own typing moves it.
+    private let knownTags: [String]
+    /// The tags this entry's location already grants it, from its group and
+    /// that group's ancestors. Suggesting one would offer a no-op, so they are
+    /// excluded for as long as the editor is open (the entry cannot move while
+    /// it is being edited).
+    private let inheritedTags: Set<String>
 
     init(
         mode: Mode,
@@ -66,6 +76,8 @@ final class EntryEditViewModel {
         url: String = "",
         notes: String = "",
         tags: [String] = [],
+        knownTags: [String] = [],
+        inheritedTags: [String] = [],
         editableCustomFields: [CustomField] = [],
         preservedCustomFields: [String: String] = [:],
         totpSecret: String = "",
@@ -84,6 +96,8 @@ final class EntryEditViewModel {
         self.url = url
         self.notes = notes
         self.tagsText = Self.tagsText(from: tags)
+        self.knownTags = knownTags
+        self.inheritedTags = Set(inheritedTags)
         self.customFields = editableCustomFields
         self.preservedCustomFields = preservedCustomFields
         self.totpSecret = totpSecret
@@ -110,14 +124,22 @@ final class EntryEditViewModel {
     }
 
     convenience init(
-        createIn parentGroupID: UUID
+        createIn parentGroupID: UUID,
+        knownTags: [String] = [],
+        inheritedTags: [String] = []
     ) {
-        self.init(mode: .create(parentGroupID: parentGroupID))
+        self.init(
+            mode: .create(parentGroupID: parentGroupID),
+            knownTags: knownTags,
+            inheritedTags: inheritedTags
+        )
     }
 
     convenience init(
         editing entry: KPEntry,
-        sessionKey: SymmetricKey
+        sessionKey: SymmetricKey,
+        knownTags: [String] = [],
+        inheritedTags: [String] = []
     ) {
         let editableCustomFields = entry.displayCustomFields
             .sorted(by: { $0.key.localizedCaseInsensitiveCompare($1.key) == .orderedAscending })
@@ -142,6 +164,8 @@ final class EntryEditViewModel {
             url: entry.url,
             notes: entry.notes,
             tags: entry.tags,
+            knownTags: knownTags,
+            inheritedTags: inheritedTags,
             editableCustomFields: editableCustomFields,
             preservedCustomFields: preservedCustomFields,
             totpSecret: totpSecret,
@@ -179,6 +203,35 @@ final class EntryEditViewModel {
             tags: normalizedTags(),
             totpConfig: normalizedTOTPConfiguration()
         )
+    }
+
+    /// The known tags worth offering for this entry: `knownTags` minus the tags
+    /// currently typed into the field and minus the ones inherited from the
+    /// entry's groups. The typed side is re-read on every access rather than
+    /// cached, so a chip leaves the strip the moment its tag lands in the text
+    /// and comes back when the text is deleted again.
+    ///
+    /// Exclusion is exact-string like the rest of the tag surface: typing
+    /// `work` leaves `Work` on offer, because they are two tags.
+    var tagSuggestions: [String] {
+        let appliedTags = Set(normalizedTags())
+        return knownTags.filter { tag in
+            appliedTags.contains(tag) == false && inheritedTags.contains(tag) == false
+        }
+    }
+
+    /// Adds `tag` to the tag field exactly as typing it would, joining with the
+    /// same `", "` the field is seeded with so both routes normalize to an
+    /// identical payload. A dangling separator in the existing text just yields
+    /// an empty component, which normalization drops.
+    ///
+    /// A tag the field already carries is left untouched: `tagSuggestions`
+    /// stops offering it, but a stale render must not be able to double it up.
+    func appendTagSuggestion(_ tag: String) {
+        guard normalizedTags().contains(tag) == false else { return }
+
+        let trimmedText = tagsText.trimmingCharacters(in: .whitespacesAndNewlines)
+        tagsText = trimmedText.isEmpty ? tag : trimmedText + ", " + tag
     }
 
     func addCustomField() {

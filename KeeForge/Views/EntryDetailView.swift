@@ -169,7 +169,12 @@ struct EntryDetailView: View {
                                         guard result == .acknowledged,
                                               let currentEntry = viewModel.entry(withID: entryID),
                                               let currentSessionKey = viewModel.sessionKey else { return }
-                                        activeEditor = EntryEditViewModel(editing: currentEntry, sessionKey: currentSessionKey)
+                                        activeEditor = EntryEditViewModel(
+                                            editing: currentEntry,
+                                            sessionKey: currentSessionKey,
+                                            knownTags: viewModel.tagsInDisplayOrder,
+                                            inheritedTags: viewModel.inheritedTags(forEntryID: entryID)
+                                        )
                                     }
                                 }
                                 .accessibilityIdentifier("entry-detail.edit")
@@ -254,18 +259,29 @@ struct EntryDetailView: View {
     }
 }
 
-/// The capsule label shared by both chip shapes.
-private struct TagCapsule: View {
+/// The capsule label shared by both chip shapes here and by the entry editor's
+/// suggestion strip, so a tag looks the same wherever it is tappable.
+/// `systemImage` is nil on this screen, where a chip navigates to the tag, and
+/// `plus` in the editor, where it adds the tag to the field.
+struct TagCapsule: View {
     let tag: String
+    var systemImage: String? = nil
 
     var body: some View {
-        Text(tag)
-            .font(.caption)
-            .lineLimit(1)
-            .truncationMode(.tail)
-            .padding(.horizontal, 8)
-            .padding(.vertical, 4)
-            .background(.fill, in: .capsule)
+        HStack(spacing: 3) {
+            if let systemImage {
+                Image(systemName: systemImage)
+                    .font(.caption2)
+            }
+
+            Text(tag)
+                .lineLimit(1)
+                .truncationMode(.tail)
+        }
+        .font(.caption)
+        .padding(.horizontal, 8)
+        .padding(.vertical, 4)
+        .background(.fill, in: .capsule)
     }
 }
 

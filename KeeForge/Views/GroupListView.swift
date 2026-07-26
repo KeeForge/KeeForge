@@ -188,7 +188,11 @@ struct GroupListView: View {
                                             Task {
                                                 let result = await viewModel.acknowledgeEditingIfNeeded()
                                                 guard result == .acknowledged else { return }
-                                                activeEditor = EntryEditViewModel(createIn: resolvedGroup.id)
+                                                activeEditor = EntryEditViewModel(
+                                                    createIn: resolvedGroup.id,
+                                                    knownTags: viewModel.tagsInDisplayOrder,
+                                                    inheritedTags: viewModel.inheritedTags(forGroupID: resolvedGroup.id)
+                                                )
                                             }
                                         }
 

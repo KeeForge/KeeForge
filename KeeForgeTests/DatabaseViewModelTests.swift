@@ -1558,6 +1558,10 @@ final class DatabaseViewModelTests: XCTestCase {
 
         XCTAssertTrue(vm.isEntryInRecycleBin(entryID: doomed.id))
         XCTAssertFalse(vm.allTags.contains("recycled-only"))
+        XCTAssertFalse(
+            vm.tagsInDisplayOrder.contains("recycled-only"),
+            "The editor's suggestion pool is this same index, so a recycled-only tag is never suggested either"
+        )
         XCTAssertEqual(vm.entryCount(forTag: "recycled-only"), 0)
         XCTAssertTrue(vm.entries(withTag: "recycled-only").isEmpty)
         XCTAssertEqual(vm.entryCount(forTag: "kept"), 1, "The surviving entry still carries the shared tag")
@@ -1922,6 +1926,36 @@ final class DatabaseViewModelTests: XCTestCase {
             XCTAssertEqual(vm.entryCount(forTag: tag), 1, "Expected \(tag) to be effective on the nested entry")
             XCTAssertEqual(vm.entries(withTag: tag).map(\.id), [beta.id])
         }
+    }
+
+    func testInheritedTagsResolvePerLocationForTheEntryEditor() async throws {
+        let beta = KPEntry(title: "Beta", tags: ["own-tag"], hasTagsElement: true)
+        let clientWork = KPGroup(name: "Client Work", tags: ["billable"], hasTagsElement: true, entries: [beta])
+        let projects = KPGroup(name: "Projects", tags: ["team"], hasTagsElement: true, groups: [clientWork])
+        let plain = KPGroup(name: "Plain")
+        let root = KPGroup(name: "Root", groups: [projects, plain])
+        let vm = try await makeInjectedViewModel(rootGroup: root)
+
+        XCTAssertEqual(
+            vm.inheritedTags(forGroupID: clientWork.id),
+            ["team", "billable"],
+            "A new entry here inherits the ancestors' tags root-most first, then the group's own"
+        )
+        XCTAssertEqual(vm.inheritedTags(forGroupID: projects.id), ["team"])
+        XCTAssertEqual(vm.inheritedTags(forGroupID: root.id), [], "An untagged branch grants nothing")
+        XCTAssertEqual(vm.inheritedTags(forGroupID: plain.id), [])
+        XCTAssertEqual(vm.inheritedTags(forGroupID: UUID()), [], "An unknown group resolves to nothing")
+
+        XCTAssertEqual(
+            vm.inheritedTags(forEntryID: beta.id),
+            ["team", "billable"],
+            "Editing an existing entry resolves the same tags through its parent group"
+        )
+        XCTAssertFalse(
+            vm.inheritedTags(forEntryID: beta.id).contains("own-tag"),
+            "The entry's own tags stay in the field, not in the inherited exclusions"
+        )
+        XCTAssertEqual(vm.inheritedTags(forEntryID: UUID()), [])
     }
 
     func testRootGroupTagReachesAllLiveEntries() async throws {
