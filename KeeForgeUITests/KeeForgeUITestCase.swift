@@ -343,6 +343,89 @@ class KeeForgeUITestCase: XCTestCase {
         return databaseRow.exists || passwordField.exists || chooseDifferentButton.exists
     }
 
+    // MARK: - Database details sheet
+
+    /// Long-presses the row matching `name` to reveal the context menu, taps
+    /// "Database Details", and waits for the details sheet to appear. Shared
+    /// by `DatabaseListUITests` and `AutoFillStoreUITests`, which previously
+    /// carried byte-identical private copies.
+    func openDatabaseDetails(
+        rowContaining name: String,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        let detailsAction = app.buttons["database-row.details"]
+        for _ in 0..<4 where detailsAction.exists == false {
+            let row = databaseRow(containing: name)
+            if row.waitForExistence(timeout: 5) {
+                row.press(forDuration: 1.2)
+                if detailsAction.waitForExistence(timeout: 2) {
+                    break
+                }
+            }
+        }
+        XCTAssertTrue(
+            detailsAction.waitForExistence(timeout: 2),
+            "Database Details context action was not visible for '\(name)'",
+            file: file,
+            line: line
+        )
+        tapElement(detailsAction)
+
+        XCTAssertTrue(
+            app.buttons["database-details.close"].waitForExistence(timeout: Self.ciElementTimeout),
+            "Database details sheet did not appear",
+            file: file,
+            line: line
+        )
+    }
+
+    func closeDatabaseDetails(file: StaticString = #filePath, line: UInt = #line) {
+        let closeButton = app.buttons["database-details.close"]
+        XCTAssertTrue(closeButton.waitForExistence(timeout: 5), "Close button was not visible", file: file, line: line)
+        tapElement(closeButton)
+
+        let deadline = Date().addingTimeInterval(10)
+        while closeButton.exists, Date() < deadline {
+            RunLoop.current.run(until: Date().addingTimeInterval(0.25))
+        }
+        XCTAssertFalse(closeButton.exists, "Database details sheet did not dismiss", file: file, line: line)
+    }
+
+    // MARK: - Switches
+
+    /// Taps `toggle` until its raw `"1"`/`"0"` value matches `desiredValue`.
+    /// Shared by `DatabaseListUITests` and `AutoFillStoreUITests`, which
+    /// previously carried near-identical private copies that had drifted:
+    /// the assertion message read "Expected AutoFill toggle to be ..." in one
+    /// copy and the more generic "Expected toggle to be ..." in the other.
+    /// `AutoFillStoreUITests` exercises this against several different
+    /// toggles (the database-details sheet toggle and the Settings
+    /// per-database toggles), so the generic message is the correct one for
+    /// the shared helper.
+    func setSwitch(
+        _ toggle: XCUIElement,
+        isOn desiredValue: Bool,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        let desiredRawValue = desiredValue ? "1" : "0"
+        let deadline = Date().addingTimeInterval(5)
+
+        while (toggle.value as? String) != desiredRawValue, Date() < deadline {
+            toggle.coordinate(withNormalizedOffset: CGVector(dx: 0.85, dy: 0.5)).tap()
+            RunLoop.current.run(until: Date().addingTimeInterval(0.25))
+        }
+
+        XCTAssertEqual(
+            toggle.value as? String,
+            desiredRawValue,
+            "Expected toggle to be \(desiredValue ? "on" : "off")",
+            file: file,
+            line: line
+        )
+    }
+
     func requireRegularWidthLayout(file: StaticString = #filePath, line: UInt = #line) throws {
         let window = app.windows.firstMatch
         XCTAssertTrue(window.waitForExistence(timeout: 5), "App window did not appear", file: file, line: line)

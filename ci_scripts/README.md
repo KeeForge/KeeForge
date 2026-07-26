@@ -8,7 +8,7 @@ This folder holds small scripts used by Xcode Cloud and local build setup.
 - `ci_post_clone.sh` installs XcodeGen, prepares the build config, and regenerates the Xcode project after checkout.
 - `ci_pre_xcodebuild.sh` re-runs `prepare_build_config.sh` right before each `xcodebuild` action, where `CI_XCODEBUILD_ACTION` is reliably set, so an `archive` workflow without a real `DROPBOX_APP_KEY` fails before it produces a binary.
 - `run_kdbx_compatibility_gate.sh` validates KeeForge-written databases with `keepassxc-cli`. This is a required local release gate; Xcode Cloud does not install KeePassXC. See "KDBX Compatibility Gate" below.
-- `make_appstore_screenshots.py` formats raw screenshots from `build/screenshots` into App Store-ready images in `build/appstore`.
+- `make_appstore_screenshots.py` formats raw screenshots from `build/screenshots` into App Store-ready images in `build/appstore`. It does not capture the raw screenshots itself — see its header comment for the `xcodebuild`/`xcresulttool` steps that populate `build/screenshots` first, including the `TEST_RUNNER_APPSTORE_SCREENSHOTS=1` argument the opt-in `AppStoreScreenshots` UI test class requires (it `XCTSkip`s by default).
 
 ## KDBX Compatibility Gate
 
@@ -36,4 +36,4 @@ The artifact set itself is declared in `KeeForgeTests/KDBXCompatibilitySupport.s
 - GitHub Actions can keep using simulator-safe placeholder values to materialize `BuildConfig.local.xcconfig`; the app treats the CI placeholders as cloud providers disabled for real sign-in.
 - The Dropbox key is interpolated into the `db-$(DROPBOX_APP_KEY)` `CFBundleURLScheme`, so the CI placeholder is `ciplaceholderdropboxappkey` — alphanumerics only. The old `CI_PLACEHOLDER_DROPBOX_APP_KEY` value contains underscores, which App Store Connect rejects with ITMS-90158; keep any new placeholder RFC1738-legal. `KeeForgeTests/URLSchemeFormatTests.swift` enforces this on the built app bundle.
 - To run the KDBX compatibility gate locally, install KeePassXC or set `KEEPASSXC_CLI=/path/to/keepassxc-cli`, then run `ci_scripts/run_kdbx_compatibility_gate.sh`. Override `KDBX_COMPAT_DESTINATION` if the default `iPhone 17 Pro` simulator is unavailable.
-- To regenerate App Store image composites after exporting raw screenshot PNGs into `build/screenshots`, run `ci_scripts/make_appstore_screenshots.py`.
+- To regenerate App Store image composites after exporting raw screenshot PNGs into `build/screenshots`, run `ci_scripts/make_appstore_screenshots.py`. Populate `build/screenshots` first by running the opt-in `KeeForgeUITests/AppStoreScreenshots` UI test class with `TEST_RUNNER_APPSTORE_SCREENSHOTS=1` and exporting its attachments (see the script's header comment for the exact commands).
