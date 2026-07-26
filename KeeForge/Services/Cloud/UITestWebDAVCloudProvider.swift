@@ -100,12 +100,13 @@ final class UITestWebDAVCloudProvider: CloudProvider, WebDAVConnecting, @uncheck
         )
     }
 
+    @discardableResult
     func download(
         accountId: String,
         fileId: String,
         to localURL: URL,
         progress: @escaping @Sendable (Double) -> Void
-    ) async throws {
+    ) async throws -> CloudFileMetadata? {
         guard isAuthenticated(accountId: accountId) else {
             throw CloudProviderError.notAuthenticated
         }
@@ -121,6 +122,10 @@ final class UITestWebDAVCloudProvider: CloudProvider, WebDAVConnecting, @uncheck
 
         try data.write(to: localURL, options: .atomic)
         progress(1)
+
+        // The fixture serves one revision per file, so the bytes just written
+        // are described by exactly the metadata `getMetadata` reports.
+        return try? await getMetadata(accountId: accountId, fileId: fileId)
     }
 
     func getMetadata(accountId: String, fileId: String) async throws -> CloudFileMetadata {

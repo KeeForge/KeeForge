@@ -145,12 +145,13 @@ final class OneDriveCloudProvider: CloudProvider, @unchecked Sendable {
         return filteredFiles.sorted(by: Self.sortCloudFiles)
     }
 
+    @discardableResult
     func download(
         accountId: String,
         fileId: String,
         to localURL: URL,
         progress: @escaping @Sendable (Double) -> Void
-    ) async throws {
+    ) async throws -> CloudFileMetadata? {
         let token = try await accessToken(accountId: accountId)
         let request = authorizedRequest(url: try Self.graphURL(path: Self.contentPath(for: fileId)), token: token)
         let downloadURL = try await downloadRetrying(request)
@@ -168,6 +169,13 @@ final class OneDriveCloudProvider: CloudProvider, @unchecked Sendable {
         } catch {
             throw Self.mapGenericError(error)
         }
+
+        // `/content` answers with a redirect to a pre-authenticated storage
+        // URL, and that final response carries no eTag/cTag for the item. A
+        // second `GET /items/{id}` would only report the head at that later
+        // moment, not the revision these bytes came from, so reporting nothing
+        // is the honest answer — the caller keeps the rev it already had.
+        return nil
     }
 
     func getMetadata(accountId: String, fileId: String) async throws -> CloudFileMetadata {

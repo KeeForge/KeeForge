@@ -145,7 +145,12 @@ enum CloudDatabaseSaver {
         }
 
         let remoteMetadata = try await environment.getMetadata(reference)
-        if let expectedRev, remoteMetadata.rev != expectedRev {
+        if let recordedMetadata = reference.cloudSyncMetadata,
+           remoteHasDiverged(
+               recorded: recordedMetadata,
+               remote: remoteMetadata,
+               expectedRev: expectedRev
+           ) {
             return try await conflictResult(
                 reference: reference,
                 fallbackData: currentData,
@@ -247,6 +252,43 @@ enum CloudDatabaseSaver {
         }.value
     }
 
+    /// Whether the remote head is something other than the state this save was
+    /// based on — the gate that decides conflict-versus-upload.
+    ///
+    /// With a recorded rev the check is exact. `expectedRev == nil` is not a
+    /// corner case: references persisted by builds predating rev tracking
+    /// decode with `remoteRev == nil`, the offline/fallback open path never
+    /// populates it, and WebDAV servers without ETags never produce one. On
+    /// that path a bare `remote.rev != expectedRev` check passes vacuously and
+    /// the upload becomes an unconditional overwrite of whatever the remote
+    /// holds — Dropbox uses `WriteMode.overwrite` and OneDrive omits
+    /// `If-Match` with `conflictBehavior=replace` when handed no rev. So a
+    /// missing rev falls back to metadata-level verification instead: a
+    /// provider-reported content hash must equal the one recorded at the last
+    /// sync, and a provider reporting a rev we never recorded is treated as
+    /// conflict-suspect. Both surface the existing conflict flow, where the
+    /// user keeps both copies, rather than overwriting silently.
+    ///
+    /// Residue: a provider exposing neither a rev nor a content hash — a bare
+    /// WebDAV server without ETags — offers nothing to verify against, so the
+    /// save keeps today's behavior there. Closing that gap needs a remote-byte
+    /// comparison, which is deliberately not done here.
+    static func remoteHasDiverged(
+        recorded: CloudSyncMetadata,
+        remote: CloudFileMetadata,
+        expectedRev: String?
+    ) -> Bool {
+        if let expectedRev {
+            return remote.rev != expectedRev
+        }
+
+        if let remoteContentHash = remote.contentHash {
+            return remoteContentHash != recorded.remoteContentHash
+        }
+
+        return remote.rev != nil
+    }
+
     private static func conflictResult(
         reference: DatabaseReference,
         fallbackData: Data,
@@ -266,7 +308,12 @@ enum CloudDatabaseSaver {
         environment: Environment
     ) async throws -> PendingUploadPushResult {
         let remoteMetadata = try await environment.getMetadata(reference)
-        if let expectedRev, remoteMetadata.rev != expectedRev {
+        if let recordedMetadata = reference.cloudSyncMetadata,
+           remoteHasDiverged(
+               recorded: recordedMetadata,
+               remote: remoteMetadata,
+               expectedRev: expectedRev
+           ) {
             return .conflict(remoteRev: remoteMetadata.rev)
         }
 

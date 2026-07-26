@@ -342,6 +342,55 @@ enum DatabaseListStore {
         }
     }
 
+    /// Applies `mutate` to the cloud sync metadata of the *currently stored*
+    /// copy of this database, leaving every other field of the stored
+    /// reference alone.
+    ///
+    /// Anything that learns cloud state across an `await` must use this rather
+    /// than `update(_:)`. `update` writes back a whole reference captured
+    /// before the network round-trip, so a save or drain completing inside
+    /// that window is silently rolled back to the older revision — and the
+    /// next save then false-conflicts against the app's own upload.
+    ///
+    /// `observed` is the sync state the caller saw before its round-trip. If
+    /// the stored state has moved on since, a newer writer already knows more
+    /// than this caller does: nothing is written and the newer stored
+    /// reference is returned so the caller can adopt it.
+    ///
+    /// Returns nil when the database is no longer listed, is not cloud-backed,
+    /// or when the mutated list could not be persisted — a caller recording a
+    /// revision must not act on one that never reached disk.
+    @discardableResult
+    static func updateCloudSyncMetadata(
+        for id: UUID,
+        ifUnchangedFrom observed: CloudSyncMetadata,
+        mutate: (inout CloudSyncMetadata) -> Void
+    ) -> DatabaseReference? {
+        withStateLock {
+            var currentDatabases = loadDatabases()
+            guard let index = currentDatabases.firstIndex(where: { $0.id == id }),
+                  let storedMetadata = currentDatabases[index].cloudSyncMetadata else {
+                return nil
+            }
+
+            guard cloudRevisionIdentity(storedMetadata) == cloudRevisionIdentity(observed) else {
+                return currentDatabases[index]
+            }
+
+            currentDatabases[index].updateCloudSyncMetadata(mutate)
+            guard saveDatabases(currentDatabases) else { return nil }
+            return currentDatabases[index]
+        }
+    }
+
+    /// What "the remote state this caller started from" means for the
+    /// compare-and-skip above. Revision alone is not enough: references
+    /// predating rev tracking carry only a content hash, and there the hash is
+    /// the entire signal that the remote moved.
+    private static func cloudRevisionIdentity(_ metadata: CloudSyncMetadata) -> String {
+        "\(metadata.remoteRev ?? "")\u{1F}\(metadata.remoteContentHash ?? "")"
+    }
+
     static func setReadOnly(_ isReadOnly: Bool, for reference: DatabaseReference) {
         withStateLock {
             guard var updatedReference = loadDatabases().first(where: { $0.id == reference.id }) else { return }
@@ -654,7 +703,12 @@ enum DatabaseListStore {
         }
     }
 
-    private static func saveDatabases(_ references: [DatabaseReference]) {
+    /// Returns whether the list actually reached disk. Most callers are
+    /// best-effort and ignore it, but one that just recorded a cloud revision
+    /// must not report success for a revision that was never persisted — it
+    /// would conflict against its own upload on the next save.
+    @discardableResult
+    private static func saveDatabases(_ references: [DatabaseReference]) -> Bool {
         withStateLock {
             let normalizedReferences = normalized(references)
             let encoded: Data
@@ -664,7 +718,7 @@ enum DatabaseListStore {
                 encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
                 encoded = try encoder.encode(normalizedReferences)
             } catch {
-                return
+                return false
             }
 
             do {
@@ -681,13 +735,15 @@ enum DatabaseListStore {
                 )
                 sharedDefaults.set(currentMigrationVersion, forKey: migrationVersionKey)
             } catch {
-                return
+                return false
             }
 
             if let activeAutoFillDatabaseID,
                normalizedReferences.contains(where: { $0.id == activeAutoFillDatabaseID && $0.autoFillEnabled }) == false {
                 self.activeAutoFillDatabaseID = nil
             }
+
+            return true
         }
     }
 

@@ -22,12 +22,21 @@ protocol CloudProvider: AnyObject, Sendable {
     func signOut(accountId: String)
 
     func listFiles(accountId: String, path: String?, query: String?) async throws -> [CloudFile]
+    /// Writes the remote file to `localURL` and reports the metadata of the
+    /// bytes actually written, so a caller records the rev of what it received
+    /// rather than the rev it observed before the transfer — the pre-download
+    /// rev goes stale the moment someone else writes mid-download.
+    ///
+    /// `nil` where the transport genuinely cannot say: OneDrive's `/content`
+    /// redirects to a pre-authenticated URL whose response carries no item
+    /// tag, and a WebDAV `GET` may answer without an `ETag`.
+    @discardableResult
     func download(
         accountId: String,
         fileId: String,
         to localURL: URL,
         progress: @escaping @Sendable (Double) -> Void
-    ) async throws
+    ) async throws -> CloudFileMetadata?
     func getMetadata(accountId: String, fileId: String) async throws -> CloudFileMetadata
     func upload(
         accountId: String,

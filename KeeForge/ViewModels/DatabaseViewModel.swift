@@ -881,11 +881,24 @@ final class DatabaseViewModel {
         }
 
         guard case .unlocked = state else { return }
+        // Reentry guard. `isDirty` stays true for the whole in-flight save, so
+        // anything gated only on it can fire again mid-save — the macOS ⌘S
+        // command most directly, since a menu command has no "button already
+        // tapped" state. Two concurrent saves race the same open-time SHA and
+        // rev, so the second reliably loses and raises a conflict dialog the
+        // user did nothing to earn. Silent no-op rather than an error: a
+        // second ⌘S means "save", and the save already in flight is doing it.
+        guard isSaving == false else { return }
         guard let draft else { return }
         guard draft.isDirty else { return }
         guard let compositeKey, let openTimeSHA512 else {
             throw SaveError.saveContextUnavailable
         }
+
+        // The awaits below outlast a lock: applying their result to a locked
+        // session would resurrect `rootGroup`/`unlockedMeta` behind the lock
+        // screen. Same guard shape as `refreshCredentialStoreIfStillUnlocked`.
+        let expectedLockCycleID = lockCycleID
 
         isSaving = true
         saveError = nil
@@ -912,6 +925,10 @@ final class DatabaseViewModel {
                 databaseReference.expectedCloudRevision
             )
         }
+
+        // Locked while the save was in flight: the bytes did reach storage, and
+        // the next unlock reads them back, so there is nothing to apply here.
+        guard expectedLockCycleID == lockCycleID else { return }
 
         switch saveResult {
         case .saved(let newSHA512):
@@ -1192,14 +1209,41 @@ final class DatabaseViewModel {
                 let data: Data
 
                 if databaseReference.isCloudBacked {
+                    let observedCloudMetadata = databaseReference.cloudSyncMetadata
                     let resolution = try await CloudSyncCoordinator.syncIfNeededForOpen(reference: databaseReference)
-                    DatabaseListStore.update(resolution.reference)
                     data = resolution.data
 
+                    // `resolution.reference` grew out of the reference captured
+                    // before this network round-trip, so storing it wholesale
+                    // would revert anything that landed inside the window — a
+                    // save or a pending-upload drain, both of which advance the
+                    // revision. The next save would then conflict against the
+                    // app's own upload. Merge only the sync fields this refresh
+                    // learned, and only while the stored state is still the one
+                    // it started from; otherwise adopt whatever the newer
+                    // writer left.
+                    let mergedReference = observedCloudMetadata.flatMap { observed in
+                        DatabaseListStore.updateCloudSyncMetadata(
+                            for: resolution.reference.id,
+                            ifUnchangedFrom: observed
+                        ) { storedMetadata in
+                            guard let learned = resolution.reference.cloudSyncMetadata else { return }
+                            storedMetadata.remoteContentHash = learned.remoteContentHash
+                            storedMetadata.remoteModifiedAt = learned.remoteModifiedAt
+                            storedMetadata.remoteRev = learned.remoteRev
+                            storedMetadata.lastSyncedAt = learned.lastSyncedAt
+                            storedMetadata.lastSyncError = learned.lastSyncError
+                        }
+                    }
+
                     await MainActor.run {
-                        if self.databaseReference.id == resolution.reference.id {
-                            self.databaseReference = resolution.reference
-                            self.cloudSyncBannerText = resolution.bannerMessage
+                        guard self.databaseReference.id == resolution.reference.id else { return }
+                        self.cloudSyncBannerText = resolution.bannerMessage
+                        // Nil means the merge was skipped or never persisted;
+                        // keeping the current reference makes the next sync
+                        // redo the work rather than trusting an unsaved rev.
+                        if let mergedReference {
+                            self.databaseReference = mergedReference
                         }
                     }
                 } else {
@@ -1740,12 +1784,15 @@ final class DatabaseViewModel {
         populateCredentialStoreIfNeeded(root: currentRootGroup)
     }
 
-    private func conflictCopyFilename(for filename: String) -> String {
+    func conflictCopyFilename(for filename: String) -> String {
         let formatter = DateFormatter()
         formatter.calendar = Calendar(identifier: .gregorian)
         formatter.locale = Locale(identifier: "en_US_POSIX")
         formatter.timeZone = .current
-        formatter.dateFormat = "yyyy-MM-dd HHmm"
+        // Seconds, not minutes: two conflict resolutions a few seconds apart
+        // otherwise produce the same name, and the second copy would land on
+        // the first — destroying the exact bytes this feature exists to keep.
+        formatter.dateFormat = "yyyy-MM-dd HHmmss"
 
         let stem = (filename as NSString).deletingPathExtension
         let ext = (filename as NSString).pathExtension
@@ -1826,7 +1873,10 @@ final class DatabaseViewModel {
                 }
             }
 
-            let destinationURL = originalURL.deletingLastPathComponent().appendingPathComponent(filename)
+            let destinationURL = Self.availableConflictCopyURL(
+                in: originalURL.deletingLastPathComponent(),
+                filename: filename
+            )
             try CoordinatedFileReader.writeData(
                 bytes,
                 to: destinationURL,
@@ -1835,26 +1885,93 @@ final class DatabaseViewModel {
         }.value
     }
 
-    private static func writeConflictCopyToCloud(
+    /// A conflict copy exists to preserve bytes the user would otherwise lose,
+    /// so overwriting an existing file is the one outcome it must never
+    /// produce. `upload(expectedRev: nil)` is exactly that overwrite — Dropbox
+    /// resolves it to `WriteMode.overwrite`, OneDrive to
+    /// `conflictBehavior=replace` — which meant two resolutions landing on the
+    /// same name destroyed the earlier copy. `createFile` carries the
+    /// no-overwrite semantics every provider is required to implement
+    /// (`Cloud/README.md`) and reports a name collision as `.conflict`; that
+    /// only happens when a copy from the same second already exists, so the
+    /// retry numbers the name instead of replacing anything.
+    ///
+    /// `providerResolver` is injectable for the same reason as
+    /// `CloudSyncCoordinator.syncIfNeededForOpen`'s: it is the only way to
+    /// exercise the create-only routing without a live provider.
+    static func writeConflictCopyToCloud(
         reference: DatabaseReference,
         fileID: String,
-        bytes: Data
+        bytes: Data,
+        providerResolver: (String) -> CloudProvider? = CloudProviderRegistry.provider(for:)
     ) async throws {
         guard let metadata = reference.cloudSyncMetadata else {
             throw SaveError.saveContextUnavailable
         }
 
-        guard let provider = CloudProviderRegistry.provider(for: metadata.provider) else {
+        guard let provider = providerResolver(metadata.provider) else {
             throw CloudProviderError.notAuthenticated
         }
 
-        _ = try await provider.upload(
-            accountId: metadata.accountId,
-            fileId: fileID,
-            data: bytes,
-            expectedRev: nil,
-            progress: { _ in }
-        )
+        for attempt in 1...conflictCopyNameAttemptLimit {
+            let path = attempt == 1 ? fileID : uniquifiedConflictCopyName(fileID, attempt: attempt)
+            do {
+                _ = try await provider.createFile(
+                    accountId: metadata.accountId,
+                    path: path,
+                    data: bytes,
+                    progress: { _ in }
+                )
+                return
+            } catch let error as CloudProviderError {
+                guard case .conflict = error, attempt < conflictCopyNameAttemptLimit else {
+                    throw error
+                }
+            }
+        }
+
+        throw CloudProviderError.conflict(remoteRev: nil)
+    }
+
+    /// How many numbered names a conflict copy may try before giving up.
+    /// Reaching it needs that many copies of one database inside a single
+    /// second, which no interactive flow produces.
+    nonisolated private static let conflictCopyNameAttemptLimit = 20
+
+    /// Inserts ` <attempt>` ahead of the extension, so
+    /// `vault (conflict 2026-07-25 143012).kdbx` becomes
+    /// `vault (conflict 2026-07-25 143012) 2.kdbx`. Works on a bare filename
+    /// or a full provider path — both keep their extension in the last
+    /// component.
+    nonisolated private static func uniquifiedConflictCopyName(_ name: String, attempt: Int) -> String {
+        let stem = (name as NSString).deletingPathExtension
+        let ext = (name as NSString).pathExtension
+        let numberedStem = "\(stem) \(attempt)"
+        return ext.isEmpty ? numberedStem : "\(numberedStem).\(ext)"
+    }
+
+    /// Picks a free name for a local conflict copy. Same no-overwrite rule as
+    /// the cloud path, but expressed as a search because
+    /// `CoordinatedFileReader.writeData` replaces whatever is there. The
+    /// check-then-write window is inherent without an `O_EXCL` write path, and
+    /// the only racer would be the same user on the same device.
+    nonisolated private static func availableConflictCopyURL(in directory: URL, filename: String) -> URL {
+        let fileManager = FileManager.default
+        let preferredURL = directory.appendingPathComponent(filename)
+        guard fileManager.fileExists(atPath: preferredURL.path) else {
+            return preferredURL
+        }
+
+        var lastCandidate = preferredURL
+        for attempt in 2...conflictCopyNameAttemptLimit {
+            lastCandidate = directory.appendingPathComponent(
+                uniquifiedConflictCopyName(filename, attempt: attempt)
+            )
+            if fileManager.fileExists(atPath: lastCandidate.path) == false {
+                return lastCandidate
+            }
+        }
+        return lastCandidate
     }
 
     private static func siblingCloudConflictFileID(currentFileID: String, filename: String) -> String {

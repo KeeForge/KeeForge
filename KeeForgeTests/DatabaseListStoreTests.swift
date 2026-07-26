@@ -161,6 +161,128 @@ final class DatabaseListStoreTests: XCTestCase {
         XCTAssertEqual(try Data(contentsOf: cachedURL), cachedData)
     }
 
+    // MARK: - Cloud sync metadata merge (M13)
+
+    func testUpdateCloudSyncMetadataMergesSyncFieldsWithoutTouchingOtherFields() throws {
+        var reference = makeStoredCloudReference(remoteRev: "rev-A", remoteContentHash: "hash-A")
+        let observed = try XCTUnwrap(reference.cloudSyncMetadata)
+
+        // A rename lands while the refresh is out on the network. The refresh
+        // must not carry the pre-rename nickname back over it.
+        reference.nickname = "Renamed While Syncing"
+        DatabaseListStore.update(reference)
+
+        let merged = DatabaseListStore.updateCloudSyncMetadata(
+            for: reference.id,
+            ifUnchangedFrom: observed
+        ) { metadata in
+            metadata.remoteRev = "rev-B"
+            metadata.remoteContentHash = "hash-B"
+            metadata.lastSyncError = nil
+        }
+
+        let stored = try XCTUnwrap(DatabaseListStore.databases.first(where: { $0.id == reference.id }))
+        XCTAssertEqual(merged?.id, reference.id)
+        XCTAssertEqual(stored.cloudSyncMetadata?.remoteRev, "rev-B")
+        XCTAssertEqual(stored.cloudSyncMetadata?.remoteContentHash, "hash-B")
+        XCTAssertEqual(stored.nickname, "Renamed While Syncing")
+    }
+
+    func testUpdateCloudSyncMetadataSkipsWhenStoredRevisionMovedOnUnderneath() throws {
+        var reference = makeStoredCloudReference(remoteRev: "rev-A", remoteContentHash: "hash-A")
+        let observed = try XCTUnwrap(reference.cloudSyncMetadata)
+
+        // A save (or a pending-upload drain) completes while the refresh is in
+        // flight, advancing the revision past what the refresh ever saw.
+        reference.updateCloudSyncMetadata { metadata in
+            metadata.remoteRev = "rev-B"
+            metadata.remoteContentHash = "hash-B"
+        }
+        DatabaseListStore.update(reference)
+
+        let merged = DatabaseListStore.updateCloudSyncMetadata(
+            for: reference.id,
+            ifUnchangedFrom: observed
+        ) { metadata in
+            metadata.remoteRev = "rev-A"
+            metadata.remoteContentHash = "hash-A"
+        }
+
+        let stored = try XCTUnwrap(DatabaseListStore.databases.first(where: { $0.id == reference.id }))
+        XCTAssertEqual(
+            stored.cloudSyncMetadata?.remoteRev,
+            "rev-B",
+            "The stale refresh must not roll the saved revision back."
+        )
+        XCTAssertEqual(stored.cloudSyncMetadata?.remoteContentHash, "hash-B")
+        XCTAssertEqual(
+            merged?.cloudSyncMetadata?.remoteRev,
+            "rev-B",
+            "The caller is handed the newer stored state so it can adopt it."
+        )
+    }
+
+    /// References predating rev tracking carry only a content hash, so the
+    /// hash alone has to be able to block a stale merge.
+    func testUpdateCloudSyncMetadataSkipsWhenOnlyContentHashMovedOn() throws {
+        var reference = makeStoredCloudReference(remoteRev: nil, remoteContentHash: "hash-A")
+        let observed = try XCTUnwrap(reference.cloudSyncMetadata)
+
+        reference.updateCloudSyncMetadata { metadata in
+            metadata.remoteContentHash = "hash-B"
+        }
+        DatabaseListStore.update(reference)
+
+        DatabaseListStore.updateCloudSyncMetadata(
+            for: reference.id,
+            ifUnchangedFrom: observed
+        ) { metadata in
+            metadata.remoteContentHash = "hash-A"
+        }
+
+        let stored = try XCTUnwrap(DatabaseListStore.databases.first(where: { $0.id == reference.id }))
+        XCTAssertEqual(stored.cloudSyncMetadata?.remoteContentHash, "hash-B")
+    }
+
+    func testUpdateCloudSyncMetadataReturnsNilForUnknownDatabase() {
+        let reference = makeStoredCloudReference(remoteRev: "rev-A", remoteContentHash: "hash-A")
+        let observed = reference.cloudSyncMetadata
+
+        DatabaseListStore.remove(id: reference.id)
+
+        let merged = observed.flatMap { observed in
+            DatabaseListStore.updateCloudSyncMetadata(for: reference.id, ifUnchangedFrom: observed) { metadata in
+                metadata.remoteRev = "rev-B"
+            }
+        }
+
+        XCTAssertNil(merged)
+    }
+
+    private func makeStoredCloudReference(
+        remoteRev: String?,
+        remoteContentHash: String?
+    ) -> DatabaseReference {
+        var reference = DatabaseListStore.addCloud(
+            provider: CloudProviderKind.dropbox.rawValue,
+            accountId: "acct-1",
+            file: CloudFile(
+                id: "/Vaults/merge.kdbx",
+                name: "merge.kdbx",
+                path: "/Vaults/merge.kdbx",
+                isFolder: false,
+                modifiedDate: Date(timeIntervalSince1970: 100),
+                size: 42
+            )
+        )
+        reference.updateCloudSyncMetadata { metadata in
+            metadata.remoteRev = remoteRev
+            metadata.remoteContentHash = remoteContentHash
+        }
+        DatabaseListStore.update(reference)
+        return reference
+    }
+
     func testAddCloudReturnsExistingReferenceForSameRemoteFile() {
         let file = CloudFile(
             id: "/Vaults/work.kdbx",

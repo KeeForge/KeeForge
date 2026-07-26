@@ -281,12 +281,13 @@ private final class MockBrowserCloudProvider: CloudProvider, @unchecked Sendable
         return filesToReturn
     }
 
+    @discardableResult
     func download(
         accountId: String,
         fileId: String,
         to localURL: URL,
         progress: @escaping @Sendable (Double) -> Void
-    ) async throws {}
+    ) async throws -> CloudFileMetadata? { nil }
 
     func getMetadata(accountId: String, fileId: String) async throws -> CloudFileMetadata {
         CloudFileMetadata(modifiedDate: Date(), contentHash: nil, size: 0)
@@ -376,12 +377,13 @@ private final class GatedBrowserCloudProvider: CloudProvider, @unchecked Sendabl
         return response
     }
 
+    @discardableResult
     func download(
         accountId: String,
         fileId: String,
         to localURL: URL,
         progress: @escaping @Sendable (Double) -> Void
-    ) async throws {}
+    ) async throws -> CloudFileMetadata? { nil }
 
     func getMetadata(accountId: String, fileId: String) async throws -> CloudFileMetadata {
         CloudFileMetadata(modifiedDate: Date(), contentHash: nil, size: 0)
