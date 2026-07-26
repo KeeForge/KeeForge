@@ -22,6 +22,13 @@ TODO before the first macOS release:
 ## Unreleased
 
 ### Fixed
+- Dropbox: fixed a crash that could occur when Dropbox was contacted from two places at once (e.g. opening a database while a pending AutoFill upload drained).
+- Dropbox: disconnecting an account now always removes its saved sign-in token from the device, even when Dropbox had not been contacted since app launch.
+- Dropbox: opening a database with no network now shows the offline notice and uses the cached copy instead of an internal error message.
+- Dropbox: operations retry automatically when Dropbox is busy, and out-of-space, permission, and rejected-filename problems are reported in plain language instead of raw error text. Saves also no longer rebuild the connection and re-authorize before every request.
+- OneDrive: a single rate-limit or server hiccup no longer fails a whole save, download, or file listing — transient failures retry with backoff, and an interrupted large upload resumes where the server left off instead of starting over.
+- OneDrive: errors now explain themselves accurately — a permission problem, a full drive, or a busy service no longer all read as "reconnect this account", and a TLS failure is no longer reported as "no network connection".
+- OneDrive: concurrent operations no longer race on token refresh, and a second sign-in can no longer interrupt one already in progress.
 - Build/CI: the Dropbox CI placeholder key no longer produces an illegal `db-CI_PLACEHOLDER_DROPBOX_APP_KEY` URL scheme (App Store Connect ITMS-90158). The placeholder is now RFC1738-safe, archives fail the build when the real `DROPBOX_APP_KEY` is missing instead of shipping a placeholder, and a unit test validates every declared URL scheme.
 
 ## v1.10.4 (2026-07-25)

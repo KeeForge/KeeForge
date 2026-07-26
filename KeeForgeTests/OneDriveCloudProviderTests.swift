@@ -2,8 +2,9 @@ import XCTest
 @testable import KeeForge
 
 /// Pure-seam coverage for the OneDrive provider: Graph URL construction, the
-/// small-file upload split, and the `createUploadSession` retry policy. No
-/// network, no MSAL — every assertion targets a `static` helper.
+/// small-file upload split, the retry/backoff policy, upload-session
+/// resumption, and error mapping. No network, no MSAL — every assertion
+/// targets a `static` helper.
 final class OneDriveCloudProviderTests: XCTestCase {
     private let graphBase = "https://graph.microsoft.com/v1.0"
 
@@ -214,11 +215,140 @@ final class OneDriveCloudProviderTests: XCTestCase {
         )
     }
 
+    // MARK: - General request retry policy
+
+    // Every operation, not just `createUploadSession`, now retries the
+    // transient set. A single 503 used to fail a whole save.
+
+    func testGeneralRequestsRetryThrottlingAndServerErrors() {
+        for statusCode in [429, 500, 502, 503, 504] {
+            XCTAssertTrue(
+                OneDriveCloudProvider.shouldRetryRequest(statusCode: statusCode, attempt: 1),
+                "HTTP \(statusCode) should be retried"
+            )
+        }
+    }
+
+    func testGeneralRequestsNeverRetryDeterministicFailures() {
+        // Includes 412: retrying a precondition failure would paper over a
+        // genuine remote change instead of surfacing the conflict.
+        for statusCode in [400, 401, 403, 404, 409, 412, 416] {
+            XCTAssertFalse(
+                OneDriveCloudProvider.shouldRetryRequest(statusCode: statusCode, attempt: 1),
+                "HTTP \(statusCode) must surface immediately"
+            )
+        }
+    }
+
+    func testGeneralRequestsStopAtThreeTotalAttempts() {
+        XCTAssertTrue(OneDriveCloudProvider.shouldRetryRequest(statusCode: 503, attempt: 1))
+        XCTAssertTrue(OneDriveCloudProvider.shouldRetryRequest(statusCode: 503, attempt: 2))
+        XCTAssertFalse(
+            OneDriveCloudProvider.shouldRetryRequest(
+                statusCode: 503,
+                attempt: OneDriveCloudProvider.requestMaxAttempts
+            )
+        )
+    }
+
+    func testSessionCreationRetryReusesTheGeneralPolicyOutsideBadRequests() {
+        // The spurious-400 rule is the only difference between the two.
+        for statusCode in [401, 403, 404, 409, 412, 429, 500, 503] {
+            XCTAssertEqual(
+                OneDriveCloudProvider.shouldRetryUploadSessionCreation(
+                    statusCode: statusCode,
+                    errorCode: "invalidRequest",
+                    attempt: 1
+                ),
+                OneDriveCloudProvider.shouldRetryRequest(statusCode: statusCode, attempt: 1),
+                "HTTP \(statusCode) should follow the shared policy"
+            )
+        }
+    }
+
+    // MARK: - Chunk retry policy
+
+    func testChunkRetriesRangeAlreadySatisfied() {
+        // 416 means the service already holds those bytes: resync the offset,
+        // do not fail the save.
+        XCTAssertTrue(OneDriveCloudProvider.shouldRetryUploadChunk(statusCode: 416, attempt: 1))
+        XCTAssertTrue(OneDriveCloudProvider.shouldRetryUploadChunk(statusCode: 416, attempt: 2))
+        XCTAssertFalse(
+            OneDriveCloudProvider.shouldRetryUploadChunk(
+                statusCode: 416,
+                attempt: OneDriveCloudProvider.requestMaxAttempts
+            )
+        )
+    }
+
+    func testChunkRetriesTransientAndNotDeterministicFailures() {
+        for statusCode in [429, 500, 503, 504] {
+            XCTAssertTrue(
+                OneDriveCloudProvider.shouldRetryUploadChunk(statusCode: statusCode, attempt: 1),
+                "HTTP \(statusCode) should be retried"
+            )
+        }
+        for statusCode in [401, 403, 404, 409, 412] {
+            XCTAssertFalse(
+                OneDriveCloudProvider.shouldRetryUploadChunk(statusCode: statusCode, attempt: 1),
+                "HTTP \(statusCode) must surface immediately"
+            )
+        }
+    }
+
+    // MARK: - Resume offset from nextExpectedRanges
+
+    func testResumeOffsetReadsOpenEndedRange() {
+        XCTAssertEqual(
+            OneDriveCloudProvider.resumeOffset(
+                fromNextExpectedRanges: ["26-"],
+                totalBytes: 128
+            ),
+            26
+        )
+    }
+
+    func testResumeOffsetTakesLowestOfSeveralGaps() {
+        // Graph does not promise to list every missing range, so the only safe
+        // restart point is the lowest byte it admits to missing.
+        XCTAssertEqual(
+            OneDriveCloudProvider.resumeOffset(
+                fromNextExpectedRanges: ["77829-99375", "12345-55232"],
+                totalBytes: 100_000
+            ),
+            12_345
+        )
+    }
+
+    func testResumeOffsetIgnoresOutOfBoundsAndGarbageRanges() {
+        XCTAssertNil(
+            OneDriveCloudProvider.resumeOffset(
+                fromNextExpectedRanges: ["512-", "nonsense", "-"],
+                totalBytes: 512
+            )
+        )
+        XCTAssertEqual(
+            OneDriveCloudProvider.resumeOffset(
+                fromNextExpectedRanges: ["nonsense", "300-511"],
+                totalBytes: 512
+            ),
+            300
+        )
+    }
+
+    func testResumeOffsetIsNilWhenNothingIsMissing() {
+        // An empty list means the payload is fully received; the caller keeps
+        // its own offset rather than rewinding to zero.
+        XCTAssertNil(
+            OneDriveCloudProvider.resumeOffset(fromNextExpectedRanges: [], totalBytes: 128)
+        )
+    }
+
     // MARK: - Backoff
 
     func testBackoffGrowsBetweenAttempts() {
-        let first = OneDriveCloudProvider.uploadSessionRetryDelay(forAttempt: 1, retryAfter: nil)
-        let second = OneDriveCloudProvider.uploadSessionRetryDelay(forAttempt: 2, retryAfter: nil)
+        let first = OneDriveCloudProvider.retryDelay(forAttempt: 1, retryAfter: nil)
+        let second = OneDriveCloudProvider.retryDelay(forAttempt: 2, retryAfter: nil)
 
         XCTAssertEqual(first, .milliseconds(500))
         XCTAssertEqual(second, .milliseconds(1_500))
@@ -227,11 +357,11 @@ final class OneDriveCloudProviderTests: XCTestCase {
 
     func testRetryAfterHeaderWinsAndIsClamped() {
         XCTAssertEqual(
-            OneDriveCloudProvider.uploadSessionRetryDelay(forAttempt: 1, retryAfter: "2"),
+            OneDriveCloudProvider.retryDelay(forAttempt: 1, retryAfter: "2"),
             .seconds(2)
         )
         XCTAssertEqual(
-            OneDriveCloudProvider.uploadSessionRetryDelay(forAttempt: 1, retryAfter: "3600"),
+            OneDriveCloudProvider.retryDelay(forAttempt: 1, retryAfter: "3600"),
             .seconds(10)
         )
     }
@@ -239,15 +369,193 @@ final class OneDriveCloudProviderTests: XCTestCase {
     func testUnparsableRetryAfterFallsBackToBackoff() {
         // HTTP-date form and garbage both fall back to the computed backoff.
         XCTAssertEqual(
-            OneDriveCloudProvider.uploadSessionRetryDelay(
+            OneDriveCloudProvider.retryDelay(
                 forAttempt: 2,
                 retryAfter: "Wed, 21 Oct 2026 07:28:00 GMT"
             ),
             .milliseconds(1_500)
         )
         XCTAssertEqual(
-            OneDriveCloudProvider.uploadSessionRetryDelay(forAttempt: 1, retryAfter: "-5"),
+            OneDriveCloudProvider.retryDelay(forAttempt: 1, retryAfter: "-5"),
             .milliseconds(500)
+        )
+    }
+
+    // MARK: - Graph error mapping
+
+    // Regression: 403 used to always mean "reconnect for write scope", which
+    // sends the user through a sign-in that fixes nothing when the real cause
+    // is a permission on the item.
+
+    func testAccessDeniedIsAPermissionProblemNotAScopeProblem() {
+        XCTAssertEqual(
+            OneDriveCloudProvider.mapGraphError(
+                statusCode: 403,
+                errorCode: "accessDenied",
+                message: "Access denied."
+            ),
+            .permissionDenied
+        )
+        XCTAssertEqual(
+            OneDriveCloudProvider.mapGraphError(statusCode: 403, errorCode: nil, message: nil),
+            .permissionDenied
+        )
+    }
+
+    func testScopeAndAuthFailuresKeepTheirRemedies() {
+        XCTAssertEqual(
+            OneDriveCloudProvider.mapGraphError(
+                statusCode: 403,
+                errorCode: "authorizationRequestDenied",
+                message: "Insufficient privileges."
+            ),
+            .writeScopeRequired
+        )
+        XCTAssertEqual(
+            OneDriveCloudProvider.mapGraphError(
+                statusCode: 401,
+                errorCode: "InvalidAuthenticationToken",
+                message: "Access token has expired."
+            ),
+            .notAuthenticated
+        )
+        XCTAssertEqual(
+            OneDriveCloudProvider.mapGraphError(statusCode: 401, errorCode: nil, message: nil),
+            .notAuthenticated
+        )
+    }
+
+    func testQuotaFailuresMapToInsufficientSpace() {
+        // Docs use HTTP 507 and the `quotaLimitReached` code; the old check
+        // looked for the English word "quota" inside a 400 message.
+        XCTAssertEqual(
+            OneDriveCloudProvider.mapGraphError(statusCode: 507, errorCode: nil, message: nil),
+            .insufficientSpace
+        )
+        XCTAssertEqual(
+            OneDriveCloudProvider.mapGraphError(
+                statusCode: 400,
+                errorCode: "quotaLimitReached",
+                message: "The user has reached their quota limit."
+            ),
+            .insufficientSpace
+        )
+    }
+
+    func testThrottlingAndServerErrorsMapToTypedCases() {
+        XCTAssertEqual(
+            OneDriveCloudProvider.mapGraphError(statusCode: 429, errorCode: nil, message: nil),
+            .rateLimited
+        )
+        XCTAssertEqual(
+            OneDriveCloudProvider.mapGraphError(
+                statusCode: 429,
+                errorCode: "activityLimitReached",
+                message: "Throttled."
+            ),
+            .rateLimited
+        )
+        for statusCode in [500, 502, 503, 504] {
+            XCTAssertEqual(
+                OneDriveCloudProvider.mapGraphError(statusCode: statusCode, errorCode: nil, message: nil),
+                .serviceUnavailable,
+                "HTTP \(statusCode) should be a service outage"
+            )
+        }
+    }
+
+    func testNameConflictOnCreateStaysAConflict() {
+        XCTAssertEqual(
+            OneDriveCloudProvider.mapGraphError(
+                statusCode: 409,
+                errorCode: "nameAlreadyExists",
+                message: "Another file exists with the same name."
+            ),
+            .conflict(remoteRev: nil)
+        )
+        XCTAssertEqual(
+            OneDriveCloudProvider.mapGraphError(statusCode: 412, errorCode: nil, message: nil),
+            .conflict(remoteRev: nil)
+        )
+    }
+
+    func testNameShapedBadRequestMapsToInvalidName() {
+        XCTAssertEqual(
+            OneDriveCloudProvider.mapGraphError(
+                statusCode: 400,
+                errorCode: "invalidRequest",
+                message: "The file name contains invalid characters."
+            ),
+            .invalidName
+        )
+    }
+
+    func testUnclassifiedBadRequestKeepsTheServerMessage() {
+        // The spurious `invalidRequest` has nothing to do with the name, so it
+        // must not be relabeled once retries are exhausted.
+        XCTAssertEqual(
+            OneDriveCloudProvider.mapGraphError(
+                statusCode: 400,
+                errorCode: "invalidRequest",
+                message: "The request is malformed or incorrect."
+            ),
+            .unknown("The request is malformed or incorrect.")
+        )
+        XCTAssertFalse(OneDriveCloudProvider.isNameShapedFailure(message: nil))
+        XCTAssertFalse(
+            OneDriveCloudProvider.isNameShapedFailure(message: "The request is malformed or incorrect.")
+        )
+    }
+
+    func testItemNotFoundMapsToFileNotFound() {
+        XCTAssertEqual(
+            OneDriveCloudProvider.mapGraphError(
+                statusCode: 404,
+                errorCode: "itemNotFound",
+                message: "Item does not exist."
+            ),
+            .fileNotFound
+        )
+    }
+
+    // MARK: - Transport error mapping
+
+    // Regression: the whole of NSURLErrorDomain used to collapse to "offline",
+    // so a TLS failure told the user they had no network and quietly fell back
+    // to the cached copy.
+
+    func testConnectivityErrorsAreOffline() {
+        for code in [NSURLErrorNotConnectedToInternet, NSURLErrorTimedOut, NSURLErrorCannotFindHost] {
+            let mapped = OneDriveCloudProvider.mapGenericError(
+                NSError(domain: NSURLErrorDomain, code: code)
+            )
+            XCTAssertEqual(mapped as? CloudProviderError, .networkUnavailable, "code \(code)")
+        }
+    }
+
+    func testTLSAndCancellationErrorsSurfaceAsThemselves() {
+        for code in [NSURLErrorSecureConnectionFailed, NSURLErrorServerCertificateUntrusted, NSURLErrorCancelled] {
+            let error = NSError(domain: NSURLErrorDomain, code: code)
+            let mapped = OneDriveCloudProvider.mapGenericError(error)
+            XCTAssertNotEqual(mapped as? CloudProviderError, .networkUnavailable, "code \(code)")
+            XCTAssertEqual(
+                mapped as? CloudProviderError,
+                .unknown(error.localizedDescription),
+                "code \(code)"
+            )
+        }
+    }
+
+    func testNonURLErrorsKeepTheirDescription() {
+        let error = NSError(
+            domain: "com.example.Test",
+            code: 7,
+            userInfo: [NSLocalizedDescriptionKey: "Disk is on fire."]
+        )
+
+        XCTAssertEqual(
+            OneDriveCloudProvider.mapGenericError(error) as? CloudProviderError,
+            .unknown("Disk is on fire.")
         )
     }
 }

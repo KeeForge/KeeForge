@@ -404,6 +404,16 @@
         }
       }
     },
+    "Another OneDrive sign-in is already in progress." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Eine andere OneDrive-Anmeldung läuft bereits."
+          }
+        }
+      }
+    },
     "App" : {
       "localizations" : {
         "de" : {
@@ -3600,16 +3610,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "OneDrive-Download fehlgeschlagen."
-          }
-        }
-      }
-    },
-    "OneDrive quota is unavailable." : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "OneDrive-Kontingent ist nicht verfügbar."
           }
         }
       }

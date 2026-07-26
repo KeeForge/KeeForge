@@ -1,6 +1,7 @@
 import AuthenticationServices
 import Foundation
 @preconcurrency import MSAL
+import os
 #if os(iOS)
 import UIKit
 #elseif os(macOS)
@@ -24,6 +25,12 @@ final class OneDriveCloudProvider: CloudProvider, @unchecked Sendable {
     /// Internal for testing.
     static let simpleUploadByteLimit = 4 * 1_024 * 1_024
 
+    /// Total attempts (1 initial + 2 retries) allowed for any retryable Graph
+    /// request. Microsoft's own guidance for this API is to retry connection
+    /// interruptions and 5xx responses with exponential backoff, but a save is
+    /// interactive, so the ceiling stays low. Internal for testing.
+    static let requestMaxAttempts = 3
+
     /// Total attempts (1 initial + 2 retries) allowed for the
     /// `createUploadSession` POST. Internal for testing.
     static let uploadSessionCreationMaxAttempts = 3
@@ -36,8 +43,18 @@ final class OneDriveCloudProvider: CloudProvider, @unchecked Sendable {
     let displayName = CloudProviderKind.oneDrive.displayName
     let iconName = CloudProviderKind.oneDrive.iconName
 
+    /// Every mutable property of this singleton lives here. MSAL types are not
+    /// `Sendable`, hence `uncheckedState`; the lock is what makes the accesses
+    /// safe, and it is never held across an `await`.
+    private struct MutableState {
+        var application: MSALPublicClientApplication?
+        var silentTokenTasks: [String: Task<String, Error>] = [:]
+        var isAuthenticating = false
+    }
+
+    private let state = OSAllocatedUnfairLock(uncheckedState: MutableState())
+
     private let decoder: JSONDecoder
-    private var cachedApplication: MSALPublicClientApplication?
 
     private init() {
         let decoder = JSONDecoder()
@@ -58,6 +75,17 @@ final class OneDriveCloudProvider: CloudProvider, @unchecked Sendable {
     @MainActor
     func authenticate(from anchor: ASPresentationAnchor) async throws -> CloudAccount {
         let application = try application()
+
+        // MSAL permits one interactive session per process
+        // (`MSALError.interactiveSessionAlreadyRunning`, -42402) and a second
+        // concurrent request tears down the first one's web session. Reject the
+        // reentry here so the in-flight sign-in survives, mirroring
+        // `DropboxCloudProvider.authenticate(from:)`.
+        guard beginInteractiveAuthentication() else {
+            throw CloudProviderError.unknown(String(localized: "Another OneDrive sign-in is already in progress."))
+        }
+        defer { endInteractiveAuthentication() }
+
         #if os(iOS)
         let webParameters = MSALWebviewParameters(authPresentationViewController: presentingController(from: anchor))
         #else
@@ -125,17 +153,9 @@ final class OneDriveCloudProvider: CloudProvider, @unchecked Sendable {
     ) async throws {
         let token = try await accessToken(accountId: accountId)
         let request = authorizedRequest(url: try Self.graphURL(path: Self.contentPath(for: fileId)), token: token)
+        let downloadURL = try await downloadRetrying(request)
 
         do {
-            let (downloadURL, response) = try await URLSession.shared.download(for: request)
-            guard let httpResponse = response as? HTTPURLResponse else {
-                throw CloudProviderError.unknown(String(localized: "OneDrive download failed."))
-            }
-
-            guard (200..<300).contains(httpResponse.statusCode) else {
-                throw mapHTTPError(statusCode: httpResponse.statusCode, data: nil)
-            }
-
             let directoryURL = localURL.deletingLastPathComponent()
             try FileManager.default.createDirectory(at: directoryURL, withIntermediateDirectories: true)
             if FileManager.default.fileExists(atPath: localURL.path) {
@@ -254,8 +274,8 @@ final class OneDriveCloudProvider: CloudProvider, @unchecked Sendable {
     // MARK: - Authentication
 
     private func application() throws -> MSALPublicClientApplication {
-        if let cachedApplication {
-            return cachedApplication
+        if let cached = state.withLockUnchecked({ $0.application }) {
+            return cached
         }
 
         guard let clientID else {
@@ -271,9 +291,31 @@ final class OneDriveCloudProvider: CloudProvider, @unchecked Sendable {
             redirectUri: redirectURI,
             authority: authority
         )
+        // Built outside the lock because the MSAL initializer throws and does
+        // I/O. Two racing callers can each build one; the first instance
+        // published wins, so every caller shares a single MSAL token cache.
         let application = try MSALPublicClientApplication(configuration: configuration)
-        cachedApplication = application
-        return application
+        return state.withLockUnchecked { state in
+            if let cached = state.application {
+                return cached
+            }
+            state.application = application
+            return application
+        }
+    }
+
+    /// Claims the single interactive-auth slot. `false` means a sign-in is
+    /// already running and this caller must not start another.
+    private func beginInteractiveAuthentication() -> Bool {
+        state.withLockUnchecked { state in
+            guard state.isAuthenticating == false else { return false }
+            state.isAuthenticating = true
+            return true
+        }
+    }
+
+    private func endInteractiveAuthentication() {
+        state.withLockUnchecked { $0.isAuthenticating = false }
     }
 
     private var clientID: String? {
@@ -318,6 +360,15 @@ final class OneDriveCloudProvider: CloudProvider, @unchecked Sendable {
         }
     }
 
+    /// Returns a bearer token for `accountId`, coalescing concurrent callers.
+    ///
+    /// Every Graph operation starts here and they run concurrently (a sync
+    /// coordinator refresh overlapping a save, the pending-upload drainer,
+    /// AutoFill). MSAL documents no dedup or thread-safety guarantee for
+    /// simultaneous `acquireTokenSilent` calls, and Microsoft refresh tokens
+    /// are rolling, so two redemptions racing on one account can invalidate
+    /// each other and force an interactive sign-in. One in-flight acquisition
+    /// per account, shared by every waiter.
     private func accessToken(accountId: String) async throws -> String {
         let application = try application()
         let account: MSALAccount
@@ -327,13 +378,40 @@ final class OneDriveCloudProvider: CloudProvider, @unchecked Sendable {
             throw CloudProviderError.notAuthenticated
         }
 
-        let parameters = MSALSilentTokenParameters(scopes: Self.scopes, account: account)
+        let (task, isOwner) = state.withLockUnchecked { state -> (Task<String, Error>, Bool) in
+            if let existing = state.silentTokenTasks[accountId] {
+                return (existing, false)
+            }
+
+            // Unstructured on purpose: it must outlive a caller that gets
+            // cancelled, otherwise the other waiters lose their token.
+            let task = Task {
+                try await Self.acquireTokenSilently(application: application, account: account)
+            }
+            state.silentTokenTasks[accountId] = task
+            return (task, true)
+        }
+
+        defer {
+            if isOwner {
+                state.withLockUnchecked { $0.silentTokenTasks[accountId] = nil }
+            }
+        }
+
+        return try await task.value
+    }
+
+    private static func acquireTokenSilently(
+        application: MSALPublicClientApplication,
+        account: MSALAccount
+    ) async throws -> String {
+        let parameters = MSALSilentTokenParameters(scopes: scopes, account: account)
         let result: MSALResult = try await withCheckedThrowingContinuation { continuation in
             application.acquireTokenSilent(with: parameters) { result, error in
                 if let result {
                     continuation.resume(returning: result)
                 } else {
-                    continuation.resume(throwing: Self.mapMSALError(error))
+                    continuation.resume(throwing: mapMSALError(error))
                 }
             }
         }
@@ -454,6 +532,10 @@ final class OneDriveCloudProvider: CloudProvider, @unchecked Sendable {
 
         var offset = 0
         var completedItem: OneDriveDriveItem?
+        // Counts *consecutive* failures at the current offset; a chunk that
+        // lands clears it, so a long upload is not capped at three hiccups
+        // overall.
+        var attempt = 0
 
         while offset < data.count {
             let end = min(offset + Self.uploadChunkSize, data.count)
@@ -463,29 +545,101 @@ final class OneDriveCloudProvider: CloudProvider, @unchecked Sendable {
             chunkRequest.setValue("\(chunk.count)", forHTTPHeaderField: "Content-Length")
             chunkRequest.setValue("bytes \(offset)-\(end - 1)/\(data.count)", forHTTPHeaderField: "Content-Range")
             chunkRequest.httpBody = chunk
+            // No `Authorization` on the pre-authenticated upload URL: Graph
+            // documents that including it can fail the PUT with HTTP 401.
 
-            let (responseData, response) = try await URLSession.shared.data(for: chunkRequest)
-            guard let httpResponse = response as? HTTPURLResponse else {
-                throw CloudProviderError.unknown(String(localized: "OneDrive upload failed."))
+            let responseData: Data
+            let httpResponse: HTTPURLResponse
+            do {
+                (responseData, httpResponse) = try await send(chunkRequest)
+            } catch {
+                // The connection dropped mid-chunk. The session outlives it, so
+                // the bytes already stored are still usable; only the abandoned
+                // request is lost.
+                attempt += 1
+                guard attempt < Self.requestMaxAttempts else {
+                    await cancelUploadSession(at: uploadURL)
+                    throw error
+                }
+
+                try await Task.sleep(for: Self.retryDelay(forAttempt: attempt, retryAfter: nil))
+                offset = await synchronizedOffset(for: uploadURL, fallback: offset, totalBytes: data.count)
+                continue
             }
 
             switch httpResponse.statusCode {
             case 200, 201:
-                completedItem = try decoder.decode(OneDriveDriveItem.self, from: responseData)
+                do {
+                    completedItem = try decoder.decode(OneDriveDriveItem.self, from: responseData)
+                } catch let decodingError as DecodingError {
+                    await cancelUploadSession(at: uploadURL)
+                    throw CloudProviderError.unknown(String(describing: decodingError))
+                }
             case 202:
                 break
             default:
-                throw mapHTTPError(statusCode: httpResponse.statusCode, data: responseData)
+                attempt += 1
+                guard Self.shouldRetryUploadChunk(statusCode: httpResponse.statusCode, attempt: attempt) else {
+                    let mappedError = mapHTTPError(statusCode: httpResponse.statusCode, data: responseData)
+                    await cancelUploadSession(at: uploadURL)
+                    throw mappedError
+                }
+
+                try await Task.sleep(
+                    for: Self.retryDelay(
+                        forAttempt: attempt,
+                        retryAfter: httpResponse.value(forHTTPHeaderField: "Retry-After")
+                    )
+                )
+                // Never blindly resend: the service may already hold some or all
+                // of this range, and resending it earns a 416.
+                offset = await synchronizedOffset(for: uploadURL, fallback: offset, totalBytes: data.count)
+                continue
             }
 
             offset = end
+            attempt = 0
             progress(Double(offset) / Double(data.count))
         }
 
         guard let completedItem else {
+            await cancelUploadSession(at: uploadURL)
             throw CloudProviderError.unknown(String(localized: "OneDrive upload did not complete."))
         }
         return completedItem
+    }
+
+    /// Re-anchors the upload offset on the service's own view of the session.
+    ///
+    /// `GET uploadUrl` reports the ranges it has not received; resumption
+    /// starts at the lowest of them. Any failure to read the status falls back
+    /// to `fallback`, which just re-sends the chunk that failed — worst case
+    /// the service answers 416 and the next pass tries the status again.
+    private func synchronizedOffset(for uploadURL: URL, fallback: Int, totalBytes: Int) async -> Int {
+        var request = URLRequest(url: uploadURL)
+        request.httpMethod = "GET"
+
+        guard let (data, httpResponse) = try? await send(request),
+              (200..<300).contains(httpResponse.statusCode),
+              let status = try? decoder.decode(OneDriveUploadSessionStatus.self, from: data),
+              let ranges = status.nextExpectedRanges,
+              let offset = Self.resumeOffset(fromNextExpectedRanges: ranges, totalBytes: totalBytes) else {
+            return fallback
+        }
+
+        return offset
+    }
+
+    /// Best-effort `DELETE uploadUrl`.
+    ///
+    /// An abandoned session keeps its partially uploaded bytes until
+    /// `expirationDateTime`, and on a create-only upload it also keeps the
+    /// destination name reserved. Failing to cancel must never mask the error
+    /// that caused the abort, so the result is deliberately discarded.
+    private func cancelUploadSession(at uploadURL: URL) async {
+        var request = URLRequest(url: uploadURL)
+        request.httpMethod = "DELETE"
+        _ = try? await URLSession.shared.data(for: request)
     }
 
     /// Creates an upload session, retrying transient failures.
@@ -496,8 +650,21 @@ final class OneDriveCloudProvider: CloudProvider, @unchecked Sendable {
     /// (https://github.com/OneDrive/onedrive-api-docs/issues/1064), which used
     /// to surface as a failed save that succeeded on a manual retry; Microsoft's
     /// own best-practice guidance for this endpoint is to retry transient
-    /// failures. The chunk PUT loop is deliberately *not* retried — correct
-    /// resumption there requires `nextExpectedRanges` handling.
+    /// failures.
+    ///
+    /// **Known unguarded window.** `If-Match` is validated here, at session
+    /// creation, but the replace happens later, when the last chunk lands. A
+    /// remote write inside that window is overwritten silently. Graph's only
+    /// documented way to revalidate at commit time is `deferCommit: true` plus
+    /// an explicit commit request, and on a personal drive that commit is a PUT
+    /// carrying `@microsoft.graph.sourceUrl` — a flow that is reported broken
+    /// for exactly this case: `conflictBehavior: replace` is rejected with
+    /// "Name conflict behavior: replace is not valid for this operation", and
+    /// omitting it fails with a name conflict instead
+    /// (https://github.com/OneDrive/onedrive-api-docs/issues/1616, open since
+    /// 2022). So the window stays. It is bounded in practice: overwrites at or
+    /// below `simpleUploadByteLimit` never reach this path, and they cover
+    /// essentially every KDBX database. Revisit if that issue is ever fixed.
     private func createUploadSession(
         path: String,
         expectedRev: String?,
@@ -526,20 +693,7 @@ final class OneDriveCloudProvider: CloudProvider, @unchecked Sendable {
             }
             request.httpBody = body
 
-            let responseData: Data
-            let httpResponse: HTTPURLResponse
-            do {
-                let (data, response) = try await URLSession.shared.data(for: request)
-                guard let http = response as? HTTPURLResponse else {
-                    throw CloudProviderError.unknown(String(localized: "OneDrive request failed."))
-                }
-                responseData = data
-                httpResponse = http
-            } catch let error as CloudProviderError {
-                throw error
-            } catch {
-                throw Self.mapGenericError(error)
-            }
+            let (responseData, httpResponse) = try await send(request)
 
             if (200..<300).contains(httpResponse.statusCode) {
                 do {
@@ -559,7 +713,7 @@ final class OneDriveCloudProvider: CloudProvider, @unchecked Sendable {
             }
 
             try await Task.sleep(
-                for: Self.uploadSessionRetryDelay(
+                for: Self.retryDelay(
                     forAttempt: attempt,
                     retryAfter: httpResponse.value(forHTTPHeaderField: "Retry-After")
                 )
@@ -567,29 +721,31 @@ final class OneDriveCloudProvider: CloudProvider, @unchecked Sendable {
         }
     }
 
-    /// Whether a failed `createUploadSession` POST should be tried again.
+    /// Whether a failed Graph request should be tried again.
     ///
     /// `attempt` is 1-based and counts the attempt that just failed. Auth,
     /// permission, not-found, and concurrency failures are deterministic — a
     /// repeat would fail identically, and retrying a 409/412 would paper over a
-    /// genuine conflict. The retryable set is the transient one: the documented
-    /// spurious 400 `invalidRequest`, throttling, and server errors. The
-    /// decision reads the Graph error *code*, never the human-readable message.
+    /// genuine conflict. What is left is the transient set Microsoft tells
+    /// clients to retry: throttling and server errors.
+    ///
+    /// Safe for every caller because no retried request is an unguarded write:
+    /// reads are idempotent, the simple content `PUT` carries `If-Match`, the
+    /// session POST commits no bytes, and a chunk `PUT` is re-anchored against
+    /// the session's own `nextExpectedRanges` before it is resent.
     /// Internal for testing.
-    static func shouldRetryUploadSessionCreation(
+    static func shouldRetryRequest(
         statusCode: Int,
-        errorCode: String?,
-        attempt: Int
+        attempt: Int,
+        maxAttempts: Int = requestMaxAttempts
     ) -> Bool {
-        guard attempt >= 1, attempt < uploadSessionCreationMaxAttempts else {
+        guard attempt >= 1, attempt < maxAttempts else {
             return false
         }
 
         switch statusCode {
         case 401, 403, 404, 409, 412:
             return false
-        case 400:
-            return errorCode?.caseInsensitiveCompare("invalidRequest") == .orderedSame
         case 429:
             return true
         case 500..<600:
@@ -599,10 +755,52 @@ final class OneDriveCloudProvider: CloudProvider, @unchecked Sendable {
         }
     }
 
-    /// Backoff before retrying `createUploadSession`: ~0.5s, then ~1.5s. A
+    /// Whether a failed `createUploadSession` POST should be tried again.
+    ///
+    /// Same policy as `shouldRetryRequest(statusCode:attempt:maxAttempts:)`
+    /// plus one endpoint-specific case: OneDrive answers well-formed
+    /// session-creation requests with a spurious HTTP 400 `invalidRequest`
+    /// (https://github.com/OneDrive/onedrive-api-docs/issues/1064). That is
+    /// safe to repeat only here, where the POST commits no bytes, and the
+    /// decision reads the Graph error *code*, never the human-readable message.
+    /// Internal for testing.
+    static func shouldRetryUploadSessionCreation(
+        statusCode: Int,
+        errorCode: String?,
+        attempt: Int
+    ) -> Bool {
+        guard statusCode != 400 else {
+            guard attempt >= 1, attempt < uploadSessionCreationMaxAttempts else {
+                return false
+            }
+            return errorCode?.caseInsensitiveCompare("invalidRequest") == .orderedSame
+        }
+
+        return shouldRetryRequest(
+            statusCode: statusCode,
+            attempt: attempt,
+            maxAttempts: uploadSessionCreationMaxAttempts
+        )
+    }
+
+    /// Whether a failed chunk `PUT` can be resumed.
+    ///
+    /// Adds `416 Requested Range Not Satisfiable` to the shared transient set:
+    /// Graph answers 416 when the client resends bytes the service already
+    /// holds, which is fixed by resyncing the offset against
+    /// `nextExpectedRanges`, not by failing the save. Internal for testing.
+    static func shouldRetryUploadChunk(statusCode: Int, attempt: Int) -> Bool {
+        guard statusCode != 416 else {
+            return attempt >= 1 && attempt < requestMaxAttempts
+        }
+
+        return shouldRetryRequest(statusCode: statusCode, attempt: attempt)
+    }
+
+    /// Backoff before retrying a Graph request: ~0.5s, then ~1.5s. A
     /// server-supplied `Retry-After` (seconds) wins when present, clamped so a
     /// bad header cannot stall the save. Internal for testing.
-    static func uploadSessionRetryDelay(forAttempt attempt: Int, retryAfter: String?) -> Duration {
+    static func retryDelay(forAttempt attempt: Int, retryAfter: String?) -> Duration {
         if let retryAfter,
            let seconds = Double(retryAfter.trimmingCharacters(in: .whitespaces)),
            seconds > 0 {
@@ -612,33 +810,125 @@ final class OneDriveCloudProvider: CloudProvider, @unchecked Sendable {
         return .seconds(0.5 * pow(3.0, Double(max(attempt, 1) - 1)))
     }
 
+    /// Byte offset to resume an interrupted upload session from, derived from
+    /// the session's `nextExpectedRanges`.
+    ///
+    /// Entries are `start-end` or an open-ended `start-`, the service may list
+    /// several gaps, and it does not promise to list them all — so the only
+    /// safe resumption point is the lowest missing byte. Returns `nil` when the
+    /// payload is fully received or the ranges cannot be parsed, which leaves
+    /// the caller on its own offset. Internal for testing.
+    static func resumeOffset(fromNextExpectedRanges ranges: [String], totalBytes: Int) -> Int? {
+        let starts = ranges.compactMap { range -> Int? in
+            let start = range.split(separator: "-", maxSplits: 1, omittingEmptySubsequences: false).first
+            guard let start, let offset = Int(start.trimmingCharacters(in: .whitespaces)) else {
+                return nil
+            }
+            return (0..<totalBytes).contains(offset) ? offset : nil
+        }
+
+        return starts.min()
+    }
+
     /// Whether an overwrite of this size can take the single-request PUT.
     /// Internal for testing.
     static func shouldUseSimpleUpload(byteCount: Int) -> Bool {
         byteCount <= simpleUploadByteLimit
     }
 
-    private func decodedGraphResponse<T: Decodable>(
-        _ type: T.Type,
-        request: URLRequest
-    ) async throws -> T {
+    /// Issues one Graph request, normalizing transport failures.
+    private func send(_ request: URLRequest) async throws -> (data: Data, response: HTTPURLResponse) {
         do {
             let (data, response) = try await URLSession.shared.data(for: request)
             guard let httpResponse = response as? HTTPURLResponse else {
                 throw CloudProviderError.unknown(String(localized: "OneDrive request failed."))
             }
+            return (data, httpResponse)
+        } catch let error as CloudProviderError {
+            throw error
+        } catch {
+            throw Self.mapGenericError(error)
+        }
+    }
 
-            guard (200..<300).contains(httpResponse.statusCode) else {
+    /// Issues a Graph request, retrying throttling and server errors with
+    /// capped exponential backoff that honors `Retry-After`.
+    private func sendRetrying(_ request: URLRequest) async throws -> Data {
+        var attempt = 0
+        while true {
+            attempt += 1
+
+            let (data, httpResponse) = try await send(request)
+            if (200..<300).contains(httpResponse.statusCode) {
+                return data
+            }
+
+            guard Self.shouldRetryRequest(statusCode: httpResponse.statusCode, attempt: attempt) else {
                 throw mapHTTPError(statusCode: httpResponse.statusCode, data: data)
             }
 
+            try await Task.sleep(
+                for: Self.retryDelay(
+                    forAttempt: attempt,
+                    retryAfter: httpResponse.value(forHTTPHeaderField: "Retry-After")
+                )
+            )
+        }
+    }
+
+    /// Downloads to a temporary file, retrying throttling and server errors.
+    /// The caller owns the returned URL; every discarded body is unlinked here
+    /// so a retried download cannot leak temp files.
+    private func downloadRetrying(_ request: URLRequest) async throws -> URL {
+        var attempt = 0
+        while true {
+            attempt += 1
+
+            let temporaryURL: URL
+            let httpResponse: HTTPURLResponse
+            do {
+                let (url, response) = try await URLSession.shared.download(for: request)
+                guard let http = response as? HTTPURLResponse else {
+                    try? FileManager.default.removeItem(at: url)
+                    throw CloudProviderError.unknown(String(localized: "OneDrive download failed."))
+                }
+                temporaryURL = url
+                httpResponse = http
+            } catch let error as CloudProviderError {
+                throw error
+            } catch {
+                throw Self.mapGenericError(error)
+            }
+
+            if (200..<300).contains(httpResponse.statusCode) {
+                return temporaryURL
+            }
+
+            let body = try? Data(contentsOf: temporaryURL)
+            try? FileManager.default.removeItem(at: temporaryURL)
+
+            guard Self.shouldRetryRequest(statusCode: httpResponse.statusCode, attempt: attempt) else {
+                throw mapHTTPError(statusCode: httpResponse.statusCode, data: body)
+            }
+
+            try await Task.sleep(
+                for: Self.retryDelay(
+                    forAttempt: attempt,
+                    retryAfter: httpResponse.value(forHTTPHeaderField: "Retry-After")
+                )
+            )
+        }
+    }
+
+    private func decodedGraphResponse<T: Decodable>(
+        _ type: T.Type,
+        request: URLRequest
+    ) async throws -> T {
+        let data = try await sendRetrying(request)
+        do {
             return try decoder.decode(type, from: data)
-        } catch let error as CloudProviderError {
-            throw error
         } catch let decodingError as DecodingError {
             throw CloudProviderError.unknown(String(describing: decodingError))
-        } catch {
-            throw Self.mapGenericError(error)
         }
     }
 
@@ -713,22 +1003,80 @@ final class OneDriveCloudProvider: CloudProvider, @unchecked Sendable {
     }
 
     private func mapHTTPError(statusCode: Int, data: Data?) -> Error {
-        let message = data.flatMap { try? decoder.decode(OneDriveErrorResponse.self, from: $0) }?.error.message
+        let error = data.flatMap { try? decoder.decode(OneDriveErrorResponse.self, from: $0) }?.error
+        return Self.mapGraphError(
+            statusCode: statusCode,
+            errorCode: error?.code,
+            message: error?.message
+        )
+    }
+
+    /// Maps a Graph failure onto a provider error.
+    ///
+    /// The decoded `code` leads and the status code is the fallback, because
+    /// the status alone is routinely the wrong remedy: a 403 is `accessDenied`
+    /// far more often than a missing scope, so telling the user to reconnect
+    /// sends them through a sign-in that changes nothing, and a full drive
+    /// arrives as HTTP 507 or a `quotaLimitReached` code, not as the English
+    /// word "quota" inside a 400 message. Internal for testing.
+    static func mapGraphError(statusCode: Int, errorCode: String?, message: String?) -> CloudProviderError {
+        switch errorCode?.lowercased() {
+        case "quotalimitreached", "insufficientstorage", "storagelimitreached":
+            return .insufficientSpace
+        case "accessdenied", "notallowed":
+            return .permissionDenied
+        case "unauthenticated", "invalidauthenticationtoken", "expiredauthtoken":
+            return .notAuthenticated
+        case "authorizationrequestdenied", "insufficientscope", "insufficientpermissions":
+            return .writeScopeRequired
+        case "namealreadyexists", "resourcemodified":
+            return .conflict(remoteRev: nil)
+        case "itemnotfound":
+            return .fileNotFound
+        case "activitylimitreached":
+            return .rateLimited
+        case "servicenotavailable":
+            return .serviceUnavailable
+        case "invalidrequest" where isNameShapedFailure(message: message):
+            return .invalidName
+        default:
+            break
+        }
 
         switch statusCode {
         case 401:
-            return CloudProviderError.notAuthenticated
+            return .notAuthenticated
         case 403:
-            return CloudProviderError.writeScopeRequired
+            return .permissionDenied
         case 404:
-            return CloudProviderError.fileNotFound
+            return .fileNotFound
         case 409, 412:
-            return CloudProviderError.conflict(remoteRev: nil)
-        case 400 where message?.localizedCaseInsensitiveContains("quota") == true:
-            return CloudProviderError.unknown(message ?? String(localized: "OneDrive quota is unavailable."))
+            return .conflict(remoteRev: nil)
+        case 429:
+            return .rateLimited
+        case 507:
+            return .insufficientSpace
+        case 500..<600:
+            return .serviceUnavailable
         default:
-            return CloudProviderError.unknown(message ?? String(localized: "OneDrive request failed with HTTP \(statusCode)."))
+            return .unknown(message ?? String(localized: "OneDrive request failed with HTTP \(statusCode)."))
         }
+    }
+
+    /// Whether a Graph `invalidRequest` is complaining about the file name.
+    ///
+    /// Graph has no dedicated code for an illegal name — personal OneDrive
+    /// reports one as `invalidRequest` and only the (always-English) message
+    /// says which part of the request was wrong. Deliberately narrow: anything
+    /// that does not clearly read as a name complaint falls through to the raw
+    /// message rather than being mislabeled. Internal for testing.
+    static func isNameShapedFailure(message: String?) -> Bool {
+        guard let message, message.localizedCaseInsensitiveContains("name") else {
+            return false
+        }
+
+        let markers = ["invalid", "illegal", "not allowed", "disallowed", "character"]
+        return markers.contains { message.localizedCaseInsensitiveContains($0) }
     }
 
     private static func mapMSALError(_ error: Error?) -> Error {
@@ -750,12 +1098,18 @@ final class OneDriveCloudProvider: CloudProvider, @unchecked Sendable {
         return CloudProviderError.unknown(nsError.localizedDescription)
     }
 
-    private static func mapGenericError(_ error: Error) -> Error {
-        let nsError = error as NSError
-        if nsError.domain == NSURLErrorDomain {
+    /// Maps a transport failure onto a provider error.
+    ///
+    /// Only genuinely connectivity-shaped `NSURLErrorDomain` codes become
+    /// `.networkUnavailable`; collapsing the whole domain used to report a TLS
+    /// failure or a server-certificate rejection as "no network connection",
+    /// which both hides a security-relevant error and invites the caller to
+    /// fall back to the cached copy. Internal for testing.
+    static func mapGenericError(_ error: Error) -> Error {
+        if CloudProviderError.isLikelyOffline(error) {
             return CloudProviderError.networkUnavailable
         }
-        return CloudProviderError.unknown(nsError.localizedDescription)
+        return CloudProviderError.unknown((error as NSError).localizedDescription)
     }
 
     private static func makeCloudFile(from item: OneDriveDriveItem) -> CloudFile? {
@@ -891,6 +1245,11 @@ private struct OneDriveUploadSession: Decodable {
     private enum CodingKeys: String, CodingKey {
         case uploadURL = "uploadUrl"
     }
+}
+
+/// `GET uploadUrl` response: the byte ranges the service has *not* received.
+private struct OneDriveUploadSessionStatus: Decodable {
+    let nextExpectedRanges: [String]?
 }
 
 private struct OneDriveErrorResponse: Decodable {
