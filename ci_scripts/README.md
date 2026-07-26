@@ -30,8 +30,8 @@ The artifact set itself is declared in `KeeForgeTests/KDBXCompatibilitySupport.s
 
 - Keep these scripts deterministic and noninteractive.
 - If CI needs new generated files or dependencies, add them here instead of assuming the checked-in `.xcodeproj` is current.
-- `BuildConfig.xcconfig` is a checked-in include file, not a generated source of truth.
-- Local developers should copy `BuildConfig.local.example.xcconfig` to `BuildConfig.local.xcconfig`, fill in `DROPBOX_APP_KEY`, and optionally add `ONEDRIVE_CLIENT_ID` to test OneDrive OAuth.
+- `Configs/BuildConfig.xcconfig` is a checked-in include file, not a generated source of truth. It lives in `Configs/` (not the repo root) so XcodeGen wraps it in a stable `Configs` group instead of one named after the checkout directory.
+- Local developers should copy `BuildConfig.local.example.xcconfig` to `BuildConfig.local.xcconfig` (both at the repo root), fill in `DROPBOX_APP_KEY`, and optionally add `ONEDRIVE_CLIENT_ID` to test OneDrive OAuth.
 - Xcode Cloud **must** provide `DROPBOX_APP_KEY` and `ONEDRIVE_CLIENT_ID` as environment variables on the archive workflow; for non-archive actions `ci_post_clone.sh` falls back to CI-only placeholders so project generation still succeeds. An archive (or a run with `REQUIRE_REAL_CLOUD_KEYS=1`) whose `DROPBOX_APP_KEY` or `ONEDRIVE_CLIENT_ID` is missing or still a placeholder fails the build instead of shipping non-working cloud sign-in. Outside archives, `ONEDRIVE_CLIENT_ID` stays optional — the app just disables OneDrive sign-in.
 - GitHub Actions can keep using simulator-safe placeholder values to materialize `BuildConfig.local.xcconfig`; the app treats the CI placeholders as cloud providers disabled for real sign-in.
 - The Dropbox key is interpolated into the `db-$(DROPBOX_APP_KEY)` `CFBundleURLScheme`, so the CI placeholder is `ciplaceholderdropboxappkey` — alphanumerics only. The old `CI_PLACEHOLDER_DROPBOX_APP_KEY` value contains underscores, which App Store Connect rejects with ITMS-90158; keep any new placeholder RFC1738-legal. `KeeForgeTests/URLSchemeFormatTests.swift` enforces this on the built app bundle.

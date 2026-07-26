@@ -1,0 +1,7 @@
+// Shared build settings entry point.
+// Lives in Configs/ so XcodeGen groups it under a stable "Configs" group;
+// a root-level path would name the group after the checkout directory.
+// Copy BuildConfig.local.example.xcconfig (repo root) to BuildConfig.local.xcconfig
+// and replace the placeholder values before building.
+#include? "../BuildConfig.local.xcconfig"
+#include? "../BuildMetadata.xcconfig"

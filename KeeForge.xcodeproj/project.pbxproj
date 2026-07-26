@@ -715,13 +715,13 @@
 		4D057DDB7EF1E20587FC6378 /* AutoFillStoreInspectorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AutoFillStoreInspectorView.swift; sourceTree = "<group>"; };
 		4D4331340574F2A0595CAA0E /* KDBXRoundTripTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KDBXRoundTripTests.swift; sourceTree = "<group>"; };
 		4ECEA7AAE4FB7C45606207D1 /* SyncedFolderDetector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncedFolderDetector.swift; sourceTree = "<group>"; };
+		4F68006D6BBE667770D1CB5B /* BuildConfig.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = BuildConfig.xcconfig; sourceTree = "<group>"; };
 		50107994AC5A4E705F829F17 /* WebDAVConnectViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebDAVConnectViewModel.swift; sourceTree = "<group>"; };
 		51105ADF7C41EB47401418D9 /* TOTPGenerator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TOTPGenerator.swift; sourceTree = "<group>"; };
 		52E6959E8F9A249BED612C30 /* AttachmentPreviewFileStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AttachmentPreviewFileStoreTests.swift; sourceTree = "<group>"; };
 		5335012167FBEBF40FE67EC7 /* OneDriveCloudProviderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OneDriveCloudProviderTests.swift; sourceTree = "<group>"; };
 		5453C26A39D0DC4187275D6A /* EntryListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EntryListView.swift; sourceTree = "<group>"; };
 		553C63DEBDFFD48E4FC4646E /* AutoFillSaveCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AutoFillSaveCoordinator.swift; sourceTree = "<group>"; };
-		59FC14FEE72717FD616CCEBE /* BuildConfig.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = BuildConfig.xcconfig; sourceTree = "<group>"; };
 		5B9296F5447FA170D81D6166 /* AutoFillStoreInspectorModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AutoFillStoreInspectorModel.swift; sourceTree = "<group>"; };
 		5CF73F233BAC9141F9575CEC /* WebDAVConnectViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebDAVConnectViewModelTests.swift; sourceTree = "<group>"; };
 		5DDEBC96D0673E928CD9681C /* WhatsNewPresentationServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WhatsNewPresentationServiceTests.swift; sourceTree = "<group>"; };
@@ -1184,15 +1184,6 @@
 			path = AutoFill;
 			sourceTree = "<group>";
 		};
-		A97DA02AE3A8D64BF97E8F92 /* test-suite-audit-77d9fe */ = {
-			isa = PBXGroup;
-			children = (
-				59FC14FEE72717FD616CCEBE /* BuildConfig.xcconfig */,
-			);
-			name = "test-suite-audit-77d9fe";
-			path = .;
-			sourceTree = "<group>";
-		};
 		ACD0829002867CB7844115FB /* Products */ = {
 			isa = PBXGroup;
 			children = (
@@ -1252,6 +1243,7 @@
 				C215140854AFDC51CA451F3C /* App */,
 				A376BB645DDF43A121708494 /* AutoFillExtension */,
 				1BDD193BABF3BD18A4AB9E58 /* compatibility */,
+				ED6E6F25C2151FBAAF6CB9E7 /* Configs */,
 				9F80FAF53100B49B0262BFFA /* Extensions */,
 				94D564740093EF0F011B5A3C /* KeeForgeMacUITests */,
 				F1BE673352A52C0167F2C5CE /* KeeForgeTests */,
@@ -1261,12 +1253,19 @@
 				65E3F4C6ED83A516F2D23EB6 /* Resources */,
 				D35B1898D85AD1D33CE13604 /* round-trip */,
 				0F643F928D1B442EDCF4379B /* Services */,
-				A97DA02AE3A8D64BF97E8F92 /* test-suite-audit-77d9fe */,
 				71F778658A17A600FECAC9C6 /* TestFixtures */,
 				E7125F33479895937960E6A0 /* ViewModels */,
 				10B12D9B5A42DCD628282DA3 /* Views */,
 				ACD0829002867CB7844115FB /* Products */,
 			);
+			sourceTree = "<group>";
+		};
+		ED6E6F25C2151FBAAF6CB9E7 /* Configs */ = {
+			isa = PBXGroup;
+			children = (
+				4F68006D6BBE667770D1CB5B /* BuildConfig.xcconfig */,
+			);
+			path = Configs;
 			sourceTree = "<group>";
 		};
 		F1BE673352A52C0167F2C5CE /* KeeForgeTests */ = {
@@ -2463,7 +2462,7 @@
 		};
 		433642D014742A51E017BA5F /* Release */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = 59FC14FEE72717FD616CCEBE /* BuildConfig.xcconfig */;
+			baseConfigurationReference = 4F68006D6BBE667770D1CB5B /* BuildConfig.xcconfig */;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				CLANG_ANALYZER_NONNULL = YES;
@@ -2726,7 +2725,7 @@
 		};
 		F94E35C15125598334295DFD /* Debug */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = 59FC14FEE72717FD616CCEBE /* BuildConfig.xcconfig */;
+			baseConfigurationReference = 4F68006D6BBE667770D1CB5B /* BuildConfig.xcconfig */;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				CLANG_ANALYZER_NONNULL = YES;
