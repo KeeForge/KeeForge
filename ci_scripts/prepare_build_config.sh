@@ -4,11 +4,26 @@ set -euo pipefail
 REPO_ROOT="${1:-$(pwd)}"
 LOCAL_CONFIG_PATH="${REPO_ROOT}/BuildConfig.local.xcconfig"
 METADATA_CONFIG_PATH="${REPO_ROOT}/BuildMetadata.xcconfig"
-CI_PLACEHOLDER_DROPBOX_APP_KEY="CI_PLACEHOLDER_DROPBOX_APP_KEY"
+# The Dropbox key is interpolated into a CFBundleURLScheme (`db-$(DROPBOX_APP_KEY)`),
+# so the CI placeholder must itself be a legal RFC1738 scheme tail: alphanumerics,
+# period, hyphen, or plus only. Underscores get the archive rejected by App Store
+# Connect with ITMS-90158.
+CI_PLACEHOLDER_DROPBOX_APP_KEY="ciplaceholderdropboxappkey"
+LEGACY_CI_PLACEHOLDER_DROPBOX_APP_KEY="CI_PLACEHOLDER_DROPBOX_APP_KEY"
 CI_PLACEHOLDER_ONEDRIVE_CLIENT_ID="00000000-0000-0000-0000-000000000000"
 
 is_ci_environment() {
   [[ -n "${CI:-}" || -n "${CI_XCODEBUILD_ACTION:-}" || -n "${CI_PRIMARY_REPOSITORY_PATH:-}" || -n "${GITHUB_ACTIONS:-}" ]]
+}
+
+# Placeholders are fine for simulator test runs, but an archive is a shippable
+# binary: it must carry the real keys or fail loudly here.
+requires_real_cloud_keys() {
+  [[ "${REQUIRE_REAL_CLOUD_KEYS:-0}" == "1" || "${CI_XCODEBUILD_ACTION:-}" == "archive" ]]
+}
+
+is_dropbox_placeholder() {
+  [[ "$1" == "${CI_PLACEHOLDER_DROPBOX_APP_KEY}" || "$1" == "${LEGACY_CI_PLACEHOLDER_DROPBOX_APP_KEY}" ]]
 }
 
 write_metadata() {
@@ -69,8 +84,13 @@ validate_setting() {
   value="$(read_setting "${key}")"
   value="$(printf "%s" "${value}" | tr -d '[:space:]')"
 
-  if [[ "${key}" == "DROPBOX_APP_KEY" && "${value}" == "${CI_PLACEHOLDER_DROPBOX_APP_KEY}" ]] && is_ci_environment; then
-    return
+  if [[ "${key}" == "DROPBOX_APP_KEY" ]] && is_dropbox_placeholder "${value}"; then
+    if requires_real_cloud_keys; then
+      fail_with_message "DROPBOX_APP_KEY is still the CI placeholder while producing an archive. Set the real DROPBOX_APP_KEY environment variable on this workflow."
+    fi
+    if is_ci_environment; then
+      return
+    fi
   fi
   if [[ "${key}" == "ONEDRIVE_CLIENT_ID" && "${value}" == "${CI_PLACEHOLDER_ONEDRIVE_CLIENT_ID}" ]] && is_ci_environment; then
     return

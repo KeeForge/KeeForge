@@ -53,7 +53,7 @@ jobs:
 
       - name: Prepare build config
         env:
-          DROPBOX_APP_KEY: CI_PLACEHOLDER_DROPBOX_APP_KEY
+          DROPBOX_APP_KEY: ciplaceholderdropboxappkey
         run: BOOTSTRAP_LOCAL_CONFIG_FROM_ENV=1 ./ci_scripts/prepare_build_config.sh .
 
       - name: Generate project

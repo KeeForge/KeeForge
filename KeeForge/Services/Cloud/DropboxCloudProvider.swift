@@ -473,6 +473,10 @@ final class DropboxCloudProvider: CloudProvider, @unchecked Sendable {
         let trimmed = rawValue.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty,
               trimmed != "DROPBOX_APP_KEY",
+              trimmed != "YOUR_DROPBOX_APP_KEY",
+              // Current CI placeholder (RFC1738-safe so `db-<key>` stays a legal
+              // URL scheme) plus the legacy underscore form kept for older configs.
+              trimmed != "ciplaceholderdropboxappkey",
               trimmed != "CI_PLACEHOLDER_DROPBOX_APP_KEY" else {
             return nil
         }
