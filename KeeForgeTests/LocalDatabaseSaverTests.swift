@@ -233,18 +233,83 @@ final class LocalDatabaseSaverTests: XCTestCase {
             databaseURL: databaseURL,
             entryTitle: "Cached Entry"
         )
+        let cacheWrites = WriteCounter()
+        var environment = LocalDatabaseSaver.Environment.live
+        let liveCacheCopy = environment.cacheDatabaseCopy
+        environment.cacheDatabaseCopy = { data, reference in
+            cacheWrites.increment()
+            try liveCacheCopy(data, reference)
+        }
 
         _ = try await LocalDatabaseSaver.save(
             draft: context.draft,
             reference: reference,
             compositeKey: context.compositeKey,
-            openTimeSHA512: context.openTimeSHA512
+            openTimeSHA512: context.openTimeSHA512,
+            environment: environment
         )
 
         let savedData = try Data(contentsOf: databaseURL)
         let cachedURL = try XCTUnwrap(DatabaseListStore.cachedDatabaseURL(for: reference))
 
         XCTAssertEqual(try Data(contentsOf: cachedURL), savedData)
+        XCTAssertEqual(
+            cacheWrites.count,
+            1,
+            "Local references save to the bookmarked file, so the explicit cache refresh is load-bearing"
+        )
+    }
+
+    func testSaveCloudReferenceResolvedToCacheWritesCacheExactlyOnce() async throws {
+        // A cloud-backed reference has no bookmark, so (as in an AutoFill
+        // extension save) the resolved save location IS the shared cache
+        // file. The atomic replace is the cache write; a second refresh
+        // through cacheDatabaseCopy would write the same bytes again.
+        let reference = makeCloudReference()
+        let fixtureURL = try TestDatabaseSupport.fixtureURL(
+            bundle: Bundle(for: LocalDatabaseSaverTests.self)
+        )
+        try DatabaseListStore.cacheDatabaseCopy(try Data(contentsOf: fixtureURL), for: reference)
+        let cacheURL = try XCTUnwrap(DatabaseListStore.cachedDatabaseURL(for: reference))
+        let context = try makeDirtySaveContext(
+            databaseURL: cacheURL,
+            entryTitle: "Cloud Cache Entry"
+        )
+
+        let cacheWrites = WriteCounter()
+        let cachePath = cacheURL.standardizedFileURL.resolvingSymlinksInPath().path
+        var environment = LocalDatabaseSaver.Environment.live
+        let liveReplace = environment.replaceFileAtomically
+        environment.replaceFileAtomically = { data, url in
+            if url.standardizedFileURL.resolvingSymlinksInPath().path == cachePath {
+                cacheWrites.increment()
+            }
+            try liveReplace(data, url)
+        }
+        let liveCacheCopy = environment.cacheDatabaseCopy
+        environment.cacheDatabaseCopy = { data, reference in
+            cacheWrites.increment()
+            try liveCacheCopy(data, reference)
+        }
+
+        let result = try await LocalDatabaseSaver.save(
+            draft: context.draft,
+            reference: reference,
+            compositeKey: context.compositeKey,
+            openTimeSHA512: context.openTimeSHA512,
+            environment: environment
+        )
+
+        guard case .saved(let newSHA512) = result else {
+            XCTFail("Expected save to succeed.")
+            return
+        }
+        XCTAssertEqual(
+            cacheWrites.count,
+            1,
+            "Saving a cloud reference must write the shared cache exactly once"
+        )
+        XCTAssertEqual(KDBXCrypto.sha512(try Data(contentsOf: cacheURL)), newSHA512)
     }
 
     func testSaveRemoteChangedSinceOpenReturnsConflictDoesNotWrite() async throws {
@@ -447,6 +512,38 @@ final class LocalDatabaseSaverTests: XCTestCase {
         )
     }
 
+    private func makeCloudReference() -> DatabaseReference {
+        DatabaseReference(
+            id: UUID(),
+            nickname: nil,
+            filename: "cloud.kdbx",
+            bookmarkData: nil,
+            keyFileBookmarkData: nil,
+            keyFileFilename: nil,
+            isQuickLaunch: false,
+            lastOpenedAt: nil,
+            addedAt: Date(timeIntervalSince1970: 0),
+            colorTag: nil,
+            legacyKeychainFilename: nil,
+            isReadOnly: false,
+            autoFillEnabled: true,
+            editsAcknowledgedAt: nil,
+            source: .cloud(
+                CloudSyncMetadata(
+                    provider: CloudProviderKind.dropbox.rawValue,
+                    accountId: "acct-local-saver",
+                    fileId: "/Vaults/cloud.kdbx",
+                    displayPath: "/Vaults/cloud.kdbx",
+                    remoteContentHash: nil,
+                    remoteModifiedAt: nil,
+                    remoteRev: "rev-1",
+                    lastSyncedAt: nil,
+                    lastSyncError: nil
+                )
+            )
+        )
+    }
+
     private func makeScratchDatabaseCopy(fixtureName: String = "test") throws -> URL {
         let fixtureURL = try TestDatabaseSupport.fixtureURL(
             named: fixtureName,
@@ -528,6 +625,23 @@ private struct SaveContext {
     let compositeKey: Data
     let openTimeSHA512: Data
     let originalRootGroup: KPGroup
+}
+
+private final class WriteCounter: @unchecked Sendable {
+    private let lock = NSLock()
+    private var value = 0
+
+    func increment() {
+        lock.lock()
+        defer { lock.unlock() }
+        value += 1
+    }
+
+    var count: Int {
+        lock.lock()
+        defer { lock.unlock() }
+        return value
+    }
 }
 
 private final class DateSequence: @unchecked Sendable {
