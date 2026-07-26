@@ -492,6 +492,311 @@ final class CloudDatabaseSaverTests: XCTestCase {
         XCTAssertEqual(try Data(contentsOf: cacheURL), context.currentData)
     }
 
+    // MARK: - Saves with no recorded revision (M4)
+
+    func testSaveWithoutRecordedRevConflictsWhenRemoteContentHashMoved() async throws {
+        let reference = try makeCloudReference(remoteRev: nil, remoteContentHash: "remote-hash-A")
+        let cacheURL = DatabaseListStore.cacheLocation(for: reference)
+        let context = try makeDirtySaveContext(cacheURL: cacheURL, entryTitle: "Legacy Reference Entry")
+        let recorder = UploadRecorder()
+        let remoteData = Data("remote-moved-on".utf8)
+        let environment = makeEnvironment(
+            getMetadata: { _ in
+                CloudFileMetadata(
+                    modifiedDate: Date(timeIntervalSince1970: 175),
+                    contentHash: "remote-hash-B",
+                    size: 256,
+                    rev: nil
+                )
+            },
+            upload: { _, data, expectedRev, progress in
+                await recorder.record(data: data, expectedRev: expectedRev)
+                progress(1)
+                return CloudFileMetadata(
+                    modifiedDate: Date(timeIntervalSince1970: 200),
+                    contentHash: "remote-hash-C",
+                    size: Int64(data.count),
+                    rev: nil
+                )
+            },
+            downloadRemoteData: { _ in remoteData }
+        )
+
+        let result = try await CloudDatabaseSaver.save(
+            draft: context.draft,
+            reference: reference,
+            compositeKey: context.compositeKey,
+            openTimeSHA512: context.openTimeSHA512,
+            expectedRev: nil,
+            environment: environment
+        )
+
+        guard case .conflict(let remoteSHA512, let conflictData) = result else {
+            XCTFail("Expected a nil-rev save against a moved remote to conflict.")
+            return
+        }
+
+        let uploadCallCount = await recorder.callCount()
+
+        XCTAssertEqual(uploadCallCount, 0)
+        XCTAssertEqual(remoteSHA512, KDBXCrypto.sha512(remoteData))
+        XCTAssertEqual(conflictData, remoteData)
+        XCTAssertEqual(try Data(contentsOf: cacheURL), context.currentData)
+    }
+
+    func testSaveWithoutRecordedRevUploadsWhenRemoteContentHashStillMatches() async throws {
+        let reference = try makeCloudReference(remoteRev: nil, remoteContentHash: "remote-hash-A")
+        let cacheURL = DatabaseListStore.cacheLocation(for: reference)
+        let context = try makeDirtySaveContext(cacheURL: cacheURL, entryTitle: "Legacy Match Entry")
+        let recorder = UploadRecorder()
+        let environment = makeEnvironment(
+            getMetadata: { _ in
+                CloudFileMetadata(
+                    modifiedDate: Date(timeIntervalSince1970: 150),
+                    contentHash: "remote-hash-A",
+                    size: Int64(context.currentData.count),
+                    rev: nil
+                )
+            },
+            upload: { _, data, expectedRev, progress in
+                await recorder.record(data: data, expectedRev: expectedRev)
+                progress(1)
+                return CloudFileMetadata(
+                    modifiedDate: Date(timeIntervalSince1970: 200),
+                    contentHash: "remote-hash-B",
+                    size: Int64(data.count),
+                    rev: nil
+                )
+            }
+        )
+
+        let result = try await CloudDatabaseSaver.save(
+            draft: context.draft,
+            reference: reference,
+            compositeKey: context.compositeKey,
+            openTimeSHA512: context.openTimeSHA512,
+            expectedRev: nil,
+            environment: environment
+        )
+
+        guard case .saved = result else {
+            XCTFail("Expected a nil-rev save against an unchanged remote to succeed.")
+            return
+        }
+
+        let uploadCallCount = await recorder.callCount()
+        XCTAssertEqual(uploadCallCount, 1)
+    }
+
+    func testSaveWithoutRecordedRevConflictsWhenRemoteReportsUnseenRevision() async throws {
+        let reference = try makeCloudReference(remoteRev: nil, remoteContentHash: nil)
+        let cacheURL = DatabaseListStore.cacheLocation(for: reference)
+        let context = try makeDirtySaveContext(cacheURL: cacheURL, entryTitle: "Unseen Revision Entry")
+        let recorder = UploadRecorder()
+        let remoteData = Data("remote-with-etag".utf8)
+        let environment = makeEnvironment(
+            getMetadata: { _ in
+                CloudFileMetadata(
+                    modifiedDate: Date(timeIntervalSince1970: 175),
+                    contentHash: nil,
+                    size: 256,
+                    rev: "\"etag-we-never-recorded\""
+                )
+            },
+            upload: { _, data, expectedRev, progress in
+                await recorder.record(data: data, expectedRev: expectedRev)
+                progress(1)
+                return CloudFileMetadata(
+                    modifiedDate: Date(timeIntervalSince1970: 200),
+                    contentHash: nil,
+                    size: Int64(data.count),
+                    rev: "\"etag-B\""
+                )
+            },
+            downloadRemoteData: { _ in remoteData }
+        )
+
+        let result = try await CloudDatabaseSaver.save(
+            draft: context.draft,
+            reference: reference,
+            compositeKey: context.compositeKey,
+            openTimeSHA512: context.openTimeSHA512,
+            expectedRev: nil,
+            environment: environment
+        )
+
+        guard case .conflict = result else {
+            XCTFail("Expected a remote reporting an unrecorded revision to be treated as conflict-suspect.")
+            return
+        }
+
+        let uploadCallCount = await recorder.callCount()
+        XCTAssertEqual(uploadCallCount, 0)
+    }
+
+    /// The documented residue: a WebDAV server exposing neither an ETag nor a
+    /// content hash offers nothing to verify against, so saves must keep
+    /// working there rather than conflicting on every attempt.
+    func testSaveAgainstProviderWithoutRevOrContentHashStillUploads() async throws {
+        let reference = try makeCloudReference(remoteRev: nil, remoteContentHash: nil)
+        let cacheURL = DatabaseListStore.cacheLocation(for: reference)
+        let context = try makeDirtySaveContext(cacheURL: cacheURL, entryTitle: "Bare WebDAV Entry")
+        let recorder = UploadRecorder()
+        let environment = makeEnvironment(
+            getMetadata: { _ in
+                CloudFileMetadata(
+                    modifiedDate: Date(timeIntervalSince1970: 150),
+                    contentHash: nil,
+                    size: Int64(context.currentData.count),
+                    rev: nil
+                )
+            },
+            upload: { _, data, expectedRev, progress in
+                await recorder.record(data: data, expectedRev: expectedRev)
+                progress(1)
+                return CloudFileMetadata(
+                    modifiedDate: Date(timeIntervalSince1970: 200),
+                    contentHash: nil,
+                    size: Int64(data.count),
+                    rev: nil
+                )
+            }
+        )
+
+        let result = try await CloudDatabaseSaver.save(
+            draft: context.draft,
+            reference: reference,
+            compositeKey: context.compositeKey,
+            openTimeSHA512: context.openTimeSHA512,
+            expectedRev: nil,
+            environment: environment
+        )
+
+        guard case .saved = result else {
+            XCTFail("A provider without revisions or content hashes must still be savable.")
+            return
+        }
+
+        let uploadCallCount = await recorder.callCount()
+        let uploadedBytes = await recorder.firstCall()?.data
+        XCTAssertEqual(uploadCallCount, 1)
+        XCTAssertEqual(try Data(contentsOf: cacheURL), uploadedBytes)
+    }
+
+    func testPushPendingUploadWithoutExpectedRevConflictsWhenRemoteContentHashMoved() async throws {
+        let reference = try makeCloudReference(remoteRev: nil, remoteContentHash: "remote-hash-A")
+        let recorder = UploadRecorder()
+        let environment = makeEnvironment(
+            getMetadata: { _ in
+                CloudFileMetadata(
+                    modifiedDate: Date(timeIntervalSince1970: 175),
+                    contentHash: "remote-hash-B",
+                    size: 256,
+                    rev: nil
+                )
+            },
+            upload: { _, data, expectedRev, progress in
+                await recorder.record(data: data, expectedRev: expectedRev)
+                progress(1)
+                return CloudFileMetadata(
+                    modifiedDate: Date(timeIntervalSince1970: 200),
+                    contentHash: "remote-hash-C",
+                    size: Int64(data.count),
+                    rev: nil
+                )
+            }
+        )
+
+        let result = try await CloudDatabaseSaver.pushPendingUpload(
+            reference: reference,
+            encryptedBytes: Data("autofill-bytes".utf8),
+            expectedRev: nil,
+            environment: environment
+        )
+
+        guard case .conflict = result else {
+            XCTFail("A legacy marker must not blind-overwrite a moved remote.")
+            return
+        }
+
+        let uploadCallCount = await recorder.callCount()
+        XCTAssertEqual(uploadCallCount, 0)
+    }
+
+    func testRemoteHasDivergedComparesRevExactlyWhenOneWasRecorded() {
+        let recorded = makeRecordedMetadata(rev: "rev-A", contentHash: "hash-A")
+
+        XCTAssertFalse(
+            CloudDatabaseSaver.remoteHasDiverged(
+                recorded: recorded,
+                remote: CloudFileMetadata(modifiedDate: .now, contentHash: "hash-Z", size: 1, rev: "rev-A"),
+                expectedRev: "rev-A"
+            ),
+            "A matching rev decides the question on its own; the hash is not consulted."
+        )
+        XCTAssertTrue(
+            CloudDatabaseSaver.remoteHasDiverged(
+                recorded: recorded,
+                remote: CloudFileMetadata(modifiedDate: .now, contentHash: "hash-A", size: 1, rev: "rev-B"),
+                expectedRev: "rev-A"
+            )
+        )
+        XCTAssertTrue(
+            CloudDatabaseSaver.remoteHasDiverged(
+                recorded: recorded,
+                remote: CloudFileMetadata(modifiedDate: .now, contentHash: "hash-A", size: 1, rev: nil),
+                expectedRev: "rev-A"
+            )
+        )
+    }
+
+    func testRemoteHasDivergedFallsBackToContentHashWhenNoRevWasRecorded() {
+        XCTAssertFalse(
+            CloudDatabaseSaver.remoteHasDiverged(
+                recorded: makeRecordedMetadata(rev: nil, contentHash: "hash-A"),
+                remote: CloudFileMetadata(modifiedDate: .now, contentHash: "hash-A", size: 1, rev: nil),
+                expectedRev: nil
+            )
+        )
+        XCTAssertTrue(
+            CloudDatabaseSaver.remoteHasDiverged(
+                recorded: makeRecordedMetadata(rev: nil, contentHash: "hash-A"),
+                remote: CloudFileMetadata(modifiedDate: .now, contentHash: "hash-B", size: 1, rev: nil),
+                expectedRev: nil
+            )
+        )
+        XCTAssertTrue(
+            CloudDatabaseSaver.remoteHasDiverged(
+                recorded: makeRecordedMetadata(rev: nil, contentHash: nil),
+                remote: CloudFileMetadata(modifiedDate: .now, contentHash: "hash-A", size: 1, rev: nil),
+                expectedRev: nil
+            ),
+            "Remote reports a hash we never recorded, so we have not seen these bytes."
+        )
+        XCTAssertFalse(
+            CloudDatabaseSaver.remoteHasDiverged(
+                recorded: makeRecordedMetadata(rev: nil, contentHash: nil),
+                remote: CloudFileMetadata(modifiedDate: .now, contentHash: nil, size: 1, rev: nil),
+                expectedRev: nil
+            ),
+            "Bare WebDAV residue: nothing to verify against, so the save proceeds."
+        )
+    }
+
+    private func makeRecordedMetadata(rev: String?, contentHash: String?) -> CloudSyncMetadata {
+        CloudSyncMetadata(
+            provider: CloudProviderKind.dropbox.rawValue,
+            accountId: "acct-1",
+            fileId: "/Vaults/cloud-save.kdbx",
+            displayPath: "/Vaults/cloud-save.kdbx",
+            remoteContentHash: contentHash,
+            remoteModifiedAt: Date(timeIntervalSince1970: 100),
+            remoteRev: rev,
+            lastSyncedAt: nil,
+            lastSyncError: nil
+        )
+    }
+
     private func makeEnvironment(
         getMetadata: @escaping @Sendable (DatabaseReference) async throws -> CloudFileMetadata,
         upload: @escaping @Sendable (DatabaseReference, Data, String?, CloudDatabaseSaver.ProgressHandler) async throws -> CloudFileMetadata,
@@ -510,7 +815,14 @@ final class CloudDatabaseSaverTests: XCTestCase {
         return environment
     }
 
-    private func makeCloudReference(remoteRev: String, fixtureName: String = "test") throws -> DatabaseReference {
+    /// `remoteContentHash` defaults to one derived from the revision, which is
+    /// what the rev-carrying cases want. The nil-rev cases set it explicitly,
+    /// because there the hash is the only thing the divergence gate can use.
+    private func makeCloudReference(
+        remoteRev: String?,
+        remoteContentHash: String? = nil,
+        fixtureName: String = "test"
+    ) throws -> DatabaseReference {
         let file = CloudFile(
             id: "/Vaults/cloud-save.kdbx",
             name: "cloud-save.kdbx",
@@ -525,7 +837,7 @@ final class CloudDatabaseSaverTests: XCTestCase {
             file: file
         )
         reference.updateCloudSyncMetadata { metadata in
-            metadata.remoteContentHash = "remote-hash-\(remoteRev)"
+            metadata.remoteContentHash = remoteContentHash ?? remoteRev.map { "remote-hash-\($0)" }
             metadata.remoteModifiedAt = Date(timeIntervalSince1970: 100)
             metadata.remoteRev = remoteRev
         }

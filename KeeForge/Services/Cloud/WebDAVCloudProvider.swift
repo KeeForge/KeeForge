@@ -94,12 +94,13 @@ final class WebDAVCloudProvider: CloudProvider, WebDAVConnecting, Sendable {
 
     // MARK: - Download
 
+    @discardableResult
     func download(
         accountId: String,
         fileId: String,
         to localURL: URL,
         progress: @escaping @Sendable (Double) -> Void
-    ) async throws {
+    ) async throws -> CloudFileMetadata? {
         let context = try resolveContext(accountId: accountId)
         let fileURL = Self.url(forFileId: fileId, base: context.baseURL)
 
@@ -115,6 +116,17 @@ final class WebDAVCloudProvider: CloudProvider, WebDAVConnecting, Sendable {
         }
         try response.data.write(to: localURL, options: .atomic)
         progress(1)
+
+        // The GET's own ETag describes the bytes just written. Servers that
+        // omit it on GET leave nothing to report, which is the same nil a
+        // server without ETags produces everywhere else.
+        guard let rev = Self.rev(from: response) else { return nil }
+        return CloudFileMetadata(
+            modifiedDate: Self.date(fromLastModified: response.lastModified) ?? .now,
+            contentHash: nil,
+            size: Int64(response.data.count),
+            rev: rev
+        )
     }
 
     // MARK: - Metadata

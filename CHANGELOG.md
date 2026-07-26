@@ -26,6 +26,11 @@ TODO before the first macOS release:
 - Copy an entry's verification code to the clipboard when AutoFill fills its password, for sites whose one-time code field iOS does not recognize. Off by default; turn on "Copy Verification Code on AutoFill" under Settings › AutoFill. The copy clears itself after the Clipboard Clear Timeout and never leaves the device. While the setting is on, filling a suggestion for an entry that has a verification code asks you to confirm in KeeForge rather than filling silently, because AutoFill can only write the clipboard while its panel is on screen.
 
 ### Fixed
+- Fixed a cloud save on a database with no recorded revision (databases added before revision tracking, or opened from the offline cache) being able to overwrite newer changes made on another device. Such saves now verify against the remote copy first and raise the usual conflict prompt.
+- Two conflict copies created within the same minute produced the same filename, and the second replaced the first. Names now include seconds, and a cloud conflict copy can never overwrite an existing file.
+- Pressing ⌘S repeatedly on macOS while a save was still running started a second save and could raise a spurious "changed in the cloud" prompt.
+- Returning to KeeForge while a save or queued AutoFill upload was completing could roll back the recorded cloud revision, causing a false conflict on the next save.
+- Refreshing the cached cloud copy now replaces it atomically, so the cached database cannot be lost if the app is interrupted mid-refresh.
 - Fixed a rare data-loss bug where a credential saved through AutoFill could overwrite a save made in the app moments earlier on the same cloud database; such cases now surface as a resolvable conflict instead.
 - AutoFill saves to cloud databases are now crash-safe end to end: the upload record is written before the database bytes, and every sync path that replaces the cached copy first preserves a timestamped backup of unsynced changes.
 - Added a "Discard pending upload" action (with confirmation and automatic backup) to resolve stuck cloud upload conflicts from the database list.

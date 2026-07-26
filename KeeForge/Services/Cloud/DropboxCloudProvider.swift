@@ -197,15 +197,16 @@ final class DropboxCloudProvider: CloudProvider, @unchecked Sendable {
         }
     }
 
+    @discardableResult
     func download(
         accountId: String,
         fileId: String,
         to localURL: URL,
         progress: @escaping @Sendable (Double) -> Void
-    ) async throws {
+    ) async throws -> CloudFileMetadata? {
         let client = try client(for: accountId)
 
-        try await withRetry {
+        return try await withRetry {
             try await self.performDownload(client: client, fileId: fileId, to: localURL, progress: progress)
         }
     }
@@ -309,15 +310,18 @@ final class DropboxCloudProvider: CloudProvider, @unchecked Sendable {
         fileId: String,
         to localURL: URL,
         progress: @escaping @Sendable (Double) -> Void
-    ) async throws {
-        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+    ) async throws -> CloudFileMetadata? {
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<CloudFileMetadata?, Error>) in
             client.files.download(path: fileId, overwrite: true, destination: localURL)
                 .progress { transferProgress in
                     progress(transferProgress.fractionCompleted)
                 }
                 .response { response, error in
-                    if response != nil {
-                        continuation.resume(returning: ())
+                    // The download response carries the metadata of the exact
+                    // revision that was served, which is what the caller must
+                    // record — not the one it saw beforehand.
+                    if let response {
+                        continuation.resume(returning: Self.makeCloudFileMetadata(from: response.0))
                     } else {
                         continuation.resume(throwing: Self.mapDownloadError(error))
                     }

@@ -1731,6 +1731,184 @@ final class DatabaseViewModelTests: XCTestCase {
         XCTAssertNil(vm.saveConflict)
     }
 
+    // MARK: - Conflict copies are create-only (M8)
+
+    func testConflictCopyToCloudUsesCreateOnlyUploadNeverOverwrite() async throws {
+        let reference = makeCloudReference(remoteRev: "rev-A")
+        let provider = ConflictCopyCloudProvider()
+
+        try await DatabaseViewModel.writeConflictCopyToCloud(
+            reference: reference,
+            fileID: "/Vaults/vault (conflict 2026-04-07 161500).kdbx",
+            bytes: Data("conflict-copy".utf8),
+            providerResolver: { _ in provider }
+        )
+
+        XCTAssertEqual(provider.createdPaths, ["/Vaults/vault (conflict 2026-04-07 161500).kdbx"])
+        XCTAssertEqual(
+            provider.uploadCallCount,
+            0,
+            "`upload` overwrites on every provider, which is what destroyed earlier conflict copies."
+        )
+    }
+
+    func testConflictCopyToCloudNumbersTheNameWhenItAlreadyExists() async throws {
+        let reference = makeCloudReference(remoteRev: "rev-A")
+        let provider = ConflictCopyCloudProvider()
+        // Two resolutions inside the same second: the first copy already
+        // occupies the name, so create-only rejects it.
+        provider.pathsRejectedAsExisting = [
+            "/Vaults/vault (conflict 2026-04-07 161500).kdbx",
+            "/Vaults/vault (conflict 2026-04-07 161500) 2.kdbx",
+        ]
+
+        try await DatabaseViewModel.writeConflictCopyToCloud(
+            reference: reference,
+            fileID: "/Vaults/vault (conflict 2026-04-07 161500).kdbx",
+            bytes: Data("conflict-copy".utf8),
+            providerResolver: { _ in provider }
+        )
+
+        XCTAssertEqual(
+            provider.createdPaths,
+            [
+                "/Vaults/vault (conflict 2026-04-07 161500).kdbx",
+                "/Vaults/vault (conflict 2026-04-07 161500) 2.kdbx",
+                "/Vaults/vault (conflict 2026-04-07 161500) 3.kdbx",
+            ]
+        )
+        XCTAssertEqual(provider.uploadCallCount, 0)
+    }
+
+    func testConflictCopyToCloudSurfacesNonConflictFailuresImmediately() async throws {
+        let reference = makeCloudReference(remoteRev: "rev-A")
+        let provider = ConflictCopyCloudProvider()
+        provider.createFailure = .insufficientSpace
+
+        do {
+            try await DatabaseViewModel.writeConflictCopyToCloud(
+                reference: reference,
+                fileID: "/Vaults/vault (conflict 2026-04-07 161500).kdbx",
+                bytes: Data("conflict-copy".utf8),
+                providerResolver: { _ in provider }
+            )
+            XCTFail("Expected the provider error to surface.")
+        } catch let error as CloudProviderError {
+            XCTAssertEqual(error, .insufficientSpace)
+        }
+
+        XCTAssertEqual(provider.createdPaths.count, 1, "A real failure must not be retried under new names.")
+    }
+
+    func testConflictCopyFilenameCarriesSecondsSoNearbyResolutionsDiffer() throws {
+        let vm = try makeViewModel(conflictCopyDateProvider: { Date(timeIntervalSince1970: 1_775_603_700) })
+        let other = try makeViewModel(conflictCopyDateProvider: { Date(timeIntervalSince1970: 1_775_603_730) })
+
+        let first = vm.conflictCopyFilename(for: "test.kdbx")
+        let second = other.conflictCopyFilename(for: "test.kdbx")
+
+        XCTAssertNotEqual(
+            first,
+            second,
+            "Thirty seconds apart collapsed to one name under minute granularity."
+        )
+        XCTAssertTrue(first.hasSuffix(".kdbx"))
+    }
+
+    // MARK: - Save serialization and lock safety (M9, L2)
+
+    func testSecondSaveWhileTheFirstIsInFlightIsIgnored() async throws {
+        let gate = SaveGate()
+        let saveCalls = SaveCallCounter()
+        let vm = try makeViewModel(
+            localSaveOperation: { _, _, _, openTimeSHA512 in
+                // Only the first save parks on the gate. A reentrant one must
+                // never get here at all, and if it does the test has to fail
+                // rather than deadlock waiting for a gate nobody will open.
+                if await saveCalls.increment() == 1 {
+                    await gate.signalStarted()
+                    await gate.waitUntilOpen()
+                }
+                return .saved(newSHA512: openTimeSHA512)
+            }
+        )
+
+        await vm.unlock(password: fixturePassword)
+        vm.draft = try makeDirtyDraft(from: vm, entryTitle: "Reentrant Save Entry")
+
+        let firstSave = Task { try await vm.save() }
+        await gate.waitUntilStarted()
+        XCTAssertTrue(vm.isSaving)
+
+        // The macOS ⌘S path can reach this while the first save is still out,
+        // because `isDirty` stays true for the whole flight.
+        try await vm.save()
+
+        let callsDuringFlight = await saveCalls.value
+        XCTAssertEqual(callsDuringFlight, 1, "The reentrant save must not start a second upload.")
+        XCTAssertNotNil(vm.draft)
+
+        await gate.open()
+        try await firstSave.value
+
+        let callsAfterCompletion = await saveCalls.value
+        XCTAssertEqual(callsAfterCompletion, 1)
+        XCTAssertFalse(vm.isSaving)
+        XCTAssertNil(vm.draft)
+    }
+
+    func testSaveCompletingAfterLockDoesNotResurrectUnlockedState() async throws {
+        let gate = SaveGate()
+        let vm = try makeViewModel(
+            localSaveOperation: { _, _, _, openTimeSHA512 in
+                await gate.signalStarted()
+                await gate.waitUntilOpen()
+                return .saved(newSHA512: openTimeSHA512)
+            }
+        )
+
+        await vm.unlock(password: fixturePassword)
+        vm.draft = try makeDirtyDraft(from: vm, entryTitle: "Save After Lock Entry")
+
+        let save = Task { try await vm.save() }
+        await gate.waitUntilStarted()
+
+        vm.lock()
+        await gate.open()
+        try await save.value
+
+        XCTAssertNil(vm.rootGroup, "A completed save must not repopulate a locked session.")
+        XCTAssertNil(vm.draft)
+        XCTAssertNil(vm.saveConflict)
+        guard case .locked = vm.state else {
+            XCTFail("Expected the session to stay locked.")
+            return
+        }
+    }
+
+    func testConflictingSaveCompletingAfterLockDoesNotRaiseAConflictPrompt() async throws {
+        let gate = SaveGate()
+        let vm = try makeViewModel(
+            localSaveOperation: { _, _, _, _ in
+                await gate.signalStarted()
+                await gate.waitUntilOpen()
+                return .conflict(remoteSHA512: Data("remote".utf8), remoteData: Data("remote-data".utf8))
+            }
+        )
+
+        await vm.unlock(password: fixturePassword)
+        vm.draft = try makeDirtyDraft(from: vm, entryTitle: "Conflict After Lock Entry")
+
+        let save = Task { try await vm.save() }
+        await gate.waitUntilStarted()
+
+        vm.lock()
+        await gate.open()
+        try await save.value
+
+        XCTAssertNil(vm.saveConflict, "A conflict sheet must not appear behind the lock screen.")
+    }
+
     func testReloadDiscardingDraftReplacesRootWithFreshTreeFromDiskClearsDraft() async throws {
         let vm = try makeViewModel(
             localSaveOperation: { _, _, _, _ in
@@ -2160,7 +2338,9 @@ final class DatabaseViewModelTests: XCTestCase {
         formatter.calendar = Calendar(identifier: .gregorian)
         formatter.locale = Locale(identifier: "en_US_POSIX")
         formatter.timeZone = .current
-        formatter.dateFormat = "yyyy-MM-dd HHmm"
+        // Seconds, matching `DatabaseViewModel.conflictCopyFilename`: minute
+        // granularity let two resolutions moments apart collide on one name.
+        formatter.dateFormat = "yyyy-MM-dd HHmmss"
 
         let stem = (originalFilename as NSString).deletingPathExtension
         let ext = (originalFilename as NSString).pathExtension
@@ -2261,6 +2441,111 @@ final class CloudSyncCoordinatorTests: XCTestCase {
         CloudAccountStore.clearAll()
         SharedVaultStore.clearBookmark()
         super.tearDown()
+    }
+
+    // MARK: - Download-reported revision (L1)
+
+    func testSyncRecordsRevisionReportedByTheDownloadItself() async throws {
+        let reference = makeCloudReference(
+            remoteContentHash: "old-hash",
+            remoteModifiedAt: Date(timeIntervalSince1970: 100)
+        )
+        let provider = MockCloudProvider()
+        provider.metadataResult = .success(
+            CloudFileMetadata(
+                modifiedDate: Date(timeIntervalSince1970: 200),
+                contentHash: "hash-before-download",
+                size: 128,
+                rev: "rev-before-download"
+            )
+        )
+        // Someone else writes between the metadata probe and the transfer, so
+        // the bytes that arrive belong to a later revision than the one the
+        // probe reported. Recording the probe's revision would file these
+        // bytes under a revision they never had.
+        provider.downloadedMetadata = CloudFileMetadata(
+            modifiedDate: Date(timeIntervalSince1970: 300),
+            contentHash: "hash-of-downloaded-bytes",
+            size: 256,
+            rev: "rev-of-downloaded-bytes"
+        )
+        provider.downloadedData = Data("bytes-from-a-later-revision".utf8)
+
+        let resolution = try await CloudSyncCoordinator.syncIfNeededForOpen(
+            reference: reference,
+            providerResolver: { _ in provider }
+        )
+
+        XCTAssertEqual(resolution.status, .downloaded)
+        XCTAssertEqual(resolution.reference.cloudSyncMetadata?.remoteRev, "rev-of-downloaded-bytes")
+        XCTAssertEqual(resolution.reference.cloudSyncMetadata?.remoteContentHash, "hash-of-downloaded-bytes")
+        XCTAssertEqual(
+            resolution.reference.cloudSyncMetadata?.remoteModifiedAt,
+            Date(timeIntervalSince1970: 300)
+        )
+    }
+
+    func testSyncKeepsPreDownloadMetadataWhenTheTransportCannotReportIt() async throws {
+        let reference = makeCloudReference(
+            remoteContentHash: "old-hash",
+            remoteModifiedAt: Date(timeIntervalSince1970: 100)
+        )
+        let provider = MockCloudProvider()
+        provider.metadataResult = .success(
+            CloudFileMetadata(
+                modifiedDate: Date(timeIntervalSince1970: 200),
+                contentHash: "new-hash",
+                size: 128,
+                rev: "rev-B"
+            )
+        )
+        provider.downloadedMetadata = nil
+        provider.downloadedData = Data("fresh-cloud-copy".utf8)
+
+        let resolution = try await CloudSyncCoordinator.syncIfNeededForOpen(
+            reference: reference,
+            providerResolver: { _ in provider }
+        )
+
+        XCTAssertEqual(resolution.reference.cloudSyncMetadata?.remoteRev, "rev-B")
+        XCTAssertEqual(resolution.reference.cloudSyncMetadata?.remoteContentHash, "new-hash")
+    }
+
+    // MARK: - Cache replacement (M12)
+
+    /// The coordinated replace stages the bytes beside the cache and pins the
+    /// superseded copy with a hard link, so both have to be cleaned up. The
+    /// crash-window property the replace exists for is structural and not
+    /// observable from a test; this pins the parts that are.
+    func testSyncReplacingAnExistingCacheLandsNewBytesAndLeavesNoStrayFiles() async throws {
+        let reference = makeCloudReference(
+            remoteContentHash: "old-hash",
+            remoteModifiedAt: Date(timeIntervalSince1970: 100)
+        )
+        try DatabaseListStore.cacheDatabaseCopy(Data("stale-cache".utf8), for: reference)
+        let cacheURL = DatabaseListStore.cacheLocation(for: reference)
+
+        let provider = MockCloudProvider()
+        provider.metadataResult = .success(
+            CloudFileMetadata(
+                modifiedDate: Date(timeIntervalSince1970: 200),
+                contentHash: "new-hash",
+                size: 128
+            )
+        )
+        provider.downloadedData = Data("fresh-cloud-copy".utf8)
+
+        let resolution = try await CloudSyncCoordinator.syncIfNeededForOpen(
+            reference: reference,
+            providerResolver: { _ in provider }
+        )
+
+        XCTAssertEqual(resolution.data, Data("fresh-cloud-copy".utf8))
+        XCTAssertEqual(try Data(contentsOf: cacheURL), Data("fresh-cloud-copy".utf8))
+        let strays = try FileManager.default.contentsOfDirectory(
+            atPath: cacheURL.deletingLastPathComponent().path
+        )
+        XCTAssertEqual(strays, [cacheURL.lastPathComponent], "The pin and the staged download must both be cleaned up.")
     }
 
     func testSyncDownloadsFreshCopyWhenRemoteMetadataChanges() async throws {
@@ -2684,6 +2969,10 @@ private final class MockCloudProvider: CloudProvider, @unchecked Sendable {
     var authenticated = true
     var metadataResult: Result<CloudFileMetadata, Error> = .failure(CloudProviderError.fileNotFound)
     var downloadedData = Data()
+    /// What `download` reports about the bytes it wrote. Nil models a
+    /// transport that cannot say (OneDrive), where the caller must keep the
+    /// pre-download reading.
+    var downloadedMetadata: CloudFileMetadata?
     private(set) var metadataCallCount = 0
     private(set) var downloadCallCount = 0
     private(set) var uploadCallCount = 0
@@ -2705,15 +2994,17 @@ private final class MockCloudProvider: CloudProvider, @unchecked Sendable {
         return []
     }
 
+    @discardableResult
     func download(
         accountId: String,
         fileId: String,
         to localURL: URL,
         progress: @escaping @Sendable (Double) -> Void
-    ) async throws {
+    ) async throws -> CloudFileMetadata? {
         downloadCallCount += 1
         try downloadedData.write(to: localURL)
         progress(1)
+        return downloadedMetadata
     }
 
     func getMetadata(accountId: String, fileId: String) async throws -> CloudFileMetadata {
@@ -2735,6 +3026,130 @@ private final class MockCloudProvider: CloudProvider, @unchecked Sendable {
             contentHash: nil,
             size: Int64(data.count),
             rev: expectedRev
+        )
+    }
+}
+
+/// Lets a test hold a save at the point where it has started but not landed —
+/// the window the macOS ⌘S command and a lock can both fall into.
+private actor SaveGate {
+    private var hasStarted = false
+    private var isOpen = false
+    private var startWaiters: [CheckedContinuation<Void, Never>] = []
+    private var openWaiters: [CheckedContinuation<Void, Never>] = []
+
+    func signalStarted() {
+        hasStarted = true
+        let waiters = startWaiters
+        startWaiters.removeAll()
+        waiters.forEach { $0.resume() }
+    }
+
+    func waitUntilStarted() async {
+        guard hasStarted == false else { return }
+        await withCheckedContinuation { startWaiters.append($0) }
+    }
+
+    func open() {
+        isOpen = true
+        let waiters = openWaiters
+        openWaiters.removeAll()
+        waiters.forEach { $0.resume() }
+    }
+
+    func waitUntilOpen() async {
+        guard isOpen == false else { return }
+        await withCheckedContinuation { openWaiters.append($0) }
+    }
+}
+
+private actor SaveCallCounter {
+    private(set) var value = 0
+
+    /// Returns the ordinal of this call, so a caller can behave differently on
+    /// the first one.
+    @discardableResult
+    func increment() -> Int {
+        value += 1
+        return value
+    }
+}
+
+/// Records how a conflict copy reaches the provider. `upload` is the overwrite
+/// route the copy must never take, so it fails the test outright.
+private final class ConflictCopyCloudProvider: CloudProvider, @unchecked Sendable {
+    let id = CloudProviderKind.dropbox.rawValue
+    let displayName = CloudProviderKind.dropbox.displayName
+    let iconName = CloudProviderKind.dropbox.iconName
+
+    /// Paths a prior conflict copy already occupies; create-only rejects them.
+    var pathsRejectedAsExisting: Set<String> = []
+    var createFailure: CloudProviderError?
+    private(set) var createdPaths: [String] = []
+    private(set) var uploadCallCount = 0
+
+    @MainActor
+    func authenticate(from anchor: ASPresentationAnchor) async throws -> CloudAccount {
+        XCTFail("authenticate(from:) should not be called for a conflict copy")
+        throw CloudProviderError.authenticationCancelled
+    }
+
+    func isAuthenticated(accountId: String) -> Bool { true }
+
+    func signOut(accountId: String) {}
+
+    func listFiles(accountId: String, path: String?, query: String?) async throws -> [CloudFile] { [] }
+
+    @discardableResult
+    func download(
+        accountId: String,
+        fileId: String,
+        to localURL: URL,
+        progress: @escaping @Sendable (Double) -> Void
+    ) async throws -> CloudFileMetadata? { nil }
+
+    func getMetadata(accountId: String, fileId: String) async throws -> CloudFileMetadata {
+        CloudFileMetadata(modifiedDate: Date(), contentHash: nil, size: 0)
+    }
+
+    func upload(
+        accountId: String,
+        fileId: String,
+        data: Data,
+        expectedRev: String?,
+        progress: @escaping @Sendable (Double) -> Void
+    ) async throws -> CloudFileMetadata {
+        uploadCallCount += 1
+        XCTFail("A conflict copy must never take the overwriting upload route.")
+        return CloudFileMetadata(modifiedDate: Date(), contentHash: nil, size: Int64(data.count))
+    }
+
+    func createFile(
+        accountId: String,
+        path: String,
+        data: Data,
+        progress: @escaping @Sendable (Double) -> Void
+    ) async throws -> CloudCreatedFile {
+        createdPaths.append(path)
+
+        if let createFailure {
+            throw createFailure
+        }
+        if pathsRejectedAsExisting.contains(path) {
+            throw CloudProviderError.conflict(remoteRev: nil)
+        }
+
+        progress(1)
+        return CloudCreatedFile(
+            file: CloudFile(
+                id: path,
+                name: (path as NSString).lastPathComponent,
+                path: path,
+                isFolder: false,
+                modifiedDate: Date(),
+                size: Int64(data.count)
+            ),
+            metadata: CloudFileMetadata(modifiedDate: Date(), contentHash: nil, size: Int64(data.count))
         )
     }
 }

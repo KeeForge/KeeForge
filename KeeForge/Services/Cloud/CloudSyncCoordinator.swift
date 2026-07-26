@@ -74,20 +74,31 @@ enum CloudSyncCoordinator {
             let remoteMetadata = try await provider.getMetadata(accountId: metadata.accountId, fileId: metadata.fileId)
             let needsDownload = remoteMetadata.requiresDownload(comparedTo: metadata, cacheExists: cacheExists)
 
+            // Prefer the metadata the download itself reported: it describes
+            // the bytes now in the cache, where `remoteMetadata` describes the
+            // head as of before the transfer. Recording the earlier one after
+            // someone else wrote mid-download leaves the cache holding bytes
+            // filed under a rev they never had, which costs a spurious
+            // conflict on the next save. Providers that cannot report it
+            // (OneDrive) return nil and keep the pre-download reading.
+            var syncedMetadata = remoteMetadata
             if needsDownload {
-                try await downloadLatestCopy(
+                let downloadedMetadata = try await downloadLatestCopy(
                     provider: provider,
                     metadata: metadata,
                     reference: updatedReference,
                     destinationURL: cacheURL,
                     progress: progress
                 )
+                if let downloadedMetadata {
+                    syncedMetadata = downloadedMetadata
+                }
             }
 
             updatedReference.updateCloudSyncMetadata { cloudMetadata in
-                cloudMetadata.remoteContentHash = remoteMetadata.contentHash
-                cloudMetadata.remoteModifiedAt = remoteMetadata.modifiedDate
-                cloudMetadata.remoteRev = remoteMetadata.rev
+                cloudMetadata.remoteContentHash = syncedMetadata.contentHash
+                cloudMetadata.remoteModifiedAt = syncedMetadata.modifiedDate
+                cloudMetadata.remoteRev = syncedMetadata.rev
                 cloudMetadata.lastSyncedAt = .now
                 cloudMetadata.lastSyncError = nil
             }
@@ -138,7 +149,7 @@ enum CloudSyncCoordinator {
         reference: DatabaseReference,
         destinationURL: URL,
         progress: @escaping @Sendable (Double) -> Void
-    ) async throws {
+    ) async throws -> CloudFileMetadata? {
         let fileManager = FileManager.default
         let directory = destinationURL.deletingLastPathComponent()
         try fileManager.createDirectory(at: directory, withIntermediateDirectories: true, attributes: nil)
@@ -148,60 +159,160 @@ enum CloudSyncCoordinator {
             try? fileManager.removeItem(at: tempURL)
         }
 
-        try await provider.download(
+        let downloadedMetadata = try await provider.download(
             accountId: metadata.accountId,
             fileId: metadata.fileId,
             to: tempURL,
             progress: progress
         )
 
-        if fileManager.fileExists(atPath: destinationURL.path) {
-            // The shared cache is the *only* home of an AutoFill save until its
-            // pending upload drains. If a marker is still queued for this
-            // database, the current cache bytes have not reached the cloud yet,
-            // so preserve a recoverable backup before the remote copy replaces
-            // them. The drainer's SHA-512 check then surfaces the overwrite as a
-            // conflict instead of silently losing the local change.
-            //
-            // Ordering: rename the cache aside FIRST, then list markers. The
-            // rename atomically pins which bytes are being replaced, and the
-            // AutoFill save path enqueues its marker durably before writing
-            // the cache — so any unuploaded bytes captured by the rename are
-            // guaranteed to have their marker visible to this check. (Listing
-            // before removal, as this code once did, left a window where
-            // freshly written AutoFill bytes were removed with their marker
-            // unseen.)
-            let asideURL = directory.appendingPathComponent(UUID().uuidString, isDirectory: false)
-            try fileManager.moveItem(at: destinationURL, to: asideURL)
-            do {
-                if !PendingUploadQueue.listMarkers(for: reference.id).isEmpty {
-                    try backUpCacheBeforePendingOverwrite(at: asideURL, reference: reference)
+        // Stamped while the bytes are still staged, so the cache path is never
+        // briefly unprotected once they land.
+        try applyCacheFileProtection(at: tempURL)
+
+        guard fileManager.fileExists(atPath: destinationURL.path) else {
+            try replaceCacheItem(at: destinationURL, withItemAt: tempURL, pinnedFileID: nil)
+            try applyCacheFileProtection(at: destinationURL)
+            return downloadedMetadata
+        }
+
+        // The shared cache is the *only* home of an AutoFill save until its
+        // pending upload drains. If a marker is still queued for this
+        // database, the current cache bytes have not reached the cloud yet,
+        // so preserve a recoverable backup before the remote copy replaces
+        // them. The drainer's SHA-512 check then surfaces the overwrite as a
+        // conflict instead of silently losing the local change.
+        //
+        // Ordering (unchanged): pin the bytes being superseded FIRST, then
+        // list markers. The AutoFill save path enqueues its marker durably
+        // before writing the cache, so any unuploaded bytes captured by the
+        // pin are guaranteed to have their marker visible to this check.
+        // Listing before pinning left a window where freshly written AutoFill
+        // bytes were superseded with their marker unseen.
+        //
+        // The pin is a hard link rather than the rename this replaced, so the
+        // cache path names a complete file at every instant. The rename
+        // emptied it for the whole duration of the backup write, and a crash
+        // in that window lost the cache outright with the only other copy
+        // under an orphan UUID name. A filesystem without hard links fails the
+        // link and so fails the sync-down, which is the safe direction: the
+        // caller falls back to the untouched cached copy.
+        let pinnedURL = directory.appendingPathComponent(UUID().uuidString, isDirectory: false)
+        try fileManager.linkItem(at: destinationURL, to: pinnedURL)
+        defer {
+            try? fileManager.removeItem(at: pinnedURL)
+        }
+
+        if !PendingUploadQueue.listMarkers(for: reference.id).isEmpty {
+            // Deliberately not caught: a failed backup must never cost the
+            // local bytes, and throwing here leaves the cache exactly as it
+            // was — the caller degrades to the cached copy.
+            try backUpCacheBeforePendingOverwrite(at: pinnedURL, reference: reference)
+        }
+
+        // Publish the new bytes only if the cache is still the file that was
+        // pinned. A concurrent AutoFill save writing the cache between the pin
+        // and here holds bytes whose marker this pass never examined, so the
+        // sync-down fails rather than clobbering them — the same protection
+        // the rename used to get from `moveItem` refusing an occupied path.
+        // The identity check runs inside the coordinated write, and every
+        // cache writer goes through NSFileCoordinator, so nothing can land
+        // between the check and the replace.
+        try replaceCacheItem(
+            at: destinationURL,
+            withItemAt: tempURL,
+            pinnedFileID: fileID(at: pinnedURL)
+        )
+        try applyCacheFileProtection(at: destinationURL)
+        return downloadedMetadata
+    }
+
+    /// iOS Data Protection for the shared cache. Applied to the staged copy
+    /// before the swap and again to the live file after it: `replaceItemAt`
+    /// carries some of the original item's metadata onto the replacement, so
+    /// it must not be trusted to carry the protection class across.
+    ///
+    /// No-op on macOS, where setting a protection class either fails or leaves
+    /// the file unreadable — FileVault covers at-rest encryption there instead
+    /// (see `Data.WritingOptions.atomicProtected`).
+    private static func applyCacheFileProtection(at url: URL) throws {
+        #if os(iOS)
+        try FileManager.default.setAttributes(
+            [.protectionKey: FileProtectionType.complete],
+            ofItemAtPath: url.path
+        )
+        #endif
+    }
+
+    /// Installs `replacementURL` at `destinationURL` as one atomic swap under
+    /// a coordinated `.forReplacing` write — the primitive every other cache
+    /// writer already uses (`CoordinatedFileReader.writeData`,
+    /// `LocalDatabaseSaver.replaceFileAtomically`). Readers, including the
+    /// AutoFill extension, therefore never observe a partial file and never
+    /// observe the path missing.
+    ///
+    /// The swap is always conditional on the destination still being what the
+    /// caller inspected: `pinnedFileID` is the identity it pinned, or nil when
+    /// it found no cache at all. Either way a destination that no longer
+    /// matches means a concurrent writer got there first, and the replace is
+    /// abandoned rather than clobbering bytes this pass never examined. The
+    /// comparison sits inside the coordination block, and every cache writer
+    /// coordinates, so nothing can slip between the check and the swap.
+    private static func replaceCacheItem(
+        at destinationURL: URL,
+        withItemAt replacementURL: URL,
+        pinnedFileID: UInt64?
+    ) throws {
+        let fileManager = FileManager.default
+        var coordinatorError: NSError?
+        var result: Result<Void, Error>?
+
+        let coordinator = NSFileCoordinator()
+        coordinator.coordinate(
+            writingItemAt: destinationURL,
+            options: .forReplacing,
+            error: &coordinatorError
+        ) { coordinatedURL in
+            result = Result {
+                guard fileManager.fileExists(atPath: coordinatedURL.path) else {
+                    guard pinnedFileID == nil else {
+                        // The pinned cache vanished under us.
+                        throw CocoaError(.fileNoSuchFile)
+                    }
+                    try fileManager.moveItem(at: replacementURL, to: coordinatedURL)
+                    return
                 }
-                try fileManager.removeItem(at: asideURL)
-            } catch {
-                // A failed backup must never cost the local bytes: put the
-                // cache back and fail the sync-down; the caller falls back to
-                // the cached copy.
-                try? fileManager.moveItem(at: asideURL, to: destinationURL)
-                try? fileManager.removeItem(at: asideURL)
-                throw error
+
+                guard let pinnedFileID, fileID(at: coordinatedURL) == pinnedFileID else {
+                    throw CocoaError(.fileWriteFileExists)
+                }
+
+                _ = try fileManager.replaceItemAt(
+                    coordinatedURL,
+                    withItemAt: replacementURL,
+                    backupItemName: nil,
+                    options: []
+                )
             }
         }
 
-        // If a concurrent AutoFill save recreated the cache after the rename
-        // above, this move fails and the sync-down falls back to the cached
-        // copy — which then holds the freshest local bytes. Preferable to
-        // clobbering a save whose marker this pass never examined.
-        try fileManager.moveItem(at: tempURL, to: destinationURL)
-        #if os(iOS)
-        // iOS Data Protection; on macOS setting a protection class either
-        // fails or leaves the file unreadable — FileVault covers at-rest
-        // encryption there instead (see Data.WritingOptions.atomicProtected).
-        try fileManager.setAttributes(
-            [.protectionKey: FileProtectionType.complete],
-            ofItemAtPath: destinationURL.path
-        )
-        #endif
+        if let coordinatorError {
+            throw coordinatorError
+        }
+
+        guard let result else {
+            throw CocoaError(.fileWriteUnknown)
+        }
+
+        try result.get()
+    }
+
+    /// The inode number backing `url`. A hard link reports the same value as
+    /// the file it was made from, which is what lets the pin above recognize
+    /// its own bytes.
+    private static func fileID(at url: URL) -> UInt64? {
+        let attributes = try? FileManager.default.attributesOfItem(atPath: url.path)
+        return (attributes?[.systemFileNumber] as? NSNumber)?.uint64Value
     }
 
     /// Copies the soon-to-be-overwritten cache bytes (passed as `cacheURL`,
