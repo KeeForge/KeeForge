@@ -362,6 +362,7 @@
 		A4965719DE4433346A5EF843 /* CloudProviderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 70041C9E76CC7196DFCB5AE1 /* CloudProviderTests.swift */; };
 		A5BFF2A90A55B2DCA322D1EB /* OpaqueXMLNodes.swift in Sources */ = {isa = PBXBuildFile; fileRef = E83812EEBF6C270EDFBA5E90 /* OpaqueXMLNodes.swift */; };
 		A65B92FF831C88C93F890C88 /* SecurityScopedBookmarkManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA3FF6C98ADE49FE6BDB7B6D /* SecurityScopedBookmarkManager.swift */; };
+		A8D463BF4266378018AA0DDF /* GroupIconPickerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5156505659451A95FA358AA9 /* GroupIconPickerView.swift */; };
 		A91E8FC4271F8638EA091F79 /* KDBXOuterCipher.swift in Sources */ = {isa = PBXBuildFile; fileRef = CF9F4F443BDAB986A5BF03E8 /* KDBXOuterCipher.swift */; };
 		A9372B7A678C99EF8A54C687 /* PasswordGeneratorSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2EFC7C32376B08C5FA4229D9 /* PasswordGeneratorSheet.swift */; };
 		A974C7B2BE0AE30AB71C184A /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = 6D8AAE0BC5540DB06342C80C /* Localizable.xcstrings */; };
@@ -536,6 +537,7 @@
 		F0AEC020E24F92ED603E6B3B /* CloudFileBrowserViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E94BF55CC229A5312D864BDE /* CloudFileBrowserViewModelTests.swift */; };
 		F15FD8501FA0278ABD3EB902 /* demo.kdbx in Resources */ = {isa = PBXBuildFile; fileRef = F3D5CCD3DC2893DC1A65D6DC /* demo.kdbx */; };
 		F1EC22330F92765C069A37DA /* WhatsNewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 95C789E6B7A0D36588C72067 /* WhatsNewView.swift */; };
+		F228FB24C47291F0E34F0C17 /* GroupIconPickerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5156505659451A95FA358AA9 /* GroupIconPickerView.swift */; };
 		F289E75CBCA9F0D99289D513 /* DatabaseListViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6371CF6584F8950C4679FE28 /* DatabaseListViewModelTests.swift */; };
 		F292ED764B6F2FF1160BA779 /* PendingUploadDrainer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0B85CAF10E8CFC72802590A3 /* PendingUploadDrainer.swift */; };
 		F414D515B720B8828F1EDB05 /* CloudSyncModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = A8EFE96A1D98D220EA6E3E53 /* CloudSyncModels.swift */; };
@@ -718,6 +720,7 @@
 		4F68006D6BBE667770D1CB5B /* BuildConfig.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = BuildConfig.xcconfig; sourceTree = "<group>"; };
 		50107994AC5A4E705F829F17 /* WebDAVConnectViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebDAVConnectViewModel.swift; sourceTree = "<group>"; };
 		51105ADF7C41EB47401418D9 /* TOTPGenerator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TOTPGenerator.swift; sourceTree = "<group>"; };
+		5156505659451A95FA358AA9 /* GroupIconPickerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GroupIconPickerView.swift; sourceTree = "<group>"; };
 		52E6959E8F9A249BED612C30 /* AttachmentPreviewFileStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AttachmentPreviewFileStoreTests.swift; sourceTree = "<group>"; };
 		5335012167FBEBF40FE67EC7 /* OneDriveCloudProviderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OneDriveCloudProviderTests.swift; sourceTree = "<group>"; };
 		5453C26A39D0DC4187275D6A /* EntryListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EntryListView.swift; sourceTree = "<group>"; };
@@ -1012,6 +1015,7 @@
 				5453C26A39D0DC4187275D6A /* EntryListView.swift */,
 				BC9852527A48C28D5D60FCFD /* FaviconView.swift */,
 				3A39542F67BB84C9DEB90C0A /* FeedbackComposerView.swift */,
+				5156505659451A95FA358AA9 /* GroupIconPickerView.swift */,
 				35E6EA2FF600FFF3543FF763 /* GroupListView.swift */,
 				F453297E09219FDE860CE5A7 /* MacUnlockPasswordField.swift */,
 				10E0212432C502CF3BCFAB93 /* PasswordDisplay.swift */,
@@ -1995,6 +1999,7 @@
 				9192336DA264412D39C6B8C1 /* FeedbackComposerView.swift in Sources */,
 				3D2B79225A6E3CC5CC20A405 /* FeedbackSubmissionService.swift in Sources */,
 				629C25E9B77D26A6F95E3699 /* Group.swift in Sources */,
+				A8D463BF4266378018AA0DDF /* GroupIconPickerView.swift in Sources */,
 				2403A3EAED3B357B35B295FC /* GroupListView.swift in Sources */,
 				0C3A40CBFB5BDE0D3F2CAFF5 /* HapticService.swift in Sources */,
 				86C6A3B9E01FE0CEB7214DD4 /* KDBX3Parser.swift in Sources */,
@@ -2110,6 +2115,7 @@
 				669AE2BCEE3EB36CE02FAE8A /* FeedbackComposerView.swift in Sources */,
 				7CE7F2D598280A675D89FB02 /* FeedbackSubmissionService.swift in Sources */,
 				9C36CE737F98C0D6D44AE500 /* Group.swift in Sources */,
+				F228FB24C47291F0E34F0C17 /* GroupIconPickerView.swift in Sources */,
 				1D8B42383A85085F6E8AC2D1 /* GroupListView.swift in Sources */,
 				85800F363D34B2A7DAAE8B41 /* HapticService.swift in Sources */,
 				38718C1CC39C44309C0D13F9 /* KDBX3Parser.swift in Sources */,

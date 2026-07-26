@@ -783,6 +783,87 @@ final class DatabaseDraftTests: XCTestCase {
         }
     }
 
+    func test_setGroupIcon_changesIconAndTouchesModificationTime() throws {
+        let tree = try makeSyntheticTree(includeRecycleBin: false)
+        let draft = DatabaseDraft(rootGroup: tree.rootGroup, meta: tree.meta, sessionKey: sessionKey)
+        let originalGroup = try XCTUnwrap(findGroup(withID: tree.parentGroupID, in: tree.rootGroup))
+        XCTAssertNotEqual(originalGroup.iconID, 37)
+
+        let updatedDraft = try draft.apply(.setGroupIcon(groupID: tree.parentGroupID, iconID: 37))
+
+        let updatedGroup = try XCTUnwrap(findGroup(withID: tree.parentGroupID, in: updatedDraft.rootGroup))
+        XCTAssertEqual(updatedGroup.iconID, 37)
+        XCTAssertGreaterThan(
+            try XCTUnwrap(updatedGroup.lastModificationTime),
+            try XCTUnwrap(originalGroup.lastModificationTime)
+        )
+        XCTAssertEqual(updatedGroup.name, originalGroup.name)
+        XCTAssertEqual(updatedGroup.entries.count, originalGroup.entries.count)
+        XCTAssertEqual(updatedGroup.groups.count, originalGroup.groups.count)
+        XCTAssertTrue(updatedDraft.isDirty)
+    }
+
+    /// A `<CustomIconUUID>` outranks `<IconID>` in KeePass, and the parser keeps the
+    /// source element in `unknownXML` for verbatim round-tripping. If either survives
+    /// the edit, the newly chosen standard icon is written but never displayed — the
+    /// pick silently does nothing in this app and in every other client.
+    func test_setGroupIcon_clearsCustomIconSoTheStandardIconActuallyShows() throws {
+        let customIconUUID = UUID()
+        var unknownXML = OpaqueXMLNodes()
+        unknownXML.append(
+            xml: "<CustomIconUUID>3q2+7w==</CustomIconUUID>",
+            insertionIndex: 0
+        )
+        let group = KPGroup(
+            name: "Has Custom Icon",
+            iconID: 48,
+            customIconUUID: customIconUUID,
+            lastModificationTime: Date(timeIntervalSince1970: 0),
+            unknownXML: unknownXML
+        )
+        let root = KPGroup(name: "Root", groups: [group])
+        let draft = DatabaseDraft(rootGroup: root, meta: KPMeta(), sessionKey: sessionKey)
+
+        let updatedDraft = try draft.apply(.setGroupIcon(groupID: group.id, iconID: 37))
+
+        let updatedGroup = try XCTUnwrap(findGroup(withID: group.id, in: updatedDraft.rootGroup))
+        XCTAssertEqual(updatedGroup.iconID, 37)
+        XCTAssertNil(updatedGroup.customIconUUID)
+        XCTAssertFalse(
+            updatedGroup.unknownXML.nodes.contains { $0.elementName == "CustomIconUUID" },
+            "the preserved element would be written back verbatim and keep overriding IconID"
+        )
+    }
+
+    func test_setGroupIcon_leavesSiblingsAndChildrenAlone() throws {
+        let tree = try makeSyntheticTree(includeRecycleBin: false)
+        let draft = DatabaseDraft(rootGroup: tree.rootGroup, meta: tree.meta, sessionKey: sessionKey)
+
+        let updatedDraft = try draft.apply(.setGroupIcon(groupID: tree.parentGroupID, iconID: 37))
+
+        let originalUntouched = try XCTUnwrap(findGroup(withID: tree.untouchedGroupID, in: tree.rootGroup))
+        let updatedUntouched = try XCTUnwrap(findGroup(withID: tree.untouchedGroupID, in: updatedDraft.rootGroup))
+        try assertGroupsEqual(originalUntouched, updatedUntouched)
+
+        let originalParent = try XCTUnwrap(findGroup(withID: tree.parentGroupID, in: tree.rootGroup))
+        let updatedParent = try XCTUnwrap(findGroup(withID: tree.parentGroupID, in: updatedDraft.rootGroup))
+        for (original, updated) in zip(originalParent.groups, updatedParent.groups) {
+            XCTAssertEqual(updated.iconID, original.iconID, "the edit must not restyle children")
+        }
+    }
+
+    func test_setGroupIcon_unknownGroup_throws() throws {
+        let tree = try makeSyntheticTree(includeRecycleBin: false)
+        let draft = DatabaseDraft(rootGroup: tree.rootGroup, meta: tree.meta, sessionKey: sessionKey)
+        let missingGroupID = UUID()
+
+        XCTAssertThrowsError(
+            try draft.apply(.setGroupIcon(groupID: missingGroupID, iconID: 37))
+        ) { error in
+            XCTAssertEqual(error as? DatabaseDraft.DraftError, .groupNotFound(missingGroupID))
+        }
+    }
+
     private func makeSyntheticTree(
         includeRecycleBin: Bool,
         parentEntryOverride: KPEntry? = nil,

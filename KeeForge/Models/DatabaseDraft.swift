@@ -102,6 +102,8 @@ struct DatabaseDraft: Sendable {
             updatedState = try applyDeleteGroup(groupID: groupID, sendToRecycleBin: sendToRecycleBin)
         case .setGroupSearchingEnabled(let groupID, let value):
             updatedState = try applySetGroupSearchingEnabled(groupID: groupID, value: value.modelValue)
+        case .setGroupIcon(let groupID, let iconID):
+            updatedState = try applySetGroupIcon(groupID: groupID, iconID: iconID)
         }
 
         updatedState.rootGroup.recycleBinUUID = updatedState.meta.recycleBinUUID
@@ -202,6 +204,44 @@ struct DatabaseDraft: Sendable {
                 groups: group.groups,
                 isExpanded: group.isExpanded,
                 searchingEnabled: value,
+                creationTime: group.creationTime,
+                lastModificationTime: timestamp,
+                recycleBinUUID: group.recycleBinUUID,
+                unknownXML: unknownXML
+            )
+        }
+
+        return (updatedRootGroup, currentMetaStorage)
+    }
+
+    private func applySetGroupIcon(
+        groupID: UUID,
+        iconID: Int
+    ) throws -> (rootGroup: KPGroup, meta: KPMeta) {
+        guard let groupPath = pathToGroup(withID: groupID, in: currentRootGroupStorage) else {
+            throw DraftError.groupNotFound(groupID)
+        }
+
+        let timestamp = Date.now
+        let updatedRootGroup = try rebuildGroup(in: currentRootGroupStorage, targetPath: groupPath[...]) { group in
+            // A `<CustomIconUUID>` outranks `<IconID>` in KeePass, and the parser
+            // keeps the source element in `unknownXML` so the writer round-trips
+            // it verbatim. Picking a standard icon has to drop both the display
+            // copy and that preserved element — otherwise the new `IconID` is
+            // written but nothing shows it, here or in any other client, and the
+            // choice looks like it did nothing.
+            var unknownXML = group.unknownXML
+            unknownXML.removeDirectChildren(named: "CustomIconUUID")
+
+            return KPGroup(
+                id: group.id,
+                name: group.name,
+                iconID: iconID,
+                customIconUUID: nil,
+                entries: group.entries,
+                groups: group.groups,
+                isExpanded: group.isExpanded,
+                searchingEnabled: group.searchingEnabled,
                 creationTime: group.creationTime,
                 lastModificationTime: timestamp,
                 recycleBinUUID: group.recycleBinUUID,

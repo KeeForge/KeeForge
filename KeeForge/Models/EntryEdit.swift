@@ -83,4 +83,5 @@ enum EntryEdit: Codable, Sendable, Equatable {
     case deleteEntry(entryID: UUID, sendToRecycleBin: Bool)
     case deleteGroup(groupID: UUID, sendToRecycleBin: Bool)
     case setGroupSearchingEnabled(groupID: UUID, value: InheritableBoolPayload)
+    case setGroupIcon(groupID: UUID, iconID: Int)
 }
