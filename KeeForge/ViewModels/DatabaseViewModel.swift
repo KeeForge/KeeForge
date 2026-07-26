@@ -296,6 +296,14 @@ final class DatabaseViewModel {
     /// Live (non-recycled) entries carrying each distinct tag, in tree order.
     /// Tag identity is exact-string, so `Work` and `work` are separate keys.
     private var tagEntryIDs: [String: [UUID]] = [:]
+    /// The tags an entry stored directly in each group inherits: every ancestor
+    /// group's tags, root-most first, then the group's own. Kept per group
+    /// rather than per entry because inheritance resolves once per group; a
+    /// group whose branch carries no tags is simply absent.
+    private var groupInheritedTags: [UUID: [String]] = [:]
+    /// The group each entry currently sits in, so an entry's inherited tags
+    /// resolve without walking the tree a second time.
+    private var entryParentGroupIDs: [UUID: UUID] = [:]
     private var recycleBinEntryIDs: Set<UUID> = []
     private var recycleBinGroupIDs: Set<UUID> = []
     /// Groups whose resolved `<EnableSearching>` is false, including the ones
@@ -690,6 +698,27 @@ final class DatabaseViewModel {
     func entries(withTag tag: String) -> [KPEntry] {
         _ = contentRevision
         return tagEntryIDs[tag]?.compactMap { entryIndex[$0] } ?? []
+    }
+
+    /// The tags an entry stored directly in `groupID` inherits: every ancestor
+    /// group's tags, root-most first, then the group's own. Named from the
+    /// entry's point of view — a group does not inherit its own tags, but an
+    /// entry inside it effectively does, which is what the editor needs in
+    /// order to stop suggesting tags the entry already carries by location.
+    ///
+    /// Empty for an unknown group and for one whose branch has no group tags.
+    func inheritedTags(forGroupID groupID: UUID) -> [String] {
+        _ = contentRevision
+        return TagNormalizer.tags(from: groupInheritedTags[groupID] ?? [])
+    }
+
+    /// `inheritedTags(forGroupID:)` for the group currently holding `entryID` —
+    /// what the entry gets from where it sits, excluding its own tags. Empty
+    /// for an unknown entry.
+    func inheritedTags(forEntryID entryID: UUID) -> [String] {
+        _ = contentRevision
+        guard let parentGroupID = entryParentGroupIDs[entryID] else { return [] }
+        return inheritedTags(forGroupID: parentGroupID)
     }
 
     /// Decoded image data of the entry's custom icon, if the database defines
@@ -1450,6 +1479,8 @@ final class DatabaseViewModel {
             searchableEntries = []
             searchableEntryText = [:]
             tagEntryIDs = [:]
+            groupInheritedTags = [:]
+            entryParentGroupIDs = [:]
             recycleBinEntryIDs = []
             recycleBinGroupIDs = []
             autoFillExcludedGroupIDs = []
@@ -1466,6 +1497,8 @@ final class DatabaseViewModel {
         var nextSearchableEntries: [KPEntry] = []
         var nextSearchableEntryText: [UUID: String] = [:]
         var nextTagEntryIDs: [String: [UUID]] = [:]
+        var nextGroupInheritedTags: [UUID: [String]] = [:]
+        var nextEntryParentGroupIDs: [UUID: UUID] = [:]
         var nextRecycleBinEntryIDs = Set<UUID>()
         var nextRecycleBinGroupIDs = Set<UUID>()
         var nextAutoFillExcludedGroupIDs = Set<UUID>()
@@ -1492,10 +1525,19 @@ final class DatabaseViewModel {
             // `includeInSearch` branch, so recycle-bin-only tags (including
             // the bin group's own) never reach the tag index or search text.
             let accumulatedTags = group.tags.isEmpty ? inheritedTags : inheritedTags + group.tags
+            // Only branches that actually carry a group tag get an entry, so
+            // the common untagged database stores nothing here. Recycled
+            // groups are recorded too: the editor asks about live locations
+            // only, and skipping them would need a second condition to earn
+            // nothing.
+            if accumulatedTags.isEmpty == false {
+                nextGroupInheritedTags[group.id] = accumulatedTags
+            }
 
             var totalEntryCount = 0
             for entry in group.entries {
                 nextEntryIndex[entry.id] = entry
+                nextEntryParentGroupIDs[entry.id] = group.id
                 totalEntryCount += 1
                 if includeInSearch {
                     nextSearchableEntries.append(entry)
@@ -1531,6 +1573,8 @@ final class DatabaseViewModel {
         searchableEntries = nextSearchableEntries
         searchableEntryText = nextSearchableEntryText
         tagEntryIDs = nextTagEntryIDs
+        groupInheritedTags = nextGroupInheritedTags
+        entryParentGroupIDs = nextEntryParentGroupIDs
         recycleBinEntryIDs = nextRecycleBinEntryIDs
         recycleBinGroupIDs = nextRecycleBinGroupIDs
         autoFillExcludedGroupIDs = nextAutoFillExcludedGroupIDs

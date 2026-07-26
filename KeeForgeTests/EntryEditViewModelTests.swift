@@ -114,6 +114,134 @@ final class EntryEditViewModelTests: XCTestCase {
         XCTAssertFalse(viewModel.isDirty, "Seeding the form is not a user edit")
     }
 
+    // MARK: - Tag suggestions
+
+    func testTagSuggestionsDropTagsTypedIntoTheFieldAndRestoreThemWhenDeleted() {
+        let viewModel = EntryEditViewModel(createIn: UUID(), knownTags: ["finance", "personal", "work"])
+
+        XCTAssertEqual(viewModel.tagSuggestions, ["finance", "personal", "work"])
+
+        viewModel.tagsText = "work"
+        XCTAssertEqual(viewModel.tagSuggestions, ["finance", "personal"])
+
+        viewModel.tagsText = "work, personal"
+        XCTAssertEqual(viewModel.tagSuggestions, ["finance"])
+
+        viewModel.tagsText = ""
+        XCTAssertEqual(
+            viewModel.tagSuggestions,
+            ["finance", "personal", "work"],
+            "Deleting the text puts every suggestion back — exclusions are re-read, never cached"
+        )
+    }
+
+    func testTagSuggestionsExcludeTagsInheritedFromAncestorGroups() {
+        let viewModel = EntryEditViewModel(
+            createIn: UUID(),
+            knownTags: ["billable", "team", "work"],
+            inheritedTags: ["team", "billable"]
+        )
+
+        XCTAssertEqual(
+            viewModel.tagSuggestions,
+            ["work"],
+            "A tag the entry already gets from its groups would be a no-op suggestion"
+        )
+    }
+
+    func testTagSuggestionsKeepCaseVariantsAndTappingInsertsTheExactCasing() {
+        let viewModel = EntryEditViewModel(createIn: UUID(), knownTags: ["Work", "work"])
+        viewModel.tagsText = "work"
+
+        XCTAssertEqual(viewModel.tagSuggestions, ["Work"], "Exact-string identity keeps case variants apart")
+
+        viewModel.appendTagSuggestion("Work")
+
+        XCTAssertEqual(viewModel.tagsText, "work, Work")
+        XCTAssertEqual(viewModel.entryDraftPayload.tags, ["work", "Work"])
+        XCTAssertTrue(viewModel.tagSuggestions.isEmpty)
+    }
+
+    func testTappingSuggestionsProducesTheSamePayloadAsTypingThem() {
+        let tapped = EntryEditViewModel(createIn: UUID(), knownTags: ["finance", "New York"])
+        tapped.tagsText = "personal"
+        tapped.appendTagSuggestion("finance")
+        tapped.appendTagSuggestion("New York")
+
+        let typed = EntryEditViewModel(createIn: UUID())
+        typed.tagsText = "personal, finance, New York"
+
+        XCTAssertEqual(tapped.tagsText, typed.tagsText, "Suggestions join with the same separator the field is seeded with")
+        XCTAssertEqual(tapped.entryDraftPayload.tags, typed.entryDraftPayload.tags)
+        XCTAssertEqual(tapped.entryDraftPayload.tags, ["personal", "finance", "New York"])
+
+        let fromEmptyField = EntryEditViewModel(createIn: UUID(), knownTags: ["finance"])
+        fromEmptyField.appendTagSuggestion("finance")
+
+        XCTAssertEqual(fromEmptyField.tagsText, "finance", "The first tag lands without a leading separator")
+    }
+
+    func testAppendingATagTheFieldAlreadyCarriesIsANoOp() {
+        let viewModel = EntryEditViewModel(createIn: UUID(), knownTags: ["work"])
+        viewModel.tagsText = " work , personal "
+
+        viewModel.appendTagSuggestion("work")
+
+        XCTAssertEqual(
+            viewModel.tagsText,
+            " work , personal ",
+            "A duplicate tap leaves the text the user typed exactly as it was"
+        )
+        XCTAssertEqual(viewModel.entryDraftPayload.tags, ["work", "personal"])
+    }
+
+    func testTagSuggestionsAreEmptyWithoutAPoolOrOnceEveryKnownTagIsApplied() {
+        let noTagsInDatabase = EntryEditViewModel(createIn: UUID())
+        XCTAssertTrue(noTagsInDatabase.tagSuggestions.isEmpty, "A database with no tags has nothing to offer")
+
+        let everythingApplied = EntryEditViewModel(
+            createIn: UUID(),
+            knownTags: ["finance", "work"],
+            inheritedTags: ["finance"]
+        )
+        everythingApplied.tagsText = "work"
+
+        XCTAssertTrue(
+            everythingApplied.tagSuggestions.isEmpty,
+            "Typed and inherited tags together can empty the strip, which is when the view renders nothing"
+        )
+    }
+
+    func testTagSuggestionsNeverOfferATagMissingFromThePool() {
+        // The pool comes from the recycled-excluding index, so a tag that
+        // survives only in the recycle bin never reaches the editor — and
+        // nothing in the editor can resurrect it.
+        let entry = KPEntry(title: "Tagged", tags: ["kept"], hasTagsElement: true)
+        let viewModel = EntryEditViewModel(
+            editing: entry,
+            sessionKey: sessionKey,
+            knownTags: ["kept", "shared"]
+        )
+
+        XCTAssertEqual(viewModel.tagSuggestions, ["shared"])
+        XCTAssertFalse(viewModel.tagSuggestions.contains("recycled-only"))
+    }
+
+    func testTappingASuggestionMakesTheFormDirty() {
+        let entry = KPEntry(title: "Tagged", tags: ["work"], hasTagsElement: true)
+        let viewModel = EntryEditViewModel(
+            editing: entry,
+            sessionKey: sessionKey,
+            knownTags: ["finance", "work"]
+        )
+        XCTAssertFalse(viewModel.isDirty)
+
+        viewModel.appendTagSuggestion("finance")
+
+        XCTAssertTrue(viewModel.isDirty, "Suggestions mutate tagsText, which is what dirty tracking watches")
+        XCTAssertTrue(viewModel.canSave)
+    }
+
     // MARK: - canSave
 
     func testCanSaveTruthTableAcrossCreateAndEditModes() throws {

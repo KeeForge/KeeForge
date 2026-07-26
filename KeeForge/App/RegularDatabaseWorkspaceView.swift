@@ -461,7 +461,11 @@ struct RegularDatabaseWorkspaceView: View {
         Task { @MainActor in
             let result = await viewModel.acknowledgeEditingIfNeeded()
             guard result == .acknowledged else { return }
-            commandEditor = EntryEditViewModel(createIn: targetGroupID)
+            commandEditor = EntryEditViewModel(
+                createIn: targetGroupID,
+                knownTags: viewModel.tagsInDisplayOrder,
+                inheritedTags: viewModel.inheritedTags(forGroupID: targetGroupID)
+            )
         }
     }
     #endif

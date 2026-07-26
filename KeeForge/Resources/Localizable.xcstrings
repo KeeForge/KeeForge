@@ -434,6 +434,16 @@
         }
       }
     },
+    "Add tag %@" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tag %@ hinzufügen"
+          }
+        }
+      }
+    },
     "Added" : {
       "localizations" : {
         "de" : {

@@ -89,6 +89,8 @@ struct EntryEditView: View {
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
                         .accessibilityIdentifier("entry-edit.tags-field")
+
+                    tagSuggestionStrip
                 }
             }
 
@@ -216,6 +218,44 @@ struct EntryEditView: View {
         } message: {
             Text(editingErrorMessage ?? "")
         }
+    }
+
+    /// The database's other tags, one tap each, wrapped under the tag field.
+    /// Nothing at all renders when there is nothing left to offer — a database
+    /// without tags, or an entry that already carries or inherits every one of
+    /// them, shows the plain field with no empty husk below it.
+    ///
+    /// The strip carries a container identifier but is also declared an
+    /// accessibility container, so the chips keep their own identifiers instead
+    /// of inheriting the strip's (see `README.md`).
+    @ViewBuilder
+    private var tagSuggestionStrip: some View {
+        let suggestions = formViewModel.tagSuggestions
+        if suggestions.isEmpty == false {
+            FlowLayout(spacing: 6) {
+                // Enumerated for the identifier fallback index, which is what
+                // gives an emoji-only tag — one that normalizes to nothing — a
+                // usable identifier.
+                ForEach(Array(suggestions.enumerated()), id: \.offset) { index, tag in
+                    tagSuggestionChip(tag, fallbackIndex: index)
+                }
+            }
+            .accessibilityElement(children: .contain)
+            .accessibilityIdentifier("entry-edit.tag-suggestions")
+        }
+    }
+
+    private func tagSuggestionChip(_ tag: String, fallbackIndex: Int) -> some View {
+        Button {
+            formViewModel.appendTagSuggestion(tag)
+        } label: {
+            TagCapsule(tag: tag, systemImage: "plus")
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(Text("Add tag \(tag)"))
+        .accessibilityIdentifier(
+            "entry-edit.tag-suggestion.\(TagAccessibility.identifierSuffix(for: tag, fallbackIndex: fallbackIndex))"
+        )
     }
 
     private var navigationTitle: String {
