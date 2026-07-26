@@ -584,6 +584,16 @@
         }
       }
     },
+    "AutoFill from all your databases" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AutoFill aus allen Ihren Datenbanken"
+          }
+        }
+      }
+    },
     "AutoFill in iOS" : {
       "localizations" : {
         "de" : {
@@ -700,6 +710,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Bildschirmaufnahmen blockieren"
+          }
+        }
+      }
+    },
+    "Built with the community" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gemeinsam mit der Community entwickelt"
           }
         }
       }
@@ -2384,6 +2404,16 @@
         }
       }
     },
+    "Get suggestions from every database at once, choose which ones AutoFill uses, and switch databases without leaving the AutoFill panel." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Erhalten Sie Vorschläge aus allen Datenbanken gleichzeitig, legen Sie fest, welche AutoFill verwendet, und wechseln Sie die Datenbank, ohne das AutoFill-Fenster zu verlassen."
+          }
+        }
+      }
+    },
     "Good" : {
       "localizations" : {
         "de" : {
@@ -2464,12 +2494,32 @@
         }
       }
     },
+    "Hide a group and its entries stop appearing when you fill passwords, while staying fully visible when you browse the database in the app." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Verbergen Sie eine Gruppe, und ihre Einträge erscheinen beim Ausfüllen von Passwörtern nicht mehr – beim Durchsuchen der Datenbank in der App bleiben sie vollständig sichtbar."
+          }
+        }
+      }
+    },
     "Hide from AutoFill" : {
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Aus AutoFill ausblenden"
+          }
+        }
+      }
+    },
+    "Hide groups from AutoFill" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gruppen vor AutoFill verbergen"
           }
         }
       }
@@ -4700,6 +4750,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Vielen Dank, dass Sie zur Verbesserung von KeeForge beitragen."
+          }
+        }
+      }
+    },
+    "Thanks to @miquno and @ftorga, whose open-source contributions helped shape this release." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dank an @miquno und @ftorga, deren Open-Source-Beiträge diese Version mitgestaltet haben."
           }
         }
       }
