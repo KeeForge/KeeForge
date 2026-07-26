@@ -42,7 +42,7 @@ KeeForge ist ein nativer iOS-KeePass-Client für alle, die die Kontrolle über i
 | **Cloud-Sync** | Natives Durchsuchen und Lese-/Schreib-Sync für Dropbox, OneDrive und WebDAV, zwischengespeicherte geteilte Kopien für AutoFill, Upload-Warteschlange in der Extension und Konfliktprüfungen. |
 | **Anhänge** | KeePass-Eintragsanhänge anzeigen, unterstützte Dateien per QuickLook in der Vorschau öffnen und aus kurzlebigen geschützten temporären Dateien teilen. Das Bearbeiten von Anhängen wird noch nicht unterstützt. |
 | **Bereit fürs iPad** | Die adaptive Navigation nutzt auf breiteren Layouts eine Split-View-Tresoransicht und hält den kompakten iPhone-Ablauf fokussiert und nativ. |
-| **Sicherheitsbewusst** | AES-GCM-Verschlüsselung von Geheimnissen im Arbeitsspeicher, Backoff nach fehlgeschlagenen Entsperrversuchen, ausschließlich lokale Zwischenablage, Limits gegen Dekompressionsbomben und HMAC-Vergleich in konstanter Zeit. Der Bildschirmschutz unterscheidet sich je Plattform: iOS blendet die App aus, während der Bildschirm aufgenommen wird (`UIScreen.isCaptured`); macOS blurrt seine Fenster, sobald sie den Fokus verlieren, und blockiert standardmäßig nach bestem Bemühen Screenshots/Aufnahmen (`NSWindow.sharingType`, das ScreenCaptureKit-basierte Aufnahmen ab macOS 15 umgehen können). Das beschriebene macOS-Verhalten bezieht sich auf eine experimentelle native macOS-App (das Target `KeeForgeMac`), die in diesem Repository liegt, aber pausiert und noch nicht veröffentlicht ist. Siehe [`docs/macos-security-notes.md`](docs/macos-security-notes.md). |
+| **Sicherheitsbewusst** | AES-GCM-Verschlüsselung von Geheimnissen im Arbeitsspeicher, Backoff nach fehlgeschlagenen Entsperrversuchen, ausschließlich lokale Zwischenablage, Limits gegen Dekompressionsbomben und HMAC-Vergleich in konstanter Zeit. Der Bildschirmschutz unterscheidet sich je Plattform: iOS blendet die App aus, während der Bildschirm aufgenommen wird (`UIScreen.isCaptured`); macOS blurrt seine Fenster, sobald sie den Fokus verlieren, und blockiert standardmäßig nach bestem Bemühen Screenshots/Aufnahmen (`NSWindow.sharingType`, das ScreenCaptureKit-basierte Aufnahmen ab macOS 15 umgehen können). Das macOS-Verhalten bezieht sich auf die experimentelle native macOS-App (das Target `KeeForgeMac`) in diesem Repository, derzeit pausiert und unveröffentlicht. Siehe [`docs/macos-security-notes.md`](docs/macos-security-notes.md). |
 
 ## Datenschutz
 
@@ -56,7 +56,7 @@ Lies die [Datenschutzerklärung](https://keeforge.com/de/privacy) ([englisches O
 - Xcode 26+
 - [XcodeGen](https://github.com/yonaskolb/XcodeGen)
 - Swift 6 mit Strict Concurrency
-- Swift-Package-Abhängigkeiten: [Argon2Swift](https://github.com/tmthecoder/Argon2Swift), [SwiftyDropbox](https://github.com/dropbox/SwiftyDropbox), [Microsoft Authentication Library](https://github.com/AzureAD/microsoft-authentication-library-for-objc) und das lokal mitgelieferte Paket [KeeForgeTwofish](Vendor/KeeForgeTwofish)
+- Swift-Package-Abhängigkeiten: [Argon2Swift](https://github.com/tmthecoder/Argon2Swift), [SwiftyDropbox](https://github.com/dropbox/SwiftyDropbox), [Microsoft Authentication Library](https://github.com/AzureAD/microsoft-authentication-library-for-objc) und das mitgelieferte [KeeForgeTwofish](Vendor/KeeForgeTwofish)-Paket
 
 ## Aus dem Quellcode bauen
 

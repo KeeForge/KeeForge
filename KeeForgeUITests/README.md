@@ -65,7 +65,7 @@ xcodebuild test -project KeeForge.xcodeproj -scheme KeeForge \
   -only-testing:KeeForgeUITests/UnlockedDatabaseBrowseAndDetailUITests -quiet
 ```
 
-If one source file contains multiple test classes, run each class separately by class name. `-only-testing:` takes the **class** name, not the file name — several files host multiple classes:
+`-only-testing:` takes the **class** name, not the file name; run each class separately. Files hosting multiple classes:
 
 - `UnlockedDatabaseUITests.swift` — `UnlockedDatabaseUITestCase` + `AppSettingsUITestCase` (bases), `UnlockedDatabaseBrowseAndDetailUITests`, `UnlockedDatabaseSearchAndSortUITests`, `RegularWidthWorkspaceUITests`, `AppSettingsUITests`
 - `EntryEditUITests.swift` — `EntryEditUITestCase` (base), `EntryCreateSmokeUITests`, `EntryEditSmokeUITests`, `EntryDeleteSmokeUITests`, `EntryEditEdgeUITests`
@@ -111,7 +111,7 @@ Do not run the full UI suite unless explicitly asked. It is slow and makes failu
 
 ### CI: iOS 18 RC Workflow
 
-Pushing an `rc/*` tag triggers `.github/workflows/ios18-rc-tests.yml`, which runs the suites on an **iPhone SE (3rd generation)** simulator with an iOS 18 runtime — a compact-width device, chosen because compact layout is where minimum-OS regressions have surfaced. To reproduce an RC failure from that workflow, use the same device and runtime, not the default `iPhone 17 Pro`.
+Pushing an `rc/*` tag triggers `.github/workflows/ios18-rc-tests.yml`, which runs the suites on an **iPhone SE (3rd generation)** simulator with an iOS 18 runtime (compact-width — where minimum-OS regressions have surfaced). Reproduce RC failures on that device and runtime, not the default `iPhone 17 Pro`.
 
 ## AutoFill Store Harness Simulator
 
@@ -366,13 +366,11 @@ Used by `AutoFillStoreUITests` as its second ("bravo") database: one `Union` gro
 
 ### Key File Fixtures
 
-Use `demo-keyfile.kdbx` with `demo-keyfile.key` for key-file UI testing — that pair is the only key-file fixture bundled into `KeeForgeUITests`.
-
-The other key-file fixtures in `TestFixtures/` (`test-binary.key`, `test-hex.key`, `test-v1.key`, `test-v2.keyx`, `test-arbitrary.key`, `test-v3-backup.kdbx`) are bundled only into the unit-test targets and are **not** available to UI tests.
+Use `demo-keyfile.kdbx` with `demo-keyfile.key` — the only key-file pair bundled into `KeeForgeUITests`. The other key-file fixtures in `TestFixtures/` (`test-binary.key`, `test-hex.key`, `test-v1.key`, `test-v2.keyx`, `test-arbitrary.key`, `test-v3-backup.kdbx`) are bundled only into the unit-test targets and **not** available to UI tests.
 
 ### What The UI-Test Target Bundles
 
-Per the `KeeForgeUITests` sources in `project.yml`, exactly these fixtures ship in the UI-test bundle: `test.kdbx`, `demo.kdbx`, `demo-keyfile.kdbx`, `demo-keyfile.key`, `compatibility/attachments.kdbx`, and `autofill-union.kdbx`. To use any other fixture from a UI test, add it there and run `xcodegen generate`.
+Per the `KeeForgeUITests` sources in `project.yml`, exactly these fixtures ship in the UI-test bundle: `test.kdbx`, `demo.kdbx`, `demo-keyfile.kdbx`, `demo-keyfile.key`, `compatibility/attachments.kdbx`, and `autofill-union.kdbx`. To use another fixture from a UI test, add it there and run `xcodegen generate`.
 
 ## Base Class Helpers
 
@@ -432,7 +430,7 @@ Use the app's accessibility identifiers whenever possible, including:
 
   **Simulator enumeration caveat / seam-level fallback.** On simulator runtimes (verified iOS 18.5 and 26.5) the enumeration API `ASCredentialIdentityStore.credentialIdentities(...)` always returns an *empty array* despite persisted writes (the saves succeed and QuickType consumes them). This breaks not only the inspector but the app's *own* store maintenance (`CredentialIdentityStoreManager.populate` / `removeIdentities(forDatabase:)` enumerate-then-mutate). The fix is a single DEBUG + simulator-only fallback at the store seam (`SystemCredentialIdentityStore.credentialIdentities()`): when the API returns empty it reconstructs the real identities from the backing SQLite file (`<app-data-container>/SystemData/com.apple.AuthenticationServices/Identities/Identities.db`, read-only, metadata + public passkey identifiers only), so per-database maintenance behaves device-equivalently on simulators. The inspector surfaces which channel served the rows via `autofill-inspector.source` = `api` (API served, or everything empty) / `fallback-db` (seam read the backing DB). `autofill-inspector.total-count` and the per-database/legacy/unrecognized rows therefore reflect the true store contents on the harness even though the API reads empty. **`autofill-inspector.enumeration-state` stays API-truth** (`available` when the API returns a non-nil array — which on the harness it does, just empty — `unavailable` only when the API returns nil, e.g. macOS 14.0–14.3): it is *not* affected by the fallback and does not indicate whether rows were found.
 
-  **Write-side simulator dedup (why `AutoFillStoreUITests` uses two disjoint fixtures).** Separately from the enumeration read bug, the simulator's `saveCredentialIdentities` dedups identities that share `(service_id, user)` across databases, ignoring `recordIdentifier` (verified on the harness: publishing two databases' worth of identical-domain identities leaves only one database's set). `AutoFillStoreUITests` therefore seeds its second ("bravo") database from `autofill-union.kdbx`, whose service domains and usernames are fully disjoint from `test.kdbx`'s ("alpha") — see the AutoFill Union Fixture section above — so no cross-database dedup can occur, and `testMultiDatabaseUnionAndSingleSectionRemoval` deterministically asserts the full union: the inspector total equals alpha's count plus bravo's, each section holds its own full set, and disabling bravo removes only its section.
+  **Write-side simulator dedup (why `AutoFillStoreUITests` uses two disjoint fixtures).** Separately from the enumeration read bug, the simulator's `saveCredentialIdentities` dedups identities sharing `(service_id, user)` across databases, ignoring `recordIdentifier` (verified on the harness: two databases' identical-domain identities collapse to one database's set). `AutoFillStoreUITests` therefore seeds its second ("bravo") database from `autofill-union.kdbx`, fully domain/username-disjoint from `test.kdbx` ("alpha") — see the AutoFill Union Fixture section above — so no cross-database dedup can occur and `testMultiDatabaseUnionAndSingleSectionRemoval` deterministically asserts the full union: inspector total = alpha's count + bravo's, each section holds its own full set, and disabling bravo removes only its section.
 
 ### DEBUG-only harness launch arguments
 

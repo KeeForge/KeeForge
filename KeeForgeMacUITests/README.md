@@ -8,7 +8,7 @@ Smoke suite for the native macOS app (target `KeeForgeMacUITests`, scheme `KeeFo
 - `MacDatabaseListUITests` — two seeded databases, right-click Remove flow.
 - `MacWebDAVSmokeUITests` — seeded WebDAV mock round-trip via `UITestWebDAVCloudProvider` (`UI_TEST_WEBDAV_PAYLOAD_JSON`), unlock + ⌘L.
 - `MacWhatsNewUITests` — current Mac-filtered feature content and dismissal, forced through `UI_TEST_SHOW_WHATS_NEW=1` while the sheet stays suppressed in all unrelated UI tests.
-- `MacScreenshotAuditUITests` — walks the primary screens and attaches `.keepAlways` per-window screenshots for visual UX auditing; skips unless launched with `TEST_RUNNER_SCREENSHOT_AUDIT=1` (add `TEST_RUNNER_SCREENSHOT_AUDIT_DARK=1` for a dark-appearance pass), then export with `xcrun xcresulttool export attachments`. Only captures the app's own windows, never the whole desktop.
+- `MacScreenshotAuditUITests` — walks the primary screens and attaches `.keepAlways` per-window screenshots for visual UX auditing (app windows only, never the whole desktop). Skips unless launched with `TEST_RUNNER_SCREENSHOT_AUDIT=1` (`TEST_RUNNER_SCREENSHOT_AUDIT_DARK=1` adds a dark-appearance pass); export with `xcrun xcresulttool export attachments`.
 
 ## Running
 
@@ -18,4 +18,4 @@ xcodebuild test -project KeeForge.xcodeproj -scheme KeeForgeMac \
   -only-testing:KeeForgeMacUITests/MacSmokeUITests
 ```
 
-Requirements and gotchas (unlocked login session, `-ApplePersistenceIgnoreState`, click/`typeKey` interaction style, device-owner-auth prompt boundaries) are documented in the "macOS Smoke Suite" section of `../KeeForgeUITests/README.md` — read that before running or writing Mac UI tests.
+Requirements and gotchas (unlocked login session, `-ApplePersistenceIgnoreState`, click/`typeKey` interaction style, device-owner-auth prompt boundaries) are in the "macOS Smoke Suite" section referenced above — read it before running or writing Mac UI tests.

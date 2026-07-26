@@ -10,7 +10,7 @@ This file tracks planned product work.
 
 ## iPad and macOS Support
 
-- [ ] Plan and implement native macOS support — implemented and building/testing green, but ON HOLD and unreleased (see CHANGELOG's "macOS App" section)
+- [ ] Plan and implement native macOS support — built and testing green, but ON HOLD and unreleased (see CHANGELOG's "macOS App" section)
 - [x] Build an iPad-native layout
 
 ## Core Functionalities
