@@ -235,6 +235,24 @@ final class DatabaseViewModel {
         didSet {
             if oldValue != selectedGroupID {
                 selectedEntryID = nil
+                if selectedGroupID != nil {
+                    selectedTag = nil
+                }
+            }
+            resetInactivityTimer()
+        }
+    }
+    /// The tag selected in the macOS sidebar's Tags section. Mutually exclusive
+    /// with `selectedGroupID`: the sidebar shows exactly one selection, so
+    /// setting either one clears the other (and the entry selection, the same
+    /// way switching groups does). Tag identity is exact-string.
+    var selectedTag: String? {
+        didSet {
+            if oldValue != selectedTag {
+                selectedEntryID = nil
+                if selectedTag != nil {
+                    selectedGroupID = nil
+                }
             }
             resetInactivityTimer()
         }
@@ -643,6 +661,25 @@ final class DatabaseViewModel {
         return Array(tagEntryIDs.keys)
     }
 
+    /// `allTags` in the order the tag browser renders them: Finder-style
+    /// case-insensitive, locale-aware, and numeric-aware, so `tag2` comes
+    /// before `tag10` and case variants sit next to each other.
+    ///
+    /// `localizedStandardCompare` can call two distinct strings `.orderedSame`
+    /// (it folds case and character width), and `sorted(by:)` is not a stable
+    /// sort, so exact-string comparison breaks those ties. Without it two
+    /// equivalent-but-different tags could swap places on every rebuild even
+    /// though nothing about them changed.
+    var tagsInDisplayOrder: [String] {
+        allTags.sorted { lhs, rhs in
+            switch lhs.localizedStandardCompare(rhs) {
+            case .orderedAscending: return true
+            case .orderedDescending: return false
+            case .orderedSame: return lhs < rhs
+            }
+        }
+    }
+
     /// How many live entries carry `tag`, matched exact-string.
     func entryCount(forTag tag: String) -> Int {
         _ = contentRevision
@@ -873,6 +910,7 @@ final class DatabaseViewModel {
         searchText = ""
         navigationPath = NavigationPath()
         selectedGroupID = nil
+        selectedTag = nil
         selectedEntryID = nil
     }
 
@@ -1020,6 +1058,7 @@ final class DatabaseViewModel {
         searchText = ""
         isSearchActive = false
         selectedGroupID = nil
+        selectedTag = nil
         selectedEntryID = nil
         state = .unlocking
         cloudSyncProgress = nil
@@ -1509,13 +1548,24 @@ final class DatabaseViewModel {
     private func synchronizeSelections() {
         guard let visibleRootGroupID else {
             selectedGroupID = nil
+            selectedTag = nil
             selectedEntryID = nil
             return
         }
 
+        // A tag stops existing the moment its last live carrier is edited,
+        // deleted, or recycled. Drop the selection first so the group fallback
+        // below picks the sidebar back up.
+        if let selectedTag, tagEntryIDs[selectedTag] == nil {
+            self.selectedTag = nil
+        }
+
         if let selectedGroupID, groupIndex[selectedGroupID] == nil {
             self.selectedGroupID = visibleRootGroupID
-        } else if selectedGroupID == nil {
+        } else if selectedGroupID == nil, selectedTag == nil {
+            // Only fall back to the root when nothing else is selected — a tag
+            // selection deliberately leaves `selectedGroupID` nil, and snapping
+            // it back here would clear the tag on the next rebuild.
             selectedGroupID = visibleRootGroupID
         }
 

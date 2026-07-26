@@ -293,6 +293,8 @@ targets:
         buildPhase: resources
       - path: TestFixtures/autofill-union.kdbx
         buildPhase: resources
+      - path: TestFixtures/tag-browser.kdbx
+        buildPhase: resources
 
   KeeForgeTests:
     type: bundle.unit-test

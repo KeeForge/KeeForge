@@ -8,6 +8,11 @@ struct EntryDetailView: View {
     let entryID: UUID
     @Bindable var viewModel: DatabaseViewModel
     var onClose: () -> Void = {}
+    /// Routes a tapped tag chip in shells that select instead of push (the iPad
+    /// workspace, whose detail column has no browsing stack of its own, and
+    /// macOS, which selects the tag in its sidebar). Left nil in the compact
+    /// shell, where chips push `TagDestination.entries` like any other row.
+    var onSelectTag: ((String) -> Void)? = nil
     #if os(iOS)
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     #endif
@@ -108,12 +113,11 @@ struct EntryDetailView: View {
                     if !entry.tags.isEmpty {
                         Section("Tags") {
                             FlowLayout(spacing: 6) {
-                                ForEach(entry.tags, id: \.self) { tag in
-                                    Text(tag)
-                                        .font(.caption)
-                                        .padding(.horizontal, 8)
-                                        .padding(.vertical, 4)
-                                        .background(.fill, in: .capsule)
+                                // Enumerated rather than `id: \.self` so a
+                                // foreign file repeating a tag still renders
+                                // both chips with distinct identifiers.
+                                ForEach(Array(entry.tags.enumerated()), id: \.offset) { index, tag in
+                                    tagChip(tag, fallbackIndex: index)
                                 }
                             }
                         }
@@ -188,6 +192,30 @@ struct EntryDetailView: View {
         }
     }
 
+    /// One tag capsule, a shortcut into that tag's filtered entry list. Follows
+    /// the link-or-callback shape the row helpers elsewhere use, so the compact
+    /// stack pushes while the iPad and macOS shells route through their own
+    /// browsing surface.
+    @ViewBuilder
+    private func tagChip(_ tag: String, fallbackIndex: Int) -> some View {
+        let identifier = "entry-detail.tag.\(TagAccessibility.identifierSuffix(for: tag, fallbackIndex: fallbackIndex))"
+        if let onSelectTag {
+            Button {
+                onSelectTag(tag)
+            } label: {
+                TagCapsule(tag: tag)
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier(identifier)
+        } else {
+            NavigationLink(value: TagDestination.entries(tag: tag)) {
+                TagCapsule(tag: tag)
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier(identifier)
+        }
+    }
+
     /// Presents the entry editor. iOS pushes onto the navigation stack;
     /// macOS presents a sheet (navigation-stack pushes inside the split-view
     /// columns misrender on macOS).
@@ -223,6 +251,21 @@ struct EntryDetailView: View {
                 }
             }
         }
+    }
+}
+
+/// The capsule label shared by both chip shapes.
+private struct TagCapsule: View {
+    let tag: String
+
+    var body: some View {
+        Text(tag)
+            .font(.caption)
+            .lineLimit(1)
+            .truncationMode(.tail)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .background(.fill, in: .capsule)
     }
 }
 

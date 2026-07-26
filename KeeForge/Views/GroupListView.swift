@@ -51,6 +51,9 @@ struct GroupListView: View {
     /// macOS drill-down: when set, group rows call this instead of pushing a
     /// `NavigationLink` (pushed sidebar stacks render zero-height on macOS).
     var onSelectGroup: ((UUID) -> Void)? = nil
+    /// macOS drill-down counterpart for the root Tags row; the stack shells
+    /// leave it nil and push `TagDestination.allTags` instead.
+    var onSelectTags: (() -> Void)? = nil
     /// macOS drill-down: when set, a Back toolbar button pops one level.
     var onNavigateBack: (() -> Void)? = nil
     #if os(iOS)
@@ -84,6 +87,12 @@ struct GroupListView: View {
         viewModel.currentRootGroup?.recycleBinUUID == groupID
     }
 
+    /// Whether this level is the database root, where the Tags row belongs.
+    /// Same predicate `GroupListSearchModifier` uses to pick the root.
+    private var isVisibleRoot: Bool {
+        groupID == viewModel.visibleRootGroupID
+    }
+
     private var showsCompactLockButton: Bool {
         // `\.horizontalSizeClass` does not exist on macOS; the Mac app always
         // uses the regular layout.
@@ -99,6 +108,16 @@ struct GroupListView: View {
             if viewModel.searchText.isEmpty {
                 if let resolvedGroup {
                     List {
+                        // The tag browser's single entry point, kept in its own
+                        // small section above the tree so the root list stays
+                        // calm. It stays visible at zero tags — that is where
+                        // the empty state teaches how to add one.
+                        if isVisibleRoot {
+                            Section {
+                                tagsRow()
+                            }
+                        }
+
                         if !visibleGroups.isEmpty {
                             Section("Groups") {
                                 ForEach(viewModel.sortedGroups(visibleGroups).map(\.id), id: \.self) { subgroupID in
@@ -115,6 +134,9 @@ struct GroupListView: View {
                             }
                         }
 
+                        // Describes the group's own contents only; at the root
+                        // the Tags section above stays put so the browser is
+                        // reachable from an otherwise empty vault.
                         if visibleGroups.isEmpty && visibleEntries.isEmpty {
                             ContentUnavailableView(
                                 "Empty Group",
@@ -345,6 +367,30 @@ struct GroupListView: View {
                 )
             #endif
         }
+    }
+
+    /// The root-level entry point into the tag browser. Mirrors `groupRow`'s
+    /// link-or-callback shape so it works in a pushing stack and in a
+    /// selection-driven shell alike.
+    @ViewBuilder
+    private func tagsRow() -> some View {
+        Group {
+            if let onSelectTags {
+                Button {
+                    onSelectTags()
+                } label: {
+                    TagBrowserRow(viewModel: viewModel)
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("group-list.tags-row")
+            } else {
+                NavigationLink(value: TagDestination.allTags) {
+                    TagBrowserRow(viewModel: viewModel)
+                }
+                .accessibilityIdentifier("group-list.tags-row")
+            }
+        }
+        .macHoverHighlight()
     }
 
     @ViewBuilder
@@ -695,6 +741,31 @@ struct GroupRow: View {
                 .contentShape(Rectangle())
             }
         }
+    }
+}
+
+/// The root list's "Tags" row: the database's distinct-tag count over the whole
+/// tree. Shown at zero too, so the tag browser is discoverable in a vault that
+/// has no tags yet.
+struct TagBrowserRow: View {
+    @Bindable var viewModel: DatabaseViewModel
+
+    var body: some View {
+        HStack {
+            Image(systemName: "tag")
+                .foregroundStyle(.tint)
+                .frame(width: 28)
+
+            VStack(alignment: .leading) {
+                Text("Tags")
+                    .font(.body)
+                Text("\(viewModel.allTags.count) tags")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .contentShape(Rectangle())
     }
 }
 
