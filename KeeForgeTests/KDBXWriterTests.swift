@@ -3,43 +3,6 @@ import XCTest
 @testable import KeeForge
 
 final class KDBXWriterTests: XCTestCase {
-    private struct Fixture {
-        let name: String
-        let subdirectory: String?
-        let password: String?
-        let keyFileName: String?
-        let keyFileExtension: String?
-
-        static let test = Fixture(
-            name: "test",
-            subdirectory: nil,
-            password: "testpassword123",
-            keyFileName: nil,
-            keyFileExtension: nil
-        )
-        static let demo = Fixture(
-            name: "demo",
-            subdirectory: nil,
-            password: "demo",
-            keyFileName: nil,
-            keyFileExtension: nil
-        )
-        static let demoKeyfile = Fixture(
-            name: "demo-keyfile",
-            subdirectory: nil,
-            password: "demo",
-            keyFileName: "demo-keyfile",
-            keyFileExtension: "key"
-        )
-        static let unknownElements = Fixture(
-            name: "unknown-elements",
-            subdirectory: "round-trip",
-            password: "test-round-trip",
-            keyFileName: nil,
-            keyFileExtension: nil
-        )
-    }
-
     private struct ParsedFixture {
         let rootGroup: KPGroup
         let meta: KPMeta
@@ -48,10 +11,6 @@ final class KDBXWriterTests: XCTestCase {
     }
 
     private let sessionKey = SymmetricKey(size: .bits256)
-    private let protectedValueRegex = try? NSRegularExpression(
-        pattern: #"<Value(?=[^>]*Protected="True")([^>]*)>.*?</Value>"#,
-        options: [.dotMatchesLineSeparators]
-    )
 
     func test_writeRoundTrip_test_kdbx_AES_returnsEqualTree() throws {
         let parsed = try parseFixture(.test)
@@ -634,7 +593,7 @@ final class KDBXWriterTests: XCTestCase {
         }
     }
 
-    private func parseFixture(_ fixture: Fixture) throws -> ParsedFixture {
+    private func parseFixture(_ fixture: KDBXTestFixture) throws -> ParsedFixture {
         let bundle = Bundle(for: Self.self)
         let databaseURL = try TestDatabaseSupport.fixtureURL(
             named: fixture.name,
@@ -672,7 +631,7 @@ final class KDBXWriterTests: XCTestCase {
 
     private func parseWrittenFile(
         _ data: Data,
-        fixture: Fixture
+        fixture: KDBXTestFixture
     ) throws -> (rootGroup: KPGroup, meta: KPMeta) {
         let bundle = Bundle(for: Self.self)
 
@@ -855,114 +814,21 @@ final class KDBXWriterTests: XCTestCase {
         return false
     }
 
+    /// Thin adapter over the shared comparators in `KDBXTreeAssertions.swift`;
+    /// the container round-trip and the XML round-trip must verify the same
+    /// fields.
     private func assertTreesEqual(
         _ lhs: ParsedFixture,
         _ rhs: (rootGroup: KPGroup, meta: KPMeta),
         file: StaticString = #filePath,
         line: UInt = #line
     ) throws {
-        XCTAssertEqual(lhs.meta.recycleBinUUID, rhs.meta.recycleBinUUID, file: file, line: line)
-        XCTAssertEqual(lhs.meta.maintenanceHistoryDays, rhs.meta.maintenanceHistoryDays, file: file, line: line)
-        XCTAssertEqual(lhs.meta.historyMaxItems, rhs.meta.historyMaxItems, file: file, line: line)
-        XCTAssertEqual(lhs.meta.historyMaxSize, rhs.meta.historyMaxSize, file: file, line: line)
-        XCTAssertEqual(normalizedOpaqueXML(lhs.meta.unknownXML), normalizedOpaqueXML(rhs.meta.unknownXML), file: file, line: line)
-        try assertGroupsEqual(lhs.rootGroup, rhs.rootGroup, file: file, line: line)
-    }
-
-    private func assertGroupsEqual(
-        _ lhs: KPGroup,
-        _ rhs: KPGroup,
-        file: StaticString = #filePath,
-        line: UInt = #line
-    ) throws {
-        XCTAssertEqual(lhs.id, rhs.id, file: file, line: line)
-        XCTAssertEqual(lhs.name, rhs.name, file: file, line: line)
-        XCTAssertEqual(lhs.iconID, rhs.iconID, file: file, line: line)
-        XCTAssertEqual(lhs.isExpanded, rhs.isExpanded, file: file, line: line)
-        XCTAssertEqual(lhs.creationTime, rhs.creationTime, file: file, line: line)
-        XCTAssertEqual(lhs.lastModificationTime, rhs.lastModificationTime, file: file, line: line)
-        XCTAssertEqual(lhs.recycleBinUUID, rhs.recycleBinUUID, file: file, line: line)
-        XCTAssertEqual(normalizedOpaqueXML(lhs.unknownXML), normalizedOpaqueXML(rhs.unknownXML), file: file, line: line)
-        XCTAssertEqual(lhs.entries.count, rhs.entries.count, file: file, line: line)
-        XCTAssertEqual(lhs.groups.count, rhs.groups.count, file: file, line: line)
-
-        for (lhsEntry, rhsEntry) in zip(lhs.entries, rhs.entries) {
-            try assertEntriesEqual(lhsEntry, rhsEntry, file: file, line: line)
-        }
-
-        for (lhsGroup, rhsGroup) in zip(lhs.groups, rhs.groups) {
-            try assertGroupsEqual(lhsGroup, rhsGroup, file: file, line: line)
-        }
-    }
-
-    private func assertEntriesEqual(
-        _ lhs: KPEntry,
-        _ rhs: KPEntry,
-        file: StaticString = #filePath,
-        line: UInt = #line
-    ) throws {
-        XCTAssertEqual(lhs.id, rhs.id, file: file, line: line)
-        XCTAssertEqual(lhs.title, rhs.title, file: file, line: line)
-        XCTAssertEqual(lhs.username, rhs.username, file: file, line: line)
-        XCTAssertEqual(try lhs.password.decrypt(using: sessionKey), try rhs.password.decrypt(using: sessionKey), file: file, line: line)
-        XCTAssertEqual(lhs.url, rhs.url, file: file, line: line)
-        XCTAssertEqual(lhs.notes, rhs.notes, file: file, line: line)
-        XCTAssertEqual(lhs.iconID, rhs.iconID, file: file, line: line)
-        XCTAssertEqual(lhs.tags, rhs.tags, file: file, line: line)
-        XCTAssertEqual(lhs.customFields, rhs.customFields, file: file, line: line)
-        XCTAssertEqual(lhs.creationTime, rhs.creationTime, file: file, line: line)
-        XCTAssertEqual(lhs.lastModificationTime, rhs.lastModificationTime, file: file, line: line)
-        XCTAssertEqual(normalizedOpaqueXML(lhs.unknownXML), normalizedOpaqueXML(rhs.unknownXML), file: file, line: line)
-        XCTAssertEqual(lhs.attachments, rhs.attachments, file: file, line: line)
-        XCTAssertEqual(lhs.history.count, rhs.history.count, file: file, line: line)
-        for (lhsHistoryEntry, rhsHistoryEntry) in zip(lhs.history, rhs.history) {
-            try assertEntriesEqual(lhsHistoryEntry, rhsHistoryEntry, file: file, line: line)
-        }
-        try assertTOTPConfigsEqual(lhs.totpConfig, rhs.totpConfig, file: file, line: line)
-    }
-
-    private func normalizedOpaqueXML(_ unknownXML: OpaqueXMLNodes) -> OpaqueXMLNodes {
-        OpaqueXMLNodes(nodes: unknownXML.nodes.map { node in
-            OpaqueXMLNodes.Node(
-                path: node.path,
-                insertionIndex: node.insertionIndex,
-                xml: normalizedProtectedValues(in: node.xml)
-            )
-        })
-    }
-
-    private func normalizedProtectedValues(in xml: String) -> String {
-        guard let protectedValueRegex else { return xml }
-        let nsRange = NSRange(xml.startIndex..<xml.endIndex, in: xml)
-        return protectedValueRegex.stringByReplacingMatches(
-            in: xml,
-            options: [],
-            range: nsRange,
-            withTemplate: "<Value$1></Value>"
+        try KDBXTreeAssertions.assertTreesEqual(
+            (rootGroup: lhs.rootGroup, meta: lhs.meta),
+            rhs,
+            sessionKey: sessionKey,
+            file: file,
+            line: line
         )
-    }
-
-    private func assertTOTPConfigsEqual(
-        _ lhs: TOTPConfig?,
-        _ rhs: TOTPConfig?,
-        file: StaticString = #filePath,
-        line: UInt = #line
-    ) throws {
-        switch (lhs, rhs) {
-        case (nil, nil):
-            return
-        case let (lhs?, rhs?):
-            XCTAssertEqual(lhs.period, rhs.period, file: file, line: line)
-            XCTAssertEqual(lhs.digits, rhs.digits, file: file, line: line)
-            XCTAssertEqual(lhs.algorithm.rawValue, rhs.algorithm.rawValue, file: file, line: line)
-            XCTAssertEqual(
-                try lhs.secret.decrypt(using: sessionKey),
-                try rhs.secret.decrypt(using: sessionKey),
-                file: file,
-                line: line
-            )
-        default:
-            XCTFail("TOTP config mismatch", file: file, line: line)
-        }
     }
 }
