@@ -4,7 +4,12 @@ import XCTest
 @testable import KeeForge
 
 enum KDBXCompatibilitySupport {
-    static let artifactManifestName = "kdbx-compatibility-manifest.json"
+    /// File-name prefix for the per-test-method manifest fragments emitted
+    /// alongside the `.kdbx` artifacts. Every `KDBXCompatibilityTests` method
+    /// that runs scenarios attaches exactly one fragment describing only the
+    /// artifacts it produced; `ci_scripts/run_kdbx_compatibility_gate.sh`
+    /// merges every fragment it finds in the exported attachments.
+    static let artifactManifestNamePrefix = "kdbx-compatibility-manifest"
 
     struct KeeOTPCase {
         let fieldName: String
@@ -143,6 +148,33 @@ enum KDBXCompatibilitySupport {
         )
     }
 
+    /// The representative fixtures driven through `fixtureSmokeScenario`.
+    ///
+    /// Single source of truth: `KDBXCompatibilityTests` iterates this list and
+    /// `artifactDescriptors` derives the matching artifact set from it, so the
+    /// matrix and the external-opener gate can no longer drift apart. The
+    /// `attachments` fixture is deliberately not here — it has a dedicated
+    /// attachment-focused test that runs its smoke scenario plus two more.
+    static let smokeFixtures: [Fixture] = [
+        .aesBaseline,
+        .passwordKeyfile,
+        .unknownRich,
+        .kdbx41PublicCustomData,
+        .syntheticChaCha,
+        .syntheticTwofish,
+    ]
+
+    /// Title of the entry `fixtureSmokeScenario` creates. Shared with the
+    /// external expectation tables so a rename cannot desynchronize them.
+    static func fixtureSmokeCreatedTitle(fixtureID: String) -> String {
+        "Compat Smoke \(fixtureID)"
+    }
+
+    /// Password `fixtureSmokeScenario` writes into the entry it creates. The
+    /// gate reads this back through `keepassxc-cli` to prove KeeForge's
+    /// protected-value stream is decodable by an external opener.
+    static let fixtureSmokeCreatedPassword = "compat-secret"
+
     struct LoadedFixture {
         let fixture: Fixture
         let rootGroup: KPGroup
@@ -194,8 +226,15 @@ enum KDBXCompatibilitySupport {
                 binaryPool: afterPool
             )
 
+            // No supported edit adds, removes, renumbers, or reorders inner-header
+            // binary pool entries (the writer re-emits the pool verbatim), so the
+            // whole-pool digest must survive every scenario. Checked here rather
+            // than inside individual `assertChange` closures so a scenario cannot
+            // forget it.
+            assertBinaryPoolUnchanged(before: before, after: after, scenarioID: id)
+
             try assertChange(before, after, loaded)
-            return ScenarioResult(written: written, before: before, after: after)
+            return ScenarioResult(written: written, before: before, after: after, afterHeader: reparsed.header)
         }
     }
 
@@ -203,6 +242,10 @@ enum KDBXCompatibilitySupport {
         let written: Data
         let before: CompatibilitySnapshot
         let after: CompatibilitySnapshot
+        /// Header of the database reparsed from `written`. Exposed so callers
+        /// can assert cipher/KDF/outer-header preservation without paying for
+        /// another KDF-bearing parse of the same bytes.
+        let afterHeader: KDBXParser.Header
     }
 
     struct ArtifactManifest: Codable {
@@ -210,6 +253,13 @@ enum KDBXCompatibilitySupport {
             let entryTitle: String
             let attachmentName: String
             let sha256: String
+        }
+
+        /// A protected value the external opener must be able to decrypt and
+        /// read back verbatim after KeeForge wrote the database.
+        struct ExpectedPassword: Codable {
+            let entryTitle: String
+            let password: String
         }
 
         struct Artifact: Codable {
@@ -220,64 +270,160 @@ enum KDBXCompatibilitySupport {
             let expectedSearchTerms: [String]
             let expectedGroupPaths: [String]
             var expectedAttachments: [ExpectedAttachment] = []
+            var expectedPasswords: [ExpectedPassword] = []
         }
 
+        /// Every artifact id the suite is expected to emit, repeated in every
+        /// fragment. The gate compares this against the merged artifact set so
+        /// a test method that silently stopped contributing its fragment fails
+        /// the gate instead of shrinking coverage unnoticed.
+        let expectedArtifactIDs: [String]
         let artifacts: [Artifact]
     }
 
-    /// Expected attachment checks for artifacts derived from the
-    /// `attachments` fixture, keyed by scenario id. Populated for scenarios
-    /// where the referenced entry (and its attachment) is expected to still
-    /// exist, under its post-edit title, in the written artifact.
-    static func expectedAttachments(forScenarioID scenarioID: String) -> [ArtifactManifest.ExpectedAttachment] {
-        switch scenarioID {
-        case "fixture-smoke-attachments":
-            return [
-                ArtifactManifest.ExpectedAttachment(
-                    entryTitle: "Multi Attachment Entry",
-                    attachmentName: "note-ü.txt",
-                    sha256: AttachmentFixtureHashes.noteUnicodeTxt
-                ),
-                ArtifactManifest.ExpectedAttachment(
-                    entryTitle: "Multi Attachment Entry",
-                    attachmentName: "pixel.png",
-                    sha256: AttachmentFixtureHashes.pixelPNG
-                ),
-                ArtifactManifest.ExpectedAttachment(
-                    entryTitle: "Dedup Entry A",
-                    attachmentName: "shared.bin",
-                    sha256: AttachmentFixtureHashes.sharedBin
-                ),
-                ArtifactManifest.ExpectedAttachment(
-                    entryTitle: "Dedup Entry B",
-                    attachmentName: "shared.bin",
-                    sha256: AttachmentFixtureHashes.sharedBin
-                ),
-            ]
-        case "attachments-update-entry":
-            return [
-                ArtifactManifest.ExpectedAttachment(
-                    entryTitle: "Multi Attachment Entry Updated",
-                    attachmentName: "note-ü.txt",
-                    sha256: AttachmentFixtureHashes.noteUnicodeTxt
-                ),
-                ArtifactManifest.ExpectedAttachment(
-                    entryTitle: "Multi Attachment Entry Updated",
-                    attachmentName: "pixel.png",
-                    sha256: AttachmentFixtureHashes.pixelPNG
-                ),
-            ]
-        case "attachments-soft-delete-entry":
-            return [
-                ArtifactManifest.ExpectedAttachment(
-                    entryTitle: "Dedup Entry B",
-                    attachmentName: "shared.bin",
-                    sha256: AttachmentFixtureHashes.sharedBin
-                ),
-            ]
-        default:
-            return []
+    // MARK: - External-opener expectations
+
+    enum ExpectationLookupError: Error, CustomStringConvertible {
+        case unlistedScenario(kind: String, scenarioID: String)
+
+        var description: String {
+            switch self {
+            case .unlistedScenario(let kind, let scenarioID):
+                return """
+                Scenario '\(scenarioID)' has no \(kind) expectation entry and is not on the \
+                explicit no-\(kind)-expectations allowlist in KDBXCompatibilitySupport. Add it to \
+                one or the other — renaming a scenario must never silently drop its external checks.
+                """
+            }
         }
+    }
+
+    /// Expected attachment checks keyed by scenario id. Populated for
+    /// scenarios where the referenced entry (and its attachment) is expected
+    /// to still exist, under its post-edit title, in the written artifact.
+    static let attachmentExpectations: [String: [ArtifactManifest.ExpectedAttachment]] = [
+        "fixture-smoke-attachments": [
+            .init(entryTitle: "Multi Attachment Entry", attachmentName: "note-ü.txt", sha256: AttachmentFixtureHashes.noteUnicodeTxt),
+            .init(entryTitle: "Multi Attachment Entry", attachmentName: "pixel.png", sha256: AttachmentFixtureHashes.pixelPNG),
+            .init(entryTitle: "Dedup Entry A", attachmentName: "shared.bin", sha256: AttachmentFixtureHashes.sharedBin),
+            .init(entryTitle: "Dedup Entry B", attachmentName: "shared.bin", sha256: AttachmentFixtureHashes.sharedBin),
+        ],
+        "attachments-update-entry": [
+            .init(entryTitle: "Multi Attachment Entry Updated", attachmentName: "note-ü.txt", sha256: AttachmentFixtureHashes.noteUnicodeTxt),
+            .init(entryTitle: "Multi Attachment Entry Updated", attachmentName: "pixel.png", sha256: AttachmentFixtureHashes.pixelPNG),
+        ],
+        "attachments-soft-delete-entry": [
+            .init(entryTitle: "Dedup Entry B", attachmentName: "shared.bin", sha256: AttachmentFixtureHashes.sharedBin),
+        ],
+    ]
+
+    /// Scenarios that deliberately carry no external attachment check, because
+    /// their fixture has no binary pool (or the scenario's artifact adds
+    /// nothing the attachment-fixture artifacts don't already prove).
+    static let scenarioIDsWithoutAttachmentExpectations: Set<String> = [
+        "create-entry",
+        "update-entry",
+        "create-group",
+        "hide-group-from-autofill",
+        "soft-delete-entry",
+        "soft-delete-group",
+        "hard-delete-recycled-entry",
+        "hard-delete-recycled-group",
+        "recycle-bin-creation",
+        "keeotp-source-matrix",
+        "fixture-smoke-aes-baseline",
+        "fixture-smoke-password-keyfile",
+        "fixture-smoke-unknown-rich",
+        "fixture-smoke-kdbx41-public-custom-data",
+        "fixture-smoke-synthetic-chacha",
+        "fixture-smoke-synthetic-twofish",
+    ]
+
+    /// An entry that already exists in each fixture, with the password that
+    /// fixture ships, keyed by fixture id.
+    ///
+    /// Reading these back through `keepassxc-cli` after a KeeForge save proves
+    /// the whole protected-value chain — foreign inner stream decoded, then
+    /// re-encoded into KeeForge's own stream — rather than only proving
+    /// KeeForge can read back what KeeForge just wrote. A self-consistent but
+    /// non-conforming protected-stream implementation passes the in-process
+    /// matrix and fails here. Values recorded with
+    /// `keepassxc-cli show -s -a Password`; see `TestFixtures/README.md`.
+    static let fixtureEntryPasswords: [String: ArtifactManifest.ExpectedPassword] = [
+        Fixture.aesBaseline.id: .init(entryTitle: "Twitter", password: "twitterpass123"),
+        Fixture.passwordKeyfile.id: .init(entryTitle: "KeyFile Test Entry", password: "keyfilepass123"),
+        Fixture.unknownRich.id: .init(entryTitle: "Controlled Unknowns", password: "roundtrip-pass"),
+        Fixture.kdbx41PublicCustomData.id: .init(entryTitle: "Twitter", password: "twitterpass123"),
+        Fixture.attachments.id: .init(entryTitle: "Multi Attachment Entry", password: "entry-password-1"),
+        Fixture.syntheticChaCha.id: .init(entryTitle: "Compat Untouched Entry", password: "untouched-password"),
+        Fixture.syntheticTwofish.id: .init(entryTitle: "Compat Untouched Entry", password: "untouched-password"),
+    ]
+
+    /// Expected protected-value checks keyed by scenario id. Every smoke
+    /// artifact pairs the password the scenario just wrote with a password the
+    /// fixture already carried; the two rich edit scenarios cover a created
+    /// and an edited password on the synthetic AES database.
+    static let passwordExpectations: [String: [ArtifactManifest.ExpectedPassword]] = {
+        var table: [String: [ArtifactManifest.ExpectedPassword]] = [:]
+        for (fixtureID, existingEntry) in fixtureEntryPasswords {
+            table["fixture-smoke-\(fixtureID)"] = [
+                .init(
+                    entryTitle: fixtureSmokeCreatedTitle(fixtureID: fixtureID),
+                    password: fixtureSmokeCreatedPassword
+                ),
+                existingEntry,
+            ]
+        }
+        table["create-entry"] = [
+            .init(entryTitle: "Compat Created Entry", password: "created-secret"),
+            .init(entryTitle: "Compat Untouched Entry", password: "untouched-password"),
+        ]
+        table["update-entry"] = [
+            .init(entryTitle: "Compat Update Target Updated", password: "updated-password"),
+        ]
+        table["attachments-update-entry"] = [
+            .init(entryTitle: "Multi Attachment Entry Updated", password: "updated-multi-password"),
+        ]
+        return table
+    }()
+
+    /// Scenarios that deliberately carry no external protected-value check.
+    /// Delete/hide scenarios move or remove entries without asserting a new
+    /// password, and the KeeOTP artifact's external probe is deliberately a
+    /// plain search (KeePassXC 2.7.12 skips its raw KeeOTP fields).
+    static let scenarioIDsWithoutPasswordExpectations: Set<String> = [
+        "create-group",
+        "hide-group-from-autofill",
+        "soft-delete-entry",
+        "soft-delete-group",
+        "hard-delete-recycled-entry",
+        "hard-delete-recycled-group",
+        "recycle-bin-creation",
+        "attachments-soft-delete-entry",
+        "keeotp-source-matrix",
+    ]
+
+    /// Fail-closed lookup: a scenario id listed in neither the expectation
+    /// table nor the allowlist throws, failing the test that tried to emit it.
+    static func expectedAttachments(forScenarioID scenarioID: String) throws -> [ArtifactManifest.ExpectedAttachment] {
+        if let expectations = attachmentExpectations[scenarioID] {
+            return expectations
+        }
+        guard scenarioIDsWithoutAttachmentExpectations.contains(scenarioID) else {
+            throw ExpectationLookupError.unlistedScenario(kind: "attachment", scenarioID: scenarioID)
+        }
+        return []
+    }
+
+    /// Fail-closed lookup; see `expectedAttachments(forScenarioID:)`.
+    static func expectedPasswords(forScenarioID scenarioID: String) throws -> [ArtifactManifest.ExpectedPassword] {
+        if let expectations = passwordExpectations[scenarioID] {
+            return expectations
+        }
+        guard scenarioIDsWithoutPasswordExpectations.contains(scenarioID) else {
+            throw ExpectationLookupError.unlistedScenario(kind: "password", scenarioID: scenarioID)
+        }
+        return []
     }
 
     static func load(_ fixture: Fixture, bundle: Bundle, sessionKey: SymmetricKey = SymmetricKey(size: .bits256)) throws -> LoadedFixture {
@@ -373,7 +519,7 @@ enum KDBXCompatibilitySupport {
     }
 
     static func fixtureSmokeScenario(fixtureID: String) -> Scenario {
-        let createdTitle = "Compat Smoke \(fixtureID)"
+        let createdTitle = fixtureSmokeCreatedTitle(fixtureID: fixtureID)
         return Scenario(
             id: "fixture-smoke-\(fixtureID)",
             title: "Representative fixture write smoke",
@@ -386,7 +532,7 @@ enum KDBXCompatibilitySupport {
                     draft: EntryDraftPayload(
                         title: createdTitle,
                         username: "compat-user",
-                        password: "compat-secret",
+                        password: fixtureSmokeCreatedPassword,
                         url: "https://compat.example.com",
                         notes: "External opener smoke entry"
                     )
@@ -486,49 +632,63 @@ enum KDBXCompatibilitySupport {
         )
     }
 
-    static func artifactPlans(bundle: Bundle) throws -> [(fixture: LoadedFixture, scenario: Scenario)] {
-        var plans: [(LoadedFixture, Scenario)] = []
+    // MARK: - Artifact set
 
-        let richFixture = try load(.syntheticRich, bundle: bundle)
-        for scenario in fullEditScenarios() {
-            plans.append((richFixture, scenario))
-        }
+    /// One `(fixture, scenario)` pair, i.e. exactly one `.kdbx` artifact for
+    /// the external-opener gate.
+    ///
+    /// Descriptors carry no loaded database, so the coverage and expectation
+    /// tests can enumerate the entire artifact set without paying any KDF
+    /// cost. `KDBXCompatibilityTests` owns the executions: each scenario below
+    /// is run by exactly one test method, which emits its bytes on the way
+    /// past instead of re-running it later just to produce a file.
+    struct ArtifactDescriptor {
+        let fixture: Fixture
+        let scenario: Scenario
 
-        let noRecycleBinFixture = try load(.syntheticNoRecycleBin, bundle: bundle)
-        plans.append((noRecycleBinFixture, recycleBinCreationScenario()))
-
-        let smokeFixtures: [Fixture] = [
-            .aesBaseline,
-            .passwordKeyfile,
-            .unknownRich,
-            .kdbx41PublicCustomData,
-            .syntheticChaCha,
-            .syntheticTwofish,
-        ]
-        for fixture in smokeFixtures {
-            let loaded = try load(fixture, bundle: bundle)
-            plans.append((loaded, fixtureSmokeScenario(fixtureID: fixture.id)))
-        }
-
-        let attachmentsFixtureForSmoke = try load(.attachments, bundle: bundle)
-        plans.append((attachmentsFixtureForSmoke, fixtureSmokeScenario(fixtureID: Fixture.attachments.id)))
-
-        let attachmentsFixtureForUpdate = try load(.attachments, bundle: bundle)
-        plans.append((attachmentsFixtureForUpdate, attachmentsFixtureUpdateEntryScenario()))
-
-        let attachmentsFixtureForSoftDelete = try load(.attachments, bundle: bundle)
-        plans.append((attachmentsFixtureForSoftDelete, attachmentsFixtureSoftDeleteScenario()))
-
-        let keeOTPFixture = try load(.syntheticRich, bundle: bundle)
-        keeOTPFixture.rootGroup.entries.append(contentsOf: try keeOTPCases.map {
-            try makeKeeOTPEntry($0, sessionKey: keeOTPFixture.sessionKey)
-        })
-        plans.append((keeOTPFixture, keeOTPArtifactScenario()))
-
-        return plans
+        var id: String { "\(fixture.id)-\(scenario.id)" }
     }
 
-    private static func keeOTPArtifactScenario() -> Scenario {
+    static var artifactDescriptors: [ArtifactDescriptor] {
+        var descriptors = fullEditScenarios().map {
+            ArtifactDescriptor(fixture: .syntheticRich, scenario: $0)
+        }
+        descriptors.append(
+            ArtifactDescriptor(fixture: .syntheticNoRecycleBin, scenario: recycleBinCreationScenario())
+        )
+        descriptors.append(contentsOf: smokeFixtures.map {
+            ArtifactDescriptor(fixture: $0, scenario: fixtureSmokeScenario(fixtureID: $0.id))
+        })
+        descriptors.append(
+            ArtifactDescriptor(fixture: .attachments, scenario: fixtureSmokeScenario(fixtureID: Fixture.attachments.id))
+        )
+        descriptors.append(
+            ArtifactDescriptor(fixture: .attachments, scenario: attachmentsFixtureUpdateEntryScenario())
+        )
+        descriptors.append(
+            ArtifactDescriptor(fixture: .attachments, scenario: attachmentsFixtureSoftDeleteScenario())
+        )
+        descriptors.append(
+            ArtifactDescriptor(fixture: .syntheticRich, scenario: keeOTPArtifactScenario())
+        )
+        return descriptors
+    }
+
+    static var declaredArtifactIDs: Set<String> {
+        Set(artifactDescriptors.map(\.id))
+    }
+
+    /// The synthetic rich fixture with one entry per KeeOTP source variant
+    /// appended, as the KeeOTP artifact scenario expects to find it.
+    static func loadKeeOTPArtifactFixture(bundle: Bundle) throws -> LoadedFixture {
+        let loaded = try load(.syntheticRich, bundle: bundle)
+        loaded.rootGroup.entries.append(contentsOf: try keeOTPCases.map {
+            try makeKeeOTPEntry($0, sessionKey: loaded.sessionKey)
+        })
+        return loaded
+    }
+
+    static func keeOTPArtifactScenario() -> Scenario {
         Scenario(
             id: "keeotp-source-matrix",
             title: "KeeOTP source spelling and encoding matrix",
@@ -578,6 +738,129 @@ enum KDBXCompatibilitySupport {
             otpURL: testCase.fieldName == "otp" ? testCase.rawQuery : nil,
             protectedStringKeys: ["Password"]
         )
+    }
+
+    // MARK: - Artifact emission
+
+    enum ArtifactEmissionError: Error, CustomStringConvertible {
+        case undeclaredArtifact(String)
+        case duplicateArtifact(String)
+        case nothingCollected(String)
+
+        var description: String {
+            switch self {
+            case .undeclaredArtifact(let id):
+                return "Artifact '\(id)' is not in KDBXCompatibilitySupport.artifactDescriptors; declare it there."
+            case .duplicateArtifact(let id):
+                return "Artifact '\(id)' was produced twice in one test method; each scenario must run exactly once."
+            case .nothingCollected(let name):
+                return "\(name) created an ArtifactCollector but emitted no artifacts."
+            }
+        }
+    }
+
+    /// Collects the compatibility artifacts produced by a single
+    /// `KDBXCompatibilityTests` method and attaches them once, at the end.
+    ///
+    /// `run(_:on:)` *is* the scenario's one and only execution for the suite —
+    /// the assertion-bearing `Scenario.apply` runs, and the bytes it produced
+    /// are captured for `ci_scripts/run_kdbx_compatibility_gate.sh` on the way
+    /// past. Nothing is re-run purely to emit artifacts, so the expensive
+    /// Argon2 work happens once per scenario per suite run.
+    final class ArtifactCollector {
+        private let testCase: XCTestCase
+        private let outputDirectory: URL
+        private var artifacts: [ArtifactManifest.Artifact] = []
+        private var attachedKeyFileNames: Set<String> = []
+        private var collectedArtifactIDs: Set<String> = []
+        private let declaredArtifactIDs: Set<String>
+
+        init(testCase: XCTestCase) throws {
+            self.testCase = testCase
+            declaredArtifactIDs = KDBXCompatibilitySupport.declaredArtifactIDs
+            outputDirectory = FileManager.default.temporaryDirectory
+                .appendingPathComponent("kdbx-compatibility-artifacts-\(UUID().uuidString)", isDirectory: true)
+            try FileManager.default.createDirectory(at: outputDirectory, withIntermediateDirectories: true)
+        }
+
+        /// Runs `scenario` against `loaded` (executing all of its compatibility
+        /// assertions) and records the written database as a gate artifact.
+        @discardableResult
+        func run(_ scenario: Scenario, on loaded: LoadedFixture) throws -> ScenarioResult {
+            let result = try scenario.apply(to: loaded)
+            try record(scenario: scenario, loaded: loaded, written: result.written)
+            return result
+        }
+
+        /// Writes the manifest fragment for everything collected so far.
+        func emit() throws {
+            guard !artifacts.isEmpty else {
+                throw ArtifactEmissionError.nothingCollected(testCase.name)
+            }
+
+            let manifest = ArtifactManifest(
+                expectedArtifactIDs: declaredArtifactIDs.sorted(),
+                artifacts: artifacts
+            )
+            let fragmentName = "\(KDBXCompatibilitySupport.artifactManifestNamePrefix)-\(Self.slug(for: testCase)).json"
+            let fragmentURL = outputDirectory.appendingPathComponent(fragmentName)
+            try JSONEncoder.compatibilityManifest.encode(manifest).write(to: fragmentURL, options: .atomic)
+            attach(fragmentURL, named: fragmentName)
+        }
+
+        private func record(scenario: Scenario, loaded: LoadedFixture, written: Data) throws {
+            let artifactID = "\(loaded.fixture.id)-\(scenario.id)"
+            guard declaredArtifactIDs.contains(artifactID) else {
+                throw ArtifactEmissionError.undeclaredArtifact(artifactID)
+            }
+            guard collectedArtifactIDs.insert(artifactID).inserted else {
+                throw ArtifactEmissionError.duplicateArtifact(artifactID)
+            }
+
+            let artifactURL = outputDirectory.appendingPathComponent(scenario.artifactFileName)
+            try written.write(to: artifactURL, options: .atomic)
+            attach(artifactURL, named: scenario.artifactFileName)
+
+            var keyFileAttachmentName: String?
+            if let keyFileData = loaded.keyFileData, let fixtureKeyFileName = loaded.fixture.keyFileName {
+                let name = "\(fixtureKeyFileName).key"
+                keyFileAttachmentName = name
+                if attachedKeyFileNames.insert(name).inserted {
+                    let keyFileURL = outputDirectory.appendingPathComponent(name)
+                    try keyFileData.write(to: keyFileURL, options: .atomic)
+                    attach(keyFileURL, named: name)
+                }
+            }
+
+            artifacts.append(
+                ArtifactManifest.Artifact(
+                    id: artifactID,
+                    fileName: scenario.artifactFileName,
+                    password: loaded.fixture.password,
+                    keyFileName: keyFileAttachmentName,
+                    expectedSearchTerms: scenario.expectedSearchTerms,
+                    expectedGroupPaths: scenario.expectedGroupPaths,
+                    expectedAttachments: try KDBXCompatibilitySupport.expectedAttachments(forScenarioID: scenario.id),
+                    expectedPasswords: try KDBXCompatibilitySupport.expectedPasswords(forScenarioID: scenario.id)
+                )
+            )
+        }
+
+        private func attach(_ url: URL, named name: String) {
+            let attachment = XCTAttachment(contentsOfFile: url)
+            attachment.name = name
+            attachment.lifetime = .keepAlways
+            testCase.add(attachment)
+        }
+
+        /// File-name-safe fragment of the test's name, so each method's
+        /// manifest fragment is distinguishable in the exported attachments.
+        private static func slug(for testCase: XCTestCase) -> String {
+            let sanitized = testCase.name.unicodeScalars.map {
+                CharacterSet.alphanumerics.contains($0) ? Character($0) : "-"
+            }
+            return String(sanitized).split(separator: "-").joined(separator: "-")
+        }
     }
 
     static func assertLegacyFixtureIsReadOnly(bundle: Bundle) throws {
@@ -700,6 +983,16 @@ struct CompatibilitySnapshot {
     let entries: [UUID: Entry]
     let groups: [UUID: Group]
     let meta: KPMeta
+    /// Ordered digest over the *entire* inner-header binary pool, including
+    /// entries no `<Binary>` element references.
+    ///
+    /// `Entry.attachmentHashes` only covers referenced binaries, so on its own
+    /// it cannot see an orphaned pool entry being dropped, the pool being
+    /// reordered or renumbered, or a protection flag flipping on an
+    /// unreferenced binary. This folds each pool slot's index, protection flag,
+    /// and content hash into one value instead. `nil` only when the snapshot
+    /// was built without a pool.
+    let binaryPoolDigest: String?
 
     init(rootGroup: KPGroup, meta: KPMeta, sessionKey: SymmetricKey, binaryPool: BinaryPool? = nil) throws {
         var entries: [UUID: Entry] = [:]
@@ -708,6 +1001,20 @@ struct CompatibilitySnapshot {
         self.entries = entries
         self.groups = groups
         self.meta = meta
+        self.binaryPoolDigest = Self.digest(of: binaryPool)
+    }
+
+    private static func digest(of binaryPool: BinaryPool?) -> String? {
+        guard let binaryPool else { return nil }
+
+        var hasher = SHA256()
+        hasher.update(data: Data("count=\(binaryPool.count)".utf8))
+        for index in 0..<binaryPool.count {
+            guard let item = binaryPool[index] else { continue }
+            hasher.update(data: Data("|\(index):\(item.isProtected ? 1 : 0):".utf8))
+            hasher.update(data: Data(SHA256.hash(data: item.data)))
+        }
+        return hasher.finalize().map { String(format: "%02x", $0) }.joined()
     }
 
     func entryID(titled title: String) -> UUID? {
@@ -1318,6 +1625,27 @@ private extension KDBXCompatibilitySupport {
         }
     }
 
+    /// Asserts the whole inner-header binary pool survived the save byte-for-byte,
+    /// including entries nothing references. Complements — never replaces — the
+    /// per-attachment `Entry.attachmentHashes` comparisons in `assertUnchangedEntries`.
+    static func assertBinaryPoolUnchanged(
+        before: CompatibilitySnapshot,
+        after: CompatibilitySnapshot,
+        scenarioID: String,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        XCTAssertNotNil(before.binaryPoolDigest, "\(scenarioID): before-snapshot has no binary pool", file: file, line: line)
+        XCTAssertNotNil(after.binaryPoolDigest, "\(scenarioID): after-snapshot has no binary pool", file: file, line: line)
+        XCTAssertEqual(
+            after.binaryPoolDigest,
+            before.binaryPoolDigest,
+            "\(scenarioID): inner-header binary pool changed across save",
+            file: file,
+            line: line
+        )
+    }
+
     static func assertMetaUnchanged(
         before: CompatibilitySnapshot,
         after: CompatibilitySnapshot,
@@ -1325,5 +1653,16 @@ private extension KDBXCompatibilitySupport {
         line: UInt = #line
     ) {
         XCTAssertEqual(after.meta, before.meta, file: file, line: line)
+    }
+}
+
+private extension JSONEncoder {
+    /// Stable encoding for the manifest fragments, so a fragment that is
+    /// exported twice (xcresulttool name mangling) merges cleanly instead of
+    /// looking like conflicting content to the gate.
+    static var compatibilityManifest: JSONEncoder {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        return encoder
     }
 }

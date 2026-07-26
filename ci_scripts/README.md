@@ -7,9 +7,24 @@ This folder holds small scripts used by Xcode Cloud and local build setup.
 - `prepare_build_config.sh` validates `BuildConfig.local.xcconfig`, stamps `BuildMetadata.xcconfig` with the current git hash, and can bootstrap the local config from environment variables in CI.
 - `ci_post_clone.sh` installs XcodeGen, prepares the build config, and regenerates the Xcode project after checkout.
 - `ci_pre_xcodebuild.sh` re-runs `prepare_build_config.sh` right before each `xcodebuild` action, where `CI_XCODEBUILD_ACTION` is reliably set, so an `archive` workflow without a real `DROPBOX_APP_KEY` fails before it produces a binary.
-- `run_kdbx_compatibility_gate.sh` runs the KDBX artifact test, exports generated `.kdbx` attachments from the `.xcresult`, and validates them with `keepassxc-cli`. This is a required local release gate; Xcode Cloud does not install KeePassXC. For artifacts with `expectedAttachments` in the manifest (currently the `attachments.kdbx`-derived artifacts), it also resolves each entry via `keepassxc-cli search`, runs `keepassxc-cli attachment-export`, and compares the exported file's SHA-256 against the manifest value; the script prints how many attachment checks passed alongside the overall artifact count. The KeeOTP artifact retains all raw source variants for the XCTest compatibility matrix, but probes a standard entry externally because KeePassXC 2.7.12 does not expose those KeeOTP fields through its XML reader/search path.
-- The artifact set includes a Twofish-256-CBC database, providing an external KeePassXC opener check for KeeForge's cipher-preserving output.
+- `run_kdbx_compatibility_gate.sh` validates KeeForge-written databases with `keepassxc-cli`. This is a required local release gate; Xcode Cloud does not install KeePassXC. See "KDBX Compatibility Gate" below.
 - `make_appstore_screenshots.py` formats raw screenshots from `build/screenshots` into App Store-ready images in `build/appstore`.
+
+## KDBX Compatibility Gate
+
+1. Run `-only-testing:KeeForgeTests/KDBXCompatibilityTests`. The matrix suite writes each scenario's `.kdbx` bytes as an XCTAttachment on the way past its own assertions — there is no separate artifact-only test re-running the (Argon2-expensive) scenarios.
+2. `xcrun xcresulttool export attachments` dumps the attachments. Exported file names are mangled to UUIDs, so the script maps them back through xcresulttool's own `manifest.json` index (`suggestedHumanReadableName` → `exportedFileName`). That mapping is load-bearing; do not simplify it away.
+3. Collect the **manifest fragments**. Each emitting test method attaches one, so the script finds them by content — any exported file that parses as a JSON object with an `"artifacts"` key — rather than by name. Fragments are merged and deduped by artifact id; conflicting copies of the same id, zero fragments found, or any id in `expectedArtifactIDs` that no method emitted all fail the gate.
+4. Verify each merged artifact with `keepassxc-cli`:
+   - `search` for every `expectedSearchTerms` entry, `ls` for every `expectedGroupPaths` entry.
+   - `attachment-export` plus a SHA-256 comparison for every `expectedAttachments` entry (the `attachments.kdbx`-derived artifacts).
+   - `show -s -a Password` for every `expectedPasswords` entry. This is the only check that decrypts anything: searching and listing only read plaintext XML, so without it a protected-value stream that is self-consistent but non-conforming would pass the whole gate. Every fixture-smoke artifact verifies both a password KeeForge just wrote and one the fixture already carried (authored by another KeePass implementation), covering AES, ChaCha20, Twofish, key-file, KDBX 4.1, unknown-XML, and attachment databases; the rich `create-entry`/`update-entry` artifacts cover a created and an edited password.
+   Entry paths are resolved by exact-title `search` hit (and cached), so entries that moved into the Recycle Bin or were renamed by the edit still resolve.
+5. On success the script prints the artifact count, attachment-check count, and protected-password-check count.
+
+The artifact set includes a Twofish-256-CBC database, providing an external KeePassXC opener check for KeeForge's cipher-preserving output. The KeeOTP artifact retains all raw source variants for the XCTest compatibility matrix, but probes a standard entry externally because KeePassXC 2.7.12 does not expose those KeeOTP fields through its XML reader/search path.
+
+The artifact set itself is declared in `KeeForgeTests/KDBXCompatibilitySupport.swift` (`artifactDescriptors`) and emitted by `KeeForgeTests/KDBXCompatibilityTests.swift`; see `KeeForgeTests/README.md` for how to add one.
 
 ## Guidance
 

@@ -17,7 +17,7 @@ xcodebuild test -project KeeForge.xcodeproj -scheme KeeForge \
 
 ## File Map
 
-- Parser, writer, compatibility, and secret handling: `KDBXParserTests.swift`, `KDBXWriterTests.swift`, `KDBXRoundTripTests.swift`, `KDBXCompatibilityTests.swift`, `KDBXCompatibilityArtifactTests.swift`, `EncryptedValueTests.swift`, `TOTPGeneratorTests.swift`, `KeyFileProcessorTests.swift`, `KDBXFileSummaryTests.swift` (header-only metadata summary for Database Details, including prefix-only parsing), `DatabaseFileInfoLoaderTests.swift` (bookmark-resolved size/date/header loading for the details sheet).
+- Parser, writer, compatibility, and secret handling: `KDBXParserTests.swift`, `KDBXWriterTests.swift`, `KDBXRoundTripTests.swift`, `KDBXCompatibilityTests.swift`, `EncryptedValueTests.swift`, `TOTPGeneratorTests.swift`, `KeyFileProcessorTests.swift`, `KDBXFileSummaryTests.swift` (header-only metadata summary for Database Details, including prefix-only parsing), `DatabaseFileInfoLoaderTests.swift` (bookmark-resolved size/date/header loading for the details sheet).
 - Cipher primitives: `TwofishTests.swift` (Twofish + CBC/PKCS#7), `ChaCha20Tests.swift` (RFC 8439 vectors, stream behavior). Cipher-preservation scenarios remain in the KDBX parser, writer, saver, and compatibility suites.
 - Attachments: `AttachmentTests.swift` (`BinaryPool` protected-flag decoding and entry attachment handling) and `AttachmentPreviewFileStoreTests.swift` (temporary preview-file write/clear lifecycle).
 - Drafts, view models, and app state: `DatabaseDraftTests.swift`, `DatabaseViewModelTests.swift`, `DatabaseListViewModelTests.swift`, `EntryEditViewModelTests.swift`, `TOTPViewModelTests.swift`, `AutoLockTests.swift`, `SortOrderTests.swift`.
@@ -49,7 +49,7 @@ Keep new tests platform-neutral where possible; gate genuinely platform-specific
 - `TestDatabaseSupport.swift` builds fixture URLs, supports fixture subdirectories, and creates bookmark-backed `DatabaseReference` values for tests.
 - `FakeCredentialIdentityStore.swift` is the lock-guarded in-memory `CredentialIdentityStoreProviding` fake; install it via `CredentialIdentityStoreManager.storeProviderOverride` and drive assertions through its `stored`/`calls`/`onMutation`/`onEnumerate` surface.
 - `KDBXTreeAssertions.swift` holds the shared `KDBXTestFixture` bundled-fixture descriptors and the canonical `assertTreesEqual`/`assertGroupsEqual`/`assertEntriesEqual`/`assertTOTPConfigsEqual`/`normalizedOpaqueXML` comparators used by `KDBXRoundTripTests.swift` (XML layer) and `KDBXWriterTests.swift` (container layer). Add new "did this field survive a save" checks here so both layers gain them together; do not re-add per-suite copies, which is how the writer suite previously lost `searchingEnabled`/`expires`/`expiryTime` coverage.
-- `KDBXCompatibilitySupport.swift` is the shared compatibility harness. Keep the all-edit compatibility matrix there and in `KDBXCompatibilityTests.swift`; do not duplicate it in writer, draft, or saver tests.
+- `KDBXCompatibilitySupport.swift` is the shared compatibility harness: fixtures, scenarios, `CompatibilitySnapshot`, the artifact set (`artifactDescriptors`), the external-opener expectation tables, and `ArtifactCollector`. Keep the all-edit compatibility matrix there and in `KDBXCompatibilityTests.swift`; do not duplicate it in writer, draft, or saver tests.
 - Shared databases and key files are documented in `../TestFixtures/README.md`.
 
 ## KDBX Compatibility Story
@@ -61,4 +61,22 @@ Keep new tests platform-neutral where possible; gate genuinely platform-specific
 - `PendingUploadQueueTests.swift` owns the pending-upload marker schema decode-compatibility gate (legacy marker JSON without newer fields must keep decoding); `CloudSyncCoordinatorTests` (in `DatabaseViewModelTests.swift`) also covers pending-marker pre-overwrite backups and conflicted-marker discard resolution.
 - `KDBXCompatibilityTests.swift` is the authoritative end-to-end compatibility matrix for every supported edit type and rich KDBX fixture shape.
 - The compatibility matrix runs the full edit set for both AES and synthetic Twofish databases, and the artifact gate asks `keepassxc-cli` to open KeeForge-produced Twofish output.
-- `KDBXCompatibilityArtifactTests.swift` emits artifacts consumed by `../ci_scripts/run_kdbx_compatibility_gate.sh`, which validates generated files with `keepassxc-cli`.
+
+### One Run Per Scenario
+
+Every scenario in `KDBXCompatibilitySupport.artifactDescriptors` is executed by **exactly one** `KDBXCompatibilityTests` method, and that method emits the bytes it just wrote as XCTAttachments for `../ci_scripts/run_kdbx_compatibility_gate.sh`. Artifact emission piggybacks on the assertion-bearing run; nothing is re-executed to produce a file (the retired `KDBXCompatibilityArtifactTests.swift` used to re-run the whole set, doubling the Argon2 work on every CI run).
+
+Each emitting method builds a `KDBXCompatibilitySupport.ArtifactCollector`, drives its scenarios through `collector.run(_:on:)` instead of `scenario.apply(to:)`, and finishes with `try collector.emit()`. `emit()` attaches one manifest **fragment** — `kdbx-compatibility-manifest-<test name>.json` — covering only that method's artifacts; the gate merges every fragment it finds. Each fragment also repeats the full `expectedArtifactIDs` list, so a method that stops contributing fails the gate instead of quietly shrinking coverage.
+
+Adding a scenario means: add it to `artifactDescriptors`, run it through a collector in exactly one test method, and list its external expectations (or explicitly list it in the matching `scenarioIDsWithout…Expectations` allowlist). The lookups are fail-closed — an unlisted scenario id throws — and `test_externalExpectationTables_areExhaustiveOverEveryArtifactScenario` fails on stale or missing ids, so a rename cannot silently drop a check.
+
+### What The Snapshot Covers
+
+`CompatibilitySnapshot` diffs entries, groups, and meta across the save. Two things beyond per-field equality:
+
+- `Entry.attachmentHashes` — SHA-256 of each *referenced* binary's resolved pool bytes.
+- `binaryPoolDigest` — an ordered digest over the *whole* inner-header binary pool (index, protection flag, content hash of every slot, referenced or not). `Scenario.apply` compares it on every scenario, so a dropped orphan, a reordered or renumbered pool, or a flipped protection flag on an unreferenced binary fails even though no entry changed. `test_binaryPoolDigest_detectsOrphanedReorderedAndReflaggedPoolEntries` pins its sensitivity. This complements — never replaces — the per-attachment hashes.
+
+### Single Smoke Fixture List
+
+`KDBXCompatibilitySupport.smokeFixtures` is the one source of truth for the representative-fixture sweep, consumed by both `test_representativeCompatibilityFixtures_…` and `artifactDescriptors`. `unknown-rich` and `kdbx41-public-custom-data` are skipped by the sweep because dedicated deeper methods run (and emit) their smoke scenario; that skip list lives in `KDBXCompatibilityTests.smokeFixtureIDsWithDedicatedTests`.

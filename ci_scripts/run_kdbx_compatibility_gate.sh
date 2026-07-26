@@ -28,7 +28,7 @@ cd "${REPO_ROOT}"
 
 xcodebuild test -project KeeForge.xcodeproj -scheme KeeForge \
   -destination "${DESTINATION}" \
-  -only-testing:KeeForgeTests/KDBXCompatibilityArtifactTests \
+  -only-testing:KeeForgeTests/KDBXCompatibilityTests \
   -resultBundlePath "${RESULT_BUNDLE}" \
   -quiet
 
@@ -46,14 +46,20 @@ import tempfile
 
 attachment_dir = sys.argv[1]
 keepassxc_cli = sys.argv[2]
-manifest_name = "kdbx-compatibility-manifest.json"
 
 files_by_name = {}
+all_files = []
 for root, _, files in os.walk(attachment_dir):
     for file_name in files:
-        files_by_name.setdefault(file_name, []).append(os.path.join(root, file_name))
+        path = os.path.join(root, file_name)
+        files_by_name.setdefault(file_name, []).append(path)
+        all_files.append(path)
 
 def exported_attachments():
+    # xcresulttool writes its own index next to the exported blobs, mapping the
+    # attachment name XCTest saw ("suggestedHumanReadableName") to the possibly
+    # mangled name on disk ("exportedFileName"). Load-bearing: identically named
+    # attachments from different tests get a `_1`-style suffix on export.
     export_manifest_paths = files_by_name.get("manifest.json", [])
     if not export_manifest_paths:
         return []
@@ -99,39 +105,56 @@ def first_existing_file(file_name):
         if exported_matches:
             return exported_matches[0]
 
-    for root, _, files in os.walk(attachment_dir):
-        for candidate in files:
-            if candidate == file_name:
-                return os.path.join(root, candidate)
     return None
 
-manifest_path = first_existing_file(manifest_name)
-if manifest_path is None:
-    for root, _, files in os.walk(attachment_dir):
-        for candidate in files:
-            if not candidate.endswith(".json"):
-                continue
-            candidate_path = os.path.join(root, candidate)
-            try:
-                with open(candidate_path, "r", encoding="utf-8") as handle:
-                    candidate_json = json.load(handle)
-            except Exception:
-                continue
-            if isinstance(candidate_json, dict) and "artifacts" in candidate_json:
-                manifest_path = candidate_path
-                break
-        if manifest_path:
-            break
+# Every KDBXCompatibilityTests method that runs scenarios attaches one manifest
+# fragment describing only the artifacts it produced. Find them by content, not
+# by name, so xcresulttool's export-name mangling cannot hide one: any exported
+# file that parses as a JSON object with an "artifacts" key is a fragment.
+# (xcresulttool's own index is a JSON *list*, so it never matches.)
+fragments = []
+for path in all_files:
+    try:
+        with open(path, "r", encoding="utf-8") as handle:
+            parsed = json.load(handle)
+    except Exception:
+        continue
+    if isinstance(parsed, dict) and "artifacts" in parsed:
+        fragments.append((path, parsed))
 
-if manifest_path is None:
-    print(f"error: {manifest_name} was not exported from the test result bundle", file=sys.stderr)
+if not fragments:
+    print("error: no KDBX compatibility manifest fragments were exported from the test result bundle", file=sys.stderr)
     sys.exit(1)
 
-with open(manifest_path, "r", encoding="utf-8") as handle:
-    manifest = json.load(handle)
-
+merged_artifacts = {}
+expected_artifact_ids = set()
 failures = []
+
+for path, fragment in fragments:
+    expected_artifact_ids.update(fragment.get("expectedArtifactIDs", []))
+    for artifact in fragment.get("artifacts", []):
+        artifact_id = artifact["id"]
+        existing = merged_artifacts.get(artifact_id)
+        if existing is None:
+            merged_artifacts[artifact_id] = artifact
+        elif existing != artifact:
+            failures.append(
+                f"{artifact_id}: conflicting manifest entries across fragments "
+                f"(second copy from {os.path.basename(path)})"
+            )
+
+missing_artifact_ids = sorted(expected_artifact_ids - set(merged_artifacts))
+if missing_artifact_ids:
+    failures.append(
+        "the suite declared artifacts that no test method emitted: "
+        + ", ".join(missing_artifact_ids)
+    )
+
+artifacts = [merged_artifacts[key] for key in sorted(merged_artifacts)]
+
 attachment_checks_verified = 0
+password_checks_verified = 0
+entry_path_cache = {}
 
 def run_keepassxc(args, password):
     process = subprocess.run(
@@ -143,24 +166,30 @@ def run_keepassxc(args, password):
     )
     return process
 
-def resolve_entry_path(db_path, base_options, password, entry_title, artifact_id, expected_search_terms):
-    # Prefer an exact-title search hit so entries that moved (e.g. into the
-    # Recycle Bin) still resolve to their current path. Only search if the
-    # scenario's own expectedSearchTerms didn't already confirm this title,
-    # to avoid masking an unrelated search failure recorded above.
+def resolve_entry_path(db_path, base_options, password, entry_title, artifact_id):
+    # Resolve by exact-title search hit so entries that moved (e.g. into the
+    # Recycle Bin) or were renamed by the edit still resolve to their current
+    # path. Cached: several checks on one artifact often share an entry.
+    cache_key = (db_path, entry_title)
+    if cache_key in entry_path_cache:
+        return entry_path_cache[cache_key]
+
     command = [keepassxc_cli, "search", *base_options, db_path, entry_title]
     result = run_keepassxc(command, password)
     if result.returncode != 0:
-        return None, f"{artifact_id}: search for entry {entry_title!r} failed\nstdout: {result.stdout}\nstderr: {result.stderr}"
+        resolved = (None, f"{artifact_id}: search for entry {entry_title!r} failed\nstdout: {result.stdout}\nstderr: {result.stderr}")
+    else:
+        resolved = (None, f"{artifact_id}: could not resolve path for entry {entry_title!r}\nstdout: {result.stdout}")
+        for line in result.stdout.splitlines():
+            candidate = line.strip()
+            if candidate.rsplit("/", 1)[-1] == entry_title:
+                resolved = (candidate, None)
+                break
 
-    for line in result.stdout.splitlines():
-        candidate = line.strip()
-        if candidate.rsplit("/", 1)[-1] == entry_title:
-            return candidate, None
+    entry_path_cache[cache_key] = resolved
+    return resolved
 
-    return None, f"{artifact_id}: could not resolve path for entry {entry_title!r}\nstdout: {result.stdout}"
-
-for artifact in manifest.get("artifacts", []):
+for artifact in artifacts:
     artifact_id = artifact["id"]
     db_path = first_existing_file(artifact["fileName"])
     if db_path is None:
@@ -203,7 +232,7 @@ for artifact in manifest.get("artifacts", []):
         expected_sha256 = expected_attachment["sha256"]
 
         entry_path, resolve_error = resolve_entry_path(
-            db_path, base_options, artifact["password"], entry_title, artifact_id, artifact.get("expectedSearchTerms", [])
+            db_path, base_options, artifact["password"], entry_title, artifact_id
         )
         if entry_path is None:
             failures.append(resolve_error)
@@ -232,6 +261,40 @@ for artifact in manifest.get("artifacts", []):
             else:
                 attachment_checks_verified += 1
 
+    # Protected values: prove an external opener can decrypt what KeeForge
+    # wrote into the inner random stream. Searching by title and listing groups
+    # only exercises plaintext XML, so an inner-stream implementation that is
+    # self-consistent but non-conforming would otherwise pass the whole gate.
+    for expected_password in artifact.get("expectedPasswords", []):
+        entry_title = expected_password["entryTitle"]
+        expected_value = expected_password["password"]
+
+        entry_path, resolve_error = resolve_entry_path(
+            db_path, base_options, artifact["password"], entry_title, artifact_id
+        )
+        if entry_path is None:
+            failures.append(resolve_error)
+            continue
+
+        command = [keepassxc_cli, "show", *base_options, "-s", "-a", "Password", db_path, entry_path]
+        result = run_keepassxc(command, artifact["password"])
+        if result.returncode != 0:
+            failures.append(
+                f"{artifact_id}: show Password for {entry_title!r} failed\n"
+                f"stdout: {result.stdout}\n"
+                f"stderr: {result.stderr}"
+            )
+            continue
+
+        actual_value = result.stdout.rstrip("\r\n")
+        if actual_value != expected_value:
+            failures.append(
+                f"{artifact_id}: protected Password for {entry_title!r} did not round-trip "
+                f"(expected {expected_value!r}, got {actual_value!r})"
+            )
+        else:
+            password_checks_verified += 1
+
 if failures:
     print("KDBX compatibility gate failed:", file=sys.stderr)
     for failure in failures:
@@ -239,7 +302,8 @@ if failures:
     sys.exit(1)
 
 print(
-    f"KDBX compatibility gate passed for {len(manifest.get('artifacts', []))} artifacts "
-    f"({attachment_checks_verified} attachment checks verified)."
+    f"KDBX compatibility gate passed for {len(artifacts)} artifacts "
+    f"({attachment_checks_verified} attachment checks, "
+    f"{password_checks_verified} protected-password checks verified)."
 )
 PY
