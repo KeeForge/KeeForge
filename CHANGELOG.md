@@ -21,6 +21,8 @@ TODO before the first macOS release:
 
 ## Unreleased
 
+- Fix OneDrive databases stored in a folder or file whose name contains a space, `#`, `&`, or an accented character failing to open, download, or save. The path was being escaped twice on the way to OneDrive, so the app asked for a file that did not exist.
+- Fix "Couldn't Save Database: the request is malformed or incorrect" on OneDrive saves that then succeeded when you tapped Retry Save. Ordinary saves now upload in a single request instead of going through OneDrive's large-file handshake, and when that handshake is still needed it retries briefly before giving up.
 - Fix copied values disappearing from the clipboard before you could paste them. Copying a password and switching to another app locked the database on background and scrubbed the copy on the way out, so the paste arrived empty and the copy button looked broken. Backgrounding the app now leaves the copy alone; it still clears itself after the Clipboard Clear Timeout and never leaves the device. Locking the database yourself, and the auto-lock timeout firing while the app is open, both still clear the clipboard immediately.
 - Fix the AutoFill provider remaining on an empty view when an interactive request arrives after its presentation lifecycle callback.
 - App Transport Security now stays enforced for the app's own fixed hosts — favicons (DuckDuckGo), feedback, and the Dropbox/Microsoft cloud endpoints — via per-domain exceptions. The global arbitrary-loads allowance remains only for user-entered WebDAV servers, many of which still require legacy TLS ciphers that ATS otherwise rejects.
