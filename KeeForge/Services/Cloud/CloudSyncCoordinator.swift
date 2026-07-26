@@ -150,6 +150,7 @@ enum CloudSyncCoordinator {
         let fileManager = FileManager.default
         let directory = destinationURL.deletingLastPathComponent()
         try fileManager.createDirectory(at: directory, withIntermediateDirectories: true, attributes: nil)
+        sweepOrphanedStagingFiles(in: directory)
 
         let tempURL = directory.appendingPathComponent(UUID().uuidString, isDirectory: false)
         defer {
@@ -237,8 +238,8 @@ enum CloudSyncCoordinator {
     /// cache. A mismatch means a concurrent writer got there first and the
     /// replace is abandoned. The comparison sits inside the coordination
     /// block, and every cache writer coordinates, so nothing slips between
-    /// check and swap.
-    private static func replaceCacheItem(
+    /// check and swap. Internal for testing.
+    static func replaceCacheItem(
         at destinationURL: URL,
         withItemAt replacementURL: URL,
         pinnedFileID: UInt64?
@@ -287,10 +288,44 @@ enum CloudSyncCoordinator {
         try result.get()
     }
 
+    /// Best-effort removal of staging leftovers in the shared cache
+    /// directory. The staged download and the pin above are UUID-named
+    /// siblings of the `<id>.kdbx` caches, normally deleted before the sync
+    /// returns; a process death between creating one and its deferred removal
+    /// strands it forever. Only entries parked for at least `age` are
+    /// removed, so a concurrent sync's live staging files — which exist for
+    /// seconds — are never touched. Age comes from the directory entry's
+    /// "date added", NOT the inode dates: a pin is a hard link, so its
+    /// creation/modification dates belong to the cache file it pinned and can
+    /// be arbitrarily old, while the entry's own added date is stamped when
+    /// the link is made. Entries with no readable added date are left alone.
+    /// Internal for testing.
+    static func sweepOrphanedStagingFiles(
+        in directory: URL,
+        olderThan age: TimeInterval = 3600,
+        now: Date = .now
+    ) {
+        let fileManager = FileManager.default
+        guard let entries = try? fileManager.contentsOfDirectory(
+            at: directory,
+            includingPropertiesForKeys: [.addedToDirectoryDateKey],
+            options: [.skipsHiddenFiles]
+        ) else { return }
+
+        for entry in entries {
+            guard UUID(uuidString: entry.lastPathComponent) != nil else { continue }
+            guard
+                let addedAt = try? entry.resourceValues(forKeys: [.addedToDirectoryDateKey]).addedToDirectoryDate,
+                now.timeIntervalSince(addedAt) >= age
+            else { continue }
+            try? fileManager.removeItem(at: entry)
+        }
+    }
+
     /// The inode number backing `url`. A hard link reports the same value as
     /// the file it was made from, which is what lets the pin above recognize
-    /// its own bytes.
-    private static func fileID(at url: URL) -> UInt64? {
+    /// its own bytes. Internal for testing.
+    static func fileID(at url: URL) -> UInt64? {
         let attributes = try? FileManager.default.attributesOfItem(atPath: url.path)
         return (attributes?[.systemFileNumber] as? NSNumber)?.uint64Value
     }

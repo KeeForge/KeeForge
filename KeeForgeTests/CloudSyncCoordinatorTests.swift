@@ -123,6 +123,220 @@ final class CloudSyncCoordinatorTests: XCTestCase {
         XCTAssertEqual(strays, [cacheURL.lastPathComponent], "The pin and the staged download must both be cleaned up.")
     }
 
+    // MARK: - Coordinated cache replace (M12, direct)
+
+    // `replaceCacheItem` is the conditional swap the whole M12 race defense
+    // hangs on: publish the downloaded bytes only if the cache is still the
+    // exact file (inode) the caller pinned. These exercise it directly, one
+    // per cell of the pinned × destination-state matrix.
+
+    func testReplaceCacheItemSwapsBytesWhenDestinationStillMatchesThePin() throws {
+        let directory = try makeScratchDirectory()
+        let destination = directory.appendingPathComponent("cache.kdbx", isDirectory: false)
+        try Data("superseded-cache".utf8).write(to: destination)
+        let pin = directory.appendingPathComponent(UUID().uuidString, isDirectory: false)
+        try FileManager.default.linkItem(at: destination, to: pin)
+        let replacement = directory.appendingPathComponent("staged-download", isDirectory: false)
+        try Data("downloaded-bytes".utf8).write(to: replacement)
+
+        try CloudSyncCoordinator.replaceCacheItem(
+            at: destination,
+            withItemAt: replacement,
+            pinnedFileID: XCTUnwrap(CloudSyncCoordinator.fileID(at: pin))
+        )
+
+        XCTAssertEqual(try Data(contentsOf: destination), Data("downloaded-bytes".utf8))
+        XCTAssertFalse(
+            FileManager.default.fileExists(atPath: replacement.path),
+            "The swap must consume the staged copy."
+        )
+        XCTAssertEqual(
+            try Data(contentsOf: pin),
+            Data("superseded-cache".utf8),
+            "The pin must keep holding the superseded bytes it hard-linked."
+        )
+    }
+
+    func testReplaceCacheItemRefusesWhenDestinationWasSwappedAfterPinning() throws {
+        let directory = try makeScratchDirectory()
+        let destination = directory.appendingPathComponent("cache.kdbx", isDirectory: false)
+        try Data("pinned-cache".utf8).write(to: destination)
+        let pin = directory.appendingPathComponent(UUID().uuidString, isDirectory: false)
+        try FileManager.default.linkItem(at: destination, to: pin)
+        let pinnedFileID = try XCTUnwrap(CloudSyncCoordinator.fileID(at: pin))
+
+        // A concurrent writer (an AutoFill save) replaces the cache between
+        // the pin and the publish. The still-live pin keeps the pinned inode
+        // allocated, so the new file cannot be assigned its identity.
+        try FileManager.default.removeItem(at: destination)
+        try Data("concurrent-autofill-save".utf8).write(to: destination)
+
+        let replacement = directory.appendingPathComponent("staged-download", isDirectory: false)
+        try Data("downloaded-bytes".utf8).write(to: replacement)
+
+        XCTAssertThrowsError(
+            try CloudSyncCoordinator.replaceCacheItem(
+                at: destination,
+                withItemAt: replacement,
+                pinnedFileID: pinnedFileID
+            )
+        ) { error in
+            XCTAssertEqual((error as? CocoaError)?.code, .fileWriteFileExists)
+        }
+        XCTAssertEqual(
+            try Data(contentsOf: destination),
+            Data("concurrent-autofill-save".utf8),
+            "The concurrent writer's bytes must survive the refused replace."
+        )
+        XCTAssertEqual(
+            try Data(contentsOf: replacement),
+            Data("downloaded-bytes".utf8),
+            "A refused replace leaves the staged copy for the caller's deferred cleanup."
+        )
+    }
+
+    func testReplaceCacheItemInstallsIntoMissingDestinationWhenNothingWasPinned() throws {
+        let directory = try makeScratchDirectory()
+        let destination = directory.appendingPathComponent("cache.kdbx", isDirectory: false)
+        let replacement = directory.appendingPathComponent("staged-download", isDirectory: false)
+        try Data("first-download".utf8).write(to: replacement)
+
+        try CloudSyncCoordinator.replaceCacheItem(
+            at: destination,
+            withItemAt: replacement,
+            pinnedFileID: nil
+        )
+
+        XCTAssertEqual(try Data(contentsOf: destination), Data("first-download".utf8))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: replacement.path))
+    }
+
+    func testReplaceCacheItemRefusesWhenPinnedDestinationVanished() throws {
+        let directory = try makeScratchDirectory()
+        let destination = directory.appendingPathComponent("cache.kdbx", isDirectory: false)
+        try Data("pinned-cache".utf8).write(to: destination)
+        let pin = directory.appendingPathComponent(UUID().uuidString, isDirectory: false)
+        try FileManager.default.linkItem(at: destination, to: pin)
+        let pinnedFileID = try XCTUnwrap(CloudSyncCoordinator.fileID(at: pin))
+
+        // A concurrent writer deleted the cache outright after the pin.
+        try FileManager.default.removeItem(at: destination)
+
+        let replacement = directory.appendingPathComponent("staged-download", isDirectory: false)
+        try Data("downloaded-bytes".utf8).write(to: replacement)
+
+        XCTAssertThrowsError(
+            try CloudSyncCoordinator.replaceCacheItem(
+                at: destination,
+                withItemAt: replacement,
+                pinnedFileID: pinnedFileID
+            )
+        ) { error in
+            XCTAssertEqual((error as? CocoaError)?.code, .fileNoSuchFile)
+        }
+        XCTAssertFalse(
+            FileManager.default.fileExists(atPath: destination.path),
+            "The refused replace must not install anything at the vanished destination."
+        )
+        XCTAssertEqual(try Data(contentsOf: replacement), Data("downloaded-bytes".utf8))
+    }
+
+    func testReplaceCacheItemRefusesWhenDestinationAppearedAfterPinningFoundNone() throws {
+        let directory = try makeScratchDirectory()
+        let destination = directory.appendingPathComponent("cache.kdbx", isDirectory: false)
+        // The caller found no cache to pin, but a concurrent writer created
+        // one before the publish.
+        try Data("concurrent-first-write".utf8).write(to: destination)
+        let replacement = directory.appendingPathComponent("staged-download", isDirectory: false)
+        try Data("downloaded-bytes".utf8).write(to: replacement)
+
+        XCTAssertThrowsError(
+            try CloudSyncCoordinator.replaceCacheItem(
+                at: destination,
+                withItemAt: replacement,
+                pinnedFileID: nil
+            )
+        ) { error in
+            XCTAssertEqual((error as? CocoaError)?.code, .fileWriteFileExists)
+        }
+        XCTAssertEqual(try Data(contentsOf: destination), Data("concurrent-first-write".utf8))
+    }
+
+    // MARK: - Orphaned staging sweep
+
+    func testSweepRemovesParkedStagingFilesAndKeepsCaches() throws {
+        let directory = try makeScratchDirectory()
+        let orphanedDownload = directory.appendingPathComponent(UUID().uuidString, isDirectory: false)
+        try Data("dead-staged-download".utf8).write(to: orphanedDownload)
+        let cache = directory.appendingPathComponent("\(UUID().uuidString).kdbx", isDirectory: false)
+        try Data("live-cache".utf8).write(to: cache)
+        let orphanedPin = directory.appendingPathComponent(UUID().uuidString, isDirectory: false)
+        try FileManager.default.linkItem(at: cache, to: orphanedPin)
+
+        // The entries are seconds old; a `now` two hours out ages them past
+        // the parked threshold.
+        CloudSyncCoordinator.sweepOrphanedStagingFiles(
+            in: directory,
+            now: Date().addingTimeInterval(7200)
+        )
+
+        XCTAssertFalse(FileManager.default.fileExists(atPath: orphanedDownload.path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: orphanedPin.path))
+        XCTAssertEqual(
+            try Data(contentsOf: cache),
+            Data("live-cache".utf8),
+            "Only UUID-named staging entries are swept; the .kdbx caches stay."
+        )
+    }
+
+    func testSweepLeavesFreshStagingFilesForTheirRunningSync() throws {
+        let directory = try makeScratchDirectory()
+        let inFlightDownload = directory.appendingPathComponent(UUID().uuidString, isDirectory: false)
+        try Data("in-flight-download".utf8).write(to: inFlightDownload)
+
+        CloudSyncCoordinator.sweepOrphanedStagingFiles(in: directory)
+
+        XCTAssertEqual(try Data(contentsOf: inFlightDownload), Data("in-flight-download".utf8))
+    }
+
+    func testSweepJudgesPinAgeByDirectoryEntryNotByPinnedInodeDates() throws {
+        // A pin is a hard link, so its inode-level creation/modification
+        // dates are those of the cache file it pinned — arbitrarily old the
+        // moment the link is made. A sweep keyed on those dates would delete
+        // a live pin out from under a running sync; the directory entry's own
+        // "date added" must decide instead.
+        let directory = try makeScratchDirectory()
+        let cache = directory.appendingPathComponent("\(UUID().uuidString).kdbx", isDirectory: false)
+        try Data("old-cache".utf8).write(to: cache)
+        try FileManager.default.setAttributes(
+            [
+                .creationDate: Date(timeIntervalSince1970: 1_000),
+                .modificationDate: Date(timeIntervalSince1970: 1_000),
+            ],
+            ofItemAtPath: cache.path
+        )
+        let freshPin = directory.appendingPathComponent(UUID().uuidString, isDirectory: false)
+        try FileManager.default.linkItem(at: cache, to: freshPin)
+
+        CloudSyncCoordinator.sweepOrphanedStagingFiles(in: directory)
+
+        XCTAssertEqual(
+            try Data(contentsOf: freshPin),
+            Data("old-cache".utf8),
+            "A just-made pin to an old cache file must survive the sweep."
+        )
+    }
+
+    private func makeScratchDirectory() throws -> URL {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("cloud-sync-coordinator-tests-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        addTeardownBlock {
+            try? FileManager.default.removeItem(at: directory)
+        }
+        return directory
+    }
+
     func testSyncDownloadsFreshCopyWhenRemoteMetadataChanges() async throws {
         let reference = makeCloudReference(
             remoteContentHash: "old-hash",
