@@ -246,6 +246,74 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
         assertCleanedUp(coordinator)
     }
 
+    func test_possibleMatchesStartSeparatedButKeepFullSearchCorpus() throws {
+        let (coordinator, presenter) = makeCoordinator()
+        let sessionKey = SymmetricKey(size: .bits256)
+        let entries = [
+            KPEntry(
+                title: "Sibling",
+                username: "sibling",
+                password: try EncryptedValue.encrypt("secret", using: sessionKey),
+                url: "https://tro.sitio.com/login"
+            ),
+            KPEntry(
+                title: "Unrelated",
+                username: "other",
+                password: try EncryptedValue.encrypt("secret", using: sessionKey),
+                url: "https://other.example"
+            )
+        ]
+
+        coordinator.serviceIdentifiers = [
+            ASCredentialServiceIdentifier(identifier: "https://acs.sitio.com", type: .URL)
+        ]
+        seedUnlockedVaultState(coordinator, entries: entries, sessionKey: sessionKey)
+
+        coordinator.presentPasswordMatchesOrFinish()
+
+        let searchView = try XCTUnwrap(presenter.searchView)
+        XCTAssertTrue(searchView.entries.isEmpty)
+        XCTAssertEqual(searchView.possibleEntries.map(\.title), ["Sibling"])
+        XCTAssertEqual(searchView.searchEntries.count, 2)
+        XCTAssertEqual(searchView.initialSearchText, "")
+    }
+
+    func test_fuzzyCandidatesArePossibleAndMultipleCandidatesRemainAvailable() throws {
+        let (coordinator, presenter) = makeCoordinator()
+        let sessionKey = SymmetricKey(size: .bits256)
+        let entries = [
+            KPEntry(
+                title: "acs.sitio.com legacy",
+                username: "fuzzy",
+                password: try EncryptedValue.encrypt("secret", using: sessionKey),
+                url: "https://unrelated.example"
+            ),
+            KPEntry(
+                title: "Sibling One",
+                username: "one",
+                password: try EncryptedValue.encrypt("secret", using: sessionKey),
+                url: "https://one.sitio.com"
+            ),
+            KPEntry(
+                title: "Sibling Two",
+                username: "two",
+                password: try EncryptedValue.encrypt("secret", using: sessionKey),
+                url: "https://two.sitio.com"
+            )
+        ]
+
+        coordinator.serviceIdentifiers = [
+            ASCredentialServiceIdentifier(identifier: "https://acs.sitio.com", type: .URL)
+        ]
+        seedUnlockedVaultState(coordinator, entries: entries, sessionKey: sessionKey)
+
+        coordinator.presentPasswordMatchesOrFinish()
+
+        let searchView = try XCTUnwrap(presenter.searchView)
+        XCTAssertTrue(searchView.entries.isEmpty, "Broad fuzzy matches must not be exact results")
+        XCTAssertEqual(searchView.possibleEntries.map(\.title), ["acs.sitio.com legacy", "Sibling One", "Sibling Two"])
+    }
+
     func test_cleanup_runsOnExtensionConfigurationCancellation() {
         let (coordinator, presenter) = makeCoordinator()
         seedUnlockedVaultState(coordinator)

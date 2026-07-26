@@ -126,6 +126,46 @@
         }
       }
     },
+    "Add original URL to this entry" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ursprüngliche URL zu diesem Eintrag hinzufügen"
+          }
+        }
+      }
+    },
+    "Add Original URL?" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ursprüngliche URL hinzufügen?"
+          }
+        }
+      }
+    },
+    "Add URL" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "URL hinzufügen"
+          }
+        }
+      }
+    },
+    "another app" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "andere App"
+          }
+        }
+      }
+    },
     "AutoFill with KeeForge" : {
       "localizations" : {
         "de" : {
@@ -566,6 +606,16 @@
         }
       }
     },
+    "Matches" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Treffer"
+          }
+        }
+      }
+    },
     "Missing header field: %@" : {
       "localizations" : {
         "de" : {
@@ -596,12 +646,42 @@
         }
       }
     },
+    "No Credentials Found" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Keine Zugangsdaten gefunden"
+          }
+        }
+      }
+    },
+    "No credentials match this search." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Keine Zugangsdaten entsprechen dieser Suche."
+          }
+        }
+      }
+    },
     "No Databases for AutoFill" : {
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Keine Datenbanken für AutoFill"
+          }
+        }
+      }
+    },
+    "No exact matches were found. These credentials are possible matches only." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Keine exakten Treffer gefunden. Diese Zugangsdaten sind nur mögliche Treffer."
           }
         }
       }
@@ -702,6 +782,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Bitte wählen Sie eine KeePass-Datenbank im .kdbx-Format aus."
+          }
+        }
+      }
+    },
+    "Possible matches" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mögliche Treffer"
           }
         }
       }
@@ -882,6 +972,76 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Die Anfrage ist nicht mehr verfügbar."
+          }
+        }
+      }
+    },
+    "This adds the original request URL to the selected credential. The database will be changed only if you confirm." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die ursprüngliche Anfrage-URL wird dem ausgewählten Zugang hinzugefügt. Die Datenbank wird nur nach Ihrer Bestätigung geändert."
+          }
+        }
+      }
+    },
+    "This database file is in iCloud Drive." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Diese Datenbankdatei befindet sich in iCloud Drive."
+          }
+        }
+      }
+    },
+    "This database file is stored in Box." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Diese Datenbankdatei ist in Box gespeichert."
+          }
+        }
+      }
+    },
+    "This database file is stored in Dropbox." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Diese Datenbankdatei ist in Dropbox gespeichert."
+          }
+        }
+      }
+    },
+    "This database file is stored in Google Drive." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Diese Datenbankdatei ist in Google Drive gespeichert."
+          }
+        }
+      }
+    },
+    "This database file is stored in OneDrive." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Diese Datenbankdatei ist in OneDrive gespeichert."
+          }
+        }
+      }
+    },
+    "This database file may be synced by another app on this device." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Diese Datenbankdatei wird möglicherweise von einer anderen App auf diesem Gerät synchronisiert."
           }
         }
       }

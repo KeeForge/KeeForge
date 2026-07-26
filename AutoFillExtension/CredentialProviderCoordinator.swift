@@ -54,9 +54,13 @@ protocol CredentialProviderPresenting: AnyObject {
     /// `onSelect`/`onCancel`.
     func presentSearchView(
         entries: [KPEntry],
+        searchEntries: [KPEntry],
+        possibleEntries: [KPEntry],
         initialSearchText: String,
         databaseSwitcher: CredentialProviderDatabaseSwitcherContext?,
         onSelect: @escaping (KPEntry) -> Void,
+        onSelectPossible: @escaping (KPEntry) -> Void,
+        onAddURLToPossible: @escaping (KPEntry) -> Void,
         onCancel: @escaping () -> Void
     )
 
@@ -1171,25 +1175,117 @@ final class CredentialProviderCoordinator {
             removeStaleIdentityIfEntryMissing(recordIdentifier: recordIdentifier)
         }
 
-        let matches = CredentialMatcher.matchedEntries(from: passwordEntries, for: serviceIdentifiers)
         let strictMatches = CredentialMatcher.strictMatchedEntries(from: passwordEntries, for: serviceIdentifiers)
+        let possibleMatches: [KPEntry]
+        if strictMatches.isEmpty {
+            let broadMatches = CredentialMatcher.matchedEntries(from: passwordEntries, for: serviceIdentifiers)
+            let siblingMatches = CredentialMatcher.possibleMatchedEntries(from: passwordEntries, for: serviceIdentifiers)
+            var seenIDs = Set<UUID>()
+            possibleMatches = (broadMatches + siblingMatches).filter { seenIDs.insert($0.id).inserted }
+        } else {
+            possibleMatches = []
+        }
 
         // Auto-complete without a picker only when the single candidate matched
         // on host, not on a weaker URL/title substring signal.
-        if matches.count == 1, strictMatches.count == 1, let entry = strictMatches.first {
+        if strictMatches.count == 1, let entry = strictMatches.first {
             completeRequest(with: entry)
             return
         }
 
         let searchDomain = serviceIdentifiers.first.flatMap { CredentialMatcher.searchTerm(for: $0) } ?? ""
 
-        if !matches.isEmpty {
-            presentSearchView(entries: matches, initialSearchText: "", includesDatabaseSwitcher: true) { [weak self] entry in
+        if !strictMatches.isEmpty {
+            // Only strict host matches belong in the exact interactive section.
+            presentSearchView(
+                entries: strictMatches,
+                searchEntries: allPasswordEntries,
+                possibleEntries: [],
+                initialSearchText: "",
+                includesDatabaseSwitcher: true
+            ) { [weak self] entry in
                 self?.completeRequest(with: entry)
             }
         } else {
-            presentSearchView(entries: allPasswordEntries, initialSearchText: searchDomain, includesDatabaseSwitcher: true) { [weak self] entry in
+            // With suggestions, keep the initial list limited to the separate
+            // possible-match section. The full password list remains the
+            // editable search corpus.
+            presentSearchView(
+                entries: possibleMatches.isEmpty ? allPasswordEntries : [],
+                searchEntries: allPasswordEntries,
+                possibleEntries: possibleMatches,
+                initialSearchText: possibleMatches.isEmpty ? searchDomain : "",
+                includesDatabaseSwitcher: true
+            ) { [weak self] entry in
                 self?.completeRequest(with: entry)
+            } onSelectPossible: { [weak self] entry in
+                self?.completeRequest(with: entry)
+            } onAddURLToPossible: { [weak self] entry in
+                self?.addOriginalRequestURL(to: entry)
+            }
+        }
+    }
+
+    private func addOriginalRequestURL(to entry: KPEntry) {
+        guard let rootGroup = parsedRootGroup,
+              let meta = parsedMeta,
+              let sessionKey,
+              let compositeKey,
+              let openTimeSHA512,
+              let reference = activeDatabaseReference,
+              let requestURL = serviceIdentifiers.first?.identifier,
+              let password = try? entry.password.decrypt(using: sessionKey) else {
+            cancelRequest(code: .failed)
+            return
+        }
+
+        var customFields = entry.customFields
+        let requestHost = CredentialMatcher.hostFromURLString(requestURL)
+        let alreadyStored = requestHost.map { requestHost in
+            ([entry.url] + entry.additionalURLs).contains { storedURL in
+                guard let storedHost = CredentialMatcher.hostFromURLString(storedURL) else { return false }
+                return storedHost == requestHost
+            }
+        } ?? false
+        guard !alreadyStored else {
+            completeRequest(with: entry)
+            return
+        }
+        var index = 1
+        while customFields["KP2A_URL_\(index)"] != nil { index += 1 }
+        customFields["KP2A_URL_\(index)"] = requestURL
+        let draft = EntryDraftPayload(
+            title: entry.title,
+            username: entry.username,
+            password: password,
+            url: entry.url,
+            notes: entry.notes,
+            customFields: customFields,
+            tags: entry.tags
+        )
+
+        Task { [weak self] in
+            guard let self else { return }
+            do {
+                let result = try await AutoFillSaveCoordinator.saveNewEntry(
+                    draftPayload: draft,
+                    reference: reference,
+                    rootGroup: rootGroup,
+                    meta: meta,
+                    sessionKey: sessionKey,
+                    compositeKey: compositeKey,
+                    openTimeSHA512: openTimeSHA512,
+                    edit: .updateEntry(entryID: entry.id, draft: draft)
+                )
+                guard case .saved(let outcome) = result else {
+                    cancelRequest(code: .failed)
+                    return
+                }
+                parsedRootGroup = outcome.savedRootGroup
+                parsedEntries = outcome.savedRootGroup.autoFillEntries(excludingGroupID: outcome.savedRootGroup.recycleBinUUID)
+                completeRequest(with: parsedEntries.first { $0.id == entry.id } ?? entry)
+            } catch {
+                cancelRequest(code: .failed)
             }
         }
     }
@@ -1299,17 +1395,25 @@ final class CredentialProviderCoordinator {
     /// initial text so the re-presented search keeps what the user had typed.
     private func presentSearchView(
         entries: [KPEntry],
+        searchEntries: [KPEntry]? = nil,
+        possibleEntries: [KPEntry] = [],
         initialSearchText: String = "",
         includesDatabaseSwitcher: Bool = false,
-        onSelect: @escaping (KPEntry) -> Void
+        onSelect: @escaping (KPEntry) -> Void,
+        onSelectPossible: @escaping (KPEntry) -> Void = { _ in },
+        onAddURLToPossible: @escaping (KPEntry) -> Void = { _ in }
     ) {
         let restoredSearchText = pendingSwitchSearchText
         pendingSwitchSearchText = nil
         presenter?.presentSearchView(
             entries: entries,
+            searchEntries: searchEntries ?? entries,
+            possibleEntries: possibleEntries,
             initialSearchText: restoredSearchText ?? initialSearchText,
             databaseSwitcher: includesDatabaseSwitcher ? makeDatabaseSwitcherContext() : nil,
             onSelect: onSelect,
+            onSelectPossible: onSelectPossible,
+            onAddURLToPossible: onAddURLToPossible,
             onCancel: { [weak self] in
                 self?.cancelRequest(code: .userCanceled)
             }
