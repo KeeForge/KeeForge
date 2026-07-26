@@ -8,8 +8,8 @@ options:
   xcodeVersion: "16.0"
   minimumXcodeGenVersion: "2.38"
 configFiles:
-  Debug: BuildConfig.xcconfig
-  Release: BuildConfig.xcconfig
+  Debug: Configs/BuildConfig.xcconfig
+  Release: Configs/BuildConfig.xcconfig
 settings:
   base:
     SWIFT_VERSION: "6.0"
