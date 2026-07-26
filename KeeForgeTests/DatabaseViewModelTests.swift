@@ -1497,6 +1497,191 @@ final class DatabaseViewModelTests: XCTestCase {
         }
     }
 
+    // MARK: - Tag index
+
+    func testTagIndexListsDistinctTagsWithCounts() async throws {
+        let vm = try await makeCreatedViewModel(displayName: "Tag Index")
+        let parentGroupID = try XCTUnwrap(vm.visibleRootGroupID)
+
+        try vm.applyEntryEdit(
+            .createEntry(
+                parentGroupID: parentGroupID,
+                draft: EntryDraftPayload(title: "Alpha", tags: ["Work", "shared"])
+            )
+        )
+        try vm.applyEntryEdit(
+            .createEntry(
+                parentGroupID: parentGroupID,
+                draft: EntryDraftPayload(title: "Beta", tags: ["work", "shared"])
+            )
+        )
+        try vm.applyEntryEdit(
+            .createEntry(
+                parentGroupID: parentGroupID,
+                draft: EntryDraftPayload(title: "Gamma", tags: ["Personal", "Personal"])
+            )
+        )
+
+        XCTAssertEqual(Set(vm.allTags), ["Work", "work", "shared", "Personal"])
+        XCTAssertEqual(vm.entryCount(forTag: "shared"), 2)
+        XCTAssertEqual(vm.entryCount(forTag: "Work"), 1, "Tag identity is exact-string, so case variants stay apart")
+        XCTAssertEqual(vm.entryCount(forTag: "work"), 1)
+        XCTAssertEqual(
+            vm.entryCount(forTag: "Personal"),
+            1,
+            "An entry repeating a tag — as foreign files do — still counts once"
+        )
+        XCTAssertEqual(vm.entries(withTag: "shared").map(\.title), ["Alpha", "Beta"])
+        XCTAssertEqual(vm.entryCount(forTag: "absent"), 0)
+        XCTAssertTrue(vm.entries(withTag: "absent").isEmpty)
+    }
+
+    func testTagIndexIgnoresEntriesInTheRecycleBin() async throws {
+        let vm = try await makeCreatedViewModel(displayName: "Tag Recycle")
+        let parentGroupID = try XCTUnwrap(vm.visibleRootGroupID)
+
+        try vm.applyEntryEdit(
+            .createEntry(
+                parentGroupID: parentGroupID,
+                draft: EntryDraftPayload(title: "Doomed", tags: ["recycled-only", "kept"])
+            )
+        )
+        try vm.applyEntryEdit(
+            .createEntry(
+                parentGroupID: parentGroupID,
+                draft: EntryDraftPayload(title: "Survivor", tags: ["kept"])
+            )
+        )
+        let doomed = try XCTUnwrap(vm.visibleRootGroup?.entries.first(where: { $0.title == "Doomed" }))
+
+        try vm.deleteEntry(doomed.id, sendToRecycleBin: true)
+
+        XCTAssertTrue(vm.isEntryInRecycleBin(entryID: doomed.id))
+        XCTAssertFalse(vm.allTags.contains("recycled-only"))
+        XCTAssertEqual(vm.entryCount(forTag: "recycled-only"), 0)
+        XCTAssertTrue(vm.entries(withTag: "recycled-only").isEmpty)
+        XCTAssertEqual(vm.entryCount(forTag: "kept"), 1, "The surviving entry still carries the shared tag")
+
+        vm.searchText = "recycled-only"
+        XCTAssertTrue(vm.searchResults.isEmpty)
+    }
+
+    func testTagIndexUpdatesAfterAnEditAddsAndRemovesATag() async throws {
+        let vm = try await makeCreatedViewModel(displayName: "Tag Updates")
+        let parentGroupID = try XCTUnwrap(vm.visibleRootGroupID)
+
+        try vm.applyEntryEdit(
+            .createEntry(
+                parentGroupID: parentGroupID,
+                draft: EntryDraftPayload(title: "Mutable", tags: ["first"])
+            )
+        )
+        let entryID = try XCTUnwrap(vm.visibleRootGroup?.entries.first(where: { $0.title == "Mutable" })?.id)
+
+        try vm.applyEntryEdit(
+            .updateEntry(
+                entryID: entryID,
+                draft: EntryDraftPayload(title: "Mutable", tags: ["first", "second"])
+            )
+        )
+
+        XCTAssertEqual(Set(vm.allTags), ["first", "second"])
+        XCTAssertEqual(vm.entries(withTag: "second").map(\.id), [entryID])
+
+        try vm.applyEntryEdit(
+            .updateEntry(
+                entryID: entryID,
+                draft: EntryDraftPayload(title: "Mutable", tags: ["second"])
+            )
+        )
+
+        XCTAssertEqual(vm.allTags, ["second"])
+        XCTAssertEqual(vm.entryCount(forTag: "first"), 0)
+    }
+
+    func testTagIndexIsEmptyForADatabaseWithoutTags() async throws {
+        let vm = try await makeCreatedViewModel(displayName: "Tag Free")
+        let parentGroupID = try XCTUnwrap(vm.visibleRootGroupID)
+
+        XCTAssertTrue(vm.allTags.isEmpty, "A freshly created database carries no tags")
+
+        try vm.applyEntryEdit(
+            .createEntry(
+                parentGroupID: parentGroupID,
+                draft: EntryDraftPayload(title: "Plain")
+            )
+        )
+
+        XCTAssertTrue(vm.allTags.isEmpty)
+        XCTAssertEqual(vm.entryCount(forTag: "anything"), 0)
+        XCTAssertTrue(vm.entries(withTag: "anything").isEmpty)
+    }
+
+    func testSearchMatchesTagsCaseAndDiacriticInsensitively() async throws {
+        let vm = try await makeCreatedViewModel(displayName: "Tag Search")
+        let parentGroupID = try XCTUnwrap(vm.visibleRootGroupID)
+
+        try vm.applyEntryEdit(
+            .createEntry(
+                parentGroupID: parentGroupID,
+                draft: EntryDraftPayload(title: "Bank", tags: ["Réunion Trip"])
+            )
+        )
+        try vm.applyEntryEdit(
+            .createEntry(
+                parentGroupID: parentGroupID,
+                draft: EntryDraftPayload(title: "Untagged")
+            )
+        )
+
+        // Full tag text, then a partial one, each folded like the other fields.
+        for query in ["Réunion Trip", "reunion trip", "RÉUN", "trip"] {
+            vm.searchText = query
+            XCTAssertEqual(
+                vm.searchResults.map(\.title),
+                ["Bank"],
+                "Expected the tag to match query \"\(query)\""
+            )
+        }
+
+        vm.searchText = "___no_match___"
+        XCTAssertTrue(vm.searchResults.isEmpty)
+    }
+
+    func testSearchIgnoresATagThatSurvivesOnlyInEntryHistory() async throws {
+        let vm = try await makeCreatedViewModel(displayName: "Tag History")
+        let parentGroupID = try XCTUnwrap(vm.visibleRootGroupID)
+
+        try vm.applyEntryEdit(
+            .createEntry(
+                parentGroupID: parentGroupID,
+                draft: EntryDraftPayload(title: "Historic", tags: ["retired-tag"])
+            )
+        )
+        let entryID = try XCTUnwrap(vm.visibleRootGroup?.entries.first(where: { $0.title == "Historic" })?.id)
+
+        try vm.applyEntryEdit(
+            .updateEntry(
+                entryID: entryID,
+                draft: EntryDraftPayload(title: "Historic", tags: ["current-tag"])
+            )
+        )
+
+        let historySnapshot = try XCTUnwrap(vm.entry(withID: entryID)?.history.first)
+        XCTAssertEqual(
+            historySnapshot.tags,
+            ["retired-tag"],
+            "Precondition: the replaced tag lives on in the history snapshot"
+        )
+
+        XCTAssertFalse(vm.allTags.contains("retired-tag"))
+        vm.searchText = "retired-tag"
+        XCTAssertTrue(vm.searchResults.isEmpty)
+
+        vm.searchText = "current-tag"
+        XCTAssertEqual(vm.searchResults.map(\.id), [entryID])
+    }
+
     func testWhitespaceOnlySearchQueryIsTreatedAsEmpty() async throws {
         let vm = try makeViewModel()
         await vm.unlock(password: fixturePassword)
@@ -2301,6 +2486,19 @@ final class DatabaseViewModelTests: XCTestCase {
 
     private func makeReference(autoFillEnabled: Bool = true) throws -> DatabaseReference {
         try TestDatabaseSupport.makeReference(for: fixtureURL(), autoFillEnabled: autoFillEnabled)
+    }
+
+    /// A freshly created, already unlocked database — the cleanest route to a
+    /// view model whose entire content the test controls.
+    private func makeCreatedViewModel(displayName: String) async throws -> DatabaseViewModel {
+        let created = try await DatabaseCreationService.create(
+            request: DatabaseCreationRequest(
+                displayName: displayName,
+                destination: .appOnlyAcknowledged,
+                password: "\(displayName) password"
+            )
+        )
+        return DatabaseViewModel(createdDatabase: created)
     }
 
     /// Unlocks the view model and waits for the unlock-triggered credential

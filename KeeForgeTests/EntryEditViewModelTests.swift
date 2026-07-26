@@ -81,6 +81,39 @@ final class EntryEditViewModelTests: XCTestCase {
         )
     }
 
+    func testEntryDraftPayloadSplitsTagsOnEverySeparatorAndDedupesExactMatches() {
+        let cases: [(text: String, expected: [String])] = [
+            ("a;b", ["a", "b"]),
+            ("a, b;c\nd", ["a", "b", "c", "d"]),
+            (" ; ,, ", []),
+            ("a,a", ["a"]),
+            ("Work,work", ["Work", "work"]),
+        ]
+
+        for (text, expected) in cases {
+            let viewModel = EntryEditViewModel(createIn: UUID())
+            viewModel.tagsText = text
+
+            XCTAssertEqual(
+                viewModel.entryDraftPayload.tags,
+                expected,
+                "Unexpected normalization of tag text \(text.debugDescription)"
+            )
+        }
+    }
+
+    func testEditingEntrySeedsTagTextThatRoundTripsStoredTags() {
+        // Case variants sit either side of the ", " join and interior spaces are
+        // legal tag content; seeding then normalizing must lose neither.
+        let entry = KPEntry(title: "Tagged", tags: ["Work", "work", "New York"], hasTagsElement: true)
+
+        let viewModel = EntryEditViewModel(editing: entry, sessionKey: sessionKey)
+
+        XCTAssertEqual(viewModel.tagsText, "Work, work, New York")
+        XCTAssertEqual(viewModel.entryDraftPayload.tags, entry.tags)
+        XCTAssertFalse(viewModel.isDirty, "Seeding the form is not a user edit")
+    }
+
     // MARK: - canSave
 
     func testCanSaveTruthTableAcrossCreateAndEditModes() throws {

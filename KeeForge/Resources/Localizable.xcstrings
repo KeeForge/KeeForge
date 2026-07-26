@@ -5654,12 +5654,12 @@
         }
       }
     },
-    "Type to search by title, username, URL, or notes." : {
+    "Type to search by title, username, URL, notes, or tags." : {
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Suchen Sie nach Titel, Benutzername, URL oder Notizen."
+            "value" : "Suchen Sie nach Titel, Benutzername, URL, Notizen oder Tags."
           }
         }
       }

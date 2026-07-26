@@ -14,7 +14,7 @@ struct SearchView: View {
                 ContentUnavailableView(
                     "Search Entries",
                     systemImage: "magnifyingglass",
-                    description: Text("Type to search by title, username, URL, or notes.")
+                    description: Text("Type to search by title, username, URL, notes, or tags.")
                 )
             } else if viewModel.searchResults.isEmpty {
                 ContentUnavailableView(

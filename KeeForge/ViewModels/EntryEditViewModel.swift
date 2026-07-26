@@ -228,10 +228,7 @@ final class EntryEditViewModel {
     }
 
     private func normalizedTags() -> [String] {
-        tagsText
-            .split(whereSeparator: { $0 == "," || $0 == "\n" })
-            .map { String($0).trimmingCharacters(in: .whitespacesAndNewlines) }
-            .filter { $0.isEmpty == false }
+        TagNormalizer.tags(fromText: tagsText)
     }
 
     private func normalizedTOTPConfiguration() -> EntryDraftPayload.TOTPConfiguration? {
