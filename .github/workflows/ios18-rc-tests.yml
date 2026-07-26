@@ -6,7 +6,9 @@ name: iOS 18 RC Tests
 # GitHub-hosted macos-15 runners do ship iOS 18.0–18.5 runtimes, so this job
 # runs the full unit + UI suites on an iOS 18 simulator to catch minimum-OS
 # regressions (like the iOS 17 editor-navigation hang that motivated dropping
-# iOS 17).
+# iOS 17). A trailing regular-width lane runs the two iPad-only UI classes on
+# an iPad simulator — every other CI destination is compact-width, where those
+# classes self-skip.
 #
 # Trigger mirrors the Xcode Cloud RC gate (rc/* tag push) and also allows manual
 # dispatch. This workflow and Xcode Cloud are both release gates documented in
@@ -59,7 +61,7 @@ jobs:
       - name: Generate project
         run: xcodegen generate
 
-      - name: Create iOS 18 simulator
+      - name: Create iOS 18 simulators
         id: sim
         run: |
           set -euo pipefail
@@ -90,6 +92,16 @@ jobs:
           xcrun simctl boot "$UDID" || true
           echo "udid=$UDID" >> "$GITHUB_OUTPUT"
 
+          # iPad (10th gen): regular width. The two regular-width UI classes
+          # XCTSkip below 700pt, so on iPhone-only CI destinations they have a
+          # 100% skip rate; this is the one lane where they actually execute.
+          # Created now, booted only after the iPhone suites finish (one booted
+          # simulator at a time keeps the runner within memory budget).
+          IPAD_UDID=$(xcrun simctl create "KeeForge-iOS18-iPad" \
+            "com.apple.CoreSimulator.SimDeviceType.iPad-10th-generation" "$RUNTIME")
+          echo "Created iPad simulator: $IPAD_UDID"
+          echo "ipad_udid=$IPAD_UDID" >> "$GITHUB_OUTPUT"
+
       - name: Build for testing
         run: |
           set -o pipefail
@@ -104,6 +116,7 @@ jobs:
       - name: Run tests (iOS 18)
         env:
           UDID: ${{ steps.sim.outputs.udid }}
+          IPAD_UDID: ${{ steps.sim.outputs.ipad_udid }}
         run: |
           set -uo pipefail
           mkdir -p build
@@ -119,13 +132,13 @@ jobs:
           # output is captured verbatim (no xcpretty, which swallows the
           # underlying error) for diagnosis via the uploaded logs.
           run_suite() {
-            local suite="$1" name="$2" log="build/$2.log"
+            local suite="$1" name="$2" udid="${3:-$UDID}" log="build/$2.log"
             echo "::group::xcodebuild test — $suite"
             set +e
             xcodebuild test-without-building \
               -project "$PROJECT" \
               -scheme "$SCHEME" \
-              -destination "platform=iOS Simulator,id=$UDID" \
+              -destination "platform=iOS Simulator,id=$udid" \
               -only-testing:"$suite" \
               -resultBundlePath "build/$name.xcresult" \
               2>&1 | tee "$log"
@@ -166,6 +179,13 @@ jobs:
           rc=0
           run_suite "KeeForgeTests" "unit" || rc=1
           run_suite "KeeForgeUITests" "ui" || rc=1
+
+          # Regular-width lane: swap booted simulators (memory budget), then
+          # run the two classes that XCTSkip on every compact-width device.
+          xcrun simctl shutdown "$UDID" || true
+          xcrun simctl boot "$IPAD_UDID" || true
+          run_suite "KeeForgeUITests/DatabaseCreationRegularWidthUITests" "ui-regular-creation" "$IPAD_UDID" || rc=1
+          run_suite "KeeForgeUITests/RegularWidthWorkspaceUITests" "ui-regular-workspace" "$IPAD_UDID" || rc=1
           exit "$rc"
 
       - name: Upload test logs and result bundles
