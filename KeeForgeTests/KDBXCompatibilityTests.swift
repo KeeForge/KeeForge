@@ -2,6 +2,16 @@ import CryptoKit
 import XCTest
 @testable import KeeForge
 
+/// The authoritative KDBX edit-semantics matrix.
+///
+/// Every scenario in `KDBXCompatibilitySupport.artifactDescriptors` is executed
+/// by exactly one method here, and the method emits that scenario's written
+/// bytes as XCTAttachments for `ci_scripts/run_kdbx_compatibility_gate.sh`.
+/// Artifact emission piggybacks on the run that already happened; nothing is
+/// re-executed to produce a file. Adding a scenario means adding it to
+/// `artifactDescriptors`, running it here through an `ArtifactCollector`, and
+/// listing its external expectations (or explicitly listing it as having
+/// none) — `test_externalExpectationTables_...` fails otherwise.
 final class KDBXCompatibilityTests: XCTestCase {
     private enum KeeOTPMutation: String, CaseIterable {
         case preserve
@@ -9,60 +19,71 @@ final class KDBXCompatibilityTests: XCTestCase {
         case secret
     }
 
+    /// Smoke fixtures whose scenario is run (and emitted) by a dedicated
+    /// deeper test below, so the generic smoke sweep skips them and no
+    /// scenario executes twice per suite run.
+    private static let smokeFixtureIDsWithDedicatedTests: Set<String> = [
+        KDBXCompatibilitySupport.Fixture.unknownRich.id,
+        KDBXCompatibilitySupport.Fixture.kdbx41PublicCustomData.id,
+    ]
+
     private var bundle: Bundle {
         Bundle(for: Self.self)
     }
 
     func test_allSupportedEditScenarios_writeReparseAndOnlyChangeExpectedSemantics() throws {
-        for fixture in [
-            KDBXCompatibilitySupport.Fixture.syntheticRich,
-            .syntheticTwofish,
-        ] {
-            let loaded = try KDBXCompatibilitySupport.load(fixture, bundle: bundle)
+        let collector = try KDBXCompatibilitySupport.ArtifactCollector(testCase: self)
 
-            for scenario in KDBXCompatibilitySupport.fullEditScenarios() {
-                let result = try scenario.apply(to: loaded)
-                let reparsed = try KDBXParser.parseWithMetaAndHeader(
-                    data: result.written,
-                    compositeKey: loaded.compositeKey,
-                    sessionKey: loaded.sessionKey
-                )
-                XCTAssertEqual(reparsed.header.cipherID, loaded.header.cipherID)
-                XCTAssertEqual(reparsed.header.kdfParameters["$UUID"] as? Data, loaded.header.kdfParameters["$UUID"] as? Data)
-            }
+        // Only the AES rich pass produces artifacts. The Twofish pass re-proves
+        // the same edit semantics on a second cipher in-process; its external
+        // opener coverage comes from `fixture-smoke-synthetic-twofish`, which
+        // avoids doubling every KeePassXC check for no extra signal.
+        let rich = try KDBXCompatibilitySupport.load(.syntheticRich, bundle: bundle)
+        for scenario in KDBXCompatibilitySupport.fullEditScenarios() {
+            let result = try collector.run(scenario, on: rich)
+            assertHeaderPreserved(result, loaded: rich, scenario: scenario)
         }
+
+        let twofish = try KDBXCompatibilitySupport.load(.syntheticTwofish, bundle: bundle)
+        for scenario in KDBXCompatibilitySupport.fullEditScenarios() {
+            let result = try scenario.apply(to: twofish)
+            assertHeaderPreserved(result, loaded: twofish, scenario: scenario)
+        }
+
+        try collector.emit()
     }
 
     func test_softDeleteCreatesRecycleBinWithoutChangingOtherSemantics() throws {
+        let collector = try KDBXCompatibilitySupport.ArtifactCollector(testCase: self)
         let loaded = try KDBXCompatibilitySupport.load(.syntheticNoRecycleBin, bundle: bundle)
 
-        _ = try KDBXCompatibilitySupport.recycleBinCreationScenario().apply(to: loaded)
+        try collector.run(KDBXCompatibilitySupport.recycleBinCreationScenario(), on: loaded)
+
+        try collector.emit()
     }
 
     func test_representativeCompatibilityFixtures_writeReparseAndPreserveFixtureShapes() throws {
-        let fixtures: [KDBXCompatibilitySupport.Fixture] = [
-            .aesBaseline,
-            .passwordKeyfile,
-            .unknownRich,
-            .kdbx41PublicCustomData,
-            .syntheticChaCha,
-            .syntheticTwofish,
-        ]
+        let collector = try KDBXCompatibilitySupport.ArtifactCollector(testCase: self)
 
-        for fixture in fixtures {
+        for fixture in KDBXCompatibilitySupport.smokeFixtures
+        where !Self.smokeFixtureIDsWithDedicatedTests.contains(fixture.id) {
             let loaded = try KDBXCompatibilitySupport.load(fixture, bundle: bundle)
             let scenario = KDBXCompatibilitySupport.fixtureSmokeScenario(fixtureID: fixture.id)
-            let result = try scenario.apply(to: loaded)
+            let result = try collector.run(scenario, on: loaded)
 
-            XCTAssertFalse(result.written.isEmpty, "\(fixture.displayName) should produce encrypted output")
-            XCTAssertEqual(result.after.entries.count, result.before.entries.count + 1)
+            assertSmokeShape(result, fixture: fixture)
         }
+
+        try collector.emit()
     }
 
     func test_unknownXMLFixture_preservesAttachmentReferencesAndCustomDataOnWrite() throws {
+        let collector = try KDBXCompatibilitySupport.ArtifactCollector(testCase: self)
         let loaded = try KDBXCompatibilitySupport.load(.unknownRich, bundle: bundle)
         let scenario = KDBXCompatibilitySupport.fixtureSmokeScenario(fixtureID: loaded.fixture.id)
-        let result = try scenario.apply(to: loaded)
+        let result = try collector.run(scenario, on: loaded)
+
+        assertSmokeShape(result, fixture: loaded.fixture)
 
         // `<Binary>` attachment refs are now parsed structurally into
         // `KPEntry.attachments` instead of falling into unknownXML.
@@ -87,6 +108,8 @@ final class KDBXCompatibilityTests: XCTestCase {
         XCTAssertTrue(afterUnknownXML.contains("RoundTripEntryValue-Expected"))
         XCTAssertTrue(beforeMetaUnknownXML.contains("RoundTripMetaValue-Expected"))
         XCTAssertTrue(afterMetaUnknownXML.contains("RoundTripMetaValue-Expected"))
+
+        try collector.emit()
     }
 
     func test_metaWithoutRecycleBinUUID_doesNotDuplicateOpaqueMetaChildrenAcrossSaves() throws {
@@ -155,6 +178,7 @@ final class KDBXCompatibilityTests: XCTestCase {
     }
 
     func test_kdbx41Fixture_capturesAndPreservesUnknownOuterHeaderFields() throws {
+        let collector = try KDBXCompatibilitySupport.ArtifactCollector(testCase: self)
         let loaded = try KDBXCompatibilitySupport.load(.kdbx41PublicCustomData, bundle: bundle)
 
         XCTAssertEqual(loaded.header.formatVersion, .kdbx4(minor: 1))
@@ -165,15 +189,13 @@ final class KDBXCompatibilityTests: XCTestCase {
         XCTAssertNotNil(publicCustomData.data.range(of: Data("KDBX 4.1 public custom data".utf8)))
 
         let scenario = KDBXCompatibilitySupport.fixtureSmokeScenario(fixtureID: loaded.fixture.id)
-        let result = try scenario.apply(to: loaded)
-        let reparsed = try KDBXParser.parseWithMetaAndHeader(
-            data: result.written,
-            compositeKey: loaded.compositeKey,
-            sessionKey: loaded.sessionKey
-        )
+        let result = try collector.run(scenario, on: loaded)
 
-        XCTAssertEqual(reparsed.header.formatVersion, .kdbx4(minor: 1))
-        XCTAssertEqual(reparsed.header.unknownOuterHeaderFields, loaded.header.unknownOuterHeaderFields)
+        assertSmokeShape(result, fixture: loaded.fixture)
+        XCTAssertEqual(result.afterHeader.formatVersion, .kdbx4(minor: 1))
+        XCTAssertEqual(result.afterHeader.unknownOuterHeaderFields, loaded.header.unknownOuterHeaderFields)
+
+        try collector.emit()
     }
 
     func test_legacyKDBX31CompatibilityFixture_isReadOnlyAndWriterRejects() throws {
@@ -181,11 +203,15 @@ final class KDBXCompatibilityTests: XCTestCase {
     }
 
     func test_attachmentsFixture_preservesAttachmentsAndPoolContentHashesAcrossScenarios() throws {
+        let collector = try KDBXCompatibilitySupport.ArtifactCollector(testCase: self)
+
         // fixtureSmoke: creating an unrelated entry should not disturb any
         // existing entry's attachments or their resolved pool bytes.
         let smokeLoaded = try KDBXCompatibilitySupport.load(.attachments, bundle: bundle)
-        let smokeResult = try KDBXCompatibilitySupport.fixtureSmokeScenario(fixtureID: KDBXCompatibilitySupport.Fixture.attachments.id)
-            .apply(to: smokeLoaded)
+        let smokeResult = try collector.run(
+            KDBXCompatibilitySupport.fixtureSmokeScenario(fixtureID: KDBXCompatibilitySupport.Fixture.attachments.id),
+            on: smokeLoaded
+        )
 
         let multiEntryID = try XCTUnwrap(smokeResult.before.entryID(titled: "Multi Attachment Entry"))
         let multiBefore = try XCTUnwrap(smokeResult.before.entries[multiEntryID])
@@ -212,11 +238,139 @@ final class KDBXCompatibilityTests: XCTestCase {
 
         // updateEntry: editing non-attachment fields preserves attachments.
         let updateLoaded = try KDBXCompatibilitySupport.load(.attachments, bundle: bundle)
-        _ = try KDBXCompatibilitySupport.attachmentsFixtureUpdateEntryScenario().apply(to: updateLoaded)
+        try collector.run(KDBXCompatibilitySupport.attachmentsFixtureUpdateEntryScenario(), on: updateLoaded)
 
         // softDelete: recycling one dedup entry doesn't disturb its sibling.
         let softDeleteLoaded = try KDBXCompatibilitySupport.load(.attachments, bundle: bundle)
-        _ = try KDBXCompatibilitySupport.attachmentsFixtureSoftDeleteScenario().apply(to: softDeleteLoaded)
+        try collector.run(KDBXCompatibilitySupport.attachmentsFixtureSoftDeleteScenario(), on: softDeleteLoaded)
+
+        try collector.emit()
+    }
+
+    /// The KeeOTP artifact keeps every raw KeeOTP source spelling/encoding in
+    /// the written database (the in-process matrix below proves their
+    /// semantics), but its external probe is a plain entry title: KeePassXC
+    /// 2.7.12 skips entries whose raw KeeOTP field uses its unsupported
+    /// key/query format, so probing a KeeOTP entry would fail for a reason
+    /// that says nothing about KeeForge's output.
+    func test_keeOTPArtifact_preservesEverySourceVariantAndUsesStandardExternalProbe() throws {
+        let collector = try KDBXCompatibilitySupport.ArtifactCollector(testCase: self)
+        let loaded = try KDBXCompatibilitySupport.loadKeeOTPArtifactFixture(bundle: bundle)
+        let scenario = KDBXCompatibilitySupport.keeOTPArtifactScenario()
+
+        XCTAssertEqual(scenario.expectedSearchTerms, ["Compat Update Target"])
+        XCTAssertEqual(
+            loaded.rootGroup.entries.filter { $0.title.hasPrefix("KeeOTP ") }.count,
+            KDBXCompatibilitySupport.keeOTPCases.count
+        )
+
+        try collector.run(scenario, on: loaded)
+
+        try collector.emit()
+    }
+
+    /// `Entry.attachmentHashes` only covers binaries some `<Binary>` element
+    /// references, so it cannot see the pool itself being disturbed. Pin the
+    /// whole-pool digest's sensitivity: every scenario compares it across the
+    /// save, and a digest that ignored any of these would be decoration.
+    func test_binaryPoolDigest_detectsOrphanedReorderedAndReflaggedPoolEntries() throws {
+        let sessionKey = SymmetricKey(size: .bits256)
+        let rootGroup = KPGroup(name: "Root")
+
+        func digest(_ rawFields: [Data]?) throws -> String? {
+            try CompatibilitySnapshot(
+                rootGroup: rootGroup,
+                meta: KPMeta(),
+                sessionKey: sessionKey,
+                binaryPool: rawFields.map { BinaryPool(rawFields: $0) }
+            ).binaryPoolDigest
+        }
+
+        // Raw pool fields keep their leading 1-byte memory-protection flag.
+        let alpha = Data([0x00]) + Data("alpha".utf8)
+        let beta = Data([0x00]) + Data("beta".utf8)
+        let alphaProtected = Data([0x01]) + Data("alpha".utf8)
+
+        let baseline = try XCTUnwrap(try digest([alpha, beta]))
+        XCTAssertEqual(baseline, try digest([alpha, beta]), "digest must be deterministic")
+        XCTAssertNotEqual(baseline, try digest([beta, alpha]), "reordering the pool must change the digest")
+        XCTAssertNotEqual(baseline, try digest([alpha]), "dropping an unreferenced pool entry must change the digest")
+        XCTAssertNotEqual(baseline, try digest([alpha, beta, alpha]), "an extra orphan pool entry must change the digest")
+        XCTAssertNotEqual(baseline, try digest([alphaProtected, beta]), "a flipped protection flag must change the digest")
+        XCTAssertNotEqual(baseline, try digest([]), "an emptied pool must change the digest")
+        XCTAssertNil(try digest(nil), "no pool means no digest, never a digest that compares equal to an empty pool")
+    }
+
+    // MARK: - Artifact set integrity
+
+    func test_artifactDescriptors_coverEverySmokeFixtureAndEveryFullEditScenario() throws {
+        let descriptors = KDBXCompatibilitySupport.artifactDescriptors
+        let ids = descriptors.map(\.id)
+        let fileNames = descriptors.map(\.scenario.artifactFileName)
+
+        XCTAssertEqual(Set(ids).count, ids.count, "artifact ids must be unique")
+        XCTAssertEqual(Set(fileNames).count, fileNames.count, "artifact file names must be unique")
+
+        for fixture in KDBXCompatibilitySupport.smokeFixtures {
+            XCTAssertTrue(
+                ids.contains("\(fixture.id)-fixture-smoke-\(fixture.id)"),
+                "smoke fixture \(fixture.id) has no artifact"
+            )
+        }
+
+        let richID = KDBXCompatibilitySupport.Fixture.syntheticRich.id
+        for scenario in KDBXCompatibilitySupport.fullEditScenarios() {
+            XCTAssertTrue(
+                ids.contains("\(richID)-\(scenario.id)"),
+                "full-edit scenario \(scenario.id) has no artifact"
+            )
+        }
+
+        for required in [
+            "synthetic-no-recycle-bin-recycle-bin-creation",
+            "attachments-fixture-smoke-attachments",
+            "attachments-attachments-update-entry",
+            "attachments-attachments-soft-delete-entry",
+            "\(richID)-keeotp-source-matrix",
+        ] {
+            XCTAssertTrue(ids.contains(required), "missing artifact \(required)")
+        }
+
+        // The artifact set never shrinks silently: the gate's merged manifest
+        // is compared against exactly this count.
+        XCTAssertEqual(descriptors.count, 19)
+    }
+
+    func test_externalExpectationTables_areExhaustiveOverEveryArtifactScenario() throws {
+        let scenarioIDs = Set(KDBXCompatibilitySupport.artifactDescriptors.map(\.scenario.id))
+
+        for scenarioID in scenarioIDs {
+            XCTAssertNoThrow(try KDBXCompatibilitySupport.expectedAttachments(forScenarioID: scenarioID))
+            XCTAssertNoThrow(try KDBXCompatibilitySupport.expectedPasswords(forScenarioID: scenarioID))
+        }
+
+        // An unknown id must fail rather than quietly return "no expectations".
+        XCTAssertThrowsError(try KDBXCompatibilitySupport.expectedAttachments(forScenarioID: "not-a-scenario"))
+        XCTAssertThrowsError(try KDBXCompatibilitySupport.expectedPasswords(forScenarioID: "not-a-scenario"))
+
+        let attachmentKeys = Set(KDBXCompatibilitySupport.attachmentExpectations.keys)
+        let noAttachmentKeys = KDBXCompatibilitySupport.scenarioIDsWithoutAttachmentExpectations
+        XCTAssertTrue(attachmentKeys.isDisjoint(with: noAttachmentKeys))
+        XCTAssertEqual(attachmentKeys.union(noAttachmentKeys), scenarioIDs, "stale or missing attachment expectation ids")
+
+        let passwordKeys = Set(KDBXCompatibilitySupport.passwordExpectations.keys)
+        let noPasswordKeys = KDBXCompatibilitySupport.scenarioIDsWithoutPasswordExpectations
+        XCTAssertTrue(passwordKeys.isDisjoint(with: noPasswordKeys))
+        XCTAssertEqual(passwordKeys.union(noPasswordKeys), scenarioIDs, "stale or missing password expectation ids")
+
+        // Every fixture that reaches the external gate contributes a password
+        // check on a value it did not author itself.
+        for fixture in KDBXCompatibilitySupport.smokeFixtures + [KDBXCompatibilitySupport.Fixture.attachments] {
+            XCTAssertNotNil(
+                KDBXCompatibilitySupport.fixtureEntryPasswords[fixture.id],
+                "\(fixture.id) has no pre-existing entry password for the external gate"
+            )
+        }
     }
 
     @MainActor
@@ -418,6 +572,43 @@ final class KDBXCompatibilityTests: XCTestCase {
 
     private func firstEntry(titled title: String, in group: KPGroup) -> KPEntry? {
         group.allEntries.first { $0.title == title }
+    }
+
+    /// Cipher and KDF identity must survive every edit; asserted against the
+    /// header the scenario already reparsed, so this costs no extra KDF work.
+    private func assertHeaderPreserved(
+        _ result: KDBXCompatibilitySupport.ScenarioResult,
+        loaded: KDBXCompatibilitySupport.LoadedFixture,
+        scenario: KDBXCompatibilitySupport.Scenario,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        let label = "\(loaded.fixture.id)/\(scenario.id)"
+        XCTAssertEqual(result.afterHeader.cipherID, loaded.header.cipherID, label, file: file, line: line)
+        XCTAssertEqual(
+            result.afterHeader.kdfParameters["$UUID"] as? Data,
+            loaded.header.kdfParameters["$UUID"] as? Data,
+            label,
+            file: file,
+            line: line
+        )
+    }
+
+    /// Generic shape checks shared by every `fixtureSmokeScenario` run,
+    /// including the two fixtures with their own deeper test method.
+    private func assertSmokeShape(
+        _ result: KDBXCompatibilitySupport.ScenarioResult,
+        fixture: KDBXCompatibilitySupport.Fixture,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        XCTAssertFalse(
+            result.written.isEmpty,
+            "\(fixture.displayName) should produce encrypted output",
+            file: file,
+            line: line
+        )
+        XCTAssertEqual(result.after.entries.count, result.before.entries.count + 1, file: file, line: line)
     }
 
     private let entrySessionKey = SymmetricKey(size: .bits256)
