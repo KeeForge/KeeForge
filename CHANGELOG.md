@@ -26,6 +26,7 @@ TODO before the first macOS release:
 - Copy an entry's verification code to the clipboard when AutoFill fills its password, for sites whose one-time code field iOS does not recognize. Off by default; turn on "Copy Verification Code on AutoFill" under Settings › AutoFill. The copy clears itself after the Clipboard Clear Timeout and never leaves the device. While the setting is on, filling a suggestion for an entry that has a verification code asks you to confirm in KeeForge rather than filling silently, because AutoFill can only write the clipboard while its panel is on screen.
 
 ### Fixed
+- Build/CI: App Store archives now fail the build when `ONEDRIVE_CLIENT_ID` is missing or still a placeholder, instead of shipping a dead OneDrive sign-in. The check was never wired up when OneDrive support was added; `ONEDRIVE_CLIENT_ID` remains optional for local development and simulator CI runs.
 - Build/CI: the Dropbox CI placeholder key no longer produces an illegal `db-CI_PLACEHOLDER_DROPBOX_APP_KEY` URL scheme (App Store Connect ITMS-90158). The placeholder is now RFC1738-safe, archives fail the build when the real `DROPBOX_APP_KEY` is missing instead of shipping a placeholder, and a unit test validates every declared URL scheme.
 
 ## v1.10.4 (2026-07-25)
