@@ -28,6 +28,10 @@ fails. The release is gated in two tag stages:
    accepted. The `v{version}` tag triggers Xcode Cloud's **"Release"** workflow (archive-only).
    Never promote a commit that the two RC workflows did not test.
 
+Both gates are monitored from the command line with `gh` — Xcode Cloud reports into GitHub as a
+check run on the RC commit, so App Store Connect is not needed to watch a run or read its
+failures. See Step 7.
+
 The KDBX compatibility gate always runs locally because Xcode Cloud does not install KeePassXC.
 
 ## Usage
@@ -47,6 +51,8 @@ suggest the next minor bump (e.g. 1.5.0 to 1.6.0). Ask the user to confirm befor
    - On the `main` branch (`git branch --show-current`).
    - Clean working tree (`git status --porcelain` is empty).
    - Up to date with the remote: run `git fetch origin --tags`, then confirm `main` is not behind `origin/main`.
+     This fetch exits 1 on a pre-existing `v1.8.3` clobber warning (see the note in Step 8); judge it
+     by the refs it updated, not its exit code, and never chain it under `set -e` without `|| true`.
 2. Read `project.yml` and extract the current `MARKETING_VERSION` (from the KeeForge target).
 3. Run `git tag --list 'v*'` and `git tag --list 'rc/*'` to get all existing release and RC tags
    (the fetch above pulled remote tags too — Xcode Cloud triggers on the remote tag, so a
@@ -190,10 +196,30 @@ Only reach this step if the KDBX gate passed.
 The RC tag push starts two independent full-suite runs. Do not promote the tag until both runs
 reach a terminal state, and verify both runs tested the commit pointed to by the active RC tag.
 
-1. Monitor Xcode Cloud in App Store Connect → KeeForge → Xcode Cloud → Builds, under the active
-   RC tag group (workflow **"Tests (RC)"**). If browser access is available, monitor it directly;
-   otherwise ask the user to confirm the result. The gate covers the **Test - iOS action on every
-   destination**.
+1. Monitor Xcode Cloud **through GitHub**, not App Store Connect. Xcode Cloud mirrors the
+   **"Tests (RC)"** workflow onto the RC commit as a check run (`KeeForge | Tests (RC) | Test - iOS`)
+   and a commit status, so the whole gate is readable with `gh` and needs no ASC session:
+
+   ```bash
+   gh api repos/KeeForge/KeeForge/commits/{rc-sha}/check-runs \
+     --jq '.check_runs[] | select(.app.name=="Xcode Cloud") | "\(.name) | \(.status) | \(.conclusion // "-")"'
+   ```
+
+   Poll that until `status` is `completed`. Interpreting `conclusion`:
+   - `success` — gate is green.
+   - `action_required` — Xcode Cloud's conclusion for a run with **test failures**. Read
+     `.output.title` / `.output.summary` / `.output.text` from the same check run for the failure
+     count and each failed test identifier with its assertion message. Check `Errors` in the
+     summary table: `Errors|0` with `Test Failures|N` means genuine XCTest failures (the local
+     reproduction in 7.4 applies); a nonzero `Errors` is a build/infrastructure failure (7.5).
+
+   The commit status also carries the ASC build URL in `target_url`
+   (`gh api repos/KeeForge/KeeForge/commits/{rc-sha}/status`), which is the fastest way to hand the
+   user a link. The gate covers the **Test - iOS action on every destination**.
+
+   Only fall back to asking the user to read App Store Connect for information the check run does
+   not expose — in practice that is just the **per-destination device and iOS version** needed by
+   Step 7.4. The failure list itself is always available from `gh`.
 2. Monitor GitHub Actions workflow `.github/workflows/ios18-rc-tests.yml` (**"iOS 18 RC Tests"**).
    Prefer `gh run list --workflow ios18-rc-tests.yml --event push` to find the run whose
    `headBranch` is the active RC tag and whose `headSha` is the RC commit, then use
@@ -217,8 +243,21 @@ reach a terminal state, and verify both runs tested the commit pointed to by the
      xcodegen generate
      xcodebuild test -project KeeForge.xcodeproj -scheme KeeForge \
        -destination 'platform=iOS Simulator,name={exact device},OS={exact version}' \
-       -only-testing:{test-target/test-class/test-method} -quiet
+       -only-testing:{test-target/test-class/test-method} > repro.log 2>&1
+     echo "exit: $?"
+     grep -E '\*\* TEST (SUCCEEDED|FAILED)' repro.log
+     grep -E '^Test Case .*(passed|failed)' repro.log
      ```
+
+     Redirect to a file and read the verdict back; do **not** pipe `xcodebuild` into `tail`/`head`.
+     A pipeline reports the *last* command's exit status, so `xcodebuild ... | tail -40` returns 0
+     even when the tests failed, and `-quiet` additionally suppresses the per-test `Test Case ...
+     passed/failed` lines — together they can look exactly like a clean pass. A run is only a pass
+     when you have seen `** TEST SUCCEEDED **` and a `passed` line for every identifier you selected.
+
+     Verify the device/OS pair actually exists locally before trusting a run: an unmatched
+     `-destination` makes `xcodebuild` print the list of available destinations and exit without
+     running anything, which is easy to misread as success.
 
      Use separate commands when failures came from different device/OS pairs. Preserve the local
      commands and results in the release handoff.
@@ -245,7 +284,7 @@ retry such as `rc/{version}-2`.
    triggers Xcode Cloud's archive-only **"Release"** workflow.
 
    ```bash
-   git fetch origin --tags
+   git fetch origin --tags || true # see the clobber note below
    rc_tag='rc/{version}' # use the actual successful tag, including any retry suffix
    rc_commit=$(git rev-list -n1 "$rc_tag")
    test "$(git rev-parse main)" = "$rc_commit"
@@ -257,6 +296,14 @@ retry such as `rc/{version}-2`.
 
    Never force-push either tag. If the atomic push fails, the remote refs remain unchanged; stop
    and diagnose before retrying.
+
+   **`git fetch origin --tags` exits 1 in this repo.** A local `v1.8.3` tag has diverged from the
+   remote, so every tag fetch prints `! [rejected] v1.8.3 (would clobber existing tag)` and returns
+   a nonzero status. That is pre-existing and harmless — all other refs still update — but under
+   `set -e` it aborts the promotion before a single check runs. Always `|| true` the fetch (or run
+   it as its own command) and confirm the refs from the `git rev-parse` checks that follow, not
+   from the fetch's exit code. Do not "fix" it by force-updating `v1.8.3`; that would move a
+   released tag.
 3. Verify the remote contains `v{version}`, no longer contains the promoted RC tag, and that
    `v{version}^{}` resolves to the recorded RC commit. Earlier failed, suffixed RC-attempt tags may
    remain for audit history.
