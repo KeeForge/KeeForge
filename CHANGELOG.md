@@ -21,6 +21,9 @@ TODO before the first macOS release:
 
 ## Unreleased
 
+### Fixed
+- Build/CI: the Dropbox CI placeholder key no longer produces an illegal `db-CI_PLACEHOLDER_DROPBOX_APP_KEY` URL scheme (App Store Connect ITMS-90158). The placeholder is now RFC1738-safe, archives fail the build when the real `DROPBOX_APP_KEY` is missing instead of shipping a placeholder, and a unit test validates every declared URL scheme.
+
 ## v1.10.4 (2026-07-25)
 
 ### New Features

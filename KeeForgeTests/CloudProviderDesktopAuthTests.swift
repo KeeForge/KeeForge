@@ -112,6 +112,8 @@ final class CloudProviderDesktopAuthTests: XCTestCase {
     private var configuredDropboxAppKey: String? {
         configuredInfoValue(forKey: "DropboxAppKey", placeholders: [
             "DROPBOX_APP_KEY",
+            "YOUR_DROPBOX_APP_KEY",
+            "ciplaceholderdropboxappkey",
             "CI_PLACEHOLDER_DROPBOX_APP_KEY",
         ])
     }
