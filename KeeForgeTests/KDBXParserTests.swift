@@ -918,6 +918,69 @@ final class KDBXParserTests: XCTestCase {
         withUnsafeBytes(of: uuid.uuid) { Data($0) }.base64EncodedString()
     }
 
+    // MARK: - Foreign-Authored Outer Cipher Fixtures
+
+    /// `compatibility/foreign-chacha20.kdbx` and `compatibility/foreign-twofish.kdbx`
+    /// are authored by pykeepass (see
+    /// `TestFixtures/compatibility/generate_foreign_cipher_fixtures.py`), an
+    /// independent KDBX implementation, specifically to exercise KeeForge's
+    /// ChaCha20 and Twofish outer-cipher READ paths against a database
+    /// KeeForge did not write itself. Every other bundled fixture is
+    /// AES-256-CBC, so without these two, a read failure on a user's
+    /// foreign-authored ChaCha20/Twofish vault would be a total-access-loss
+    /// bug with zero coverage. Both fixtures carry identical content: a
+    /// root-level `Foreign` group with two entries, "Foreign Entry Alpha"
+    /// (username `foreign-alpha-user`, password `ForeignAlphaSecret1`, one
+    /// custom field `ForeignField` = `ForeignFieldValue`) and "Foreign Entry
+    /// Beta" (username `foreign-beta-user`, password `ForeignBetaSecret2`,
+    /// no custom field). Decrypting both entries' protected passwords also
+    /// cross-validates the inner protected-value stream against a foreign
+    /// author, independent of the outer cipher.
+    func testForeignChaCha20FixtureParsesAndDecryptsProtectedValues() throws {
+        try assertForeignCipherFixtureParses(
+            named: "foreign-chacha20",
+            password: "foreign-chacha20",
+            expectedCipherUUID: KDBXParser.chachaCipherUUID
+        )
+    }
+
+    func testForeignTwofishFixtureParsesAndDecryptsProtectedValues() throws {
+        try assertForeignCipherFixtureParses(
+            named: "foreign-twofish",
+            password: "foreign-twofish",
+            expectedCipherUUID: KDBXParser.twofishCipherUUID
+        )
+    }
+
+    private func assertForeignCipherFixtureParses(
+        named fixtureName: String,
+        password: String,
+        expectedCipherUUID: Data,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) throws {
+        let bundle = Bundle(for: KDBXParserTests.self)
+        let url = try TestDatabaseSupport.fixtureURL(named: fixtureName, subdirectory: "compatibility", bundle: bundle)
+        let data = try Data(contentsOf: url)
+        let parsed = try KDBXParser.parseWithMetaAndHeader(data: data, password: password, sessionKey: testSessionKey)
+
+        XCTAssertEqual(parsed.header.formatVersion, .kdbx4(minor: 0), file: file, line: line)
+        XCTAssertEqual(parsed.header.cipherID, expectedCipherUUID, file: file, line: line)
+
+        let group = try XCTUnwrap(findGroup(named: "Foreign", in: parsed.rootGroup), file: file, line: line)
+        let entriesByTitle = Dictionary(uniqueKeysWithValues: group.entries.map { ($0.title, $0) })
+
+        let alpha = try XCTUnwrap(entriesByTitle["Foreign Entry Alpha"], file: file, line: line)
+        XCTAssertEqual(alpha.username, "foreign-alpha-user", file: file, line: line)
+        XCTAssertEqual(try alpha.password.decrypt(using: testSessionKey), "ForeignAlphaSecret1", file: file, line: line)
+        XCTAssertEqual(alpha.customFields["ForeignField"], "ForeignFieldValue", file: file, line: line)
+
+        let beta = try XCTUnwrap(entriesByTitle["Foreign Entry Beta"], file: file, line: line)
+        XCTAssertEqual(beta.username, "foreign-beta-user", file: file, line: line)
+        XCTAssertEqual(try beta.password.decrypt(using: testSessionKey), "ForeignBetaSecret2", file: file, line: line)
+        XCTAssertTrue(beta.customFields.isEmpty, file: file, line: line)
+    }
+
     // MARK: - Helpers
 
     private func parseFixture() throws -> KPGroup {

@@ -379,6 +379,10 @@ targets:
         buildPhase: resources
       - path: TestFixtures/compatibility/attachments.kdbx
         buildPhase: resources
+      - path: TestFixtures/compatibility/foreign-chacha20.kdbx
+        buildPhase: resources
+      - path: TestFixtures/compatibility/foreign-twofish.kdbx
+        buildPhase: resources
       - path: TestFixtures/test-v3-backup.kdbx
         buildPhase: resources
       - path: TestFixtures/demo-keyfile.key
@@ -455,6 +459,10 @@ targets:
       - path: TestFixtures/compatibility/legacy-kdbx31.kdbx
         buildPhase: resources
       - path: TestFixtures/compatibility/attachments.kdbx
+        buildPhase: resources
+      - path: TestFixtures/compatibility/foreign-chacha20.kdbx
+        buildPhase: resources
+      - path: TestFixtures/compatibility/foreign-twofish.kdbx
         buildPhase: resources
       - path: TestFixtures/test-v3-backup.kdbx
         buildPhase: resources

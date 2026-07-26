@@ -68,6 +68,7 @@
 		1BC4C4DA15248EFF778D127A /* test.kdbx in Resources */ = {isa = PBXBuildFile; fileRef = ACDB93B40CC051227D2E6D76 /* test.kdbx */; };
 		1C32209A1C19E41BAE7F6D4B /* DatabaseCreationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA92B649A6D043A490EDEFE /* DatabaseCreationView.swift */; };
 		1CE0A1D0E7F3DDACE1578C9D /* WhatsNewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 95C789E6B7A0D36588C72067 /* WhatsNewView.swift */; };
+		1CEBD0914FDDBB715E4A5EBC /* foreign-twofish.kdbx in Resources */ = {isa = PBXBuildFile; fileRef = E38AF9B69C365E5B0B3029D1 /* foreign-twofish.kdbx */; };
 		1D266E029D8E4A10E45641F2 /* WhatsNewPresentationServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5DDEBC96D0673E928CD9681C /* WhatsNewPresentationServiceTests.swift */; };
 		1D8B42383A85085F6E8AC2D1 /* GroupListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 35E6EA2FF600FFF3543FF763 /* GroupListView.swift */; };
 		1E9386AAE54BC4C0D33B1F5B /* CredentialIdentityStoreManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 280C8E252110A0DEC3BE5283 /* CredentialIdentityStoreManager.swift */; };
@@ -305,6 +306,7 @@
 		8BB6422DAD2503E2052570CC /* FeedbackSubmissionServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF77C387846CFF3B94A08369 /* FeedbackSubmissionServiceTests.swift */; };
 		8C73A708D9508C4931C50779 /* KDBXWriter.swift in Sources */ = {isa = PBXBuildFile; fileRef = C243B2746CDA396F76E052B6 /* KDBXWriter.swift */; };
 		8CBE8DF70368FAE59565D6D2 /* WebDAVClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = F265178D41B43F55813C70AD /* WebDAVClient.swift */; };
+		8D451C0FF02C60504FE778CC /* foreign-chacha20.kdbx in Resources */ = {isa = PBXBuildFile; fileRef = EF6FBD0976DB77F511EDBFFA /* foreign-chacha20.kdbx */; };
 		8E3B8C689D51A5AA273F6AF7 /* password-keyfile.kdbx in Resources */ = {isa = PBXBuildFile; fileRef = C28D00833DC5188EEBB34BE9 /* password-keyfile.kdbx */; };
 		8E99F20C4C299C88E89B34ED /* test-v1.key in Resources */ = {isa = PBXBuildFile; fileRef = 4C350259754DFA5D42D782A7 /* test-v1.key */; };
 		8EAB80EF201B8AE0EA7F865F /* EntryEdit.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0E36B86BDCAAD4E3C120428 /* EntryEdit.swift */; };
@@ -413,6 +415,7 @@
 		BE8A0B0A4A034961DB88DD3A /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 3FFF736116CE4861D823A5B6 /* Assets.xcassets */; };
 		BEA7CF4FC9DDC7B42398DAA5 /* PendingUploadQueue.swift in Sources */ = {isa = PBXBuildFile; fileRef = E6B7062FC711FD8F8EA1BEE3 /* PendingUploadQueue.swift */; };
 		BEF88171E411A4C7A9C46EE4 /* AttachmentsSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = DDA385A94178EB8BC1F5A233 /* AttachmentsSection.swift */; };
+		BFA3725153EF5A3C0BECC4DF /* foreign-twofish.kdbx in Resources */ = {isa = PBXBuildFile; fileRef = E38AF9B69C365E5B0B3029D1 /* foreign-twofish.kdbx */; };
 		BFAC75E3B9EC2BB3E1B11FAB /* KeychainMigrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0BB465F403FF88189ACE559 /* KeychainMigrationTests.swift */; };
 		BFB9B3CB53F5C29E4AB01037 /* KDBXParserTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 012690B5F23A7226C211D172 /* KDBXParserTests.swift */; };
 		C00EE210CD5357E16B44C3BC /* DatabaseListStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE8A26125D7268C217C403DD /* DatabaseListStoreTests.swift */; };
@@ -519,6 +522,7 @@
 		E9E1F61854B827A557C2BA32 /* KeychainService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2317B165FEAEFCF3181EE596 /* KeychainService.swift */; };
 		EA74DD044500D368799E8969 /* PlatformCompat.swift in Sources */ = {isa = PBXBuildFile; fileRef = FFB6EEC55FC21C0E0612931E /* PlatformCompat.swift */; };
 		EA74EACA6C4BCCC514BFCFCD /* TOTPGenerator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 51105ADF7C41EB47401418D9 /* TOTPGenerator.swift */; };
+		EABC40D7531D76B72D3D7411 /* foreign-chacha20.kdbx in Resources */ = {isa = PBXBuildFile; fileRef = EF6FBD0976DB77F511EDBFFA /* foreign-chacha20.kdbx */; };
 		EB14CC44460459F97342E1AC /* Group.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA5A20BA0FFA29C1067EB5EE /* Group.swift */; };
 		EB866C187BFE53731B35E901 /* DatabaseListStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E56924FBDB62B185403ECA2 /* DatabaseListStore.swift */; };
 		EBFD74CE74894EF9389066CC /* DatabaseListStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E56924FBDB62B185403ECA2 /* DatabaseListStore.swift */; };
@@ -852,6 +856,7 @@
 		E2DA7B253B27404C400DB1B5 /* UnlockView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UnlockView.swift; sourceTree = "<group>"; };
 		E3217CA8D7D14799D216386B /* FaviconServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FaviconServiceTests.swift; sourceTree = "<group>"; };
 		E358190F2BA4D4AA05650AA4 /* TestDatabaseSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TestDatabaseSupport.swift; sourceTree = "<group>"; };
+		E38AF9B69C365E5B0B3029D1 /* foreign-twofish.kdbx */ = {isa = PBXFileReference; path = "foreign-twofish.kdbx"; sourceTree = "<group>"; };
 		E3C128E145557767D1EFDF84 /* CloudTokenStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudTokenStoreTests.swift; sourceTree = "<group>"; };
 		E6B7062FC711FD8F8EA1BEE3 /* PendingUploadQueue.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PendingUploadQueue.swift; sourceTree = "<group>"; };
 		E70FC2B01C80D00375D97318 /* EntryEditView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EntryEditView.swift; sourceTree = "<group>"; };
@@ -862,6 +867,7 @@
 		ECCFEAA0C574981A7B48A938 /* InfoPlist.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = InfoPlist.xcstrings; sourceTree = "<group>"; };
 		ED991255A4FDFF53325EC964 /* test-v2.keyx */ = {isa = PBXFileReference; path = "test-v2.keyx"; sourceTree = "<group>"; };
 		EEE77955BBD928FFC22F1048 /* CloudProviderRegistryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudProviderRegistryTests.swift; sourceTree = "<group>"; };
+		EF6FBD0976DB77F511EDBFFA /* foreign-chacha20.kdbx */ = {isa = PBXFileReference; path = "foreign-chacha20.kdbx"; sourceTree = "<group>"; };
 		F010A269DB2C2D6FD2B162EF /* UITestDropboxCloudProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UITestDropboxCloudProvider.swift; sourceTree = "<group>"; };
 		F0E36B86BDCAAD4E3C120428 /* EntryEdit.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EntryEdit.swift; sourceTree = "<group>"; };
 		F1036AABC590833FFFA1B8A2 /* DatabaseReference.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DatabaseReference.swift; sourceTree = "<group>"; };
@@ -1025,6 +1031,8 @@
 			children = (
 				934128843AF7AE9BAE055114 /* aes-baseline.kdbx */,
 				19318775CBF14C81FE21CB43 /* attachments.kdbx */,
+				EF6FBD0976DB77F511EDBFFA /* foreign-chacha20.kdbx */,
+				E38AF9B69C365E5B0B3029D1 /* foreign-twofish.kdbx */,
 				B768B63FEA29736435D3E922 /* kdbx41-public-custom-data.kdbx */,
 				FED8CAC6F5E34BB1CB405728 /* legacy-kdbx31.kdbx */,
 				C28D00833DC5188EEBB34BE9 /* password-keyfile.kdbx */,
@@ -1687,6 +1695,8 @@
 				0EEE9DF85014DFA4D3137969 /* demo-keyfile.kdbx in Resources */,
 				FC7437F9D800FF2C36294730 /* demo-keyfile.key in Resources */,
 				5D2CF3FE49768C76388E382C /* demo.kdbx in Resources */,
+				EABC40D7531D76B72D3D7411 /* foreign-chacha20.kdbx in Resources */,
+				BFA3725153EF5A3C0BECC4DF /* foreign-twofish.kdbx in Resources */,
 				5BB5396D932F586B396D5D98 /* kdbx41-public-custom-data.kdbx in Resources */,
 				51700A65B8C39BA7C19DD430 /* legacy-kdbx31.kdbx in Resources */,
 				54FA28C4E62D81EED558CDA5 /* password-keyfile.kdbx in Resources */,
@@ -1724,6 +1734,8 @@
 				5DE36201A042172BCE6FA97B /* demo-keyfile.kdbx in Resources */,
 				6BF3E31D1B624C7399E6A518 /* demo-keyfile.key in Resources */,
 				213739D8E5D63DBCB0B577B4 /* demo.kdbx in Resources */,
+				8D451C0FF02C60504FE778CC /* foreign-chacha20.kdbx in Resources */,
+				1CEBD0914FDDBB715E4A5EBC /* foreign-twofish.kdbx in Resources */,
 				6E9CE1A6F7656C0A901A1633 /* kdbx41-public-custom-data.kdbx in Resources */,
 				A9E0B44D2DC253A2564C099B /* legacy-kdbx31.kdbx in Resources */,
 				8E3B8C689D51A5AA273F6AF7 /* password-keyfile.kdbx in Resources */,
