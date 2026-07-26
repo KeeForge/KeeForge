@@ -32,8 +32,8 @@ KeeForge ist ein nativer iOS-KeePass-Client für alle, die die Kontrolle über i
 
 | Bereich | Was KeeForge kann |
 | --- | --- |
-| **KeePass-Kompatibilität** | Liest und schreibt KDBX-4.x-Datenbanken mit AES-256- oder ChaCha20-Verschlüsselung und AES-KDF, Argon2d oder Argon2id. Öffnet außerdem passwortgeschützte KDBX-3.1-Datenbanken im Nur-Lese-Modus. |
-| **Lokale Bearbeitung** | Einträge erstellen, bearbeiten und löschen; Gruppen erstellen und löschen; Speichern mit Konfliktprüfung, zeitgestempelten Backups, Eintragsverlauf und Erhalt unbekannter XML-Elemente. |
+| **KeePass-Kompatibilität** | Liest und schreibt KDBX-4.x-Datenbanken mit AES-256-, ChaCha20- oder Twofish-Verschlüsselung und AES-KDF, Argon2d oder Argon2id. Öffnet außerdem KDBX-3.1-Datenbanken im Nur-Lese-Modus. |
+| **Lokale Bearbeitung** | Einträge erstellen, bearbeiten und löschen; Gruppen erstellen und löschen; Speichern mit Konfliktprüfung, zeitgestempelten Backups sowie Erhalt des Eintragsverlaufs und unbekannter XML-Elemente. |
 | **Neue Datenbanken** | Neue KDBX-4.x-Datenbanken lokal oder direkt in Dropbox-, OneDrive- und WebDAV-Ordnern anlegen. |
 | **Zusammengesetzte Schlüssel** | Entsperren mit Passwort, Schlüsseldatei oder beidem — einschließlich binärer, Hex-, XML-v1/v2- (`.key`/`.keyx`) und beliebiger Schlüsseldateien. |
 | **AutoFill** | AutoFill in Safari und Apps, QuickType-Vorschläge, Anlegen von Zugangsdaten direkt aus der Extension und per Face ID geschütztes Entsperren. |
@@ -42,7 +42,7 @@ KeeForge ist ein nativer iOS-KeePass-Client für alle, die die Kontrolle über i
 | **Cloud-Sync** | Natives Durchsuchen und Lese-/Schreib-Sync für Dropbox, OneDrive und WebDAV, zwischengespeicherte geteilte Kopien für AutoFill, Upload-Warteschlange in der Extension und Konfliktprüfungen. |
 | **Anhänge** | KeePass-Eintragsanhänge anzeigen, unterstützte Dateien per QuickLook in der Vorschau öffnen und aus kurzlebigen geschützten temporären Dateien teilen. Das Bearbeiten von Anhängen wird noch nicht unterstützt. |
 | **Bereit fürs iPad** | Die adaptive Navigation nutzt auf breiteren Layouts eine Split-View-Tresoransicht und hält den kompakten iPhone-Ablauf fokussiert und nativ. |
-| **Sicherheitsbewusst** | AES-GCM-Verschlüsselung von Geheimnissen im Arbeitsspeicher, Backoff nach fehlgeschlagenen Entsperrversuchen, ausschließlich lokale Zwischenablage, Limits gegen Dekompressionsbomben und HMAC-Vergleich in konstanter Zeit. Der Bildschirmschutz unterscheidet sich je Plattform: iOS blendet die App aus, während der Bildschirm aufgenommen wird (`UIScreen.isCaptured`); macOS blurrt seine Fenster, sobald sie den Fokus verlieren, und blockiert standardmäßig nach bestem Bemühen Screenshots/Aufnahmen (`NSWindow.sharingType`, das ScreenCaptureKit-basierte Aufnahmen ab macOS 15 umgehen können). Siehe [`docs/macos-security-notes.md`](docs/macos-security-notes.md). |
+| **Sicherheitsbewusst** | AES-GCM-Verschlüsselung von Geheimnissen im Arbeitsspeicher, Backoff nach fehlgeschlagenen Entsperrversuchen, ausschließlich lokale Zwischenablage, Limits gegen Dekompressionsbomben und HMAC-Vergleich in konstanter Zeit. Der Bildschirmschutz unterscheidet sich je Plattform: iOS blendet die App aus, während der Bildschirm aufgenommen wird (`UIScreen.isCaptured`); macOS blurrt seine Fenster, sobald sie den Fokus verlieren, und blockiert standardmäßig nach bestem Bemühen Screenshots/Aufnahmen (`NSWindow.sharingType`, das ScreenCaptureKit-basierte Aufnahmen ab macOS 15 umgehen können). Das beschriebene macOS-Verhalten bezieht sich auf eine experimentelle native macOS-App (das Target `KeeForgeMac`), die in diesem Repository liegt, aber pausiert und noch nicht veröffentlicht ist. Siehe [`docs/macos-security-notes.md`](docs/macos-security-notes.md). |
 
 ## Datenschutz
 
@@ -53,10 +53,10 @@ Lies die [Datenschutzerklärung](https://keeforge.com/de/privacy) ([englisches O
 ## Voraussetzungen
 
 - iOS 18+
-- Xcode 16+
+- Xcode 26+
 - [XcodeGen](https://github.com/yonaskolb/XcodeGen)
 - Swift 6 mit Strict Concurrency
-- Swift-Package-Abhängigkeiten: [Argon2Swift](https://github.com/tmthecoder/Argon2Swift), [SwiftyDropbox](https://github.com/dropbox/SwiftyDropbox) und [Microsoft Authentication Library](https://github.com/AzureAD/microsoft-authentication-library-for-objc)
+- Swift-Package-Abhängigkeiten: [Argon2Swift](https://github.com/tmthecoder/Argon2Swift), [SwiftyDropbox](https://github.com/dropbox/SwiftyDropbox), [Microsoft Authentication Library](https://github.com/AzureAD/microsoft-authentication-library-for-objc) und das lokal mitgelieferte Paket [KeeForgeTwofish](Vendor/KeeForgeTwofish)
 
 ## Aus dem Quellcode bauen
 
@@ -82,14 +82,21 @@ xcodebuild test -project KeeForge.xcodeproj -scheme KeeForge \
 ```text
 KeeForge/
 ├── App/              # App-Einstiegspunkt, adaptive Root-Shell, Scene-Lifecycle
+├── Extensions/       # Geteilte Plattform-Kompatibilitätshelfer
 ├── Models/           # KDBX-Parser/-Writer, Krypto, Bearbeitungsentwurf, TOTP, Passkeys
+├── Resources/        # String-Kataloge und Asset-Kataloge
 ├── Services/         # Persistenz, Cloud-Sync, Keychain, Bookmarks, Anhänge, AutoFill-Helfer
 ├── ViewModels/       # Datenbankliste, Entsperren, Speichern, Suche, Sortierung, TOTP-State
 ├── Views/            # SwiftUI-Screens, Editor, Einstellungen, Trinkgeld, wiederverwendbare Controls
 AutoFillExtension/    # AutoFill-Credential-Provider, Passkey-Auth, Anlegen von Zugangsdaten
+KeeForgeMac/          # Experimentelle native macOS-App (unveröffentlicht, pausiert)
+KeeForgeMacUITests/   # XCUITest-Abdeckung für die macOS-App
 KeeForgeTests/        # Unit-Tests
 KeeForgeUITests/      # XCUITest-Abdeckung
 TestFixtures/         # Beispiel-.kdbx-Datenbanken und Schlüsseldateien
+Vendor/               # Lokal mitgeliefertes Swift-Package KeeForgeTwofish
+ci_scripts/           # Xcode-Cloud-Bootstrap- und Release-Gate-Skripte
+scripts/              # Lokale Entwickler-Tools
 ```
 
 ## Dokumentation
@@ -99,7 +106,8 @@ TestFixtures/         # Beispiel-.kdbx-Datenbanken und Schlüsseldateien
 - [`AGENTS.md`](AGENTS.md) – Kontext für Coding-Agents
 - [`KeeForge/README.md`](KeeForge/README.md) – Architekturübersicht des App-Targets
 - [`AutoFillExtension/README.md`](AutoFillExtension/README.md) – Extension-Einschränkungen und Hinweise zu geteiltem Code
-- [`docs/`](docs/) – Implementierungs-Specs, Audits, Datenschutznotizen und längere Design-Dokumente
+- [`SECURITY.md`](SECURITY.md) – Richtlinie zur Meldung von Sicherheitslücken
+- [`docs/`](docs/) – Implementierungs-Specs, Audits und längere Design-Dokumente
 
 Die Entwicklerdokumentation wird nur auf Englisch gepflegt.
 
