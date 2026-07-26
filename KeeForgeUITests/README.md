@@ -28,6 +28,7 @@ The macOS port has its own UI-test target, `KeeForgeMacUITests/` (target `KeeFor
 - `EntryEditSmokeUITests` — edit-entry happy path using a known fixture entry
 - `EntryDeleteSmokeUITests` — delete-entry happy path using a known fixture entry
 - `EntryAttachmentsSmokeUITests` — entry-attachments list happy path (row name/size, QuickLook preview open/dismiss) using the `attachments` fixture
+- `TagBrowserUITests` — tag-browser happy path (root `group-list.tags-row` → `tag-list.row.shared` with its entry count → the tag's entries → entry detail's `entry-detail.tag.shared` chip) using the `tag-browser` fixture; the only fixture with entry tags
 - `TOTPSmokeUITests` — TOTP code renders (6-digit, numeric-only) and the copy control is present/hittable in entry detail, using the `autofill-union` fixture's "Union News" entry; deliberately does not assert exact code values or countdown timing
 - `KeyFileUnlockUITests` — unlocking with a key file
 - `CloudBrowserSmokeUITests` — add Dropbox and browse the mock cloud picker
@@ -371,13 +372,22 @@ Password: `testpassword123`
 
 Used by `AutoFillStoreUITests` as its second ("bravo") database: one `Union` group whose three entries publish exactly 3 password + 1 one-time-code AutoFill identities, with every service domain and username disjoint from `test.kdbx`'s — the simulator's credential-identity store dedups identities sharing a (service, user) pair across databases, so the multi-database union scenario needs non-overlapping fixtures. Details and regeneration recipe in `../TestFixtures/README.md`.
 
+### Tag Browser Fixture
+
+`TestFixtures/tag-browser.kdbx`  
+Password: `testpassword123`
+
+Used by `TagBrowserUITests`. The only bundled fixture with entry tags — `test.kdbx` and `demo.kdbx` have none. `Tagged` group: `Router Admin` (`shared`, `Work`, `Personal Notes`), `Mail Account` (`shared`, `work`), `Untagged Entry`; `Archive` group: `Old Backup` (`archive`). Regenerate with `TestFixtures/generate_tag_browser_fixture.py`; details in `../TestFixtures/README.md`.
+
 ### Key File Fixtures
 
 Use `demo-keyfile.kdbx` with `demo-keyfile.key` — the only key-file pair bundled into `KeeForgeUITests`. The other key-file fixtures in `TestFixtures/` (`test-binary.key`, `test-hex.key`, `test-v1.key`, `test-v2.keyx`, `test-arbitrary.key`, `test-v3-backup.kdbx`) are bundled only into the unit-test targets and **not** available to UI tests.
 
 ### What The UI-Test Target Bundles
 
-Per the `KeeForgeUITests` sources in `project.yml`, exactly these fixtures ship in the UI-test bundle: `test.kdbx`, `demo.kdbx`, `demo-keyfile.kdbx`, `demo-keyfile.key`, `compatibility/attachments.kdbx`, and `autofill-union.kdbx`. To use another fixture from a UI test, add it there and run `xcodegen generate`.
+Per the `KeeForgeUITests` sources in `project.yml`, exactly these fixtures ship in the UI-test bundle: `test.kdbx`, `demo.kdbx`, `demo-keyfile.kdbx`, `demo-keyfile.key`, `compatibility/attachments.kdbx`, `autofill-union.kdbx`, and `tag-browser.kdbx`. To use another fixture from a UI test, add it there and run `xcodegen generate`.
+
+Loading mechanism: fixtures are injected through the launch environment by `KeeForgeUITestCase.setUp` (base64 of the bundled resource in `UI_TEST_DATABASES_JSON`), so a test only overrides `databaseFixtureName` — it never touches file paths. The name must match the resource added to `project.yml`.
 
 ## Base Class Helpers
 
@@ -425,6 +435,10 @@ Use the app's accessibility identifiers whenever possible, including:
 - `database-row.push-pending-action`
 - `search.results.count`
 - `search.no-results`
+- `group-list.tags-row` (root group list, tag-browser entry point)
+- `tag-list` / `tag-list.row.<normalized-tag>` (tag list rows; the macOS sidebar's tag rows reuse the row identifier)
+- `tag-entries.list` (a tag's filtered entry list; its rows keep `EntryListView`'s `search.entry.navlink`)
+- `entry-detail.tag.<normalized-tag>` (entry-detail tag chips)
 - `autofill-tip.enable` / `autofill-tip.dismiss` (database-list AutoFill tip banner)
 - `settings.autofill.turn-on` / `settings.autofill.open-ios-settings` (Settings → AutoFill provider status row)
 - `settings.autofill.copy-totp` (Settings → AutoFill, copy-TOTP-after-fill toggle)

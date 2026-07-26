@@ -639,6 +639,14 @@ struct DatabaseNavigationView: View {
             .navigationDestination(for: KPEntry.self) { entry in
                 EntryDetailView(entryID: entry.id, viewModel: viewModel)
             }
+            .navigationDestination(for: TagDestination.self) { destination in
+                switch destination {
+                case .allTags:
+                    TagListView(viewModel: viewModel)
+                case .entries(let tag):
+                    TagEntriesView(tag: tag, viewModel: viewModel)
+                }
+            }
             .safeAreaInset(edge: .top, spacing: 0) {
                 VStack(spacing: 8) {
                     if viewModel.saveError?.isWriteScopeRequired == true {

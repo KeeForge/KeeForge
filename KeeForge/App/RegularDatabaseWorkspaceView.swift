@@ -8,7 +8,10 @@ import AppKit
 
 struct RegularDatabaseWorkspaceView: View {
     @Bindable var viewModel: DatabaseViewModel
-    @State private var navigationPath: [UUID] = []
+    /// The iPad sidebar's browsing stack. Type-erased rather than `[UUID]`
+    /// because it now carries both group pushes (`UUID`) and tag-browser
+    /// pushes (`TagDestination`), the same pair the compact shell's path holds.
+    @State private var navigationPath = NavigationPath()
     @State private var presentedSaveError: DatabaseSaveError?
     @State private var isCloudReconnectInFlight = false
     #if os(macOS)
@@ -30,7 +33,9 @@ struct RegularDatabaseWorkspaceView: View {
                 }
             }
             .onChange(of: viewModel.visibleRootGroupID) { _, _ in
-                navigationPath = []
+                // Lock, close, and database switch all land here (the visible
+                // root goes nil), clearing pushed group *and* tag destinations.
+                navigationPath = NavigationPath()
                 viewModel.selectEntry(nil)
             }
             .onChange(of: navigationPath) { _, _ in
@@ -122,7 +127,8 @@ struct RegularDatabaseWorkspaceView: View {
                     viewModel: viewModel,
                     onClose: {
                         viewModel.selectEntry(nil)
-                    }
+                    },
+                    onSelectTag: selectTag
                 )
             } else if viewModel.searchText.isEmpty {
                 ContentUnavailableView(
@@ -191,6 +197,19 @@ struct RegularDatabaseWorkspaceView: View {
                         onSelectEntry: selectEntry
                     )
                 }
+                .navigationDestination(for: TagDestination.self) { destination in
+                    switch destination {
+                    case .allTags:
+                        TagListView(viewModel: viewModel)
+                    case .entries(let tag):
+                        // Entries are selected, not pushed, in this shell.
+                        TagEntriesView(
+                            tag: tag,
+                            viewModel: viewModel,
+                            onSelectEntry: selectEntry
+                        )
+                    }
+                }
             } else {
                 ContentUnavailableView(
                     "Vault Not Loaded",
@@ -204,6 +223,18 @@ struct RegularDatabaseWorkspaceView: View {
 
     private func selectEntry(_ entry: KPEntry) {
         viewModel.selectEntry(entry.id)
+    }
+
+    /// Routes an entry-detail tag chip. The detail column has no browsing stack
+    /// of its own in either shell, so instead of pushing inside it, each shell
+    /// navigates the surface that owns browsing: the iPad sidebar's stack (the
+    /// same place the root Tags row leads), and the macOS sidebar's selection.
+    private func selectTag(_ tag: String) {
+        #if os(macOS)
+        viewModel.selectedTag = tag
+        #else
+        navigationPath.append(TagDestination.entries(tag: tag))
+        #endif
     }
 
     #if os(macOS)
@@ -284,6 +315,18 @@ struct RegularDatabaseWorkspaceView: View {
                     viewModel: viewModel,
                     collapsedGroupIDs: $macCollapsedGroupIDs
                 )
+
+                // Tags beneath the group tree, the way KeePassXC surfaces them.
+                // Hidden at zero: unlike the iOS row, this section *is* the
+                // list, so an empty one would teach nothing.
+                let tags = viewModel.tagsInDisplayOrder
+                if tags.isEmpty == false {
+                    Section("Tags") {
+                        ForEach(Array(tags.enumerated()), id: \.element) { index, tag in
+                            MacTagRow(tag: tag, fallbackIndex: index, viewModel: viewModel)
+                        }
+                    }
+                }
             }
             .listStyle(.sidebar)
             // Rebuild the tree when the draft changes (group create/delete/
@@ -304,6 +347,9 @@ struct RegularDatabaseWorkspaceView: View {
 
     @ViewBuilder
     private var macContentColumn: some View {
+        // Search wins over a sidebar tag selection: the search field is always-on
+        // chrome on macOS, so typing must show results immediately. Clearing the
+        // query returns to whatever the sidebar still has selected.
         if viewModel.searchText.isEmpty {
             // Keying the entries column to `contentRevision` forces it to rebuild
             // when the draft changes (e.g. an edit/save renames an entry). The
@@ -312,9 +358,14 @@ struct RegularDatabaseWorkspaceView: View {
             // view model's observation changes, even though the detail column
             // does — so an edited entry would keep its stale row label without
             // this. Reading `contentRevision` here also re-runs this body so the
-            // id actually updates.
-            MacEntriesColumn(viewModel: viewModel, onSelectEntry: selectEntry)
-                .id(viewModel.contentRevision)
+            // id actually updates. The tag branch needs the same pinning.
+            if let selectedTag = viewModel.selectedTag {
+                TagEntriesView(tag: selectedTag, viewModel: viewModel, onSelectEntry: selectEntry)
+                    .id(viewModel.contentRevision)
+            } else {
+                MacEntriesColumn(viewModel: viewModel, onSelectEntry: selectEntry)
+                    .id(viewModel.contentRevision)
+            }
         } else {
             SearchView(viewModel: viewModel, onSelectEntry: selectEntry)
         }
@@ -530,6 +581,55 @@ private struct MacEntriesColumn: View {
                 }
             }
         }
+    }
+}
+
+/// A macOS sidebar tag row: the tag name with its live-entry count, carrying
+/// the same manual selection highlight the group rows use (native list
+/// selection is not used anywhere in this sidebar). Selecting one clears the
+/// group selection through `DatabaseViewModel`, so exactly one row highlights.
+private struct MacTagRow: View {
+    let tag: String
+    let fallbackIndex: Int
+    @Bindable var viewModel: DatabaseViewModel
+
+    private var isSelected: Bool {
+        viewModel.selectedTag == tag
+    }
+
+    var body: some View {
+        Button {
+            viewModel.selectedTag = tag
+        } label: {
+            Label {
+                HStack {
+                    Text(tag)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                    Spacer(minLength: 4)
+                    Text(viewModel.entryCount(forTag: tag).formatted())
+                        .font(.caption)
+                        .foregroundStyle(isSelected ? Color.white : Color.secondary)
+                }
+            } icon: {
+                Image(systemName: "tag")
+                    .foregroundStyle(isSelected ? Color.white : Color.accentColor)
+            }
+            .font(.body)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(isSelected ? Color.white : Color.primary)
+        .listRowBackground(
+            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                .fill(isSelected ? Color.accentColor : Color.clear)
+                .padding(.horizontal, 6)
+                .padding(.vertical, 1)
+        )
+        .accessibilityIdentifier(
+            "tag-list.row.\(TagAccessibility.identifierSuffix(for: tag, fallbackIndex: fallbackIndex))"
+        )
     }
 }
 

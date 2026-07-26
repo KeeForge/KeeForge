@@ -167,9 +167,39 @@
     "%lld entries" : {
       "localizations" : {
         "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%lld Einträge"
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "1 Eintrag"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld Einträge"
+                }
+              }
+            }
+          }
+        },
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "1 entry"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld entries"
+                }
+              }
+            }
           }
         }
       }
@@ -217,6 +247,46 @@
                 "stringUnit" : {
                   "state" : "translated",
                   "value" : "%lld pending upload conflicts"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "%lld tags" : {
+      "localizations" : {
+        "de" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "1 Tag"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld Tags"
+                }
+              }
+            }
+          }
+        },
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "1 tag"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld tags"
                 }
               }
             }
@@ -3554,6 +3624,16 @@
         }
       }
     },
+    "No entries carry this tag anymore." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Diesem Tag ist kein Eintrag mehr zugeordnet."
+          }
+        }
+      }
+    },
     "No entries matched \"%@\"." : {
       "localizations" : {
         "de" : {
@@ -3610,6 +3690,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Keine Ergebnisse"
+          }
+        }
+      }
+    },
+    "No Tags" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Keine Tags"
           }
         }
       }
@@ -3780,6 +3870,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "OneDrive-Upload fehlgeschlagen."
+          }
+        }
+      }
+    },
+    "Open an entry, tap Edit, and fill in its Tags field to gather related entries from any group." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Öffnen Sie einen Eintrag, tippen Sie auf „Bearbeiten“ und füllen Sie dessen Feld „Tags“ aus, um zusammengehörige Einträge aus allen Gruppen zu sammeln."
           }
         }
       }

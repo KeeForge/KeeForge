@@ -1682,6 +1682,208 @@ final class DatabaseViewModelTests: XCTestCase {
         XCTAssertEqual(vm.searchResults.map(\.id), [entryID])
     }
 
+    // MARK: - Tag browser
+
+    func testTagsInDisplayOrderSortsFinderStyle() async throws {
+        let vm = try await makeCreatedViewModel(displayName: "Tag Sort")
+        let parentGroupID = try XCTUnwrap(vm.visibleRootGroupID)
+
+        try vm.applyEntryEdit(
+            .createEntry(
+                parentGroupID: parentGroupID,
+                draft: EntryDraftPayload(
+                    title: "Sorted",
+                    tags: ["tag10", "Banana", "tag2", "apple"]
+                )
+            )
+        )
+
+        XCTAssertEqual(
+            vm.tagsInDisplayOrder,
+            ["apple", "Banana", "tag2", "tag10"],
+            "Finder-style: case-insensitive (apple before Banana) and numeric-aware (tag2 before tag10)"
+        )
+    }
+
+    func testTagsInDisplayOrderKeepsCaseVariantsAdjacentAndStable() async throws {
+        let vm = try await makeCreatedViewModel(displayName: "Tag Sort Variants")
+        let parentGroupID = try XCTUnwrap(vm.visibleRootGroupID)
+
+        try vm.applyEntryEdit(
+            .createEntry(
+                parentGroupID: parentGroupID,
+                draft: EntryDraftPayload(
+                    title: "Variants",
+                    tags: ["zeta", "Work", "Éclair", "work", "alpha", "WORK"]
+                )
+            )
+        )
+        let firstOrder = vm.tagsInDisplayOrder
+
+        // Which case variant wins is the comparator's business (it is a stable,
+        // documented tiebreak, not a product decision); what the browser
+        // promises is that they land next to each other, with the accented tag
+        // collated against its base letter rather than dumped after `z`.
+        XCTAssertEqual(
+            firstOrder.map { $0.lowercased() },
+            ["alpha", "éclair", "work", "work", "work", "zeta"]
+        )
+        XCTAssertEqual(Set(firstOrder).count, 6, "Case variants stay distinct tags")
+
+        // An unrelated edit rebuilds the index, reordering the dictionary the
+        // tags come out of; the tiebreak has to keep the display order put.
+        try vm.applyEntryEdit(
+            .createEntry(
+                parentGroupID: parentGroupID,
+                draft: EntryDraftPayload(title: "Unrelated")
+            )
+        )
+
+        XCTAssertEqual(vm.tagsInDisplayOrder, firstOrder)
+    }
+
+    func testSelectedTagAndSelectedGroupAreMutuallyExclusive() async throws {
+        let vm = try await makeCreatedViewModel(displayName: "Tag Selection")
+        let parentGroupID = try XCTUnwrap(vm.visibleRootGroupID)
+
+        try vm.applyEntryEdit(
+            .createEntry(
+                parentGroupID: parentGroupID,
+                draft: EntryDraftPayload(title: "Tagged", tags: ["selected"])
+            )
+        )
+        let entryID = try XCTUnwrap(vm.visibleRootGroup?.entries.first(where: { $0.title == "Tagged" })?.id)
+        vm.selectedGroupID = parentGroupID
+        vm.selectEntry(entryID)
+
+        vm.selectedTag = "selected"
+
+        XCTAssertNil(vm.selectedGroupID, "Selecting a tag clears the sidebar's group selection")
+        XCTAssertNil(vm.selectedEntryID, "Selecting a tag clears the entry selection, like switching groups")
+
+        vm.selectedGroupID = parentGroupID
+
+        XCTAssertNil(vm.selectedTag, "Selecting a group clears the tag selection")
+    }
+
+    func testSelectedTagSurvivesAnUnrelatedRebuild() async throws {
+        let vm = try await makeCreatedViewModel(displayName: "Tag Selection Rebuild")
+        let parentGroupID = try XCTUnwrap(vm.visibleRootGroupID)
+
+        try vm.applyEntryEdit(
+            .createEntry(
+                parentGroupID: parentGroupID,
+                draft: EntryDraftPayload(title: "Tagged", tags: ["kept"])
+            )
+        )
+        vm.selectedTag = "kept"
+
+        try vm.applyEntryEdit(
+            .createEntry(
+                parentGroupID: parentGroupID,
+                draft: EntryDraftPayload(title: "Unrelated")
+            )
+        )
+
+        XCTAssertEqual(vm.selectedTag, "kept")
+        XCTAssertNil(
+            vm.selectedGroupID,
+            "The root fallback must not snap back while a tag is selected — that would clear it"
+        )
+    }
+
+    func testSelectedTagClearsWhenItsLastCarrierLosesTheTag() async throws {
+        let vm = try await makeCreatedViewModel(displayName: "Tag Selection Vanish")
+        let parentGroupID = try XCTUnwrap(vm.visibleRootGroupID)
+
+        try vm.applyEntryEdit(
+            .createEntry(
+                parentGroupID: parentGroupID,
+                draft: EntryDraftPayload(title: "Only Carrier", tags: ["doomed"])
+            )
+        )
+        let entryID = try XCTUnwrap(vm.visibleRootGroup?.entries.first(where: { $0.title == "Only Carrier" })?.id)
+        vm.selectedTag = "doomed"
+        XCTAssertEqual(vm.entries(withTag: "doomed").map(\.id), [entryID])
+
+        try vm.applyEntryEdit(
+            .updateEntry(
+                entryID: entryID,
+                draft: EntryDraftPayload(title: "Only Carrier", tags: ["replacement"])
+            )
+        )
+
+        XCTAssertNil(vm.selectedTag, "A tag with no live carrier stops being a valid selection")
+        XCTAssertEqual(
+            vm.selectedGroupID,
+            vm.visibleRootGroupID,
+            "The sidebar falls back to the group tree once the tag selection is gone"
+        )
+        XCTAssertTrue(vm.entries(withTag: "doomed").isEmpty)
+        XCTAssertEqual(vm.entryCount(forTag: "doomed"), 0)
+    }
+
+    func testFilteredEntriesEmptyOutWhenTheLastCarrierIsRecycled() async throws {
+        let vm = try await makeCreatedViewModel(displayName: "Tag Filter Recycle")
+        let parentGroupID = try XCTUnwrap(vm.visibleRootGroupID)
+
+        try vm.applyEntryEdit(
+            .createEntry(
+                parentGroupID: parentGroupID,
+                draft: EntryDraftPayload(title: "Last Carrier", tags: ["fleeting"])
+            )
+        )
+        let entryID = try XCTUnwrap(vm.visibleRootGroup?.entries.first(where: { $0.title == "Last Carrier" })?.id)
+        vm.selectedTag = "fleeting"
+        XCTAssertEqual(vm.entries(withTag: "fleeting").count, 1)
+
+        try vm.deleteEntry(entryID, sendToRecycleBin: true)
+
+        // The tag-filtered screen re-derives on every render, so this is what it
+        // shows: an empty list and its own empty state, no crash and no pop.
+        XCTAssertTrue(vm.entries(withTag: "fleeting").isEmpty)
+        XCTAssertFalse(vm.tagsInDisplayOrder.contains("fleeting"))
+        XCTAssertNil(vm.selectedTag)
+    }
+
+    func testLockClearsTheSelectedTag() async throws {
+        let vm = try makeViewModel()
+        await vm.unlock(password: fixturePassword)
+
+        vm.selectedTag = "anything"
+        vm.navigationPath.append(TagDestination.allTags)
+
+        vm.lock()
+
+        XCTAssertNil(vm.selectedTag)
+        XCTAssertTrue(vm.navigationPath.isEmpty, "Pushed tag destinations clear with the rest of the path")
+    }
+
+    func testReloadDiscardingDraftClearsTheSelectedTag() async throws {
+        let vm = try makeViewModel(
+            reloadOperation: { reference, _ in
+                DatabaseViewModel.ReloadedDatabase(
+                    reference: reference,
+                    rootGroup: KPGroup(name: "Reloaded Root", entries: [KPEntry(title: "Reloaded Entry")]),
+                    meta: KPMeta(),
+                    formatVersion: .kdbx4(minor: 0),
+                    sessionKey: SymmetricKey(size: .bits256),
+                    openTimeSHA512: Data("reloaded-hash".utf8),
+                    binaryPool: BinaryPool(rawFields: [])
+                )
+            }
+        )
+
+        await vm.unlock(password: fixturePassword)
+        vm.selectedTag = "anything"
+        vm.navigationPath.append(TagDestination.entries(tag: "anything"))
+
+        try await vm.reloadDiscardingDraft()
+
+        XCTAssertNil(vm.selectedTag)
+        XCTAssertTrue(vm.navigationPath.isEmpty)
+    }
+
     func testWhitespaceOnlySearchQueryIsTreatedAsEmpty() async throws {
         let vm = try makeViewModel()
         await vm.unlock(password: fixturePassword)
