@@ -51,8 +51,6 @@ suggest the next minor bump (e.g. 1.5.0 to 1.6.0). Ask the user to confirm befor
    - On the `main` branch (`git branch --show-current`).
    - Clean working tree (`git status --porcelain` is empty).
    - Up to date with the remote: run `git fetch origin --tags`, then confirm `main` is not behind `origin/main`.
-     This fetch exits 1 on a pre-existing `v1.8.3` clobber warning (see the note in Step 8); judge it
-     by the refs it updated, not its exit code, and never chain it under `set -e` without `|| true`.
 2. Read `project.yml` and extract the current `MARKETING_VERSION` (from the KeeForge target).
 3. Run `git tag --list 'v*'` and `git tag --list 'rc/*'` to get all existing release and RC tags
    (the fetch above pulled remote tags too — Xcode Cloud triggers on the remote tag, so a
@@ -284,7 +282,7 @@ retry such as `rc/{version}-2`.
    triggers Xcode Cloud's archive-only **"Release"** workflow.
 
    ```bash
-   git fetch origin --tags || true # see the clobber note below
+   git fetch origin --tags
    rc_tag='rc/{version}' # use the actual successful tag, including any retry suffix
    rc_commit=$(git rev-list -n1 "$rc_tag")
    test "$(git rev-parse main)" = "$rc_commit"
@@ -297,13 +295,11 @@ retry such as `rc/{version}-2`.
    Never force-push either tag. If the atomic push fails, the remote refs remain unchanged; stop
    and diagnose before retrying.
 
-   **`git fetch origin --tags` exits 1 in this repo.** A local `v1.8.3` tag has diverged from the
-   remote, so every tag fetch prints `! [rejected] v1.8.3 (would clobber existing tag)` and returns
-   a nonzero status. That is pre-existing and harmless — all other refs still update — but under
-   `set -e` it aborts the promotion before a single check runs. Always `|| true` the fetch (or run
-   it as its own command) and confirm the refs from the `git rev-parse` checks that follow, not
-   from the fetch's exit code. Do not "fix" it by force-updating `v1.8.3`; that would move a
-   released tag.
+   If `git fetch origin --tags` reports `! [rejected] ... (would clobber existing tag)` it also
+   exits nonzero, which aborts this block under `set -e` before a single check runs. That means a
+   local tag has drifted from the remote; the remote is authoritative for released tags. Inspect
+   both sides, then realign the local tag with `git fetch origin --tags --force` rather than
+   working around the exit code.
 3. Verify the remote contains `v{version}`, no longer contains the promoted RC tag, and that
    `v{version}^{}` resolves to the recorded RC commit. Earlier failed, suffixed RC-attempt tags may
    remain for audit history.
