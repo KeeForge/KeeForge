@@ -11,6 +11,7 @@ final class SettingsServiceTests: XCTestCase {
     private let autoUnlockWithFaceIDKey = "KeeForge.autoUnlockWithFaceID"
     private let showDatabaseUsageStatsKey = "KeeForge.showDatabaseUsageStats"
     private let quickAutoFillEnabledKey = "KeeForge.quickAutoFillEnabled"
+    private let autoFillCopyTOTPKey = "KeeForge.autoFillCopyTOTP"
     private let appearanceModeKey = "KeeForge.appearanceMode"
     private let hasTippedKey = "KeeForge.hasTipped"
     private let macLockPolicyKey = "KeeForge.macLockPolicy"
@@ -18,6 +19,16 @@ final class SettingsServiceTests: XCTestCase {
 
     private var sharedDefaults: UserDefaults {
         UserDefaults(suiteName: SharedVaultStore.appGroupID) ?? .standard
+    }
+
+    override func setUp() {
+        super.setUp()
+        // `clipboardTimeout` now reads the App Group suite first and lazily
+        // migrates the legacy standard-defaults value into it, so both stores
+        // have to start clean or an earlier test's value decides this one.
+        UserDefaults.standard.removeObject(forKey: clipboardKey)
+        sharedDefaults.removeObject(forKey: clipboardKey)
+        sharedDefaults.removeObject(forKey: autoFillCopyTOTPKey)
     }
 
     override func tearDown() {
@@ -32,6 +43,8 @@ final class SettingsServiceTests: XCTestCase {
         UserDefaults.standard.removeObject(forKey: blockScreenCaptureKey)
         sharedDefaults.removeObject(forKey: autoUnlockWithFaceIDKey)
         sharedDefaults.removeObject(forKey: quickAutoFillEnabledKey)
+        sharedDefaults.removeObject(forKey: clipboardKey)
+        sharedDefaults.removeObject(forKey: autoFillCopyTOTPKey)
         super.tearDown()
     }
 
@@ -200,6 +213,76 @@ final class SettingsServiceTests: XCTestCase {
 
         SettingsService.quickAutoFillEnabled = false
         XCTAssertFalse(sharedDefaults.bool(forKey: quickAutoFillEnabledKey))
+    }
+
+    // MARK: - Copy verification code on AutoFill
+
+    func testAutoFillCopyTOTPDefaultsToFalse() {
+        sharedDefaults.removeObject(forKey: autoFillCopyTOTPKey)
+        XCTAssertFalse(SettingsService.autoFillCopyTOTP, "Clipboard copy on AutoFill must be opt-in")
+    }
+
+    func testAutoFillCopyTOTPPersists() {
+        SettingsService.autoFillCopyTOTP = true
+        XCTAssertTrue(SettingsService.autoFillCopyTOTP)
+
+        SettingsService.autoFillCopyTOTP = false
+        XCTAssertFalse(SettingsService.autoFillCopyTOTP)
+    }
+
+    func testAutoFillCopyTOTPUsesSharedDefaults() {
+        // The AutoFill extension reads this, so it must live in the App Group.
+        SettingsService.autoFillCopyTOTP = true
+        XCTAssertTrue(sharedDefaults.bool(forKey: autoFillCopyTOTPKey))
+        XCTAssertNil(UserDefaults.standard.object(forKey: autoFillCopyTOTPKey))
+
+        SettingsService.autoFillCopyTOTP = false
+        XCTAssertFalse(sharedDefaults.bool(forKey: autoFillCopyTOTPKey))
+    }
+
+    // MARK: - Clipboard timeout App Group migration
+
+    func testClipboardTimeoutWritesToSharedDefaults() {
+        SettingsService.clipboardTimeout = .oneMinute
+        XCTAssertEqual(
+            sharedDefaults.string(forKey: clipboardKey),
+            SettingsService.ClipboardTimeout.oneMinute.rawValue
+        )
+    }
+
+    func testClipboardTimeoutMigratesLegacyStandardValue() {
+        // Pre-migration installs stored this app-locally; the first read must
+        // honor it and copy it into the App Group so AutoFill sees it too.
+        UserDefaults.standard.set(
+            SettingsService.ClipboardTimeout.tenSeconds.rawValue,
+            forKey: clipboardKey
+        )
+        XCTAssertNil(sharedDefaults.string(forKey: clipboardKey), "Precondition: nothing in the group yet")
+
+        XCTAssertEqual(SettingsService.clipboardTimeout, .tenSeconds)
+        XCTAssertEqual(
+            sharedDefaults.string(forKey: clipboardKey),
+            SettingsService.ClipboardTimeout.tenSeconds.rawValue,
+            "The legacy value must be migrated into the App Group suite"
+        )
+    }
+
+    func testClipboardTimeoutSharedValueWinsOverLegacyValue() {
+        UserDefaults.standard.set(
+            SettingsService.ClipboardTimeout.tenSeconds.rawValue,
+            forKey: clipboardKey
+        )
+        sharedDefaults.set(
+            SettingsService.ClipboardTimeout.oneMinute.rawValue,
+            forKey: clipboardKey
+        )
+
+        XCTAssertEqual(SettingsService.clipboardTimeout, .oneMinute)
+        XCTAssertEqual(
+            sharedDefaults.string(forKey: clipboardKey),
+            SettingsService.ClipboardTimeout.oneMinute.rawValue,
+            "A migrated-away legacy value must not overwrite the group value"
+        )
     }
 
     // MARK: - Block Screen Capture

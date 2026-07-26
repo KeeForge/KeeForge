@@ -18,12 +18,23 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
         try await super.setUp()
         DatabaseListStore.clearAll()
         resetCredentialIdentityStoreSeams()
+        resetAutoFillSettings()
     }
 
     override func tearDown() async throws {
         DatabaseListStore.clearAll()
         resetCredentialIdentityStoreSeams()
+        resetAutoFillSettings()
         try await super.tearDown()
+    }
+
+    /// The AutoFill settings this suite writes live in the App Group suite and
+    /// survive the process, so they are cleared on both ends of every test —
+    /// otherwise a leftover value silently changes an unrelated test's meaning.
+    private func resetAutoFillSettings() {
+        let sharedDefaults = UserDefaults(suiteName: SharedVaultStore.appGroupID) ?? .standard
+        sharedDefaults.removeObject(forKey: "KeeForge.quickAutoFillEnabled")
+        sharedDefaults.removeObject(forKey: "KeeForge.autoFillCopyTOTP")
     }
 
     private func resetCredentialIdentityStoreSeams() {
@@ -1370,6 +1381,180 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
         XCTAssertEqual(scenario.coordinator.pendingSwitchPreviousDatabaseReference?.id, scenario.databaseA.id)
         XCTAssertEqual(scenario.coordinator.pendingSwitchSearchText, "typed", "The stash is untouched until a search presents")
     }
+
+    // MARK: - Copy verification code on AutoFill (issue #23)
+
+    #if os(iOS)
+
+    func test_copyTOTPOnFill_enabledCopiesCurrentCodeAndStillCompletesFill() throws {
+        SettingsService.autoFillCopyTOTP = true
+        let (coordinator, presenter) = makeCoordinator()
+        let sessionKey = SymmetricKey(size: .bits256)
+        let entry = try makeGitHubEntryWithTOTP(sessionKey: sessionKey)
+        var copiedValues: [String] = []
+        coordinator.copyToClipboard = { copiedValues.append($0) }
+
+        coordinator.serviceIdentifiers = [githubServiceIdentifier()]
+        seedUnlockedVaultState(coordinator, entries: [entry], sessionKey: sessionKey)
+
+        // The code is time-based, so bracket the fill with the codes valid on
+        // either side of it; a period rollover mid-test then still matches.
+        let totpConfig = try XCTUnwrap(entry.totpConfig)
+        let codeBefore = TOTPGenerator.generateCode(config: totpConfig, sessionKey: sessionKey)
+        coordinator.presentPasswordMatchesOrFinish()
+        let codeAfter = TOTPGenerator.generateCode(config: totpConfig, sessionKey: sessionKey)
+
+        let credential = try XCTUnwrap(presenter.completedCredential, "The password fill must still complete")
+        XCTAssertEqual(credential.user, "octocat")
+        XCTAssertEqual(credential.password, "hunter2")
+
+        XCTAssertEqual(copiedValues.count, 1, "Exactly one clipboard write per fill")
+        let copiedCode = try XCTUnwrap(copiedValues.first)
+        XCTAssertEqual(copiedCode.count, totpConfig.digits, "Copied code must have the configured digit count")
+        XCTAssertTrue(copiedCode.allSatisfy(\.isNumber), "Copied code must be all digits, got \(copiedCode)")
+        XCTAssertTrue(
+            [codeBefore, codeAfter].contains(copiedCode),
+            "Copied code must be the entry's current TOTP code"
+        )
+        assertCleanedUp(coordinator)
+    }
+
+    func test_copyTOTPOnFill_disabledByDefaultCopiesNothing() throws {
+        // No explicit write: the setting must be off out of the box.
+        XCTAssertFalse(SettingsService.autoFillCopyTOTP, "Copy-on-AutoFill must default to off")
+
+        let (coordinator, presenter) = makeCoordinator()
+        let sessionKey = SymmetricKey(size: .bits256)
+        let entry = try makeGitHubEntryWithTOTP(sessionKey: sessionKey)
+        var copiedValues: [String] = []
+        coordinator.copyToClipboard = { copiedValues.append($0) }
+
+        coordinator.serviceIdentifiers = [githubServiceIdentifier()]
+        seedUnlockedVaultState(coordinator, entries: [entry], sessionKey: sessionKey)
+
+        coordinator.presentPasswordMatchesOrFinish()
+
+        XCTAssertNotNil(presenter.completedCredential)
+        XCTAssertTrue(copiedValues.isEmpty, "An opted-out fill must never touch the clipboard")
+        assertCleanedUp(coordinator)
+    }
+
+    func test_copyTOTPOnFill_enabledButEntryHasNoTOTPCopiesNothing() throws {
+        SettingsService.autoFillCopyTOTP = true
+        let (coordinator, presenter) = makeCoordinator()
+        let sessionKey = SymmetricKey(size: .bits256)
+        let entry = KPEntry(
+            title: "GitHub",
+            username: "octocat",
+            password: try EncryptedValue.encrypt("hunter2", using: sessionKey),
+            url: "https://github.com/login"
+        )
+        var copiedValues: [String] = []
+        coordinator.copyToClipboard = { copiedValues.append($0) }
+
+        coordinator.serviceIdentifiers = [githubServiceIdentifier()]
+        seedUnlockedVaultState(coordinator, entries: [entry], sessionKey: sessionKey)
+
+        coordinator.presentPasswordMatchesOrFinish()
+
+        let credential = try XCTUnwrap(presenter.completedCredential, "A code-less entry must still fill")
+        XCTAssertEqual(credential.password, "hunter2")
+        XCTAssertTrue(copiedValues.isEmpty, "An entry without a verification code has nothing to copy")
+        assertCleanedUp(coordinator)
+    }
+
+    func test_copyTOTPOnFill_ungeneratableCodeIsSkippedWithoutFailingTheFill() throws {
+        SettingsService.autoFillCopyTOTP = true
+        let (coordinator, presenter) = makeCoordinator()
+        let sessionKey = SymmetricKey(size: .bits256)
+        // Secret sealed with a foreign key: generation yields the "------"
+        // sentinel, which must be swallowed rather than pasted or thrown.
+        let entry = try makeGitHubEntryWithTOTP(
+            sessionKey: sessionKey,
+            secretSealingKey: SymmetricKey(size: .bits256)
+        )
+        var copiedValues: [String] = []
+        coordinator.copyToClipboard = { copiedValues.append($0) }
+
+        coordinator.serviceIdentifiers = [githubServiceIdentifier()]
+        seedUnlockedVaultState(coordinator, entries: [entry], sessionKey: sessionKey)
+
+        coordinator.presentPasswordMatchesOrFinish()
+
+        let credential = try XCTUnwrap(presenter.completedCredential, "A failed code generation must not fail the fill")
+        XCTAssertEqual(credential.password, "hunter2")
+        XCTAssertTrue(copiedValues.isEmpty, "The '------' sentinel must never reach the clipboard")
+        assertCleanedUp(coordinator)
+    }
+
+    // MARK: - Silent-path escalation for copy-on-AutoFill (issue #23)
+
+    // `BiometricService.isAvailable` is false under simulator tests, so
+    // `provideCredentialWithoutUserInteraction` always short-circuits to
+    // `.userInteractionRequired` before it can reach a fill — the silent path
+    // cannot distinguish the escalation from that short-circuit here. The
+    // escalation decision itself is `shouldCopyTOTPCode(for:)`, which the
+    // silent path consults at both of its completion sites, so it is asserted
+    // directly instead.
+
+    func test_shouldCopyTOTPCode_trueOnlyWhenOptedInAndEntryHasCode() throws {
+        let (coordinator, _) = makeCoordinator()
+        let sessionKey = SymmetricKey(size: .bits256)
+        let totpEntry = try makeGitHubEntryWithTOTP(sessionKey: sessionKey)
+        let plainEntry = KPEntry(
+            title: "GitHub",
+            username: "octocat",
+            password: try EncryptedValue.encrypt("hunter2", using: sessionKey),
+            url: "https://github.com/login"
+        )
+
+        SettingsService.autoFillCopyTOTP = false
+        XCTAssertFalse(coordinator.shouldCopyTOTPCode(for: totpEntry), "Opted out: no copy, no escalation")
+        XCTAssertFalse(coordinator.shouldCopyTOTPCode(for: plainEntry))
+
+        SettingsService.autoFillCopyTOTP = true
+        XCTAssertTrue(coordinator.shouldCopyTOTPCode(for: totpEntry), "Opted in with a code: copy and escalate")
+        XCTAssertFalse(
+            coordinator.shouldCopyTOTPCode(for: plainEntry),
+            "A code-less entry keeps the fully silent QuickType path"
+        )
+    }
+
+    func test_silentFill_optedInStillRequiresInteractionUnderUnavailableBiometrics() async throws {
+        SettingsService.quickAutoFillEnabled = true
+        SettingsService.autoFillCopyTOTP = true
+        let (coordinator, presenter) = makeCoordinator()
+
+        coordinator.provideCredentialWithoutUserInteraction(
+            for: makePasswordIdentity(recordIdentifier: nil)
+        )
+
+        XCTAssertEqual(presenter.cancelledError?.code, .userInteractionRequired)
+        XCTAssertNil(presenter.completedCredential, "The silent path must never fill without escalating first")
+        try? await Task.sleep(for: .milliseconds(150))
+        assertCleanedUp(coordinator)
+    }
+
+    /// A github.com password entry that also carries a verification code, so a
+    /// single-match fill exercises the copy alongside the credential handoff.
+    /// `secretSealingKey` defaults to the session key; passing a foreign key
+    /// makes the code ungeneratable.
+    private func makeGitHubEntryWithTOTP(
+        sessionKey: SymmetricKey,
+        secretSealingKey: SymmetricKey? = nil
+    ) throws -> KPEntry {
+        KPEntry(
+            title: "GitHub",
+            username: "octocat",
+            password: try EncryptedValue.encrypt("hunter2", using: sessionKey),
+            url: "https://github.com/login",
+            totpConfig: TOTPConfig(
+                secret: try EncryptedValue.encrypt("JBSWY3DPEHPK3PXP", using: secretSealingKey ?? sessionKey)
+            )
+        )
+    }
+
+    #endif
 
     // MARK: - Helpers
 

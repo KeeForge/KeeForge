@@ -21,6 +21,10 @@ TODO before the first macOS release:
 
 ## Unreleased
 
+### New Features
+
+- Copy an entry's verification code to the clipboard when AutoFill fills its password, for sites whose one-time code field iOS does not recognize. Off by default; turn on "Copy Verification Code on AutoFill" under Settings › AutoFill. The copy clears itself after the Clipboard Clear Timeout and never leaves the device. While the setting is on, filling a suggestion for an entry that has a verification code asks you to confirm in KeeForge rather than filling silently, because AutoFill can only write the clipboard while its panel is on screen.
+
 ### Fixed
 - Fixed a rare data-loss bug where a credential saved through AutoFill could overwrite a save made in the app moments earlier on the same cloud database; such cases now surface as a resolvable conflict instead.
 - AutoFill saves to cloud databases are now crash-safe end to end: the upload record is written before the database bytes, and every sync path that replaces the cached copy first preserves a timestamped backup of unsynced changes.
