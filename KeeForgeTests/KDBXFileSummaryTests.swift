@@ -47,7 +47,15 @@ final class KDBXFileSummaryTests: XCTestCase {
     }
 
     func testInspectRejectsNonKDBXData() {
-        XCTAssertThrowsError(try KDBXFileSummary.inspect(data: Data(repeating: 0xAB, count: 128)))
-        XCTAssertThrowsError(try KDBXFileSummary.inspect(data: Data()))
+        XCTAssertThrowsError(
+            try KDBXFileSummary.inspect(data: Data(repeating: 0xAB, count: 128))
+        ) { error in
+            XCTAssertEqual(error as? KDBXParser.ParseError, .invalidSignature)
+        }
+        XCTAssertThrowsError(
+            try KDBXFileSummary.inspect(data: Data())
+        ) { error in
+            XCTAssertEqual(error as? KDBXParser.ParseError, .truncatedFile)
+        }
     }
 }

@@ -585,10 +585,13 @@ final class DatabaseDraftTests: XCTestCase {
     func test_setGroupSearchingEnabled_unknownGroup_throws() throws {
         let tree = try makeSyntheticTree(includeRecycleBin: false)
         let draft = DatabaseDraft(rootGroup: tree.rootGroup, meta: tree.meta, sessionKey: sessionKey)
+        let missingGroupID = UUID()
 
         XCTAssertThrowsError(
-            try draft.apply(.setGroupSearchingEnabled(groupID: UUID(), value: .disabled))
-        )
+            try draft.apply(.setGroupSearchingEnabled(groupID: missingGroupID, value: .disabled))
+        ) { error in
+            XCTAssertEqual(error as? DatabaseDraft.DraftError, .groupNotFound(missingGroupID))
+        }
     }
 
     private func makeSyntheticTree(
