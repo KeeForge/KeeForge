@@ -183,6 +183,11 @@ targets:
       # Release / on-device, so the shipped extension is unaffected.
       - path: KeeForge/Services/AutoFill/AutoFillIdentityStoreFallbackReader.swift
       - path: KeeForge/Services/AppSupport/FaviconService.swift
+      # iOS branch backs the opt-in "copy verification code on AutoFill" copy
+      # (system-enforced pasteboard expiration survives extension teardown).
+      # The macOS extension compiles the AppKit branch but never calls it —
+      # the coordinator gates the behavior on `#if os(iOS)`.
+      - path: KeeForge/Services/AppSupport/ClipboardService.swift
       - path: KeeForge/Services/Persistence/CoordinatedFileReader.swift
       - path: KeeForge/Services/Persistence/KeyFileProcessor.swift
       - path: KeeForge/Services/Persistence/LocalDatabaseSaver.swift
@@ -244,6 +249,11 @@ targets:
       # Release / on-device, so the shipped extension is unaffected.
       - path: KeeForge/Services/AutoFill/AutoFillIdentityStoreFallbackReader.swift
       - path: KeeForge/Services/AppSupport/FaviconService.swift
+      # iOS branch backs the opt-in "copy verification code on AutoFill" copy
+      # (system-enforced pasteboard expiration survives extension teardown).
+      # The macOS extension compiles the AppKit branch but never calls it —
+      # the coordinator gates the behavior on `#if os(iOS)`.
+      - path: KeeForge/Services/AppSupport/ClipboardService.swift
       - path: KeeForge/Services/Persistence/CoordinatedFileReader.swift
       - path: KeeForge/Services/Persistence/KeyFileProcessor.swift
       - path: KeeForge/Services/Persistence/LocalDatabaseSaver.swift

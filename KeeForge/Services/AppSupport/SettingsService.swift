@@ -11,6 +11,7 @@ enum SettingsService {
         static let showWebsiteIcons = "KeeForge.showWebsiteIcons"
         static let showDatabaseUsageStats = "KeeForge.showDatabaseUsageStats"
         static let quickAutoFillEnabled = "KeeForge.quickAutoFillEnabled"
+        static let autoFillCopyTOTP = "KeeForge.autoFillCopyTOTP"
         static let appearanceMode = "KeeForge.appearanceMode"
         static let hasTipped = "KeeForge.hasTipped"
         static let macLockPolicy = "KeeForge.macLockPolicy"
@@ -165,15 +166,37 @@ enum SettingsService {
         }
     }
 
+    /// App Group-shared so the AutoFill extensions bound their own copies with
+    /// the same timeout the app uses. The value used to live in the app-local
+    /// standard defaults, so a read that finds nothing in the group container
+    /// falls back to the legacy value and migrates it once — existing users
+    /// keep the timeout they picked.
     static var clipboardTimeout: ClipboardTimeout {
         get {
-            guard let raw = UserDefaults.standard.string(forKey: Key.clipboardTimeout) else {
+            if let raw = sharedDefaults.string(forKey: Key.clipboardTimeout) {
+                return ClipboardTimeout(rawValue: raw) ?? .thirtySeconds
+            }
+            guard let legacyRaw = UserDefaults.standard.string(forKey: Key.clipboardTimeout) else {
                 return .thirtySeconds
             }
-            return ClipboardTimeout(rawValue: raw) ?? .thirtySeconds
+            sharedDefaults.set(legacyRaw, forKey: Key.clipboardTimeout)
+            return ClipboardTimeout(rawValue: legacyRaw) ?? .thirtySeconds
         }
         set {
-            UserDefaults.standard.set(newValue.rawValue, forKey: Key.clipboardTimeout)
+            sharedDefaults.set(newValue.rawValue, forKey: Key.clipboardTimeout)
+        }
+    }
+
+    /// Opt-in: after AutoFill fills a password for an entry that also has a
+    /// verification code, the current code is copied to the clipboard so it can
+    /// be pasted into OTP fields iOS does not recognize. iOS only — see the
+    /// gate in `CredentialProviderCoordinator.completeRequest(with:)`.
+    static var autoFillCopyTOTP: Bool {
+        get {
+            sharedDefaults.bool(forKey: Key.autoFillCopyTOTP)
+        }
+        set {
+            sharedDefaults.set(newValue, forKey: Key.autoFillCopyTOTP)
         }
     }
 
