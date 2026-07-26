@@ -21,13 +21,14 @@ The macOS port has its own UI-test target, `KeeForgeMacUITests/` (target `KeeFor
 - `DatabaseCreationCompactUITests` — new local database happy path on compact / iPhone layout
 - `UnlockFlowUITests` — basic unlock success/failure coverage
 - `QuickLaunchSmokeUITests` — single-database quick-launch routing into unlock
-- `LockUnlockUITests` — lock cycle coverage
+- `LockUnlockUITests` — lock cycle coverage (`testManualLockBehavior`) and a single wrong-then-correct-password unlock (`testWrongThenCorrectPasswordUnlocks`); repeated-failure/lockout behavior is `BackoffUITests`' responsibility, not this class'
 - `UnlockedDatabaseBrowseAndDetailUITests` — unlocked vault browse + entry-detail happy paths
 - `UnlockedDatabaseSearchAndSortUITests` — unlocked search and sort happy paths
 - `EntryCreateSmokeUITests` — create-entry happy path using a known fixture group
 - `EntryEditSmokeUITests` — edit-entry happy path using a known fixture entry
 - `EntryDeleteSmokeUITests` — delete-entry happy path using a known fixture entry
 - `EntryAttachmentsSmokeUITests` — entry-attachments list happy path (row name/size, QuickLook preview open/dismiss) using the `attachments` fixture
+- `TOTPSmokeUITests` — TOTP code renders (6-digit, numeric-only) and the copy control is present/hittable in entry detail, using the `autofill-union` fixture's "Union News" entry; deliberately does not assert exact code values or countdown timing
 - `KeyFileUnlockUITests` — unlocking with a key file
 - `CloudBrowserSmokeUITests` — add Dropbox and browse the mock cloud picker
 - `CloudUnlockSmokeUITests` — unlock a seeded cloud-backed database through the mock provider
@@ -46,7 +47,13 @@ The macOS port has its own UI-test target, `KeeForgeMacUITests/` (target `KeeFor
 - `EntryEditEdgeUITests` — password generation, conflict handling, discard prompts, and read-only editing affordances
 - `KeyFileUITests` — key file selection and picker flows
 - `CloudAccountEdgeUITests` — sign-out / disconnected cloud account behavior
-- `AppStoreScreenshots` — screenshot capture flow using demo fixtures
+- `AppStoreScreenshots` — screenshot capture flow using demo fixtures. **Opt-in only**: `setUp` `XCTSkip`s unless `APPSTORE_SCREENSHOTS=1` is set (mirrors `KeeForgeMacUITests/MacScreenshotAuditUITests`' `SCREENSHOT_AUDIT=1` gate), so it no longer runs — with its ~15+ s of hard `sleep()`s — on every full `KeeForgeUITests` invocation, including both RC release gates:
+  ```bash
+  TEST_RUNNER_APPSTORE_SCREENSHOTS=1 xcodebuild test -project KeeForge.xcodeproj -scheme KeeForge \
+    -destination 'platform=iOS Simulator,name=iPhone 17 Pro' \
+    -only-testing:KeeForgeUITests/AppStoreScreenshots
+  ```
+  `TEST_RUNNER_APPSTORE_SCREENSHOTS` must be a real environment variable on the `xcodebuild` process itself (Xcode strips the `TEST_RUNNER_` prefix and forwards it into the test runner's environment) — verified empirically, passing it as a trailing bare `KEY=value` argument does not work and the test silently skips. Export the resulting attachments into `build/screenshots`, then run `ci_scripts/make_appstore_screenshots.py` to composite the final App Store images (see that script's header comment).
 - `AutoFillStoreInspectorSmokeUITests` — DEBUG-only AutoFill store inspector smoke test; launches with `-autofill-store-inspector`, asserts the inspector presents at the app root and `autofill-inspector.enabled-state` reads "disabled" (safe on unprovisioned simulators). Does not extend `KeeForgeUITestCase` — the inspector replaces the normal root, so no fixture/unlock applies.
 
 ### Harness-Only Classes
@@ -387,6 +394,8 @@ Key helpers:
 - `openAnyEntry()` — navigate into a non-empty group and open an entry
 - `revealElement(_:in:direction:maxSwipes:)` — scroll until an element is visible and hittable
 - `waitForDocumentPicker()` — wait for the system document picker to appear
+- `openDatabaseDetails(rowContaining:)` / `closeDatabaseDetails()` — long-press a database row, open its Database Details context action, and wait for/dismiss the details sheet. Promoted from byte-for-byte-duplicated private copies in `DatabaseListUITests` and `AutoFillStoreUITests`
+- `setSwitch(_:isOn:)` — tap a switch until its raw `"1"`/`"0"` value matches the desired state. Promoted from near-duplicate private copies in `DatabaseListUITests` and `AutoFillStoreUITests` that had drifted apart in their failure-message text ("Expected AutoFill toggle to be ..." vs. the more generic "Expected toggle to be ..."); the generic message won since `AutoFillStoreUITests` exercises this against several different toggles, not just one. Distinct from `UnlockFlowUITests`' private `setUsageStatsSwitch`, which tolerates additional value encodings ("on"/off strings, `NSNumber`) that this stricter shared helper does not — kept separate deliberately rather than merged, to avoid changing that test's behavior
 
 Prefer extending this base class over duplicating launch-environment setup or unlock logic in individual test files.
 
@@ -407,6 +416,9 @@ Use the app's accessibility identifiers whenever possible, including:
 - `entry.copy.password`
 - `entry.copy.url`
 - `entry.copy.totp`
+- `entry.totp.code` (entry detail, the rendered TOTP code `Text`; read `.label`, not `.value`)
+- `settings.security.link` (Settings → Security)
+- `settings.security.lock-on-background-toggle` (Settings → Security, "Lock When App Goes to Background" toggle — the closest real protective toggle on the iOS Security screen; iOS has no screen-capture-block toggle, that setting is macOS-only)
 - `database-row.read-only-toggle`
 - `database-row.read-only-badge`
 - `database-row.pending-uploads-badge`

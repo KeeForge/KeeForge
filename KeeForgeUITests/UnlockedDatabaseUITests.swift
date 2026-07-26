@@ -272,6 +272,69 @@ final class RegularWidthWorkspaceUITests: UnlockedDatabaseUITestCase {
 // Secondary, non-gating coverage for root app settings surfaces.
 @MainActor
 final class AppSettingsUITests: AppSettingsUITestCase {
+    /// The Security settings screen has no dedicated screen-capture-block
+    /// toggle on iOS — that setting is macOS-only (`SettingsService.
+    /// blockScreenCapture`'s doc comment: "iOS ignores it (iOS uses
+    /// `UIScreen.isCaptured` shielding)", unconditionally, with no user
+    /// facing switch). "Lock When App Goes to Background" is the closest
+    /// real protective toggle on the iOS Security screen — locking the vault
+    /// whenever the app leaves the foreground is itself a screen-protection
+    /// behavior — so this test scopes to it instead of inventing a feature.
+    func testSecuritySettingsShowsLockOnBackgroundToggleAndPersistsAcrossReopen() {
+        openAppSettings()
+
+        let securityLink = app.descendants(matching: .any).matching(identifier: "settings.security.link").firstMatch
+        revealInSettings(securityLink, maxSwipes: 2)
+        tapElement(securityLink)
+
+        let lockOnBackgroundToggle = app.switches["settings.security.lock-on-background-toggle"]
+        XCTAssertTrue(
+            lockOnBackgroundToggle.waitForExistence(timeout: 5),
+            "Security settings should expose the Lock When App Goes to Background toggle"
+        )
+
+        let originalValue = lockOnBackgroundToggle.value as? String
+        let flippedValue = originalValue != "1"
+        setSwitch(lockOnBackgroundToggle, isOn: flippedValue)
+
+        returnToSettingsRoot()
+        closeSettings()
+
+        // Reopen Settings → Security and confirm the flipped value round-trips
+        // through SettingsService (backed by UserDefaults, so it persists
+        // across reopening the sheet without needing a relaunch).
+        openAppSettings()
+        let reopenedSecurityLink = app.descendants(matching: .any).matching(identifier: "settings.security.link").firstMatch
+        revealInSettings(reopenedSecurityLink, maxSwipes: 2)
+        tapElement(reopenedSecurityLink)
+
+        let reopenedToggle = app.switches["settings.security.lock-on-background-toggle"]
+        XCTAssertTrue(
+            reopenedToggle.waitForExistence(timeout: 5),
+            "Lock When App Goes to Background toggle should render after reopening Settings"
+        )
+        XCTAssertEqual(
+            reopenedToggle.value as? String,
+            flippedValue ? "1" : "0",
+            "Lock When App Goes to Background should persist its flipped value after reopening the settings sheet"
+        )
+
+        // Restore the seeded default: SettingsService persists to
+        // UserDefaults.standard (not the per-launch fixture registry), so an
+        // unrestored flip would leak into later test runs on this simulator.
+        setSwitch(reopenedToggle, isOn: originalValue == "1")
+        returnToSettingsRoot()
+        closeSettings()
+    }
+
+    /// Taps the "Settings" back button to return from a pushed settings
+    /// subview (e.g. Security, AutoFill, Display) to the Settings root list.
+    private func returnToSettingsRoot(file: StaticString = #filePath, line: UInt = #line) {
+        let backButton = app.navigationBars.buttons["Settings"].firstMatch
+        XCTAssertTrue(backButton.waitForExistence(timeout: 5), "Back to Settings button was not visible", file: file, line: line)
+        tapElement(backButton)
+    }
+
     func testDisplaySettingsPageShowsUsageStatsToggle() {
         openAppSettings()
 

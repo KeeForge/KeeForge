@@ -369,6 +369,7 @@ private struct SecuritySettingsView: View {
             Section {
                 Toggle("Auto-Unlock with Face ID", isOn: $autoUnlockWithFaceID)
                 Toggle("Lock When App Goes to Background", isOn: $lockOnBackground)
+                    .accessibilityIdentifier("settings.security.lock-on-background-toggle")
 
                 Picker("Auto-Lock Timeout", selection: $autoLockTimeout) {
                     ForEach(SettingsService.AutoLockTimeout.allCases, id: \.self) { option in

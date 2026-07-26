@@ -512,6 +512,7 @@ struct TOTPSection: View {
                 Text(totpVM.code)
                     .font(.title.monospaced().bold())
                     .contentTransition(.numericText())
+                    .accessibilityIdentifier("entry.totp.code")
 
                 Spacer()
 

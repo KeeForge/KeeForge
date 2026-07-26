@@ -1,7 +1,33 @@
 import XCTest
 
+/// Captures the full App Store screenshot walkthrough against the `demo`
+/// fixture. Runs only opt-in — skipped by default so it does not add its
+/// ~15+ s of hard `sleep()`-driven walkthrough (largely duplicating existing
+/// smoke assertions) to every full `KeeForgeUITests` invocation, including
+/// both RC release gates. Mirrors the `SCREENSHOT_AUDIT=1` gate
+/// `KeeForgeMacUITests/MacScreenshotAuditUITests` already uses.
+///
+///     TEST_RUNNER_APPSTORE_SCREENSHOTS=1 xcodebuild test ... \
+///         -only-testing:KeeForgeUITests/AppStoreScreenshots
+///
+/// `TEST_RUNNER_APPSTORE_SCREENSHOTS` must be a real environment variable set
+/// on the `xcodebuild` process itself (Xcode strips the `TEST_RUNNER_` prefix
+/// and forwards it into the test runner's environment) — passing it as a
+/// trailing bare `KEY=value` argument does not work; verified empirically,
+/// that form is silently ignored and the test skips as if unset.
+///
+/// Export the resulting attachments into `build/screenshots`, then run
+/// `ci_scripts/make_appstore_screenshots.py` to composite the App Store-ready
+/// images (see that script's header comment for the exact env var).
 @MainActor
 final class AppStoreScreenshots: KeeForgeUITestCase {
+    override func setUp() async throws {
+        guard ProcessInfo.processInfo.environment["APPSTORE_SCREENSHOTS"] == "1" else {
+            throw XCTSkip("App Store screenshot capture runs only with APPSTORE_SCREENSHOTS=1")
+        }
+        try await super.setUp()
+    }
+
     private enum ScreenshotName: String {
         case databaseList = "01-database-list"
         case unlockScreen = "02-unlock-screen"

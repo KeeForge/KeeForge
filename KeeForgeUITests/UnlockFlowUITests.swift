@@ -56,7 +56,7 @@ final class UnlockFlowUITests: KeeForgeUITestCase {
 
         let usageStatsToggle = app.switches["settings.display.usage-stats-toggle"]
         XCTAssertTrue(usageStatsToggle.waitForExistence(timeout: 5), "Usage stats toggle was not visible")
-        setSwitch(usageStatsToggle, isOn: true)
+        setUsageStatsSwitch(usageStatsToggle, isOn: true)
 
         closeDisplaySettings()
 
@@ -78,7 +78,7 @@ final class UnlockFlowUITests: KeeForgeUITestCase {
         tapElement(displayLink)
 
         XCTAssertTrue(usageStatsToggle.waitForExistence(timeout: 5), "Usage stats toggle was not visible when reopening display settings")
-        setSwitch(usageStatsToggle, isOn: false)
+        setUsageStatsSwitch(usageStatsToggle, isOn: false)
 
         closeDisplaySettings()
 
@@ -107,7 +107,11 @@ final class UnlockFlowUITests: KeeForgeUITestCase {
         XCTAssertFalse(settingsBar.waitForExistence(timeout: 2), "Settings sheet did not dismiss", file: file, line: line)
     }
 
-    private func setSwitch(
+    // Named distinctly from the shared `KeeForgeUITestCase.setSwitch` (which
+    // this predates and cannot reuse without changing behavior): this variant
+    // tolerates the "on"/off string and NSNumber value encodings via
+    // `switchIsOn` below, which the strict "1"/"0" shared helper does not.
+    private func setUsageStatsSwitch(
         _ toggle: XCUIElement,
         isOn desiredValue: Bool,
         file: StaticString = #filePath,

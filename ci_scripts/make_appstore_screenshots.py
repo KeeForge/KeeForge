@@ -1,5 +1,21 @@
 #!/usr/bin/env python3
-"""Generate polished App Store screenshots with gradient backgrounds and taglines."""
+"""Generate polished App Store screenshots with gradient backgrounds and taglines.
+
+Prerequisite (not automated by this script): capture the raw screenshots by
+running the opt-in `KeeForgeUITests/AppStoreScreenshots` UI test class and
+exporting its attachments into `build/screenshots`:
+
+    TEST_RUNNER_APPSTORE_SCREENSHOTS=1 xcodebuild test -project KeeForge.xcodeproj \\
+        -scheme KeeForge -destination 'platform=iOS Simulator,name=iPhone 17 Pro' \\
+        -only-testing:KeeForgeUITests/AppStoreScreenshots
+    xcrun xcresulttool export attachments --path <xcresult> --output-path build/screenshots
+
+The class skips by default (see its doc comment); TEST_RUNNER_APPSTORE_SCREENSHOTS
+must be a real environment variable on the xcodebuild process (Xcode strips the
+TEST_RUNNER_ prefix and forwards it into the test runner) -- passing it as a
+trailing bare KEY=value argument does not work and the test silently skips.
+Without it, this script has nothing to composite.
+"""
 
 from pathlib import Path
 

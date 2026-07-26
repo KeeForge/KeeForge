@@ -225,6 +225,7 @@
 		62FB664BD88A905F2894DE5E /* CloudAccountStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 66DF057AA435224858861550 /* CloudAccountStoreTests.swift */; };
 		634F009846B0EAC9BACC500F /* CloudDatabaseSaver.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10A47D12FBB464C7B0F41E94 /* CloudDatabaseSaver.swift */; };
 		64876E105034A7C8D1F4E829 /* UnlockView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E2DA7B253B27404C400DB1B5 /* UnlockView.swift */; };
+		64D2DD54B905A9B1FD8F840D /* TOTPSmokeUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 61951932997F9667EC4417A3 /* TOTPSmokeUITests.swift */; };
 		653CF30906CAA071D8D27DB5 /* TipJarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60812E673D5622C7FA754128 /* TipJarView.swift */; };
 		6560E50E8DAC0256CE4FD7D6 /* WebDAVClientTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B16B7DC25FE8C1CEE117E7FD /* WebDAVClientTests.swift */; };
 		657D59F2C3762853C5A04D65 /* DropboxCloudProviderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F7522B62793839313AC4DC5 /* DropboxCloudProviderTests.swift */; };
@@ -729,6 +730,7 @@
 		6037B710DE638D64C1ED6576 /* CloudSyncModelsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudSyncModelsTests.swift; sourceTree = "<group>"; };
 		60812E673D5622C7FA754128 /* TipJarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TipJarView.swift; sourceTree = "<group>"; };
 		613225A0024C030E19B2F7E1 /* PasswordGeneratorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PasswordGeneratorTests.swift; sourceTree = "<group>"; };
+		61951932997F9667EC4417A3 /* TOTPSmokeUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TOTPSmokeUITests.swift; sourceTree = "<group>"; };
 		633D74C75C8E56DA9DAF5458 /* CloudSyncCoordinatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudSyncCoordinatorTests.swift; sourceTree = "<group>"; };
 		6371CF6584F8950C4679FE28 /* DatabaseListViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DatabaseListViewModelTests.swift; sourceTree = "<group>"; };
 		63CD5B20E6190897E216C7F3 /* CredentialProviderViewControllerMac.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CredentialProviderViewControllerMac.swift; sourceTree = "<group>"; };
@@ -970,6 +972,7 @@
 				4A15836C142BB997DA70F8FE /* KeeForgeUITestCase.swift */,
 				D15DBC84769C820D86294442 /* KeyFileUITests.swift */,
 				E0E5E0B52692F925F8CAB5A1 /* LockUnlockUITests.swift */,
+				61951932997F9667EC4417A3 /* TOTPSmokeUITests.swift */,
 				052B9C02DD70272885C3A280 /* UnlockedDatabaseUITests.swift */,
 				C2C726CD862BFFCE77228AAD /* UnlockFlowUITests.swift */,
 				707D0691762DF0F7082224A2 /* WebDAVSyncUITests.swift */,
@@ -2181,6 +2184,7 @@
 				501B38FD078785AFEBFC0125 /* KeeForgeUITestCase.swift in Sources */,
 				DB37BBC30E20632BEC1EC52E /* KeyFileUITests.swift in Sources */,
 				5211F36B737E9F5842979B11 /* LockUnlockUITests.swift in Sources */,
+				64D2DD54B905A9B1FD8F840D /* TOTPSmokeUITests.swift in Sources */,
 				EE51139DDDFD5C48CEF2E51F /* UnlockFlowUITests.swift in Sources */,
 				6BBAF1981D321C2A67191572 /* UnlockedDatabaseUITests.swift in Sources */,
 				9C79590F954BF1DEAD2EDBA0 /* WebDAVSyncUITests.swift in Sources */,
