@@ -982,6 +982,44 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
         XCTAssertNil(searchView.databaseSwitcher, "A lone enabled database has nothing to switch to")
     }
 
+    /// The single-strict-match auto-complete is scoped to the ONE database the
+    /// request resolved: with two enabled databases that each hold a single
+    /// github.com entry, the open vault sees one match and fills it outright,
+    /// so no picker — and therefore no switcher — is ever presented and the
+    /// other database's entry is unreachable for that request. Pins the
+    /// current behavior; changing it (e.g. always presenting the picker when
+    /// another enabled database exists) should fail here first.
+    func test_singleStrictMatch_autoCompletesWithoutOfferingTheOtherEnabledDatabase() throws {
+        let (coordinator, presenter) = makeCoordinator()
+        let databaseA = try makeRegisteredDatabase(named: "single-match-a.kdbx")
+        try makeRegisteredDatabase(named: "single-match-b.kdbx")
+        let sessionKey = SymmetricKey(size: .bits256)
+        let onlyMatchInVaultA = KPEntry(
+            title: "GitHub",
+            username: "octocat",
+            password: try EncryptedValue.encrypt("hunter2", using: sessionKey),
+            url: "https://github.com/login"
+        )
+
+        coordinator.serviceIdentifiers = [githubServiceIdentifier()]
+        seedUnlockedVaultState(coordinator, entries: [onlyMatchInVaultA], sessionKey: sessionKey)
+        coordinator.activeDatabaseReference = databaseA
+
+        coordinator.presentPasswordMatchesOrFinish()
+
+        let credential = try XCTUnwrap(
+            presenter.completedCredential,
+            "A lone host-level match in the resolved database fills without a picker"
+        )
+        XCTAssertEqual(credential.user, "octocat")
+        XCTAssertEqual(credential.password, "hunter2")
+        XCTAssertNil(
+            presenter.searchView,
+            "No picker is presented, so the second enabled database is unreachable for this request"
+        )
+        assertCleanedUp(coordinator)
+    }
+
     func test_searchView_switcherNeverListsDisabledDatabases() throws {
         let (coordinator, presenter) = makeCoordinator()
         let databaseA = try makeRegisteredDatabase(named: "a.kdbx")
