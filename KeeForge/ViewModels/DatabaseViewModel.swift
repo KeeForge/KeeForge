@@ -275,6 +275,9 @@ final class DatabaseViewModel {
     private var groupEntryCounts: [UUID: Int] = [:]
     private var searchableEntries: [KPEntry] = []
     private var searchableEntryText: [UUID: String] = [:]
+    /// Live (non-recycled) entries carrying each distinct tag, in tree order.
+    /// Tag identity is exact-string, so `Work` and `work` are separate keys.
+    private var tagEntryIDs: [String: [UUID]] = [:]
     private var recycleBinEntryIDs: Set<UUID> = []
     private var recycleBinGroupIDs: Set<UUID> = []
     /// Groups whose resolved `<EnableSearching>` is false, including the ones
@@ -631,6 +634,25 @@ final class DatabaseViewModel {
     func group(withID groupID: UUID) -> KPGroup? {
         _ = contentRevision
         return groupIndex[groupID]
+    }
+
+    /// Every distinct tag carried by a live entry, unordered — callers sort for
+    /// display. Recycled entries contribute nothing.
+    var allTags: [String] {
+        _ = contentRevision
+        return Array(tagEntryIDs.keys)
+    }
+
+    /// How many live entries carry `tag`, matched exact-string.
+    func entryCount(forTag tag: String) -> Int {
+        _ = contentRevision
+        return tagEntryIDs[tag]?.count ?? 0
+    }
+
+    /// Live entries carrying `tag`, in tree order.
+    func entries(withTag tag: String) -> [KPEntry] {
+        _ = contentRevision
+        return tagEntryIDs[tag]?.compactMap { entryIndex[$0] } ?? []
     }
 
     /// Decoded image data of the entry's custom icon, if the database defines
@@ -1388,6 +1410,7 @@ final class DatabaseViewModel {
             groupEntryCounts = [:]
             searchableEntries = []
             searchableEntryText = [:]
+            tagEntryIDs = [:]
             recycleBinEntryIDs = []
             recycleBinGroupIDs = []
             autoFillExcludedGroupIDs = []
@@ -1403,6 +1426,7 @@ final class DatabaseViewModel {
         var nextGroupEntryCounts: [UUID: Int] = [:]
         var nextSearchableEntries: [KPEntry] = []
         var nextSearchableEntryText: [UUID: String] = [:]
+        var nextTagEntryIDs: [String: [UUID]] = [:]
         var nextRecycleBinEntryIDs = Set<UUID>()
         var nextRecycleBinGroupIDs = Set<UUID>()
         var nextAutoFillExcludedGroupIDs = Set<UUID>()
@@ -1428,7 +1452,11 @@ final class DatabaseViewModel {
                 totalEntryCount += 1
                 if includeInSearch {
                     nextSearchableEntries.append(entry)
-                    nextSearchableEntryText[entry.id] = Self.searchText(for: entry)
+                    let tags = Self.effectiveTags(for: entry)
+                    nextSearchableEntryText[entry.id] = Self.searchText(for: entry, tags: tags)
+                    for tag in tags {
+                        nextTagEntryIDs[tag, default: []].append(entry.id)
+                    }
                 } else {
                     nextRecycleBinEntryIDs.insert(entry.id)
                 }
@@ -1454,6 +1482,7 @@ final class DatabaseViewModel {
         groupEntryCounts = nextGroupEntryCounts
         searchableEntries = nextSearchableEntries
         searchableEntryText = nextSearchableEntryText
+        tagEntryIDs = nextTagEntryIDs
         recycleBinEntryIDs = nextRecycleBinEntryIDs
         recycleBinGroupIDs = nextRecycleBinGroupIDs
         autoFillExcludedGroupIDs = nextAutoFillExcludedGroupIDs
@@ -1655,13 +1684,20 @@ final class DatabaseViewModel {
         )
     }
 
-    private static func searchText(for entry: KPEntry) -> String {
-        [
+    /// The tags an entry contributes to the tag index and to its searchable
+    /// text. The single seam both readers go through, so they cannot drift
+    /// apart when ancestor group tags start feeding into it.
+    private static func effectiveTags(for entry: KPEntry) -> [String] {
+        TagNormalizer.tags(from: entry.tags)
+    }
+
+    private static func searchText(for entry: KPEntry, tags: [String]) -> String {
+        ([
             entry.title,
             entry.username,
             entry.url,
             entry.notes,
-        ]
+        ] + tags)
         .joined(separator: "\n")
         .folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
         .lowercased()
