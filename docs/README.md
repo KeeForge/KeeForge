@@ -4,9 +4,9 @@
 
 Files and folders are prefixed with the date the doc was written. Do not update these docs for new code changes unless explicitly asked.
 
-The two files without date prefixes at the root, `index.md` and `_config.yml`, are not archive material — they are the published GitHub Pages support page. The user-facing privacy policy lives at <https://keeforge.com/privacy> (source in the `keeforge.com` repo); code changes should not contradict it.
+Three files at the root have no date prefix, and none of them are archive material. `index.md` and `_config.yml` are the published GitHub Pages support page. The user-facing privacy policy lives at <https://keeforge.com/privacy> (source in the `keeforge.com` repo); code changes should not contradict it.
 
-`macos-security-notes.md` (no date prefix) is also not archive material — it is a **living** note describing the per-platform security deltas of the macOS app (in-memory model, App Group world-readability, screen-capture best-effort, clipboard ceiling, attachment previews, and what is not fixable at the app level). Keep it truthful alongside the code; it backs the README security highlights and the in-app Settings copy.
+`macos-security-notes.md` (the third file without a date prefix) is also not archive material — it is a **living** note describing the per-platform security deltas of the macOS app (in-memory model, App Group world-readability, screen-capture best-effort, clipboard ceiling, attachment previews, and what is not fixable at the app level). Keep it truthful alongside the code; it backs the README security highlights and the in-app Settings copy.
 
 ## `specs/` — Feature Design Specs
 
@@ -26,7 +26,7 @@ Design docs written before or during a feature's implementation. Multi-slice fea
 | 2026-04-24 | `specs/2026-04-24-database-creation.md` | Creating new local KDBX 4.x databases |
 | 2026-07-12 | `specs/2026-07-12-macos-port/` | Native macOS app: target scaffolding, Mac UX, desktop OAuth, macOS AutoFill, distribution (epic + slices 01–07) |
 | 2026-07-12 | `specs/2026-07-12-twofish-support/` | Twofish cipher support and KDBX 3.1 read (epic + slices 01–03) |
-| 2026-07-19 | `specs/2026-07-19-selectable-autofill-per-database/` | Per-database AutoFill selection, multi-database QuickType, clear-entries action (epic + slices 01–06) |
+| 2026-07-19 | `specs/2026-07-19-selectable-autofill-per-database/` | Per-database AutoFill selection, multi-database QuickType, clear-entries action (epic + slices 01–06; the folder's `deferred-tests.md` is a **live** open checklist of deferred test work, not archive material) |
 | 2026-07-19 | `specs/2026-07-19-tag-integration/` | Tag browser, tag search, group-tag inheritance, editor tag suggestions (epic + slices 01–04) |
 | 2026-07-20 | `specs/2026-07-20-autofill-store-validation-harness/` | Opt-in real-`ASCredentialIdentityStore` assertion harness: debug inspector screen, simulator provisioning, lifecycle UI tests (epic + slices 01–03) |
 
