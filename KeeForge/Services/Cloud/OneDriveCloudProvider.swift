@@ -17,6 +17,21 @@ final class OneDriveCloudProvider: CloudProvider, @unchecked Sendable {
     private static let graphBaseURLString = "https://graph.microsoft.com/v1.0"
     private static let uploadChunkSize = 5 * 1_024 * 1_024
 
+    /// Upper bound for the simple `PUT .../content` upload. Microsoft documents
+    /// 4 MiB as the conservative, universally supported limit for a single-shot
+    /// content upload (larger single PUTs are accepted by some endpoints but are
+    /// not guaranteed). Anything above this has to go through an upload session.
+    /// Internal for testing.
+    static let simpleUploadByteLimit = 4 * 1_024 * 1_024
+
+    /// Total attempts (1 initial + 2 retries) allowed for the
+    /// `createUploadSession` POST. Internal for testing.
+    static let uploadSessionCreationMaxAttempts = 3
+
+    /// Ceiling applied to a server-supplied `Retry-After`, so a misbehaving
+    /// header cannot stall a save indefinitely.
+    private static let maxRetryAfterSeconds: Double = 10
+
     let id = CloudProviderKind.oneDrive.rawValue
     let displayName = CloudProviderKind.oneDrive.displayName
     let iconName = CloudProviderKind.oneDrive.iconName
@@ -81,8 +96,8 @@ final class OneDriveCloudProvider: CloudProvider, @unchecked Sendable {
     func listFiles(accountId: String, path: String?, query: String?) async throws -> [CloudFile] {
         let token = try await accessToken(accountId: accountId)
         var files: [CloudFile] = []
-        var nextURL: URL? = try graphURL(
-            path: listChildrenPath(for: path),
+        var nextURL: URL? = try Self.graphURL(
+            path: Self.listChildrenPath(for: path),
             queryItems: [
                 URLQueryItem(name: "$top", value: "200"),
                 URLQueryItem(name: "$select", value: "id,name,size,eTag,cTag,lastModifiedDateTime,folder,file,parentReference"),
@@ -109,7 +124,7 @@ final class OneDriveCloudProvider: CloudProvider, @unchecked Sendable {
         progress: @escaping @Sendable (Double) -> Void
     ) async throws {
         let token = try await accessToken(accountId: accountId)
-        let request = authorizedRequest(url: try graphURL(path: contentPath(for: fileId)), token: token)
+        let request = authorizedRequest(url: try Self.graphURL(path: Self.contentPath(for: fileId)), token: token)
 
         do {
             let (downloadURL, response) = try await URLSession.shared.download(for: request)
@@ -140,8 +155,8 @@ final class OneDriveCloudProvider: CloudProvider, @unchecked Sendable {
         let item: OneDriveDriveItem = try await decodedGraphResponse(
             OneDriveDriveItem.self,
             request: authorizedRequest(
-                url: try graphURL(
-                    path: itemPath(for: fileId),
+                url: try Self.graphURL(
+                    path: Self.itemPath(for: fileId),
                     queryItems: [
                         URLQueryItem(name: "$select", value: "id,name,size,eTag,cTag,lastModifiedDateTime,folder,file,parentReference"),
                     ]
@@ -165,14 +180,30 @@ final class OneDriveCloudProvider: CloudProvider, @unchecked Sendable {
         progress: @escaping @Sendable (Double) -> Void
     ) async throws -> CloudFileMetadata {
         let token = try await accessToken(accountId: accountId)
-        let item = try await uploadUsingSession(
-            path: fileId,
-            data: data,
-            expectedRev: expectedRev,
-            conflictBehavior: "replace",
-            token: token,
-            progress: progress
-        )
+        // Overwriting an existing file only needs `If-Match` for concurrency, so
+        // a small database can take the single-request PUT and skip the flaky
+        // `createUploadSession` endpoint entirely. Create-only uploads cannot:
+        // they depend on `@microsoft.graph.conflictBehavior: fail`, which the
+        // simple PUT has no equivalent for. See `createFile(...)`.
+        let item: OneDriveDriveItem
+        if Self.shouldUseSimpleUpload(byteCount: data.count) {
+            item = try await uploadUsingSimplePut(
+                path: fileId,
+                data: data,
+                expectedRev: expectedRev,
+                token: token,
+                progress: progress
+            )
+        } else {
+            item = try await uploadUsingSession(
+                path: fileId,
+                data: data,
+                expectedRev: expectedRev,
+                conflictBehavior: "replace",
+                token: token,
+                progress: progress
+            )
+        }
         return Self.makeCloudFileMetadata(from: item)
     }
 
@@ -183,6 +214,10 @@ final class OneDriveCloudProvider: CloudProvider, @unchecked Sendable {
         progress: @escaping @Sendable (Double) -> Void
     ) async throws -> CloudCreatedFile {
         let token = try await accessToken(accountId: accountId)
+        // Create-only semantics are required here (see `Cloud/README.md`), and
+        // only the upload-session body carries
+        // `@microsoft.graph.conflictBehavior: fail`. Never route this through
+        // the simple PUT, which would silently overwrite an existing file.
         let item = try await uploadUsingSession(
             path: path,
             data: data,
@@ -357,6 +392,43 @@ final class OneDriveCloudProvider: CloudProvider, @unchecked Sendable {
 
     // MARK: - Graph requests
 
+    /// Single-request upload for small files: `PUT .../content`.
+    ///
+    /// This deliberately bypasses `createUploadSession`, whose two-request
+    /// handshake buys nothing for a file that fits in one request and which
+    /// intermittently rejects well-formed requests with HTTP 400
+    /// `invalidRequest`. Overwrite-only — concurrency is still enforced with
+    /// `If-Match`, but there is no create-only (`fail`) conflict behavior here.
+    private func uploadUsingSimplePut(
+        path: String,
+        data: Data,
+        expectedRev: String?,
+        token: String,
+        progress: @escaping @Sendable (Double) -> Void
+    ) async throws -> OneDriveDriveItem {
+        guard data.isEmpty == false else {
+            throw CloudProviderError.unknown(String(localized: "OneDrive cannot upload an empty database."))
+        }
+
+        var request = authorizedRequest(
+            url: try Self.graphURL(path: Self.contentPath(for: path)),
+            method: "PUT",
+            token: token
+        )
+        request.setValue("application/octet-stream", forHTTPHeaderField: "Content-Type")
+        if let expectedRev {
+            request.setValue(expectedRev, forHTTPHeaderField: "If-Match")
+        }
+        request.httpBody = data
+
+        let item: OneDriveDriveItem = try await decodedGraphResponse(
+            OneDriveDriveItem.self,
+            request: request
+        )
+        progress(1)
+        return item
+    }
+
     private func uploadUsingSession(
         path: String,
         data: Data,
@@ -369,28 +441,11 @@ final class OneDriveCloudProvider: CloudProvider, @unchecked Sendable {
             throw CloudProviderError.unknown(String(localized: "OneDrive cannot upload an empty database."))
         }
 
-        var request = authorizedRequest(
-            url: try graphURL(path: uploadSessionPath(for: path)),
-            method: "POST",
+        let session = try await createUploadSession(
+            path: path,
+            expectedRev: expectedRev,
+            conflictBehavior: conflictBehavior,
             token: token
-        )
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        if let expectedRev {
-            request.setValue(expectedRev, forHTTPHeaderField: "If-Match")
-        }
-        request.httpBody = try JSONSerialization.data(
-            withJSONObject: [
-                "item": [
-                    "@microsoft.graph.conflictBehavior": conflictBehavior,
-                    "name": (path as NSString).lastPathComponent,
-                ],
-            ],
-            options: []
-        )
-
-        let session: OneDriveUploadSession = try await decodedGraphResponse(
-            OneDriveUploadSession.self,
-            request: request
         )
 
         guard let uploadURL = URL(string: session.uploadURL) else {
@@ -433,6 +488,136 @@ final class OneDriveCloudProvider: CloudProvider, @unchecked Sendable {
         return completedItem
     }
 
+    /// Creates an upload session, retrying transient failures.
+    ///
+    /// The POST reserves an upload URL but commits no bytes, so it is
+    /// side-effect free and safe to repeat. OneDrive is known to answer
+    /// well-formed requests with a spurious HTTP 400 `invalidRequest`
+    /// (https://github.com/OneDrive/onedrive-api-docs/issues/1064), which used
+    /// to surface as a failed save that succeeded on a manual retry; Microsoft's
+    /// own best-practice guidance for this endpoint is to retry transient
+    /// failures. The chunk PUT loop is deliberately *not* retried — correct
+    /// resumption there requires `nextExpectedRanges` handling.
+    private func createUploadSession(
+        path: String,
+        expectedRev: String?,
+        conflictBehavior: String,
+        token: String
+    ) async throws -> OneDriveUploadSession {
+        let url = try Self.graphURL(path: Self.uploadSessionPath(for: path))
+        let body = try JSONSerialization.data(
+            withJSONObject: [
+                "item": [
+                    "@microsoft.graph.conflictBehavior": conflictBehavior,
+                    "name": (path as NSString).lastPathComponent,
+                ],
+            ],
+            options: []
+        )
+
+        var attempt = 0
+        while true {
+            attempt += 1
+
+            var request = authorizedRequest(url: url, method: "POST", token: token)
+            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            if let expectedRev {
+                request.setValue(expectedRev, forHTTPHeaderField: "If-Match")
+            }
+            request.httpBody = body
+
+            let responseData: Data
+            let httpResponse: HTTPURLResponse
+            do {
+                let (data, response) = try await URLSession.shared.data(for: request)
+                guard let http = response as? HTTPURLResponse else {
+                    throw CloudProviderError.unknown(String(localized: "OneDrive request failed."))
+                }
+                responseData = data
+                httpResponse = http
+            } catch let error as CloudProviderError {
+                throw error
+            } catch {
+                throw Self.mapGenericError(error)
+            }
+
+            if (200..<300).contains(httpResponse.statusCode) {
+                do {
+                    return try decoder.decode(OneDriveUploadSession.self, from: responseData)
+                } catch let decodingError as DecodingError {
+                    throw CloudProviderError.unknown(String(describing: decodingError))
+                }
+            }
+
+            let errorCode = (try? decoder.decode(OneDriveErrorResponse.self, from: responseData))?.error.code
+            guard Self.shouldRetryUploadSessionCreation(
+                statusCode: httpResponse.statusCode,
+                errorCode: errorCode,
+                attempt: attempt
+            ) else {
+                throw mapHTTPError(statusCode: httpResponse.statusCode, data: responseData)
+            }
+
+            try await Task.sleep(
+                for: Self.uploadSessionRetryDelay(
+                    forAttempt: attempt,
+                    retryAfter: httpResponse.value(forHTTPHeaderField: "Retry-After")
+                )
+            )
+        }
+    }
+
+    /// Whether a failed `createUploadSession` POST should be tried again.
+    ///
+    /// `attempt` is 1-based and counts the attempt that just failed. Auth,
+    /// permission, not-found, and concurrency failures are deterministic — a
+    /// repeat would fail identically, and retrying a 409/412 would paper over a
+    /// genuine conflict. The retryable set is the transient one: the documented
+    /// spurious 400 `invalidRequest`, throttling, and server errors. The
+    /// decision reads the Graph error *code*, never the human-readable message.
+    /// Internal for testing.
+    static func shouldRetryUploadSessionCreation(
+        statusCode: Int,
+        errorCode: String?,
+        attempt: Int
+    ) -> Bool {
+        guard attempt >= 1, attempt < uploadSessionCreationMaxAttempts else {
+            return false
+        }
+
+        switch statusCode {
+        case 401, 403, 404, 409, 412:
+            return false
+        case 400:
+            return errorCode?.caseInsensitiveCompare("invalidRequest") == .orderedSame
+        case 429:
+            return true
+        case 500..<600:
+            return true
+        default:
+            return false
+        }
+    }
+
+    /// Backoff before retrying `createUploadSession`: ~0.5s, then ~1.5s. A
+    /// server-supplied `Retry-After` (seconds) wins when present, clamped so a
+    /// bad header cannot stall the save. Internal for testing.
+    static func uploadSessionRetryDelay(forAttempt attempt: Int, retryAfter: String?) -> Duration {
+        if let retryAfter,
+           let seconds = Double(retryAfter.trimmingCharacters(in: .whitespaces)),
+           seconds > 0 {
+            return .seconds(min(seconds, maxRetryAfterSeconds))
+        }
+
+        return .seconds(0.5 * pow(3.0, Double(max(attempt, 1) - 1)))
+    }
+
+    /// Whether an overwrite of this size can take the single-request PUT.
+    /// Internal for testing.
+    static func shouldUseSimpleUpload(byteCount: Int) -> Bool {
+        byteCount <= simpleUploadByteLimit
+    }
+
     private func decodedGraphResponse<T: Decodable>(
         _ type: T.Type,
         request: URLRequest
@@ -468,12 +653,19 @@ final class OneDriveCloudProvider: CloudProvider, @unchecked Sendable {
         return request
     }
 
-    private func graphURL(path: String, queryItems: [URLQueryItem] = []) throws -> URL {
-        guard let baseURL = URL(string: Self.graphBaseURLString),
-              var components = URLComponents(
-                  url: baseURL.appendingPathComponent(path),
-                  resolvingAgainstBaseURL: false
-              ) else {
+    /// Builds a Graph URL from an **already percent-encoded** path.
+    ///
+    /// Every caller passes a path built with `encodedGraphPath(_:)`, so the
+    /// string must be used verbatim. `URL.appendingPathComponent` would encode
+    /// it a second time (`My%20Vault.kdbx` → `My%2520Vault.kdbx`), which broke
+    /// listing, metadata, download, and upload for any OneDrive path containing
+    /// a space, `&`, `#`, or non-ASCII character. `URL(string:)` and
+    /// `URLComponents.percentEncodedPath` both preserve existing encoding.
+    /// Internal for testing.
+    static func graphURL(path: String, queryItems: [URLQueryItem] = []) throws -> URL {
+        let absolutePath = path.hasPrefix("/") ? path : "/\(path)"
+        guard let baseURL = URL(string: Self.graphBaseURLString + absolutePath),
+              var components = URLComponents(url: baseURL, resolvingAgainstBaseURL: false) else {
             throw CloudProviderError.invalidConfiguration
         }
 
@@ -484,24 +676,27 @@ final class OneDriveCloudProvider: CloudProvider, @unchecked Sendable {
         return url
     }
 
-    private func listChildrenPath(for path: String?) -> String {
-        let normalized = Self.normalizedCloudPath(path)
+    // The four path builders below are pure and `static`/internal so tests can
+    // pin the full cloud-path → percent-encoded → Graph URL pipeline.
+
+    static func listChildrenPath(for path: String?) -> String {
+        let normalized = normalizedCloudPath(path)
         guard normalized != "/" else {
             return "me/drive/root/children"
         }
-        return "me/drive/root:\(Self.encodedGraphPath(normalized)):/children"
+        return "me/drive/root:\(encodedGraphPath(normalized)):/children"
     }
 
-    private func itemPath(for path: String) -> String {
-        "me/drive/root:\(Self.encodedGraphPath(Self.normalizedCloudPath(path))):"
+    static func itemPath(for path: String) -> String {
+        "me/drive/root:\(encodedGraphPath(normalizedCloudPath(path))):"
     }
 
-    private func contentPath(for path: String) -> String {
-        "me/drive/root:\(Self.encodedGraphPath(Self.normalizedCloudPath(path))):/content"
+    static func contentPath(for path: String) -> String {
+        "me/drive/root:\(encodedGraphPath(normalizedCloudPath(path))):/content"
     }
 
-    private func uploadSessionPath(for path: String) -> String {
-        "me/drive/root:\(Self.encodedGraphPath(Self.normalizedCloudPath(path))):/createUploadSession"
+    static func uploadSessionPath(for path: String) -> String {
+        "me/drive/root:\(encodedGraphPath(normalizedCloudPath(path))):/createUploadSession"
     }
 
     private func filter(files: [CloudFile], query: String?) -> [CloudFile] {
