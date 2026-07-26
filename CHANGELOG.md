@@ -22,6 +22,10 @@ TODO before the first macOS release:
 ## Unreleased
 
 ### Fixed
+- Fixed a rare data-loss bug where a credential saved through AutoFill could overwrite a save made in the app moments earlier on the same cloud database; such cases now surface as a resolvable conflict instead.
+- AutoFill saves to cloud databases are now crash-safe end to end: the upload record is written before the database bytes, and every sync path that replaces the cached copy first preserves a timestamped backup of unsynced changes.
+- Added a "Discard pending upload" action (with confirmation and automatic backup) to resolve stuck cloud upload conflicts from the database list.
+- A cloud change saved from AutoFill while the app is syncing is no longer left permanently flagged as conflicted once its content has actually reached the cloud.
 - Dropbox: fixed a crash that could occur when Dropbox was contacted from two places at once (e.g. opening a database while a pending AutoFill upload drained).
 - Dropbox: disconnecting an account now always removes its saved sign-in token from the device, even when Dropbox had not been contacted since app launch.
 - Dropbox: opening a database with no network now shows the offline notice and uses the cached copy instead of an internal error message.

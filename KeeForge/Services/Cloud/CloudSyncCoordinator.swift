@@ -162,12 +162,36 @@ enum CloudSyncCoordinator {
             // so preserve a recoverable backup before the remote copy replaces
             // them. The drainer's SHA-512 check then surfaces the overwrite as a
             // conflict instead of silently losing the local change.
-            if !PendingUploadQueue.listMarkers(for: reference.id).isEmpty {
-                try backUpCacheBeforePendingOverwrite(at: destinationURL, reference: reference)
+            //
+            // Ordering: rename the cache aside FIRST, then list markers. The
+            // rename atomically pins which bytes are being replaced, and the
+            // AutoFill save path enqueues its marker durably before writing
+            // the cache — so any unuploaded bytes captured by the rename are
+            // guaranteed to have their marker visible to this check. (Listing
+            // before removal, as this code once did, left a window where
+            // freshly written AutoFill bytes were removed with their marker
+            // unseen.)
+            let asideURL = directory.appendingPathComponent(UUID().uuidString, isDirectory: false)
+            try fileManager.moveItem(at: destinationURL, to: asideURL)
+            do {
+                if !PendingUploadQueue.listMarkers(for: reference.id).isEmpty {
+                    try backUpCacheBeforePendingOverwrite(at: asideURL, reference: reference)
+                }
+                try fileManager.removeItem(at: asideURL)
+            } catch {
+                // A failed backup must never cost the local bytes: put the
+                // cache back and fail the sync-down; the caller falls back to
+                // the cached copy.
+                try? fileManager.moveItem(at: asideURL, to: destinationURL)
+                try? fileManager.removeItem(at: asideURL)
+                throw error
             }
-            try fileManager.removeItem(at: destinationURL)
         }
 
+        // If a concurrent AutoFill save recreated the cache after the rename
+        // above, this move fails and the sync-down falls back to the cached
+        // copy — which then holds the freshest local bytes. Preferable to
+        // clobbering a save whose marker this pass never examined.
         try fileManager.moveItem(at: tempURL, to: destinationURL)
         #if os(iOS)
         // iOS Data Protection; on macOS setting a protection class either
@@ -180,10 +204,14 @@ enum CloudSyncCoordinator {
         #endif
     }
 
-    /// Copies the soon-to-be-overwritten cache into the database's timestamped
+    /// Copies the soon-to-be-overwritten cache bytes (passed as `cacheURL`,
+    /// which may be a renamed-aside copy) into the database's timestamped
     /// backup directory so a not-yet-uploaded AutoFill save stays recoverable
-    /// through the existing restore UI. Best-effort by design: a backup failure
-    /// must not block the sync-down, and the drainer's SHA-512 guard is the
+    /// through the existing restore UI. Deliberately fallible: when the backup
+    /// cannot be written, the caller must NOT proceed with the overwrite —
+    /// losing the only copy of unuploaded bytes is strictly worse than failing
+    /// the cache refresh, which callers degrade from gracefully (sync-down
+    /// falls back to the cached copy). The drainer's SHA-512 guard remains the
     /// second line of defense against pushing the wrong bytes.
     private static func backUpCacheBeforePendingOverwrite(
         at cacheURL: URL,
@@ -226,6 +254,45 @@ enum CloudSyncCoordinator {
         )
     }
 
+    /// User-invoked resolution for a conflicted pending upload (the orange
+    /// badge in the database list): discards the conflicted markers so the
+    /// badge clears, after writing a timestamped backup of the marker's
+    /// payload bytes when those bytes still exist in the shared cache. When
+    /// the cache no longer hashes to the marker's recorded SHA the payload is
+    /// already gone (that is what made the marker conflict), so there is
+    /// nothing left to back up — the earlier overwrite path took its own
+    /// pre-overwrite backup. Returns the number of markers discarded.
+    static func discardConflictedPendingUploads(for reference: DatabaseReference) async -> Int {
+        await Task.detached(priority: .utility) {
+            let conflictedMarkers = PendingUploadQueue.listMarkers(for: reference.id)
+                .filter { $0.marker.lastSyncError != nil }
+            guard conflictedMarkers.isEmpty == false else { return 0 }
+
+            let cacheURL = DatabaseListStore.cacheLocation(for: reference)
+            let cacheSHA512 = (try? CoordinatedFileReader.readData(from: cacheURL))
+                .map(KDBXCrypto.sha512)
+
+            var discardedCount = 0
+            for storedMarker in conflictedMarkers {
+                if let cacheSHA512, cacheSHA512 == storedMarker.marker.openTimeSHA512 {
+                    // Payload bytes are still the live cache; keep them
+                    // recoverable through the restore UI before dropping the
+                    // marker that protects them. A failed backup keeps the
+                    // marker (and the badge) instead of discarding blind.
+                    do {
+                        try backUpCacheBeforePendingOverwrite(at: cacheURL, reference: reference)
+                    } catch {
+                        continue
+                    }
+                }
+                if (try? PendingUploadQueue.drop(storedMarker)) != nil {
+                    discardedCount += 1
+                }
+            }
+            return discardedCount
+        }.value
+    }
+
     static func pushAfterSave(
         reference: DatabaseReference,
         bytes: Data,
@@ -261,6 +328,23 @@ enum CloudSyncCoordinator {
         bytes: Data,
         remoteMetadata: CloudFileMetadata
     ) throws -> DatabaseReference {
+        // Same protection as `downloadLatestCopy`: an AutoFill save can land
+        // in the cache while this upload was in flight, and its marker is on
+        // disk before its bytes are (see `AutoFillSaveCoordinator`). If a
+        // marker is queued and the cache differs from the bytes about to be
+        // written, back the cache up before replacing it — the marker then
+        // surfaces the overwrite as a conflict with the bytes recoverable,
+        // instead of the refresh silently reverting the AutoFill save. When
+        // the cache already equals `bytes` (every drain lands here, with its
+        // own marker still queued until the caller drops it) there is nothing
+        // to lose, so no backup is taken.
+        let cacheURL = DatabaseListStore.cacheLocation(for: reference)
+        if !PendingUploadQueue.listMarkers(for: reference.id).isEmpty,
+           let currentCacheBytes = try? CoordinatedFileReader.readData(from: cacheURL),
+           KDBXCrypto.sha512(currentCacheBytes) != KDBXCrypto.sha512(bytes) {
+            try backUpCacheBeforePendingOverwrite(at: cacheURL, reference: reference)
+        }
+
         try DatabaseListStore.cacheDatabaseCopy(bytes, for: reference)
 
         var updatedReference = reference

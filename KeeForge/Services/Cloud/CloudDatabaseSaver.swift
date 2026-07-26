@@ -24,6 +24,12 @@ enum CloudDatabaseSaver {
         var pruneBackups: @Sendable (DatabaseReference, Int) throws -> Void
         var now: @Sendable () -> Date
         var applyUploadedBytes: @Sendable (DatabaseReference, Data, CloudFileMetadata) throws -> DatabaseReference
+        /// Drops pending AutoFill markers whose recorded payload SHA-512
+        /// equals this save's open-time SHA-512 (M3 supersession — declared
+        /// with a default so `Environment` literals elsewhere keep compiling).
+        var dropSupersededPendingUploads: @Sendable (_ databaseId: UUID, _ payloadSHA512: Data) -> Void = { databaseId, payloadSHA512 in
+            PendingUploadQueue.dropMarkers(withPayloadSHA512: payloadSHA512, for: databaseId)
+        }
 
         static let live = Environment(
             beginBackgroundTask: LocalDatabaseSaver.Environment.live.beginBackgroundTask,
@@ -171,6 +177,17 @@ enum CloudDatabaseSaver {
 
         do {
             let uploadedMetadata = try await environment.upload(reference, newData, expectedRev, { _ in })
+
+            // M3: a pending AutoFill marker whose recorded payload hashes to
+            // this save's open-time SHA recorded exactly the bytes this save
+            // was based on — the upload above carried that content to the
+            // remote head, so the marker is provably superseded. Dropping it
+            // only after a successful upload preserves the invariant that
+            // unuploaded cache bytes always have a covering marker, and doing
+            // it before `applyUploadedBytes` keeps that call's pending-marker
+            // backup gate scoped to markers that still hold unuploaded
+            // content.
+            environment.dropSupersededPendingUploads(reference.id, openTimeSHA512)
 
             _ = try environment.applyUploadedBytes(reference, newData, uploadedMetadata)
             try? environment.pruneBackups(reference, 5)

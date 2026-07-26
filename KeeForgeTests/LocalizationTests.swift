@@ -20,8 +20,22 @@ final class LocalizationTests: XCTestCase {
         let value: String?
     }
 
+    private struct Variations: Decodable {
+        let plural: [String: Localization]?
+    }
+
     private struct Localization: Decodable {
         let stringUnit: StringUnit?
+        let variations: Variations?
+
+        /// Every concrete unit this localization carries: the flat unit for
+        /// plain strings, or one per plural branch for `variations` entries.
+        var allStringUnits: [StringUnit] {
+            if let stringUnit {
+                return [stringUnit]
+            }
+            return variations?.plural?.values.flatMap(\.allStringUnits) ?? []
+        }
     }
 
     private struct StringEntry: Decodable {
@@ -83,19 +97,22 @@ final class LocalizationTests: XCTestCase {
 
             for key in nonEmptyKeys {
                 guard let entry = catalog.strings[key] else { continue }
-                guard let de = entry.localizations?["de"]?.stringUnit else {
+                let germanUnits = entry.localizations?["de"]?.allStringUnits ?? []
+                guard germanUnits.isEmpty == false else {
                     XCTFail("\(catalog.name): key \"\(key)\" has no German localization")
                     continue
                 }
-                XCTAssertEqual(
-                    de.state,
-                    "translated",
-                    "\(catalog.name): key \"\(key)\" German state is \(de.state ?? "nil"), expected \"translated\""
-                )
-                XCTAssertTrue(
-                    (de.value?.isEmpty ?? true) == false,
-                    "\(catalog.name): key \"\(key)\" German value is missing or empty"
-                )
+                for de in germanUnits {
+                    XCTAssertEqual(
+                        de.state,
+                        "translated",
+                        "\(catalog.name): key \"\(key)\" German state is \(de.state ?? "nil"), expected \"translated\""
+                    )
+                    XCTAssertTrue(
+                        (de.value?.isEmpty ?? true) == false,
+                        "\(catalog.name): key \"\(key)\" German value is missing or empty"
+                    )
+                }
             }
         }
     }
@@ -109,17 +126,33 @@ final class LocalizationTests: XCTestCase {
             for (key, entry) in catalog.strings where key.isEmpty == false {
                 // Translation completeness is asserted by test 1; skip here
                 // rather than double-report the same missing-value failure.
-                guard let deValue = entry.localizations?["de"]?.stringUnit?.value else { continue }
+                if let deValue = entry.localizations?["de"]?.stringUnit?.value {
+                    let enValue = entry.localizations?["en"]?.stringUnit?.value ?? key
+                    let enSpecifiers = Self.normalizedFormatSpecifiers(in: enValue)
+                    let deSpecifiers = Self.normalizedFormatSpecifiers(in: deValue)
 
-                let enValue = entry.localizations?["en"]?.stringUnit?.value ?? key
-                let enSpecifiers = Self.normalizedFormatSpecifiers(in: enValue)
-                let deSpecifiers = Self.normalizedFormatSpecifiers(in: deValue)
+                    XCTAssertEqual(
+                        enSpecifiers,
+                        deSpecifiers,
+                        "\(catalog.name): key \"\(key)\" format specifiers differ (en: \(enSpecifiers), de: \(deSpecifiers))"
+                    )
+                }
 
-                XCTAssertEqual(
-                    enSpecifiers,
-                    deSpecifiers,
-                    "\(catalog.name): key \"\(key)\" format specifiers differ (en: \(enSpecifiers), de: \(deSpecifiers))"
-                )
+                // Plural entries: each German branch must use specifiers from
+                // the English "other" branch (the general form; branches like
+                // "one" legitimately drop the number).
+                if let dePlural = entry.localizations?["de"]?.variations?.plural {
+                    let enOther = entry.localizations?["en"]?.variations?.plural?["other"]?.stringUnit?.value ?? key
+                    let enSpecifiers = Set(Self.normalizedFormatSpecifiers(in: enOther))
+                    for (category, branch) in dePlural {
+                        guard let deValue = branch.stringUnit?.value else { continue }
+                        let deSpecifiers = Set(Self.normalizedFormatSpecifiers(in: deValue))
+                        XCTAssertTrue(
+                            deSpecifiers.isSubset(of: enSpecifiers),
+                            "\(catalog.name): key \"\(key)\" plural branch \"\(category)\" uses specifiers \(deSpecifiers) not present in the English form \(enSpecifiers)"
+                        )
+                    }
+                }
             }
         }
     }

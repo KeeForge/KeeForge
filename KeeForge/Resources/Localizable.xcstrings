@@ -184,6 +184,46 @@
         }
       }
     },
+    "%lld pending upload conflicts" : {
+      "localizations" : {
+        "de" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "1 ausstehender Upload-Konflikt"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld ausstehende Upload-Konflikte"
+                }
+              }
+            }
+          }
+        },
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "1 pending upload conflict"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld pending upload conflicts"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "1 entry" : {
       "localizations" : {
         "de" : {
@@ -1880,6 +1920,36 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Änderungen verwerfen?"
+          }
+        }
+      }
+    },
+    "Discard pending upload" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ausstehenden Upload verwerfen"
+          }
+        }
+      }
+    },
+    "Discard Pending Upload?" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ausstehenden Upload verwerfen?"
+          }
+        }
+      }
+    },
+    "Discard Upload" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Upload verwerfen"
           }
         }
       }
@@ -4980,6 +5050,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Die Datenbank konnte mit dem Passwort oder der Schlüsseldatei nicht entsperrt werden. Wenn Sie sicher sind, dass Ihre Angaben korrekt sind, ist die Datei möglicherweise beschädigt."
+          }
+        }
+      }
+    },
+    "The pending change for “%@” could not be uploaded because the copy in the cloud changed. KeeForge keeps a timestamped backup on this device before discarding it." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die ausstehende Änderung für „%@“ konnte nicht hochgeladen werden, weil die Kopie in der Cloud geändert wurde. KeeForge behält vor dem Verwerfen eine Sicherungskopie mit Zeitstempel auf diesem Gerät."
           }
         }
       }

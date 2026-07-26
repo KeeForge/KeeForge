@@ -54,6 +54,7 @@ Keep new tests platform-neutral where possible; gate genuinely platform-specific
 - `KDBXWriterTests.swift` is for encrypted container, header, HMAC, cipher, KDF, and protected-value regressions only.
 - `DatabaseDraftTests.swift` is for in-memory edit semantics only.
 - `LocalDatabaseSaverTests.swift`, `CloudDatabaseSaverTests.swift`, and `CredentialProviderSaveTests.swift` are save-path safety tests with representative smoke edits.
+- `PendingUploadQueueTests.swift` owns the pending-upload marker schema decode-compatibility gate (legacy marker JSON without newer fields must keep decoding); `CloudSyncCoordinatorTests` (in `DatabaseViewModelTests.swift`) also covers pending-marker pre-overwrite backups and conflicted-marker discard resolution.
 - `KDBXCompatibilityTests.swift` is the authoritative end-to-end compatibility matrix for every supported edit type and rich KDBX fixture shape.
 - The compatibility matrix runs the full edit set for both AES and synthetic Twofish databases, and the artifact gate asks `keepassxc-cli` to open KeeForge-produced Twofish output.
 - `KDBXCompatibilityArtifactTests.swift` emits artifacts consumed by `../ci_scripts/run_kdbx_compatibility_gate.sh`, which validates generated files with `keepassxc-cli`.
