@@ -53,6 +53,7 @@ enum LocalDatabaseSaver {
         var pruneBackups: @Sendable (DatabaseReference, Int) throws -> Void
         var now: @Sendable () -> Date
         var replaceFileAtomically: @Sendable (Data, URL) throws -> Void
+        var cacheDatabaseCopy: @Sendable (Data, DatabaseReference) throws -> Void
 
         static let live = Environment(
             beginBackgroundTask: { name in
@@ -106,6 +107,9 @@ enum LocalDatabaseSaver {
             now: { .now },
             replaceFileAtomically: { data, url in
                 try LocalDatabaseSaver.replaceFileAtomically(data, at: url)
+            },
+            cacheDatabaseCopy: { data, reference in
+                try DatabaseListStore.cacheDatabaseCopy(data, for: reference)
             }
         )
     }
@@ -207,8 +211,16 @@ enum LocalDatabaseSaver {
         )
         try environment.writeBackup(currentData, backupURL)
         try environment.replaceFileAtomically(newData, location.url)
-        // Keep the shared AutoFill cache aligned with the just-written encrypted bytes.
-        try? DatabaseListStore.cacheDatabaseCopy(newData, for: reference)
+        // Keep the shared AutoFill cache aligned with the just-written encrypted
+        // bytes. When the save location already IS the cache file (cloud
+        // references without a bookmark resolve straight to it), the atomic
+        // replace above was the cache write; repeating it would briefly widen
+        // the window where a concurrent cache read can mismatch its
+        // pending-upload marker.
+        let cacheURL = DatabaseListStore.cacheLocation(for: reference)
+        if canonicalPath(of: location.url) != canonicalPath(of: cacheURL) {
+            try? environment.cacheDatabaseCopy(newData, reference)
+        }
         try? environment.pruneBackups(reference, 5)
 
         return .saved(newSHA512: KDBXCrypto.sha512(newData))
@@ -225,6 +237,10 @@ enum LocalDatabaseSaver {
 
         let cachedURL = DatabaseListStore.cachedDatabaseURL(for: reference) ?? DatabaseListStore.cacheLocation(for: reference)
         return ResolvedLocation(url: cachedURL, usesSecurityScope: false)
+    }
+
+    private static func canonicalPath(of url: URL) -> String {
+        url.standardizedFileURL.resolvingSymlinksInPath().path
     }
 
     private static func backupFilename(for date: Date) -> String {
