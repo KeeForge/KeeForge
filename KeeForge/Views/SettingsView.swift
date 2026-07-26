@@ -19,6 +19,7 @@ struct SettingsView: View {
     @State private var showDatabaseUsageStats = SettingsService.showDatabaseUsageStats
     @State private var appearanceMode = SettingsService.appearanceMode
     @State private var quickAutoFillEnabled = SettingsService.quickAutoFillEnabled
+    @State private var autoFillCopyTOTP = SettingsService.autoFillCopyTOTP
     @State private var sortOrder = DatabaseViewModel.savedSortOrder()
     @State private var sortAscending = DatabaseViewModel.savedSortAscending()
     @State private var cloudAccounts = CloudAccountStore.accounts
@@ -152,6 +153,9 @@ struct SettingsView: View {
             .onChange(of: autoUnlockWithFaceID) { _, newValue in
                 SettingsService.autoUnlockWithFaceID = newValue
             }
+            .onChange(of: autoFillCopyTOTP) { _, newValue in
+                SettingsService.autoFillCopyTOTP = newValue
+            }
             .onChange(of: showWebsiteIcons) { _, newValue in
                 SettingsService.showWebsiteIcons = newValue
             }
@@ -236,7 +240,8 @@ struct SettingsView: View {
                     autoLockTimeout: $autoLockTimeout,
                     lockOnBackground: $lockOnBackground,
                     clipboardTimeout: $clipboardTimeout,
-                    autoUnlockWithFaceID: $autoUnlockWithFaceID
+                    autoUnlockWithFaceID: $autoUnlockWithFaceID,
+                    autoFillCopyTOTP: $autoFillCopyTOTP
                 )
             } label: {
                 Label("Security", systemImage: "lock.shield")
@@ -358,6 +363,7 @@ private struct SecuritySettingsView: View {
     @Binding var lockOnBackground: Bool
     @Binding var clipboardTimeout: SettingsService.ClipboardTimeout
     @Binding var autoUnlockWithFaceID: Bool
+    @Binding var autoFillCopyTOTP: Bool
 
     var body: some View {
         Form {
@@ -378,6 +384,13 @@ private struct SecuritySettingsView: View {
                 }
             } footer: {
                 Text("Auto-Unlock with Face ID prompts after a database is opened. When background locking is off, KeeForge still uses the auto-lock timeout and locks the next time the app becomes active after that deadline has passed.")
+            }
+
+            Section {
+                Toggle("Copy Verification Code on AutoFill", isOn: $autoFillCopyTOTP)
+                    .accessibilityIdentifier("settings.security.autofill-copy-totp")
+            } footer: {
+                Text("When on, filling a password from AutoFill also copies that entry's verification code to the clipboard, so you can paste it into one-time code fields iOS does not recognize. The copy clears itself after the Clipboard Clear Timeout. Because AutoFill can only copy while its panel is on screen, filling a suggestion for an entry with a verification code will ask you to confirm in KeeForge instead of filling silently.")
             }
         }
         .navigationTitle("Security")

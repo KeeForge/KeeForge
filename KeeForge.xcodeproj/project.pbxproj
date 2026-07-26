@@ -108,6 +108,7 @@
 		2EF4A37C8512D76CCACA08C5 /* CredentialProviderCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 268A6ED5FD7C908116437C5E /* CredentialProviderCoordinator.swift */; };
 		2FB690AA87853493C7E13651 /* LocalDatabaseSaver.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7B6F08C62E668E72877D297 /* LocalDatabaseSaver.swift */; };
 		30FAB87495E057E7C880DC28 /* OneDriveCloudProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = B942B75B67043A4CB397BE27 /* OneDriveCloudProvider.swift */; };
+		310F8939E17928B0959017BC /* ClipboardService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB106882B5AF908E0B1ED82C /* ClipboardService.swift */; };
 		316E7940CB908BAD581E150F /* CloudDatabaseSaverTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FD06FD75C4769929A64951F0 /* CloudDatabaseSaverTests.swift */; };
 		31F2445E8B8081A4A129B7C8 /* DatabaseViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 93A9DF17FFAE21E9E974D8B3 /* DatabaseViewModelTests.swift */; };
 		3273FA5CD2EEC697A05131BD /* AutoFillTipBanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 388EE3A5E207BFE8565149FE /* AutoFillTipBanner.swift */; };
@@ -410,6 +411,7 @@
 		C00EE210CD5357E16B44C3BC /* DatabaseListStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE8A26125D7268C217C403DD /* DatabaseListStoreTests.swift */; };
 		C025799D1EEC680AC16E22B6 /* TestDatabaseSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = E358190F2BA4D4AA05650AA4 /* TestDatabaseSupport.swift */; };
 		C0D2357BA23FEA45DCE10401 /* SecurityScopedBookmarkManagerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DB2A4FFD19CB42ECEDDAA7B9 /* SecurityScopedBookmarkManagerTests.swift */; };
+		C1242A3A4361F90F813693E4 /* ClipboardService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB106882B5AF908E0B1ED82C /* ClipboardService.swift */; };
 		C1D505978EEA111EDC76C642 /* WebDAVConnectViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 50107994AC5A4E705F829F17 /* WebDAVConnectViewModel.swift */; };
 		C1EDC871F9D00FE663D93C62 /* CredentialProviderViewControllerMac.swift in Sources */ = {isa = PBXBuildFile; fileRef = 63CD5B20E6190897E216C7F3 /* CredentialProviderViewControllerMac.swift */; };
 		C200AECBA8FF1A46A2C049EC /* FaviconService.swift in Sources */ = {isa = PBXBuildFile; fileRef = EBF4936791DF8FD3F2E5B144 /* FaviconService.swift */; };
@@ -664,7 +666,6 @@
 		1C17D7E75C6066F4A179AB5F /* BiometricService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BiometricService.swift; sourceTree = "<group>"; };
 		1C1B7D9F6B63224D55DF5C4A /* KeeForge.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = KeeForge.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		1C50DE2069FA6AFBD2DE3E76 /* KeeForgeUITests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = KeeForgeUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
-		1CE0E61FFB9EEE0116CD137E /* BuildConfig.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = BuildConfig.xcconfig; sourceTree = "<group>"; };
 		1DBA8C05ADEAD4DD8BFE6152 /* DatabaseDraft.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DatabaseDraft.swift; sourceTree = "<group>"; };
 		21C31F1CDC14DD303A473E73 /* FakeCredentialIdentityStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FakeCredentialIdentityStore.swift; sourceTree = "<group>"; };
 		2317B165FEAEFCF3181EE596 /* KeychainService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainService.swift; sourceTree = "<group>"; };
@@ -851,6 +852,7 @@
 		E94BF55CC229A5312D864BDE /* CloudFileBrowserViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudFileBrowserViewModelTests.swift; sourceTree = "<group>"; };
 		EA6878B6041AE23174ADDCE6 /* AutoFillEntryCreatorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AutoFillEntryCreatorView.swift; sourceTree = "<group>"; };
 		EBF4936791DF8FD3F2E5B144 /* FaviconService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FaviconService.swift; sourceTree = "<group>"; };
+		EC48A835B81540FC978B4504 /* BuildConfig.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = BuildConfig.xcconfig; sourceTree = "<group>"; };
 		ECCFEAA0C574981A7B48A938 /* InfoPlist.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = InfoPlist.xcstrings; sourceTree = "<group>"; };
 		ED991255A4FDFF53325EC964 /* test-v2.keyx */ = {isa = PBXFileReference; path = "test-v2.keyx"; sourceTree = "<group>"; };
 		EEE77955BBD928FFC22F1048 /* CloudProviderRegistryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudProviderRegistryTests.swift; sourceTree = "<group>"; };
@@ -1027,15 +1029,6 @@
 			path = TestFixtures/compatibility;
 			sourceTree = "<group>";
 		};
-		41240CE11EDAE2C94A0F9DE2 /* keeforge-url-scheme-error-196e01 */ = {
-			isa = PBXGroup;
-			children = (
-				1CE0E61FFB9EEE0116CD137E /* BuildConfig.xcconfig */,
-			);
-			name = "keeforge-url-scheme-error-196e01";
-			path = .;
-			sourceTree = "<group>";
-		};
 		5146E7B5F4D432DC9DFE949C /* AppSupport */ = {
 			isa = PBXGroup;
 			children = (
@@ -1200,6 +1193,15 @@
 			path = KeeForge/App;
 			sourceTree = "<group>";
 		};
+		C6394687FA97F044E1A63942 /* feature-request-discussion-1ac387 */ = {
+			isa = PBXGroup;
+			children = (
+				EC48A835B81540FC978B4504 /* BuildConfig.xcconfig */,
+			);
+			name = "feature-request-discussion-1ac387";
+			path = .;
+			sourceTree = "<group>";
+		};
 		D35B1898D85AD1D33CE13604 /* round-trip */ = {
 			isa = PBXGroup;
 			children = (
@@ -1234,7 +1236,7 @@
 				A376BB645DDF43A121708494 /* AutoFillExtension */,
 				1BDD193BABF3BD18A4AB9E58 /* compatibility */,
 				9F80FAF53100B49B0262BFFA /* Extensions */,
-				41240CE11EDAE2C94A0F9DE2 /* keeforge-url-scheme-error-196e01 */,
+				C6394687FA97F044E1A63942 /* feature-request-discussion-1ac387 */,
 				94D564740093EF0F011B5A3C /* KeeForgeMacUITests */,
 				F1BE673352A52C0167F2C5CE /* KeeForgeTests */,
 				0DF923CE254AEEBCB0B054B1 /* KeeForgeUITests */,
@@ -1786,6 +1788,7 @@
 				0C90D211537483D4DCFB9977 /* AutoFillSaveCoordinator.swift in Sources */,
 				207C6503A89DD512BBA1D567 /* AutoFillSearchView.swift in Sources */,
 				3D38DED9BBE1B2E21B36CA45 /* BiometricService.swift in Sources */,
+				310F8939E17928B0959017BC /* ClipboardService.swift in Sources */,
 				F414D515B720B8828F1EDB05 /* CloudSyncModels.swift in Sources */,
 				93C24272575A3A587854DDDF /* CoordinatedFileReader.swift in Sources */,
 				42798F96FBA6AB0926385048 /* CredentialIdentityStoreManager.swift in Sources */,
@@ -2264,6 +2267,7 @@
 				664A0B0C848B0867E1705FE8 /* AutoFillSaveCoordinator.swift in Sources */,
 				3C24F70C9805D197748349DF /* AutoFillSearchView.swift in Sources */,
 				53BA585CA35B31BACF5563A6 /* BiometricService.swift in Sources */,
+				C1242A3A4361F90F813693E4 /* ClipboardService.swift in Sources */,
 				26B6BCD4E53FFDD0B6A936C7 /* CloudSyncModels.swift in Sources */,
 				834E03BAA62C11817D4E850D /* CoordinatedFileReader.swift in Sources */,
 				745F136463A1B94004C35A53 /* CredentialIdentityStoreManager.swift in Sources */,
@@ -2431,7 +2435,7 @@
 		};
 		433642D014742A51E017BA5F /* Release */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = 1CE0E61FFB9EEE0116CD137E /* BuildConfig.xcconfig */;
+			baseConfigurationReference = EC48A835B81540FC978B4504 /* BuildConfig.xcconfig */;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				CLANG_ANALYZER_NONNULL = YES;
@@ -2694,7 +2698,7 @@
 		};
 		F94E35C15125598334295DFD /* Debug */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = 1CE0E61FFB9EEE0116CD137E /* BuildConfig.xcconfig */;
+			baseConfigurationReference = EC48A835B81540FC978B4504 /* BuildConfig.xcconfig */;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				CLANG_ANALYZER_NONNULL = YES;

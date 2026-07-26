@@ -1264,6 +1264,16 @@
         }
       }
     },
+    "Copy Verification Code on AutoFill" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bestätigungscode beim AutoFill kopieren"
+          }
+        }
+      }
+    },
     "Could not establish a secure connection because the server's certificate is invalid, expired, or untrusted." : {
       "localizations" : {
         "de" : {
@@ -5930,6 +5940,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Wenn diese Option deaktiviert ist, werden Passwörter, Passkeys und Bestätigungscodes aus dieser Datenbank in AutoFill weder vorgeschlagen noch sind sie dort verfügbar. Nach dem erneuten Aktivieren erscheinen die Vorschläge wieder, sobald Sie diese Datenbank das nächste Mal entsperren."
+          }
+        }
+      }
+    },
+    "When on, filling a password from AutoFill also copies that entry's verification code to the clipboard, so you can paste it into one-time code fields iOS does not recognize. The copy clears itself after the Clipboard Clear Timeout. Because AutoFill can only copy while its panel is on screen, filling a suggestion for an entry with a verification code will ask you to confirm in KeeForge instead of filling silently." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wenn diese Option aktiviert ist, wird beim Ausfüllen eines Passworts über AutoFill zusätzlich der Bestätigungscode des Eintrags in die Zwischenablage kopiert, sodass Sie ihn in Felder für Einmalcodes einfügen können, die iOS nicht erkennt. Die Kopie wird nach der Löschfrist der Zwischenablage automatisch entfernt. Da AutoFill nur kopieren kann, solange sein Fenster angezeigt wird, werden Sie beim Ausfüllen eines Vorschlags für einen Eintrag mit Bestätigungscode zur Bestätigung in KeeForge aufgefordert, statt dass still ausgefüllt wird."
           }
         }
       }
