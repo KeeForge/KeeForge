@@ -1558,155 +1558,8 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
 
     // MARK: - Helpers
 
-    @MainActor
-    private final class PresenterSpy: CredentialProviderPresenting {
-        var isPresentationActive = false
-        var isDisplayingContent = false
-
-        struct UnlockPrompt {
-            let biometricOptionTitle: String?
-            let onSubmitPassword: (String?) -> Void
-            let onChooseBiometrics: () -> Void
-            let onCancel: () -> Void
-        }
-
-        struct UnlockError {
-            let message: String
-            let onRetry: () -> Void
-            let onCancel: () -> Void
-        }
-
-        struct ReadOnlyNotice {
-            let message: String
-            let onAcknowledge: () -> Void
-        }
-
-        struct SearchView {
-            let entries: [KPEntry]
-            let initialSearchText: String
-            let databaseSwitcher: CredentialProviderDatabaseSwitcherContext?
-            let onSelect: (KPEntry) -> Void
-            let onCancel: () -> Void
-        }
-
-        struct NoEnabledDatabasesState {
-            let onDismiss: () -> Void
-        }
-
-        var unlockPrompt: UnlockPrompt?
-        var unlockError: UnlockError?
-        var readOnlyNotice: ReadOnlyNotice?
-        var searchView: SearchView?
-        var noEnabledDatabasesState: NoEnabledDatabasesState?
-
-        var completedCredential: ASPasswordCredential?
-        var completedAssertion: ASPasskeyAssertionCredential?
-        var completedOneTimeCode: String?
-        var didCompleteSavePassword = false
-        var completedGeneratedPasswords: [String]?
-        var cancelledError: ASExtensionError?
-
-        var onUnlockErrorPresented: (() -> Void)?
-        var onUnlockPromptPresented: (() -> Void)?
-        var onCompleteRequest: ((ASPasswordCredential) -> Void)?
-        /// Fired after every `presentSearchView` recording, mirroring
-        /// `onUnlockErrorPresented` — lets async flows (a real unlock task)
-        /// await the re-presented search with an expectation.
-        var onSearchViewPresented: (() -> Void)?
-
-        func presentSearchView(
-            entries: [KPEntry],
-            initialSearchText: String,
-            databaseSwitcher: CredentialProviderDatabaseSwitcherContext?,
-            onSelect: @escaping (KPEntry) -> Void,
-            onCancel: @escaping () -> Void
-        ) {
-            searchView = SearchView(
-                entries: entries,
-                initialSearchText: initialSearchText,
-                databaseSwitcher: databaseSwitcher,
-                onSelect: onSelect,
-                onCancel: onCancel
-            )
-            onSearchViewPresented?()
-        }
-
-        func presentNoEnabledDatabasesState(onDismiss: @escaping () -> Void) {
-            noEnabledDatabasesState = NoEnabledDatabasesState(onDismiss: onDismiss)
-        }
-
-        func presentEntryCreator(
-            initialDraft: EntryDraftPayload,
-            onSave: @escaping @Sendable (EntryDraftPayload) async -> CredentialProviderEntrySaveOutcome,
-            onCancel: @escaping () -> Void
-        ) {}
-
-        func presentUnlockPrompt(
-            biometricOptionTitle: String?,
-            onSubmitPassword: @escaping (String?) -> Void,
-            onChooseBiometrics: @escaping () -> Void,
-            onCancel: @escaping () -> Void
-        ) {
-            unlockPrompt = UnlockPrompt(
-                biometricOptionTitle: biometricOptionTitle,
-                onSubmitPassword: onSubmitPassword,
-                onChooseBiometrics: onChooseBiometrics,
-                onCancel: onCancel
-            )
-            onUnlockPromptPresented?()
-        }
-
-        func presentUnlockError(
-            message: String,
-            onRetry: @escaping () -> Void,
-            onCancel: @escaping () -> Void
-        ) {
-            unlockError = UnlockError(message: message, onRetry: onRetry, onCancel: onCancel)
-            onUnlockErrorPresented?()
-        }
-
-        func presentReadOnlyNotice(
-            message: String,
-            onAcknowledge: @escaping () -> Void
-        ) {
-            readOnlyNotice = ReadOnlyNotice(message: message, onAcknowledge: onAcknowledge)
-        }
-
-        func presentGeneratedPassword(
-            _ password: String,
-            onUse: @escaping () -> Void,
-            onRegenerate: @escaping () -> Void,
-            onCancel: @escaping () -> Void
-        ) {}
-
-        func completeRequest(withSelectedCredential credential: ASPasswordCredential) {
-            onCompleteRequest?(credential)
-            completedCredential = credential
-        }
-
-        func completeAssertionRequest(using credential: ASPasskeyAssertionCredential) {
-            completedAssertion = credential
-        }
-
-        func completeOneTimeCodeRequest(code: String) {
-            completedOneTimeCode = code
-        }
-
-        func completeSavePasswordRequest() {
-            didCompleteSavePassword = true
-        }
-
-        func completeGeneratePasswordRequest(passwords: [String]) {
-            completedGeneratedPasswords = passwords
-        }
-
-        func cancelRequest(withError error: ASExtensionError) {
-            cancelledError = error
-        }
-    }
-
-    private func makeCoordinator() -> (CredentialProviderCoordinator, PresenterSpy) {
-        let presenter = PresenterSpy()
+    private func makeCoordinator() -> (CredentialProviderCoordinator, CredentialProviderPresentingSpy) {
+        let presenter = CredentialProviderPresentingSpy()
         let coordinator = CredentialProviderCoordinator(presenter: presenter)
         return (coordinator, presenter)
     }
@@ -1773,7 +1626,7 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
 
     private struct SwitcherScenario {
         let coordinator: CredentialProviderCoordinator
-        let presenter: PresenterSpy
+        let presenter: CredentialProviderPresentingSpy
         let databaseA: DatabaseReference
         let databaseB: DatabaseReference
         let entries: [KPEntry]
