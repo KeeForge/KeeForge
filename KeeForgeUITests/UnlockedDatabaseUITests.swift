@@ -475,3 +475,69 @@ final class AppSettingsUITests: AppSettingsUITestCase {
         closeSettings()
     }
 }
+
+// Coverage for changing a group's icon from the group context menu.
+@MainActor
+final class GroupIconPickerUITests: UnlockedDatabaseUITestCase {
+    /// Round-trips the choice: pick an icon, then reopen the picker and confirm that
+    /// cell now reports itself as selected. That only holds if the edit reached the
+    /// group in the draft and was read back out again, so it covers the wiring the
+    /// unit tests cannot see.
+    func testChangingAGroupIconMarksTheNewIconAsSelected() {
+        unlockSuccessfully()
+
+        openIconPicker(forGroupNamed: "Social")
+
+        let bankingIcon = app.buttons["group-icon-picker.icon.37"]
+        XCTAssertTrue(bankingIcon.waitForExistence(timeout: 5), "Icon picker did not present")
+        XCTAssertFalse(bankingIcon.isSelected, "Fixture group should not already use icon 37")
+        tapElement(bankingIcon)
+
+        XCTAssertTrue(
+            bankingIcon.waitForNonExistence(timeout: 5),
+            "Picking an icon should dismiss the picker"
+        )
+
+        openIconPicker(forGroupNamed: "Social")
+        let reopenedIcon = app.buttons["group-icon-picker.icon.37"]
+        XCTAssertTrue(reopenedIcon.waitForExistence(timeout: 5), "Icon picker did not present again")
+        XCTAssertTrue(reopenedIcon.isSelected, "The chosen icon should come back marked as selected")
+    }
+
+    func testCancellingTheIconPickerLeavesTheIconAlone() {
+        unlockSuccessfully()
+
+        openIconPicker(forGroupNamed: "Social")
+        let otherIcon = app.buttons["group-icon-picker.icon.37"]
+        XCTAssertTrue(otherIcon.waitForExistence(timeout: 5), "Icon picker did not present")
+        XCTAssertFalse(otherIcon.isSelected, "Fixture group should not already use icon 37")
+
+        let cancelButton = app.buttons["group-icon-picker.cancel"]
+        XCTAssertTrue(cancelButton.waitForExistence(timeout: 5), "Cancel button was not visible")
+        tapElement(cancelButton)
+
+        openIconPicker(forGroupNamed: "Social")
+        let reopenedIcon = app.buttons["group-icon-picker.icon.37"]
+        XCTAssertTrue(reopenedIcon.waitForExistence(timeout: 5), "Icon picker did not present again")
+        XCTAssertFalse(reopenedIcon.isSelected, "Cancelling must not change the group's icon")
+    }
+
+    private func openIconPicker(
+        forGroupNamed name: String,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        let group = groupRow(named: name)
+        XCTAssertTrue(revealElement(group), "Group '\(name)' was not visible", file: file, line: line)
+        group.press(forDuration: 1.0)
+
+        let changeIcon = app.buttons["group-row.change-icon-context"]
+        XCTAssertTrue(
+            changeIcon.waitForExistence(timeout: 5),
+            "Change Icon was not in the group context menu",
+            file: file,
+            line: line
+        )
+        tapElement(changeIcon)
+    }
+}

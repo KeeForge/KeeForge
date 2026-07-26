@@ -351,6 +351,7 @@ enum KDBXCompatibilitySupport {
         "update-entry",
         "create-group",
         "hide-group-from-autofill",
+        "change-group-icon",
         "soft-delete-entry",
         "soft-delete-group",
         "hard-delete-recycled-entry",
@@ -424,6 +425,7 @@ enum KDBXCompatibilitySupport {
     static let scenarioIDsWithoutPasswordExpectations: Set<String> = [
         "create-group",
         "hide-group-from-autofill",
+        "change-group-icon",
         "soft-delete-entry",
         "soft-delete-group",
         "hard-delete-recycled-entry",
@@ -511,6 +513,7 @@ enum KDBXCompatibilitySupport {
             updateEntryScenario(),
             createGroupScenario(),
             hideGroupFromAutoFillScenario(),
+            changeGroupIconScenario(),
             softDeleteEntryScenario(),
             softDeleteGroupScenario(),
             hardDeleteRecycledEntryScenario(),
@@ -544,6 +547,54 @@ enum KDBXCompatibilitySupport {
                 XCTAssertTrue(recycleBinGroup.entryIDs.contains(entryID))
                 XCTAssertEqual(after.entries.count, before.entries.count)
                 XCTAssertEqual(after.groups.count, before.groups.count + 1)
+            }
+        )
+    }
+
+    static func changeGroupIconScenario() -> Scenario {
+        Scenario(
+            id: "change-group-icon",
+            title: "Change a group's standard icon via IconID",
+            artifactFileName: "synthetic-rich-change-group-icon.kdbx",
+            expectedSearchTerms: ["Compat Untouched Entry"],
+            expectedGroupPaths: ["Compat Group Delete Target"],
+            makeEdit: { loaded in
+                let group = try XCTUnwrap(
+                    findGroup(named: "Compat Nested Child Group", in: loaded.rootGroup)
+                )
+                return .setGroupIcon(groupID: group.id, iconID: 37)
+            },
+            assertChange: { before, after, _ in
+                let targetID = try XCTUnwrap(before.groupID(named: "Compat Nested Child Group"))
+                let beforeGroup = try XCTUnwrap(before.groups[targetID])
+                XCTAssertNotEqual(
+                    beforeGroup.iconID,
+                    37,
+                    "Fixture precondition: the target group must not already use the chosen icon"
+                )
+
+                try assertUnchangedEntries(before: before, after: after)
+                // Only the edited group may differ, and only in its icon plus its
+                // modification time.
+                try assertSurvivingGroupsPreserveScalars(
+                    before: before,
+                    after: after,
+                    excluding: [targetID]
+                )
+                assertMetaUnchanged(before: before, after: after)
+                XCTAssertEqual(after.groups.count, before.groups.count)
+
+                let afterGroup = try XCTUnwrap(after.groups[targetID])
+                XCTAssertEqual(afterGroup.iconID, 37)
+                XCTAssertEqual(afterGroup.name, beforeGroup.name)
+                XCTAssertEqual(afterGroup.searchingEnabled, beforeGroup.searchingEnabled)
+                XCTAssertEqual(afterGroup.entryIDs, beforeGroup.entryIDs)
+                XCTAssertEqual(afterGroup.groupIDs, beforeGroup.groupIDs)
+                XCTAssertEqual(afterGroup.creationTime, beforeGroup.creationTime)
+                // This group carries no custom icon, so nothing may be dropped from
+                // its preserved XML. The removal path is covered by
+                // `DatabaseDraftTests.test_setGroupIcon_clearsCustomIconSoTheStandardIconActuallyShows`.
+                XCTAssertEqual(afterGroup.unknownXML, beforeGroup.unknownXML)
             }
         )
     }

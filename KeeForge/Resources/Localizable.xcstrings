@@ -824,6 +824,16 @@
         }
       }
     },
+    "Change Icon" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Symbol ändern"
+          }
+        }
+      }
+    },
     "Change Key File" : {
       "localizations" : {
         "de" : {
@@ -2520,6 +2530,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Gut"
+          }
+        }
+      }
+    },
+    "Group Icon" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gruppensymbol"
           }
         }
       }
