@@ -205,7 +205,11 @@ struct KPEntry: Identifiable, Sendable {
         61: "star.fill",                            // Star
         62: "laptopcomputer",                       // Tux
         63: "signature",                            // Feather
-        64: "apple.logo",                           // Apple
+        // Deliberately not `apple.logo`: Apple's SF Symbols license carves out the
+        // symbols depicting its own trademarks and logos, so shipping that one in a
+        // third-party app isn't covered — and the group icon picker now offers this
+        // index as a choice rather than only rendering it when a database uses it.
+        64: "laptopcomputer",                       // Apple
         65: "text.book.closed.fill",                // Wiki
         66: "banknote.fill",                        // Money
         67: "rosette",                              // Certificate
