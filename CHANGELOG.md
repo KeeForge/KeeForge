@@ -21,15 +21,29 @@ TODO before the first macOS release:
 
 ## Unreleased
 
+## v1.10.4 (2026-07-25)
+
+### New Features
+
+- Choose which databases appear in AutoFill, get suggestions from all of them at once, and clear AutoFill suggestions in Settings.
+- Hide individual groups from AutoFill. Long-press a group and pick "Hide from AutoFill": its entries stop appearing in QuickType suggestions and in the AutoFill panel's search, while staying fully visible when browsing the database in the app. Subgroups follow their parent unless you turn one back on explicitly. The setting is stored in the standard KDBX `<EnableSearching>` group field, so it is shared with KeePass and KeePassXC instead of living in app-only state. Because the field is shared, a database where you had already set "exclude from search" on a group in KeePass will now have those entries hidden from AutoFill on first open — use "Show in AutoFill" on the group to get them back. Thanks to [@miquno](https://github.com/miquno) for the contribution.
+- Switch between databases inside the AutoFill panel.
+
+### Fixes
+
 - Fix OneDrive databases stored in a folder or file whose name contains a space, `#`, `&`, or an accented character failing to open, download, or save. The path was being escaped twice on the way to OneDrive, so the app asked for a file that did not exist.
 - Fix "Couldn't Save Database: the request is malformed or incorrect" on OneDrive saves that then succeeded when you tapped Retry Save. Ordinary saves now upload in a single request instead of going through OneDrive's large-file handshake, and when that handshake is still needed it retries briefly before giving up.
-- Fix copied values disappearing from the clipboard before you could paste them. Copying a password and switching to another app locked the database on background and scrubbed the copy on the way out, so the paste arrived empty and the copy button looked broken. Backgrounding the app now leaves the copy alone; it still clears itself after the Clipboard Clear Timeout and never leaves the device. Locking the database yourself, and the auto-lock timeout firing while the app is open, both still clear the clipboard immediately.
-- Fix the AutoFill provider remaining on an empty view when an interactive request arrives after its presentation lifecycle callback.
-- App Transport Security now stays enforced for the app's own fixed hosts — favicons (DuckDuckGo), feedback, and the Dropbox/Microsoft cloud endpoints — via per-domain exceptions. The global arbitrary-loads allowance remains only for user-entered WebDAV servers, many of which still require legacy TLS ciphers that ATS otherwise rejects.
-- Choose which databases appear in AutoFill, get suggestions from all of them at once, and clear AutoFill suggestions in Settings.
-- Hide individual groups from AutoFill. Long-press a group and pick "Hide from AutoFill": its entries stop appearing in QuickType suggestions and in the AutoFill panel's search, while staying fully visible when browsing the database in the app. Subgroups follow their parent unless you turn one back on explicitly. The setting is stored in the standard KDBX `<EnableSearching>` group field, so it is shared with KeePass and KeePassXC instead of living in app-only state. Because the field is shared, a database where you had already set "exclude from search" on a group in KeePass will now have those entries hidden from AutoFill on first open — use "Show in AutoFill" on the group to get them back.
-- Switch between databases inside the AutoFill panel.
+- Fix copied values disappearing from the clipboard before you could paste them. Copying a password and switching to another app locked the database on background and scrubbed the copy on the way out, so the paste arrived empty and the copy button looked broken. Backgrounding the app now leaves the copy alone; it still clears itself after the Clipboard Clear Timeout and never leaves the device. Locking the database yourself, and the auto-lock timeout firing while the app is open, both still clear the clipboard immediately. Thanks to [@miquno](https://github.com/miquno) for the contribution.
+- Fix the AutoFill provider remaining on an empty view when an interactive request arrives after its presentation lifecycle callback. Thanks to [@ftorga](https://github.com/ftorga) for the contribution.
+
+### Security
+
+- App Transport Security now stays enforced for the app's own fixed hosts — favicons (DuckDuckGo), feedback, and the Dropbox/Microsoft cloud endpoints — via per-domain exceptions. The global arbitrary-loads allowance remains only for user-entered WebDAV servers, many of which still require legacy TLS ciphers that ATS otherwise rejects. Thanks to [@miquno](https://github.com/miquno) for the contribution.
 - Saving a database now regenerates the file header's random material — master seed, encryption IV, inner stream key, and KDF salt — on every save, matching KeePass 2.x and KeePassXC. KDF cost settings (Argon2 iterations/memory/parallelism, AES-KDF rounds) are preserved, and saved files remain fully compatible with other KeePass clients. Thanks to [Kinglike1337](https://github.com/Kinglike1337) for the contribution.
+
+### Changes
+
+- Add an RFC 8439 known-answer vector for the inner-stream ChaCha20 cipher to the crypto test suite. Thanks to [@miquno](https://github.com/miquno) for the contribution.
 
 ## v1.10.3 (2026-07-18)
 

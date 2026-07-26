@@ -53,6 +53,27 @@ enum WhatsNewCatalog {
         let features: [WhatsNewFeature]
 
         switch version {
+        case "1.10.4":
+            features = [
+                WhatsNewFeature(
+                    id: "autofill-all-databases",
+                    title: "AutoFill from all your databases",
+                    detail: "Get suggestions from every database at once, choose which ones AutoFill uses, and switch databases without leaving the AutoFill panel.",
+                    systemImage: "rectangle.stack"
+                ),
+                WhatsNewFeature(
+                    id: "autofill-hidden-groups",
+                    title: "Hide groups from AutoFill",
+                    detail: "Hide a group and its entries stop appearing when you fill passwords, while staying fully visible when you browse the database in the app.",
+                    systemImage: "eye.slash"
+                ),
+                WhatsNewFeature(
+                    id: "community-contributors",
+                    title: "Built with the community",
+                    detail: "Thanks to @miquno and @ftorga, whose open-source contributions helped shape this release.",
+                    systemImage: "heart"
+                ),
+            ]
         case "1.10.3":
             features = [
                 WhatsNewFeature(
