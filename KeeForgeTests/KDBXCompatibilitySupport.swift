@@ -1141,8 +1141,31 @@ struct CompatibilitySnapshot {
                 creationTime: creationTime,
                 lastModificationTime: lastModificationTime,
                 recycleBinUUID: recycleBinUUID,
-                unknownXML: unknownXML
+                unknownXML: Self.canonicallyOrdered(unknownXML)
             )
+        }
+
+        /// The in-memory order of unknown fragments follows the source
+        /// document's child order, so a rewrite that normalizes a foreign
+        /// file's non-canonical child order (pykeepass emits `<Times>` before
+        /// `<Notes>`; KeeForge writes `<Notes>` at its recorded position
+        /// earlier in the sequence) permutes fragments from *different* paths
+        /// in the array while preserving every fragment's content and
+        /// insertion position. The scalar comparison enforces the position
+        /// contract — nothing dropped, moved, or invented — not the array
+        /// order, so sort deterministically before comparing. Byte-level
+        /// ordering within a path stays covered by the round-trip suite and
+        /// the external gate.
+        private static func canonicallyOrdered(_ unknownXML: OpaqueXMLNodes) -> OpaqueXMLNodes {
+            OpaqueXMLNodes(nodes: unknownXML.nodes.sorted { lhs, rhs in
+                if lhs.path != rhs.path {
+                    return lhs.path.joined(separator: "/") < rhs.path.joined(separator: "/")
+                }
+                if lhs.insertionIndex != rhs.insertionIndex {
+                    return lhs.insertionIndex < rhs.insertionIndex
+                }
+                return lhs.xml < rhs.xml
+            })
         }
     }
 
