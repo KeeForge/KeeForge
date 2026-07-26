@@ -1,5 +1,6 @@
 import AuthenticationServices
 import Foundation
+import os
 @preconcurrency import SwiftyDropbox
 #if os(iOS)
 import UIKit
@@ -74,13 +75,44 @@ final class DropboxCloudProvider: CloudProvider, @unchecked Sendable {
         "files.content.write",
     ]
 
+    /// Attempt budget and delay ceiling for the transient failures Dropbox asks
+    /// callers to retry; SwiftyDropbox retries none of them itself.
+    static let maxAttempts = 3
+    static let maxRetryDelay: TimeInterval = 10
+
     let id = CloudProviderKind.dropbox.rawValue
     let displayName = CloudProviderKind.dropbox.displayName
     let iconName = CloudProviderKind.dropbox.iconName
 
     @MainActor
     private var pendingAuthContinuation: CheckedContinuation<CloudAccount, Error>?
-    private var didConfigure = false
+
+    /// SwiftyDropbox's global setup asserts it runs exactly once, and its
+    /// clients own URLSessions that must outlive a single call, so both are
+    /// reached only through this lock. Entry points span the main actor
+    /// (authenticate, redirect handling) and the cooperative pool (sync, save).
+    private let state = OSAllocatedUnfairLock(uncheckedState: State())
+
+    private struct State {
+        var didConfigure = false
+        var clients: [String: DropboxClient] = [:]
+    }
+
+    /// A Dropbox failure the caller is expected to retry itself. `withRetry`
+    /// always either retries or rethrows `mapped`, so this never escapes the
+    /// provider; the `LocalizedError` conformance is a backstop.
+    struct TransientFailure: Error, LocalizedError {
+        enum Kind: Equatable {
+            case rateLimited(retryAfter: UInt64)
+            case tooManyWriteOperations
+            case serverError
+        }
+
+        let kind: Kind
+        let mapped: CloudProviderError
+
+        var errorDescription: String? { mapped.errorDescription }
+    }
 
     private init() {}
 
@@ -133,25 +165,22 @@ final class DropboxCloudProvider: CloudProvider, @unchecked Sendable {
     }
 
     func isAuthenticated(accountId: String) -> Bool {
-        do {
-            try configureIfNeeded()
-        } catch {
-            return false
-        }
-
-        return oauthManager()?.getAccessToken(accountId) != nil
+        guard let manager = try? configuredOAuthManager() else { return false }
+        return manager.getAccessToken(accountId) != nil
     }
 
     func signOut(accountId: String) {
-        guard let manager = oauthManager() else {
-            CloudAccountStore.remove(provider: id, accountId: accountId)
-            return
-        }
-
-        if let token = manager.getAccessToken(accountId) {
+        // The SDK's OAuth manager only exists once configuration has succeeded,
+        // so a disconnect that never touched the SDK this session would leave
+        // the long-lived refresh token behind. Delete the keychain row directly
+        // as well, so the token is gone either way.
+        if let manager = try? configuredOAuthManager(),
+           let token = manager.getAccessToken(accountId) {
             _ = manager.clearStoredAccessToken(token)
         }
 
+        _ = CloudTokenStore.deleteToken(provider: id, accountId: accountId)
+        invalidateClient(accountId: accountId)
         CloudAccountStore.remove(provider: id, accountId: accountId)
         DropboxClientsManager.resetClients()
     }
@@ -159,11 +188,13 @@ final class DropboxCloudProvider: CloudProvider, @unchecked Sendable {
     func listFiles(accountId: String, path: String?, query: String?) async throws -> [CloudFile] {
         let client = try client(for: accountId)
 
-        if let query, !query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            return try await searchFiles(client: client, path: path, query: query)
-        }
+        return try await withRetry {
+            if let query, !query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                return try await self.searchFiles(client: client, path: path, query: query)
+            }
 
-        return try await listFolder(client: client, path: path)
+            return try await self.listFolder(client: client, path: path)
+        }
     }
 
     func download(
@@ -174,7 +205,112 @@ final class DropboxCloudProvider: CloudProvider, @unchecked Sendable {
     ) async throws {
         let client = try client(for: accountId)
 
-        try await withCheckedThrowingContinuation { continuation in
+        try await withRetry {
+            try await self.performDownload(client: client, fileId: fileId, to: localURL, progress: progress)
+        }
+    }
+
+    func getMetadata(accountId: String, fileId: String) async throws -> CloudFileMetadata {
+        let client = try client(for: accountId)
+
+        return try await withRetry {
+            try await self.performGetMetadata(client: client, fileId: fileId)
+        }
+    }
+
+    func upload(
+        accountId: String,
+        fileId: String,
+        data: Data,
+        expectedRev: String?,
+        progress: @escaping @Sendable (Double) -> Void
+    ) async throws -> CloudFileMetadata {
+        let client = try client(for: accountId)
+
+        return try await withRetry {
+            try await self.performUpload(
+                client: client,
+                fileId: fileId,
+                data: data,
+                expectedRev: expectedRev,
+                progress: progress
+            )
+        }
+    }
+
+    func createFile(
+        accountId: String,
+        path: String,
+        data: Data,
+        progress: @escaping @Sendable (Double) -> Void
+    ) async throws -> CloudCreatedFile {
+        let client = try client(for: accountId)
+
+        return try await withRetry {
+            try await self.performCreateFile(client: client, path: path, data: data, progress: progress)
+        }
+    }
+
+    @MainActor
+    func handleRedirectURL(_ url: URL) -> Bool {
+        do {
+            try configureIfNeeded()
+        } catch {
+            return false
+        }
+
+        return DropboxClientsManager.handleRedirectURL(url, includeBackgroundClient: false) { [weak self] result in
+            Task { @MainActor in
+                await self?.finishAuthentication(with: result)
+            }
+        }
+    }
+
+    // MARK: - Private
+
+    /// Repeats `operation` while Dropbox reports a transient failure. Every
+    /// route used here is safe to repeat: reads are idempotent and both writes
+    /// carry `strictConflict`, so a retried write either applies once or fails
+    /// as a conflict.
+    private func withRetry<T>(_ operation: () async throws -> T) async throws -> T {
+        var attempt = 1
+
+        while true {
+            do {
+                return try await operation()
+            } catch let failure as TransientFailure {
+                guard let delay = Self.retryDelay(for: failure.kind, attempt: attempt) else {
+                    throw failure.mapped
+                }
+
+                try await Task.sleep(for: .seconds(delay))
+                attempt += 1
+            }
+        }
+    }
+
+    /// Delay before the next attempt, or nil once the attempt budget is spent.
+    /// Dropbox's `retry_after` can be minutes, so it is clamped — a save must
+    /// fail with a message rather than stall.
+    static func retryDelay(for kind: TransientFailure.Kind, attempt: Int) -> TimeInterval? {
+        guard attempt >= 1, attempt < maxAttempts else { return nil }
+
+        switch kind {
+        case .rateLimited(let retryAfter):
+            return min(max(TimeInterval(retryAfter), 1), maxRetryDelay)
+        case .tooManyWriteOperations, .serverError:
+            // Dropbox sends no hint for these, so back off from a second.
+            return min(pow(2, TimeInterval(attempt - 1)), maxRetryDelay)
+        }
+    }
+
+    private func performDownload(
+        client: DropboxClient,
+        fileId: String,
+        to localURL: URL,
+        progress: @escaping @Sendable (Double) -> Void
+    ) async throws {
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
             client.files.download(path: fileId, overwrite: true, destination: localURL)
                 .progress { transferProgress in
                     progress(transferProgress.fractionCompleted)
@@ -189,10 +325,8 @@ final class DropboxCloudProvider: CloudProvider, @unchecked Sendable {
         }
     }
 
-    func getMetadata(accountId: String, fileId: String) async throws -> CloudFileMetadata {
-        let client = try client(for: accountId)
-
-        return try await withCheckedThrowingContinuation { continuation in
+    private func performGetMetadata(client: DropboxClient, fileId: String) async throws -> CloudFileMetadata {
+        try await withCheckedThrowingContinuation { continuation in
             client.files.getMetadata(path: fileId)
                 .response { response, error in
                     if let file = response as? Files.FileMetadata {
@@ -206,14 +340,13 @@ final class DropboxCloudProvider: CloudProvider, @unchecked Sendable {
         }
     }
 
-    func upload(
-        accountId: String,
+    private func performUpload(
+        client: DropboxClient,
         fileId: String,
         data: Data,
         expectedRev: String?,
         progress: @escaping @Sendable (Double) -> Void
     ) async throws -> CloudFileMetadata {
-        let client = try client(for: accountId)
         let mode: Files.WriteMode = if let expectedRev {
             .update(expectedRev)
         } else {
@@ -247,15 +380,13 @@ final class DropboxCloudProvider: CloudProvider, @unchecked Sendable {
         }
     }
 
-    func createFile(
-        accountId: String,
+    private func performCreateFile(
+        client: DropboxClient,
         path: String,
         data: Data,
         progress: @escaping @Sendable (Double) -> Void
     ) async throws -> CloudCreatedFile {
-        let client = try client(for: accountId)
-
-        return try await withCheckedThrowingContinuation { continuation in
+        try await withCheckedThrowingContinuation { continuation in
             client.files.upload(
                 path: path,
                 mode: .add,
@@ -287,23 +418,6 @@ final class DropboxCloudProvider: CloudProvider, @unchecked Sendable {
             }
         }
     }
-
-    @MainActor
-    func handleRedirectURL(_ url: URL) -> Bool {
-        do {
-            try configureIfNeeded()
-        } catch {
-            return false
-        }
-
-        return DropboxClientsManager.handleRedirectURL(url, includeBackgroundClient: false) { [weak self] result in
-            Task { @MainActor in
-                await self?.finishAuthentication(with: result)
-            }
-        }
-    }
-
-    // MARK: - Private
 
     private func listFolder(client: DropboxClient, path: String?) async throws -> [CloudFile] {
         var aggregatedEntries: [Files.Metadata] = []
@@ -390,19 +504,46 @@ final class DropboxCloudProvider: CloudProvider, @unchecked Sendable {
         return Array(Set(files)).sorted(by: Self.sortCloudFiles)
     }
 
+    /// One client per account, kept for the process lifetime. Each client owns
+    /// two URLSessions that only `shutdown()` invalidates, and its token
+    /// provider caches the refreshed access token — building one per call
+    /// leaked sessions and forced an OAuth round-trip before every request.
     private func client(for accountId: String) throws -> DropboxClient {
-        try configureIfNeeded()
+        // `withLockUnchecked` because the SDK's client and OAuth manager are not
+        // `Sendable`; the lock is what keeps them single-threaded here.
+        try state.withLockUnchecked { state in
+            try Self.configure(&state)
 
-        guard let manager = oauthManager(),
-              let token = manager.getAccessToken(accountId) else {
-            throw CloudProviderError.notAuthenticated
+            if let cached = state.clients[accountId] {
+                return cached
+            }
+
+            guard let manager = DropboxOAuthManager.sharedOAuthManager,
+                  let token = manager.getAccessToken(accountId) else {
+                throw CloudProviderError.notAuthenticated
+            }
+
+            let client = DropboxClient(accessToken: token, dropboxOauthManager: manager)
+            state.clients[accountId] = client
+            return client
         }
-
-        return DropboxClient(accessToken: token, dropboxOauthManager: manager)
     }
 
-    private func oauthManager() -> DropboxOAuthManager? {
-        DropboxOAuthManager.sharedOAuthManager
+    private func invalidateClient(accountId: String) {
+        let client = state.withLockUnchecked { $0.clients.removeValue(forKey: accountId) }
+        client?.shutdown()
+    }
+
+    private func configuredOAuthManager() throws -> DropboxOAuthManager {
+        try state.withLockUnchecked { state in
+            try Self.configure(&state)
+
+            guard let manager = DropboxOAuthManager.sharedOAuthManager else {
+                throw CloudProviderError.invalidConfiguration
+            }
+
+            return manager
+        }
     }
 
     #if os(iOS)
@@ -444,7 +585,14 @@ final class DropboxCloudProvider: CloudProvider, @unchecked Sendable {
     #endif
 
     private func configureIfNeeded() throws {
-        guard didConfigure == false else { return }
+        try state.withLockUnchecked { try Self.configure(&$0) }
+    }
+
+    /// SwiftyDropbox asserts that its global setup runs exactly once, so the
+    /// guard and the setup call have to be atomic; callers must already hold
+    /// the state lock.
+    private static func configure(_ state: inout State) throws {
+        guard state.didConfigure == false else { return }
         guard let appKey = appKey else {
             throw CloudProviderError.invalidConfiguration
         }
@@ -462,10 +610,10 @@ final class DropboxCloudProvider: CloudProvider, @unchecked Sendable {
             tokenUid: nil
         )
         #endif
-        didConfigure = true
+        state.didConfigure = true
     }
 
-    private var appKey: String? {
+    private static var appKey: String? {
         guard let rawValue = Bundle.main.object(forInfoDictionaryKey: "DropboxAppKey") as? String else {
             return nil
         }
@@ -710,25 +858,38 @@ final class DropboxCloudProvider: CloudProvider, @unchecked Sendable {
         }
 
         if case .routeError(let boxed, _, _, _) = error,
-           case .path(let writeFailure) = boxed.unboxed,
-           case .conflict = writeFailure.reason {
-            return CloudProviderError.conflict(remoteRev: nil)
+           let mapped = mapUploadRouteError(boxed.unboxed) {
+            return mapped
         }
 
         return mapGenericDropboxError(error)
     }
 
-    private static func mapGenericDropboxError(_ error: Error?) -> Error {
-        guard let error else {
-            return CloudProviderError.unknown(String(localized: "Dropbox request failed."))
-        }
+    /// Split out of `mapUploadError` so it is reachable from tests: SwiftyDropbox's
+    /// `Box` has no public initializer, so a `CallError.routeError` cannot be
+    /// built outside the SDK.
+    static func mapUploadRouteError(_ uploadError: Files.UploadError) -> Error? {
+        guard case .path(let writeFailure) = uploadError else { return nil }
+        return mapWriteError(writeFailure.reason)
+    }
 
-        let nsError = error as NSError
-        if nsError.domain == NSURLErrorDomain {
-            return CloudProviderError.networkUnavailable
+    /// Returns nil for reasons Dropbox leaves unspecified, so the caller falls
+    /// back to the generic mapping rather than inventing a wrong message.
+    static func mapWriteError(_ writeError: Files.WriteError) -> Error? {
+        switch writeError {
+        case .conflict:
+            return CloudProviderError.conflict(remoteRev: nil)
+        case .insufficientSpace:
+            return CloudProviderError.insufficientSpace
+        case .noWritePermission, .teamFolder, .operationSuppressed:
+            return CloudProviderError.permissionDenied
+        case .disallowedName, .malformedPath:
+            return CloudProviderError.invalidName
+        case .tooManyWriteOperations:
+            return TransientFailure(kind: .tooManyWriteOperations, mapped: .rateLimited)
+        case .other:
+            return nil
         }
-
-        return CloudProviderError.unknown(nsError.localizedDescription)
     }
 
     private static func mapGenericDropboxError<E>(_ error: CallError<E>?) -> Error {
@@ -739,16 +900,14 @@ final class DropboxCloudProvider: CloudProvider, @unchecked Sendable {
         return mapGenericDropboxError(error)
     }
 
-    private static func mapGenericDropboxError<E>(_ error: CallError<E>) -> Error {
+    static func mapGenericDropboxError<E>(_ error: CallError<E>) -> Error {
         switch error {
         case .clientError(let clientError):
             switch clientError {
             case .urlSessionError(let underlyingError):
-                let nsError = underlyingError as NSError
-                if nsError.domain == NSURLErrorDomain {
-                    return CloudProviderError.networkUnavailable
-                }
-                return CloudProviderError.unknown(nsError.localizedDescription)
+                return mapTransportError(underlyingError)
+            case .oauthError(let underlyingError):
+                return mapOAuthRefreshError(underlyingError)
             default:
                 return CloudProviderError.unknown(String(describing: error))
             }
@@ -763,8 +922,64 @@ final class DropboxCloudProvider: CloudProvider, @unchecked Sendable {
                 return CloudProviderError.unknown(String(describing: error))
             }
 
+        case .rateLimitError(let rateLimitError, _, _, _):
+            return TransientFailure(
+                kind: .rateLimited(retryAfter: rateLimitError.retryAfter),
+                mapped: .rateLimited
+            )
+
+        case .internalServerError:
+            return TransientFailure(kind: .serverError, mapped: .serviceUnavailable)
+
+        case .httpError(let statusCode, _, _):
+            // 5xx normally arrives as `.internalServerError`; this covers the
+            // responses the SDK leaves unclassified.
+            guard let statusCode, (500 ... 599).contains(statusCode) else {
+                return CloudProviderError.unknown(String(describing: error))
+            }
+
+            return TransientFailure(kind: .serverError, mapped: .serviceUnavailable)
+
         default:
             return CloudProviderError.unknown(String(describing: error))
+        }
+    }
+
+    static func mapTransportError(_ error: Error) -> CloudProviderError {
+        if CloudProviderError.isLikelyOffline(error) {
+            return .networkUnavailable
+        }
+
+        return .unknown((error as NSError).localizedDescription)
+    }
+
+    /// KeeForge persists only the refresh token, so the SDK refreshes before
+    /// every request and an offline call fails at the OAuth stage.
+    /// `OAuthTokenRequest` flattens the transport cause into a message string
+    /// before SwiftyDropbox wraps the code in `ClientError.oauthError`, leaving
+    /// the OAuth code as the only thing to classify by.
+    static func mapOAuthRefreshError(_ error: Error) -> CloudProviderError {
+        // Defensive: honour a genuine URL error should a future SDK version
+        // preserve one.
+        if CloudProviderError.isLikelyOffline(error) {
+            return .networkUnavailable
+        }
+
+        guard let oauthError = error as? OAuth2Error else {
+            return .unknown((error as NSError).localizedDescription)
+        }
+
+        switch oauthError {
+        case .unknown:
+            // Only transport failures and unparseable responses reach `.unknown`,
+            // so treat it as connectivity: an airplane-mode open then falls back
+            // to the cached copy instead of persisting a raw SDK dump.
+            return .networkUnavailable
+        case .serverError, .temporarilyUnavailable:
+            return .serviceUnavailable
+        default:
+            // invalid_grant and the other credential-shaped codes need a reconnect.
+            return .notAuthenticated
         }
     }
 

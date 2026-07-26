@@ -1,3 +1,4 @@
+import os
 import XCTest
 @testable import KeeForge
 
@@ -33,6 +34,41 @@ final class CloudTokenStoreTests: XCTestCase {
             CloudTokenStore.allAccountIDs(provider: "unit-cloud-token-b"),
             ["z-account"]
         )
+    }
+
+    func testSetTokenDataOverwritesTheExistingRow() throws {
+        let provider = "unit-cloud-token-a"
+        let accountID = "acct-overwrite"
+
+        try requireTokenStoreWrite(Data("first".utf8), provider: provider, accountId: accountID)
+        try requireTokenStoreWrite(Data("second".utf8), provider: provider, accountId: accountID)
+
+        XCTAssertEqual(CloudTokenStore.tokenData(provider: provider, accountId: accountID), Data("second".utf8))
+        XCTAssertEqual(CloudTokenStore.allAccountIDs(provider: provider), [accountID])
+    }
+
+    /// OAuth token refreshes can land concurrently. A delete-then-add pair let
+    /// one writer lose the race, report failure, and leave no row at all — which
+    /// SwiftyDropbox surfaces as a `tokenStorageError` on the whole request.
+    func testConcurrentWritesAllSucceedAndLeaveOneRow() throws {
+        let provider = "unit-cloud-token-a"
+        let accountID = "acct-concurrent"
+
+        try requireTokenStoreWrite(Data("seed".utf8), provider: provider, accountId: accountID)
+
+        let outcomes = OSAllocatedUnfairLock(initialState: [Bool]())
+        DispatchQueue.concurrentPerform(iterations: 32) { iteration in
+            let succeeded = CloudTokenStore.setTokenData(
+                Data("token-\(iteration)".utf8),
+                provider: provider,
+                accountId: accountID
+            )
+            outcomes.withLock { $0.append(succeeded) }
+        }
+
+        XCTAssertEqual(outcomes.withLock { $0.filter { $0 == false }.count }, 0)
+        XCTAssertEqual(CloudTokenStore.allAccountIDs(provider: provider), [accountID])
+        XCTAssertNotNil(CloudTokenStore.tokenData(provider: provider, accountId: accountID))
     }
 
     private func cleanup(provider: String) {
