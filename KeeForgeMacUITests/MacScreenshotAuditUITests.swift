@@ -11,10 +11,15 @@ private extension CGRect {
 /// tests are otherwise discarded). Skipped unless launched with
 /// `SCREENSHOT_AUDIT=1` in the test runner environment:
 ///
-///     xcodebuild test ... -only-testing:KeeForgeMacUITests/MacScreenshotAuditUITests \
-///         TEST_RUNNER_SCREENSHOT_AUDIT=1
+///     TEST_RUNNER_SCREENSHOT_AUDIT=1 xcodebuild test ... \
+///         -only-testing:KeeForgeMacUITests/MacScreenshotAuditUITests
 ///
-/// Add `TEST_RUNNER_SCREENSHOT_AUDIT_DARK=1` for a dark-appearance pass.
+/// Add `TEST_RUNNER_SCREENSHOT_AUDIT_DARK=1` for a dark-appearance pass. Both
+/// must be real environment variables on the `xcodebuild` process itself
+/// (Xcode strips the `TEST_RUNNER_` prefix and forwards them into the test
+/// runner's environment) — verified empirically, a trailing bare `KEY=value`
+/// argument is a build-setting override that never reaches the runner, and
+/// the class silently skips as if unset.
 ///
 /// Then export: `xcrun xcresulttool export attachments --path <xcresult> --output-path <dir>`.
 ///
