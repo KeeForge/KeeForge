@@ -263,7 +263,9 @@ struct RegularDatabaseWorkspaceView: View {
         }
         .toolbar { macToolbar }
         .onAppear {
-            if viewModel.selectedGroupID == nil {
+            // The tag check keeps a re-fired onAppear from silently clearing a
+            // sidebar tag selection — selecting a group deselects the tag.
+            if viewModel.selectedGroupID == nil, viewModel.selectedTag == nil {
                 viewModel.selectedGroupID = viewModel.visibleRootGroupID
             }
         }
