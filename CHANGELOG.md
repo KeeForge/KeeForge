@@ -23,11 +23,13 @@ TODO before the first macOS release:
 
 ### New Features
 
+- Change a group's icon: long-press a group and choose "Change Icon" to pick from the standard KeePass icon set. If the group used a custom icon from the database, picking a standard one replaces it — a custom icon takes precedence over the standard one, so it has to go for the new choice to show. The Recycle Bin keeps its trash-can icon, and nothing is editable in a read-only database.
 - Copy an entry's verification code to the clipboard when AutoFill fills its password, for sites whose one-time code field iOS does not recognize. Off by default; turn on "Copy Verification Code on AutoFill" under Settings › AutoFill. The copy clears itself after the Clipboard Clear Timeout and never leaves the device. While the setting is on, filling a suggestion for an entry that has a verification code asks you to confirm in KeeForge rather than filling silently, because AutoFill can only write the clipboard while its panel is on screen.
 
 ### Fixed
 - Saving a cloud database from AutoFill wrote the shared cached copy twice; the redundant second write briefly widened the window in which a concurrent reader could see cache bytes that mismatch the pending-upload marker.
 - A cloud download interrupted by the app terminating at exactly the wrong moment could leave a stray temporary file in the shared database cache forever. Cloud syncs now sweep out staging leftovers that have been parked for over an hour.
+- Replaced the Apple-logo glyph used for standard icon 64 with a generic computer. Apple's SF Symbols license excludes the symbols depicting its own trademarks and logos, so it was not ours to ship — and the new group icon picker offers that index as a choice rather than only rendering it. Groups and entries already using icon 64 will show the new glyph on first open; the stored `IconID` is unchanged, so other KeePass clients are unaffected.
 - Fixed a cloud save on a database with no recorded revision (databases added before revision tracking, or opened from the offline cache) being able to overwrite newer changes made on another device. Such saves now verify against the remote copy first and raise the usual conflict prompt.
 - Two conflict copies created within the same minute produced the same filename, and the second replaced the first. Names now include seconds, and a cloud conflict copy can never overwrite an existing file.
 - Pressing ⌘S repeatedly on macOS while a save was still running started a second save and could raise a spurious "changed in the cloud" prompt.

@@ -747,6 +747,22 @@ final class DatabaseViewModel {
         return autoFillExcludedGroupIDs.contains(groupID)
     }
 
+    /// Changes which of the standard KDBX icons a group displays.
+    ///
+    /// Ignores an `iconID` outside the standard set: KDBX stores `<IconID>` as a
+    /// bare integer, so an unmapped value would be written happily and then render
+    /// as whatever fallback each client picks.
+    ///
+    /// Applies even when `iconID` already matches, as long as the group still
+    /// carries a custom icon — that case is precisely the one where the standard
+    /// icon isn't the one being shown, so it is not a no-op.
+    func setGroupIcon(_ iconID: Int, groupID: UUID) throws {
+        guard KPEntry.standardIconNames[iconID] != nil else { return }
+        guard let group = groupIndex[groupID] else { return }
+        guard group.iconID != iconID || group.customIconUUID != nil else { return }
+        try applyEntryEdit(.setGroupIcon(groupID: groupID, iconID: iconID))
+    }
+
     func setGroupExcludedFromAutoFill(_ excluded: Bool, groupID: UUID) throws {
         // Re-including writes an explicit `True` rather than `inherit`, so that
         // a group inside an excluded parent can actually be turned back on.

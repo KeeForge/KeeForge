@@ -22,6 +22,15 @@ struct GroupListView: View {
         }
     }
 
+    /// Identifies the group whose icon picker is showing. A wrapper rather than a bare
+    /// `UUID?` so `sheet(item:)` has an `Identifiable` to key on without retroactively
+    /// conforming a standard-library type.
+    struct PendingIconChange: Identifiable {
+        let groupID: UUID
+
+        var id: UUID { groupID }
+    }
+
     enum PendingDeletion: Identifiable {
         case entry(PendingEntryDeletion)
         case group(PendingGroupDeletion)
@@ -53,6 +62,8 @@ struct GroupListView: View {
     @State private var isShowingNewGroupSheet = false
     @State private var newGroupName = ""
     @State private var groupCreationErrorMessage: String?
+    /// The group whose icon picker is presented, or `nil` when none is.
+    @State private var pendingIconChange: PendingIconChange?
     #if os(macOS)
     @FocusState private var isSearchFieldFocused: Bool
     #endif
@@ -232,6 +243,18 @@ struct GroupListView: View {
                             }
                         )
                     }
+                    .sheet(item: $pendingIconChange) { pending in
+                        // Resolved here rather than captured when the menu was tapped, so
+                        // the picker highlights the icon the group actually has now.
+                        if let group = viewModel.group(withID: pending.groupID) {
+                            GroupIconPickerView(
+                                groupName: group.name,
+                                selectedIconID: group.iconID
+                            ) { iconID in
+                                changeGroupIcon(iconID, groupID: pending.groupID)
+                            }
+                        }
+                    }
                     .alert(item: $pendingDeletion, content: deletionAlert)
                 } else {
                     ContentUnavailableView(
@@ -344,6 +367,13 @@ struct GroupListView: View {
         }
         .macHoverHighlight()
         .contextMenu {
+            if canChangeGroupIcon(groupID) {
+                Button("Change Icon") {
+                    pendingIconChange = PendingIconChange(groupID: groupID)
+                }
+                .accessibilityIdentifier("group-row.change-icon-context")
+            }
+
             if canChangeAutoFillExclusion(groupID) {
                 Button(autoFillExclusionButtonTitle(for: groupID)) {
                     toggleAutoFillExclusion(groupID)
@@ -423,6 +453,27 @@ struct GroupListView: View {
 
     private func groupDeleteButtonTitle(for groupID: UUID) -> String {
         viewModel.isGroupInRecycleBin(groupID: groupID) ? "Delete Permanently" : "Delete"
+    }
+
+    /// Same eligibility as the AutoFill toggle, for the same reasons: nothing is
+    /// editable in a read-only database, and the Recycle Bin row always draws a trash
+    /// can regardless of the stored `iconID`, so picking an icon there would appear to
+    /// do nothing.
+    private func canChangeGroupIcon(_ groupID: UUID) -> Bool {
+        viewModel.isReadOnly == false
+            && viewModel.currentRootGroup?.recycleBinUUID != groupID
+            && viewModel.isGroupInRecycleBin(groupID: groupID) == false
+    }
+
+    private func changeGroupIcon(_ iconID: Int, groupID: UUID) {
+        do {
+            try viewModel.setGroupIcon(iconID, groupID: groupID)
+            Task {
+                await viewModel.saveHandlingError()
+            }
+        } catch {
+            viewModel.presentSaveError(error)
+        }
     }
 
     private func canChangeAutoFillExclusion(_ groupID: UUID) -> Bool {

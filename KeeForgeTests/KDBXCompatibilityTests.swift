@@ -338,7 +338,7 @@ final class KDBXCompatibilityTests: XCTestCase {
 
         // The artifact set never shrinks silently: the gate's merged manifest
         // is compared against exactly this count.
-        XCTAssertEqual(descriptors.count, 21)
+        XCTAssertEqual(descriptors.count, 22)
     }
 
     func test_externalExpectationTables_areExhaustiveOverEveryArtifactScenario() throws {

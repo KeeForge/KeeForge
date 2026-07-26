@@ -519,6 +519,55 @@ final class DatabaseViewModelTests: XCTestCase {
         XCTAssertFalse(vm.isGroupExcludedFromAutoFill(groupID: rootGroupID))
     }
 
+    func testSettingGroupIconAppliesToTheGroup() async throws {
+        let vm = try makeViewModel()
+        await vm.unlock(password: fixturePassword)
+
+        let rootGroupID = try XCTUnwrap(vm.visibleRootGroupID)
+        try vm.createGroup(named: "Banking", in: rootGroupID)
+        let group = try XCTUnwrap(vm.visibleRootGroup?.groups.first(where: { $0.name == "Banking" }))
+        XCTAssertNotEqual(group.iconID, 37)
+
+        try vm.setGroupIcon(37, groupID: group.id)
+
+        XCTAssertEqual(vm.group(withID: group.id)?.iconID, 37)
+        XCTAssertTrue(vm.isDirty)
+    }
+
+    /// KDBX writes `<IconID>` as a bare integer, so an index with no glyph would be
+    /// persisted and then render as whatever fallback each client happens to pick.
+    func testSettingGroupIconIgnoresIndexesOutsideTheStandardSet() async throws {
+        let vm = try makeViewModel()
+        await vm.unlock(password: fixturePassword)
+
+        let rootGroupID = try XCTUnwrap(vm.visibleRootGroupID)
+        try vm.createGroup(named: "Unchanged", in: rootGroupID)
+        let group = try XCTUnwrap(vm.visibleRootGroup?.groups.first(where: { $0.name == "Unchanged" }))
+        let originalIconID = group.iconID
+
+        try vm.setGroupIcon(69, groupID: group.id)
+        try vm.setGroupIcon(-1, groupID: group.id)
+        try vm.setGroupIcon(Int.max, groupID: group.id)
+
+        XCTAssertEqual(vm.group(withID: group.id)?.iconID, originalIconID)
+    }
+
+    /// Re-picking the icon a group already has would otherwise cost a full re-encrypt
+    /// and save for no visible change.
+    func testSettingGroupIconToTheCurrentIconIsANoOp() async throws {
+        let vm = try makeViewModel()
+        await vm.unlock(password: fixturePassword)
+
+        let rootGroupID = try XCTUnwrap(vm.visibleRootGroupID)
+        try vm.createGroup(named: "Same Icon", in: rootGroupID)
+        let group = try XCTUnwrap(vm.visibleRootGroup?.groups.first(where: { $0.name == "Same Icon" }))
+        let modificationTimeBefore = group.lastModificationTime
+
+        try vm.setGroupIcon(group.iconID, groupID: group.id)
+
+        XCTAssertEqual(vm.group(withID: group.id)?.lastModificationTime, modificationTimeBefore)
+    }
+
     func testShowingGroupInAutoFillAgainOverridesExcludedParent() async throws {
         let vm = try makeViewModel()
         await vm.unlock(password: fixturePassword)
