@@ -38,6 +38,7 @@ struct DatabaseListView: View {
     @State private var pickerState = PickerPresentationState<PickerTarget>()
     @State private var selectionAlert: DocumentPickerService.SelectionAlert?
     @State private var pendingRemoval: DatabaseReference?
+    @State private var pendingUploadDiscardTarget: DatabaseReference?
     @State private var renameTarget: DatabaseReference?
     @State private var renameText = ""
     @State private var detailsReference: DatabaseReference?
@@ -192,6 +193,31 @@ struct DatabaseListView: View {
             }
         } message: { reference in
             Text("“\(reference.displayName)” will be removed from KeeForge, including its cached copy and saved biometric key.")
+        }
+        .confirmationDialog(
+            "Discard Pending Upload?",
+            isPresented: Binding(
+                get: { pendingUploadDiscardTarget != nil },
+                set: { isPresented in
+                    if !isPresented {
+                        pendingUploadDiscardTarget = nil
+                    }
+                }
+            ),
+            presenting: pendingUploadDiscardTarget
+        ) { reference in
+            Button("Discard Upload", role: .destructive) {
+                Task {
+                    await viewModel.discardConflictedPendingUploads(for: reference)
+                    refreshDetailsReferenceIfNeeded(for: reference.id)
+                }
+                pendingUploadDiscardTarget = nil
+            }
+            Button("Cancel", role: .cancel) {
+                pendingUploadDiscardTarget = nil
+            }
+        } message: { reference in
+            Text("The pending change for “\(reference.displayName)” could not be uploaded because the copy in the cloud changed. KeeForge keeps a timestamped backup on this device before discarding it.")
         }
         .alert(
             "Rename Database",
@@ -414,6 +440,13 @@ struct DatabaseListView: View {
                 }
             }
             .accessibilityIdentifier("database-row.push-pending-action")
+        }
+
+        if viewModel.hasPendingUploadConflicts(for: reference) {
+            Button("Discard pending upload", role: .destructive) {
+                pendingUploadDiscardTarget = currentReference(for: reference)
+            }
+            .accessibilityIdentifier("database-row.discard-pending-action")
         }
 
         Toggle(

@@ -127,10 +127,7 @@ struct DatabaseRowView: View {
     }
 
     private var conflictText: String {
-        if status.pendingUploadConflictCount == 1 {
-            return "1 pending upload conflict"
-        }
-        return "\(status.pendingUploadConflictCount) pending upload conflicts"
+        String(localized: "\(status.pendingUploadConflictCount) pending upload conflicts")
     }
 
     @ViewBuilder

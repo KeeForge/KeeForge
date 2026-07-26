@@ -100,16 +100,108 @@ final class PendingUploadQueueTests: XCTestCase {
 
     func test_markerCodableRoundTrip() throws {
         let environment = makeEnvironment()
-        let marker = makeMarker(lastSyncError: "Needs attention")
+        let marker = makeMarker(lastSyncError: "Needs attention", baseRev: "rev-1")
 
         let encoded = try environment.encodeMarker(marker)
         let decoded = try environment.decodeMarker(encoded)
 
         XCTAssertEqual(decoded, marker)
+        XCTAssertEqual(decoded.baseRev, "rev-1")
+    }
+
+    func test_markerDecodesLegacyJSONWithoutBaseRev() throws {
+        // Markers persisted before the `baseRev` field existed must keep
+        // decoding, and the missing field must decode as nil — which the
+        // drainer treats as "never auto-rebase".
+        let databaseId = UUID()
+        let legacyJSON = """
+        {
+          "databaseId" : "\(databaseId.uuidString)",
+          "encryptedBytesCacheURL" : "cloud-cache/\(databaseId.uuidString).kdbx",
+          "openTimeSHA512" : "\(Data("open-sha".utf8).base64EncodedString())",
+          "expectedRev" : "rev-1",
+          "createdAt" : 1000,
+          "lastSyncError" : "Needs attention"
+        }
+        """
+
+        let decoded = try JSONDecoder().decode(
+            PendingUploadQueue.Marker.self,
+            from: Data(legacyJSON.utf8)
+        )
+
+        XCTAssertEqual(decoded.databaseId, databaseId)
+        XCTAssertEqual(decoded.openTimeSHA512, Data("open-sha".utf8))
+        XCTAssertEqual(decoded.expectedRev, "rev-1")
+        XCTAssertEqual(decoded.lastSyncError, "Needs attention")
+        XCTAssertNil(decoded.baseRev)
+    }
+
+    func test_enqueue_withoutNotifying_postsNoDarwinNotification_untilExplicitPost() throws {
+        let notificationCounter = Counter()
+        let environment = makeEnvironment(onDarwinNotification: { notificationCounter.increment() })
+
+        _ = try PendingUploadQueue.enqueue(makeMarker(), notifying: false, environment: environment)
+        XCTAssertEqual(notificationCounter.value, 0)
+
+        PendingUploadQueue.postEnqueuedNotification(environment: environment)
+        XCTAssertEqual(notificationCounter.value, 1)
+
+        _ = try PendingUploadQueue.enqueue(makeMarker(), environment: environment)
+        XCTAssertEqual(notificationCounter.value, 2)
+    }
+
+    func test_dropMarkersWithPayloadSHA_dropsMatchesIncludingConflicted_keepsOthersAndExcluded() throws {
+        let environment = makeEnvironment()
+        let databaseId = UUID()
+        let supersededSHA = Data("base-sha".utf8)
+
+        let superseded = try PendingUploadQueue.enqueue(
+            makeMarker(databaseId: databaseId, createdAt: Date(timeIntervalSince1970: 10), openTimeSHA512: supersededSHA),
+            environment: environment
+        )
+        // A conflicted marker with the same recorded payload is equally
+        // superseded — the SHA equality is the proof the conflict was spurious.
+        let conflicted = try PendingUploadQueue.enqueue(
+            makeMarker(
+                databaseId: databaseId,
+                createdAt: Date(timeIntervalSince1970: 20),
+                lastSyncError: "conflict",
+                openTimeSHA512: supersededSHA
+            ),
+            environment: environment
+        )
+        let differentPayload = try PendingUploadQueue.enqueue(
+            makeMarker(databaseId: databaseId, createdAt: Date(timeIntervalSince1970: 30), openTimeSHA512: Data("other-sha".utf8)),
+            environment: environment
+        )
+        let newMarker = try PendingUploadQueue.enqueue(
+            makeMarker(databaseId: databaseId, createdAt: Date(timeIntervalSince1970: 40), openTimeSHA512: supersededSHA),
+            environment: environment
+        )
+        let otherDatabase = try PendingUploadQueue.enqueue(
+            makeMarker(createdAt: Date(timeIntervalSince1970: 50), openTimeSHA512: supersededSHA),
+            environment: environment
+        )
+
+        PendingUploadQueue.dropMarkers(
+            withPayloadSHA512: supersededSHA,
+            for: databaseId,
+            excluding: newMarker.id,
+            environment: environment
+        )
+
+        let remainingIDs = Set(PendingUploadQueue.listMarkers(environment: environment).map(\.id))
+        XCTAssertFalse(remainingIDs.contains(superseded.id))
+        XCTAssertFalse(remainingIDs.contains(conflicted.id))
+        XCTAssertTrue(remainingIDs.contains(differentPayload.id))
+        XCTAssertTrue(remainingIDs.contains(newMarker.id))
+        XCTAssertTrue(remainingIDs.contains(otherDatabase.id))
     }
 
     private func makeEnvironment(
-        writeMarkerAtomically: (@Sendable (Data, URL) throws -> Void)? = nil
+        writeMarkerAtomically: (@Sendable (Data, URL) throws -> Void)? = nil,
+        onDarwinNotification: (@Sendable () -> Void)? = nil
     ) -> PendingUploadQueue.Environment {
         let containerURL = self.containerURL!
         return PendingUploadQueue.Environment(
@@ -145,7 +237,7 @@ final class PendingUploadQueueTests: XCTestCase {
                 )
                 try data.write(to: url, options: .atomic)
             },
-            postDarwinNotification: {}
+            postDarwinNotification: onDarwinNotification ?? {}
         )
     }
 
@@ -153,15 +245,35 @@ final class PendingUploadQueueTests: XCTestCase {
         databaseId: UUID = UUID(),
         createdAt: Date = Date(timeIntervalSince1970: 1_000),
         expectedRev: String? = "rev-1",
-        lastSyncError: String? = nil
+        lastSyncError: String? = nil,
+        openTimeSHA512: Data = Data("open-sha".utf8),
+        baseRev: String? = nil
     ) -> PendingUploadQueue.Marker {
         PendingUploadQueue.Marker(
             databaseId: databaseId,
             encryptedBytesCacheURL: "cloud-cache/\(databaseId.uuidString).kdbx",
-            openTimeSHA512: Data("open-sha".utf8),
+            openTimeSHA512: openTimeSHA512,
             expectedRev: expectedRev,
             createdAt: createdAt,
-            lastSyncError: lastSyncError
+            lastSyncError: lastSyncError,
+            baseRev: baseRev
         )
+    }
+
+    private final class Counter: @unchecked Sendable {
+        private let lock = NSLock()
+        private var storage = 0
+
+        var value: Int {
+            lock.lock()
+            defer { lock.unlock() }
+            return storage
+        }
+
+        func increment() {
+            lock.lock()
+            storage += 1
+            lock.unlock()
+        }
     }
 }

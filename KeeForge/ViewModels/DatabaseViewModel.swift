@@ -513,7 +513,7 @@ final class DatabaseViewModel {
             let data = readResult.data
             encryptedData = data
             cloudSyncStatus = readResult.cloudSyncStatus
-            try cacheDatabaseCopy(data)
+            try cacheDatabaseCopyForLocalDatabase(data)
 
             let compositeKey = KDBXCrypto.compositeKey(password: password, keyFileData: keyFileData)
             let sessionKey = SymmetricKey(size: .bits256)
@@ -565,7 +565,7 @@ final class DatabaseViewModel {
             let data = readResult.data
             encryptedData = data
             cloudSyncStatus = readResult.cloudSyncStatus
-            try cacheDatabaseCopy(data)
+            try cacheDatabaseCopyForLocalDatabase(data)
             let sessionKey = SymmetricKey(size: .bits256)
 
             let unlockPayload = try await Task.detached(priority: .userInitiated) {
@@ -1714,7 +1714,17 @@ final class DatabaseViewModel {
         )
     }
 
-    private func cacheDatabaseCopy(_ data: Data) throws {
+    /// Refreshes the shared AutoFill cache after an unlock read — for local
+    /// databases only. Cloud-backed unlocks read `data` FROM that cache
+    /// (`CloudSyncCoordinator.syncIfNeededForOpen` maintains it), so writing
+    /// it back is redundant — and worse: an AutoFill save landing between the
+    /// coordinator's read and this write would be reverted with no backup,
+    /// since only the coordinator's overwrite paths honor the pending-marker
+    /// backup gate. Local databases have no pending-upload markers (markers
+    /// are enqueued only for cloud-backed references), so the plain rewrite is
+    /// safe there.
+    private func cacheDatabaseCopyForLocalDatabase(_ data: Data) throws {
+        guard databaseReference.isCloudBacked == false else { return }
         try DatabaseListStore.cacheDatabaseCopy(data, for: databaseReference)
     }
 

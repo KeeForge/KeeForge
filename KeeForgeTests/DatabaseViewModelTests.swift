@@ -53,6 +53,35 @@ final class DatabaseViewModelTests: XCTestCase {
         XCTAssertFalse(vm.rootGroup?.allEntries.isEmpty ?? true)
     }
 
+    func testUnlockCloudDatabaseDoesNotRewriteSharedCache() async throws {
+        // The cloud unlock path reads its bytes FROM the shared cache (via the
+        // sync coordinator); writing them back is redundant, and used to
+        // silently revert — with no backup — an AutoFill save that landed in
+        // the cache between the coordinator's read and the rewrite. The cache
+        // must be left alone: here it holds fresher bytes than the ones the
+        // unlock read, and they must survive the unlock attempt untouched.
+        let reference = makeCloudReference(remoteRev: "rev-1")
+        let pendingAutoFillBytes = Data("pending-autofill-save-bytes".utf8)
+        try DatabaseListStore.cacheDatabaseCopy(pendingAutoFillBytes, for: reference)
+
+        let vm = try makeViewModel(
+            reference: reference,
+            cloudSyncOperation: { reference, _ in
+                CloudSyncResolution(
+                    reference: reference,
+                    localURL: DatabaseListStore.cacheLocation(for: reference),
+                    data: Data("stale-open-snapshot".utf8),
+                    status: .current
+                )
+            }
+        )
+
+        await vm.unlock(password: fixturePassword)
+
+        let cacheBytes = try Data(contentsOf: DatabaseListStore.cacheLocation(for: reference))
+        XCTAssertEqual(cacheBytes, pendingAutoFillBytes)
+    }
+
     func testCreatedDatabaseInitializerStartsUnlocked() async throws {
         let created = try await DatabaseCreationService.create(
             request: DatabaseCreationRequest(
@@ -2268,6 +2297,194 @@ final class CloudSyncCoordinatorTests: XCTestCase {
             try Data(contentsOf: XCTUnwrap(DatabaseListStore.cachedDatabaseURL(for: reference))),
             Data("fresh-cloud-copy".utf8)
         )
+    }
+
+    func testSyncDownloadBacksUpCacheWhenPendingUploadMarkerExists() async throws {
+        // M2: the shared cache is the only home of an AutoFill save until its
+        // pending upload drains. A sync-down that replaces the cache while a
+        // marker is queued must first write a timestamped backup of the bytes
+        // being replaced.
+        let reference = makeCloudReference(
+            remoteContentHash: "old-hash",
+            remoteModifiedAt: Date(timeIntervalSince1970: 100)
+        )
+        let pendingBytes = Data("unuploaded-autofill-bytes".utf8)
+        try DatabaseListStore.cacheDatabaseCopy(pendingBytes, for: reference)
+        _ = try PendingUploadQueue.enqueue(
+            makeMarker(databaseId: reference.id, openTimeSHA512: KDBXCrypto.sha512(pendingBytes))
+        )
+
+        let provider = MockCloudProvider()
+        provider.metadataResult = .success(
+            CloudFileMetadata(
+                modifiedDate: Date(timeIntervalSince1970: 200),
+                contentHash: "new-hash",
+                size: 128
+            )
+        )
+        provider.downloadedData = Data("fresh-cloud-copy".utf8)
+
+        let resolution = try await CloudSyncCoordinator.syncIfNeededForOpen(
+            reference: reference,
+            providerResolver: { _ in provider }
+        )
+
+        XCTAssertEqual(resolution.status, .downloaded)
+        XCTAssertEqual(
+            try Data(contentsOf: DatabaseListStore.cacheLocation(for: reference)),
+            Data("fresh-cloud-copy".utf8)
+        )
+        XCTAssertEqual(backupContents(for: reference), [pendingBytes])
+    }
+
+    func testSyncDownloadWithoutPendingMarkerWritesNoBackup() async throws {
+        let reference = makeCloudReference(
+            remoteContentHash: "old-hash",
+            remoteModifiedAt: Date(timeIntervalSince1970: 100)
+        )
+        try DatabaseListStore.cacheDatabaseCopy(Data("already-synced-bytes".utf8), for: reference)
+
+        let provider = MockCloudProvider()
+        provider.metadataResult = .success(
+            CloudFileMetadata(
+                modifiedDate: Date(timeIntervalSince1970: 200),
+                contentHash: "new-hash",
+                size: 128
+            )
+        )
+        provider.downloadedData = Data("fresh-cloud-copy".utf8)
+
+        _ = try await CloudSyncCoordinator.syncIfNeededForOpen(
+            reference: reference,
+            providerResolver: { _ in provider }
+        )
+
+        XCTAssertEqual(backupContents(for: reference), [])
+    }
+
+    func testApplyUploadedBytesBacksUpDivergentCacheWhenPendingUploadMarkerExists() throws {
+        // M2: an AutoFill save can land in the cache while an app-side upload
+        // is in flight; the post-upload cache refresh must not silently revert
+        // it. With a marker queued and the cache differing from the uploaded
+        // bytes, a backup of the cache must be written before the overwrite.
+        let reference = makeCloudReference(remoteContentHash: nil, remoteModifiedAt: nil)
+        let autoFillBytes = Data("interleaved-autofill-bytes".utf8)
+        try DatabaseListStore.cacheDatabaseCopy(autoFillBytes, for: reference)
+        _ = try PendingUploadQueue.enqueue(
+            makeMarker(databaseId: reference.id, openTimeSHA512: KDBXCrypto.sha512(autoFillBytes))
+        )
+
+        let uploadedBytes = Data("app-save-uploaded-bytes".utf8)
+        _ = try CloudSyncCoordinator.applyUploadedBytesAfterSave(
+            reference: reference,
+            bytes: uploadedBytes,
+            remoteMetadata: CloudFileMetadata(modifiedDate: .now, contentHash: "uploaded", size: 64)
+        )
+
+        XCTAssertEqual(
+            try Data(contentsOf: DatabaseListStore.cacheLocation(for: reference)),
+            uploadedBytes
+        )
+        XCTAssertEqual(backupContents(for: reference), [autoFillBytes])
+    }
+
+    func testApplyUploadedBytesSkipsBackupWhenCacheAlreadyHoldsUploadedBytes() throws {
+        // The drain path lands here with its own marker still queued (it is
+        // dropped by the drainer afterwards) and the cache already holding the
+        // pushed bytes — nothing can be lost, so no backup noise.
+        let reference = makeCloudReference(remoteContentHash: nil, remoteModifiedAt: nil)
+        let uploadedBytes = Data("drained-bytes".utf8)
+        try DatabaseListStore.cacheDatabaseCopy(uploadedBytes, for: reference)
+        _ = try PendingUploadQueue.enqueue(
+            makeMarker(databaseId: reference.id, openTimeSHA512: KDBXCrypto.sha512(uploadedBytes))
+        )
+
+        _ = try CloudSyncCoordinator.applyUploadedBytesAfterSave(
+            reference: reference,
+            bytes: uploadedBytes,
+            remoteMetadata: CloudFileMetadata(modifiedDate: .now, contentHash: "uploaded", size: 64)
+        )
+
+        XCTAssertEqual(backupContents(for: reference), [])
+    }
+
+    func testDiscardConflictedPendingUploadsBacksUpLivePayloadAndDropsOnlyConflictedMarkers() async throws {
+        // M3 resolution affordance: discarding backs up the marker's payload
+        // bytes when they are still the live cache, drops conflicted markers,
+        // and leaves un-conflicted ones (which can still drain) untouched.
+        let reference = makeCloudReference(remoteContentHash: nil, remoteModifiedAt: nil)
+        let strandedBytes = Data("stranded-conflict-bytes".utf8)
+        try DatabaseListStore.cacheDatabaseCopy(strandedBytes, for: reference)
+        _ = try PendingUploadQueue.enqueue(
+            makeMarker(
+                databaseId: reference.id,
+                openTimeSHA512: KDBXCrypto.sha512(strandedBytes),
+                lastSyncError: "conflict"
+            )
+        )
+        let healthyMarker = try PendingUploadQueue.enqueue(
+            makeMarker(databaseId: reference.id, openTimeSHA512: Data("other-sha".utf8))
+        )
+
+        let discardedCount = await CloudSyncCoordinator.discardConflictedPendingUploads(for: reference)
+
+        XCTAssertEqual(discardedCount, 1)
+        XCTAssertEqual(backupContents(for: reference), [strandedBytes])
+        let remaining = PendingUploadQueue.listMarkers(for: reference.id)
+        XCTAssertEqual(remaining.map(\.id), [healthyMarker.id])
+        XCTAssertEqual(
+            try Data(contentsOf: DatabaseListStore.cacheLocation(for: reference)),
+            strandedBytes
+        )
+    }
+
+    func testDiscardConflictedPendingUploadsWithoutLivePayloadDropsMarkerWithoutBackup() async throws {
+        // When the cache no longer hashes to the marker's recorded payload,
+        // those bytes are already gone (the overwrite path took its own
+        // backup); discarding just clears the marker.
+        let reference = makeCloudReference(remoteContentHash: nil, remoteModifiedAt: nil)
+        try DatabaseListStore.cacheDatabaseCopy(Data("current-cache-bytes".utf8), for: reference)
+        _ = try PendingUploadQueue.enqueue(
+            makeMarker(
+                databaseId: reference.id,
+                openTimeSHA512: Data("vanished-payload-sha".utf8),
+                lastSyncError: "conflict"
+            )
+        )
+
+        let discardedCount = await CloudSyncCoordinator.discardConflictedPendingUploads(for: reference)
+
+        XCTAssertEqual(discardedCount, 1)
+        XCTAssertEqual(backupContents(for: reference), [])
+        XCTAssertTrue(PendingUploadQueue.listMarkers(for: reference.id).isEmpty)
+    }
+
+    private func makeMarker(
+        databaseId: UUID,
+        openTimeSHA512: Data,
+        lastSyncError: String? = nil
+    ) -> PendingUploadQueue.Marker {
+        PendingUploadQueue.Marker(
+            databaseId: databaseId,
+            encryptedBytesCacheURL: "cloud-cache/\(databaseId.uuidString).kdbx",
+            openTimeSHA512: openTimeSHA512,
+            expectedRev: "rev-1",
+            createdAt: Date(timeIntervalSince1970: 1_000),
+            lastSyncError: lastSyncError,
+            baseRev: "rev-1"
+        )
+    }
+
+    private func backupContents(for reference: DatabaseReference) -> [Data] {
+        let backupDirectory = DatabaseListStore.databaseBackupDirectoryURL(for: reference)
+        let fileURLs = (try? FileManager.default.contentsOfDirectory(
+            at: backupDirectory,
+            includingPropertiesForKeys: nil,
+            options: [.skipsHiddenFiles]
+        )) ?? []
+        return fileURLs
+            .sorted { $0.lastPathComponent < $1.lastPathComponent }
+            .compactMap { try? Data(contentsOf: $0) }
     }
 
     func testSyncReturnsCurrentWhenRemoteMetadataMatchesCachedCopy() async throws {

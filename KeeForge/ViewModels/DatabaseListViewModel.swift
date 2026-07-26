@@ -210,6 +210,14 @@ final class DatabaseListViewModel {
         applyDrainOutcome(outcome, surfaceAlerts: true)
     }
 
+    /// User-confirmed resolution for the orange conflict badge: backs up the
+    /// stranded AutoFill payload (when its bytes still exist) and drops the
+    /// conflicted markers. See `CloudSyncCoordinator.discardConflictedPendingUploads`.
+    func discardConflictedPendingUploads(for reference: DatabaseReference) async {
+        _ = await CloudSyncCoordinator.discardConflictedPendingUploads(for: reference)
+        reload()
+    }
+
     func dismissPendingUploadAlert() {
         pendingUploadAlert = nil
     }

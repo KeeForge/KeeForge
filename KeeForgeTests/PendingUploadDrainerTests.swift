@@ -213,9 +213,17 @@ final class PendingUploadDrainerTests: XCTestCase {
         XCTAssertTrue(recorder.updatedMarkers.isEmpty)
     }
 
-    func test_drain_retriesWhenRemoteRevisionAdvancedFromEarlierPendingUpload() async {
+    func test_drain_rebasesOnlyWhenPayloadDerivesFromRemoteHead() async {
+        // The one situation the auto-rebase remains for: the marker's recorded
+        // base revision equals the reported remote head, so pushing is a pure
+        // fast-forward of content this payload was derived from. The push CAS
+        // (expectedRev) is stale from an earlier attempt and gets rebased.
         let referenceStore = ReferenceStore(makeCloudReference(rev: "rev-2"))
-        let storedMarker = makeStoredMarker(databaseId: referenceStore.reference.id, expectedRev: "rev-1")
+        let storedMarker = makeStoredMarker(
+            databaseId: referenceStore.reference.id,
+            expectedRev: "rev-1",
+            baseRev: "rev-2"
+        )
         let recorder = Recorder()
         let drainer = PendingUploadDrainer(
             environment: makeEnvironment(
@@ -243,6 +251,168 @@ final class PendingUploadDrainerTests: XCTestCase {
         XCTAssertEqual(recorder.updatedMarkers.first?.marker.expectedRev, "rev-2")
         XCTAssertEqual(outcome.drainedDatabaseIDs, [referenceStore.reference.id])
         XCTAssertTrue(outcome.conflictDatabaseIDs.isEmpty)
+    }
+
+    func test_drain_appSaveCompletedDuringAutoFillSession_isNotForcePushed() async {
+        // H2 regression. Interleaving: the app has the database open at rev-A,
+        // AutoFill opens the same cache snapshot, the app's save then lands
+        // (remote rev-B, store reconciled to rev-B), and only afterwards does
+        // AutoFill's save pass its open-time SHA check and enqueue a marker
+        // based on rev-A. At drain time every OLD rebase condition holds: the
+        // payload still hashes to the marker's recorded SHA, and the store's
+        // revision equals the reported remote head — yet force-pushing would
+        // silently erase the app's completed save. The marker's base revision
+        // (rev-A) differing from the head (rev-B) must block the rebase.
+        let reference = makeCloudReference(rev: "rev-B")
+        let storedMarker = makeStoredMarker(
+            databaseId: reference.id,
+            expectedRev: "rev-A",
+            baseRev: "rev-A"
+        )
+        let recorder = Recorder()
+        let drainer = PendingUploadDrainer(
+            environment: makeEnvironment(
+                markers: [storedMarker],
+                reference: reference,
+                recorder: recorder,
+                pushPendingUpload: { _, _, expectedRev in
+                    recorder.pushedExpectedRevisions.append(expectedRev)
+                    if expectedRev == "rev-A" {
+                        return .conflict(remoteRev: "rev-B")
+                    }
+                    XCTFail("Stale AutoFill bytes must not be force-pushed over the app's save")
+                    return .saved(updatedReference: reference)
+                }
+            )
+        )
+
+        let outcome = await drainer.drainAll()
+
+        XCTAssertEqual(recorder.pushedExpectedRevisions, ["rev-A"])
+        XCTAssertTrue(outcome.drainedDatabaseIDs.isEmpty)
+        XCTAssertEqual(outcome.conflictDatabaseIDs, [reference.id])
+        XCTAssertTrue(recorder.droppedMarkerIDs.isEmpty)
+        XCTAssertEqual(
+            recorder.updatedMarkers.first?.marker.lastSyncError,
+            CloudProviderError.conflict(remoteRev: "rev-B").localizedDescription
+        )
+    }
+
+    func test_drain_legacyMarkerWithoutBaseRev_isNeverAutoRebased() async {
+        // A marker persisted before `baseRev` existed decodes with the field
+        // nil. Even when every legacy rebase condition holds (payload intact,
+        // store reconciled to the remote head), the missing base revision must
+        // be treated conservatively: surface the conflict, never force-push.
+        let reference = makeCloudReference(rev: "rev-2")
+        let storedMarker = makeStoredMarker(
+            databaseId: reference.id,
+            expectedRev: "rev-1",
+            baseRev: .some(nil)
+        )
+        let recorder = Recorder()
+        let drainer = PendingUploadDrainer(
+            environment: makeEnvironment(
+                markers: [storedMarker],
+                reference: reference,
+                recorder: recorder,
+                pushPendingUpload: { _, _, expectedRev in
+                    recorder.pushedExpectedRevisions.append(expectedRev)
+                    return .conflict(remoteRev: "rev-2")
+                }
+            )
+        )
+
+        let outcome = await drainer.drainAll()
+
+        XCTAssertEqual(recorder.pushedExpectedRevisions, ["rev-1"])
+        XCTAssertEqual(outcome.conflictDatabaseIDs, [reference.id])
+        XCTAssertTrue(recorder.droppedMarkerIDs.isEmpty)
+    }
+
+    func test_drain_dropsFollowUpMarkerWhosePayloadAlreadyUploadedThisPass() async {
+        // Two markers recording the same payload SHA (a crash-window artifact
+        // of the two-phase enqueue): once the first upload puts that content at
+        // the remote head, the second marker is satisfied — it must be dropped
+        // rather than re-pushed into a spurious revision conflict.
+        let reference = makeCloudReference()
+        let firstMarker = makeStoredMarker(databaseId: reference.id, expectedRev: reference.expectedCloudRevision)
+        let secondMarker = makeStoredMarker(databaseId: reference.id, expectedRev: reference.expectedCloudRevision)
+        let recorder = Recorder()
+        let drainer = PendingUploadDrainer(
+            environment: makeEnvironment(
+                markers: [firstMarker, secondMarker],
+                reference: reference,
+                recorder: recorder,
+                pushPendingUpload: { _, bytes, expectedRev in
+                    recorder.pushedExpectedRevisions.append(expectedRev)
+                    recorder.pushedBytes.append(bytes)
+                    return .saved(updatedReference: reference)
+                }
+            )
+        )
+
+        let outcome = await drainer.drainAll()
+
+        XCTAssertEqual(recorder.pushedExpectedRevisions.count, 1)
+        XCTAssertEqual(recorder.droppedMarkerIDs, [firstMarker.id, secondMarker.id])
+        XCTAssertEqual(outcome.drainedDatabaseIDs, [reference.id])
+        XCTAssertTrue(outcome.conflictDatabaseIDs.isEmpty)
+    }
+
+    func test_drain_requestDuringInFlightDrain_runsAdditionalPass() async {
+        // L3 regression: a marker enqueued while a drain pass is running posts
+        // a Darwin notification whose drain request coalesces onto the running
+        // task. That request must not be swallowed — the running drain owes
+        // the queue one more pass.
+        let reference = makeCloudReference()
+        let firstMarker = makeStoredMarker(databaseId: reference.id, expectedRev: reference.expectedCloudRevision)
+        let midDrainMarker = makeStoredMarker(databaseId: reference.id, expectedRev: reference.expectedCloudRevision)
+        let recorder = Recorder()
+        let listCallCounter = Counter()
+        let firstPushStarted = AsyncSignal()
+        let resumeFirstPush = AsyncSignal()
+
+        var environment = makeEnvironment(
+            markers: [],
+            reference: reference,
+            recorder: recorder,
+            pushPendingUpload: { _, _, expectedRev in
+                recorder.pushedExpectedRevisions.append(expectedRev)
+                if recorder.pushedExpectedRevisions.count == 1 {
+                    firstPushStarted.signal()
+                    await resumeFirstPush.wait()
+                }
+                return .saved(updatedReference: reference)
+            }
+        )
+        environment.listMarkers = { _ in
+            switch listCallCounter.incrementAndGet() {
+            case 1: [firstMarker]
+            case 2: [midDrainMarker]
+            default: []
+            }
+        }
+        let drainer = PendingUploadDrainer(environment: environment)
+
+        let firstDrain = Task { await drainer.drainAll() }
+        await firstPushStarted.wait()
+
+        // Coalesces onto the in-flight drain. Yield so the coalescing task
+        // reaches its first suspension point — which is past the rerun-request
+        // registration — before the blocked first push is released.
+        let coalescedDrain = Task { await drainer.drainAll() }
+        for _ in 0..<5 {
+            await Task.yield()
+        }
+        resumeFirstPush.signal()
+
+        let outcome = await firstDrain.value
+        _ = await coalescedDrain.value
+
+        XCTAssertEqual(listCallCounter.value, 2)
+        XCTAssertEqual(recorder.droppedMarkerIDs, [firstMarker.id, midDrainMarker.id])
+        XCTAssertEqual(recorder.pushedExpectedRevisions.count, 2)
+        XCTAssertEqual(outcome.drainedDatabaseIDs, [reference.id])
     }
 
     func test_drain_ignoresReadOnlyFlagForExistingPendingMarkers() async {
@@ -306,9 +476,13 @@ final class PendingUploadDrainerTests: XCTestCase {
         )
     }
 
+    /// `baseRev` defaults to `expectedRev`, matching what the AutoFill enqueue
+    /// records (both start as the reference revision the extension opened
+    /// from). Pass `baseRev:` explicitly to model rebased or legacy markers.
     private func makeStoredMarker(
         databaseId: UUID,
-        expectedRev: String?
+        expectedRev: String?,
+        baseRev: String?? = nil
     ) -> PendingUploadQueue.StoredMarker {
         PendingUploadQueue.StoredMarker(
             id: UUID(),
@@ -319,7 +493,8 @@ final class PendingUploadDrainerTests: XCTestCase {
                 openTimeSHA512: Data("open-sha".utf8),
                 expectedRev: expectedRev,
                 createdAt: Date(timeIntervalSince1970: 1_000),
-                lastSyncError: nil
+                lastSyncError: nil,
+                baseRev: baseRev ?? expectedRev
             )
         )
     }
@@ -387,6 +562,55 @@ final class PendingUploadDrainerTests: XCTestCase {
 
         init(_ reference: DatabaseReference) {
             self.reference = reference
+        }
+    }
+
+    private final class Counter: @unchecked Sendable {
+        private let lock = NSLock()
+        private var storage = 0
+
+        var value: Int {
+            lock.lock()
+            defer { lock.unlock() }
+            return storage
+        }
+
+        func incrementAndGet() -> Int {
+            lock.lock()
+            defer { lock.unlock() }
+            storage += 1
+            return storage
+        }
+    }
+
+    /// One-shot signal usable across isolation domains: `wait()` suspends
+    /// until `signal()` has been called (immediately resuming if it already
+    /// was).
+    private final class AsyncSignal: @unchecked Sendable {
+        private let lock = NSLock()
+        private var isSignaled = false
+        private var continuations: [CheckedContinuation<Void, Never>] = []
+
+        func signal() {
+            lock.lock()
+            isSignaled = true
+            let pending = continuations
+            continuations = []
+            lock.unlock()
+            pending.forEach { $0.resume() }
+        }
+
+        func wait() async {
+            await withCheckedContinuation { continuation in
+                lock.lock()
+                if isSignaled {
+                    lock.unlock()
+                    continuation.resume()
+                    return
+                }
+                continuations.append(continuation)
+                lock.unlock()
+            }
         }
     }
 }
