@@ -884,6 +884,98 @@ final class DatabaseViewModelTests: XCTestCase {
         XCTAssertFalse(fake.calls.contains("removeAllCredentialIdentities"))
     }
 
+    /// End-to-end version of `testUnlockRefreshesOnlyTheUnlockedDatabase`:
+    /// there the first database's identities are hand-seeded, here they are
+    /// published by a real unlock. The app holds one session at a time, so
+    /// reaching a two-database store means unlock A → lock A → unlock B, and
+    /// every step of that sequence has to leave A's suggestions in place for
+    /// QuickType to offer both databases for the same site.
+    func testUnlockingASecondDatabaseAddsToTheFirstDatabasesIdentities() async throws {
+        let fake = FakeCredentialIdentityStore()
+        CredentialIdentityStoreManager.storeProviderOverride = fake
+
+        let referenceA = try makeReference()
+        DatabaseListStore.update(referenceA)
+        let viewModelA = try makeViewModel(reference: referenceA)
+        await unlockAwaitingInitialPopulate(viewModelA)
+        try await awaitStoredDatabaseIDs(in: fake, toEqual: [referenceA.id])
+
+        viewModelA.lock(manuallyTriggered: true)
+        XCTAssertState(viewModelA.state, is: .locked)
+
+        let referenceB = try makeReference()
+        DatabaseListStore.update(referenceB)
+        let viewModelB = try makeViewModel(reference: referenceB)
+        await unlockAwaitingInitialPopulate(viewModelB)
+
+        try await awaitStoredDatabaseIDs(in: fake, toEqual: [referenceA.id, referenceB.id])
+        XCTAssertFalse(
+            fake.calls.contains("removeAllCredentialIdentities"),
+            "The second unlock must refresh additively, never empty the store"
+        )
+    }
+
+    /// Locking is a session teardown, not an AutoFill state change: the
+    /// published identities have to survive it, or QuickType suggestions
+    /// would vanish the moment the app auto-locks.
+    func testLockLeavesPublishedIdentitiesInTheStore() async throws {
+        let fake = FakeCredentialIdentityStore()
+        CredentialIdentityStoreManager.storeProviderOverride = fake
+
+        let reference = try makeReference()
+        DatabaseListStore.update(reference)
+        let vm = try makeViewModel(reference: reference)
+        await unlockAwaitingInitialPopulate(vm)
+        try await awaitStoredDatabaseIDs(in: fake, toEqual: [reference.id])
+        let identityCountAfterUnlock = fake.stored.count
+
+        fake.onMutation = { XCTFail("Locking must not mutate the credential identity store") }
+        CredentialIdentityStoreManager.clearObserver = {
+            XCTFail("Locking must not clear the credential identity store")
+        }
+        CredentialIdentityStoreManager.removeDatabaseObserver = { _, _ in
+            XCTFail("Locking must not remove the database's identities")
+        }
+
+        vm.lock(manuallyTriggered: true)
+
+        try? await Task.sleep(for: .milliseconds(150))
+        XCTAssertState(vm.state, is: .locked)
+        XCTAssertEqual(fake.stored.count, identityCountAfterUnlock)
+        fake.onMutation = nil
+    }
+
+    /// Polls the fake store until the set of database ids owning its tagged
+    /// identities equals `expected`. The manager's writes are fire-and-forget
+    /// `Task`s, so the store settles a little after `populateObserver` fires.
+    private func awaitStoredDatabaseIDs(
+        in store: FakeCredentialIdentityStore,
+        toEqual expected: Set<UUID>,
+        timeout: Duration = .seconds(5),
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) async throws {
+        let deadline = ContinuousClock.now + timeout
+        var observed: Set<UUID> = []
+
+        while ContinuousClock.now < deadline {
+            observed = Set(store.stored.compactMap { identity -> UUID? in
+                guard let recordIdentifier = identity.recordIdentifier,
+                      case .current(let parsed) = CredentialRecordIdentifier.parse(recordIdentifier)
+                else { return nil }
+                return parsed.databaseID
+            })
+            if observed == expected { return }
+            try await Task.sleep(for: .milliseconds(50))
+        }
+
+        XCTFail(
+            "Timed out waiting for the store to hold identities of \(expected); it held \(observed)",
+            file: file,
+            line: line
+        )
+    }
+
     func testGlobalToggleOnRefreshesOnlyUnlockedEnabledDatabase() async throws {
         // The Settings screen's Quick AutoFill "on" handler calls
         // populateCredentialStoreIfUnlocked() on the open session. The silent
