@@ -74,13 +74,10 @@ enum CloudSyncCoordinator {
             let remoteMetadata = try await provider.getMetadata(accountId: metadata.accountId, fileId: metadata.fileId)
             let needsDownload = remoteMetadata.requiresDownload(comparedTo: metadata, cacheExists: cacheExists)
 
-            // Prefer the metadata the download itself reported: it describes
-            // the bytes now in the cache, where `remoteMetadata` describes the
-            // head as of before the transfer. Recording the earlier one after
-            // someone else wrote mid-download leaves the cache holding bytes
-            // filed under a rev they never had, which costs a spurious
-            // conflict on the next save. Providers that cannot report it
-            // (OneDrive) return nil and keep the pre-download reading.
+            // Prefer the metadata the download reported: it describes the
+            // bytes now in the cache, not the head from before the transfer
+            // (see `CloudProvider.download`). nil means the provider cannot
+            // say, so the pre-download reading stands.
             var syncedMetadata = remoteMetadata
             if needsDownload {
                 let downloadedMetadata = try await downloadLatestCopy(
@@ -183,19 +180,13 @@ enum CloudSyncCoordinator {
         // them. The drainer's SHA-512 check then surfaces the overwrite as a
         // conflict instead of silently losing the local change.
         //
-        // Ordering (unchanged): pin the bytes being superseded FIRST, then
-        // list markers. The AutoFill save path enqueues its marker durably
-        // before writing the cache, so any unuploaded bytes captured by the
-        // pin are guaranteed to have their marker visible to this check.
-        // Listing before pinning left a window where freshly written AutoFill
-        // bytes were superseded with their marker unseen.
-        //
-        // The pin is a hard link rather than the rename this replaced, so the
-        // cache path names a complete file at every instant. The rename
-        // emptied it for the whole duration of the backup write, and a crash
-        // in that window lost the cache outright with the only other copy
-        // under an orphan UUID name. A filesystem without hard links fails the
-        // link and so fails the sync-down, which is the safe direction: the
+        // Ordering: pin the superseded bytes FIRST, then list markers — the
+        // AutoFill save writes its marker durably before the cache, so pinned
+        // unuploaded bytes always have a marker visible here. Do not
+        // reintroduce list-then-pin: it superseded fresh bytes marker-unseen.
+        // The pin is a hard link, not a rename: a rename empties the cache
+        // path for the whole backup write, and a crash there loses the cache.
+        // No hard-link support fails the sync-down, the safe direction — the
         // caller falls back to the untouched cached copy.
         let pinnedURL = directory.appendingPathComponent(UUID().uuidString, isDirectory: false)
         try fileManager.linkItem(at: destinationURL, to: pinnedURL)
@@ -210,14 +201,10 @@ enum CloudSyncCoordinator {
             try backUpCacheBeforePendingOverwrite(at: pinnedURL, reference: reference)
         }
 
-        // Publish the new bytes only if the cache is still the file that was
-        // pinned. A concurrent AutoFill save writing the cache between the pin
-        // and here holds bytes whose marker this pass never examined, so the
-        // sync-down fails rather than clobbering them — the same protection
-        // the rename used to get from `moveItem` refusing an occupied path.
-        // The identity check runs inside the coordinated write, and every
-        // cache writer goes through NSFileCoordinator, so nothing can land
-        // between the check and the replace.
+        // Publish only if the cache is still the pinned file: a concurrent
+        // AutoFill save between the pin and here holds bytes whose marker this
+        // pass never examined, so the sync-down fails rather than clobbering
+        // them (see `replaceCacheItem`).
         try replaceCacheItem(
             at: destinationURL,
             withItemAt: tempURL,
@@ -228,13 +215,10 @@ enum CloudSyncCoordinator {
     }
 
     /// iOS Data Protection for the shared cache. Applied to the staged copy
-    /// before the swap and again to the live file after it: `replaceItemAt`
-    /// carries some of the original item's metadata onto the replacement, so
-    /// it must not be trusted to carry the protection class across.
-    ///
-    /// No-op on macOS, where setting a protection class either fails or leaves
-    /// the file unreadable — FileVault covers at-rest encryption there instead
-    /// (see `Data.WritingOptions.atomicProtected`).
+    /// before the swap and again after it: `replaceItemAt` carries some
+    /// original metadata onto the replacement, but not reliably the protection
+    /// class. No-op on macOS, where setting one either fails or leaves the
+    /// file unreadable — FileVault covers at-rest encryption there instead.
     private static func applyCacheFileProtection(at url: URL) throws {
         #if os(iOS)
         try FileManager.default.setAttributes(
@@ -246,18 +230,14 @@ enum CloudSyncCoordinator {
 
     /// Installs `replacementURL` at `destinationURL` as one atomic swap under
     /// a coordinated `.forReplacing` write — the primitive every other cache
-    /// writer already uses (`CoordinatedFileReader.writeData`,
-    /// `LocalDatabaseSaver.replaceFileAtomically`). Readers, including the
-    /// AutoFill extension, therefore never observe a partial file and never
-    /// observe the path missing.
+    /// writer uses — so readers never observe a partial or missing file.
     ///
-    /// The swap is always conditional on the destination still being what the
-    /// caller inspected: `pinnedFileID` is the identity it pinned, or nil when
-    /// it found no cache at all. Either way a destination that no longer
-    /// matches means a concurrent writer got there first, and the replace is
-    /// abandoned rather than clobbering bytes this pass never examined. The
-    /// comparison sits inside the coordination block, and every cache writer
-    /// coordinates, so nothing can slip between the check and the swap.
+    /// Conditional on the destination still being what the caller inspected:
+    /// `pinnedFileID` is the identity it pinned, or nil when it found no
+    /// cache. A mismatch means a concurrent writer got there first and the
+    /// replace is abandoned. The comparison sits inside the coordination
+    /// block, and every cache writer coordinates, so nothing slips between
+    /// check and swap.
     private static func replaceCacheItem(
         at destinationURL: URL,
         withItemAt replacementURL: URL,
@@ -315,15 +295,13 @@ enum CloudSyncCoordinator {
         return (attributes?[.systemFileNumber] as? NSNumber)?.uint64Value
     }
 
-    /// Copies the soon-to-be-overwritten cache bytes (passed as `cacheURL`,
-    /// which may be a renamed-aside copy) into the database's timestamped
-    /// backup directory so a not-yet-uploaded AutoFill save stays recoverable
-    /// through the existing restore UI. Deliberately fallible: when the backup
-    /// cannot be written, the caller must NOT proceed with the overwrite —
-    /// losing the only copy of unuploaded bytes is strictly worse than failing
-    /// the cache refresh, which callers degrade from gracefully (sync-down
-    /// falls back to the cached copy). The drainer's SHA-512 guard remains the
-    /// second line of defense against pushing the wrong bytes.
+    /// Copies the soon-to-be-overwritten cache bytes (`cacheURL` may be a
+    /// pinned hard link) into the database's timestamped backup directory so a
+    /// not-yet-uploaded AutoFill save stays recoverable through the restore
+    /// UI. Deliberately fallible: callers must NOT overwrite when this throws
+    /// — losing the only copy of unuploaded bytes is worse than failing the
+    /// cache refresh. The drainer's SHA-512 guard is the second line of
+    /// defense against pushing the wrong bytes.
     private static func backUpCacheBeforePendingOverwrite(
         at cacheURL: URL,
         reference: DatabaseReference
@@ -366,13 +344,11 @@ enum CloudSyncCoordinator {
     }
 
     /// User-invoked resolution for a conflicted pending upload (the orange
-    /// badge in the database list): discards the conflicted markers so the
-    /// badge clears, after writing a timestamped backup of the marker's
-    /// payload bytes when those bytes still exist in the shared cache. When
-    /// the cache no longer hashes to the marker's recorded SHA the payload is
-    /// already gone (that is what made the marker conflict), so there is
-    /// nothing left to back up — the earlier overwrite path took its own
-    /// pre-overwrite backup. Returns the number of markers discarded.
+    /// badge in the database list): backs the marker's payload bytes up while
+    /// they are still the live cache, then discards the markers so the badge
+    /// clears. A cache that no longer hashes to the recorded SHA means the
+    /// payload is already gone — the overwrite path took its own backup.
+    /// Returns the number of markers discarded.
     static func discardConflictedPendingUploads(for reference: DatabaseReference) async -> Int {
         await Task.detached(priority: .utility) {
             let conflictedMarkers = PendingUploadQueue.listMarkers(for: reference.id)
@@ -386,10 +362,9 @@ enum CloudSyncCoordinator {
             var discardedCount = 0
             for storedMarker in conflictedMarkers {
                 if let cacheSHA512, cacheSHA512 == storedMarker.marker.openTimeSHA512 {
-                    // Payload bytes are still the live cache; keep them
-                    // recoverable through the restore UI before dropping the
-                    // marker that protects them. A failed backup keeps the
-                    // marker (and the badge) instead of discarding blind.
+                    // Keep the payload recoverable before dropping the marker
+                    // that protects it. A failed backup keeps the marker (and
+                    // the badge) instead of discarding blind.
                     do {
                         try backUpCacheBeforePendingOverwrite(at: cacheURL, reference: reference)
                     } catch {
@@ -440,15 +415,10 @@ enum CloudSyncCoordinator {
         remoteMetadata: CloudFileMetadata
     ) throws -> DatabaseReference {
         // Same protection as `downloadLatestCopy`: an AutoFill save can land
-        // in the cache while this upload was in flight, and its marker is on
-        // disk before its bytes are (see `AutoFillSaveCoordinator`). If a
-        // marker is queued and the cache differs from the bytes about to be
-        // written, back the cache up before replacing it — the marker then
-        // surfaces the overwrite as a conflict with the bytes recoverable,
-        // instead of the refresh silently reverting the AutoFill save. When
-        // the cache already equals `bytes` (every drain lands here, with its
-        // own marker still queued until the caller drops it) there is nothing
-        // to lose, so no backup is taken.
+        // in the cache while this upload was in flight. A queued marker plus a
+        // cache differing from `bytes` means unuploaded bytes are about to be
+        // reverted, so back them up first. Equal bytes (every drain lands
+        // here, marker still queued) have nothing to lose.
         let cacheURL = DatabaseListStore.cacheLocation(for: reference)
         if !PendingUploadQueue.listMarkers(for: reference.id).isEmpty,
            let currentCacheBytes = try? CoordinatedFileReader.readData(from: cacheURL),
@@ -460,9 +430,16 @@ enum CloudSyncCoordinator {
 
         var updatedReference = reference
         updatedReference.updateCloudSyncMetadata { cloudMetadata in
-            cloudMetadata.remoteContentHash = remoteMetadata.contentHash
+            // An upload response can omit rev/hash (OneDrive session
+            // completions). Nilling a good recorded value would send every
+            // later save into the nil-rev conflict fallback.
+            if let contentHash = remoteMetadata.contentHash {
+                cloudMetadata.remoteContentHash = contentHash
+            }
             cloudMetadata.remoteModifiedAt = remoteMetadata.modifiedDate
-            cloudMetadata.remoteRev = remoteMetadata.rev
+            if let rev = remoteMetadata.rev {
+                cloudMetadata.remoteRev = rev
+            }
             cloudMetadata.lastSyncedAt = .now
             cloudMetadata.lastSyncError = nil
         }

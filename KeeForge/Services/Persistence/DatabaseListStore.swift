@@ -343,23 +343,15 @@ enum DatabaseListStore {
     }
 
     /// Applies `mutate` to the cloud sync metadata of the *currently stored*
-    /// copy of this database, leaving every other field of the stored
-    /// reference alone.
+    /// copy, leaving every other stored field alone. Anything that learns
+    /// cloud state across an `await` must use this instead of `update(_:)`,
+    /// which writes back a whole pre-round-trip reference and so rolls back a
+    /// save or drain that completed inside the window.
     ///
-    /// Anything that learns cloud state across an `await` must use this rather
-    /// than `update(_:)`. `update` writes back a whole reference captured
-    /// before the network round-trip, so a save or drain completing inside
-    /// that window is silently rolled back to the older revision — and the
-    /// next save then false-conflicts against the app's own upload.
-    ///
-    /// `observed` is the sync state the caller saw before its round-trip. If
-    /// the stored state has moved on since, a newer writer already knows more
-    /// than this caller does: nothing is written and the newer stored
-    /// reference is returned so the caller can adopt it.
-    ///
-    /// Returns nil when the database is no longer listed, is not cloud-backed,
-    /// or when the mutated list could not be persisted — a caller recording a
-    /// revision must not act on one that never reached disk.
+    /// If the stored state has moved past `observed`, nothing is written and
+    /// the newer stored reference is returned to adopt. Nil when the database
+    /// is unlisted, not cloud-backed, or the list failed to persist — a
+    /// revision that never reached disk must not be acted on.
     @discardableResult
     static func updateCloudSyncMetadata(
         for id: UUID,
@@ -383,10 +375,9 @@ enum DatabaseListStore {
         }
     }
 
-    /// What "the remote state this caller started from" means for the
-    /// compare-and-skip above. Revision alone is not enough: references
-    /// predating rev tracking carry only a content hash, and there the hash is
-    /// the entire signal that the remote moved.
+    /// Identity for the compare-and-skip above. Revision alone is not enough:
+    /// references predating rev tracking carry only a content hash, which is
+    /// then the entire signal that the remote moved.
     private static func cloudRevisionIdentity(_ metadata: CloudSyncMetadata) -> String {
         "\(metadata.remoteRev ?? "")\u{1F}\(metadata.remoteContentHash ?? "")"
     }
@@ -704,9 +695,8 @@ enum DatabaseListStore {
     }
 
     /// Returns whether the list actually reached disk. Most callers are
-    /// best-effort and ignore it, but one that just recorded a cloud revision
-    /// must not report success for a revision that was never persisted — it
-    /// would conflict against its own upload on the next save.
+    /// best-effort and ignore it; one recording a cloud revision must not
+    /// report success for a revision that never persisted.
     @discardableResult
     private static func saveDatabases(_ references: [DatabaseReference]) -> Bool {
         withStateLock {

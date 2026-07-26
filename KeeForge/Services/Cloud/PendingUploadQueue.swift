@@ -13,20 +13,17 @@ enum PendingUploadQueue {
     struct Marker: Codable, Equatable, Sendable {
         let databaseId: UUID
         let encryptedBytesCacheURL: String
-        /// SHA-512 the payload bytes at `encryptedBytesCacheURL` must still
-        /// hash to when the drainer pushes them. A provisional marker (written
-        /// before the AutoFill save rewrites the cache) records the base
-        /// bytes' hash; the finalize step swaps in the saved payload's hash.
+        /// SHA-512 the bytes at `encryptedBytesCacheURL` must still hash to
+        /// when the drainer pushes them. A provisional marker records the base
+        /// bytes' hash; finalize swaps in the saved payload's hash.
         var openTimeSHA512: Data
         var expectedRev: String?
         let createdAt: Date
         var lastSyncError: String?
-        /// Remote revision whose content the payload was derived from — the
-        /// rev recorded on the reference when the saving process opened the
-        /// database. The drainer only auto-rebases a conflicted marker when
-        /// this equals the reported remote head (a provable fast-forward).
-        /// Markers persisted before this field existed decode as `nil`, which
-        /// conservatively disables auto-rebase for them.
+        /// Remote revision the payload was derived from (the reference's rev
+        /// when the saving process opened the database). The drainer only
+        /// auto-rebases a conflicted marker when this equals the remote head.
+        /// Legacy markers decode as `nil`, disabling auto-rebase for them.
         var baseRev: String?
 
         init(
@@ -124,9 +121,8 @@ enum PendingUploadQueue {
     }
 
     /// `notifying: false` writes the marker durably without posting the Darwin
-    /// drain notification. Used for provisional markers that precede their
-    /// payload's cache write — the notification is posted separately once the
-    /// payload is actually in place (see `postEnqueuedNotification`).
+    /// drain notification — for provisional markers that precede their
+    /// payload's cache write (see `postEnqueuedNotification`).
     static func enqueue(_ marker: Marker, notifying: Bool = true, environment: Environment) throws -> StoredMarker {
         let markerID = UUID()
         let directoryURL = queueDirectoryURL(for: marker.databaseId, environment: environment)
@@ -223,13 +219,11 @@ enum PendingUploadQueue {
     /// Drops every marker for `databaseId` whose recorded payload SHA-512
     /// equals `payloadSHA512`, except `excludedMarkerID`.
     ///
-    /// SHA equality is a proof of supersession: the caller's own base bytes
-    /// hash to the marker's recorded payload, so that exact content forms the
-    /// base of whatever the caller is about to upload or has just uploaded.
-    /// The marker can no longer represent unsaved content — conflicted or not
-    /// — which is why this drops conflicted markers too (the equality is the
-    /// evidence the conflict was spurious). Best-effort per marker: a failed
-    /// drop leaves at worst a phantom conflict badge, never data loss.
+    /// SHA equality proves supersession: that exact content is the base of
+    /// what the caller is about to upload or just uploaded, so the marker can
+    /// no longer represent unsaved content — including conflicted markers,
+    /// whose conflict the equality shows to be spurious. Best-effort per
+    /// marker: a failed drop leaves a phantom conflict badge, never data loss.
     static func dropMarkers(
         withPayloadSHA512 payloadSHA512: Data,
         for databaseId: UUID,

@@ -157,11 +157,9 @@ final class CredentialProviderSaveTests: XCTestCase {
     }
 
     func test_saveNewEntry_cloudSource_enqueuesProvisionalMarkerBeforeSave_finalizesAfter() async throws {
-        // M2 ordering regression: the marker must be durable BEFORE the save
-        // rewrites the shared cache (so a crash or concurrent cache overwrite
-        // in any window leaves either a harmless base-bytes marker or a
-        // visible conflict — never unmarked, unuploaded bytes), and the drain
-        // notification must only fire once the payload is in place.
+        // Ordering regression: the marker must be durable BEFORE the save
+        // rewrites the shared cache, so no window leaves unmarked unuploaded
+        // bytes, and the drain notification fires only once the payload lands.
         let reference = makeCloudReference(rev: "rev-9")
         let sessionKey = SymmetricKey(size: .bits256)
         let recorder = SaveRecorder()
@@ -259,11 +257,10 @@ final class CredentialProviderSaveTests: XCTestCase {
     }
 
     func test_saveNewEntry_cloudSource_finalizeLosingCASRace_reenqueuesConservativeMarker() async throws {
-        // Models a concurrent main-app drain completing (and dropping) the
-        // provisional marker mid-save: the just-saved bytes are still
-        // unuploaded, so a replacement marker must appear — carrying the
-        // store's refreshed revision as the push CAS but NO base revision, so
-        // the drainer surfaces any conflict instead of ever auto-rebasing.
+        // Provisional marker vanishes mid-save: a replacement must cover the
+        // still-unuploaded bytes with the ORIGINAL expectedRev (a fresh one
+        // could CAS-land over a mid-flight app save) and no baseRev, so the
+        // drainer conflicts instead of auto-rebasing.
         let reference = makeCloudReference(rev: "rev-9")
         var refreshedReference = reference
         refreshedReference.updateCloudSyncMetadata { metadata in
@@ -309,7 +306,7 @@ final class CredentialProviderSaveTests: XCTestCase {
         XCTAssertEqual(recorder.enqueuedMarkers.count, 2)
         let replacementMarker = try XCTUnwrap(recorder.enqueuedMarkers.last)
         XCTAssertEqual(replacementMarker.openTimeSHA512, Data("new-sha".utf8))
-        XCTAssertEqual(replacementMarker.expectedRev, "rev-10")
+        XCTAssertEqual(replacementMarker.expectedRev, "rev-9")
         XCTAssertNil(replacementMarker.baseRev)
         XCTAssertNil(replacementMarker.lastSyncError)
         XCTAssertEqual(recorder.notifyCount, 1)

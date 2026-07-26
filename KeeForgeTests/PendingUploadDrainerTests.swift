@@ -254,15 +254,11 @@ final class PendingUploadDrainerTests: XCTestCase {
     }
 
     func test_drain_appSaveCompletedDuringAutoFillSession_isNotForcePushed() async {
-        // H2 regression. Interleaving: the app has the database open at rev-A,
-        // AutoFill opens the same cache snapshot, the app's save then lands
-        // (remote rev-B, store reconciled to rev-B), and only afterwards does
-        // AutoFill's save pass its open-time SHA check and enqueue a marker
-        // based on rev-A. At drain time every OLD rebase condition holds: the
-        // payload still hashes to the marker's recorded SHA, and the store's
-        // revision equals the reported remote head — yet force-pushing would
-        // silently erase the app's completed save. The marker's base revision
-        // (rev-A) differing from the head (rev-B) must block the rebase.
+        // Regression: an app save lands (rev-A → rev-B) after AutoFill opened
+        // the cache at rev-A, so the marker's payload SHA and the store's
+        // revision both still satisfy the old rebase conditions. Only
+        // baseRev (rev-A) != head (rev-B) blocks the force-push that would
+        // erase the app's save.
         let reference = makeCloudReference(rev: "rev-B")
         let storedMarker = makeStoredMarker(
             databaseId: reference.id,

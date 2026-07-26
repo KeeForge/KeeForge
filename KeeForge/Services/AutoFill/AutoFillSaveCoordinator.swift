@@ -19,22 +19,18 @@ enum AutoFillSaveCoordinator {
         var saveDraft: @Sendable (DatabaseDraft, DatabaseReference, Data, Data) async throws -> SaveResult
         var relativePathForURL: @Sendable (URL) throws -> String
         /// Writes the marker durably WITHOUT posting the Darwin drain
-        /// notification: a provisional marker is enqueued before its payload
-        /// exists in the cache, so waking the main-app drainer at that point
-        /// would only race the save. `notifyPendingUploadEnqueued` fires once
-        /// the payload is in place.
+        /// notification — the provisional marker precedes its payload, so
+        /// waking the drainer here would only race the save.
         var enqueuePendingUpload: @Sendable (PendingUploadQueue.Marker) throws -> PendingUploadQueue.StoredMarker
         /// CAS-updates the provisional marker with the saved payload's SHA-512.
-        /// Throws `PendingUploadQueue.UpdateError.markerNoLongerExists` when a
-        /// concurrent drain already completed (and dropped) the provisional
-        /// marker.
+        /// Throws `markerNoLongerExists` if a concurrent drain dropped it.
         var finalizePendingUpload: @Sendable (PendingUploadQueue.StoredMarker) throws -> Void
         /// Best-effort removal of a provisional marker whose save never
         /// rewrote the cache (conflict or thrown error).
         var dropPendingUpload: @Sendable (PendingUploadQueue.StoredMarker) -> Void
-        /// Drops markers for the database whose recorded payload SHA-512
-        /// equals the given base SHA — provably superseded by the save being
-        /// enqueued (M3). The excluded id is the just-enqueued marker itself.
+        /// Drops markers whose recorded payload SHA-512 equals the given base
+        /// SHA — provably superseded by the save being enqueued. The excluded
+        /// id is the just-enqueued marker itself.
         var dropSupersededPendingUploads: @Sendable (_ databaseId: UUID, _ payloadSHA512: Data, _ excludedMarkerID: UUID) -> Void
         var notifyPendingUploadEnqueued: @Sendable () -> Void
         var resolveReference: @Sendable (UUID) -> DatabaseReference?
@@ -133,30 +129,16 @@ enum AutoFillSaveCoordinator {
             .createEntry(parentGroupID: parentGroupID, draft: draftPayload)
         )
 
-        // Cloud-backed saves use a two-phase marker so that, at every instant,
-        // bytes in the shared cache that have not reached the cloud are covered
-        // by a durable marker (the marker's presence is what gates the
-        // pre-overwrite backup in every sync-down/cache-refresh path):
-        //
+        // Two-phase marker: unuploaded cache bytes always have a covering
+        // durable marker, whose presence gates the pre-overwrite backup in
+        // every cache-refresh path. Order is load-bearing:
         //   1. enqueue provisional marker recording the BASE bytes' SHA-512
-        //      (fsync'd temp+rename — durable before step 2 starts)
-        //   2. saveDraft: SHA-check, backup, atomically replace cache with the
-        //      new payload
-        //   3. finalize: CAS-update the marker to the payload's SHA-512, then
-        //      post the Darwin drain notification
-        //
-        // Crash-at-every-step: after 1 the cache still holds the base bytes,
-        // which match the marker's recorded SHA — a drain re-pushes content
-        // byte-identical to what this device already derived from (harmless),
-        // then drops the marker. A crash inside 2 leaves either the base bytes
-        // (same as above; saveDraft's replacement is atomic) or the new
-        // payload; in the latter case, and between 2 and 3, the marker's
-        // recorded SHA mismatches the cache, which every consumer treats as a
-        // visible conflict — never a silent push of wrong bytes, and the
-        // marker's presence still forces a backup before any overwrite. If the
-        // save returns .conflict or throws, the cache was never rewritten and
-        // the stale provisional marker is dropped (a crash before that drop
-        // degrades to the harmless re-push above).
+        //   2. saveDraft: SHA-check, backup, atomic cache replace
+        //   3. finalize: CAS marker to the payload SHA, then wake the drainer
+        // Crash before the replace leaves cache == marker SHA, so a drain
+        // re-pushes identical bytes; after it, the mismatch reads as a visible
+        // conflict instead of a silent wrong push. On .conflict or a throw the
+        // cache was never rewritten, so the stale marker is dropped.
         var provisionalMarker: PendingUploadQueue.StoredMarker?
         if reference.isCloudBacked {
             let cacheURL = DatabaseListStore.cacheLocation(for: reference)
@@ -173,10 +155,9 @@ enum AutoFillSaveCoordinator {
                         baseRev: reference.expectedCloudRevision
                     )
                 )
-                // M3: an older marker whose recorded payload hashes to this
-                // save's base bytes is provably contained in this save — drop
-                // it (after the new marker is durable, so the cache's
-                // unuploaded bytes are never uncovered).
+                // An older marker whose payload hashes to this save's base
+                // bytes is contained in this save. Dropped only after the new
+                // marker is durable, so the cache is never left uncovered.
                 environment.dropSupersededPendingUploads(reference.id, openTimeSHA512, storedMarker.id)
                 return storedMarker
             }.value
@@ -243,16 +224,13 @@ enum AutoFillSaveCoordinator {
         }
     }
 
-    /// Completes phase 3 of the two-phase pending-upload marker (see the
-    /// ordering comment in `saveNewEntry`). When the CAS update reports the
-    /// provisional marker gone, a concurrent drain in the main app already
-    /// pushed the base payload and dropped the file — or the database was
-    /// removed. Removal ends the story; otherwise the just-saved bytes are
-    /// still unuploaded, so a fresh marker is enqueued for them. The refreshed
-    /// reference supplies the store's current revision as the push CAS, while
-    /// `baseRev` stays `nil`: this path cannot prove what content the remote
-    /// head holds, and a nil base rev makes the drainer surface any conflict
-    /// instead of ever auto-rebasing.
+    /// Phase 3 of the two-phase marker. A failed CAS means something else
+    /// dropped the provisional marker while the saved bytes are still
+    /// unuploaded, so a replacement is enqueued unless the database is gone.
+    /// The replacement keeps the ORIGINAL `expectedRev` and a nil `baseRev`:
+    /// this path cannot prove what the remote head holds, so its push must
+    /// CAS-fail into a visible conflict rather than silently overwrite an app
+    /// save that completed mid-flight.
     private static func finalizeOrReplacePendingUpload(
         _ storedMarker: PendingUploadQueue.StoredMarker,
         reference: DatabaseReference,
@@ -268,7 +246,6 @@ enum AutoFillSaveCoordinator {
             }
 
             var replacementMarker = storedMarker.marker
-            replacementMarker.expectedRev = refreshedReference.expectedCloudRevision
             replacementMarker.baseRev = nil
             replacementMarker.lastSyncError = nil
             if (try? environment.enqueuePendingUpload(replacementMarker)) != nil {
