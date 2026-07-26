@@ -115,6 +115,30 @@ enum KDBXCompatibilitySupport {
             source: .bundled(name: "attachments")
         )
 
+        /// Foreign-authored (pykeepass) KDBX4 fixture with the ChaCha20 outer
+        /// cipher. Every other bundled fixture is AES-256-CBC authored by
+        /// pykeepass or KeeForge itself, so this and `foreignTwofish` are the
+        /// only fixtures that prove KeeForge's ChaCha20/Twofish outer-cipher
+        /// READ paths against a database KeeForge did not write. See
+        /// `TestFixtures/compatibility/generate_foreign_cipher_fixtures.py`.
+        static let foreignChaCha20 = Fixture(
+            id: "foreign-chacha20",
+            displayName: "Foreign-authored ChaCha20 fixture",
+            password: "foreign-chacha20",
+            keyFileName: nil,
+            source: .bundled(name: "foreign-chacha20")
+        )
+
+        /// Foreign-authored (pykeepass) KDBX4 fixture with the Twofish outer
+        /// cipher. See `foreignChaCha20`.
+        static let foreignTwofish = Fixture(
+            id: "foreign-twofish",
+            displayName: "Foreign-authored Twofish fixture",
+            password: "foreign-twofish",
+            keyFileName: nil,
+            source: .bundled(name: "foreign-twofish")
+        )
+
         static let syntheticRich = Fixture(
             id: "synthetic-rich",
             displayName: "Synthetic rich KDBX4 fixture",
@@ -162,6 +186,8 @@ enum KDBXCompatibilitySupport {
         .kdbx41PublicCustomData,
         .syntheticChaCha,
         .syntheticTwofish,
+        .foreignChaCha20,
+        .foreignTwofish,
     ]
 
     /// Title of the entry `fixtureSmokeScenario` creates. Shared with the
@@ -337,6 +363,8 @@ enum KDBXCompatibilitySupport {
         "fixture-smoke-kdbx41-public-custom-data",
         "fixture-smoke-synthetic-chacha",
         "fixture-smoke-synthetic-twofish",
+        "fixture-smoke-foreign-chacha20",
+        "fixture-smoke-foreign-twofish",
     ]
 
     /// An entry that already exists in each fixture, with the password that
@@ -357,6 +385,8 @@ enum KDBXCompatibilitySupport {
         Fixture.attachments.id: .init(entryTitle: "Multi Attachment Entry", password: "entry-password-1"),
         Fixture.syntheticChaCha.id: .init(entryTitle: "Compat Untouched Entry", password: "untouched-password"),
         Fixture.syntheticTwofish.id: .init(entryTitle: "Compat Untouched Entry", password: "untouched-password"),
+        Fixture.foreignChaCha20.id: .init(entryTitle: "Foreign Entry Alpha", password: "ForeignAlphaSecret1"),
+        Fixture.foreignTwofish.id: .init(entryTitle: "Foreign Entry Alpha", password: "ForeignAlphaSecret1"),
     ]
 
     /// Expected protected-value checks keyed by scenario id. Every smoke
