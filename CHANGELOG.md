@@ -23,7 +23,7 @@ TODO before the first macOS release:
 
 ### New Features
 
-- Added a tag browser: browse all tags with entry counts from the database root (and the macOS sidebar), and jump to a tag from any entry's detail screen. Search matches tags.
+- Added a tag browser: browse all tags with entry counts — including tags inherited from groups — jump to a tag from any entry's detail screen, and search by tag.
 - Change a group's icon: long-press a group and choose "Change Icon" to pick from the standard KeePass icon set. If the group used a custom icon from the database, picking a standard one replaces it — a custom icon takes precedence over the standard one, so it has to go for the new choice to show. The Recycle Bin keeps its trash-can icon, and nothing is editable in a read-only database.
 - Copy an entry's verification code to the clipboard when AutoFill fills its password, for sites whose one-time code field iOS does not recognize. Off by default; turn on "Copy Verification Code on AutoFill" under Settings › AutoFill. The copy clears itself after the Clipboard Clear Timeout and never leaves the device. While the setting is on, filling a suggestion for an entry that has a verification code asks you to confirm in KeeForge rather than filling silently, because AutoFill can only write the clipboard while its panel is on screen.
 

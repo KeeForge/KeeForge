@@ -1884,6 +1884,178 @@ final class DatabaseViewModelTests: XCTestCase {
         XCTAssertTrue(vm.navigationPath.isEmpty)
     }
 
+    // MARK: - Tag inheritance (group tags)
+    //
+    // Group tags are read-only, parsed from KDBX 4.1 files — neither
+    // DatabaseCreationService nor any KeeForge edit can author one — so these
+    // scenarios build KPGroup trees directly and inject them through the
+    // reload seam (`makeInjectedViewModel`).
+
+    func testGroupTagAppliesToEntriesInsideTheGroup() async throws {
+        let alpha = KPEntry(title: "Alpha")
+        let outside = KPEntry(title: "Outside")
+        let root = KPGroup(name: "Root", groups: [
+            KPGroup(name: "Projects", tags: ["team"], hasTagsElement: true, entries: [alpha]),
+            KPGroup(name: "Plain", entries: [outside]),
+        ])
+        let vm = try await makeInjectedViewModel(rootGroup: root)
+
+        XCTAssertEqual(vm.entryCount(forTag: "team"), 1)
+        XCTAssertEqual(vm.entries(withTag: "team").map(\.id), [alpha.id])
+        XCTAssertTrue(
+            vm.tagsInDisplayOrder.contains("team"),
+            "The slice 02 browser derivations must surface inherited tags with no extra wiring"
+        )
+        XCTAssertFalse(vm.entries(withTag: "team").map(\.id).contains(outside.id))
+    }
+
+    func testNestedGroupsAccumulateAncestorAndOwnTagsOnTheDeepestEntry() async throws {
+        let beta = KPEntry(title: "Beta", tags: ["own-tag"], hasTagsElement: true)
+        let root = KPGroup(name: "Root", groups: [
+            KPGroup(name: "Projects", tags: ["team"], hasTagsElement: true, groups: [
+                KPGroup(name: "Client Work", tags: ["billable"], hasTagsElement: true, entries: [beta]),
+            ]),
+        ])
+        let vm = try await makeInjectedViewModel(rootGroup: root)
+
+        for tag in ["own-tag", "team", "billable"] {
+            XCTAssertEqual(vm.entryCount(forTag: tag), 1, "Expected \(tag) to be effective on the nested entry")
+            XCTAssertEqual(vm.entries(withTag: tag).map(\.id), [beta.id])
+        }
+    }
+
+    func testRootGroupTagReachesAllLiveEntries() async throws {
+        let atRoot = KPEntry(title: "At Root")
+        let nested = KPEntry(title: "Nested")
+        let root = KPGroup(
+            name: "Root",
+            tags: ["global"],
+            hasTagsElement: true,
+            entries: [atRoot],
+            groups: [KPGroup(name: "Child", entries: [nested])]
+        )
+        let vm = try await makeInjectedViewModel(rootGroup: root)
+
+        XCTAssertEqual(vm.entryCount(forTag: "global"), 2)
+        XCTAssertEqual(Set(vm.entries(withTag: "global").map(\.id)), [atRoot.id, nested.id])
+    }
+
+    func testGroupAndEntrySharingATagCountTheEntryOnce() async throws {
+        let entry = KPEntry(title: "Doubly Tagged", tags: ["shared"], hasTagsElement: true)
+        let root = KPGroup(name: "Root", groups: [
+            KPGroup(name: "Shared Group", tags: ["shared"], hasTagsElement: true, entries: [entry]),
+        ])
+        let vm = try await makeInjectedViewModel(rootGroup: root)
+
+        XCTAssertEqual(
+            vm.entryCount(forTag: "shared"),
+            1,
+            "Effective tags are exact-string deduped, so own + inherited copies of one tag count once"
+        )
+        XCTAssertEqual(vm.entries(withTag: "shared").map(\.id), [entry.id])
+    }
+
+    func testCaseVariantGroupAndEntryTagsStayDistinct() async throws {
+        let entry = KPEntry(title: "Cased", tags: ["work"], hasTagsElement: true)
+        let root = KPGroup(name: "Root", groups: [
+            KPGroup(name: "Work Group", tags: ["Work"], hasTagsElement: true, entries: [entry]),
+        ])
+        let vm = try await makeInjectedViewModel(rootGroup: root)
+
+        XCTAssertEqual(Set(vm.allTags), ["work", "Work"], "Tag identity is exact-string; case variants stay apart")
+        XCTAssertEqual(vm.entryCount(forTag: "work"), 1)
+        XCTAssertEqual(vm.entryCount(forTag: "Work"), 1)
+    }
+
+    func testRecycledEntriesUnderATaggedGroupStayExcluded() async throws {
+        let binID = UUID()
+        let doomed = KPEntry(title: "Doomed", tags: ["doomed-own"], hasTagsElement: true)
+        let survivor = KPEntry(title: "Survivor")
+        let root = KPGroup(
+            name: "Root",
+            groups: [
+                KPGroup(name: "Live", entries: [survivor]),
+                KPGroup(id: binID, name: "Recycle Bin", groups: [
+                    KPGroup(name: "Old Projects", tags: ["archived"], hasTagsElement: true, entries: [doomed]),
+                ]),
+            ],
+            recycleBinUUID: binID
+        )
+        let vm = try await makeInjectedViewModel(rootGroup: root)
+
+        XCTAssertTrue(vm.isEntryInRecycleBin(entryID: doomed.id))
+        XCTAssertFalse(vm.allTags.contains("archived"), "A tagged group inside the bin must not surface its tag")
+        XCTAssertFalse(vm.allTags.contains("doomed-own"))
+        XCTAssertEqual(vm.entryCount(forTag: "archived"), 0)
+        XCTAssertTrue(vm.entries(withTag: "archived").isEmpty)
+
+        vm.searchText = "archived"
+        XCTAssertTrue(vm.searchResults.isEmpty)
+    }
+
+    func testRecycleBinGroupsOwnTagsNeverSurface() async throws {
+        let binID = UUID()
+        let recycled = KPEntry(title: "Recycled")
+        let live = KPEntry(title: "Live Entry")
+        let root = KPGroup(
+            name: "Root",
+            entries: [live],
+            groups: [
+                KPGroup(id: binID, name: "Recycle Bin", tags: ["bin-tag"], hasTagsElement: true, entries: [recycled]),
+            ],
+            recycleBinUUID: binID
+        )
+        let vm = try await makeInjectedViewModel(rootGroup: root)
+
+        XCTAssertFalse(
+            vm.allTags.contains("bin-tag"),
+            "The bin group's own tags accumulate only into its excluded subtree and must never reach the index"
+        )
+        XCTAssertEqual(vm.entryCount(forTag: "bin-tag"), 0)
+
+        vm.searchText = "bin-tag"
+        XCTAssertTrue(vm.searchResults.isEmpty, "The live entry must not inherit the bin group's tag either")
+    }
+
+    func testSearchFindsAnEntryViaAncestorGroupTag() async throws {
+        let tagged = KPEntry(title: "Bank")
+        let untagged = KPEntry(title: "Untagged")
+        let root = KPGroup(name: "Root", groups: [
+            KPGroup(name: "Trips", tags: ["Réunion Trip"], hasTagsElement: true, entries: [tagged]),
+            KPGroup(name: "Plain", entries: [untagged]),
+        ])
+        let vm = try await makeInjectedViewModel(rootGroup: root)
+
+        // Folded like every other searchable field: case- and
+        // diacritic-insensitive, full text and partial.
+        for query in ["Réunion Trip", "reunion trip", "RÉUN", "trip"] {
+            vm.searchText = query
+            XCTAssertEqual(
+                vm.searchResults.map(\.title),
+                ["Bank"],
+                "Expected the ancestor group's tag to match query \"\(query)\""
+            )
+        }
+    }
+
+    func testHistoryOnlyTagUnderATaggedGroupStillFindsNothing() async throws {
+        let snapshot = KPEntry(title: "Historic", tags: ["retired"], hasTagsElement: true)
+        let live = KPEntry(title: "Historic", tags: ["current"], hasTagsElement: true, history: [snapshot])
+        let root = KPGroup(name: "Root", groups: [
+            KPGroup(name: "Projects", tags: ["team"], hasTagsElement: true, entries: [live]),
+        ])
+        let vm = try await makeInjectedViewModel(rootGroup: root)
+
+        XCTAssertFalse(vm.allTags.contains("retired"), "History snapshots stay out of the index entirely")
+        vm.searchText = "retired"
+        XCTAssertTrue(vm.searchResults.isEmpty)
+
+        vm.searchText = "team"
+        XCTAssertEqual(vm.searchResults.map(\.id), [live.id])
+        vm.searchText = "current"
+        XCTAssertEqual(vm.searchResults.map(\.id), [live.id])
+    }
+
     func testWhitespaceOnlySearchQueryIsTreatedAsEmpty() async throws {
         let vm = try makeViewModel()
         await vm.unlock(password: fixturePassword)
@@ -2701,6 +2873,33 @@ final class DatabaseViewModelTests: XCTestCase {
             )
         )
         return DatabaseViewModel(createdDatabase: created)
+    }
+
+    /// An unlocked view model over an arbitrary in-memory tree, injected
+    /// through the reload seam. This is the only way to put group tags in
+    /// front of the view model: they are read-only (parsed from KDBX 4.1
+    /// files), so neither `DatabaseCreationService` nor any KeeForge edit can
+    /// author one.
+    private func makeInjectedViewModel(rootGroup: KPGroup) async throws -> DatabaseViewModel {
+        let vm = try makeViewModel(
+            reloadOperation: { reference, _ in
+                DatabaseViewModel.ReloadedDatabase(
+                    reference: reference,
+                    rootGroup: rootGroup,
+                    meta: KPMeta(
+                        recycleBinUUID: rootGroup.recycleBinUUID,
+                        hasRecycleBinUUIDElement: rootGroup.recycleBinUUID != nil
+                    ),
+                    formatVersion: .kdbx4(minor: 1),
+                    sessionKey: SymmetricKey(size: .bits256),
+                    openTimeSHA512: Data("injected-tree-hash".utf8),
+                    binaryPool: BinaryPool(rawFields: [])
+                )
+            }
+        )
+        await vm.unlock(password: fixturePassword)
+        try await vm.reloadDiscardingDraft()
+        return vm
     }
 
     /// Unlocks the view model and waits for the unlock-triggered credential

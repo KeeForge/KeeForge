@@ -751,6 +751,8 @@ final class KDBXXMLParser: NSObject, XMLParserDelegate {
         var name = ""
         var iconID = 48
         var customIconUUID: UUID?
+        var tags: [String] = []
+        var hasTagsElement = false
         var entries: [KPEntry] = []
         var groups: [KPGroup] = []
         var isExpanded = true
@@ -767,6 +769,8 @@ final class KDBXXMLParser: NSObject, XMLParserDelegate {
                 name: name,
                 iconID: iconID,
                 customIconUUID: customIconUUID,
+                tags: tags,
+                hasTagsElement: hasTagsElement,
                 entries: entries,
                 groups: groups,
                 isExpanded: isExpanded,
@@ -1426,9 +1430,17 @@ final class KDBXXMLParser: NSObject, XMLParserDelegate {
                 entry.hasTagsElement = true
                 let trimmed = currentText.trimmingCharacters(in: .whitespacesAndNewlines)
                 if !trimmed.isEmpty {
-                    entry.tags = trimmed.components(separatedBy: CharacterSet([",", ";"])).map {
-                        $0.trimmingCharacters(in: .whitespaces)
-                    }.filter { !$0.isEmpty }
+                    entry.tags = Self.splitStoredTags(trimmed)
+                }
+            } else if parentName == "Group", !inMeta, let index = groupStack.indices.last {
+                // KDBX 4.1 group tags, same three-state presence semantics as
+                // entries. Guarded like `EnableSearching`'s group case so a
+                // stray `<Tags>` in any other context stays opaque instead of
+                // mutating the enclosing group builder.
+                groupStack[index].hasTagsElement = true
+                let trimmed = currentText.trimmingCharacters(in: .whitespacesAndNewlines)
+                if !trimmed.isEmpty {
+                    groupStack[index].tags = Self.splitStoredTags(trimmed)
                 }
             }
 
@@ -1538,6 +1550,13 @@ final class KDBXXMLParser: NSObject, XMLParserDelegate {
             switch elementName {
             case "UUID", "Name", "IconID", "IsExpanded", "Times", "Entry", "Group":
                 groupStack[index].knownChildCount += 1
+            case "Tags" where !inMeta && currentEntry == nil:
+                // Counted as structured only under exactly the conditions the
+                // parse handler accepted it (a direct group child, outside
+                // Meta, with no entry open); anywhere else the element stays
+                // opaque, keeping this counter and the serializer's emission
+                // in lockstep.
+                groupStack[index].knownChildCount += 1
             case "EnableSearching" where currentEnableSearchingWasParsable:
                 groupStack[index].knownChildCount += 1
             default:
@@ -1612,6 +1631,18 @@ final class KDBXXMLParser: NSObject, XMLParserDelegate {
         default:
             break
         }
+    }
+
+    /// Splits a stored `<Tags>` value the way KeePass reads it: on `,` and
+    /// `;`, trimming each piece and dropping empties — no deduplication and
+    /// no reordering, so the source file's list (duplicates included)
+    /// round-trips verbatim. Shared by the entry and group paths; this is
+    /// deliberately NOT `TagNormalizer`, whose first-occurrence dedupe is an
+    /// edit-side policy that would rewrite parsed data at read time.
+    private static func splitStoredTags(_ trimmedText: String) -> [String] {
+        trimmedText.components(separatedBy: CharacterSet([",", ";"])).map {
+            $0.trimmingCharacters(in: .whitespaces)
+        }.filter { !$0.isEmpty }
     }
 
     private static let nullUUID = UUID(uuid: (0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0))

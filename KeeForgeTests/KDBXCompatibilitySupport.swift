@@ -139,6 +139,22 @@ enum KDBXCompatibilitySupport {
             source: .bundled(name: "foreign-twofish")
         )
 
+        /// Foreign-authored (pykeepass) KDBX 4.1 fixture whose groups carry
+        /// `<Tags>` in all three states — content (`Projects`, nested
+        /// `Client Work`), an empty element (`Empty Tags Group`), and no
+        /// element at all (`Plain Group`) — plus a group `<Notes>` that
+        /// KeeForge keeps as unknown XML right next to the now-structured
+        /// `<Tags>`. See
+        /// `TestFixtures/compatibility/generate_group_tags_fixture.py` and
+        /// `TestFixtures/README.md`.
+        static let groupTags = Fixture(
+            id: "group-tags",
+            displayName: "KDBX 4.1 group tags fixture",
+            password: "testpassword123",
+            keyFileName: nil,
+            source: .bundled(name: "group-tags")
+        )
+
         static let syntheticRich = Fixture(
             id: "synthetic-rich",
             displayName: "Synthetic rich KDBX4 fixture",
@@ -188,6 +204,7 @@ enum KDBXCompatibilitySupport {
         .syntheticTwofish,
         .foreignChaCha20,
         .foreignTwofish,
+        .groupTags,
     ]
 
     /// Title of the entry `fixtureSmokeScenario` creates. Shared with the
@@ -366,6 +383,8 @@ enum KDBXCompatibilitySupport {
         "fixture-smoke-synthetic-twofish",
         "fixture-smoke-foreign-chacha20",
         "fixture-smoke-foreign-twofish",
+        "fixture-smoke-group-tags",
+        "group-tags-update-entry",
     ]
 
     /// An entry that already exists in each fixture, with the password that
@@ -388,6 +407,7 @@ enum KDBXCompatibilitySupport {
         Fixture.syntheticTwofish.id: .init(entryTitle: "Compat Untouched Entry", password: "untouched-password"),
         Fixture.foreignChaCha20.id: .init(entryTitle: "Foreign Entry Alpha", password: "ForeignAlphaSecret1"),
         Fixture.foreignTwofish.id: .init(entryTitle: "Foreign Entry Alpha", password: "ForeignAlphaSecret1"),
+        Fixture.groupTags.id: .init(entryTitle: "Alpha Login", password: "GroupTagAlpha1"),
     ]
 
     /// Expected protected-value checks keyed by scenario id. Every smoke
@@ -414,6 +434,10 @@ enum KDBXCompatibilitySupport {
         ]
         table["attachments-update-entry"] = [
             .init(entryTitle: "Multi Attachment Entry Updated", password: "updated-multi-password"),
+        ]
+        table["group-tags-update-entry"] = [
+            .init(entryTitle: "Beta Login Updated", password: "GroupTagBetaUpdated2"),
+            .init(entryTitle: "Alpha Login", password: "GroupTagAlpha1"),
         ]
         return table
     }()
@@ -713,6 +737,74 @@ enum KDBXCompatibilitySupport {
         )
     }
 
+    /// Update-entry scenario for the `group-tags` fixture: edits `Beta Login`
+    /// (nested under both tagged groups) and asserts every group's tags and
+    /// has-element flag survive the save untouched.
+    ///
+    /// External-proof limitation, stated deliberately: `keepassxc-cli` has no
+    /// verb that prints a group's tags, so the gate's checks on this artifact
+    /// are indirect — the rewritten database still opens, every listed group
+    /// path still resolves (`Projects/Client Work` proves structure), and the
+    /// search/password probes pass. The direct proof that every group tag
+    /// survived is in-process: `assertSurvivingGroupsPreserveScalars` (whose
+    /// `GroupScalars` carries `tags`/`hasTagsElement`) plus the explicit
+    /// per-group assertions below and in
+    /// `KDBXCompatibilityTests.test_groupTagsFixture_…`.
+    static func groupTagsFixtureUpdateEntryScenario() -> Scenario {
+        Scenario(
+            id: "group-tags-update-entry",
+            title: "Update entry preserves group tags",
+            artifactFileName: "group-tags-update-entry.kdbx",
+            expectedSearchTerms: ["Beta Login Updated"],
+            expectedGroupPaths: ["Projects", "Projects/Client Work", "Empty Tags Group", "Plain Group"],
+            makeEdit: { loaded in
+                let entry = try XCTUnwrap(findEntry(titled: "Beta Login", in: loaded.rootGroup))
+                return .updateEntry(
+                    entryID: entry.id,
+                    draft: EntryDraftPayload(
+                        title: "Beta Login Updated",
+                        username: entry.username,
+                        password: "GroupTagBetaUpdated2",
+                        url: entry.url,
+                        notes: entry.notes,
+                        customFields: entry.customFields,
+                        tags: entry.tags
+                    )
+                )
+            },
+            assertChange: { before, after, _ in
+                let entryID = try XCTUnwrap(before.entryID(titled: "Beta Login"))
+                try assertUnchangedEntries(before: before, after: after, excluding: [entryID])
+                try assertSurvivingGroupsPreserveScalars(before: before, after: after)
+                assertMetaUnchanged(before: before, after: after)
+
+                let updated = try XCTUnwrap(after.entries[entryID])
+                XCTAssertEqual(updated.title, "Beta Login Updated")
+                XCTAssertEqual(updated.tags, ["own-tag"], "The entry's own tag rides through the edit")
+
+                let projects = try XCTUnwrap(after.groups[XCTUnwrap(after.groupID(named: "Projects"))])
+                XCTAssertEqual(projects.tags, ["team", "shared"])
+                XCTAssertTrue(projects.hasTagsElement)
+                XCTAssertTrue(
+                    projects.unknownXML.nodes.contains { $0.xml.hasPrefix("<Notes>") },
+                    "The group's opaque <Notes> sibling survives next to the structured <Tags>"
+                )
+
+                let clientWork = try XCTUnwrap(after.groups[XCTUnwrap(after.groupID(named: "Client Work"))])
+                XCTAssertEqual(clientWork.tags, ["billable"])
+                XCTAssertTrue(clientWork.hasTagsElement)
+
+                let emptyTags = try XCTUnwrap(after.groups[XCTUnwrap(after.groupID(named: "Empty Tags Group"))])
+                XCTAssertTrue(emptyTags.tags.isEmpty)
+                XCTAssertTrue(emptyTags.hasTagsElement, "The empty <Tags></Tags> element survives the save")
+
+                let plain = try XCTUnwrap(after.groups[XCTUnwrap(after.groupID(named: "Plain Group"))])
+                XCTAssertTrue(plain.tags.isEmpty)
+                XCTAssertFalse(plain.hasTagsElement, "A group that never had the element must not gain one")
+            }
+        )
+    }
+
     // MARK: - Artifact set
 
     /// One `(fixture, scenario)` pair, i.e. exactly one `.kdbx` artifact for
@@ -748,6 +840,9 @@ enum KDBXCompatibilitySupport {
         )
         descriptors.append(
             ArtifactDescriptor(fixture: .attachments, scenario: attachmentsFixtureSoftDeleteScenario())
+        )
+        descriptors.append(
+            ArtifactDescriptor(fixture: .groupTags, scenario: groupTagsFixtureUpdateEntryScenario())
         )
         descriptors.append(
             ArtifactDescriptor(fixture: .syntheticRich, scenario: keeOTPArtifactScenario())
@@ -1023,6 +1118,8 @@ struct CompatibilitySnapshot {
         let id: UUID
         let name: String
         let iconID: Int
+        let tags: [String]
+        let hasTagsElement: Bool
         let isExpanded: Bool
         let searchingEnabled: KPInheritableBool?
         let creationTime: Date?
@@ -1037,6 +1134,8 @@ struct CompatibilitySnapshot {
                 id: id,
                 name: name,
                 iconID: iconID,
+                tags: tags,
+                hasTagsElement: hasTagsElement,
                 isExpanded: isExpanded,
                 searchingEnabled: searchingEnabled,
                 creationTime: creationTime,
@@ -1051,6 +1150,11 @@ struct CompatibilitySnapshot {
         let id: UUID
         let name: String
         let iconID: Int
+        /// Covered here so an unrelated edit cannot silently drop, reorder,
+        /// or invent a group's KDBX 4.1 `<Tags>` (read-only in KeeForge)
+        /// without a compatibility scenario failing.
+        let tags: [String]
+        let hasTagsElement: Bool
         let isExpanded: Bool
         /// Covered here so an unrelated edit cannot silently drop or flip a
         /// group's `<EnableSearching>` without a compatibility scenario failing.
@@ -1117,6 +1221,8 @@ struct CompatibilitySnapshot {
             id: group.id,
             name: group.name,
             iconID: group.iconID,
+            tags: group.tags,
+            hasTagsElement: group.hasTagsElement,
             isExpanded: group.isExpanded,
             searchingEnabled: group.searchingEnabled,
             creationTime: group.creationTime,

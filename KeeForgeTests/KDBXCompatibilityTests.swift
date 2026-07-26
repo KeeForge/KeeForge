@@ -25,6 +25,7 @@ final class KDBXCompatibilityTests: XCTestCase {
     private static let smokeFixtureIDsWithDedicatedTests: Set<String> = [
         KDBXCompatibilitySupport.Fixture.unknownRich.id,
         KDBXCompatibilitySupport.Fixture.kdbx41PublicCustomData.id,
+        KDBXCompatibilitySupport.Fixture.groupTags.id,
     ]
 
     private var bundle: Bundle {
@@ -247,6 +248,100 @@ final class KDBXCompatibilityTests: XCTestCase {
         try collector.emit()
     }
 
+    /// `group-tags.kdbx` is the pykeepass-authored KDBX 4.1 fixture whose
+    /// groups carry `<Tags>` in all three states (content, empty element, no
+    /// element; see `TestFixtures/README.md`). `keepassxc-cli` has no verb
+    /// that prints group tags, so the external gate can only prove the
+    /// rewritten database opens with its structure and protected values
+    /// intact — the group-tag preservation proof is in-process, on the
+    /// reparsed snapshots asserted here and in the scenarios' own checks.
+    func test_groupTagsFixture_preservesGroupTagsAcrossSaves() throws {
+        let collector = try KDBXCompatibilitySupport.ArtifactCollector(testCase: self)
+
+        // fixtureSmoke: creating an unrelated entry must not disturb any
+        // group's tags, has-element flag, or opaque <Notes> sibling.
+        let smokeLoaded = try KDBXCompatibilitySupport.load(.groupTags, bundle: bundle)
+        XCTAssertEqual(
+            smokeLoaded.header.formatVersion,
+            .kdbx4(minor: 1),
+            "Fixture precondition: group tags are a KDBX 4.1 feature and the fixture must really be 4.1"
+        )
+        let smokeResult = try collector.run(
+            KDBXCompatibilitySupport.fixtureSmokeScenario(fixtureID: KDBXCompatibilitySupport.Fixture.groupTags.id),
+            on: smokeLoaded
+        )
+        assertSmokeShape(smokeResult, fixture: smokeLoaded.fixture)
+        XCTAssertEqual(
+            smokeResult.afterHeader.formatVersion,
+            .kdbx4(minor: 1),
+            "A rewrite must keep the source's 4.1 version, not renegotiate it"
+        )
+        try assertGroupTagFixtureShape(in: smokeResult.before)
+        try assertGroupTagFixtureShape(in: smokeResult.after)
+
+        // updateEntry: editing an entry nested under both tagged groups runs
+        // the copyGroup/replacingChildGroup funnel over exactly the groups
+        // that carry tags; the scenario's own assertions re-check every
+        // group's tags on the reparsed tree.
+        let updateLoaded = try KDBXCompatibilitySupport.load(.groupTags, bundle: bundle)
+        let updateResult = try collector.run(
+            KDBXCompatibilitySupport.groupTagsFixtureUpdateEntryScenario(),
+            on: updateLoaded
+        )
+        try assertGroupTagFixtureShape(in: updateResult.after)
+
+        try collector.emit()
+    }
+
+    private func assertGroupTagFixtureShape(
+        in snapshot: CompatibilitySnapshot,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) throws {
+        let projects = try XCTUnwrap(
+            snapshot.groups[XCTUnwrap(snapshot.groupID(named: "Projects"), file: file, line: line)],
+            file: file,
+            line: line
+        )
+        XCTAssertEqual(projects.tags, ["team", "shared"], file: file, line: line)
+        XCTAssertTrue(projects.hasTagsElement, file: file, line: line)
+        XCTAssertTrue(
+            projects.unknownXML.nodes.contains { $0.xml.hasPrefix("<Notes>") },
+            "Projects' <Notes> must stay opaque next to the structured <Tags>",
+            file: file,
+            line: line
+        )
+
+        let clientWork = try XCTUnwrap(
+            snapshot.groups[XCTUnwrap(snapshot.groupID(named: "Client Work"), file: file, line: line)],
+            file: file,
+            line: line
+        )
+        XCTAssertEqual(clientWork.tags, ["billable"], file: file, line: line)
+        XCTAssertTrue(clientWork.hasTagsElement, file: file, line: line)
+
+        let emptyTags = try XCTUnwrap(
+            snapshot.groups[XCTUnwrap(snapshot.groupID(named: "Empty Tags Group"), file: file, line: line)],
+            file: file,
+            line: line
+        )
+        XCTAssertTrue(emptyTags.tags.isEmpty, file: file, line: line)
+        XCTAssertTrue(emptyTags.hasTagsElement, file: file, line: line)
+
+        let plain = try XCTUnwrap(
+            snapshot.groups[XCTUnwrap(snapshot.groupID(named: "Plain Group"), file: file, line: line)],
+            file: file,
+            line: line
+        )
+        XCTAssertTrue(plain.tags.isEmpty, file: file, line: line)
+        XCTAssertFalse(
+            plain.hasTagsElement,
+            "A group without the element in the source must never gain one",
+            file: file,
+            line: line
+        )
+    }
+
     /// The KeeOTP artifact keeps every raw KeeOTP source spelling/encoding in
     /// the written database (the in-process matrix below proves their
     /// semantics), but its external probe is a plain entry title: KeePassXC
@@ -331,6 +426,7 @@ final class KDBXCompatibilityTests: XCTestCase {
             "attachments-fixture-smoke-attachments",
             "attachments-attachments-update-entry",
             "attachments-attachments-soft-delete-entry",
+            "group-tags-group-tags-update-entry",
             "\(richID)-keeotp-source-matrix",
         ] {
             XCTAssertTrue(ids.contains(required), "missing artifact \(required)")
@@ -338,7 +434,7 @@ final class KDBXCompatibilityTests: XCTestCase {
 
         // The artifact set never shrinks silently: the gate's merged manifest
         // is compared against exactly this count.
-        XCTAssertEqual(descriptors.count, 22)
+        XCTAssertEqual(descriptors.count, 24)
     }
 
     func test_externalExpectationTables_areExhaustiveOverEveryArtifactScenario() throws {
