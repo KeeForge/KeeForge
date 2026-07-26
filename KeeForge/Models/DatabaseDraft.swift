@@ -240,6 +240,8 @@ struct DatabaseDraft: Sendable {
                 name: group.name,
                 iconID: iconID,
                 customIconUUID: nil,
+                tags: group.tags,
+                hasTagsElement: group.hasTagsElement,
                 entries: group.entries,
                 groups: group.groups,
                 isExpanded: group.isExpanded,
