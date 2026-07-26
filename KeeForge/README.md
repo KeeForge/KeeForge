@@ -2,7 +2,7 @@
 
 Use this folder as the main map for the app target. The subfolder READMEs hold the local detail; this file connects the main flows.
 
-These sources are compiled into three targets: `KeeForge` (iOS), `KeeForgeAutoFill` (iOS extension, selected files), and `KeeForgeMac` (experimental native macOS app, same source list minus `Resources/LaunchScreen.storyboard`; Info.plist and entitlements live in `../KeeForgeMac/`). Platform divergence goes through `Extensions/PlatformCompat.swift` for view-layer patterns and small `#if os()` seams in Services; keep all three targets compiling when touching shared files.
+These sources are compiled into four targets: `KeeForge` (iOS app), `KeeForgeAutoFill` (iOS extension, selected files), `KeeForgeMac` (experimental native macOS app), and `KeeForgeMacAutoFill` (macOS extension, same allow-list as the iOS one). The Mac app compiles the full tree minus `Resources/LaunchScreen.storyboard`, plus the macOS-only `App/KeeForgeCommands.swift` and `Services/AppSupport/MacLockMonitor.swift` (both excluded from the iOS target) and two AutoFillExtension shells (`CredentialProviderViewControllerMac.swift`, `AutoFillSearchView.swift`) compiled in so `KeeForgeMacTests` can exercise them. The iOS app's `Info.plist` and `KeeForge.entitlements` live directly in this folder; the Mac equivalents live in `../KeeForgeMac/`. Platform divergence goes through `Extensions/PlatformCompat.swift` for view-layer patterns and `#if os()` seams in Services — not all of them small: `Services/Security/ScreenProtectionService.swift` is two full per-platform implementations, and `MacLockMonitor` is macOS-only. Keep all four targets compiling when touching shared files. Shared `KeeForgeTests` sources also compile into the macOS-hosted `KeeForgeMacTests` target, and `KeeForgeMacUITests` covers the Mac UI.
 
 ## Open Next
 
@@ -18,7 +18,7 @@ These sources are compiled into three targets: `KeeForge` (iOS), `KeeForgeAutoFi
 
 - Database list flow: `App/KeeForgeApp.swift` creates `DatabaseListViewModel`, which reads and mutates persisted database references through `Services/Persistence/DatabaseListStore.swift`.
 - Unlock flow: `Views/UnlockView.swift` and the adaptive root shell in `App/KeeForgeApp.swift` drive `ViewModels/DatabaseViewModel.swift`, which resolves the database file, derives the composite key, parses via `Models/KDBXParser.swift`, and stores a per-session `SymmetricKey`.
-- Adaptive navigation flow: compact layouts push from the database list into one active database session, while regular-width layouts keep the list visible and render the selected session in a dedicated workspace.
+- Adaptive navigation flow: compact layouts push from the database list into one active database session; regular-width layouts show the list+detail split only while the selected session is locked or unlocking — once unlocked, `App/RegularDatabaseWorkspaceView.swift` replaces the split view entirely as the workspace.
 - Local edit/save flow: `ViewModels/DatabaseViewModel.swift` stages changes in `Models/DatabaseDraft.swift`, reuses `Models/KDBXWriter.swift` for encryption, and saves local files through `Services/Persistence/LocalDatabaseSaver.swift` with conflict checks, backups, and shared-cache refresh.
 - Entry editing flow: `Views/EntryEditView.swift` and `ViewModels/EntryEditViewModel.swift` drive create/edit/delete entry drafts from the unlocked database UI, while `Views/PasswordGeneratorSheet.swift` and `Services/AutoFill/PasswordGenerator.swift` provide the reusable strong-password generator surface.
 - Cloud database flow: cloud-backed `Models/DatabaseReference.swift` values carry `CloudSyncMetadata`; `Services/Cloud/CloudSyncCoordinator.swift` decides whether to reuse cache or download before open.
@@ -30,4 +30,4 @@ These sources are compiled into three targets: `KeeForge` (iOS), `KeeForgeAutoFi
 
 - Start from the folder that owns the behavior, then open the matching tests before changing code.
 - If a change crosses app and extension boundaries, check both `../AutoFillExtension/README.md` and `../project.yml`.
-- If you add a new source file here, XcodeGen will not see it until `project.yml` is updated and `xcodegen generate` is run.
+- New source files here are picked up by `xcodegen generate` alone — the app and Mac targets use folder globs. Only files for the AutoFill extensions need explicit `project.yml` edits, in both per-file allow-lists (which must stay identical).

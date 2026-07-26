@@ -8,6 +8,8 @@ This folder holds extension-facing helpers shared between the main app and the A
 - `CredentialMatcher.swift` matches KeePass entries to web domains and usernames for AutoFill suggestions.
 - `CredentialIdentityStoreManager.swift` mirrors unlocked entries into the system credential identity store. It also owns `CredentialRecordIdentifier` (the sole encoder/parser of the database-tagged record-identifier format on published identities) and the `CredentialIdentityStoreProviding` seam (production: `SystemCredentialIdentityStore`; tests swap a fake via the `#if DEBUG` `storeProviderOverride`).
 - `PasswordGenerator.swift` provides the reusable strong-password generator used by both the app and AutoFill flows.
+- `PasswordStrengthEstimator.swift` scores passwords into the four-level strength meter shown in the app and extension; it is on both AutoFill allow-lists in `../../../project.yml`.
+- `AutoFillIdentityStoreFallbackReader.swift` is a DEBUG + simulator-only backing-store fallback reader behind the `#if DEBUG && targetEnvironment(simulator)` seam in `CredentialIdentityStoreManager.swift`; it compiles to nothing in Release/on-device, so the shipped extension is unaffected.
 
 ## Change Carefully
 
