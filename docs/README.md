@@ -38,6 +38,7 @@ Point-in-time security reviews; findings may have been fixed (or new issues intr
 |---|---|
 | 2026-02-26 | `audits/2026-02-26-security-audit-claude.md` |
 | 2026-03-03 | `audits/2026-03-03-security-audit-codex.md` |
+| 2026-07-25 | `audits/2026-07-25-test-suite-audit.md` — full test-suite audit (unit/UI/KDBX-compat/CI); records implemented fixes and deliberately-deferred recommendations |
 
 ## `analysis/` — Product Analysis
 
