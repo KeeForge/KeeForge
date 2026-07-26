@@ -1,12 +1,12 @@
 # KeeForge
 
-A free, open-source KeePass password manager for iOS.
+A free, open-source KeePass password manager for iPhone and iPad.
 
 ## Support
 
 Having issues or have a question? Reach out:
 
-- **Email:** tjtanjia.tan@gmail.com
+- **Email:** support@keeforge.com
 - **GitHub Issues:** [github.com/KeeForge/KeeForge/issues](https://github.com/KeeForge/KeeForge/issues)
 
 ## Links

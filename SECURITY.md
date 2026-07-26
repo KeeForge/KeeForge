@@ -24,7 +24,7 @@ Please include as much of the following as you can:
 
 - A description of the vulnerability and its impact
 - Steps to reproduce, or a proof of concept
-- Affected version(s) and platform (iOS version, device)
+- Affected version(s) and platform (iOS or macOS version, device or hardware)
 - Any suggested fix or mitigation
 
 ### What to expect
@@ -40,6 +40,7 @@ Please give us a reasonable amount of time to address the issue before any publi
 In scope:
 
 - The KeeForge iOS app and its AutoFill extension
+- The macOS app and its AutoFill extension (unreleased; in scope for source-level reports)
 - KDBX parsing, writing, and cryptography
 - Keychain, App Group, and local storage handling
 - Cloud sync and network features

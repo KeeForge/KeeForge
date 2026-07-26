@@ -10,7 +10,7 @@ This file tracks planned product work.
 
 ## iPad and macOS Support
 
-- [ ] Plan and implement native macOS support
+- [ ] Plan and implement native macOS support — implemented and building/testing green, but ON HOLD and unreleased (see CHANGELOG's "macOS App" section)
 - [x] Build an iPad-native layout
 
 ## Core Functionalities
@@ -31,19 +31,24 @@ This file tracks planned product work.
 - [x] group settings into sub pages
 - [x] option to disable metadata display for DB row
 
+### Tags
+
+- [ ] Tag integration: tag browser, tag search, group-tag inheritance, editor tag suggestions (spec: `docs/specs/2026-07-19-tag-integration/`)
+
 ### Entry Viewer
 
 - [ ] Add an in-app entry history viewer and restore flow
 
 ### Attachments
 
-- [x] Add in-app attachment browsing and management
+- [x] Add in-app attachment browsing (read-only viewing, preview, share)
+- [ ] Add attachment management (add, rename, delete)
 - [ ] Support attachment sync across storage providers
 
 ## Localization Support
 
-- [ ] Add internationalization infrastructure across the app
-- [ ] Add German language support
+- [x] Add internationalization infrastructure across the app
+- [x] Add German language support
 
 ## Release
 - [ ] Github release for macOS app
