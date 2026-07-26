@@ -5,10 +5,12 @@ This folder holds device-security integrations and secret-handling helpers outsi
 ## Main Files
 
 - `BiometricService.swift` wraps LocalAuthentication flows used by the app and AutoFill.
-- `KeychainService.swift` stores composite keys with the shared access group and biometric access control.
+- `KeychainService.swift` stores composite keys with biometric access control, shared with the extension via the keychain access group (see the invariant below).
 - `PasskeyCrypto.swift` handles passkey-related crypto helpers used by the extension flow.
 - `ScreenProtectionService.swift` manages screenshot/app-switcher protection behavior.
+- `SecureRandom.swift` wraps `SecRandomCopyBytes` for throwing secure-random `Data` generation; it is on both AutoFill allow-lists in `../../../project.yml`.
 
 ## Change Carefully
 
 - Keychain account naming, access-group behavior, biometric prompts, and screen-protection defaults all have user-visible security consequences.
+- Access-group ordering invariant: `KeychainService` never sets `kSecAttrAccessGroup`, so its items land in the FIRST keychain access group listed in the calling target's entitlements. App/extension sharing therefore depends on `com.keevault.sharedkeychain` staying first in every entitlements file — ahead of `com.microsoft.adalcache` (iOS app) and `com.microsoft.identity.universalstorage` (Mac app). Reordering any `keychain-access-groups` array strands the shared composite keys. (This rule is also documented in a comment in `../../../AutoFillExtension/AutoFillExtensionMac.entitlements`.)
