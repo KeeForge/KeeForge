@@ -1022,6 +1022,43 @@ final class KDBXRoundTripTests: XCTestCase {
         XCTAssertTrue(reparsedTagged.hasTagsElement)
     }
 
+    /// `applySetGroupIcon` also rebuilds the edited group through an explicit
+    /// `KPGroup` init; picking a standard icon for a tagged group must not eat
+    /// its tags (or an empty element's presence flag) either.
+    func test_groupTags_surviveChangingTheGroupIcon() throws {
+        let xml = """
+        <KeePassFile><Root><Group><Name>Root</Name>
+        <Group><UUID>rG5FhCLXQ0GDRLRUEBEHUw==</UUID><Name>Tagged</Name><Tags>team;shared</Tags></Group>
+        <Group><UUID>3q2+7wAAAAAAAAAAAAAAAA==</UUID><Name>EmptyElement</Name><Tags></Tags></Group>
+        </Group></Root></KeePassFile>
+        """
+
+        let parsed = try parseXML(Data(xml.utf8))
+        let container = try XCTUnwrap(parsed.rootGroup.groups.first)
+        let tagged = try XCTUnwrap(container.groups.first { $0.name == "Tagged" })
+        let emptyElement = try XCTUnwrap(container.groups.first { $0.name == "EmptyElement" })
+
+        let draft = DatabaseDraft(
+            rootGroup: parsed.rootGroup,
+            meta: parsed.meta,
+            sessionKey: roundTripSessionKey
+        )
+        let updated = try draft
+            .apply(.setGroupIcon(groupID: tagged.id, iconID: 30))
+            .apply(.setGroupIcon(groupID: emptyElement.id, iconID: 30))
+
+        let reparsed = try serializeAndParse((rootGroup: updated.rootGroup, meta: updated.meta))
+        let reparsedContainer = try XCTUnwrap(reparsed.rootGroup.groups.first)
+        let reparsedTagged = try XCTUnwrap(reparsedContainer.groups.first { $0.name == "Tagged" })
+        XCTAssertEqual(reparsedTagged.iconID, 30)
+        XCTAssertEqual(reparsedTagged.tags, ["team", "shared"])
+        XCTAssertTrue(reparsedTagged.hasTagsElement)
+        let reparsedEmpty = try XCTUnwrap(reparsedContainer.groups.first { $0.name == "EmptyElement" })
+        XCTAssertEqual(reparsedEmpty.iconID, 30)
+        XCTAssertTrue(reparsedEmpty.tags.isEmpty)
+        XCTAssertTrue(reparsedEmpty.hasTagsElement, "The empty <Tags></Tags> element survives an icon change")
+    }
+
     /// A nonstandard KDBX 4.0 file containing group tags round-trips them
     /// unchanged — preservation, not validation, is the contract. The XML
     /// layer under test here carries no format version at all, so this
