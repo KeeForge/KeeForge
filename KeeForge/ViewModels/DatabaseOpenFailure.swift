@@ -513,7 +513,17 @@ struct DatabaseOpenFailure: Equatable, Sendable {
                 countsTowardFailedAttempts: false,
                 canChooseDifferentFile: false
             )
-        case .conflict, .unknown:
+        case .rateLimited, .serviceUnavailable:
+            return DatabaseOpenFailure(
+                title: String(localized: "Cloud Service Unavailable"),
+                summary: String(localized: "The cloud service is busy or temporarily unavailable. Try again in a moment."),
+                technicalDetails: technicalDetails(for: error),
+                errorCode: "cloud.service_unavailable",
+                category: .cloud,
+                countsTowardFailedAttempts: false,
+                canChooseDifferentFile: false
+            )
+        case .conflict, .insufficientSpace, .permissionDenied, .invalidName, .unknown:
             return DatabaseOpenFailure(
                 title: String(localized: "Couldn't Open Cloud Database"),
                 summary: String(localized: "KeeForge hit an unexpected cloud-sync problem while opening this database."),

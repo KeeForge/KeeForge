@@ -1034,6 +1034,16 @@
         }
       }
     },
+    "Cloud Service Unavailable" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cloud-Dienst nicht verfügbar"
+          }
+        }
+      }
+    },
     "Cloud Sign-In Cancelled" : {
       "localizations" : {
         "de" : {
@@ -4784,6 +4794,46 @@
         }
       }
     },
+    "The cloud service is busy or temporarily unavailable. Try again in a moment." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Der Cloud-Dienst ist ausgelastet oder vorübergehend nicht verfügbar. Versuchen Sie es gleich noch einmal."
+          }
+        }
+      }
+    },
+    "The cloud service is busy right now. Try again in a moment." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Der Cloud-Dienst ist gerade ausgelastet. Versuchen Sie es gleich noch einmal."
+          }
+        }
+      }
+    },
+    "The cloud service is temporarily unavailable. Try again later." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Der Cloud-Dienst ist vorübergehend nicht verfügbar. Versuchen Sie es später erneut."
+          }
+        }
+      }
+    },
+    "The cloud service rejected this file name." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Der Cloud-Dienst hat diesen Dateinamen abgelehnt."
+          }
+        }
+      }
+    },
     "The cloud sign-in flow was cancelled before KeeForge could open the database." : {
       "localizations" : {
         "de" : {
@@ -5070,6 +5120,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Erscheinungsbild"
+          }
+        }
+      }
+    },
+    "There isn't enough storage space in this cloud account." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "In diesem Cloud-Konto ist nicht genügend Speicherplatz vorhanden."
           }
         }
       }
@@ -5950,6 +6010,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Sie können diese Datenbank weiterhin öffnen, aber das Erstellen, Bearbeiten und Löschen bleibt blockiert, bis Sie die Bearbeitung wieder aktivieren."
+          }
+        }
+      }
+    },
+    "You don't have permission to change this file." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sie haben keine Berechtigung, diese Datei zu ändern."
           }
         }
       }

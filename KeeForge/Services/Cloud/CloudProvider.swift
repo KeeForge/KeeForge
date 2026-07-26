@@ -66,6 +66,11 @@ enum CloudProviderError: LocalizedError, Equatable {
     case fileNotFound
     case conflict(remoteRev: String?)
     case writeScopeRequired
+    case rateLimited
+    case serviceUnavailable
+    case insufficientSpace
+    case permissionDenied
+    case invalidName
     case unknown(String)
 
     var errorDescription: String? {
@@ -84,6 +89,16 @@ enum CloudProviderError: LocalizedError, Equatable {
             String(localized: "This database changed in the cloud. Reload before saving again.")
         case .writeScopeRequired:
             String(localized: "Reconnect this cloud account to save changes.")
+        case .rateLimited:
+            String(localized: "The cloud service is busy right now. Try again in a moment.")
+        case .serviceUnavailable:
+            String(localized: "The cloud service is temporarily unavailable. Try again later.")
+        case .insufficientSpace:
+            String(localized: "There isn't enough storage space in this cloud account.")
+        case .permissionDenied:
+            String(localized: "You don't have permission to change this file.")
+        case .invalidName:
+            String(localized: "The cloud service rejected this file name.")
         case .unknown(let message):
             message
         }
@@ -104,7 +119,21 @@ enum CloudProviderError: LocalizedError, Equatable {
             return true
         }
 
+        // Only transport failures that plausibly mean "no connectivity" count as
+        // offline; TLS errors, cancellations, and other NSURLErrorDomain codes
+        // must keep surfacing as real errors.
+        let offlineCodes: Set<Int> = [
+            NSURLErrorNotConnectedToInternet,
+            NSURLErrorNetworkConnectionLost,
+            NSURLErrorTimedOut,
+            NSURLErrorCannotFindHost,
+            NSURLErrorCannotConnectToHost,
+            NSURLErrorDNSLookupFailed,
+            NSURLErrorInternationalRoamingOff,
+            NSURLErrorCallIsActive,
+            NSURLErrorDataNotAllowed,
+        ]
         let nsError = error as NSError
-        return nsError.domain == NSURLErrorDomain
+        return nsError.domain == NSURLErrorDomain && offlineCodes.contains(nsError.code)
     }
 }
