@@ -599,6 +599,22 @@ enum KDBXCompatibilitySupport {
             }
         }
     }
+
+    /// Fast Argon2id KDF parameters for tests that need a real, decryptable
+    /// KDBX write/parse round trip but don't care about KDF cost. Kept in
+    /// this internal (not `private extension`-scoped) section so other test
+    /// files — e.g. AttachmentTests.swift — can reuse it instead of
+    /// redeclaring their own copy.
+    static func fastArgon2idParameters() throws -> [String: Any] {
+        [
+            "$UUID": KDBXParser.argon2idUUID,
+            "I": UInt64(2),
+            "M": UInt64(1024 * 1024),
+            "P": UInt32(1),
+            "V": UInt32(0x13),
+            "S": Data((0..<32).map { UInt8($0) }),
+        ]
+    }
 }
 
 struct CompatibilitySnapshot {
@@ -1244,17 +1260,6 @@ private extension KDBXCompatibilitySupport {
         )
 
         return (data, root, meta)
-    }
-
-    static func fastArgon2idParameters() throws -> [String: Any] {
-        [
-            "$UUID": KDBXParser.argon2idUUID,
-            "I": UInt64(2),
-            "M": UInt64(1024 * 1024),
-            "P": UInt32(1),
-            "V": UInt32(0x13),
-            "S": Data((0..<32).map { UInt8($0) }),
-        ]
     }
 
     static func findEntry(titled title: String, in group: KPGroup) -> KPEntry? {
