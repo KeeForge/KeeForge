@@ -386,6 +386,77 @@ final class PasskeyCryptoTests: XCTestCase {
         XCTAssertEqual(privateKey.publicKey.x963Representation, key.publicKey.x963Representation)
     }
 
+    // MARK: - SEC1 PEM ("BEGIN EC PRIVATE KEY")
+
+    // `PasskeyCrypto.privateKey(fromPEM:)` documents support for the SEC1
+    // container as well as PKCS#8, but every other test here feeds it
+    // CryptoKit's own `derRepresentation`, which is PKCS#8. These fixed
+    // vectors are the SEC1 form third-party tooling emits.
+    //
+    // Generated offline, once, with:
+    //   openssl ecparam -name prime256v1 -genkey -noout -out sec1.pem
+    //   openssl pkcs8 -topk8 -nocrypt -in sec1.pem
+    // Both PEMs below therefore hold the same P-256 private scalar.
+    private static let sec1PEM = """
+    -----BEGIN EC PRIVATE KEY-----
+    MHcCAQEEID7poGDUQqrEEDTYy9eo85wQOBIRW7Yf/DV/XrxZhZdroAoGCCqGSM49
+    AwEHoUQDQgAE5+ZYoZaRmONJjcy3jwOSACL3Mue6vVdWV64WSrAjJ48cUbg1WUsv
+    uZTc5OGXPyaiqNj/+as0tDJZF+9LnTpHBw==
+    -----END EC PRIVATE KEY-----
+    """
+
+    private static let equivalentPKCS8PEM = """
+    -----BEGIN PRIVATE KEY-----
+    MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQgPumgYNRCqsQQNNjL
+    16jznBA4EhFbth/8NX9evFmFl2uhRANCAATn5lihlpGY40mNzLePA5IAIvcy57q9
+    V1ZXrhZKsCMnjxxRuDVZSy+5lNzk4Zc/JqKo2P/5qzS0MlkX70udOkcH
+    -----END PRIVATE KEY-----
+    """
+
+    /// Raw 32-byte private scalar shared by both PEMs above.
+    private static let sec1RawScalarHex =
+        "3ee9a060d442aac41034d8cbd7a8f39c103812115bb61ffc357f5ebc5985976b"
+
+    func testSEC1PEMYieldsTheSameKeyAsItsPKCS8Encoding() throws {
+        let fromSEC1 = try PasskeyCrypto.privateKey(fromPEM: Self.sec1PEM)
+        let fromPKCS8 = try PasskeyCrypto.privateKey(fromPEM: Self.equivalentPKCS8PEM)
+
+        XCTAssertEqual(fromSEC1.rawRepresentation.map { String(format: "%02x", $0) }.joined(), Self.sec1RawScalarHex)
+        XCTAssertEqual(fromSEC1.rawRepresentation, fromPKCS8.rawRepresentation)
+        XCTAssertEqual(fromSEC1.publicKey.x963Representation, fromPKCS8.publicKey.x963Representation)
+    }
+
+    func testSEC1PEMSignsAssertionsVerifiableWithThePKCS8DerivedPublicKey() throws {
+        let fromSEC1 = try PasskeyCrypto.privateKey(fromPEM: Self.sec1PEM)
+        let fromPKCS8 = try PasskeyCrypto.privateKey(fromPEM: Self.equivalentPKCS8PEM)
+
+        let clientDataHash = Data(SHA256.hash(data: Data("sec1-client-data".utf8)))
+        let (authData, signature) = try PasskeyCrypto.signAssertion(
+            relyingPartyID: "example.com",
+            clientDataHash: clientDataHash,
+            privateKey: fromSEC1
+        )
+        var signedData = authData
+        signedData.append(clientDataHash)
+
+        XCTAssertTrue(
+            try fromPKCS8.publicKey.isValidSignature(
+                P256.Signing.ECDSASignature(derRepresentation: signature),
+                for: signedData
+            ),
+            "A signature made with the SEC1-parsed key must verify against the PKCS#8-parsed public key"
+        )
+    }
+
+    func testSEC1PEMWithCRLFAndSurroundingWhitespaceStillParses() throws {
+        // Key files copied out of desktop tooling routinely arrive CRLF-ended.
+        let crlfPEM = "  " + Self.sec1PEM.replacingOccurrences(of: "\n", with: "\r\n") + "  "
+
+        let key = try PasskeyCrypto.privateKey(fromPEM: crlfPEM)
+
+        XCTAssertEqual(key.rawRepresentation.map { String(format: "%02x", $0) }.joined(), Self.sec1RawScalarHex)
+    }
+
     func testPasskeyIdentityUsesRawLowercasedRelyingPartyIdentifier() throws {
         let entry = KPEntry(
             title: "Passkey Entry",

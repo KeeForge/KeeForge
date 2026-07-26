@@ -185,6 +185,195 @@ final class DatabaseDraftTests: XCTestCase {
         XCTAssertEqual(try updatedEntry.history[0].password.decrypt(using: sessionKey), "old-password")
     }
 
+    func test_updateEntry_trimsHistoryToConfiguredMaxSize_oldestFirst() throws {
+        // `estimatedHistorySize` is a 256-byte overhead per entry plus the
+        // UTF-8 length of the fields it enumerates. With no username/url/tags/
+        // TOTP/passkey these entries cost exactly 256 + title + notes +
+        // password, so the retained set is arithmetic, not a guess.
+        let padding = String(repeating: "x", count: 1_000)
+        let entryID = UUID()
+        let current = KPEntry(
+            id: entryID,
+            title: "Sized Current", // 256 + 13 + 1000 + 16 = 1285
+            password: try EncryptedValue.encrypt("current-password", using: sessionKey),
+            notes: padding,
+            creationTime: Date(timeIntervalSince1970: 1_000),
+            lastModificationTime: Date(timeIntervalSince1970: 2_000),
+            history: [
+                KPEntry(
+                    id: UUID(),
+                    title: "History Newest", // 256 + 14 + 1000 + 16 = 1286
+                    password: try EncryptedValue.encrypt("history-password", using: sessionKey),
+                    notes: padding,
+                    lastModificationTime: Date(timeIntervalSince1970: 900)
+                ),
+                KPEntry(
+                    id: UUID(),
+                    title: "History Middle", // 256 + 14 + 1000 + 16 = 1286
+                    password: try EncryptedValue.encrypt("history-password", using: sessionKey),
+                    notes: padding,
+                    lastModificationTime: Date(timeIntervalSince1970: 800)
+                ),
+                KPEntry(
+                    id: UUID(),
+                    title: "History Oldest Tiny", // 256 + 19 + 0 + 16 = 291
+                    password: try EncryptedValue.encrypt("history-password", using: sessionKey),
+                    lastModificationTime: Date(timeIntervalSince1970: 700)
+                ),
+            ]
+        )
+        // 1285 + 1286 = 2571 fits; adding the third (3857) does not.
+        let tree = try makeSyntheticTree(
+            includeRecycleBin: false,
+            parentEntryOverride: current,
+            metaOverride: KPMeta(historyMaxSize: 2_900)
+        )
+        var updatedPayload = try makeDraftPayload(from: current)
+        updatedPayload.title = "Sized Updated"
+
+        let draft = DatabaseDraft(rootGroup: tree.rootGroup, meta: tree.meta, sessionKey: sessionKey)
+        let updatedDraft = try draft.apply(.updateEntry(entryID: entryID, draft: updatedPayload))
+        let updatedEntry = try XCTUnwrap(findEntry(withID: entryID, in: updatedDraft.rootGroup))
+
+        XCTAssertEqual(
+            updatedEntry.history.map(\.title),
+            ["Sized Current", "History Newest"],
+            "Trimming keeps the newest-first prefix that fits the byte budget"
+        )
+        XCTAssertEqual(
+            try updatedEntry.history[0].password.decrypt(using: sessionKey),
+            "current-password"
+        )
+        // 2900 - 2571 = 329 bytes were still free and "History Oldest Tiny"
+        // only costs 291, but the budget loop stops at the first entry that
+        // does not fit rather than skipping past it.
+        XCTAssertFalse(updatedEntry.history.contains { $0.title == "History Oldest Tiny" })
+    }
+
+    func test_updateEntry_historyMaxSizeOfZeroDropsHistoryEntirely() throws {
+        let tree = try makeSyntheticTree(
+            includeRecycleBin: false,
+            metaOverride: KPMeta(historyMaxSize: 0)
+        )
+        var updatedPayload = try makeDraftPayload(from: tree.parentEntry)
+        updatedPayload.notes = "Updated note"
+
+        let draft = DatabaseDraft(rootGroup: tree.rootGroup, meta: tree.meta, sessionKey: sessionKey)
+        let updatedDraft = try draft.apply(.updateEntry(entryID: tree.parentEntry.id, draft: updatedPayload))
+        let updatedEntry = try XCTUnwrap(findEntry(withID: tree.parentEntry.id, in: updatedDraft.rootGroup))
+
+        XCTAssertTrue(updatedEntry.history.isEmpty, "Every snapshot exceeds a zero-byte budget")
+    }
+
+    func test_updateEntry_negativeHistoryMaxSizeMeansUnlimited() throws {
+        // KeePass encodes "unlimited" as -1; the byte budget must be skipped
+        // rather than treated as a budget no entry can fit into.
+        let tree = try makeSyntheticTree(
+            includeRecycleBin: false,
+            metaOverride: KPMeta(historyMaxSize: -1)
+        )
+        var updatedPayload = try makeDraftPayload(from: tree.parentEntry)
+        updatedPayload.notes = "Updated note"
+
+        let draft = DatabaseDraft(rootGroup: tree.rootGroup, meta: tree.meta, sessionKey: sessionKey)
+        let updatedDraft = try draft.apply(.updateEntry(entryID: tree.parentEntry.id, draft: updatedPayload))
+        let updatedEntry = try XCTUnwrap(findEntry(withID: tree.parentEntry.id, in: updatedDraft.rootGroup))
+
+        XCTAssertEqual(updatedEntry.history.map(\.title), ["Original Entry"])
+    }
+
+    // MARK: - Legacy `otp` field preservation
+
+    // A legacy `otpauth://` URI carries an issuer, label, and arbitrary query
+    // parameters that the KeeForge TOTP model does not model. The writer emits
+    // it verbatim when present, so an edit either keeps it byte-identical or
+    // drops it — never rewrites it into something narrower.
+
+    func test_updateEntry_editThatLeavesTOTPAloneKeepsLegacyOtpURL() throws {
+        let legacyURL = "otpauth://totp/Legacy:user@example.com?secret=JBSWY3DPEHPK3PXP&issuer=Legacy&period=30&digits=6"
+        let tree = try makeSyntheticTree(
+            includeRecycleBin: false,
+            parentEntryOverride: try makeLegacyOTPEntry(otpURL: legacyURL)
+        )
+        var updatedPayload = try makeDraftPayload(from: tree.parentEntry)
+        updatedPayload.notes = "Untouched TOTP, edited note"
+
+        let draft = DatabaseDraft(rootGroup: tree.rootGroup, meta: tree.meta, sessionKey: sessionKey)
+        let updatedDraft = try draft.apply(.updateEntry(entryID: tree.parentEntry.id, draft: updatedPayload))
+        let updatedEntry = try XCTUnwrap(findEntry(withID: tree.parentEntry.id, in: updatedDraft.rootGroup))
+
+        XCTAssertEqual(updatedEntry.otpURL, legacyURL)
+    }
+
+    func test_updateEntry_editThatChangesTOTPInvalidatesLegacyOtpURL() throws {
+        let legacyURL = "otpauth://totp/Legacy:user@example.com?secret=JBSWY3DPEHPK3PXP&issuer=Legacy&period=30&digits=6"
+        let mutations: [(name: String, mutate: (inout EntryDraftPayload) -> Void)] = [
+            ("secret", { $0.totpConfig?.secret = "GEZDGNBVGY3TQOJQ" }),
+            ("period", { $0.totpConfig?.period = 60 }),
+            ("digits", { $0.totpConfig?.digits = 8 }),
+            ("algorithm", { $0.totpConfig?.algorithm = .sha256 }),
+            ("removal", { $0.totpConfig = nil }),
+        ]
+
+        for mutation in mutations {
+            let tree = try makeSyntheticTree(
+                includeRecycleBin: false,
+                parentEntryOverride: try makeLegacyOTPEntry(otpURL: legacyURL)
+            )
+            var updatedPayload = try makeDraftPayload(from: tree.parentEntry)
+            mutation.mutate(&updatedPayload)
+
+            let draft = DatabaseDraft(rootGroup: tree.rootGroup, meta: tree.meta, sessionKey: sessionKey)
+            let updatedDraft = try draft.apply(.updateEntry(entryID: tree.parentEntry.id, draft: updatedPayload))
+            let updatedEntry = try XCTUnwrap(findEntry(withID: tree.parentEntry.id, in: updatedDraft.rootGroup))
+
+            XCTAssertNil(
+                updatedEntry.otpURL,
+                "A changed \(mutation.name) makes the legacy URI stale, so it must be dropped"
+            )
+        }
+    }
+
+    func test_updateEntry_keeOTPSourceOwnsTheOtpSlotOnlyUnderItsOwnFieldName() throws {
+        let legacyURL = "otpauth://totp/Legacy?secret=JBSWY3DPEHPK3PXP"
+        let rewrittenQuery = "key=JBSWY3DPEHPK3PXP&step=45&size=8&otpHashMode=SHA256"
+
+        // A KeeOTP source stored under `otp` is what the writer emits there.
+        let owning = try makeSyntheticTree(
+            includeRecycleBin: false,
+            parentEntryOverride: try makeLegacyOTPEntry(otpURL: legacyURL)
+        )
+        var owningPayload = try makeDraftPayload(from: owning.parentEntry)
+        owningPayload.totpConfig?.keeOTPSource = KeeOTPSource(fieldName: "otp", rawQuery: rewrittenQuery)
+        let owningEntry = try XCTUnwrap(
+            findEntry(
+                withID: owning.parentEntry.id,
+                in: try DatabaseDraft(rootGroup: owning.rootGroup, meta: owning.meta, sessionKey: sessionKey)
+                    .apply(.updateEntry(entryID: owning.parentEntry.id, draft: owningPayload))
+                    .rootGroup
+            )
+        )
+        XCTAssertEqual(owningEntry.otpURL, rewrittenQuery)
+
+        // A KeeOTP source in a differently named field must not evict whatever
+        // the entry already stored in `otp`.
+        let borrowing = try makeSyntheticTree(
+            includeRecycleBin: false,
+            parentEntryOverride: try makeLegacyOTPEntry(otpURL: legacyURL)
+        )
+        var borrowingPayload = try makeDraftPayload(from: borrowing.parentEntry)
+        borrowingPayload.totpConfig?.keeOTPSource = KeeOTPSource(fieldName: "OTP", rawQuery: rewrittenQuery)
+        let borrowingEntry = try XCTUnwrap(
+            findEntry(
+                withID: borrowing.parentEntry.id,
+                in: try DatabaseDraft(rootGroup: borrowing.rootGroup, meta: borrowing.meta, sessionKey: sessionKey)
+                    .apply(.updateEntry(entryID: borrowing.parentEntry.id, draft: borrowingPayload))
+                    .rootGroup
+            )
+        )
+        XCTAssertEqual(borrowingEntry.otpURL, legacyURL)
+    }
+
     func test_updateEntry_reEncryptsPassword_underSessionKey() throws {
         let tree = try makeSyntheticTree(includeRecycleBin: true)
         var updatedPayload = try makeDraftPayload(from: tree.parentEntry)
@@ -702,6 +891,27 @@ final class DatabaseDraftTests: XCTestCase {
             parentEntry: parentEntry,
             untouchedGroupID: untouchedGroupID,
             recycleBinGroupID: recycleBinGroupID
+        )
+    }
+
+    /// Entry whose TOTP arrived as a legacy `otpauth://` URI in the `otp`
+    /// field, mirroring what `KDBXParser` produces for such a database.
+    private func makeLegacyOTPEntry(otpURL: String) throws -> KPEntry {
+        KPEntry(
+            id: UUID(),
+            title: "Legacy OTP Entry",
+            username: "legacy-user",
+            password: try EncryptedValue.encrypt("old-password", using: sessionKey),
+            totpConfig: TOTPConfig(
+                secret: try EncryptedValue.encrypt("JBSWY3DPEHPK3PXP", using: sessionKey),
+                period: 30,
+                digits: 6,
+                algorithm: .sha1
+            ),
+            otpURL: otpURL,
+            creationTime: Date(timeIntervalSince1970: 1_000),
+            lastModificationTime: Date(timeIntervalSince1970: 2_000),
+            protectedStringKeys: ["otp"]
         )
     }
 

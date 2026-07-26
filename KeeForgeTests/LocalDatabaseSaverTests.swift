@@ -95,6 +95,77 @@ final class LocalDatabaseSaverTests: XCTestCase {
         XCTAssertEqual(try Data(contentsOf: backupURL), originalData)
     }
 
+    func testBackupTakenBySaveReopensWithOriginalCredentialsAtPreEditContent() async throws {
+        // A backup that is merely present is worthless; this proves the bytes
+        // written aside are a decryptable KDBX file that still holds the
+        // pre-edit entry state, i.e. that a restore would actually recover it.
+        let databaseURL = try makeScratchDatabaseCopy()
+        let reference = try TestDatabaseSupport.makeReference(for: databaseURL)
+        let originalData = try Data(contentsOf: databaseURL)
+        let sessionKey = SymmetricKey(size: .bits256)
+        let parsed = try KDBXParser.parseWithMeta(
+            data: originalData,
+            password: fixturePassword,
+            sessionKey: sessionKey
+        )
+        let target = try XCTUnwrap(parsed.rootGroup.allEntries.first { $0.title == "Twitter" })
+        XCTAssertEqual(try target.password.decrypt(using: sessionKey), "twitterpass123")
+        let originalTitles = parsed.rootGroup.allEntries.map(\.title).sorted()
+        let originalHistoryCount = target.history.count
+
+        let dirtyDraft = try DatabaseDraft(
+            rootGroup: parsed.rootGroup,
+            meta: parsed.meta,
+            sessionKey: sessionKey
+        ).apply(
+            .updateEntry(
+                entryID: target.id,
+                draft: EntryDraftPayload(
+                    title: target.title,
+                    username: target.username,
+                    password: "rotated-password",
+                    url: target.url,
+                    notes: target.notes,
+                    customFields: target.customFields,
+                    tags: target.tags
+                )
+            )
+        )
+
+        _ = try await LocalDatabaseSaver.save(
+            draft: dirtyDraft,
+            reference: reference,
+            compositeKey: KDBXCrypto.compositeKey(password: fixturePassword),
+            openTimeSHA512: KDBXCrypto.sha512(originalData)
+        )
+
+        let verifyKey = SymmetricKey(size: .bits256)
+        let savedParsed = try KDBXParser.parseWithMeta(
+            data: try Data(contentsOf: databaseURL),
+            password: fixturePassword,
+            sessionKey: verifyKey
+        )
+        let savedEntry = try XCTUnwrap(savedParsed.rootGroup.allEntries.first { $0.title == "Twitter" })
+        XCTAssertEqual(try savedEntry.password.decrypt(using: verifyKey), "rotated-password")
+        XCTAssertEqual(savedEntry.history.count, originalHistoryCount + 1)
+
+        let backupURL = try XCTUnwrap(DatabaseListStore.recentBackups(for: reference).first)
+        let restored = try KDBXParser.parseWithMeta(
+            data: try Data(contentsOf: backupURL),
+            password: fixturePassword,
+            sessionKey: verifyKey
+        )
+        let restoredEntry = try XCTUnwrap(restored.rootGroup.allEntries.first { $0.title == "Twitter" })
+
+        XCTAssertEqual(try restoredEntry.password.decrypt(using: verifyKey), "twitterpass123")
+        XCTAssertEqual(
+            restoredEntry.history.count,
+            originalHistoryCount,
+            "The backup predates the edit, so it must not carry the snapshot the edit pushed"
+        )
+        XCTAssertEqual(restored.rootGroup.allEntries.map(\.title).sorted(), originalTitles)
+    }
+
     func testSavePrunesBackupsToFiveNewest() async throws {
         let databaseURL = try makeScratchDatabaseCopy()
         let reference = try TestDatabaseSupport.makeReference(for: databaseURL)
