@@ -592,6 +592,181 @@ final class KDBXParserTests: XCTestCase {
         }
     }
 
+    // MARK: - Security: KDBX4 Integrity Enforcement
+
+    /// A freshly written KDBX 4 database plus the offsets a corruption test
+    /// needs. Written in-test (not a bundled fixture) so the header layout is
+    /// exactly the one `KDBXWriter` produces, and with weak Argon2id
+    /// parameters so five parse attempts stay fast.
+    private struct KDBX4IntegrityFixture {
+        let data: Data
+        let password: String
+        let keyFileData: Data
+        let masterSeed: Data
+        /// Byte count of the outer header, i.e. the offset of the stored
+        /// header SHA-256.
+        let headerLength: Int
+        /// First byte of the HMAC-block stream (header + SHA-256 + HMAC).
+        var payloadStart: Int { headerLength + 64 }
+    }
+
+    func testKDBX4CorruptedPayloadBlockFailsBlockHMAC() throws {
+        let fixture = try makeKDBX4IntegrityFixture()
+
+        // Layout of the first HMAC block: [32-byte HMAC][4-byte size][data].
+        let ciphertextOffset = fixture.payloadStart + 36
+        XCTAssertLessThan(ciphertextOffset, fixture.data.count)
+        var corrupted = fixture.data
+        corrupted[ciphertextOffset] ^= 0x01
+
+        XCTAssertThrowsError(
+            try KDBXParser.parse(
+                data: corrupted,
+                password: fixture.password,
+                keyFileData: fixture.keyFileData,
+                sessionKey: testSessionKey
+            )
+        ) { error in
+            XCTAssertEqual(error as? KDBXParser.ParseError, .invalidBlockHMAC)
+        }
+    }
+
+    func testKDBX4CorruptedOuterHeaderFailsHeaderSHA256() throws {
+        let fixture = try makeKDBX4IntegrityFixture()
+
+        // Flip a byte inside the master seed value: the header still parses,
+        // so the failure has to come from the integrity check rather than the
+        // TLV reader. The header SHA-256 is verified before the header HMAC,
+        // so a header bit flip surfaces as `.invalidSignature`.
+        let seedRange = try XCTUnwrap(fixture.data.range(of: fixture.masterSeed))
+        XCTAssertLessThan(seedRange.lowerBound, fixture.headerLength)
+        var corrupted = fixture.data
+        corrupted[seedRange.lowerBound] ^= 0x01
+
+        XCTAssertThrowsError(
+            try KDBXParser.parse(
+                data: corrupted,
+                password: fixture.password,
+                keyFileData: fixture.keyFileData,
+                sessionKey: testSessionKey
+            )
+        ) { error in
+            XCTAssertEqual(error as? KDBXParser.ParseError, .invalidSignature)
+        }
+    }
+
+    func testKDBX4PayloadTruncatedMidBlockFailsAsTruncated() throws {
+        let fixture = try makeKDBX4IntegrityFixture()
+
+        let blockSize = fixture.data
+            .subdata(in: (fixture.payloadStart + 32)..<(fixture.payloadStart + 36))
+            .withUnsafeBytes { $0.loadUnaligned(as: Int32.self).littleEndian }
+        XCTAssertGreaterThan(blockSize, 2)
+        let truncated = Data(fixture.data.prefix(fixture.payloadStart + 36 + Int(blockSize) / 2))
+
+        XCTAssertThrowsError(
+            try KDBXParser.parse(
+                data: truncated,
+                password: fixture.password,
+                keyFileData: fixture.keyFileData,
+                sessionKey: testSessionKey
+            )
+        ) { error in
+            XCTAssertEqual(error as? KDBXParser.ParseError, .truncatedFile)
+        }
+    }
+
+    func testKDBX4WrongPasswordAndWrongKeyFileBothFailHeaderHMAC() throws {
+        let fixture = try makeKDBX4IntegrityFixture()
+
+        // KDBX 4 verifies the header HMAC — which is keyed by the composite
+        // key — before it touches a single payload block, so every bad
+        // credential (wrong password, wrong key file, missing key file)
+        // legitimately produces the same `CryptoError.hmacMismatch`.
+        let badCredentials: [(name: String, password: String?, keyFileData: Data?)] = [
+            ("wrong password", "definitely-wrong", fixture.keyFileData),
+            ("wrong key file", fixture.password, Data("some-other-key-file".utf8)),
+            ("missing key file", fixture.password, nil),
+        ]
+
+        for credentials in badCredentials {
+            XCTAssertThrowsError(
+                try KDBXParser.parse(
+                    data: fixture.data,
+                    password: credentials.password,
+                    keyFileData: credentials.keyFileData,
+                    sessionKey: testSessionKey
+                ),
+                "Expected \(credentials.name) to be rejected"
+            ) { error in
+                guard case KDBXCrypto.CryptoError.hmacMismatch = error else {
+                    XCTFail("Expected header HMAC rejection for \(credentials.name), got \(error)")
+                    return
+                }
+            }
+        }
+    }
+
+    private func makeKDBX4IntegrityFixture() throws -> KDBX4IntegrityFixture {
+        let password = "kdbx4-integrity"
+        let keyFileData = Data("keeforge-kdbx4-integrity-key-file".utf8)
+        let compositeKey = KDBXCrypto.compositeKey(password: password, keyFileData: keyFileData)
+        let rootGroup = KPGroup(
+            name: "Root",
+            groups: [
+                KPGroup(
+                    name: "Integrity",
+                    entries: [
+                        KPEntry(
+                            title: "Integrity Entry",
+                            username: "integrity-user",
+                            password: try EncryptedValue.encrypt("integrity-secret", using: testSessionKey),
+                            creationTime: Date(timeIntervalSince1970: 1_700_000_000),
+                            lastModificationTime: Date(timeIntervalSince1970: 1_700_000_000)
+                        )
+                    ],
+                    creationTime: Date(timeIntervalSince1970: 1_700_000_000),
+                    lastModificationTime: Date(timeIntervalSince1970: 1_700_000_000)
+                )
+            ]
+        )
+
+        let data = try KDBXWriter.write(
+            rootGroup: rootGroup,
+            meta: KPMeta(),
+            compositeKey: compositeKey,
+            freshHeader: KDBXWriter.FreshHeaderConfiguration(
+                cipherID: KDBXParser.aesCipherUUID,
+                kdfParameters: try KDBXCompatibilitySupport.fastArgon2idParameters()
+            ),
+            sessionKey: testSessionKey
+        )
+
+        // Baseline: the untouched file must open with the exact credentials,
+        // otherwise the rejection assertions below prove nothing.
+        let parsed = try KDBXParser.parseWithMetaAndHeader(
+            data: data,
+            password: password,
+            keyFileData: keyFileData,
+            sessionKey: testSessionKey
+        )
+        let entry = try XCTUnwrap(parsed.rootGroup.allEntries.first)
+        XCTAssertEqual(entry.title, "Integrity Entry")
+        XCTAssertEqual(try entry.password.decrypt(using: testSessionKey), "integrity-secret")
+
+        var reader = DataReader(data: data)
+        _ = try KDBXParser.parseVersion(from: &reader)
+        _ = try KDBXParser.parseHeader(&reader)
+
+        return KDBX4IntegrityFixture(
+            data: data,
+            password: password,
+            keyFileData: keyFileData,
+            masterSeed: parsed.header.masterSeed,
+            headerLength: reader.offset
+        )
+    }
+
     func testUnsupportedLegacyInnerStreamShowsFriendlyError() throws {
         let data = try legacyFixtureData()
         let fieldValueOffset = try XCTUnwrap(legacyHeaderFieldValueOffset(fieldID: 10, in: data))

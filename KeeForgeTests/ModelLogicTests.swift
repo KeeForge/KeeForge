@@ -236,6 +236,89 @@ final class ModelLogicTests: XCTestCase {
         )
     }
 
+    // MARK: - KeeOTPSource.rewriting
+
+    // `EntryEditViewModel` calls `rewriting` whenever an edit changes a KeeOTP
+    // entry's secret or timing, then hands the result straight back to the
+    // writer as the entry's `otp` field. Anything it drops or mangles is
+    // written to disk, so the pass-through and append rules are pinned here.
+
+    func testKeeOTPSourceRewritingReplacesKnownParametersInPlaceAndPreservesTheRest() {
+        let source = KeeOTPSource(
+            fieldName: "otp",
+            rawQuery: "key=OLDSECRET&type=TOTP&step=30&size=6&encoding=UTF8&otpHashMode=SHA1&custom=keep%20me&bare"
+        )
+
+        let rewritten = source.rewriting(secret: "NEWSECRET", period: 45, digits: 8, algorithm: .sha512)
+
+        XCTAssertEqual(rewritten.fieldName, "otp")
+        XCTAssertEqual(
+            rewritten.rawQuery,
+            "key=NEWSECRET&type=TOTP&step=45&size=8&encoding=Base32&otpHashMode=SHA512&custom=keep%20me&bare",
+            "Unrelated parameters, their order, and their percent-encoding must survive verbatim"
+        )
+    }
+
+    func testKeeOTPSourceRewritingWithoutSecretLeavesKeyAndEncodingUntouched() {
+        // `secret: nil` means "settings changed, secret did not": the stored
+        // key and its declared encoding must not be rewritten to Base32.
+        let source = KeeOTPSource(
+            fieldName: "OTP",
+            rawQuery: "key=OLDSECRET&type=TOTP&step=30&size=6&encoding=UTF8&otpHashMode=SHA1"
+        )
+
+        let rewritten = source.rewriting(period: 60, digits: 6, algorithm: .sha256)
+
+        XCTAssertEqual(rewritten.fieldName, "OTP")
+        XCTAssertEqual(
+            rewritten.rawQuery,
+            "key=OLDSECRET&type=TOTP&step=60&size=6&encoding=UTF8&otpHashMode=SHA256"
+        )
+    }
+
+    func testKeeOTPSourceRewritingAppendsOmittedParametersUnderCanonicalNames() {
+        // KeeOtp2 omits default-valued parameters, so "key=SECRET" is a
+        // complete payload; changed settings have to be appended.
+        let minimal = KeeOTPSource(fieldName: "otp", rawQuery: "key=JBSWY3DP")
+
+        XCTAssertEqual(
+            minimal.rewriting(period: 45, digits: 8, algorithm: .sha256).rawQuery,
+            "key=JBSWY3DP&step=45&size=8&otpHashMode=SHA256",
+            "With no new secret there is nothing to declare an encoding for"
+        )
+        XCTAssertEqual(
+            minimal.rewriting(secret: "NEWSECRET", period: 45, digits: 8, algorithm: .sha256).rawQuery,
+            "key=NEWSECRET&encoding=Base32&step=45&size=8&otpHashMode=SHA256",
+            "A rewritten secret is always Base32, so the encoding must be stated"
+        )
+    }
+
+    func testKeeOTPSourceRewritingMatchesNamesCaseInsensitivelyAndPercentDecoded() {
+        let source = KeeOTPSource(fieldName: "otp", rawQuery: "KEY=OLD&%73tep=30&OTPHASHMODE=SHA1")
+
+        let rewritten = source.rewriting(secret: "NEW", period: 45, digits: 8, algorithm: .sha512)
+
+        XCTAssertEqual(
+            rewritten.rawQuery,
+            "KEY=NEW&%73tep=45&OTPHASHMODE=SHA512&encoding=Base32&size=8",
+            "Names match case-insensitively after percent-decoding, but keep their original spelling"
+        )
+    }
+
+    func testKeeOTPSourceRewritingRewritesOnlyTheFirstDuplicateParameter() {
+        // The parser rejects duplicate `key` payloads, so a duplicate can only
+        // reach here from a hand-edited field; leaving the later copy alone
+        // keeps the rewrite from inventing a second authoritative value.
+        let source = KeeOTPSource(fieldName: "otp", rawQuery: "step=30&step=99&key=OLD")
+
+        let rewritten = source.rewriting(secret: "NEW", period: 45, digits: 8, algorithm: .sha512)
+
+        XCTAssertEqual(
+            rewritten.rawQuery,
+            "step=45&step=99&key=NEW&encoding=Base32&size=8&otpHashMode=SHA512"
+        )
+    }
+
     private func titles(_ entries: [KPEntry]) -> [String] {
         entries.map(\.title)
     }
