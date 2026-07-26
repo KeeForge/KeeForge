@@ -7,10 +7,12 @@ import XCTest
 /// `DatabaseCreationServiceTests.swift` and are intentionally not repeated
 /// here.
 ///
-/// The view model always calls `DatabaseCreationService` with its default
-/// `.live` environment — unlike the service layer, it exposes no
-/// `environment:` injection seam — so these tests exercise the real
-/// (network-free) local creation/preparation path rather than a fake.
+/// The view model threads a constructor-injected
+/// `DatabaseCreationService.Environment` (default `.live`) into every service
+/// call. Most tests use the default and exercise the real (network-free)
+/// local creation/preparation path; the cloud-creation tests inject a fake
+/// `createCloudFile` to reach the upload success/failure branches — including
+/// `cloudCreationMessage(for:)`'s `.conflict` formatting — deterministically.
 @MainActor
 final class DatabaseCreationViewModelTests: XCTestCase {
     override func setUp() async throws {
@@ -152,10 +154,8 @@ final class DatabaseCreationViewModelTests: XCTestCase {
         // "not-a-real-provider" is not a CloudProviderKind rawValue, so
         // CloudProviderRegistry.provider(for:) returns nil and the live
         // environment throws CloudProviderError.notAuthenticated
-        // deterministically, with no network access — this is the only
-        // createInCloud failure reachable without either a live registered
-        // cloud account or a way to inject a fake provider (the view model
-        // has no such seam; see the .conflict note below).
+        // deterministically, with no network access — this keeps one test on
+        // the default `.live` environment path the app actually runs.
         let created = await viewModel.createInCloud(provider: "not-a-real-provider", accountID: "acct-1", folderPath: nil)
 
         XCTAssertNil(created)
@@ -163,19 +163,85 @@ final class DatabaseCreationViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.creationError, CloudProviderError.notAuthenticated.localizedDescription)
     }
 
-    // NOTE: cloudCreationMessage(for:) has a second branch that special-cases
-    // `CloudProviderError.conflict` with a friendlier message. Reaching that
-    // branch requires DatabaseCreationService's live environment to actually
-    // attempt a cloud upload against a provider that reports a conflict.
-    // DatabaseCreationViewModel always calls the service with its default
-    // `.live` environment (no environment: parameter is threaded through from
-    // the view model, unlike DatabaseCreationService itself), and there is no
-    // other seam to install a fake CloudProvider from a plain unit test
-    // (CloudProviderRegistry's only test doubles, UITestDropboxCloudProvider /
-    // UITestWebDAVCloudProvider, gate on process launch arguments that cannot
-    // be changed after the test process has started). So the .conflict
-    // formatting branch is not exercised here; it would need either a live
-    // network round trip or a small DI seam added to the view model.
+    func testCreateInCloudFormatsConflictErrorAsFriendlyDuplicateMessage() async throws {
+        let viewModel = DatabaseCreationViewModel(
+            environment: cloudEnvironment { _, _, _, _, _ in
+                throw CloudProviderError.conflict(remoteRev: "rev-existing")
+            }
+        )
+        viewModel.databaseName = "Cloud Vault"
+        viewModel.password = "cloud password"
+        viewModel.confirmPassword = "cloud password"
+
+        let created = await viewModel.createInCloud(
+            provider: CloudProviderKind.dropbox.rawValue,
+            accountID: "acct-1",
+            folderPath: nil
+        )
+
+        XCTAssertNil(created)
+        XCTAssertFalse(viewModel.isCreating)
+        // cloudCreationMessage(for:) special-cases .conflict: during creation a
+        // remote-rev conflict means the name is already taken, so the save-flow
+        // "reload before saving" wording would mislead here.
+        XCTAssertEqual(
+            viewModel.creationError,
+            "A database with this name already exists in this cloud folder."
+        )
+        // On failure secrets stay put so the user can retry without retyping.
+        XCTAssertEqual(viewModel.password, "cloud password")
+        XCTAssertTrue(DatabaseListStore.databases.isEmpty)
+    }
+
+    func testCreateInCloudSurfacesGenericDescriptionForNonConflictUploadFailure() async throws {
+        let viewModel = DatabaseCreationViewModel(
+            environment: cloudEnvironment { _, _, _, _, _ in
+                throw CloudProviderError.insufficientSpace
+            }
+        )
+        viewModel.databaseName = "Cloud Vault"
+        viewModel.password = "cloud password"
+        viewModel.confirmPassword = "cloud password"
+
+        let created = await viewModel.createInCloud(
+            provider: CloudProviderKind.dropbox.rawValue,
+            accountID: "acct-1",
+            folderPath: nil
+        )
+
+        XCTAssertNil(created)
+        XCTAssertEqual(viewModel.creationError, CloudProviderError.insufficientSpace.localizedDescription)
+        XCTAssertTrue(DatabaseListStore.databases.isEmpty)
+    }
+
+    func testCreateInCloudSucceedsClearsSecretsAndRegistersCloudDatabase() async throws {
+        let viewModel = DatabaseCreationViewModel(
+            environment: cloudEnvironment { _, _, path, data, progress in
+                progress(1)
+                return Self.makeCreatedFile(path: path, data: data)
+            }
+        )
+        viewModel.databaseName = "Cloud Vault"
+        viewModel.password = "cloud password"
+        viewModel.confirmPassword = "cloud password"
+
+        let result = await viewModel.createInCloud(
+            provider: CloudProviderKind.dropbox.rawValue,
+            accountID: "acct-1",
+            folderPath: "/Vaults"
+        )
+        let created = try XCTUnwrap(result)
+
+        XCTAssertNil(viewModel.creationError)
+        XCTAssertFalse(viewModel.isCreating)
+        XCTAssertEqual(created.reference.filename, "Cloud Vault.kdbx")
+        XCTAssertEqual(created.reference.cloudSyncMetadata?.fileId, "/Vaults/Cloud Vault.kdbx")
+        XCTAssertEqual(viewModel.password, "")
+        XCTAssertEqual(viewModel.confirmPassword, "")
+        XCTAssertNil(viewModel.keyFileData)
+        XCTAssertNil(viewModel.preparedDatabase)
+        XCTAssertEqual(DatabaseListStore.databases.map(\.id), [created.reference.id])
+    }
 
     func testCreateInCloudReturnsNilWithoutSurfacingACreationErrorWhenValidationFails() async throws {
         let viewModel = DatabaseCreationViewModel()
@@ -231,6 +297,42 @@ final class DatabaseCreationViewModelTests: XCTestCase {
     }
 
     // MARK: - Helpers
+
+    /// A `.live` environment with only `createCloudFile` swapped for the given
+    /// fake (plus fixed clock/UUID and no-op background tasks), so cloud tests
+    /// still run the real DatabaseListStore validation/registration closures.
+    private func cloudEnvironment(
+        createCloudFile: @escaping @Sendable (
+            String, String, String, Data, @escaping DatabaseCreationService.CloudProgressHandler
+        ) async throws -> CloudCreatedFile
+    ) -> DatabaseCreationService.Environment {
+        var environment = DatabaseCreationService.Environment.live
+        environment.now = { Date(timeIntervalSince1970: 1_700_000_000) }
+        environment.id = { UUID() }
+        environment.beginBackgroundTask = { _ in .invalid }
+        environment.endBackgroundTask = { _ in }
+        environment.createCloudFile = createCloudFile
+        return environment
+    }
+
+    private nonisolated static func makeCreatedFile(path: String, data: Data) -> CloudCreatedFile {
+        CloudCreatedFile(
+            file: CloudFile(
+                id: path,
+                name: (path as NSString).lastPathComponent,
+                path: path,
+                isFolder: false,
+                modifiedDate: Date(timeIntervalSince1970: 1_700_000_001),
+                size: Int64(data.count)
+            ),
+            metadata: CloudFileMetadata(
+                modifiedDate: Date(timeIntervalSince1970: 1_700_000_001),
+                contentHash: "created-hash",
+                size: Int64(data.count),
+                rev: "rev-created"
+            )
+        )
+    }
 
     private func makeTemporaryFileURL(name: String, contents: Data) throws -> URL {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)

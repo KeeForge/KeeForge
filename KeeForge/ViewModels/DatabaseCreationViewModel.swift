@@ -48,6 +48,12 @@ enum DatabaseCreationDestinationChoice: String, CaseIterable, Identifiable {
 
 @MainActor @Observable
 final class DatabaseCreationViewModel {
+    private let environment: DatabaseCreationService.Environment
+
+    init(environment: DatabaseCreationService.Environment = .live) {
+        self.environment = environment
+    }
+
     var databaseName = ""
     var password = ""
     var confirmPassword = ""
@@ -125,7 +131,8 @@ final class DatabaseCreationViewModel {
                     keyFileData: keyFileData,
                     keyFileBookmarkData: keyFileBookmarkData,
                     keyFileFilename: keyFileFilename
-                )
+                ),
+                environment: environment
             )
             clearSecrets()
             return true
@@ -142,7 +149,8 @@ final class DatabaseCreationViewModel {
 
         let created = try DatabaseCreationService.registerExported(
             preparedDatabase,
-            exportedURL: url
+            exportedURL: url,
+            environment: environment
         )
         self.preparedDatabase = nil
         return created
@@ -179,7 +187,8 @@ final class DatabaseCreationViewModel {
                     keyFileData: keyFileData,
                     keyFileBookmarkData: keyFileBookmarkData,
                     keyFileFilename: keyFileFilename
-                )
+                ),
+                environment: environment
             )
             clearSecrets()
             preparedDatabase = nil
