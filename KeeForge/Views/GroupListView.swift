@@ -51,9 +51,6 @@ struct GroupListView: View {
     /// macOS drill-down: when set, group rows call this instead of pushing a
     /// `NavigationLink` (pushed sidebar stacks render zero-height on macOS).
     var onSelectGroup: ((UUID) -> Void)? = nil
-    /// macOS drill-down counterpart for the root Tags row; the stack shells
-    /// leave it nil and push `TagDestination.allTags` instead.
-    var onSelectTags: (() -> Void)? = nil
     /// macOS drill-down: when set, a Back toolbar button pops one level.
     var onNavigateBack: (() -> Void)? = nil
     #if os(iOS)
@@ -373,27 +370,16 @@ struct GroupListView: View {
         }
     }
 
-    /// The root-level entry point into the tag browser. Mirrors `groupRow`'s
-    /// link-or-callback shape so it works in a pushing stack and in a
-    /// selection-driven shell alike.
+    /// The root-level entry point into the tag browser. A plain
+    /// `NavigationLink`: every shell that renders this view browses through a
+    /// `NavigationStack` (the macOS split view builds its own sidebar Tags
+    /// section instead and never shows this row).
     @ViewBuilder
     private func tagsRow() -> some View {
-        Group {
-            if let onSelectTags {
-                Button {
-                    onSelectTags()
-                } label: {
-                    TagBrowserRow(viewModel: viewModel)
-                }
-                .buttonStyle(.plain)
-                .accessibilityIdentifier("group-list.tags-row")
-            } else {
-                NavigationLink(value: TagDestination.allTags) {
-                    TagBrowserRow(viewModel: viewModel)
-                }
-                .accessibilityIdentifier("group-list.tags-row")
-            }
+        NavigationLink(value: TagDestination.allTags) {
+            TagBrowserRow(viewModel: viewModel)
         }
+        .accessibilityIdentifier("group-list.tags-row")
         .macHoverHighlight()
     }
 
