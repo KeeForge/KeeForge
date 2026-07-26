@@ -781,4 +781,271 @@ final class KDBXRoundTripTests: XCTestCase {
         XCTAssertTrue(xmlString.contains("<EnableSearching>maybe</EnableSearching>"))
         XCTAssertTrue(xmlString.contains("<EnableSearching>False</EnableSearching>"))
     }
+
+    // MARK: - Group Tags round-trip (KDBX 4.1, read-only)
+
+    func test_groupTags_allThreeStates_surviveRoundTrip() throws {
+        let xml = """
+        <KeePassFile><Root><Group><Name>Root</Name>
+        <Group><Name>Tagged</Name><Tags>team;shared</Tags></Group>
+        <Group><Name>EmptyElement</Name><Tags></Tags></Group>
+        <Group><Name>NoElement</Name></Group>
+        </Group></Root></KeePassFile>
+        """
+
+        let parsed = try parseXML(Data(xml.utf8))
+        let reparsed = try serializeAndParse(parsed)
+
+        for tree in [parsed, reparsed] {
+            // `rootGroup` is the synthetic wrapper for `<Root>`; the group named
+            // "Root" in the XML is its single child.
+            let container = try XCTUnwrap(tree.rootGroup.groups.first)
+            let groups = Dictionary(
+                uniqueKeysWithValues: container.groups.map { ($0.name, $0) }
+            )
+            XCTAssertEqual(groups["Tagged"]?.tags, ["team", "shared"])
+            XCTAssertEqual(groups["Tagged"]?.hasTagsElement, true)
+            XCTAssertEqual(groups["EmptyElement"]?.tags, [])
+            XCTAssertEqual(
+                groups["EmptyElement"]?.hasTagsElement,
+                true,
+                "An empty <Tags></Tags> element is present, just contentless"
+            )
+            XCTAssertEqual(groups["NoElement"]?.tags, [])
+            XCTAssertEqual(
+                groups["NoElement"]?.hasTagsElement,
+                false,
+                "A group without the element must stay without it"
+            )
+        }
+    }
+
+    func test_groupTags_absentElement_isNotAddedOnWrite() throws {
+        let root = KPGroup(name: "Root", groups: [KPGroup(name: "Plain")])
+
+        var serializer = KDBXXMLSerializer(
+            rootGroup: root,
+            meta: KPMeta(),
+            innerStreamKey: roundTripInnerStreamKey,
+            sessionKey: roundTripSessionKey
+        )
+        let xmlString = String(data: try serializer.serialize(), encoding: .utf8)!
+
+        XCTAssertFalse(
+            xmlString.contains("<Tags"),
+            "Writing a group that never had the element must not invent one — KeeForge has no group-tag write path"
+        )
+    }
+
+    /// The stored text KeeForge writes has to be one KeePass itself reads
+    /// back, so a database stays usable in both apps. Comma-joined matches
+    /// the entry serializer (KeePass canonically writes `;` but every major
+    /// implementation reads both).
+    func test_groupTags_writesCommaJoinedText() throws {
+        let root = KPGroup(
+            name: "Root",
+            groups: [KPGroup(name: "Tagged", tags: ["team", "shared"], hasTagsElement: true)]
+        )
+
+        var serializer = KDBXXMLSerializer(
+            rootGroup: root,
+            meta: KPMeta(),
+            innerStreamKey: roundTripInnerStreamKey,
+            sessionKey: roundTripSessionKey
+        )
+        let xmlString = String(data: try serializer.serialize(), encoding: .utf8)!
+
+        XCTAssertTrue(xmlString.contains("<Tags>team,shared</Tags>"))
+    }
+
+    func test_groupTags_emptyElement_preserved() throws {
+        let root = KPGroup(
+            name: "Root",
+            groups: [KPGroup(name: "Empty", hasTagsElement: true)]
+        )
+
+        var serializer = KDBXXMLSerializer(
+            rootGroup: root,
+            meta: KPMeta(),
+            innerStreamKey: roundTripInnerStreamKey,
+            sessionKey: roundTripSessionKey
+        )
+        let xmlData = try serializer.serialize()
+        let xmlString = String(data: xmlData, encoding: .utf8)!
+        XCTAssertTrue(xmlString.contains("<Tags></Tags>"), "Empty group Tags element should be emitted")
+
+        let reparsed = try parseXML(xmlData)
+        let reparsedGroup = try XCTUnwrap(reparsed.rootGroup.groups.first)
+        XCTAssertTrue(reparsedGroup.hasTagsElement, "hasTagsElement should survive round-trip")
+        XCTAssertTrue(reparsedGroup.tags.isEmpty, "tags array should remain empty")
+    }
+
+    /// Read-time rewriting is forbidden: the parser splits and trims but
+    /// never dedupes, so a foreign file's duplicated group tag survives a
+    /// KeeForge save exactly as written (`TagNormalizer`'s dedupe is an
+    /// edit-side policy and deliberately not applied here).
+    func test_groupTags_duplicatesInStoredText_surviveRoundTripUnchanged() throws {
+        let xml = """
+        <KeePassFile><Root><Group><Name>Root</Name>
+        <Group><Name>Duped</Name><Tags>dup; dup ,unique</Tags></Group>
+        </Group></Root></KeePassFile>
+        """
+
+        let parsed = try parseXML(Data(xml.utf8))
+        let container = try XCTUnwrap(parsed.rootGroup.groups.first)
+        let duped = try XCTUnwrap(container.groups.first)
+        XCTAssertEqual(duped.tags, ["dup", "dup", "unique"], "Precondition: parse keeps duplicates and order")
+
+        let reparsed = try serializeAndParse(parsed)
+        let reparsedContainer = try XCTUnwrap(reparsed.rootGroup.groups.first)
+        let reparsedDuped = try XCTUnwrap(reparsedContainer.groups.first)
+        XCTAssertEqual(reparsedDuped.tags, ["dup", "dup", "unique"])
+    }
+
+    /// Regression guard for the opaque-XML position bookkeeping: making the
+    /// group `<Tags>` a structured element shifts the insertion indices of
+    /// the unmodelled siblings around it, and none of them may be lost or
+    /// moved relative to each other.
+    func test_groupTags_doNotDisturbSurroundingUnknownElements() throws {
+        let xml = """
+        <KeePassFile><Root><Group><Name>Root</Name>
+        <Group><UUID>rG5FhCLXQ0GDRLRUEBEHUw==</UUID><Name>Nested</Name><Notes>group notes</Notes>\
+        <IconID>48</IconID><IsExpanded>True</IsExpanded>\
+        <DefaultAutoTypeSequence>{USERNAME}</DefaultAutoTypeSequence>\
+        <EnableAutoType>null</EnableAutoType>\
+        <EnableSearching>False</EnableSearching>\
+        <LastTopVisibleEntry>AAAAAAAAAAAAAAAAAAAAAA==</LastTopVisibleEntry>\
+        <Tags>team;shared</Tags></Group>
+        </Group></Root></KeePassFile>
+        """
+
+        let parsed = try parseXML(Data(xml.utf8))
+        let originalContainer = try XCTUnwrap(parsed.rootGroup.groups.first)
+        let originalNested = try XCTUnwrap(originalContainer.groups.first)
+
+        var serializer = KDBXXMLSerializer(
+            rootGroup: parsed.rootGroup,
+            meta: parsed.meta,
+            innerStreamKey: roundTripInnerStreamKey,
+            sessionKey: roundTripSessionKey
+        )
+        let xmlString = String(data: try serializer.serialize(), encoding: .utf8)!
+
+        XCTAssertTrue(xmlString.contains("<Notes>group notes</Notes>"))
+        XCTAssertTrue(xmlString.contains("<DefaultAutoTypeSequence>{USERNAME}</DefaultAutoTypeSequence>"))
+        XCTAssertTrue(xmlString.contains("<EnableAutoType>null</EnableAutoType>"))
+        XCTAssertTrue(xmlString.contains("<LastTopVisibleEntry>AAAAAAAAAAAAAAAAAAAAAA==</LastTopVisibleEntry>"))
+
+        let reparsed = try parseXML(Data(xmlString.utf8))
+        let container = try XCTUnwrap(reparsed.rootGroup.groups.first)
+        let nested = try XCTUnwrap(container.groups.first)
+        XCTAssertEqual(nested.tags, ["team", "shared"])
+        XCTAssertTrue(nested.hasTagsElement)
+        XCTAssertEqual(nested.searchingEnabled, .disabled)
+        XCTAssertEqual(nested.name, "Nested")
+        XCTAssertEqual(
+            KDBXTreeAssertions.normalizedOpaqueXML(nested.unknownXML),
+            KDBXTreeAssertions.normalizedOpaqueXML(originalNested.unknownXML),
+            "Every unknown sibling must keep its exact position across a second parse"
+        )
+    }
+
+    /// Group tags survive an edit to another part of the tree: creating an
+    /// entry inside the tagged group runs `DatabaseDraft.copyGroup` on it and
+    /// `KPGroup.replacingChildGroup` on its tagged ancestor — the two funnels
+    /// that would silently drop the fields if they failed to forward them.
+    func test_groupTags_surviveAnEditToAnotherEntry() throws {
+        let xml = """
+        <KeePassFile><Root><Group><UUID>u9nSbYQCTk6Vg0kJ0YQ1Qw==</UUID><Name>Root</Name><Tags>inherited</Tags>
+        <Group><UUID>rG5FhCLXQ0GDRLRUEBEHUw==</UUID><Name>Tagged</Name><Tags>team;shared</Tags></Group>
+        <Group><UUID>3q2+7wAAAAAAAAAAAAAAAA==</UUID><Name>EmptySibling</Name><Tags></Tags></Group>
+        </Group></Root></KeePassFile>
+        """
+
+        let parsed = try parseXML(Data(xml.utf8))
+        let container = try XCTUnwrap(parsed.rootGroup.groups.first)
+        let tagged = try XCTUnwrap(container.groups.first { $0.name == "Tagged" })
+
+        let draft = DatabaseDraft(
+            rootGroup: parsed.rootGroup,
+            meta: parsed.meta,
+            sessionKey: roundTripSessionKey
+        )
+        let updated = try draft.apply(
+            .createEntry(parentGroupID: tagged.id, draft: EntryDraftPayload(title: "New Entry"))
+        )
+
+        let reparsed = try serializeAndParse((rootGroup: updated.rootGroup, meta: updated.meta))
+        let reparsedContainer = try XCTUnwrap(reparsed.rootGroup.groups.first)
+        XCTAssertEqual(
+            reparsedContainer.tags,
+            ["inherited"],
+            "replacingChildGroup must forward the edited group's ancestor tags"
+        )
+        let reparsedTagged = try XCTUnwrap(reparsedContainer.groups.first { $0.name == "Tagged" })
+        XCTAssertEqual(reparsedTagged.tags, ["team", "shared"], "copyGroup must forward the edited group's own tags")
+        XCTAssertTrue(reparsedTagged.hasTagsElement)
+        XCTAssertEqual(reparsedTagged.entries.map(\.title), ["New Entry"])
+        let emptySibling = try XCTUnwrap(reparsedContainer.groups.first { $0.name == "EmptySibling" })
+        XCTAssertTrue(emptySibling.hasTagsElement, "Untouched siblings keep their empty element")
+        XCTAssertTrue(emptySibling.tags.isEmpty)
+    }
+
+    /// `applySetGroupSearchingEnabled` rebuilds the edited group through an
+    /// explicit `KPGroup` init rather than `copyGroup`; toggling AutoFill
+    /// visibility on a tagged group must not eat its tags.
+    func test_groupTags_surviveTogglingAutoFillVisibility() throws {
+        let xml = """
+        <KeePassFile><Root><Group><Name>Root</Name>
+        <Group><UUID>rG5FhCLXQ0GDRLRUEBEHUw==</UUID><Name>Tagged</Name><Tags>team;shared</Tags></Group>
+        </Group></Root></KeePassFile>
+        """
+
+        let parsed = try parseXML(Data(xml.utf8))
+        let container = try XCTUnwrap(parsed.rootGroup.groups.first)
+        let tagged = try XCTUnwrap(container.groups.first)
+
+        let draft = DatabaseDraft(
+            rootGroup: parsed.rootGroup,
+            meta: parsed.meta,
+            sessionKey: roundTripSessionKey
+        )
+        let updated = try draft.apply(
+            .setGroupSearchingEnabled(groupID: tagged.id, value: .disabled)
+        )
+
+        let reparsed = try serializeAndParse((rootGroup: updated.rootGroup, meta: updated.meta))
+        let reparsedContainer = try XCTUnwrap(reparsed.rootGroup.groups.first)
+        let reparsedTagged = try XCTUnwrap(reparsedContainer.groups.first)
+        XCTAssertEqual(reparsedTagged.searchingEnabled, .disabled)
+        XCTAssertEqual(reparsedTagged.tags, ["team", "shared"])
+        XCTAssertTrue(reparsedTagged.hasTagsElement)
+    }
+
+    /// A nonstandard KDBX 4.0 file containing group tags round-trips them
+    /// unchanged — preservation, not validation, is the contract. The XML
+    /// layer under test here carries no format version at all, so this
+    /// version-agnosticism IS the 4.0-nonstandard-file coverage: the same
+    /// `parseXML`/`serialize` pair runs identically whatever minor version
+    /// the outer header declared.
+    func test_groupTags_versionAgnosticXMLLayer_preservesNonstandardKDBX40GroupTags() throws {
+        let xml = """
+        <KeePassFile><Root><Group><Name>Root</Name>
+        <Group><UUID>rG5FhCLXQ0GDRLRUEBEHUw==</UUID><Name>Nonstandard</Name><Tags>from-a-4.0-file</Tags></Group>
+        </Group></Root></KeePassFile>
+        """
+
+        let parsed = try parseXML(Data(xml.utf8))
+        let reparsed = try serializeAndParse(parsed)
+
+        try KDBXTreeAssertions.assertTreesEqual(
+            parsed,
+            reparsed,
+            sessionKey: roundTripSessionKey
+        )
+        let container = try XCTUnwrap(reparsed.rootGroup.groups.first)
+        let nonstandard = try XCTUnwrap(container.groups.first)
+        XCTAssertEqual(nonstandard.tags, ["from-a-4.0-file"])
+        XCTAssertTrue(nonstandard.hasTagsElement)
+    }
 }

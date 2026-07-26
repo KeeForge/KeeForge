@@ -152,6 +152,19 @@ struct KDBXXMLSerializer {
             knownChildCount += 1
         }
 
+        // KDBX 4.1 group tags, read-only: positioned after `<EnableSearching>`
+        // and before the child entries, matching KeePass's own group child
+        // order — the opaque-XML insertion indices recorded by the parser are
+        // relative to this same sequence. A group whose source had no `<Tags>`
+        // element (flag unset, list empty) writes none and `knownChildCount`
+        // stays put, mirroring the parser exactly: KeeForge never invents a
+        // group tag, so no format-version bump is ever needed.
+        if group.hasTagsElement || !group.tags.isEmpty {
+            xml += try opaqueXML(from: group.unknownXML, path: [], insertionIndex: knownChildCount)
+            xml += element("Tags", value: escape(group.tags.joined(separator: ",")))
+            knownChildCount += 1
+        }
+
         for entry in group.entries {
             xml += try opaqueXML(from: group.unknownXML, path: [], insertionIndex: knownChildCount)
             xml += try serializeEntry(entry)

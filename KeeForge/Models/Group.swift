@@ -49,6 +49,15 @@ final class KPGroup: Identifiable, @unchecked Sendable {
     /// Read-only display copy: the source `<CustomIconUUID>` element stays in
     /// `unknownXML` so the writer round-trips it verbatim.
     var customIconUUID: UUID?
+    /// KDBX 4.1 group tags, parsed read-only so entries can inherit them
+    /// ("effective tags"). KeeForge never creates or edits a group tag; the
+    /// writer only re-emits what the parser read, so no format-version bump
+    /// is ever needed.
+    var tags: [String]
+    /// Whether the source XML had a `<Tags>` element, even if empty. Writers
+    /// use this to preserve an empty `<Tags></Tags>` that would otherwise be
+    /// indistinguishable from "no tags at all".
+    var hasTagsElement: Bool
     var entries: [KPEntry]
     var groups: [KPGroup]
     var isExpanded: Bool
@@ -67,6 +76,8 @@ final class KPGroup: Identifiable, @unchecked Sendable {
         name: String,
         iconID: Int = 48,
         customIconUUID: UUID? = nil,
+        tags: [String] = [],
+        hasTagsElement: Bool = false,
         entries: [KPEntry] = [],
         groups: [KPGroup] = [],
         isExpanded: Bool = true,
@@ -80,6 +91,8 @@ final class KPGroup: Identifiable, @unchecked Sendable {
         self.name = name
         self.iconID = iconID
         self.customIconUUID = customIconUUID
+        self.tags = tags
+        self.hasTagsElement = hasTagsElement
         self.entries = entries
         self.groups = groups
         self.isExpanded = isExpanded
@@ -143,6 +156,8 @@ final class KPGroup: Identifiable, @unchecked Sendable {
             name: name,
             iconID: iconID,
             customIconUUID: customIconUUID,
+            tags: tags,
+            hasTagsElement: hasTagsElement,
             entries: entries,
             groups: updatedGroups,
             isExpanded: isExpanded,

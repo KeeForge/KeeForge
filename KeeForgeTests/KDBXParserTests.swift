@@ -981,6 +981,55 @@ final class KDBXParserTests: XCTestCase {
         XCTAssertTrue(beta.customFields.isEmpty, file: file, line: line)
     }
 
+    // MARK: - Group Tags Fixture (KDBX 4.1)
+
+    /// `compatibility/group-tags.kdbx` is authored by pykeepass (see
+    /// `TestFixtures/compatibility/generate_group_tags_fixture.py`) as a real
+    /// KDBX 4.1 file — the version that introduced group `<Tags>` — so this
+    /// exercises the full decrypt path, not just the XML layer: header,
+    /// version 4.1, KDF, outer cipher, and the group-tag parse on a database
+    /// KeeForge did not write. pykeepass writes the tags `;`-separated
+    /// (KeePass's canonical form), covering the semicolon split too.
+    func testGroupTagsFixtureParsesGroupTagsThroughFullDecryptPath() throws {
+        let bundle = Bundle(for: KDBXParserTests.self)
+        let url = try TestDatabaseSupport.fixtureURL(named: "group-tags", subdirectory: "compatibility", bundle: bundle)
+        let data = try Data(contentsOf: url)
+        let parsed = try KDBXParser.parseWithMetaAndHeader(
+            data: data,
+            password: "testpassword123",
+            sessionKey: testSessionKey
+        )
+
+        XCTAssertEqual(parsed.header.formatVersion, .kdbx4(minor: 1))
+
+        let projects = try XCTUnwrap(findGroup(named: "Projects", in: parsed.rootGroup))
+        XCTAssertEqual(projects.tags, ["team", "shared"])
+        XCTAssertTrue(projects.hasTagsElement)
+        XCTAssertTrue(
+            projects.unknownXML.nodes.contains { $0.xml.hasPrefix("<Notes>") },
+            "The group's <Notes> stays opaque next to the now-structured <Tags>"
+        )
+        let alpha = try XCTUnwrap(projects.entries.first { $0.title == "Alpha Login" })
+        XCTAssertEqual(alpha.username, "alpha-user")
+        XCTAssertEqual(try alpha.password.decrypt(using: testSessionKey), "GroupTagAlpha1")
+        XCTAssertTrue(alpha.tags.isEmpty, "Group tags must not leak onto the parsed entry model")
+
+        let clientWork = try XCTUnwrap(findGroup(named: "Client Work", in: parsed.rootGroup))
+        XCTAssertEqual(clientWork.tags, ["billable"])
+        XCTAssertTrue(clientWork.hasTagsElement)
+        let beta = try XCTUnwrap(clientWork.entries.first { $0.title == "Beta Login" })
+        XCTAssertEqual(beta.tags, ["own-tag"], "Entry tags parse independently of the enclosing group's")
+        XCTAssertEqual(try beta.password.decrypt(using: testSessionKey), "GroupTagBeta2")
+
+        let emptyTags = try XCTUnwrap(findGroup(named: "Empty Tags Group", in: parsed.rootGroup))
+        XCTAssertTrue(emptyTags.hasTagsElement, "An empty <Tags/> element is present, just contentless")
+        XCTAssertTrue(emptyTags.tags.isEmpty)
+
+        let plain = try XCTUnwrap(findGroup(named: "Plain Group", in: parsed.rootGroup))
+        XCTAssertFalse(plain.hasTagsElement, "No element in the source means none is tracked (or ever written)")
+        XCTAssertTrue(plain.tags.isEmpty)
+    }
+
     // MARK: - Helpers
 
     private func parseFixture() throws -> KPGroup {

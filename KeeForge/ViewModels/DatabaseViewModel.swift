@@ -1472,7 +1472,7 @@ final class DatabaseViewModel {
         let recycleBinID = root.recycleBinUUID
 
         @discardableResult
-        func index(group: KPGroup, includeInSearch: Bool, autoFillEnabled: Bool) -> Int {
+        func index(group: KPGroup, includeInSearch: Bool, autoFillEnabled: Bool, inheritedTags: [String]) -> Int {
             nextGroupIndex[group.id] = group
             if includeInSearch == false, group.id != recycleBinID {
                 nextRecycleBinGroupIDs.insert(group.id)
@@ -1485,13 +1485,21 @@ final class DatabaseViewModel {
                 nextAutoFillExcludedGroupIDs.insert(group.id)
             }
 
+            // Group tags resolve once per GROUP, never per entry: this group's
+            // own tags append to the ancestors' accumulated list (root-most
+            // first), and the result feeds every live entry below. A recycled
+            // subtree still accumulates, but its entries never take the
+            // `includeInSearch` branch, so recycle-bin-only tags (including
+            // the bin group's own) never reach the tag index or search text.
+            let accumulatedTags = group.tags.isEmpty ? inheritedTags : inheritedTags + group.tags
+
             var totalEntryCount = 0
             for entry in group.entries {
                 nextEntryIndex[entry.id] = entry
                 totalEntryCount += 1
                 if includeInSearch {
                     nextSearchableEntries.append(entry)
-                    let tags = Self.effectiveTags(for: entry)
+                    let tags = Self.effectiveTags(for: entry, inheritedGroupTags: accumulatedTags)
                     nextSearchableEntryText[entry.id] = Self.searchText(for: entry, tags: tags)
                     for tag in tags {
                         nextTagEntryIDs[tag, default: []].append(entry.id)
@@ -1506,7 +1514,8 @@ final class DatabaseViewModel {
                 totalEntryCount += index(
                     group: childGroup,
                     includeInSearch: childIncludedInSearch,
-                    autoFillEnabled: resolvedAutoFillEnabled
+                    autoFillEnabled: resolvedAutoFillEnabled,
+                    inheritedTags: accumulatedTags
                 )
             }
 
@@ -1514,7 +1523,7 @@ final class DatabaseViewModel {
             return totalEntryCount
         }
 
-        index(group: root, includeInSearch: true, autoFillEnabled: true)
+        index(group: root, includeInSearch: true, autoFillEnabled: true, inheritedTags: [])
 
         entryIndex = nextEntryIndex
         groupIndex = nextGroupIndex
@@ -1735,10 +1744,14 @@ final class DatabaseViewModel {
     }
 
     /// The tags an entry contributes to the tag index and to its searchable
-    /// text. The single seam both readers go through, so they cannot drift
-    /// apart when ancestor group tags start feeding into it.
-    private static func effectiveTags(for entry: KPEntry) -> [String] {
-        TagNormalizer.tags(from: entry.tags)
+    /// text — its "effective tags": the entry's own tags first (source
+    /// order), then every ancestor group's tags (root-most ancestor first),
+    /// exact-string deduped keeping the first occurrence. The single seam
+    /// both readers go through, so the index and search can never disagree
+    /// about an entry's tags. Slice 04's suggestion exclusions consume this
+    /// same own-first ordering.
+    private static func effectiveTags(for entry: KPEntry, inheritedGroupTags: [String]) -> [String] {
+        TagNormalizer.tags(from: entry.tags + inheritedGroupTags)
     }
 
     private static func searchText(for entry: KPEntry, tags: [String]) -> String {
