@@ -29,6 +29,7 @@ Design docs written before or during a feature's implementation. Multi-slice fea
 | 2026-07-19 | `specs/2026-07-19-selectable-autofill-per-database/` | Per-database AutoFill selection, multi-database QuickType, clear-entries action (epic + slices 01–06; its `deferred-tests.md` is a **live** checklist of deferred test work, not archive material) |
 | 2026-07-19 | `specs/2026-07-19-tag-integration/` | Tag browser, tag search, group-tag inheritance, editor tag suggestions (epic + slices 01–04) |
 | 2026-07-20 | `specs/2026-07-20-autofill-store-validation-harness/` | Opt-in real-`ASCredentialIdentityStore` assertion harness: debug inspector screen, simulator provisioning, lifecycle UI tests (epic + slices 01–03) |
+| 2026-07-26 | `specs/2026-07-26-kdbx-format-hardening/` | ChaCha20 implementation consolidation + unknown KDBX4 inner-header preservation (epic + slices 01–02; from the 2026-07-25 test-suite audit) |
 
 ## `audits/` — Security Audits
 
