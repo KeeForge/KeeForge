@@ -119,7 +119,7 @@ final class AttachmentTests: XCTestCase {
             compositeKey: compositeKey,
             freshHeader: KDBXWriter.FreshHeaderConfiguration(
                 cipherID: KDBXParser.aesCipherUUID,
-                kdfParameters: fastArgon2idParameters(),
+                kdfParameters: KDBXCompatibilitySupport.fastArgon2idParameters(),
                 innerHeaderBinaryFields: [protectedBinary, plainBinary]
             ),
             sessionKey: sessionKey
@@ -209,7 +209,7 @@ final class AttachmentTests: XCTestCase {
             compositeKey: compositeKey,
             freshHeader: KDBXWriter.FreshHeaderConfiguration(
                 cipherID: KDBXParser.aesCipherUUID,
-                kdfParameters: fastArgon2idParameters()
+                kdfParameters: KDBXCompatibilitySupport.fastArgon2idParameters()
             ),
             sessionKey: sessionKey
         )
@@ -222,16 +222,5 @@ final class AttachmentTests: XCTestCase {
 
         XCTAssertTrue(reparsed.header.innerHeaderBinaryFields.isEmpty)
         XCTAssertTrue(BinaryPool(rawFields: reparsed.header.innerHeaderBinaryFields).isEmpty)
-    }
-
-    private func fastArgon2idParameters() -> [String: Any] {
-        [
-            "$UUID": KDBXParser.argon2idUUID,
-            "I": UInt64(2),
-            "M": UInt64(1024 * 1024),
-            "P": UInt32(1),
-            "V": UInt32(0x13),
-            "S": Data((0..<32).map { UInt8($0) }),
-        ]
     }
 }

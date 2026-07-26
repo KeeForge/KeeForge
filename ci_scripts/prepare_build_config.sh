@@ -76,10 +76,13 @@ fail_with_message() {
   exit 1
 }
 
+# Fails when the value is empty or matches any listed placeholder. The literal
+# key name counts as a placeholder because that is what a botched substitution
+# leaves behind, and the app refuses it at runtime.
 validate_setting() {
   local key="$1"
-  local placeholder="$2"
-  local value
+  shift
+  local value placeholder
 
   value="$(read_setting "${key}")"
   value="$(printf "%s" "${value}" | tr -d '[:space:]')"
@@ -92,12 +95,32 @@ validate_setting() {
       return
     fi
   fi
-  if [[ "${key}" == "ONEDRIVE_CLIENT_ID" && "${value}" == "${CI_PLACEHOLDER_ONEDRIVE_CLIENT_ID}" ]] && is_ci_environment; then
-    return
-  fi
 
-  if [[ -z "${value}" || "${value}" == "${placeholder}" ]]; then
+  if [[ -z "${value}" ]]; then
     fail_with_message "Set ${key} in BuildConfig.local.xcconfig before building. Start from BuildConfig.local.example.xcconfig."
+  fi
+  for placeholder in "$@"; do
+    if [[ "${value}" == "${placeholder}" ]]; then
+      fail_with_message "Set ${key} in BuildConfig.local.xcconfig before building. Start from BuildConfig.local.example.xcconfig."
+    fi
+  done
+}
+
+# ONEDRIVE_CLIENT_ID is optional for local development (the app just disables
+# OneDrive sign-in), but an archive is a shippable binary: it must carry a real
+# client ID or fail loudly here, same as DROPBOX_APP_KEY.
+validate_onedrive_client_id() {
+  local value
+
+  value="$(read_setting "ONEDRIVE_CLIENT_ID")"
+  value="$(printf "%s" "${value}" | tr -d '[:space:]')"
+
+  if [[ -z "${value}" || "${value}" == "YOUR_ONEDRIVE_CLIENT_ID" \
+        || "${value}" == "ONEDRIVE_CLIENT_ID" \
+        || "${value}" == "${CI_PLACEHOLDER_ONEDRIVE_CLIENT_ID}" ]]; then
+    if requires_real_cloud_keys; then
+      fail_with_message "ONEDRIVE_CLIENT_ID is missing or still a placeholder while producing an archive. Set the real ONEDRIVE_CLIENT_ID environment variable on this workflow."
+    fi
   fi
 }
 
@@ -108,5 +131,5 @@ if [[ ! -f "${LOCAL_CONFIG_PATH}" ]]; then
   fail_with_message "Missing BuildConfig.local.xcconfig. Copy BuildConfig.local.example.xcconfig to BuildConfig.local.xcconfig and fill in DROPBOX_APP_KEY. Add ONEDRIVE_CLIENT_ID to test OneDrive OAuth."
 fi
 
-validate_setting "DROPBOX_APP_KEY" "YOUR_DROPBOX_APP_KEY"
-validate_setting "DROPBOX_APP_KEY" "DROPBOX_APP_KEY"
+validate_setting "DROPBOX_APP_KEY" "YOUR_DROPBOX_APP_KEY" "DROPBOX_APP_KEY"
+validate_onedrive_client_id

@@ -63,12 +63,9 @@ final class CloudProviderDesktopAuthTests: XCTestCase {
         XCTAssertIdentical(parameters.parentViewController, window.contentViewController)
     }
 
-    func testDropboxDesktopScopeRequestIsWellFormed() {
-        let scopeRequest = DropboxCloudProvider.makeScopeRequest()
-
-        XCTAssertEqual(scopeRequest.scopes, DropboxCloudProvider.requestedScopes)
-        XCTAssertTrue(scopeRequest.scopes.contains("files.content.write"))
-    }
+    // testDropboxDesktopScopeRequestIsWellFormed removed: DropboxCloudProvider.makeScopeRequest()
+    // is a pure, platform-neutral function with no mac-specific behavior — its scope contract
+    // is already covered by DropboxCloudProviderTests.testAuthenticateRequestsWriteScope.
 
     func testMacBundleRegistersOAuthRedirectSchemes() throws {
         let urlTypes = try XCTUnwrap(

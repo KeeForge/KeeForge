@@ -6,8 +6,8 @@ This folder owns provider abstractions plus the cloud-backed open/save pipeline.
 
 - `CloudProvider.swift` and `CloudProviderRegistry.swift` define the provider boundary the rest of the app talks to.
 - `CloudAccountStore.swift` and `CloudTokenStore.swift` persist provider account state and auth material.
-- `CloudSyncCoordinator.swift` decides when to reuse cache, download before open, or refresh metadata after cloud saves.
-- `CloudDatabaseSaver.swift` performs the cloud-backed save pipeline with provider revision verification, upload, cache refresh, and backup rotation.
+- `CloudSyncCoordinator.swift` decides when to reuse cache, download before open, or refresh metadata after cloud saves. If a pending AutoFill upload marker is still queued, a sync-down first writes a best-effort timestamped backup of the shared cache into the savers' backup directory (the cache is that save's only copy until the upload drains).
+- `CloudDatabaseSaver.swift` performs the cloud-backed save pipeline with provider revision verification, upload, cache refresh, and backup rotation (timestamped backups, pruned to keep the 5 newest — same retention as `LocalDatabaseSaver`).
 - `CloudProvider.swift` also exposes create-only cloud uploads used by database creation; providers must use no-overwrite semantics for new files.
 - `PendingUploadQueue.swift` and `PendingUploadDrainer.swift` handle deferred cloud uploads from the AutoFill save path.
 - `DropboxCloudProvider.swift`, `OneDriveCloudProvider.swift`, and `UITestDropboxCloudProvider.swift` implement the real and test cloud integrations.
@@ -15,7 +15,7 @@ This folder owns provider abstractions plus the cloud-backed open/save pipeline.
 - `WebDAVModels.swift` holds the WebDAV config/credential value types, HTTPS-by-default URL normalization with explicit HTTP opt-in, accountId derivation, and the `WebDAVConnecting` connect seam.
 - `WebDAVPropfindParser.swift` is a pure `XMLParser`-based multistatus parser (DAV: namespace only) that yields `[WebDAVResource]`.
 - `WebDAVClient.swift` is a `Sendable` transport (injectable closure; live ephemeral `URLSession` with same-origin redirect handling and preemptive Basic auth) plus the HTTP/URLError→`CloudProviderError` mapping. The URLError mapping distinguishes TLS handshake failures (server's TLS configuration — often a cipher-suite mismatch, since many WebDAV servers lack the forward-secrecy suites Apple implements) from genuine certificate problems; keep those messages separate. App-side, `NSAllowsArbitraryLoads` is enabled in both app Info.plists because ATS has no per-domain exception for user-entered hosts — HTTPS-only enforcement for WebDAV lives in `WebDAVConnectViewModel`/`WebDAVModels` instead.
-- `WebDAVCloudProvider.swift` implements `CloudProvider` + `WebDAVConnecting` for WebDAV: stateless, credential-per-call from `CloudTokenStore`, ETag-based `rev`, depth-zero `PROPFIND` metadata checks, and folder/.kdbx listing. Wired via `provider(for:)` but intentionally left out of `availableProviders` until the UI slice ships.
+- `WebDAVCloudProvider.swift` implements `CloudProvider` + `WebDAVConnecting` for WebDAV: stateless, credential-per-call from `CloudTokenStore`, ETag-based `rev`, depth-zero `PROPFIND` metadata checks, and folder/.kdbx listing. Wired via `provider(for:)` and included in `CloudProviderRegistry.availableProviders`; the `isAvailableOnCurrentPlatform` gate below passes WebDAV on every platform.
 
 ## Change Carefully
 

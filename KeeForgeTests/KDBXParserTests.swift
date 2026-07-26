@@ -400,8 +400,15 @@ final class KDBXParserTests: XCTestCase {
 
     func testAllEntriesIncludesNestedGroupEntries() throws {
         let root = try parseFixture()
-        let nestedEntry = root.allEntries.first { $0.title == "日本語テスト 🔑" }
-        XCTAssertNotNil(nestedEntry, "Entry in nested group not found via allEntries")
+        let nestedEntry = try XCTUnwrap(
+            root.allEntries.first { $0.title == "日本語テスト 🔑" },
+            "Entry in nested group not found via allEntries"
+        )
+        // This entry lives in Work/Internal; asserting its actual field
+        // content (not just non-nil) proves allEntries recursed into the
+        // nested subgroup rather than matching an unrelated entry.
+        XCTAssertEqual(nestedEntry.username, "ユーザー")
+        XCTAssertEqual(nestedEntry.url, "https://example.jp")
     }
 
     // MARK: - Edge Cases
@@ -448,13 +455,18 @@ final class KDBXParserTests: XCTestCase {
         XCTAssertTrue(twitter.additionalURLs.isEmpty)
     }
 
-    func testKP2AURLFieldsExcludedFromCustomFields() throws {
+    func testKP2AURLFieldsRetainedInCustomFields() throws {
         let root = try parseFixture()
         let github = try XCTUnwrap(root.allEntries.first { $0.title == "GitHub" })
 
-        let kp2aKeys = github.customFields.keys.filter { $0.hasPrefix("KP2A_URL_") }
-        // KP2A_URL fields should still be in customFields (additionalURLs reads from them)
-        XCTAssertEqual(kp2aKeys.count, 2)
+        // KP2A_URL_* fields are NOT stripped from the raw customFields
+        // dictionary during parsing — additionalURLs derives directly from
+        // them, so parsing must preserve both the keys and their values.
+        let kp2aFields = github.customFields.filter { $0.key.hasPrefix("KP2A_URL_") }
+        XCTAssertEqual(
+            Set(kp2aFields.values),
+            Set(["https://github.com/settings", "https://gist.github.com"])
+        )
     }
 
     func testKP2AURLsAreSortedByKey() {
@@ -1046,18 +1058,23 @@ final class KDBXParserTests: XCTestCase {
         }
     }
 
-    func testArgon2HighParallelismAccepted() {
-        // 64 threads — valid for modern machines, should not throw kdfParameterOutOfRange
-        let data = buildKDBXWithKDFParams(iterations: 3, memory: 64 * 1024 * 1024, parallelism: 64)
-        // This will fail later in parsing (bad decrypt etc.) but must NOT fail with kdfParameterOutOfRange
-        do {
-            _ = try KDBXParser.parse(data: data, password: "x", sessionKey: testSessionKey)
-            XCTFail("Expected some parse error (bad data), but succeeded unexpectedly")
-        } catch KDBXParser.ParseError.kdfParameterOutOfRange {
-            XCTFail("parallelism=64 should be accepted, not rejected as out of range")
-        } catch {
-            // Any other error is fine — we just care that it's not kdfParameterOutOfRange
-        }
+    func testArgon2HighParallelismAccepted() throws {
+        // 64 threads — valid for modern machines. Exercise KDBXParser.deriveKey
+        // directly (the actual unit under range-validation) so the test can
+        // assert the positive outcome — a real 32-byte derived key — instead
+        // of only checking that a specific error wasn't thrown.
+        let params: [String: Any] = [
+            "$UUID": KDBXParser.argon2idUUID,
+            "I": UInt64(2),
+            "M": UInt64(64 * 1024 * 1024),
+            "P": UInt32(64),
+            "V": UInt32(0x13),
+            "S": Data((0..<32).map { UInt8($0) }),
+        ]
+
+        let derivedKey = try KDBXParser.deriveKey(compositeKey: Data("composite-key".utf8), kdfParams: params)
+
+        XCTAssertEqual(derivedKey.count, 32)
     }
 
     func testArgon2ZeroParallelismRejected() {
