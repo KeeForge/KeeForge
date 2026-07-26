@@ -430,7 +430,7 @@ final class CredentialProviderSaveTests: XCTestCase {
         // outranked by the pointer.
         DatabaseListStore.activeAutoFillDatabaseID = nil
 
-        let presenter = SavePresenterSpy()
+        let presenter = CredentialProviderPresentingSpy()
         let coordinator = CredentialProviderCoordinator(presenter: presenter)
 
         coordinator.prepareInterface(for: makeSavePasswordRequest())
@@ -450,7 +450,7 @@ final class CredentialProviderSaveTests: XCTestCase {
         DatabaseListStore.update(disabled)
         DatabaseListStore.markDatabaseOpened(id: disabled.id, at: Date(timeIntervalSince1970: 1_000))
 
-        let presenter = SavePresenterSpy()
+        let presenter = CredentialProviderPresentingSpy()
         let coordinator = CredentialProviderCoordinator(presenter: presenter)
 
         coordinator.prepareInterface(for: makeSavePasswordRequest())
@@ -636,67 +636,5 @@ final class CredentialProviderSaveTests: XCTestCase {
         var populatedEntryTitles: [[String]] = []
         var populatedDatabaseIDs: [UUID] = []
         var relativePathInputs: [URL] = []
-    }
-
-    /// Minimal `CredentialProviderPresenting` conformance for the save-prepare
-    /// tests: `prepareInterface(for: ASSavePasswordRequest)` only mutates
-    /// coordinator state, so the spy just records that no request cancellation
-    /// (the pre-slice-03 `.failed` behavior) sneaks back in.
-    @MainActor
-    private final class SavePresenterSpy: CredentialProviderPresenting {
-        var isPresentationActive = false
-        var isDisplayingContent = false
-        private(set) var cancelledErrorCodes: [ASExtensionError.Code] = []
-
-        func presentSearchView(
-            entries: [KPEntry],
-            initialSearchText: String,
-            databaseSwitcher: CredentialProviderDatabaseSwitcherContext?,
-            onSelect: @escaping (KPEntry) -> Void,
-            onCancel: @escaping () -> Void
-        ) {}
-
-        func presentEntryCreator(
-            initialDraft: EntryDraftPayload,
-            onSave: @escaping @Sendable (EntryDraftPayload) async -> CredentialProviderEntrySaveOutcome,
-            onCancel: @escaping () -> Void
-        ) {}
-
-        func presentNoEnabledDatabasesState(onDismiss: @escaping () -> Void) {}
-
-        func presentUnlockPrompt(
-            biometricOptionTitle: String?,
-            onSubmitPassword: @escaping (String?) -> Void,
-            onChooseBiometrics: @escaping () -> Void,
-            onCancel: @escaping () -> Void
-        ) {}
-
-        func presentUnlockError(
-            message: String,
-            onRetry: @escaping () -> Void,
-            onCancel: @escaping () -> Void
-        ) {}
-
-        func presentReadOnlyNotice(
-            message: String,
-            onAcknowledge: @escaping () -> Void
-        ) {}
-
-        func presentGeneratedPassword(
-            _ password: String,
-            onUse: @escaping () -> Void,
-            onRegenerate: @escaping () -> Void,
-            onCancel: @escaping () -> Void
-        ) {}
-
-        func completeRequest(withSelectedCredential credential: ASPasswordCredential) {}
-        func completeAssertionRequest(using credential: ASPasskeyAssertionCredential) {}
-        func completeOneTimeCodeRequest(code: String) {}
-        func completeSavePasswordRequest() {}
-        func completeGeneratePasswordRequest(passwords: [String]) {}
-
-        func cancelRequest(withError error: ASExtensionError) {
-            cancelledErrorCodes.append(error.code)
-        }
     }
 }

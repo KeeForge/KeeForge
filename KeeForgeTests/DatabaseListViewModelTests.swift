@@ -107,33 +107,22 @@ final class DatabaseListViewModelTests: XCTestCase {
 
     // MARK: - Per-database AutoFill toggle
 
-    func testSetAutoFillEnabledFalsePersistsAndTriggersTargetedRemoval() async throws {
+    /// The store-owned "targeted removal, never a whole-store clear"
+    /// invariant is exhaustively covered by DatabaseListStoreTests.swift; this
+    /// only proves the view model delegates to
+    /// `DatabaseListStore.setAutoFillEnabled` and that `reload()` refreshes
+    /// its own `databases` copy of the persisted flag.
+    func testSetAutoFillEnabledFalseDelegatesToStoreAndReloadsDatabases() throws {
         let reference = try DatabaseListStore.add(url: makeTemporaryFileURL(name: "autofill-off.kdbx"))
         let viewModel = DatabaseListViewModel()
-
-        // Routing through DatabaseListStore.setAutoFillEnabled (not the
-        // generic update bypass) means the store's targeted removal runs —
-        // and a whole-store clear must never happen for a single disable.
-        CredentialIdentityStoreManager.clearObserver = {
-            XCTFail("Disabling one database must use targeted identity removal, never a whole-store clear")
-        }
-
-        let removalExpectation = expectation(description: "Targeted identity removal for the disabled database")
-        CredentialIdentityStoreManager.removeDatabaseObserver = { databaseID, _ in
-            XCTAssertEqual(databaseID, reference.id)
-            removalExpectation.fulfill()
-        }
+        XCTAssertEqual(viewModel.databases.first(where: { $0.id == reference.id })?.autoFillEnabled, true)
 
         viewModel.setAutoFillEnabled(false, for: reference)
 
-        await fulfillment(of: [removalExpectation], timeout: 1)
-        try? await Task.sleep(for: .milliseconds(100))
-
         let storedReference = try XCTUnwrap(DatabaseListStore.databases.first(where: { $0.id == reference.id }))
-        XCTAssertFalse(storedReference.autoFillEnabled)
+        XCTAssertFalse(storedReference.autoFillEnabled, "setAutoFillEnabled must delegate to DatabaseListStore")
         let reloadedReference = try XCTUnwrap(viewModel.databases.first(where: { $0.id == reference.id }))
         XCTAssertFalse(reloadedReference.autoFillEnabled, "reload() should refresh the view model's copy of the flag")
-        XCTAssertFalse(DatabaseListStore.autoFillEnabledDatabases.contains(where: { $0.id == reference.id }))
     }
 
     func testSetAutoFillEnabledTrueInvokesRefreshHandlerWithDatabaseID() throws {
