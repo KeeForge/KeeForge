@@ -88,9 +88,9 @@ final class DropboxCloudProvider: CloudProvider, @unchecked Sendable {
     private var pendingAuthContinuation: CheckedContinuation<CloudAccount, Error>?
 
     /// SwiftyDropbox's global setup asserts it runs exactly once, and its
-    /// clients own URLSessions that must outlive a single call, so both are
-    /// reached only through this lock. Entry points span the main actor
-    /// (authenticate, redirect handling) and the cooperative pool (sync, save).
+    /// clients own URLSessions outliving a single call, so both are reached
+    /// only through this lock — entry points span the main actor and the
+    /// cooperative pool.
     private let state = OSAllocatedUnfairLock(uncheckedState: State())
 
     private struct State {
@@ -170,10 +170,10 @@ final class DropboxCloudProvider: CloudProvider, @unchecked Sendable {
     }
 
     func signOut(accountId: String) {
-        // The SDK's OAuth manager only exists once configuration has succeeded,
-        // so a disconnect that never touched the SDK this session would leave
-        // the long-lived refresh token behind. Delete the keychain row directly
-        // as well, so the token is gone either way.
+        // The SDK's OAuth manager only exists once configuration has
+        // succeeded, so a disconnect that never touched the SDK this session
+        // would strand the long-lived refresh token. Delete the row directly
+        // too, so the token is gone either way.
         if let manager = try? configuredOAuthManager(),
            let token = manager.getAccessToken(accountId) {
             _ = manager.clearStoredAccessToken(token)
@@ -508,10 +508,10 @@ final class DropboxCloudProvider: CloudProvider, @unchecked Sendable {
         return Array(Set(files)).sorted(by: Self.sortCloudFiles)
     }
 
-    /// One client per account, kept for the process lifetime. Each client owns
-    /// two URLSessions that only `shutdown()` invalidates, and its token
-    /// provider caches the refreshed access token — building one per call
-    /// leaked sessions and forced an OAuth round-trip before every request.
+    /// One client per account, kept for the process lifetime: each owns two
+    /// URLSessions that only `shutdown()` invalidates and caches the refreshed
+    /// access token, so building one per call leaked sessions and forced an
+    /// OAuth round-trip per request.
     private func client(for accountId: String) throws -> DropboxClient {
         // `withLockUnchecked` because the SDK's client and OAuth manager are not
         // `Sendable`; the lock is what keeps them single-threaded here.
@@ -957,11 +957,10 @@ final class DropboxCloudProvider: CloudProvider, @unchecked Sendable {
         return .unknown((error as NSError).localizedDescription)
     }
 
-    /// KeeForge persists only the refresh token, so the SDK refreshes before
-    /// every request and an offline call fails at the OAuth stage.
-    /// `OAuthTokenRequest` flattens the transport cause into a message string
-    /// before SwiftyDropbox wraps the code in `ClientError.oauthError`, leaving
-    /// the OAuth code as the only thing to classify by.
+    /// KeeForge persists only the refresh token, so every request refreshes
+    /// first and an offline call fails at the OAuth stage. `OAuthTokenRequest`
+    /// flattens the transport cause into a message string, leaving the OAuth
+    /// code as the only thing to classify by.
     static func mapOAuthRefreshError(_ error: Error) -> CloudProviderError {
         // Defensive: honour a genuine URL error should a future SDK version
         // preserve one.

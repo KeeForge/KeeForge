@@ -53,11 +53,10 @@ struct KeeForgeCommands: Commands {
                 }
             }
             .keyboardShortcut("s", modifiers: .command)
-            // `isSaving` matters here in a way it does not for a tapped
-            // button: the draft stays dirty until the save lands, so without
-            // it a repeated ⌘S starts a second save against the same rev.
-            // `DatabaseViewModel.save()` also refuses reentry; this only keeps
-            // the menu item from advertising an action it would ignore.
+            // The draft stays dirty until the save lands, so `isSaving` is
+            // what stops a repeated ⌘S. `DatabaseViewModel.save()` refuses
+            // reentry too; this only keeps the menu item from advertising an
+            // action it would ignore.
             .disabled(
                 isUnlocked == false
                     || viewModel?.isDirty != true

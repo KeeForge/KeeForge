@@ -881,13 +881,10 @@ final class DatabaseViewModel {
         }
 
         guard case .unlocked = state else { return }
-        // Reentry guard. `isDirty` stays true for the whole in-flight save, so
-        // anything gated only on it can fire again mid-save — the macOS ⌘S
-        // command most directly, since a menu command has no "button already
-        // tapped" state. Two concurrent saves race the same open-time SHA and
-        // rev, so the second reliably loses and raises a conflict dialog the
-        // user did nothing to earn. Silent no-op rather than an error: a
-        // second ⌘S means "save", and the save already in flight is doing it.
+        // Reentry guard: `isDirty` stays true for the whole in-flight save, so
+        // a repeated ⌘S would start a second one racing the same open-time SHA
+        // and rev, losing into an unearned conflict dialog. Silent no-op — the
+        // in-flight save is already doing what the caller asked for.
         guard isSaving == false else { return }
         guard let draft else { return }
         guard draft.isDirty else { return }
@@ -1213,15 +1210,12 @@ final class DatabaseViewModel {
                     let resolution = try await CloudSyncCoordinator.syncIfNeededForOpen(reference: databaseReference)
                     data = resolution.data
 
-                    // `resolution.reference` grew out of the reference captured
-                    // before this network round-trip, so storing it wholesale
-                    // would revert anything that landed inside the window — a
-                    // save or a pending-upload drain, both of which advance the
-                    // revision. The next save would then conflict against the
-                    // app's own upload. Merge only the sync fields this refresh
-                    // learned, and only while the stored state is still the one
-                    // it started from; otherwise adopt whatever the newer
-                    // writer left.
+                    // Storing `resolution.reference` wholesale would revert a
+                    // save or drain that landed during the round-trip, and the
+                    // next save would conflict against the app's own upload.
+                    // Merge only the sync fields learned here, and only while
+                    // the stored state is unchanged (see
+                    // `DatabaseListStore.updateCloudSyncMetadata`).
                     let mergedReference = observedCloudMetadata.flatMap { observed in
                         DatabaseListStore.updateCloudSyncMetadata(
                             for: resolution.reference.id,
@@ -1239,9 +1233,9 @@ final class DatabaseViewModel {
                     await MainActor.run {
                         guard self.databaseReference.id == resolution.reference.id else { return }
                         self.cloudSyncBannerText = resolution.bannerMessage
-                        // Nil means the merge was skipped or never persisted;
-                        // keeping the current reference makes the next sync
-                        // redo the work rather than trusting an unsaved rev.
+                        // Nil means skipped or unpersisted: keep the current
+                        // reference so the next sync redoes the work rather
+                        // than trusting an unsaved rev.
                         if let mergedReference {
                             self.databaseReference = mergedReference
                         }
@@ -1758,15 +1752,12 @@ final class DatabaseViewModel {
         )
     }
 
-    /// Refreshes the shared AutoFill cache after an unlock read — for local
-    /// databases only. Cloud-backed unlocks read `data` FROM that cache
-    /// (`CloudSyncCoordinator.syncIfNeededForOpen` maintains it), so writing
-    /// it back is redundant — and worse: an AutoFill save landing between the
-    /// coordinator's read and this write would be reverted with no backup,
-    /// since only the coordinator's overwrite paths honor the pending-marker
-    /// backup gate. Local databases have no pending-upload markers (markers
-    /// are enqueued only for cloud-backed references), so the plain rewrite is
-    /// safe there.
+    /// Refreshes the shared AutoFill cache after an unlock read — local
+    /// databases only. Cloud-backed unlocks read `data` FROM that cache, so
+    /// rewriting it is redundant and unsafe: an AutoFill save landing between
+    /// the coordinator's read and this write would be reverted with no backup,
+    /// since only the coordinator's paths honor the pending-marker gate. Local
+    /// databases never have markers, so the plain rewrite is safe there.
     private func cacheDatabaseCopyForLocalDatabase(_ data: Data) throws {
         guard databaseReference.isCloudBacked == false else { return }
         try DatabaseListStore.cacheDatabaseCopy(data, for: databaseReference)
@@ -1885,20 +1876,14 @@ final class DatabaseViewModel {
         }.value
     }
 
-    /// A conflict copy exists to preserve bytes the user would otherwise lose,
-    /// so overwriting an existing file is the one outcome it must never
-    /// produce. `upload(expectedRev: nil)` is exactly that overwrite — Dropbox
-    /// resolves it to `WriteMode.overwrite`, OneDrive to
-    /// `conflictBehavior=replace` — which meant two resolutions landing on the
-    /// same name destroyed the earlier copy. `createFile` carries the
-    /// no-overwrite semantics every provider is required to implement
-    /// (`Cloud/README.md`) and reports a name collision as `.conflict`; that
-    /// only happens when a copy from the same second already exists, so the
-    /// retry numbers the name instead of replacing anything.
-    ///
-    /// `providerResolver` is injectable for the same reason as
-    /// `CloudSyncCoordinator.syncIfNeededForOpen`'s: it is the only way to
-    /// exercise the create-only routing without a live provider.
+    /// Writes the conflict copy create-only: it exists to preserve bytes, so
+    /// it must never overwrite. Do not go back to `upload(expectedRev: nil)` —
+    /// that is `WriteMode.overwrite` on Dropbox and `conflictBehavior=replace`
+    /// on OneDrive, and it destroyed an earlier copy of the same name.
+    /// `createFile` is required to be no-overwrite (`Cloud/README.md`) and
+    /// reports a collision as `.conflict`, which the retry answers by
+    /// numbering the name. `providerResolver` is injectable only so tests can
+    /// exercise this routing without a live provider.
     static func writeConflictCopyToCloud(
         reference: DatabaseReference,
         fileID: String,
@@ -1934,15 +1919,11 @@ final class DatabaseViewModel {
     }
 
     /// How many numbered names a conflict copy may try before giving up.
-    /// Reaching it needs that many copies of one database inside a single
-    /// second, which no interactive flow produces.
+    /// Reaching it needs 20 copies of one database within a single second.
     nonisolated private static let conflictCopyNameAttemptLimit = 20
 
-    /// Inserts ` <attempt>` ahead of the extension, so
-    /// `vault (conflict 2026-07-25 143012).kdbx` becomes
-    /// `vault (conflict 2026-07-25 143012) 2.kdbx`. Works on a bare filename
-    /// or a full provider path — both keep their extension in the last
-    /// component.
+    /// Inserts ` <attempt>` ahead of the extension (`… 143012).kdbx` becomes
+    /// `… 143012) 2.kdbx`). Works on a bare filename or a full provider path.
     nonisolated private static func uniquifiedConflictCopyName(_ name: String, attempt: Int) -> String {
         let stem = (name as NSString).deletingPathExtension
         let ext = (name as NSString).pathExtension
@@ -1951,10 +1932,9 @@ final class DatabaseViewModel {
     }
 
     /// Picks a free name for a local conflict copy. Same no-overwrite rule as
-    /// the cloud path, but expressed as a search because
+    /// the cloud path, expressed as a search because
     /// `CoordinatedFileReader.writeData` replaces whatever is there. The
-    /// check-then-write window is inherent without an `O_EXCL` write path, and
-    /// the only racer would be the same user on the same device.
+    /// check-then-write window is inherent without `O_EXCL`.
     nonisolated private static func availableConflictCopyURL(in directory: URL, filename: String) -> URL {
         let fileManager = FileManager.default
         let preferredURL = directory.appendingPathComponent(filename)

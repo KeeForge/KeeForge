@@ -25,8 +25,8 @@ enum CloudDatabaseSaver {
         var now: @Sendable () -> Date
         var applyUploadedBytes: @Sendable (DatabaseReference, Data, CloudFileMetadata) throws -> DatabaseReference
         /// Drops pending AutoFill markers whose recorded payload SHA-512
-        /// equals this save's open-time SHA-512 (M3 supersession — declared
-        /// with a default so `Environment` literals elsewhere keep compiling).
+        /// equals this save's open-time SHA-512. Defaulted so existing
+        /// `Environment` literals keep compiling.
         var dropSupersededPendingUploads: @Sendable (_ databaseId: UUID, _ payloadSHA512: Data) -> Void = { databaseId, payloadSHA512 in
             PendingUploadQueue.dropMarkers(withPayloadSHA512: payloadSHA512, for: databaseId)
         }
@@ -183,18 +183,13 @@ enum CloudDatabaseSaver {
         do {
             let uploadedMetadata = try await environment.upload(reference, newData, expectedRev, { _ in })
 
-            // M3: a pending AutoFill marker whose recorded payload hashes to
-            // this save's open-time SHA recorded exactly the bytes this save
-            // was based on — the upload above carried that content to the
-            // remote head, so the marker is provably superseded. Dropping it
-            // only after a successful upload preserves the invariant that
-            // unuploaded cache bytes always have a covering marker, and doing
-            // it before `applyUploadedBytes` keeps that call's pending-marker
-            // backup gate scoped to markers that still hold unuploaded
-            // content.
-            environment.dropSupersededPendingUploads(reference.id, openTimeSHA512)
-
+            // Markers whose payload hashes to this save's open-time SHA are
+            // superseded by the upload above. Drop only AFTER
+            // `applyUploadedBytes`: a concurrent AutoFill save's provisional
+            // marker is what gates that call's pre-overwrite backup, so
+            // dropping first would clobber its bytes uncovered.
             _ = try environment.applyUploadedBytes(reference, newData, uploadedMetadata)
+            environment.dropSupersededPendingUploads(reference.id, openTimeSHA512)
             try? environment.pruneBackups(reference, 5)
 
             return .saved(newSHA512: KDBXCrypto.sha512(newData))
@@ -252,27 +247,16 @@ enum CloudDatabaseSaver {
         }.value
     }
 
-    /// Whether the remote head is something other than the state this save was
-    /// based on — the gate that decides conflict-versus-upload.
-    ///
-    /// With a recorded rev the check is exact. `expectedRev == nil` is not a
-    /// corner case: references persisted by builds predating rev tracking
-    /// decode with `remoteRev == nil`, the offline/fallback open path never
-    /// populates it, and WebDAV servers without ETags never produce one. On
-    /// that path a bare `remote.rev != expectedRev` check passes vacuously and
-    /// the upload becomes an unconditional overwrite of whatever the remote
-    /// holds — Dropbox uses `WriteMode.overwrite` and OneDrive omits
-    /// `If-Match` with `conflictBehavior=replace` when handed no rev. So a
-    /// missing rev falls back to metadata-level verification instead: a
-    /// provider-reported content hash must equal the one recorded at the last
-    /// sync, and a provider reporting a rev we never recorded is treated as
-    /// conflict-suspect. Both surface the existing conflict flow, where the
-    /// user keeps both copies, rather than overwriting silently.
-    ///
-    /// Residue: a provider exposing neither a rev nor a content hash — a bare
-    /// WebDAV server without ETags — offers nothing to verify against, so the
-    /// save keeps today's behavior there. Closing that gap needs a remote-byte
-    /// comparison, which is deliberately not done here.
+    /// Whether the remote head differs from the state this save was based on —
+    /// the conflict-versus-upload gate. A recorded rev makes it exact. A nil
+    /// rev is common (pre-rev-tracking references, offline opens, ETag-less
+    /// WebDAV) and there a bare `remote.rev != expectedRev` passes vacuously,
+    /// turning the upload into an unconditional overwrite (Dropbox
+    /// `WriteMode.overwrite`, OneDrive `conflictBehavior=replace` without
+    /// `If-Match`). So nil falls back to metadata: the reported content hash
+    /// must match the recorded one, and an unrecorded rev is conflict-suspect.
+    /// Residue: a bare WebDAV server exposing neither rev nor hash offers
+    /// nothing to verify against; closing that needs a remote-byte compare.
     static func remoteHasDiverged(
         recorded: CloudSyncMetadata,
         remote: CloudFileMetadata,

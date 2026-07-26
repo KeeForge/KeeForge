@@ -54,12 +54,10 @@ final class DatabaseViewModelTests: XCTestCase {
     }
 
     func testUnlockCloudDatabaseDoesNotRewriteSharedCache() async throws {
-        // The cloud unlock path reads its bytes FROM the shared cache (via the
-        // sync coordinator); writing them back is redundant, and used to
-        // silently revert — with no backup — an AutoFill save that landed in
-        // the cache between the coordinator's read and the rewrite. The cache
-        // must be left alone: here it holds fresher bytes than the ones the
-        // unlock read, and they must survive the unlock attempt untouched.
+        // A cloud unlock reads its bytes FROM the shared cache, so rewriting
+        // them used to silently revert an AutoFill save that landed in the
+        // meantime. The cache here holds fresher bytes and must survive the
+        // unlock untouched.
         let reference = makeCloudReference(remoteRev: "rev-1")
         let pendingAutoFillBytes = Data("pending-autofill-save-bytes".utf8)
         try DatabaseListStore.cacheDatabaseCopy(pendingAutoFillBytes, for: reference)
@@ -2691,6 +2689,27 @@ final class CloudSyncCoordinatorTests: XCTestCase {
         )
 
         XCTAssertEqual(backupContents(for: reference), [])
+    }
+
+    func testApplyUploadedBytesKeepsRecordedRevAndHashWhenResponseOmitsThem() throws {
+        // An upload response can omit rev/hash (OneDrive session completions).
+        // Overwriting the recorded values with nil would push every later save
+        // into the nil-rev conflict fallback — the recorded values must win.
+        var reference = makeCloudReference(remoteContentHash: "hash-A", remoteModifiedAt: nil)
+        reference.updateCloudSyncMetadata { metadata in
+            metadata.remoteRev = "rev-A"
+        }
+        let uploadedBytes = Data("uploaded-bytes".utf8)
+        try DatabaseListStore.cacheDatabaseCopy(uploadedBytes, for: reference)
+
+        let updated = try CloudSyncCoordinator.applyUploadedBytesAfterSave(
+            reference: reference,
+            bytes: uploadedBytes,
+            remoteMetadata: CloudFileMetadata(modifiedDate: .now, contentHash: nil, size: 64, rev: nil)
+        )
+
+        XCTAssertEqual(updated.cloudSyncMetadata?.remoteRev, "rev-A")
+        XCTAssertEqual(updated.cloudSyncMetadata?.remoteContentHash, "hash-A")
     }
 
     func testDiscardConflictedPendingUploadsBacksUpLivePayloadAndDropsOnlyConflictedMarkers() async throws {

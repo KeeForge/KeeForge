@@ -91,11 +91,10 @@ final class PendingUploadDrainer {
     /// In-flight drains keyed by scope so a second request for the same scope
     /// awaits the first instead of racing it.
     private var inFlightDrains: [DrainScope: Task<DrainOutcome, Never>] = [:]
-    /// Scopes whose in-flight drain must run one more pass before finishing.
-    /// A request that coalesces onto a running drain may have been triggered
-    /// by an enqueue (Darwin notification) that landed after the running pass
-    /// already listed the queue; without this flag that marker would silently
-    /// wait for the next scene-active drain.
+    /// Scopes whose in-flight drain owes the queue one more pass: a coalesced
+    /// request may be the enqueue notification for a marker that landed after
+    /// the running pass listed the queue, which would otherwise wait for the
+    /// next scene-active drain.
     private var rerunRequestedScopes: Set<DrainScope> = []
     /// Tail of the serialized drain chain: every new drain awaits this before it
     /// touches the queue, so scene-active drains, the Darwin enqueue
@@ -124,9 +123,7 @@ final class PendingUploadDrainer {
         let scope = DrainScope(databaseId: databaseId)
 
         // Coalesce: an identical in-flight scope is shared rather than re-run,
-        // but the running drain owes the queue one more pass — this request
-        // may be the Darwin notification for a marker enqueued after the
-        // running pass listed the queue.
+        // and owes one more pass (see `rerunRequestedScopes`).
         if let existing = inFlightDrains[scope] {
             rerunRequestedScopes.insert(scope)
             return await existing.value
@@ -167,9 +164,9 @@ final class PendingUploadDrainer {
         // A same-scope request only registers a new task once this entry is
         // cleared, so the stored task is still ours to remove here.
         inFlightDrains[scope] = nil
-        // A request can slip in between the loop's final check and the line
-        // above; it already received this outcome without its extra pass, so
-        // run that pass in the background rather than swallowing it.
+        // A request slipping in between the loop's final check and the line
+        // above already got this outcome without its extra pass; run it in the
+        // background rather than swallowing it.
         if rerunRequestedScopes.contains(scope) {
             Task { @MainActor in
                 _ = await self.drain(databaseId: databaseId)
@@ -183,10 +180,9 @@ final class PendingUploadDrainer {
         environment: Environment
     ) async -> DrainOutcome {
         var outcome = DrainOutcome()
-        // Recorded payload SHAs that reached the remote head earlier in this
-        // pass, per database. A later marker recording the same payload is
-        // already satisfied by that upload — pushing it again could only
-        // produce a spurious revision conflict — so it is dropped instead.
+        // Payload SHAs already pushed to the remote head in this pass, per
+        // database. A later marker recording the same payload is dropped:
+        // re-pushing it could only raise a spurious revision conflict.
         var uploadedPayloadSHAs: [UUID: Set<Data>] = [:]
 
         for var storedMarker in environment.listMarkers(databaseId) {
@@ -296,34 +292,16 @@ final class PendingUploadDrainer {
         return outcome
     }
 
-    /// Decides whether a `.conflict` may be resolved by rebasing the marker onto
-    /// the reported remote head and force-pushing this device's bytes.
-    ///
-    /// This is only safe when the remote head's *content* is provably what the
-    /// pending payload was derived from — never for a genuine cross-device
-    /// change, and never for a head this device produced but the payload does
-    /// not descend from. We require three independent facts before rebasing:
-    ///
-    /// 1. `payloadMatchesRecordedContent` — the bytes we would push are still the
-    ///    exact bytes this device saved (the shared cache has not been replaced
-    ///    by a sync-down of someone else's copy). A cross-device change that has
-    ///    reached this device shows up here as a mismatch and blocks the rebase.
-    /// 2. `markerBaseRev == remoteRev` — the payload descends from the content
-    ///    at the remote head, so the push is a pure fast-forward. Without this,
-    ///    "the head came from this device" is not enough: an app-side save that
-    ///    completed while the AutoFill extension held the database open produces
-    ///    a same-device head (store rev reconciled, payload SHA intact) that the
-    ///    payload does NOT contain — force-pushing would silently drop that
-    ///    save. Legacy markers persisted without `baseRev` decode as `nil` and
-    ///    never rebase. Equality also stays conservative under providers whose
-    ///    revisions drift without content changes (OneDrive cTag): drift makes
-    ///    the revs unequal, which declines the rebase.
-    /// 3. `currentReferenceExpectedRev == remoteRev` — the local reference has
-    ///    already reconciled to this remote head, i.e. the head is one this
-    ///    device produced/observed as its own lineage, not an unseen foreign
-    ///    revision.
-    ///
-    /// When any fact is missing we decline and leave the marker conflicted.
+    /// Whether a `.conflict` may be rebased onto the reported remote head and
+    /// force-pushed. Requires all three, else the marker stays conflicted:
+    /// 1. `payloadMatchesRecordedContent` — the cache still holds our bytes;
+    ///    a synced-down cross-device change appears here as a mismatch.
+    /// 2. `markerBaseRev == remoteRev` — the payload descends from the head.
+    ///    Without it an app save that landed while AutoFill held the database
+    ///    open is silently dropped. Legacy markers decode nil and never rebase;
+    ///    rev drift without content change (OneDrive cTag) also declines.
+    /// 3. `currentReferenceExpectedRev == remoteRev` — this head is already
+    ///    reconciled locally, not an unseen foreign revision.
     private static func shouldRebaseOntoRemoteHead(
         markerExpectedRev: String?,
         markerBaseRev: String?,

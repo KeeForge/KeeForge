@@ -138,19 +138,27 @@ final class LocalizationTests: XCTestCase {
                     )
                 }
 
-                // Plural entries: each German branch must use specifiers from
-                // the English "other" branch (the general form; branches like
-                // "one" legitimately drop the number).
+                // Plural entries: the German "other" branch (the general form)
+                // must carry exactly the English "other" specifiers; branches
+                // like "one" legitimately drop the number, so subset suffices.
                 if let dePlural = entry.localizations?["de"]?.variations?.plural {
                     let enOther = entry.localizations?["en"]?.variations?.plural?["other"]?.stringUnit?.value ?? key
                     let enSpecifiers = Set(Self.normalizedFormatSpecifiers(in: enOther))
                     for (category, branch) in dePlural {
                         guard let deValue = branch.stringUnit?.value else { continue }
                         let deSpecifiers = Set(Self.normalizedFormatSpecifiers(in: deValue))
-                        XCTAssertTrue(
-                            deSpecifiers.isSubset(of: enSpecifiers),
-                            "\(catalog.name): key \"\(key)\" plural branch \"\(category)\" uses specifiers \(deSpecifiers) not present in the English form \(enSpecifiers)"
-                        )
+                        if category == "other" {
+                            XCTAssertEqual(
+                                deSpecifiers,
+                                enSpecifiers,
+                                "\(catalog.name): key \"\(key)\" plural branch \"other\" must match the English specifiers exactly"
+                            )
+                        } else {
+                            XCTAssertTrue(
+                                deSpecifiers.isSubset(of: enSpecifiers),
+                                "\(catalog.name): key \"\(key)\" plural branch \"\(category)\" uses specifiers \(deSpecifiers) not present in the English form \(enSpecifiers)"
+                            )
+                        }
                     }
                 }
             }
