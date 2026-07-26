@@ -33,7 +33,7 @@ KeeForge is a native iOS KeePass client for people who want their vault to stay 
 | Area | What KeeForge Does |
 | --- | --- |
 | **KeePass compatibility** | Reads and writes KDBX 4.x databases with AES-256, ChaCha20, or Twofish encryption and AES-KDF, Argon2d, or Argon2id. Also opens KDBX 3.1 databases in read-only mode. |
-| **Local-first editing** | Create, edit, and delete entries; create and delete groups; and save with conflict checks, timestamped backups, entry history preservation, and unknown XML preservation. |
+| **Local-first editing** | Create, edit, and delete entries; create and delete groups; and save with conflict checks, timestamped backups, and preservation of entry history and unknown XML. |
 | **New databases** | Create new KDBX 4.x databases locally or directly inside Dropbox, OneDrive, and WebDAV folders. |
 | **Composite keys** | Unlock with password, key file, or both, including binary, hex, XML v1/v2 (`.key`/`.keyx`), and arbitrary key files. |
 | **AutoFill** | Safari and app AutoFill, QuickType suggestions, credential creation from the extension, and Face ID gated unlock. |
@@ -42,7 +42,7 @@ KeeForge is a native iOS KeePass client for people who want their vault to stay 
 | **Cloud sync** | Native Dropbox, OneDrive, and WebDAV browsing and read/write sync, cached shared copies for AutoFill, queued extension uploads, and conflict checks. |
 | **Attachments** | View KeePass entry attachments, preview supported files with QuickLook, and share them from short-lived protected temporary files. Attachment editing is not yet supported. |
 | **iPad ready** | Adaptive navigation uses a split-view vault workspace on wider layouts while keeping the compact iPhone flow focused and native. |
-| **Security-minded** | AES-GCM in-memory secret encryption, failed-unlock backoff, local-only clipboard, decompression bomb limits, and constant-time HMAC comparison. Screen-privacy differs by platform: iOS shields the app while it is being recorded (`UIScreen.isCaptured`); macOS blurs its windows whenever it loses focus and, by default, best-effort blocks screenshots/recordings (`NSWindow.sharingType`, which ScreenCaptureKit-based capture can bypass on macOS 15+). The macOS behavior refers to an experimental native macOS app (the `KeeForgeMac` target) that lives in this repo but is on hold and not yet released. See [`docs/macos-security-notes.md`](docs/macos-security-notes.md). |
+| **Security-minded** | AES-GCM in-memory secret encryption, failed-unlock backoff, local-only clipboard, decompression bomb limits, and constant-time HMAC comparison. Screen-privacy differs by platform: iOS shields the app while it is being recorded (`UIScreen.isCaptured`); macOS blurs its windows whenever it loses focus and, by default, best-effort blocks screenshots/recordings (`NSWindow.sharingType`, which ScreenCaptureKit-based capture can bypass on macOS 15+). The macOS behavior refers to the experimental native macOS app (the `KeeForgeMac` target) in this repo, currently on hold and unreleased. See [`docs/macos-security-notes.md`](docs/macos-security-notes.md). |
 
 ## Privacy
 
@@ -56,7 +56,7 @@ Read the [privacy policy](https://keeforge.com/privacy).
 - Xcode 26+
 - [XcodeGen](https://github.com/yonaskolb/XcodeGen)
 - Swift 6 with strict concurrency
-- Swift Package dependencies: [Argon2Swift](https://github.com/tmthecoder/Argon2Swift), [SwiftyDropbox](https://github.com/dropbox/SwiftyDropbox), [Microsoft Authentication Library](https://github.com/AzureAD/microsoft-authentication-library-for-objc), and the vendored local package [KeeForgeTwofish](Vendor/KeeForgeTwofish)
+- Swift Package dependencies: [Argon2Swift](https://github.com/tmthecoder/Argon2Swift), [SwiftyDropbox](https://github.com/dropbox/SwiftyDropbox), [Microsoft Authentication Library](https://github.com/AzureAD/microsoft-authentication-library-for-objc), and the vendored [KeeForgeTwofish](Vendor/KeeForgeTwofish) package
 
 ## Build From Source
 
