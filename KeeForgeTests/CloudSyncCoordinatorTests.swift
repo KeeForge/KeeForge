@@ -628,7 +628,7 @@ private final class MockCloudProvider: CloudProvider, @unchecked Sendable {
 
 /// Lets a test hold a save at the point where it has started but not landed —
 /// the window the macOS ⌘S command and a lock can both fall into.
-private actor SaveGate {
+actor SaveGate {
     private var hasStarted = false
     private var isOpen = false
     private var startWaiters: [CheckedContinuation<Void, Never>] = []
@@ -659,7 +659,7 @@ private actor SaveGate {
     }
 }
 
-private actor SaveCallCounter {
+actor SaveCallCounter {
     private(set) var value = 0
 
     /// Returns the ordinal of this call, so a caller can behave differently on
@@ -673,7 +673,7 @@ private actor SaveCallCounter {
 
 /// Records how a conflict copy reaches the provider. `upload` is the overwrite
 /// route the copy must never take, so it fails the test outright.
-private final class ConflictCopyCloudProvider: CloudProvider, @unchecked Sendable {
+final class ConflictCopyCloudProvider: CloudProvider, @unchecked Sendable {
     let id = CloudProviderKind.dropbox.rawValue
     let displayName = CloudProviderKind.dropbox.displayName
     let iconName = CloudProviderKind.dropbox.iconName
