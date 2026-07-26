@@ -19,6 +19,7 @@ struct SettingsView: View {
     @State private var showDatabaseUsageStats = SettingsService.showDatabaseUsageStats
     @State private var appearanceMode = SettingsService.appearanceMode
     @State private var quickAutoFillEnabled = SettingsService.quickAutoFillEnabled
+    @State private var autoFillCopyTOTP = SettingsService.autoFillCopyTOTP
     @State private var sortOrder = DatabaseViewModel.savedSortOrder()
     @State private var sortAscending = DatabaseViewModel.savedSortAscending()
     @State private var cloudAccounts = CloudAccountStore.accounts
@@ -152,6 +153,9 @@ struct SettingsView: View {
             .onChange(of: autoUnlockWithFaceID) { _, newValue in
                 SettingsService.autoUnlockWithFaceID = newValue
             }
+            .onChange(of: autoFillCopyTOTP) { _, newValue in
+                SettingsService.autoFillCopyTOTP = newValue
+            }
             .onChange(of: showWebsiteIcons) { _, newValue in
                 SettingsService.showWebsiteIcons = newValue
             }
@@ -247,6 +251,7 @@ struct SettingsView: View {
                 if let resolvedListViewModel {
                     AutoFillSettingsView(
                         quickAutoFillEnabled: $quickAutoFillEnabled,
+                        autoFillCopyTOTP: $autoFillCopyTOTP,
                         listViewModel: resolvedListViewModel
                     )
                 }
@@ -387,6 +392,7 @@ private struct SecuritySettingsView: View {
 
 private struct AutoFillSettingsView: View {
     @Binding var quickAutoFillEnabled: Bool
+    @Binding var autoFillCopyTOTP: Bool
     /// The app's shared list view model (or `SettingsView`'s fallback bridge).
     /// All per-database toggles must go through its `setAutoFillEnabled` —
     /// never `DatabaseListStore` directly — so disabling does targeted
@@ -411,6 +417,13 @@ private struct AutoFillSettingsView: View {
                         Text("Credential suggestions appear in the keyboard bar. Requires Face ID to unlock when tapped.")
                     }
                 }
+            }
+
+            Section {
+                Toggle("Copy Verification Code on AutoFill", isOn: $autoFillCopyTOTP)
+                    .accessibilityIdentifier("settings.autofill.copy-totp")
+            } footer: {
+                Text("When on, filling a password from AutoFill also copies that entry's verification code to the clipboard, so you can paste it into one-time code fields iOS does not recognize. The copy clears itself after the Clipboard Clear Timeout. Because AutoFill can only copy while its panel is on screen, filling a suggestion for an entry with a verification code will ask you to confirm in KeeForge instead of filling silently.")
             }
 
             databasesSection

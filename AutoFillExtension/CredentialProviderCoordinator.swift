@@ -176,6 +176,16 @@ final class CredentialProviderCoordinator {
     private var isUnlockInProgress = false
     private var didAttemptAutoBiometricUnlock = false
 
+    #if os(iOS)
+    /// Clipboard write used by the opt-in "copy verification code on AutoFill"
+    /// behavior. Injectable so unit tests can observe the copy without touching
+    /// the real `UIPasteboard`. Defaults to `ClipboardService.copy`, which
+    /// stamps the write with the Clipboard Clear Timeout as a system-enforced
+    /// expiration date — the copy therefore expires even though the extension
+    /// process is gone by then.
+    var copyToClipboard: @MainActor (String) -> Void = { ClipboardService.copy($0) }
+    #endif
+
     // Save-password and generate-password requests are iOS-only: the underlying
     // AuthenticationServices types are `API_UNAVAILABLE(macos)` (verified against
     // the macOS 26.5 SDK headers), so the whole surface is `#if os(iOS)`.
@@ -363,6 +373,10 @@ final class CredentialProviderCoordinator {
 
                 if let recordIdentifier,
                    let entry = entryMatching(recordIdentifier: recordIdentifier, in: passwordEntries) {
+                    guard !mustEscalateToInteractiveFill(for: entry) else {
+                        cancelRequest(code: .userInteractionRequired)
+                        return
+                    }
                     completeRequest(with: entry)
                 } else {
                     removeStaleIdentityIfEntryMissing(recordIdentifier: recordIdentifier)
@@ -373,6 +387,10 @@ final class CredentialProviderCoordinator {
                         for: [credentialIdentity.serviceIdentifier]
                     )
                     if matches.count == 1, let entry = matches.first {
+                        guard !mustEscalateToInteractiveFill(for: entry) else {
+                            cancelRequest(code: .userInteractionRequired)
+                            return
+                        }
                         completeRequest(with: entry)
                     } else if matches.isEmpty {
                         cancelRequest(code: .credentialIdentityNotFound)
@@ -384,6 +402,26 @@ final class CredentialProviderCoordinator {
                 cancelRequest(code: .userInteractionRequired)
             }
         }
+    }
+
+    /// Whether the silent (no-UI) QuickType fill must bounce back to the system
+    /// as `.userInteractionRequired` instead of completing here.
+    ///
+    /// True only when the user opted into copying the verification code on
+    /// AutoFill and this entry has one: a credential extension running without
+    /// a presented interface cannot reliably write the pasteboard, so a silent
+    /// copy would be dropped without any signal to the user. Escalating makes
+    /// the system re-run the request with our UI on screen, where the copy
+    /// works. The extra interaction is the accepted cost of opting in; users
+    /// who leave the setting off keep the fully silent path. (Strongbox does
+    /// the same on its QuickType path.) Always false on macOS — the behavior
+    /// is iOS-only.
+    private func mustEscalateToInteractiveFill(for entry: KPEntry) -> Bool {
+        #if os(iOS)
+        return shouldCopyTOTPCode(for: entry)
+        #else
+        return false
+        #endif
     }
 
     func prepareInterfaceForExtensionConfiguration() {
@@ -1449,10 +1487,41 @@ final class CredentialProviderCoordinator {
         }
 
         let decryptedPassword = (try? entry.password.decrypt(using: decryptionKey)) ?? ""
+
+        #if os(iOS)
+        // Opt-in convenience: many sites put the one-time code in a field iOS
+        // does not recognize as an OTP field, so there is no second AutoFill
+        // prompt to fill it from. Copying the current code alongside the
+        // password fill lets the user just paste it. Must run before
+        // `cleanup()`, which drops the session key the TOTP secret needs.
+        copyTOTPCodeIfEnabled(for: entry, sessionKey: decryptionKey)
+        #endif
+
         cleanup()
         let credential = ASPasswordCredential(user: user, password: decryptedPassword)
         presenter?.completeRequest(withSelectedCredential: credential)
     }
+
+    #if os(iOS)
+    /// Whether filling `entry` should also put its verification code on the
+    /// clipboard. Also the escalation test on the silent QuickType path: a
+    /// no-UI credential extension cannot reliably write the pasteboard, so
+    /// that path bounces to an interactive retry instead of copying.
+    func shouldCopyTOTPCode(for entry: KPEntry) -> Bool {
+        SettingsService.autoFillCopyTOTP && entry.hasTOTP
+    }
+
+    /// Best-effort: a code that cannot be generated is simply not copied — the
+    /// password fill itself must never fail because of this convenience.
+    private func copyTOTPCodeIfEnabled(for entry: KPEntry, sessionKey: SymmetricKey) {
+        guard shouldCopyTOTPCode(for: entry), let totpConfig = entry.totpConfig else { return }
+
+        let code = TOTPGenerator.generateCode(config: totpConfig, sessionKey: sessionKey)
+        guard code != "------" else { return }
+
+        copyToClipboard(code)
+    }
+    #endif
 
     // MARK: - Complete passkey request
 
