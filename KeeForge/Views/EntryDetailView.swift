@@ -64,7 +64,7 @@ struct EntryDetailView: View {
                                 size: 40,
                                 customIconData: viewModel.customIconData(for: entry)
                             )
-                            Text(entry.title.isEmpty ? "(untitled)" : entry.title)
+                            Text(entry.title.isEmpty ? String(localized: "(untitled)") : entry.title)
                                 .font(.title2.bold())
                         }
                     }
@@ -606,10 +606,13 @@ struct CopyButton: View {
 
 struct TOTPSection: View {
     let config: TOTPConfig
+    /// Identifier namespace, matching `FieldRow` / `PasswordFieldRow`.
+    var accessibilityPrefix: String = "entry"
     @State private var totpVM: TOTPViewModel
 
-    init(config: TOTPConfig, sessionKey: SymmetricKey) {
+    init(config: TOTPConfig, sessionKey: SymmetricKey, accessibilityPrefix: String = "entry") {
         self.config = config
+        self.accessibilityPrefix = accessibilityPrefix
         self._totpVM = State(initialValue: TOTPViewModel(config: config, sessionKey: sessionKey))
     }
 
@@ -622,11 +625,11 @@ struct TOTPSection: View {
                 Text(totpVM.code)
                     .font(.title.monospaced().bold())
                     .contentTransition(.numericText())
-                    .accessibilityIdentifier("entry.totp.code")
+                    .accessibilityIdentifier("\(accessibilityPrefix).totp.code")
 
                 Spacer()
 
-                CopyButton(text: totpVM.code, accessibilityID: "entry.copy.totp")
+                CopyButton(text: totpVM.code, accessibilityID: "\(accessibilityPrefix).copy.totp")
             }
         }
         .onAppear { totpVM.start() }

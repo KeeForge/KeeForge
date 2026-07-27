@@ -124,12 +124,51 @@ private struct EntryHistoryVersionView: View {
                             accessibilityPrefix: "entry-history"
                         )
                     }
+                    if let totpConfig = version.totpConfig {
+                        TOTPSection(
+                            config: totpConfig,
+                            sessionKey: sessionKey,
+                            accessibilityPrefix: "entry-history"
+                        )
+                    }
                     if !version.notes.isEmpty {
                         Section("Notes") {
                             SelectableNotesText(version.notes)
                         }
                     }
+                    if !version.displayCustomFields.isEmpty {
+                        Section("Custom Fields") {
+                            ForEach(
+                                version.displayCustomFields.sorted(by: { $0.key < $1.key }),
+                                id: \.key
+                            ) { key, value in
+                                FieldRow(
+                                    label: key,
+                                    value: value,
+                                    icon: "text.justify.left",
+                                    accessibilityPrefix: "entry-history"
+                                )
+                            }
+                        }
+                    }
+                    if !version.tags.isEmpty {
+                        // Plain capsules, not the detail screen's links: this sheet's
+                        // NavigationStack does not resolve `TagDestination`.
+                        Section("Tags") {
+                            FlowLayout(spacing: 6) {
+                                ForEach(Array(version.tags.enumerated()), id: \.offset) { _, tag in
+                                    TagCapsule(tag: tag)
+                                }
+                            }
+                        }
+                    }
                     Section("Details") {
+                        if let created = version.creationTime {
+                            LabeledContent(
+                                "Created",
+                                value: created.formatted(date: .abbreviated, time: .shortened)
+                            )
+                        }
                         // `cloneForHistory` copies the entry untouched, so this is when
                         // the version itself was written — it stopped being current at
                         // the *next* version's timestamp.
@@ -140,6 +179,12 @@ private struct EntryHistoryVersionView: View {
                             } ?? String(localized: "Unknown date")
                         )
                         .accessibilityIdentifier("entry-history.version-detail")
+                        if let expiry = version.enabledExpiryTime {
+                            LabeledContent(
+                                "Expires",
+                                value: expiry.formatted(date: .abbreviated, time: .shortened)
+                            )
+                        }
                     }
                 }
             } else {
