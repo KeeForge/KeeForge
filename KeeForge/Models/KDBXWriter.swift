@@ -249,6 +249,15 @@ enum KDBXWriter {
         appendInnerHeaderField(&innerHeader, field: .innerRandomStreamID, value: innerStreamID)
         appendInnerHeaderField(&innerHeader, field: .innerRandomStreamKey, value: header.innerStreamKey)
 
+        // KDBX4 defines no ordering semantics for inner-header items beyond the
+        // 0x00 terminator, and KeePassXC skips IDs it doesn't recognize, so
+        // unknown fields are re-emitted byte-exact in their original relative
+        // order here — between the stream fields and the binary pool — rather
+        // than at their original offsets among pool entries, which edits move.
+        for field in header.unknownInnerHeaderFields {
+            appendRawInnerHeaderField(&innerHeader, id: field.id, value: field.data)
+        }
+
         for binaryField in header.innerHeaderBinaryFields {
             appendInnerHeaderField(&innerHeader, field: .binary, value: binaryField)
         }
@@ -359,7 +368,15 @@ enum KDBXWriter {
         field: KDBXParser.InnerHeaderField,
         value: Data
     ) {
-        data.append(field.rawValue)
+        appendRawInnerHeaderField(&data, id: field.rawValue, value: value)
+    }
+
+    private static func appendRawInnerHeaderField(
+        _ data: inout Data,
+        id: UInt8,
+        value: Data
+    ) {
+        data.append(id)
         data.appendLE(UInt32(value.count))
         data.append(value)
     }

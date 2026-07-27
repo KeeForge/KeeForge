@@ -26,6 +26,7 @@ final class KDBXCompatibilityTests: XCTestCase {
         KDBXCompatibilitySupport.Fixture.unknownRich.id,
         KDBXCompatibilitySupport.Fixture.kdbx41PublicCustomData.id,
         KDBXCompatibilitySupport.Fixture.groupTags.id,
+        KDBXCompatibilitySupport.Fixture.unknownInnerHeader.id,
     ]
 
     private var bundle: Bundle {
@@ -195,6 +196,47 @@ final class KDBXCompatibilityTests: XCTestCase {
         assertSmokeShape(result, fixture: loaded.fixture)
         XCTAssertEqual(result.afterHeader.formatVersion, .kdbx4(minor: 1))
         XCTAssertEqual(result.afterHeader.unknownOuterHeaderFields, loaded.header.unknownOuterHeaderFields)
+
+        try collector.emit()
+    }
+
+    /// `unknown-inner-header.kdbx` carries three inner-header fields KDBX4
+    /// does not define, one of them spliced between the two binary-pool
+    /// entries. A KeeForge save must carry all three through byte-exact,
+    /// normalized to before the pool, while the pool itself and the entry's
+    /// attachments stay intact.
+    func test_unknownInnerHeaderFixture_capturesAndPreservesUnknownInnerHeaderFields() throws {
+        let collector = try KDBXCompatibilitySupport.ArtifactCollector(testCase: self)
+        let loaded = try KDBXCompatibilitySupport.load(.unknownInnerHeader, bundle: bundle)
+
+        XCTAssertEqual(
+            loaded.header.unknownInnerHeaderFields,
+            [
+                KDBXParser.UnknownHeaderField(id: 0x21, data: Data("mid-pool-unknown-field".utf8)),
+                KDBXParser.UnknownHeaderField(
+                    id: 0x7F,
+                    data: Data("kdbx-format-hardening-fixture:unknown-field-0x7f-marker".utf8)
+                ),
+                KDBXParser.UnknownHeaderField(id: 0x10, data: Data()),
+            ],
+            "Fixture precondition: the parser must retain all three unknown fields in on-disk order"
+        )
+        XCTAssertEqual(loaded.header.innerHeaderBinaryFields.count, 2)
+
+        let scenario = KDBXCompatibilitySupport.fixtureSmokeScenario(fixtureID: loaded.fixture.id)
+        let result = try collector.run(scenario, on: loaded)
+
+        assertSmokeShape(result, fixture: loaded.fixture)
+        XCTAssertEqual(result.afterHeader.unknownInnerHeaderFields, loaded.header.unknownInnerHeaderFields)
+        XCTAssertEqual(result.afterHeader.innerHeaderBinaryFields, loaded.header.innerHeaderBinaryFields)
+
+        let entryID = try XCTUnwrap(result.before.entryID(titled: "Inner Header Entry"))
+        let before = try XCTUnwrap(result.before.entries[entryID])
+        let after = try XCTUnwrap(result.after.entries[entryID])
+        XCTAssertEqual(before.attachments.map(\.name).sorted(), ["alpha-attachment.txt", "beta-attachment.txt"])
+        XCTAssertEqual(after.attachments, before.attachments)
+        XCTAssertEqual(after.attachmentHashes, before.attachmentHashes)
+        XCTAssertEqual(after.password, "UnknownHeaderSecret1")
 
         try collector.emit()
     }
@@ -434,7 +476,7 @@ final class KDBXCompatibilityTests: XCTestCase {
 
         // The artifact set never shrinks silently: the gate's merged manifest
         // is compared against exactly this count.
-        XCTAssertEqual(descriptors.count, 24)
+        XCTAssertEqual(descriptors.count, 25)
     }
 
     func test_externalExpectationTables_areExhaustiveOverEveryArtifactScenario() throws {

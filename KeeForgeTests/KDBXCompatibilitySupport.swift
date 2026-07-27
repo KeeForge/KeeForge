@@ -55,6 +55,16 @@ enum KDBXCompatibilitySupport {
         static let sharedBin = "fd184a4f05cf3d4f39ab726bda3d3a923da30e9ab2d6697b69c2d39d7ea1ab18"
     }
 
+    /// SHA-256 hashes of the two attachments in
+    /// `TestFixtures/compatibility/unknown-inner-header.kdbx`. Its binary pool
+    /// is what the spliced unknown inner-header fields sit among, so the gate
+    /// exporting these proves the pool survived the rewrite that normalized
+    /// those fields.
+    enum UnknownInnerHeaderFixtureHashes {
+        static let alphaAttachmentTxt = "2e1e53db7251ba3852ea965523b8ff3ab8b7426adf50277d0d8d41d40630bdfd"
+        static let betaAttachmentTxt = "ee48b95cd61f6f910959979dc94199de8012611f0050e85c5d7cd15e3d95d4b0"
+    }
+
     struct Fixture {
         enum Source {
             case bundled(name: String, subdirectory: String? = "compatibility")
@@ -155,6 +165,20 @@ enum KDBXCompatibilitySupport {
             source: .bundled(name: "group-tags")
         )
 
+        /// KDBX4 fixture carrying three inner-header fields KeeForge does not
+        /// recognize (0x7F with an ASCII marker, a zero-length 0x10, and a
+        /// 0x21 spliced between the two binary-pool entries), authored by a
+        /// standalone decrypt/re-encrypt script because no library round-trips
+        /// unknown inner-header items. See
+        /// `TestFixtures/compatibility/generate_unknown_inner_header_fixture.py`.
+        static let unknownInnerHeader = Fixture(
+            id: "unknown-inner-header",
+            displayName: "Unknown inner-header fields fixture",
+            password: "unknown-inner-header",
+            keyFileName: nil,
+            source: .bundled(name: "unknown-inner-header")
+        )
+
         static let syntheticRich = Fixture(
             id: "synthetic-rich",
             displayName: "Synthetic rich KDBX4 fixture",
@@ -205,6 +229,7 @@ enum KDBXCompatibilitySupport {
         .foreignChaCha20,
         .foreignTwofish,
         .groupTags,
+        .unknownInnerHeader,
     ]
 
     /// Title of the entry `fixtureSmokeScenario` creates. Shared with the
@@ -358,6 +383,18 @@ enum KDBXCompatibilitySupport {
         "attachments-soft-delete-entry": [
             .init(entryTitle: "Dedup Entry B", attachmentName: "shared.bin", sha256: AttachmentFixtureHashes.sharedBin),
         ],
+        "fixture-smoke-unknown-inner-header": [
+            .init(
+                entryTitle: "Inner Header Entry",
+                attachmentName: "alpha-attachment.txt",
+                sha256: UnknownInnerHeaderFixtureHashes.alphaAttachmentTxt
+            ),
+            .init(
+                entryTitle: "Inner Header Entry",
+                attachmentName: "beta-attachment.txt",
+                sha256: UnknownInnerHeaderFixtureHashes.betaAttachmentTxt
+            ),
+        ],
     ]
 
     /// Scenarios that deliberately carry no external attachment check, because
@@ -408,6 +445,7 @@ enum KDBXCompatibilitySupport {
         Fixture.foreignChaCha20.id: .init(entryTitle: "Foreign Entry Alpha", password: "ForeignAlphaSecret1"),
         Fixture.foreignTwofish.id: .init(entryTitle: "Foreign Entry Alpha", password: "ForeignAlphaSecret1"),
         Fixture.groupTags.id: .init(entryTitle: "Alpha Login", password: "GroupTagAlpha1"),
+        Fixture.unknownInnerHeader.id: .init(entryTitle: "Inner Header Entry", password: "UnknownHeaderSecret1"),
     ]
 
     /// Expected protected-value checks keyed by scenario id. Every smoke

@@ -282,6 +282,7 @@
 		7FE2210E6E580757720E6153 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A785C829BFA44B1D7EC69DC /* SettingsView.swift */; };
 		80BA02FE7DC050DB81A69012 /* SharedVaultStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A4B29C7E6A73F5DDFE71DB6E /* SharedVaultStore.swift */; };
 		81234DB453AFE697C39405B0 /* EncryptedValueTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FEDEBBDC91EBD1B2FBB3716B /* EncryptedValueTests.swift */; };
+		815FA2A737B45D4FB36F1DEA /* unknown-inner-header.kdbx in Resources */ = {isa = PBXBuildFile; fileRef = F8CDC58A04801FC931A9706B /* unknown-inner-header.kdbx */; };
 		81770A3091FFDA100CCA01BA /* PasskeyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B8F8B108FB789996AD3C0BD /* PasskeyTests.swift */; };
 		81AF01EE09EF23EEDE28DB5F /* FaviconService.swift in Sources */ = {isa = PBXBuildFile; fileRef = EBF4936791DF8FD3F2E5B144 /* FaviconService.swift */; };
 		81F4C4E02760EC3153431478 /* CredentialIdentityStoreManagerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CF40C9649E6870C49081C9C0 /* CredentialIdentityStoreManagerTests.swift */; };
@@ -540,6 +541,7 @@
 		F07228C69E555F16BF8704A3 /* CloudDatabaseSaver.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10A47D12FBB464C7B0F41E94 /* CloudDatabaseSaver.swift */; };
 		F0A7DCEC02627C2AD1CF202D /* SharedVaultStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A4B29C7E6A73F5DDFE71DB6E /* SharedVaultStore.swift */; };
 		F0AEC020E24F92ED603E6B3B /* CloudFileBrowserViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E94BF55CC229A5312D864BDE /* CloudFileBrowserViewModelTests.swift */; };
+		F0B30051F3FB652A61E07C2D /* unknown-inner-header.kdbx in Resources */ = {isa = PBXBuildFile; fileRef = F8CDC58A04801FC931A9706B /* unknown-inner-header.kdbx */; };
 		F15FD8501FA0278ABD3EB902 /* demo.kdbx in Resources */ = {isa = PBXBuildFile; fileRef = F3D5CCD3DC2893DC1A65D6DC /* demo.kdbx */; };
 		F1EC22330F92765C069A37DA /* WhatsNewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 95C789E6B7A0D36588C72067 /* WhatsNewView.swift */; };
 		F228FB24C47291F0E34F0C17 /* GroupIconPickerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5156505659451A95FA358AA9 /* GroupIconPickerView.swift */; };
@@ -898,6 +900,7 @@
 		F453297E09219FDE860CE5A7 /* MacUnlockPasswordField.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacUnlockPasswordField.swift; sourceTree = "<group>"; };
 		F47550A37356BE818BDA98C1 /* AutoFillIdentityStoreFallbackReader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AutoFillIdentityStoreFallbackReader.swift; sourceTree = "<group>"; };
 		F4848101D8507FA92F1BC8E8 /* RegularDatabaseWorkspaceView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RegularDatabaseWorkspaceView.swift; sourceTree = "<group>"; };
+		F8CDC58A04801FC931A9706B /* unknown-inner-header.kdbx */ = {isa = PBXFileReference; path = "unknown-inner-header.kdbx"; sourceTree = "<group>"; };
 		F984480E73A82B5043100065 /* KDBXCrypto.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KDBXCrypto.swift; sourceTree = "<group>"; };
 		FA5A20BA0FFA29C1067EB5EE /* Group.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Group.swift; sourceTree = "<group>"; };
 		FA9143FF2DDC5D17637F0F7C /* DatabaseOpenFailure.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DatabaseOpenFailure.swift; sourceTree = "<group>"; };
@@ -1061,6 +1064,7 @@
 				FED8CAC6F5E34BB1CB405728 /* legacy-kdbx31.kdbx */,
 				C28D00833DC5188EEBB34BE9 /* password-keyfile.kdbx */,
 				0809F99F0AAE2475591DAE55 /* password-keyfile.key */,
+				F8CDC58A04801FC931A9706B /* unknown-inner-header.kdbx */,
 				B9EDBA8B54175DA373C5CC27 /* unknown-rich.kdbx */,
 			);
 			name = compatibility;
@@ -1735,6 +1739,7 @@
 				9FB5FDEF5F59735F3AED17F1 /* test-v3-backup.kdbx in Resources */,
 				F98036B14A7239C757090B8D /* test.kdbx in Resources */,
 				12CA554AB58CEA7C9842C713 /* unknown-elements.kdbx in Resources */,
+				815FA2A737B45D4FB36F1DEA /* unknown-inner-header.kdbx in Resources */,
 				56E2C98F00B71DBD7CF75EAA /* unknown-rich.kdbx in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -1775,6 +1780,7 @@
 				42EB6DC9F755D8FB7466867E /* test-v3-backup.kdbx in Resources */,
 				1BC4C4DA15248EFF778D127A /* test.kdbx in Resources */,
 				B55278297B533C892F19D56F /* unknown-elements.kdbx in Resources */,
+				F0B30051F3FB652A61E07C2D /* unknown-inner-header.kdbx in Resources */,
 				C84847866BBAB7AE152CCC99 /* unknown-rich.kdbx in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

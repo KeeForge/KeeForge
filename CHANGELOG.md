@@ -52,6 +52,7 @@ TODO before the first macOS release:
 - OneDrive: concurrent operations no longer race on token refresh, and a second sign-in can no longer interrupt one already in progress.
 - Build/CI: App Store archives now fail the build when `ONEDRIVE_CLIENT_ID` is missing or still a placeholder, instead of shipping a dead OneDrive sign-in. The check was never wired up when OneDrive support was added; `ONEDRIVE_CLIENT_ID` remains optional for local development and simulator CI runs.
 - Build/CI: the Dropbox CI placeholder key no longer produces an illegal `db-CI_PLACEHOLDER_DROPBOX_APP_KEY` URL scheme (App Store Connect ITMS-90158). The placeholder is now RFC1738-safe, archives fail the build when the real `DROPBOX_APP_KEY` is missing instead of shipping a placeholder, and a unit test validates every declared URL scheme.
+- KeeForge now preserves unknown KDBX4 inner-header fields when saving, protecting data written by future KeePass format extensions.
 
 ## v1.10.4 (2026-07-25)
 

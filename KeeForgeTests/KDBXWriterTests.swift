@@ -374,6 +374,136 @@ final class KDBXWriterTests: XCTestCase {
         try assertTreesEqual(parsed, (rootGroup: reparsed.rootGroup, meta: reparsed.meta))
     }
 
+    func test_writeReusedHeader_reemitsUnknownInnerHeaderFieldsBeforeTheBinaryPool() throws {
+        let parsed = try parseFixture(.unknownInnerHeader)
+        let sourceUnknownFields = [
+            KDBXParser.UnknownHeaderField(id: 0x21, data: Data("mid-pool-unknown-field".utf8)),
+            KDBXParser.UnknownHeaderField(
+                id: 0x7F,
+                data: Data("kdbx-format-hardening-fixture:unknown-field-0x7f-marker".utf8)
+            ),
+            KDBXParser.UnknownHeaderField(id: 0x10, data: Data()),
+        ]
+        XCTAssertEqual(parsed.header.unknownInnerHeaderFields, sourceUnknownFields)
+
+        let written = try KDBXWriter.write(
+            rootGroup: parsed.rootGroup,
+            meta: parsed.meta,
+            compositeKey: parsed.compositeKey,
+            header: parsed.header,
+            sessionKey: sessionKey
+        )
+
+        // Ordering contract: stream ID/key, then every unknown field in its
+        // original relative order, then the pool — so the fixture's 0x21,
+        // spliced between the two binary entries on disk, moves ahead of them.
+        let items = try innerHeaderItems(of: written, compositeKey: parsed.compositeKey)
+        XCTAssertEqual(items.map(\.id), [0x01, 0x02, 0x21, 0x7F, 0x10, 0x03, 0x03, 0x00])
+        XCTAssertEqual(
+            items.filter { !(0x00...0x03).contains($0.id) },
+            sourceUnknownFields.map { InnerHeaderItem(id: $0.id, payload: $0.data) }
+        )
+        XCTAssertEqual(items.filter { $0.id == 0x03 }.map(\.payload), parsed.header.innerHeaderBinaryFields)
+
+        let reparsed = try KDBXParser.parseWithMetaAndHeader(
+            data: written,
+            compositeKey: parsed.compositeKey,
+            sessionKey: sessionKey
+        )
+        XCTAssertEqual(reparsed.header.unknownInnerHeaderFields, sourceUnknownFields)
+        XCTAssertEqual(reparsed.header.innerHeaderBinaryFields, parsed.header.innerHeaderBinaryFields)
+        try assertTreesEqual(parsed, (rootGroup: reparsed.rootGroup, meta: reparsed.meta))
+    }
+
+    func test_writeReusedHeader_emitsNoUnknownInnerHeaderFieldsWhenTheSourceHasNone() throws {
+        let parsed = try parseFixture(.test)
+        XCTAssertTrue(parsed.header.unknownInnerHeaderFields.isEmpty)
+
+        let written = try KDBXWriter.write(
+            rootGroup: parsed.rootGroup,
+            meta: parsed.meta,
+            compositeKey: parsed.compositeKey,
+            header: parsed.header,
+            sessionKey: sessionKey
+        )
+
+        let items = try innerHeaderItems(of: written, compositeKey: parsed.compositeKey)
+        XCTAssertTrue(
+            items.allSatisfy { (0x00...0x03).contains($0.id) },
+            "A database with no unknown inner-header fields must not gain any"
+        )
+
+        let reparsed = try KDBXParser.parseWithMetaAndHeader(
+            data: written,
+            compositeKey: parsed.compositeKey,
+            sessionKey: sessionKey
+        )
+        XCTAssertTrue(reparsed.header.unknownInnerHeaderFields.isEmpty)
+    }
+
+    func test_writeReusedHeader_preservesUnknownInnerHeaderFieldsWhenTheBinaryPoolChanges() throws {
+        let parsed = try parseFixture(.unknownInnerHeader)
+        let sourceUnknownFields = parsed.header.unknownInnerHeaderFields
+        XCTAssertEqual(sourceUnknownFields.count, 3)
+        XCTAssertEqual(parsed.header.innerHeaderBinaryFields.count, 2)
+
+        var withAddedAttachment = parsed.header
+        withAddedAttachment.innerHeaderBinaryFields.append(Data([0x00]) + Data("added attachment bytes".utf8))
+
+        var withRemovedAttachment = parsed.header
+        withRemovedAttachment.innerHeaderBinaryFields.removeLast()
+
+        for (label, header, expectedPoolCount) in [
+            ("added", withAddedAttachment, 3),
+            ("removed", withRemovedAttachment, 1),
+        ] {
+            let written = try KDBXWriter.write(
+                rootGroup: parsed.rootGroup,
+                meta: parsed.meta,
+                compositeKey: parsed.compositeKey,
+                header: header,
+                sessionKey: sessionKey
+            )
+            let reparsed = try KDBXParser.parseWithMetaAndHeader(
+                data: written,
+                compositeKey: parsed.compositeKey,
+                sessionKey: sessionKey
+            )
+
+            XCTAssertEqual(reparsed.header.innerHeaderBinaryFields.count, expectedPoolCount, label)
+            XCTAssertEqual(reparsed.header.innerHeaderBinaryFields, header.innerHeaderBinaryFields, label)
+            XCTAssertEqual(reparsed.header.unknownInnerHeaderFields, sourceUnknownFields, label)
+
+            let items = try innerHeaderItems(of: written, compositeKey: parsed.compositeKey)
+            let firstBinaryIndex = try XCTUnwrap(items.firstIndex { $0.id == 0x03 }, label)
+            let lastUnknownIndex = try XCTUnwrap(items.lastIndex { !(0x00...0x03).contains($0.id) }, label)
+            XCTAssertLessThan(lastUnknownIndex, firstBinaryIndex, label)
+        }
+    }
+
+    func test_writeReusedHeader_preservesLargeUnknownInnerHeaderPayload() throws {
+        let parsed = try parseFixture(.unknownInnerHeader)
+        let largePayload = Data((0..<(512 * 1024)).map { UInt8(truncatingIfNeeded: $0 &* 31 &+ 7) })
+        var header = parsed.header
+        header.unknownInnerHeaderFields.append(KDBXParser.UnknownHeaderField(id: 0x42, data: largePayload))
+
+        let written = try KDBXWriter.write(
+            rootGroup: parsed.rootGroup,
+            meta: parsed.meta,
+            compositeKey: parsed.compositeKey,
+            header: header,
+            sessionKey: sessionKey
+        )
+
+        let reparsed = try KDBXParser.parseWithMetaAndHeader(
+            data: written,
+            compositeKey: parsed.compositeKey,
+            sessionKey: sessionKey
+        )
+        XCTAssertEqual(reparsed.header.unknownInnerHeaderFields, header.unknownInnerHeaderFields)
+        try assertTreesEqual(parsed, (rootGroup: reparsed.rootGroup, meta: reparsed.meta))
+    }
+
     func testWriteFreshEmptyDatabaseRoundTrips() throws {
         let password = "fresh empty password"
         let compositeKey = KDBXCrypto.compositeKey(password: password)
@@ -766,6 +896,35 @@ final class KDBXWriterTests: XCTestCase {
 
         let cipher = try KDBXOuterCipher.require(uuid: header.cipherID)
         return try cipher.decrypt(data: encryptedPayload, key: masterKey, iv: header.encryptionIV)
+    }
+
+    private struct InnerHeaderItem: Equatable {
+        let id: UInt8
+        let payload: Data
+    }
+
+    /// Raw inner-header item sequence of a written database, so ordering (not
+    /// just the parsed model's contents) can be asserted.
+    private func innerHeaderItems(of written: Data, compositeKey: Data) throws -> [InnerHeaderItem] {
+        let components = try readWrittenFileComponents(written, compositeKey: compositeKey)
+        let encryptedPayload = try readEncryptedPayload(
+            from: written,
+            payloadOffset: components.payloadOffset,
+            hmacBaseKey: components.hmacBaseKey
+        )
+        let decrypted = try decryptPayload(encryptedPayload, header: components.header, compositeKey: compositeKey)
+        let payload = components.header.compressionFlags == 1 ? try KDBXCrypto.gunzip(decrypted) : decrypted
+
+        var reader = DataReader(data: payload)
+        var items: [InnerHeaderItem] = []
+        while true {
+            let id = try reader.readUInt8()
+            let size = Int(try reader.readUInt32())
+            items.append(InnerHeaderItem(id: id, payload: try reader.readBytes(size)))
+            if id == KDBXParser.InnerHeaderField.endOfHeader.rawValue {
+                return items
+            }
+        }
     }
 
     private func parseInnerPayload(
