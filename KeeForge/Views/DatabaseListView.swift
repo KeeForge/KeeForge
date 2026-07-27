@@ -172,53 +172,6 @@ struct DatabaseListView: View {
         } message: {
             Text(viewModel.pendingUploadAlert?.message ?? "")
         }
-        .confirmationDialog(
-            "Remove Database?",
-            isPresented: Binding(
-                get: { pendingRemoval != nil },
-                set: { isPresented in
-                    if !isPresented {
-                        pendingRemoval = nil
-                    }
-                }
-            ),
-            presenting: pendingRemoval
-        ) { reference in
-            Button("Remove", role: .destructive) {
-                viewModel.removeDatabase(reference)
-                pendingRemoval = nil
-            }
-            Button("Cancel", role: .cancel) {
-                pendingRemoval = nil
-            }
-        } message: { reference in
-            Text("“\(reference.displayName)” will be removed from KeeForge, including its cached copy and saved biometric key.")
-        }
-        .confirmationDialog(
-            "Discard Pending Upload?",
-            isPresented: Binding(
-                get: { pendingUploadDiscardTarget != nil },
-                set: { isPresented in
-                    if !isPresented {
-                        pendingUploadDiscardTarget = nil
-                    }
-                }
-            ),
-            presenting: pendingUploadDiscardTarget
-        ) { reference in
-            Button("Discard Upload", role: .destructive) {
-                Task {
-                    await viewModel.discardConflictedPendingUploads(for: reference)
-                    refreshDetailsReferenceIfNeeded(for: reference.id)
-                }
-                pendingUploadDiscardTarget = nil
-            }
-            Button("Cancel", role: .cancel) {
-                pendingUploadDiscardTarget = nil
-            }
-        } message: { reference in
-            Text("The pending change for “\(reference.displayName)” could not be uploaded because the copy in the cloud changed. KeeForge keeps a timestamped backup on this device before discarding it.")
-        }
         .alert(
             "Rename Database",
             isPresented: Binding(
@@ -316,8 +269,67 @@ struct DatabaseListView: View {
         }
         .swipeActions(edge: .trailing, allowsFullSwipe: false) {
             Button("Remove", role: .destructive) {
-                pendingRemoval = reference
+                // Defer until the swipe cell has closed: the confirmation
+                // dialog below is anchored to this row, and presenting it
+                // while the row is still translated by the open swipe
+                // actions fails silently on iOS 26.
+                let target = reference
+                Task { @MainActor in
+                    try? await Task.sleep(for: .milliseconds(500))
+                    pendingRemoval = target
+                }
             }
+        }
+        // Both dialogs are attached to the row (not the List) so iOS anchors
+        // them to the database they act on instead of an arbitrary popover in
+        // the middle of the screen. Each dialog only presents on the row whose
+        // reference is pending.
+        .confirmationDialog(
+            "Remove Database?",
+            isPresented: Binding(
+                get: { pendingRemoval?.id == reference.id },
+                set: { isPresented in
+                    if !isPresented {
+                        pendingRemoval = nil
+                    }
+                }
+            ),
+            presenting: pendingRemoval
+        ) { target in
+            Button("Remove", role: .destructive) {
+                viewModel.removeDatabase(target)
+                pendingRemoval = nil
+            }
+            Button("Cancel", role: .cancel) {
+                pendingRemoval = nil
+            }
+        } message: { target in
+            Text("“\(target.displayName)” will be removed from KeeForge, including its cached copy and saved biometric key.")
+        }
+        .confirmationDialog(
+            "Discard Pending Upload?",
+            isPresented: Binding(
+                get: { pendingUploadDiscardTarget?.id == reference.id },
+                set: { isPresented in
+                    if !isPresented {
+                        pendingUploadDiscardTarget = nil
+                    }
+                }
+            ),
+            presenting: pendingUploadDiscardTarget
+        ) { target in
+            Button("Discard Upload", role: .destructive) {
+                Task {
+                    await viewModel.discardConflictedPendingUploads(for: target)
+                    refreshDetailsReferenceIfNeeded(for: target.id)
+                }
+                pendingUploadDiscardTarget = nil
+            }
+            Button("Cancel", role: .cancel) {
+                pendingUploadDiscardTarget = nil
+            }
+        } message: { target in
+            Text("The pending change for “\(target.displayName)” could not be uploaded because the copy in the cloud changed. KeeForge keeps a timestamped backup on this device before discarding it.")
         }
     }
 
