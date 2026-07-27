@@ -276,7 +276,6 @@ struct GroupListView: View {
                             }
                         }
                     }
-                    .alert(item: $pendingDeletion, content: deletionAlert)
                 } else {
                     ContentUnavailableView(
                         "Group Unavailable",
@@ -290,6 +289,9 @@ struct GroupListView: View {
         }
         .modifier(GroupListSearchModifier(view: self))
         .modifier(GroupListEditorPresentation(view: self))
+        // On the outer Group: an alert host on the `resolvedGroup` branch would
+        // be stranded if the branch vanishes while the alert is up.
+        .alert(item: $pendingDeletion, content: deletionAlert)
     }
 
     /// Presents the entry editor. iOS pushes it onto the navigation stack;

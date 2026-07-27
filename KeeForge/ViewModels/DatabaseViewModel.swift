@@ -807,7 +807,10 @@ final class DatabaseViewModel {
         if let selectedGroupID, affectedGroupIDs.contains(selectedGroupID) {
             self.selectedGroupID = visibleRootGroupID
         }
-        if let selectedEntryID, affectedEntryIDs.contains(selectedEntryID) {
+        // Deselect only an entry that still exists (recycled with its group);
+        // a permanently deleted one is handled as in `synchronizeSelections()`.
+        if let selectedEntryID, affectedEntryIDs.contains(selectedEntryID),
+           entryIndex[selectedEntryID] != nil {
             self.selectedEntryID = nil
         }
     }
@@ -1607,9 +1610,10 @@ final class DatabaseViewModel {
             selectedGroupID = visibleRootGroupID
         }
 
-        if let selectedEntryID, entryIndex[selectedEntryID] == nil {
-            self.selectedEntryID = nil
-        }
+        // A vanished entry's selection is left for the mounted `EntryDetailView`
+        // to clear via `onClose`. Clearing it here unmounts the detail column in
+        // the same update that deletes the entry, tearing down the entry
+        // editor's presentation host while the editor is still pushed.
     }
 
     private static func nestedGroupCount(in group: KPGroup) -> Int {

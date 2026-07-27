@@ -16,31 +16,35 @@ struct EntryListView: View {
     @State private var pendingEntryDeletion: PendingEntryDeletion?
 
     var body: some View {
-        if entries.isEmpty {
-            ContentUnavailableView.search
-        } else {
-            List(entries) { entry in
-                entryRow(for: entry)
+        Group {
+            if entries.isEmpty {
+                ContentUnavailableView.search
+            } else {
+                List(entries) { entry in
+                    entryRow(for: entry)
+                }
             }
-            .alert(item: $pendingEntryDeletion) { action in
-                Alert(
-                    title: Text(action.sendToRecycleBin ? "Delete Entry?" : "Delete Permanently?"),
-                    message: Text(action.sendToRecycleBin
-                        ? "The entry will be moved to the recycle bin."
-                        : "This entry will be removed immediately and cannot be restored from KeeForge."),
-                    primaryButton: .destructive(Text(action.sendToRecycleBin ? "Delete" : "Delete Permanently")) {
-                        do {
-                            try viewModel.deleteEntry(action.entryID, sendToRecycleBin: action.sendToRecycleBin)
-                            Task {
-                                await viewModel.saveHandlingError()
-                            }
-                        } catch {
-                            viewModel.presentSaveError(error)
+        }
+        // Outside the branches: deleting the last entry flips to the empty
+        // branch, which would tear down a branch-scoped alert host.
+        .alert(item: $pendingEntryDeletion) { action in
+            Alert(
+                title: Text(action.sendToRecycleBin ? "Delete Entry?" : "Delete Permanently?"),
+                message: Text(action.sendToRecycleBin
+                    ? "The entry will be moved to the recycle bin."
+                    : "This entry will be removed immediately and cannot be restored from KeeForge."),
+                primaryButton: .destructive(Text(action.sendToRecycleBin ? "Delete" : "Delete Permanently")) {
+                    do {
+                        try viewModel.deleteEntry(action.entryID, sendToRecycleBin: action.sendToRecycleBin)
+                        Task {
+                            await viewModel.saveHandlingError()
                         }
-                    },
-                    secondaryButton: .cancel()
-                )
-            }
+                    } catch {
+                        viewModel.presentSaveError(error)
+                    }
+                },
+                secondaryButton: .cancel()
+            )
         }
     }
 

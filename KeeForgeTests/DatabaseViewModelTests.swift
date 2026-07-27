@@ -491,6 +491,23 @@ final class DatabaseViewModelTests: XCTestCase {
         XCTAssertTrue(vm.isGroupInRecycleBin(groupID: socialGroup.id))
     }
 
+    func testPermanentEntryDeleteKeepsSelectionForDetailViewToClear() async throws {
+        let vm = try makeViewModel()
+        await vm.unlock(password: fixturePassword)
+
+        let socialGroup = try XCTUnwrap(vm.visibleRootGroup?.groups.first(where: { $0.name == "Social" }))
+        let entry = try XCTUnwrap(socialGroup.entries.first)
+        vm.selectGroup(socialGroup.id)
+        vm.selectEntry(entry.id)
+
+        try vm.deleteEntry(entry.id, sendToRecycleBin: false)
+
+        XCTAssertNil(vm.entry(withID: entry.id))
+        // The stale selection is kept for the mounted EntryDetailView to clear;
+        // clearing it in the delete update would wedge a pushed entry editor.
+        XCTAssertEqual(vm.selectedEntryID, entry.id)
+    }
+
     func testHidingGroupFromAutoFillMarksItAndItsSubgroupsExcluded() async throws {
         let vm = try makeViewModel()
         await vm.unlock(password: fixturePassword)
