@@ -149,6 +149,54 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
         assertCleanedUp(coordinator)
     }
 
+    func test_terminalCompletionIsDeliveredExactlyOnce() throws {
+        let (coordinator, presenter) = makeCoordinator()
+        let sessionKey = SymmetricKey(size: .bits256)
+        let entry = KPEntry(
+            title: "GitHub",
+            username: "octocat",
+            password: try EncryptedValue.encrypt("hunter2", using: sessionKey),
+            url: "https://github.com/login"
+        )
+        seedUnlockedVaultState(coordinator, entries: [entry], sessionKey: sessionKey)
+
+        coordinator.completeRequest(with: entry)
+        coordinator.cancelRequest(code: .failed)
+
+        XCTAssertEqual(presenter.cancelledErrorCodes, [], "A completed request must not be cancelled again")
+        XCTAssertNotNil(presenter.completedCredential)
+    }
+
+    func test_cancelDuringUnlockInvalidatesLateContinuation() async throws {
+        let (coordinator, presenter) = makeCoordinator()
+        let databaseReference = try seedResolvableDefaultDatabase()
+        coordinator.activeDatabaseReference = databaseReference
+
+        let unlockEntered = expectation(description: "unlock task entered its async seam")
+        coordinator.unlockWorkOverride = {
+            unlockEntered.fulfill()
+            try await Task.sleep(for: .seconds(5))
+        }
+
+        coordinator.prepareCredentialList(for: [githubServiceIdentifier()])
+        coordinator.presentUnlockPromptIfNeeded()
+        let prompt = try XCTUnwrap(presenter.unlockPrompt)
+        prompt.onChooseBiometrics()
+
+        await fulfillment(of: [unlockEntered], timeout: 1)
+        coordinator.cancelRequest(code: .userCanceled)
+        try await Task.sleep(for: .milliseconds(100))
+
+        XCTAssertEqual(presenter.cancelledErrorCodes, [.userCanceled])
+        XCTAssertNil(presenter.searchView, "A cancelled unlock must not present a late picker")
+        assertCleanedUp(coordinator)
+
+        presenter.unlockPrompt = nil
+        coordinator.prepareCredentialList(for: [githubServiceIdentifier()])
+        coordinator.presentationDidBecomeActive()
+        XCTAssertNotNil(presenter.unlockPrompt, "A new request must present its unlock prompt")
+    }
+
     // MARK: - Additional cleanup paths the pre-existing suite did not cover
 
     func test_cleanup_runsOnSearchViewCancel() throws {
