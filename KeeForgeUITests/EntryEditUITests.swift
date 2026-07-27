@@ -132,6 +132,19 @@ class EntryEditUITestCase: KeeForgeUITestCase {
         XCTAssertTrue(waitForSaveCompletion(saveButton: saveButton, timeout: 10), "Entry editor did not dismiss after save", file: file, line: line)
     }
 
+    /// From an entry's detail screen: opens the editor, reveals the bottom
+    /// "Delete Entry" button, and taps it so the delete confirmation dialog
+    /// is presented.
+    func openEditorDeleteDialog(file: StaticString = #filePath, line: UInt = #line) {
+        let editButton = app.buttons["entry-detail.edit"]
+        XCTAssertTrue(editButton.waitForExistence(timeout: 5), "Edit button was not visible", file: file, line: line)
+        editButton.tap()
+
+        let deleteButton = app.buttons["entry-edit.delete"]
+        XCTAssertTrue(revealElement(deleteButton), "Editor Delete Entry button was not visible", file: file, line: line)
+        tapElement(deleteButton)
+    }
+
     func lockAndReopenVault(file: StaticString = #filePath, line: UInt = #line) {
         let lockButton = currentLockButton()
         XCTAssertTrue(lockButton.waitForExistence(timeout: 5), "Lock button was not visible", file: file, line: line)
@@ -595,6 +608,108 @@ final class EntryDeleteSmokeUITests: EntryEditUITestCase {
         recycleBinGroup.press(forDuration: 1.2)
         XCTAssertFalse(app.buttons["group-row.delete-context"].waitForExistence(timeout: 2))
         XCTAssertFalse(app.buttons["group-row.delete-permanent"].exists)
+    }
+
+    func testEditorDeletePermanentlyDismissesEditorAndReturnsToGroupList() {
+        unlockSuccessfully()
+
+        openEntry(named: twitterEntryTitle, inGroup: socialGroupName)
+        openEditorDeleteDialog()
+
+        let deletePermanentlyButton = app.buttons["Delete Permanently"]
+        XCTAssertTrue(deletePermanentlyButton.waitForExistence(timeout: 5), "Delete confirmation dialog was not visible")
+        deletePermanentlyButton.tap()
+
+        // v1.10.4 wedge regression: the editor must pop on its own after a
+        // permanent delete instead of staying stuck with Cancel and Save inert.
+        XCTAssertTrue(
+            waitForElementToDisappear(app.buttons["entry-edit.save"], timeout: 15),
+            "Entry editor did not dismiss after Delete Permanently"
+        )
+        XCTAssertTrue(
+            app.navigationBars[socialGroupName].waitForExistence(timeout: 10),
+            "Did not return to the Social group list after the permanent delete"
+        )
+        XCTAssertFalse(entry(named: twitterEntryTitle).exists, "Permanently deleted entry was still listed in Social")
+
+        // The screen must stay fully usable: navigate back out and confirm the
+        // delete bypassed the recycle bin (no bin group was created for it).
+        tapBackButton()
+        XCTAssertTrue(
+            revealElement(group(named: socialGroupName)),
+            "Root group list was not usable after the permanent delete"
+        )
+        XCTAssertFalse(group(named: recycleBinGroupName).exists, "Permanent delete unexpectedly created a recycle bin")
+    }
+
+    func testEditorDeleteMoveToRecycleBinDismissesEditorAndMovesEntry() {
+        unlockSuccessfully()
+
+        openEntry(named: discordEntryTitle, inGroup: socialGroupName)
+        openEditorDeleteDialog()
+
+        let recycleButton = app.buttons["Move to Recycle Bin"]
+        XCTAssertTrue(recycleButton.waitForExistence(timeout: 5), "Delete confirmation dialog was not visible")
+        recycleButton.tap()
+
+        XCTAssertTrue(
+            waitForElementToDisappear(app.buttons["entry-edit.save"], timeout: 15),
+            "Entry editor did not dismiss after Move to Recycle Bin"
+        )
+        XCTAssertTrue(
+            app.navigationBars[socialGroupName].waitForExistence(timeout: 10),
+            "Did not return to the Social group list after recycling the entry"
+        )
+        XCTAssertFalse(entry(named: discordEntryTitle).exists, "Recycled entry was still listed in Social")
+
+        tapBackButton()
+        openGroup(named: recycleBinGroupName)
+        XCTAssertTrue(
+            revealElement(entry(named: discordEntryTitle)),
+            "Discord entry was not moved into the recycle bin"
+        )
+    }
+
+    func testEditorDeleteRecycledEntryOffersOnlyPermanentDeleteAndDismisses() {
+        unlockSuccessfully()
+
+        // Recycle Twitter first so the editor is opened on an entry already in
+        // the bin — its dialog offers Delete Permanently only, and the delete
+        // must unwind the editor exactly like the non-recycled flow.
+        openGroup(named: socialGroupName)
+        let twitterEntry = entry(named: twitterEntryTitle)
+        XCTAssertTrue(revealElement(twitterEntry), "Twitter entry was not visible in Social")
+        twitterEntry.swipeLeft()
+        let rowDeleteButton = app.buttons["entry-row.delete-swipe"]
+        XCTAssertTrue(rowDeleteButton.waitForExistence(timeout: 5))
+        rowDeleteButton.tap()
+        app.alerts.buttons["Delete"].tap()
+        waitForAutosaveAttempt()
+
+        tapBackButton()
+        openEntry(named: twitterEntryTitle, inGroup: recycleBinGroupName)
+        openEditorDeleteDialog()
+
+        let deletePermanentlyButton = app.buttons["Delete Permanently"]
+        XCTAssertTrue(deletePermanentlyButton.waitForExistence(timeout: 5), "Delete confirmation dialog was not visible")
+        XCTAssertFalse(
+            app.buttons["Move to Recycle Bin"].exists,
+            "Recycle option was offered for an already-recycled entry"
+        )
+        deletePermanentlyButton.tap()
+
+        XCTAssertTrue(
+            waitForElementToDisappear(app.buttons["entry-edit.save"], timeout: 15),
+            "Entry editor did not dismiss after permanently deleting a recycled entry"
+        )
+        XCTAssertTrue(
+            app.navigationBars[recycleBinGroupName].waitForExistence(timeout: 10),
+            "Did not return to the Recycle Bin list after the permanent delete"
+        )
+        XCTAssertFalse(
+            entry(named: twitterEntryTitle).exists,
+            "Permanently deleted entry was still listed in the recycle bin"
+        )
     }
 
     private func createRecycleBinByDeletingEmptyGroup(file: StaticString = #filePath, line: UInt = #line) {

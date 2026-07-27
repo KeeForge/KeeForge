@@ -18,6 +18,20 @@ struct EntryDetailView: View {
     #endif
     @Environment(\.dismiss) private var dismiss
     @State private var activeEditor: EntryEditViewModel?
+    /// Set when the editor completes a delete; the close then finishes in
+    /// `onAppear`, a separate transaction from the editor pop (see `body`).
+    @State private var closesAfterEditorDismissal = false
+    /// Both `onAppear`s in `body` can fire on the same reveal, and each
+    /// `dismiss()` would pop one navigation level.
+    @State private var hasFinishedClosing = false
+
+    /// Clears the regular shells' selection and pops this screen, at most once.
+    private func finishClose() {
+        guard hasFinishedClosing == false else { return }
+        hasFinishedClosing = true
+        onClose()
+        dismiss()
+    }
 
     private var entry: KPEntry? {
         viewModel.entry(withID: entryID)
@@ -182,7 +196,6 @@ struct EntryDetailView: View {
                         }
                     }
                 }
-                .modifier(EntryEditorPresentation(view: self))
             } else {
                 ContentUnavailableView(
                     "Entry Unavailable",
@@ -190,10 +203,21 @@ struct EntryDetailView: View {
                     description: Text("This entry no longer exists in the current draft.")
                 )
                 .onAppear {
-                    onClose()
-                    dismiss()
+                    finishClose()
                 }
             }
+        }
+        // Outside the entry branch: a permanent delete removes the entry while
+        // the editor is the topmost pushed view, and a branch-scoped
+        // `navigationDestination` would be torn down with no way to pop it.
+        .modifier(EntryEditorPresentation(view: self))
+        // Re-fires when the pushed editor pops back. The close must wait for
+        // this later transaction — popping the editor and this screen together
+        // drops the second pop on iOS 26.
+        .onAppear {
+            guard closesAfterEditorDismissal else { return }
+            closesAfterEditorDismissal = false
+            finishClose()
         }
     }
 
@@ -251,8 +275,14 @@ struct EntryDetailView: View {
             ) { completion in
                 view.activeEditor = nil
                 if completion == .deleted {
-                    view.onClose()
-                    view.dismiss()
+                    // iOS pops only the editor here; `onAppear` in `body`
+                    // finishes the close once the pop lands. macOS sheets never
+                    // re-fire the presenter's `onAppear`, so close directly.
+                    #if os(macOS)
+                    view.finishClose()
+                    #else
+                    view.closesAfterEditorDismissal = true
+                    #endif
                 }
             }
         }
