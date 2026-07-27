@@ -14,18 +14,16 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
 
     override func setUp() async throws {
         try await super.setUp()
-        await CredentialIdentityStoreManager.waitForPendingMutations()
-        resetCredentialIdentityStoreSeams()
+        await resetCredentialIdentityStoreState()
         DatabaseListStore.clearAll()
-        await CredentialIdentityStoreManager.waitForPendingMutations()
+        await resetCredentialIdentityStoreState()
         resetAutoFillSettings()
     }
 
     override func tearDown() async throws {
-        await CredentialIdentityStoreManager.waitForPendingMutations()
-        resetCredentialIdentityStoreSeams()
+        await resetCredentialIdentityStoreState()
         DatabaseListStore.clearAll()
-        await CredentialIdentityStoreManager.waitForPendingMutations()
+        await resetCredentialIdentityStoreState()
         resetAutoFillSettings()
         try await super.tearDown()
     }

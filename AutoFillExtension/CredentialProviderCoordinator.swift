@@ -1760,7 +1760,8 @@ final class CredentialProviderCoordinator {
         }
     }
 
-    /// Captures the presenter before cleanup and gates the terminal handoff.
+    /// Gates the terminal handoff exactly once and captures the presenter for
+    /// the completion action before cleanup clears coordinator state.
     /// The shell may disappear while an async unlock or dismissal is settling;
     /// this prevents duplicate context calls and avoids optional chaining on a
     /// completion path that must be observable.

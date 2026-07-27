@@ -7,17 +7,15 @@ import XCTest
 final class CredentialProviderSaveTests: XCTestCase {
     override func setUp() async throws {
         try await super.setUp()
-        await CredentialIdentityStoreManager.waitForPendingMutations()
-        resetCredentialIdentityStoreSeams()
+        await resetCredentialIdentityStoreState()
         DatabaseListStore.clearAll()
-        await CredentialIdentityStoreManager.waitForPendingMutations()
+        await resetCredentialIdentityStoreState()
     }
 
     override func tearDown() async throws {
-        await CredentialIdentityStoreManager.waitForPendingMutations()
-        resetCredentialIdentityStoreSeams()
+        await resetCredentialIdentityStoreState()
         DatabaseListStore.clearAll()
-        await CredentialIdentityStoreManager.waitForPendingMutations()
+        await resetCredentialIdentityStoreState()
         try await super.tearDown()
     }
 

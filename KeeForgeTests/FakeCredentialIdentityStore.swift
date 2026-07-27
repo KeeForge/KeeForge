@@ -217,15 +217,14 @@ final class FakeCredentialIdentityStore: CredentialIdentityStoreProviding, @unch
 
 @MainActor
 extension XCTestCase {
-    func resetCredentialIdentityStoreSeams() {
-        resetCredentialIdentityObservers()
-        CredentialIdentityStoreManager.storeProviderOverride = nil
-    }
-
-    func resetCredentialIdentityObservers() {
+    /// Drains process-wide identity work before and after resetting its test seams.
+    func resetCredentialIdentityStoreState() async {
+        await CredentialIdentityStoreManager.waitForPendingMutations()
         CredentialIdentityStoreManager.populateObserver = nil
         CredentialIdentityStoreManager.clearObserver = nil
         CredentialIdentityStoreManager.removeDatabaseObserver = nil
         CredentialIdentityStoreManager.removeIdentityObserver = nil
+        CredentialIdentityStoreManager.storeProviderOverride = nil
+        await CredentialIdentityStoreManager.waitForPendingMutations()
     }
 }

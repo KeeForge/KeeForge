@@ -8,20 +8,18 @@ final class DatabaseListViewModelTests: XCTestCase {
 
     override func setUp() async throws {
         try await super.setUp()
-        await CredentialIdentityStoreManager.waitForPendingMutations()
-        resetCredentialIdentityStoreSeams()
+        await resetCredentialIdentityStoreState()
         DatabaseListStore.clearAll()
         CloudAccountStore.clearAll()
         SharedVaultStore.clearBookmark()
         SettingsService.showDatabaseUsageStats = true
         AutoFillStatusService.defaults = UserDefaults(suiteName: autoFillSuiteName)!
         AutoFillStatusService.resetForTesting()
-        await CredentialIdentityStoreManager.waitForPendingMutations()
+        await resetCredentialIdentityStoreState()
     }
 
     override func tearDown() async throws {
-        await CredentialIdentityStoreManager.waitForPendingMutations()
-        resetCredentialIdentityStoreSeams()
+        await resetCredentialIdentityStoreState()
         DatabaseListStore.clearAll()
         CloudAccountStore.clearAll()
         SharedVaultStore.clearBookmark()
@@ -32,7 +30,7 @@ final class DatabaseListViewModelTests: XCTestCase {
             await ASCredentialIdentityStore.shared.state().isEnabled
         }
         UserDefaults.standard.removePersistentDomain(forName: autoFillSuiteName)
-        await CredentialIdentityStoreManager.waitForPendingMutations()
+        await resetCredentialIdentityStoreState()
         try await super.tearDown()
     }
 

@@ -14,14 +14,11 @@ final class CredentialIdentityStoreManagerTests: XCTestCase {
 
     override func setUp() async throws {
         try await super.setUp()
-        await CredentialIdentityStoreManager.waitForPendingMutations()
-        resetCredentialIdentityStoreSeams()
+        await resetCredentialIdentityStoreState()
     }
 
     override func tearDown() async throws {
-        resetCredentialIdentityObservers()
-        await CredentialIdentityStoreManager.waitForPendingMutations()
-        CredentialIdentityStoreManager.storeProviderOverride = nil
+        await resetCredentialIdentityStoreState()
         try await super.tearDown()
     }
 
