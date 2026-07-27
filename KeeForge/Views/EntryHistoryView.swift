@@ -1,7 +1,7 @@
 import CryptoKit
 import SwiftUI
 
-/// Browses an entry's stored `<History>` versions, read-only.
+/// Browses an entry's stored `<History>` versions and restores one.
 ///
 /// A sheet rather than a push: pushed levels inside the macOS sidebar column render
 /// zero-height (see `README.md`).
@@ -11,7 +11,7 @@ struct EntryHistoryView: View {
 
     @Environment(\.dismiss) private var dismiss
 
-    private var versions: [KPEntry] {
+    private var versions: [DatabaseViewModel.EntryHistoryVersion] {
         viewModel.history(forEntryID: entryID)
     }
 
@@ -27,15 +27,16 @@ struct EntryHistoryView: View {
                 } else {
                     List {
                         Section {
-                            ForEach(Array(versions.enumerated()), id: \.offset) { position, version in
+                            ForEach(Array(versions.enumerated()), id: \.element.id) { position, version in
                                 NavigationLink {
                                     EntryHistoryVersionView(
                                         entryID: entryID,
-                                        displayIndex: position,
-                                        viewModel: viewModel
+                                        historyIndex: version.index,
+                                        viewModel: viewModel,
+                                        onRestored: { dismiss() }
                                     )
                                 } label: {
-                                    VersionRow(version: version)
+                                    VersionRow(version: version.entry)
                                 }
                                 .accessibilityIdentifier("entry-history.version.\(position)")
                             }
@@ -78,12 +79,15 @@ private struct VersionRow: View {
 
 private struct EntryHistoryVersionView: View {
     let entryID: UUID
-    let displayIndex: Int
+    let historyIndex: Int
     @Bindable var viewModel: DatabaseViewModel
+    let onRestored: () -> Void
 
+    @State private var isConfirmingRestore = false
+
+    /// `historyIndex` addresses storage order, not the sorted display order.
     private var version: KPEntry? {
-        let versions = viewModel.history(forEntryID: entryID)
-        return versions.indices.contains(displayIndex) ? versions[displayIndex] : nil
+        viewModel.history(forEntryID: entryID).first { $0.index == historyIndex }?.entry
     }
 
     var body: some View {
@@ -199,5 +203,39 @@ private struct EntryHistoryVersionView: View {
         #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
         #endif
+        .toolbar {
+            if viewModel.isReadOnly == false, version != nil {
+                ToolbarItem(placement: .primaryAction) {
+                    Button("Restore") { isConfirmingRestore = true }
+                        .accessibilityIdentifier("entry-history.restore")
+                }
+            }
+        }
+        .confirmationDialog(
+            "Restore this version?",
+            isPresented: $isConfirmingRestore,
+            titleVisibility: .visible
+        ) {
+            // The toolbar action carries the same label, and on iPad this is a popover.
+            Button("Restore") { restore() }
+                .accessibilityIdentifier("entry-history.restore.confirm")
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            if viewModel.restoreKeepsReplacedState(entryID: entryID) {
+                Text("The entry's current contents are kept as a new history version, so you can undo this.")
+            } else {
+                Text("This database keeps no earlier versions, so the entry's current contents will be lost. This cannot be undone.")
+            }
+        }
+    }
+
+    private func restore() {
+        do {
+            try viewModel.restoreEntryVersion(entryID: entryID, historyIndex: historyIndex)
+            onRestored()
+            Task { await viewModel.saveHandlingError() }
+        } catch {
+            viewModel.presentSaveError(error)
+        }
     }
 }

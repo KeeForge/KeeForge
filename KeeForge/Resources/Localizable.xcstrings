@@ -524,6 +524,16 @@
         }
       }
     },
+    "another app" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "andere App"
+          }
+        }
+      }
+    },
     "Another Dropbox sign-in is already in progress." : {
       "localizations" : {
         "de" : {
@@ -1284,6 +1294,16 @@
         }
       }
     },
+    "Concurrent edits from another device or app could overwrite your changes." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gleichzeitige Bearbeitungen auf einem anderen Gerät oder in einer anderen App könnten Ihre Änderungen überschreiben."
+          }
+        }
+      }
+    },
     "Confirm password" : {
       "localizations" : {
         "de" : {
@@ -1350,6 +1370,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Support kontaktieren"
+          }
+        }
+      }
+    },
+    "Continue editing" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bearbeitung fortsetzen"
           }
         }
       }
@@ -2774,6 +2804,16 @@
         }
       }
     },
+    "iCloud may sync changes from another device while you're editing. We recommend keeping all writes on one device." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "iCloud synchronisiert möglicherweise Änderungen von einem anderen Gerät, während Sie die Datenbank bearbeiten. Es wird empfohlen, alle Schreibvorgänge auf ein Gerät zu beschränken."
+          }
+        }
+      }
+    },
     "Identity" : {
       "localizations" : {
         "de" : {
@@ -3160,6 +3200,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Weiter bearbeiten"
+          }
+        }
+      }
+    },
+    "Keep read-only" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Schreibgeschützt lassen"
           }
         }
       }
@@ -3905,7 +3955,6 @@
       }
     },
     "OneDrive upload failed." : {
-      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -4421,6 +4470,26 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Fehler melden"
+          }
+        }
+      }
+    },
+    "Restore" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wiederherstellen"
+          }
+        }
+      }
+    },
+    "Restore this version?" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Diese Version wiederherstellen?"
           }
         }
       }
@@ -5025,6 +5094,26 @@
         }
       }
     },
+    "That earlier version is no longer available." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Diese frühere Version ist nicht mehr verfügbar."
+          }
+        }
+      }
+    },
+    "The %@ app on this device — and on any other device signed into the same account — could overwrite your changes if you both edit the database at the same time. Continue editing only if you keep all writes confined to one device at a time." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die %@-App auf diesem Gerät — und auf jedem anderen Gerät, das mit demselben Konto angemeldet ist — könnte Ihre Änderungen überschreiben, wenn Sie die Datenbank gleichzeitig bearbeiten. Setzen Sie die Bearbeitung nur fort, wenn alle Schreibvorgänge jeweils auf ein Gerät beschränkt bleiben."
+          }
+        }
+      }
+    },
     "The attached photo is too large. Choose a smaller photo." : {
       "localizations" : {
         "de" : {
@@ -5201,6 +5290,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Der Eintrag wird in den Papierkorb verschoben."
+          }
+        }
+      }
+    },
+    "The entry's current contents are kept as a new history version, so you can undo this." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Der aktuelle Inhalt des Eintrags wird als neue Verlaufsversion aufbewahrt, du kannst das also rückgängig machen."
           }
         }
       }
@@ -5425,6 +5524,66 @@
         }
       }
     },
+    "This database file is in iCloud Drive." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Diese Datenbankdatei befindet sich in iCloud Drive."
+          }
+        }
+      }
+    },
+    "This database file is stored in Box." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Diese Datenbankdatei ist in Box gespeichert."
+          }
+        }
+      }
+    },
+    "This database file is stored in Dropbox." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Diese Datenbankdatei ist in Dropbox gespeichert."
+          }
+        }
+      }
+    },
+    "This database file is stored in Google Drive." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Diese Datenbankdatei ist in Google Drive gespeichert."
+          }
+        }
+      }
+    },
+    "This database file is stored in OneDrive." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Diese Datenbankdatei ist in OneDrive gespeichert."
+          }
+        }
+      }
+    },
+    "This database file may be synced by another app on this device." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Diese Datenbankdatei wird möglicherweise von einer anderen App auf diesem Gerät synchronisiert."
+          }
+        }
+      }
+    },
     "This database is read-only." : {
       "localizations" : {
         "de" : {
@@ -5451,6 +5610,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Diese Datenbank ist nicht verfügbar. Kehren Sie zur Datenbankliste zurück, um sie zu entfernen oder ihr Lesezeichen zu aktualisieren."
+          }
+        }
+      }
+    },
+    "This database keeps no earlier versions, so the entry's current contents will be lost. This cannot be undone." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Diese Datenbank bewahrt keine früheren Versionen auf, der aktuelle Inhalt des Eintrags geht also verloren. Das kann nicht rückgängig gemacht werden."
           }
         }
       }

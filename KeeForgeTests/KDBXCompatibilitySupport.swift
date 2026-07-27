@@ -406,6 +406,7 @@ enum KDBXCompatibilitySupport {
         "create-group",
         "hide-group-from-autofill",
         "change-group-icon",
+        "restore-entry-version",
         "soft-delete-entry",
         "soft-delete-group",
         "hard-delete-recycled-entry",
@@ -488,6 +489,7 @@ enum KDBXCompatibilitySupport {
         "create-group",
         "hide-group-from-autofill",
         "change-group-icon",
+        "restore-entry-version",
         "soft-delete-entry",
         "soft-delete-group",
         "hard-delete-recycled-entry",
@@ -576,6 +578,7 @@ enum KDBXCompatibilitySupport {
             createGroupScenario(),
             hideGroupFromAutoFillScenario(),
             changeGroupIconScenario(),
+            restoreEntryVersionScenario(),
             softDeleteEntryScenario(),
             softDeleteGroupScenario(),
             hardDeleteRecycledEntryScenario(),
@@ -609,6 +612,40 @@ enum KDBXCompatibilitySupport {
                 XCTAssertTrue(recycleBinGroup.entryIDs.contains(entryID))
                 XCTAssertEqual(after.entries.count, before.entries.count)
                 XCTAssertEqual(after.groups.count, before.groups.count + 1)
+            }
+        )
+    }
+
+    static func restoreEntryVersionScenario() -> Scenario {
+        Scenario(
+            id: "restore-entry-version",
+            title: "Restore an entry's earlier History version",
+            artifactFileName: "synthetic-rich-restore-entry-version.kdbx",
+            expectedSearchTerms: ["Compat Restore Target"],
+            expectedGroupPaths: ["Compat Group Delete Target"],
+            makeEdit: { loaded in
+                let entry = try XCTUnwrap(findEntry(titled: "Compat Restore Target", in: loaded.rootGroup))
+                return .restoreEntryVersion(entryID: entry.id, historyIndex: 0)
+            },
+            assertChange: { before, after, _ in
+                let entryID = try XCTUnwrap(before.entryID(titled: "Compat Restore Target"))
+                let beforeEntry = try XCTUnwrap(before.entries[entryID])
+                XCTAssertEqual(beforeEntry.history.count, 1, "Fixture precondition: one stored version")
+
+                try assertSurvivingGroupsPreserveScalars(before: before, after: after)
+                assertMetaUnchanged(before: before, after: after)
+                XCTAssertEqual(after.entries.count, before.entries.count)
+
+                let afterEntry = try XCTUnwrap(after.entries[entryID])
+                XCTAssertEqual(afterEntry.username, "previous-user")
+                XCTAssertEqual(afterEntry.url, "https://previous.example.com")
+                XCTAssertEqual(afterEntry.password, "previous-password")
+
+                // The replaced state is kept, so the restore stays reversible after a
+                // full write/reparse round trip.
+                XCTAssertEqual(afterEntry.history.count, 2)
+                XCTAssertEqual(afterEntry.history[0].username, "current-user")
+                XCTAssertEqual(afterEntry.history[0].password, "current-password")
             }
         )
     }
@@ -1682,6 +1719,31 @@ private extension KDBXCompatibilitySupport {
             lastModificationTime: timestamp
         )
 
+        // Carries one stored `<History>` version so the restore scenario has something
+        // to bring back; every scenario applies exactly one edit, so the history cannot
+        // be produced inside the scenario itself.
+        let restoreTargetEntry = KPEntry(
+            id: UUID(uuidString: "AAAAAAAA-BBBB-CCCC-DDDD-000000000110")!,
+            title: "Compat Restore Target",
+            username: "current-user",
+            password: try EncryptedValue.encrypt("current-password", using: sessionKey),
+            url: "https://current.example.com",
+            creationTime: timestamp,
+            lastModificationTime: timestamp,
+            history: [
+                // A history version carries its parent's UUID, as KDBX requires.
+                KPEntry(
+                    id: UUID(uuidString: "AAAAAAAA-BBBB-CCCC-DDDD-000000000110")!,
+                    title: "Compat Restore Target",
+                    username: "previous-user",
+                    password: try EncryptedValue.encrypt("previous-password", using: sessionKey),
+                    url: "https://previous.example.com",
+                    creationTime: timestamp,
+                    lastModificationTime: timestamp.addingTimeInterval(-3_600)
+                )
+            ]
+        )
+
         let emptyTagsEntry = KPEntry(
             id: UUID(uuidString: "AAAAAAAA-BBBB-CCCC-DDDD-000000000105")!,
             title: "Compat Empty Tags",
@@ -1780,7 +1842,7 @@ private extension KDBXCompatibilitySupport {
         let visibleRoot = KPGroup(
             id: UUID(uuidString: "AAAAAAAA-BBBB-CCCC-DDDD-000000000201")!,
             name: "Compatibility Root",
-            entries: [updateTarget, softDeleteTarget, untouchedEntry, emptyTagsEntry, otpEntry],
+            entries: [updateTarget, softDeleteTarget, untouchedEntry, emptyTagsEntry, otpEntry, restoreTargetEntry],
             groups: visibleGroups,
             creationTime: timestamp,
             lastModificationTime: timestamp

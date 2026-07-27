@@ -7,6 +7,7 @@ struct DatabaseDraft: Sendable {
         case entryNotFound(UUID)
         case duplicateGroupName(parentGroupID: UUID, name: String)
         case protectedGroup(UUID)
+        case historyVersionNotFound(entryID: UUID, index: Int)
 
         var errorDescription: String? {
             switch self {
@@ -18,6 +19,8 @@ struct DatabaseDraft: Sendable {
                 String(localized: "\"\(name)\" already exists in this group.")
             case .protectedGroup:
                 String(localized: "This group cannot be deleted.")
+            case .historyVersionNotFound:
+                String(localized: "That earlier version is no longer available.")
             }
         }
     }
@@ -104,6 +107,8 @@ struct DatabaseDraft: Sendable {
             updatedState = try applySetGroupSearchingEnabled(groupID: groupID, value: value.modelValue)
         case .setGroupIcon(let groupID, let iconID):
             updatedState = try applySetGroupIcon(groupID: groupID, iconID: iconID)
+        case .restoreEntryVersion(let entryID, let historyIndex):
+            updatedState = try applyRestoreEntryVersion(entryID: entryID, historyIndex: historyIndex)
         }
 
         updatedState.rootGroup.recycleBinUUID = updatedState.meta.recycleBinUUID
@@ -226,12 +231,8 @@ struct DatabaseDraft: Sendable {
 
         let timestamp = Date.now
         let updatedRootGroup = try rebuildGroup(in: currentRootGroupStorage, targetPath: groupPath[...]) { group in
-            // A `<CustomIconUUID>` outranks `<IconID>` in KeePass, and the parser
-            // keeps the source element in `unknownXML` so the writer round-trips
-            // it verbatim. Picking a standard icon has to drop both the display
-            // copy and that preserved element — otherwise the new `IconID` is
-            // written but nothing shows it, here or in any other client, and the
-            // choice looks like it did nothing.
+            // A `<CustomIconUUID>` outranks `<IconID>` in KeePass, so the preserved element
+            // has to go with the display copy or the chosen icon is never shown.
             var unknownXML = group.unknownXML
             unknownXML.removeDirectChildren(named: "CustomIconUUID")
 
@@ -273,6 +274,88 @@ struct DatabaseDraft: Sendable {
         let updatedRootGroup = try rebuildGroup(in: currentRootGroupStorage, targetPath: entryLocation.groupPath[...]) { group in
             var updatedEntries = group.entries
             updatedEntries[entryLocation.entryIndex] = updatedEntry
+            return copyGroup(group, entries: updatedEntries)
+        }
+
+        return (updatedRootGroup, currentMetaStorage)
+    }
+
+    /// Makes a stored history version current again.
+    ///
+    /// The state being replaced is pushed onto the history first, so a restore is
+    /// itself reversible and never destroys the version the user was looking at.
+    ///
+    /// Identity and provenance stay with the live entry rather than coming from the
+    /// snapshot: `id` (so references elsewhere keep resolving), `creationTime` (the
+    /// entry was created once, restoring is not re-creating it), and `unknownXML`.
+    /// That last one matters — the live entry's preserved XML describes the element
+    /// layout the writer round-trips today, including where `<History>` sits, so
+    /// swapping in an older copy of it would rewrite structure the source app wrote.
+    /// Everything the user can see or edit comes from the snapshot.
+    /// Whether a restore would keep the state it replaces, i.e. whether it can be undone.
+    ///
+    /// `HistoryMaxItems`/`HistoryMaxSize` can discard the pushed snapshot, so the
+    /// confirmation must not promise an undo without asking first. The snapshot is
+    /// prepended and the trim only takes a prefix, so it survives exactly when the result
+    /// is non-empty.
+    func restoreKeepsReplacedState(entryID: UUID) -> Bool {
+        guard let entryLocation = findEntryLocation(entryID: entryID, in: currentRootGroupStorage) else {
+            return false
+        }
+        let current = entryLocation.entry
+        return !trimmedHistory(
+            appending: current.cloneForHistory(),
+            existing: current.history,
+            meta: currentMetaStorage
+        ).isEmpty
+    }
+
+    private func applyRestoreEntryVersion(
+        entryID: UUID,
+        historyIndex: Int
+    ) throws -> (rootGroup: KPGroup, meta: KPMeta) {
+        guard let entryLocation = findEntryLocation(entryID: entryID, in: currentRootGroupStorage) else {
+            throw DraftError.entryNotFound(entryID)
+        }
+
+        let current = entryLocation.entry
+        guard current.history.indices.contains(historyIndex) else {
+            throw DraftError.historyVersionNotFound(entryID: entryID, index: historyIndex)
+        }
+        let version = current.history[historyIndex]
+
+        let restored = KPEntry(
+            id: current.id,
+            title: version.title,
+            username: version.username,
+            password: version.password,
+            url: version.url,
+            notes: version.notes,
+            iconID: version.iconID,
+            customIconUUID: version.customIconUUID,
+            tags: version.tags,
+            hasTagsElement: version.hasTagsElement,
+            customFields: version.customFields,
+            passkeyPrivateKey: version.passkeyPrivateKey,
+            totpConfig: version.totpConfig,
+            otpURL: version.otpURL,
+            creationTime: current.creationTime,
+            lastModificationTime: Date.now,
+            expires: version.expires,
+            expiryTime: version.expiryTime,
+            history: trimmedHistory(
+                appending: current.cloneForHistory(),
+                existing: current.history,
+                meta: currentMetaStorage
+            ),
+            unknownXML: current.unknownXML,
+            protectedStringKeys: version.protectedStringKeys,
+            attachments: version.attachments
+        )
+
+        let updatedRootGroup = try rebuildGroup(in: currentRootGroupStorage, targetPath: entryLocation.groupPath[...]) { group in
+            var updatedEntries = group.entries
+            updatedEntries[entryLocation.entryIndex] = restored
             return copyGroup(group, entries: updatedEntries)
         }
 
