@@ -1478,6 +1478,7 @@
 			buildConfigurationList = 2CD08C3FB616C47D10C06467 /* Build configuration list for PBXNativeTarget "KeeForgeMacTests" */;
 			buildPhases = (
 				28CC4731443872BB8D6EB04C /* Sources */,
+				4F49149D7F2306B9089F4A6F /* Bundle raw .xcstrings catalogs for LocalizationTests */,
 				CCF560AD08880005AF66B6F5 /* Resources */,
 				F7E0B6981998FB7D538ABC33 /* Frameworks */,
 			);
@@ -1805,6 +1806,33 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXShellScriptBuildPhase section */
+		4F49149D7F2306B9089F4A6F /* Bundle raw .xcstrings catalogs for LocalizationTests */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+				"$(SRCROOT)/KeeForge/Resources/Localizable.xcstrings",
+				"$(SRCROOT)/KeeForge/Resources/InfoPlist.xcstrings",
+				"$(SRCROOT)/AutoFillExtension/Localizable.xcstrings",
+				"$(SRCROOT)/AutoFillExtension/InfoPlist.xcstrings",
+			);
+			name = "Bundle raw .xcstrings catalogs for LocalizationTests";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+				"$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/KeeForge_Localizable.xcstrings",
+				"$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/KeeForge_InfoPlist.xcstrings",
+				"$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/AutoFillExtension_Localizable.xcstrings",
+				"$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/AutoFillExtension_InfoPlist.xcstrings",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "set -euo pipefail\n\n# TARGET_BUILD_DIR (not BUILT_PRODUCTS_DIR) is the location the test\n# bundle is actually assembled and run from — for a host-app-embedded\n# unit test that is KeeForgeMac.app/Contents/PlugIns/KeeForgeMacTests.xctest,\n# which is what Bundle(for:) resolves to at runtime.\ndest=\"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}\"\nmkdir -p \"${dest}\"\n\ncopy_catalog() {\n  src=\"$1\"\n  dst=\"$2\"\n  if [ ! -f \"${src}\" ]; then\n    echo \"error: raw xcstrings source missing: ${src}\" >&2\n    exit 1\n  fi\n  /bin/cp -f \"${src}\" \"${dest}/${dst}\"\n}\n\ncopy_catalog \"${SRCROOT}/KeeForge/Resources/Localizable.xcstrings\" \"KeeForge_Localizable.xcstrings\"\ncopy_catalog \"${SRCROOT}/KeeForge/Resources/InfoPlist.xcstrings\" \"KeeForge_InfoPlist.xcstrings\"\ncopy_catalog \"${SRCROOT}/AutoFillExtension/Localizable.xcstrings\" \"AutoFillExtension_Localizable.xcstrings\"\ncopy_catalog \"${SRCROOT}/AutoFillExtension/InfoPlist.xcstrings\" \"AutoFillExtension_InfoPlist.xcstrings\"\n";
+		};
 		804041F2AB24067D2581A5CF /* Bundle raw .xcstrings catalogs for LocalizationTests */ = {
 			isa = PBXShellScriptBuildPhase;
 			alwaysOutOfDate = 1;
