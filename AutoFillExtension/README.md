@@ -19,6 +19,7 @@ This target provides password, passkey, one-time-code, and new-credential save/g
 - It reuses `../KeeForge/Models` plus a selected subset of service files declared explicitly in `../project.yml`.
 - The shared model layer links the local `KeeForgeTwofish` package, so Twofish-encrypted databases use the same parser and cipher-preserving writer in the app and extension.
 - Unlock can use stored composite keys plus biometrics for quick AutoFill, or fall back to interactive password entry.
+- The identity-store mutation queue is process-local. The app and extension remain separate processes, so their system-store operations can still overlap; refreshes must therefore remain idempotent and tolerate identities without the newer `recordIdentifier` Objective-C accessor returned by some macOS system objects.
 - Interactive requests are presentation-order independent: the coordinator waits while the shell is off screen and schedules pending UI immediately when a request arrives after the shell has appeared.
 - Password and passkey requests both parse the database locally; the extension does not depend on the main app being open.
 - Expired entries are excluded from proactive identities and automatic password, passkey, and one-time-code fulfillment. They remain available in the interactive picker with an explicit warning and require a manual tap.

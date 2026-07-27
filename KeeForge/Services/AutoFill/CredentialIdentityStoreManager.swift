@@ -1,4 +1,5 @@
 @preconcurrency import AuthenticationServices
+import Foundation
 import OSLog
 
 // MARK: - Record identifier
@@ -212,8 +213,50 @@ struct SystemCredentialIdentityStore: CredentialIdentityStoreProviding {
 
 // MARK: - Manager
 
+/// ASCredentialIdentityStore has no documented transaction boundary around
+/// enumerate-then-mutate sequences. A single worker keeps every mutation,
+/// including its enumeration snapshot, off the main actor and in invocation
+/// order without holding a lock across an async system call.
+private final class CredentialIdentityStoreMutationQueue: @unchecked Sendable {
+    private typealias Operation = @Sendable () async -> Void
+    private let lock = NSLock()
+    private var pending: [Operation] = []
+    private var isDraining = false
+
+    /// Synchronously admits work so call order is established before any
+    /// asynchronous execution can begin. One worker drains the queue instead
+    /// of retaining a task chain for every pending operation.
+    func enqueue(_ operation: @escaping @Sendable () async -> Void) {
+        let shouldStartWorker = lock.withLock {
+            pending.append(operation)
+            guard !isDraining else { return false }
+            isDraining = true
+            return true
+        }
+
+        if shouldStartWorker {
+            Task.detached { [self] in
+                await drain()
+            }
+        }
+    }
+
+    private func drain() async {
+        while let operation = lock.withLock({ () -> Operation? in
+            guard !pending.isEmpty else {
+                isDraining = false
+                return nil
+            }
+            return pending.removeFirst()
+        }) {
+            await operation()
+        }
+    }
+}
+
 enum CredentialIdentityStoreManager: Sendable {
     private static let logger = Logger(subsystem: "KeeForge", category: "CredentialIdentityStore")
+    private static let mutationQueue = CredentialIdentityStoreMutationQueue()
 
     #if DEBUG
     /// Test hooks, fired on the main actor when the corresponding operation
@@ -242,6 +285,10 @@ enum CredentialIdentityStoreManager: Sendable {
         return SystemCredentialIdentityStore()
     }
 
+    private static func enqueueMutation(_ operation: @escaping @Sendable () async -> Void) {
+        mutationQueue.enqueue(operation)
+    }
+
     /// Publishes `entries` as the credential identities of the database with
     /// id `databaseID` (the owning `DatabaseReference.id`). Since slice 04 of
     /// the selectable-AutoFill epic this is a **per-database refresh**, not a
@@ -251,14 +298,18 @@ enum CredentialIdentityStoreManager: Sendable {
     /// Refresh decision tree:
     /// 1. Enumerate the store.
     /// 2. If enumeration is unavailable (`credentialIdentities()` returns
-    ///    nil — macOS 14.0–14.3) **or** it shows no other database's
-    ///    identities (a `.current` tag owned by a different database), do an
-    ///    atomic whole-store `replaceCredentialIdentities` exactly as before
-    ///    aggregation (`removeAllCredentialIdentities` when this database has
-    ///    no eligible identities). With no other publishers this is
-    ///    equivalent to a per-database refresh, and the full replace also
-    ///    purges legacy (bare-UUID) and unrecognized identifiers.
-    /// 3. Otherwise remove the identities this database owns **plus** every
+    ///    nil — macOS 14.0–14.3), or it shows no other database's identities
+    ///    (a `.current` tag owned by a different database) and no identity
+    ///    lacks a readable runtime `recordIdentifier`, do an atomic whole-store
+    ///    `replaceCredentialIdentities` exactly as before aggregation
+    ///    (`removeAllCredentialIdentities` when this database has no eligible
+    ///    identities). With no other publishers this is equivalent to a
+    ///    per-database refresh, and the full replace also purges legacy
+    ///    (bare-UUID) and unrecognized identifiers.
+    /// 3. If enumeration contains an identity without a readable runtime
+    ///    `recordIdentifier`, use the conservative additive path so that
+    ///    unknown system identities are never deleted by this refresh.
+    /// 4. Otherwise remove the identities this database owns **plus** every
     ///    legacy-format identity (pre-tagging publications, only ever made by
     ///    the then-active database and superseded by this refresh), then
     ///    additively `saveCredentialIdentities` the current set. When the
@@ -275,13 +326,15 @@ enum CredentialIdentityStoreManager: Sendable {
     /// repopulation — the pre-aggregation single-active behavior, and the
     /// only option without an enumeration API).
     ///
-    /// Accepted cross-process race (see the epic's cross-slice notes): the
-    /// main app and the extension can both mutate the store (unlock vs.
-    /// in-extension save), and enumerate-then-mutate is not atomic. Worst
-    /// case is a briefly stale or duplicate suggestion, corrected by the
-    /// affected database's next refresh; no IPC or locking is layered on top.
+    /// The queue serializes calls within this process only. The main app and
+    /// extension are separate processes and can still mutate the system store
+    /// concurrently (unlock vs. in-extension save); enumerate-then-mutate is
+    /// not atomic across that boundary. Worst case is a briefly stale or
+    /// duplicate suggestion, corrected by the affected database's next
+    /// refresh; no IPC or cross-process lock is layered on top.
     static func populate(with entries: [KPEntry], for databaseID: UUID) {
         let eligibleEntries = entries.filter { !$0.isExpired() }
+        logger.info("Starting credential identity refresh with \(eligibleEntries.count) eligible entries")
 
         #if DEBUG
         Task { @MainActor in
@@ -289,7 +342,7 @@ enum CredentialIdentityStoreManager: Sendable {
         }
         #endif
 
-        Task {
+        enqueueMutation {
             let store = await currentStore()
             guard await store.isEnabled() else {
                 logger.info("Identity store is not enabled; skipping populate")
@@ -311,21 +364,24 @@ enum CredentialIdentityStoreManager: Sendable {
 
             let storedIdentities = await store.credentialIdentities()
             let otherDatabaseIdentitiesPresent = storedIdentities?.contains { identity in
-                guard let recordIdentifier = identity.recordIdentifier,
+                guard let recordIdentifier = recordIdentifier(of: identity),
                       case .current(let parsed) = CredentialRecordIdentifier.parse(recordIdentifier)
                 else { return false }
                 return parsed.databaseID != databaseID
             } ?? false
+            let unattributedIdentitiesPresent = storedIdentities?.contains {
+                recordIdentifier(of: $0) == nil
+            } ?? false
 
             do {
-                if let storedIdentities, otherDatabaseIdentitiesPresent {
+                if let storedIdentities, otherDatabaseIdentitiesPresent || unattributedIdentitiesPresent {
                     // Additive per-database refresh: drop this database's own
                     // (possibly stale) identities plus every legacy bare-UUID
                     // identity, then save the current set. `.unrecognized`
                     // identifiers are left for a later whole-store replace or
                     // `clearStore()` to purge.
                     let identitiesToRemove = storedIdentities.filter { identity in
-                        guard let recordIdentifier = identity.recordIdentifier else { return false }
+                        guard let recordIdentifier = recordIdentifier(of: identity) else { return false }
                         switch CredentialRecordIdentifier.parse(recordIdentifier) {
                         case .current(let parsed):
                             return parsed.databaseID == databaseID
@@ -359,13 +415,14 @@ enum CredentialIdentityStoreManager: Sendable {
     /// Quick AutoFill toggle off, the extension's stale legacy/unrecognized-
     /// identifier cleanup, and the Clear AutoFill Entries action).
     static func clearStore() {
+        logger.info("Starting credential identity store clear")
         #if DEBUG
         Task { @MainActor in
             clearObserver?()
         }
         #endif
 
-        Task {
+        enqueueMutation {
             let store = await currentStore()
             guard await store.isEnabled() else { return }
 
@@ -391,7 +448,8 @@ enum CredentialIdentityStoreManager: Sendable {
     /// today's behavior); they are cleaned up by the owning database's next
     /// full-store refresh.
     static func removeIdentities(for entries: [KPEntry], in databaseID: UUID) {
-        Task {
+        logger.info("Starting credential identity removal for entries")
+        enqueueMutation {
             let store = await currentStore()
             guard await store.isEnabled() else { return }
 
@@ -404,6 +462,7 @@ enum CredentialIdentityStoreManager: Sendable {
 
             do {
                 try await store.removeCredentialIdentities(identitiesToRemove)
+                logger.info("Removed credential identities for entries")
             } catch {
                 logger.error("Failed to remove credential identities: \(error.localizedDescription)")
             }
@@ -434,13 +493,14 @@ enum CredentialIdentityStoreManager: Sendable {
     /// any enabled database's next refresh, and the extension already treats
     /// them as stale on tap.
     static func removeIdentities(forDatabase databaseID: UUID, includingLegacyIdentifiers: Bool = false) {
+        logger.info("Starting targeted credential identity removal")
         #if DEBUG
         Task { @MainActor in
             removeDatabaseObserver?(databaseID, includingLegacyIdentifiers)
         }
         #endif
 
-        Task {
+        enqueueMutation {
             let store = await currentStore()
             guard await store.isEnabled() else {
                 logger.info("Identity store is not enabled; skipping targeted removal")
@@ -453,7 +513,7 @@ enum CredentialIdentityStoreManager: Sendable {
             }
 
             let identitiesToRemove = storedIdentities.filter { identity in
-                guard let recordIdentifier = identity.recordIdentifier else { return false }
+                guard let recordIdentifier = recordIdentifier(of: identity) else { return false }
                 switch CredentialRecordIdentifier.parse(recordIdentifier) {
                 case .current(let parsed):
                     return parsed.databaseID == databaseID
@@ -489,13 +549,14 @@ enum CredentialIdentityStoreManager: Sendable {
     /// nothing; the stale identity dies at the owning database's next
     /// full-store refresh instead.
     static func removeIdentity(withRecordIdentifier recordIdentifier: String) {
+        logger.info("Starting single credential identity removal")
         #if DEBUG
         Task { @MainActor in
             removeIdentityObserver?(recordIdentifier)
         }
         #endif
 
-        Task {
+        enqueueMutation {
             let store = await currentStore()
             guard await store.isEnabled() else {
                 logger.info("Identity store is not enabled; skipping single-identity removal")
@@ -507,7 +568,9 @@ enum CredentialIdentityStoreManager: Sendable {
                 return
             }
 
-            let identitiesToRemove = storedIdentities.filter { $0.recordIdentifier == recordIdentifier }
+            let identitiesToRemove = storedIdentities.filter {
+                Self.recordIdentifier(of: $0) == recordIdentifier
+            }
             guard !identitiesToRemove.isEmpty else { return }
 
             do {
@@ -517,6 +580,18 @@ enum CredentialIdentityStoreManager: Sendable {
                 logger.error("Failed to remove credential identities: \(error.localizedDescription)")
             }
         }
+    }
+
+    /// Some macOS releases return private `SFPasswordCredentialIdentity`
+    /// instances from enumeration. They can conform to the public protocol
+    /// while omitting its newer Objective-C accessor at runtime. Check the
+    /// selector before dispatching through the Swift property.
+    static func recordIdentifier(of identity: any ASCredentialIdentity) -> String? {
+        guard let object = identity as? NSObject,
+              object.responds(to: Selector(("recordIdentifier"))) else {
+            return nil
+        }
+        return identity.recordIdentifier
     }
 
     // MARK: - One-time code identities
