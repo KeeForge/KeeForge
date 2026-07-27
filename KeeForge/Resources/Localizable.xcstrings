@@ -2154,6 +2154,26 @@
         }
       }
     },
+    "Earlier Version" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Frühere Version"
+          }
+        }
+      }
+    },
+    "Earlier versions appear here after you edit this entry." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Frühere Versionen erscheinen hier, sobald du diesen Eintrag bearbeitest."
+          }
+        }
+      }
+    },
     "Edit" : {
       "localizations" : {
         "de" : {
@@ -2704,6 +2724,16 @@
         }
       }
     },
+    "History" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Verlauf"
+          }
+        }
+      }
+    },
     "HMAC verification failed — file corrupted or wrong password" : {
       "localizations" : {
         "de" : {
@@ -3130,6 +3160,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Lassen Sie diese Option deaktiviert, sofern Ihr vertrauenswürdiger lokaler WebDAV-Server kein HTTPS verwenden kann."
+          }
+        }
+      }
+    },
+    "KeePass keeps a copy of this entry each time it changes. How many are kept is a database setting." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeePass legt bei jeder Änderung eine Kopie dieses Eintrags an. Wie viele aufbewahrt werden, ist eine Datenbankeinstellung."
           }
         }
       }
@@ -3570,6 +3610,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Noch keine Datenbanken hinzugefügt"
+          }
+        }
+      }
+    },
+    "No Earlier Versions" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Keine früheren Versionen"
           }
         }
       }
@@ -4321,6 +4371,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Datenbank umbenennen"
+          }
+        }
+      }
+    },
+    "Replaced" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ersetzt am"
           }
         }
       }
@@ -5545,6 +5605,16 @@
         }
       }
     },
+    "This version is no longer part of the entry." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Diese Version gehört nicht mehr zu diesem Eintrag."
+          }
+        }
+      }
+    },
     "Tip again" : {
       "localizations" : {
         "de" : {
@@ -5671,6 +5741,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Unbekannt"
+          }
+        }
+      }
+    },
+    "Unknown date" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Unbekanntes Datum"
           }
         }
       }
@@ -6001,6 +6081,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Version"
+          }
+        }
+      }
+    },
+    "Version Unavailable" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Version nicht verfügbar"
           }
         }
       }
