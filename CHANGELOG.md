@@ -28,6 +28,8 @@ TODO before the first macOS release:
 - Copy an entry's verification code to the clipboard when AutoFill fills its password, for sites whose one-time code field iOS does not recognize. Off by default; turn on "Copy Verification Code on AutoFill" under Settings › AutoFill. The copy clears itself after the Clipboard Clear Timeout and never leaves the device. While the setting is on, filling a suggestion for an entry that has a verification code asks you to confirm in KeeForge rather than filling silently, because AutoFill can only write the clipboard while its panel is on screen.
 
 ### Fixed
+
+- AutoFill credential identity-store mutations are serialized within each process, and refreshes tolerate macOS system identity objects that omit the `recordIdentifier` Objective-C accessor instead of terminating the app after unlock.
 - Saving a cloud database from AutoFill wrote the shared cached copy twice; the redundant second write briefly widened the window in which a concurrent reader could see cache bytes that mismatch the pending-upload marker.
 - A cloud download interrupted by the app terminating at exactly the wrong moment could leave a stray temporary file in the shared database cache forever. Cloud syncs now sweep out staging leftovers that have been parked for over an hour.
 - Replaced the Apple-logo glyph used for standard icon 64 with a generic computer. Apple's SF Symbols license excludes the symbols depicting its own trademarks and logos, so it was not ours to ship — and the new group icon picker offers that index as a choice rather than only rendering it. Groups and entries already using icon 64 will show the new glyph on first open; the stored `IconID` is unchanged, so other KeePass clients are unaffected.

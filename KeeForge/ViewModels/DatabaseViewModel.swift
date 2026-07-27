@@ -1,6 +1,7 @@
 import CryptoKit
 import Foundation
 import LocalAuthentication
+import OSLog
 import SwiftUI
 
 enum DatabaseSaveError: Error, LocalizedError, Identifiable, Equatable, Sendable {
@@ -91,6 +92,7 @@ enum DatabaseSaveError: Error, LocalizedError, Identifiable, Equatable, Sendable
 
 @MainActor @Observable
 final class DatabaseViewModel {
+    private static let logger = Logger(subsystem: "KeeForge", category: "DatabaseUnlock")
     struct LocalDatabaseReadResult: Sendable {
         let url: URL
         let data: Data
@@ -1684,6 +1686,8 @@ final class DatabaseViewModel {
         self.state = .unlocked
         synchronizeSelections()
         startInactivityTimer()
+
+        Self.logger.info("Database unlock finalized; starting shared credential identity refresh")
 
         persistCompositeKeyForBiometricUnlock(compositeKey)
         DatabaseListStore.markDatabaseOpened(id: databaseReference.id)

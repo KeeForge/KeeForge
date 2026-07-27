@@ -95,6 +95,22 @@ final class CredentialIdentityStoreManagerTests: XCTestCase {
         )
     }
 
+    func testRecordIdentifierHelperReadsPublishedIdentitySafely() {
+        let entry = makeEntry(title: "Test", url: "https://example.com", username: "user", hasPassword: true)
+        let identity = CredentialIdentityStoreManager.passwordIdentities(for: entry, in: someDatabaseID)[0]
+
+        XCTAssertEqual(
+            CredentialIdentityStoreManager.recordIdentifier(of: identity),
+            identity.recordIdentifier
+        )
+    }
+
+    func testRecordIdentifierHelperSkipsRuntimeObjectsWithoutAccessor() {
+        let identity = IdentityWithoutRecordIdentifier()
+
+        XCTAssertNil(CredentialIdentityStoreManager.recordIdentifier(of: identity))
+    }
+
     // MARK: - passwordIdentities: username fallback to title
 
     func testIdentityFallsBackToTitleWhenUsernameEmpty() {
@@ -994,6 +1010,24 @@ final class CredentialIdentityStoreManagerTests: XCTestCase {
         )
     }
 
+    func testRefreshPreservesEnumeratedIdentityWithoutRecordIdentifier() async {
+        let fake = installFake()
+        let databaseID = UUID()
+        let unknownIdentity = IdentityWithoutRecordIdentifier()
+        let entry = makeEntry(title: "A", url: "https://a-site.com", username: "a", hasPassword: true)
+        fake.stored = [unknownIdentity]
+
+        let mutation = expectMutations(1, on: fake, description: "Conservative additive refresh")
+        CredentialIdentityStoreManager.populate(with: [entry], for: databaseID)
+        await fulfillment(of: [mutation], timeout: 1)
+
+        XCTAssertEqual(fake.calls, ["saveCredentialIdentities"])
+        XCTAssertEqual(fake.stored.count, 2)
+        XCTAssertTrue(fake.stored.contains {
+            CredentialIdentityStoreManager.recordIdentifier(of: $0) == nil
+        })
+    }
+
     func testRefreshWithNoEligibleEntriesRemovesOwnAndLegacyOnlyWhenOthersPresent() async {
         let fake = installFake()
         let databaseA = UUID()
@@ -1097,6 +1131,50 @@ final class CredentialIdentityStoreManagerTests: XCTestCase {
 
         XCTAssertTrue(fake.calls.isEmpty)
         XCTAssertEqual(storedRecordIdentifiers(fake), [otherIdentifier])
+    }
+
+    func testConcurrentMutationsAreSerialized() async {
+        let fake = installFake()
+        fake.mutationDelayNanoseconds = 20_000_000
+        let mutationCount = 8
+        let mutationsFinished = expectation(description: "all queued mutations finish")
+        mutationsFinished.expectedFulfillmentCount = mutationCount
+        fake.onMutation = { mutationsFinished.fulfill() }
+
+        for _ in 0..<mutationCount {
+            CredentialIdentityStoreManager.clearStore()
+        }
+
+        await fulfillment(of: [mutationsFinished], timeout: 5)
+        XCTAssertEqual(fake.maxConcurrentMutations, 1)
+        XCTAssertEqual(fake.calls.count, mutationCount)
+        XCTAssertTrue(fake.stored.isEmpty)
+    }
+
+    func testMutationsPreserveSynchronousInvocationOrder() async {
+        let fake = installFake()
+        fake.mutationDelayNanoseconds = 20_000_000
+        let databaseA = UUID()
+        let databaseB = UUID()
+        let entryA = makeEntry(title: "A", url: "https://a-site.com", username: "a", hasPassword: true)
+        let entryB = makeEntry(title: "B", url: "https://b-site.com", username: "b", hasPassword: true)
+        let mutationsFinished = expectation(description: "ordered mutations finish")
+        mutationsFinished.expectedFulfillmentCount = 3
+        fake.onMutation = { mutationsFinished.fulfill() }
+
+        CredentialIdentityStoreManager.populate(with: [entryA], for: databaseA)
+        CredentialIdentityStoreManager.clearStore()
+        CredentialIdentityStoreManager.populate(with: [entryB], for: databaseB)
+
+        await fulfillment(of: [mutationsFinished], timeout: 5)
+        XCTAssertEqual(
+            fake.calls,
+            ["replaceCredentialIdentities", "removeAllCredentialIdentities", "replaceCredentialIdentities"]
+        )
+        XCTAssertEqual(
+            storedRecordIdentifiers(fake),
+            [CredentialRecordIdentifier(databaseID: databaseB, entryID: entryB.id).encoded]
+        )
     }
 
     // MARK: - Helpers
@@ -1223,5 +1301,19 @@ final class CredentialIdentityStoreManagerTests: XCTestCase {
         mutationExpectation.expectedFulfillmentCount = count
         fake.onMutation = { mutationExpectation.fulfill() }
         return mutationExpectation
+    }
+}
+
+private final class IdentityWithoutRecordIdentifier: NSObject, ASCredentialIdentity {
+    let serviceIdentifier = ASCredentialServiceIdentifier(identifier: "example.com", type: .domain)
+    let user = "user"
+    let recordIdentifier: String? = "not-used"
+    var rank = 0
+
+    override func responds(to selector: Selector!) -> Bool {
+        if selector == Selector(("recordIdentifier")) {
+            return false
+        }
+        return super.responds(to: selector)
     }
 }

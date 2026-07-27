@@ -243,7 +243,7 @@ final class CredentialProviderCoordinator {
 
     func prepareInterfaceToProvideCredential(for credentialIdentity: ASPasswordCredentialIdentity) {
         serviceIdentifiers = [credentialIdentity.serviceIdentifier]
-        targetRecordIdentifier = credentialIdentity.recordIdentifier
+        targetRecordIdentifier = CredentialIdentityStoreManager.recordIdentifier(of: credentialIdentity)
         pendingPasskeyRequest = nil
         pendingPasskeyRequestParameters = nil
         clearPendingCreationRequests()
@@ -271,7 +271,7 @@ final class CredentialProviderCoordinator {
         if let passkeyRequest = credentialRequest as? ASPasskeyCredentialRequest {
             pendingPasskeyRequest = passkeyRequest
             pendingPasskeyRequestParameters = nil
-            targetRecordIdentifier = passkeyRequest.credentialIdentity.recordIdentifier
+            targetRecordIdentifier = CredentialIdentityStoreManager.recordIdentifier(of: passkeyRequest.credentialIdentity)
             clearPendingCreationRequests()
             didAttemptAutoBiometricUnlock = false
             pendingUnlock = true
@@ -282,7 +282,7 @@ final class CredentialProviderCoordinator {
             serviceIdentifiers = [credentialRequest.credentialIdentity.serviceIdentifier]
             hasPendingOTCRequest = true
             hasPendingOTCListRequest = false
-            targetRecordIdentifier = credentialRequest.credentialIdentity.recordIdentifier
+            targetRecordIdentifier = CredentialIdentityStoreManager.recordIdentifier(of: credentialRequest.credentialIdentity)
             clearPendingCreationRequests()
             didAttemptAutoBiometricUnlock = false
             pendingUnlock = true
@@ -1122,7 +1122,7 @@ final class CredentialProviderCoordinator {
                 credentialIDData == identity.credentialID
         }
 
-        if let recordIdentifier = identity.recordIdentifier,
+        if let recordIdentifier = CredentialIdentityStoreManager.recordIdentifier(of: identity),
            let entry = findEntry(byRecordIdentifier: recordIdentifier),
            matchesIdentity(entry) {
             return entry
@@ -1530,7 +1530,9 @@ final class CredentialProviderCoordinator {
               let entry = passkeyEntry(for: identity) else {
             // The database unlocked but its passkey is gone: remove the stale
             // identity so the suggestion disappears instead of dead-tapping.
-            removeStaleIdentityIfEntryMissing(recordIdentifier: request.credentialIdentity.recordIdentifier)
+            removeStaleIdentityIfEntryMissing(
+                recordIdentifier: CredentialIdentityStoreManager.recordIdentifier(of: request.credentialIdentity)
+            )
             cancelRequest(code: .credentialIdentityNotFound)
             return
         }
@@ -1549,7 +1551,9 @@ final class CredentialProviderCoordinator {
               let entry = passkeyEntry(for: identity, includeExpired: true) else {
             // The database unlocked but its passkey is gone: remove the stale
             // identity so the suggestion disappears instead of dead-tapping.
-            removeStaleIdentityIfEntryMissing(recordIdentifier: request.credentialIdentity.recordIdentifier)
+            removeStaleIdentityIfEntryMissing(
+                recordIdentifier: CredentialIdentityStoreManager.recordIdentifier(of: request.credentialIdentity)
+            )
             cancelRequest(code: .credentialIdentityNotFound)
             return
         }
