@@ -793,13 +793,10 @@ enum DatabaseListStore {
                 return updatedReference
             }
         }
-        // Cloud accounts live in platform-chosen defaults (app-sandbox
-        // standard defaults on macOS, the App Group suite on iOS — see
-        // `SharedVaultStore.cloudAccountDefaults`), so seed them there rather
-        // than in the group suite directly. `CloudAccountStore` reads the
-        // same defaults. Also scrub the group suite so, on macOS, a stale
-        // legacy value can't be migrated back in mid-test (on iOS the two are
-        // the same suite, so the second remove is a harmless no-op).
+        // Cloud accounts live in `SharedVaultStore.cloudAccountDefaults`, which
+        // differs per platform. Scrub the group suite too, or on macOS a stale
+        // legacy value can be migrated back in mid-test; on iOS the two are the
+        // same suite and the second remove is a no-op.
         SharedVaultStore.cloudAccountDefaults.removeObject(forKey: cloudAccountsStorageKey)
         sharedDefaults.removeObject(forKey: cloudAccountsStorageKey)
         try? PendingUploadQueue.clearAll()

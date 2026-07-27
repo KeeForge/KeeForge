@@ -105,10 +105,8 @@ struct GroupListView: View {
             if viewModel.searchText.isEmpty {
                 if let resolvedGroup {
                     List {
-                        // The tag browser's single entry point, kept in its own
-                        // small section above the tree so the root list stays
-                        // calm. It stays visible at zero tags — that is where
-                        // the empty state teaches how to add one.
+                        // Stays visible at zero tags: its empty state is what
+                        // teaches the user how to add one.
                         if isVisibleRoot {
                             Section {
                                 tagsRow()

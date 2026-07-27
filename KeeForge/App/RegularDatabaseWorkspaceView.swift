@@ -353,14 +353,11 @@ struct RegularDatabaseWorkspaceView: View {
         // chrome on macOS, so typing must show results immediately. Clearing the
         // query returns to whatever the sidebar still has selected.
         if viewModel.searchText.isEmpty {
-            // Keying the entries column to `contentRevision` forces it to rebuild
-            // when the draft changes (e.g. an edit/save renames an entry). The
-            // `content:` column of a three-column `NavigationSplitView` caches
-            // its subtree on macOS and does not otherwise re-evaluate on the
-            // view model's observation changes, even though the detail column
-            // does — so an edited entry would keep its stale row label without
-            // this. Reading `contentRevision` here also re-runs this body so the
-            // id actually updates. The tag branch needs the same pinning.
+            // The `content:` column of a three-column `NavigationSplitView`
+            // caches its subtree on macOS and doesn't re-evaluate on the view
+            // model's observation changes (the detail column does), so an
+            // edited entry keeps a stale row label without this id. Reading
+            // `contentRevision` here also re-runs the body so the id updates.
             if let selectedTag = viewModel.selectedTag {
                 TagEntriesView(tag: selectedTag, viewModel: viewModel, onSelectEntry: selectEntry)
                     .id(viewModel.contentRevision)

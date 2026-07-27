@@ -44,7 +44,7 @@ enum AutoFillStatusService {
         #if os(iOS)
         try? await ASSettingsHelper.openCredentialProviderAppSettings()
         #endif
-        // macOS: no credential-provider settings deep link until slice 05.
+        // macOS has no credential-provider settings deep link.
     }
 
     /// UI tests suppress the tip by default so it cannot pollute unrelated

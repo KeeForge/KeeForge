@@ -168,15 +168,10 @@ struct SettingsView: View {
             .onChange(of: quickAutoFillEnabled) { _, newValue in
                 SettingsService.quickAutoFillEnabled = newValue
                 if newValue {
-                    // Global toggle back on: refresh the currently unlocked
-                    // database immediately (the main app has at most one open
-                    // session — `viewModel` — so this is "every currently
-                    // unlocked enabled database"). No per-database gate is
-                    // needed here: `populateCredentialStoreIfUnlocked`
-                    // re-reads the registry and no-ops when that database has
-                    // AutoFill disabled, so a disabled database's entries are
-                    // never published. Every other enabled database
-                    // repopulates lazily on its next unlock.
+                    // No per-database gate needed —
+                    // `populateCredentialStoreIfUnlocked` re-reads the registry
+                    // and no-ops for a database with AutoFill disabled. Other
+                    // databases repopulate on their next unlock.
                     viewModel?.populateCredentialStoreIfUnlocked()
                 } else {
                     CredentialIdentityStoreManager.clearStore()

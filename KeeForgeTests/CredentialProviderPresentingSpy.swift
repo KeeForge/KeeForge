@@ -1,17 +1,7 @@
 // Shared `CredentialProviderPresenting` recording spy for
 // CredentialProviderCoordinatorTests.swift and CredentialProviderSaveTests.swift.
-//
-// Both suites previously hand-rolled their own conformance: the coordinator
-// suite's `PresenterSpy` recorded every presentation/completion call, while
-// the save suite's `SavePresenterSpy` was a no-op stub that only tracked
-// `cancelRequest` calls (as `cancelledErrorCodes`, additively, since
-// `prepareInterface(for:)` never presents anything itself). This type merges
-// both: it records everything `PresenterSpy` did, using the exact same
-// property names/shapes the coordinator suite already asserts against, and
-// additionally accumulates every cancellation into `cancelledErrorCodes` for
-// the save suite's assertions. Recording is purely additive — a caller that
-// never inspects the recorded state (as the save-prepare tests don't) sees no
-// behavioral difference from the old no-op stub.
+// Recording is purely additive, so a suite that inspects none of it behaves as
+// against a no-op stub.
 import AuthenticationServices
 import Foundation
 @testable import KeeForge

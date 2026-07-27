@@ -1,16 +1,6 @@
-// Unit coverage for the DEBUG + simulator-only AutoFill store fallback (epic:
-// 2026-07-20-autofill-store-validation-harness). Three halves:
-//   * `AutoFillIdentitiesDatabaseReader` reconstruction — real fixture SQLite
-//     files (replicating the `credential_identities` schema) reconstructed into
-//     ASCredentialIdentity objects: each type, unknown-code skip, passkey
-//     missing-public-column skip, service-id-type mapping, absent/empty/reordered
-//     schema tolerance.
-//   * `CredentialIdentityFallback.resolve` — the API-vs-fallback selection.
-//   * The inspector view model surfacing the seam's source signal
-//     (`AutoFillStoreInspectorViewModel.buildSnapshot` + `FakeCredentialIdentityStore`).
-//
-// Gated to DEBUG simulator because the reader itself is (the fallback only ever
-// runs on a simulator); the unit suites always run on a simulator destination.
+// Reconstruction is driven from real fixture SQLite files replicating the
+// `credential_identities` schema. Gated to DEBUG simulator because the reader
+// under test is; the unit suites always run on a simulator destination.
 #if DEBUG && targetEnvironment(simulator)
 @preconcurrency import AuthenticationServices
 import Foundation

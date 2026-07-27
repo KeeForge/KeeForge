@@ -3,13 +3,9 @@ import CryptoKit
 import Foundation
 import LocalAuthentication
 
-// Platform-neutral AutoFill request coordinator.
-//
-// This file must stay free of UIKit (and AppKit): it owns request handling,
-// vault access/unlock orchestration, credential matching, passkey assertion,
-// and the cleanup() lifecycle, while all presentation and extension-context
-// calls go through the narrow `CredentialProviderPresenting` seam so an iOS
-// (UIKit) or macOS (AppKit) shell can host it unchanged.
+// Must stay free of UIKit and AppKit: presentation and extension-context calls
+// go through the `CredentialProviderPresenting` seam so both the iOS and macOS
+// shells can host this coordinator unchanged.
 
 /// Outcome of a save attempt started from the in-extension entry creator.
 /// Mirrors `AutoFillEntryCreatorActionResult` without referencing the view layer.
@@ -1051,7 +1047,6 @@ final class CredentialProviderCoordinator {
         let allPasswordEntries = parsedEntries.filter(\.hasPassword)
         let passwordEntries = allPasswordEntries.filter { !$0.isExpired() }
 
-        // If we have a target recordIdentifier from QuickType, jump directly to that entry
         if let recordIdentifier = targetRecordIdentifier {
             if let entry = entryMatching(recordIdentifier: recordIdentifier, in: passwordEntries) {
                 completeRequest(with: entry)
@@ -1073,16 +1068,13 @@ final class CredentialProviderCoordinator {
             return
         }
 
-        // Show search view — use matches if available, otherwise full list with pre-filled search
         let searchDomain = serviceIdentifiers.first.flatMap { CredentialMatcher.searchTerm(for: $0) } ?? ""
 
         if !matches.isEmpty {
-            // Multiple matches — show them, with domain pre-filled for further filtering
             presentSearchView(entries: matches, initialSearchText: "", includesDatabaseSwitcher: true) { [weak self] entry in
                 self?.completeRequest(with: entry)
             }
         } else {
-            // No matches — show full list but pre-fill search with the domain
             presentSearchView(entries: allPasswordEntries, initialSearchText: searchDomain, includesDatabaseSwitcher: true) { [weak self] entry in
                 self?.completeRequest(with: entry)
             }
