@@ -14,14 +14,18 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
 
     override func setUp() async throws {
         try await super.setUp()
-        DatabaseListStore.clearAll()
+        await CredentialIdentityStoreManager.waitForPendingMutations()
         resetCredentialIdentityStoreSeams()
+        DatabaseListStore.clearAll()
+        await CredentialIdentityStoreManager.waitForPendingMutations()
         resetAutoFillSettings()
     }
 
     override func tearDown() async throws {
-        DatabaseListStore.clearAll()
+        await CredentialIdentityStoreManager.waitForPendingMutations()
         resetCredentialIdentityStoreSeams()
+        DatabaseListStore.clearAll()
+        await CredentialIdentityStoreManager.waitForPendingMutations()
         resetAutoFillSettings()
         try await super.tearDown()
     }
@@ -37,11 +41,15 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
     }
 
     private func resetCredentialIdentityStoreSeams() {
+        resetCredentialIdentityObservers()
+        CredentialIdentityStoreManager.storeProviderOverride = nil
+    }
+
+    private func resetCredentialIdentityObservers() {
         CredentialIdentityStoreManager.populateObserver = nil
         CredentialIdentityStoreManager.clearObserver = nil
         CredentialIdentityStoreManager.removeDatabaseObserver = nil
         CredentialIdentityStoreManager.removeIdentityObserver = nil
-        CredentialIdentityStoreManager.storeProviderOverride = nil
     }
 
     // MARK: - Required cleanup-path tests

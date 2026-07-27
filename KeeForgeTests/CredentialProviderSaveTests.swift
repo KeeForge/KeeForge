@@ -7,22 +7,30 @@ import XCTest
 final class CredentialProviderSaveTests: XCTestCase {
     override func setUp() async throws {
         try await super.setUp()
-        DatabaseListStore.clearAll()
+        await CredentialIdentityStoreManager.waitForPendingMutations()
         resetCredentialIdentityStoreSeams()
+        DatabaseListStore.clearAll()
+        await CredentialIdentityStoreManager.waitForPendingMutations()
     }
 
     override func tearDown() async throws {
-        DatabaseListStore.clearAll()
+        await CredentialIdentityStoreManager.waitForPendingMutations()
         resetCredentialIdentityStoreSeams()
+        DatabaseListStore.clearAll()
+        await CredentialIdentityStoreManager.waitForPendingMutations()
         try await super.tearDown()
     }
 
     private func resetCredentialIdentityStoreSeams() {
+        resetCredentialIdentityObservers()
+        CredentialIdentityStoreManager.storeProviderOverride = nil
+    }
+
+    private func resetCredentialIdentityObservers() {
         CredentialIdentityStoreManager.populateObserver = nil
         CredentialIdentityStoreManager.clearObserver = nil
         CredentialIdentityStoreManager.removeDatabaseObserver = nil
         CredentialIdentityStoreManager.removeIdentityObserver = nil
-        CredentialIdentityStoreManager.storeProviderOverride = nil
     }
 
     func test_prepareDraft_usesPrefilledTitleUsernameAndProvidedPassword() {

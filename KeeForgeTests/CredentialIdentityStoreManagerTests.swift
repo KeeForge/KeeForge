@@ -14,20 +14,27 @@ final class CredentialIdentityStoreManagerTests: XCTestCase {
 
     override func setUp() async throws {
         try await super.setUp()
+        await CredentialIdentityStoreManager.waitForPendingMutations()
         resetCredentialIdentityStoreSeams()
     }
 
     override func tearDown() async throws {
-        resetCredentialIdentityStoreSeams()
+        resetCredentialIdentityObservers()
+        await CredentialIdentityStoreManager.waitForPendingMutations()
+        CredentialIdentityStoreManager.storeProviderOverride = nil
         try await super.tearDown()
     }
 
     private func resetCredentialIdentityStoreSeams() {
+        resetCredentialIdentityObservers()
+        CredentialIdentityStoreManager.storeProviderOverride = nil
+    }
+
+    private func resetCredentialIdentityObservers() {
         CredentialIdentityStoreManager.populateObserver = nil
         CredentialIdentityStoreManager.clearObserver = nil
         CredentialIdentityStoreManager.removeDatabaseObserver = nil
         CredentialIdentityStoreManager.removeIdentityObserver = nil
-        CredentialIdentityStoreManager.storeProviderOverride = nil
     }
 
     // MARK: - domainFromURLString
@@ -1149,6 +1156,39 @@ final class CredentialIdentityStoreManagerTests: XCTestCase {
         XCTAssertEqual(fake.maxConcurrentMutations, 1)
         XCTAssertEqual(fake.calls.count, mutationCount)
         XCTAssertTrue(fake.stored.isEmpty)
+    }
+
+    func testQueuedMutationCapturesStoreAtInvocation() async {
+        let firstFake = installFake()
+        firstFake.mutationDelayNanoseconds = 20_000_000
+
+        CredentialIdentityStoreManager.clearStore()
+
+        let secondFake = FakeCredentialIdentityStore()
+        CredentialIdentityStoreManager.storeProviderOverride = secondFake
+        CredentialIdentityStoreManager.clearStore()
+
+        await CredentialIdentityStoreManager.waitForPendingMutations()
+
+        XCTAssertEqual(firstFake.calls, ["removeAllCredentialIdentities"])
+        XCTAssertEqual(secondFake.calls, ["removeAllCredentialIdentities"])
+    }
+
+    func testPendingObserverCallbackDrainsAfterObserverReset() async {
+        _ = installFake()
+        let callbackObserved = expectation(description: "Captured observer callback runs before the queue barrier returns")
+        var callbackCount = 0
+        CredentialIdentityStoreManager.populateObserver = { _, _ in
+            callbackCount += 1
+            callbackObserved.fulfill()
+        }
+
+        CredentialIdentityStoreManager.populate(with: [], for: UUID())
+        CredentialIdentityStoreManager.populateObserver = nil
+
+        await CredentialIdentityStoreManager.waitForPendingMutations()
+        await fulfillment(of: [callbackObserved], timeout: 1)
+        XCTAssertEqual(callbackCount, 1)
     }
 
     func testMutationsPreserveSynchronousInvocationOrder() async {
