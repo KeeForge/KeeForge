@@ -128,7 +128,8 @@ struct RegularDatabaseWorkspaceView: View {
                     onClose: {
                         viewModel.selectEntry(nil)
                     },
-                    onSelectTag: selectTag
+                    onSelectTag: selectTag,
+                    popsOnClose: false
                 )
             } else if viewModel.searchText.isEmpty {
                 ContentUnavailableView(

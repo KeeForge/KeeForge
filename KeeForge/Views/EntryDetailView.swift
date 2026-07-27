@@ -13,6 +13,11 @@ struct EntryDetailView: View {
     /// macOS, which selects the tag in its sidebar). Left nil in the compact
     /// shell, where chips push `TagDestination.entries` like any other row.
     var onSelectTag: ((String) -> Void)? = nil
+    /// False in the selection-driven shells (iPad detail column, macOS), where
+    /// this screen is the detail root and closing means clearing the selection:
+    /// their `dismiss` has nothing of this screen's to pop, so it bubbles out
+    /// to the split view and pops the *sidebar's* navigation stack instead.
+    var popsOnClose: Bool = true
     #if os(iOS)
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     #endif
@@ -30,7 +35,9 @@ struct EntryDetailView: View {
         guard hasFinishedClosing == false else { return }
         hasFinishedClosing = true
         onClose()
-        dismiss()
+        if popsOnClose {
+            dismiss()
+        }
     }
 
     private var entry: KPEntry? {
@@ -199,6 +206,12 @@ struct EntryDetailView: View {
                     description: Text("This entry no longer exists in the current draft.")
                 )
                 .onAppear {
+                    // Mid-editor the vanished entry is the editor's own doing
+                    // (permanent delete): its completion drives the close, so
+                    // the editor pops cleanly after the save instead of being
+                    // torn down mid-flight. On the iPad detail root this
+                    // onAppear fires even while the editor covers it.
+                    guard activeEditor == nil else { return }
                     finishClose()
                 }
             }
@@ -209,11 +222,14 @@ struct EntryDetailView: View {
         .modifier(EntryEditorPresentation(view: self))
         // Re-fires when the pushed editor pops back. The close must wait for
         // this later transaction — popping the editor and this screen together
-        // drops the second pop on iOS 26.
+        // drops the second pop on iOS 26. `entry == nil` catches an editor
+        // dismissed any other way (e.g. cancelled) over a vanished entry.
         .onAppear {
-            guard closesAfterEditorDismissal else { return }
+            let editorJustPopped = closesAfterEditorDismissal
             closesAfterEditorDismissal = false
-            finishClose()
+            if editorJustPopped || (activeEditor == nil && entry == nil) {
+                finishClose()
+            }
         }
     }
 
