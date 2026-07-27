@@ -36,18 +36,6 @@ final class DatabaseListViewModelTests: XCTestCase {
         try await super.tearDown()
     }
 
-    private func resetCredentialIdentityStoreSeams() {
-        resetCredentialIdentityObservers()
-        CredentialIdentityStoreManager.storeProviderOverride = nil
-    }
-
-    private func resetCredentialIdentityObservers() {
-        CredentialIdentityStoreManager.populateObserver = nil
-        CredentialIdentityStoreManager.clearObserver = nil
-        CredentialIdentityStoreManager.removeDatabaseObserver = nil
-        CredentialIdentityStoreManager.removeIdentityObserver = nil
-    }
-
     func testLocalRowStatusDefersBookmarkAccessUntilOpen() throws {
         var reference = try DatabaseListStore.add(url: makeTemporaryFileURL(name: "offline-share.kdbx"))
         reference.bookmarkData = Data("unresolvable-offline-bookmark".utf8)

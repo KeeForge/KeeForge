@@ -29,18 +29,6 @@ final class DatabaseViewModelTests: XCTestCase {
         try await super.tearDown()
     }
 
-    private func resetCredentialIdentityStoreSeams() {
-        resetCredentialIdentityObservers()
-        CredentialIdentityStoreManager.storeProviderOverride = nil
-    }
-
-    private func resetCredentialIdentityObservers() {
-        CredentialIdentityStoreManager.populateObserver = nil
-        CredentialIdentityStoreManager.clearObserver = nil
-        CredentialIdentityStoreManager.removeDatabaseObserver = nil
-        CredentialIdentityStoreManager.removeIdentityObserver = nil
-    }
-
     func testInitialStateIsLockedWithSavedDatabaseReference() throws {
         let vm = try makeViewModel()
 
@@ -968,6 +956,7 @@ final class DatabaseViewModelTests: XCTestCase {
         await vm.unlock(password: fixturePassword)
 
         await fulfillment(of: [populateExpectation, mutationExpectation], timeout: 30)
+        await CredentialIdentityStoreManager.waitForPendingMutations()
         XCTAssertEqual(observedDatabaseIDs, [reference.id])
         XCTAssertEqual(fake.calls, ["saveCredentialIdentities"])
 
@@ -1041,7 +1030,7 @@ final class DatabaseViewModelTests: XCTestCase {
 
         vm.lock(manuallyTriggered: true)
 
-        try? await Task.sleep(for: .milliseconds(150))
+        await CredentialIdentityStoreManager.waitForPendingMutations()
         XCTAssertState(vm.state, is: .locked)
         XCTAssertEqual(fake.stored.count, identityCountAfterUnlock)
         fake.onMutation = nil

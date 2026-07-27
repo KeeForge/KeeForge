@@ -21,18 +21,6 @@ final class CredentialProviderSaveTests: XCTestCase {
         try await super.tearDown()
     }
 
-    private func resetCredentialIdentityStoreSeams() {
-        resetCredentialIdentityObservers()
-        CredentialIdentityStoreManager.storeProviderOverride = nil
-    }
-
-    private func resetCredentialIdentityObservers() {
-        CredentialIdentityStoreManager.populateObserver = nil
-        CredentialIdentityStoreManager.clearObserver = nil
-        CredentialIdentityStoreManager.removeDatabaseObserver = nil
-        CredentialIdentityStoreManager.removeIdentityObserver = nil
-    }
-
     func test_prepareDraft_usesPrefilledTitleUsernameAndProvidedPassword() {
         let serviceIdentifier = ASCredentialServiceIdentifier(
             identifier: "https://accounts.example.com/sign-in",

@@ -24,18 +24,6 @@ final class DatabaseListStoreTests: XCTestCase {
         try await super.tearDown()
     }
 
-    private func resetCredentialIdentityStoreSeams() {
-        resetCredentialIdentityObservers()
-        CredentialIdentityStoreManager.storeProviderOverride = nil
-    }
-
-    private func resetCredentialIdentityObservers() {
-        CredentialIdentityStoreManager.populateObserver = nil
-        CredentialIdentityStoreManager.clearObserver = nil
-        CredentialIdentityStoreManager.removeDatabaseObserver = nil
-        CredentialIdentityStoreManager.removeIdentityObserver = nil
-    }
-
     func testAddPersistsDatabaseReference() throws {
         let url = try makeTemporaryFileURL(name: "personal.kdbx")
 

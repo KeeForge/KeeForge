@@ -447,8 +447,6 @@ enum CredentialIdentityStoreManager: Sendable {
     /// refresh; no IPC or cross-process lock is layered on top.
     static func populate(with entries: [KPEntry], for databaseID: UUID) {
         let eligibleEntries = entries.filter { !$0.isExpired() }
-        logger.info("Starting credential identity refresh with \(eligibleEntries.count) eligible entries")
-
         #if DEBUG
         let observer = storeProviderOverrideStorage.getPopulateObserver()
         if let observer {
@@ -494,6 +492,9 @@ enum CredentialIdentityStoreManager: Sendable {
             } ?? false
 
             do {
+                if unattributedIdentitiesPresent {
+                    logger.warning("Credential identity refresh preserved system identities without readable record identifiers")
+                }
                 if let storedIdentities, otherDatabaseIdentitiesPresent || unattributedIdentitiesPresent {
                     // Additive per-database refresh: drop this database's own
                     // (possibly stale) identities plus every legacy bare-UUID
@@ -535,7 +536,6 @@ enum CredentialIdentityStoreManager: Sendable {
     /// Quick AutoFill toggle off, the extension's stale legacy/unrecognized-
     /// identifier cleanup, and the Clear AutoFill Entries action).
     static func clearStore() {
-        logger.info("Starting credential identity store clear")
         #if DEBUG
         let observer = storeProviderOverrideStorage.getClearObserver()
         if let observer {
@@ -575,7 +575,6 @@ enum CredentialIdentityStoreManager: Sendable {
     /// today's behavior); they are cleaned up by the owning database's next
     /// full-store refresh.
     static func removeIdentities(for entries: [KPEntry], in databaseID: UUID) {
-        logger.info("Starting credential identity removal for entries")
         enqueueMutation { store in
             guard await store.isEnabled() else { return }
 
@@ -619,7 +618,6 @@ enum CredentialIdentityStoreManager: Sendable {
     /// any enabled database's next refresh, and the extension already treats
     /// them as stale on tap.
     static func removeIdentities(forDatabase databaseID: UUID, includingLegacyIdentifiers: Bool = false) {
-        logger.info("Starting targeted credential identity removal")
         #if DEBUG
         let observer = storeProviderOverrideStorage.getRemoveDatabaseObserver()
         if let observer {
@@ -682,7 +680,6 @@ enum CredentialIdentityStoreManager: Sendable {
     /// nothing; the stale identity dies at the owning database's next
     /// full-store refresh instead.
     static func removeIdentity(withRecordIdentifier recordIdentifier: String) {
-        logger.info("Starting single credential identity removal")
         #if DEBUG
         let observer = storeProviderOverrideStorage.getRemoveIdentityObserver()
         if let observer {

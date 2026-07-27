@@ -175,6 +175,8 @@ final class CredentialProviderCoordinator {
     private var requestGeneration = 0
     private var unlockTask: Task<Void, Never>?
 
+    private struct RequestNoLongerActive: Error {}
+
     #if DEBUG
     /// Suspends unlock in coordinator tests so cancellation can be verified
     /// without invoking a real biometric prompt or parsing a fixture.
@@ -315,7 +317,16 @@ final class CredentialProviderCoordinator {
     }
 
     func provideCredentialWithoutUserInteraction(for credentialRequest: ASCredentialRequest) {
-        cancelRequest(code: .userInteractionRequired)
+        beginRequest()
+        if let passkeyRequest = credentialRequest as? ASPasskeyCredentialRequest {
+            providePasskeyWithoutUserInteraction(for: passkeyRequest)
+        } else if let passwordIdentity = credentialRequest.credentialIdentity as? ASPasswordCredentialIdentity {
+            provideCredentialWithoutUserInteraction(for: passwordIdentity)
+        } else if #available(iOS 18.0, macOS 15.0, *), credentialRequest is ASOneTimeCodeCredentialRequest {
+            provideOTCWithoutUserInteraction(for: credentialRequest)
+        } else {
+            cancelRequest(code: .failed)
+        }
     }
 
     /// Called by the shell once its view hierarchy is on screen.
@@ -357,7 +368,76 @@ final class CredentialProviderCoordinator {
     }
 
     func provideCredentialWithoutUserInteraction(for credentialIdentity: ASPasswordCredentialIdentity) {
-        cancelRequest(code: .userInteractionRequired)
+        beginRequest()
+        guard SettingsService.quickAutoFillEnabled else {
+            cancelRequest(code: .userInteractionRequired)
+            return
+        }
+
+        let recordIdentifier = CredentialIdentityStoreManager.recordIdentifier(of: credentialIdentity)
+        guard let databaseReference = resolveSilentRequestDatabase(forRecordIdentifier: recordIdentifier) else {
+            cancelRequest(code: .userInteractionRequired)
+            return
+        }
+
+        guard canUseBiometrics(for: databaseReference) else {
+            cancelRequest(code: .userInteractionRequired)
+            return
+        }
+
+        let generation = requestGeneration
+        isUnlockInProgress = true
+        unlockTask = Task { [weak self] in
+            defer {
+                if self?.requestGeneration == generation {
+                    self?.isUnlockInProgress = false
+                    self?.unlockTask = nil
+                }
+            }
+            do {
+                guard let self, self.isRequestActive(generation) else { return }
+                let context = try await BiometricService.authenticate(reason: String(localized: "AutoFill with KeeForge"))
+                let compositeKey = try self.retrieveCompositeKey(for: databaseReference, context: context)
+                try await self.loadEntries(
+                    compositeKey: compositeKey,
+                    databaseReference: databaseReference,
+                    generation: generation
+                )
+                guard self.isRequestActive(generation) else { return }
+                self.persistCompositeKeyIfPossible(compositeKey, for: databaseReference)
+                self.recordSuccessfulUnlock(for: databaseReference)
+                let passwordEntries = self.parsedEntries.filter { $0.hasPassword && !$0.isExpired() }
+
+                if let recordIdentifier,
+                   let entry = self.entryMatching(recordIdentifier: recordIdentifier, in: passwordEntries) {
+                    guard !self.mustEscalateToInteractiveFill(for: entry) else {
+                        self.cancelRequest(code: .userInteractionRequired)
+                        return
+                    }
+                    self.completeRequest(with: entry)
+                } else {
+                    self.removeStaleIdentityIfEntryMissing(recordIdentifier: recordIdentifier)
+                    let matches = CredentialMatcher.strictMatchedEntries(
+                        from: passwordEntries,
+                        for: [credentialIdentity.serviceIdentifier]
+                    )
+                    if matches.count == 1, let entry = matches.first {
+                        guard !self.mustEscalateToInteractiveFill(for: entry) else {
+                            self.cancelRequest(code: .userInteractionRequired)
+                            return
+                        }
+                        self.completeRequest(with: entry)
+                    } else if matches.isEmpty {
+                        self.cancelRequest(code: .credentialIdentityNotFound)
+                    } else {
+                        self.cancelRequest(code: .userInteractionRequired)
+                    }
+                }
+            } catch {
+                guard let self, self.isRequestActive(generation) else { return }
+                self.cancelRequest(code: .userInteractionRequired)
+            }
+        }
     }
 
     /// Whether the silent (no-UI) QuickType fill must bounce back to the system
@@ -479,7 +559,50 @@ final class CredentialProviderCoordinator {
     // MARK: - Passkey silent auth
 
     private func providePasskeyWithoutUserInteraction(for request: ASPasskeyCredentialRequest) {
-        cancelRequest(code: .userInteractionRequired)
+        beginRequest()
+        guard SettingsService.quickAutoFillEnabled else {
+            cancelRequest(code: .userInteractionRequired)
+            return
+        }
+
+        let recordIdentifier = CredentialIdentityStoreManager.recordIdentifier(of: request.credentialIdentity)
+        guard let databaseReference = resolveSilentRequestDatabase(forRecordIdentifier: recordIdentifier) else {
+            cancelRequest(code: .userInteractionRequired)
+            return
+        }
+
+        guard canUseBiometrics(for: databaseReference) else {
+            cancelRequest(code: .userInteractionRequired)
+            return
+        }
+
+        let generation = requestGeneration
+        isUnlockInProgress = true
+        unlockTask = Task { [weak self] in
+            defer {
+                if self?.requestGeneration == generation {
+                    self?.isUnlockInProgress = false
+                    self?.unlockTask = nil
+                }
+            }
+            do {
+                guard let self, self.isRequestActive(generation) else { return }
+                let context = try await BiometricService.authenticate(reason: String(localized: "Passkey sign-in with KeeForge"))
+                let compositeKey = try self.retrieveCompositeKey(for: databaseReference, context: context)
+                try await self.loadEntries(
+                    compositeKey: compositeKey,
+                    databaseReference: databaseReference,
+                    generation: generation
+                )
+                guard self.isRequestActive(generation) else { return }
+                self.persistCompositeKeyIfPossible(compositeKey, for: databaseReference)
+                self.recordSuccessfulUnlock(for: databaseReference)
+                try self.completePasskeyRequest(request)
+            } catch {
+                guard let self, self.isRequestActive(generation) else { return }
+                self.cancelRequest(code: .userInteractionRequired)
+            }
+        }
     }
 
     // MARK: - Unlock flow
@@ -618,6 +741,16 @@ final class CredentialProviderCoordinator {
         }
     }
 
+    private func resolveSilentRequestDatabase(forRecordIdentifier recordIdentifier: String?) -> DatabaseReference? {
+        switch resolveRequestDatabase(forRecordIdentifier: recordIdentifier) {
+        case .database(let reference):
+            activeDatabaseReference = reference
+            return reference
+        case .stale, .unavailable:
+            return nil
+        }
+    }
+
     /// After a successful unlock, a record identifier that matches no parsed
     /// entry is a stale suggestion (the entry was deleted or recycled since
     /// publication). Remove exactly that identity — legacy and unrecognized
@@ -741,6 +874,16 @@ final class CredentialProviderCoordinator {
         }
     }
 
+    private func runUnlockWork(_ work: @escaping @MainActor () async throws -> Void) async throws {
+        #if DEBUG
+        if let unlockWorkOverride {
+            try await unlockWorkOverride()
+            return
+        }
+        #endif
+        try await work()
+    }
+
     private func unlockWithPassword(_ password: String) {
         isUnlockInProgress = true
         let generation = requestGeneration
@@ -755,23 +898,13 @@ final class CredentialProviderCoordinator {
                 guard let self, self.isRequestActive(generation) else { return }
                 let databaseReference = try currentDatabaseReference()
 
-                #if DEBUG
-                if let unlockWorkOverride {
-                    try await unlockWorkOverride()
-                } else {
-                    try await unlockPasswordWork(
+                try await runUnlockWork {
+                    try await self.unlockPasswordWork(
                         password: password,
                         databaseReference: databaseReference,
                         generation: generation
                     )
                 }
-                #else
-                try await unlockPasswordWork(
-                    password: password,
-                    databaseReference: databaseReference,
-                    generation: generation
-                )
-                #endif
             } catch {
                 guard let self, self.isRequestActive(generation) else { return }
                 self.showErrorAndRetry(error)
@@ -793,21 +926,12 @@ final class CredentialProviderCoordinator {
                 guard let self, self.isRequestActive(generation) else { return }
                 let databaseReference = try currentDatabaseReference()
 
-                #if DEBUG
-                if let unlockWorkOverride {
-                    try await unlockWorkOverride()
-                } else {
-                    try await unlockBiometricWork(
+                try await runUnlockWork {
+                    try await self.unlockBiometricWork(
                         databaseReference: databaseReference,
                         generation: generation
                     )
                 }
-                #else
-                try await unlockBiometricWork(
-                    databaseReference: databaseReference,
-                    generation: generation
-                )
-                #endif
             } catch {
                 guard let self, self.isRequestActive(generation) else { return }
                 self.showErrorAndRetry(error)
@@ -1009,8 +1133,6 @@ final class CredentialProviderCoordinator {
         )
         parsedEntries = offerableEntries.filter { $0.hasPassword || $0.hasPasskey || $0.hasTOTP }
     }
-
-    private struct RequestNoLongerActive: Error {}
 
     private func loadDatabaseData(for databaseReference: DatabaseReference) throws -> Data {
         if let cachedURL = DatabaseListStore.cachedDatabaseURL(for: databaseReference) {
@@ -1301,7 +1423,62 @@ final class CredentialProviderCoordinator {
     // MARK: - One-time code (TOTP) support
 
     private func provideOTCWithoutUserInteraction(for credentialRequest: ASCredentialRequest) {
-        cancelRequest(code: .userInteractionRequired)
+        beginRequest()
+        guard SettingsService.quickAutoFillEnabled else {
+            cancelRequest(code: .userInteractionRequired)
+            return
+        }
+
+        let recordIdentifier = CredentialIdentityStoreManager.recordIdentifier(of: credentialRequest.credentialIdentity)
+        guard let databaseReference = resolveSilentRequestDatabase(forRecordIdentifier: recordIdentifier) else {
+            cancelRequest(code: .userInteractionRequired)
+            return
+        }
+
+        guard canUseBiometrics(for: databaseReference) else {
+            cancelRequest(code: .userInteractionRequired)
+            return
+        }
+
+        let generation = requestGeneration
+        isUnlockInProgress = true
+        unlockTask = Task { [weak self] in
+            defer {
+                if self?.requestGeneration == generation {
+                    self?.isUnlockInProgress = false
+                    self?.unlockTask = nil
+                }
+            }
+            do {
+                guard let self, self.isRequestActive(generation) else { return }
+                let context = try await BiometricService.authenticate(reason: String(localized: "AutoFill with KeeForge"))
+                let compositeKey = try self.retrieveCompositeKey(for: databaseReference, context: context)
+                try await self.loadEntries(
+                    compositeKey: compositeKey,
+                    databaseReference: databaseReference,
+                    generation: generation
+                )
+                guard self.isRequestActive(generation) else { return }
+                self.persistCompositeKeyIfPossible(compositeKey, for: databaseReference)
+                self.recordSuccessfulUnlock(for: databaseReference)
+
+                if #available(iOS 18.0, macOS 15.0, *) {
+                    let totpEntries = self.parsedEntries.filter { $0.hasTOTP && !$0.isExpired() }
+                    if let recordIdentifier,
+                       let entry = self.entryMatching(recordIdentifier: recordIdentifier, in: totpEntries) {
+                        self.completeOTCRequest(with: entry)
+                    } else {
+                        self.removeStaleIdentityIfEntryMissing(recordIdentifier: recordIdentifier)
+                        self.cancelRequest(code: .credentialIdentityNotFound)
+                    }
+                } else {
+                    self.cancelRequest(code: .failed)
+                }
+            } catch {
+                guard let self, self.isRequestActive(generation) else { return }
+                self.cancelRequest(code: .userInteractionRequired)
+            }
+        }
     }
 
     // Internal (not private) so unit tests can drive the pending-OTC

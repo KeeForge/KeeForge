@@ -40,18 +40,6 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
         sharedDefaults.removeObject(forKey: "KeeForge.autoUnlockWithFaceID")
     }
 
-    private func resetCredentialIdentityStoreSeams() {
-        resetCredentialIdentityObservers()
-        CredentialIdentityStoreManager.storeProviderOverride = nil
-    }
-
-    private func resetCredentialIdentityObservers() {
-        CredentialIdentityStoreManager.populateObserver = nil
-        CredentialIdentityStoreManager.clearObserver = nil
-        CredentialIdentityStoreManager.removeDatabaseObserver = nil
-        CredentialIdentityStoreManager.removeIdentityObserver = nil
-    }
-
     // MARK: - Required cleanup-path tests
 
     func test_requestPreparedBeforeAppearance_waitsForActivePresentation() throws {
@@ -181,9 +169,15 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
         coordinator.activeDatabaseReference = databaseReference
 
         let unlockEntered = expectation(description: "unlock task entered its async seam")
+        let unlockCancelled = expectation(description: "unlock task observed cancellation")
         coordinator.unlockWorkOverride = {
             unlockEntered.fulfill()
-            try await Task.sleep(for: .seconds(5))
+            do {
+                try await Task.sleep(for: .seconds(5))
+            } catch {
+                unlockCancelled.fulfill()
+                throw error
+            }
         }
 
         coordinator.prepareCredentialList(for: [githubServiceIdentifier()])
@@ -193,7 +187,7 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
 
         await fulfillment(of: [unlockEntered], timeout: 1)
         coordinator.cancelRequest(code: .userCanceled)
-        try await Task.sleep(for: .milliseconds(100))
+        await fulfillment(of: [unlockCancelled], timeout: 1)
 
         XCTAssertEqual(presenter.cancelledErrorCodes, [.userCanceled])
         XCTAssertNil(presenter.searchView, "A cancelled unlock must not present a late picker")
@@ -876,7 +870,7 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
 
         coordinator.presentPasswordMatchesOrFinish()
 
-        try? await Task.sleep(for: .milliseconds(150))
+        await CredentialIdentityStoreManager.waitForPendingMutations()
         XCTAssertNil(presenter.completedCredential, "Expired entries are filtered from direct completion")
         let searchView = try XCTUnwrap(presenter.searchView, "The interactive fallback presents as before")
         XCTAssertEqual(searchView.entries.map(\.id), [expiredEntry.id])
@@ -957,50 +951,44 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
 
     // MARK: - Silent-path resolution (slice 03)
 
-    // No-UI callbacks must not authenticate, load vault state, or mutate the
-    // identity store; they hand control back to the interactive path.
+    // `BiometricService.isAvailable` is false under simulator tests, so the
+    // silent paths can never complete a fill here; resolution is asserted via
+    // the scheduled cleanup observers plus the `.userInteractionRequired`
+    // cancellation (the system then relaunches the extension interactively).
 
-    func test_silentFillNeverResolvesOrUnlocksAndCancelsUserInteractionRequired() async throws {
+    func test_silentFill_staleIdentifierCleansUpAndCancelsUserInteractionRequired() async throws {
         SettingsService.quickAutoFillEnabled = true
 
+        let unknownDatabaseID = UUID()
         let (unknownCoordinator, unknownPresenter) = makeCoordinator()
-        CredentialIdentityStoreManager.removeDatabaseObserver = { _, _ in
-            XCTFail("Silent requests must not mutate the identity store")
+        let removalScheduled = expectation(description: "targeted removal scheduled")
+        CredentialIdentityStoreManager.removeDatabaseObserver = { databaseID, _ in
+            XCTAssertEqual(databaseID, unknownDatabaseID)
+            removalScheduled.fulfill()
         }
 
         unknownCoordinator.provideCredentialWithoutUserInteraction(
             for: makePasswordIdentity(
-                recordIdentifier: CredentialRecordIdentifier(databaseID: UUID(), entryID: UUID()).encoded
+                recordIdentifier: CredentialRecordIdentifier(databaseID: unknownDatabaseID, entryID: UUID()).encoded
             )
         )
 
+        await fulfillment(of: [removalScheduled], timeout: 1)
         XCTAssertEqual(unknownPresenter.cancelledError?.code, .userInteractionRequired)
         assertCleanedUp(unknownCoordinator)
 
+        CredentialIdentityStoreManager.removeDatabaseObserver = nil
         let (staleCoordinator, stalePresenter) = makeCoordinator()
-        CredentialIdentityStoreManager.clearObserver = {
-            XCTFail("Silent requests must not mutate the identity store")
-        }
+        let storeCleared = expectation(description: "clearStore scheduled")
+        CredentialIdentityStoreManager.clearObserver = { storeCleared.fulfill() }
 
         staleCoordinator.provideCredentialWithoutUserInteraction(
             for: makePasswordIdentity(recordIdentifier: "v9:garbage")
         )
 
+        await fulfillment(of: [storeCleared], timeout: 1)
         XCTAssertEqual(stalePresenter.cancelledError?.code, .userInteractionRequired)
         assertCleanedUp(staleCoordinator)
-    }
-
-    func test_silentPasskeyNeverCallsBiometricsOrLoadsVault() {
-        SettingsService.quickAutoFillEnabled = true
-        let (coordinator, presenter) = makeCoordinator()
-
-        coordinator.provideCredentialWithoutUserInteraction(
-            for: makePasskeyRequest(recordIdentifier: CredentialRecordIdentifier(databaseID: UUID(), entryID: UUID()).encoded)
-        )
-
-        XCTAssertEqual(presenter.cancelledError?.code, .userInteractionRequired)
-        XCTAssertTrue(coordinator.parsedEntries.isEmpty)
-        XCTAssertNil(coordinator.sessionKey)
     }
 
     func test_silentFill_zeroEnabledDatabasesCancelsUserInteractionRequired() async throws {
@@ -1022,7 +1010,6 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
         )
 
         XCTAssertEqual(presenter.cancelledError?.code, .userInteractionRequired)
-        try? await Task.sleep(for: .milliseconds(150))
         assertCleanedUp(coordinator)
     }
 
@@ -1585,7 +1572,6 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
 
         XCTAssertEqual(presenter.cancelledError?.code, .userInteractionRequired)
         XCTAssertNil(presenter.completedCredential, "The silent path must never fill without escalating first")
-        try? await Task.sleep(for: .milliseconds(150))
         assertCleanedUp(coordinator)
     }
 

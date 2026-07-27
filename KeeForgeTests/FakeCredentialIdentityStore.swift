@@ -6,7 +6,7 @@
 // non-main contexts) and reset the override to nil in setUp/tearDown.
 // The manager's operations are fire-and-forget `Task`s, so positive
 // assertions await an expectation fulfilled from `onMutation`; negative
-// assertions install an `XCTFail`-ing hook and sleep ~100 ms.
+// assertions install an `XCTFail`-ing hook and await the manager barrier.
 //
 // A lock-guarded class is deliberately preferred over an actor: the
 // protocol's `[any ASCredentialIdentity]` parameters are non-Sendable
@@ -14,6 +14,7 @@
 // class avoids sending them across an actor boundary.
 @preconcurrency import AuthenticationServices
 import Foundation
+import XCTest
 @testable import KeeForge
 
 final class FakeCredentialIdentityStore: CredentialIdentityStoreProviding, @unchecked Sendable {
@@ -211,5 +212,20 @@ final class FakeCredentialIdentityStore: CredentialIdentityStoreProviding, @unch
             return "otc|\(oneTimeCode.serviceIdentifier.identifier)|\(oneTimeCode.label)|\(recordIdentifier)"
         }
         return "other|\(type(of: identity))|\(recordIdentifier)"
+    }
+}
+
+@MainActor
+extension XCTestCase {
+    func resetCredentialIdentityStoreSeams() {
+        resetCredentialIdentityObservers()
+        CredentialIdentityStoreManager.storeProviderOverride = nil
+    }
+
+    func resetCredentialIdentityObservers() {
+        CredentialIdentityStoreManager.populateObserver = nil
+        CredentialIdentityStoreManager.clearObserver = nil
+        CredentialIdentityStoreManager.removeDatabaseObserver = nil
+        CredentialIdentityStoreManager.removeIdentityObserver = nil
     }
 }

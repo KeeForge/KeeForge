@@ -25,18 +25,6 @@ final class CredentialIdentityStoreManagerTests: XCTestCase {
         try await super.tearDown()
     }
 
-    private func resetCredentialIdentityStoreSeams() {
-        resetCredentialIdentityObservers()
-        CredentialIdentityStoreManager.storeProviderOverride = nil
-    }
-
-    private func resetCredentialIdentityObservers() {
-        CredentialIdentityStoreManager.populateObserver = nil
-        CredentialIdentityStoreManager.clearObserver = nil
-        CredentialIdentityStoreManager.removeDatabaseObserver = nil
-        CredentialIdentityStoreManager.removeIdentityObserver = nil
-    }
-
     // MARK: - domainFromURLString
 
     func testDomainFromFullHTTPSURL() {
@@ -776,7 +764,7 @@ final class CredentialIdentityStoreManagerTests: XCTestCase {
         CredentialIdentityStoreManager.clearStore()
         CredentialIdentityStoreManager.removeIdentities(for: [entry], in: someDatabaseID)
         CredentialIdentityStoreManager.removeIdentities(forDatabase: someDatabaseID)
-        try? await Task.sleep(for: .milliseconds(150))
+        await CredentialIdentityStoreManager.waitForPendingMutations()
 
         XCTAssertTrue(fake.calls.isEmpty)
         XCTAssertEqual(storedRecordIdentifiers(fake), [seededIdentifier])
