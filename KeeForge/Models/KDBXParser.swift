@@ -845,13 +845,12 @@ final class KDBXXMLParser: NSObject, XMLParserDelegate {
         private enum Mode {
             case none
             case salsa20(initialState: [UInt32])
-            case chacha20(initialState: [UInt32])
+            case chacha20(KDBXCrypto.ChaCha20Keystream)
         }
 
-        private let mode: Mode
+        private var mode: Mode
         private var salsaCounterLow: UInt32 = 0
         private var salsaCounterHigh: UInt32 = 0
-        private var chachaCounter: UInt32 = 0
         private var keystreamBlock: [UInt8] = []
         private var offset = 0
 
@@ -882,25 +881,14 @@ final class KDBXXMLParser: NSObject, XMLParserDelegate {
 
             case KDBXParser.innerStreamChaCha20:
                 let keyHash = KDBXCrypto.sha512(innerStreamKey)
-                var state = [UInt32](repeating: 0, count: 16)
-                state[0] = 0x61707865
-                state[1] = 0x3320646e
-                state[2] = 0x79622d32
-                state[3] = 0x6b206574
-
-                Data(keyHash.prefix(32)).withUnsafeBytes { (ptr: UnsafeRawBufferPointer) in
-                    for i in 0..<8 {
-                        state[4 + i] = ptr.loadUnaligned(fromByteOffset: i * 4, as: UInt32.self).littleEndian
-                    }
+                if let keystream = KDBXCrypto.ChaCha20Keystream(
+                    key: Data(keyHash.prefix(32)),
+                    nonce: Data(keyHash[32..<44])
+                ) {
+                    mode = .chacha20(keystream)
+                } else {
+                    mode = .none
                 }
-
-                Data(keyHash[32..<44]).withUnsafeBytes { (ptr: UnsafeRawBufferPointer) in
-                    for i in 0..<3 {
-                        state[13 + i] = ptr.loadUnaligned(fromByteOffset: i * 4, as: UInt32.self).littleEndian
-                    }
-                }
-
-                mode = .chacha20(initialState: state)
 
             default:
                 mode = .none
@@ -915,8 +903,10 @@ final class KDBXXMLParser: NSObject, XMLParserDelegate {
                 return encrypted
             case .salsa20(let initialState):
                 return xorSalsa20(encrypted, initialState: initialState)
-            case .chacha20(let initialState):
-                return xorChaCha20(encrypted, initialState: initialState)
+            case .chacha20(var keystream):
+                let decrypted = keystream.xor(encrypted)
+                mode = .chacha20(keystream)
+                return decrypted
             }
         }
 
@@ -938,30 +928,6 @@ final class KDBXXMLParser: NSObject, XMLParserDelegate {
                             salsaCounterHigh &+= 1
                         }
                         salsaCounterLow = nextLow
-                    }
-
-                    let chunkLength = min(encrypted.count - readOffset, keystreamBlock.count - offset)
-                    for index in 0..<chunkLength {
-                        decrypted[readOffset + index] = encryptedPtr[readOffset + index] ^ keystreamBlock[offset + index]
-                    }
-                    readOffset += chunkLength
-                    offset += chunkLength
-                }
-            }
-
-            return Data(decrypted)
-        }
-
-        private mutating func xorChaCha20(_ encrypted: Data, initialState: [UInt32]) -> Data {
-            var decrypted = [UInt8](repeating: 0, count: encrypted.count)
-
-            encrypted.withUnsafeBytes { (encryptedPtr: UnsafeRawBufferPointer) in
-                var readOffset = 0
-                while readOffset < encrypted.count {
-                    if offset >= keystreamBlock.count {
-                        keystreamBlock = Self.makeChaCha20Block(initialState: initialState, counter: chachaCounter)
-                        offset = 0
-                        chachaCounter &+= 1
                     }
 
                     let chunkLength = min(encrypted.count - readOffset, keystreamBlock.count - offset)
@@ -1005,41 +971,11 @@ final class KDBXXMLParser: NSObject, XMLParserDelegate {
             return serializeWords(working)
         }
 
-        private static func makeChaCha20Block(initialState: [UInt32], counter: UInt32) -> [UInt8] {
-            var state = initialState
-            state[12] = counter
-
-            var working = state
-            for _ in 0..<10 {
-                chachaQuarterRound(&working, 0, 4, 8, 12)
-                chachaQuarterRound(&working, 1, 5, 9, 13)
-                chachaQuarterRound(&working, 2, 6, 10, 14)
-                chachaQuarterRound(&working, 3, 7, 11, 15)
-                chachaQuarterRound(&working, 0, 5, 10, 15)
-                chachaQuarterRound(&working, 1, 6, 11, 12)
-                chachaQuarterRound(&working, 2, 7, 8, 13)
-                chachaQuarterRound(&working, 3, 4, 9, 14)
-            }
-
-            for i in 0..<16 {
-                working[i] = working[i] &+ state[i]
-            }
-
-            return serializeWords(working)
-        }
-
         private static func salsaQuarterRound(_ state: inout [UInt32], _ a: Int, _ b: Int, _ c: Int, _ d: Int) {
             state[b] ^= rotl(state[a] &+ state[d], by: 7)
             state[c] ^= rotl(state[b] &+ state[a], by: 9)
             state[d] ^= rotl(state[c] &+ state[b], by: 13)
             state[a] ^= rotl(state[d] &+ state[c], by: 18)
-        }
-
-        private static func chachaQuarterRound(_ state: inout [UInt32], _ a: Int, _ b: Int, _ c: Int, _ d: Int) {
-            state[a] = state[a] &+ state[b]; state[d] ^= state[a]; state[d] = rotl(state[d], by: 16)
-            state[c] = state[c] &+ state[d]; state[b] ^= state[c]; state[b] = rotl(state[b], by: 12)
-            state[a] = state[a] &+ state[b]; state[d] ^= state[a]; state[d] = rotl(state[d], by: 8)
-            state[c] = state[c] &+ state[d]; state[b] ^= state[c]; state[b] = rotl(state[b], by: 7)
         }
 
         private static func rotl(_ value: UInt32, by amount: UInt32) -> UInt32 {

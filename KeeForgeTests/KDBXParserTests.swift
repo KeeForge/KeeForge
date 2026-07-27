@@ -537,6 +537,39 @@ final class KDBXParserTests: XCTestCase {
         XCTAssertFalse(entriesByTitle["Slack"]?.hasPassword ?? true)
     }
 
+    // MARK: - KDBX 3.1 Salsa20 inner stream
+
+    /// Known-answer vectors for the legacy Salsa20 inner random stream: key =
+    /// SHA-256(inner stream key), nonce = the fixed KDBX `E830094B97205D2A`,
+    /// one keystream spanning every protected value in document order.
+    ///
+    /// The fixed nonce rules out the published ECRYPT/eSTREAM vectors directly,
+    /// so these ciphertexts were produced with PyCryptodome's Salsa20 —
+    /// independent of this codebase, and first verified against ECRYPT/eSTREAM
+    /// Set 6 vector #0 (key `0053A6F9…BA0D`, IV `0D74DB42A91077DE`, keystream
+    /// `F5FAD53F79F9DF58…B1280B71`).
+    ///
+    /// Lengths straddle the 64-byte block boundary (63/1/64/65) and include a
+    /// multi-block run, so a counter or offset slip cannot pass.
+    func testKDBX31Salsa20InnerStreamMatchesKnownAnswerVectors() throws {
+        let entry = try parseSalsa20ProtectedValues(interleavingEmptyValues: false)
+
+        for vector in Self.salsa20Vectors {
+            XCTAssertEqual(entry.customFields[vector.key], vector.plaintext, "protected value \(vector.key)")
+        }
+    }
+
+    /// An empty protected value must not consume keystream, otherwise every
+    /// later value in the document decodes against a shifted stream.
+    func testKDBX31Salsa20InnerStreamEmptyProtectedValueDoesNotAdvanceStream() throws {
+        let entry = try parseSalsa20ProtectedValues(interleavingEmptyValues: true)
+
+        for vector in Self.salsa20Vectors {
+            XCTAssertEqual(entry.customFields[vector.key], vector.plaintext, "protected value \(vector.key)")
+        }
+        XCTAssertEqual(entry.customFields["Empty0"], "")
+    }
+
     func testKDBX31TwofishDatabaseOpensReadOnly() throws {
         let data = try makeLegacyTwofishFixture()
         let parsed = try KDBXParser.parseWithMetaAndHeader(
@@ -1108,6 +1141,70 @@ final class KDBXParserTests: XCTestCase {
         let bundle = Bundle(for: KDBXParserTests.self)
         let fixtureURL = try XCTUnwrap(bundle.url(forResource: "test", withExtension: "kdbx"))
         return try Data(contentsOf: fixtureURL)
+    }
+
+    private struct Salsa20Vector {
+        let key: String
+        let plaintext: String
+        let base64Ciphertext: String
+    }
+
+    /// Arbitrary 32-byte inner stream key (0x00…0x1F) the pinned vectors were
+    /// generated against.
+    private static let salsa20InnerStreamKey = Data((0..<32).map { UInt8($0) })
+
+    private static let salsa20Vectors: [Salsa20Vector] = [
+        Salsa20Vector(
+            key: "A",
+            plaintext: String(repeating: "a", count: 63),
+            base64Ciphertext: "mN/USAPi601d40avjPHzEkYQ9p7OhwyFOP4rt0zH/Xx8RBAXjuXeUSIcbmZMfNBTpmuQ3uINrWl4ecNXeC3H"
+        ),
+        Salsa20Vector(key: "B", plaintext: "b", base64Ciphertext: "zA=="),
+        Salsa20Vector(
+            key: "C",
+            plaintext: String(repeating: "c", count: 64),
+            base64Ciphertext: "3QqhioUCk/I8eql9YPJfFzlw4rwoueCjLT+e4DjR7uObFnrZeO7e14syNs+gGfcH7jkyBD/+jeRQDvx5ek403Q=="
+        ),
+        Salsa20Vector(
+            key: "D",
+            plaintext: String(repeating: "d", count: 65),
+            base64Ciphertext: "bMkURHZTNLl+0DOiMl+ok4NXniBQD2rqA8aMbPBH51Ejz7wdbkkpO7R40Ry28bLfQBiOhvoOYleruVEE4ikdj/Y="
+        ),
+        Salsa20Vector(
+            key: "E",
+            plaintext: String(repeating: "e", count: 200),
+            base64Ciphertext: "v82SKcZyj37ShRF/Gl3YifI4I3ChtspgQ5O3C7F37YXgfoNHepq+McfTRuX3whYTxGcd1pb9as7uiFzs" +
+                "cP/GotoWwl+9x7vLyqM4rByxH5/GLsJUvhJ1P1YMC8YqJWv7jZXL0qTQMhpPVlMy84u80xU1Ulzm6Q63jAqVLFasZKq6" +
+                "7vej4r5yGSF4E4NHdZZAGkC7GGz5JrFD8PRNEpzKtZK9bDfVuVezFf4C+QFFTrDoZpxgs97+/2qoVp6V8+mpqDl6FkTH" +
+                "NeU="
+        ),
+    ]
+
+    private func parseSalsa20ProtectedValues(interleavingEmptyValues: Bool) throws -> KPEntry {
+        var strings = ""
+        for (index, vector) in Self.salsa20Vectors.enumerated() {
+            if interleavingEmptyValues {
+                strings += "<String><Key>Empty\(index)</Key><Value Protected=\"True\"></Value></String>"
+            }
+            strings += "<String><Key>\(vector.key)</Key>"
+            strings += "<Value Protected=\"True\">\(vector.base64Ciphertext)</Value></String>"
+        }
+
+        let xml = "<?xml version=\"1.0\" encoding=\"utf-8\"?>"
+            + "<KeePassFile><Meta></Meta><Root><Group>"
+            + "<UUID>\(Data(repeating: 0x11, count: 16).base64EncodedString())</UUID><Name>Salsa20</Name>"
+            + "<Entry><UUID>\(Data(repeating: 0x22, count: 16).base64EncodedString())</UUID>"
+            + strings
+            + "</Entry></Group></Root></KeePassFile>"
+
+        let parsed = try KDBXXMLParser(
+            data: Data(xml.utf8),
+            innerStreamKey: Self.salsa20InnerStreamKey,
+            innerStreamID: KDBXParser.innerStreamSalsa20,
+            sessionKey: testSessionKey
+        ).parse()
+
+        return try XCTUnwrap(parsed.rootGroup.allEntries.first)
     }
 
     private func legacyFixtureData() throws -> Data {
