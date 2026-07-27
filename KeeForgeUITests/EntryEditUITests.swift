@@ -159,15 +159,38 @@ class EntryEditUITestCase: KeeForgeUITestCase {
         tapElement(group)
 
         // A freshly rebuilt list — e.g. immediately after `reloadDiscardingDraft`
-        // resets the navigation stack — can swallow the first tap. Confirm we
-        // actually pushed into the group (its title becomes the nav bar) and
-        // retry once if the tap did not register.
-        if app.navigationBars[name].waitForExistence(timeout: 5) == false {
-            let retry = firstRowMatching(name: name, preferredIdentifier: "group.navlink")
-            if revealElement(retry) {
-                tapElement(retry)
-            }
+        // resets the navigation stack — can swallow the first tap, or mis-land
+        // it and push the wrong screen. Confirm we actually pushed into the
+        // group (its title becomes the nav bar); otherwise pop any mis-pushed
+        // screen, retry once, and fail here with a clear message rather than
+        // letting a later assertion fail misleadingly.
+        if app.navigationBars[name].waitForExistence(timeout: 5) {
+            return
         }
+
+        var retry = firstRowMatching(name: name, preferredIdentifier: "group.navlink")
+        if retry.exists == false || retry.isHittable == false {
+            tapBackButton(file: file, line: line)
+            let deadline = Date().addingTimeInterval(5)
+            repeat {
+                retry = firstRowMatching(name: name, preferredIdentifier: "group.navlink")
+                if retry.exists { break }
+                RunLoop.current.run(until: Date().addingTimeInterval(0.25))
+            } while Date() < deadline
+        }
+        XCTAssertTrue(
+            revealElement(retry),
+            "Group '\(name)' was not visible to retry opening it",
+            file: file,
+            line: line
+        )
+        tapElement(retry)
+        XCTAssertTrue(
+            app.navigationBars[name].waitForExistence(timeout: Self.ciElementTimeout),
+            "Group '\(name)' did not open: its navigation bar never appeared after the retry tap",
+            file: file,
+            line: line
+        )
     }
 
     /// Swipes a row open and waits for its trailing delete action, retrying the
