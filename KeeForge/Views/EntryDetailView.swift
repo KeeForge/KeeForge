@@ -159,7 +159,7 @@ struct EntryDetailView: View {
                                 isShowingHistory = true
                             } label: {
                                 LabeledContent {
-                                    Text("\(entry.history.count)")
+                                    Text(entry.history.count, format: .number)
                                         .foregroundStyle(.secondary)
                                 } label: {
                                     Label("History", systemImage: "clock.arrow.circlepath")
@@ -331,7 +331,7 @@ struct TagCapsule: View {
 }
 
 #if os(iOS)
-private struct SelectableNotesText: UIViewRepresentable {
+struct SelectableNotesText: UIViewRepresentable {
     let text: String
 
     init(_ text: String) {
@@ -372,7 +372,7 @@ private struct SelectableNotesText: UIViewRepresentable {
 #else
 /// Interim macOS notes rendering — plain `Text` with `.textSelection(.enabled)`
 /// stands in for the UIKit `UITextView` wrapper until slice 02's view polish.
-private struct SelectableNotesText: View {
+struct SelectableNotesText: View {
     let text: String
 
     init(_ text: String) {
@@ -397,6 +397,8 @@ struct FieldRow: View {
     // Locale-independent copy-button ID; defaults to the normalized label so
     // user-defined custom field keys keep their existing identifiers.
     var accessibilityKey: String?
+    /// Identifier namespace for the copy control, matching `PasswordFieldRow`.
+    var accessibilityPrefix: String = "entry"
 
     var body: some View {
         Section(label) {
@@ -407,7 +409,7 @@ struct FieldRow: View {
                 Text(value)
                     .textSelection(.enabled)
                 Spacer()
-                CopyButton(text: value, accessibilityID: "entry.copy.\(normalizedLabel)")
+                CopyButton(text: value, accessibilityID: "\(accessibilityPrefix).copy.\(normalizedLabel)")
             }
         }
     }

@@ -576,7 +576,8 @@ final class EntryHistoryUITests: UnlockedDatabaseUITestCase {
         firstVersion.tap()
 
         XCTAssertTrue(
-            app.staticTexts["Earlier Version"].waitForExistence(timeout: 5),
+            app.descendants(matching: .any)["entry-history.version-detail"].firstMatch
+                .waitForExistence(timeout: 5),
             "The version screen did not open"
         )
         XCTAssertTrue(

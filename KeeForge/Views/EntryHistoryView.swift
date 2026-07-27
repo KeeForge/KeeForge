@@ -95,7 +95,8 @@ private struct EntryHistoryVersionView: View {
                             label: String(localized: "Title"),
                             value: version.title,
                             icon: "textformat",
-                            accessibilityKey: "entry-history.title"
+                            accessibilityKey: "title",
+                            accessibilityPrefix: "entry-history"
                         )
                     }
                     if !version.username.isEmpty {
@@ -103,7 +104,8 @@ private struct EntryHistoryVersionView: View {
                             label: String(localized: "Username"),
                             value: version.username,
                             icon: "person",
-                            accessibilityKey: "entry-history.username"
+                            accessibilityKey: "username",
+                            accessibilityPrefix: "entry-history"
                         )
                     }
                     if version.hasPassword {
@@ -118,21 +120,26 @@ private struct EntryHistoryVersionView: View {
                             label: String(localized: "URL"),
                             value: version.url,
                             icon: "link",
-                            accessibilityKey: "entry-history.url"
+                            accessibilityKey: "url",
+                            accessibilityPrefix: "entry-history"
                         )
                     }
                     if !version.notes.isEmpty {
                         Section("Notes") {
-                            Text(version.notes)
+                            SelectableNotesText(version.notes)
                         }
                     }
-                    if let modified = version.lastModificationTime {
-                        Section("Details") {
-                            LabeledContent(
-                                "Replaced",
-                                value: modified.formatted(date: .abbreviated, time: .shortened)
-                            )
-                        }
+                    Section("Details") {
+                        // `cloneForHistory` copies the entry untouched, so this is when
+                        // the version itself was written — it stopped being current at
+                        // the *next* version's timestamp.
+                        LabeledContent(
+                            "Last Modified",
+                            value: version.lastModificationTime.map {
+                                $0.formatted(date: .abbreviated, time: .shortened)
+                            } ?? String(localized: "Unknown date")
+                        )
+                        .accessibilityIdentifier("entry-history.version-detail")
                     }
                 }
             } else {

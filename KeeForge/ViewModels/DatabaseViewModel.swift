@@ -849,9 +849,12 @@ final class DatabaseViewModel {
     func history(forEntryID entryID: UUID) -> [KPEntry] {
         _ = contentRevision
         let versions = entryIndex[entryID]?.history ?? []
+        // KDBX timestamps are second-resolution and `sorted` is not documented as
+        // stable, so ties fall back to storage order: the list and the version
+        // screen each recompute this, and they must agree on which row is which.
         return versions.enumerated().sorted { lhs, rhs in
             switch (lhs.element.lastModificationTime, rhs.element.lastModificationTime) {
-            case let (left?, right?): return left > right
+            case let (left?, right?): return left == right ? lhs.offset < rhs.offset : left > right
             case (nil, _?): return false
             case (_?, nil): return true
             case (nil, nil): return lhs.offset < rhs.offset
