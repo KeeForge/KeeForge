@@ -10,7 +10,7 @@ This folder owns database references, cached copies, file access, and local-save
 - `SharedVaultStore.swift` owns the App Group cache directory paths and reads of the shared cached database copy for the app and AutoFill extension. Production cache *writes* go through `DatabaseListStore.cacheDatabaseCopy(_:for:)` (callers: `LocalDatabaseSaver`, `CloudSyncCoordinator`, `DatabaseCreationService`, `DatabaseViewModel`); `SharedVaultStore.cacheDatabaseCopy(_:sourceURL:)` is legacy, called only by tests.
 - `DatabaseFileInfoLoader.swift` reads file size, modification date, and the plaintext KDBX header summary for the Database Details sheet without unlocking — local references resolve their bookmark; cloud-backed references use the cached copy.
 - `SecurityScopedBookmarkManager.swift` and `CoordinatedFileReader.swift` handle bookmark resolution and coordinated file access. Bookmarks track file identity, so a Files-app Delete or Replace leaves them resolving to the old copy in Recently Deleted; `DatabaseListStore.locateDatabaseFile(for:)` classifies that as `.inTrash` and every database read/save path treats it as unavailable instead of silently using the stale copy.
-- `DocumentPickerService.swift`, `KeyFileProcessor.swift`, and `SyncedFolderDetector.swift` cover file picking, key-file parsing, and synced-folder classification.
+- `DocumentPickerService.swift` and `KeyFileProcessor.swift` cover file picking and key-file parsing.
 
 ## Change Carefully
 

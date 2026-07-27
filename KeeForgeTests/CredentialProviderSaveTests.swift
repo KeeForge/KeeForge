@@ -594,7 +594,6 @@ final class CredentialProviderSaveTests: XCTestCase {
             legacyKeychainFilename: nil,
             isReadOnly: isReadOnly,
             autoFillEnabled: autoFillEnabled,
-            editsAcknowledgedAt: nil,
             source: .cloud(
                 CloudSyncMetadata(
                     provider: CloudProviderKind.dropbox.rawValue,

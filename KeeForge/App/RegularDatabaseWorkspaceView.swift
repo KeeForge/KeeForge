@@ -436,13 +436,9 @@ struct RegularDatabaseWorkspaceView: View {
     }
 
     private func beginNewGroup() {
-        Task { @MainActor in
-            let result = await viewModel.acknowledgeEditingIfNeeded()
-            guard result == .acknowledged else { return }
-            newGroupName = ""
-            groupCreationErrorMessage = nil
-            isShowingNewGroupSheet = true
-        }
+        newGroupName = ""
+        groupCreationErrorMessage = nil
+        isShowingNewGroupSheet = true
     }
 
     #endif
@@ -457,15 +453,11 @@ struct RegularDatabaseWorkspaceView: View {
         // rather than presenting an editor with no destination group.
         guard let targetGroupID = viewModel.selectedGroupID ?? viewModel.visibleRootGroupID else { return }
 
-        Task { @MainActor in
-            let result = await viewModel.acknowledgeEditingIfNeeded()
-            guard result == .acknowledged else { return }
-            commandEditor = EntryEditViewModel(
-                createIn: targetGroupID,
-                knownTags: viewModel.tagsInDisplayOrder,
-                inheritedTags: viewModel.inheritedTags(forGroupID: targetGroupID)
-            )
-        }
+        commandEditor = EntryEditViewModel(
+            createIn: targetGroupID,
+            knownTags: viewModel.tagsInDisplayOrder,
+            inheritedTags: viewModel.inheritedTags(forGroupID: targetGroupID)
+        )
     }
     #endif
 

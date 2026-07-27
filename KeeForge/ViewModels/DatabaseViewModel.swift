@@ -183,8 +183,6 @@ final class DatabaseViewModel {
         _ reference: DatabaseReference,
         _ compositeKey: Data
     ) async throws -> ReloadedDatabase
-    typealias SyncedFolderDetectionOperation = @Sendable (DatabaseReference) async -> SyncedFolderLocation
-    typealias SyncedFolderWarningHandler = @MainActor @Sendable (SyncedFolderWarning) async -> SyncedFolderWarningAction
 
     private static let sortOrderKey = "KeeForge.sortOrder"
     private static let sortAscendingKey = "KeeForge.sortAscending"
@@ -284,7 +282,6 @@ final class DatabaseViewModel {
     private(set) var saveConflict: SaveConflict?
     private(set) var isSaving = false
     private(set) var pendingLockRequest: PendingLockRequest?
-    private(set) var syncedFolderWarning: SyncedFolderWarning?
     private(set) var cloudSyncProgress: Double?
     private(set) var cloudSyncBannerText: String?
     private(set) var unlockStatusMessage: String
@@ -324,8 +321,6 @@ final class DatabaseViewModel {
     private let localConflictCopyOperation: LocalConflictCopyOperation
     private let cloudConflictCopyOperation: CloudConflictCopyOperation
     private let reloadOperation: ReloadOperation
-    private let syncedFolderDetector: SyncedFolderDetectionOperation
-    private let syncedFolderWarningHandler: SyncedFolderWarningHandler
     private let conflictCopyDateProvider: @Sendable () -> Date
     private let nowProvider: @Sendable () -> Date
     private var backgroundEnteredAt: Date?
@@ -385,12 +380,6 @@ final class DatabaseViewModel {
                 compositeKey: compositeKey
             )
         },
-        syncedFolderDetector: @escaping SyncedFolderDetectionOperation = { reference in
-            await SyncedFolderDetector.detect(reference: reference)
-        },
-        syncedFolderWarningHandler: @escaping SyncedFolderWarningHandler = { _ in
-            .continueEditing
-        },
         conflictCopyDateProvider: @escaping @Sendable () -> Date = { .now },
         nowProvider: @escaping @Sendable () -> Date = { .now }
     ) {
@@ -408,8 +397,6 @@ final class DatabaseViewModel {
         self.localConflictCopyOperation = localConflictCopyOperation
         self.cloudConflictCopyOperation = cloudConflictCopyOperation
         self.reloadOperation = reloadOperation
-        self.syncedFolderDetector = syncedFolderDetector
-        self.syncedFolderWarningHandler = syncedFolderWarningHandler
         self.conflictCopyDateProvider = conflictCopyDateProvider
         self.nowProvider = nowProvider
     }
@@ -923,7 +910,6 @@ final class DatabaseViewModel {
         saveError = nil
         saveConflict = nil
         pendingLockRequest = nil
-        syncedFolderWarning = nil
         cloudSyncProgress = nil
         cloudSyncBannerText = nil
         unlockStatusMessage = databaseReference.isCloudBacked
@@ -1099,7 +1085,6 @@ final class DatabaseViewModel {
         AttachmentPreviewFileStore.clearAll()
         draft = nil
         saveConflict = nil
-        syncedFolderWarning = nil
         cloudSyncBannerText = nil
         failedAttempts = 0
         lockoutUntil = nil
@@ -1126,41 +1111,6 @@ final class DatabaseViewModel {
         updatedReference.nickname = nickname
         DatabaseListStore.update(updatedReference)
         refreshDatabaseReference()
-    }
-
-    func acknowledgeEditingIfNeeded() async -> AcknowledgmentResult {
-        guard case .local = databaseReference.source else {
-            return .acknowledged
-        }
-
-        guard databaseReference.bookmarkData != nil else {
-            return .acknowledged
-        }
-
-        if databaseReference.editsAcknowledgedAt != nil {
-            return .acknowledged
-        }
-
-        let syncedFolderLocation = await syncedFolderDetector(databaseReference)
-        guard syncedFolderLocation != .notSynced else {
-            return .acknowledged
-        }
-
-        let warning = SyncedFolderWarning(location: syncedFolderLocation)
-        syncedFolderWarning = warning
-        let action = await syncedFolderWarningHandler(warning)
-        syncedFolderWarning = nil
-
-        switch action {
-        case .continueEditing:
-            DatabaseListStore.acknowledgeEdits(for: databaseReference)
-            refreshDatabaseReference()
-            return .acknowledged
-        case .keepReadOnly:
-            DatabaseListStore.setReadOnly(true, for: databaseReference)
-            refreshDatabaseReference()
-            return .keptReadOnly
-        }
     }
 
     // MARK: - Inactivity Timer
@@ -1639,7 +1589,6 @@ final class DatabaseViewModel {
         saveError = nil
         saveConflict = nil
         pendingLockRequest = nil
-        syncedFolderWarning = nil
         unlockedMeta = nil
         binaryPool = nil
         cloudSyncProgress = nil
@@ -1667,7 +1616,6 @@ final class DatabaseViewModel {
         self.saveError = nil
         self.saveConflict = nil
         self.pendingLockRequest = nil
-        self.syncedFolderWarning = nil
         self.failedAttempts = 0
         self.lockoutUntil = nil
         self.state = .unlocked

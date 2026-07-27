@@ -180,24 +180,16 @@ struct GroupListView: View {
                                 if viewModel.isReadOnly == false {
                                     Menu {
                                         Button("New Entry", systemImage: "doc.badge.plus") {
-                                            Task {
-                                                let result = await viewModel.acknowledgeEditingIfNeeded()
-                                                guard result == .acknowledged else { return }
-                                                activeEditor = EntryEditViewModel(
-                                                    createIn: resolvedGroup.id,
-                                                    knownTags: viewModel.tagsInDisplayOrder,
-                                                    inheritedTags: viewModel.inheritedTags(forGroupID: resolvedGroup.id)
-                                                )
-                                            }
+                                            activeEditor = EntryEditViewModel(
+                                                createIn: resolvedGroup.id,
+                                                knownTags: viewModel.tagsInDisplayOrder,
+                                                inheritedTags: viewModel.inheritedTags(forGroupID: resolvedGroup.id)
+                                            )
                                         }
 
                                         Button("New Group", systemImage: "folder.badge.plus") {
-                                            Task {
-                                                let result = await viewModel.acknowledgeEditingIfNeeded()
-                                                guard result == .acknowledged else { return }
-                                                newGroupName = ""
-                                                isShowingNewGroupSheet = true
-                                            }
+                                            newGroupName = ""
+                                            isShowingNewGroupSheet = true
                                         }
                                     } label: {
                                         Image(systemName: "plus")

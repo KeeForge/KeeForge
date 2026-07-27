@@ -14,7 +14,6 @@ struct DatabaseReference: Identifiable, Codable, Hashable, Sendable {
     var legacyKeychainFilename: String?
     var isReadOnly: Bool = false
     var autoFillEnabled: Bool = true
-    var editsAcknowledgedAt: Date?
     var source: DatabaseSource = .local
 
     var displayName: String {
@@ -81,7 +80,6 @@ extension DatabaseReference {
         case legacyKeychainFilename
         case isReadOnly
         case autoFillEnabled
-        case editsAcknowledgedAt
         case source
     }
 
@@ -100,7 +98,6 @@ extension DatabaseReference {
         legacyKeychainFilename = try container.decodeIfPresent(String.self, forKey: .legacyKeychainFilename)
         isReadOnly = try container.decodeIfPresent(Bool.self, forKey: .isReadOnly) ?? false
         autoFillEnabled = try container.decodeIfPresent(Bool.self, forKey: .autoFillEnabled) ?? true
-        editsAcknowledgedAt = try container.decodeIfPresent(Date.self, forKey: .editsAcknowledgedAt)
         source = try container.decodeIfPresent(DatabaseSource.self, forKey: .source) ?? .local
     }
 
@@ -119,7 +116,6 @@ extension DatabaseReference {
         try container.encodeIfPresent(legacyKeychainFilename, forKey: .legacyKeychainFilename)
         try container.encode(isReadOnly, forKey: .isReadOnly)
         try container.encode(autoFillEnabled, forKey: .autoFillEnabled)
-        try container.encodeIfPresent(editsAcknowledgedAt, forKey: .editsAcknowledgedAt)
         try container.encode(source, forKey: .source)
     }
 }

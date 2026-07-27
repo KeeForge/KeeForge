@@ -416,7 +416,6 @@ enum DatabaseCreationService {
             colorTag: nil,
             legacyKeychainFilename: nil,
             isReadOnly: false,
-            editsAcknowledgedAt: nil,
             source: .local
         )
     }
@@ -441,7 +440,6 @@ enum DatabaseCreationService {
             colorTag: nil,
             legacyKeychainFilename: nil,
             isReadOnly: false,
-            editsAcknowledgedAt: nil,
             source: .cloud(
                 CloudSyncMetadata(
                     provider: provider,
