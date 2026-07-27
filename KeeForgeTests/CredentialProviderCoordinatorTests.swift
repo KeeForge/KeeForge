@@ -1,8 +1,6 @@
-// Runs on both iOS and macOS: slice 05 gave CredentialProviderCoordinator
-// macOS target membership. The coordinator's save/generate-password paths are
-// `#if os(iOS)` (those AuthenticationServices types are `API_UNAVAILABLE(macos)`);
-// one-time-code paths are gated `macOS 15.0`. Individual tests below platform-gate
-// only where the underlying API is genuinely unavailable.
+// Runs on both iOS and macOS. Tests below platform-gate only where the
+// underlying API is genuinely unavailable: save/generate-password are
+// `API_UNAVAILABLE(macos)`, one-time codes need macOS 15.
 import AuthenticationServices
 import CryptoKit
 import XCTest
@@ -1280,19 +1278,14 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
         )
     }
 
-    // NOTE(deferred-tests slice 06, optional passkey-parameters retarget):
-    // verified against the iOS 26.5 SDK on a Mac —
-    // `ASPasskeyCredentialRequestParameters` declares `init` as
-    // `NS_UNAVAILABLE` with readonly properties and gains no Swift
-    // convenience initializer, so it is not test-constructible and the
-    // parameters-driven passkey list flow cannot be driven from unit tests.
-    // `pendingPasskeyRequestParameters` survives a switch by construction
-    // (nothing in `switchDatabase` touches the pending request context); the
-    // shared `afterUnlock` dispatch that would re-serve it is pinned by
+    // No test for the parameters-driven passkey list flow:
+    // `ASPasskeyCredentialRequestParameters` declares `init` as `NS_UNAVAILABLE`
+    // (iOS 26.5 SDK), so it is not test-constructible. The shared `afterUnlock`
+    // dispatch that would re-serve it is pinned by
     // `test_switchDuringOTCList_reRunsOTCPickerAfterUnlock` and
     // `test_switchCancel_restoresPreviousDatabaseAndRepresentsSearch`.
 
-    // MARK: - Database switcher: cancel semantics (slice 06)
+    // MARK: - Database switcher: cancel semantics
 
     func test_switchCancel_restoresPreviousDatabaseAndRepresentsSearch() throws {
         let scenario = try makePresentedTwoDatabaseSearch()

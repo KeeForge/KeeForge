@@ -214,13 +214,10 @@ final class PendingUploadDrainer {
                 continue
             }
 
-            // The bytes we are about to push must still be exactly what this
-            // device saved at enqueue time. If a sync-down (or anything else)
-            // has since overwritten the shared cache, the SHA-512 recorded on
-            // the marker no longer matches. Pushing the clobbered bytes — and
-            // then dropping the marker as "saved" — would silently upload the
-            // wrong content over the user's real change, so treat any mismatch
-            // as a conflict for the user to resolve instead.
+            // A mismatch means a sync-down overwrote the shared cache since
+            // enqueue. Pushing those bytes and dropping the marker as "saved"
+            // would upload the wrong content over the user's real change, so
+            // surface it as a conflict instead.
             let payloadMatchesRecordedContent =
                 environment.sha512(encryptedBytes) == storedMarker.marker.openTimeSHA512
             guard payloadMatchesRecordedContent else {

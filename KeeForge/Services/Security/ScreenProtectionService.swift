@@ -190,11 +190,9 @@ final class ScreenProtectionService {
     }
 
     private func observeWindows() {
-        // Choke point for future windows: whenever a window becomes key it
-        // adopts the current capture policy. Combined with the init sweep this
-        // covers every window without per-window call sites. The just-keyed
-        // window is `NSApp.keyWindow` (reading it here avoids passing the
-        // non-Sendable Notification across the isolation boundary).
+        // Choke point for windows created later: with the init sweep, this
+        // covers every window without per-window call sites. Read
+        // `NSApp.keyWindow` rather than the non-Sendable Notification.
         observe(NSWindow.didBecomeKeyNotification) { service in
             guard let window = NSApplication.shared.keyWindow else { return }
             service.applyCapturePolicy(to: window)
@@ -294,12 +292,10 @@ final class ScreenProtectionService {
         _ name: Notification.Name,
         handler: @escaping @MainActor (ScreenProtectionService) -> Void
     ) {
-        // queue: nil delivers synchronously on the posting thread. The observed
-        // notifications (NSApplication/NSWindow activation, and the in-process
-        // capture-blocking notification posted from the main actor) are all
-        // posted on the main thread, so `assumeIsolated` re-asserts main-actor
-        // isolation without a hop. The Notification is never captured, avoiding
-        // sending a non-Sendable value across the isolation boundary.
+        // queue: nil delivers synchronously on the posting thread, and every
+        // observed notification is posted on the main thread, so
+        // `assumeIsolated` re-asserts main-actor isolation without a hop. The
+        // non-Sendable Notification is deliberately never captured.
         let token = NotificationCenter.default.addObserver(
             forName: name,
             object: nil,

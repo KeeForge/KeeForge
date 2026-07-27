@@ -129,16 +129,14 @@ enum AutoFillSaveCoordinator {
             .createEntry(parentGroupID: parentGroupID, draft: draftPayload)
         )
 
-        // Two-phase marker: unuploaded cache bytes always have a covering
-        // durable marker, whose presence gates the pre-overwrite backup in
-        // every cache-refresh path. Order is load-bearing:
+        // Two-phase marker so unuploaded cache bytes always have a covering
+        // durable marker. Order is load-bearing:
         //   1. enqueue provisional marker recording the BASE bytes' SHA-512
         //   2. saveDraft: SHA-check, backup, atomic cache replace
         //   3. finalize: CAS marker to the payload SHA, then wake the drainer
-        // Crash before the replace leaves cache == marker SHA, so a drain
-        // re-pushes identical bytes; after it, the mismatch reads as a visible
-        // conflict instead of a silent wrong push. On .conflict or a throw the
-        // cache was never rewritten, so the stale marker is dropped.
+        // A crash before the replace leaves cache == marker SHA, so a drain
+        // re-pushes identical bytes; after it, the mismatch surfaces as a
+        // conflict rather than a silent wrong push.
         var provisionalMarker: PendingUploadQueue.StoredMarker?
         if reference.isCloudBacked {
             let cacheURL = DatabaseListStore.cacheLocation(for: reference)

@@ -77,10 +77,8 @@ enum ReviewPromptService {
             AppStore.requestReview(in: scene)
         }
         #else
-        // macOS: `SKStoreReviewController.requestReview()` was the slice-01
-        // interim and is deprecated on macOS 15. The supported modern entry
-        // point is SwiftUI's `RequestReviewAction`, which the app injects via
-        // `requestReviewHandler`. If it is unset (e.g. in unit tests), no-op.
+        // macOS routes through SwiftUI's `RequestReviewAction`, which the app
+        // injects as `requestReviewHandler`; unset (e.g. in tests) means no-op.
         #endif
     }
 

@@ -211,12 +211,10 @@ enum LocalDatabaseSaver {
         )
         try environment.writeBackup(currentData, backupURL)
         try environment.replaceFileAtomically(newData, location.url)
-        // Keep the shared AutoFill cache aligned with the just-written encrypted
-        // bytes. When the save location already IS the cache file (cloud
-        // references without a bookmark resolve straight to it), the atomic
-        // replace above was the cache write; repeating it would briefly widen
-        // the window where a concurrent cache read can mismatch its
-        // pending-upload marker.
+        // When the save location already IS the cache file (a cloud reference
+        // without a bookmark resolves straight to it), the replace above was
+        // the cache write; repeating it widens the window where a concurrent
+        // cache read can mismatch its pending-upload marker.
         let cacheURL = DatabaseListStore.cacheLocation(for: reference)
         if canonicalPath(of: location.url) != canonicalPath(of: cacheURL) {
             try? environment.cacheDatabaseCopy(newData, reference)

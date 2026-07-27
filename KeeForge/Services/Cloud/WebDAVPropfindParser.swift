@@ -294,13 +294,12 @@ private final class MultistatusDelegate: NSObject, XMLParserDelegate {
     static func decodedPath(fromHref href: String, requestURL: URL?) -> String? {
         guard !href.isEmpty else { return nil }
 
-        // Absolute URL: extract the path component.
         if let components = URLComponents(string: href), components.scheme != nil {
             let path = components.percentEncodedPath
             return path.removingPercentEncoding ?? path
         }
 
-        // Relative href: it is already a path (possibly with query, which we drop).
+        // A relative href is already a path; drop any query.
         let pathOnly = href.split(separator: "?", maxSplits: 1).first.map(String.init) ?? href
         return pathOnly.removingPercentEncoding ?? pathOnly
     }

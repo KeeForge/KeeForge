@@ -48,10 +48,8 @@ struct UnlockView: View {
         .onAppear {
             loadUITestKeyFileIfNeeded()
             #if os(macOS)
-            // Mac polish: put the keyboard focus straight into the password
-            // field so unlock is type-Return without a click. On macOS the
-            // password field is `MacUnlockPasswordField`, which focuses itself
-            // on appear; this is kept for the visible (plain TextField) branch.
+            // Only reaches the visible (plain TextField) branch —
+            // `MacUnlockPasswordField` focuses itself on appear.
             passwordFocused = true
             #endif
         }

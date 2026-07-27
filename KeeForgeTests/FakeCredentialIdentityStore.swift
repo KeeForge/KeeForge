@@ -1,6 +1,5 @@
 // In-memory `CredentialIdentityStoreProviding` fake shared by the
-// CredentialIdentityStoreManager / DatabaseListStore / DatabaseViewModel
-// test suites (slices 02/04/05 of the selectable-AutoFill epic).
+// CredentialIdentityStoreManager / DatabaseListStore / DatabaseViewModel suites.
 //
 // Install it via `CredentialIdentityStoreManager.storeProviderOverride`
 // (a `@MainActor` static — assign with `await MainActor.run { … }` from

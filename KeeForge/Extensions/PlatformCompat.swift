@@ -5,12 +5,9 @@ import UIKit
 import AppKit
 #endif
 
-// Cross-platform compatibility shim for the macOS port (slice 01).
-//
 // Prefer adding view-layer compatibility here over scattering raw `#if os()`
 // conditionals through Views; raw conditionals remain fine in Services where
-// behavior genuinely diverges. Target membership: KeeForge, KeeForgeAutoFill,
-// KeeForgeMac.
+// behavior genuinely diverges.
 
 // MARK: - Platform image
 

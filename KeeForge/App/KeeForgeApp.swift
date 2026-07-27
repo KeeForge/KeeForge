@@ -63,15 +63,11 @@ struct KeeForgeApp: App {
                 }
             }
             .task {
-                // Sweep plaintext attachment-preview temp files orphaned by a
-                // previous process that died without locking (crash, force-quit).
-                // Runs before any preview can be written this session; the
-                // store skips the sweep if a live preview is already tracked.
+                // Plaintext preview files orphaned by a process that died
+                // without locking; must run before this session writes any.
                 AttachmentPreviewFileStore.purgeOrphanedFiles()
-                // Start the StoreKit transaction listener at launch so out-of-app
-                // completions (Ask to Buy, deferred SCA, purchases interrupted
-                // before finishing) are delivered and finished even if the Tip Jar
-                // is never opened. Idempotent and a single shared listener.
+                // At launch, not on Tip Jar open, so out-of-app completions
+                // (Ask to Buy, deferred SCA) are still delivered and finished.
                 StoreKitManager.shared.start()
                 pendingUploadDrainer.startObserving {
                     Task {
@@ -80,9 +76,8 @@ struct KeeForgeApp: App {
                 }
                 startMacLockMonitoringIfNeeded()
                 #if DEBUG
-                // Developer-tooling probe for the AutoFill store-validation
-                // harness: emit one machine-readable store-status line when
-                // launched with `-autofill-store-status-log`. No-op otherwise.
+                // Emits one machine-readable store-status line when launched
+                // with `-autofill-store-status-log`; no-op otherwise.
                 AutoFillStoreStatusLog.emitIfRequested()
                 #endif
             }
@@ -186,13 +181,10 @@ private struct AppRootView: View {
             }
         }
         .task {
-            // Enabling AutoFill for the currently unlocked database must
-            // republish its identities immediately (epic: both toggle
-            // directions take effect at once for an open database). The list
-            // view model owns the toggle but only this root knows the active
-            // session, so it installs the bridge. Bindings read live @State
-            // storage, so the closure always sees the current session (same
-            // pattern as startMacLockMonitoringIfNeeded).
+            // The list view model owns the AutoFill toggle but only this root
+            // knows the active session, so it installs the bridge. The binding
+            // reads live @State, so the closure always sees the current
+            // session (same pattern as startMacLockMonitoringIfNeeded).
             let activeViewModel = $activeDatabaseViewModel
             listViewModel.autoFillEnabledRefreshHandler = { databaseID in
                 guard let databaseViewModel = activeViewModel.wrappedValue,

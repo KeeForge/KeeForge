@@ -897,22 +897,12 @@ final class DatabaseViewModel {
         if manuallyTriggered {
             didManuallyLock = true
         }
-        // Locking scrubs a still-pending secure copy (changeCount-guarded, so a
-        // later user copy is never clobbered).
-        //
-        // `preservingClipboard` is the one exception, and only iOS
-        // backgrounding sets it: that is the moment the user switches to
-        // another app to paste, so scrubbing there made every copy arrive
-        // empty (#34). The secret is still bounded there — on iOS
-        // `ClipboardService.copy` stamps every copy with the clipboard-clear
-        // timeout as a system-enforced expiration date and marks it
-        // `.localOnly`.
-        //
-        // Every other lock means the user walked away rather than switched
-        // away — the foreground inactivity timeout, and on macOS screen lock,
-        // screensaver, sleep, and user switching — so those still scrub. That
-        // matters most on macOS, which has neither `.expirationDate` nor
-        // `.localOnly` (see `docs/macos-security-notes.md`).
+        // Only iOS backgrounding sets `preservingClipboard`: the user is
+        // switching apps to paste, so scrubbing there made every copy arrive
+        // empty (#34). iOS bounds the secret anyway via the expiration date and
+        // `.localOnly` that `ClipboardService.copy` stamps on. Every other lock
+        // means the user walked away, so those still scrub — which matters most
+        // on macOS, where neither flag exists (`docs/macos-security-notes.md`).
         if preservingClipboard == false {
             ClipboardService.clearOwnedContents()
         }
@@ -1206,16 +1196,11 @@ final class DatabaseViewModel {
         guard case .unlocked = state else { return }
 
         if SettingsService.lockOnBackground {
-            // iOS: the app is being backgrounded, very often because the user
-            // is switching to another app to paste what they just copied, so
-            // the lock leaves the pasteboard alone (#34). The scene phase
-            // cannot tell that apart from a device-lock backgrounding, so the
-            // copy can outlive a screen lock by up to the clipboard-clear
-            // timeout — bounded, and `.localOnly` throughout.
-            //
-            // macOS: this same entry point is driven by `MacLockMonitor`
-            // (screen lock, screensaver, sleep, user switching), which always
-            // means the user walked away from the machine — scrub there.
+            // Scene phase cannot tell an app switch from a device lock, so iOS
+            // keeps the pasteboard (#34) and a copy can outlive a screen lock
+            // by up to the clipboard-clear timeout. On macOS this entry point
+            // comes from `MacLockMonitor`, which only fires when the user
+            // walked away — scrub there.
             #if os(iOS)
             lockRequest(preservingClipboard: true)
             #else

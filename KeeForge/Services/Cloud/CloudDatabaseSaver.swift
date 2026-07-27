@@ -164,13 +164,10 @@ enum CloudDatabaseSaver {
         }
         let newData = try environment.encryptDraft(draft, compositeKey, header)
 
-        // Back up the pre-save local bytes before uploading. `currentData` is
-        // available up front, so writing the backup first keeps every local
-        // file operation ahead of the remote change. If the backup instead
-        // ran after a successful upload, a local write failure there would
-        // report the whole save as failed even though the remote already
-        // advanced — surfacing as a spurious "changed outside KeeForge"
-        // conflict on the next retry.
+        // Back up before uploading, so every local file operation stays ahead
+        // of the remote change. Backing up afterwards would let a local write
+        // failure report the save as failed with the remote already advanced —
+        // a spurious "changed outside KeeForge" conflict on the next retry.
         let backupDirectoryURL = environment.backupDirectoryURL(reference)
         try environment.createDirectory(backupDirectoryURL)
 

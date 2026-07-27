@@ -141,24 +141,18 @@ struct KDBXXMLSerializer {
             knownChildCount += 1
         }
 
-        // Positioned after `<Times>`/`<IsExpanded>` and before the children,
-        // which is where KeePass writes it — the opaque-XML insertion indices
-        // recorded by the parser are relative to that same sequence. Absent
-        // (`nil`) means the source group had no element, so none is written and
-        // `knownChildCount` stays put, mirroring the parser exactly.
+        // Child order here must match KeePass's, because the parser's recorded
+        // opaque-XML insertion indices are relative to the same sequence. A
+        // group whose source had no element writes none and leaves
+        // `knownChildCount` put, mirroring the parser.
         if let searchingEnabled = group.searchingEnabled {
             xml += try opaqueXML(from: group.unknownXML, path: [], insertionIndex: knownChildCount)
             xml += element("EnableSearching", value: searchingEnabled.xmlValue)
             knownChildCount += 1
         }
 
-        // KDBX 4.1 group tags, read-only: positioned after `<EnableSearching>`
-        // and before the child entries, matching KeePass's own group child
-        // order — the opaque-XML insertion indices recorded by the parser are
-        // relative to this same sequence. A group whose source had no `<Tags>`
-        // element (flag unset, list empty) writes none and `knownChildCount`
-        // stays put, mirroring the parser exactly: KeeForge never invents a
-        // group tag, so no format-version bump is ever needed.
+        // KDBX 4.1 group tags are read-only: KeeForge never invents one, so no
+        // format-version bump is ever needed.
         if group.hasTagsElement || !group.tags.isEmpty {
             xml += try opaqueXML(from: group.unknownXML, path: [], insertionIndex: knownChildCount)
             xml += element("Tags", value: escape(group.tags.joined(separator: ",")))
@@ -184,15 +178,11 @@ struct KDBXXMLSerializer {
 
     private mutating func serializeEntry(_ entry: KPEntry) throws -> String {
         var xml = "<Entry>"
-        // `knownChildCount` is the opaque-XML position space: it advances for
-        // every structural child, including `<Binary>`, exactly mirroring
-        // `EntryBuilder.knownChildCount` on the parser side (recordOpaqueXML's
-        // Entry case increments it for Binary too). `attachmentAnchor` is a
-        // second, slower counter that only advances for non-attachment known
-        // elements — it mirrors `EntryBuilder.attachmentAnchorChildCount` and
-        // is what `KPAttachment.insertionIndex` is expressed against, so that
-        // multiple attachments recorded at the same source position don't
-        // pollute each other's recorded index.
+        // Two counters, mirroring `EntryBuilder`: `knownChildCount` is the
+        // opaque-XML position space and advances for every structural child
+        // including `<Binary>`, while `attachmentAnchor` skips attachments and
+        // is what `KPAttachment.insertionIndex` is expressed against, so
+        // attachments at the same source position don't shift each other.
         var knownChildCount = 0
         var attachmentAnchor = 0
         var remainingAttachments = entry.attachments
@@ -204,12 +194,9 @@ struct KDBXXMLSerializer {
                 if attachment.insertionIndex == attachmentAnchor {
                     matched += serializeBinary(attachment)
                     knownChildCount += 1
-                    // Advancing `knownChildCount` opens up a new opaque-XML
-                    // position between this attachment and whatever comes
-                    // next, since the parser bumps `entry.knownChildCount`
-                    // for every parsed Binary too. Query it immediately so
-                    // unknown fragments recorded at that position aren't
-                    // silently skipped by the next, later opaque lookup.
+                    // The bump above opened a new opaque-XML position; query it
+                    // now or fragments recorded there are skipped by the next,
+                    // later lookup.
                     matched += try opaqueXML(from: entry.unknownXML, path: [], insertionIndex: knownChildCount)
                 } else {
                     stillPending.append(attachment)

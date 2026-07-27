@@ -80,20 +80,11 @@ enum SettingsService {
 
     // MARK: - macOS Lock Policy
     //
-    // Mapping from the iOS lock model to macOS:
-    //
-    // On iOS, `lockOnBackground == true` plus the `.immediately` auto-lock
-    // default means the vault locks whenever the app leaves the foreground.
-    // macOS has no equivalent single "backgrounded" moment — apps deactivate
-    // constantly during normal window switching — so the iOS default maps to
-    // locking on the deterministic "user walked away" system events instead:
-    // screen lock, screensaver start, system sleep, and fast-user-switch
-    // session resign (`MacLockMonitor` observes all of these). That is
-    // `MacLockPolicy.screenLockOrSleep`, the macOS default.
-    //
-    // The stricter `.appDeactivates` option additionally locks on
-    // `NSApplication.didResignActiveNotification`, i.e. every time KeeForge
-    // stops being the frontmost app.
+    // macOS has no single "backgrounded" moment to mirror iOS's lock-on-
+    // background — apps deactivate constantly during window switching — so the
+    // default maps to the deterministic "user walked away" events
+    // `MacLockMonitor` observes: screen lock, screensaver, sleep, and
+    // fast-user-switch resign.
 
     enum MacLockPolicy: String, CaseIterable, Sendable {
         case screenLockOrSleep = "screenLockOrSleep"
@@ -266,11 +257,9 @@ enum SettingsService {
 
     // MARK: - Block Screen Capture (macOS)
     //
-    // Best-effort request to exclude KeeForge's windows from screenshots and
-    // screen recordings via `NSWindow.sharingType`. Defaults on. macOS-only in
-    // the UI; the key exists cross-platform so the setting round-trips in shared
-    // tests, but iOS ignores it (iOS uses `UIScreen.isCaptured` shielding). App-
-    // local (standard defaults), not App Group-shared — it is a per-device UI
+    // macOS-only in the UI, but the key exists cross-platform so the setting
+    // round-trips in shared tests; iOS shields via `UIScreen.isCaptured`
+    // instead. App-local defaults, not the App Group — a per-device UI
     // preference, not extension state.
 
     static var blockScreenCapture: Bool {

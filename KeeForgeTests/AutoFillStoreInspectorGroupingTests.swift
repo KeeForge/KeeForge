@@ -1,8 +1,5 @@
-// Unit coverage for the DEBUG-only AutoFill store inspector's pure grouping
-// helpers (epic: 2026-07-20-autofill-store-validation-harness, slice 01).
 // Identities are hand-built with current / legacy / garbage record identifiers,
-// mirroring CredentialIdentityStoreManagerTests' construction pattern — no
-// KPEntry and no store involved.
+// mirroring CredentialIdentityStoreManagerTests — no KPEntry, no store.
 #if DEBUG
 @preconcurrency import AuthenticationServices
 import XCTest

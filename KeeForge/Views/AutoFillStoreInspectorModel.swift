@@ -1,12 +1,7 @@
 #if DEBUG
-// DEBUG-only developer tooling for the AutoFill store-validation harness
-// (epic: 2026-07-20-autofill-store-validation-harness, slice 01). Nothing in
-// this file ships in Release builds, and none of it reads decrypted secrets:
-// it inspects only the OS-managed credential identity store's metadata
-// (enabled state, counts, parsed record-identifier tags, service identifiers,
-// usernames/labels). Display strings are intentionally NOT localized —
-// `Text(verbatim:)`-friendly plain strings keep this dev-only surface out of
-// the shipped String Catalogs and the German-completeness gate.
+// DEBUG-only inspector for the OS credential identity store's metadata; it
+// reads no decrypted secrets. Display strings are deliberately unlocalized so
+// this dev-only surface stays out of the shipped catalogs and the German gate.
 @preconcurrency import AuthenticationServices
 import Foundation
 

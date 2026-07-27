@@ -1,9 +1,7 @@
 #if DEBUG
-// DEBUG-only AutoFill store inspector (epic:
-// 2026-07-20-autofill-store-validation-harness, slice 01). Presented full-screen
-// at the app root when launched with `-autofill-store-inspector`; the argument
-// does nothing in Release builds. Reads only store metadata — never touches
-// EncryptedValue or vault contents, and needs no database unlocked.
+// Presented at the app root when launched with `-autofill-store-inspector`; the
+// argument does nothing in Release builds. Reads only store metadata — never
+// EncryptedValue or vault contents — so it needs no database unlocked.
 @preconcurrency import AuthenticationServices
 import SwiftUI
 

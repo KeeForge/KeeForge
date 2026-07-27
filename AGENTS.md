@@ -48,6 +48,7 @@ Repo skills live in `.agents/skills/` (`release`, `spec-creator`, `publish-app-s
 - Keep crypto, parsing, and secret handling off the main thread.
 - Treat these `KeeForge/Models/` files as stable core: `KDBXParser.swift`, `KDBX3Parser.swift`, `KDBXWriter.swift`, `KDBXXMLSerializer.swift`, `KDBXCrypto.swift`, `KDBXOuterCipher.swift`, `OpaqueXMLNodes.swift`, `DatabaseDraft.swift`, `EntryEdit.swift`, `Entry.swift`, `Group.swift`, `EncryptedValue.swift`, `TOTPGenerator.swift`. Change them only for real bugs or intentional format/security work, and add focused tests.
 - No force unwraps outside tests.
+- Keep comments minimal. A comment is only warranted when the code cannot explain itself — a non-obvious constraint, a format/platform quirk, or the reason behind a surprising choice. Don't restate what the code already says, don't narrate control flow, and don't leave changelog-style notes ("was X, now Y") or review/audit chatter in the source; that belongs in the commit message. Prefer one short line over a paragraph.
 
 ### Workflows
 
