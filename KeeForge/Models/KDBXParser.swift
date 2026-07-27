@@ -115,6 +115,7 @@ enum KDBXParser {
         var innerStreamID: UInt32 = 0
         var innerStreamKey = Data()
         var innerHeaderBinaryFields: [Data] = []
+        var unknownInnerHeaderFields: [UnknownHeaderField] = []
     }
 
     // MARK: - Errors
@@ -348,6 +349,7 @@ enum KDBXParser {
         header.innerStreamID = innerHeader.streamID
         header.innerStreamKey = innerHeader.streamKey
         header.innerHeaderBinaryFields = innerHeader.binaryFields
+        header.unknownInnerHeaderFields = innerHeader.unknownFields
 
         // Some producers omit the inner header and write payload directly.
         // If we consumed the whole payload without discovering header fields,
@@ -357,6 +359,7 @@ enum KDBXParser {
             innerHeader.streamKey.isEmpty
         if missingInnerHeader {
             innerReader.offset = 0
+            header.unknownInnerHeaderFields = []
         }
 
         // 9. Get remaining data (the XML or compressed XML)
@@ -452,24 +455,27 @@ enum KDBXParser {
 
     static func parseInnerHeader(
         _ reader: inout DataReader
-    ) throws -> (streamID: UInt32, streamKey: Data, binaryFields: [Data]) {
+    ) throws -> (streamID: UInt32, streamKey: Data, binaryFields: [Data], unknownFields: [UnknownHeaderField]) {
         var streamID: UInt32 = 0
         var streamKey = Data()
         var binaryFields: [Data] = []
+        var unknownFields: [UnknownHeaderField] = []
 
         while reader.hasMore {
             let fieldID = try reader.readUInt8()
             let fieldSize = Int(try reader.readUInt32())
 
             guard let field = InnerHeaderField(rawValue: fieldID) else {
-                try reader.skip(fieldSize)
+                unknownFields.append(
+                    UnknownHeaderField(id: fieldID, data: try reader.readBytes(fieldSize))
+                )
                 continue
             }
 
             switch field {
             case .endOfHeader:
                 try reader.skip(fieldSize)
-                return (streamID, streamKey, binaryFields)
+                return (streamID, streamKey, binaryFields, unknownFields)
             case .innerRandomStreamID:
                 streamID = try reader.readUInt32From(fieldSize)
             case .innerRandomStreamKey:
@@ -479,7 +485,7 @@ enum KDBXParser {
             }
         }
 
-        return (streamID, streamKey, binaryFields)
+        return (streamID, streamKey, binaryFields, unknownFields)
     }
 
     // MARK: - Variant Map (KDF Parameters)

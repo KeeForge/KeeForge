@@ -385,6 +385,8 @@ targets:
         buildPhase: resources
       - path: TestFixtures/compatibility/group-tags.kdbx
         buildPhase: resources
+      - path: TestFixtures/compatibility/unknown-inner-header.kdbx
+        buildPhase: resources
       - path: TestFixtures/test-v3-backup.kdbx
         buildPhase: resources
       - path: TestFixtures/demo-keyfile.key
@@ -509,6 +511,8 @@ targets:
       - path: TestFixtures/compatibility/foreign-twofish.kdbx
         buildPhase: resources
       - path: TestFixtures/compatibility/group-tags.kdbx
+        buildPhase: resources
+      - path: TestFixtures/compatibility/unknown-inner-header.kdbx
         buildPhase: resources
       - path: TestFixtures/test-v3-backup.kdbx
         buildPhase: resources

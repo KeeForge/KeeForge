@@ -1063,6 +1063,61 @@ final class KDBXParserTests: XCTestCase {
         XCTAssertTrue(plain.tags.isEmpty)
     }
 
+    // MARK: - Unknown Inner-Header Fields Fixture
+
+    /// `compatibility/unknown-inner-header.kdbx` carries three inner-header
+    /// items whose type IDs KDBX4 does not define — including a zero-length
+    /// one and one spliced between the two binary-pool entries (see
+    /// `TestFixtures/compatibility/generate_unknown_inner_header_fixture.py`).
+    /// Parsing must retain them in on-disk relative order and leave the entry,
+    /// its protected password, and both attachments untouched.
+    func testUnknownInnerHeaderFixtureRetainsUnknownFieldsWithoutDisturbingContent() throws {
+        let bundle = Bundle(for: KDBXParserTests.self)
+        let url = try TestDatabaseSupport.fixtureURL(
+            named: "unknown-inner-header",
+            subdirectory: "compatibility",
+            bundle: bundle
+        )
+        let data = try Data(contentsOf: url)
+        let parsed = try KDBXParser.parseWithMetaAndHeader(
+            data: data,
+            password: "unknown-inner-header",
+            sessionKey: testSessionKey
+        )
+
+        XCTAssertEqual(
+            parsed.header.unknownInnerHeaderFields,
+            [
+                KDBXParser.UnknownHeaderField(id: 0x21, data: Data("mid-pool-unknown-field".utf8)),
+                KDBXParser.UnknownHeaderField(
+                    id: 0x7F,
+                    data: Data("kdbx-format-hardening-fixture:unknown-field-0x7f-marker".utf8)
+                ),
+                KDBXParser.UnknownHeaderField(id: 0x10, data: Data()),
+            ]
+        )
+
+        let group = try XCTUnwrap(findGroup(named: "Unknown Header", in: parsed.rootGroup))
+        let entry = try XCTUnwrap(group.entries.first { $0.title == "Inner Header Entry" })
+        XCTAssertEqual(entry.username, "unknown-header-user")
+        XCTAssertEqual(try entry.password.decrypt(using: testSessionKey), "UnknownHeaderSecret1")
+        XCTAssertEqual(entry.url, "https://unknown-header.example.com")
+
+        let pool = BinaryPool(rawFields: parsed.header.innerHeaderBinaryFields)
+        XCTAssertEqual(pool.count, 2)
+        var resolved: [String: Data] = [:]
+        for attachment in entry.attachments {
+            resolved[attachment.name] = try XCTUnwrap(pool[attachment.ref]?.data)
+        }
+        XCTAssertEqual(
+            resolved,
+            [
+                "alpha-attachment.txt": Data("alpha attachment payload for unknown-inner-header fixture\n".utf8),
+                "beta-attachment.txt": Data("beta attachment payload for unknown-inner-header fixture\n".utf8),
+            ]
+        )
+    }
+
     // MARK: - Helpers
 
     private func parseFixture() throws -> KPGroup {

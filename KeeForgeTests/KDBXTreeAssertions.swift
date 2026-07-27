@@ -34,6 +34,16 @@ struct KDBXTestFixture {
         keyFileName: "demo-keyfile",
         keyFileExtension: "key"
     )
+    /// KDBX4 fixture whose inner header carries three items with type IDs the
+    /// format does not define; see
+    /// `TestFixtures/compatibility/generate_unknown_inner_header_fixture.py`.
+    static let unknownInnerHeader = KDBXTestFixture(
+        name: "unknown-inner-header",
+        subdirectory: "compatibility",
+        password: "unknown-inner-header",
+        keyFileName: nil,
+        keyFileExtension: nil
+    )
     static let unknownElements = KDBXTestFixture(
         name: "unknown-elements",
         subdirectory: "round-trip",
