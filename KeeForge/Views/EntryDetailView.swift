@@ -178,18 +178,14 @@ struct EntryDetailView: View {
                                     .accessibilityIdentifier("database.read-only-indicator")
                             } else {
                                 Button("Edit") {
-                                    Task {
-                                        let result = await viewModel.acknowledgeEditingIfNeeded()
-                                        guard result == .acknowledged,
-                                              let currentEntry = viewModel.entry(withID: entryID),
-                                              let currentSessionKey = viewModel.sessionKey else { return }
-                                        activeEditor = EntryEditViewModel(
-                                            editing: currentEntry,
-                                            sessionKey: currentSessionKey,
-                                            knownTags: viewModel.tagsInDisplayOrder,
-                                            inheritedTags: viewModel.inheritedTags(forEntryID: entryID)
-                                        )
-                                    }
+                                    guard let currentEntry = viewModel.entry(withID: entryID),
+                                          let currentSessionKey = viewModel.sessionKey else { return }
+                                    activeEditor = EntryEditViewModel(
+                                        editing: currentEntry,
+                                        sessionKey: currentSessionKey,
+                                        knownTags: viewModel.tagsInDisplayOrder,
+                                        inheritedTags: viewModel.inheritedTags(forEntryID: entryID)
+                                    )
                                 }
                                 .accessibilityIdentifier("entry-detail.edit")
                             }

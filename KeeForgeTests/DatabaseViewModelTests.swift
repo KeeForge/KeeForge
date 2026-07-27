@@ -2649,68 +2649,6 @@ final class DatabaseViewModelTests: XCTestCase {
         XCTAssertEqual(vm.pendingLockRequest, .init(manuallyTriggered: false))
     }
 
-    func testAcknowledgeEditingIfNeededLocalUnsyncedReturnsAcknowledgedImmediately() async throws {
-        var reference = try makeReference()
-        reference.bookmarkData = nil
-
-        let vm = DatabaseViewModel(
-            databaseReference: reference,
-            syncedFolderDetector: { _ in
-                XCTFail("Synced folder detection should not run when there is no bookmark.")
-                return .dropbox
-            }
-        )
-
-        let result = await vm.acknowledgeEditingIfNeeded()
-
-        XCTAssertEqual(result, .acknowledged)
-        XCTAssertNil(vm.syncedFolderWarning)
-    }
-
-    func testAcknowledgeEditingIfNeededAlreadyAcknowledgedReturnsAcknowledgedImmediately() async throws {
-        var reference = try makeReference()
-        reference.editsAcknowledgedAt = Date(timeIntervalSince1970: 10)
-
-        let vm = DatabaseViewModel(
-            databaseReference: reference,
-            syncedFolderDetector: { _ in
-                XCTFail("Synced folder detection should not run after acknowledgment.")
-                return .dropbox
-            },
-            syncedFolderWarningHandler: { _ in
-                XCTFail("Warning handler should not run after acknowledgment.")
-                return .continueEditing
-            }
-        )
-
-        let result = await vm.acknowledgeEditingIfNeeded()
-
-        XCTAssertEqual(result, .acknowledged)
-    }
-
-    func testAcknowledgeEditingIfNeededDropboxPromptsAndPersistsAcknowledgment() async throws {
-        let reference = try makeReference()
-        DatabaseListStore.update(reference)
-
-        var capturedWarning: SyncedFolderWarning?
-        let vm = DatabaseViewModel(
-            databaseReference: reference,
-            syncedFolderDetector: { _ in .dropbox },
-            syncedFolderWarningHandler: { warning in
-                capturedWarning = warning
-                return .continueEditing
-            }
-        )
-
-        let result = await vm.acknowledgeEditingIfNeeded()
-        let updatedReference = try XCTUnwrap(DatabaseListStore.databases.first(where: { $0.id == reference.id }))
-
-        XCTAssertEqual(result, .acknowledged)
-        XCTAssertEqual(capturedWarning?.location, .dropbox)
-        XCTAssertNotNil(updatedReference.editsAcknowledgedAt)
-        XCTAssertNil(vm.syncedFolderWarning)
-    }
-
     func testSetReadOnlyUpdatesInMemoryReferenceAndStore() throws {
         let reference = try makeReference()
         DatabaseListStore.update(reference)
@@ -2728,24 +2666,6 @@ final class DatabaseViewModelTests: XCTestCase {
         XCTAssertFalse(vm.isReadOnly)
         let storedAfterOff = try XCTUnwrap(DatabaseListStore.databases.first(where: { $0.id == reference.id }))
         XCTAssertFalse(storedAfterOff.isReadOnly)
-    }
-
-    func testAcknowledgeEditingIfNeededDropboxKeepReadOnlySetsFlagReturnsKeptReadOnly() async throws {
-        let reference = try makeReference()
-        DatabaseListStore.update(reference)
-
-        let vm = DatabaseViewModel(
-            databaseReference: reference,
-            syncedFolderDetector: { _ in .dropbox },
-            syncedFolderWarningHandler: { _ in .keepReadOnly }
-        )
-
-        let result = await vm.acknowledgeEditingIfNeeded()
-        let updatedReference = try XCTUnwrap(DatabaseListStore.databases.first(where: { $0.id == reference.id }))
-
-        XCTAssertEqual(result, .keptReadOnly)
-        XCTAssertTrue(updatedReference.isReadOnly)
-        XCTAssertTrue(vm.isReadOnly)
     }
 
     private func makeViewModel(
@@ -2849,12 +2769,6 @@ final class DatabaseViewModelTests: XCTestCase {
                 binaryPool: BinaryPool(rawFields: parsed.header.innerHeaderBinaryFields)
             )
         },
-        syncedFolderDetector: @escaping DatabaseViewModel.SyncedFolderDetectionOperation = { _ in
-            .notSynced
-        },
-        syncedFolderWarningHandler: @escaping DatabaseViewModel.SyncedFolderWarningHandler = { _ in
-            .continueEditing
-        },
         conflictCopyDateProvider: @escaping @Sendable () -> Date = { .now },
         nowProvider: @escaping @Sendable () -> Date = { .now }
     ) throws -> DatabaseViewModel {
@@ -2873,8 +2787,6 @@ final class DatabaseViewModelTests: XCTestCase {
             localConflictCopyOperation: localConflictCopyOperation,
             cloudConflictCopyOperation: cloudConflictCopyOperation,
             reloadOperation: reloadOperation,
-            syncedFolderDetector: syncedFolderDetector,
-            syncedFolderWarningHandler: syncedFolderWarningHandler,
             conflictCopyDateProvider: conflictCopyDateProvider,
             nowProvider: nowProvider
         )

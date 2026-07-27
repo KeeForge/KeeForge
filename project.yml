@@ -198,7 +198,6 @@ targets:
       - path: KeeForge/Views/PasswordDisplay.swift
       - path: KeeForge/Views/PasswordInputRow.swift
       - path: KeeForge/Services/Persistence/SecurityScopedBookmarkManager.swift
-      - path: KeeForge/Services/Persistence/SyncedFolderDetector.swift
       - path: KeeForge/Extensions/PlatformCompat.swift
       # <<< SHARED AUTOFILL ALLOW-LIST (maintenance invariant) <<<
 
@@ -264,7 +263,6 @@ targets:
       - path: KeeForge/Views/PasswordDisplay.swift
       - path: KeeForge/Views/PasswordInputRow.swift
       - path: KeeForge/Services/Persistence/SecurityScopedBookmarkManager.swift
-      - path: KeeForge/Services/Persistence/SyncedFolderDetector.swift
       - path: KeeForge/Extensions/PlatformCompat.swift
       # <<< SHARED AUTOFILL ALLOW-LIST (maintenance invariant) <<<
 

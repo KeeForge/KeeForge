@@ -431,14 +431,6 @@ enum DatabaseListStore {
         }
     }
 
-    static func acknowledgeEdits(for reference: DatabaseReference, at date: Date = .now) {
-        withStateLock {
-            guard var updatedReference = loadDatabases().first(where: { $0.id == reference.id }) else { return }
-            updatedReference.editsAcknowledgedAt = date
-            update(updatedReference)
-        }
-    }
-
     static func move(from source: IndexSet, to destination: Int) {
         withStateLock {
             var currentDatabases = loadDatabases()

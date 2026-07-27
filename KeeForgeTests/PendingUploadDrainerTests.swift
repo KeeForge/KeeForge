@@ -513,7 +513,6 @@ final class PendingUploadDrainerTests: XCTestCase {
             colorTag: nil,
             legacyKeychainFilename: nil,
             isReadOnly: isReadOnly,
-            editsAcknowledgedAt: nil,
             source: .cloud(
                 CloudSyncMetadata(
                     provider: CloudProviderKind.dropbox.rawValue,

@@ -527,7 +527,6 @@ final class LocalDatabaseSaverTests: XCTestCase {
             legacyKeychainFilename: nil,
             isReadOnly: false,
             autoFillEnabled: true,
-            editsAcknowledgedAt: nil,
             source: .cloud(
                 CloudSyncMetadata(
                     provider: CloudProviderKind.dropbox.rawValue,
