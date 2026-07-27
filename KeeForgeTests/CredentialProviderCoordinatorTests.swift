@@ -33,6 +33,7 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
         let sharedDefaults = UserDefaults(suiteName: SharedVaultStore.appGroupID) ?? .standard
         sharedDefaults.removeObject(forKey: "KeeForge.quickAutoFillEnabled")
         sharedDefaults.removeObject(forKey: "KeeForge.autoFillCopyTOTP")
+        sharedDefaults.removeObject(forKey: "KeeForge.autoUnlockWithFaceID")
     }
 
     private func resetCredentialIdentityStoreSeams() {
@@ -900,46 +901,50 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
 
     // MARK: - Silent-path resolution (slice 03)
 
-    // `BiometricService.isAvailable` is false under simulator tests, so the
-    // silent paths can never complete a fill here; resolution is asserted via
-    // the scheduled cleanup observers plus the `.userInteractionRequired`
-    // cancellation (the system then relaunches the extension interactively).
+    // No-UI callbacks must not authenticate, load vault state, or mutate the
+    // identity store; they hand control back to the interactive path.
 
-    func test_silentFill_staleIdentifierCleansUpAndCancelsUserInteractionRequired() async throws {
+    func test_silentFillNeverResolvesOrUnlocksAndCancelsUserInteractionRequired() async throws {
         SettingsService.quickAutoFillEnabled = true
 
-        // Unknown-database identifier → targeted removal + interactive relaunch.
         let (unknownCoordinator, unknownPresenter) = makeCoordinator()
-        let unknownDatabaseID = UUID()
-        let removalScheduled = expectation(description: "targeted removal scheduled")
-        CredentialIdentityStoreManager.removeDatabaseObserver = { databaseID, _ in
-            XCTAssertEqual(databaseID, unknownDatabaseID)
-            removalScheduled.fulfill()
+        CredentialIdentityStoreManager.removeDatabaseObserver = { _, _ in
+            XCTFail("Silent requests must not mutate the identity store")
         }
 
         unknownCoordinator.provideCredentialWithoutUserInteraction(
             for: makePasswordIdentity(
-                recordIdentifier: CredentialRecordIdentifier(databaseID: unknownDatabaseID, entryID: UUID()).encoded
+                recordIdentifier: CredentialRecordIdentifier(databaseID: UUID(), entryID: UUID()).encoded
             )
         )
 
-        await fulfillment(of: [removalScheduled], timeout: 1)
         XCTAssertEqual(unknownPresenter.cancelledError?.code, .userInteractionRequired)
         assertCleanedUp(unknownCoordinator)
 
-        // Unrecognized identifier → whole-store clear + interactive relaunch.
-        CredentialIdentityStoreManager.removeDatabaseObserver = nil
         let (staleCoordinator, stalePresenter) = makeCoordinator()
-        let storeCleared = expectation(description: "clearStore scheduled")
-        CredentialIdentityStoreManager.clearObserver = { storeCleared.fulfill() }
+        CredentialIdentityStoreManager.clearObserver = {
+            XCTFail("Silent requests must not mutate the identity store")
+        }
 
         staleCoordinator.provideCredentialWithoutUserInteraction(
             for: makePasswordIdentity(recordIdentifier: "v9:garbage")
         )
 
-        await fulfillment(of: [storeCleared], timeout: 1)
         XCTAssertEqual(stalePresenter.cancelledError?.code, .userInteractionRequired)
         assertCleanedUp(staleCoordinator)
+    }
+
+    func test_silentPasskeyNeverCallsBiometricsOrLoadsVault() {
+        SettingsService.quickAutoFillEnabled = true
+        let (coordinator, presenter) = makeCoordinator()
+
+        coordinator.provideCredentialWithoutUserInteraction(
+            for: makePasskeyRequest(recordIdentifier: CredentialRecordIdentifier(databaseID: UUID(), entryID: UUID()).encoded)
+        )
+
+        XCTAssertEqual(presenter.cancelledError?.code, .userInteractionRequired)
+        XCTAssertTrue(coordinator.parsedEntries.isEmpty)
+        XCTAssertNil(coordinator.sessionKey)
     }
 
     func test_silentFill_zeroEnabledDatabasesCancelsUserInteractionRequired() async throws {

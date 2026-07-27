@@ -289,15 +289,7 @@ final class CredentialProviderCoordinator {
     }
 
     func provideCredentialWithoutUserInteraction(for credentialRequest: ASCredentialRequest) {
-        if let passkeyRequest = credentialRequest as? ASPasskeyCredentialRequest {
-            providePasskeyWithoutUserInteraction(for: passkeyRequest)
-        } else if let passwordIdentity = credentialRequest.credentialIdentity as? ASPasswordCredentialIdentity {
-            provideCredentialWithoutUserInteraction(for: passwordIdentity)
-        } else if #available(iOS 18.0, macOS 15.0, *), credentialRequest is ASOneTimeCodeCredentialRequest {
-            provideOTCWithoutUserInteraction(for: credentialRequest)
-        } else {
-            cancelRequest(code: .failed)
-        }
+        cancelRequest(code: .userInteractionRequired)
     }
 
     /// Called by the shell once its view hierarchy is on screen.
@@ -334,70 +326,7 @@ final class CredentialProviderCoordinator {
     }
 
     func provideCredentialWithoutUserInteraction(for credentialIdentity: ASPasswordCredentialIdentity) {
-        guard SettingsService.quickAutoFillEnabled else {
-            cancelRequest(code: .userInteractionRequired)
-            return
-        }
-
-        let recordIdentifier = credentialIdentity.recordIdentifier
-
-        // Resolve the owning database before evaluating biometrics: the
-        // request must unlock the database that published the identity, and
-        // its keychain state — not the active database's — decides whether a
-        // zero-interaction unlock is possible.
-        guard let databaseReference = resolveSilentRequestDatabase(forRecordIdentifier: recordIdentifier) else {
-            cancelRequest(code: .userInteractionRequired)
-            return
-        }
-
-        guard canUseBiometrics(for: databaseReference) else {
-            cancelRequest(code: .userInteractionRequired)
-            return
-        }
-
-        Task {
-            do {
-                let context = try await BiometricService.authenticate(reason: String(localized: "AutoFill with KeeForge"))
-                let compositeKey = try retrieveCompositeKey(for: databaseReference, context: context)
-                try await loadEntries(
-                    compositeKey: compositeKey,
-                    databaseReference: databaseReference
-                )
-                persistCompositeKeyIfPossible(compositeKey, for: databaseReference)
-                recordSuccessfulUnlock(for: databaseReference)
-                let passwordEntries = parsedEntries.filter { $0.hasPassword && !$0.isExpired() }
-
-                if let recordIdentifier,
-                   let entry = entryMatching(recordIdentifier: recordIdentifier, in: passwordEntries) {
-                    guard !mustEscalateToInteractiveFill(for: entry) else {
-                        cancelRequest(code: .userInteractionRequired)
-                        return
-                    }
-                    completeRequest(with: entry)
-                } else {
-                    removeStaleIdentityIfEntryMissing(recordIdentifier: recordIdentifier)
-                    // Zero-interaction fallback: only an unambiguous host-based
-                    // match may be filled without the user picking an entry.
-                    let matches = CredentialMatcher.strictMatchedEntries(
-                        from: passwordEntries,
-                        for: [credentialIdentity.serviceIdentifier]
-                    )
-                    if matches.count == 1, let entry = matches.first {
-                        guard !mustEscalateToInteractiveFill(for: entry) else {
-                            cancelRequest(code: .userInteractionRequired)
-                            return
-                        }
-                        completeRequest(with: entry)
-                    } else if matches.isEmpty {
-                        cancelRequest(code: .credentialIdentityNotFound)
-                    } else {
-                        cancelRequest(code: .userInteractionRequired)
-                    }
-                }
-            } catch {
-                cancelRequest(code: .userInteractionRequired)
-            }
-        }
+        cancelRequest(code: .userInteractionRequired)
     }
 
     /// Whether the silent (no-UI) QuickType fill must bounce back to the system
@@ -513,41 +442,7 @@ final class CredentialProviderCoordinator {
     // MARK: - Passkey silent auth
 
     private func providePasskeyWithoutUserInteraction(for request: ASPasskeyCredentialRequest) {
-        guard SettingsService.quickAutoFillEnabled else {
-            cancelRequest(code: .userInteractionRequired)
-            return
-        }
-
-        // Passkey assertions resolve their owning database exactly like
-        // password fills: by the identity's record identifier.
-        guard let databaseReference = resolveSilentRequestDatabase(
-            forRecordIdentifier: request.credentialIdentity.recordIdentifier
-        ) else {
-            cancelRequest(code: .userInteractionRequired)
-            return
-        }
-
-        guard canUseBiometrics(for: databaseReference) else {
-            cancelRequest(code: .userInteractionRequired)
-            return
-        }
-
-        Task {
-            do {
-                let context = try await BiometricService.authenticate(reason: String(localized: "Passkey sign-in with KeeForge"))
-                let compositeKey = try retrieveCompositeKey(for: databaseReference, context: context)
-                try await loadEntries(
-                    compositeKey: compositeKey,
-                    databaseReference: databaseReference
-                )
-                persistCompositeKeyIfPossible(compositeKey, for: databaseReference)
-                recordSuccessfulUnlock(for: databaseReference)
-
-                try completePasskeyRequest(request)
-            } catch {
-                cancelRequest(code: .userInteractionRequired)
-            }
-        }
+        cancelRequest(code: .userInteractionRequired)
     }
 
     // MARK: - Unlock flow
@@ -682,21 +577,6 @@ final class CredentialProviderCoordinator {
             activeDatabaseReference = fallback
             return fallback
         case .unavailable:
-            return nil
-        }
-    }
-
-    /// Silent-flow resolution: nil means the request cannot proceed without
-    /// interaction (stale identifier — cleanup already scheduled — or no
-    /// enabled database). Callers cancel with `.userInteractionRequired` so
-    /// the system relaunches the extension interactively, where the fallback
-    /// search or empty state takes over.
-    private func resolveSilentRequestDatabase(forRecordIdentifier recordIdentifier: String?) -> DatabaseReference? {
-        switch resolveRequestDatabase(forRecordIdentifier: recordIdentifier) {
-        case .database(let reference):
-            activeDatabaseReference = reference
-            return reference
-        case .stale, .unavailable:
             return nil
         }
     }
@@ -1308,52 +1188,7 @@ final class CredentialProviderCoordinator {
     // MARK: - One-time code (TOTP) support
 
     private func provideOTCWithoutUserInteraction(for credentialRequest: ASCredentialRequest) {
-        guard SettingsService.quickAutoFillEnabled else {
-            cancelRequest(code: .userInteractionRequired)
-            return
-        }
-
-        let recordIdentifier = credentialRequest.credentialIdentity.recordIdentifier
-
-        // One-time-code requests resolve their owning database exactly like
-        // password fills: by the identity's record identifier.
-        guard let databaseReference = resolveSilentRequestDatabase(forRecordIdentifier: recordIdentifier) else {
-            cancelRequest(code: .userInteractionRequired)
-            return
-        }
-
-        guard canUseBiometrics(for: databaseReference) else {
-            cancelRequest(code: .userInteractionRequired)
-            return
-        }
-
-        Task {
-            do {
-                let context = try await BiometricService.authenticate(reason: String(localized: "AutoFill with KeeForge"))
-                let compositeKey = try retrieveCompositeKey(for: databaseReference, context: context)
-                try await loadEntries(
-                    compositeKey: compositeKey,
-                    databaseReference: databaseReference
-                )
-                persistCompositeKeyIfPossible(compositeKey, for: databaseReference)
-                recordSuccessfulUnlock(for: databaseReference)
-
-                if #available(iOS 18.0, macOS 15.0, *) {
-                    let totpEntries = parsedEntries.filter { $0.hasTOTP && !$0.isExpired() }
-                    if let recordIdentifier,
-                       let entry = entryMatching(recordIdentifier: recordIdentifier, in: totpEntries) {
-                        completeOTCRequest(with: entry)
-                    } else {
-                        removeStaleIdentityIfEntryMissing(recordIdentifier: recordIdentifier)
-                        cancelRequest(code: .credentialIdentityNotFound)
-                    }
-                } else {
-                    cancelRequest(code: .failed)
-                }
-            } catch {
-                cancelRequest(code: .userInteractionRequired)
-            }
-        }
+        cancelRequest(code: .userInteractionRequired)
     }
 
     // Internal (not private) so unit tests can drive the pending-OTC
