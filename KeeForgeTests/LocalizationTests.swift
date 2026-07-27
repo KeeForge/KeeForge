@@ -7,8 +7,8 @@ import XCTest
 /// translation fails here before it ever reaches a build.
 ///
 /// The raw catalogs are copied verbatim into this test bundle at build time by
-/// a `postCompileScripts` phase on the `KeeForgeTests` target (see `project.yml`),
-/// under disambiguated names. Reading them from `Bundle(for:)` — rather than
+/// a `postCompileScripts` phase on the `KeeForgeTests` and `KeeForgeMacTests`
+/// targets (see `project.yml`), under disambiguated names. Reading them from `Bundle(for:)` — rather than
 /// off the source checkout — keeps the test correct on Xcode Cloud, where the
 /// test action runs on machines that do not have the repository checkout.
 final class LocalizationTests: XCTestCase {

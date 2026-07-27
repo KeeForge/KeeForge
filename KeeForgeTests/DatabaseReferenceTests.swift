@@ -22,7 +22,6 @@ final class DatabaseReferenceTests: XCTestCase {
         let decoded = try JSONDecoder().decode(DatabaseReference.self, from: data)
 
         XCTAssertFalse(decoded.isReadOnly)
-        XCTAssertNil(decoded.editsAcknowledgedAt)
         XCTAssertTrue(decoded.autoFillEnabled)
     }
 
@@ -41,7 +40,6 @@ final class DatabaseReferenceTests: XCTestCase {
             legacyKeychainFilename: "legacy",
             isReadOnly: true,
             autoFillEnabled: false,
-            editsAcknowledgedAt: Date(timeIntervalSince1970: 30),
             source: .cloud(
                 CloudSyncMetadata(
                     provider: CloudProviderKind.dropbox.rawValue,

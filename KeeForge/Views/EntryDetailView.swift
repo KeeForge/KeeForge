@@ -13,11 +13,32 @@ struct EntryDetailView: View {
     /// macOS, which selects the tag in its sidebar). Left nil in the compact
     /// shell, where chips push `TagDestination.entries` like any other row.
     var onSelectTag: ((String) -> Void)? = nil
+    /// False in the selection-driven shells (iPad detail column, macOS), where
+    /// this screen is the detail root and closing means clearing the selection:
+    /// their `dismiss` has nothing of this screen's to pop, so it bubbles out
+    /// to the split view and pops the *sidebar's* navigation stack instead.
+    var popsOnClose: Bool = true
     #if os(iOS)
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     #endif
     @Environment(\.dismiss) private var dismiss
     @State private var activeEditor: EntryEditViewModel?
+    /// Set when the editor completes a delete; the close then finishes in
+    /// `onAppear`, a separate transaction from the editor pop (see `body`).
+    @State private var closesAfterEditorDismissal = false
+    /// Both `onAppear`s in `body` can fire on the same reveal, and each
+    /// `dismiss()` would pop one navigation level.
+    @State private var hasFinishedClosing = false
+
+    /// Clears the regular shells' selection and pops this screen, at most once.
+    private func finishClose() {
+        guard hasFinishedClosing == false else { return }
+        hasFinishedClosing = true
+        onClose()
+        if popsOnClose {
+            dismiss()
+        }
+    }
 
     private var entry: KPEntry? {
         viewModel.entry(withID: entryID)
@@ -164,25 +185,20 @@ struct EntryDetailView: View {
                                     .accessibilityIdentifier("database.read-only-indicator")
                             } else {
                                 Button("Edit") {
-                                    Task {
-                                        let result = await viewModel.acknowledgeEditingIfNeeded()
-                                        guard result == .acknowledged,
-                                              let currentEntry = viewModel.entry(withID: entryID),
-                                              let currentSessionKey = viewModel.sessionKey else { return }
-                                        activeEditor = EntryEditViewModel(
-                                            editing: currentEntry,
-                                            sessionKey: currentSessionKey,
-                                            knownTags: viewModel.tagsInDisplayOrder,
-                                            inheritedTags: viewModel.inheritedTags(forEntryID: entryID)
-                                        )
-                                    }
+                                    guard let currentEntry = viewModel.entry(withID: entryID),
+                                          let currentSessionKey = viewModel.sessionKey else { return }
+                                    activeEditor = EntryEditViewModel(
+                                        editing: currentEntry,
+                                        sessionKey: currentSessionKey,
+                                        knownTags: viewModel.tagsInDisplayOrder,
+                                        inheritedTags: viewModel.inheritedTags(forEntryID: entryID)
+                                    )
                                 }
                                 .accessibilityIdentifier("entry-detail.edit")
                             }
                         }
                     }
                 }
-                .modifier(EntryEditorPresentation(view: self))
             } else {
                 ContentUnavailableView(
                     "Entry Unavailable",
@@ -190,9 +206,29 @@ struct EntryDetailView: View {
                     description: Text("This entry no longer exists in the current draft.")
                 )
                 .onAppear {
-                    onClose()
-                    dismiss()
+                    // Mid-editor the vanished entry is the editor's own doing
+                    // (permanent delete): its completion drives the close, so
+                    // the editor pops cleanly after the save instead of being
+                    // torn down mid-flight. On the iPad detail root this
+                    // onAppear fires even while the editor covers it.
+                    guard activeEditor == nil else { return }
+                    finishClose()
                 }
+            }
+        }
+        // Outside the entry branch: a permanent delete removes the entry while
+        // the editor is the topmost pushed view, and a branch-scoped
+        // `navigationDestination` would be torn down with no way to pop it.
+        .modifier(EntryEditorPresentation(view: self))
+        // Re-fires when the pushed editor pops back. The close must wait for
+        // this later transaction — popping the editor and this screen together
+        // drops the second pop on iOS 26. `entry == nil` catches an editor
+        // dismissed any other way (e.g. cancelled) over a vanished entry.
+        .onAppear {
+            let editorJustPopped = closesAfterEditorDismissal
+            closesAfterEditorDismissal = false
+            if editorJustPopped || (activeEditor == nil && entry == nil) {
+                finishClose()
             }
         }
     }
@@ -251,8 +287,14 @@ struct EntryDetailView: View {
             ) { completion in
                 view.activeEditor = nil
                 if completion == .deleted {
-                    view.onClose()
-                    view.dismiss()
+                    // iOS pops only the editor here; `onAppear` in `body`
+                    // finishes the close once the pop lands. macOS sheets never
+                    // re-fire the presenter's `onAppear`, so close directly.
+                    #if os(macOS)
+                    view.finishClose()
+                    #else
+                    view.closesAfterEditorDismissal = true
+                    #endif
                 }
             }
         }
@@ -266,6 +308,10 @@ struct EntryDetailView: View {
 struct TagCapsule: View {
     let tag: String
     var systemImage: String? = nil
+    /// Drawn after the name instead of before it. The editor's removable pills
+    /// use it so the affordance reads as "tag, then remove" rather than
+    /// "action, then tag" the way the leading `plus` suggestions do.
+    var trailingSystemImage: String? = nil
 
     var body: some View {
         HStack(spacing: 3) {
@@ -277,6 +323,12 @@ struct TagCapsule: View {
             Text(tag)
                 .lineLimit(1)
                 .truncationMode(.tail)
+
+            if let trailingSystemImage {
+                Image(systemName: trailingSystemImage)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
         }
         .font(.caption)
         .padding(.horizontal, 8)
@@ -619,31 +671,49 @@ struct FlowLayout: Layout {
     func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
         let result = layout(proposal: proposal, subviews: subviews)
         for (index, offset) in result.offsets.enumerated() {
-            subviews[index].place(at: CGPoint(x: bounds.minX + offset.x, y: bounds.minY + offset.y), proposal: .unspecified)
+            // The measured size, not `.unspecified`: a subview clamped to the
+            // row width has to be handed that width to render its truncation.
+            subviews[index].place(
+                at: CGPoint(x: bounds.minX + offset.x, y: bounds.minY + offset.y),
+                proposal: ProposedViewSize(result.sizes[index])
+            )
         }
     }
 
-    private func layout(proposal: ProposedViewSize, subviews: Subviews) -> (offsets: [CGPoint], size: CGSize) {
+    /// A subview wider than the row is clamped to the row rather than allowed
+    /// to overhang: wrapping cannot save it (it is alone on its line), so
+    /// without the clamp it reports a width past the proposal and drags the
+    /// whole container — in a `Form`, the enclosing row and its label — wider
+    /// than the layout it sits in. A long tag is the realistic case.
+    private func layout(proposal: ProposedViewSize, subviews: Subviews) -> (offsets: [CGPoint], sizes: [CGSize], size: CGSize) {
         let maxWidth = proposal.width ?? .infinity
         var offsets: [CGPoint] = []
+        var sizes: [CGSize] = []
         var currentX: CGFloat = 0
         var currentY: CGFloat = 0
         var rowHeight: CGFloat = 0
         var maxX: CGFloat = 0
 
         for subview in subviews {
-            let size = subview.sizeThatFits(.unspecified)
+            var size = subview.sizeThatFits(.unspecified)
+            if size.width > maxWidth {
+                size = subview.sizeThatFits(ProposedViewSize(width: maxWidth, height: nil))
+                size.width = min(size.width, maxWidth)
+            }
             if currentX + size.width > maxWidth, currentX > 0 {
                 currentX = 0
                 currentY += rowHeight + spacing
                 rowHeight = 0
             }
             offsets.append(CGPoint(x: currentX, y: currentY))
+            sizes.append(size)
             rowHeight = max(rowHeight, size.height)
             currentX += size.width + spacing
-            maxX = max(maxX, currentX)
+            // `currentX` carries the trailing spacing for the next subview;
+            // the row's own right edge is that spacing back.
+            maxX = max(maxX, currentX - spacing)
         }
 
-        return (offsets, CGSize(width: maxX, height: currentY + rowHeight))
+        return (offsets, sizes, CGSize(width: maxX, height: currentY + rowHeight))
     }
 }

@@ -198,7 +198,6 @@ targets:
       - path: KeeForge/Views/PasswordDisplay.swift
       - path: KeeForge/Views/PasswordInputRow.swift
       - path: KeeForge/Services/Persistence/SecurityScopedBookmarkManager.swift
-      - path: KeeForge/Services/Persistence/SyncedFolderDetector.swift
       - path: KeeForge/Extensions/PlatformCompat.swift
       # <<< SHARED AUTOFILL ALLOW-LIST (maintenance invariant) <<<
 
@@ -264,7 +263,6 @@ targets:
       - path: KeeForge/Views/PasswordDisplay.swift
       - path: KeeForge/Views/PasswordInputRow.swift
       - path: KeeForge/Services/Persistence/SecurityScopedBookmarkManager.swift
-      - path: KeeForge/Services/Persistence/SyncedFolderDetector.swift
       - path: KeeForge/Extensions/PlatformCompat.swift
       # <<< SHARED AUTOFILL ALLOW-LIST (maintenance invariant) <<<
 
@@ -387,6 +385,8 @@ targets:
         buildPhase: resources
       - path: TestFixtures/compatibility/group-tags.kdbx
         buildPhase: resources
+      - path: TestFixtures/compatibility/unknown-inner-header.kdbx
+        buildPhase: resources
       - path: TestFixtures/test-v3-backup.kdbx
         buildPhase: resources
       - path: TestFixtures/demo-keyfile.key
@@ -436,6 +436,48 @@ targets:
         TEST_TARGET_NAME: KeeForgeMac
         TEST_HOST: "$(BUILT_PRODUCTS_DIR)/KeeForgeMac.app/Contents/MacOS/KeeForgeMac"
         BUNDLE_LOADER: "$(TEST_HOST)"
+    # Same raw-catalog copy as on KeeForgeTests (see the comment there):
+    # LocalizationTests compiles into this bundle too, and reads the four raw
+    # .xcstrings sources from Bundle(for:), so they must travel with the Mac
+    # test bundle as well.
+    postCompileScripts:
+      - name: Bundle raw .xcstrings catalogs for LocalizationTests
+        runOnlyWhenInstalling: false
+        basedOnDependencyAnalysis: false
+        inputFiles:
+          - $(SRCROOT)/KeeForge/Resources/Localizable.xcstrings
+          - $(SRCROOT)/KeeForge/Resources/InfoPlist.xcstrings
+          - $(SRCROOT)/AutoFillExtension/Localizable.xcstrings
+          - $(SRCROOT)/AutoFillExtension/InfoPlist.xcstrings
+        outputFiles:
+          - $(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/KeeForge_Localizable.xcstrings
+          - $(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/KeeForge_InfoPlist.xcstrings
+          - $(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/AutoFillExtension_Localizable.xcstrings
+          - $(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/AutoFillExtension_InfoPlist.xcstrings
+        script: |
+          set -euo pipefail
+
+          # TARGET_BUILD_DIR (not BUILT_PRODUCTS_DIR) is the location the test
+          # bundle is actually assembled and run from — for a host-app-embedded
+          # unit test that is KeeForgeMac.app/Contents/PlugIns/KeeForgeMacTests.xctest,
+          # which is what Bundle(for:) resolves to at runtime.
+          dest="${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}"
+          mkdir -p "${dest}"
+
+          copy_catalog() {
+            src="$1"
+            dst="$2"
+            if [ ! -f "${src}" ]; then
+              echo "error: raw xcstrings source missing: ${src}" >&2
+              exit 1
+            fi
+            /bin/cp -f "${src}" "${dest}/${dst}"
+          }
+
+          copy_catalog "${SRCROOT}/KeeForge/Resources/Localizable.xcstrings" "KeeForge_Localizable.xcstrings"
+          copy_catalog "${SRCROOT}/KeeForge/Resources/InfoPlist.xcstrings" "KeeForge_InfoPlist.xcstrings"
+          copy_catalog "${SRCROOT}/AutoFillExtension/Localizable.xcstrings" "AutoFillExtension_Localizable.xcstrings"
+          copy_catalog "${SRCROOT}/AutoFillExtension/InfoPlist.xcstrings" "AutoFillExtension_InfoPlist.xcstrings"
     dependencies:
       - target: KeeForgeMac
       - package: KeeForgeTwofish
@@ -469,6 +511,8 @@ targets:
       - path: TestFixtures/compatibility/foreign-twofish.kdbx
         buildPhase: resources
       - path: TestFixtures/compatibility/group-tags.kdbx
+        buildPhase: resources
+      - path: TestFixtures/compatibility/unknown-inner-header.kdbx
         buildPhase: resources
       - path: TestFixtures/test-v3-backup.kdbx
         buildPhase: resources

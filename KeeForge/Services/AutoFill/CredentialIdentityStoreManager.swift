@@ -213,6 +213,70 @@ struct SystemCredentialIdentityStore: CredentialIdentityStoreProviding {
 
 // MARK: - Manager
 
+#if DEBUG
+private final class CredentialIdentityStoreOverrideStorage: @unchecked Sendable {
+    private let lock = NSLock()
+    private var value: (any CredentialIdentityStoreProviding)?
+    private var populateObserver: ((UUID, [KPEntry]) -> Void)?
+    private var clearObserver: (() -> Void)?
+    private var removeDatabaseObserver: ((UUID, Bool) -> Void)?
+    private var removeIdentityObserver: ((String) -> Void)?
+
+    func get() -> (any CredentialIdentityStoreProviding)? {
+        lock.withLock { value }
+    }
+
+    func set(_ value: (any CredentialIdentityStoreProviding)?) {
+        lock.withLock { self.value = value }
+    }
+
+    func getPopulateObserver() -> ((UUID, [KPEntry]) -> Void)? {
+        lock.withLock { populateObserver }
+    }
+
+    func setPopulateObserver(_ observer: ((UUID, [KPEntry]) -> Void)?) {
+        lock.withLock { populateObserver = observer }
+    }
+
+    func getClearObserver() -> (() -> Void)? {
+        lock.withLock { clearObserver }
+    }
+
+    func setClearObserver(_ observer: (() -> Void)?) {
+        lock.withLock { clearObserver = observer }
+    }
+
+    func getRemoveDatabaseObserver() -> ((UUID, Bool) -> Void)? {
+        lock.withLock { removeDatabaseObserver }
+    }
+
+    func setRemoveDatabaseObserver(_ observer: ((UUID, Bool) -> Void)?) {
+        lock.withLock { removeDatabaseObserver = observer }
+    }
+
+    func getRemoveIdentityObserver() -> ((String) -> Void)? {
+        lock.withLock { removeIdentityObserver }
+    }
+
+    func setRemoveIdentityObserver(_ observer: ((String) -> Void)?) {
+        lock.withLock { removeIdentityObserver = observer }
+    }
+}
+
+private final class CredentialIdentityStoreObserverCallback: @unchecked Sendable {
+    private let body: @MainActor () -> Void
+
+    init(body: @escaping @MainActor () -> Void) {
+        self.body = body
+    }
+
+    @MainActor
+    func invoke() {
+        body()
+    }
+}
+#endif
+
 /// ASCredentialIdentityStore has no documented transaction boundary around
 /// enumerate-then-mutate sequences. A single worker keeps every mutation,
 /// including its enumeration snapshot, off the main actor and in invocation
@@ -252,11 +316,32 @@ private final class CredentialIdentityStoreMutationQueue: @unchecked Sendable {
             await operation()
         }
     }
+
+    func waitUntilDrained() async {
+        await withCheckedContinuation { continuation in
+            let resumeImmediately = lock.withLock {
+                guard isDraining else { return true }
+                pending.append {
+                    continuation.resume()
+                }
+                return false
+            }
+
+            if resumeImmediately {
+                continuation.resume()
+            }
+        }
+    }
 }
 
 enum CredentialIdentityStoreManager: Sendable {
     private static let logger = Logger(subsystem: "KeeForge", category: "CredentialIdentityStore")
     private static let mutationQueue = CredentialIdentityStoreMutationQueue()
+
+    #if DEBUG
+    private static let storeProviderOverrideStorage = CredentialIdentityStoreOverrideStorage()
+    private static let observerCallbackQueue = CredentialIdentityStoreMutationQueue()
+    #endif
 
     #if DEBUG
     /// Test hooks, fired on the main actor when the corresponding operation
@@ -265,29 +350,57 @@ enum CredentialIdentityStoreManager: Sendable {
     /// (non-expired) entries per refresh; `removeDatabaseObserver` receives
     /// the database id passed to targeted removal together with the
     /// `includingLegacyIdentifiers` flag it was invoked with.
-    @MainActor static var populateObserver: ((UUID, [KPEntry]) -> Void)?
-    @MainActor static var clearObserver: (() -> Void)?
-    @MainActor static var removeDatabaseObserver: ((UUID, Bool) -> Void)?
+    @MainActor static var populateObserver: ((UUID, [KPEntry]) -> Void)? {
+        get { storeProviderOverrideStorage.getPopulateObserver() }
+        set { storeProviderOverrideStorage.setPopulateObserver(newValue) }
+    }
+    @MainActor static var clearObserver: (() -> Void)? {
+        get { storeProviderOverrideStorage.getClearObserver() }
+        set { storeProviderOverrideStorage.setClearObserver(newValue) }
+    }
+    @MainActor static var removeDatabaseObserver: ((UUID, Bool) -> Void)? {
+        get { storeProviderOverrideStorage.getRemoveDatabaseObserver() }
+        set { storeProviderOverrideStorage.setRemoveDatabaseObserver(newValue) }
+    }
     /// Fires with the exact record-identifier string passed to
     /// `removeIdentity(withRecordIdentifier:)`.
-    @MainActor static var removeIdentityObserver: ((String) -> Void)?
+    @MainActor static var removeIdentityObserver: ((String) -> Void)? {
+        get { storeProviderOverrideStorage.getRemoveIdentityObserver() }
+        set { storeProviderOverrideStorage.setRemoveIdentityObserver(newValue) }
+    }
     /// Test seam: when non-nil, every operation runs against this store
     /// instead of the system one. Reset to nil in setUp/tearDown.
-    @MainActor static var storeProviderOverride: (any CredentialIdentityStoreProviding)?
+    @MainActor static var storeProviderOverride: (any CredentialIdentityStoreProviding)? {
+        get { storeProviderOverrideStorage.get() }
+        set { storeProviderOverrideStorage.set(newValue) }
+    }
     #endif
 
-    private static func currentStore() async -> any CredentialIdentityStoreProviding {
+    private static func currentStore() -> any CredentialIdentityStoreProviding {
         #if DEBUG
-        if let override = await MainActor.run(body: { storeProviderOverride }) {
+        // Capture the lock-backed seam synchronously before enqueueing work.
+        if let override = storeProviderOverrideStorage.get() {
             return override
         }
         #endif
         return SystemCredentialIdentityStore()
     }
-
-    private static func enqueueMutation(_ operation: @escaping @Sendable () async -> Void) {
-        mutationQueue.enqueue(operation)
+    private static func enqueueMutation(
+        _ operation: @escaping @Sendable (any CredentialIdentityStoreProviding) async -> Void
+    ) {
+        let store = currentStore()
+        mutationQueue.enqueue {
+            await operation(store)
+        }
     }
+
+    #if DEBUG
+    /// Test-only barrier for the process-wide mutation queue.
+    static func waitForPendingMutations() async {
+        await mutationQueue.waitUntilDrained()
+        await observerCallbackQueue.waitUntilDrained()
+    }
+    #endif
 
     /// Publishes `entries` as the credential identities of the database with
     /// id `databaseID` (the owning `DatabaseReference.id`). Since slice 04 of
@@ -337,13 +450,20 @@ enum CredentialIdentityStoreManager: Sendable {
         logger.info("Starting credential identity refresh with \(eligibleEntries.count) eligible entries")
 
         #if DEBUG
-        Task { @MainActor in
-            populateObserver?(databaseID, eligibleEntries)
+        let observer = storeProviderOverrideStorage.getPopulateObserver()
+        if let observer {
+            let callback = CredentialIdentityStoreObserverCallback {
+                observer(databaseID, eligibleEntries)
+            }
+            observerCallbackQueue.enqueue {
+                await MainActor.run {
+                    callback.invoke()
+                }
+            }
         }
         #endif
 
-        enqueueMutation {
-            let store = await currentStore()
+        enqueueMutation { store in
             guard await store.isEnabled() else {
                 logger.info("Identity store is not enabled; skipping populate")
                 return
@@ -417,13 +537,20 @@ enum CredentialIdentityStoreManager: Sendable {
     static func clearStore() {
         logger.info("Starting credential identity store clear")
         #if DEBUG
-        Task { @MainActor in
-            clearObserver?()
+        let observer = storeProviderOverrideStorage.getClearObserver()
+        if let observer {
+            let callback = CredentialIdentityStoreObserverCallback {
+                observer()
+            }
+            observerCallbackQueue.enqueue {
+                await MainActor.run {
+                    callback.invoke()
+                }
+            }
         }
         #endif
 
-        enqueueMutation {
-            let store = await currentStore()
+        enqueueMutation { store in
             guard await store.isEnabled() else { return }
 
             do {
@@ -449,8 +576,7 @@ enum CredentialIdentityStoreManager: Sendable {
     /// full-store refresh.
     static func removeIdentities(for entries: [KPEntry], in databaseID: UUID) {
         logger.info("Starting credential identity removal for entries")
-        enqueueMutation {
-            let store = await currentStore()
+        enqueueMutation { store in
             guard await store.isEnabled() else { return }
 
             let passwordIds = entries.flatMap { passwordIdentities(for: $0, in: databaseID) }
@@ -495,13 +621,20 @@ enum CredentialIdentityStoreManager: Sendable {
     static func removeIdentities(forDatabase databaseID: UUID, includingLegacyIdentifiers: Bool = false) {
         logger.info("Starting targeted credential identity removal")
         #if DEBUG
-        Task { @MainActor in
-            removeDatabaseObserver?(databaseID, includingLegacyIdentifiers)
+        let observer = storeProviderOverrideStorage.getRemoveDatabaseObserver()
+        if let observer {
+            let callback = CredentialIdentityStoreObserverCallback {
+                observer(databaseID, includingLegacyIdentifiers)
+            }
+            observerCallbackQueue.enqueue {
+                await MainActor.run {
+                    callback.invoke()
+                }
+            }
         }
         #endif
 
-        enqueueMutation {
-            let store = await currentStore()
+        enqueueMutation { store in
             guard await store.isEnabled() else {
                 logger.info("Identity store is not enabled; skipping targeted removal")
                 return
@@ -551,13 +684,20 @@ enum CredentialIdentityStoreManager: Sendable {
     static func removeIdentity(withRecordIdentifier recordIdentifier: String) {
         logger.info("Starting single credential identity removal")
         #if DEBUG
-        Task { @MainActor in
-            removeIdentityObserver?(recordIdentifier)
+        let observer = storeProviderOverrideStorage.getRemoveIdentityObserver()
+        if let observer {
+            let callback = CredentialIdentityStoreObserverCallback {
+                observer(recordIdentifier)
+            }
+            observerCallbackQueue.enqueue {
+                await MainActor.run {
+                    callback.invoke()
+                }
+            }
         }
         #endif
 
-        enqueueMutation {
-            let store = await currentStore()
+        enqueueMutation { store in
             guard await store.isEnabled() else {
                 logger.info("Identity store is not enabled; skipping single-identity removal")
                 return

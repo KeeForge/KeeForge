@@ -337,7 +337,6 @@ final class WebDAVCloudProvider: CloudProvider, WebDAVConnecting, Sendable {
     }
 
     private static func appending(serverRelativePath relative: String, to base: URL, isDirectory: Bool) -> URL {
-        // Percent-encode each decoded path segment and append to the base path.
         let segments = relative
             .split(separator: "/", omittingEmptySubsequences: true)
             .map { segment -> String in

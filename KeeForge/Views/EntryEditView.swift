@@ -84,10 +84,15 @@ struct EntryEditView: View {
                 }
 
                 basicFieldRow("Tags") {
-                    TextField("Tags", text: $formViewModel.tagsText, axis: .vertical)
-                        .lineLimit(2...4)
+                    appliedTagStrip
+
+                    // Single-line on purpose: Return has to submit the tag
+                    // rather than insert a newline, which is the only visible
+                    // hint that tags are committed one at a time.
+                    TextField("Add a tag", text: $formViewModel.pendingTagText)
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
+                        .onSubmit { formViewModel.commitPendingTag() }
                         .accessibilityIdentifier("entry-edit.tags-field")
 
                     tagSuggestionStrip
@@ -122,6 +127,28 @@ struct EntryEditView: View {
                     }
                     .disabled(isSubmitting)
                     .accessibilityIdentifier("entry-edit.delete")
+                    // Attached to the button (not the Form) so iOS anchors the
+                    // dialog to its source control instead of an arbitrary
+                    // popover in the middle of the screen.
+                    .confirmationDialog(
+                        "Delete Entry",
+                        isPresented: $showDeleteConfirmation,
+                        titleVisibility: .visible
+                    ) {
+                        if !isEntryInRecycleBin {
+                            Button("Move to Recycle Bin", role: .destructive) {
+                                deleteTapped(sendToRecycleBin: true)
+                            }
+                        }
+                        Button("Delete Permanently", role: .destructive) {
+                            deleteTapped(sendToRecycleBin: false)
+                        }
+                        Button("Cancel", role: .cancel) {}
+                    } message: {
+                        Text(isEntryInRecycleBin
+                            ? "This entry is already in the recycle bin. It will be permanently deleted."
+                            : "Choose how to remove this entry.")
+                    }
                 }
             }
         }
@@ -184,25 +211,6 @@ struct EntryEditView: View {
         } message: {
             Text("Your entry changes haven't been saved to this database draft yet.")
         }
-        .confirmationDialog(
-            "Delete Entry",
-            isPresented: $showDeleteConfirmation,
-            titleVisibility: .visible
-        ) {
-            if !isEntryInRecycleBin {
-                Button("Move to Recycle Bin", role: .destructive) {
-                    deleteTapped(sendToRecycleBin: true)
-                }
-            }
-            Button("Delete Permanently", role: .destructive) {
-                deleteTapped(sendToRecycleBin: false)
-            }
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text(isEntryInRecycleBin
-                ? "This entry is already in the recycle bin. It will be permanently deleted."
-                : "Choose how to remove this entry.")
-        }
         .alert(
             "Couldn’t Update Entry",
             isPresented: Binding(
@@ -218,6 +226,38 @@ struct EntryEditView: View {
         } message: {
             Text(editingErrorMessage ?? "")
         }
+    }
+
+    /// The tags this entry already carries, one removable pill each, above the
+    /// field. Nothing renders before the first tag lands, so a fresh entry
+    /// opens on a plain field rather than an empty container.
+    ///
+    /// Declared an accessibility container for the same reason as the
+    /// suggestion strip below — the pills keep their own identifiers.
+    @ViewBuilder
+    private var appliedTagStrip: some View {
+        if formViewModel.tags.isEmpty == false {
+            FlowLayout(spacing: 6) {
+                ForEach(Array(formViewModel.tags.enumerated()), id: \.offset) { index, tag in
+                    appliedTagChip(tag, fallbackIndex: index)
+                }
+            }
+            .accessibilityElement(children: .contain)
+            .accessibilityIdentifier("entry-edit.tags")
+        }
+    }
+
+    private func appliedTagChip(_ tag: String, fallbackIndex: Int) -> some View {
+        Button {
+            formViewModel.removeTag(tag)
+        } label: {
+            TagCapsule(tag: tag, trailingSystemImage: "xmark")
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(Text("Remove tag \(tag)"))
+        .accessibilityIdentifier(
+            "entry-edit.tag.\(TagAccessibility.identifierSuffix(for: tag, fallbackIndex: fallbackIndex))"
+        )
     }
 
     /// The database's other tags, one tap each, wrapped under the tag field.

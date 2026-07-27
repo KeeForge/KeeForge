@@ -1,33 +1,13 @@
 #if DEBUG && targetEnvironment(simulator)
-// DEBUG + simulator-only fallback read channel for the AutoFill credential
-// identity store (epic: 2026-07-20-autofill-store-validation-harness). Nothing
-// here compiles into Release builds OR onto real devices — the whole file is
-// gated `#if DEBUG && targetEnvironment(simulator)`. It reads only OS-store
-// *metadata* and *public identifiers*: service identifier, username/label,
-// record-identifier tag, numeric identity/service type, and (for passkeys) the
-// public credential ID and user handle. It never reads a private key or secret.
-//
-// Why this exists: on simulator runtimes (verified iOS 18.5 and 26.5)
+// On simulator runtimes (verified iOS 18.5 and 26.5)
 // `ASCredentialIdentityStore.credentialIdentities(forService:credentialIdentityTypes:)`
-// always returns an *empty array* even though `saveCredentialIdentities` /
-// `replaceCredentialIdentities` / `removeCredentialIdentities` succeed and the
-// identities persist (QuickType consumes them). Because the app's OWN store
-// maintenance (`CredentialIdentityStoreManager.populate` /
-// `removeIdentities(forDatabase:)`) enumerates-then-mutates, that empty read
-// makes per-database disable-removal and multi-database union structurally
-// broken on every simulator. This reader restores device-equivalent behavior by
-// reading the store's true contents from the SQLite file the OS's
-// `CredentialProviderExtensionHelper` writes inside the app's own data
-// container:
-//
-//     <NSHomeDirectory>/SystemData/com.apple.AuthenticationServices/Identities/Identities.db
-//
-// and *reconstructing byte-faithful* `ASCredentialIdentity` objects (same
-// service identifier, user, record identifier, and — for passkeys — credential
-// ID / user handle) so the manager's filter-and-remove logic matches the real
-// rows. In the AutoFill extension process `NSHomeDirectory()` resolves to the
-// extension's own container, which has no such file, so this returns empty
-// there (absent file => empty store) and the extension is unaffected.
+// always returns an empty array even though saves persist, which breaks
+// `CredentialIdentityStoreManager`'s enumerate-then-mutate paths (per-database
+// removal, multi-database union). This reads the rows the OS writes to
+// <NSHomeDirectory>/SystemData/com.apple.AuthenticationServices/Identities/Identities.db
+// and rebuilds byte-faithful `ASCredentialIdentity` values so those filters
+// match. Metadata and public identifiers only — never a private key. In the
+// extension process `NSHomeDirectory()` has no such file, so this returns empty.
 @preconcurrency import AuthenticationServices
 import Foundation
 import SQLite3

@@ -365,16 +365,59 @@ enum KDBXCrypto {
 
     // MARK: - ChaCha20 stream cipher (inner random stream)
 
+    /// KDBX uses raw, unauthenticated ChaCha20 here, which CryptoKit does not expose.
+    /// ChaCha20 is XOR-based, so encrypt and decrypt are the same operation.
     static func chacha20Stream(key: Data, nonce: Data, data: Data) -> Data {
-        // ChaCha20 is XOR-based; encrypt == decrypt
-        // CryptoKit does not expose raw ChaCha20, so use the local stream-only implementation.
-        // For inner stream, KDBX uses raw ChaCha20 without authentication
-        return chacha20XOR(key: key, nonce: nonce, data: data)
+        guard var keystream = ChaCha20Keystream(key: key, nonce: nonce) else { return data }
+        return keystream.xor(data)
     }
 
-    /// Raw ChaCha20 quarter-round based implementation for inner stream cipher
-    private static func chacha20XOR(key: Data, nonce: Data, data: Data) -> Data {
-        guard key.count == 32, nonce.count == 12 else { return data }
+    /// The one ChaCha20 implementation in the app: outer cipher, KDBX4 inner
+    /// random stream decode, and protected-field re-encryption on write all
+    /// run through it.
+    ///
+    /// The inner random stream is a single keystream spanning every protected
+    /// value in document order, so those callers keep one instance alive and
+    /// feed it values one at a time; block boundaries fall wherever they fall.
+    struct ChaCha20Keystream {
+        private let initialState: [UInt32]
+        private var counter: UInt32 = 0
+        private var block: [UInt8] = []
+        private var blockOffset = 0
+
+        init?(key: Data, nonce: Data) {
+            guard let state = KDBXCrypto.chacha20InitialState(key: key, nonce: nonce) else { return nil }
+            initialState = state
+        }
+
+        mutating func xor(_ data: Data) -> Data {
+            guard !data.isEmpty else { return data }
+
+            var output = [UInt8](repeating: 0, count: data.count)
+            data.withUnsafeBytes { (input: UnsafeRawBufferPointer) in
+                var readOffset = 0
+                while readOffset < data.count {
+                    if blockOffset >= block.count {
+                        block = KDBXCrypto.chacha20Block(initialState: initialState, counter: counter)
+                        blockOffset = 0
+                        counter &+= 1
+                    }
+
+                    let chunkLength = min(data.count - readOffset, block.count - blockOffset)
+                    for index in 0..<chunkLength {
+                        output[readOffset + index] = input[readOffset + index] ^ block[blockOffset + index]
+                    }
+                    readOffset += chunkLength
+                    blockOffset += chunkLength
+                }
+            }
+
+            return Data(output)
+        }
+    }
+
+    private static func chacha20InitialState(key: Data, nonce: Data) -> [UInt32]? {
+        guard key.count == 32, nonce.count == 12 else { return nil }
 
         var state = [UInt32](repeating: 0, count: 16)
         // "expand 32-byte k"
@@ -383,47 +426,47 @@ enum KDBXCrypto {
         state[2] = 0x79622d32
         state[3] = 0x6b206574
 
-        key.withUnsafeBytes { ptr in
-            for i in 0..<8 {
-                state[4 + i] = ptr.loadUnaligned(fromByteOffset: i * 4, as: UInt32.self).littleEndian
+        key.withUnsafeBytes { (pointer: UnsafeRawBufferPointer) in
+            for index in 0..<8 {
+                state[4 + index] = pointer.loadUnaligned(fromByteOffset: index * 4, as: UInt32.self).littleEndian
             }
         }
 
-        state[12] = 0 // counter
-        nonce.withUnsafeBytes { ptr in
-            for i in 0..<3 {
-                state[13 + i] = ptr.loadUnaligned(fromByteOffset: i * 4, as: UInt32.self).littleEndian
+        nonce.withUnsafeBytes { (pointer: UnsafeRawBufferPointer) in
+            for index in 0..<3 {
+                state[13 + index] = pointer.loadUnaligned(fromByteOffset: index * 4, as: UInt32.self).littleEndian
             }
         }
 
-        var output = Data(count: data.count)
-        var offset = 0
+        return state
+    }
 
-        while offset < data.count {
-            var working = state
-            for _ in 0..<10 {
-                quarterRound(&working, 0, 4, 8, 12)
-                quarterRound(&working, 1, 5, 9, 13)
-                quarterRound(&working, 2, 6, 10, 14)
-                quarterRound(&working, 3, 7, 11, 15)
-                quarterRound(&working, 0, 5, 10, 15)
-                quarterRound(&working, 1, 6, 11, 12)
-                quarterRound(&working, 2, 7, 8, 13)
-                quarterRound(&working, 3, 4, 9, 14)
-            }
-            for i in 0..<16 { working[i] = working[i] &+ state[i] }
+    private static func chacha20Block(initialState: [UInt32], counter: UInt32) -> [UInt8] {
+        var state = initialState
+        state[12] = counter
 
-            let blockBytes = working.withUnsafeBytes { Data($0) }
-            let remaining = min(64, data.count - offset)
-            for i in 0..<remaining {
-                output[offset + i] = data[offset + i] ^ blockBytes[i]
-            }
-
-            offset += 64
-            state[12] &+= 1
+        var working = state
+        for _ in 0..<10 {
+            quarterRound(&working, 0, 4, 8, 12)
+            quarterRound(&working, 1, 5, 9, 13)
+            quarterRound(&working, 2, 6, 10, 14)
+            quarterRound(&working, 3, 7, 11, 15)
+            quarterRound(&working, 0, 5, 10, 15)
+            quarterRound(&working, 1, 6, 11, 12)
+            quarterRound(&working, 2, 7, 8, 13)
+            quarterRound(&working, 3, 4, 9, 14)
         }
+        for index in 0..<16 { working[index] = working[index] &+ state[index] }
 
-        return output
+        var block: [UInt8] = []
+        block.reserveCapacity(64)
+        for word in working {
+            var littleEndian = word.littleEndian
+            withUnsafeBytes(of: &littleEndian) { bytes in
+                block.append(contentsOf: bytes)
+            }
+        }
+        return block
     }
 
     private static func quarterRound(_ s: inout [UInt32], _ a: Int, _ b: Int, _ c: Int, _ d: Int) {

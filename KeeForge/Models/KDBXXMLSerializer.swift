@@ -9,12 +9,7 @@ struct KDBXXMLSerializer {
     private let rootGroup: KPGroup
     private let meta: KPMeta
     private let sessionKey: SymmetricKey
-    private let innerChaChaKeyWords: [UInt32]
-    private let innerChaChaNonceWords: [UInt32]
-
-    private var chachaCounter: UInt32 = 0
-    private var keystreamBlock: [UInt8] = []
-    private var keystreamBlockOffset = 0
+    private var innerStream: KDBXCrypto.ChaCha20Keystream?
 
     private static let xmlPrefix = Data([0xEF, 0xBB, 0xBF]) +
         Data("<?xml version=\"1.0\" encoding=\"utf-8\" standalone=\"yes\"?>\n".utf8)
@@ -25,18 +20,10 @@ struct KDBXXMLSerializer {
         self.sessionKey = sessionKey
 
         let keyHash = KDBXCrypto.sha512(innerStreamKey)
-        let keyBytes = Data(keyHash.prefix(32))
-        let nonceBytes = Data(keyHash[32..<44])
-        self.innerChaChaKeyWords = keyBytes.withUnsafeBytes { (pointer: UnsafeRawBufferPointer) in
-            (0..<8).map { index in
-                pointer.loadUnaligned(fromByteOffset: index * 4, as: UInt32.self).littleEndian
-            }
-        }
-        self.innerChaChaNonceWords = nonceBytes.withUnsafeBytes { (pointer: UnsafeRawBufferPointer) in
-            (0..<3).map { index in
-                pointer.loadUnaligned(fromByteOffset: index * 4, as: UInt32.self).littleEndian
-            }
-        }
+        self.innerStream = KDBXCrypto.ChaCha20Keystream(
+            key: Data(keyHash.prefix(32)),
+            nonce: Data(keyHash[32..<44])
+        )
     }
 
     mutating func serialize() throws -> Data {
@@ -141,24 +128,18 @@ struct KDBXXMLSerializer {
             knownChildCount += 1
         }
 
-        // Positioned after `<Times>`/`<IsExpanded>` and before the children,
-        // which is where KeePass writes it — the opaque-XML insertion indices
-        // recorded by the parser are relative to that same sequence. Absent
-        // (`nil`) means the source group had no element, so none is written and
-        // `knownChildCount` stays put, mirroring the parser exactly.
+        // Child order here must match KeePass's, because the parser's recorded
+        // opaque-XML insertion indices are relative to the same sequence. A
+        // group whose source had no element writes none and leaves
+        // `knownChildCount` put, mirroring the parser.
         if let searchingEnabled = group.searchingEnabled {
             xml += try opaqueXML(from: group.unknownXML, path: [], insertionIndex: knownChildCount)
             xml += element("EnableSearching", value: searchingEnabled.xmlValue)
             knownChildCount += 1
         }
 
-        // KDBX 4.1 group tags, read-only: positioned after `<EnableSearching>`
-        // and before the child entries, matching KeePass's own group child
-        // order — the opaque-XML insertion indices recorded by the parser are
-        // relative to this same sequence. A group whose source had no `<Tags>`
-        // element (flag unset, list empty) writes none and `knownChildCount`
-        // stays put, mirroring the parser exactly: KeeForge never invents a
-        // group tag, so no format-version bump is ever needed.
+        // KDBX 4.1 group tags are read-only: KeeForge never invents one, so no
+        // format-version bump is ever needed.
         if group.hasTagsElement || !group.tags.isEmpty {
             xml += try opaqueXML(from: group.unknownXML, path: [], insertionIndex: knownChildCount)
             xml += element("Tags", value: escape(group.tags.joined(separator: ",")))
@@ -184,15 +165,11 @@ struct KDBXXMLSerializer {
 
     private mutating func serializeEntry(_ entry: KPEntry) throws -> String {
         var xml = "<Entry>"
-        // `knownChildCount` is the opaque-XML position space: it advances for
-        // every structural child, including `<Binary>`, exactly mirroring
-        // `EntryBuilder.knownChildCount` on the parser side (recordOpaqueXML's
-        // Entry case increments it for Binary too). `attachmentAnchor` is a
-        // second, slower counter that only advances for non-attachment known
-        // elements — it mirrors `EntryBuilder.attachmentAnchorChildCount` and
-        // is what `KPAttachment.insertionIndex` is expressed against, so that
-        // multiple attachments recorded at the same source position don't
-        // pollute each other's recorded index.
+        // Two counters, mirroring `EntryBuilder`: `knownChildCount` is the
+        // opaque-XML position space and advances for every structural child
+        // including `<Binary>`, while `attachmentAnchor` skips attachments and
+        // is what `KPAttachment.insertionIndex` is expressed against, so
+        // attachments at the same source position don't shift each other.
         var knownChildCount = 0
         var attachmentAnchor = 0
         var remainingAttachments = entry.attachments
@@ -204,12 +181,9 @@ struct KDBXXMLSerializer {
                 if attachment.insertionIndex == attachmentAnchor {
                     matched += serializeBinary(attachment)
                     knownChildCount += 1
-                    // Advancing `knownChildCount` opens up a new opaque-XML
-                    // position between this attachment and whatever comes
-                    // next, since the parser bumps `entry.knownChildCount`
-                    // for every parsed Binary too. Query it immediately so
-                    // unknown fragments recorded at that position aren't
-                    // silently skipped by the next, later opaque lookup.
+                    // The bump above opened a new opaque-XML position; query it
+                    // now or fragments recorded there are skipped by the next,
+                    // later lookup.
                     matched += try opaqueXML(from: entry.unknownXML, path: [], insertionIndex: knownChildCount)
                 } else {
                     stillPending.append(attachment)
@@ -471,81 +445,13 @@ struct KDBXXMLSerializer {
     }
 
     private mutating func encryptProtectedValue(_ plaintext: String) throws -> String {
-        guard innerChaChaKeyWords.count == 8, innerChaChaNonceWords.count == 3 else {
+        guard var keystream = innerStream else {
             throw SerializationError.invalidInnerStreamKey
         }
 
-        let input = Data(plaintext.utf8)
-        var encrypted = [UInt8](repeating: 0, count: input.count)
-        input.withUnsafeBytes { (inputPtr: UnsafeRawBufferPointer) in
-            var readOffset = 0
-            while readOffset < input.count {
-                if keystreamBlockOffset >= keystreamBlock.count {
-                    keystreamBlock = makeChaCha20Block(counter: chachaCounter)
-                    keystreamBlockOffset = 0
-                    chachaCounter &+= 1
-                }
-
-                let chunkLength = min(input.count - readOffset, keystreamBlock.count - keystreamBlockOffset)
-                for index in 0..<chunkLength {
-                    encrypted[readOffset + index] = inputPtr[readOffset + index] ^ keystreamBlock[keystreamBlockOffset + index]
-                }
-                readOffset += chunkLength
-                keystreamBlockOffset += chunkLength
-            }
-        }
-
-        return Data(encrypted).base64EncodedString()
-    }
-
-    private func makeChaCha20Block(counter: UInt32) -> [UInt8] {
-        var state = [UInt32](repeating: 0, count: 16)
-        state[0] = 0x61707865
-        state[1] = 0x3320646e
-        state[2] = 0x79622d32
-        state[3] = 0x6b206574
-
-        for index in 0..<8 {
-            state[4 + index] = innerChaChaKeyWords[index]
-        }
-
-        state[12] = counter
-        for index in 0..<3 {
-            state[13 + index] = innerChaChaNonceWords[index]
-        }
-
-        var working = state
-        for _ in 0..<10 {
-            quarterRound(&working, 0, 4, 8, 12)
-            quarterRound(&working, 1, 5, 9, 13)
-            quarterRound(&working, 2, 6, 10, 14)
-            quarterRound(&working, 3, 7, 11, 15)
-            quarterRound(&working, 0, 5, 10, 15)
-            quarterRound(&working, 1, 6, 11, 12)
-            quarterRound(&working, 2, 7, 8, 13)
-            quarterRound(&working, 3, 4, 9, 14)
-        }
-
-        for index in 0..<16 {
-            working[index] = working[index] &+ state[index]
-        }
-
-        var block: [UInt8] = []
-        block.reserveCapacity(64)
-        for word in working {
-            var littleEndian = word.littleEndian
-            withUnsafeBytes(of: &littleEndian) { bytes in
-                block.append(contentsOf: bytes)
-            }
-        }
-        return block
-    }
-
-    private func quarterRound(_ state: inout [UInt32], _ a: Int, _ b: Int, _ c: Int, _ d: Int) {
-        state[a] = state[a] &+ state[b]; state[d] ^= state[a]; state[d] = (state[d] << 16) | (state[d] >> 16)
-        state[c] = state[c] &+ state[d]; state[b] ^= state[c]; state[b] = (state[b] << 12) | (state[b] >> 20)
-        state[a] = state[a] &+ state[b]; state[d] ^= state[a]; state[d] = (state[d] << 8) | (state[d] >> 24)
-        state[c] = state[c] &+ state[d]; state[b] ^= state[c]; state[b] = (state[b] << 7) | (state[b] >> 25)
+        let encrypted = keystream.xor(Data(plaintext.utf8))
+        innerStream = keystream
+        return encrypted.base64EncodedString()
     }
 
     private mutating func opaqueXML(from unknownXML: OpaqueXMLNodes, path: [String], insertionIndex: Int) throws -> String {

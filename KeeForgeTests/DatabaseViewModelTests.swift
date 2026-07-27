@@ -11,26 +11,34 @@ final class DatabaseViewModelTests: XCTestCase {
 
     override func setUp() async throws {
         try await super.setUp()
+        await CredentialIdentityStoreManager.waitForPendingMutations()
+        resetCredentialIdentityStoreSeams()
         DatabaseListStore.clearAll()
         CloudAccountStore.clearAll()
         SharedVaultStore.clearBookmark()
-        resetCredentialIdentityStoreSeams()
+        await CredentialIdentityStoreManager.waitForPendingMutations()
     }
 
     override func tearDown() async throws {
+        await CredentialIdentityStoreManager.waitForPendingMutations()
+        resetCredentialIdentityStoreSeams()
         DatabaseListStore.clearAll()
         CloudAccountStore.clearAll()
         SharedVaultStore.clearBookmark()
-        resetCredentialIdentityStoreSeams()
+        await CredentialIdentityStoreManager.waitForPendingMutations()
         try await super.tearDown()
     }
 
     private func resetCredentialIdentityStoreSeams() {
+        resetCredentialIdentityObservers()
+        CredentialIdentityStoreManager.storeProviderOverride = nil
+    }
+
+    private func resetCredentialIdentityObservers() {
         CredentialIdentityStoreManager.populateObserver = nil
         CredentialIdentityStoreManager.clearObserver = nil
         CredentialIdentityStoreManager.removeDatabaseObserver = nil
         CredentialIdentityStoreManager.removeIdentityObserver = nil
-        CredentialIdentityStoreManager.storeProviderOverride = nil
     }
 
     func testInitialStateIsLockedWithSavedDatabaseReference() throws {
@@ -491,6 +499,23 @@ final class DatabaseViewModelTests: XCTestCase {
         XCTAssertTrue(vm.isGroupInRecycleBin(groupID: socialGroup.id))
     }
 
+    func testPermanentEntryDeleteKeepsSelectionForDetailViewToClear() async throws {
+        let vm = try makeViewModel()
+        await vm.unlock(password: fixturePassword)
+
+        let socialGroup = try XCTUnwrap(vm.visibleRootGroup?.groups.first(where: { $0.name == "Social" }))
+        let entry = try XCTUnwrap(socialGroup.entries.first)
+        vm.selectGroup(socialGroup.id)
+        vm.selectEntry(entry.id)
+
+        try vm.deleteEntry(entry.id, sendToRecycleBin: false)
+
+        XCTAssertNil(vm.entry(withID: entry.id))
+        // The stale selection is kept for the mounted EntryDetailView to clear;
+        // clearing it in the delete update would wedge a pushed entry editor.
+        XCTAssertEqual(vm.selectedEntryID, entry.id)
+    }
+
     func testHidingGroupFromAutoFillMarksItAndItsSubgroupsExcluded() async throws {
         let vm = try makeViewModel()
         await vm.unlock(password: fixturePassword)
@@ -944,6 +969,7 @@ final class DatabaseViewModelTests: XCTestCase {
 
         await fulfillment(of: [populateExpectation, mutationExpectation], timeout: 30)
         XCTAssertEqual(observedDatabaseIDs, [reference.id])
+        XCTAssertEqual(fake.calls, ["saveCredentialIdentities"])
 
         let storedDatabaseIDs = Set(fake.stored.compactMap { identity -> UUID? in
             guard let recordIdentifier = identity.recordIdentifier,
@@ -2632,68 +2658,6 @@ final class DatabaseViewModelTests: XCTestCase {
         XCTAssertEqual(vm.pendingLockRequest, .init(manuallyTriggered: false))
     }
 
-    func testAcknowledgeEditingIfNeededLocalUnsyncedReturnsAcknowledgedImmediately() async throws {
-        var reference = try makeReference()
-        reference.bookmarkData = nil
-
-        let vm = DatabaseViewModel(
-            databaseReference: reference,
-            syncedFolderDetector: { _ in
-                XCTFail("Synced folder detection should not run when there is no bookmark.")
-                return .dropbox
-            }
-        )
-
-        let result = await vm.acknowledgeEditingIfNeeded()
-
-        XCTAssertEqual(result, .acknowledged)
-        XCTAssertNil(vm.syncedFolderWarning)
-    }
-
-    func testAcknowledgeEditingIfNeededAlreadyAcknowledgedReturnsAcknowledgedImmediately() async throws {
-        var reference = try makeReference()
-        reference.editsAcknowledgedAt = Date(timeIntervalSince1970: 10)
-
-        let vm = DatabaseViewModel(
-            databaseReference: reference,
-            syncedFolderDetector: { _ in
-                XCTFail("Synced folder detection should not run after acknowledgment.")
-                return .dropbox
-            },
-            syncedFolderWarningHandler: { _ in
-                XCTFail("Warning handler should not run after acknowledgment.")
-                return .continueEditing
-            }
-        )
-
-        let result = await vm.acknowledgeEditingIfNeeded()
-
-        XCTAssertEqual(result, .acknowledged)
-    }
-
-    func testAcknowledgeEditingIfNeededDropboxPromptsAndPersistsAcknowledgment() async throws {
-        let reference = try makeReference()
-        DatabaseListStore.update(reference)
-
-        var capturedWarning: SyncedFolderWarning?
-        let vm = DatabaseViewModel(
-            databaseReference: reference,
-            syncedFolderDetector: { _ in .dropbox },
-            syncedFolderWarningHandler: { warning in
-                capturedWarning = warning
-                return .continueEditing
-            }
-        )
-
-        let result = await vm.acknowledgeEditingIfNeeded()
-        let updatedReference = try XCTUnwrap(DatabaseListStore.databases.first(where: { $0.id == reference.id }))
-
-        XCTAssertEqual(result, .acknowledged)
-        XCTAssertEqual(capturedWarning?.location, .dropbox)
-        XCTAssertNotNil(updatedReference.editsAcknowledgedAt)
-        XCTAssertNil(vm.syncedFolderWarning)
-    }
-
     func testSetReadOnlyUpdatesInMemoryReferenceAndStore() throws {
         let reference = try makeReference()
         DatabaseListStore.update(reference)
@@ -2711,24 +2675,6 @@ final class DatabaseViewModelTests: XCTestCase {
         XCTAssertFalse(vm.isReadOnly)
         let storedAfterOff = try XCTUnwrap(DatabaseListStore.databases.first(where: { $0.id == reference.id }))
         XCTAssertFalse(storedAfterOff.isReadOnly)
-    }
-
-    func testAcknowledgeEditingIfNeededDropboxKeepReadOnlySetsFlagReturnsKeptReadOnly() async throws {
-        let reference = try makeReference()
-        DatabaseListStore.update(reference)
-
-        let vm = DatabaseViewModel(
-            databaseReference: reference,
-            syncedFolderDetector: { _ in .dropbox },
-            syncedFolderWarningHandler: { _ in .keepReadOnly }
-        )
-
-        let result = await vm.acknowledgeEditingIfNeeded()
-        let updatedReference = try XCTUnwrap(DatabaseListStore.databases.first(where: { $0.id == reference.id }))
-
-        XCTAssertEqual(result, .keptReadOnly)
-        XCTAssertTrue(updatedReference.isReadOnly)
-        XCTAssertTrue(vm.isReadOnly)
     }
 
     private func makeViewModel(
@@ -2832,12 +2778,6 @@ final class DatabaseViewModelTests: XCTestCase {
                 binaryPool: BinaryPool(rawFields: parsed.header.innerHeaderBinaryFields)
             )
         },
-        syncedFolderDetector: @escaping DatabaseViewModel.SyncedFolderDetectionOperation = { _ in
-            .notSynced
-        },
-        syncedFolderWarningHandler: @escaping DatabaseViewModel.SyncedFolderWarningHandler = { _ in
-            .continueEditing
-        },
         conflictCopyDateProvider: @escaping @Sendable () -> Date = { .now },
         nowProvider: @escaping @Sendable () -> Date = { .now }
     ) throws -> DatabaseViewModel {
@@ -2856,8 +2796,6 @@ final class DatabaseViewModelTests: XCTestCase {
             localConflictCopyOperation: localConflictCopyOperation,
             cloudConflictCopyOperation: cloudConflictCopyOperation,
             reloadOperation: reloadOperation,
-            syncedFolderDetector: syncedFolderDetector,
-            syncedFolderWarningHandler: syncedFolderWarningHandler,
             conflictCopyDateProvider: conflictCopyDateProvider,
             nowProvider: nowProvider
         )

@@ -105,10 +105,8 @@ struct GroupListView: View {
             if viewModel.searchText.isEmpty {
                 if let resolvedGroup {
                     List {
-                        // The tag browser's single entry point, kept in its own
-                        // small section above the tree so the root list stays
-                        // calm. It stays visible at zero tags — that is where
-                        // the empty state teaches how to add one.
+                        // Stays visible at zero tags: its empty state is what
+                        // teaches the user how to add one.
                         if isVisibleRoot {
                             Section {
                                 tagsRow()
@@ -182,24 +180,16 @@ struct GroupListView: View {
                                 if viewModel.isReadOnly == false {
                                     Menu {
                                         Button("New Entry", systemImage: "doc.badge.plus") {
-                                            Task {
-                                                let result = await viewModel.acknowledgeEditingIfNeeded()
-                                                guard result == .acknowledged else { return }
-                                                activeEditor = EntryEditViewModel(
-                                                    createIn: resolvedGroup.id,
-                                                    knownTags: viewModel.tagsInDisplayOrder,
-                                                    inheritedTags: viewModel.inheritedTags(forGroupID: resolvedGroup.id)
-                                                )
-                                            }
+                                            activeEditor = EntryEditViewModel(
+                                                createIn: resolvedGroup.id,
+                                                knownTags: viewModel.tagsInDisplayOrder,
+                                                inheritedTags: viewModel.inheritedTags(forGroupID: resolvedGroup.id)
+                                            )
                                         }
 
                                         Button("New Group", systemImage: "folder.badge.plus") {
-                                            Task {
-                                                let result = await viewModel.acknowledgeEditingIfNeeded()
-                                                guard result == .acknowledged else { return }
-                                                newGroupName = ""
-                                                isShowingNewGroupSheet = true
-                                            }
+                                            newGroupName = ""
+                                            isShowingNewGroupSheet = true
                                         }
                                     } label: {
                                         Image(systemName: "plus")
@@ -278,7 +268,6 @@ struct GroupListView: View {
                             }
                         }
                     }
-                    .alert(item: $pendingDeletion, content: deletionAlert)
                 } else {
                     ContentUnavailableView(
                         "Group Unavailable",
@@ -292,6 +281,9 @@ struct GroupListView: View {
         }
         .modifier(GroupListSearchModifier(view: self))
         .modifier(GroupListEditorPresentation(view: self))
+        // On the outer Group: an alert host on the `resolvedGroup` branch would
+        // be stranded if the branch vanishes while the alert is up.
+        .alert(item: $pendingDeletion, content: deletionAlert)
     }
 
     /// Presents the entry editor. iOS pushes it onto the navigation stack;

@@ -100,11 +100,9 @@ final class MacLockMonitor {
         _ name: Notification.Name,
         handler: @escaping @MainActor (MacLockMonitor) -> Void
     ) {
-        // queue: nil delivers synchronously on the posting thread. All of the
-        // observed notifications (NSApplication, NSWorkspace, distributed
-        // screen-lock/screensaver) are posted on the main thread, and unit
-        // tests post from the main actor, so delivery is deterministic;
-        // `assumeIsolated` re-asserts the main-actor guarantee.
+        // queue: nil delivers synchronously on the posting thread, and every
+        // observed notification is posted on the main thread, so
+        // `assumeIsolated` re-asserts the main-actor guarantee without a hop.
         let token = center.addObserver(forName: name, object: nil, queue: nil) { [weak self] _ in
             if Thread.isMainThread {
                 MainActor.assumeIsolated {

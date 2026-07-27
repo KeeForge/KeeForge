@@ -185,8 +185,6 @@ final class DatabaseViewModel {
         _ reference: DatabaseReference,
         _ compositeKey: Data
     ) async throws -> ReloadedDatabase
-    typealias SyncedFolderDetectionOperation = @Sendable (DatabaseReference) async -> SyncedFolderLocation
-    typealias SyncedFolderWarningHandler = @MainActor @Sendable (SyncedFolderWarning) async -> SyncedFolderWarningAction
 
     private static let sortOrderKey = "KeeForge.sortOrder"
     private static let sortAscendingKey = "KeeForge.sortAscending"
@@ -286,7 +284,6 @@ final class DatabaseViewModel {
     private(set) var saveConflict: SaveConflict?
     private(set) var isSaving = false
     private(set) var pendingLockRequest: PendingLockRequest?
-    private(set) var syncedFolderWarning: SyncedFolderWarning?
     private(set) var cloudSyncProgress: Double?
     private(set) var cloudSyncBannerText: String?
     private(set) var unlockStatusMessage: String
@@ -326,8 +323,6 @@ final class DatabaseViewModel {
     private let localConflictCopyOperation: LocalConflictCopyOperation
     private let cloudConflictCopyOperation: CloudConflictCopyOperation
     private let reloadOperation: ReloadOperation
-    private let syncedFolderDetector: SyncedFolderDetectionOperation
-    private let syncedFolderWarningHandler: SyncedFolderWarningHandler
     private let conflictCopyDateProvider: @Sendable () -> Date
     private let nowProvider: @Sendable () -> Date
     private var backgroundEnteredAt: Date?
@@ -387,12 +382,6 @@ final class DatabaseViewModel {
                 compositeKey: compositeKey
             )
         },
-        syncedFolderDetector: @escaping SyncedFolderDetectionOperation = { reference in
-            await SyncedFolderDetector.detect(reference: reference)
-        },
-        syncedFolderWarningHandler: @escaping SyncedFolderWarningHandler = { _ in
-            .continueEditing
-        },
         conflictCopyDateProvider: @escaping @Sendable () -> Date = { .now },
         nowProvider: @escaping @Sendable () -> Date = { .now }
     ) {
@@ -410,8 +399,6 @@ final class DatabaseViewModel {
         self.localConflictCopyOperation = localConflictCopyOperation
         self.cloudConflictCopyOperation = cloudConflictCopyOperation
         self.reloadOperation = reloadOperation
-        self.syncedFolderDetector = syncedFolderDetector
-        self.syncedFolderWarningHandler = syncedFolderWarningHandler
         self.conflictCopyDateProvider = conflictCopyDateProvider
         self.nowProvider = nowProvider
     }
@@ -809,7 +796,10 @@ final class DatabaseViewModel {
         if let selectedGroupID, affectedGroupIDs.contains(selectedGroupID) {
             self.selectedGroupID = visibleRootGroupID
         }
-        if let selectedEntryID, affectedEntryIDs.contains(selectedEntryID) {
+        // Deselect only an entry that still exists (recycled with its group);
+        // a permanently deleted one is handled as in `synchronizeSelections()`.
+        if let selectedEntryID, affectedEntryIDs.contains(selectedEntryID),
+           entryIndex[selectedEntryID] != nil {
             self.selectedEntryID = nil
         }
     }
@@ -899,22 +889,12 @@ final class DatabaseViewModel {
         if manuallyTriggered {
             didManuallyLock = true
         }
-        // Locking scrubs a still-pending secure copy (changeCount-guarded, so a
-        // later user copy is never clobbered).
-        //
-        // `preservingClipboard` is the one exception, and only iOS
-        // backgrounding sets it: that is the moment the user switches to
-        // another app to paste, so scrubbing there made every copy arrive
-        // empty (#34). The secret is still bounded there — on iOS
-        // `ClipboardService.copy` stamps every copy with the clipboard-clear
-        // timeout as a system-enforced expiration date and marks it
-        // `.localOnly`.
-        //
-        // Every other lock means the user walked away rather than switched
-        // away — the foreground inactivity timeout, and on macOS screen lock,
-        // screensaver, sleep, and user switching — so those still scrub. That
-        // matters most on macOS, which has neither `.expirationDate` nor
-        // `.localOnly` (see `docs/macos-security-notes.md`).
+        // Only iOS backgrounding sets `preservingClipboard`: the user is
+        // switching apps to paste, so scrubbing there made every copy arrive
+        // empty (#34). iOS bounds the secret anyway via the expiration date and
+        // `.localOnly` that `ClipboardService.copy` stamps on. Every other lock
+        // means the user walked away, so those still scrub — which matters most
+        // on macOS, where neither flag exists (`docs/macos-security-notes.md`).
         if preservingClipboard == false {
             ClipboardService.clearOwnedContents()
         }
@@ -932,7 +912,6 @@ final class DatabaseViewModel {
         saveError = nil
         saveConflict = nil
         pendingLockRequest = nil
-        syncedFolderWarning = nil
         cloudSyncProgress = nil
         cloudSyncBannerText = nil
         unlockStatusMessage = databaseReference.isCloudBacked
@@ -1108,7 +1087,6 @@ final class DatabaseViewModel {
         AttachmentPreviewFileStore.clearAll()
         draft = nil
         saveConflict = nil
-        syncedFolderWarning = nil
         cloudSyncBannerText = nil
         failedAttempts = 0
         lockoutUntil = nil
@@ -1135,41 +1113,6 @@ final class DatabaseViewModel {
         updatedReference.nickname = nickname
         DatabaseListStore.update(updatedReference)
         refreshDatabaseReference()
-    }
-
-    func acknowledgeEditingIfNeeded() async -> AcknowledgmentResult {
-        guard case .local = databaseReference.source else {
-            return .acknowledged
-        }
-
-        guard databaseReference.bookmarkData != nil else {
-            return .acknowledged
-        }
-
-        if databaseReference.editsAcknowledgedAt != nil {
-            return .acknowledged
-        }
-
-        let syncedFolderLocation = await syncedFolderDetector(databaseReference)
-        guard syncedFolderLocation != .notSynced else {
-            return .acknowledged
-        }
-
-        let warning = SyncedFolderWarning(location: syncedFolderLocation)
-        syncedFolderWarning = warning
-        let action = await syncedFolderWarningHandler(warning)
-        syncedFolderWarning = nil
-
-        switch action {
-        case .continueEditing:
-            DatabaseListStore.acknowledgeEdits(for: databaseReference)
-            refreshDatabaseReference()
-            return .acknowledged
-        case .keepReadOnly:
-            DatabaseListStore.setReadOnly(true, for: databaseReference)
-            refreshDatabaseReference()
-            return .keptReadOnly
-        }
     }
 
     // MARK: - Inactivity Timer
@@ -1208,16 +1151,11 @@ final class DatabaseViewModel {
         guard case .unlocked = state else { return }
 
         if SettingsService.lockOnBackground {
-            // iOS: the app is being backgrounded, very often because the user
-            // is switching to another app to paste what they just copied, so
-            // the lock leaves the pasteboard alone (#34). The scene phase
-            // cannot tell that apart from a device-lock backgrounding, so the
-            // copy can outlive a screen lock by up to the clipboard-clear
-            // timeout — bounded, and `.localOnly` throughout.
-            //
-            // macOS: this same entry point is driven by `MacLockMonitor`
-            // (screen lock, screensaver, sleep, user switching), which always
-            // means the user walked away from the machine — scrub there.
+            // Scene phase cannot tell an app switch from a device lock, so iOS
+            // keeps the pasteboard (#34) and a copy can outlive a screen lock
+            // by up to the clipboard-clear timeout. On macOS this entry point
+            // comes from `MacLockMonitor`, which only fires when the user
+            // walked away — scrub there.
             #if os(iOS)
             lockRequest(preservingClipboard: true)
             #else
@@ -1624,9 +1562,10 @@ final class DatabaseViewModel {
             selectedGroupID = visibleRootGroupID
         }
 
-        if let selectedEntryID, entryIndex[selectedEntryID] == nil {
-            self.selectedEntryID = nil
-        }
+        // A vanished entry's selection is left for the mounted `EntryDetailView`
+        // to clear via `onClose`. Clearing it here unmounts the detail column in
+        // the same update that deletes the entry, tearing down the entry
+        // editor's presentation host while the editor is still pushed.
     }
 
     private static func nestedGroupCount(in group: KPGroup) -> Int {
@@ -1652,7 +1591,6 @@ final class DatabaseViewModel {
         saveError = nil
         saveConflict = nil
         pendingLockRequest = nil
-        syncedFolderWarning = nil
         unlockedMeta = nil
         binaryPool = nil
         cloudSyncProgress = nil
@@ -1680,7 +1618,6 @@ final class DatabaseViewModel {
         self.saveError = nil
         self.saveConflict = nil
         self.pendingLockRequest = nil
-        self.syncedFolderWarning = nil
         self.failedAttempts = 0
         self.lockoutUntil = nil
         self.state = .unlocked

@@ -29,7 +29,7 @@ final class EntryEditViewModel {
         var password: String
         var url: String
         var notes: String
-        var tagsText: String
+        var tags: [String]
         var customFields: [CustomField]
         var totpSecret: String
         var totpPeriod: Int
@@ -46,7 +46,14 @@ final class EntryEditViewModel {
     var password: String
     var url: String
     var notes: String
-    var tagsText: String
+    /// Tags the user has committed, rendered as removable pills. Order is the
+    /// order they arrived in — the file's own order when seeded — and identity
+    /// is exact-string, so `Work` and `work` are two pills.
+    private(set) var tags: [String]
+    /// The tag being typed, not yet committed to a pill. It still counts
+    /// toward the payload and toward suggestion exclusion, so saving straight
+    /// from a half-typed field never loses the tag.
+    var pendingTagText: String = ""
     var customFields: [CustomField]
     var totpSecret: String
     var totpPeriod: Int
@@ -95,7 +102,7 @@ final class EntryEditViewModel {
         self.password = password
         self.url = url
         self.notes = notes
-        self.tagsText = Self.tagsText(from: tags)
+        self.tags = TagNormalizer.tags(from: tags)
         self.knownTags = knownTags
         self.inheritedTags = Set(inheritedTags)
         self.customFields = editableCustomFields
@@ -114,7 +121,7 @@ final class EntryEditViewModel {
             password: password,
             url: url,
             notes: notes,
-            tagsText: Self.tagsText(from: tags),
+            tags: TagNormalizer.tags(from: tags),
             customFields: editableCustomFields,
             totpSecret: totpSecret,
             totpPeriod: totpPeriod,
@@ -206,10 +213,10 @@ final class EntryEditViewModel {
     }
 
     /// The known tags worth offering for this entry: `knownTags` minus the tags
-    /// currently typed into the field and minus the ones inherited from the
-    /// entry's groups. The typed side is re-read on every access rather than
-    /// cached, so a chip leaves the strip the moment its tag lands in the text
-    /// and comes back when the text is deleted again.
+    /// the entry already carries — committed pills and the pending token alike
+    /// — and minus the ones inherited from the entry's groups. The applied side
+    /// is re-read on every access rather than cached, so a chip leaves the strip
+    /// the moment its tag lands and comes back when the pill is removed again.
     ///
     /// Exclusion is exact-string like the rest of the tag surface: typing
     /// `work` leaves `Work` on offer, because they are two tags.
@@ -220,19 +227,50 @@ final class EntryEditViewModel {
         }
     }
 
-    /// Adds `tag` to the tag field exactly as typing it would, joining with the
-    /// same `", "` the field is seeded with so both routes normalize to an
-    /// identical payload. A dangling separator in the existing text just yields
-    /// an empty component, which normalization drops.
+    /// Commits what is in the field, splitting it on every separator, so a
+    /// typed `a, b` and a pasted `a;b` both land as two pills.
     ///
-    /// A tag the field already carries is left untouched: `tagSuggestions`
-    /// stops offering it, but a stale render must not be able to double it up.
-    func appendTagSuggestion(_ tag: String) {
-        guard normalizedTags().contains(tag) == false else { return }
-
-        let trimmedText = tagsText.trimmingCharacters(in: .whitespacesAndNewlines)
-        tagsText = trimmedText.isEmpty ? tag : trimmedText + ", " + tag
+    /// Committing is deliberately never triggered from the field's setter.
+    /// Rewriting a `TextField`'s bound text while the user is typing races the
+    /// keystrokes still in flight and silently loses them (reproduced: typing
+    /// `alpha,beta,gam` kept only `alpha` and dropped four characters). Return,
+    /// or tapping a suggestion, is a pause in typing, so rewriting is safe
+    /// there. Anything left uncommitted still reaches the payload.
+    func commitPendingTag() {
+        appendTags(TagNormalizer.tags(fromText: pendingTagText))
+        pendingTagText = ""
     }
+
+    /// Adds `tag` as a committed pill, exactly as typing it and pressing Return
+    /// would. A half-typed token is committed first, so pills end up in the
+    /// order the user acted rather than jumping the tapped tag ahead of it.
+    ///
+    /// A tag the entry already carries is left alone: `tagSuggestions` stops
+    /// offering it, but a stale render must not be able to double it up.
+    func appendTagSuggestion(_ tag: String) {
+        commitPendingTag()
+        appendTags([tag])
+    }
+
+    /// Drops a committed pill. Unknown tags are ignored, so a stale render
+    /// cannot remove something the user already removed.
+    func removeTag(_ tag: String) {
+        tags.removeAll { $0 == tag }
+    }
+
+    /// Dedupes against the committed pills only, never `normalizedTags()`:
+    /// every caller is in the act of turning the pending token into a pill, and
+    /// counting that token as already-applied would make committing it look
+    /// like a duplicate and drop it on the floor.
+    private func appendTags(_ newTags: [String]) {
+        guard newTags.isEmpty == false else { return }
+
+        var applied = Set(tags)
+        for tag in newTags where applied.insert(tag).inserted {
+            tags.append(tag)
+        }
+    }
+
 
     func addCustomField() {
         customFields.append(CustomField())
@@ -261,7 +299,9 @@ final class EntryEditViewModel {
             password: password,
             url: url,
             notes: notes,
-            tagsText: tagsText,
+            // The pending token counts: typing a tag and saving without
+            // committing it must read as a change, and must save the tag.
+            tags: normalizedTags(),
             customFields: customFields,
             totpSecret: totpSecret,
             totpPeriod: totpPeriod,
@@ -280,8 +320,10 @@ final class EntryEditViewModel {
         return merged
     }
 
+    /// The committed pills plus whatever is still being typed, so an
+    /// uncommitted token is never silently dropped by saving.
     private func normalizedTags() -> [String] {
-        TagNormalizer.tags(fromText: tagsText)
+        TagNormalizer.tags(from: tags + [pendingTagText])
     }
 
     private func normalizedTOTPConfiguration() -> EntryDraftPayload.TOTPConfiguration? {
@@ -350,10 +392,6 @@ final class EntryEditViewModel {
             result.append(alphabet[(accumulator << (5 - bitCount)) & 31])
         }
         return String(decoding: result, as: UTF8.self)
-    }
-
-    private static func tagsText(from tags: [String]) -> String {
-        tags.joined(separator: ", ")
     }
 }
 

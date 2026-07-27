@@ -174,21 +174,12 @@ enum CloudSyncCoordinator {
             return downloadedMetadata
         }
 
-        // The shared cache is the *only* home of an AutoFill save until its
-        // pending upload drains. If a marker is still queued for this
-        // database, the current cache bytes have not reached the cloud yet,
-        // so preserve a recoverable backup before the remote copy replaces
-        // them. The drainer's SHA-512 check then surfaces the overwrite as a
-        // conflict instead of silently losing the local change.
-        //
-        // Ordering: pin the superseded bytes FIRST, then list markers — the
-        // AutoFill save writes its marker durably before the cache, so pinned
-        // unuploaded bytes always have a marker visible here. Do not
-        // reintroduce list-then-pin: it superseded fresh bytes marker-unseen.
-        // The pin is a hard link, not a rename: a rename empties the cache
-        // path for the whole backup write, and a crash there loses the cache.
-        // No hard-link support fails the sync-down, the safe direction — the
-        // caller falls back to the untouched cached copy.
+        // The shared cache is the only home of an AutoFill save until its
+        // pending upload drains, so back the bytes up before the remote copy
+        // replaces them. Pin FIRST, then list markers: the AutoFill save writes
+        // its marker before the cache, so list-then-pin can supersede fresh
+        // bytes marker-unseen. Hard link rather than rename — a rename leaves
+        // the cache path empty for the whole backup write.
         let pinnedURL = directory.appendingPathComponent(UUID().uuidString, isDirectory: false)
         try fileManager.linkItem(at: destinationURL, to: pinnedURL)
         defer {

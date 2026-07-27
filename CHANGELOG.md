@@ -30,6 +30,7 @@ TODO before the first macOS release:
 ### Fixed
 
 - AutoFill no longer starts Face ID or loads a database from Apple's no-UI credential callback. Requests that need vault access now continue through the interactive path, while credential identity-store updates are serialized to preserve multi-database state. Refreshes also tolerate macOS system identity objects that omit the `recordIdentifier` Objective-C accessor instead of terminating the app after unlock.
+- AutoFill no longer treats an internal iOS presentation dismissal as a cancelled request, and an unlock that finishes after cancellation can no longer repopulate or present UI for the old request.
 - Saving a cloud database from AutoFill wrote the shared cached copy twice; the redundant second write briefly widened the window in which a concurrent reader could see cache bytes that mismatch the pending-upload marker.
 - A cloud download interrupted by the app terminating at exactly the wrong moment could leave a stray temporary file in the shared database cache forever. Cloud syncs now sweep out staging leftovers that have been parked for over an hour.
 - Replaced the Apple-logo glyph used for standard icon 64 with a generic computer. Apple's SF Symbols license excludes the symbols depicting its own trademarks and logos, so it was not ours to ship — and the new group icon picker offers that index as a choice rather than only rendering it. Groups and entries already using icon 64 will show the new glyph on first open; the stored `IconID` is unchanged, so other KeePass clients are unaffected.

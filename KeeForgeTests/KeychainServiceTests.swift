@@ -131,15 +131,10 @@ final class KeychainServiceTests: XCTestCase {
 
     // MARK: - Legacy filename-keyed accounts (pre-migration compatibility)
 
-    // KeychainService has no public writer for the legacy filename-keyed
-    // account — new code only ever stores under the UUID-based account
-    // (`storeCompositeKey(_:for:)`), and legacy items originate solely from
-    // pre-migration app versions. To exercise the read/delete/has-stored-key
-    // side of that legacy surface, these tests seed the legacy account
-    // directly with the same service/account-key shape KeychainService uses
-    // internally (`"com.keevault.app"` / `"compositeKey:<filename>"`), minus
-    // the biometric access control, so retrieval here is deterministic and
-    // can assert a full round trip.
+    // KeychainService has no public writer for the legacy account, so these
+    // tests seed it directly with the same service/account-key shape the
+    // service uses internally, minus the biometric access control — which
+    // keeps retrieval deterministic here.
     private static let legacyKeychainService = "com.keevault.app"
 
     private func legacyAccountKey(forFilename filename: String) -> String {
