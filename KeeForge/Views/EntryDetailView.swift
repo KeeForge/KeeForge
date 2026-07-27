@@ -24,6 +24,7 @@ struct EntryDetailView: View {
     /// Both `onAppear`s in `body` can fire on the same reveal, and each
     /// `dismiss()` would pop one navigation level.
     @State private var hasFinishedClosing = false
+    @State private var isShowingHistory = false
 
     /// Clears the regular shells' selection and pops this screen, at most once.
     private func finishClose() {
@@ -152,6 +153,21 @@ struct EntryDetailView: View {
                             }
                         }
                     }
+                    if !entry.history.isEmpty {
+                        Section {
+                            Button {
+                                isShowingHistory = true
+                            } label: {
+                                LabeledContent {
+                                    Text("\(entry.history.count)")
+                                        .foregroundStyle(.secondary)
+                                } label: {
+                                    Label("History", systemImage: "clock.arrow.circlepath")
+                                }
+                            }
+                            .accessibilityIdentifier("entry-detail.history")
+                        }
+                    }
                 }
                 .navigationTitle(entry.title)
                 .navigationBarTitleDisplayMode(.inline)
@@ -191,6 +207,9 @@ struct EntryDetailView: View {
                             }
                         }
                     }
+                }
+                .sheet(isPresented: $isShowingHistory) {
+                    EntryHistoryView(entryID: entryID, viewModel: viewModel)
                 }
             } else {
                 ContentUnavailableView(
@@ -401,6 +420,10 @@ struct FieldRow: View {
 struct PasswordFieldRow: View {
     let password: EncryptedValue
     let sessionKey: SymmetricKey
+    /// Identifier namespace for the reveal and copy controls. Defaults to the live
+    /// entry detail's long-standing `entry.*` ids; the history viewer passes its own
+    /// so the two screens never contribute the same identifier to one hierarchy.
+    var accessibilityPrefix: String = "entry"
     @State private var revealed = false
     @State private var revealedText: String?
     @State private var authenticating = false
@@ -415,12 +438,12 @@ struct PasswordFieldRow: View {
                 .frame(width: 44, height: 44)
                 .contentShape(Rectangle())
                 .disabled(authenticating)
-                .accessibilityIdentifier("entry.password.reveal")
+                .accessibilityIdentifier("\(accessibilityPrefix).password.reveal")
 
                 CopyButton(
                     resolveText: { (try? password.decrypt(using: sessionKey)) ?? "" },
                     requireAuth: true,
-                    accessibilityID: "entry.copy.password"
+                    accessibilityID: "\(accessibilityPrefix).copy.password"
                 )
             }
         }

@@ -541,3 +541,47 @@ final class GroupIconPickerUITests: UnlockedDatabaseUITestCase {
         tapElement(changeIcon)
     }
 }
+
+final class EntryHistoryUITests: UnlockedDatabaseUITestCase {
+    func testEntryHistoryListsEarlierVersions() {
+        unlockSuccessfully()
+        openFixtureEntry()
+
+        let historyRow = app.buttons["entry-detail.history"]
+        guard revealElement(historyRow, in: scrollableContainer(), direction: .up, maxSwipes: 6) else {
+            XCTFail("The fixture entry exposes no history row")
+            return
+        }
+        tapElement(historyRow)
+
+        let firstVersion = app.buttons["entry-history.version.0"]
+        XCTAssertTrue(firstVersion.waitForExistence(timeout: 5), "History sheet showed no versions")
+
+        app.buttons["entry-history.done"].tap()
+    }
+
+    func testOpeningAnEarlierVersionShowsItsFields() {
+        unlockSuccessfully()
+        openFixtureEntry()
+
+        let historyRow = app.buttons["entry-detail.history"]
+        guard revealElement(historyRow, in: scrollableContainer(), direction: .up, maxSwipes: 6) else {
+            XCTFail("The fixture entry exposes no history row")
+            return
+        }
+        tapElement(historyRow)
+
+        let firstVersion = app.buttons["entry-history.version.0"]
+        XCTAssertTrue(firstVersion.waitForExistence(timeout: 5))
+        firstVersion.tap()
+
+        XCTAssertTrue(
+            app.staticTexts["Earlier Version"].waitForExistence(timeout: 5),
+            "The version screen did not open"
+        )
+        XCTAssertTrue(
+            app.buttons["entry-history.password.reveal"].waitForExistence(timeout: 5),
+            "The stored version should expose its password behind the usual reveal"
+        )
+    }
+}
