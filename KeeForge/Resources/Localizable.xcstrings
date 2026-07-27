@@ -424,6 +424,16 @@
         }
       }
     },
+    "Add a tag" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tag hinzufügen"
+          }
+        }
+      }
+    },
     "Add Entry or Group" : {
       "localizations" : {
         "de" : {
@@ -4301,6 +4311,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Foto entfernen"
+          }
+        }
+      }
+    },
+    "Remove tag %@" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tag %@ entfernen"
           }
         }
       }

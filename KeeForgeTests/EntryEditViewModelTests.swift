@@ -61,7 +61,7 @@ final class EntryEditViewModelTests: XCTestCase {
 
     func testEntryDraftPayloadNormalizesTagsCustomFieldsAndTotp() {
         let viewModel = EntryEditViewModel(createIn: UUID())
-        viewModel.tagsText = "personal,  finance\nshared "
+        viewModel.pendingTagText = "personal,  finance\nshared "
         viewModel.customFields = [
             .init(key: "Support PIN", value: "1234"),
             .init(key: " ", value: "ignored"),
@@ -92,7 +92,7 @@ final class EntryEditViewModelTests: XCTestCase {
 
         for (text, expected) in cases {
             let viewModel = EntryEditViewModel(createIn: UUID())
-            viewModel.tagsText = text
+            viewModel.pendingTagText = text
 
             XCTAssertEqual(
                 viewModel.entryDraftPayload.tags,
@@ -109,29 +109,40 @@ final class EntryEditViewModelTests: XCTestCase {
 
         let viewModel = EntryEditViewModel(editing: entry, sessionKey: sessionKey)
 
-        XCTAssertEqual(viewModel.tagsText, "Work, work, New York")
+        XCTAssertEqual(viewModel.tags, ["Work", "work", "New York"])
         XCTAssertEqual(viewModel.entryDraftPayload.tags, entry.tags)
         XCTAssertFalse(viewModel.isDirty, "Seeding the form is not a user edit")
     }
 
     // MARK: - Tag suggestions
 
-    func testTagSuggestionsDropTagsTypedIntoTheFieldAndRestoreThemWhenDeleted() {
+    func testTagSuggestionsDropAppliedTagsAndRestoreThemWhenTheTagGoesAway() {
         let viewModel = EntryEditViewModel(createIn: UUID(), knownTags: ["finance", "personal", "work"])
 
         XCTAssertEqual(viewModel.tagSuggestions, ["finance", "personal", "work"])
 
-        viewModel.tagsText = "work"
+        // Still being typed, not yet a pill: excluded all the same, or the
+        // strip would offer a tag the entry is about to carry.
+        viewModel.pendingTagText = "work"
         XCTAssertEqual(viewModel.tagSuggestions, ["finance", "personal"])
 
-        viewModel.tagsText = "work, personal"
+        viewModel.commitPendingTag()
+        viewModel.pendingTagText = "personal"
         XCTAssertEqual(viewModel.tagSuggestions, ["finance"])
 
-        viewModel.tagsText = ""
+        viewModel.pendingTagText = ""
+        XCTAssertEqual(
+            viewModel.tagSuggestions,
+            ["finance", "personal"],
+            "Clearing the field drops only the half-typed token; the committed pill stays applied"
+        )
+        XCTAssertEqual(viewModel.tags, ["work"])
+
+        viewModel.removeTag("work")
         XCTAssertEqual(
             viewModel.tagSuggestions,
             ["finance", "personal", "work"],
-            "Deleting the text puts every suggestion back — exclusions are re-read, never cached"
+            "Removing the pill puts every suggestion back — exclusions are re-read, never cached"
         )
     }
 
@@ -151,46 +162,50 @@ final class EntryEditViewModelTests: XCTestCase {
 
     func testTagSuggestionsKeepCaseVariantsAndTappingInsertsTheExactCasing() {
         let viewModel = EntryEditViewModel(createIn: UUID(), knownTags: ["Work", "work"])
-        viewModel.tagsText = "work"
+        viewModel.pendingTagText = "work"
 
         XCTAssertEqual(viewModel.tagSuggestions, ["Work"], "Exact-string identity keeps case variants apart")
 
         viewModel.appendTagSuggestion("Work")
 
-        XCTAssertEqual(viewModel.tagsText, "work, Work")
+        XCTAssertEqual(
+            viewModel.tags,
+            ["work", "Work"],
+            "Tapping commits the half-typed token first, so the pills follow the order the user acted"
+        )
         XCTAssertEqual(viewModel.entryDraftPayload.tags, ["work", "Work"])
         XCTAssertTrue(viewModel.tagSuggestions.isEmpty)
     }
 
     func testTappingSuggestionsProducesTheSamePayloadAsTypingThem() {
         let tapped = EntryEditViewModel(createIn: UUID(), knownTags: ["finance", "New York"])
-        tapped.tagsText = "personal"
+        tapped.pendingTagText = "personal"
         tapped.appendTagSuggestion("finance")
         tapped.appendTagSuggestion("New York")
 
         let typed = EntryEditViewModel(createIn: UUID())
-        typed.tagsText = "personal, finance, New York"
+        typed.pendingTagText = "personal, finance, New York"
 
-        XCTAssertEqual(tapped.tagsText, typed.tagsText, "Suggestions join with the same separator the field is seeded with")
         XCTAssertEqual(tapped.entryDraftPayload.tags, typed.entryDraftPayload.tags)
         XCTAssertEqual(tapped.entryDraftPayload.tags, ["personal", "finance", "New York"])
 
         let fromEmptyField = EntryEditViewModel(createIn: UUID(), knownTags: ["finance"])
         fromEmptyField.appendTagSuggestion("finance")
 
-        XCTAssertEqual(fromEmptyField.tagsText, "finance", "The first tag lands without a leading separator")
+        XCTAssertEqual(fromEmptyField.tags, ["finance"], "The first tag lands as the first pill")
+        XCTAssertTrue(fromEmptyField.pendingTagText.isEmpty)
     }
 
-    func testAppendingATagTheFieldAlreadyCarriesIsANoOp() {
+    func testAppendingATagTheEntryAlreadyCarriesIsANoOp() {
         let viewModel = EntryEditViewModel(createIn: UUID(), knownTags: ["work"])
-        viewModel.tagsText = " work , personal "
+        viewModel.pendingTagText = " work , personal "
 
         viewModel.appendTagSuggestion("work")
 
         XCTAssertEqual(
-            viewModel.tagsText,
-            " work , personal ",
-            "A duplicate tap leaves the text the user typed exactly as it was"
+            viewModel.tags,
+            ["work", "personal"],
+            "A duplicate tap adds no second pill; the pending token still commits"
         )
         XCTAssertEqual(viewModel.entryDraftPayload.tags, ["work", "personal"])
     }
@@ -204,7 +219,7 @@ final class EntryEditViewModelTests: XCTestCase {
             knownTags: ["finance", "work"],
             inheritedTags: ["finance"]
         )
-        everythingApplied.tagsText = "work"
+        everythingApplied.pendingTagText = "work"
 
         XCTAssertTrue(
             everythingApplied.tagSuggestions.isEmpty,
@@ -238,8 +253,78 @@ final class EntryEditViewModelTests: XCTestCase {
 
         viewModel.appendTagSuggestion("finance")
 
-        XCTAssertTrue(viewModel.isDirty, "Suggestions mutate tagsText, which is what dirty tracking watches")
+        XCTAssertTrue(viewModel.isDirty, "Suggestions mutate the applied tags, which is what dirty tracking watches")
         XCTAssertTrue(viewModel.canSave)
+    }
+
+    // MARK: - Committing and removing tags
+
+    func testCommittingSplitsTheFieldOnEverySeparator() {
+        let viewModel = EntryEditViewModel(createIn: UUID())
+
+        // Typing never commits on its own. Rewriting a focused field's text
+        // races the keystrokes still in flight and drops them, so the field is
+        // left alone until the user pauses at Return.
+        viewModel.pendingTagText = "alpha,beta;gam"
+        XCTAssertTrue(viewModel.tags.isEmpty)
+
+        viewModel.commitPendingTag()
+
+        XCTAssertEqual(viewModel.tags, ["alpha", "beta", "gam"], "Return commits the whole field, separators and all")
+        XCTAssertEqual(viewModel.pendingTagText, "")
+    }
+
+    func testCommittingBlankOrDuplicateTextAddsNoPill() {
+        let viewModel = EntryEditViewModel(createIn: UUID())
+        viewModel.pendingTagText = "work"
+        viewModel.commitPendingTag()
+
+        viewModel.pendingTagText = "   "
+        viewModel.commitPendingTag()
+        XCTAssertEqual(viewModel.tags, ["work"], "Whitespace is not a tag")
+
+        viewModel.pendingTagText = "work"
+        viewModel.commitPendingTag()
+        XCTAssertEqual(viewModel.tags, ["work"], "Re-committing a tag the entry carries adds no second pill")
+        XCTAssertEqual(viewModel.pendingTagText, "", "The duplicate still leaves the field, so the UI does not stick")
+    }
+
+    func testAnUncommittedTokenStillReachesThePayloadAndDirtyTracking() {
+        let entry = KPEntry(title: "Tagged", tags: ["work"], hasTagsElement: true)
+        let viewModel = EntryEditViewModel(editing: entry, sessionKey: sessionKey)
+        XCTAssertFalse(viewModel.isDirty)
+
+        // Saving straight from a half-typed field must not silently drop it.
+        viewModel.pendingTagText = "finance"
+
+        XCTAssertTrue(viewModel.isDirty)
+        XCTAssertEqual(viewModel.entryDraftPayload.tags, ["work", "finance"])
+    }
+
+    func testRemovingAPillDropsItFromThePayloadAndIgnoresUnknownTags() {
+        let entry = KPEntry(title: "Tagged", tags: ["work", "finance"], hasTagsElement: true)
+        let viewModel = EntryEditViewModel(editing: entry, sessionKey: sessionKey)
+
+        viewModel.removeTag("never-applied")
+        XCTAssertEqual(viewModel.tags, ["work", "finance"], "Removing a tag the entry lacks changes nothing")
+        XCTAssertFalse(viewModel.isDirty)
+
+        viewModel.removeTag("work")
+
+        XCTAssertEqual(viewModel.tags, ["finance"])
+        XCTAssertEqual(viewModel.entryDraftPayload.tags, ["finance"])
+        XCTAssertTrue(viewModel.isDirty)
+    }
+
+    func testRemovingEveryPillClearsTheEntrysTags() {
+        let entry = KPEntry(title: "Tagged", tags: ["work"], hasTagsElement: true)
+        let viewModel = EntryEditViewModel(editing: entry, sessionKey: sessionKey)
+
+        viewModel.removeTag("work")
+
+        XCTAssertTrue(viewModel.tags.isEmpty)
+        XCTAssertEqual(viewModel.entryDraftPayload.tags, [], "An emptied tag list is a real edit, not a no-op")
+        XCTAssertTrue(viewModel.isDirty)
     }
 
     // MARK: - canSave

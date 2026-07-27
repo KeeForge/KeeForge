@@ -35,9 +35,9 @@ enum TagNormalizer {
         return canonical
     }
 
-    /// KeePass reads `,` and `;`; newlines separate too, because KeeForge's tag
-    /// field is multi-line. `isNewline` rather than a `"\n"`/`"\r"` comparison
-    /// because Swift stores a pasted CRLF as one `Character`.
+    /// KeePass reads `,` and `;`; newlines separate too, so pasted multi-line
+    /// text splits the way it looks. `isNewline` rather than a `"\n"`/`"\r"`
+    /// comparison because Swift stores a pasted CRLF as one `Character`.
     private static func isSeparator(_ character: Character) -> Bool {
         character == "," || character == ";" || character.isNewline
     }

@@ -292,6 +292,10 @@ struct EntryDetailView: View {
 struct TagCapsule: View {
     let tag: String
     var systemImage: String? = nil
+    /// Drawn after the name instead of before it. The editor's removable pills
+    /// use it so the affordance reads as "tag, then remove" rather than
+    /// "action, then tag" the way the leading `plus` suggestions do.
+    var trailingSystemImage: String? = nil
 
     var body: some View {
         HStack(spacing: 3) {
@@ -303,6 +307,12 @@ struct TagCapsule: View {
             Text(tag)
                 .lineLimit(1)
                 .truncationMode(.tail)
+
+            if let trailingSystemImage {
+                Image(systemName: trailingSystemImage)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
         }
         .font(.caption)
         .padding(.horizontal, 8)
@@ -645,31 +655,49 @@ struct FlowLayout: Layout {
     func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
         let result = layout(proposal: proposal, subviews: subviews)
         for (index, offset) in result.offsets.enumerated() {
-            subviews[index].place(at: CGPoint(x: bounds.minX + offset.x, y: bounds.minY + offset.y), proposal: .unspecified)
+            // The measured size, not `.unspecified`: a subview clamped to the
+            // row width has to be handed that width to render its truncation.
+            subviews[index].place(
+                at: CGPoint(x: bounds.minX + offset.x, y: bounds.minY + offset.y),
+                proposal: ProposedViewSize(result.sizes[index])
+            )
         }
     }
 
-    private func layout(proposal: ProposedViewSize, subviews: Subviews) -> (offsets: [CGPoint], size: CGSize) {
+    /// A subview wider than the row is clamped to the row rather than allowed
+    /// to overhang: wrapping cannot save it (it is alone on its line), so
+    /// without the clamp it reports a width past the proposal and drags the
+    /// whole container — in a `Form`, the enclosing row and its label — wider
+    /// than the layout it sits in. A long tag is the realistic case.
+    private func layout(proposal: ProposedViewSize, subviews: Subviews) -> (offsets: [CGPoint], sizes: [CGSize], size: CGSize) {
         let maxWidth = proposal.width ?? .infinity
         var offsets: [CGPoint] = []
+        var sizes: [CGSize] = []
         var currentX: CGFloat = 0
         var currentY: CGFloat = 0
         var rowHeight: CGFloat = 0
         var maxX: CGFloat = 0
 
         for subview in subviews {
-            let size = subview.sizeThatFits(.unspecified)
+            var size = subview.sizeThatFits(.unspecified)
+            if size.width > maxWidth {
+                size = subview.sizeThatFits(ProposedViewSize(width: maxWidth, height: nil))
+                size.width = min(size.width, maxWidth)
+            }
             if currentX + size.width > maxWidth, currentX > 0 {
                 currentX = 0
                 currentY += rowHeight + spacing
                 rowHeight = 0
             }
             offsets.append(CGPoint(x: currentX, y: currentY))
+            sizes.append(size)
             rowHeight = max(rowHeight, size.height)
             currentX += size.width + spacing
-            maxX = max(maxX, currentX)
+            // `currentX` carries the trailing spacing for the next subview;
+            // the row's own right edge is that spacing back.
+            maxX = max(maxX, currentX - spacing)
         }
 
-        return (offsets, CGSize(width: maxX, height: currentY + rowHeight))
+        return (offsets, sizes, CGSize(width: maxX, height: currentY + rowHeight))
     }
 }

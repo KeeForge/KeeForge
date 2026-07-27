@@ -84,10 +84,15 @@ struct EntryEditView: View {
                 }
 
                 basicFieldRow("Tags") {
-                    TextField("Tags", text: $formViewModel.tagsText, axis: .vertical)
-                        .lineLimit(2...4)
+                    appliedTagStrip
+
+                    // Single-line on purpose: Return has to submit the tag
+                    // rather than insert a newline, which is the only visible
+                    // hint that tags are committed one at a time.
+                    TextField("Add a tag", text: $formViewModel.pendingTagText)
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
+                        .onSubmit { formViewModel.commitPendingTag() }
                         .accessibilityIdentifier("entry-edit.tags-field")
 
                     tagSuggestionStrip
@@ -221,6 +226,38 @@ struct EntryEditView: View {
         } message: {
             Text(editingErrorMessage ?? "")
         }
+    }
+
+    /// The tags this entry already carries, one removable pill each, above the
+    /// field. Nothing renders before the first tag lands, so a fresh entry
+    /// opens on a plain field rather than an empty container.
+    ///
+    /// Declared an accessibility container for the same reason as the
+    /// suggestion strip below — the pills keep their own identifiers.
+    @ViewBuilder
+    private var appliedTagStrip: some View {
+        if formViewModel.tags.isEmpty == false {
+            FlowLayout(spacing: 6) {
+                ForEach(Array(formViewModel.tags.enumerated()), id: \.offset) { index, tag in
+                    appliedTagChip(tag, fallbackIndex: index)
+                }
+            }
+            .accessibilityElement(children: .contain)
+            .accessibilityIdentifier("entry-edit.tags")
+        }
+    }
+
+    private func appliedTagChip(_ tag: String, fallbackIndex: Int) -> some View {
+        Button {
+            formViewModel.removeTag(tag)
+        } label: {
+            TagCapsule(tag: tag, trailingSystemImage: "xmark")
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(Text("Remove tag \(tag)"))
+        .accessibilityIdentifier(
+            "entry-edit.tag.\(TagAccessibility.identifierSuffix(for: tag, fallbackIndex: fallbackIndex))"
+        )
     }
 
     /// The database's other tags, one tap each, wrapped under the tag field.
