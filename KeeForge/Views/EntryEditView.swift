@@ -122,6 +122,28 @@ struct EntryEditView: View {
                     }
                     .disabled(isSubmitting)
                     .accessibilityIdentifier("entry-edit.delete")
+                    // Attached to the button (not the Form) so iOS anchors the
+                    // dialog to its source control instead of an arbitrary
+                    // popover in the middle of the screen.
+                    .confirmationDialog(
+                        "Delete Entry",
+                        isPresented: $showDeleteConfirmation,
+                        titleVisibility: .visible
+                    ) {
+                        if !isEntryInRecycleBin {
+                            Button("Move to Recycle Bin", role: .destructive) {
+                                deleteTapped(sendToRecycleBin: true)
+                            }
+                        }
+                        Button("Delete Permanently", role: .destructive) {
+                            deleteTapped(sendToRecycleBin: false)
+                        }
+                        Button("Cancel", role: .cancel) {}
+                    } message: {
+                        Text(isEntryInRecycleBin
+                            ? "This entry is already in the recycle bin. It will be permanently deleted."
+                            : "Choose how to remove this entry.")
+                    }
                 }
             }
         }
@@ -183,25 +205,6 @@ struct EntryEditView: View {
             Button("Keep Editing", role: .cancel) {}
         } message: {
             Text("Your entry changes haven't been saved to this database draft yet.")
-        }
-        .confirmationDialog(
-            "Delete Entry",
-            isPresented: $showDeleteConfirmation,
-            titleVisibility: .visible
-        ) {
-            if !isEntryInRecycleBin {
-                Button("Move to Recycle Bin", role: .destructive) {
-                    deleteTapped(sendToRecycleBin: true)
-                }
-            }
-            Button("Delete Permanently", role: .destructive) {
-                deleteTapped(sendToRecycleBin: false)
-            }
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text(isEntryInRecycleBin
-                ? "This entry is already in the recycle bin. It will be permanently deleted."
-                : "Choose how to remove this entry.")
         }
         .alert(
             "Couldn’t Update Entry",
