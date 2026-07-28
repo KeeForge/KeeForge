@@ -185,6 +185,149 @@ final class DatabaseDraftTests: XCTestCase {
         XCTAssertEqual(try updatedEntry.history[0].password.decrypt(using: sessionKey), "old-password")
     }
 
+    /// A KeePass-authored `<History>` is oldest-first, so trimming by position
+    /// discarded the newest versions and kept the oldest.
+    func test_updateEntry_maxItemsKeepsTheNewestVersionsOfAnOldestFirstHistory() throws {
+        let updatedEntry = try applyTitleEdit(
+            toEntryWithHistory: [
+                historyVersion("v1-oldest", at: 700),
+                historyVersion("v2", at: 800),
+                historyVersion("v3-newest", at: 900),
+            ],
+            meta: KPMeta(historyMaxItems: 3)
+        )
+
+        XCTAssertEqual(
+            updatedEntry.history.map(\.title),
+            ["Original Entry", "v2", "v3-newest"],
+            "the cap must drop the oldest version, not the second-newest"
+        )
+    }
+
+    /// The app's own files are newest-first; the recency selection must leave that
+    /// long-standing behavior exactly as it was.
+    func test_updateEntry_maxItemsStillKeepsTheNewestVersionsOfANewestFirstHistory() throws {
+        let updatedEntry = try applyTitleEdit(
+            toEntryWithHistory: [
+                historyVersion("v3-newest", at: 900),
+                historyVersion("v2", at: 800),
+                historyVersion("v1-oldest", at: 700),
+            ],
+            meta: KPMeta(historyMaxItems: 3)
+        )
+
+        XCTAssertEqual(updatedEntry.history.map(\.title), ["Original Entry", "v3-newest", "v2"])
+    }
+
+    /// Survivors keep the order the file had; only the selection is by recency.
+    func test_updateEntry_trimmingPreservesStorageOrder() throws {
+        let updatedEntry = try applyTitleEdit(
+            toEntryWithHistory: [
+                historyVersion("v1-oldest", at: 700),
+                historyVersion("v3-newest", at: 900),
+                historyVersion("v2", at: 800),
+            ],
+            meta: KPMeta(historyMaxItems: 3)
+        )
+
+        XCTAssertEqual(
+            updatedEntry.history.map(\.title),
+            ["Original Entry", "v3-newest", "v2"],
+            "v3 stays ahead of v2 because that is where the file had them"
+        )
+    }
+
+    /// KDBX timestamps are second-resolution, so equal stamps must still give a
+    /// total order rather than depending on `sorted` being stable.
+    func test_updateEntry_maxItemsBreaksTimestampTiesByStorageOrder() throws {
+        let updatedEntry = try applyTitleEdit(
+            toEntryWithHistory: [
+                historyVersion("tied-first", at: 800),
+                historyVersion("tied-second", at: 800),
+            ],
+            meta: KPMeta(historyMaxItems: 2)
+        )
+
+        XCTAssertEqual(updatedEntry.history.map(\.title), ["Original Entry", "tied-first"])
+    }
+
+    func test_updateEntry_versionsWithoutATimestampAreDroppedFirst() throws {
+        let updatedEntry = try applyTitleEdit(
+            toEntryWithHistory: [
+                historyVersion("undated", at: nil),
+                historyVersion("dated", at: 700),
+            ],
+            meta: KPMeta(historyMaxItems: 2)
+        )
+
+        XCTAssertEqual(
+            updatedEntry.history.map(\.title),
+            ["Original Entry", "dated"],
+            "a version with no timestamp is the weakest claim to a slot"
+        )
+    }
+
+    /// The byte budget walks the same recency order, so an oldest-first file no
+    /// longer spends its budget on the versions it should have dropped.
+    func test_updateEntry_maxSizeSpendsTheBudgetOnTheNewestVersions() throws {
+        let padding = String(repeating: "x", count: 1_000)
+        // Each padded version costs 256 + title + 1000 + 8 ("history-" password is 8).
+        let updatedEntry = try applyTitleEdit(
+            toEntryWithHistory: [
+                historyVersion("v1-oldest", at: 700, notes: padding),
+                historyVersion("v2", at: 800, notes: padding),
+                historyVersion("v3-newest", at: 900, notes: padding),
+            ],
+            meta: KPMeta(historyMaxSize: 2_800)
+        )
+
+        XCTAssertEqual(
+            updatedEntry.history.map(\.title),
+            ["Original Entry", "v3-newest"],
+            "the budget must go to the newest versions, not the ones stored first"
+        )
+    }
+
+    private func historyVersion(
+        _ title: String,
+        at seconds: TimeInterval?,
+        notes: String = ""
+    ) throws -> KPEntry {
+        KPEntry(
+            id: UUID(),
+            title: title,
+            password: try EncryptedValue.encrypt("history", using: sessionKey),
+            notes: notes,
+            lastModificationTime: seconds.map { Date(timeIntervalSince1970: $0) }
+        )
+    }
+
+    /// Edits the synthetic tree's entry so its pre-edit state ("Original Entry") is
+    /// pushed onto `history` and the trim runs.
+    private func applyTitleEdit(
+        toEntryWithHistory history: [KPEntry],
+        meta: KPMeta
+    ) throws -> KPEntry {
+        let tree = try makeSyntheticTree(includeRecycleBin: false)
+        let treeWithHistory = try makeSyntheticTree(
+            includeRecycleBin: false,
+            parentEntryOverride: withUpdatedEntry(tree.parentEntry, history: history),
+            metaOverride: meta
+        )
+        var payload = try makeDraftPayload(from: treeWithHistory.parentEntry)
+        payload.title = "Updated Title"
+
+        let draft = DatabaseDraft(
+            rootGroup: treeWithHistory.rootGroup,
+            meta: treeWithHistory.meta,
+            sessionKey: sessionKey
+        )
+        let updatedDraft = try draft.apply(
+            .updateEntry(entryID: treeWithHistory.parentEntry.id, draft: payload)
+        )
+        return try XCTUnwrap(findEntry(withID: treeWithHistory.parentEntry.id, in: updatedDraft.rootGroup))
+    }
+
     func test_updateEntry_trimsHistoryToConfiguredMaxSize_oldestFirst() throws {
         // `estimatedHistorySize` is a 256-byte overhead per entry plus the
         // UTF-8 length of the fields it enumerates. With no username/url/tags/
