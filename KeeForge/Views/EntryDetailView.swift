@@ -257,23 +257,28 @@ struct EntryDetailView: View {
     /// stack pushes while the iPad and macOS shells route through their own
     /// browsing surface.
     @ViewBuilder
+    /// A `Button` in every shell, never a `NavigationLink`, even where the chip
+    /// does push. All the chips share one `List` row, and a row containing
+    /// several `NavigationLink`s misbehaves badly: the row — not the chip —
+    /// owns the link, so a tap activates the wrong destination (observed: the
+    /// last chip in the row) or several at once, and the row draws the
+    /// selection background whenever any chip's value sits on the navigation
+    /// path, greying the whole card. Pushing by hand keeps the chips
+    /// independent, and drops the per-chip disclosure chevron with it.
     private func tagChip(_ tag: String, fallbackIndex: Int) -> some View {
-        let identifier = "entry-detail.tag.\(TagAccessibility.identifierSuffix(for: tag, fallbackIndex: fallbackIndex))"
-        if let onSelectTag {
-            Button {
+        Button {
+            if let onSelectTag {
                 onSelectTag(tag)
-            } label: {
-                TagCapsule(tag: tag)
+            } else {
+                viewModel.navigationPath.append(TagDestination.entries(tag: tag))
             }
-            .buttonStyle(.plain)
-            .accessibilityIdentifier(identifier)
-        } else {
-            NavigationLink(value: TagDestination.entries(tag: tag)) {
-                TagCapsule(tag: tag)
-            }
-            .buttonStyle(.plain)
-            .accessibilityIdentifier(identifier)
+        } label: {
+            TagCapsule(tag: tag)
         }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier(
+            "entry-detail.tag.\(TagAccessibility.identifierSuffix(for: tag, fallbackIndex: fallbackIndex))"
+        )
     }
 
     /// Presents the entry editor. iOS pushes onto the navigation stack;
