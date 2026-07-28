@@ -12,8 +12,10 @@ name: iOS 18 RC Tests
 #
 # Trigger mirrors the Xcode Cloud RC gate (rc/* tag push) and also allows manual
 # dispatch. This workflow and Xcode Cloud are both release gates documented in
-# .agents/skills/release/SKILL.md. The job ignores the rc/* deletion event emitted
-# when the release skill atomically promotes the successful RC tag to v*.
+# .agents/skills/release/SKILL.md. One rc/{version}-b{build} tag is pushed per
+# candidate build, from a release/{major}.{minor} branch; rc tags are permanent
+# and are never moved or deleted. The deletion guard below is retained so a
+# manually removed tag can never start a run.
 
 on:
   push:

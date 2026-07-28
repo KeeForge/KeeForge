@@ -18,6 +18,16 @@ Thanks for helping improve KeeForge.
 
 Pull requests require at least one approving review before merge. KeeForge uses squash merges, so please keep the pull request focused and give it a clear title.
 
+### Which branch to target
+
+Target `main` for everything by default.
+
+When a release is being prepared there is also a live `release/{major}.{minor}` branch soaking on
+TestFlight. Only target that branch if a maintainer asks you to — it is reserved for fixes to bugs
+found in the release candidate, and every commit landing there forces a new build and restarts the
+testing window. Maintainers port those fixes to `main` separately; do not open the same change
+against both branches.
+
 Two status checks must pass before a pull request can merge:
 
 - **unit-tests** — runs the `KeeForgeTests` unit suite on an iOS simulator via GitHub Actions.

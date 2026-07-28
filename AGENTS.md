@@ -37,7 +37,7 @@ Entry point for coding agents working on KeeForge. This file is intentionally br
 
 If you are a very powerful model like Fable 5, feel free to delegate implementation and test to sub-agents with appropriate models. If you are Claude, feel free to use Codex CLI with a strong model (e.g., GPT 5.6 sol xhigh) for subagents' tasks, too. This is important to keep context windows manageable.
 
-Repo skills live in `.agents/skills/` (`release`, `spec-creator`, `publish-app-store-version`), symlinked under `.claude/skills/`; `release` defines the `rc/*` → `v*` tag release flow.
+Repo skills live in `.agents/skills/` (`release`, `spec-creator`, `publish-app-store-version`), symlinked under `.claude/skills/`; `release` defines the release-branch → TestFlight soak → App Store flow (`release/{major}.{minor}` branches, `rc/{version}-b{build}` candidate tags, `v{version}` as a record of the shipped build).
 
 ## Repo-Wide Rules
 

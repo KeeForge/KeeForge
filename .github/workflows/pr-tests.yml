@@ -9,11 +9,16 @@ name: PR Tests
 # XCTest's summary failure count, not the process exit code, so flaky
 # teardown never fails a green run. Scope is unit tests only (KeeForgeTests);
 # UI tests remain release-gated via rc/* tags.
+#
+# release/** is included so fixes PR'd into a live release branch during its
+# TestFlight soak get the same gate as main. Both ref patterns are covered by
+# repository rulesets requiring this job's `unit-tests` check.
 
 on:
   pull_request:
     branches:
       - main
+      - 'release/**'
 
 concurrency:
   group: pr-tests-${{ github.ref }}

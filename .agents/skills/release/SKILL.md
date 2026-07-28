@@ -1,91 +1,111 @@
 ---
 name: release
 description: >
-  Create a new release candidate for the KeeForge iOS app. Bumps the version in project.yml,
-  updates CHANGELOG.md, runs the local KDBX compatibility gate, commits, and pushes an
-  rc/{version} tag so Xcode Cloud and the iOS 18 GitHub Actions workflow run the full test suite;
-  once both gates pass or any test failures pass an exact local-device reproduction, atomically
-  promotes the RC tag to v{version} to trigger the Xcode Cloud build-and-archive workflow.
-  Use this skill whenever the user wants to cut a release, create a release candidate,
-  bump the version, ship a new version, or prepare a build for TestFlight/App Store.
-  Triggers on phrases like "release", "new version", "bump version", "cut a release",
-  "prepare release", "ship it", "release candidate", or "push a new build".
+  Run the KeeForge iOS release process: cut a release/{major}.{minor} branch, build release
+  candidates onto the public TestFlight channel, soak them, and ship the exact soaked build to
+  the App Store. Bumps versions and build numbers in project.yml, updates CHANGELOG.md and the
+  What's New sheet, runs the local KDBX compatibility gate, and pushes rc/{version}-b{build}
+  tags so Xcode Cloud and the iOS 18 GitHub Actions workflow test and archive each candidate.
+  Use this skill whenever the user wants to cut a release, start a release branch, respin a
+  release candidate, ship a soaked build, bump the version, or prepare a build for
+  TestFlight/App Store. Triggers on phrases like "release", "new version", "bump version",
+  "cut a release", "prepare release", "ship it", "release candidate", "respin", "new RC build",
+  "hotfix", or "push a new build".
 ---
 
-# Release Candidate Workflow
+# KeeForge Release Workflow
 
-Create a new release candidate for the KeeForge iOS app. This is a sequential, high-stakes
-workflow: each step depends on the previous one succeeding. Do not skip steps or proceed
-past a failure.
+Releases run on a dedicated `release/{major}.{minor}` branch, reach users through the public
+TestFlight channel first, and ship the **exact binary that was soaked**. This is a sequential,
+high-stakes workflow: each step depends on the previous one succeeding. Do not skip steps or
+proceed past a failure.
 
 Test execution model: the full unit and UI suites run on **Xcode Cloud** and **GitHub Actions**.
 Do not run them locally up front. Run focused local XCTest reproductions only when a cloud test
-fails. The release is gated in two tag stages:
+fails — see `gate-adjudication.md`.
 
-1. `rc/{version}` tag → Xcode Cloud **"Tests (RC)"** and GitHub Actions
-   **"iOS 18 RC Tests"** workflows (test-only, all suites).
-2. Promote the successful `rc/{version}` tag to `v{version}` only after both test gates are
-   accepted. The `v{version}` tag triggers Xcode Cloud's **"Release"** workflow (archive-only).
-   Never promote a commit that the two RC workflows did not test.
+## The four invariants
 
-Both gates are monitored from the command line with `gh` — Xcode Cloud reports into GitHub as a
-check run on the RC commit, so App Store Connect is not needed to watch a run or read its
-failures. See Step 7.
+Violating any of these invalidates the release. They outrank convenience at every step.
 
-The KDBX compatibility gate always runs locally because Xcode Cloud does not install KeePassXC.
+1. **Ship the binary you soaked.** The App Store build is selected from TestFlight, never
+   re-archived. `v{version}` is a record of what shipped, not a build trigger.
+2. **Every external build gets a unique, increasing `CURRENT_PROJECT_VERSION`.** App Store
+   Connect rejects a duplicate `(marketing version, build number)` pair outright.
+3. **A new build restarts the soak clock.** Any fix during soak means a new build and a fresh
+   window. This is the pressure that keeps late fixes honest.
+4. **Tags are immutable.** Never delete, move, or force-push a tag. Every `rc/*` tag is a
+   permanent record of one candidate build.
 
-## Usage
+## Pick the mode first
 
-The user invokes this skill with a version number:
+Identify which mode applies before touching anything. Ask the user if it is ambiguous.
 
-```
-/release 1.6.0
-```
+| Situation | Mode |
+| --- | --- |
+| Starting a new minor/major version, no branch yet | **A — Cut** |
+| Release branch exists, a fix needs a new candidate build | **B — Respin** |
+| Soak criteria met, ready for the App Store | **C — Ship** |
+| Shipped version needs a patch (`1.11.1`) | **D — Patch** |
 
-If no version is provided, read the current `MARKETING_VERSION` from `project.yml` and
-suggest the next minor bump (e.g. 1.5.0 to 1.6.0). Ask the user to confirm before proceeding.
+Reference files, read on demand:
 
-## Step 1: Validate the repo state and version number
+- `gate-adjudication.md` — how to read the two CI gates and adjudicate test failures locally.
+  Read this whenever a gate is not green.
+- `xcode-cloud-setup.md` — the one-time App Store Connect workflow configuration this process
+  depends on. Read it if archives or TestFlight uploads are not appearing as expected.
+
+---
+
+# Mode A — Cut a release branch
+
+## A1. Validate repo state and version
 
 1. Verify the git state is releasable:
-   - On the `main` branch (`git branch --show-current`).
+   - On `main` (`git branch --show-current`).
    - Clean working tree (`git status --porcelain` is empty).
-   - Up to date with the remote: run `git fetch origin --tags`, then confirm `main` is not behind `origin/main`.
-2. Read `project.yml` and extract the current `MARKETING_VERSION` (from the KeeForge target).
-3. Run `git tag --list 'v*'` and `git tag --list 'rc/*'` to get all existing release and RC tags
-   (the fetch above pulled remote tags too — Xcode Cloud triggers on the remote tag, so a
-   remote-only duplicate is just as fatal as a local one).
+   - Up to date: `git fetch origin --tags`, then confirm `main` is not behind `origin/main`.
+2. Read `project.yml` and extract the current `MARKETING_VERSION` from the `KeeForge` target.
+3. Run `git tag --list 'v*'`, `git tag --list 'rc/*'`, and `git branch -r --list 'origin/release/*'`.
 4. Verify:
-   - The tag `v{version}` does not already exist.
-   - The version is a valid semver (MAJOR.MINOR.PATCH).
-   - The new version is greater than the current `MARKETING_VERSION`.
-   - Note any existing `rc/{version}` or `rc/{version}-N` tags: they mean an earlier attempt at
-     this release. That is not fatal (the next RC tag gets the next `-N` suffix in Step 6), but
-     surface it to the user.
-5. If any check fails, explain the problem and ask the user how to proceed (e.g. a corrected version). Do not proceed until validation passes.
+   - `v{version}` does not already exist.
+   - `{version}` is valid semver (MAJOR.MINOR.PATCH) and greater than the current `MARKETING_VERSION`.
+   - `release/{major}.{minor}` does not already exist. **If it does, this is Mode B or D, not Mode A.**
+5. If a version was not supplied, suggest the next minor bump and ask the user to confirm.
 
-**Resume exception:** if the working tree is dirty but the only changes are this release's own
-edits (`project.yml`, `CHANGELOG.md`, `KeeForge.xcodeproj`,
-`KeeForge/Services/AppSupport/WhatsNewPresentationService.swift`, and
-`KeeForge/Resources/Localizable.xcstrings` already showing the expected new version/content), a
-previous run of this skill likely stopped at a gate failure. Confirm with the user, then resume
-from Step 5 instead of redoing Steps 2-4 or demanding a reset. Similarly, if the release commit
-is already pushed and an `rc/{version}` tag exists, record that exact tag as the active RC tag and
-resume from Step 7 rather than recreating the commit.
+## A2. Cut the branch
 
-## Step 2: Update CHANGELOG.md
+The branch is named for the **minor** version, not the patch — `release/1.11` carries `1.11.0`,
+`1.11.1`, and every later patch. It is long-lived: do not delete it until the next minor ships.
+
+```bash
+git switch -c release/{major}.{minor}
+git push -u origin release/{major}.{minor}
+```
+
+The `release branches` repository ruleset covers `refs/heads/release/**` — deletion protection,
+linear history, and required `unit-tests` + `DCO` checks — so contributor PRs into this branch
+are gated exactly like `main`.
+
+From here until Mode C, **all release work happens on this branch.** `main` stays open for the
+next version's features.
+
+## A3. Update CHANGELOG.md
 
 1. Read `CHANGELOG.md`.
-2. Find the `## Unreleased` section and collect all entries beneath it (up to the next `## v` heading). Entries may be flat bullets, already grouped under `###` subsections, or a mix.
-3. If the Unreleased section is empty, warn the user and ask whether to proceed with an empty changelog entry.
-4. Organize the unreleased entries into categorized subsections. Keep entries that are already under a matching subsection where they are; review each remaining bullet and classify it:
-   - **New Features** - new user-facing capabilities
-   - **Fixes** - bug fixes (entries starting with "Fixed" or describing a fix)
-   - **Security** - security-related changes
-   - **Known Issues** - known problems or limitations
-   - **Changes** - refactors, renames, internal improvements, infrastructure, test changes
+2. Find `## Unreleased` and collect all entries beneath it (up to the next `## v` heading).
+   Entries may be flat bullets, already grouped under `###` subsections, or a mix.
+3. If the Unreleased section is empty, warn the user and ask whether to proceed.
+4. Organize the entries into categorized subsections. Keep entries already under a matching
+   subsection where they are; classify each remaining bullet:
+   - **New Features** — new user-facing capabilities
+   - **Fixes** — bug fixes
+   - **Security** — security-related changes
+   - **Known Issues** — known problems or limitations
+   - **Changes** — refactors, renames, internal improvements, infrastructure, test changes
+
    Only include subsections that have entries. Keep the original wording of each bullet.
-5. Replace the Unreleased entries with the new versioned section. The result should look like:
+5. Replace the Unreleased entries with the new versioned section:
 
 ```markdown
 ## Unreleased
@@ -99,210 +119,353 @@ resume from Step 7 rather than recreating the commit.
 - ...
 ```
 
-The `## Unreleased` heading stays, but its content moves to the new version section.
-Use today's date for the release date — get it from `date +%F`, don't guess.
+The `## Unreleased` heading stays; its content moves into the new version section. Use today's
+date from `date +%F` — do not guess. If the soak runs past that date, correct it in Mode C.
 
-## Step 3: Review and fix What's New content
+## A4. Review and fix What's New content
 
-Perform this review for every release, even if the content already looks complete:
+Perform this review for every release, even if the content already looks complete.
 
-1. Review the new version's `### New Features` and `### Fixes` bullets in `CHANGELOG.md` as
-   source material. Generally keep the sheet to at most three items: prioritize the most important
-   user-facing features, then use any remaining slots for notable bug fixes. A fix is notable when
-   it materially improves a common workflow, prevents a crash or data-loss risk, or delivers a
-   broad reliability improvement. Exclude routine polish, security hardening, known issues, and
-   internal changes. If there are no eligible items, confirm that `WhatsNewCatalog` has no case for
-   this version and continue without an empty sheet. Confirm with the user if the proposal looks
-   good before proceeding.
+1. Review the new version's `### New Features` and `### Fixes` bullets as source material. Keep
+   the sheet to at most three items: prioritize the most important user-facing features, then use
+   remaining slots for notable bug fixes. A fix is notable when it materially improves a common
+   workflow, prevents a crash or data-loss risk, or delivers a broad reliability improvement.
+   Exclude routine polish, security hardening, known issues, and internal changes. If there are no
+   eligible items, confirm `WhatsNewCatalog` has no case for this version and continue without an
+   empty sheet. Confirm the proposal with the user before proceeding.
 2. Inspect the matching version case in
    `KeeForge/Services/AppSupport/WhatsNewPresentationService.swift`. Add it if needed, or fix it
-   when it is stale, incomplete, overly technical, or inaccurate.
+   when stale, incomplete, overly technical, or inaccurate.
 3. Rewrite each included feature as short, benefit-led copy for ordinary users. Do not copy issue
    numbers, implementation details, test coverage, internal terminology, or raw changelog prose.
 4. Check platform accuracy. Keep features available on both iOS and macOS shared; set the
-   `platforms` argument for features available on only one platform. Never advertise an iOS-only
-   feature in the Mac sheet or vice versa.
+   `platforms` argument for single-platform features. Never advertise an iOS-only feature in the
+   Mac sheet or vice versa.
 5. Add or update every affected key and its German translation in
-   `KeeForge/Resources/Localizable.xcstrings`. The localization tests in the Xcode Cloud RC run
-   (Step 7) are the gate.
-6. Re-read the completed sheet content as a user. Fix unclear titles, repetitive descriptions,
-   missing major features, or claims that are not supported by the release.
+   `KeeForge/Resources/Localizable.xcstrings`. The localization tests in the RC run are the gate.
+6. Re-read the completed sheet as a user. Fix unclear titles, repetitive descriptions, missing
+   major features, or claims the release does not support.
 
-Do not proceed until the catalog either has polished, accurate content for the new version or has
-been deliberately omitted because the release contains no eligible user-facing highlights.
+## A5. Set the version and build number
 
-## Step 4: Update project.yml
+Update **both** the `KeeForge` and `KeeForgeAutoFill` targets in `project.yml`:
 
-Update **both** the `KeeForge` and `KeeForgeAutoFill` targets:
+1. Set `MARKETING_VERSION` to the new version string (e.g. `"1.11.0"`).
+2. Set `CURRENT_PROJECT_VERSION` to `"1"` — the first candidate build of this version.
 
-1. Set `MARKETING_VERSION` to the new version string (e.g. `"1.6.0"`).
-2. Reset `CURRENT_PROJECT_VERSION` to `"1"`.
+Both targets must always carry identical values. There are exactly 4 values to update. Use
+precise string-replacement edits.
 
-Both targets must always have identical version values. Use precise string-replacement edits
-for these changes. There are exactly 4 values to update: 2 `MARKETING_VERSION`
-values and 2 `CURRENT_PROJECT_VERSION` values.
+Do not touch the `KeeForgeMac` / `KeeForgeMacAutoFill` versions; the macOS targets are on hold
+and release separately.
 
-## Step 5: Regenerate the Xcode project and run the local KDBX gate
-
-Since `project.yml` changed, regenerate the `.xcodeproj` before building:
+## A6. Regenerate and run the local KDBX gate
 
 ```bash
 xcodegen generate
 ```
 
-Do **not** run the full unit or UI test suites locally up front — both cloud systems run them in
-Step 7. Local XCTest runs are allowed there only to adjudicate specific failed cloud tests.
-
-Run the KDBX compatibility gate in a fresh `bash` session. This is a required local release
-gate — Xcode Cloud does not install KeePassXC, so the release machine is the only place
-KeeForge-produced databases get cross-validated against another KeePass implementation:
+Run the KDBX compatibility gate in a fresh `bash` session, under the repo's Xcode lock. This is a
+required local gate for **every candidate build** — Xcode Cloud does not install KeePassXC, so
+the release machine is the only place KeeForge-written databases are cross-validated against
+another KeePass implementation:
 
 ```bash
-ci_scripts/run_kdbx_compatibility_gate.sh
+LOG=/Users/tan/src/KeeForge/scratch/xcode-logs/$(date +%Y%m%d-%H%M%S)-kdbx-gate.log
+mkdir -p "$(dirname "$LOG")"
+/Users/tan/src/KeeForge/scripts/with-repo-lock.sh xcode -- \
+  ci_scripts/run_kdbx_compatibility_gate.sh > "$LOG" 2>&1
+echo "exit=$? log=$LOG"
 ```
 
 If `keepassxc-cli` is not installed, stop and ask the user to install KeePassXC (or point
-`KEEPASSXC_CLI` at the binary). Do not skip this gate or proceed past a gate failure.
+`KEEPASSXC_CLI` at the binary). Do not skip this gate or proceed past a failure.
 
-## Step 6: Commit, push, and tag the release candidate
+Do **not** run the full unit or UI suites locally here — both cloud systems run them in A8.
 
-Only reach this step if the KDBX gate passed.
+## A7. Commit, push, and tag the candidate
 
-1. Stage the changed files (the `.xcodeproj` is tracked and changes when `xcodegen generate` runs):
+1. Stage the changed files:
    ```bash
    git add project.yml CHANGELOG.md KeeForge.xcodeproj \
      KeeForge/Services/AppSupport/WhatsNewPresentationService.swift \
      KeeForge/Resources/Localizable.xcstrings
    ```
-2. Commit with message: `Release candidate v{version}`
-3. Push the commit:
+2. Commit with `-s`: `Release candidate v{version} build {build}`
+3. Push the branch: `git push origin release/{major}.{minor}`
+4. Tag the candidate. **One tag per build**, carrying the build number so the tag maps 1:1 onto
+   the TestFlight build it produces:
    ```bash
-   git push origin main
+   git tag -a rc/{version}-b{build} -m "RC v{version} build {build}"
+   git push origin rc/{version}-b{build}
    ```
-4. Create and push the RC tag. This triggers both the Xcode Cloud **"Tests (RC)"** workflow and
-   `.github/workflows/ios18-rc-tests.yml` on GitHub Actions (test-only, no archive):
-   ```bash
-   git tag -a rc/{version} -m "RC for v{version}"
-   git push origin rc/{version}
-   ```
-   If `rc/{version}` already exists from an earlier attempt, use the next attempt suffix
-   instead: `rc/{version}-2`, then `rc/{version}-3`, and so on. Never delete or force-move an
-   existing tag — a re-pushed same-name tag does not reliably retrigger Xcode Cloud.
 
-## Step 7: Wait for both RC test workflows
+The tag push triggers Xcode Cloud's RC workflow (test, then archive and upload to TestFlight) and
+`.github/workflows/ios18-rc-tests.yml`.
 
-The RC tag push starts two independent full-suite runs. Do not promote the tag until both runs
-reach a terminal state, and verify both runs tested the commit pointed to by the active RC tag.
+## A8. Wait for both test gates
 
-1. Monitor Xcode Cloud **through GitHub**, not App Store Connect. Xcode Cloud mirrors the
-   **"Tests (RC)"** workflow onto the RC commit as a check run (`KeeForge | Tests (RC) | Test - iOS`)
-   and a commit status, so the whole gate is readable with `gh` and needs no ASC session:
+The RC tag starts two independent full-suite runs. Both must be accepted before the build is
+distributed to external testers.
 
+1. Monitor Xcode Cloud through GitHub — it mirrors onto the RC commit as a check run:
    ```bash
    gh api repos/KeeForge/KeeForge/commits/{rc-sha}/check-runs \
      --jq '.check_runs[] | select(.app.name=="Xcode Cloud") | "\(.name) | \(.status) | \(.conclusion // "-")"'
    ```
+2. Monitor GitHub Actions:
+   ```bash
+   gh run list --workflow ios18-rc-tests.yml --event push
+   gh run watch <run-id> --exit-status
+   ```
+   Find the run whose `headBranch` is the RC tag and whose `headSha` is the RC commit.
+3. Record each run's URL, commit SHA, status, and conclusion. Both must target the RC commit.
+4. If either gate is not green, **read `gate-adjudication.md`** and follow it. Do not distribute a
+   build whose gates are unresolved.
 
-   Poll that until `status` is `completed`. Interpreting `conclusion`:
-   - `success` — gate is green.
-   - `action_required` — Xcode Cloud's conclusion for a run with **test failures**. Read
-     `.output.title` / `.output.summary` / `.output.text` from the same check run for the failure
-     count and each failed test identifier with its assertion message. Check `Errors` in the
-     summary table: `Errors|0` with `Test Failures|N` means genuine XCTest failures (the local
-     reproduction in 7.4 applies); a nonzero `Errors` is a build/infrastructure failure (7.5).
+Xcode Cloud's archive action runs only after its test action passes, so a red gate means no
+TestFlight build was produced.
 
-   The commit status also carries the ASC build URL in `target_url`
-   (`gh api repos/KeeForge/KeeForge/commits/{rc-sha}/status`), which is the fastest way to hand the
-   user a link. The gate covers the **Test - iOS action on every destination**.
+## A9. Release the build to external testers
 
-   Only fall back to asking the user to read App Store Connect for information the check run does
-   not expose — in practice that is just the **per-destination device and iOS version** needed by
-   Step 7.4. The failure list itself is always available from `gh`.
-2. Monitor GitHub Actions workflow `.github/workflows/ios18-rc-tests.yml` (**"iOS 18 RC Tests"**).
-   Prefer `gh run list --workflow ios18-rc-tests.yml --event push` to find the run whose
-   `headBranch` is the active RC tag and whose `headSha` is the RC commit, then use
-   `gh run watch <run-id> --exit-status`. The `ios18-tests` job must complete successfully.
-3. Record each run's URL, commit SHA, status, and conclusion. Both must target the RC commit. A
-   gate is accepted when it is green or when every actual XCTest failure from that gate passes
-   the exact local reproduction below.
-4. If either run reports XCTest failures, wait for the other run to finish too, then validate
-   every failed test locally:
-   - Read the cloud logs or result bundle and record each failed test identifier plus its simulator
-     device type and exact iOS runtime version. For GitHub Actions, get the chosen iOS 18 runtime
-     from the **Create iOS 18 simulator** log; its device is iPhone SE (3rd generation). For Xcode
-     Cloud, get the device and OS from each failed test destination.
-   - Confirm the same runtime is installed locally with `xcrun simctl list runtimes` and the same
-     device type is available with `xcrun simctl list devicetypes`. Install the exact runtime or
-     stop if the device/OS pair cannot be reproduced; do not substitute `OS=latest`.
-   - In a fresh `bash` session, regenerate the project and run only the failed identifiers on each
-     matching device/OS pair. Always include at least one `-only-testing:` selector:
+1. Confirm the build appears in App Store Connect under TestFlight with the exact
+   `{version} ({build})` pair and state `Complete`. Export compliance no longer prompts —
+   `ITSAppUsesNonExemptEncryption` is declared in `KeeForge/Info.plist`.
+2. Write **What to Test** notes for the build. This is the only text every tester sees, and it is
+   the steering channel for the soak. Always include:
+   - What changed in this build, in user terms.
+   - **"Test against a copy of your database, not your primary vault."** A TestFlight build shares
+     the production bundle ID and container, so testers are running an unreviewed candidate
+     against their real KDBX files.
+   - Any area you specifically want exercised.
+3. If this is the **first build of this marketing version**, submit for Beta App Review and expect
+   roughly a day before external distribution. Later builds of the same version normally skip it.
+   Do not announce a ship date until this clears.
+4. Distribute to the public-link group.
+5. Record the distribution timestamp — the soak clock starts here, not at the branch cut.
 
-     ```bash
-     xcodegen generate
-     xcodebuild test -project KeeForge.xcodeproj -scheme KeeForge \
-       -destination 'platform=iOS Simulator,name={exact device},OS={exact version}' \
-       -only-testing:{test-target/test-class/test-method} > repro.log 2>&1
-     echo "exit: $?"
-     grep -E '\*\* TEST (SUCCEEDED|FAILED)' repro.log
-     grep -E '^Test Case .*(passed|failed)' repro.log
-     ```
+## A10. Soak
 
-     Redirect to a file and read the verdict back; do **not** pipe `xcodebuild` into `tail`/`head`.
-     A pipeline reports the *last* command's exit status, so `xcodebuild ... | tail -40` returns 0
-     even when the tests failed, and `-quiet` additionally suppresses the per-test `Test Case ...
-     passed/failed` lines — together they can look exactly like a clean pass. A run is only a pass
-     when you have seen `** TEST SUCCEEDED **` and a `passed` line for every identifier you selected.
+Do not proceed to Mode C until **every** criterion below holds for the **current** build:
 
-     Verify the device/OS pair actually exists locally before trusting a run: an unmatched
-     `-destination` makes `xcodebuild` print the list of available destinations and exit without
-     running anything, which is easy to misread as success.
+- [ ] **≥ 48h** since this build was distributed to external testers.
+- [ ] **≥ 5 unique installs** of this exact build. Lower this deliberately (and record the number)
+      if the public link is new and cannot reach 5; do not silently ignore it.
+- [ ] **Zero new crash signatures** for this build in App Store Connect (TestFlight → Crashes) and
+      Xcode Organizer.
+- [ ] **Every P0/P1 report** from TestFlight feedback or `feedback.keeforge.com` is either fixed
+      (→ Mode B, clock restarts) or explicitly deferred with a written reason recorded in the
+      release notes to the user.
 
-     Use separate commands when failures came from different device/OS pairs. Preserve the local
-     commands and results in the release handoff.
-   - If every failed cloud test passes locally on its exact device/OS pair, classify those cloud
-     failures as CI-only flakes and accept that gate. Proceed once the other gate is also accepted.
-   - If any failed test also fails locally, stop. Diagnose and fix it on `main` as a new commit
-     (never amend or force-push the release commit), push a new RC tag (`rc/{version}-2`, `-3`, ...),
-     and repeat Step 7 for both workflows.
-5. A build, configuration, infrastructure, cancellation, or "tests did not run" failure is not an
-   XCTest failure and cannot be overridden by a local pass. Rerun that workflow on the same RC
-   commit, or fix the cause and cut a new RC. Do not proceed until both gates are accepted.
+Watch all three feedback channels: screenshot feedback, Send Beta Feedback text, and crash
+reports — all under **TestFlight → Feedback** in App Store Connect.
 
-## Step 8: Promote the RC tag to the official version
+Treat any candidate touching `KDBXParser`, `KDBX3Parser`, `KDBXWriter`, `KDBXXMLSerializer`, or
+the local/cloud save paths as higher-risk: hold the longest soak and say so in What to Test.
 
-Only after both Step 7 gates are accepted. The active RC tag may be `rc/{version}` or a suffixed
-retry such as `rc/{version}-2`.
+When the criteria are met, go to **Mode C**.
 
-1. Fetch and confirm local `main`, `origin/main`, and the active RC tag all resolve to the exact
-   commit tested by both workflows. If commits landed on `main` in between, go back to Step 6 and
-   cut a new RC; never release an untested commit.
-2. Create the annotated official tag at that exact commit. Git has no native tag-rename command,
-   so promote the remote tag with one atomic ref update: add `v{version}` and delete the active RC
-   tag in the same push. This leaves no state where the remote has only one half of the rename and
-   triggers Xcode Cloud's archive-only **"Release"** workflow.
+---
+
+# Mode B — Respin a candidate build
+
+Use when a fix must land on a live release branch. Every respin produces a new build and restarts
+the soak clock.
+
+## B1. Land the fix on the release branch
+
+The fix goes on the release branch **first** — that is where it is needed. Contributor fixes come
+in as PRs targeting `release/{major}.{minor}` and are gated by `pr-tests.yml` and the ruleset.
+
+Never amend or force-push an existing release commit; the fix is always a new commit.
+
+## B2. Bump the build number
+
+In `project.yml`, increment `CURRENT_PROJECT_VERSION` by 1 on **both** the `KeeForge` and
+`KeeForgeAutoFill` targets. `MARKETING_VERSION` does not change.
+
+If the fix warrants a user-visible changelog line, add it to the version's section in
+`CHANGELOG.md` (not `## Unreleased` — this version is no longer unreleased on this branch).
+
+## B3. Regenerate, gate, tag
+
+Run A6 (regenerate + KDBX gate), then A7 with the new build number, then A8 and A9.
+
+The KDBX gate runs again for this build. It is not inherited from the previous candidate.
+
+## B4. Restart the soak
+
+Return to A10 with the clock reset to this build's distribution timestamp. Prior builds' soak time
+does not carry over.
+
+## B5. Port the fix to main
+
+Do this as soon as the fix lands, not at ship time — a fix that exists only on the release branch
+regresses the moment `main` becomes the next release.
+
+`main` requires linear history and the repo uses squash merges, so port with `cherry-pick`, not a
+merge commit:
+
+```bash
+git switch main
+git pull --ff-only
+git cherry-pick -x {fix-sha}
+git push origin main
+```
+
+`-x` records the source commit in the message, which is what makes the audit in C2 readable.
+
+If the fix cannot apply cleanly to `main` (the surrounding code diverged), write the equivalent
+fix as a normal commit on `main` and note the release-branch SHA it corresponds to in the commit
+message. Do not leave it unported.
+
+---
+
+# Mode C — Ship the soaked build
+
+Only enter this mode when A10's criteria are met for the current build.
+
+## C1. Confirm what you are shipping
+
+Record explicitly, and state it back to the user before proceeding:
+
+- The marketing version and build number of the soaked build.
+- Its `rc/{version}-b{build}` tag and commit SHA.
+- The distribution timestamp and elapsed soak time.
+- The unique-install count and crash count.
+
+The build number here **is** the build you will select in App Store Connect. If it does not match
+the last candidate you distributed, stop — something is out of sync.
+
+## C2. Audit that main has every fix
+
+Confirm nothing that shipped is missing from `main`:
+
+```bash
+git fetch origin --tags
+git cherry -v main origin/release/{major}.{minor}
+```
+
+Every line prefixed `+` is a commit on the release branch with no patch-equivalent on `main`.
+Classify each one:
+
+- **A fix** → port it now with Mode B5. Do not ship with an unported fix.
+- **Release mechanics** (the version bump, build-number bumps, the changelog version section,
+  What's New content) → expected; these are covered by the sync commit in C5.
+
+A cherry-picked commit that needed conflict resolution has a different patch-id and will still
+show as `+`. Verify those by reading the diff rather than assuming they were dropped.
+
+## C3. Correct the changelog date if the soak crossed a day
+
+If `CHANGELOG.md`'s `## v{version} ({date})` no longer matches the actual ship date, fix it on the
+release branch now. This is a documentation-only change and does **not** require a new build — the
+changelog is not compiled into the binary.
+
+## C4. Tag the shipped build
+
+`v{version}` is a permanent record of what shipped. It triggers no build.
+
+```bash
+git fetch origin --tags
+rc_tag='rc/{version}-b{build}'
+rc_commit=$(git rev-list -n1 "$rc_tag")
+git tag -a 'v{version}' -m 'Release v{version} — shipped build {build} (from '"$rc_tag"')' "$rc_commit"
+git push origin 'refs/tags/v{version}'
+```
+
+Keep every `rc/*` tag. They are the audit trail of the candidates, including the ones that were
+replaced.
+
+If `git fetch origin --tags` reports `! [rejected] ... (would clobber existing tag)`, a local tag
+has drifted from the remote. The remote is authoritative for released tags: inspect both sides,
+then realign with `git fetch origin --tags --force`.
+
+## C5. Sync main to the shipped state
+
+`main` still carries the previous `MARKETING_VERSION` and an unreleased changelog. Bring it in
+line with one commit:
+
+1. Set `MARKETING_VERSION` to `{version}` and `CURRENT_PROJECT_VERSION` to the shipped build
+   number, on both the `KeeForge` and `KeeForgeAutoFill` targets.
+2. Copy the `## v{version}` changelog section from the release branch into `main`'s `CHANGELOG.md`,
+   leaving `## Unreleased` in place above it for the next cycle.
+3. Copy the What's New catalog case and its `Localizable.xcstrings` keys if they are not already on
+   `main` from a cherry-pick.
+4. `xcodegen generate`, then commit with `-s`: `Sync main to shipped v{version} build {build}`
+   and push.
+
+## C6. Hand off to App Store Connect
+
+Invoke the `publish-app-store-version` skill. Give it the exact marketing version **and build
+number** from C1 — that skill selects an already-uploaded build and must not trigger a new one.
+
+Keep the release branch. It is where `{version}.1` will come from.
+
+---
+
+# Mode D — Patch a shipped version
+
+For `1.11.1` on top of a shipped `1.11.0`.
+
+## D1. Branch is already there
+
+Patches are cut from the existing `release/{major}.{minor}` branch — **never from `main`**, which
+by now carries the next version's features.
+
+```bash
+git switch release/{major}.{minor}
+git pull --ff-only
+```
+
+Verify the branch tip is at or after the `v{major}.{minor}.0` tag.
+
+## D2. Land the fix and bump
+
+1. Land the fix (Mode B1) and port it to `main` (Mode B5).
+2. In `project.yml`, set `MARKETING_VERSION` to the patch version and reset
+   `CURRENT_PROJECT_VERSION` to `"1"`, on both targets.
+3. Add a `## v{version} ({date})` section to `CHANGELOG.md` above the previous version's section.
+4. Run A4 only if the patch has a user-visible highlight worth a What's New sheet. Most patches do
+   not; confirm `WhatsNewCatalog` has no case rather than shipping an empty sheet.
+
+## D3. Gate, tag, distribute
+
+Run A6, A7, A8, and A9 exactly as for a minor release. The KDBX gate is not optional for patches.
+
+## D4. Shortened soak, waivable
+
+Patch releases use a **24h** soak floor. Every other A10 criterion still applies unchanged.
+
+The 24h floor **may be waived** when the patch fixes an active crash or data-loss bug already
+reaching users. To waive it:
+
+1. State the reason to the user and get explicit confirmation at that moment.
+2. Confirm both A8 gates are green. **The CI gates are never waivable** — only the soak clock is.
+3. Record the waiver in the `v{version}` tag message:
 
    ```bash
-   git fetch origin --tags
-   rc_tag='rc/{version}' # use the actual successful tag, including any retry suffix
-   rc_commit=$(git rev-list -n1 "$rc_tag")
-   test "$(git rev-parse main)" = "$rc_commit"
-   test "$(git rev-parse origin/main)" = "$rc_commit"
-   git tag -a 'v{version}' -m 'Release v{version}' "$rc_commit"
-   git push --atomic origin 'refs/tags/v{version}' ":refs/tags/$rc_tag"
-   git tag -d "$rc_tag"
+   git tag -a 'v{version}' -m 'Release v{version} — shipped build {build} (from rc/{version}-b{build})
+
+   Soak waived: {reason}' "$rc_commit"
    ```
 
-   Never force-push either tag. If the atomic push fails, the remote refs remain unchanged; stop
-   and diagnose before retrying.
+Never waive a soak for a feature, a refactor, or convenience. If the reason cannot be written in
+one concrete sentence naming the bug, it is not a waiver case.
 
-   If `git fetch origin --tags` reports `! [rejected] ... (would clobber existing tag)` it also
-   exits nonzero, which aborts this block under `set -e` before a single check runs. That means a
-   local tag has drifted from the remote; the remote is authoritative for released tags. Inspect
-   both sides, then realign the local tag with `git fetch origin --tags --force` rather than
-   working around the exit code.
-3. Verify the remote contains `v{version}`, no longer contains the promoted RC tag, and that
-   `v{version}^{}` resolves to the recorded RC commit. Earlier failed, suffixed RC-attempt tags may
-   remain for audit history.
+## D5. Ship
 
-After promotion, confirm success and remind the user that Xcode Cloud will pick up the
-`v{version}` tag and start the build, TestFlight, and App Store Review pipeline.
+Continue with Mode C from C1, using the 24h (or waived) criterion in place of 48h.
+
+---
+
+# Notes
+
+- The macOS targets are on hold and are not part of this workflow. Do not bump
+  `KeeForgeMac`/`KeeForgeMacAutoFill` versions here.
+- `ITSAppUsesNonExemptEncryption` is declared `true` in `KeeForge/Info.plist`, so App Store Connect
+  does not ask the export-compliance question per build. It remains a legal declaration: if the
+  app's cryptography changes materially, revisit it rather than assuming the key still applies.
+- Archives fail deliberately when `DROPBOX_APP_KEY` or `ONEDRIVE_CLIENT_ID` is missing or still a
+  placeholder (`ci_scripts/ci_pre_xcodebuild.sh`). If an RC archive fails on that, the Xcode Cloud
+  workflow is missing its environment variables — see `xcode-cloud-setup.md`.

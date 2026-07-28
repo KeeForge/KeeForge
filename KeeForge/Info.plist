@@ -73,6 +73,8 @@
 	<string>msauth.$(PRODUCT_BUNDLE_IDENTIFIER)://auth</string>
 	<key>GITCommitHash</key>
 	<string>$(GIT_COMMIT_HASH)</string>
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<true/>
 	<key>LSApplicationQueriesSchemes</key>
 	<array>
 		<string>dbapi-2</string>

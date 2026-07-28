@@ -21,6 +21,10 @@ TODO before the first macOS release:
 
 ## Unreleased
 
+### Changes
+
+- Reworked the release process around a `release/{major}.{minor}` branch and the public TestFlight channel. Candidate builds are archived from `rc/{version}-b{build}` tags, soaked with external testers, and the exact soaked build is the one submitted to the App Store — `v{version}` now records what shipped instead of triggering a fresh archive. Adds per-build build numbers, a soak window with explicit exit criteria (shortened and waivable for patch releases), `release/**` PR gating and branch rules, and `ITSAppUsesNonExemptEncryption` in `Info.plist` so export compliance no longer prompts per build.
+
 ### New Features
 
 - See an entry's earlier versions. KeePass keeps a copy of an entry each time it changes, and KeeForge has always preserved those copies — now you can open them: tap "History" on an entry to browse the stored versions and inspect one. Useful for checking what a password used to be.
