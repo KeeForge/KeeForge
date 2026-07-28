@@ -1,4 +1,4 @@
 interface:
   display_name: "KeeForge Release"
-  short_description: "Release KeeForge through dual CI gates"
-  default_prompt: "Use $release to prepare a KeeForge release candidate for version {version}."
+  short_description: "Cut, soak, and ship a KeeForge release"
+  default_prompt: "Use $release for KeeForge version {version}. Identify the mode first — cut a release branch, respin a candidate build, ship a soaked build, or patch a shipped version."

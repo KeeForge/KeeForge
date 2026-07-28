@@ -13,6 +13,18 @@ Do not repeat the repository release workflow. Assume the requested version was 
 
 Treat **Submit for Review** as the final consequential action. Prepare everything first and stop immediately before it unless the user explicitly asks to submit and confirms at action time.
 
+## The build is already chosen
+
+The `release` skill soaks a specific build on the public TestFlight channel and hands this skill an
+exact `{marketing version, build number}` pair. That pair is the release. This skill **selects**
+that already-uploaded build; it never triggers, requests, or waits for a new one.
+
+If the user supplies a version without a build number, ask for it — do not infer it from "the
+latest build". The latest TestFlight build is not necessarily the soaked one, and shipping a
+different binary than the one that was soaked defeats the entire release process.
+
+If the requested build is absent from TestFlight, stop and report it. Do not start a build.
+
 ## KeeForge release inputs
 
 - Read `CHANGELOG.md` and use only the section for the requested version. Do not include `Unreleased` entries.
@@ -27,9 +39,10 @@ Treat **Submit for Review** as the final consequential action. Prepare everythin
 
 1. Open the KeeForge app in App Store Connect.
 2. Check whether the requested iOS version already exists and note its state.
-3. Check TestFlight build uploads for the exact marketing version and build number.
+3. Check TestFlight build uploads for the exact marketing version and build number handed over by the `release` skill.
 4. Treat `Complete` as processed. Do not attach a build that is still processing or failed.
-5. If the build is missing, check whether the Xcode Cloud **Release** workflow uses **Distribution Preparation: App Store Connect**. Never start another build when the user says they will archive and upload manually.
+5. Confirm the build was distributed to external testers — that is the one that was soaked. A build that only ever reached internal testers has not been through the process.
+6. If the build is missing, report it and stop. Builds are produced by the Xcode Cloud **Release Candidate** workflow on an `rc/*` tag; no workflow triggers on `v*`. Never start a build from here.
 
 ### 2. Create the App Store version when needed
 
@@ -37,11 +50,13 @@ Create the exact version through **Add iOS App**. Confirm immediately before cre
 
 Do not create a duplicate version if it already exists.
 
-### 3. Resolve export compliance
+### 3. Verify export compliance
 
-Inspect the previous accepted build's **Build Metadata** before answering so the declaration stays consistent with prior submissions.
+`KeeForge/Info.plist` declares `ITSAppUsesNonExemptEncryption` as `true`, so App Store Connect
+normally resolves compliance from the build metadata without prompting. Verify it shows as
+resolved rather than assuming it.
 
-KeeForge implements standard encryption outside or in addition to Apple's operating-system encryption. The current declaration path is:
+If App Store Connect still asks, KeeForge implements standard encryption outside or in addition to Apple's operating-system encryption. Inspect the previous accepted build's **Build Metadata** first so the declaration stays consistent with prior submissions. The recorded declaration path is:
 
 1. **Standard encryption algorithms instead of, or in addition to, using or accessing the encryption within Apple's operating system**
 2. **No** for availability in France
@@ -51,9 +66,10 @@ These are legal declarations. Present the exact choices and obtain explicit user
 ### 4. Attach the build
 
 1. Open **Add Build**.
-2. Select the exact processed build for the requested version.
+2. Select the exact soaked build — match **both** the marketing version and the build number from the handoff. When several builds exist for the version, the highest build number is not automatically the right one.
 3. Verify the build number and marketing version before choosing **Done**.
-4. After attachment, verify the build row on the version page.
+4. After attachment, verify the build row on the version page shows the expected build number.
+5. If the only builds offered do not include the handoff build number, stop and report the mismatch instead of substituting a different build.
 
 ### 5. Write localized release notes
 
@@ -118,6 +134,7 @@ If the user explicitly asks for final submission, request action-time confirmati
 ## Final checklist
 
 - Exact version record exists.
+- The attached build is the exact soaked build number from the handoff, not merely the newest.
 - Exact build is processed and attached.
 - Export compliance is complete.
 - France availability is consistent with the compliance declaration.
