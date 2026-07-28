@@ -23,7 +23,7 @@ TODO before the first macOS release:
 
 ### Changes
 
-- Reworked the release process around a `release/{major}.{minor}` branch and the public TestFlight channel. Candidate builds are archived from `rc/{version}-b{build}` tags, soaked with external testers, and the exact soaked build is the one submitted to the App Store — `v{version}` now records what shipped instead of triggering a fresh archive. Adds per-build build numbers, a soak window with explicit exit criteria (shortened and waivable for patch releases), `release/**` PR gating and branch rules, and `ITSAppUsesNonExemptEncryption` in `Info.plist` so export compliance no longer prompts per build.
+- Reworked the release process around a `release/{major}.{minor}` branch and the public TestFlight channel. Candidate builds are archived from `rc/{version}-b{build}` tags, soaked with external testers, and the exact soaked build is the one submitted to the App Store — `v{version}` now records what shipped instead of triggering a fresh archive. Adds per-build build numbers, measured-and-reported soak signals (48h for a minor release, 24h for a patch), release-branch backports as real merges into `main`, `release/**` PR gating and branch rules, and `ITSAppUsesNonExemptEncryption` in `Info.plist` so export compliance no longer prompts per build.
 
 ### New Features
 
