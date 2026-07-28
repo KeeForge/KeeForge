@@ -271,7 +271,8 @@ final class DatabaseDraftTests: XCTestCase {
     /// longer spends its budget on the versions it should have dropped.
     func test_updateEntry_maxSizeSpendsTheBudgetOnTheNewestVersions() throws {
         let padding = String(repeating: "x", count: 1_000)
-        // Each padded version costs 256 + title + 1000 + 8 ("history-" password is 8).
+        // Each padded version costs 256 + title + 1000 + 7 ("history" password),
+        // so the budget covers the snapshot and one padded version, not two.
         let updatedEntry = try applyTitleEdit(
             toEntryWithHistory: [
                 historyVersion("v1-oldest", at: 700, notes: padding),
@@ -286,46 +287,6 @@ final class DatabaseDraftTests: XCTestCase {
             ["Original Entry", "v3-newest"],
             "the budget must go to the newest versions, not the ones stored first"
         )
-    }
-
-    private func historyVersion(
-        _ title: String,
-        at seconds: TimeInterval?,
-        notes: String = ""
-    ) throws -> KPEntry {
-        KPEntry(
-            id: UUID(),
-            title: title,
-            password: try EncryptedValue.encrypt("history", using: sessionKey),
-            notes: notes,
-            lastModificationTime: seconds.map { Date(timeIntervalSince1970: $0) }
-        )
-    }
-
-    /// Edits the synthetic tree's entry so its pre-edit state ("Original Entry") is
-    /// pushed onto `history` and the trim runs.
-    private func applyTitleEdit(
-        toEntryWithHistory history: [KPEntry],
-        meta: KPMeta
-    ) throws -> KPEntry {
-        let tree = try makeSyntheticTree(includeRecycleBin: false)
-        let treeWithHistory = try makeSyntheticTree(
-            includeRecycleBin: false,
-            parentEntryOverride: withUpdatedEntry(tree.parentEntry, history: history),
-            metaOverride: meta
-        )
-        var payload = try makeDraftPayload(from: treeWithHistory.parentEntry)
-        payload.title = "Updated Title"
-
-        let draft = DatabaseDraft(
-            rootGroup: treeWithHistory.rootGroup,
-            meta: treeWithHistory.meta,
-            sessionKey: sessionKey
-        )
-        let updatedDraft = try draft.apply(
-            .updateEntry(entryID: treeWithHistory.parentEntry.id, draft: payload)
-        )
-        return try XCTUnwrap(findEntry(withID: treeWithHistory.parentEntry.id, in: updatedDraft.rootGroup))
     }
 
     func test_updateEntry_trimsHistoryToConfiguredMaxSize_oldestFirst() throws {
@@ -1116,6 +1077,46 @@ final class DatabaseDraftTests: XCTestCase {
             untouchedGroupID: untouchedGroupID,
             recycleBinGroupID: recycleBinGroupID
         )
+    }
+
+    private func historyVersion(
+        _ title: String,
+        at seconds: TimeInterval?,
+        notes: String = ""
+    ) throws -> KPEntry {
+        KPEntry(
+            id: UUID(),
+            title: title,
+            password: try EncryptedValue.encrypt("history", using: sessionKey),
+            notes: notes,
+            lastModificationTime: seconds.map { Date(timeIntervalSince1970: $0) }
+        )
+    }
+
+    /// Edits the synthetic tree's entry so its pre-edit state ("Original Entry") is
+    /// pushed onto `history` and the trim runs.
+    private func applyTitleEdit(
+        toEntryWithHistory history: [KPEntry],
+        meta: KPMeta
+    ) throws -> KPEntry {
+        let tree = try makeSyntheticTree(includeRecycleBin: false)
+        let treeWithHistory = try makeSyntheticTree(
+            includeRecycleBin: false,
+            parentEntryOverride: withUpdatedEntry(tree.parentEntry, history: history),
+            metaOverride: meta
+        )
+        var payload = try makeDraftPayload(from: treeWithHistory.parentEntry)
+        payload.title = "Updated Title"
+
+        let draft = DatabaseDraft(
+            rootGroup: treeWithHistory.rootGroup,
+            meta: treeWithHistory.meta,
+            sessionKey: sessionKey
+        )
+        let updatedDraft = try draft.apply(
+            .updateEntry(entryID: treeWithHistory.parentEntry.id, draft: payload)
+        )
+        return try XCTUnwrap(findEntry(withID: treeWithHistory.parentEntry.id, in: updatedDraft.rootGroup))
     }
 
     /// Entry whose TOTP arrived as a legacy `otpauth://` URI in the `otp`

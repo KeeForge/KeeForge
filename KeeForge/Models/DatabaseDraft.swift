@@ -567,11 +567,12 @@ struct DatabaseDraft: Sendable {
         // versions of a KeePass-authored file, whose `<History>` is oldest-first
         // where this app prepends, and reordering the array would rewrite a
         // foreign file's bytes on every save.
+        let byRecency = recencyOrderedIndices(of: history)
         var survivors = Set(history.indices)
 
         let maxItems = meta.resolvedHistoryMaxItems
         if maxItems >= 0, history.count > maxItems {
-            survivors = Set(recencyOrderedIndices(of: history).prefix(maxItems))
+            survivors = Set(byRecency.prefix(maxItems))
         }
 
         let maxSize = meta.resolvedHistoryMaxSize
@@ -579,7 +580,7 @@ struct DatabaseDraft: Sendable {
             var retained: Set<Int> = []
             var sizeSoFar: Int64 = 0
 
-            for index in recencyOrderedIndices(of: history) where survivors.contains(index) {
+            for index in byRecency where survivors.contains(index) {
                 let entrySize = estimatedHistorySize(for: history[index])
                 if sizeSoFar + entrySize > maxSize {
                     break
