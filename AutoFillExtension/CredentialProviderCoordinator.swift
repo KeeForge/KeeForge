@@ -171,6 +171,17 @@ final class CredentialProviderCoordinator {
 
     private var isUnlockInProgress = false
     private var didAttemptAutoBiometricUnlock = false
+    private var didFinishRequest = false
+    private var requestGeneration = 0
+    private var unlockTask: Task<Void, Never>?
+
+    private struct RequestNoLongerActive: Error {}
+
+    #if DEBUG
+    /// Suspends unlock in coordinator tests so cancellation can be verified
+    /// without invoking a real biometric prompt or parsing a fixture.
+    var unlockWorkOverride: (@MainActor () async throws -> Void)?
+    #endif
 
     #if os(iOS)
     /// Clipboard write used by the opt-in "copy verification code on AutoFill"
@@ -205,7 +216,20 @@ final class CredentialProviderCoordinator {
 
     // MARK: - Request entry points (forwarded by the shell)
 
+    private func beginRequest() {
+        requestGeneration &+= 1
+        unlockTask?.cancel()
+        unlockTask = nil
+        isUnlockInProgress = false
+        didFinishRequest = false
+    }
+
+    private func isRequestActive(_ generation: Int) -> Bool {
+        !didFinishRequest && requestGeneration == generation
+    }
+
     func prepareCredentialList(for serviceIdentifiers: [ASCredentialServiceIdentifier]) {
+        beginRequest()
         self.serviceIdentifiers = serviceIdentifiers
         targetRecordIdentifier = nil
         pendingPasskeyRequest = nil
@@ -225,6 +249,7 @@ final class CredentialProviderCoordinator {
     /// pre-matched credential identity. Unlock, then present matching TOTP
     /// entries (or the full TOTP list) for manual selection.
     func prepareOneTimeCodeCredentialList(for serviceIdentifiers: [ASCredentialServiceIdentifier]) {
+        beginRequest()
         self.serviceIdentifiers = serviceIdentifiers
         targetRecordIdentifier = nil
         pendingPasskeyRequest = nil
@@ -238,8 +263,9 @@ final class CredentialProviderCoordinator {
     }
 
     func prepareInterfaceToProvideCredential(for credentialIdentity: ASPasswordCredentialIdentity) {
+        beginRequest()
         serviceIdentifiers = [credentialIdentity.serviceIdentifier]
-        targetRecordIdentifier = credentialIdentity.recordIdentifier
+        targetRecordIdentifier = CredentialIdentityStoreManager.recordIdentifier(of: credentialIdentity)
         pendingPasskeyRequest = nil
         pendingPasskeyRequestParameters = nil
         clearPendingCreationRequests()
@@ -253,6 +279,7 @@ final class CredentialProviderCoordinator {
     // MARK: Passkey credential request (iOS 17+)
 
     func prepareCredentialList(for serviceIdentifiers: [ASCredentialServiceIdentifier], requestParameters: ASPasskeyCredentialRequestParameters) {
+        beginRequest()
         self.serviceIdentifiers = serviceIdentifiers
         targetRecordIdentifier = nil
         pendingPasskeyRequest = nil
@@ -264,10 +291,11 @@ final class CredentialProviderCoordinator {
     }
 
     func prepareInterfaceToProvideCredential(for credentialRequest: ASCredentialRequest) {
+        beginRequest()
         if let passkeyRequest = credentialRequest as? ASPasskeyCredentialRequest {
             pendingPasskeyRequest = passkeyRequest
             pendingPasskeyRequestParameters = nil
-            targetRecordIdentifier = passkeyRequest.credentialIdentity.recordIdentifier
+            targetRecordIdentifier = CredentialIdentityStoreManager.recordIdentifier(of: passkeyRequest.credentialIdentity)
             clearPendingCreationRequests()
             didAttemptAutoBiometricUnlock = false
             pendingUnlock = true
@@ -278,7 +306,7 @@ final class CredentialProviderCoordinator {
             serviceIdentifiers = [credentialRequest.credentialIdentity.serviceIdentifier]
             hasPendingOTCRequest = true
             hasPendingOTCListRequest = false
-            targetRecordIdentifier = credentialRequest.credentialIdentity.recordIdentifier
+            targetRecordIdentifier = CredentialIdentityStoreManager.recordIdentifier(of: credentialRequest.credentialIdentity)
             clearPendingCreationRequests()
             didAttemptAutoBiometricUnlock = false
             pendingUnlock = true
@@ -289,6 +317,7 @@ final class CredentialProviderCoordinator {
     }
 
     func provideCredentialWithoutUserInteraction(for credentialRequest: ASCredentialRequest) {
+        beginRequest()
         if let passkeyRequest = credentialRequest as? ASPasskeyCredentialRequest {
             providePasskeyWithoutUserInteraction(for: passkeyRequest)
         } else if let passwordIdentity = credentialRequest.credentialIdentity as? ASPasswordCredentialIdentity {
@@ -302,6 +331,7 @@ final class CredentialProviderCoordinator {
 
     /// Called by the shell once its view hierarchy is on screen.
     func presentationDidBecomeActive() {
+        guard !didFinishRequest else { return }
         if pendingUnlock {
             pendingUnlock = false
             presentUnlockPromptIfNeeded()
@@ -324,27 +354,27 @@ final class CredentialProviderCoordinator {
 
     private func activatePresentationIfPossible() {
         guard presenter?.isPresentationActive == true else { return }
+        let generation = requestGeneration
 
         // Defer until the request callback has returned before asking UIKit or
         // AppKit to present another controller or alert.
         Task { @MainActor [weak self] in
-            guard let self, presenter?.isPresentationActive == true else { return }
+            guard let self,
+                  self.isRequestActive(generation),
+                  presenter?.isPresentationActive == true
+            else { return }
             presentationDidBecomeActive()
         }
     }
 
     func provideCredentialWithoutUserInteraction(for credentialIdentity: ASPasswordCredentialIdentity) {
+        beginRequest()
         guard SettingsService.quickAutoFillEnabled else {
             cancelRequest(code: .userInteractionRequired)
             return
         }
 
-        let recordIdentifier = credentialIdentity.recordIdentifier
-
-        // Resolve the owning database before evaluating biometrics: the
-        // request must unlock the database that published the identity, and
-        // its keychain state — not the active database's — decides whether a
-        // zero-interaction unlock is possible.
+        let recordIdentifier = CredentialIdentityStoreManager.recordIdentifier(of: credentialIdentity)
         guard let databaseReference = resolveSilentRequestDatabase(forRecordIdentifier: recordIdentifier) else {
             cancelRequest(code: .userInteractionRequired)
             return
@@ -355,47 +385,57 @@ final class CredentialProviderCoordinator {
             return
         }
 
-        Task {
+        let generation = requestGeneration
+        isUnlockInProgress = true
+        unlockTask = Task { [weak self] in
+            defer {
+                if self?.requestGeneration == generation {
+                    self?.isUnlockInProgress = false
+                    self?.unlockTask = nil
+                }
+            }
             do {
+                guard let self, self.isRequestActive(generation) else { return }
                 let context = try await BiometricService.authenticate(reason: String(localized: "AutoFill with KeeForge"))
-                let compositeKey = try retrieveCompositeKey(for: databaseReference, context: context)
-                try await loadEntries(
+                let compositeKey = try self.retrieveCompositeKey(for: databaseReference, context: context)
+                try await self.loadEntries(
                     compositeKey: compositeKey,
-                    databaseReference: databaseReference
+                    databaseReference: databaseReference,
+                    generation: generation
                 )
-                persistCompositeKeyIfPossible(compositeKey, for: databaseReference)
-                recordSuccessfulUnlock(for: databaseReference)
-                let passwordEntries = parsedEntries.filter { $0.hasPassword && !$0.isExpired() }
+                guard self.isRequestActive(generation) else { return }
+                self.persistCompositeKeyIfPossible(compositeKey, for: databaseReference)
+                self.recordSuccessfulUnlock(for: databaseReference)
+                let passwordEntries = self.parsedEntries.filter { $0.hasPassword && !$0.isExpired() }
 
                 if let recordIdentifier,
-                   let entry = entryMatching(recordIdentifier: recordIdentifier, in: passwordEntries) {
-                    guard !mustEscalateToInteractiveFill(for: entry) else {
-                        cancelRequest(code: .userInteractionRequired)
+                   let entry = self.entryMatching(recordIdentifier: recordIdentifier, in: passwordEntries) {
+                    guard !self.mustEscalateToInteractiveFill(for: entry) else {
+                        self.cancelRequest(code: .userInteractionRequired)
                         return
                     }
-                    completeRequest(with: entry)
+                    self.completeRequest(with: entry)
                 } else {
-                    removeStaleIdentityIfEntryMissing(recordIdentifier: recordIdentifier)
-                    // Zero-interaction fallback: only an unambiguous host-based
-                    // match may be filled without the user picking an entry.
+                    self.removeStaleIdentityIfEntryMissing(recordIdentifier: recordIdentifier)
                     let matches = CredentialMatcher.strictMatchedEntries(
                         from: passwordEntries,
                         for: [credentialIdentity.serviceIdentifier]
                     )
                     if matches.count == 1, let entry = matches.first {
-                        guard !mustEscalateToInteractiveFill(for: entry) else {
-                            cancelRequest(code: .userInteractionRequired)
+                        guard !self.mustEscalateToInteractiveFill(for: entry) else {
+                            self.cancelRequest(code: .userInteractionRequired)
                             return
                         }
-                        completeRequest(with: entry)
+                        self.completeRequest(with: entry)
                     } else if matches.isEmpty {
-                        cancelRequest(code: .credentialIdentityNotFound)
+                        self.cancelRequest(code: .credentialIdentityNotFound)
                     } else {
-                        cancelRequest(code: .userInteractionRequired)
+                        self.cancelRequest(code: .userInteractionRequired)
                     }
                 }
             } catch {
-                cancelRequest(code: .userInteractionRequired)
+                guard let self, self.isRequestActive(generation) else { return }
+                self.cancelRequest(code: .userInteractionRequired)
             }
         }
     }
@@ -421,6 +461,7 @@ final class CredentialProviderCoordinator {
     }
 
     func prepareInterfaceForExtensionConfiguration() {
+        beginRequest()
         cancelRequest(code: .failed)
     }
 
@@ -428,11 +469,13 @@ final class CredentialProviderCoordinator {
     #if os(iOS)
     @available(iOS 26.2, *)
     func performWithoutUserInteractionIfPossible(savePasswordRequest: ASSavePasswordRequest) {
+        beginRequest()
         cancelRequest(code: .userInteractionRequired)
     }
 
     @available(iOS 26.2, *)
     func prepareInterface(for savePasswordRequest: ASSavePasswordRequest) {
+        beginRequest()
         // Save targets the default database: the active pointer when enabled,
         // else the most recently opened enabled database. With no enabled
         // database, saving is unavailable rather than failing — the deferred
@@ -487,13 +530,16 @@ final class CredentialProviderCoordinator {
 
     @available(iOS 26.2, *)
     func performWithoutUserInteraction(generatePasswordsRequest: ASGeneratePasswordsRequest) {
+        beginRequest()
         let password = PasswordGenerator.generate()
-        cleanup()
-        presenter?.completeGeneratePasswordRequest(passwords: [password])
+        finishRequest { presenter in
+            presenter.completeGeneratePasswordRequest(passwords: [password])
+        }
     }
 
     @available(iOS 26.2, *)
     func prepareInterface(for generatePasswordsRequest: ASGeneratePasswordsRequest) {
+        beginRequest()
         serviceIdentifiers = [generatePasswordsRequest.serviceIdentifier]
         targetRecordIdentifier = nil
         pendingPasskeyRequest = nil
@@ -513,16 +559,14 @@ final class CredentialProviderCoordinator {
     // MARK: - Passkey silent auth
 
     private func providePasskeyWithoutUserInteraction(for request: ASPasskeyCredentialRequest) {
+        beginRequest()
         guard SettingsService.quickAutoFillEnabled else {
             cancelRequest(code: .userInteractionRequired)
             return
         }
 
-        // Passkey assertions resolve their owning database exactly like
-        // password fills: by the identity's record identifier.
-        guard let databaseReference = resolveSilentRequestDatabase(
-            forRecordIdentifier: request.credentialIdentity.recordIdentifier
-        ) else {
+        let recordIdentifier = CredentialIdentityStoreManager.recordIdentifier(of: request.credentialIdentity)
+        guard let databaseReference = resolveSilentRequestDatabase(forRecordIdentifier: recordIdentifier) else {
             cancelRequest(code: .userInteractionRequired)
             return
         }
@@ -532,20 +576,31 @@ final class CredentialProviderCoordinator {
             return
         }
 
-        Task {
+        let generation = requestGeneration
+        isUnlockInProgress = true
+        unlockTask = Task { [weak self] in
+            defer {
+                if self?.requestGeneration == generation {
+                    self?.isUnlockInProgress = false
+                    self?.unlockTask = nil
+                }
+            }
             do {
+                guard let self, self.isRequestActive(generation) else { return }
                 let context = try await BiometricService.authenticate(reason: String(localized: "Passkey sign-in with KeeForge"))
-                let compositeKey = try retrieveCompositeKey(for: databaseReference, context: context)
-                try await loadEntries(
+                let compositeKey = try self.retrieveCompositeKey(for: databaseReference, context: context)
+                try await self.loadEntries(
                     compositeKey: compositeKey,
-                    databaseReference: databaseReference
+                    databaseReference: databaseReference,
+                    generation: generation
                 )
-                persistCompositeKeyIfPossible(compositeKey, for: databaseReference)
-                recordSuccessfulUnlock(for: databaseReference)
-
-                try completePasskeyRequest(request)
+                guard self.isRequestActive(generation) else { return }
+                self.persistCompositeKeyIfPossible(compositeKey, for: databaseReference)
+                self.recordSuccessfulUnlock(for: databaseReference)
+                try self.completePasskeyRequest(request)
             } catch {
-                cancelRequest(code: .userInteractionRequired)
+                guard let self, self.isRequestActive(generation) else { return }
+                self.cancelRequest(code: .userInteractionRequired)
             }
         }
     }
@@ -686,11 +741,6 @@ final class CredentialProviderCoordinator {
         }
     }
 
-    /// Silent-flow resolution: nil means the request cannot proceed without
-    /// interaction (stale identifier — cleanup already scheduled — or no
-    /// enabled database). Callers cancel with `.userInteractionRequired` so
-    /// the system relaunches the extension interactively, where the fallback
-    /// search or empty state takes over.
     private func resolveSilentRequestDatabase(forRecordIdentifier recordIdentifier: String?) -> DatabaseReference? {
         switch resolveRequestDatabase(forRecordIdentifier: recordIdentifier) {
         case .database(let reference):
@@ -824,50 +874,108 @@ final class CredentialProviderCoordinator {
         }
     }
 
+    private func runUnlockWork(_ work: @escaping @MainActor () async throws -> Void) async throws {
+        #if DEBUG
+        if let unlockWorkOverride {
+            try await unlockWorkOverride()
+            return
+        }
+        #endif
+        try await work()
+    }
+
     private func unlockWithPassword(_ password: String) {
         isUnlockInProgress = true
-        Task {
-            defer { isUnlockInProgress = false }
+        let generation = requestGeneration
+        unlockTask = Task { [weak self] in
+            defer {
+                if self?.requestGeneration == generation {
+                    self?.isUnlockInProgress = false
+                    self?.unlockTask = nil
+                }
+            }
             do {
+                guard let self, self.isRequestActive(generation) else { return }
                 let databaseReference = try currentDatabaseReference()
-                let keyFileData = try loadAssociatedKeyFileData(for: databaseReference)
-                let compositeKey = KDBXCrypto.compositeKey(password: password, keyFileData: keyFileData)
-                try await loadEntries(
-                    compositeKey: compositeKey,
-                    databaseReference: databaseReference
-                )
-                persistCompositeKeyIfPossible(compositeKey, for: databaseReference)
-                recordSuccessfulUnlock(for: databaseReference)
-                afterUnlock()
+
+                try await runUnlockWork {
+                    try await self.unlockPasswordWork(
+                        password: password,
+                        databaseReference: databaseReference,
+                        generation: generation
+                    )
+                }
             } catch {
-                showErrorAndRetry(error)
+                guard let self, self.isRequestActive(generation) else { return }
+                self.showErrorAndRetry(error)
             }
         }
     }
 
     private func unlockWithBiometrics() {
         isUnlockInProgress = true
-        Task {
-            defer { isUnlockInProgress = false }
+        let generation = requestGeneration
+        unlockTask = Task { [weak self] in
+            defer {
+                if self?.requestGeneration == generation {
+                    self?.isUnlockInProgress = false
+                    self?.unlockTask = nil
+                }
+            }
             do {
+                guard let self, self.isRequestActive(generation) else { return }
                 let databaseReference = try currentDatabaseReference()
 
-                let context = try await BiometricService.authenticate(reason: String(localized: "Unlock KeeForge for AutoFill"))
-                let compositeKey = try retrieveCompositeKey(for: databaseReference, context: context)
-                try await loadEntries(
-                    compositeKey: compositeKey,
-                    databaseReference: databaseReference
-                )
-                persistCompositeKeyIfPossible(compositeKey, for: databaseReference)
-                recordSuccessfulUnlock(for: databaseReference)
-                afterUnlock()
+                try await runUnlockWork {
+                    try await self.unlockBiometricWork(
+                        databaseReference: databaseReference,
+                        generation: generation
+                    )
+                }
             } catch {
-                showErrorAndRetry(error)
+                guard let self, self.isRequestActive(generation) else { return }
+                self.showErrorAndRetry(error)
             }
         }
     }
 
+    private func unlockPasswordWork(
+        password: String,
+        databaseReference: DatabaseReference,
+        generation: Int
+    ) async throws {
+        let keyFileData = try loadAssociatedKeyFileData(for: databaseReference)
+        let compositeKey = KDBXCrypto.compositeKey(password: password, keyFileData: keyFileData)
+        try await loadEntries(
+            compositeKey: compositeKey,
+            databaseReference: databaseReference,
+            generation: generation
+        )
+        guard isRequestActive(generation) else { return }
+        persistCompositeKeyIfPossible(compositeKey, for: databaseReference)
+        recordSuccessfulUnlock(for: databaseReference)
+        afterUnlock()
+    }
+
+    private func unlockBiometricWork(
+        databaseReference: DatabaseReference,
+        generation: Int
+    ) async throws {
+        let context = try await BiometricService.authenticate(reason: String(localized: "Unlock KeeForge for AutoFill"))
+        let compositeKey = try retrieveCompositeKey(for: databaseReference, context: context)
+        try await loadEntries(
+            compositeKey: compositeKey,
+            databaseReference: databaseReference,
+            generation: generation
+        )
+        guard isRequestActive(generation) else { return }
+        persistCompositeKeyIfPossible(compositeKey, for: databaseReference)
+        recordSuccessfulUnlock(for: databaseReference)
+        afterUnlock()
+    }
+
     private func afterUnlock() {
+        guard !didFinishRequest else { return }
         if let request = pendingPasskeyRequest {
             pendingPasskeyRequest = nil
             completeInteractivePasskeyRequest(request)
@@ -995,7 +1103,8 @@ final class CredentialProviderCoordinator {
 
     private func loadEntries(
         compositeKey: Data,
-        databaseReference: DatabaseReference
+        databaseReference: DatabaseReference,
+        generation: Int
     ) async throws {
         let data = try loadDatabaseData(for: databaseReference)
         let key = SymmetricKey(size: .bits256)
@@ -1007,6 +1116,10 @@ final class CredentialProviderCoordinator {
                 sessionKey: key
             )
         }.value
+
+        guard isRequestActive(generation) else {
+            throw RequestNoLongerActive()
+        }
 
         self.sessionKey = key
         self.compositeKey = compositeKey
@@ -1114,7 +1227,7 @@ final class CredentialProviderCoordinator {
                 credentialIDData == identity.credentialID
         }
 
-        if let recordIdentifier = identity.recordIdentifier,
+        if let recordIdentifier = CredentialIdentityStoreManager.recordIdentifier(of: identity),
            let entry = findEntry(byRecordIdentifier: recordIdentifier),
            matchesIdentity(entry) {
             return entry
@@ -1259,8 +1372,9 @@ final class CredentialProviderCoordinator {
             case .saved(let outcome):
                 self.parsedRootGroup = outcome.savedRootGroup
                 self.openTimeSHA512 = outcome.newSHA512
-                cleanup()
-                presenter?.completeSavePasswordRequest()
+                finishRequest { presenter in
+                    presenter.completeSavePasswordRequest()
+                }
                 return .completed
             case .conflict:
                 return .showWarningAndCancel(String(localized: "Database changed — open KeeForge to save"))
@@ -1294,8 +1408,9 @@ final class CredentialProviderCoordinator {
 
     @available(iOS 26.2, *)
     private func completeGeneratedPasswordRequest(_ password: String) {
-        cleanup()
-        presenter?.completeGeneratePasswordRequest(passwords: [password])
+        finishRequest { presenter in
+            presenter.completeGeneratePasswordRequest(passwords: [password])
+        }
     }
     #endif
 
@@ -1308,15 +1423,13 @@ final class CredentialProviderCoordinator {
     // MARK: - One-time code (TOTP) support
 
     private func provideOTCWithoutUserInteraction(for credentialRequest: ASCredentialRequest) {
+        beginRequest()
         guard SettingsService.quickAutoFillEnabled else {
             cancelRequest(code: .userInteractionRequired)
             return
         }
 
-        let recordIdentifier = credentialRequest.credentialIdentity.recordIdentifier
-
-        // One-time-code requests resolve their owning database exactly like
-        // password fills: by the identity's record identifier.
+        let recordIdentifier = CredentialIdentityStoreManager.recordIdentifier(of: credentialRequest.credentialIdentity)
         guard let databaseReference = resolveSilentRequestDatabase(forRecordIdentifier: recordIdentifier) else {
             cancelRequest(code: .userInteractionRequired)
             return
@@ -1327,31 +1440,43 @@ final class CredentialProviderCoordinator {
             return
         }
 
-        Task {
+        let generation = requestGeneration
+        isUnlockInProgress = true
+        unlockTask = Task { [weak self] in
+            defer {
+                if self?.requestGeneration == generation {
+                    self?.isUnlockInProgress = false
+                    self?.unlockTask = nil
+                }
+            }
             do {
+                guard let self, self.isRequestActive(generation) else { return }
                 let context = try await BiometricService.authenticate(reason: String(localized: "AutoFill with KeeForge"))
-                let compositeKey = try retrieveCompositeKey(for: databaseReference, context: context)
-                try await loadEntries(
+                let compositeKey = try self.retrieveCompositeKey(for: databaseReference, context: context)
+                try await self.loadEntries(
                     compositeKey: compositeKey,
-                    databaseReference: databaseReference
+                    databaseReference: databaseReference,
+                    generation: generation
                 )
-                persistCompositeKeyIfPossible(compositeKey, for: databaseReference)
-                recordSuccessfulUnlock(for: databaseReference)
+                guard self.isRequestActive(generation) else { return }
+                self.persistCompositeKeyIfPossible(compositeKey, for: databaseReference)
+                self.recordSuccessfulUnlock(for: databaseReference)
 
                 if #available(iOS 18.0, macOS 15.0, *) {
-                    let totpEntries = parsedEntries.filter { $0.hasTOTP && !$0.isExpired() }
+                    let totpEntries = self.parsedEntries.filter { $0.hasTOTP && !$0.isExpired() }
                     if let recordIdentifier,
-                       let entry = entryMatching(recordIdentifier: recordIdentifier, in: totpEntries) {
-                        completeOTCRequest(with: entry)
+                       let entry = self.entryMatching(recordIdentifier: recordIdentifier, in: totpEntries) {
+                        self.completeOTCRequest(with: entry)
                     } else {
-                        removeStaleIdentityIfEntryMissing(recordIdentifier: recordIdentifier)
-                        cancelRequest(code: .credentialIdentityNotFound)
+                        self.removeStaleIdentityIfEntryMissing(recordIdentifier: recordIdentifier)
+                        self.cancelRequest(code: .credentialIdentityNotFound)
                     }
                 } else {
-                    cancelRequest(code: .failed)
+                    self.cancelRequest(code: .failed)
                 }
             } catch {
-                cancelRequest(code: .userInteractionRequired)
+                guard let self, self.isRequestActive(generation) else { return }
+                self.cancelRequest(code: .userInteractionRequired)
             }
         }
     }
@@ -1440,8 +1565,9 @@ final class CredentialProviderCoordinator {
             return
         }
 
-        cleanup()
-        presenter?.completeOneTimeCodeRequest(code: code)
+        finishRequest { presenter in
+            presenter.completeOneTimeCodeRequest(code: code)
+        }
     }
 
     // MARK: - Cleanup lifecycle
@@ -1489,9 +1615,10 @@ final class CredentialProviderCoordinator {
         copyTOTPCodeIfEnabled(for: entry, sessionKey: decryptionKey)
         #endif
 
-        cleanup()
         let credential = ASPasswordCredential(user: user, password: decryptedPassword)
-        presenter?.completeRequest(withSelectedCredential: credential)
+        finishRequest { presenter in
+            presenter.completeRequest(withSelectedCredential: credential)
+        }
     }
 
     #if os(iOS)
@@ -1522,7 +1649,9 @@ final class CredentialProviderCoordinator {
               let entry = passkeyEntry(for: identity) else {
             // The database unlocked but its passkey is gone: remove the stale
             // identity so the suggestion disappears instead of dead-tapping.
-            removeStaleIdentityIfEntryMissing(recordIdentifier: request.credentialIdentity.recordIdentifier)
+            removeStaleIdentityIfEntryMissing(
+                recordIdentifier: CredentialIdentityStoreManager.recordIdentifier(of: request.credentialIdentity)
+            )
             cancelRequest(code: .credentialIdentityNotFound)
             return
         }
@@ -1541,7 +1670,9 @@ final class CredentialProviderCoordinator {
               let entry = passkeyEntry(for: identity, includeExpired: true) else {
             // The database unlocked but its passkey is gone: remove the stale
             // identity so the suggestion disappears instead of dead-tapping.
-            removeStaleIdentityIfEntryMissing(recordIdentifier: request.credentialIdentity.recordIdentifier)
+            removeStaleIdentityIfEntryMissing(
+                recordIdentifier: CredentialIdentityStoreManager.recordIdentifier(of: request.credentialIdentity)
+            )
             cancelRequest(code: .credentialIdentityNotFound)
             return
         }
@@ -1616,15 +1747,35 @@ final class CredentialProviderCoordinator {
             credentialID: credentialIDData
         )
 
-        cleanup()
-        presenter?.completeAssertionRequest(using: credential)
+        finishRequest { presenter in
+            presenter.completeAssertionRequest(using: credential)
+        }
     }
 
     // MARK: - Error handling
 
     func cancelRequest(code: ASExtensionError.Code) {
+        finishRequest { presenter in
+            presenter.cancelRequest(withError: ASExtensionError(code))
+        }
+    }
+
+    /// Gates the terminal handoff exactly once and captures the presenter for
+    /// the completion action before cleanup clears coordinator state.
+    /// The shell may disappear while an async unlock or dismissal is settling;
+    /// this prevents duplicate context calls and avoids optional chaining on a
+    /// completion path that must be observable.
+    private func finishRequest(_ action: (any CredentialProviderPresenting) -> Void) {
+        guard !didFinishRequest else { return }
+        didFinishRequest = true
+        requestGeneration &+= 1
+        unlockTask?.cancel()
+        unlockTask = nil
+        isUnlockInProgress = false
+        let presenter = presenter
         cleanup()
-        presenter?.cancelRequest(withError: ASExtensionError(code))
+        guard let presenter else { return }
+        action(presenter)
     }
 
     private func showErrorAndRetry(_ error: Error) {

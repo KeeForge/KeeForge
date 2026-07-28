@@ -110,7 +110,9 @@ enum AutoFillStoreInspectorGrouping {
         unrecognizedRows: [InspectorIdentityRow]
     ) {
         bucketize(
-            identities.map { (row(for: $0), $0.recordIdentifier ?? "") },
+            identities.map {
+                (row(for: $0), CredentialIdentityStoreManager.recordIdentifier(of: $0) ?? "")
+            },
             databaseName: databaseName
         )
     }
