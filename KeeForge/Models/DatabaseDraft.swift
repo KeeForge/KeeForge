@@ -296,9 +296,9 @@ struct DatabaseDraft: Sendable {
     ///
     /// `HistoryMaxItems`/`HistoryMaxSize` can discard the pushed snapshot, so the
     /// confirmation must not promise an undo without asking first. This runs the real
-    /// trim and reads a non-empty result as "the snapshot survived", which holds only
-    /// while trimming never drops the newest version ahead of an older one — true of
-    /// today's prefix trim and of the recency-based selection #48 replaces it with.
+    /// trim and reads a non-empty result as "the snapshot survived", which stands only
+    /// while trimming never drops the newest version ahead of an older one. Any change
+    /// to the trimming rule has to keep that.
     func restoreKeepsReplacedState(entryID: UUID) -> Bool {
         guard let entryLocation = findEntryLocation(entryID: entryID, in: currentRootGroupStorage) else {
             return false
