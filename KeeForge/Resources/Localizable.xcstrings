@@ -76,6 +76,16 @@
         }
       }
     },
+    "(untitled)" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "(ohne Titel)"
+          }
+        }
+      }
+    },
     "%@\n\nKeeForge opened the cached copy for now. Cloud sync needs attention before this database can be refreshed from its provider." : {
       "localizations" : {
         "de" : {
@@ -2164,6 +2174,26 @@
         }
       }
     },
+    "Earlier Version" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Frühere Version"
+          }
+        }
+      }
+    },
+    "Earlier versions appear here after you edit this entry." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Frühere Versionen erscheinen hier, sobald Sie diesen Eintrag bearbeiten."
+          }
+        }
+      }
+    },
     "Edit" : {
       "localizations" : {
         "de" : {
@@ -2714,6 +2744,16 @@
         }
       }
     },
+    "History" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Verlauf"
+          }
+        }
+      }
+    },
     "HMAC verification failed — file corrupted or wrong password" : {
       "localizations" : {
         "de" : {
@@ -3144,6 +3184,16 @@
         }
       }
     },
+    "KeePass keeps a copy of this entry each time it changes. How many are kept is a database setting." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeePass legt bei jeder Änderung eine Kopie dieses Eintrags an. Wie viele aufbewahrt werden, ist eine Datenbankeinstellung."
+          }
+        }
+      }
+    },
     "Key Derivation" : {
       "localizations" : {
         "de" : {
@@ -3210,6 +3260,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Speichern im Schlüsselbund fehlgeschlagen (Status %d)"
+          }
+        }
+      }
+    },
+    "Last Modified" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zuletzt geändert"
           }
         }
       }
@@ -3580,6 +3640,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Noch keine Datenbanken hinzugefügt"
+          }
+        }
+      }
+    },
+    "No Earlier Versions" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Keine früheren Versionen"
           }
         }
       }
@@ -5565,6 +5635,16 @@
         }
       }
     },
+    "This version is no longer part of the entry." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Diese Version gehört nicht mehr zu diesem Eintrag."
+          }
+        }
+      }
+    },
     "Tip again" : {
       "localizations" : {
         "de" : {
@@ -5691,6 +5771,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Unbekannt"
+          }
+        }
+      }
+    },
+    "Unknown date" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Unbekanntes Datum"
           }
         }
       }
@@ -6021,6 +6111,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Version"
+          }
+        }
+      }
+    },
+    "Version Unavailable" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Version nicht verfügbar"
           }
         }
       }

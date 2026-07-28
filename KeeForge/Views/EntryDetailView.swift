@@ -29,6 +29,7 @@ struct EntryDetailView: View {
     /// Both `onAppear`s in `body` can fire on the same reveal, and each
     /// `dismiss()` would pop one navigation level.
     @State private var hasFinishedClosing = false
+    @State private var isShowingHistory = false
 
     /// Clears the regular shells' selection and pops this screen, at most once.
     private func finishClose() {
@@ -70,7 +71,7 @@ struct EntryDetailView: View {
                                 size: 40,
                                 customIconData: viewModel.customIconData(for: entry)
                             )
-                            Text(entry.title.isEmpty ? "(untitled)" : entry.title)
+                            Text(entry.title.isEmpty ? String(localized: "(untitled)") : entry.title)
                                 .font(.title2.bold())
                         }
                     }
@@ -159,6 +160,21 @@ struct EntryDetailView: View {
                             }
                         }
                     }
+                    if !entry.history.isEmpty {
+                        Section {
+                            Button {
+                                isShowingHistory = true
+                            } label: {
+                                LabeledContent {
+                                    Text(entry.history.count, format: .number)
+                                        .foregroundStyle(.secondary)
+                                } label: {
+                                    Label("History", systemImage: "clock.arrow.circlepath")
+                                }
+                            }
+                            .accessibilityIdentifier("entry-detail.history")
+                        }
+                    }
                 }
                 .navigationTitle(entry.title)
                 .navigationBarTitleDisplayMode(.inline)
@@ -198,6 +214,9 @@ struct EntryDetailView: View {
                             }
                         }
                     }
+                }
+                .sheet(isPresented: $isShowingHistory) {
+                    EntryHistoryView(entryID: entryID, viewModel: viewModel)
                 }
             } else {
                 ContentUnavailableView(
@@ -338,7 +357,7 @@ struct TagCapsule: View {
 }
 
 #if os(iOS)
-private struct SelectableNotesText: UIViewRepresentable {
+struct SelectableNotesText: UIViewRepresentable {
     let text: String
 
     init(_ text: String) {
@@ -379,7 +398,7 @@ private struct SelectableNotesText: UIViewRepresentable {
 #else
 /// Interim macOS notes rendering — plain `Text` with `.textSelection(.enabled)`
 /// stands in for the UIKit `UITextView` wrapper until slice 02's view polish.
-private struct SelectableNotesText: View {
+struct SelectableNotesText: View {
     let text: String
 
     init(_ text: String) {
@@ -404,6 +423,8 @@ struct FieldRow: View {
     // Locale-independent copy-button ID; defaults to the normalized label so
     // user-defined custom field keys keep their existing identifiers.
     var accessibilityKey: String?
+    /// Identifier namespace for the copy control, matching `PasswordFieldRow`.
+    var accessibilityPrefix: String = "entry"
 
     var body: some View {
         Section(label) {
@@ -414,7 +435,7 @@ struct FieldRow: View {
                 Text(value)
                     .textSelection(.enabled)
                 Spacer()
-                CopyButton(text: value, accessibilityID: "entry.copy.\(normalizedLabel)")
+                CopyButton(text: value, accessibilityID: "\(accessibilityPrefix).copy.\(normalizedLabel)")
             }
         }
     }
@@ -427,6 +448,10 @@ struct FieldRow: View {
 struct PasswordFieldRow: View {
     let password: EncryptedValue
     let sessionKey: SymmetricKey
+    /// Identifier namespace for the reveal and copy controls. Defaults to the live
+    /// entry detail's long-standing `entry.*` ids; the history viewer passes its own
+    /// so the two screens never contribute the same identifier to one hierarchy.
+    var accessibilityPrefix: String = "entry"
     @State private var revealed = false
     @State private var revealedText: String?
     @State private var authenticating = false
@@ -441,12 +466,12 @@ struct PasswordFieldRow: View {
                 .frame(width: 44, height: 44)
                 .contentShape(Rectangle())
                 .disabled(authenticating)
-                .accessibilityIdentifier("entry.password.reveal")
+                .accessibilityIdentifier("\(accessibilityPrefix).password.reveal")
 
                 CopyButton(
                     resolveText: { (try? password.decrypt(using: sessionKey)) ?? "" },
                     requireAuth: true,
-                    accessibilityID: "entry.copy.password"
+                    accessibilityID: "\(accessibilityPrefix).copy.password"
                 )
             }
         }
@@ -607,10 +632,13 @@ struct CopyButton: View {
 
 struct TOTPSection: View {
     let config: TOTPConfig
+    /// Identifier namespace, matching `FieldRow` / `PasswordFieldRow`.
+    var accessibilityPrefix: String = "entry"
     @State private var totpVM: TOTPViewModel
 
-    init(config: TOTPConfig, sessionKey: SymmetricKey) {
+    init(config: TOTPConfig, sessionKey: SymmetricKey, accessibilityPrefix: String = "entry") {
         self.config = config
+        self.accessibilityPrefix = accessibilityPrefix
         self._totpVM = State(initialValue: TOTPViewModel(config: config, sessionKey: sessionKey))
     }
 
@@ -623,11 +651,11 @@ struct TOTPSection: View {
                 Text(totpVM.code)
                     .font(.title.monospaced().bold())
                     .contentTransition(.numericText())
-                    .accessibilityIdentifier("entry.totp.code")
+                    .accessibilityIdentifier("\(accessibilityPrefix).totp.code")
 
                 Spacer()
 
-                CopyButton(text: totpVM.code, accessibilityID: "entry.copy.totp")
+                CopyButton(text: totpVM.code, accessibilityID: "\(accessibilityPrefix).copy.totp")
             }
         }
         .onAppear { totpVM.start() }

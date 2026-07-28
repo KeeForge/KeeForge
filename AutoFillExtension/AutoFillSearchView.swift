@@ -53,7 +53,7 @@ struct AutoFillSearchView: View {
                             .frame(width: 28)
 
                         VStack(alignment: .leading) {
-                            Text(entry.title.isEmpty ? "(untitled)" : entry.title)
+                            Text(entry.title.isEmpty ? String(localized: "(untitled)") : entry.title)
                                 .font(.body)
                                 .foregroundStyle(.primary)
                             if !entry.username.isEmpty {

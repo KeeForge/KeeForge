@@ -579,6 +579,73 @@ final class DatabaseViewModelTests: XCTestCase {
         XCTAssertEqual(vm.group(withID: group.id)?.lastModificationTime, modificationTimeBefore)
     }
 
+    private func makeViewModelWithEditedEntry() async throws -> (
+        vm: DatabaseViewModel, entryID: UUID, originalUsername: String, historyCountBefore: Int
+    ) {
+        let vm = try makeViewModel()
+        await vm.unlock(password: fixturePassword)
+
+        let original = try XCTUnwrap(vm.visibleRootGroup?.allEntries.first { !$0.username.isEmpty })
+        let historyCountBefore = original.history.count
+        try vm.applyEntryEdit(
+            .updateEntry(
+                entryID: original.id,
+                draft: EntryDraftPayload(
+                    title: original.title,
+                    username: "history-updated-user",
+                    password: "history-updated-password",
+                    url: original.url,
+                    notes: original.notes,
+                    customFields: original.customFields,
+                    tags: original.tags
+                )
+            )
+        )
+
+        return (vm, original.id, original.username, historyCountBefore)
+    }
+
+    /// Locking must take the history with it. The viewer can still be on screen when
+    /// the app locks, and stored versions are database contents like any other — an
+    /// entry's old passwords must not survive the session key being discarded.
+    func testHistoryIsUnreachableAfterLocking() async throws {
+        let (vm, entryID, _, _) = try await makeViewModelWithEditedEntry()
+        XCTAssertFalse(vm.history(forEntryID: entryID).isEmpty, "precondition: versions exist while unlocked")
+
+        vm.lock(manuallyTriggered: true)
+
+        XCTAssertTrue(vm.history(forEntryID: entryID).isEmpty)
+        XCTAssertNil(vm.entry(withID: entryID))
+        XCTAssertNil(vm.sessionKey)
+    }
+
+    func testHistoryExposesTheEntrysEarlierVersions() async throws {
+        let (vm, entryID, originalUsername, countBefore) = try await makeViewModelWithEditedEntry()
+
+        let versions = vm.history(forEntryID: entryID)
+
+        XCTAssertEqual(versions.count, countBefore + 1, "the edit adds exactly one version")
+        XCTAssertEqual(versions[0].username, originalUsername, "the newest version holds the replaced contents")
+        XCTAssertEqual(vm.entry(withID: entryID)?.username, "history-updated-user")
+    }
+
+    /// KeePass and KeePassXC store history oldest-first, so trusting storage order would put
+    /// the oldest version at the top for every database this app did not write.
+    func testHistoryIsSortedNewestFirst() async throws {
+        let (vm, entryID, _, _) = try await makeViewModelWithEditedEntry()
+
+        let times = vm.history(forEntryID: entryID).compactMap(\.lastModificationTime)
+
+        XCTAssertEqual(times, times.sorted(by: >))
+    }
+
+    func testHistoryIsEmptyForAnUnknownEntry() async throws {
+        let vm = try makeViewModel()
+        await vm.unlock(password: fixturePassword)
+
+        XCTAssertTrue(vm.history(forEntryID: UUID()).isEmpty)
+    }
+
     func testShowingGroupInAutoFillAgainOverridesExcludedParent() async throws {
         let vm = try makeViewModel()
         await vm.unlock(password: fixturePassword)

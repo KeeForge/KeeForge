@@ -34,6 +34,16 @@
         }
       }
     },
+    "(untitled)" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "(ohne Titel)"
+          }
+        }
+      }
+    },
     "%@ · %@ iterations · %@ threads" : {
       "localizations" : {
         "de" : {
