@@ -560,31 +560,52 @@ struct DatabaseDraft: Sendable {
         existing: [KPEntry],
         meta: KPMeta
     ) -> [KPEntry] {
-        var history = ([snapshot] + existing).map { $0.cloneForHistory() }
+        let history = ([snapshot] + existing).map { $0.cloneForHistory() }
+
+        // Which versions survive is decided by recency; the survivors keep their
+        // storage order. Deciding by position instead would discard the newest
+        // versions of a KeePass-authored file, whose `<History>` is oldest-first
+        // where this app prepends, and reordering the array would rewrite a
+        // foreign file's bytes on every save.
+        var survivors = Set(history.indices)
 
         let maxItems = meta.resolvedHistoryMaxItems
         if maxItems >= 0, history.count > maxItems {
-            history = Array(history.prefix(maxItems))
+            survivors = Set(recencyOrderedIndices(of: history).prefix(maxItems))
         }
 
         let maxSize = meta.resolvedHistoryMaxSize
         if maxSize >= 0 {
-            var retained: [KPEntry] = []
+            var retained: Set<Int> = []
             var sizeSoFar: Int64 = 0
 
-            for historyEntry in history {
-                let entrySize = estimatedHistorySize(for: historyEntry)
+            for index in recencyOrderedIndices(of: history) where survivors.contains(index) {
+                let entrySize = estimatedHistorySize(for: history[index])
                 if sizeSoFar + entrySize > maxSize {
                     break
                 }
-                retained.append(historyEntry)
+                retained.insert(index)
                 sizeSoFar += entrySize
             }
 
-            history = retained
+            survivors = retained
         }
 
-        return history
+        return history.indices.filter { survivors.contains($0) }.map { history[$0] }
+    }
+
+    /// Storage indices newest first, matching `DatabaseViewModel.history(forEntryID:)`:
+    /// versions without a timestamp sort last, and ties fall back to storage order so
+    /// second-resolution KDBX timestamps still give a total order.
+    private func recencyOrderedIndices(of history: [KPEntry]) -> [Int] {
+        history.indices.sorted { lhs, rhs in
+            switch (history[lhs].lastModificationTime, history[rhs].lastModificationTime) {
+            case let (left?, right?): return left == right ? lhs < rhs : left > right
+            case (nil, _?): return false
+            case (_?, nil): return true
+            case (nil, nil): return lhs < rhs
+            }
+        }
     }
 
     private func estimatedHistorySize(for entry: KPEntry) -> Int64 {
