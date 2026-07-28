@@ -841,6 +841,27 @@ final class DatabaseViewModel {
         try applyEntryEdit(.setGroupIcon(groupID: groupID, iconID: iconID))
     }
 
+    /// The entry's stored earlier versions, newest first.
+    ///
+    /// Sorted here rather than trusted from the file: KDBX fixes no order, and KeePass and
+    /// KeePassXC append chronologically while this app's edit path prepends. Versions
+    /// without a timestamp sort last.
+    func history(forEntryID entryID: UUID) -> [KPEntry] {
+        _ = contentRevision
+        let versions = entryIndex[entryID]?.history ?? []
+        // KDBX timestamps are second-resolution and `sorted` is not documented as
+        // stable, so ties fall back to storage order: the list and the version
+        // screen each recompute this, and they must agree on which row is which.
+        return versions.enumerated().sorted { lhs, rhs in
+            switch (lhs.element.lastModificationTime, rhs.element.lastModificationTime) {
+            case let (left?, right?): return left == right ? lhs.offset < rhs.offset : left > right
+            case (nil, _?): return false
+            case (_?, nil): return true
+            case (nil, nil): return lhs.offset < rhs.offset
+            }
+        }.map(\.element)
+    }
+
     func setGroupExcludedFromAutoFill(_ excluded: Bool, groupID: UUID) throws {
         // Re-including writes an explicit `True` rather than `inherit`, so that
         // a group inside an excluded parent can actually be turned back on.

@@ -761,7 +761,7 @@ struct EntryRow: View {
                 .frame(width: 28)
 
             VStack(alignment: .leading) {
-                Text(entry.title.isEmpty ? "(untitled)" : entry.title)
+                Text(entry.title.isEmpty ? String(localized: "(untitled)") : entry.title)
                     .font(.body)
                 if !entry.username.isEmpty {
                     Text(entry.username)
