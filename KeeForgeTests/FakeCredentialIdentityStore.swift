@@ -6,7 +6,7 @@
 // non-main contexts) and reset the override to nil in setUp/tearDown.
 // The manager's operations are fire-and-forget `Task`s, so positive
 // assertions await an expectation fulfilled from `onMutation`; negative
-// assertions install an `XCTFail`-ing hook and sleep ~100 ms.
+// assertions install an `XCTFail`-ing hook and await the manager barrier.
 //
 // A lock-guarded class is deliberately preferred over an actor: the
 // protocol's `[any ASCredentialIdentity]` parameters are non-Sendable
@@ -14,6 +14,7 @@
 // class avoids sending them across an actor boundary.
 @preconcurrency import AuthenticationServices
 import Foundation
+import XCTest
 @testable import KeeForge
 
 final class FakeCredentialIdentityStore: CredentialIdentityStoreProviding, @unchecked Sendable {
@@ -26,6 +27,9 @@ final class FakeCredentialIdentityStore: CredentialIdentityStoreProviding, @unch
     private var _onMutation: (@Sendable () -> Void)?
     private var _onEnumerate: (@Sendable () -> Void)?
     private var _reportedSource: CredentialIdentitySource = .api
+    private var _activeMutations = 0
+    private var _maxConcurrentMutations = 0
+    private var _mutationDelayNanoseconds: UInt64 = 0
 
     /// Mirrors `ASCredentialIdentityStore.state().isEnabled`. Set false to
     /// simulate the provider being disabled in system AutoFill settings.
@@ -85,6 +89,15 @@ final class FakeCredentialIdentityStore: CredentialIdentityStoreProviding, @unch
         set { lock.withLock { _reportedSource = newValue } }
     }
 
+    var mutationDelayNanoseconds: UInt64 {
+        get { lock.withLock { _mutationDelayNanoseconds } }
+        set { lock.withLock { _mutationDelayNanoseconds = newValue } }
+    }
+
+    var maxConcurrentMutations: Int {
+        lock.withLock { _maxConcurrentMutations }
+    }
+
     // MARK: - CredentialIdentityStoreProviding
 
     func isEnabled() async -> Bool {
@@ -92,6 +105,8 @@ final class FakeCredentialIdentityStore: CredentialIdentityStoreProviding, @unch
     }
 
     func replaceCredentialIdentities(_ identities: [any ASCredentialIdentity]) async throws {
+        await beginMutation()
+        defer { endMutation() }
         let hook = lock.withLock {
             _calls.append("replaceCredentialIdentities")
             _stored = identities
@@ -101,6 +116,8 @@ final class FakeCredentialIdentityStore: CredentialIdentityStoreProviding, @unch
     }
 
     func saveCredentialIdentities(_ identities: [any ASCredentialIdentity]) async throws {
+        await beginMutation()
+        defer { endMutation() }
         let hook = lock.withLock {
             _calls.append("saveCredentialIdentities")
             // Append-or-overwrite: an incoming identity replaces a stored one
@@ -116,6 +133,8 @@ final class FakeCredentialIdentityStore: CredentialIdentityStoreProviding, @unch
     }
 
     func removeCredentialIdentities(_ identities: [any ASCredentialIdentity]) async throws {
+        await beginMutation()
+        defer { endMutation() }
         let hook = lock.withLock {
             _calls.append("removeCredentialIdentities")
             // Drop stored identities carrying any of the removed identities'
@@ -132,6 +151,8 @@ final class FakeCredentialIdentityStore: CredentialIdentityStoreProviding, @unch
     }
 
     func removeAllCredentialIdentities() async throws {
+        await beginMutation()
+        defer { endMutation() }
         let hook = lock.withLock {
             _calls.append("removeAllCredentialIdentities")
             _stored = []
@@ -159,6 +180,21 @@ final class FakeCredentialIdentityStore: CredentialIdentityStoreProviding, @unch
 
     // MARK: - Helpers
 
+    private func beginMutation() async {
+        let delay = lock.withLock { () -> UInt64 in
+            _activeMutations += 1
+            _maxConcurrentMutations = max(_maxConcurrentMutations, _activeMutations)
+            return _mutationDelayNanoseconds
+        }
+        if delay > 0 {
+            try? await Task.sleep(nanoseconds: delay)
+        }
+    }
+
+    private func endMutation() {
+        lock.withLock { _activeMutations -= 1 }
+    }
+
     /// Composite key identifying one stored identity for save-overwrite
     /// purposes. Includes the service scope because one entry publishes
     /// several password identities (one per domain) under a single record
@@ -176,5 +212,19 @@ final class FakeCredentialIdentityStore: CredentialIdentityStoreProviding, @unch
             return "otc|\(oneTimeCode.serviceIdentifier.identifier)|\(oneTimeCode.label)|\(recordIdentifier)"
         }
         return "other|\(type(of: identity))|\(recordIdentifier)"
+    }
+}
+
+@MainActor
+extension XCTestCase {
+    /// Drains process-wide identity work before and after resetting its test seams.
+    func resetCredentialIdentityStoreState() async {
+        await CredentialIdentityStoreManager.waitForPendingMutations()
+        CredentialIdentityStoreManager.populateObserver = nil
+        CredentialIdentityStoreManager.clearObserver = nil
+        CredentialIdentityStoreManager.removeDatabaseObserver = nil
+        CredentialIdentityStoreManager.removeIdentityObserver = nil
+        CredentialIdentityStoreManager.storeProviderOverride = nil
+        await CredentialIdentityStoreManager.waitForPendingMutations()
     }
 }

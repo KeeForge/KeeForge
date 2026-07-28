@@ -14,14 +14,16 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
 
     override func setUp() async throws {
         try await super.setUp()
+        await resetCredentialIdentityStoreState()
         DatabaseListStore.clearAll()
-        resetCredentialIdentityStoreSeams()
+        await resetCredentialIdentityStoreState()
         resetAutoFillSettings()
     }
 
     override func tearDown() async throws {
+        await resetCredentialIdentityStoreState()
         DatabaseListStore.clearAll()
-        resetCredentialIdentityStoreSeams()
+        await resetCredentialIdentityStoreState()
         resetAutoFillSettings()
         try await super.tearDown()
     }
@@ -33,14 +35,7 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
         let sharedDefaults = UserDefaults(suiteName: SharedVaultStore.appGroupID) ?? .standard
         sharedDefaults.removeObject(forKey: "KeeForge.quickAutoFillEnabled")
         sharedDefaults.removeObject(forKey: "KeeForge.autoFillCopyTOTP")
-    }
-
-    private func resetCredentialIdentityStoreSeams() {
-        CredentialIdentityStoreManager.populateObserver = nil
-        CredentialIdentityStoreManager.clearObserver = nil
-        CredentialIdentityStoreManager.removeDatabaseObserver = nil
-        CredentialIdentityStoreManager.removeIdentityObserver = nil
-        CredentialIdentityStoreManager.storeProviderOverride = nil
+        sharedDefaults.removeObject(forKey: "KeeForge.autoUnlockWithFaceID")
     }
 
     // MARK: - Required cleanup-path tests
@@ -146,6 +141,60 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
             "cleanup() must run before the credential is handed to the shell"
         )
         assertCleanedUp(coordinator)
+    }
+
+    func test_terminalCompletionIsDeliveredExactlyOnce() throws {
+        let (coordinator, presenter) = makeCoordinator()
+        let sessionKey = SymmetricKey(size: .bits256)
+        let entry = KPEntry(
+            title: "GitHub",
+            username: "octocat",
+            password: try EncryptedValue.encrypt("hunter2", using: sessionKey),
+            url: "https://github.com/login"
+        )
+        seedUnlockedVaultState(coordinator, entries: [entry], sessionKey: sessionKey)
+
+        coordinator.completeRequest(with: entry)
+        coordinator.cancelRequest(code: .failed)
+
+        XCTAssertEqual(presenter.cancelledErrorCodes, [], "A completed request must not be cancelled again")
+        XCTAssertNotNil(presenter.completedCredential)
+    }
+
+    func test_cancelDuringUnlockInvalidatesLateContinuation() async throws {
+        let (coordinator, presenter) = makeCoordinator()
+        let databaseReference = try seedResolvableDefaultDatabase()
+        coordinator.activeDatabaseReference = databaseReference
+
+        let unlockEntered = expectation(description: "unlock task entered its async seam")
+        let unlockCancelled = expectation(description: "unlock task observed cancellation")
+        coordinator.unlockWorkOverride = {
+            unlockEntered.fulfill()
+            do {
+                try await Task.sleep(for: .seconds(5))
+            } catch {
+                unlockCancelled.fulfill()
+                throw error
+            }
+        }
+
+        coordinator.prepareCredentialList(for: [githubServiceIdentifier()])
+        coordinator.presentUnlockPromptIfNeeded()
+        let prompt = try XCTUnwrap(presenter.unlockPrompt)
+        prompt.onChooseBiometrics()
+
+        await fulfillment(of: [unlockEntered], timeout: 1)
+        coordinator.cancelRequest(code: .userCanceled)
+        await fulfillment(of: [unlockCancelled], timeout: 1)
+
+        XCTAssertEqual(presenter.cancelledErrorCodes, [.userCanceled])
+        XCTAssertNil(presenter.searchView, "A cancelled unlock must not present a late picker")
+        assertCleanedUp(coordinator)
+
+        presenter.unlockPrompt = nil
+        coordinator.prepareCredentialList(for: [githubServiceIdentifier()])
+        coordinator.presentationDidBecomeActive()
+        XCTAssertNotNil(presenter.unlockPrompt, "A new request must present its unlock prompt")
     }
 
     // MARK: - Additional cleanup paths the pre-existing suite did not cover
@@ -819,7 +868,7 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
 
         coordinator.presentPasswordMatchesOrFinish()
 
-        try? await Task.sleep(for: .milliseconds(150))
+        await CredentialIdentityStoreManager.waitForPendingMutations()
         XCTAssertNil(presenter.completedCredential, "Expired entries are filtered from direct completion")
         let searchView = try XCTUnwrap(presenter.searchView, "The interactive fallback presents as before")
         XCTAssertEqual(searchView.entries.map(\.id), [expiredEntry.id])
@@ -908,9 +957,8 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
     func test_silentFill_staleIdentifierCleansUpAndCancelsUserInteractionRequired() async throws {
         SettingsService.quickAutoFillEnabled = true
 
-        // Unknown-database identifier → targeted removal + interactive relaunch.
-        let (unknownCoordinator, unknownPresenter) = makeCoordinator()
         let unknownDatabaseID = UUID()
+        let (unknownCoordinator, unknownPresenter) = makeCoordinator()
         let removalScheduled = expectation(description: "targeted removal scheduled")
         CredentialIdentityStoreManager.removeDatabaseObserver = { databaseID, _ in
             XCTAssertEqual(databaseID, unknownDatabaseID)
@@ -927,7 +975,6 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
         XCTAssertEqual(unknownPresenter.cancelledError?.code, .userInteractionRequired)
         assertCleanedUp(unknownCoordinator)
 
-        // Unrecognized identifier → whole-store clear + interactive relaunch.
         CredentialIdentityStoreManager.removeDatabaseObserver = nil
         let (staleCoordinator, stalePresenter) = makeCoordinator()
         let storeCleared = expectation(description: "clearStore scheduled")
@@ -961,7 +1008,6 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
         )
 
         XCTAssertEqual(presenter.cancelledError?.code, .userInteractionRequired)
-        try? await Task.sleep(for: .milliseconds(150))
         assertCleanedUp(coordinator)
     }
 
@@ -1524,7 +1570,6 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
 
         XCTAssertEqual(presenter.cancelledError?.code, .userInteractionRequired)
         XCTAssertNil(presenter.completedCredential, "The silent path must never fill without escalating first")
-        try? await Task.sleep(for: .milliseconds(150))
         assertCleanedUp(coordinator)
     }
 

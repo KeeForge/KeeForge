@@ -32,6 +32,8 @@ final class CredentialProviderViewController: ASCredentialProviderViewController
 
     override func viewDidDisappear(_ animated: Bool) {
         super.viewDidDisappear(animated)
+        // Internal full-screen presentations also make the provider disappear;
+        // request cancellation belongs to the coordinator's terminal paths.
         hasAppeared = false
     }
 
@@ -119,7 +121,11 @@ extension CredentialProviderViewController: CredentialProviderPresenting {
                 databases: switcher.databases,
                 currentDatabaseID: switcher.currentDatabaseID,
                 onSwitch: { [weak self] reference, currentSearchText in
-                    self?.dismiss(animated: false) {
+                    guard let self else {
+                        switcher.onSwitch(reference, currentSearchText)
+                        return
+                    }
+                    self.dismiss(animated: false) {
                         switcher.onSwitch(reference, currentSearchText)
                     }
                 }
@@ -130,14 +136,18 @@ extension CredentialProviderViewController: CredentialProviderPresenting {
             initialSearchText: initialSearchText,
             databaseSwitcher: wrappedSwitcher,
             onSelect: { [weak self] entry in
-                self?.dismiss(animated: false) {
+                guard let self else {
                     onSelect(entry)
+                    return
                 }
+                self.dismiss(animated: false) { onSelect(entry) }
             },
             onCancel: { [weak self] in
-                self?.dismiss(animated: false) {
+                guard let self else {
                     onCancel()
+                    return
                 }
+                self.dismiss(animated: false) { onCancel() }
             }
         )
         let host = UIHostingController(rootView: searchView)
@@ -163,9 +173,11 @@ extension CredentialProviderViewController: CredentialProviderPresenting {
                 }
             },
             onCancel: { [weak self] in
-                self?.dismiss(animated: false) {
+                guard let self else {
                     onCancel()
+                    return
                 }
+                self.dismiss(animated: false) { onCancel() }
             }
         )
 
@@ -177,9 +189,11 @@ extension CredentialProviderViewController: CredentialProviderPresenting {
     func presentNoEnabledDatabasesState(onDismiss: @escaping () -> Void) {
         let emptyStateView = AutoFillNoEnabledDatabasesView(
             onDismiss: { [weak self] in
-                self?.dismiss(animated: false) {
+                guard let self else {
                     onDismiss()
+                    return
                 }
+                self.dismiss(animated: false) { onDismiss() }
             }
         )
         let host = UIHostingController(rootView: emptyStateView)

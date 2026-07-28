@@ -11,26 +11,20 @@ final class DatabaseViewModelTests: XCTestCase {
 
     override func setUp() async throws {
         try await super.setUp()
+        await resetCredentialIdentityStoreState()
         DatabaseListStore.clearAll()
         CloudAccountStore.clearAll()
         SharedVaultStore.clearBookmark()
-        resetCredentialIdentityStoreSeams()
+        await resetCredentialIdentityStoreState()
     }
 
     override func tearDown() async throws {
+        await resetCredentialIdentityStoreState()
         DatabaseListStore.clearAll()
         CloudAccountStore.clearAll()
         SharedVaultStore.clearBookmark()
-        resetCredentialIdentityStoreSeams()
+        await resetCredentialIdentityStoreState()
         try await super.tearDown()
-    }
-
-    private func resetCredentialIdentityStoreSeams() {
-        CredentialIdentityStoreManager.populateObserver = nil
-        CredentialIdentityStoreManager.clearObserver = nil
-        CredentialIdentityStoreManager.removeDatabaseObserver = nil
-        CredentialIdentityStoreManager.removeIdentityObserver = nil
-        CredentialIdentityStoreManager.storeProviderOverride = nil
     }
 
     func testInitialStateIsLockedWithSavedDatabaseReference() throws {
@@ -960,7 +954,9 @@ final class DatabaseViewModelTests: XCTestCase {
         await vm.unlock(password: fixturePassword)
 
         await fulfillment(of: [populateExpectation, mutationExpectation], timeout: 30)
+        await CredentialIdentityStoreManager.waitForPendingMutations()
         XCTAssertEqual(observedDatabaseIDs, [reference.id])
+        XCTAssertEqual(fake.calls, ["saveCredentialIdentities"])
 
         let storedDatabaseIDs = Set(fake.stored.compactMap { identity -> UUID? in
             guard let recordIdentifier = identity.recordIdentifier,
@@ -1032,7 +1028,7 @@ final class DatabaseViewModelTests: XCTestCase {
 
         vm.lock(manuallyTriggered: true)
 
-        try? await Task.sleep(for: .milliseconds(150))
+        await CredentialIdentityStoreManager.waitForPendingMutations()
         XCTAssertState(vm.state, is: .locked)
         XCTAssertEqual(fake.stored.count, identityCountAfterUnlock)
         fake.onMutation = nil

@@ -6,26 +6,20 @@ import XCTest
 final class DatabaseListStoreTests: XCTestCase {
     override func setUp() async throws {
         try await super.setUp()
+        await resetCredentialIdentityStoreState()
         DatabaseListStore.clearAll()
         CloudAccountStore.clearAll()
         SharedVaultStore.clearBookmark()
-        resetCredentialIdentityStoreSeams()
+        await resetCredentialIdentityStoreState()
     }
 
     override func tearDown() async throws {
+        await resetCredentialIdentityStoreState()
         DatabaseListStore.clearAll()
         CloudAccountStore.clearAll()
         SharedVaultStore.clearBookmark()
-        resetCredentialIdentityStoreSeams()
+        await resetCredentialIdentityStoreState()
         try await super.tearDown()
-    }
-
-    private func resetCredentialIdentityStoreSeams() {
-        CredentialIdentityStoreManager.populateObserver = nil
-        CredentialIdentityStoreManager.clearObserver = nil
-        CredentialIdentityStoreManager.removeDatabaseObserver = nil
-        CredentialIdentityStoreManager.removeIdentityObserver = nil
-        CredentialIdentityStoreManager.storeProviderOverride = nil
     }
 
     func testAddPersistsDatabaseReference() throws {
