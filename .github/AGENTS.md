@@ -18,8 +18,8 @@ GitHub Actions workflows, issue/PR templates, funding config, and repo assets. A
 
 Two repository rulesets, both with admin bypass:
 
-- `main` (`~DEFAULT_BRANCH`) and `release branches` (`refs/heads/release/**`) carry identical rules: deletion protection, required linear history, no force-push, and required `unit-tests` + `DCO` status checks.
-- Linear history plus squash merges is why fixes move between a release branch and `main` by `git cherry-pick -x`, never a merge commit; `git cherry -v main origin/release/{x.y}` is the audit that nothing was dropped.
+- `main` (`~DEFAULT_BRANCH`): deletion protection, no force-push, required `unit-tests` + `DCO` status checks. Linear history is deliberately **not** required — release-branch backports land as real merge commits, which makes "does `main` have every release fix?" answerable with `git merge-base --is-ancestor` instead of patch-id guesswork. Contributor PRs still squash-merge.
+- `release branches` (`refs/heads/release/**`): the same rules plus required linear history, since nothing is ever merged *into* a release branch.
 
 ## Gotchas
 

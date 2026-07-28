@@ -26,14 +26,15 @@ fails — see `gate-adjudication.md`.
 
 ## The four invariants
 
-Violating any of these invalidates the release. They outrank convenience at every step.
+Violating any of these invalidates the release. They outrank convenience at every step, and
+unlike the soak targets in A10 they are not judgement calls.
 
 1. **Ship the binary you soaked.** The App Store build is selected from TestFlight, never
    re-archived. `v{version}` is a record of what shipped, not a build trigger.
 2. **Every external build gets a unique, increasing `CURRENT_PROJECT_VERSION`.** App Store
    Connect rejects a duplicate `(marketing version, build number)` pair outright.
-3. **A new build restarts the soak clock.** Any fix during soak means a new build and a fresh
-   window. This is the pressure that keeps late fixes honest.
+3. **Both CI gates are accepted before a build reaches external testers.** Green, or every
+   failure adjudicated per `gate-adjudication.md`. The soak window is flexible; this is not.
 4. **Tags are immutable.** Never delete, move, or force-push a tag. Every `rc/*` tag is a
    permanent record of one candidate build.
 
@@ -246,24 +247,41 @@ TestFlight build was produced.
 
 ## A10. Soak
 
-Do not proceed to Mode C until **every** criterion below holds for the **current** build:
+Shipping is the user's call. These are targets, not gates — but they are **always measured and
+always reported**. Never summarize the soak as "looks fine"; give the four numbers and a
+recommendation, then let the user decide.
 
-- [ ] **≥ 48h** since this build was distributed to external testers.
-- [ ] **≥ 5 unique installs** of this exact build. Lower this deliberately (and record the number)
-      if the public link is new and cannot reach 5; do not silently ignore it.
-- [ ] **Zero new crash signatures** for this build in App Store Connect (TestFlight → Crashes) and
-      Xcode Organizer.
-- [ ] **Every P0/P1 report** from TestFlight feedback or `feedback.keeforge.com` is either fixed
-      (→ Mode B, clock restarts) or explicitly deferred with a written reason recorded in the
-      release notes to the user.
+Targets for the **current** build (a minor release; patches use 24h — see D4):
+
+| Signal | Where to read it | Target |
+| --- | --- | --- |
+| Time since this build reached external testers | distribution timestamp recorded in A9 | 48h |
+| Unique installs of this exact build | App Store Connect → TestFlight | 5 |
+| New crash signatures for this build | TestFlight → Crashes, and Xcode Organizer | 0 |
+| Open P0/P1 reports | TestFlight → Feedback, `feedback.keeforge.com` | none |
+
+Report each signal as **met** or **short**, with its actual value, and state plainly what is
+being accepted by shipping early. "18h of a 48h target, 2 installs, no crashes, one P2 open" is a
+useful thing for the user to weigh; "soak complete" is not.
+
+Two habits keep this honest when the targets are relaxed:
+
+- **A new build resets the clock.** Elapsed time and installs belong to one build; they do not
+  carry over from the candidate it replaced. Report the current build's numbers, never the
+  version's cumulative ones.
+- **Record what was accepted.** When shipping short of target, note which signals were short in
+  the `v{version}` tag message (C4). This costs nothing and makes the pattern visible over several
+  releases, which is the thing worth knowing.
 
 Watch all three feedback channels: screenshot feedback, Send Beta Feedback text, and crash
 reports — all under **TestFlight → Feedback** in App Store Connect.
 
-Treat any candidate touching `KDBXParser`, `KDBX3Parser`, `KDBXWriter`, `KDBXXMLSerializer`, or
-the local/cloud save paths as higher-risk: hold the longest soak and say so in What to Test.
+Some candidates deserve a real hold regardless of the clock. Say so explicitly, and recommend
+against shipping short, when the build touches `KDBXParser`, `KDBX3Parser`, `KDBXWriter`,
+`KDBXXMLSerializer`, or the local/cloud save paths — a bad write reaches users' real vaults, and
+the App Store rollback story is "ship another version."
 
-When the criteria are met, go to **Mode C**.
+When the user is satisfied, go to **Mode C**.
 
 ---
 
@@ -298,32 +316,34 @@ The KDBX gate runs again for this build. It is not inherited from the previous c
 Return to A10 with the clock reset to this build's distribution timestamp. Prior builds' soak time
 does not carry over.
 
-## B5. Port the fix to main
+## B5. Merge the release branch back into main
 
 Do this as soon as the fix lands, not at ship time — a fix that exists only on the release branch
 regresses the moment `main` becomes the next release.
 
-`main` requires linear history and the repo uses squash merges, so port with `cherry-pick`, not a
-merge commit:
+Merge the whole branch; do not cherry-pick individual commits. A merge makes "is every release fix
+on main?" an exact question git can answer, which cherry-picking cannot.
 
 ```bash
 git switch main
 git pull --ff-only
-git cherry-pick -x {fix-sha}
+git merge --no-ff origin/release/{major}.{minor} \
+  -m "Merge release/{major}.{minor} into main (v{version} build {build})"
 git push origin main
 ```
 
-`-x` records the source commit in the message, which is what makes the audit in C2 readable.
+`CHANGELOG.md` is the usual conflict: the release branch has a `## v{version}` section where
+`main` has accumulated new `## Unreleased` entries. Resolve by keeping both — `## Unreleased` with
+main's newer entries on top, the version section below it.
 
-If the fix cannot apply cleanly to `main` (the surrounding code diverged), write the equivalent
-fix as a normal commit on `main` and note the release-branch SHA it corresponds to in the commit
-message. Do not leave it unported.
+The merge also carries the release mechanics (version bump, build numbers, What's New content) to
+`main`. That is intended, and it is why Mode C has no separate sync step.
 
 ---
 
 # Mode C — Ship the soaked build
 
-Only enter this mode when A10's criteria are met for the current build.
+Enter this mode when the user decides to ship, after the A10 signals have been reported to them.
 
 ## C1. Confirm what you are shipping
 
@@ -333,28 +353,24 @@ Record explicitly, and state it back to the user before proceeding:
 - Its `rc/{version}-b{build}` tag and commit SHA.
 - The distribution timestamp and elapsed soak time.
 - The unique-install count and crash count.
+- Which A10 signals, if any, are short of target.
 
 The build number here **is** the build you will select in App Store Connect. If it does not match
 the last candidate you distributed, stop — something is out of sync.
 
 ## C2. Audit that main has every fix
 
-Confirm nothing that shipped is missing from `main`:
+Because backports are merges, this is an exact check rather than a judgement call:
 
 ```bash
 git fetch origin --tags
-git cherry -v main origin/release/{major}.{minor}
+git merge-base --is-ancestor origin/release/{major}.{minor} origin/main \
+  && echo "main contains the release branch" \
+  || git log --oneline origin/main..origin/release/{major}.{minor}
 ```
 
-Every line prefixed `+` is a commit on the release branch with no patch-equivalent on `main`.
-Classify each one:
-
-- **A fix** → port it now with Mode B5. Do not ship with an unported fix.
-- **Release mechanics** (the version bump, build-number bumps, the changelog version section,
-  What's New content) → expected; these are covered by the sync commit in C5.
-
-A cherry-picked commit that needed conflict resolution has a different patch-id and will still
-show as `+`. Verify those by reading the diff rather than assuming they were dropped.
+If the check fails, the listed commits are on the release branch and not on `main`. Run Mode B5 to
+merge them before shipping. Do not ship with an unmerged fix.
 
 ## C3. Correct the changelog date if the soak crossed a day
 
@@ -374,6 +390,9 @@ git tag -a 'v{version}' -m 'Release v{version} — shipped build {build} (from '
 git push origin 'refs/tags/v{version}'
 ```
 
+If any A10 signal was short of target, add a line to the tag message saying which and why — for
+example `Shipped at 18h of 48h: fix confirmed by reporter, no crashes.` One sentence is enough.
+
 Keep every `rc/*` tag. They are the audit trail of the candidates, including the ones that were
 replaced.
 
@@ -381,19 +400,18 @@ If `git fetch origin --tags` reports `! [rejected] ... (would clobber existing t
 has drifted from the remote. The remote is authoritative for released tags: inspect both sides,
 then realign with `git fetch origin --tags --force`.
 
-## C5. Sync main to the shipped state
+## C5. Confirm main reflects the shipped state
 
-`main` still carries the previous `MARKETING_VERSION` and an unreleased changelog. Bring it in
-line with one commit:
+The B5 merges already carried the version bump, build number, changelog section, and What's New
+content to `main`. Verify rather than redo:
 
-1. Set `MARKETING_VERSION` to `{version}` and `CURRENT_PROJECT_VERSION` to the shipped build
-   number, on both the `KeeForge` and `KeeForgeAutoFill` targets.
-2. Copy the `## v{version}` changelog section from the release branch into `main`'s `CHANGELOG.md`,
-   leaving `## Unreleased` in place above it for the next cycle.
-3. Copy the What's New catalog case and its `Localizable.xcstrings` keys if they are not already on
-   `main` from a cherry-pick.
-4. `xcodegen generate`, then commit with `-s`: `Sync main to shipped v{version} build {build}`
-   and push.
+- `main`'s `MARKETING_VERSION` is `{version}` and `CURRENT_PROJECT_VERSION` is the shipped build
+  number, on both the `KeeForge` and `KeeForgeAutoFill` targets.
+- `main`'s `CHANGELOG.md` has the `## v{version}` section, with an empty `## Unreleased` above it
+  ready for the next cycle.
+
+Fix any drift with a single `-s` commit on `main`, then push. Drift here usually means a
+`CHANGELOG.md` merge conflict was resolved by dropping one side.
 
 ## C6. Hand off to App Store Connect
 
@@ -433,29 +451,22 @@ Verify the branch tip is at or after the `v{major}.{minor}.0` tag.
 
 Run A6, A7, A8, and A9 exactly as for a minor release. The KDBX gate is not optional for patches.
 
-## D4. Shortened soak, waivable
+## D4. Shortened soak
 
-Patch releases use a **24h** soak floor. Every other A10 criterion still applies unchanged.
+Patch releases target **24h** instead of 48h. Every other A10 signal is measured and reported the
+same way.
 
-The 24h floor **may be waived** when the patch fixes an active crash or data-loss bug already
-reaching users. To waive it:
+When the patch fixes an active crash or data-loss bug already reaching users, recommend shipping
+as soon as both A8 gates are green — for that class of bug, more soak time is usually worse for
+users than less. Say that explicitly rather than leaving the user to infer it.
 
-1. State the reason to the user and get explicit confirmation at that moment.
-2. Confirm both A8 gates are green. **The CI gates are never waivable** — only the soak clock is.
-3. Record the waiver in the `v{version}` tag message:
-
-   ```bash
-   git tag -a 'v{version}' -m 'Release v{version} — shipped build {build} (from rc/{version}-b{build})
-
-   Soak waived: {reason}' "$rc_commit"
-   ```
-
-Never waive a soak for a feature, a refactor, or convenience. If the reason cannot be written in
-one concrete sentence naming the bug, it is not a waiver case.
+The gates themselves are still invariant 3: green, or every failure adjudicated. A patch under
+time pressure is exactly when it is tempting to skip them, and exactly when a second bad build
+does the most damage.
 
 ## D5. Ship
 
-Continue with Mode C from C1, using the 24h (or waived) criterion in place of 48h.
+Continue with Mode C from C1, reporting against the 24h target in place of 48h.
 
 ---
 
