@@ -595,7 +595,10 @@ final class EntryHistoryUITests: UnlockedDatabaseUITestCase {
             XCTFail("The fixture entry exposes no history row")
             return
         }
-        let versionCountBefore = historyRow.staticTexts.allElementsBoundByIndex.compactMap { Int($0.label) }.first
+        guard let versionCountBefore = Int(historyRow.value as? String ?? "") else {
+            XCTFail("The history row does not expose its version count as a value")
+            return
+        }
         tapElement(historyRow)
 
         app.buttons["entry-history.version.0"].tap()
@@ -618,10 +621,7 @@ final class EntryHistoryUITests: UnlockedDatabaseUITestCase {
         )
 
         // The replaced state is kept, so the entry now has one more version than before.
-        if let versionCountBefore {
-            let after = app.buttons["entry-detail.history"].staticTexts
-                .allElementsBoundByIndex.compactMap { Int($0.label) }.first
-            XCTAssertEqual(after, versionCountBefore + 1, "the replaced state must be kept as a version")
-        }
+        let after = Int(app.buttons["entry-detail.history"].value as? String ?? "")
+        XCTAssertEqual(after, versionCountBefore + 1, "the replaced state must be kept as a version")
     }
 }
