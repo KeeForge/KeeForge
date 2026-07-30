@@ -1143,6 +1143,36 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
         assertCleanedUp(coordinator)
     }
 
+    func test_strictMatchWithAdditionalBroadMatch_presentsPicker() throws {
+        let (coordinator, presenter) = makeCoordinator()
+        let sessionKey = SymmetricKey(size: .bits256)
+        let entries = [
+            KPEntry(
+                title: "GitHub",
+                username: "octocat",
+                password: try EncryptedValue.encrypt("hunter2", using: sessionKey),
+                url: "https://github.com/login"
+            ),
+            KPEntry(
+                title: "github.com legacy",
+                username: "legacy",
+                password: try EncryptedValue.encrypt("hunter3", using: sessionKey),
+                url: "https://unrelated.example"
+            ),
+        ]
+
+        coordinator.serviceIdentifiers = [githubServiceIdentifier()]
+        seedUnlockedVaultState(coordinator, entries: entries, sessionKey: sessionKey)
+
+        coordinator.presentPasswordMatchesOrFinish()
+
+        XCTAssertNil(presenter.completedCredential, "A broad match must prevent zero-interaction completion")
+        let searchView = try XCTUnwrap(presenter.searchView)
+        XCTAssertEqual(searchView.entries.map(\.title), ["GitHub"])
+        searchView.onCancel()
+        assertCleanedUp(coordinator)
+    }
+
     func test_searchView_switcherNeverListsDisabledDatabases() throws {
         let (coordinator, presenter) = makeCoordinator()
         let databaseA = try makeRegisteredDatabase(named: "a.kdbx")

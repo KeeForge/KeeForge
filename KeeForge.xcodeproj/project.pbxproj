@@ -1372,7 +1372,6 @@
 				255524A0026746268CB46642 /* SharedVaultStoreTests.swift */,
 				DFF14B46CC89D1B7A9138E80 /* SortOrderTests.swift */,
 				D6C99B38ABC76F14EEC9ECE5 /* StoreKitManagerTests.swift */,
-				928A68933B867347BC11592A /* SyncedFolderDetectorTests.swift */,
 				A04A6F5E71D63FC88AC15D59 /* TagNormalizerTests.swift */,
 				E358190F2BA4D4AA05650AA4 /* TestDatabaseSupport.swift */,
 				04A1400E503A230DF2633686 /* TOTPGeneratorTests.swift */,

@@ -156,16 +156,6 @@
         }
       }
     },
-    "another app" : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "andere App"
-          }
-        }
-      }
-    },
     "AutoFill with KeeForge" : {
       "localizations" : {
         "de" : {
@@ -982,66 +972,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Die ursprüngliche Anfrage-URL wird dem ausgewählten Zugang hinzugefügt. Die Datenbank wird nur nach Ihrer Bestätigung geändert."
-          }
-        }
-      }
-    },
-    "This database file is in iCloud Drive." : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Diese Datenbankdatei befindet sich in iCloud Drive."
-          }
-        }
-      }
-    },
-    "This database file is stored in Box." : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Diese Datenbankdatei ist in Box gespeichert."
-          }
-        }
-      }
-    },
-    "This database file is stored in Dropbox." : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Diese Datenbankdatei ist in Dropbox gespeichert."
-          }
-        }
-      }
-    },
-    "This database file is stored in Google Drive." : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Diese Datenbankdatei ist in Google Drive gespeichert."
-          }
-        }
-      }
-    },
-    "This database file is stored in OneDrive." : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Diese Datenbankdatei ist in OneDrive gespeichert."
-          }
-        }
-      }
-    },
-    "This database file may be synced by another app on this device." : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Diese Datenbankdatei wird möglicherweise von einer anderen App auf diesem Gerät synchronisiert."
           }
         }
       }

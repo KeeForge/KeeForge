@@ -1176,6 +1176,7 @@ final class CredentialProviderCoordinator {
         }
 
         let strictMatches = CredentialMatcher.strictMatchedEntries(from: passwordEntries, for: serviceIdentifiers)
+        let matches = CredentialMatcher.matchedEntries(from: passwordEntries, for: serviceIdentifiers)
         let possibleMatches: [KPEntry]
         if strictMatches.isEmpty {
             let broadMatches = CredentialMatcher.matchedEntries(from: passwordEntries, for: serviceIdentifiers)
@@ -1188,7 +1189,7 @@ final class CredentialProviderCoordinator {
 
         // Auto-complete without a picker only when the single candidate matched
         // on host, not on a weaker URL/title substring signal.
-        if strictMatches.count == 1, let entry = strictMatches.first {
+        if matches.count == 1, strictMatches.count == 1, let entry = strictMatches.first {
             completeRequest(with: entry)
             return
         }
@@ -1254,6 +1255,24 @@ final class CredentialProviderCoordinator {
         var index = 1
         while customFields["KP2A_URL_\(index)"] != nil { index += 1 }
         customFields["KP2A_URL_\(index)"] = requestURL
+
+        let totpConfig: EntryDraftPayload.TOTPConfiguration?
+        do {
+            totpConfig = try entry.totpConfig.map { config in
+                EntryDraftPayload.TOTPConfiguration(
+                    secret: try config.secret.decrypt(using: sessionKey),
+                    decodedSecret: try config.decodedSecret?.decryptData(using: sessionKey),
+                    keeOTPSource: config.keeOTPSource,
+                    period: config.period,
+                    digits: config.digits,
+                    algorithm: config.algorithm
+                )
+            }
+        } catch {
+            cancelRequest(code: .failed)
+            return
+        }
+
         let draft = EntryDraftPayload(
             title: entry.title,
             username: entry.username,
@@ -1261,7 +1280,8 @@ final class CredentialProviderCoordinator {
             url: entry.url,
             notes: entry.notes,
             customFields: customFields,
-            tags: entry.tags
+            tags: entry.tags,
+            totpConfig: totpConfig
         )
 
         Task { [weak self] in
