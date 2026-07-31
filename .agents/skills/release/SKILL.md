@@ -135,22 +135,29 @@ Perform this review for every release, even if the content already looks complet
 
 ## A4. Commit the release content to main, then cut the branch
 
-A2 and A3 describe work that is **already on `main`** — they are not release mechanics — so they
-land on `main` first. That way `main` carries the changelog section and the What's New sheet from
-the moment the branch is cut, development continues against a correct empty `## Unreleased`, and
-the CHANGELOG conflict that Mode B5 otherwise has to resolve never arises.
+Everything decided **once** for this release lands on `main` before the cut; only what varies
+**per candidate** waits for the branch. A2, A3, and the marketing version are all in the first
+group — they describe work already merged to `main`, and the changelog heading already commits to
+the version number, so holding the matching `MARKETING_VERSION` back buys nothing.
+
+Set `MARKETING_VERSION` to the new version string (e.g. `"1.11.0"`) on **both** the `KeeForge` and
+`KeeForgeAutoFill` targets in `project.yml`. Leave `CURRENT_PROJECT_VERSION` alone — that is A5's,
+and it changes with every candidate. Do not touch the `KeeForgeMac` / `KeeForgeMacAutoFill`
+versions; the macOS targets are on hold and release separately.
 
 ```bash
-git add CHANGELOG.md \
+xcodegen generate
+git add CHANGELOG.md project.yml KeeForge.xcodeproj \
   KeeForge/Services/AppSupport/WhatsNewPresentationService.swift \
   KeeForge/Resources/Localizable.xcstrings
-git commit -s -m "Prepare v{version} release notes"
+git commit -s -m "Prepare v{version}"
 git push origin main
 ```
 
-`WhatsNewCatalog` is keyed by version string, so a case for `{version}` sitting on `main` while
-`main` still carries the previous `MARKETING_VERSION` simply never matches. Adding it early
-changes no behavior.
+`main` now builds as `{version}`, so local dev builds will show the new What's New sheet once —
+`WhatsNewCatalog` is keyed by version string and the marketing version now matches it. That is
+harmless and self-limiting: `WhatsNewPresentationHistory` presents each version at most once per
+device.
 
 Then cut the branch from that commit. It is named for the **minor** version, not the patch —
 `release/1.11` carries `1.11.0`, `1.11.1`, and every later patch. It is long-lived: do not delete
@@ -166,22 +173,18 @@ linear history, and required `unit-tests` + `DCO` checks — so contributor PRs 
 are gated exactly like `main`.
 
 From here until Mode C, **all release work happens on this branch.** `main` stays open for the
-next version's features. If the release is abandoned after this point, the release notes on `main`
-are one revert commit — cheaper than an abandoned version bump, which is why A5 stays on the
-branch.
+next version's features. If the release is abandoned or renumbered after this point, reverting this
+one commit on `main` undoes all of it together.
 
-## A5. Set the version and build number
+## A5. Set the candidate build number
 
-Update **both** the `KeeForge` and `KeeForgeAutoFill` targets in `project.yml`:
+On the release branch, set `CURRENT_PROJECT_VERSION` to `"1"` — the first candidate build of this
+version — on **both** the `KeeForge` and `KeeForgeAutoFill` targets in `project.yml`. They must
+always carry identical values; there are exactly 2 values to update. Use precise
+string-replacement edits.
 
-1. Set `MARKETING_VERSION` to the new version string (e.g. `"1.11.0"`).
-2. Set `CURRENT_PROJECT_VERSION` to `"1"` — the first candidate build of this version.
-
-Both targets must always carry identical values. There are exactly 4 values to update. Use
-precise string-replacement edits.
-
-Do not touch the `KeeForgeMac` / `KeeForgeMacAutoFill` versions; the macOS targets are on hold
-and release separately.
+`MARKETING_VERSION` is already correct from A4. Do not touch the `KeeForgeMac` /
+`KeeForgeMacAutoFill` versions; the macOS targets are on hold and release separately.
 
 ## A6. Regenerate and run the local KDBX gate
 
@@ -433,8 +436,8 @@ then realign with `git fetch origin --tags --force`.
 
 ## C5. Confirm main reflects the shipped state
 
-A4 put the changelog section and What's New content on `main` before the cut, and the B5 merges
-carried the version bump across. Verify rather than redo:
+A4 put the changelog section, the What's New content, and `MARKETING_VERSION` on `main` before the
+cut, and the B5 merges carried each candidate's build number across. Verify rather than redo:
 
 - `main`'s `MARKETING_VERSION` is `{version}` on both the `KeeForge` and `KeeForgeAutoFill` targets.
 - `main`'s `CHANGELOG.md` has the `## v{version}` section, with an empty `## Unreleased` above it
