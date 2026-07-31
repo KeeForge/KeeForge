@@ -25,8 +25,6 @@ TODO before the first macOS release:
 
 ### New Features
 
-_Contributed by [@miquno](https://github.com/miquno) and [@ftorga](https://github.com/ftorga)._
-
 - Restore an entry's earlier version: open History, pick a version and restore it. The entry's current contents are kept as a new version so it can be undone — unless the database is set to keep no history, which the confirmation now says plainly.
 - See an entry's earlier versions. KeePass keeps a copy of an entry each time it changes, and KeeForge has always preserved those copies — now you can open them: tap "History" on an entry to browse the stored versions and inspect one. Useful for checking what a password used to be.
 - Added a tag browser: browse entries by tag (including tags inherited from groups), search by tag, and tag suggestions while editing.
@@ -35,8 +33,6 @@ _Contributed by [@miquno](https://github.com/miquno) and [@ftorga](https://githu
 - Copy an entry's verification code to the clipboard when AutoFill fills its password, for sites whose one-time code field iOS does not recognize. Off by default; turn on "Copy Verification Code on AutoFill" under Settings › AutoFill. The copy clears itself after the Clipboard Clear Timeout and never leaves the device. While the setting is on, filling a suggestion for an entry that has a verification code asks you to confirm in KeeForge rather than filling silently, because AutoFill can only write the clipboard while its panel is on screen.
 
 ### Fixes
-
-_Contributed by [@miquno](https://github.com/miquno)._
 
 - Editing an entry in a database created by KeePass or KeePassXC could silently throw away its most recent stored versions. Once an entry reached the version limit, every save kept the oldest copies and discarded the newest — so the version from last week was lost while one from months ago survived. The two apps store the version list in opposite orders, and KeeForge assumed its own. It now decides what to keep by date. Databases created in KeeForge were never affected, and the order versions are stored in is left untouched, so files stay byte-friendly to other KeePass clients.
 - The "Delete Entry" confirmation in the entry editor (and the "Remove Database" / "Discard pending upload" confirmations in the database list) could appear as a floating popover in the middle of the screen on modern iOS. These dialogs are now anchored to the control or row that triggered them.
