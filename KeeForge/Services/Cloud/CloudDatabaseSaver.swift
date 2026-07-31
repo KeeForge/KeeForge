@@ -145,17 +145,23 @@ enum CloudDatabaseSaver {
         }
 
         let remoteMetadata = try await environment.getMetadata(reference)
+        var effectiveExpectedRev = expectedRev
         if let recordedMetadata = reference.cloudSyncMetadata,
            remoteHasDiverged(
                recorded: recordedMetadata,
                remote: remoteMetadata,
                expectedRev: expectedRev
            ) {
-            return try await conflictResult(
-                reference: reference,
-                fallbackData: currentData,
-                environment: environment
-            )
+            // Revision tags can go stale on their own (OneDrive rewrites
+            // cTag/eTag after async post-processing). A remote byte-identical
+            // to what the user opened has no conflict to resolve: rebase onto
+            // the fresh rev and proceed.
+            let remoteData = try? await environment.downloadRemoteData(reference)
+            guard let remoteData, KDBXCrypto.sha512(remoteData) == openTimeSHA512 else {
+                let conflictData = remoteData ?? currentData
+                return .conflict(remoteSHA512: KDBXCrypto.sha512(conflictData), remoteData: conflictData)
+            }
+            effectiveExpectedRev = remoteMetadata.rev
         }
 
         let header = try environment.extractHeader(currentData, compositeKey)
@@ -178,30 +184,68 @@ enum CloudDatabaseSaver {
         try environment.writeBackup(currentData, backupURL)
 
         do {
-            let uploadedMetadata = try await environment.upload(reference, newData, expectedRev, { _ in })
-
-            // Markers whose payload hashes to this save's open-time SHA are
-            // superseded by the upload above. Drop only AFTER
-            // `applyUploadedBytes`: a concurrent AutoFill save's provisional
-            // marker is what gates that call's pre-overwrite backup, so
-            // dropping first would clobber its bytes uncovered.
-            _ = try environment.applyUploadedBytes(reference, newData, uploadedMetadata)
-            environment.dropSupersededPendingUploads(reference.id, openTimeSHA512)
-            try? environment.pruneBackups(reference, 5)
-
-            return .saved(newSHA512: KDBXCrypto.sha512(newData))
+            let uploadedMetadata = try await environment.upload(reference, newData, effectiveExpectedRev, { _ in })
+            return try finishSave(
+                reference: reference,
+                newData: newData,
+                uploadedMetadata: uploadedMetadata,
+                openTimeSHA512: openTimeSHA512,
+                environment: environment
+            )
         } catch let error as CloudProviderError {
-            switch error {
-            case .conflict:
-                return try await conflictResult(
-                    reference: reference,
-                    fallbackData: currentData,
-                    environment: environment
-                )
-            default:
+            guard case .conflict = error else {
                 throw error
             }
+
+            // Same stale-tag guard for a provider-reported 412: byte-identical
+            // remote content means the precondition failed on a mutated tag,
+            // not a real edit. Refresh the rev and retry exactly once. The rev
+            // must be captured BEFORE the byte check — an edit landing between
+            // the two then fails the retry's If-Match instead of being
+            // silently overwritten.
+            let refreshedMetadata = try? await environment.getMetadata(reference)
+            let remoteData = try? await environment.downloadRemoteData(reference)
+            if let remoteData,
+               KDBXCrypto.sha512(remoteData) == openTimeSHA512,
+               let refreshedMetadata {
+                do {
+                    let uploadedMetadata = try await environment.upload(reference, newData, refreshedMetadata.rev, { _ in })
+                    return try finishSave(
+                        reference: reference,
+                        newData: newData,
+                        uploadedMetadata: uploadedMetadata,
+                        openTimeSHA512: openTimeSHA512,
+                        environment: environment
+                    )
+                } catch let retryError as CloudProviderError {
+                    guard case .conflict = retryError else {
+                        throw retryError
+                    }
+                }
+            }
+
+            let conflictData = remoteData ?? currentData
+            return .conflict(remoteSHA512: KDBXCrypto.sha512(conflictData), remoteData: conflictData)
         }
+    }
+
+    private static func finishSave(
+        reference: DatabaseReference,
+        newData: Data,
+        uploadedMetadata: CloudFileMetadata,
+        openTimeSHA512: Data,
+        environment: Environment
+    ) throws -> SaveResult {
+        // Markers whose payload hashes to this save's open-time SHA are
+        // superseded by the upload above. Drop only AFTER
+        // `applyUploadedBytes`: a concurrent AutoFill save's provisional
+        // marker is what gates that call's pre-overwrite backup, so
+        // dropping first would clobber its bytes uncovered.
+        _ = try environment.applyUploadedBytes(reference, newData, uploadedMetadata)
+        environment.dropSupersededPendingUploads(reference.id, openTimeSHA512)
+        try? environment.pruneBackups(reference, 5)
+
+        return .saved(newSHA512: KDBXCrypto.sha512(newData))
     }
 
     static func pushPendingUpload(
@@ -268,18 +312,6 @@ enum CloudDatabaseSaver {
         }
 
         return remote.rev != nil
-    }
-
-    private static func conflictResult(
-        reference: DatabaseReference,
-        fallbackData: Data,
-        environment: Environment
-    ) async throws -> SaveResult {
-        let remoteData = (try? await environment.downloadRemoteData(reference)) ?? fallbackData
-        return .conflict(
-            remoteSHA512: KDBXCrypto.sha512(remoteData),
-            remoteData: remoteData
-        )
     }
 
     private static func pushPendingUploadOffMain(

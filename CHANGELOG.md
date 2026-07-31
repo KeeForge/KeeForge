@@ -21,6 +21,10 @@ TODO before the first macOS release:
 
 ## Unreleased
 
+### Fixes
+
+- Saving a OneDrive database could show a false "Save Conflict" alert (typically on the second save in a session), and OneDrive databases could re-download in full even though nothing changed remotely. OneDrive rewrites its revision tags on its own after an upload; saves now check the file's actual content before declaring a conflict, and quietly proceed when nothing really changed.
+
 ## v1.11.0 (2026-07-30)
 
 ### New Features
