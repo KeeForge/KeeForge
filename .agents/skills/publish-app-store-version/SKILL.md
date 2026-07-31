@@ -42,7 +42,7 @@ If the requested build is absent from TestFlight, stop and report it. Do not sta
 3. Check TestFlight build uploads for the exact marketing version and build number handed over by the `release` skill.
 4. Treat `Complete` as processed. Do not attach a build that is still processing or failed.
 5. Confirm the build was distributed to external testers — that is the one that was soaked. A build that only ever reached internal testers has not been through the process.
-6. If the build is missing, report it and stop. Builds are produced by the Xcode Cloud **Release Candidate** workflow on an `rc/*` tag; no workflow triggers on `v*`. Never start a build from here.
+6. If the build is missing, report it and stop. Builds are produced by the Xcode Cloud **Tests (RC)** workflow on an `rc/*` tag; no workflow triggers on `v*`. Never start a build from here.
 
 ### 2. Create the App Store version when needed
 
