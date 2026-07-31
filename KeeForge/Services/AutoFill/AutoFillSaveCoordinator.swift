@@ -121,12 +121,12 @@ enum AutoFillSaveCoordinator {
         sessionKey: SymmetricKey,
         compositeKey: Data,
         openTimeSHA512: Data,
-        environment: Environment = .live
+        environment: Environment = .live,
+        edit: EntryEdit? = nil
     ) async throws -> SaveResult {
         let cleanDraft = DatabaseDraft(rootGroup: rootGroup, meta: meta, sessionKey: sessionKey)
-        let parentGroupID = rootGroup.groups.first?.id ?? rootGroup.id
         let workingDraft = try cleanDraft.apply(
-            .createEntry(parentGroupID: parentGroupID, draft: draftPayload)
+            edit ?? .createEntry(parentGroupID: rootGroup.groups.first?.id ?? rootGroup.id, draft: draftPayload)
         )
 
         // Two-phase marker so unuploaded cache bytes always have a covering

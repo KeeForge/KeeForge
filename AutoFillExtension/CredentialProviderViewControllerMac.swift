@@ -145,9 +145,13 @@ extension CredentialProviderViewController: CredentialProviderPresenting {
 
     func presentSearchView(
         entries: [KPEntry],
+        searchEntries: [KPEntry],
+        possibleEntries: [KPEntry],
         initialSearchText: String,
         databaseSwitcher: CredentialProviderDatabaseSwitcherContext?,
         onSelect: @escaping (KPEntry) -> Void,
+        onSelectPossible: @escaping (KPEntry) -> Void,
+        onAddURLToPossible: @escaping (KPEntry) -> Void,
         onCancel: @escaping () -> Void
     ) {
         // A database switch shows the unlock alert next, so the hosted search
@@ -164,12 +168,19 @@ extension CredentialProviderViewController: CredentialProviderPresenting {
         }
         let searchView = AutoFillSearchView(
             entries: entries,
+            searchEntries: searchEntries,
+            possibleEntries: possibleEntries,
             initialSearchText: initialSearchText,
             databaseSwitcher: wrappedSwitcher,
             onSelect: { [weak self] entry in
                 self?.dismissHostedContent()
                 onSelect(entry)
             },
+            onSelectPossible: { [weak self] entry in
+                self?.dismissHostedContent()
+                onSelectPossible(entry)
+            },
+            onAddURLToPossible: onAddURLToPossible,
             onCancel: { [weak self] in
                 self?.dismissHostedContent()
                 onCancel()
