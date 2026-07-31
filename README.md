@@ -64,14 +64,11 @@ Read the [privacy policy](https://keeforge.com/privacy).
 
 ## Data Safety
 
-KeeForge takes data safety very seriously. A password manager must never corrupt your vault or silently lose any part of it, so KeeForge's saving code is tested around a single rule: nothing gets lost — not a password, not an attachment, not even data KeeForge doesn't recognize. Here is what the automated tests check before any change ships:
+KeeForge takes data safety very seriously: a password manager must never corrupt your vault or silently lose any part of it. Before any change ships, automated tests verify that:
 
-- **Your file is never blindly overwritten.** Before saving, KeeForge checks whether the file changed since you opened it — for example, from another device — and stops instead of overwriting those changes. Every save also writes a timestamped backup first, and the tests reopen those backups to prove they can actually be restored, not just that they exist.
-- **Every kind of edit must survive a round trip.** Tests create, edit, move, and delete entries and groups, save the database, read it back, and compare it piece by piece: passwords, notes, custom fields, entry history, and attachments all have to come back exactly as they went in.
-- **Even data KeeForge doesn't understand is kept.** Other KeePass apps — and future format versions — can store fields KeeForge doesn't know about. KeeForge carries them through a save untouched instead of dropping them, verified with test databases that deliberately contain data no current app fully understands.
-- **An independent program double-checks every release.** Before a release ships, databases written by KeeForge must be opened by KeePassXC, a widely used KeePass application that shares no code with KeeForge. It has to find every expected entry and group, decrypt the passwords, and export attachments that match the originals bit for bit.
-- **Compatibility is tested in both directions.** Test databases created by other KeePass software — covering AES, ChaCha20, and Twofish encryption, key files, and format versions from KDBX 3.1 to 4.1 — must open correctly in KeeForge, and databases KeeForge saves must stay fully readable by other KeePass apps.
-- **Damaged files are rejected, not guessed at.** Deliberately tampered and truncated databases must fail to open with a clear error rather than load incomplete or corrupted data.
+- **Nothing gets lost when you save.** Every kind of edit is saved and read back piece by piece — passwords, notes, attachments, entry history, and even data from other KeePass apps that KeeForge doesn't recognize must all come back exactly as they went in.
+- **Your file is protected before it's touched.** KeeForge refuses to overwrite changes made from elsewhere while you had the file open, writes a timestamped backup before every save, and rejects damaged databases outright instead of loading partial data.
+- **An independent program agrees.** Every release must pass a gate where KeePassXC — a widely used KeePass app that shares no code with KeeForge — opens KeeForge-written databases, decrypts the passwords, and confirms attachments match bit for bit. Databases created by other KeePass software must likewise open in KeeForge and stay readable elsewhere after KeeForge saves them.
 
 For the technically curious, the test suite is mapped in [`KeeForgeTests/README.md`](KeeForgeTests/README.md) and the pre-release verification gate in [`ci_scripts/README.md`](ci_scripts/README.md).
 
