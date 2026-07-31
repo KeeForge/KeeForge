@@ -31,8 +31,11 @@ unlike the soak targets in A10 they are not judgement calls.
 
 1. **Ship the binary you soaked.** The App Store build is selected from TestFlight, never
    re-archived. `v{version}` is a record of what shipped, not a build trigger.
-2. **Every external build gets a unique, increasing `CURRENT_PROJECT_VERSION`.** App Store
-   Connect rejects a duplicate `(marketing version, build number)` pair outright.
+2. **Every candidate gets its own build number and its own `rc/` tag.** Bump
+   `CURRENT_PROJECT_VERSION` for each one so candidates are never confused with each other. Note
+   that Xcode Cloud overrides this number on the binary it uploads (see A9), so the uniqueness App
+   Store Connect actually enforces is Xcode Cloud's, not yours — but a stale build number in the
+   repo makes every later step ambiguous about which candidate is which.
 3. **Both CI gates are accepted before a build reaches external testers.** Green, or every
    failure adjudicated per `gate-adjudication.md`. The soak window is flexible; this is not.
 4. **Tags are immutable.** Never delete, move, or force-push a tag. Every `rc/*` tag is a
@@ -74,24 +77,7 @@ Reference files, read on demand:
    - `release/{major}.{minor}` does not already exist. **If it does, this is Mode B or D, not Mode A.**
 5. If a version was not supplied, suggest the next minor bump and ask the user to confirm.
 
-## A2. Cut the branch
-
-The branch is named for the **minor** version, not the patch — `release/1.11` carries `1.11.0`,
-`1.11.1`, and every later patch. It is long-lived: do not delete it until the next minor ships.
-
-```bash
-git switch -c release/{major}.{minor}
-git push -u origin release/{major}.{minor}
-```
-
-The `release branches` repository ruleset covers `refs/heads/release/**` — deletion protection,
-linear history, and required `unit-tests` + `DCO` checks — so contributor PRs into this branch
-are gated exactly like `main`.
-
-From here until Mode C, **all release work happens on this branch.** `main` stays open for the
-next version's features.
-
-## A3. Update CHANGELOG.md
+## A2. Update CHANGELOG.md
 
 1. Read `CHANGELOG.md`.
 2. Find `## Unreleased` and collect all entries beneath it (up to the next `## v` heading).
@@ -123,7 +109,7 @@ next version's features.
 The `## Unreleased` heading stays; its content moves into the new version section. Use today's
 date from `date +%F` — do not guess. If the soak runs past that date, correct it in Mode C.
 
-## A4. Review and fix What's New content
+## A3. Review and fix What's New content
 
 Perform this review for every release, even if the content already looks complete.
 
@@ -146,6 +132,43 @@ Perform this review for every release, even if the content already looks complet
    `KeeForge/Resources/Localizable.xcstrings`. The localization tests in the RC run are the gate.
 6. Re-read the completed sheet as a user. Fix unclear titles, repetitive descriptions, missing
    major features, or claims the release does not support.
+
+## A4. Commit the release content to main, then cut the branch
+
+A2 and A3 describe work that is **already on `main`** — they are not release mechanics — so they
+land on `main` first. That way `main` carries the changelog section and the What's New sheet from
+the moment the branch is cut, development continues against a correct empty `## Unreleased`, and
+the CHANGELOG conflict that Mode B5 otherwise has to resolve never arises.
+
+```bash
+git add CHANGELOG.md \
+  KeeForge/Services/AppSupport/WhatsNewPresentationService.swift \
+  KeeForge/Resources/Localizable.xcstrings
+git commit -s -m "Prepare v{version} release notes"
+git push origin main
+```
+
+`WhatsNewCatalog` is keyed by version string, so a case for `{version}` sitting on `main` while
+`main` still carries the previous `MARKETING_VERSION` simply never matches. Adding it early
+changes no behavior.
+
+Then cut the branch from that commit. It is named for the **minor** version, not the patch —
+`release/1.11` carries `1.11.0`, `1.11.1`, and every later patch. It is long-lived: do not delete
+it until the next minor ships.
+
+```bash
+git switch -c release/{major}.{minor}
+git push -u origin release/{major}.{minor}
+```
+
+The `release branches` repository ruleset covers `refs/heads/release/**` — deletion protection,
+linear history, and required `unit-tests` + `DCO` checks — so contributor PRs into this branch
+are gated exactly like `main`.
+
+From here until Mode C, **all release work happens on this branch.** `main` stays open for the
+next version's features. If the release is abandoned after this point, the release notes on `main`
+are one revert commit — cheaper than an abandoned version bump, which is why A5 stays on the
+branch.
 
 ## A5. Set the version and build number
 
@@ -186,16 +209,16 @@ Do **not** run the full unit or UI suites locally here — both cloud systems ru
 
 ## A7. Commit, push, and tag the candidate
 
-1. Stage the changed files:
+1. Stage the changed files. The changelog and What's New content already landed on `main` in A4,
+   so a first candidate normally only carries the version bump and the regenerated project:
    ```bash
-   git add project.yml CHANGELOG.md KeeForge.xcodeproj \
-     KeeForge/Services/AppSupport/WhatsNewPresentationService.swift \
-     KeeForge/Resources/Localizable.xcstrings
+   git add project.yml KeeForge.xcodeproj
    ```
+   Add `CHANGELOG.md` and the What's New files too if this candidate actually changed them.
 2. Commit with `-s`: `Release candidate v{version} build {build}`
 3. Push the branch: `git push origin release/{major}.{minor}`
-4. Tag the candidate. **One tag per build**, carrying the build number so the tag maps 1:1 onto
-   the TestFlight build it produces:
+4. Tag the candidate. **One tag per build**, carrying the build number so the tag identifies the
+   commit each candidate was built from:
    ```bash
    git tag -a rc/{version}-b{build} -m "RC v{version} build {build}"
    git push origin rc/{version}-b{build}
@@ -229,8 +252,12 @@ TestFlight build was produced.
 
 ## A9. Release the build to external testers
 
-1. Confirm the build appears in App Store Connect under TestFlight with the exact
-   `{version} ({build})` pair and state `Complete`. Export compliance no longer prompts —
+1. Find the build in App Store Connect under TestFlight for marketing version `{version}`.
+   **Its build number will not be the one in `project.yml`** — Xcode Cloud assigns its own,
+   monotonically increasing per app, and there is no supported way to disable that. Match on the
+   commit instead: the Xcode Cloud build page shows the `rc/{version}-b{build}` tag and SHA it was
+   built from. Record the TestFlight build number alongside the candidate tag; every later step
+   refers to the TestFlight number. Export compliance no longer prompts —
    `ITSAppUsesNonExemptEncryption` is declared in `KeeForge/Info.plist`.
 2. Write **What to Test** notes for the build. This is the only text every tester sees, and it is
    the steering channel for the soak. Always include:
@@ -332,9 +359,10 @@ git merge --no-ff origin/release/{major}.{minor} \
 git push origin main
 ```
 
-`CHANGELOG.md` is the usual conflict: the release branch has a `## v{version}` section where
-`main` has accumulated new `## Unreleased` entries. Resolve by keeping both — `## Unreleased` with
-main's newer entries on top, the version section below it.
+`CHANGELOG.md` is the likeliest conflict, though A4 removes most of it by putting the
+`## v{version}` section on `main` before the cut. It can still happen when a respin adds a bullet
+to the version section while `main` has accumulated new `## Unreleased` entries. Resolve by keeping
+both — `## Unreleased` with main's newer entries on top, the version section below it.
 
 The merge also carries the release mechanics (version bump, build numbers, What's New content) to
 `main`. That is intended, and it is why Mode C has no separate sync step.
@@ -349,14 +377,17 @@ Enter this mode when the user decides to ship, after the A10 signals have been r
 
 Record explicitly, and state it back to the user before proceeding:
 
-- The marketing version and build number of the soaked build.
-- Its `rc/{version}-b{build}` tag and commit SHA.
+- The marketing version and the **TestFlight** build number of the soaked build.
+- Its `rc/{version}-b{build}` tag and commit SHA. Note these disagree by design: the candidate tag
+  says `b3` where TestFlight says build 39, because Xcode Cloud renumbers. The tag identifies the
+  commit; the TestFlight number identifies the binary.
 - The distribution timestamp and elapsed soak time.
 - The unique-install count and crash count.
 - Which A10 signals, if any, are short of target.
 
-The build number here **is** the build you will select in App Store Connect. If it does not match
-the last candidate you distributed, stop — something is out of sync.
+The TestFlight build number here **is** the build you will select in App Store Connect. If it does
+not match the build you distributed and soaked, stop — something is out of sync. Do not compare it
+against `CURRENT_PROJECT_VERSION`; those never match.
 
 ## C2. Audit that main has every fix
 
@@ -402,16 +433,20 @@ then realign with `git fetch origin --tags --force`.
 
 ## C5. Confirm main reflects the shipped state
 
-The B5 merges already carried the version bump, build number, changelog section, and What's New
-content to `main`. Verify rather than redo:
+A4 put the changelog section and What's New content on `main` before the cut, and the B5 merges
+carried the version bump across. Verify rather than redo:
 
-- `main`'s `MARKETING_VERSION` is `{version}` and `CURRENT_PROJECT_VERSION` is the shipped build
-  number, on both the `KeeForge` and `KeeForgeAutoFill` targets.
+- `main`'s `MARKETING_VERSION` is `{version}` on both the `KeeForge` and `KeeForgeAutoFill` targets.
 - `main`'s `CHANGELOG.md` has the `## v{version}` section, with an empty `## Unreleased` above it
   ready for the next cycle.
 
-Fix any drift with a single `-s` commit on `main`, then push. Drift here usually means a
-`CHANGELOG.md` merge conflict was resolved by dropping one side.
+`CURRENT_PROJECT_VERSION` is **not** checked against TestFlight. Xcode Cloud manages build numbers
+itself and overrides whatever the project carries — `rc/1.11.0-b3` shipped as TestFlight build 39 —
+so the two disagreeing is the normal state, not drift. Apple exposes no supported way to turn that
+off. What matters is that the repo's build numbers stay unique and increasing per candidate, which
+A5 and B2 already guarantee.
+
+Fix any real drift with a single `-s` commit on `main`, then push.
 
 ## C6. Hand off to App Store Connect
 
@@ -444,7 +479,7 @@ Verify the branch tip is at or after the `v{major}.{minor}.0` tag.
 2. In `project.yml`, set `MARKETING_VERSION` to the patch version and reset
    `CURRENT_PROJECT_VERSION` to `"1"`, on both targets.
 3. Add a `## v{version} ({date})` section to `CHANGELOG.md` above the previous version's section.
-4. Run A4 only if the patch has a user-visible highlight worth a What's New sheet. Most patches do
+4. Run A3 only if the patch has a user-visible highlight worth a What's New sheet. Most patches do
    not; confirm `WhatsNewCatalog` has no case rather than shipping an empty sheet.
 
 ## D3. Gate, tag, distribute
