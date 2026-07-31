@@ -173,6 +173,9 @@ struct EntryDetailView: View {
                                 }
                             }
                             .accessibilityIdentifier("entry-detail.history")
+                            // Count as the element's value, so automation reads it
+                            // without parsing the locale-formatted label.
+                            .accessibilityValue(String(entry.history.count))
                         }
                     }
                 }

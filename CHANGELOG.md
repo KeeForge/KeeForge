@@ -27,6 +27,7 @@ TODO before the first macOS release:
 
 ### New Features
 
+- Restore an entry's earlier version: open History, pick a version and restore it. The entry's current contents are kept as a new version so it can be undone — unless the database is set to keep no history, which the confirmation now says plainly.
 - See an entry's earlier versions. KeePass keeps a copy of an entry each time it changes, and KeeForge has always preserved those copies — now you can open them: tap "History" on an entry to browse the stored versions and inspect one. Useful for checking what a password used to be.
 - Added a tag browser: browse entries by tag (including tags inherited from groups), search by tag, and tag suggestions while editing.
 - Change a group's icon: long-press a group and choose "Change Icon" to pick from the standard KeePass icon set. If the group used a custom icon from the database, picking a standard one replaces it — a custom icon takes precedence over the standard one, so it has to go for the new choice to show. The Recycle Bin keeps its trash-can icon, and nothing is editable in a read-only database.

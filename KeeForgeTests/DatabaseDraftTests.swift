@@ -887,6 +887,226 @@ final class DatabaseDraftTests: XCTestCase {
         }
     }
 
+    // MARK: - Restore entry version
+
+    /// Builds a draft whose entry has one earlier version, by editing it once.
+    private func makeDraftWithHistory() throws -> (draft: DatabaseDraft, entryID: UUID, tree: SyntheticTree) {
+        let tree = try makeSyntheticTree(includeRecycleBin: false)
+        let draft = DatabaseDraft(rootGroup: tree.rootGroup, meta: tree.meta, sessionKey: sessionKey)
+        let entryID = tree.parentEntry.id
+
+        var payload = try makeDraftPayload(from: tree.parentEntry)
+        payload.title = "Edited Title"
+        payload.username = "edited-user"
+        payload.password = "edited-password"
+        let edited = try draft.apply(.updateEntry(entryID: entryID, draft: payload))
+
+        return (edited, entryID, tree)
+    }
+
+    func test_restoreEntryVersion_bringsBackTheEarlierFieldValues() throws {
+        let (draft, entryID, tree) = try makeDraftWithHistory()
+        let beforeRestore = try XCTUnwrap(findEntry(withID: entryID, in: draft.rootGroup))
+        XCTAssertEqual(beforeRestore.title, "Edited Title")
+        XCTAssertEqual(beforeRestore.history.count, 1)
+
+        let restoredDraft = try draft.apply(.restoreEntryVersion(entryID: entryID, historyIndex: 0))
+
+        let restored = try XCTUnwrap(findEntry(withID: entryID, in: restoredDraft.rootGroup))
+        XCTAssertEqual(restored.title, tree.parentEntry.title)
+        XCTAssertEqual(restored.username, tree.parentEntry.username)
+        XCTAssertEqual(
+            try restored.password.decrypt(using: sessionKey),
+            try tree.parentEntry.password.decrypt(using: sessionKey)
+        )
+    }
+
+    /// A restore must be undoable: the state it replaced becomes the newest version,
+    /// otherwise restoring the wrong version silently destroys the current contents.
+    func test_restoreEntryVersion_keepsTheReplacedStateAsNewestHistory() throws {
+        let (draft, entryID, _) = try makeDraftWithHistory()
+
+        let restoredDraft = try draft.apply(.restoreEntryVersion(entryID: entryID, historyIndex: 0))
+
+        let restored = try XCTUnwrap(findEntry(withID: entryID, in: restoredDraft.rootGroup))
+        XCTAssertEqual(restored.history.count, 2)
+        XCTAssertEqual(restored.history[0].title, "Edited Title", "the replaced state must be kept")
+
+        // And restoring that newest version again returns to where we started.
+        let undoneDraft = try restoredDraft.apply(.restoreEntryVersion(entryID: entryID, historyIndex: 0))
+        let undone = try XCTUnwrap(findEntry(withID: entryID, in: undoneDraft.rootGroup))
+        XCTAssertEqual(undone.title, "Edited Title")
+    }
+
+    func test_restoreEntryVersion_keepsIdentityCreationTimeAndPreservedXML() throws {
+        let (draft, entryID, _) = try makeDraftWithHistory()
+        let beforeRestore = try XCTUnwrap(findEntry(withID: entryID, in: draft.rootGroup))
+
+        let restoredDraft = try draft.apply(.restoreEntryVersion(entryID: entryID, historyIndex: 0))
+
+        let restored = try XCTUnwrap(findEntry(withID: entryID, in: restoredDraft.rootGroup))
+        XCTAssertEqual(restored.id, entryID, "restoring must not re-identify the entry")
+        XCTAssertEqual(restored.creationTime, beforeRestore.creationTime, "the entry was created once")
+        XCTAssertEqual(
+            restored.unknownXML,
+            beforeRestore.unknownXML,
+            "the live entry's preserved XML describes today's element layout and must survive"
+        )
+        XCTAssertGreaterThan(
+            try XCTUnwrap(restored.lastModificationTime),
+            try XCTUnwrap(beforeRestore.lastModificationTime)
+        )
+    }
+
+    /// KDBX fixes no order for `<History>`, and the two conventions in the wild disagree:
+    /// KeePass and KeePassXC append chronologically (oldest first), while this app's edit
+    /// path prepends the newest. Verified against a database written by KeePassXC 2.7.12,
+    /// whose oldest version arrives at index 0. The viewer therefore sorts by modification
+    /// time and carries each version's storage index along, because restoring addresses
+    /// the raw array — sorting without keeping the index would restore the wrong version.
+    func test_restoreEntryVersion_indexAddressesStorageOrderNotDisplayOrder() throws {
+        let sessionKey = self.sessionKey
+        let timestamp = Date(timeIntervalSince1970: 1_700_000_000)
+
+        // Foreign layout: oldest first, exactly how KeePassXC writes it.
+        let entry = KPEntry(
+            id: UUID(),
+            title: "Foreign",
+            username: "current",
+            password: try EncryptedValue.encrypt("current-pw", using: sessionKey),
+            creationTime: timestamp,
+            lastModificationTime: timestamp,
+            history: [
+                KPEntry(
+                    title: "Foreign", username: "oldest",
+                    password: try EncryptedValue.encrypt("oldest-pw", using: sessionKey),
+                    lastModificationTime: timestamp.addingTimeInterval(-7_200)
+                ),
+                KPEntry(
+                    title: "Foreign", username: "newer",
+                    password: try EncryptedValue.encrypt("newer-pw", using: sessionKey),
+                    lastModificationTime: timestamp.addingTimeInterval(-3_600)
+                )
+            ]
+        )
+        let root = KPGroup(name: "Root", entries: [entry])
+        let draft = DatabaseDraft(rootGroup: root, meta: KPMeta(), sessionKey: sessionKey)
+
+        // Index 1 is the newer stored version, whatever a sorted view would show first.
+        let restoredDraft = try draft.apply(.restoreEntryVersion(entryID: entry.id, historyIndex: 1))
+
+        let restored = try XCTUnwrap(findEntry(withID: entry.id, in: restoredDraft.rootGroup))
+        XCTAssertEqual(restored.username, "newer")
+    }
+
+    /// A database can carry stored versions while capping history at zero, and the cap wins
+    /// — KeePass trims the same way, and someone who set it does not want old secrets kept.
+    /// The restore therefore cannot be undone here, and `restoreKeepsReplacedState` has to
+    /// report that so the confirmation stops promising one.
+    func test_restoreEntryVersion_historyCapAtZeroDiscardsReplacedStateAndIsReported() throws {
+        let sessionKey = self.sessionKey
+        let timestamp = Date(timeIntervalSince1970: 1_700_000_000)
+        let entry = KPEntry(
+            id: UUID(),
+            title: "Capped",
+            username: "current",
+            password: try EncryptedValue.encrypt("current-pw", using: sessionKey),
+            creationTime: timestamp,
+            lastModificationTime: timestamp,
+            history: [
+                KPEntry(
+                    title: "Capped", username: "previous",
+                    password: try EncryptedValue.encrypt("previous-pw", using: sessionKey),
+                    lastModificationTime: timestamp.addingTimeInterval(-3_600)
+                )
+            ]
+        )
+        let root = KPGroup(name: "Root", entries: [entry])
+        let meta = KPMeta(historyMaxItems: 0)
+        let draft = DatabaseDraft(rootGroup: root, meta: meta, sessionKey: sessionKey)
+
+        let restoredDraft = try draft.apply(.restoreEntryVersion(entryID: entry.id, historyIndex: 0))
+
+        let restored = try XCTUnwrap(findEntry(withID: entry.id, in: restoredDraft.rootGroup))
+        XCTAssertEqual(restored.username, "previous", "the chosen version becomes current")
+        XCTAssertTrue(restored.history.isEmpty, "the cap wins over keeping the replaced state")
+        XCTAssertFalse(
+            draft.restoreKeepsReplacedState(entryID: entry.id),
+            "the UI must be told the restore is not undoable here"
+        )
+    }
+
+    /// Same, via the size cap — the likelier trigger in practice, since one large replaced
+    /// entry can exceed `HistoryMaxSize` on its own.
+    func test_restoreEntryVersion_historySizeCapDiscardsReplacedStateAndIsReported() throws {
+        let sessionKey = self.sessionKey
+        let timestamp = Date(timeIntervalSince1970: 1_700_000_000)
+        let entry = KPEntry(
+            id: UUID(),
+            title: "Sized",
+            username: "current",
+            password: try EncryptedValue.encrypt("current-pw", using: sessionKey),
+            notes: String(repeating: "x", count: 4_096),
+            creationTime: timestamp,
+            lastModificationTime: timestamp,
+            history: [
+                KPEntry(
+                    title: "Sized", username: "previous",
+                    password: try EncryptedValue.encrypt("previous-pw", using: sessionKey),
+                    lastModificationTime: timestamp.addingTimeInterval(-3_600)
+                )
+            ]
+        )
+        let root = KPGroup(name: "Root", entries: [entry])
+        let meta = KPMeta(historyMaxSize: 1)
+        let draft = DatabaseDraft(rootGroup: root, meta: meta, sessionKey: sessionKey)
+
+        let restoredDraft = try draft.apply(.restoreEntryVersion(entryID: entry.id, historyIndex: 0))
+
+        let restored = try XCTUnwrap(findEntry(withID: entry.id, in: restoredDraft.rootGroup))
+        XCTAssertTrue(restored.history.isEmpty, "the size cap wins too")
+        XCTAssertFalse(draft.restoreKeepsReplacedState(entryID: entry.id))
+    }
+
+    /// The ordinary case: with room in the history, the replaced state is kept and the UI is
+    /// told it may promise an undo.
+    func test_restoreEntryVersion_reportsUndoableWhenHistoryHasRoom() throws {
+        let (draft, entryID, _) = try makeDraftWithHistory()
+
+        XCTAssertTrue(draft.restoreKeepsReplacedState(entryID: entryID))
+
+        let restoredDraft = try draft.apply(.restoreEntryVersion(entryID: entryID, historyIndex: 0))
+        let restored = try XCTUnwrap(findEntry(withID: entryID, in: restoredDraft.rootGroup))
+        XCTAssertEqual(restored.history.first?.title, "Edited Title")
+    }
+
+    func test_restoreEntryVersion_outOfRangeIndex_throws() throws {
+        let (draft, entryID, _) = try makeDraftWithHistory()
+
+        for index in [1, -1, Int.max] {
+            XCTAssertThrowsError(
+                try draft.apply(.restoreEntryVersion(entryID: entryID, historyIndex: index)),
+                "index \(index) should not resolve"
+            ) { error in
+                XCTAssertEqual(
+                    error as? DatabaseDraft.DraftError,
+                    .historyVersionNotFound(entryID: entryID, index: index)
+                )
+            }
+        }
+    }
+
+    func test_restoreEntryVersion_unknownEntry_throws() throws {
+        let (draft, _, _) = try makeDraftWithHistory()
+        let missingEntryID = UUID()
+
+        XCTAssertThrowsError(
+            try draft.apply(.restoreEntryVersion(entryID: missingEntryID, historyIndex: 0))
+        ) { error in
+            XCTAssertEqual(error as? DatabaseDraft.DraftError, .entryNotFound(missingEntryID))
+        }
+    }
+
     func test_setGroupIcon_changesIconAndTouchesModificationTime() throws {
         let tree = try makeSyntheticTree(includeRecycleBin: false)
         let draft = DatabaseDraft(rootGroup: tree.rootGroup, meta: tree.meta, sessionKey: sessionKey)

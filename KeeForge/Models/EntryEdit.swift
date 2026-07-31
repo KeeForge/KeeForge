@@ -84,4 +84,9 @@ enum EntryEdit: Codable, Sendable, Equatable {
     case deleteGroup(groupID: UUID, sendToRecycleBin: Bool)
     case setGroupSearchingEnabled(groupID: UUID, value: InheritableBoolPayload)
     case setGroupIcon(groupID: UUID, iconID: Int)
+    /// Bring a stored `<History>` version back as the entry's current state.
+    /// `historyIndex` addresses `KPEntry.history` in storage order, which KDBX
+    /// does not fix — KeePass appends oldest-first, this app prepends. Callers
+    /// must not pass a position from a sorted display list.
+    case restoreEntryVersion(entryID: UUID, historyIndex: Int)
 }

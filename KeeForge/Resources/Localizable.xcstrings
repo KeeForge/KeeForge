@@ -3905,7 +3905,6 @@
       }
     },
     "OneDrive upload failed." : {
-      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -4421,6 +4420,26 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Fehler melden"
+          }
+        }
+      }
+    },
+    "Restore" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wiederherstellen"
+          }
+        }
+      }
+    },
+    "Restore this version?" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Diese Version wiederherstellen?"
           }
         }
       }
@@ -5025,6 +5044,16 @@
         }
       }
     },
+    "That earlier version is no longer available." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Diese frühere Version ist nicht mehr verfügbar."
+          }
+        }
+      }
+    },
     "The attached photo is too large. Choose a smaller photo." : {
       "localizations" : {
         "de" : {
@@ -5201,6 +5230,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Der Eintrag wird in den Papierkorb verschoben."
+          }
+        }
+      }
+    },
+    "The entry's current contents are kept as a new history version, so you can undo this." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Der aktuelle Inhalt des Eintrags wird als neue Verlaufsversion aufbewahrt, Sie können das also rückgängig machen."
           }
         }
       }
@@ -5451,6 +5490,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Diese Datenbank ist nicht verfügbar. Kehren Sie zur Datenbankliste zurück, um sie zu entfernen oder ihr Lesezeichen zu aktualisieren."
+          }
+        }
+      }
+    },
+    "This database keeps no earlier versions, so the entry's current contents will be lost. This cannot be undone." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Diese Datenbank bewahrt keine früheren Versionen auf, der aktuelle Inhalt des Eintrags geht also verloren. Das kann nicht rückgängig gemacht werden."
           }
         }
       }

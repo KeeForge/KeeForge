@@ -560,7 +560,7 @@ final class EntryHistoryUITests: UnlockedDatabaseUITestCase {
         app.buttons["entry-history.done"].tap()
     }
 
-    func testOpeningAnEarlierVersionShowsItsFields() {
+    func testOpeningAnEarlierVersionOffersRestore() {
         unlockSuccessfully()
         openFixtureEntry()
 
@@ -581,8 +581,47 @@ final class EntryHistoryUITests: UnlockedDatabaseUITestCase {
             "The version screen did not open"
         )
         XCTAssertTrue(
-            app.buttons["entry-history.password.reveal"].waitForExistence(timeout: 5),
-            "The stored version should expose its password behind the usual reveal"
+            app.buttons["entry-history.restore"].waitForExistence(timeout: 5),
+            "Restore action was not offered"
         )
+    }
+
+    func testRestoringAnEarlierVersionUpdatesTheEntry() {
+        unlockSuccessfully()
+        openFixtureEntry()
+
+        let historyRow = app.buttons["entry-detail.history"]
+        guard revealElement(historyRow, in: scrollableContainer(), direction: .up, maxSwipes: 6) else {
+            XCTFail("The fixture entry exposes no history row")
+            return
+        }
+        guard let versionCountBefore = Int(historyRow.value as? String ?? "") else {
+            XCTFail("The history row does not expose its version count as a value")
+            return
+        }
+        tapElement(historyRow)
+
+        app.buttons["entry-history.version.0"].tap()
+        let restore = app.buttons["entry-history.restore"]
+        XCTAssertTrue(restore.waitForExistence(timeout: 5))
+        restore.tap()
+
+        // Confirm. The dialog is an action sheet on iPhone and a popover on iPad, and
+        // the toolbar action carries the same label, so this addresses the confirmation
+        // button by its own identifier rather than by label or position.
+        // `.firstMatch`: SwiftUI propagates the identifier onto the button's inner
+        // elements, so the plain query is ambiguous.
+        let confirm = app.buttons["entry-history.restore.confirm"].firstMatch
+        XCTAssertTrue(confirm.waitForExistence(timeout: 5), "Restore confirmation was not shown")
+        confirm.tap()
+
+        XCTAssertTrue(
+            app.buttons["entry-detail.history"].waitForExistence(timeout: 10),
+            "Restoring should return to the entry detail"
+        )
+
+        // The replaced state is kept, so the entry now has one more version than before.
+        let after = Int(app.buttons["entry-detail.history"].value as? String ?? "")
+        XCTAssertEqual(after, versionCountBefore + 1, "the replaced state must be kept as a version")
     }
 }
