@@ -21,11 +21,11 @@ TODO before the first macOS release:
 
 ## Unreleased
 
-### Changes
-
-- Reworked the release process around a `release/{major}.{minor}` branch and the public TestFlight channel. Candidate builds are archived from `rc/{version}-b{build}` tags, soaked with external testers, and the exact soaked build is the one submitted to the App Store — `v{version}` now records what shipped instead of triggering a fresh archive. Adds per-build build numbers, measured-and-reported soak signals (48h for a minor release, 24h for a patch), release-branch backports as real merges into `main`, `release/**` PR gating and branch rules, and `ITSAppUsesNonExemptEncryption` in `Info.plist` so export compliance no longer prompts per build.
+## v1.11.0 (2026-07-30)
 
 ### New Features
+
+_Contributed by [@miquno](https://github.com/miquno) and [@ftorga](https://github.com/ftorga)._
 
 - Restore an entry's earlier version: open History, pick a version and restore it. The entry's current contents are kept as a new version so it can be undone — unless the database is set to keep no history, which the confirmation now says plainly.
 - See an entry's earlier versions. KeePass keeps a copy of an entry each time it changes, and KeeForge has always preserved those copies — now you can open them: tap "History" on an entry to browse the stored versions and inspect one. Useful for checking what a password used to be.
@@ -34,7 +34,9 @@ TODO before the first macOS release:
 - Change a group's icon: long-press a group and choose "Change Icon" to pick from the standard KeePass icon set. If the group used a custom icon from the database, picking a standard one replaces it — a custom icon takes precedence over the standard one, so it has to go for the new choice to show. The Recycle Bin keeps its trash-can icon, and nothing is editable in a read-only database.
 - Copy an entry's verification code to the clipboard when AutoFill fills its password, for sites whose one-time code field iOS does not recognize. Off by default; turn on "Copy Verification Code on AutoFill" under Settings › AutoFill. The copy clears itself after the Clipboard Clear Timeout and never leaves the device. While the setting is on, filling a suggestion for an entry that has a verification code asks you to confirm in KeeForge rather than filling silently, because AutoFill can only write the clipboard while its panel is on screen.
 
-### Fixed
+### Fixes
+
+_Contributed by [@miquno](https://github.com/miquno)._
 
 - Editing an entry in a database created by KeePass or KeePassXC could silently throw away its most recent stored versions. Once an entry reached the version limit, every save kept the oldest copies and discarded the newest — so the version from last week was lost while one from months ago survived. The two apps store the version list in opposite orders, and KeeForge assumed its own. It now decides what to keep by date. Databases created in KeeForge were never affected, and the order versions are stored in is left untouched, so files stay byte-friendly to other KeePass clients.
 - The "Delete Entry" confirmation in the entry editor (and the "Remove Database" / "Discard pending upload" confirmations in the database list) could appear as a floating popover in the middle of the screen on modern iOS. These dialogs are now anchored to the control or row that triggered them.
@@ -64,6 +66,10 @@ TODO before the first macOS release:
 - OneDrive: concurrent operations no longer race on token refresh, and a second sign-in can no longer interrupt one already in progress.
 - Build/CI: App Store archives now fail the build when `ONEDRIVE_CLIENT_ID` is missing or still a placeholder, instead of shipping a dead OneDrive sign-in. The check was never wired up when OneDrive support was added; `ONEDRIVE_CLIENT_ID` remains optional for local development and simulator CI runs.
 - Build/CI: the Dropbox CI placeholder key no longer produces an illegal `db-CI_PLACEHOLDER_DROPBOX_APP_KEY` URL scheme (App Store Connect ITMS-90158). The placeholder is now RFC1738-safe, archives fail the build when the real `DROPBOX_APP_KEY` is missing instead of shipping a placeholder, and a unit test validates every declared URL scheme.
+
+### Changes
+
+- Reworked the release process around a `release/{major}.{minor}` branch and the public TestFlight channel. Candidate builds are archived from `rc/{version}-b{build}` tags, soaked with external testers, and the exact soaked build is the one submitted to the App Store — `v{version}` now records what shipped instead of triggering a fresh archive. Adds per-build build numbers, measured-and-reported soak signals (48h for a minor release, 24h for a patch), release-branch backports as real merges into `main`, `release/**` PR gating and branch rules, and `ITSAppUsesNonExemptEncryption` in `Info.plist` so export compliance no longer prompts per build.
 
 ## v1.10.4 (2026-07-25)
 

@@ -854,6 +854,16 @@
         }
       }
     },
+    "Browse your entries by tag" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ihre Einträge nach Tags durchsuchen"
+          }
+        }
+      }
+    },
     "Built with the community" : {
       "localizations" : {
         "de" : {
@@ -1014,6 +1024,16 @@
         }
       }
     },
+    "Choose from the standard KeePass icon set so your groups are recognizable at a glance. Thanks to @miquno." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wählen Sie aus dem Standard-Symbolsatz von KeePass, damit Ihre Gruppen auf einen Blick erkennbar sind. Dank an @miquno."
+          }
+        }
+      }
+    },
     "Choose how to remove this entry." : {
       "localizations" : {
         "de" : {
@@ -1080,6 +1100,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Schlüsseldatei leeren"
+          }
+        }
+      }
+    },
+    "Clearer AutoFill suggestions" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Klarere AutoFill-Vorschläge"
           }
         }
       }
@@ -1680,6 +1710,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Vorschläge für Zugangsdaten werden in der Tastaturleiste angezeigt. Beim Antippen ist Face ID zum Entsperren erforderlich."
+          }
+        }
+      }
+    },
+    "Credentials that exactly match a site are kept separate from possible matches on related subdomains, and a possible match is never filled without you choosing it. Thanks to @ftorga." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zugangsdaten, die genau zu einer Website passen, werden von möglichen Treffern auf verwandten Subdomains getrennt, und ein möglicher Treffer wird nie ohne Ihre Auswahl ausgefüllt. Dank an @ftorga."
           }
         }
       }
@@ -2574,6 +2614,16 @@
         }
       }
     },
+    "Find entries by the tags you already use, including tags inherited from their group. Search by tag, and pick from suggestions while editing." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Finden Sie Einträge anhand der Tags, die Sie bereits verwenden – einschließlich der von ihrer Gruppe geerbten Tags. Suchen Sie nach Tags und wählen Sie beim Bearbeiten aus Vorschlägen."
+          }
+        }
+      }
+    },
     "Follow-Up" : {
       "localizations" : {
         "de" : {
@@ -2610,6 +2660,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Erhalten Sie Vorschläge aus allen Datenbanken gleichzeitig, legen Sie fest, welche AutoFill verwendet, und wechseln Sie die Datenbank, ohne das AutoFill-Fenster zu verlassen."
+          }
+        }
+      }
+    },
+    "Give your groups their own icons" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Geben Sie Ihren Gruppen eigene Symbole"
           }
         }
       }
@@ -3180,6 +3240,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Lassen Sie diese Option deaktiviert, sofern Ihr vertrauenswürdiger lokaler WebDAV-Server kein HTTPS verwenden kann."
+          }
+        }
+      }
+    },
+    "KeePass keeps a copy of an entry each time it changes. Now you can open them: browse an entry's earlier versions and restore one, with the current contents kept so you can undo it. Thanks to @miquno." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeePass speichert bei jeder Änderung eine Kopie eines Eintrags. Jetzt können Sie sie öffnen: Blättern Sie durch die früheren Versionen eines Eintrags und stellen Sie eine davon wieder her – der aktuelle Inhalt wird dabei aufbewahrt, sodass Sie den Schritt rückgängig machen können. Dank an @miquno."
           }
         }
       }
@@ -4601,6 +4671,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Sicherheit"
+          }
+        }
+      }
+    },
+    "See and restore earlier versions" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Frühere Versionen ansehen und wiederherstellen"
           }
         }
       }

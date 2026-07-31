@@ -1679,13 +1679,13 @@
 			projectRoot = "";
 			targets = (
 				F9D5D329EB517FC26DCCD00F /* KeeForge */,
-				7D53BCAE20990F6856D21F58 /* KeeForgeMac */,
 				FFA6C4212640756D8D70C1F6 /* KeeForgeAutoFill */,
+				7D53BCAE20990F6856D21F58 /* KeeForgeMac */,
 				0AA0ADCC3C0CE0E65850552E /* KeeForgeMacAutoFill */,
-				142FE9D12173DF25C61DE561 /* KeeForgeUITests */,
-				F371729A79BBD757456723E9 /* KeeForgeTests */,
-				759B10925CD3A1BCA516F0CD /* KeeForgeMacUITests */,
 				647734196C81AB568100DEF0 /* KeeForgeMacTests */,
+				759B10925CD3A1BCA516F0CD /* KeeForgeMacUITests */,
+				F371729A79BBD757456723E9 /* KeeForgeTests */,
+				142FE9D12173DF25C61DE561 /* KeeForgeUITests */,
 			);
 		};
 /* End PBXProject section */
@@ -2739,7 +2739,7 @@
 					"@executable_path/../../Frameworks",
 				);
 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
-				MARKETING_VERSION = 1.10.4;
+				MARKETING_VERSION = 1.11.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.keevault.app.autofill;
 				SDKROOT = iphoneos;
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -2798,7 +2798,7 @@
 					"@executable_path/Frameworks",
 				);
 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
-				MARKETING_VERSION = 1.10.4;
+				MARKETING_VERSION = 1.11.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.keevault.app;
 				PRODUCT_MODULE_NAME = KeeForge;
 				PRODUCT_NAME = KeeForge;
@@ -2889,7 +2889,7 @@
 					"@executable_path/../../Frameworks",
 				);
 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
-				MARKETING_VERSION = 1.10.4;
+				MARKETING_VERSION = 1.11.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.keevault.app.autofill;
 				SDKROOT = iphoneos;
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -2913,7 +2913,7 @@
 					"@executable_path/Frameworks",
 				);
 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
-				MARKETING_VERSION = 1.10.4;
+				MARKETING_VERSION = 1.11.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.keevault.app;
 				PRODUCT_MODULE_NAME = KeeForge;
 				PRODUCT_NAME = KeeForge;
