@@ -74,7 +74,7 @@
 	<key>GITCommitHash</key>
 	<string>$(GIT_COMMIT_HASH)</string>
 	<key>ITSAppUsesNonExemptEncryption</key>
-	<true/>
+	<false/>
 	<key>LSApplicationQueriesSchemes</key>
 	<array>
 		<string>dbapi-2</string>
