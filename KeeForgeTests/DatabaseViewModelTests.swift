@@ -625,18 +625,21 @@ final class DatabaseViewModelTests: XCTestCase {
         let versions = vm.history(forEntryID: entryID)
 
         XCTAssertEqual(versions.count, countBefore + 1, "the edit adds exactly one version")
-        XCTAssertEqual(versions[0].username, originalUsername, "the newest version holds the replaced contents")
+        XCTAssertEqual(versions[0].entry.username, originalUsername, "the newest version holds the replaced contents")
         XCTAssertEqual(vm.entry(withID: entryID)?.username, "history-updated-user")
     }
 
     /// KeePass and KeePassXC store history oldest-first, so trusting storage order would put
-    /// the oldest version at the top for every database this app did not write.
-    func testHistoryIsSortedNewestFirst() async throws {
+    /// the oldest version at the top for every database this app did not write. The storage
+    /// index must survive the sort, since restoring addresses the raw array.
+    func testHistoryIsSortedNewestFirstAndKeepsStorageIndices() async throws {
         let (vm, entryID, _, _) = try await makeViewModelWithEditedEntry()
 
-        let times = vm.history(forEntryID: entryID).compactMap(\.lastModificationTime)
+        let versions = vm.history(forEntryID: entryID)
+        let times = versions.compactMap(\.entry.lastModificationTime)
 
         XCTAssertEqual(times, times.sorted(by: >))
+        XCTAssertEqual(Set(versions.map(\.index)), Set(0..<versions.count))
     }
 
     func testHistoryIsEmptyForAnUnknownEntry() async throws {
@@ -644,6 +647,155 @@ final class DatabaseViewModelTests: XCTestCase {
         await vm.unlock(password: fixturePassword)
 
         XCTAssertTrue(vm.history(forEntryID: UUID()).isEmpty)
+    }
+
+    /// A restored password must reach AutoFill. Otherwise someone deliberately rolls back a
+    /// password and AutoFill keeps filling the newer one they just discarded — the failure
+    /// would be invisible in the app and only show up on a website.
+    func testRestoringAnEarlierVersionRepublishesItToTheCredentialStore() async throws {
+        let vm = try makeViewModel()
+        var observedEntries: [[KPEntry]] = []
+        let refreshExpectation = expectation(description: "Credential store refreshed after a restore")
+
+        CredentialIdentityStoreManager.populateObserver = { _, entries in
+            observedEntries.append(entries)
+            if observedEntries.count == 3 {
+                refreshExpectation.fulfill()
+            }
+        }
+        defer { CredentialIdentityStoreManager.populateObserver = nil }
+
+        await vm.unlock(password: fixturePassword)
+
+        let original = try XCTUnwrap(vm.visibleRootGroup?.allEntries.first { !$0.username.isEmpty })
+        let originalUsername = original.username
+        try vm.applyEntryEdit(
+            .updateEntry(
+                entryID: original.id,
+                draft: EntryDraftPayload(
+                    title: original.title,
+                    username: "autofill-updated-user",
+                    password: "autofill-updated-password",
+                    url: original.url,
+                    notes: original.notes,
+                    customFields: original.customFields,
+                    tags: original.tags
+                )
+            )
+        )
+
+        try vm.restoreEntryVersion(entryID: original.id, historyIndex: 0)
+
+        await fulfillment(of: [refreshExpectation], timeout: 30)
+
+        let republished = try XCTUnwrap(observedEntries.last)
+        let entry = try XCTUnwrap(republished.first { $0.id == original.id })
+        XCTAssertEqual(
+            entry.username,
+            originalUsername,
+            "AutoFill must see the restored values, not the ones that were rolled back"
+        )
+    }
+
+    /// Restoring must carry the secondary secrets, not just the password: a version with a
+    /// TOTP config and a passkey has to come back usable, both being advertised features.
+    func testRestoringCarriesTOTPAndPasskeyBack() async throws {
+        let vm = try makeViewModel()
+        await vm.unlock(password: fixturePassword)
+        let sessionKey = try XCTUnwrap(vm.sessionKey)
+
+        let original = try XCTUnwrap(vm.visibleRootGroup?.allEntries.first { $0.totpConfig != nil })
+        let originalSecret = try XCTUnwrap(original.totpConfig?.secret.decrypt(using: sessionKey))
+        let originalPasskey = original.passkeyCredential != nil
+
+        // Edit it in a way that drops the TOTP, then roll that back.
+        try vm.applyEntryEdit(
+            .updateEntry(
+                entryID: original.id,
+                draft: EntryDraftPayload(
+                    title: original.title,
+                    username: original.username,
+                    password: "totp-dropped",
+                    url: original.url,
+                    notes: original.notes,
+                    customFields: [:],
+                    tags: original.tags,
+                    totpConfig: nil
+                )
+            )
+        )
+        XCTAssertNil(vm.entry(withID: original.id)?.totpConfig, "precondition: the edit dropped it")
+
+        try vm.restoreEntryVersion(entryID: original.id, historyIndex: 0)
+
+        let restored = try XCTUnwrap(vm.entry(withID: original.id))
+        let restoredSecret = try XCTUnwrap(restored.totpConfig?.secret.decrypt(using: sessionKey))
+        XCTAssertEqual(restoredSecret, originalSecret, "the TOTP secret must come back intact")
+        XCTAssertEqual(restored.hasPasskey, originalPasskey, "a passkey must survive the round trip")
+        let code = TOTPGenerator.generateCode(config: try XCTUnwrap(restored.totpConfig), sessionKey: sessionKey)
+        XCTAssertFalse(code.isEmpty, "the restored TOTP config must still produce a code")
+    }
+
+    /// The Restore action is hidden in a read-only database, but the guard that actually
+    /// protects the file is the save path. This pins that a restore cannot slip past it.
+    func testRestoringInAReadOnlyDatabaseNeverReachesDisk() async throws {
+        var reference = try makeReference()
+        reference.isReadOnly = true
+
+        let localSaverCalls = CallTracker()
+        let vm = DatabaseViewModel(
+            databaseReference: reference,
+            localSaveOperation: { _, _, _, _ in
+                localSaverCalls.recordCall()
+                return .saved(newSHA512: Data("saved".utf8))
+            }
+        )
+
+        await vm.unlock(password: fixturePassword)
+        XCTAssertTrue(vm.isReadOnly)
+
+        let entry = try XCTUnwrap(vm.visibleRootGroup?.allEntries.first { !$0.history.isEmpty })
+        try vm.restoreEntryVersion(entryID: entry.id, historyIndex: 0)
+
+        do {
+            try await vm.save()
+            XCTFail("Expected the save to be refused for a read-only database.")
+        } catch let error as SaveError {
+            XCTAssertEqual(error, .databaseIsReadOnly)
+        }
+
+        XCTAssertFalse(localSaverCalls.didCall, "nothing may be written")
+    }
+
+    func testRestoringAnEarlierVersionBringsBackItsValues() async throws {
+        let (vm, entryID, originalUsername, _) = try await makeViewModelWithEditedEntry()
+
+        try vm.restoreEntryVersion(entryID: entryID, historyIndex: 0)
+
+        XCTAssertEqual(vm.entry(withID: entryID)?.username, originalUsername)
+        XCTAssertTrue(vm.isDirty)
+    }
+
+    /// Restoring must stay undoable: the replaced state becomes the newest version.
+    func testRestoringKeepsTheReplacedStateSoItCanBeUndone() async throws {
+        let (vm, entryID, originalUsername, _) = try await makeViewModelWithEditedEntry()
+
+        try vm.restoreEntryVersion(entryID: entryID, historyIndex: 0)
+        XCTAssertEqual(vm.history(forEntryID: entryID).first?.entry.username, "history-updated-user")
+
+        try vm.restoreEntryVersion(entryID: entryID, historyIndex: 0)
+
+        XCTAssertEqual(vm.entry(withID: entryID)?.username, "history-updated-user")
+        XCTAssertEqual(vm.history(forEntryID: entryID).first?.entry.username, originalUsername)
+    }
+
+    func testRestoringAnOutOfRangeVersionThrowsAndChangesNothing() async throws {
+        let (vm, entryID, _, _) = try await makeViewModelWithEditedEntry()
+        let usernameBefore = vm.entry(withID: entryID)?.username
+
+        XCTAssertThrowsError(try vm.restoreEntryVersion(entryID: entryID, historyIndex: 5))
+
+        XCTAssertEqual(vm.entry(withID: entryID)?.username, usernameBefore)
     }
 
     func testShowingGroupInAutoFillAgainOverridesExcludedParent() async throws {
