@@ -76,13 +76,26 @@ alphanumerics only, because it is interpolated into the `db-$(DROPBOX_APP_KEY)`
 
 ## Public link settings
 
+- The link stays **enabled permanently** and is published on `README.md`, `README.de.md`, and
+  keeforge.com: `https://testflight.apple.com/join/mPAT4f1a`. Do not disable it between releases.
+  Enabled is not the same as open — Apple closes joining on its own during Beta App Review and
+  when the cap is reached — so both READMEs and the site tell visitors the beta is not open
+  continuously. That caveat is what makes the closed windows acceptable; keep it there.
 - Set a **tester cap** on the public link (group → **Public Link → Manage → Set Limit**). A few
   hundred is plenty for a first public beta and keeps feedback triageable; the hard ceiling is
   10,000 external testers. Currently set to 300.
-- Keep the link **disabled between releases** (same sheet, **Disable Public Link**) so testers do
-  not accumulate and auto-update into a candidate they did not opt into. The cap is retained while
-  disabled and applies again on *Enable Public Link*. While the link is off and the group is empty,
-  the workflow's post-action shows a warning badge — that is expected, not a misconfiguration.
+- Two consequences of leaving it on were weighed and accepted:
+  - Testers **accumulate** toward the cap and are never cleared between releases. When the group
+    fills, the link stops taking new testers; raise the limit in the same sheet or remove inactive
+    testers from the group.
+  - Everyone who joined for one release **auto-updates into the next release's first candidate**,
+    which they never opted into. Treat every `rc/*` build as reaching the whole group the moment it
+    clears review, and write the **What to Test** notes for an audience that did not ask for it.
+- A published link can still be closed. While the first build of a new marketing version is in Beta
+  App Review, visitors see *"This beta isn't accepting any new testers right now."* Nothing is
+  misconfigured — the link recovers on approval. The same string appears if the group has no
+  approved build at all or the cap is full, so check the build's state and the tester count before
+  touching the link settings.
 - Public-link testers join without approval and Apple does not expose their email addresses. The
   only channels back to them are the per-build **What to Test** notes and
   `feedback.keeforge.com`.

@@ -28,6 +28,18 @@
 
 KeeForge is a native iOS KeePass client for people who want their vault to stay theirs. Open `.kdbx` databases from Files, iCloud Drive, local folders, Dropbox, OneDrive, or WebDAV servers such as Nextcloud and Synology; unlock with a master password, key file, or biometrics; then browse, search, edit, save, and AutoFill without handing your vault to a hosted password service.
 
+## Public Beta
+
+New versions go out on TestFlight before they reach the App Store.
+
+**[Join the KeeForge beta on TestFlight](https://testflight.apple.com/join/mPAT4f1a)**
+
+> [!WARNING]
+> **Test with a copy of your database, not your primary vault.** TestFlight builds are pre-release versions that have not been through App Store review, and they can carry bugs the released app does not. The beta installs under the same bundle identifier and app container as the App Store build, so it replaces that install and opens the same real `.kdbx` files, cloud connections, and saved keys. Duplicate a database first and point the beta at the copy. Keep your own backups either way.
+
+> [!NOTE]
+> **The beta is not open continuously.** Places are capped at 300 testers, and joining closes whenever the group is full or a new version is still going through Apple's beta review. The link then reads "This beta isn't accepting any new testers right now" — that is normal, and it reopens on its own. Check back later.
+
 ## Highlights
 
 | Area | What KeeForge Does |
