@@ -25,7 +25,7 @@ The macOS port has its own UI-test target, `KeeForgeMacUITests/` (target `KeeFor
 - `UnlockedDatabaseBrowseAndDetailUITests` — unlocked vault browse + entry-detail happy paths
 - `UnlockedDatabaseSearchAndSortUITests` — unlocked search and sort happy paths
 - `EntryCreateSmokeUITests` — create-entry happy path using a known fixture group
-- `EntryEditSmokeUITests` — edit-entry happy path using a known fixture entry
+- `EntryEditSmokeUITests` — edit-entry happy path using a known fixture entry, including a screenshot-backed regression check that a long revealed password wraps without extra characters
 - `EntryDeleteSmokeUITests` — delete-entry happy paths using known fixture entries: row swipe/context-menu deletes, plus the entry editor's "Delete Entry" flow (`entry-edit.delete`) covering both dialog options and the already-recycled variant, asserting the editor dismisses back to a usable group list (regression cover for the v1.10.4 permanent-delete wedge)
 - `EntryAttachmentsSmokeUITests` — entry-attachments list happy path (row name/size, QuickLook preview open/dismiss) using the `attachments` fixture
 - `EntryHistoryUITests` — entry history sheet happy path (`entry-detail.history` → version list → one version's fields) and the restore flow (`entry-history.restore` → `entry-history.restore.confirm`, asserting the replaced state is kept by reading the history row's accessibility **value**, not its localized label), using a fixture entry that ships stored `<History>`
