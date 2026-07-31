@@ -15,11 +15,19 @@ Two properties matter:
 
 1. **Test and archive live in the same workflow, and the test action is Required to Pass.** App
    Store Connect lists a workflow's actions alphabetically and offers no way to reorder them, so
-   "test first" is not something you configure — the guarantee comes from the test action's
-   **Required to Pass** setting, which fails the build and skips the remaining work when tests are
-   red. Switching it to *Not Required to Pass* would let a build succeed, and an archive upload,
-   over failing tests. Splitting test and archive into two workflows both triggered on `rc/*` would
-   have the same effect, because neither could gate the other.
+   "test first" is not something you configure — and the two actions in fact run **in parallel**.
+   What Required to Pass buys is that a red test action fails the *build*, and post-actions do not
+   run on a failed build. So the gate sits on **TestFlight distribution, not on the archive**: an
+   archive whose tests failed can still finish and upload, and `TestFlight External Testing` then
+   shows *Did Not Run*. That is the observed behavior, not a theory — `rc/1.11.0-b2` uploaded build
+   38 with its test action red and never reached a tester.
+
+   Leaving the archive ungated is deliberate. When a cloud test failure turns out to be a flake
+   (`gate-adjudication.md`), the binary already exists and can be distributed by hand; gating the
+   archive would force a respin to rebuild a binary that was never at fault. Switching the test
+   action to *Not Required to Pass* would remove the real gate and let a build distribute over
+   failing tests. Splitting test and archive into two workflows both triggered on `rc/*` would have
+   the same effect, because neither could gate the other.
 2. **No workflow triggers on `v*`.** The `v{version}` tag is a record of what shipped. The App Store
    build is selected in App Store Connect from the already-uploaded TestFlight build. If a `v*`
    trigger still exists from the previous process, deactivate it (workflow `⋯` menu → **Deactivate**,
