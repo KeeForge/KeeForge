@@ -854,6 +854,26 @@
         }
       }
     },
+    "Browse the earlier versions of an entry and restore one. The current contents are kept, so you can undo it. Thanks to @miquno." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Blättern Sie durch die früheren Versionen eines Eintrags und stellen Sie eine davon wieder her. Der aktuelle Inhalt bleibt erhalten, sodass Sie den Schritt rückgängig machen können. Dank an @miquno."
+          }
+        }
+      }
+    },
+    "Browse your entries by tag" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ihre Einträge nach Tags durchsuchen"
+          }
+        }
+      }
+    },
     "Built with the community" : {
       "localizations" : {
         "de" : {
@@ -1014,6 +1034,16 @@
         }
       }
     },
+    "Choose from the standard KeePass icon set so your groups are recognizable at a glance. Thanks to @miquno." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wählen Sie aus dem Standard-Symbolsatz von KeePass, damit Ihre Gruppen auf einen Blick erkennbar sind. Dank an @miquno."
+          }
+        }
+      }
+    },
     "Choose how to remove this entry." : {
       "localizations" : {
         "de" : {
@@ -1080,6 +1110,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Schlüsseldatei leeren"
+          }
+        }
+      }
+    },
+    "Clearer AutoFill suggestions" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Klarere AutoFill-Vorschläge"
           }
         }
       }
@@ -2404,6 +2444,16 @@
         }
       }
     },
+    "Exact matches for a site are listed apart from possible matches on related subdomains. A possible match is never filled unless you pick it. Thanks to @ftorga." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Genaue Treffer für eine Website werden getrennt von möglichen Treffern auf verwandten Subdomains aufgeführt. Ein möglicher Treffer wird nie ausgefüllt, ohne dass Sie ihn auswählen. Dank an @ftorga."
+          }
+        }
+      }
+    },
     "Example: https://cloud.example.com/remote.php/dav/files/USERNAME/ — for Nextcloud, use an app password" : {
       "localizations" : {
         "de" : {
@@ -2574,6 +2624,16 @@
         }
       }
     },
+    "Find entries by the tags you already use, including tags inherited from their group. Search by tag, and pick from suggestions while editing." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Finden Sie Einträge anhand der Tags, die Sie bereits verwenden – einschließlich der von ihrer Gruppe geerbten Tags. Suchen Sie nach Tags und wählen Sie beim Bearbeiten aus Vorschlägen."
+          }
+        }
+      }
+    },
     "Follow-Up" : {
       "localizations" : {
         "de" : {
@@ -2610,6 +2670,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Erhalten Sie Vorschläge aus allen Datenbanken gleichzeitig, legen Sie fest, welche AutoFill verwendet, und wechseln Sie die Datenbank, ohne das AutoFill-Fenster zu verlassen."
+          }
+        }
+      }
+    },
+    "Give your groups their own icons" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Geben Sie Ihren Gruppen eigene Symbole"
           }
         }
       }
@@ -4601,6 +4671,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Sicherheit"
+          }
+        }
+      }
+    },
+    "See and restore earlier versions" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Frühere Versionen ansehen und wiederherstellen"
           }
         }
       }

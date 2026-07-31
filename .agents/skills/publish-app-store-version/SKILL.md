@@ -52,7 +52,7 @@ Do not create a duplicate version if it already exists.
 
 ### 3. Verify export compliance
 
-`KeeForge/Info.plist` declares `ITSAppUsesNonExemptEncryption` as `true`, so App Store Connect
+`KeeForge/Info.plist` declares `ITSAppUsesNonExemptEncryption` as `false`, so App Store Connect
 normally resolves compliance from the build metadata without prompting. Verify it shows as
 resolved rather than assuming it.
 

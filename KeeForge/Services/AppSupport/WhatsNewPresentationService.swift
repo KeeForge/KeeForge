@@ -53,6 +53,33 @@ enum WhatsNewCatalog {
         let features: [WhatsNewFeature]
 
         switch version {
+        case "1.11.0":
+            features = [
+                WhatsNewFeature(
+                    id: "entry-history",
+                    title: "See and restore earlier versions",
+                    detail: "Browse the earlier versions of an entry and restore one. The current contents are kept, so you can undo it. Thanks to @miquno.",
+                    systemImage: "clock.arrow.circlepath"
+                ),
+                WhatsNewFeature(
+                    id: "tag-browser",
+                    title: "Browse your entries by tag",
+                    detail: "Find entries by the tags you already use, including tags inherited from their group. Search by tag, and pick from suggestions while editing.",
+                    systemImage: "tag"
+                ),
+                WhatsNewFeature(
+                    id: "autofill-possible-matches",
+                    title: "Clearer AutoFill suggestions",
+                    detail: "Exact matches for a site are listed apart from possible matches on related subdomains. A possible match is never filled unless you pick it. Thanks to @ftorga.",
+                    systemImage: "checkmark.shield"
+                ),
+                WhatsNewFeature(
+                    id: "group-icons",
+                    title: "Give your groups their own icons",
+                    detail: "Choose from the standard KeePass icon set so your groups are recognizable at a glance. Thanks to @miquno.",
+                    systemImage: "paintpalette"
+                ),
+            ]
         case "1.10.4":
             features = [
                 WhatsNewFeature(

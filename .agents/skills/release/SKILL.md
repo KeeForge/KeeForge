@@ -474,7 +474,7 @@ Continue with Mode C from C1, reporting against the 24h target in place of 48h.
 
 - The macOS targets are on hold and are not part of this workflow. Do not bump
   `KeeForgeMac`/`KeeForgeMacAutoFill` versions here.
-- `ITSAppUsesNonExemptEncryption` is declared `true` in `KeeForge/Info.plist`, so App Store Connect
+- `ITSAppUsesNonExemptEncryption` is declared `false` in `KeeForge/Info.plist`, so App Store Connect
   does not ask the export-compliance question per build. It remains a legal declaration: if the
   app's cryptography changes materially, revisit it rather than assuming the key still applies.
 - Archives fail deliberately when `DROPBOX_APP_KEY` or `ONEDRIVE_CLIENT_ID` is missing or still a
