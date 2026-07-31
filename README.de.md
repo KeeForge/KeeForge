@@ -54,11 +54,12 @@ Die Plätze sind auf 300 Tester begrenzt, und der Beitritt ist gesperrt, solange
 | **Anhänge** | KeePass-Eintragsanhänge anzeigen, unterstützte Dateien per QuickLook in der Vorschau öffnen und aus kurzlebigen geschützten temporären Dateien teilen. Das Bearbeiten von Anhängen wird noch nicht unterstützt. |
 | **Bereit fürs iPad** | Die adaptive Navigation nutzt auf breiteren Layouts eine Split-View-Tresoransicht und hält den kompakten iPhone-Ablauf fokussiert und nativ. |
 | **Sicherheit** | AES-GCM-Verschlüsselung von Geheimnissen im Arbeitsspeicher, Backoff nach fehlgeschlagenen Entsperrversuchen, Limits gegen Dekompressionsbomben und HMAC-Vergleich in konstanter Zeit. |
-| **Datenschutz** | Kopierte Inhalte bleiben auf dem Gerät, laufen automatisch ab und gelangen nie in die universelle Zwischenablage. Der Bildschirmschutz unterscheidet sich je Plattform: iOS blendet die App aus, während der Bildschirm aufgenommen wird (`UIScreen.isCaptured`); macOS blurrt seine Fenster, sobald sie den Fokus verlieren, und blockiert standardmäßig nach bestem Bemühen Screenshots/Aufnahmen (`NSWindow.sharingType`, das ScreenCaptureKit-basierte Aufnahmen ab macOS 15 umgehen können). Das macOS-Verhalten bezieht sich auf die experimentelle native macOS-App (das Target `KeeForgeMac`) in diesem Repository, derzeit pausiert und unveröffentlicht. Siehe [`docs/macos-security-notes.md`](docs/macos-security-notes.md). |
 
 ## Datenschutz
 
 KeeForge enthält keine Analytik, keine Hintergrund-Telemetrie und keine Crash-Reporting-SDKs. Tresordaten bleiben auf dem Gerät und an den von dir gewählten Speicherorten. Netzwerkzugriffe beschränken sich auf verbundene Cloud-Anbieter, das optionale Laden von Favicons über DuckDuckGo, optionale App-Store-Käufe für das Trinkgeld und das In-App-Feedback-Formular, wenn du explizit eine Nachricht absendest.
+
+Kopierte Inhalte bleiben auf dem Gerät, auf dem du sie kopiert hast, werden nie mit deinen anderen Geräten synchronisiert und löschen sich nach kurzer Zeit oder beim Sperren der Datenbank von selbst. Außerdem blendet KeeForge den Bildschirminhalt aus, während dein Bildschirm aufgezeichnet oder gespiegelt wird.
 
 Lies die [Datenschutzerklärung](https://keeforge.com/de/privacy) ([englisches Original](https://keeforge.com/privacy)).
 

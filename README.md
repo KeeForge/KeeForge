@@ -54,11 +54,12 @@ Places are capped at 300 testers, and joining closes while a new version is in A
 | **Attachments** | View KeePass entry attachments, preview supported files with QuickLook, and share them from short-lived protected temporary files. Attachment editing is not yet supported. |
 | **iPad ready** | Adaptive navigation uses a split-view vault workspace on wider layouts while keeping the compact iPhone flow focused and native. |
 | **Security** | AES-GCM in-memory secret encryption, failed-unlock backoff, decompression bomb limits, and constant-time HMAC comparison. |
-| **Privacy** | Copies stay on the device and expire automatically, never crossing Universal Clipboard. Screen privacy differs by platform: iOS shields the app while it is being recorded (`UIScreen.isCaptured`); macOS blurs its windows whenever it loses focus and, by default, best-effort blocks screenshots/recordings (`NSWindow.sharingType`, which ScreenCaptureKit-based capture can bypass on macOS 15+). The macOS behavior refers to the experimental native macOS app (the `KeeForgeMac` target) in this repo, currently on hold and unreleased. See [`docs/macos-security-notes.md`](docs/macos-security-notes.md). |
 
 ## Privacy
 
 KeeForge has no analytics, no background telemetry, and no crash-reporting SDKs. Vault data stays on device and in the storage locations you choose. Network access is limited to connected cloud providers, opt-in favicon fetching through DuckDuckGo, optional App Store purchases for the tip jar, and the in-app feedback form when you explicitly submit a message.
+
+Anything you copy stays on the device you copied it on, never syncing to your other devices, and it clears itself after a short while or when you lock the database. KeeForge also hides what is on screen while your screen is being recorded or mirrored.
 
 Read the [privacy policy](https://keeforge.com/privacy).
 
