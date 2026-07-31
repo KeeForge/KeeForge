@@ -30,13 +30,12 @@ KeeForge is a native iOS KeePass client for people who want their vault to stay 
 
 ## Public Beta
 
-New versions go out on TestFlight before they reach the App Store.
-
 **[Join the KeeForge beta on TestFlight](https://testflight.apple.com/join/mPAT4f1a)**
 
 > [!WARNING]
 > **Test with a copy of your database, not your primary vault.** Beta builds are unreviewed, and they share the App Store app's bundle identifier and container — so they open your real `.kdbx` files.
 
+New versions go out on TestFlight before they reach the App Store.
 Places are capped at 300 testers, and joining closes while a new version is in Apple's beta review, so the link is not always open.
 
 ## Highlights
