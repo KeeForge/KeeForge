@@ -1118,6 +1118,86 @@ final class DatabaseDraftTests: XCTestCase {
         }
     }
 
+    /// The written `<CustomIconUUID>` element lives in the live entry's preserved XML,
+    /// which a restore keeps, so the display copy must stay with the live entry too —
+    /// taking the snapshot's would show an icon the saved file does not carry.
+    func test_restoreEntryVersion_keepsTheLiveEntrysCustomIcon() throws {
+        let sessionKey = self.sessionKey
+        let timestamp = Date(timeIntervalSince1970: 1_700_000_000)
+        let liveIcon = UUID()
+        let entry = KPEntry(
+            id: UUID(),
+            title: "Icon",
+            username: "current",
+            password: try EncryptedValue.encrypt("current-pw", using: sessionKey),
+            customIconUUID: liveIcon,
+            creationTime: timestamp,
+            lastModificationTime: timestamp,
+            history: [
+                KPEntry(
+                    title: "Icon", username: "previous",
+                    password: try EncryptedValue.encrypt("previous-pw", using: sessionKey),
+                    customIconUUID: UUID(),
+                    lastModificationTime: timestamp.addingTimeInterval(-3_600)
+                )
+            ]
+        )
+        let root = KPGroup(name: "Root", entries: [entry])
+        let draft = DatabaseDraft(rootGroup: root, meta: KPMeta(), sessionKey: sessionKey)
+
+        let restoredDraft = try draft.apply(.restoreEntryVersion(entryID: entry.id, historyIndex: 0))
+
+        let restored = try XCTUnwrap(findEntry(withID: entry.id, in: restoredDraft.rootGroup))
+        XCTAssertEqual(restored.username, "previous")
+        XCTAssertEqual(restored.customIconUUID, liveIcon)
+    }
+
+    /// A stored version stamped ahead of the live entry (a device with a skewed clock
+    /// can write one) outranks the pushed snapshot in the recency trim, so a tight cap
+    /// can discard the snapshot while the trimmed history stays non-empty. The probe
+    /// must report the snapshot's own survival, not "something survived".
+    func test_restoreEntryVersion_futureDatedVersionEvictingTheSnapshotIsReported() throws {
+        let sessionKey = self.sessionKey
+        let timestamp = Date(timeIntervalSince1970: 1_700_000_000)
+        let entry = KPEntry(
+            id: UUID(),
+            title: "Skewed",
+            username: "current",
+            password: try EncryptedValue.encrypt("current-pw", using: sessionKey),
+            creationTime: timestamp,
+            lastModificationTime: timestamp,
+            history: [
+                KPEntry(
+                    title: "Skewed", username: "future",
+                    password: try EncryptedValue.encrypt("future-pw", using: sessionKey),
+                    lastModificationTime: timestamp.addingTimeInterval(3_600)
+                ),
+                KPEntry(
+                    title: "Skewed", username: "old",
+                    password: try EncryptedValue.encrypt("old-pw", using: sessionKey),
+                    lastModificationTime: timestamp.addingTimeInterval(-3_600)
+                )
+            ]
+        )
+        let root = KPGroup(name: "Root", entries: [entry])
+        let meta = KPMeta(historyMaxItems: 1)
+        let draft = DatabaseDraft(rootGroup: root, meta: meta, sessionKey: sessionKey)
+
+        XCTAssertFalse(
+            draft.restoreKeepsReplacedState(entryID: entry.id),
+            "the snapshot loses to the future-dated version, so no undo may be promised"
+        )
+
+        let restoredDraft = try draft.apply(.restoreEntryVersion(entryID: entry.id, historyIndex: 1))
+        let restored = try XCTUnwrap(findEntry(withID: entry.id, in: restoredDraft.rootGroup))
+        XCTAssertEqual(restored.username, "old")
+        XCTAssertEqual(
+            restored.history.map(\.username),
+            ["future"],
+            "the recency cap keeps the future-dated version; the snapshot is gone"
+        )
+    }
+
     func test_restoreEntryVersion_unknownEntry_throws() throws {
         let (draft, _, _) = try makeDraftWithHistory()
         let missingEntryID = UUID()

@@ -280,6 +280,22 @@ struct DatabaseDraft: Sendable {
         return (updatedRootGroup, currentMetaStorage)
     }
 
+    /// Whether a restore would keep the state it replaces, i.e. whether it can be undone.
+    ///
+    /// `HistoryMaxItems`/`HistoryMaxSize` can discard the pushed snapshot, so the
+    /// confirmation must not promise an undo without asking first. This runs the real
+    /// trim and checks that the snapshot itself survives — "anything survived" is not
+    /// enough, because a stored version stamped ahead of the live entry (a device with
+    /// a skewed clock can write one) outranks the snapshot in the recency order.
+    func restoreKeepsReplacedState(entryID: UUID) -> Bool {
+        guard let entryLocation = findEntryLocation(entryID: entryID, in: currentRootGroupStorage) else {
+            return false
+        }
+        let current = entryLocation.entry
+        let history = ([current] + current.history).map { $0.cloneForHistory() }
+        return survivingHistoryIndices(of: history, meta: currentMetaStorage).contains(0)
+    }
+
     /// Makes a stored history version current again.
     ///
     /// The state being replaced is pushed onto the history first, so a restore is
@@ -287,30 +303,13 @@ struct DatabaseDraft: Sendable {
     ///
     /// Identity and provenance stay with the live entry rather than coming from the
     /// snapshot: `id` (so references elsewhere keep resolving), `creationTime` (the
-    /// entry was created once, restoring is not re-creating it), and `unknownXML`.
-    /// That last one matters — the live entry's preserved XML describes the element
-    /// layout the writer round-trips today, including where `<History>` sits, so
-    /// swapping in an older copy of it would rewrite structure the source app wrote.
-    /// Everything the user can see or edit comes from the snapshot.
-    /// Whether a restore would keep the state it replaces, i.e. whether it can be undone.
-    ///
-    /// `HistoryMaxItems`/`HistoryMaxSize` can discard the pushed snapshot, so the
-    /// confirmation must not promise an undo without asking first. This runs the real
-    /// trim and reads a non-empty result as "the snapshot survived", which stands only
-    /// while trimming never drops the newest version ahead of an older one. Any change
-    /// to the trimming rule has to keep that.
-    func restoreKeepsReplacedState(entryID: UUID) -> Bool {
-        guard let entryLocation = findEntryLocation(entryID: entryID, in: currentRootGroupStorage) else {
-            return false
-        }
-        let current = entryLocation.entry
-        return !trimmedHistory(
-            appending: current.cloneForHistory(),
-            existing: current.history,
-            meta: currentMetaStorage
-        ).isEmpty
-    }
-
+    /// entry was created once, restoring is not re-creating it), `unknownXML`, and
+    /// `customIconUUID`. The last two go together — the live entry's preserved XML
+    /// describes the element layout the writer round-trips today, including where
+    /// `<History>` sits and any `<CustomIconUUID>` (the serializer writes that element
+    /// only from the preserved XML), so the display copy has to match those bytes or
+    /// the shown icon would differ from every other client's after a save.
+    /// Everything else the user can see or edit comes from the snapshot.
     private func applyRestoreEntryVersion(
         entryID: UUID,
         historyIndex: Int
@@ -333,7 +332,7 @@ struct DatabaseDraft: Sendable {
             url: version.url,
             notes: version.notes,
             iconID: version.iconID,
-            customIconUUID: version.customIconUUID,
+            customIconUUID: current.customIconUUID,
             tags: version.tags,
             hasTagsElement: version.hasTagsElement,
             customFields: version.customFields,
@@ -645,7 +644,11 @@ struct DatabaseDraft: Sendable {
         meta: KPMeta
     ) -> [KPEntry] {
         let history = ([snapshot] + existing).map { $0.cloneForHistory() }
+        let survivors = survivingHistoryIndices(of: history, meta: meta)
+        return history.indices.filter { survivors.contains($0) }.map { history[$0] }
+    }
 
+    private func survivingHistoryIndices(of history: [KPEntry], meta: KPMeta) -> Set<Int> {
         // Which versions survive is decided by recency; the survivors keep their
         // storage order. Deciding by position instead would discard the newest
         // versions of a KeePass-authored file, whose `<History>` is oldest-first
@@ -676,7 +679,7 @@ struct DatabaseDraft: Sendable {
             survivors = retained
         }
 
-        return history.indices.filter { survivors.contains($0) }.map { history[$0] }
+        return survivors
     }
 
     /// Storage indices newest first, matching `DatabaseViewModel.history(forEntryID:)`:

@@ -881,6 +881,8 @@ final class DatabaseViewModel {
     }
 
     /// Makes the entry's `historyIndex`-th stored version current again.
+    /// `historyIndex` addresses `KPEntry.history` in storage order — pass
+    /// `EntryHistoryVersion.index`, never a position in the sorted display list.
     func restoreEntryVersion(entryID: UUID, historyIndex: Int) throws {
         try applyEntryEdit(.restoreEntryVersion(entryID: entryID, historyIndex: historyIndex))
     }
