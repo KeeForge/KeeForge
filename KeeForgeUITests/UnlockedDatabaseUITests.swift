@@ -355,12 +355,14 @@ final class AppSettingsUITests: AppSettingsUITestCase {
 
         // The suffix is the database's UUID, unknown to the test, so match on
         // the identifier prefix and require at least one per-database toggle
-        // for the seeded fixture.
-        let databaseToggles = app.switches.matching(
+        // for the seeded fixture. The Databases section sits below the fold on
+        // a 375x667 screen and the Form only materializes it once scrolled
+        // into view, so reveal it instead of waiting for it to appear.
+        let databaseToggle = app.switches.matching(
             NSPredicate(format: "identifier BEGINSWITH 'settings.autofill.database-toggle.'")
-        )
+        ).firstMatch
         XCTAssertTrue(
-            databaseToggles.firstMatch.waitForExistence(timeout: Self.ciElementTimeout),
+            revealElement(databaseToggle, in: scrollableContainer(), direction: .up, maxSwipes: 6),
             "AutoFill settings should list a toggle for the seeded database"
         )
 
@@ -575,14 +577,25 @@ final class EntryHistoryUITests: UnlockedDatabaseUITestCase {
         XCTAssertTrue(firstVersion.waitForExistence(timeout: 5))
         firstVersion.tap()
 
+        // Anchor on the navigation bar, not on a row: the version screen's
+        // fields are a lazy List, so anything below the fold on a 375x667
+        // screen never materializes until it is scrolled to.
         XCTAssertTrue(
-            app.descendants(matching: .any)["entry-history.version-detail"].firstMatch
-                .waitForExistence(timeout: 5),
+            app.navigationBars["Earlier Version"].waitForExistence(timeout: 5),
             "The version screen did not open"
         )
         XCTAssertTrue(
             app.buttons["entry-history.restore"].waitForExistence(timeout: 5),
             "Restore action was not offered"
+        )
+
+        // No explicit container: the entry detail list is still in the
+        // hierarchy behind the pushed screen, so an index-bound container
+        // resolved now goes stale as the push settles.
+        let lastModified = app.descendants(matching: .any)["entry-history.version-detail"].firstMatch
+        XCTAssertTrue(
+            revealElement(lastModified, direction: .up, maxSwipes: 6),
+            "The version screen did not show when the version was last modified"
         )
     }
 
