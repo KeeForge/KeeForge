@@ -63,6 +63,19 @@ Kopierte Inhalte bleiben auf dem Gerät, auf dem du sie kopiert hast, werden nie
 
 Lies die [Datenschutzerklärung](https://keeforge.com/de/privacy) ([englisches Original](https://keeforge.com/privacy)).
 
+## Datensicherheit
+
+KeeForge nimmt Datensicherheit sehr ernst. Ein Passwort-Manager darf deinen Tresor niemals beschädigen oder unbemerkt Daten verlieren. Deshalb wird der Speichercode von KeeForge nach einer einzigen Regel getestet: Nichts geht verloren — kein Passwort, kein Anhang, nicht einmal Daten, die KeeForge gar nicht kennt. Das prüfen die automatisierten Tests, bevor eine Änderung ausgeliefert wird:
+
+- **Deine Datei wird nie blind überschrieben.** Vor dem Speichern prüft KeeForge, ob sich die Datei seit dem Öffnen verändert hat — etwa durch ein anderes Gerät — und hält an, statt diese Änderungen zu überschreiben. Jeder Speichervorgang legt außerdem zuerst ein zeitgestempeltes Backup an, und die Tests öffnen diese Backups wieder, um zu beweisen, dass sie sich tatsächlich wiederherstellen lassen — nicht nur, dass sie existieren.
+- **Jede Art von Änderung muss den Rundweg überstehen.** Tests erstellen, bearbeiten, verschieben und löschen Einträge und Gruppen, speichern die Datenbank, lesen sie wieder ein und vergleichen sie Stück für Stück: Passwörter, Notizen, benutzerdefinierte Felder, Eintragsverlauf und Anhänge müssen exakt so zurückkommen, wie sie hineingingen.
+- **Auch Daten, die KeeForge nicht versteht, bleiben erhalten.** Andere KeePass-Apps — und künftige Formatversionen — können Felder speichern, die KeeForge nicht kennt. KeeForge trägt sie unangetastet durch jeden Speichervorgang, statt sie zu verwerfen — verifiziert mit Testdatenbanken, die absichtlich Daten enthalten, die keine aktuelle App vollständig versteht.
+- **Ein unabhängiges Programm prüft jede Version nach.** Bevor eine Version erscheint, müssen von KeeForge geschriebene Datenbanken von KeePassXC geöffnet werden — einer weit verbreiteten KeePass-Anwendung, die keinen Code mit KeeForge teilt. Sie muss jeden erwarteten Eintrag und jede Gruppe finden, die Passwörter entschlüsseln und Anhänge exportieren, die Bit für Bit mit den Originalen übereinstimmen.
+- **Kompatibilität wird in beide Richtungen getestet.** Testdatenbanken aus anderer KeePass-Software — mit AES-, ChaCha20- und Twofish-Verschlüsselung, Schlüsseldateien und Formatversionen von KDBX 3.1 bis 4.1 — müssen sich in KeeForge korrekt öffnen lassen, und von KeeForge gespeicherte Datenbanken müssen für andere KeePass-Apps vollständig lesbar bleiben.
+- **Beschädigte Dateien werden abgelehnt, nicht erraten.** Absichtlich manipulierte und abgeschnittene Datenbanken müssen sich mit einer klaren Fehlermeldung weigern zu öffnen, statt unvollständige oder beschädigte Daten zu laden.
+
+Für technisch Interessierte: Die Test-Suite ist in [`KeeForgeTests/README.md`](KeeForgeTests/README.md) beschrieben, das Prüf-Gate vor jedem Release in [`ci_scripts/README.md`](ci_scripts/README.md) (beide auf Englisch).
+
 ## Projektübersicht
 
 ```text
