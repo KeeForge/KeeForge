@@ -31,9 +31,13 @@ final class CredentialProviderPresentingSpy: CredentialProviderPresenting {
 
     struct SearchView {
         let entries: [KPEntry]
+        let searchEntries: [KPEntry]
+        let possibleEntries: [KPEntry]
         let initialSearchText: String
         let databaseSwitcher: CredentialProviderDatabaseSwitcherContext?
         let onSelect: (KPEntry) -> Void
+        let onSelectPossible: (KPEntry) -> Void
+        let onAddURLToPossible: (KPEntry) -> Void
         let onCancel: () -> Void
     }
 
@@ -73,16 +77,24 @@ final class CredentialProviderPresentingSpy: CredentialProviderPresenting {
 
     func presentSearchView(
         entries: [KPEntry],
+        searchEntries: [KPEntry],
+        possibleEntries: [KPEntry],
         initialSearchText: String,
         databaseSwitcher: CredentialProviderDatabaseSwitcherContext?,
         onSelect: @escaping (KPEntry) -> Void,
+        onSelectPossible: @escaping (KPEntry) -> Void,
+        onAddURLToPossible: @escaping (KPEntry) -> Void,
         onCancel: @escaping () -> Void
     ) {
         searchView = SearchView(
             entries: entries,
+            searchEntries: searchEntries,
+            possibleEntries: possibleEntries,
             initialSearchText: initialSearchText,
             databaseSwitcher: databaseSwitcher,
             onSelect: onSelect,
+            onSelectPossible: onSelectPossible,
+            onAddURLToPossible: onAddURLToPossible,
             onCancel: onCancel
         )
         onSearchViewPresented?()

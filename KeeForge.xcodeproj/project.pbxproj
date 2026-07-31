@@ -113,6 +113,7 @@
 		2DA76B4703C153EF5009E568 /* KDBXCrypto.swift in Sources */ = {isa = PBXBuildFile; fileRef = F984480E73A82B5043100065 /* KDBXCrypto.swift */; };
 		2EF4A37C8512D76CCACA08C5 /* CredentialProviderCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 268A6ED5FD7C908116437C5E /* CredentialProviderCoordinator.swift */; };
 		2FB690AA87853493C7E13651 /* LocalDatabaseSaver.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7B6F08C62E668E72877D297 /* LocalDatabaseSaver.swift */; };
+		30BE98BCBB2C8D6352147FFF /* PublicSuffixList in Frameworks */ = {isa = PBXBuildFile; productRef = 2ED91D82079164C87B68A814 /* PublicSuffixList */; };
 		30FAB87495E057E7C880DC28 /* OneDriveCloudProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = B942B75B67043A4CB397BE27 /* OneDriveCloudProvider.swift */; };
 		310F8939E17928B0959017BC /* ClipboardService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB106882B5AF908E0B1ED82C /* ClipboardService.swift */; };
 		316E7940CB908BAD581E150F /* CloudDatabaseSaverTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FD06FD75C4769929A64951F0 /* CloudDatabaseSaverTests.swift */; };
@@ -155,6 +156,7 @@
 		40269CADC8C8314AA32BB1D6 /* TagNormalizer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6EC4E044FDBDD9171C7DC509 /* TagNormalizer.swift */; };
 		40317D349277C702F89988EB /* AttachmentPreviewFileStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = BFDA78854986EA7182C73B73 /* AttachmentPreviewFileStore.swift */; };
 		40513FE7EBB0EC663F345EEC /* KeeForgeTwofish in Frameworks */ = {isa = PBXBuildFile; productRef = 27663F9D4B6FD8D06613702A /* KeeForgeTwofish */; };
+		405BB7E00382B59A2001D207 /* PublicSuffixList in Frameworks */ = {isa = PBXBuildFile; productRef = 80BD433FCE467939D48BA9AE /* PublicSuffixList */; };
 		42798F96FBA6AB0926385048 /* CredentialIdentityStoreManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 280C8E252110A0DEC3BE5283 /* CredentialIdentityStoreManager.swift */; };
 		42EB6DC9F755D8FB7466867E /* test-v3-backup.kdbx in Resources */ = {isa = PBXBuildFile; fileRef = AE9D6043B1CC82684E9BF9FE /* test-v3-backup.kdbx */; };
 		430519FCA2B0CF54AF08FDED /* PasswordStrengthEstimator.swift in Sources */ = {isa = PBXBuildFile; fileRef = D110757CD127D7FD4DA8F9AB /* PasswordStrengthEstimator.swift */; };
@@ -165,6 +167,7 @@
 		45DB23A30AE1A5B18551D40B /* KDBXFileSummaryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FD7891343E62D744890CF243 /* KDBXFileSummaryTests.swift */; };
 		463EB91BA8FFCC2C6EAB82EF /* DatabaseReferenceMigrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D92FD27E759F00EDA86B1F88 /* DatabaseReferenceMigrationTests.swift */; };
 		466ACD61E778357A956E010A /* PlatformCompat.swift in Sources */ = {isa = PBXBuildFile; fileRef = FFB6EEC55FC21C0E0612931E /* PlatformCompat.swift */; };
+		48B196D18783A6205792621A /* PublicSuffixList in Frameworks */ = {isa = PBXBuildFile; productRef = 821C8659E5022EA9F87A8E5A /* PublicSuffixList */; };
 		492B3890EF152B160A560423 /* WhatsNewPresentationServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5DDEBC96D0673E928CD9681C /* WhatsNewPresentationServiceTests.swift */; };
 		4994CC6E9C1FB4ABBDC4F0B0 /* AppGroupGuardrailTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 784030A42906B5F3F8E2076B /* AppGroupGuardrailTests.swift */; };
 		4AEDC15F5C9B1A173996FFAA /* AutoFillIdentityStoreFallbackReader.swift in Sources */ = {isa = PBXBuildFile; fileRef = F47550A37356BE818BDA98C1 /* AutoFillIdentityStoreFallbackReader.swift */; };
@@ -260,6 +263,7 @@
 		73705422F3222F1C199BE48F /* CloudProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0D918BC27841E51EB93E742 /* CloudProvider.swift */; };
 		738CF85337FA515142B389E8 /* KDBXRoundTripTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D4331340574F2A0595CAA0E /* KDBXRoundTripTests.swift */; };
 		73E2B128704714D6C8207791 /* AutoFillTipUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DBA690A30702948674112D9A /* AutoFillTipUITests.swift */; };
+		744743CA398D53D08FE77A2E /* PublicSuffixList in Frameworks */ = {isa = PBXBuildFile; productRef = 431E8A28D3FD594C5C160789 /* PublicSuffixList */; };
 		745F136463A1B94004C35A53 /* CredentialIdentityStoreManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 280C8E252110A0DEC3BE5283 /* CredentialIdentityStoreManager.swift */; };
 		76030E2242827E28EB898A0B /* Attachment.swift in Sources */ = {isa = PBXBuildFile; fileRef = 17350EF5DF6C5C2E97B61A34 /* Attachment.swift */; };
 		7664D60C28C7FEBA822766FA /* attachments.kdbx in Resources */ = {isa = PBXBuildFile; fileRef = 19318775CBF14C81FE21CB43 /* attachments.kdbx */; };
@@ -927,6 +931,7 @@
 				DF799AD406B024CAAD8B743D /* KeeForgeTwofish in Frameworks */,
 				28E386FA18015056C4B4B670 /* SwiftyDropbox in Frameworks */,
 				9F769ED21EFC32D49541FA67 /* MSAL in Frameworks */,
+				405BB7E00382B59A2001D207 /* PublicSuffixList in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -946,6 +951,7 @@
 				40513FE7EBB0EC663F345EEC /* KeeForgeTwofish in Frameworks */,
 				8B033D10ABCF3C4C54E2B52C /* SwiftyDropbox in Frameworks */,
 				1FA80A53C3A5B065151DDDC3 /* MSAL in Frameworks */,
+				48B196D18783A6205792621A /* PublicSuffixList in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -955,6 +961,7 @@
 			files = (
 				087594118C4C8877C032E574 /* Argon2Swift in Frameworks */,
 				33FF1C898FE8415F9A08A7C4 /* KeeForgeTwofish in Frameworks */,
+				744743CA398D53D08FE77A2E /* PublicSuffixList in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -964,6 +971,7 @@
 			files = (
 				101FE00A9F3480ABB883BD76 /* Argon2Swift in Frameworks */,
 				5DDCA6E6F91D54EEE081851C /* KeeForgeTwofish in Frameworks */,
+				30BE98BCBB2C8D6352147FFF /* PublicSuffixList in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1447,6 +1455,7 @@
 			packageProductDependencies = (
 				FC84449470CDFBFCDFD519BB /* Argon2Swift */,
 				7960D36F992535B8954D6DCD /* KeeForgeTwofish */,
+				431E8A28D3FD594C5C160789 /* PublicSuffixList */,
 			);
 			productName = KeeForgeMacAutoFill;
 			productReference = F132E57F847216618151EAF4 /* KeeForgeMacAutoFill.appex */;
@@ -1532,6 +1541,7 @@
 				336B83E709465A5D06020D06 /* KeeForgeTwofish */,
 				7177E0E789F236C07DF3DC29 /* SwiftyDropbox */,
 				1A2489449DA4AAF5B595F615 /* MSAL */,
+				80BD433FCE467939D48BA9AE /* PublicSuffixList */,
 			);
 			productName = KeeForgeMac;
 			productReference = C3331E675A8FD23ED5D8D11D /* KeeForgeMac.app */;
@@ -1579,6 +1589,7 @@
 				27663F9D4B6FD8D06613702A /* KeeForgeTwofish */,
 				51EBD2A917385D3E88CA0277 /* SwiftyDropbox */,
 				64B6830B629BBAC2E266834E /* MSAL */,
+				821C8659E5022EA9F87A8E5A /* PublicSuffixList */,
 			);
 			productName = KeeForge;
 			productReference = 1C1B7D9F6B63224D55DF5C4A /* KeeForge.app */;
@@ -1600,6 +1611,7 @@
 			packageProductDependencies = (
 				87212E661EACAC1328E27A4E /* Argon2Swift */,
 				421423EA8AC7EF81B1991657 /* KeeForgeTwofish */,
+				2ED91D82079164C87B68A814 /* PublicSuffixList */,
 			);
 			productName = KeeForgeAutoFill;
 			productReference = 379C9421555E6C13A8335404 /* KeeForgeAutoFill.appex */;
@@ -1658,6 +1670,7 @@
 				DAD92CB1C500ADA86A291E6B /* XCRemoteSwiftPackageReference "Argon2Swift" */,
 				1406D2AE51BB5512501439B4 /* XCRemoteSwiftPackageReference "microsoft-authentication-library-for-objc" */,
 				0DE6D7E1C06867E37CE51E7D /* XCRemoteSwiftPackageReference "SwiftyDropbox" */,
+				E12C3C5C44397DF4D37FA514 /* XCRemoteSwiftPackageReference "swift-psl" */,
 				D57ED7FFF6E11FFD4F30B8A1 /* XCLocalSwiftPackageReference "Vendor/KeeForgeTwofish" */,
 			);
 			preferredProjectObjectVersion = 77;
@@ -1666,13 +1679,13 @@
 			projectRoot = "";
 			targets = (
 				F9D5D329EB517FC26DCCD00F /* KeeForge */,
-				FFA6C4212640756D8D70C1F6 /* KeeForgeAutoFill */,
 				7D53BCAE20990F6856D21F58 /* KeeForgeMac */,
+				FFA6C4212640756D8D70C1F6 /* KeeForgeAutoFill */,
 				0AA0ADCC3C0CE0E65850552E /* KeeForgeMacAutoFill */,
-				647734196C81AB568100DEF0 /* KeeForgeMacTests */,
-				759B10925CD3A1BCA516F0CD /* KeeForgeMacUITests */,
-				F371729A79BBD757456723E9 /* KeeForgeTests */,
 				142FE9D12173DF25C61DE561 /* KeeForgeUITests */,
+				F371729A79BBD757456723E9 /* KeeForgeTests */,
+				759B10925CD3A1BCA516F0CD /* KeeForgeMacUITests */,
+				647734196C81AB568100DEF0 /* KeeForgeMacTests */,
 			);
 		};
 /* End PBXProject section */
@@ -3028,6 +3041,14 @@
 				revision = 53543623fefe68461b7eeea03d7f96677c2fd76d;
 			};
 		};
+		E12C3C5C44397DF4D37FA514 /* XCRemoteSwiftPackageReference "swift-psl" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/ameshkov/swift-psl.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 1.1.161;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -3040,6 +3061,11 @@
 			isa = XCSwiftPackageProductDependency;
 			productName = KeeForgeTwofish;
 		};
+		2ED91D82079164C87B68A814 /* PublicSuffixList */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = E12C3C5C44397DF4D37FA514 /* XCRemoteSwiftPackageReference "swift-psl" */;
+			productName = PublicSuffixList;
+		};
 		336B83E709465A5D06020D06 /* KeeForgeTwofish */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = KeeForgeTwofish;
@@ -3047,6 +3073,11 @@
 		421423EA8AC7EF81B1991657 /* KeeForgeTwofish */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = KeeForgeTwofish;
+		};
+		431E8A28D3FD594C5C160789 /* PublicSuffixList */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = E12C3C5C44397DF4D37FA514 /* XCRemoteSwiftPackageReference "swift-psl" */;
+			productName = PublicSuffixList;
 		};
 		442CCF8D1DE21906E6D0F53E /* Argon2Swift */ = {
 			isa = XCSwiftPackageProductDependency;
@@ -3071,6 +3102,16 @@
 		7960D36F992535B8954D6DCD /* KeeForgeTwofish */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = KeeForgeTwofish;
+		};
+		80BD433FCE467939D48BA9AE /* PublicSuffixList */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = E12C3C5C44397DF4D37FA514 /* XCRemoteSwiftPackageReference "swift-psl" */;
+			productName = PublicSuffixList;
+		};
+		821C8659E5022EA9F87A8E5A /* PublicSuffixList */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = E12C3C5C44397DF4D37FA514 /* XCRemoteSwiftPackageReference "swift-psl" */;
+			productName = PublicSuffixList;
 		};
 		864AF4F1B6915B3F8B6E44D9 /* KeeForgeTwofish */ = {
 			isa = XCSwiftPackageProductDependency;

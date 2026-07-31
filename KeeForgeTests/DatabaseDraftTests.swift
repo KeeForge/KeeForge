@@ -409,6 +409,28 @@ final class DatabaseDraftTests: XCTestCase {
         XCTAssertEqual(updatedEntry.otpURL, legacyURL)
     }
 
+    func test_updateEntry_addingAdditionalURLPreservesTOTPConfigAndLegacyOtpURL() throws {
+        let legacyURL = "otpauth://totp/Legacy:user@example.com?secret=JBSWY3DPEHPK3PXP&issuer=Legacy&period=30&digits=6"
+        let tree = try makeSyntheticTree(
+            includeRecycleBin: false,
+            parentEntryOverride: try makeLegacyOTPEntry(otpURL: legacyURL)
+        )
+        var updatedPayload = try makeDraftPayload(from: tree.parentEntry)
+        updatedPayload.customFields["KP2A_URL_1"] = "https://legacy.example.com"
+
+        let draft = DatabaseDraft(rootGroup: tree.rootGroup, meta: tree.meta, sessionKey: sessionKey)
+        let updatedDraft = try draft.apply(.updateEntry(entryID: tree.parentEntry.id, draft: updatedPayload))
+        let updatedEntry = try XCTUnwrap(findEntry(withID: tree.parentEntry.id, in: updatedDraft.rootGroup))
+        let updatedTOTP = try XCTUnwrap(updatedEntry.totpConfig)
+
+        XCTAssertEqual(try updatedTOTP.secret.decrypt(using: sessionKey), "JBSWY3DPEHPK3PXP")
+        XCTAssertEqual(updatedTOTP.period, 30)
+        XCTAssertEqual(updatedTOTP.digits, 6)
+        XCTAssertEqual(updatedTOTP.algorithm, .sha1)
+        XCTAssertEqual(updatedEntry.otpURL, legacyURL)
+        XCTAssertEqual(updatedEntry.additionalURLs, ["https://legacy.example.com"])
+    }
+
     func test_updateEntry_editThatChangesTOTPInvalidatesLegacyOtpURL() throws {
         let legacyURL = "otpauth://totp/Legacy:user@example.com?secret=JBSWY3DPEHPK3PXP&issuer=Legacy&period=30&digits=6"
         let mutations: [(name: String, mutate: (inout EntryDraftPayload) -> Void)] = [

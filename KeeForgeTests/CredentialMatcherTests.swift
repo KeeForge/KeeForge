@@ -200,6 +200,44 @@ final class CredentialMatcherTests: XCTestCase {
         XCTAssertEqual(CredentialMatcher.strictMatchedEntries(from: entries, for: ids).count, 1)
     }
 
+    func testPossibleMatchesSiblingSubdomainOnly() {
+        let entries = [
+            makeEntry(title: "Sibling", url: "https://tro.sitio.com/login", username: "u", password: "p"),
+            makeEntry(title: "Boundary", url: "https://otro-sitio.com", username: "u", password: "p")
+        ]
+        let ids = [ASCredentialServiceIdentifier(identifier: "https://acs.sitio.com", type: .URL)]
+        let matches = CredentialMatcher.possibleMatchedEntries(from: entries, for: ids)
+        XCTAssertEqual(matches.map(\.title), ["Sibling"])
+    }
+
+    func testPossibleMatchesSupportMultipleEntriesAndURLNormalization() {
+        let entries = [
+            makeEntry(title: "One", url: "HTTPS://one.sitio.com.", username: "u", password: "p"),
+            makeEntry(title: "Two", url: "https://two.sitio.com/path", username: "u", password: "p")
+        ]
+        let ids = [ASCredentialServiceIdentifier(identifier: "https://acs.SITIO.com/path", type: .URL)]
+        XCTAssertEqual(CredentialMatcher.possibleMatchedEntries(from: entries, for: ids).count, 2)
+    }
+
+    func testPossibleMatchesDoNotSuggestRegistrableDomainBoundary() {
+        let entries = [makeEntry(title: "Other", url: "https://tro.otro-sitio.com", username: "u", password: "p")]
+        let ids = [ASCredentialServiceIdentifier(identifier: "acs.sitio.com", type: .domain)]
+        XCTAssertTrue(CredentialMatcher.possibleMatchedEntries(from: entries, for: ids).isEmpty)
+    }
+
+    func testPossibleMatchesUsePublicSuffixListForCoUK() {
+        let entries = [
+            makeEntry(title: "Sibling", url: "https://tro.example.co.uk", username: "u", password: "p"),
+            makeEntry(title: "Unrelated", url: "https://tro.other.co.uk", username: "u", password: "p"),
+            makeEntry(title: "BareSuffix", url: "https://tro.co.uk", username: "u", password: "p")
+        ]
+        let ids = [ASCredentialServiceIdentifier(identifier: "https://acs.example.co.uk", type: .URL)]
+        XCTAssertEqual(
+            CredentialMatcher.possibleMatchedEntries(from: entries, for: ids).map(\.title),
+            ["Sibling"]
+        )
+    }
+
     func testStrictSkipsExpiredEntries() {
         let expiredEntry = KPEntry(
             title: "GitHub",

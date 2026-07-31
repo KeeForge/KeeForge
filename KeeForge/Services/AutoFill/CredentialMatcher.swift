@@ -1,4 +1,5 @@
 import AuthenticationServices
+import PublicSuffixList
 
 enum CredentialMatcher {
     /// Host-based matches only: a stored URL's host equals the requested
@@ -18,6 +19,27 @@ enum CredentialMatcher {
         matchedEntries(from: entries, for: identifiers, strict: false)
     }
 
+    /// Interactive-only suggestions on a different subdomain of the same
+    /// normalized registrable domain. The registrable-domain boundary comes
+    /// from the embedded Mozilla Public Suffix List.
+    static func possibleMatchedEntries(from entries: [KPEntry], for identifiers: [ASCredentialServiceIdentifier]) -> [KPEntry] {
+        let requestedHosts = identifiers.compactMap(searchTerm(for:)).compactMap(hostFromURLString)
+        let requestedDomains = Set(requestedHosts.compactMap(registrableDomain(for:)))
+        guard !requestedDomains.isEmpty else { return [] }
+
+        return entries.filter { entry in
+            guard !entry.isExpired() else { return false }
+            let storedHosts = ([entry.url] + entry.additionalURLs).compactMap(hostFromURLString)
+            return storedHosts.contains { storedHost in
+                guard let storedDomain = registrableDomain(for: storedHost),
+                      requestedDomains.contains(storedDomain) else { return false }
+                return requestedHosts.contains { requestedHost in
+                    storedHost != requestedHost && storedHost.contains(".") && requestedHost.contains(".")
+                }
+            }
+        }
+    }
+
     private static func matchedEntries(
         from entries: [KPEntry],
         for identifiers: [ASCredentialServiceIdentifier],
@@ -25,7 +47,7 @@ enum CredentialMatcher {
     ) -> [KPEntry] {
         guard !identifiers.isEmpty else { return [] }
 
-        let searchTerms = Set(identifiers.compactMap(searchTerm(for:)).map { $0.lowercased() })
+        let searchTerms = Set(identifiers.compactMap { searchTerm(for: $0) }.map(normalizeHost))
 
         return entries.filter { entry in
             guard !entry.isExpired() else { return false }
@@ -33,7 +55,7 @@ enum CredentialMatcher {
 
             return searchTerms.contains { term in
                 for urlString in allURLs {
-                    let host = hostFromURLString(urlString)?.lowercased()
+                    let host = hostFromURLString(urlString)
                     if let host, host == term || host.hasSuffix(".\(term)") {
                         return true
                     }
@@ -48,7 +70,7 @@ enum CredentialMatcher {
 
     static func searchTerm(for identifier: ASCredentialServiceIdentifier) -> String? {
         if identifier.type == .domain {
-            return identifier.identifier
+            return normalizeHost(identifier.identifier)
         }
 
         return hostFromURLString(identifier.identifier) ?? identifier.identifier
@@ -62,10 +84,18 @@ enum CredentialMatcher {
             host = URL(string: "https://\(value)")?.host
         }
 
-        guard var result = host else { return nil }
-        if result.lowercased().hasPrefix("www.") {
-            result = String(result.dropFirst(4))
-        }
+        guard let host else { return nil }
+        return normalizeHost(host)
+    }
+
+    private static func normalizeHost(_ value: String) -> String {
+        var result = value.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        while result.hasSuffix(".") { result.removeLast() }
+        if result.hasPrefix("www.") { result.removeFirst(4) }
         return result
+    }
+
+    private static func registrableDomain(for host: String) -> String? {
+        PublicSuffixList.effectiveTLDPlusOne(normalizeHost(host))
     }
 }

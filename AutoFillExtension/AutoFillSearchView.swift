@@ -2,7 +2,11 @@ import SwiftUI
 
 struct AutoFillSearchView: View {
     let entries: [KPEntry]
+    let searchEntries: [KPEntry]
+    let possibleEntries: [KPEntry]
     let onSelect: (KPEntry) -> Void
+    let onSelectPossible: (KPEntry) -> Void
+    let onAddURLToPossible: (KPEntry) -> Void
     let onCancel: () -> Void
     let initialSearchText: String
     /// Non-nil only when the coordinator offers the in-search database
@@ -13,26 +17,38 @@ struct AutoFillSearchView: View {
     let databaseSwitcher: CredentialProviderDatabaseSwitcherContext?
 
     @State private var searchText: String
+    @State private var didEditSearch = false
+    @State private var entryPendingURLAddition: KPEntry?
 
     init(
         entries: [KPEntry],
+        searchEntries: [KPEntry]? = nil,
+        possibleEntries: [KPEntry] = [],
         initialSearchText: String = "",
         databaseSwitcher: CredentialProviderDatabaseSwitcherContext? = nil,
         onSelect: @escaping (KPEntry) -> Void,
+        onSelectPossible: @escaping (KPEntry) -> Void = { _ in },
+        onAddURLToPossible: @escaping (KPEntry) -> Void = { _ in },
         onCancel: @escaping () -> Void
     ) {
         self.entries = entries
+        self.searchEntries = searchEntries ?? entries
+        self.possibleEntries = possibleEntries
         self.initialSearchText = initialSearchText
         self.databaseSwitcher = databaseSwitcher
         self.onSelect = onSelect
+        self.onSelectPossible = onSelectPossible
+        self.onAddURLToPossible = onAddURLToPossible
         self.onCancel = onCancel
         self._searchText = State(initialValue: initialSearchText)
     }
 
     private var filteredEntries: [KPEntry] {
-        guard !searchText.isEmpty else { return entries }
+        guard !searchText.isEmpty else {
+            return didEditSearch ? searchEntries : entries
+        }
         let query = searchText.lowercased()
-        return entries.filter { entry in
+        return searchEntries.filter { entry in
             entry.title.lowercased().contains(query) ||
             entry.username.lowercased().contains(query) ||
             entry.url.lowercased().contains(query) ||
@@ -42,11 +58,84 @@ struct AutoFillSearchView: View {
 
     var body: some View {
         NavigationStack {
-            List(filteredEntries) { entry in
-                Button {
-                    onSelect(entry)
-                } label: {
-                    HStack {
+            List {
+                if filteredEntries.isEmpty && searchText.isEmpty && !possibleEntries.isEmpty {
+                    Section {
+                        Text("No exact matches were found. These credentials are possible matches only.")
+                            .foregroundStyle(.secondary)
+                            .accessibilityIdentifier("autofill.possible-matches.explanation")
+                    }
+                }
+                if filteredEntries.isEmpty && filteredPossibleEntries.isEmpty {
+                    ContentUnavailableView {
+                        Label("No Credentials Found", systemImage: "magnifyingglass")
+                            .accessibilityIdentifier("autofill.no-credentials-found")
+                    } description: {
+                        Text("No credentials match this search.")
+                    }
+                }
+                Section {
+                    ForEach(filteredEntries) { entry in
+                        Button { onSelect(entry) } label: { entryRow(entry) }
+                            .accessibilityIdentifier("autofill.entry.exact")
+                    }
+                } header: {
+                    if !filteredEntries.isEmpty { Text("Matches") }
+                }
+                if !possibleEntries.isEmpty {
+                    Section("Possible matches") {
+                        ForEach(filteredPossibleEntries) { entry in
+                            VStack(alignment: .leading, spacing: 8) {
+                                Button { onSelectPossible(entry) } label: { entryRow(entry) }
+                                    .accessibilityIdentifier("autofill.entry.possible.use")
+                                Button("Add original URL to this entry") { entryPendingURLAddition = entry }
+                                    .font(.caption)
+                                    .accessibilityIdentifier("autofill.entry.possible.add-url")
+                            }
+                        }
+                    }
+                }
+            }
+            .searchable(text: $searchText, prompt: "Search entries")
+            .onChange(of: searchText) { _, _ in
+                didEditSearch = true
+            }
+            .navigationTitle("Choose Credential")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { onCancel() }
+                }
+                if let databaseSwitcher {
+                    ToolbarItem(placement: .primaryAction) { databaseSwitcherMenu(databaseSwitcher) }
+                }
+            }
+        }
+        .alert("Add Original URL?", isPresented: Binding(
+            get: { entryPendingURLAddition != nil },
+            set: { if !$0 { entryPendingURLAddition = nil } }
+        )) {
+            Button("Add URL") {
+                if let entry = entryPendingURLAddition { onAddURLToPossible(entry) }
+                entryPendingURLAddition = nil
+            }
+            Button("Cancel", role: .cancel) { entryPendingURLAddition = nil }
+        } message: {
+            Text("This adds the original request URL to the selected credential. The database will be changed only if you confirm.")
+        }
+    }
+
+    private var filteredPossibleEntries: [KPEntry] {
+        guard !searchText.isEmpty else { return possibleEntries }
+        let query = searchText.lowercased()
+        return possibleEntries.filter { entry in
+            entry.title.lowercased().contains(query) || entry.username.lowercased().contains(query) || entry.url.lowercased().contains(query) || entry.notes.lowercased().contains(query)
+        }
+    }
+
+    @ViewBuilder
+    private func entryRow(_ entry: KPEntry) -> some View {
+        HStack {
                         Image(systemName: entry.systemIconName)
                             .foregroundStyle(.tint)
                             .font(.system(size: 16))
@@ -71,24 +160,6 @@ struct AutoFillSearchView: View {
                                 .foregroundStyle(.red)
                                 .accessibilityIdentifier("autofill.entry.expired")
                         }
-                    }
-                }
-            }
-            .searchable(text: $searchText, prompt: "Search entries")
-            .navigationTitle("Choose Credential")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") {
-                        onCancel()
-                    }
-                }
-                if let databaseSwitcher {
-                    ToolbarItem(placement: .primaryAction) {
-                        databaseSwitcherMenu(databaseSwitcher)
-                    }
-                }
-            }
         }
     }
 

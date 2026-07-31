@@ -246,6 +246,74 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
         assertCleanedUp(coordinator)
     }
 
+    func test_possibleMatchesStartSeparatedButKeepFullSearchCorpus() throws {
+        let (coordinator, presenter) = makeCoordinator()
+        let sessionKey = SymmetricKey(size: .bits256)
+        let entries = [
+            KPEntry(
+                title: "Sibling",
+                username: "sibling",
+                password: try EncryptedValue.encrypt("secret", using: sessionKey),
+                url: "https://tro.sitio.com/login"
+            ),
+            KPEntry(
+                title: "Unrelated",
+                username: "other",
+                password: try EncryptedValue.encrypt("secret", using: sessionKey),
+                url: "https://other.example"
+            )
+        ]
+
+        coordinator.serviceIdentifiers = [
+            ASCredentialServiceIdentifier(identifier: "https://acs.sitio.com", type: .URL)
+        ]
+        seedUnlockedVaultState(coordinator, entries: entries, sessionKey: sessionKey)
+
+        coordinator.presentPasswordMatchesOrFinish()
+
+        let searchView = try XCTUnwrap(presenter.searchView)
+        XCTAssertTrue(searchView.entries.isEmpty)
+        XCTAssertEqual(searchView.possibleEntries.map(\.title), ["Sibling"])
+        XCTAssertEqual(searchView.searchEntries.count, 2)
+        XCTAssertEqual(searchView.initialSearchText, "")
+    }
+
+    func test_fuzzyCandidatesArePossibleAndMultipleCandidatesRemainAvailable() throws {
+        let (coordinator, presenter) = makeCoordinator()
+        let sessionKey = SymmetricKey(size: .bits256)
+        let entries = [
+            KPEntry(
+                title: "acs.sitio.com legacy",
+                username: "fuzzy",
+                password: try EncryptedValue.encrypt("secret", using: sessionKey),
+                url: "https://unrelated.example"
+            ),
+            KPEntry(
+                title: "Sibling One",
+                username: "one",
+                password: try EncryptedValue.encrypt("secret", using: sessionKey),
+                url: "https://one.sitio.com"
+            ),
+            KPEntry(
+                title: "Sibling Two",
+                username: "two",
+                password: try EncryptedValue.encrypt("secret", using: sessionKey),
+                url: "https://two.sitio.com"
+            )
+        ]
+
+        coordinator.serviceIdentifiers = [
+            ASCredentialServiceIdentifier(identifier: "https://acs.sitio.com", type: .URL)
+        ]
+        seedUnlockedVaultState(coordinator, entries: entries, sessionKey: sessionKey)
+
+        coordinator.presentPasswordMatchesOrFinish()
+
+        let searchView = try XCTUnwrap(presenter.searchView)
+        XCTAssertTrue(searchView.entries.isEmpty, "Broad fuzzy matches must not be exact results")
+        XCTAssertEqual(searchView.possibleEntries.map(\.title), ["acs.sitio.com legacy", "Sibling One", "Sibling Two"])
+    }
+
     func test_cleanup_runsOnExtensionConfigurationCancellation() {
         let (coordinator, presenter) = makeCoordinator()
         seedUnlockedVaultState(coordinator)
@@ -1072,6 +1140,36 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
             presenter.searchView,
             "No picker is presented, so the second enabled database is unreachable for this request"
         )
+        assertCleanedUp(coordinator)
+    }
+
+    func test_strictMatchWithAdditionalBroadMatch_presentsPicker() throws {
+        let (coordinator, presenter) = makeCoordinator()
+        let sessionKey = SymmetricKey(size: .bits256)
+        let entries = [
+            KPEntry(
+                title: "GitHub",
+                username: "octocat",
+                password: try EncryptedValue.encrypt("hunter2", using: sessionKey),
+                url: "https://github.com/login"
+            ),
+            KPEntry(
+                title: "github.com legacy",
+                username: "legacy",
+                password: try EncryptedValue.encrypt("hunter3", using: sessionKey),
+                url: "https://unrelated.example"
+            ),
+        ]
+
+        coordinator.serviceIdentifiers = [githubServiceIdentifier()]
+        seedUnlockedVaultState(coordinator, entries: entries, sessionKey: sessionKey)
+
+        coordinator.presentPasswordMatchesOrFinish()
+
+        XCTAssertNil(presenter.completedCredential, "A broad match must prevent zero-interaction completion")
+        let searchView = try XCTUnwrap(presenter.searchView)
+        XCTAssertEqual(searchView.entries.map(\.title), ["GitHub"])
+        searchView.onCancel()
         assertCleanedUp(coordinator)
     }
 
