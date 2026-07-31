@@ -271,8 +271,11 @@ TestFlight build was produced.
    - Any area you specifically want exercised.
 3. If this is the **first build of this marketing version**, submit for Beta App Review and expect
    roughly a day before external distribution. Later builds of the same version normally skip it.
-   Do not announce a ship date until this clears.
-4. Distribute to the public-link group.
+   Do not announce a ship date until this clears. Until it does, the published public link shows
+   *"This beta isn't accepting any new testers right now"* to everyone arriving from `README.md`
+   or keeforge.com — expected, and another reason not to announce early.
+4. Distribute to the public-link group. The link is permanently enabled and published, so this
+   reaches every tester accumulated from earlier releases, not just people who opted into this one.
 5. Record the distribution timestamp — the soak clock starts here, not at the branch cut.
 
 ## A10. Soak
