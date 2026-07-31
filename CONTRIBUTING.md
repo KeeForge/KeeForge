@@ -1,5 +1,7 @@
 # Contributing to KeeForge
 
+English | <a href="CONTRIBUTING.de.md">Deutsch</a>
+
 Thanks for helping improve KeeForge.
 
 ## Before You Start
@@ -7,6 +9,33 @@ Thanks for helping improve KeeForge.
 - For a substantial change, open an issue first so the scope and approach can be discussed.
 - Read [`AGENTS.md`](AGENTS.md), then the folder-local `README.md` nearest to the code you plan to change.
 - Keep changes focused. Security-sensitive parser, writer, crypto, secret-handling, and save-path changes require focused tests.
+
+## Requirements
+
+- iOS 18+
+- Xcode 26+
+- [XcodeGen](https://github.com/yonaskolb/XcodeGen)
+- Swift 6 with strict concurrency
+- Swift Package dependencies: [Argon2Swift](https://github.com/tmthecoder/Argon2Swift), [SwiftyDropbox](https://github.com/dropbox/SwiftyDropbox), [Microsoft Authentication Library](https://github.com/AzureAD/microsoft-authentication-library-for-objc), and the vendored [KeeForgeTwofish](Vendor/KeeForgeTwofish) package
+
+## Build From Source
+
+```bash
+cp BuildConfig.local.example.xcconfig BuildConfig.local.xcconfig
+# Fill in DROPBOX_APP_KEY and ONEDRIVE_CLIENT_ID for provider-enabled builds.
+xcodegen generate
+open KeeForge.xcodeproj
+```
+
+Select an iOS 18+ simulator or device, then build and run the `KeeForge` scheme.
+
+For command-line verification, prefer the smallest relevant test slice:
+
+```bash
+xcodebuild test -project KeeForge.xcodeproj -scheme KeeForge \
+  -destination 'platform=iOS Simulator,name=iPhone 17 Pro' \
+  -only-testing:KeeForgeTests/DatabaseViewModelTests -quiet
+```
 
 ## Development Workflow
 

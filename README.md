@@ -63,33 +63,6 @@ Anything you copy stays on the device you copied it on, never syncing to your ot
 
 Read the [privacy policy](https://keeforge.com/privacy).
 
-## Requirements
-
-- iOS 18+
-- Xcode 26+
-- [XcodeGen](https://github.com/yonaskolb/XcodeGen)
-- Swift 6 with strict concurrency
-- Swift Package dependencies: [Argon2Swift](https://github.com/tmthecoder/Argon2Swift), [SwiftyDropbox](https://github.com/dropbox/SwiftyDropbox), [Microsoft Authentication Library](https://github.com/AzureAD/microsoft-authentication-library-for-objc), and the vendored [KeeForgeTwofish](Vendor/KeeForgeTwofish) package
-
-## Build From Source
-
-```bash
-cp BuildConfig.local.example.xcconfig BuildConfig.local.xcconfig
-# Fill in DROPBOX_APP_KEY and ONEDRIVE_CLIENT_ID for provider-enabled builds.
-xcodegen generate
-open KeeForge.xcodeproj
-```
-
-Select an iOS 18+ simulator or device, then build and run the `KeeForge` scheme.
-
-For command-line verification, prefer the smallest relevant test slice:
-
-```bash
-xcodebuild test -project KeeForge.xcodeproj -scheme KeeForge \
-  -destination 'platform=iOS Simulator,name=iPhone 17 Pro' \
-  -only-testing:KeeForgeTests/DatabaseViewModelTests -quiet
-```
-
 ## Project Map
 
 ```text
@@ -130,7 +103,7 @@ scripts/              # Local dev tooling
 
 ## Contributing
 
-See [`CONTRIBUTING.md`](CONTRIBUTING.md) for the pull request workflow, Developer Certificate of Origin sign-off requirement, and licensing terms. Start with [`AGENTS.md`](AGENTS.md), then open the folder-local `README.md` closest to the code you are changing.
+See [`CONTRIBUTING.md`](CONTRIBUTING.md) for build requirements, how to build from source, the pull request workflow, the Developer Certificate of Origin sign-off requirement, and licensing terms. Start with [`AGENTS.md`](AGENTS.md), then open the folder-local `README.md` closest to the code you are changing.
 
 ## License
 
