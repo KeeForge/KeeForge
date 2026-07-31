@@ -58,7 +58,7 @@ enum WhatsNewCatalog {
                 WhatsNewFeature(
                     id: "entry-history",
                     title: "See and restore earlier versions",
-                    detail: "KeePass keeps a copy of an entry each time it changes. Now you can open them: browse an entry's earlier versions and restore one, with the current contents kept so you can undo it. Thanks to @miquno.",
+                    detail: "Browse the earlier versions of an entry and restore one. The current contents are kept, so you can undo it. Thanks to @miquno.",
                     systemImage: "clock.arrow.circlepath"
                 ),
                 WhatsNewFeature(
@@ -70,7 +70,7 @@ enum WhatsNewCatalog {
                 WhatsNewFeature(
                     id: "autofill-possible-matches",
                     title: "Clearer AutoFill suggestions",
-                    detail: "Credentials that exactly match a site are kept separate from possible matches on related subdomains, and a possible match is never filled without you choosing it. Thanks to @ftorga.",
+                    detail: "Exact matches for a site are listed apart from possible matches on related subdomains. A possible match is never filled unless you pick it. Thanks to @ftorga.",
                     systemImage: "checkmark.shield"
                 ),
                 WhatsNewFeature(
