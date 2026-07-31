@@ -35,10 +35,9 @@ New versions go out on TestFlight before they reach the App Store.
 **[Join the KeeForge beta on TestFlight](https://testflight.apple.com/join/mPAT4f1a)**
 
 > [!WARNING]
-> **Test with a copy of your database, not your primary vault.** TestFlight builds are pre-release versions that have not been through App Store review, and they can carry bugs the released app does not. The beta installs under the same bundle identifier and app container as the App Store build, so it replaces that install and opens the same real `.kdbx` files, cloud connections, and saved keys. Duplicate a database first and point the beta at the copy. Keep your own backups either way.
+> **Test with a copy of your database, not your primary vault.** Beta builds are unreviewed, and they share the App Store app's bundle identifier and container — so they open your real `.kdbx` files.
 
-> [!NOTE]
-> **The beta is not open continuously.** Places are capped at 300 testers, and joining closes whenever the group is full or a new version is still going through Apple's beta review. The link then reads "This beta isn't accepting any new testers right now" — that is normal, and it reopens on its own. Check back later.
+Places are capped at 300 testers, and joining closes while a new version is in Apple's beta review, so the link is not always open.
 
 ## Highlights
 
