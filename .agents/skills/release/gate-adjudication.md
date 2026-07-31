@@ -105,6 +105,14 @@ came from different device/OS pairs.
 CI-only flakes and accept that gate. Record the local commands and results in the release handoff.
 Proceed once the other gate is also accepted.
 
+Do **not** respin for an accepted flake. Xcode Cloud's archive action runs in parallel with its
+test action, so a red test action still produces and uploads a build — that build is the one you
+just adjudicated, and a respin would throw it away and burn a build number for nothing. Its
+`TestFlight External Testing` post-action will show *Did Not Run*, because post-actions are skipped
+on a failed build, so distribution is manual: find the build in App Store Connect under TestFlight
+and distribute it to the public-link group as usual (A9). Confirm the `{version} ({build})` pair
+matches the candidate you adjudicated before distributing.
+
 **Any failed test also fails locally** → stop. Fix it as a new commit on the release branch, then
 run Mode B: bump the build number, re-run the KDBX gate, push the next `rc/{version}-b{build}` tag,
 and repeat A8 for both workflows. Never amend or force-push the release commit.

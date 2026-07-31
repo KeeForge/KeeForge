@@ -46,8 +46,8 @@ targets:
         CODE_SIGN_ENTITLEMENTS: KeeForge/KeeForge.entitlements
         PRODUCT_NAME: KeeForge
         PRODUCT_MODULE_NAME: KeeForge
-        MARKETING_VERSION: "1.10.4"
-        CURRENT_PROJECT_VERSION: "1"
+        MARKETING_VERSION: "1.11.0"
+        CURRENT_PROJECT_VERSION: "3"
         CLOUD_KEYCHAIN_ACCESS_GROUP: $(AppIdentifierPrefix)com.keevault.sharedkeychain
         GENERATE_INFOPLIST_FILE: false
         SWIFT_EMIT_LOC_STRINGS: "YES"
@@ -154,8 +154,8 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: com.keevault.app.autofill
         CODE_SIGN_STYLE: Automatic
         CODE_SIGN_ENTITLEMENTS: AutoFillExtension/AutoFillExtension.entitlements
-        MARKETING_VERSION: "1.10.4"
-        CURRENT_PROJECT_VERSION: "1"
+        MARKETING_VERSION: "1.11.0"
+        CURRENT_PROJECT_VERSION: "3"
         GENERATE_INFOPLIST_FILE: false
         SWIFT_EMIT_LOC_STRINGS: "YES"
         LOCALIZATION_PREFERS_STRING_CATALOGS: "YES"
