@@ -1179,10 +1179,9 @@ final class CredentialProviderCoordinator {
         let matches = CredentialMatcher.matchedEntries(from: passwordEntries, for: serviceIdentifiers)
         let possibleMatches: [KPEntry]
         if strictMatches.isEmpty {
-            let broadMatches = CredentialMatcher.matchedEntries(from: passwordEntries, for: serviceIdentifiers)
             let siblingMatches = CredentialMatcher.possibleMatchedEntries(from: passwordEntries, for: serviceIdentifiers)
             var seenIDs = Set<UUID>()
-            possibleMatches = (broadMatches + siblingMatches).filter { seenIDs.insert($0.id).inserted }
+            possibleMatches = (matches + siblingMatches).filter { seenIDs.insert($0.id).inserted }
         } else {
             possibleMatches = []
         }
@@ -1234,58 +1233,27 @@ final class CredentialProviderCoordinator {
               let compositeKey,
               let openTimeSHA512,
               let reference = activeDatabaseReference,
-              let requestURL = serviceIdentifiers.first?.identifier,
-              let password = try? entry.password.decrypt(using: sessionKey) else {
+              let requestURL = serviceIdentifiers.first?.identifier else {
             cancelRequest(code: .failed)
             return
         }
-
-        var customFields = entry.customFields
-        let requestHost = CredentialMatcher.hostFromURLString(requestURL)
-        let alreadyStored = requestHost.map { requestHost in
-            ([entry.url] + entry.additionalURLs).contains { storedURL in
-                guard let storedHost = CredentialMatcher.hostFromURLString(storedURL) else { return false }
-                return storedHost == requestHost
-            }
-        } ?? false
-        guard !alreadyStored else {
-            completeRequest(with: entry)
-            return
-        }
-        var index = 1
-        while customFields["KP2A_URL_\(index)"] != nil { index += 1 }
-        customFields["KP2A_URL_\(index)"] = requestURL
-
-        let totpConfig: EntryDraftPayload.TOTPConfiguration?
-        do {
-            totpConfig = try entry.totpConfig.map { config in
-                EntryDraftPayload.TOTPConfiguration(
-                    secret: try config.secret.decrypt(using: sessionKey),
-                    decodedSecret: try config.decodedSecret?.decryptData(using: sessionKey),
-                    keeOTPSource: config.keeOTPSource,
-                    period: config.period,
-                    digits: config.digits,
-                    algorithm: config.algorithm
-                )
-            }
-        } catch {
-            cancelRequest(code: .failed)
-            return
-        }
-
-        let draft = EntryDraftPayload(
-            title: entry.title,
-            username: entry.username,
-            password: password,
-            url: entry.url,
-            notes: entry.notes,
-            customFields: customFields,
-            tags: entry.tags,
-            totpConfig: totpConfig
-        )
 
         Task { [weak self] in
             guard let self else { return }
+            let draft: EntryDraftPayload?
+            do {
+                draft = try await Task.detached(priority: .userInitiated) {
+                    try Self.makeURLAdditionDraft(for: entry, requestURL: requestURL, sessionKey: sessionKey)
+                }.value
+            } catch {
+                cancelRequest(code: .failed)
+                return
+            }
+            guard let draft else {
+                // The request URL's host is already stored on the entry.
+                completeRequest(with: entry)
+                return
+            }
             do {
                 let result = try await AutoFillSaveCoordinator.saveNewEntry(
                     draftPayload: draft,
@@ -1308,6 +1276,52 @@ final class CredentialProviderCoordinator {
                 cancelRequest(code: .failed)
             }
         }
+    }
+
+    /// Builds the update draft that appends `requestURL` as the next free
+    /// `KP2A_URL_<n>` field, carrying every other field (including TOTP)
+    /// forward unchanged. Returns nil when the URL's host is already stored.
+    /// Kept off the main actor: it decrypts the entry's secrets.
+    private nonisolated static func makeURLAdditionDraft(
+        for entry: KPEntry,
+        requestURL: String,
+        sessionKey: SymmetricKey
+    ) throws -> EntryDraftPayload? {
+        let requestHost = CredentialMatcher.hostFromURLString(requestURL)
+        let alreadyStored = requestHost.map { requestHost in
+            ([entry.url] + entry.additionalURLs).contains { storedURL in
+                guard let storedHost = CredentialMatcher.hostFromURLString(storedURL) else { return false }
+                return storedHost == requestHost
+            }
+        } ?? false
+        guard !alreadyStored else { return nil }
+
+        var customFields = entry.customFields
+        var index = 1
+        while customFields["KP2A_URL_\(index)"] != nil { index += 1 }
+        customFields["KP2A_URL_\(index)"] = requestURL
+
+        let totpConfig = try entry.totpConfig.map { config in
+            EntryDraftPayload.TOTPConfiguration(
+                secret: try config.secret.decrypt(using: sessionKey),
+                decodedSecret: try config.decodedSecret?.decryptData(using: sessionKey),
+                keeOTPSource: config.keeOTPSource,
+                period: config.period,
+                digits: config.digits,
+                algorithm: config.algorithm
+            )
+        }
+
+        return EntryDraftPayload(
+            title: entry.title,
+            username: entry.username,
+            password: try entry.password.decrypt(using: sessionKey),
+            url: entry.url,
+            notes: entry.notes,
+            customFields: customFields,
+            tags: entry.tags,
+            totpConfig: totpConfig
+        )
     }
 
     /// Matches a record identifier against entries of the request's resolved
