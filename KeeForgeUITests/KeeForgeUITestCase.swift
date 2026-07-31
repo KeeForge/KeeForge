@@ -197,12 +197,21 @@ class KeeForgeUITestCase: XCTestCase {
     /// following `typeText` fails with "Neither element nor any descendant has
     /// keyboard focus". Scroll the field clear of the keyboard first. On tall
     /// devices nothing is occluded, so the scroll loop is a no-op.
+    ///
+    /// A tap can also miss the field entirely while the screen is still
+    /// animating in, which surfaces as the same typing failure. Typing
+    /// unfocused is not recoverable — `typeText` fails the test outright — so
+    /// re-tap until the keyboard comes up. `XCUIElement.hasFocus` is not a
+    /// usable signal here: SwiftUI text fields report `false` even while
+    /// focused, so the raised keyboard is the only observable readiness cue.
+    /// When the keyboard is already up the wait returns immediately.
     private func focusFieldForTyping(_ element: XCUIElement) {
-        scrollFieldClearOfKeyboard(element)
-        if element.isHittable {
-            element.tap()
-        } else {
-            element.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+        for _ in 0 ..< 3 {
+            scrollFieldClearOfKeyboard(element)
+            tapElement(element)
+            if app.keyboards.firstMatch.waitForExistence(timeout: 2) {
+                return
+            }
         }
     }
 
