@@ -58,6 +58,43 @@ final class CloudSyncModelsTests: XCTestCase {
         XCTAssertTrue(remote.requiresDownload(comparedTo: cached, cacheExists: true))
     }
 
+    func testRequiresDownloadFallsBackToRevWhenCachedHashMissing() {
+        // A remote hash with no cached counterpart cannot be compared; the
+        // decision falls through to the rev.
+        let remote = CloudFileMetadata(
+            modifiedDate: Date(timeIntervalSince1970: 300),
+            contentHash: "quickXor:remote-hash",
+            size: 128,
+            rev: "rev-A"
+        )
+        var cached = makeCloudSyncMetadata(remoteContentHash: nil, remoteModifiedAt: Date(timeIntervalSince1970: 100))
+        cached.remoteRev = "rev-A"
+
+        XCTAssertFalse(remote.requiresDownload(comparedTo: cached, cacheExists: true))
+
+        cached.remoteRev = "rev-B"
+        XCTAssertTrue(remote.requiresDownload(comparedTo: cached, cacheExists: true))
+    }
+
+    func testRequiresDownloadWhenHashesUseDifferentTaggedAlgorithms() {
+        // Algorithm-tagged tokens (OneDrive) can never compare equal across
+        // algorithms, so a SHA-1 from one response and a QuickXor from another
+        // read as a change instead of silently comparing raw values.
+        let remote = CloudFileMetadata(
+            modifiedDate: Date(timeIntervalSince1970: 300),
+            contentHash: "quickXor:AAAA",
+            size: 128,
+            rev: "rev-A"
+        )
+        var cached = makeCloudSyncMetadata(
+            remoteContentHash: "sha1:BBBB",
+            remoteModifiedAt: Date(timeIntervalSince1970: 300)
+        )
+        cached.remoteRev = "rev-A"
+
+        XCTAssertTrue(remote.requiresDownload(comparedTo: cached, cacheExists: true))
+    }
+
     func testRequiresDownloadWhenCachedModifiedDateMissingAndNoHash() {
         let remote = makeRemoteMetadata(contentHash: nil, modifiedDate: Date(timeIntervalSince1970: 300))
         let cached = makeCloudSyncMetadata(remoteContentHash: nil, remoteModifiedAt: nil)

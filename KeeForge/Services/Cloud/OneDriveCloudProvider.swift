@@ -34,6 +34,12 @@ final class OneDriveCloudProvider: CloudProvider, @unchecked Sendable {
     /// `createUploadSession` POST. Internal for testing.
     static let uploadSessionCreationMaxAttempts = 3
 
+    /// The one `$select` list every stored rev/hash originates from. Upload
+    /// responses use a different default shape and can omit `cTag`/`eTag`/
+    /// `hashes`, so metadata is only ever derived from requests carrying this
+    /// list. Internal for testing.
+    static let metadataSelectList = "id,name,size,eTag,cTag,lastModifiedDateTime,folder,file,parentReference"
+
     /// Ceiling applied to a server-supplied `Retry-After`, so a misbehaving
     /// header cannot stall a save indefinitely.
     private static let maxRetryAfterSeconds: Double = 10
@@ -126,7 +132,7 @@ final class OneDriveCloudProvider: CloudProvider, @unchecked Sendable {
             path: Self.listChildrenPath(for: path),
             queryItems: [
                 URLQueryItem(name: "$top", value: "200"),
-                URLQueryItem(name: "$select", value: "id,name,size,eTag,cTag,lastModifiedDateTime,folder,file,parentReference"),
+                URLQueryItem(name: "$select", value: Self.metadataSelectList),
             ]
         )
 
@@ -176,13 +182,17 @@ final class OneDriveCloudProvider: CloudProvider, @unchecked Sendable {
 
     func getMetadata(accountId: String, fileId: String) async throws -> CloudFileMetadata {
         let token = try await accessToken(accountId: accountId)
+        return try await fetchItemMetadata(path: Self.itemPath(for: fileId), token: token)
+    }
+
+    private func fetchItemMetadata(path: String, token: String) async throws -> CloudFileMetadata {
         let item: OneDriveDriveItem = try await decodedGraphResponse(
             OneDriveDriveItem.self,
             request: authorizedRequest(
                 url: try Self.graphURL(
-                    path: Self.itemPath(for: fileId),
+                    path: path,
                     queryItems: [
-                        URLQueryItem(name: "$select", value: "id,name,size,eTag,cTag,lastModifiedDateTime,folder,file,parentReference"),
+                        URLQueryItem(name: "$select", value: Self.metadataSelectList),
                     ]
                 ),
                 token: token
@@ -228,7 +238,7 @@ final class OneDriveCloudProvider: CloudProvider, @unchecked Sendable {
                 progress: progress
             )
         }
-        return Self.makeCloudFileMetadata(from: item)
+        return await metadataAfterUpload(uploadedItem: item, token: token)
     }
 
     func createFile(
@@ -257,8 +267,27 @@ final class OneDriveCloudProvider: CloudProvider, @unchecked Sendable {
 
         return CloudCreatedFile(
             file: file,
-            metadata: Self.makeCloudFileMetadata(from: item)
+            metadata: await metadataAfterUpload(uploadedItem: item, token: token)
         )
+    }
+
+    /// Re-reads the committed item so the stored rev/hash come from the same
+    /// `$select`ed request shape as `getMetadata`; the upload response's shape
+    /// differs and OneDrive can omit `cTag`/`eTag`/`hashes` from it.
+    private func metadataAfterUpload(uploadedItem: OneDriveDriveItem, token: String) async -> CloudFileMetadata {
+        await Self.resolveUploadMetadata(fallback: Self.makeCloudFileMetadata(from: uploadedItem)) {
+            try await self.fetchItemMetadata(path: Self.itemIdPath(for: uploadedItem.id), token: token)
+        }
+    }
+
+    /// The upload has already committed when this runs, so a failed re-read
+    /// must not report the save as failed — fall back to the upload response's
+    /// metadata. Internal for testing.
+    static func resolveUploadMetadata(
+        fallback: CloudFileMetadata,
+        fetchAuthoritative: () async throws -> CloudFileMetadata
+    ) async -> CloudFileMetadata {
+        (try? await fetchAuthoritative()) ?? fallback
     }
 
     @MainActor
@@ -960,6 +989,12 @@ final class OneDriveCloudProvider: CloudProvider, @unchecked Sendable {
         "me/drive/root:\(encodedGraphPath(normalizedCloudPath(path))):"
     }
 
+    /// Addresses an item by its Graph item id (as returned in an upload
+    /// response), immune to concurrent renames of the path.
+    static func itemIdPath(for itemId: String) -> String {
+        "me/drive/items/\(itemId)"
+    }
+
     static func contentPath(for path: String) -> String {
         "me/drive/root:\(encodedGraphPath(normalizedCloudPath(path))):/content"
     }
@@ -1105,10 +1140,27 @@ final class OneDriveCloudProvider: CloudProvider, @unchecked Sendable {
     private static func makeCloudFileMetadata(from item: OneDriveDriveItem) -> CloudFileMetadata {
         CloudFileMetadata(
             modifiedDate: item.lastModifiedDateTime ?? .now,
-            contentHash: item.file?.hashes?.sha1Hash ?? item.file?.hashes?.quickXorHash,
+            contentHash: taggedContentHash(
+                quickXorHash: item.file?.hashes?.quickXorHash,
+                sha1Hash: item.file?.hashes?.sha1Hash
+            ),
             size: item.size ?? 0,
             rev: item.cTag ?? item.eTag
         )
+    }
+
+    /// Prefers `quickXorHash`, the only hash Graph guarantees on both Personal
+    /// and Business drives, and tags the algorithm into the opaque token so
+    /// hashes of different algorithms can never compare equal. Internal for
+    /// testing.
+    static func taggedContentHash(quickXorHash: String?, sha1Hash: String?) -> String? {
+        if let quickXorHash {
+            return "quickXor:\(quickXorHash)"
+        }
+        if let sha1Hash {
+            return "sha1:\(sha1Hash)"
+        }
+        return nil
     }
 
     private static func displayPath(for item: OneDriveDriveItem) -> String {

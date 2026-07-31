@@ -241,6 +241,220 @@ final class CloudDatabaseSaverTests: XCTestCase {
         XCTAssertTrue(DatabaseListStore.recentBackups(for: reference).isEmpty)
     }
 
+    // MARK: - Stale-tag phantom-conflict guard
+
+    // Revision tags can go stale without any real remote edit (OneDrive
+    // rewrites cTag/eTag after async post-processing). A remote whose bytes
+    // are identical to the opened copy has no conflict to resolve, so the
+    // saver rebases onto the fresh rev instead of surfacing a phantom alert.
+
+    func testSaveStaleRevWithByteIdenticalRemoteProceedsWithFreshRev() async throws {
+        let reference = try makeCloudReference(remoteRev: "rev-A")
+        let cacheURL = DatabaseListStore.cacheLocation(for: reference)
+        let context = try makeDirtySaveContext(cacheURL: cacheURL, entryTitle: "Stale Tag Entry")
+        let recorder = UploadRecorder()
+        let environment = makeEnvironment(
+            getMetadata: { _ in
+                CloudFileMetadata(
+                    modifiedDate: Date(timeIntervalSince1970: 160),
+                    contentHash: "remote-hash-B",
+                    size: Int64(context.currentData.count),
+                    rev: "rev-B"
+                )
+            },
+            upload: { _, data, expectedRev, progress in
+                await recorder.record(data: data, expectedRev: expectedRev)
+                progress(1)
+                return CloudFileMetadata(
+                    modifiedDate: Date(timeIntervalSince1970: 200),
+                    contentHash: "remote-hash-C",
+                    size: Int64(data.count),
+                    rev: "rev-C"
+                )
+            },
+            downloadRemoteData: { _ in context.currentData }
+        )
+
+        let result = try await CloudDatabaseSaver.save(
+            draft: context.draft,
+            reference: reference,
+            compositeKey: context.compositeKey,
+            openTimeSHA512: context.openTimeSHA512,
+            expectedRev: "rev-A",
+            environment: environment
+        )
+
+        guard case .saved = result else {
+            XCTFail("A stale rev over byte-identical remote content must not conflict.")
+            return
+        }
+
+        let firstUploadCall = await recorder.firstCall()
+        let uploadCall = try XCTUnwrap(firstUploadCall)
+        let uploadCallCount = await recorder.callCount()
+        let updatedReference = try XCTUnwrap(DatabaseListStore.databases.first(where: { $0.id == reference.id }))
+
+        XCTAssertEqual(uploadCallCount, 1)
+        XCTAssertEqual(uploadCall.expectedRev, "rev-B", "The save must rebase onto the fresh rev.")
+        XCTAssertEqual(updatedReference.cloudSyncMetadata?.remoteRev, "rev-C")
+    }
+
+    /// Reproduces the original OneDrive failure directly: upload responses
+    /// stripped of rev and hash while `getMetadata` reports the server's own
+    /// tag. The second save in a session must still succeed.
+    func testSecondSaveSucceedsWhenUploadResponsesAreStrippedOfRevAndHash() async throws {
+        var reference = try makeCloudReference(remoteRev: "rev-A")
+        let initialData = try Data(contentsOf: DatabaseListStore.cacheLocation(for: reference))
+        let recorder = UploadRecorder()
+        let environment = makeEnvironment(
+            getMetadata: { _ in
+                CloudFileMetadata(
+                    modifiedDate: Date(timeIntervalSince1970: 160),
+                    contentHash: "quickXor:server-hash",
+                    size: Int64(initialData.count),
+                    rev: "rev-server"
+                )
+            },
+            upload: { _, data, expectedRev, progress in
+                await recorder.record(data: data, expectedRev: expectedRev)
+                progress(1)
+                return CloudFileMetadata(
+                    modifiedDate: Date(timeIntervalSince1970: 200),
+                    contentHash: nil,
+                    size: Int64(data.count),
+                    rev: nil
+                )
+            },
+            downloadRemoteData: { _ in
+                // The remote holds whatever was uploaded last.
+                await recorder.lastCall()?.data ?? initialData
+            }
+        )
+
+        for index in 0..<2 {
+            let cacheURL = DatabaseListStore.cacheLocation(for: reference)
+            let context = try makeDirtySaveContext(cacheURL: cacheURL, entryTitle: "Stripped Metadata Entry \(index)")
+
+            let result = try await CloudDatabaseSaver.save(
+                draft: context.draft,
+                reference: reference,
+                compositeKey: context.compositeKey,
+                openTimeSHA512: context.openTimeSHA512,
+                expectedRev: reference.expectedCloudRevision,
+                environment: environment
+            )
+
+            guard case .saved = result else {
+                XCTFail("Save \(index) must succeed despite stripped upload metadata.")
+                return
+            }
+
+            reference = try XCTUnwrap(DatabaseListStore.databases.first(where: { $0.id == reference.id }))
+        }
+
+        let uploadCallCount = await recorder.callCount()
+        let recordedLastCall = await recorder.lastCall()
+        let lastUploadCall = try XCTUnwrap(recordedLastCall)
+        XCTAssertEqual(uploadCallCount, 2)
+        XCTAssertEqual(lastUploadCall.expectedRev, "rev-server")
+    }
+
+    func testSaveUploadConflictWithByteIdenticalRemoteRetriesOnceWithRefreshedRev() async throws {
+        let reference = try makeCloudReference(remoteRev: "rev-A")
+        let cacheURL = DatabaseListStore.cacheLocation(for: reference)
+        let context = try makeDirtySaveContext(cacheURL: cacheURL, entryTitle: "Stale 412 Entry")
+        let recorder = UploadRecorder()
+        // Pre-check sees the recorded rev; the post-412 refresh sees the
+        // mutated one.
+        let revisions = RevisionSequence(["rev-A", "rev-B"])
+        let environment = makeEnvironment(
+            getMetadata: { _ in
+                CloudFileMetadata(
+                    modifiedDate: Date(timeIntervalSince1970: 150),
+                    contentHash: "remote-hash-A",
+                    size: Int64(context.currentData.count),
+                    rev: await revisions.next()
+                )
+            },
+            upload: { _, data, expectedRev, progress in
+                await recorder.record(data: data, expectedRev: expectedRev)
+                progress(1)
+                if await recorder.callCount() == 1 {
+                    throw CloudProviderError.conflict(remoteRev: "rev-B")
+                }
+                return CloudFileMetadata(
+                    modifiedDate: Date(timeIntervalSince1970: 200),
+                    contentHash: "remote-hash-C",
+                    size: Int64(data.count),
+                    rev: "rev-C"
+                )
+            },
+            downloadRemoteData: { _ in context.currentData }
+        )
+
+        let result = try await CloudDatabaseSaver.save(
+            draft: context.draft,
+            reference: reference,
+            compositeKey: context.compositeKey,
+            openTimeSHA512: context.openTimeSHA512,
+            expectedRev: "rev-A",
+            environment: environment
+        )
+
+        guard case .saved = result else {
+            XCTFail("A 412 over byte-identical remote content must retry and succeed.")
+            return
+        }
+
+        let uploadCallCount = await recorder.callCount()
+        let recordedRetryCall = await recorder.lastCall()
+        let retryCall = try XCTUnwrap(recordedRetryCall)
+        XCTAssertEqual(uploadCallCount, 2)
+        XCTAssertEqual(retryCall.expectedRev, "rev-B", "The retry must carry the refreshed rev.")
+    }
+
+    func testSaveUploadConflictRetryAlsoConflictingStopsAfterExactlyOneRetry() async throws {
+        let reference = try makeCloudReference(remoteRev: "rev-A")
+        let cacheURL = DatabaseListStore.cacheLocation(for: reference)
+        let context = try makeDirtySaveContext(cacheURL: cacheURL, entryTitle: "Persistent 412 Entry")
+        let recorder = UploadRecorder()
+        let environment = makeEnvironment(
+            getMetadata: { _ in
+                CloudFileMetadata(
+                    modifiedDate: Date(timeIntervalSince1970: 150),
+                    contentHash: "remote-hash-A",
+                    size: Int64(context.currentData.count),
+                    rev: "rev-A"
+                )
+            },
+            upload: { _, data, expectedRev, progress in
+                await recorder.record(data: data, expectedRev: expectedRev)
+                progress(1)
+                throw CloudProviderError.conflict(remoteRev: "rev-B")
+            },
+            downloadRemoteData: { _ in context.currentData }
+        )
+
+        let result = try await CloudDatabaseSaver.save(
+            draft: context.draft,
+            reference: reference,
+            compositeKey: context.compositeKey,
+            openTimeSHA512: context.openTimeSHA512,
+            expectedRev: "rev-A",
+            environment: environment
+        )
+
+        guard case .conflict(let remoteSHA512, let conflictData) = result else {
+            XCTFail("A conflict that survives one guarded retry must surface as a conflict.")
+            return
+        }
+
+        let uploadCallCount = await recorder.callCount()
+        XCTAssertEqual(uploadCallCount, 2, "Exactly one retry, never a loop.")
+        XCTAssertEqual(remoteSHA512, KDBXCrypto.sha512(context.currentData))
+        XCTAssertEqual(conflictData, context.currentData)
+    }
+
     func testSaveLocalCacheChangedSinceOpenReturnsConflictBeforeUploadAttempted() async throws {
         let reference = try makeCloudReference(remoteRev: "rev-A")
         let cacheURL = DatabaseListStore.cacheLocation(for: reference)
@@ -913,8 +1127,24 @@ private actor UploadRecorder {
         calls.first
     }
 
+    func lastCall() -> Call? {
+        calls.last
+    }
+
     func callCount() -> Int {
         calls.count
+    }
+}
+
+private actor RevisionSequence {
+    private var revisions: [String]
+
+    init(_ revisions: [String]) {
+        self.revisions = revisions
+    }
+
+    func next() -> String {
+        revisions.count > 1 ? revisions.removeFirst() : revisions[0]
     }
 }
 

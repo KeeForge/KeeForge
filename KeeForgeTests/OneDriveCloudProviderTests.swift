@@ -91,6 +91,88 @@ final class OneDriveCloudProviderTests: XCTestCase {
         XCTAssertEqual(url.absoluteString, "\(graphBase)/me/drive/root/children")
     }
 
+    // MARK: - Post-upload metadata re-read
+
+    // Upload responses come in a different shape than the `$select`ed metadata
+    // GET and can omit cTag/eTag/hashes, so `upload`/`createFile` re-read the
+    // committed item and only fall back to the upload response when the
+    // re-read fails (the upload has already committed by then).
+
+    func testItemIdURLCarriesTheSharedMetadataSelectList() throws {
+        let url = try OneDriveCloudProvider.graphURL(
+            path: OneDriveCloudProvider.itemIdPath(for: "01BYE5RZ6QN3ZWBTUFOFD3GSPGOHDJD36K"),
+            queryItems: [URLQueryItem(name: "$select", value: OneDriveCloudProvider.metadataSelectList)]
+        )
+
+        XCTAssertEqual(
+            url.absoluteString,
+            "\(graphBase)/me/drive/items/01BYE5RZ6QN3ZWBTUFOFD3GSPGOHDJD36K"
+                + "?$select=id,name,size,eTag,cTag,lastModifiedDateTime,folder,file,parentReference"
+        )
+    }
+
+    func testItemIdURLAcceptsPersonalDriveIdsContainingBang() throws {
+        let url = try OneDriveCloudProvider.graphURL(
+            path: OneDriveCloudProvider.itemIdPath(for: "F5E2A6C4D1B3!114")
+        )
+
+        XCTAssertEqual(url.absoluteString, "\(graphBase)/me/drive/items/F5E2A6C4D1B3!114")
+    }
+
+    func testResolveUploadMetadataReturnsTheAuthoritativeReRead() async {
+        let fallback = CloudFileMetadata(
+            modifiedDate: Date(timeIntervalSince1970: 100),
+            contentHash: nil,
+            size: 64,
+            rev: nil
+        )
+        let authoritative = CloudFileMetadata(
+            modifiedDate: Date(timeIntervalSince1970: 200),
+            contentHash: "quickXor:full-hash",
+            size: 64,
+            rev: "cTag-full"
+        )
+
+        let resolved = await OneDriveCloudProvider.resolveUploadMetadata(fallback: fallback) {
+            authoritative
+        }
+
+        XCTAssertEqual(resolved, authoritative)
+    }
+
+    func testResolveUploadMetadataFallsBackWhenTheReReadFails() async {
+        // The upload already committed, so a failed re-read must not fail the
+        // save; the upload response's metadata is returned instead.
+        let fallback = CloudFileMetadata(
+            modifiedDate: Date(timeIntervalSince1970: 100),
+            contentHash: nil,
+            size: 64,
+            rev: "cTag-upload"
+        )
+
+        let resolved = await OneDriveCloudProvider.resolveUploadMetadata(fallback: fallback) {
+            throw CloudProviderError.serviceUnavailable
+        }
+
+        XCTAssertEqual(resolved, fallback)
+    }
+
+    // MARK: - Content-hash tagging
+
+    func testTaggedContentHashPrefersQuickXorAndTagsTheAlgorithm() {
+        // quickXorHash is the only hash Graph guarantees on both Personal and
+        // Business drives; the tag keeps two algorithms from comparing equal.
+        XCTAssertEqual(
+            OneDriveCloudProvider.taggedContentHash(quickXorHash: "QX==", sha1Hash: "SHA1HEX"),
+            "quickXor:QX=="
+        )
+        XCTAssertEqual(
+            OneDriveCloudProvider.taggedContentHash(quickXorHash: nil, sha1Hash: "SHA1HEX"),
+            "sha1:SHA1HEX"
+        )
+        XCTAssertNil(OneDriveCloudProvider.taggedContentHash(quickXorHash: nil, sha1Hash: nil))
+    }
+
     // MARK: - Simple-upload threshold
 
     func testSimpleUploadUsedJustBelowLimit() {
