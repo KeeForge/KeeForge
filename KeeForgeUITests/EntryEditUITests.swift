@@ -447,8 +447,8 @@ final class EntryEditSmokeUITests: EntryEditUITestCase {
         )
     }
 
-    func testRevealedPasswordUpdatesAfterEditing() {
-        let updatedPassword = "updated-visible-password"
+    func testRevealedPasswordUpdatesAndWrapsWithoutExtraCharacters() {
+        let updatedPassword = String(repeating: "Ab3!", count: 24)
 
         unlockSuccessfully()
         openEntry(named: discordEntryTitle, inGroup: socialGroupName)
@@ -470,10 +470,18 @@ final class EntryEditSmokeUITests: EntryEditUITestCase {
         saveButton.tap()
         XCTAssertTrue(waitForSaveCompletion(saveButton: saveButton, timeout: 10))
 
+        let revealedPassword = app.staticTexts[updatedPassword]
         XCTAssertTrue(
-            app.staticTexts[updatedPassword].waitForExistence(timeout: Self.ciElementTimeout),
+            revealedPassword.waitForExistence(timeout: Self.ciElementTimeout),
             "The already-revealed password did not refresh after the edit was saved"
         )
+        XCTAssertEqual(revealedPassword.label, updatedPassword)
+        XCTAssertGreaterThan(revealedPassword.frame.height, 30, "The long password should wrap onto multiple lines")
+
+        let attachment = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+        attachment.name = "wrapped-revealed-password"
+        attachment.lifetime = .keepAlways
+        add(attachment)
     }
 }
 

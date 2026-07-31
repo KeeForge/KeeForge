@@ -57,17 +57,27 @@ struct PasswordDisplayText: View {
     }
 
     var body: some View {
-        password.reduce(Text("")) { result, char in
-            result + Text(String(char))
-                .foregroundColor(color(for: char))
-        }
-        .font(.body.monospaced())
+        Text(styledPassword)
+            .font(.body.monospaced())
+            .accessibilityLabel(Text(verbatim: password))
     }
 
-    private func color(for char: Character) -> Color {
-        if char.isLetter {
+    private var styledPassword: AttributedString {
+        var result = AttributedString()
+
+        for character in password {
+            var segment = AttributedString(String(character))
+            segment.foregroundColor = color(for: character)
+            result.append(segment)
+        }
+
+        return result
+    }
+
+    private func color(for character: Character) -> Color {
+        if character.isLetter {
             return .primary
-        } else if char.isNumber {
+        } else if character.isNumber {
             return .blue
         } else {
             return .orange
