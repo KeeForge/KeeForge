@@ -63,33 +63,6 @@ Kopierte Inhalte bleiben auf dem Gerät, auf dem du sie kopiert hast, werden nie
 
 Lies die [Datenschutzerklärung](https://keeforge.com/de/privacy) ([englisches Original](https://keeforge.com/privacy)).
 
-## Voraussetzungen
-
-- iOS 18+
-- Xcode 26+
-- [XcodeGen](https://github.com/yonaskolb/XcodeGen)
-- Swift 6 mit Strict Concurrency
-- Swift-Package-Abhängigkeiten: [Argon2Swift](https://github.com/tmthecoder/Argon2Swift), [SwiftyDropbox](https://github.com/dropbox/SwiftyDropbox), [Microsoft Authentication Library](https://github.com/AzureAD/microsoft-authentication-library-for-objc) und das mitgelieferte [KeeForgeTwofish](Vendor/KeeForgeTwofish)-Paket
-
-## Aus dem Quellcode bauen
-
-```bash
-cp BuildConfig.local.example.xcconfig BuildConfig.local.xcconfig
-# Für Builds mit Cloud-Anbietern DROPBOX_APP_KEY und ONEDRIVE_CLIENT_ID eintragen.
-xcodegen generate
-open KeeForge.xcodeproj
-```
-
-Wähle einen Simulator oder ein Gerät mit iOS 18+ und baue und starte das Schema `KeeForge`.
-
-Für die Verifikation über die Kommandozeile bevorzuge den kleinsten relevanten Test-Ausschnitt:
-
-```bash
-xcodebuild test -project KeeForge.xcodeproj -scheme KeeForge \
-  -destination 'platform=iOS Simulator,name=iPhone 17 Pro' \
-  -only-testing:KeeForgeTests/DatabaseViewModelTests -quiet
-```
-
 ## Projektübersicht
 
 ```text
@@ -122,7 +95,7 @@ scripts/              # Lokale Entwickler-Tools
 - [`SECURITY.md`](SECURITY.md) – Richtlinie zur Meldung von Sicherheitslücken
 - [`docs/`](docs/) – Implementierungs-Specs, Audits und längere Design-Dokumente
 
-Die Entwicklerdokumentation wird nur auf Englisch gepflegt.
+Außer dieser README und [`CONTRIBUTING.de.md`](CONTRIBUTING.de.md) wird die Entwicklerdokumentation nur auf Englisch gepflegt.
 
 ## Support
 
@@ -132,7 +105,7 @@ Die Entwicklerdokumentation wird nur auf Englisch gepflegt.
 
 ## Mitwirken
 
-Siehe [`CONTRIBUTING.md`](CONTRIBUTING.md) für den Pull-Request-Workflow, die Sign-off-Pflicht nach dem Developer Certificate of Origin und die Lizenzbedingungen. Beginne mit [`AGENTS.md`](AGENTS.md) und öffne dann die ordnerlokale `README.md`, die dem Code am nächsten liegt, den du änderst.
+Siehe [`CONTRIBUTING.de.md`](CONTRIBUTING.de.md) für die Build-Voraussetzungen, das Bauen aus dem Quellcode, den Pull-Request-Workflow, die Sign-off-Pflicht nach dem Developer Certificate of Origin und die Lizenzbedingungen. Beginne mit [`AGENTS.md`](AGENTS.md) und öffne dann die ordnerlokale `README.md`, die dem Code am nächsten liegt, den du änderst.
 
 ## Lizenz
 

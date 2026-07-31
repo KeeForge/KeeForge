@@ -67,7 +67,7 @@ Repo skills live in `.agents/skills/` (`release`, `spec-creator`, `publish-app-s
 - UI text is localized with Xcode String Catalogs (`.xcstrings`), source language `en`. Currently shipped locales: `en`, `de`.
 - Four catalogs: `Localizable.xcstrings` + `InfoPlist.xcstrings` under `KeeForge/Resources/`, mirrored under `AutoFillExtension/`; the same four also serve the macOS targets. Reach user-facing strings via `String(localized:)` (or SwiftUI's automatic catalog lookup) — never hardcode display text.
 - Every English key needs a translation in each shipped locale; `KeeForgeTests/LocalizationTests.swift` fails on missing or drifted translations (currently checks `de`) and also runs in `KeeForgeMacTests`. Run it after touching any catalog.
-- When adding a new locale, also translate the root `README.md` (see `README.de.md`; folder-local READMEs and developer docs stay English-only) and the separate `keeforge.com` website repo, which needs the same locale coverage.
+- When adding a new locale, also translate the root `README.md` and `CONTRIBUTING.md` (see `README.de.md` and `CONTRIBUTING.de.md`; folder-local READMEs and the rest of the developer docs stay English-only) and the separate `keeforge.com` website repo, which needs the same locale coverage.
 - Xcode reserializes `.xcstrings` into its own canonical style on open/build, so editing a catalog as plain JSON causes a large reordering diff next time. After any programmatic catalog edit, run `swift scripts/normalize-xcstrings.swift` (no args = all catalogs; `--check` verifies) so committed bytes match Xcode's.
 
 ### Research Notes
