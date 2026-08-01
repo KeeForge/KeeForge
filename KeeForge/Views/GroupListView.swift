@@ -140,6 +140,7 @@ struct GroupListView: View {
                             )
                         }
                     }
+                    .id(viewModel.contentRevision)
                     .navigationTitle(resolvedGroup.name)
                     .navigationBarTitleDisplayMode(.large)
                     .toolbar {

@@ -23,6 +23,7 @@ struct EntryListView: View {
                 List(entries) { entry in
                     entryRow(for: entry)
                 }
+                .id(viewModel.contentRevision)
             }
         }
         // Outside the branches: deleting the last entry flips to the empty

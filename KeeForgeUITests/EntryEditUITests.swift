@@ -439,6 +439,10 @@ final class EntryEditSmokeUITests: EntryEditUITestCase {
 
         XCTAssertTrue(app.navigationBars[editedDiscordTitle].waitForExistence(timeout: 5))
         tapBackButton()
+        XCTAssertTrue(
+            revealElement(entry(named: editedDiscordTitle)),
+            "Edited entry title was not visible immediately after returning to the Social group"
+        )
         tapBackButton()
         openGroup(named: socialGroupName)
         XCTAssertTrue(

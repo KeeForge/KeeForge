@@ -1729,6 +1729,51 @@ final class DatabaseViewModelTests: XCTestCase {
         }
     }
 
+    func testEntryEditRefreshesTitleUsernameSearchAndSort() async throws {
+        let vm = try await makeCreatedViewModel(displayName: "Entry Refresh")
+        let parentGroupID = try XCTUnwrap(vm.visibleRootGroupID)
+
+        try vm.applyEntryEdit(
+            .createEntry(
+                parentGroupID: parentGroupID,
+                draft: EntryDraftPayload(title: "Zulu", username: "old-user")
+            )
+        )
+        try vm.applyEntryEdit(
+            .createEntry(
+                parentGroupID: parentGroupID,
+                draft: EntryDraftPayload(title: "Bravo", username: "other-user")
+            )
+        )
+
+        let editedEntryID = try XCTUnwrap(
+            vm.group(withID: parentGroupID)?.entries.first(where: { $0.title == "Zulu" })?.id
+        )
+        vm.sortOrder = .title
+        vm.sortAscending = true
+        vm.searchText = "old-user"
+        XCTAssertEqual(vm.searchResults.map(\.id), [editedEntryID])
+
+        try vm.applyEntryEdit(
+            .updateEntry(
+                entryID: editedEntryID,
+                draft: EntryDraftPayload(title: "Alpha", username: "new-user")
+            )
+        )
+
+        let editedEntry = try XCTUnwrap(vm.entry(withID: editedEntryID))
+        XCTAssertEqual(editedEntry.title, "Alpha")
+        XCTAssertEqual(editedEntry.username, "new-user")
+        XCTAssertTrue(vm.searchResults.isEmpty)
+
+        vm.searchText = "new-user"
+        XCTAssertEqual(vm.searchResults.map(\.id), [editedEntryID])
+        XCTAssertEqual(
+            vm.sortedEntries(vm.group(withID: parentGroupID)?.entries ?? []).map(\.title),
+            ["Alpha", "Bravo"]
+        )
+    }
+
     // MARK: - Tag index
 
     func testTagIndexListsDistinctTagsWithCounts() async throws {
