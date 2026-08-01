@@ -5008,6 +5008,22 @@
         }
       }
     },
+    "KeeForge is now fully translated into French throughout the app and AutoFill." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge ist jetzt in der gesamten App und in AutoFill vollständig ins Französische übersetzt."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge est désormais entièrement traduit en français dans toute l'app et le remplissage automatique."
+          }
+        }
+      }
+    },
     "KeeForge is now fully translated into German throughout the app and AutoFill." : {
       "localizations" : {
         "de" : {
@@ -9853,6 +9869,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Utiliser le nom de fichier"
+          }
+        }
+      }
+    },
+    "Use KeeForge in French" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge auf Französisch verwenden"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Utiliser KeeForge en français"
           }
         }
       }

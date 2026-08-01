@@ -79,6 +79,12 @@ enum WhatsNewCatalog {
                     detail: "Choose from the standard KeePass icon set so your groups are recognizable at a glance. Thanks to @miquno.",
                     systemImage: "paintpalette"
                 ),
+                WhatsNewFeature(
+                    id: "french-localization",
+                    title: "Use KeeForge in French",
+                    detail: "KeeForge is now fully translated into French throughout the app and AutoFill.",
+                    systemImage: "globe"
+                ),
             ]
         case "1.10.4":
             features = [
