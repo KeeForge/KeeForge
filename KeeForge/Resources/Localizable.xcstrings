@@ -3859,7 +3859,7 @@
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "El contenido de la base de datos, las contraseñas, los archivos de clave y los archivos de caja fuerte sin procesar nunca se incluyen. Los datos de diagnóstico visibles pueden incluir metadatos de la app y del dispositivo, así como prefijos cortos de hashes de archivos."
+            "value" : "El contenido de la base de datos, las contraseñas, los archivos de clave y los archivos de bóveda sin procesar nunca se incluyen. Los datos de diagnóstico visibles pueden incluir metadatos de la app y del dispositivo, así como prefijos cortos de hashes de archivos."
           }
         },
         "fr" : {
@@ -6499,7 +6499,7 @@
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "KeeForge ahora puede abrir cajas fuertes antiguas de KeePass 3.1 y bases de datos protegidas con Twofish, y conserva su cifrado original al guardar."
+            "value" : "KeeForge ahora puede abrir bóvedas antiguas de KeePass 3.1 y bases de datos protegidas con Twofish, y conserva su cifrado original al guardar."
           }
         },
         "fr" : {
@@ -8281,7 +8281,7 @@
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "No se requiere una cuenta de GitHub ni una dirección de correo electrónico. KeeForge solo envía el mensaje que escribe, los detalles visibles del error adjuntos, su dirección de correo electrónico si permite el seguimiento, y la foto si adjunta una. Los informes de apertura de bases de datos pueden incluir metadatos visibles de la aplicación y el dispositivo, el estado de la sincronización con la nube y prefijos cortos de hash de archivo, pero nunca el contenido de la base de datos, las contraseñas, los archivos de clave ni los archivos de caja fuerte sin procesar."
+            "value" : "No se requiere una cuenta de GitHub ni una dirección de correo electrónico. KeeForge solo envía el mensaje que escribe, los detalles visibles del error adjuntos, su dirección de correo electrónico si permite el seguimiento, y la foto si adjunta una. Los informes de apertura de bases de datos pueden incluir metadatos visibles de la aplicación y el dispositivo, el estado de la sincronización con la nube y prefijos cortos de hash de archivo, pero nunca el contenido de la base de datos, las contraseñas, los archivos de clave ni los archivos de bóveda sin procesar."
           }
         },
         "fr" : {
@@ -13826,7 +13826,7 @@
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Caja fuerte no cargada"
+            "value" : "Bóveda no cargada"
           }
         },
         "fr" : {
