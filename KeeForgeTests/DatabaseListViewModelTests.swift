@@ -1,4 +1,3 @@
-import AuthenticationServices
 import XCTest
 @testable import KeeForge
 
@@ -26,9 +25,6 @@ final class DatabaseListViewModelTests: XCTestCase {
         SettingsService.showDatabaseUsageStats = true
         AutoFillStatusService.resetForTesting()
         AutoFillStatusService.defaults = .standard
-        AutoFillStatusService.enabledProvider = {
-            await ASCredentialIdentityStore.shared.state().isEnabled
-        }
         UserDefaults.standard.removePersistentDomain(forName: autoFillSuiteName)
         await resetCredentialIdentityStoreState()
         try await super.tearDown()
@@ -337,6 +333,101 @@ final class DatabaseListViewModelTests: XCTestCase {
         let freshViewModel = DatabaseListViewModel()
         await freshViewModel.refreshAutoFillStatus()
         XCTAssertFalse(freshViewModel.shouldShowAutoFillTip)
+    }
+
+    // MARK: - Declined provider-enable requests
+
+    func testRequestEnableAutoFillReportsRejectionWhenProviderStaysOff() async throws {
+        _ = try DatabaseListStore.add(url: makeTemporaryFileURL(name: "personal.kdbx"))
+        AutoFillStatusService.enabledProvider = { false }
+        AutoFillStatusService.enableRequester = { false }
+        let viewModel = DatabaseListViewModel()
+        await viewModel.refreshAutoFillStatus()
+
+        await viewModel.requestEnableAutoFill()
+
+        XCTAssertTrue(
+            viewModel.isAutoFillEnableRequestRejected,
+            "a declined request must be reported, not left looking like a switch that reset itself"
+        )
+        XCTAssertEqual(viewModel.isAutoFillProviderEnabled, false)
+        XCTAssertTrue(viewModel.shouldShowAutoFillTip)
+    }
+
+    func testRequestEnableAutoFillReportsNothingWhenProviderTurnsOn() async throws {
+        _ = try DatabaseListStore.add(url: makeTemporaryFileURL(name: "personal.kdbx"))
+        AutoFillStatusService.enabledProvider = { false }
+        AutoFillStatusService.enableRequester = { true }
+        let viewModel = DatabaseListViewModel()
+        await viewModel.refreshAutoFillStatus()
+
+        await viewModel.requestEnableAutoFill()
+
+        XCTAssertFalse(viewModel.isAutoFillEnableRequestRejected)
+        XCTAssertEqual(viewModel.isAutoFillProviderEnabled, true)
+        XCTAssertFalse(viewModel.shouldShowAutoFillTip)
+    }
+
+    /// The declined result is a report about the sheet, not about the store: if
+    /// the provider is on anyway, there is nothing to explain to the user.
+    func testRequestEnableAutoFillPrefersRealStateOverDeclinedResult() async throws {
+        _ = try DatabaseListStore.add(url: makeTemporaryFileURL(name: "personal.kdbx"))
+        AutoFillStatusService.enabledProvider = { true }
+        AutoFillStatusService.enableRequester = { false }
+        let viewModel = DatabaseListViewModel()
+
+        await viewModel.requestEnableAutoFill()
+
+        XCTAssertFalse(viewModel.isAutoFillEnableRequestRejected)
+        XCTAssertEqual(viewModel.isAutoFillProviderEnabled, true)
+    }
+
+    /// macOS returns nil because no extension ships there yet; nothing was
+    /// asked, so nothing may be reported.
+    func testRequestEnableAutoFillReportsNothingWhenRequestIsANoOp() async throws {
+        _ = try DatabaseListStore.add(url: makeTemporaryFileURL(name: "personal.kdbx"))
+        AutoFillStatusService.enabledProvider = { false }
+        AutoFillStatusService.enableRequester = { nil }
+        let viewModel = DatabaseListViewModel()
+        await viewModel.refreshAutoFillStatus()
+
+        await viewModel.requestEnableAutoFill()
+
+        XCTAssertFalse(viewModel.isAutoFillEnableRequestRejected)
+        XCTAssertEqual(viewModel.isAutoFillProviderEnabled, false)
+    }
+
+    /// The note is persistent, so it has to retire itself: once the provider is
+    /// on — however it got there, including from iOS Settings — a stale "the
+    /// last attempt did not work" line would be a lie.
+    func testEnabledProviderRetiresTheRejectionNote() async throws {
+        _ = try DatabaseListStore.add(url: makeTemporaryFileURL(name: "personal.kdbx"))
+        AutoFillStatusService.enabledProvider = { false }
+        AutoFillStatusService.enableRequester = { false }
+        let viewModel = DatabaseListViewModel()
+        await viewModel.requestEnableAutoFill()
+        XCTAssertTrue(viewModel.isAutoFillEnableRequestRejected)
+
+        AutoFillStatusService.enabledProvider = { true }
+        await viewModel.refreshAutoFillStatus()
+
+        XCTAssertFalse(viewModel.isAutoFillEnableRequestRejected)
+        XCTAssertEqual(viewModel.isAutoFillProviderEnabled, true)
+    }
+
+    func testSuccessfulEnableRetiresAnEarlierRejectionNote() async throws {
+        _ = try DatabaseListStore.add(url: makeTemporaryFileURL(name: "personal.kdbx"))
+        AutoFillStatusService.enabledProvider = { false }
+        AutoFillStatusService.enableRequester = { false }
+        let viewModel = DatabaseListViewModel()
+        await viewModel.requestEnableAutoFill()
+        XCTAssertTrue(viewModel.isAutoFillEnableRequestRejected)
+
+        AutoFillStatusService.enableRequester = { true }
+        await viewModel.requestEnableAutoFill()
+
+        XCTAssertFalse(viewModel.isAutoFillEnableRequestRejected)
+        XCTAssertEqual(viewModel.isAutoFillProviderEnabled, true)
     }
 
     func testPickerPresentationStateKeepsTargetUntilCompletion() {

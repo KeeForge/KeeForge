@@ -1,4 +1,3 @@
-import AuthenticationServices
 import XCTest
 @testable import KeeForge
 
@@ -17,9 +16,6 @@ final class AutoFillStatusServiceTests: XCTestCase {
     override func tearDown() {
         AutoFillStatusService.resetForTesting()
         AutoFillStatusService.defaults = .standard
-        AutoFillStatusService.enabledProvider = {
-            await ASCredentialIdentityStore.shared.state().isEnabled
-        }
         UserDefaults.standard.removePersistentDomain(forName: suiteName)
         super.tearDown()
     }
@@ -54,6 +50,22 @@ final class AutoFillStatusServiceTests: XCTestCase {
         AutoFillStatusService.enabledProvider = { false }
         let disabled = await AutoFillStatusService.isAutoFillEnabled()
         XCTAssertFalse(disabled)
+    }
+
+    // MARK: - requestEnableAutoFill
+
+    func testRequestEnableAutoFillReturnsRequesterResult() async {
+        AutoFillStatusService.enableRequester = { true }
+        let enabled = await AutoFillStatusService.requestEnableAutoFill()
+        XCTAssertEqual(enabled, true)
+
+        AutoFillStatusService.enableRequester = { false }
+        let declined = await AutoFillStatusService.requestEnableAutoFill()
+        XCTAssertEqual(declined, false, "a declined request must stay distinguishable from a no-op")
+
+        AutoFillStatusService.enableRequester = { nil }
+        let noOp = await AutoFillStatusService.requestEnableAutoFill()
+        XCTAssertNil(noOp)
     }
 
     // MARK: - UI-test suppression

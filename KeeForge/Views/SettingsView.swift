@@ -361,10 +361,13 @@ private struct AutoFillSettingsView: View {
     /// never `DatabaseListStore` directly — so disabling does targeted
     /// identity removal and enabling republishes the open session immediately
     /// via the installed `autoFillEnabledRefreshHandler`.
+    /// It also owns the system-provider state, so this screen and the database
+    /// list's tip banner cannot disagree about whether AutoFill is authorized.
     let listViewModel: DatabaseListViewModel
-    @State private var isProviderEnabled: Bool?
     @State private var isClearEntriesConfirmationPresented = false
     @Environment(\.scenePhase) private var scenePhase
+
+    private var isProviderEnabled: Bool? { listViewModel.isAutoFillProviderEnabled }
 
     var body: some View {
         Form {
@@ -398,11 +401,11 @@ private struct AutoFillSettingsView: View {
             listViewModel.reload()
         }
         .task {
-            isProviderEnabled = await AutoFillStatusService.isAutoFillEnabled()
+            await listViewModel.refreshAutoFillStatus()
         }
         .onChange(of: scenePhase) { _, phase in
             if phase == .active {
-                Task { isProviderEnabled = await AutoFillStatusService.isAutoFillEnabled() }
+                Task { await listViewModel.refreshAutoFillStatus() }
             }
         }
     }
@@ -427,9 +430,15 @@ private struct AutoFillSettingsView: View {
         } header: {
             Text("Databases")
         } footer: {
-            if quickAutoFillEnabled,
-               listViewModel.databases.contains(where: { $0.autoFillEnabled }) == false {
-                Text("AutoFill is on, but no databases are selected.")
+            VStack(alignment: .leading, spacing: 8) {
+                if isProviderEnabled == false {
+                    Text("These selections only take effect once KeeForge is enabled as an AutoFill provider above.")
+                }
+
+                if quickAutoFillEnabled,
+                   listViewModel.databases.contains(where: { $0.autoFillEnabled }) == false {
+                    Text("AutoFill is on, but no databases are selected.")
+                }
             }
         }
     }
@@ -466,34 +475,44 @@ private struct AutoFillSettingsView: View {
     private var providerSection: some View {
         Section {
             LabeledContent("AutoFill in iOS", value: providerStatusText)
+                .accessibilityIdentifier("settings.autofill.provider-status")
+                .accessibilityValue(providerStatusText)
 
+            // The manual route has to stay available while the provider is off:
+            // iOS can refuse the one-tap prompt outright, and it tears this
+            // sheet down when the prompt closes, so a user it does not work for
+            // otherwise has no way into iOS Settings from inside KeeForge.
             if isProviderEnabled == false {
                 Button("Turn On AutoFill") {
-                    Task {
-                        if await AutoFillStatusService.requestEnableAutoFill() == true {
-                            isProviderEnabled = true
-                        }
-                    }
+                    Task { await listViewModel.requestEnableAutoFill() }
                 }
                 .accessibilityIdentifier("settings.autofill.turn-on")
-            } else {
-                Button("Open iOS AutoFill Settings") {
-                    Task { await AutoFillStatusService.openAutoFillSettings() }
-                }
-                .accessibilityIdentifier("settings.autofill.open-ios-settings")
             }
+
+            Button("Open iOS AutoFill Settings") {
+                Task { await AutoFillStatusService.openAutoFillSettings() }
+            }
+            .accessibilityIdentifier("settings.autofill.open-ios-settings")
         } footer: {
-            if isProviderEnabled == false {
-                Text("KeeForge isn't enabled as an AutoFill provider yet. Turn it on to fill passwords in Safari and other apps.")
-            } else if isProviderEnabled == true {
-                Text("KeeForge is enabled as an AutoFill provider.")
+            VStack(alignment: .leading, spacing: 8) {
+                if isProviderEnabled == false {
+                    Text("KeeForge isn't enabled as an AutoFill provider yet. Turn it on to fill passwords in Safari and other apps.")
+
+                    if listViewModel.isAutoFillEnableRequestRejected {
+                        Text("The last attempt did not turn it on. Open iOS AutoFill Settings and enable KeeForge there.")
+                    }
+                } else if isProviderEnabled == true {
+                    Text("KeeForge is enabled as an AutoFill provider.")
+                }
             }
         }
     }
 
+    /// `LabeledContent(_:value:)` takes a plain `String`, so these have to go
+    /// through the catalog explicitly — a bare literal here ships as English.
     private var providerStatusText: String {
         guard let isProviderEnabled else { return "—" }
-        return isProviderEnabled ? "On" : "Off"
+        return isProviderEnabled ? String(localized: "On") : String(localized: "Off")
     }
 }
 
