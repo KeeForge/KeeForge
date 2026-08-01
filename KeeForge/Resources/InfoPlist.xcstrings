@@ -16,6 +16,12 @@
             "state" : "new",
             "value" : "KeeForge"
           }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge"
+          }
         }
       }
     },
@@ -25,6 +31,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "KeePass-Datenbank (kdbx)"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Base de données KeePass (kdbx)"
           }
         }
       }
@@ -43,6 +55,12 @@
             "state" : "translated",
             "value" : "KeeForge uses Face ID to quickly unlock your password database."
           }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge utilise Face ID pour déverrouiller rapidement votre base de données de mots de passe."
+          }
         }
       }
     },
@@ -59,6 +77,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "KeeForge uses your local network to connect to WebDAV servers you add."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge utilise votre réseau local pour se connecter aux serveurs WebDAV que vous ajoutez."
           }
         }
       }

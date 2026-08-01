@@ -21,6 +21,10 @@ TODO before the first macOS release:
 
 ## Unreleased
 
+### Features
+
+- French localization: the app, the AutoFill extension, and the README/contribution guide are now available in French.
+
 ### Fixes
 
 - The gear button inside an open database now opens the same settings screen as the database list's "Database Details". It had been missing the file format, size, encryption and key-derivation rows, the "Include in AutoFill" toggle, and the cloud account and sync status.
