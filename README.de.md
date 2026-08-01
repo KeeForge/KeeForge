@@ -5,7 +5,7 @@
 <h1 align="center">KeeForge</h1>
 
 <p align="center">
-  <a href="README.md">English</a> | Deutsch | <a href="README.fr.md">Français</a>
+  <a href="README.md">English</a> | Deutsch | <a href="README.fr.md">Français</a> | <a href="README.es.md">Español</a>
 </p>
 
 <p align="center">

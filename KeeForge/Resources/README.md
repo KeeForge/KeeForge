@@ -6,7 +6,7 @@ Static app resources live here.
 
 - `Assets.xcassets` — colors and image assets
 - `LaunchScreen.storyboard` — launch screen UI
-- `Localizable.xcstrings` — String Catalog (source language `en`, plus `de` and `fr`) shared by the iOS and macOS app targets
+- `Localizable.xcstrings` — String Catalog (source language `en`, plus `de`, `fr`, and `es`) shared by the iOS and macOS app targets
 - `InfoPlist.xcstrings` — localized Info.plist values (usage descriptions, bundle name) for both app targets
 
 ## Guidance
