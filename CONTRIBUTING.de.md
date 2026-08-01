@@ -1,6 +1,6 @@
 # Mitwirken bei KeeForge
 
-<a href="CONTRIBUTING.md">English</a> | Deutsch | <a href="CONTRIBUTING.fr.md">Français</a>
+<a href="CONTRIBUTING.md">English</a> | Deutsch | <a href="CONTRIBUTING.fr.md">Français</a> | <a href="CONTRIBUTING.es.md">Español</a>
 
 Danke, dass du KeeForge besser machst.
 

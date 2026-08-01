@@ -24,6 +24,7 @@ TODO before the first macOS release:
 ### Features
 
 - French localization: the app, the AutoFill extension, and the README/contribution guide are now available in French.
+- Spanish localization: the app, the AutoFill extension, and the README/contribution guide are now available in Spanish.
 
 ### Fixes
 

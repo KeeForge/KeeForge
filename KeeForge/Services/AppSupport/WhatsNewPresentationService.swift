@@ -85,6 +85,12 @@ enum WhatsNewCatalog {
                     detail: "KeeForge is now fully translated into French throughout the app and AutoFill.",
                     systemImage: "globe"
                 ),
+                WhatsNewFeature(
+                    id: "spanish-localization",
+                    title: "Use KeeForge in Spanish",
+                    detail: "KeeForge is now fully translated into Spanish throughout the app and AutoFill.",
+                    systemImage: "globe"
+                ),
             ]
         case "1.10.4":
             features = [

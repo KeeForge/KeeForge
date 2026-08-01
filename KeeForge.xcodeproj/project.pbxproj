@@ -1670,6 +1670,7 @@
 				Base,
 				de,
 				en,
+				es,
 				fr,
 			);
 			mainGroup = ED085A8C1666D500B09A3437;

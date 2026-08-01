@@ -16,6 +16,12 @@
             "value" : "KeeForge AutoFill"
           }
         },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge AutoFill"
+          }
+        },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
@@ -37,6 +43,12 @@
         "en" : {
           "stringUnit" : {
             "state" : "new",
+            "value" : "KeeForgeAutoFill"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
             "value" : "KeeForgeAutoFill"
           }
         },
