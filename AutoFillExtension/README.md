@@ -9,7 +9,7 @@ This target provides password, passkey, one-time-code, and new-credential save/g
 - `CredentialProviderViewControllerMac.swift` is the macOS shell (`#if os(macOS)`). On macOS `ASCredentialProviderViewController` subclasses `NSViewController`, so this shell hosts `AutoFillSearchView` in an `NSHostingController`, shows `NSAlert` prompts for unlock / error / read-only, and sets `preferredContentSize`. It routes **every** completion, cancel, `NSAlert` dismissal, and window close (`viewDidDisappear` → `cancelActiveRequestIfNeeded()`) back through the coordinator so `cleanup()` always runs — window close has no iOS analogue. Extension-context calls go through a small `CredentialProviderRequestCompleting` seam so the shell's cleanup routing is unit-testable without the system harness.
 - `AutoFillSearchView.swift` renders the searchable SwiftUI UI shown inside the extension (shared by both shells).
 - `AutoFillEntryCreatorView.swift` renders the credential-creation UI used for save-password requests and strong-password generation follow-up. It is `#if os(iOS)` because save/generate-password are iOS-only (see capability notes below).
-- `Localizable.xcstrings` — String Catalog (source language `en`, plus `de`) for both AutoFill extension targets.
+- `Localizable.xcstrings` — String Catalog (source language `en`, plus `de`, `fr`, and `es`) for both AutoFill extension targets.
 - `InfoPlist.xcstrings` — localized Info.plist values (e.g. `CFBundleDisplayName`) for both AutoFill extension targets.
 
 ## How It Works
