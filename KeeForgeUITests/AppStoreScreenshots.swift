@@ -269,12 +269,11 @@ final class AppStoreScreenshots: KeeForgeUITestCase {
         let settingsButton = app.buttons["settings.button"]
         XCTAssertTrue(settingsButton.waitForExistence(timeout: 5), "Database settings button should be visible after unlock")
         settingsButton.tap()
-        XCTAssertTrue(app.navigationBars["Database Settings"].waitForExistence(timeout: 5), "Database Settings screen should open")
+        let closeButton = app.buttons["database-details.close"]
+        XCTAssertTrue(closeButton.waitForExistence(timeout: 5), "Database details screen should open")
         sleep(1)
         saveScreenshot(.databaseSettings)
 
-        let closeButton = app.buttons["Close"]
-        XCTAssertTrue(closeButton.waitForExistence(timeout: 5), "Close button should dismiss Database Settings")
         closeButton.tap()
         sleep(1)
 
