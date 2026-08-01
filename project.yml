@@ -304,6 +304,8 @@ targets:
         buildPhase: resources
       - path: TestFixtures/tag-browser.kdbx
         buildPhase: resources
+      - path: TestFixtures/protected-custom-field.kdbx
+        buildPhase: resources
 
   KeeForgeTests:
     type: bundle.unit-test

@@ -64,6 +64,7 @@
 		186B0BF0473B22258603AFB1 /* DatabaseCreationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2FFC8C91D571F07AF7531393 /* DatabaseCreationService.swift */; };
 		197043DE03317AB46D816885 /* TagBrowserUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 69B0A8304EFC7576FCE0082B /* TagBrowserUITests.swift */; };
 		1A60B47E62FDC6A804525EBE /* aes-baseline.kdbx in Resources */ = {isa = PBXBuildFile; fileRef = 934128843AF7AE9BAE055114 /* aes-baseline.kdbx */; };
+		1AC9E2D1895284C8A0FEF167 /* protected-custom-field.kdbx in Resources */ = {isa = PBXBuildFile; fileRef = 7ED9385A19CD905F0B68624F /* protected-custom-field.kdbx */; };
 		1B32325147EE834DC91EE54A /* DatabaseViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B33D0F39A86A065A638C40AF /* DatabaseViewModel.swift */; };
 		1B5B7053224BC626A3AE3D0D /* Argon2Swift in Frameworks */ = {isa = PBXBuildFile; productRef = 442CCF8D1DE21906E6D0F53E /* Argon2Swift */; };
 		1BC4C4DA15248EFF778D127A /* test.kdbx in Resources */ = {isa = PBXBuildFile; fileRef = ACDB93B40CC051227D2E6D76 /* test.kdbx */; };
@@ -785,6 +786,7 @@
 		7B69F172792BCB6806380021 /* MacWebDAVSmokeUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacWebDAVSmokeUITests.swift; sourceTree = "<group>"; };
 		7B911E75B7F5823E57680434 /* AutoFillExtensionMac.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = AutoFillExtensionMac.entitlements; sourceTree = "<group>"; };
 		7EA0111DE46F6C0B6D89B6B4 /* KeeForgeApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeeForgeApp.swift; sourceTree = "<group>"; };
+		7ED9385A19CD905F0B68624F /* protected-custom-field.kdbx */ = {isa = PBXFileReference; path = "protected-custom-field.kdbx"; sourceTree = "<group>"; };
 		8130C3F91180C3B88DF9EE9D /* CloudFileBrowserView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudFileBrowserView.swift; sourceTree = "<group>"; };
 		81B2FABC051E0E4F1B4BCFBE /* URLSchemeFormatTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = URLSchemeFormatTests.swift; sourceTree = "<group>"; };
 		843FD93201393B6BA39234E5 /* DatabaseFileInfoLoaderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DatabaseFileInfoLoaderTests.swift; sourceTree = "<group>"; };
@@ -1132,6 +1134,7 @@
 				4CC3CF24A57A3BB531DA56C2 /* demo-keyfile.kdbx */,
 				7AB5EEF311A401337289C014 /* demo-keyfile.key */,
 				F3D5CCD3DC2893DC1A65D6DC /* demo.kdbx */,
+				7ED9385A19CD905F0B68624F /* protected-custom-field.kdbx */,
 				B97948C8F15BABFAC8FFE971 /* tag-browser.kdbx */,
 				8F5D08487A8DF3C72204ADEB /* test-arbitrary.key */,
 				B7EDDD48D0CB18EA1D45220E /* test-binary.key */,
@@ -1811,6 +1814,7 @@
 				546946CF03D4BA3759BDA5F1 /* demo-keyfile.kdbx in Resources */,
 				82C95283AF20A54E1651411A /* demo-keyfile.key in Resources */,
 				115B1CF896D4326495169AF4 /* demo.kdbx in Resources */,
+				1AC9E2D1895284C8A0FEF167 /* protected-custom-field.kdbx in Resources */,
 				D805EC7F819C498EBC33CBA5 /* tag-browser.kdbx in Resources */,
 				B6DEC2F6E1AD9EC4CB6408C9 /* test.kdbx in Resources */,
 			);

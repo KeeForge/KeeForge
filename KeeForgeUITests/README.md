@@ -29,6 +29,7 @@ The macOS port has its own UI-test target, `KeeForgeMacUITests/` (target `KeeFor
 - `EntryDeleteSmokeUITests` — delete-entry happy paths using known fixture entries: row swipe/context-menu deletes, plus the entry editor's "Delete Entry" flow (`entry-edit.delete`) covering both dialog options and the already-recycled variant, asserting the editor dismisses back to a usable group list (regression cover for the v1.10.4 permanent-delete wedge)
 - `EntryAttachmentsSmokeUITests` — entry-attachments list happy path (row name/size, QuickLook preview open/dismiss) using the `attachments` fixture
 - `EntryHistoryUITests` — entry history sheet happy path (`entry-detail.history` → version list → one version's fields) and the restore flow (`entry-history.restore` → `entry-history.restore.confirm`, asserting the replaced state is kept by reading the history row's accessibility **value**, not its localized label), using a fixture entry that ships stored `<History>`
+- `ProtectedCustomFieldUITests` — protected custom fields start masked and reveal on demand in both entry detail and history, while retaining the established copy-control identifiers
 - `GroupIconPickerUITests` — group icon picker round-trip (`group-row.change-icon-context` → pick `group-icon-picker.icon.37` → reopen and assert the cell reports `isSelected`) plus the cancel path leaving the icon alone
 - `TagBrowserUITests` — tag-browser happy path (root `group-list.tags-row` → `tag-list.row.shared` with its entry count → the tag's entries → entry detail's `entry-detail.tag.shared` chip) using the `tag-browser` fixture; the only fixture with entry tags
 - `TOTPSmokeUITests` — TOTP code renders (6-digit, numeric-only) and the copy control is present/hittable in entry detail, using the `autofill-union` fixture's "Union News" entry; deliberately does not assert exact code values or countdown timing
@@ -77,7 +78,7 @@ xcodebuild test -project KeeForge.xcodeproj -scheme KeeForge \
 
 `-only-testing:` takes the **class** name, not the file name; run each class separately. Files hosting multiple classes:
 
-- `UnlockedDatabaseUITests.swift` — `UnlockedDatabaseUITestCase` + `AppSettingsUITestCase` (bases), `UnlockedDatabaseBrowseAndDetailUITests`, `UnlockedDatabaseSearchAndSortUITests`, `RegularWidthWorkspaceUITests`, `AppSettingsUITests`, `GroupIconPickerUITests`, `EntryHistoryUITests`
+- `UnlockedDatabaseUITests.swift` — `UnlockedDatabaseUITestCase` + `AppSettingsUITestCase` (bases), `UnlockedDatabaseBrowseAndDetailUITests`, `UnlockedDatabaseSearchAndSortUITests`, `RegularWidthWorkspaceUITests`, `AppSettingsUITests`, `GroupIconPickerUITests`, `EntryHistoryUITests`, `ProtectedCustomFieldUITests`
 - `EntryEditUITests.swift` — `EntryEditUITestCase` (base), `EntryCreateSmokeUITests`, `EntryEditSmokeUITests`, `EntryDeleteSmokeUITests`, `EntryEditEdgeUITests`
 - `CloudSyncUITests.swift` — `CloudSyncBaseUITests` (base), `CloudBrowserSmokeUITests`, `CloudUnlockSmokeUITests`, `CloudAccountEdgeUITests`
 - `WebDAVSyncUITests.swift` — `WebDAVSyncBaseUITests` (base), `WebDAVAddFlowUITests`, `WebDAVConnectErrorUITests`, `WebDAVSeededUnlockUITests`
@@ -382,13 +383,21 @@ Password: `testpassword123`
 
 Used by `TagBrowserUITests`. The only bundled fixture with entry tags — `test.kdbx` and `demo.kdbx` have none. `Tagged` group: `Router Admin` (`shared`, `Work`, `Personal Notes`), `Mail Account` (`shared`, `work`), `Untagged Entry`; `Archive` group: `Old Backup` (`archive`). Regenerate with `TestFixtures/generate_tag_browser_fixture.py`; details in `../TestFixtures/README.md`.
 
+### Protected Custom Field Fixture
+
+`TestFixtures/protected-custom-field.kdbx`
+
+Password: `testpassword123`
+
+Used by `ProtectedCustomFieldUITests`. `Secrets/Protected Custom` carries a protected `API Token` custom field in both the current entry and one stored history version.
+
 ### Key File Fixtures
 
 Use `demo-keyfile.kdbx` with `demo-keyfile.key` — the only key-file pair bundled into `KeeForgeUITests`. The other key-file fixtures in `TestFixtures/` (`test-binary.key`, `test-hex.key`, `test-v1.key`, `test-v2.keyx`, `test-arbitrary.key`, `test-v3-backup.kdbx`) are bundled only into the unit-test targets and **not** available to UI tests.
 
 ### What The UI-Test Target Bundles
 
-Per the `KeeForgeUITests` sources in `project.yml`, exactly these fixtures ship in the UI-test bundle: `test.kdbx`, `demo.kdbx`, `demo-keyfile.kdbx`, `demo-keyfile.key`, `compatibility/attachments.kdbx`, `autofill-union.kdbx`, and `tag-browser.kdbx`. To use another fixture from a UI test, add it there and run `xcodegen generate`.
+Per the `KeeForgeUITests` sources in `project.yml`, exactly these fixtures ship in the UI-test bundle: `test.kdbx`, `demo.kdbx`, `demo-keyfile.kdbx`, `demo-keyfile.key`, `compatibility/attachments.kdbx`, `autofill-union.kdbx`, `tag-browser.kdbx`, and `protected-custom-field.kdbx`. To use another fixture from a UI test, add it there and run `xcodegen generate`.
 
 Loading mechanism: fixtures are injected through the launch environment by `KeeForgeUITestCase.setUp` (base64 of the bundled resource in `UI_TEST_DATABASES_JSON`), so a test only overrides `databaseFixtureName` — it never touches file paths. The name must match the resource added to `project.yml`.
 

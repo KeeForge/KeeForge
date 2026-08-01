@@ -638,3 +638,47 @@ final class EntryHistoryUITests: UnlockedDatabaseUITestCase {
         XCTAssertEqual(after, versionCountBefore + 1, "the replaced state must be kept as a version")
     }
 }
+
+final class ProtectedCustomFieldUITests: UnlockedDatabaseUITestCase {
+    override var databaseFixtureName: String { "protected-custom-field" }
+
+    func testProtectedCustomFieldStartsMaskedAndRevealsOnEntryDetail() {
+        unlockSuccessfully()
+        openFixtureEntry(groupName: "Secrets", entryName: "Protected Custom")
+
+        let reveal = app.buttons["entry.protected-field.api_token.reveal"]
+        XCTAssertTrue(revealElement(reveal), "Protected custom field reveal control was not visible")
+        XCTAssertTrue(app.buttons["entry.copy.api_token"].exists, "Existing custom-field copy ID changed")
+        XCTAssertFalse(app.staticTexts["custom-secret"].exists, "Protected value was visible before reveal")
+
+        tapElement(reveal)
+        XCTAssertTrue(
+            app.staticTexts["custom-secret"].waitForExistence(timeout: 5),
+            "Protected value did not appear after reveal"
+        )
+    }
+
+    func testProtectedCustomFieldStartsMaskedAndRevealsInHistory() {
+        unlockSuccessfully()
+        openFixtureEntry(groupName: "Secrets", entryName: "Protected Custom")
+
+        let historyRow = app.buttons["entry-detail.history"]
+        XCTAssertTrue(revealElement(historyRow), "Fixture entry exposes no history row")
+        tapElement(historyRow)
+        tapElement(app.buttons["entry-history.version.0"])
+
+        let reveal = app.buttons["entry-history.protected-field.api_token.reveal"]
+        XCTAssertTrue(revealElement(reveal), "Protected history field reveal control was not visible")
+        XCTAssertTrue(
+            app.buttons["entry-history.copy.api_token"].exists,
+            "Existing history custom-field copy ID changed"
+        )
+        XCTAssertFalse(app.staticTexts["custom-secret"].exists, "Protected history value was visible before reveal")
+
+        tapElement(reveal)
+        XCTAssertTrue(
+            app.staticTexts["custom-secret"].waitForExistence(timeout: 5),
+            "Protected history value did not appear after reveal"
+        )
+    }
+}

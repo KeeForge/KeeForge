@@ -86,11 +86,13 @@ struct PasswordDisplayText: View {
 }
 
 struct PasswordConcealedText: View {
+    var accessibilityLabel: String = String(localized: "Hidden password")
+
     var body: some View {
         Text(PasswordVisualStyle.concealedText)
             .font(.body.monospaced())
             .foregroundStyle(.secondary)
-            .accessibilityLabel("Hidden password")
+            .accessibilityLabel(accessibilityLabel)
     }
 }
 

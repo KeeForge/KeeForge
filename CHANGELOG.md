@@ -25,6 +25,7 @@ TODO before the first macOS release:
 
 - Saving a OneDrive database could show a false "Save Conflict" alert (typically on the second save in a session), and OneDrive databases could re-download in full even though nothing changed remotely. OneDrive rewrites its revision tags on its own after an upload; saves now check the file's actual content before declaring a conflict, and quietly proceed when nothing really changed.
 - Revealed passwords no longer show ambiguous hyphens that are not part of the stored password when a long value wraps onto another line.
+- Protected custom fields are now masked in entry details and stored history versions. Revealing or copying one uses the same device-owner authentication gate as passwords.
 
 ## v1.11.0 (2026-07-30)
 

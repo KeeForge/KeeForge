@@ -1434,6 +1434,16 @@
         }
       }
     },
+    "Copy protected field" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Geschütztes Feld kopieren"
+          }
+        }
+      }
+    },
     "Copy Username" : {
       "localizations" : {
         "de" : {
@@ -2760,6 +2770,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Verborgenes Passwort"
+          }
+        }
+      }
+    },
+    "Hidden protected field" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Verborgenes geschütztes Feld"
           }
         }
       }
@@ -6281,6 +6301,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Datenbankdetails anzeigen"
+          }
+        }
+      }
+    },
+    "View protected field" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Geschütztes Feld anzeigen"
           }
         }
       }
