@@ -173,6 +173,7 @@
 		4994CC6E9C1FB4ABBDC4F0B0 /* AppGroupGuardrailTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 784030A42906B5F3F8E2076B /* AppGroupGuardrailTests.swift */; };
 		4AEDC15F5C9B1A173996FFAA /* AutoFillIdentityStoreFallbackReader.swift in Sources */ = {isa = PBXBuildFile; fileRef = F47550A37356BE818BDA98C1 /* AutoFillIdentityStoreFallbackReader.swift */; };
 		4C6D06A5403B81089C4798A1 /* KDBXCrypto.swift in Sources */ = {isa = PBXBuildFile; fileRef = F984480E73A82B5043100065 /* KDBXCrypto.swift */; };
+		4C884DAB2821F513876373FF /* DatabaseDetailsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 73AC48014BCCEF586B364D1A /* DatabaseDetailsView.swift */; };
 		4D30FCB68BBE9018CEF25F42 /* LocalizationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B531885B533C74F391440B2B /* LocalizationTests.swift */; };
 		4D396A9321B96E0F08BAAAE3 /* FaviconService.swift in Sources */ = {isa = PBXBuildFile; fileRef = EBF4936791DF8FD3F2E5B144 /* FaviconService.swift */; };
 		4D76B84A3B1ACD775BE44EF0 /* ScreenProtectionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C411976FE19647F13726F1F /* ScreenProtectionService.swift */; };
@@ -474,6 +475,7 @@
 		D3BDD7DF149782D73B192297 /* KDBXFileSummary.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3A733BA9590643828A645C9D /* KDBXFileSummary.swift */; };
 		D3F732A288B7441798FBDE6B /* WebDAVConnectViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5CF73F233BAC9141F9575CEC /* WebDAVConnectViewModelTests.swift */; };
 		D443183DCF2B434E5D51ACB3 /* DatabaseViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 93A9DF17FFAE21E9E974D8B3 /* DatabaseViewModelTests.swift */; };
+		D47ACBF51725AE68812C0B67 /* DatabaseDetailsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 73AC48014BCCEF586B364D1A /* DatabaseDetailsView.swift */; };
 		D4AC8D1015837166561D0312 /* EntryListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5453C26A39D0DC4187275D6A /* EntryListView.swift */; };
 		D54F5E53D523E5D32D406941 /* DatabaseCreationServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7553437A0E9B7EDCD010211A /* DatabaseCreationServiceTests.swift */; };
 		D56DDC1248B6DCF58C817A83 /* PendingUploadQueue.swift in Sources */ = {isa = PBXBuildFile; fileRef = E6B7062FC711FD8F8EA1BEE3 /* PendingUploadQueue.swift */; };
@@ -774,6 +776,7 @@
 		7234D6EDEF49F76E532EFD03 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		72C52BFD92487327FDD249DC /* AutoFillStoreUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AutoFillStoreUITests.swift; sourceTree = "<group>"; };
 		731F0A21E9D989FC97F13C23 /* PendingUploadDrainerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PendingUploadDrainerTests.swift; sourceTree = "<group>"; };
+		73AC48014BCCEF586B364D1A /* DatabaseDetailsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DatabaseDetailsView.swift; sourceTree = "<group>"; };
 		7551C0188199B9860061E734 /* WhatsNewUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WhatsNewUITests.swift; sourceTree = "<group>"; };
 		7553437A0E9B7EDCD010211A /* DatabaseCreationServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DatabaseCreationServiceTests.swift; sourceTree = "<group>"; };
 		76C7BB3AE108B90D95FE02D7 /* CloudFileBrowserSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudFileBrowserSession.swift; sourceTree = "<group>"; };
@@ -1038,6 +1041,7 @@
 				388EE3A5E207BFE8565149FE /* AutoFillTipBanner.swift */,
 				8130C3F91180C3B88DF9EE9D /* CloudFileBrowserView.swift */,
 				AAA92B649A6D043A490EDEFE /* DatabaseCreationView.swift */,
+				73AC48014BCCEF586B364D1A /* DatabaseDetailsView.swift */,
 				88EB38F9BBED091894FDB7DE /* DatabaseListView.swift */,
 				8DBB315683B9032E3301FD19 /* DatabaseRowView.swift */,
 				0904281BA49959779229086D /* EntryDetailView.swift */,
@@ -2052,6 +2056,7 @@
 				186B0BF0473B22258603AFB1 /* DatabaseCreationService.swift in Sources */,
 				62EF3014D506DDC5262AD9CB /* DatabaseCreationView.swift in Sources */,
 				7BE1359C7AC254180DD98A14 /* DatabaseCreationViewModel.swift in Sources */,
+				4C884DAB2821F513876373FF /* DatabaseDetailsView.swift in Sources */,
 				5E8004BCD066767C8044CD94 /* DatabaseDraft.swift in Sources */,
 				566852336FB7AB379F6C6F83 /* DatabaseFileInfoLoader.swift in Sources */,
 				BBD02F6D3B2E3611B621C635 /* DatabaseListStore.swift in Sources */,
@@ -2171,6 +2176,7 @@
 				0F9F0E23DADEEE7527C6BAE0 /* DatabaseCreationService.swift in Sources */,
 				1C32209A1C19E41BAE7F6D4B /* DatabaseCreationView.swift in Sources */,
 				66DF626BAC87ED327A3BD798 /* DatabaseCreationViewModel.swift in Sources */,
+				D47ACBF51725AE68812C0B67 /* DatabaseDetailsView.swift in Sources */,
 				27E5C3FE7A91B1BE0625ABD3 /* DatabaseDraft.swift in Sources */,
 				2A1865953BAAE0787AC61DB2 /* DatabaseFileInfoLoader.swift in Sources */,
 				EBFD74CE74894EF9389066CC /* DatabaseListStore.swift in Sources */,

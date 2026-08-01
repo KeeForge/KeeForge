@@ -3254,16 +3254,6 @@
         }
       }
     },
-    "Keep this database openable but block create, edit, and delete actions until you turn editing back on." : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Lassen Sie diese Datenbank weiterhin öffnen, aber blockieren Sie das Erstellen, Bearbeiten und Löschen, bis Sie die Bearbeitung wieder aktivieren."
-          }
-        }
-      }
-    },
     "Keep this off unless your trusted local WebDAV server cannot use HTTPS." : {
       "localizations" : {
         "de" : {

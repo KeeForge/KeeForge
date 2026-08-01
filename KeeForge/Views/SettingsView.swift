@@ -3,12 +3,9 @@ import SwiftUI
 struct SettingsView: View {
     var viewModel: DatabaseViewModel? = nil
     /// The app's shared `DatabaseListViewModel` — the instance whose
-    /// `autoFillEnabledRefreshHandler` AppRootView installed. Passed in by the
-    /// database list's settings sheet and the macOS Settings scene so the
-    /// per-database AutoFill toggles hit that hook. Contexts that cannot reach
-    /// it (the open-database App Settings sheet) leave it nil and get the
-    /// fallback below.
-    var listViewModel: DatabaseListViewModel? = nil
+    /// `autoFillEnabledRefreshHandler` AppRootView installed, so the
+    /// per-database AutoFill toggles hit that hook.
+    let listViewModel: DatabaseListViewModel
     @Environment(\.dismiss) private var dismiss
 
     @State private var autoLockTimeout = SettingsService.autoLockTimeout
@@ -27,7 +24,6 @@ struct SettingsView: View {
     @State private var feedbackContext: FeedbackComposerContext?
     @State private var macLockPolicy = SettingsService.macLockPolicy
     @State private var blockScreenCapture = SettingsService.blockScreenCapture
-    @State private var fallbackListViewModel: DatabaseListViewModel?
 
     var body: some View {
         Group {
@@ -187,34 +183,7 @@ struct SettingsView: View {
             }
             .onAppear {
                 cloudAccounts = CloudAccountStore.accounts
-                installFallbackListViewModelIfNeeded()
             }
-    }
-
-    private var resolvedListViewModel: DatabaseListViewModel? {
-        listViewModel ?? fallbackListViewModel
-    }
-
-    /// The AutoFill settings screen must toggle databases through the app's
-    /// `DatabaseListViewModel` so `setAutoFillEnabled` runs the
-    /// `autoFillEnabledRefreshHandler` hook (immediate republish when the
-    /// toggled database is the currently unlocked session). The open-database
-    /// App Settings sheet (`DatabaseSettingsView` in `GroupListView.swift`)
-    /// cannot reach that instance through the view hierarchy, so this creates
-    /// a local list view model and installs the same bridge `AppRootView`
-    /// installs — against the session `viewModel` this sheet was opened with,
-    /// which is the app's only unlocked database, so the behavior is
-    /// identical.
-    private func installFallbackListViewModelIfNeeded() {
-        guard listViewModel == nil, fallbackListViewModel == nil else { return }
-        let fallback = DatabaseListViewModel()
-        let sessionViewModel = viewModel
-        fallback.autoFillEnabledRefreshHandler = { databaseID in
-            guard let sessionViewModel,
-                  sessionViewModel.databaseReference.id == databaseID else { return }
-            sessionViewModel.populateCredentialStoreIfUnlocked()
-        }
-        fallbackListViewModel = fallback
     }
 
     private var preferredColorScheme: ColorScheme? {
@@ -243,13 +212,11 @@ struct SettingsView: View {
             .accessibilityIdentifier("settings.security.link")
 
             NavigationLink {
-                if let resolvedListViewModel {
-                    AutoFillSettingsView(
-                        quickAutoFillEnabled: $quickAutoFillEnabled,
-                        autoFillCopyTOTP: $autoFillCopyTOTP,
-                        listViewModel: resolvedListViewModel
-                    )
-                }
+                AutoFillSettingsView(
+                    quickAutoFillEnabled: $quickAutoFillEnabled,
+                    autoFillCopyTOTP: $autoFillCopyTOTP,
+                    listViewModel: listViewModel
+                )
             } label: {
                 Label("AutoFill", systemImage: "text.cursor")
             }
