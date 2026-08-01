@@ -1670,6 +1670,7 @@
 				Base,
 				de,
 				en,
+				fr,
 			);
 			mainGroup = ED085A8C1666D500B09A3437;
 			minimizedProjectReferenceProxies = 1;
@@ -1686,13 +1687,13 @@
 			projectRoot = "";
 			targets = (
 				F9D5D329EB517FC26DCCD00F /* KeeForge */,
-				FFA6C4212640756D8D70C1F6 /* KeeForgeAutoFill */,
 				7D53BCAE20990F6856D21F58 /* KeeForgeMac */,
+				FFA6C4212640756D8D70C1F6 /* KeeForgeAutoFill */,
 				0AA0ADCC3C0CE0E65850552E /* KeeForgeMacAutoFill */,
-				647734196C81AB568100DEF0 /* KeeForgeMacTests */,
-				759B10925CD3A1BCA516F0CD /* KeeForgeMacUITests */,
-				F371729A79BBD757456723E9 /* KeeForgeTests */,
 				142FE9D12173DF25C61DE561 /* KeeForgeUITests */,
+				F371729A79BBD757456723E9 /* KeeForgeTests */,
+				759B10925CD3A1BCA516F0CD /* KeeForgeMacUITests */,
+				647734196C81AB568100DEF0 /* KeeForgeMacTests */,
 			);
 		};
 /* End PBXProject section */

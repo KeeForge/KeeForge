@@ -2,9 +2,9 @@ import XCTest
 @testable import KeeForge
 
 /// Gates the four `.xcstrings` catalogs against silently shipping untranslated
-/// or drifted German strings. Reads the raw JSON catalog sources — not the
-/// compiled catalogs the app bundles — so a new English key with no German
-/// translation fails here before it ever reaches a build.
+/// or drifted strings in any shipped translation locale. Reads the raw JSON
+/// catalog sources — not the compiled catalogs the app bundles — so a new
+/// English key with no translation fails here before it ever reaches a build.
 ///
 /// The raw catalogs are copied verbatim into this test bundle at build time by
 /// a `postCompileScripts` phase on the `KeeForgeTests` and `KeeForgeMacTests`
@@ -12,6 +12,13 @@ import XCTest
 /// off the source checkout — keeps the test correct on Xcode Cloud, where the
 /// test action runs on machines that do not have the repository checkout.
 final class LocalizationTests: XCTestCase {
+
+    // MARK: - Shipped locales
+
+    /// Every locale KeeForge ships a translation for, beyond the source
+    /// language `en`. Add a locale here once its catalogs are fully
+    /// translated to bring it under every check in this file.
+    private static let shippedTranslationLocales = ["de", "fr"]
 
     // MARK: - String catalog decoding
 
@@ -85,9 +92,9 @@ final class LocalizationTests: XCTestCase {
         }
     }
 
-    // MARK: - Test 1: every non-empty key is translated into German
+    // MARK: - Test 1: every non-empty key is translated into each shipped locale
 
-    func testAllNonEmptyKeysHaveTranslatedGermanValue() throws {
+    func testAllNonEmptyKeysHaveTranslatedValueForShippedLocales() throws {
         let catalogs = try loadCatalogs()
         XCTAssertEqual(catalogs.count, Self.catalogSources.count)
 
@@ -97,67 +104,72 @@ final class LocalizationTests: XCTestCase {
 
             for key in nonEmptyKeys {
                 guard let entry = catalog.strings[key] else { continue }
-                let germanUnits = entry.localizations?["de"]?.allStringUnits ?? []
-                guard germanUnits.isEmpty == false else {
-                    XCTFail("\(catalog.name): key \"\(key)\" has no German localization")
-                    continue
-                }
-                for de in germanUnits {
-                    XCTAssertEqual(
-                        de.state,
-                        "translated",
-                        "\(catalog.name): key \"\(key)\" German state is \(de.state ?? "nil"), expected \"translated\""
-                    )
-                    XCTAssertTrue(
-                        (de.value?.isEmpty ?? true) == false,
-                        "\(catalog.name): key \"\(key)\" German value is missing or empty"
-                    )
+                for locale in Self.shippedTranslationLocales {
+                    let units = entry.localizations?[locale]?.allStringUnits ?? []
+                    guard units.isEmpty == false else {
+                        XCTFail("\(catalog.name): key \"\(key)\" has no \(locale) localization")
+                        continue
+                    }
+                    for unit in units {
+                        XCTAssertEqual(
+                            unit.state,
+                            "translated",
+                            "\(catalog.name): key \"\(key)\" \(locale) state is \(unit.state ?? "nil"), expected \"translated\""
+                        )
+                        XCTAssertTrue(
+                            (unit.value?.isEmpty ?? true) == false,
+                            "\(catalog.name): key \"\(key)\" \(locale) value is missing or empty"
+                        )
+                    }
                 }
             }
         }
     }
 
-    // MARK: - Test 2: format-specifier parity between English and German
+    // MARK: - Test 2: format-specifier parity between English and each shipped locale
 
-    func testFormatSpecifiersMatchBetweenEnglishAndGerman() throws {
+    func testFormatSpecifiersMatchBetweenEnglishAndShippedLocales() throws {
         let catalogs = try loadCatalogs()
 
         for catalog in catalogs {
             for (key, entry) in catalog.strings where key.isEmpty == false {
-                // Translation completeness is asserted by test 1; skip here
-                // rather than double-report the same missing-value failure.
-                if let deValue = entry.localizations?["de"]?.stringUnit?.value {
-                    let enValue = entry.localizations?["en"]?.stringUnit?.value ?? key
-                    let enSpecifiers = Self.normalizedFormatSpecifiers(in: enValue)
-                    let deSpecifiers = Self.normalizedFormatSpecifiers(in: deValue)
+                for locale in Self.shippedTranslationLocales {
+                    // Translation completeness is asserted by test 1; skip here
+                    // rather than double-report the same missing-value failure.
+                    if let localizedValue = entry.localizations?[locale]?.stringUnit?.value {
+                        let enValue = entry.localizations?["en"]?.stringUnit?.value ?? key
+                        let enSpecifiers = Self.normalizedFormatSpecifiers(in: enValue)
+                        let localizedSpecifiers = Self.normalizedFormatSpecifiers(in: localizedValue)
 
-                    XCTAssertEqual(
-                        enSpecifiers,
-                        deSpecifiers,
-                        "\(catalog.name): key \"\(key)\" format specifiers differ (en: \(enSpecifiers), de: \(deSpecifiers))"
-                    )
-                }
+                        XCTAssertEqual(
+                            enSpecifiers,
+                            localizedSpecifiers,
+                            "\(catalog.name): key \"\(key)\" format specifiers differ (en: \(enSpecifiers), \(locale): \(localizedSpecifiers))"
+                        )
+                    }
 
-                // Plural entries: the German "other" branch (the general form)
-                // must carry exactly the English "other" specifiers; branches
-                // like "one" legitimately drop the number, so subset suffices.
-                if let dePlural = entry.localizations?["de"]?.variations?.plural {
-                    let enOther = entry.localizations?["en"]?.variations?.plural?["other"]?.stringUnit?.value ?? key
-                    let enSpecifiers = Set(Self.normalizedFormatSpecifiers(in: enOther))
-                    for (category, branch) in dePlural {
-                        guard let deValue = branch.stringUnit?.value else { continue }
-                        let deSpecifiers = Set(Self.normalizedFormatSpecifiers(in: deValue))
-                        if category == "other" {
-                            XCTAssertEqual(
-                                deSpecifiers,
-                                enSpecifiers,
-                                "\(catalog.name): key \"\(key)\" plural branch \"other\" must match the English specifiers exactly"
-                            )
-                        } else {
-                            XCTAssertTrue(
-                                deSpecifiers.isSubset(of: enSpecifiers),
-                                "\(catalog.name): key \"\(key)\" plural branch \"\(category)\" uses specifiers \(deSpecifiers) not present in the English form \(enSpecifiers)"
-                            )
+                    // Plural entries: the localized "other" branch (the general
+                    // form) must carry exactly the English "other" specifiers;
+                    // branches like "one" legitimately drop the number, so
+                    // subset suffices.
+                    if let localizedPlural = entry.localizations?[locale]?.variations?.plural {
+                        let enOther = entry.localizations?["en"]?.variations?.plural?["other"]?.stringUnit?.value ?? key
+                        let enSpecifiers = Set(Self.normalizedFormatSpecifiers(in: enOther))
+                        for (category, branch) in localizedPlural {
+                            guard let localizedValue = branch.stringUnit?.value else { continue }
+                            let localizedSpecifiers = Set(Self.normalizedFormatSpecifiers(in: localizedValue))
+                            if category == "other" {
+                                XCTAssertEqual(
+                                    localizedSpecifiers,
+                                    enSpecifiers,
+                                    "\(catalog.name): key \"\(key)\" \(locale) plural branch \"other\" must match the English specifiers exactly"
+                                )
+                            } else {
+                                XCTAssertTrue(
+                                    localizedSpecifiers.isSubset(of: enSpecifiers),
+                                    "\(catalog.name): key \"\(key)\" \(locale) plural branch \"\(category)\" uses specifiers \(localizedSpecifiers) not present in the English form \(enSpecifiers)"
+                                )
+                            }
                         }
                     }
                 }
@@ -199,7 +211,7 @@ final class LocalizationTests: XCTestCase {
 
     // MARK: - Test 3: keys shared between the two Localizable catalogs stay in sync
 
-    func testSharedLocalizableKeysHaveIdenticalGermanValues() throws {
+    func testSharedLocalizableKeysHaveIdenticalValuesForShippedLocales() throws {
         let catalogs = try loadCatalogs()
         let appCatalogName = "KeeForge/Resources/Localizable.xcstrings"
         let autoFillCatalogName = "AutoFillExtension/Localizable.xcstrings"
@@ -214,22 +226,26 @@ final class LocalizationTests: XCTestCase {
         XCTAssertFalse(sharedKeys.isEmpty, "Expected shared keys between the app and AutoFill Localizable catalogs")
 
         for key in sharedKeys.sorted() {
-            let appValue = appCatalog.strings[key]?.localizations?["de"]?.stringUnit?.value
-            let autoFillValue = autoFillCatalog.strings[key]?.localizations?["de"]?.stringUnit?.value
-            XCTAssertEqual(
-                appValue,
-                autoFillValue,
-                "Shared key \"\(key)\" has divergent German translations between the app and AutoFill catalogs"
-            )
+            for locale in Self.shippedTranslationLocales {
+                let appValue = appCatalog.strings[key]?.localizations?[locale]?.stringUnit?.value
+                let autoFillValue = autoFillCatalog.strings[key]?.localizations?[locale]?.stringUnit?.value
+                XCTAssertEqual(
+                    appValue,
+                    autoFillValue,
+                    "Shared key \"\(key)\" has divergent \(locale) translations between the app and AutoFill catalogs"
+                )
+            }
         }
     }
 
-    // MARK: - Test 4: the app bundle advertises German support
+    // MARK: - Test 4: the app bundle advertises every shipped locale
 
-    func testBundleAdvertisesGermanLocalization() {
-        XCTAssertTrue(
-            Bundle.main.localizations.contains("de"),
-            "Bundle.main.localizations does not include \"de\": \(Bundle.main.localizations)"
-        )
+    func testBundleAdvertisesShippedLocalizations() {
+        for locale in Self.shippedTranslationLocales {
+            XCTAssertTrue(
+                Bundle.main.localizations.contains(locale),
+                "Bundle.main.localizations does not include \"\(locale)\": \(Bundle.main.localizations)"
+            )
+        }
     }
 }
