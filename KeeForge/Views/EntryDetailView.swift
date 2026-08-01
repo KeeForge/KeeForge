@@ -123,7 +123,11 @@ struct EntryDetailView: View {
                     if !entry.displayCustomFields.isEmpty {
                         Section("Custom Fields") {
                             ForEach(entry.displayCustomFields.sorted(by: { $0.key < $1.key }), id: \.key) { key, value in
-                                FieldRow(label: key, value: value, icon: "text.justify.left")
+                                if entry.protectedStringKeys.contains(key) {
+                                    ProtectedFieldRow(label: key, value: value)
+                                } else {
+                                    FieldRow(label: key, value: value, icon: "text.justify.left")
+                                }
                             }
                         }
                     }
@@ -453,6 +457,87 @@ struct FieldRow: View {
     }
 }
 
+struct ProtectedFieldRow: View {
+    let label: String
+    let value: String
+    var accessibilityPrefix: String = "entry"
+    @State private var revealed = false
+    @State private var authenticating = false
+
+    var body: some View {
+        Section(label) {
+            HStack {
+                Image(systemName: "lock.fill")
+                    .foregroundStyle(.secondary)
+                    .frame(width: 24)
+
+                if revealed {
+                    Text(value)
+                        .font(.body.monospaced())
+                        .lineLimit(nil)
+                        .fixedSize(horizontal: false, vertical: true)
+                } else {
+                    PasswordConcealedText(accessibilityLabel: String(localized: "Hidden protected field"))
+                }
+
+                Spacer(minLength: 12)
+
+                Button(action: toggleReveal) {
+                    Image(systemName: revealed ? "eye.slash.fill" : "eye.fill")
+                        .font(.body)
+                }
+                .frame(width: 44, height: 44)
+                .contentShape(Rectangle())
+                .disabled(authenticating)
+                .accessibilityIdentifier("\(accessibilityPrefix).protected-field.\(normalizedLabel).reveal")
+
+                CopyButton(
+                    text: value,
+                    requireAuth: true,
+                    authenticationReason: String(localized: "Copy protected field"),
+                    accessibilityID: "\(accessibilityPrefix).copy.\(normalizedLabel)"
+                )
+            }
+        }
+    }
+
+    private var normalizedLabel: String {
+        label.lowercased().replacingOccurrences(of: " ", with: "_")
+    }
+
+    private func toggleReveal() {
+        if revealed {
+            HapticService.tap()
+            revealed = false
+            return
+        }
+
+        guard !authenticating else { return }
+        if BiometricService.canAuthenticateDeviceOwner {
+            authenticating = true
+            Task {
+                do {
+                    _ = try await BiometricService.authenticateDeviceOwner(
+                        reason: String(localized: "View protected field")
+                    )
+                    await MainActor.run {
+                        HapticService.success()
+                        revealed = true
+                    }
+                } catch {
+                    // Intentionally no-op on failed authentication.
+                }
+                await MainActor.run {
+                    authenticating = false
+                }
+            }
+        } else {
+            HapticService.tap()
+            revealed = true
+        }
+    }
+}
+
 struct PasswordFieldRow: View {
     let password: EncryptedValue
     let sessionKey: SymmetricKey
@@ -572,20 +657,33 @@ struct URLFieldRow: View {
 struct CopyButton: View {
     private let resolveText: () -> String
     var requireAuth: Bool = false
+    var authenticationReason: String = String(localized: "Copy password")
     let accessibilityID: String
     @State private var copied = false
 
     /// Copy a plaintext value.
-    init(text: String, requireAuth: Bool = false, accessibilityID: String) {
+    init(
+        text: String,
+        requireAuth: Bool = false,
+        authenticationReason: String = String(localized: "Copy password"),
+        accessibilityID: String
+    ) {
         self.resolveText = { text }
         self.requireAuth = requireAuth
+        self.authenticationReason = authenticationReason
         self.accessibilityID = accessibilityID
     }
 
     /// Copy a value that is decrypted lazily on demand.
-    init(resolveText: @escaping () -> String, requireAuth: Bool = false, accessibilityID: String) {
+    init(
+        resolveText: @escaping () -> String,
+        requireAuth: Bool = false,
+        authenticationReason: String = String(localized: "Copy password"),
+        accessibilityID: String
+    ) {
         self.resolveText = resolveText
         self.requireAuth = requireAuth
+        self.authenticationReason = authenticationReason
         self.accessibilityID = accessibilityID
     }
 
@@ -600,7 +698,7 @@ struct CopyButton: View {
                         BiometricService.isBiometricAuthInProgress = true
                     }
                     do {
-                        _ = try await BiometricService.authenticateDeviceOwner(reason: "Copy password")
+                        _ = try await BiometricService.authenticateDeviceOwner(reason: authenticationReason)
                         await MainActor.run {
                             performCopy()
                         }

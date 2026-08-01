@@ -146,12 +146,20 @@ private struct EntryHistoryVersionView: View {
                                 version.displayCustomFields.sorted(by: { $0.key < $1.key }),
                                 id: \.key
                             ) { key, value in
-                                FieldRow(
-                                    label: key,
-                                    value: value,
-                                    icon: "text.justify.left",
-                                    accessibilityPrefix: "entry-history"
-                                )
+                                if version.protectedStringKeys.contains(key) {
+                                    ProtectedFieldRow(
+                                        label: key,
+                                        value: value,
+                                        accessibilityPrefix: "entry-history"
+                                    )
+                                } else {
+                                    FieldRow(
+                                        label: key,
+                                        value: value,
+                                        icon: "text.justify.left",
+                                        accessibilityPrefix: "entry-history"
+                                    )
+                                }
                             }
                         }
                     }
