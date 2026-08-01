@@ -14,6 +14,9 @@ enum AutoFillStatusService {
     nonisolated(unsafe) static var enabledProvider: @Sendable () async -> Bool = {
         await ASCredentialIdentityStore.shared.state().isEnabled
     }
+    nonisolated(unsafe) static var enableRequester: @Sendable () async -> Bool? = {
+        await systemEnableRequest()
+    }
 
     static var tipDismissed: Bool {
         get {
@@ -29,10 +32,15 @@ enum AutoFillStatusService {
     }
 
     /// iOS: shows the system prompt in-app and returns whether the provider
-    /// ended up enabled. macOS: no-op until the Mac AutoFill extension ships
-    /// (slice 05 of the macOS port); `requestToTurnOnCredentialProviderExtension`
-    /// needs macOS 15 and there is no extension to enable yet.
+    /// ended up enabled — `false` when the user declined it or iOS refused.
+    /// macOS: nil, a no-op until the Mac AutoFill extension ships (slice 05 of
+    /// the macOS port); `requestToTurnOnCredentialProviderExtension` needs
+    /// macOS 15 and there is no extension to enable yet.
     static func requestEnableAutoFill() async -> Bool? {
+        await enableRequester()
+    }
+
+    private static func systemEnableRequest() async -> Bool? {
         #if os(iOS)
         return await ASSettingsHelper.requestToTurnOnCredentialProviderExtension()
         #else
@@ -62,5 +70,7 @@ enum AutoFillStatusService {
 
     static func resetForTesting() {
         defaults.removeObject(forKey: Key.tipDismissed)
+        enabledProvider = { await ASCredentialIdentityStore.shared.state().isEnabled }
+        enableRequester = { await systemEnableRequest() }
     }
 }

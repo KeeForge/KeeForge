@@ -46,6 +46,11 @@ final class DatabaseListViewModel {
     private(set) var pendingUploadAlert: PendingUploadAlert?
     private(set) var isAutoFillProviderEnabled: Bool?
     private(set) var isAutoFillTipDismissed = AutoFillStatusService.tipDismissed
+    /// Set when an enable request came back with the provider still off. It has
+    /// to be state rather than a one-shot alert: iOS tears the presenting sheet
+    /// down together with its own prompt, so anything modal raised at that
+    /// moment is dropped before it can appear.
+    private(set) var isAutoFillEnableRequestRejected = false
     private var didConsumeInitialLaunchSelection = false
     private let pendingUploadDrainer: PendingUploadDrainer
 
@@ -233,13 +238,26 @@ final class DatabaseListViewModel {
 
     func refreshAutoFillStatus() async {
         isAutoFillProviderEnabled = await AutoFillStatusService.isAutoFillEnabled()
+        if isAutoFillProviderEnabled == true {
+            isAutoFillEnableRequestRejected = false
+        }
     }
 
     func requestEnableAutoFill() async {
-        // A nil result means the request was a no-op (macOS, where the AutoFill
-        // extension does not ship yet); only flip the flag on a confirmed enable.
-        if await AutoFillStatusService.requestEnableAutoFill() == true {
+        switch await AutoFillStatusService.requestEnableAutoFill() {
+        case .some(true):
             isAutoFillProviderEnabled = true
+            isAutoFillEnableRequestRejected = false
+        case .some(false):
+            // The prompt closed without authorizing KeeForge. Confirm that
+            // against the real provider state before recording it — the result
+            // describes the prompt, not the store.
+            await refreshAutoFillStatus()
+            isAutoFillEnableRequestRejected = isAutoFillProviderEnabled != true
+        case .none:
+            // No-op request (macOS, where the AutoFill extension does not ship
+            // yet) — nothing was asked, so there is nothing to record.
+            break
         }
     }
 
