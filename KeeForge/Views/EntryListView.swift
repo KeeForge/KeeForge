@@ -56,13 +56,21 @@ struct EntryListView: View {
                 Button {
                     onSelectEntry(entry)
                 } label: {
-                    EntryRow(entry: entry, customIconData: viewModel.customIconData(for: entry))
+                    EntryRow(
+                        entry: entry,
+                        customIconData: viewModel.customIconData(for: entry),
+                        folderPath: viewModel.folderPath(forEntryID: entry.id)
+                    )
                 }
                 .buttonStyle(.plain)
                 .accessibilityIdentifier("search.entry.navlink")
             } else {
                 NavigationLink(value: entry) {
-                    EntryRow(entry: entry, customIconData: viewModel.customIconData(for: entry))
+                    EntryRow(
+                        entry: entry,
+                        customIconData: viewModel.customIconData(for: entry),
+                        folderPath: viewModel.folderPath(forEntryID: entry.id)
+                    )
                 }
                 .accessibilityIdentifier("search.entry.navlink")
             }

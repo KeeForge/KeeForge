@@ -815,6 +815,129 @@ final class DatabaseViewModelTests: XCTestCase {
         XCTAssertFalse(vm.isGroupExcludedFromAutoFill(groupID: child.id))
     }
 
+    func testEntriesInGroupHiddenFromSearchAreExcludedFromSearchResults() async throws {
+        let visible = KPEntry(title: "Searchable Alpha")
+        let hidden = KPEntry(title: "Searchable Beta")
+        let root = KPGroup(name: "Root", groups: [
+            KPGroup(name: "Visible", entries: [visible]),
+            KPGroup(name: "Secret", entries: [hidden], searchingEnabled: .disabled),
+        ])
+        let vm = try await makeInjectedViewModel(rootGroup: root)
+
+        vm.searchText = "Searchable"
+
+        XCTAssertEqual(vm.searchResults.map(\.id), [visible.id])
+        XCTAssertFalse(
+            vm.isEntryInRecycleBin(entryID: hidden.id),
+            "Search exclusion must not mark entries as recycled"
+        )
+    }
+
+    func testSearchExclusionIsInheritedBySubgroups() async throws {
+        let visible = KPEntry(title: "Searchable Alpha")
+        let deeplyHidden = KPEntry(title: "Searchable Deep")
+        let root = KPGroup(name: "Root", groups: [
+            KPGroup(name: "Visible", entries: [visible]),
+            KPGroup(
+                name: "Secret",
+                groups: [KPGroup(name: "Deeper", entries: [deeplyHidden])],
+                searchingEnabled: .disabled
+            ),
+        ])
+        let vm = try await makeInjectedViewModel(rootGroup: root)
+
+        vm.searchText = "Searchable"
+
+        XCTAssertEqual(vm.searchResults.map(\.id), [visible.id])
+    }
+
+    func testExplicitlyEnabledSubgroupOverridesInheritedSearchExclusion() async throws {
+        let hidden = KPEntry(title: "Searchable Hidden")
+        let reEnabled = KPEntry(title: "Searchable Exception")
+        let root = KPGroup(name: "Root", groups: [
+            KPGroup(
+                name: "Secret",
+                entries: [hidden],
+                groups: [KPGroup(name: "Exception", entries: [reEnabled], searchingEnabled: .enabled)],
+                searchingEnabled: .disabled
+            ),
+            KPGroup(name: "Filler"),
+        ])
+        let vm = try await makeInjectedViewModel(rootGroup: root)
+
+        vm.searchText = "Searchable"
+
+        XCTAssertEqual(vm.searchResults.map(\.id), [reEnabled.id])
+    }
+
+    func testTogglingSearchExclusionUpdatesSearchResultsLive() async throws {
+        let target = KPEntry(title: "Toggle Target")
+        let root = KPGroup(name: "Root", groups: [
+            KPGroup(name: "Hideable", entries: [target]),
+            KPGroup(name: "Filler"),
+        ])
+        let vm = try await makeInjectedViewModel(rootGroup: root)
+        let group = try XCTUnwrap(vm.currentRootGroup?.groups.first(where: { $0.name == "Hideable" }))
+
+        vm.searchText = "Toggle Target"
+        XCTAssertEqual(vm.searchResults.map(\.id), [target.id])
+
+        try vm.setGroupExcludedFromAutoFill(true, groupID: group.id)
+        XCTAssertTrue(vm.searchResults.isEmpty)
+
+        try vm.setGroupExcludedFromAutoFill(false, groupID: group.id)
+        XCTAssertEqual(vm.searchResults.map(\.id), [target.id])
+    }
+
+    /// Deliberate: `<EnableSearching>` hides a group from search and AutoFill,
+    /// not from browsing surfaces — the tag browser keeps listing its entries.
+    func testTagBrowserStillListsEntriesInGroupsHiddenFromSearch() async throws {
+        let tagged = KPEntry(title: "Tagged Hidden", tags: ["ops"], hasTagsElement: true)
+        let root = KPGroup(name: "Root", groups: [
+            KPGroup(name: "Secret", entries: [tagged], searchingEnabled: .disabled),
+            KPGroup(name: "Filler"),
+        ])
+        let vm = try await makeInjectedViewModel(rootGroup: root)
+
+        XCTAssertEqual(vm.entries(withTag: "ops").map(\.id), [tagged.id])
+
+        vm.searchText = "ops"
+        XCTAssertTrue(vm.searchResults.isEmpty)
+    }
+
+    func testFolderPathJoinsAncestorGroupNamesBelowVisibleRoot() async throws {
+        let nested = KPEntry(title: "Nested")
+        let topLevel = KPEntry(title: "Top Level")
+        let root = KPGroup(
+            name: "Root",
+            entries: [topLevel],
+            groups: [KPGroup(name: "Work", groups: [KPGroup(name: "Servers", entries: [nested])])]
+        )
+        let vm = try await makeInjectedViewModel(rootGroup: root)
+
+        XCTAssertEqual(vm.folderPath(forEntryID: nested.id), "Work / Servers")
+        XCTAssertNil(vm.folderPath(forEntryID: topLevel.id))
+        XCTAssertNil(vm.folderPath(forEntryID: UUID()))
+    }
+
+    /// A KDBX tree wraps everything in a synthetic root whose one child is the
+    /// visible root; neither name belongs in an entry's folder path.
+    func testFolderPathExcludesSyntheticWrapperAndVisibleRootName() async throws {
+        let nested = KPEntry(title: "Nested")
+        let topLevel = KPEntry(title: "Top Level")
+        let wrapper = KPGroup(name: "Wrapper", groups: [
+            KPGroup(
+                name: "Passwords",
+                entries: [topLevel],
+                groups: [KPGroup(name: "Work", entries: [nested])]
+            ),
+        ])
+        let vm = try await makeInjectedViewModel(rootGroup: wrapper)
+
+        XCTAssertEqual(vm.folderPath(forEntryID: nested.id), "Work")
+        XCTAssertNil(vm.folderPath(forEntryID: topLevel.id))
+    }
+
     func testHidingGroupFromAutoFillRemovesItsEntriesFromCredentialStore() async throws {
         let vm = try makeViewModel()
         var observedEntries: [[KPEntry]] = []
@@ -843,9 +966,13 @@ final class DatabaseViewModelTests: XCTestCase {
         )
 
         vm.searchText = hiddenEntry.title
-        XCTAssertTrue(
+        XCTAssertFalse(
             vm.searchResults.contains(where: { $0.id == hiddenEntry.id }),
-            "Hiding a group from AutoFill must not hide it from the in-app search"
+            "Hiding a group also hides its entries from the in-app search"
+        )
+        XCTAssertFalse(
+            vm.isEntryInRecycleBin(entryID: hiddenEntry.id),
+            "Search exclusion must not mark entries as recycled"
         )
     }
 

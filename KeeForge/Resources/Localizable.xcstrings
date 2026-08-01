@@ -5987,19 +5987,25 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Aus AutoFill ausgeblendet"
+            "value" : "Aus Suche & AutoFill ausgeblendet"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Hidden from Search & AutoFill"
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Oculto del autorrelleno"
+            "value" : "Oculto de la búsqueda y el autorrelleno"
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Masqué du Remplissage automatique"
+            "value" : "Masqué de la recherche et du remplissage automatique"
           }
         }
       }
@@ -6097,19 +6103,25 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Aus AutoFill ausblenden"
+            "value" : "Aus Suche & AutoFill ausblenden"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Hide from Search & AutoFill"
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Ocultar del autorrelleno"
+            "value" : "Ocultar de la búsqueda y el autorrelleno"
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Masquer du Remplissage automatique"
+            "value" : "Masquer de la recherche et du remplissage automatique"
           }
         }
       }
@@ -10696,19 +10708,25 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "In AutoFill anzeigen"
+            "value" : "In Suche & AutoFill anzeigen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Show in Search & AutoFill"
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Mostrar en el autorrelleno"
+            "value" : "Mostrar en la búsqueda y el autorrelleno"
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Afficher dans le remplissage automatique"
+            "value" : "Afficher dans la recherche et le remplissage automatique"
           }
         }
       }
@@ -10718,19 +10736,25 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "In AutoFill anzeigen (überschreibt übergeordnete Gruppe)"
+            "value" : "In Suche & AutoFill anzeigen (überschreibt übergeordnete Gruppe)"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Show in Search & AutoFill (Overrides Parent)"
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Mostrar en el autorrelleno (anula el grupo superior)"
+            "value" : "Mostrar en la búsqueda y el autorrelleno (anula el grupo superior)"
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Afficher dans le remplissage automatique (remplace le groupe parent)"
+            "value" : "Afficher dans la recherche et le remplissage automatique (remplace le groupe parent)"
           }
         }
       }
