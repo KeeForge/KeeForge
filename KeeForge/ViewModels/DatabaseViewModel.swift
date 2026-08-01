@@ -301,10 +301,14 @@ final class DatabaseViewModel {
     /// The group each entry currently sits in, so an entry's inherited tags
     /// resolve without walking the tree a second time.
     private var entryParentGroupIDs: [UUID: UUID] = [:]
+    /// Ancestor group names below the visible root per entry, joined with
+    /// " / ". Entries sitting directly under the visible root are absent.
+    private var entryFolderPaths: [UUID: String] = [:]
     private var recycleBinEntryIDs: Set<UUID> = []
     private var recycleBinGroupIDs: Set<UUID> = []
     /// Groups whose resolved `<EnableSearching>` is false, including the ones
-    /// that only inherit it from an ancestor.
+    /// that only inherit it from an ancestor. Skipped by AutoFill and the
+    /// in-app search; still shown when browsing.
     private var autoFillExcludedGroupIDs: Set<UUID> = []
     private var lastSharedCacheRefreshFingerprint: SharedCacheRefreshFingerprint?
     private var isRefreshingSharedCache = false
@@ -733,6 +737,14 @@ final class DatabaseViewModel {
         }.value
     }
 
+    /// The entry's folder location below the visible root as a display string
+    /// ("Parent / Child"). `nil` for entries sitting directly under the
+    /// visible root and for unknown IDs.
+    func folderPath(forEntryID entryID: UUID) -> String? {
+        _ = contentRevision
+        return entryFolderPaths[entryID]
+    }
+
     func isEntryInRecycleBin(entryID: UUID) -> Bool {
         recycleBinEntryIDs.contains(entryID)
     }
@@ -808,9 +820,9 @@ final class DatabaseViewModel {
         try applyEntryEdit(.createGroup(parentGroupID: parentGroupID, name: trimmedName))
     }
 
-    /// Whether AutoFill currently skips this group, taking an inherited
-    /// `<EnableSearching>` from an ancestor into account. Resolved once per
-    /// tree rebuild, like `isGroupInRecycleBin`.
+    /// Whether search and AutoFill currently skip this group, taking an
+    /// inherited `<EnableSearching>` from an ancestor into account. Resolved
+    /// once per tree rebuild, like `isGroupInRecycleBin`.
     func isGroupExcludedFromAutoFill(groupID: UUID) -> Bool {
         _ = contentRevision
         return autoFillExcludedGroupIDs.contains(groupID)
@@ -1465,6 +1477,7 @@ final class DatabaseViewModel {
             tagEntryIDs = [:]
             groupInheritedTags = [:]
             entryParentGroupIDs = [:]
+            entryFolderPaths = [:]
             recycleBinEntryIDs = []
             recycleBinGroupIDs = []
             autoFillExcludedGroupIDs = []
@@ -1483,13 +1496,21 @@ final class DatabaseViewModel {
         var nextTagEntryIDs: [String: [UUID]] = [:]
         var nextGroupInheritedTags: [UUID: [String]] = [:]
         var nextEntryParentGroupIDs: [UUID: UUID] = [:]
+        var nextEntryFolderPaths: [UUID: String] = [:]
         var nextRecycleBinEntryIDs = Set<UUID>()
         var nextRecycleBinGroupIDs = Set<UUID>()
         var nextAutoFillExcludedGroupIDs = Set<UUID>()
         let recycleBinID = root.recycleBinUUID
+        let visibleRootID = visibleRootGroupID
 
         @discardableResult
-        func index(group: KPGroup, includeInSearch: Bool, autoFillEnabled: Bool, inheritedTags: [String]) -> Int {
+        func index(
+            group: KPGroup,
+            includeInSearch: Bool,
+            autoFillEnabled: Bool,
+            inheritedTags: [String],
+            folderPath: [String]
+        ) -> Int {
             nextGroupIndex[group.id] = group
             if includeInSearch == false, group.id != recycleBinID {
                 nextRecycleBinGroupIDs.insert(group.id)
@@ -1522,11 +1543,20 @@ final class DatabaseViewModel {
             for entry in group.entries {
                 nextEntryIndex[entry.id] = entry
                 nextEntryParentGroupIDs[entry.id] = group.id
+                if folderPath.isEmpty == false {
+                    nextEntryFolderPaths[entry.id] = folderPath.joined(separator: " / ")
+                }
                 totalEntryCount += 1
                 if includeInSearch {
-                    nextSearchableEntries.append(entry)
                     let tags = Self.effectiveTags(for: entry, inheritedGroupTags: accumulatedTags)
-                    nextSearchableEntryText[entry.id] = Self.searchText(for: entry, tags: tags)
+                    // A disabled `<EnableSearching>` hides the entry from the
+                    // search corpus (KeePass's reading of the flag) as well as
+                    // AutoFill; the tag index and browsing deliberately keep
+                    // it, and recycle-bin state is never involved.
+                    if resolvedAutoFillEnabled {
+                        nextSearchableEntries.append(entry)
+                        nextSearchableEntryText[entry.id] = Self.searchText(for: entry, tags: tags)
+                    }
                     for tag in tags {
                         nextTagEntryIDs[tag, default: []].append(entry.id)
                     }
@@ -1537,11 +1567,15 @@ final class DatabaseViewModel {
 
             for childGroup in group.groups {
                 let childIncludedInSearch = includeInSearch && childGroup.id != recycleBinID
+                // Paths start below the visible root, so neither the parser's
+                // synthetic wrapper nor the database root's name shows up.
+                let childFolderPath = childGroup.id == visibleRootID ? [] : folderPath + [childGroup.name]
                 totalEntryCount += index(
                     group: childGroup,
                     includeInSearch: childIncludedInSearch,
                     autoFillEnabled: resolvedAutoFillEnabled,
-                    inheritedTags: accumulatedTags
+                    inheritedTags: accumulatedTags,
+                    folderPath: childFolderPath
                 )
             }
 
@@ -1549,7 +1583,7 @@ final class DatabaseViewModel {
             return totalEntryCount
         }
 
-        index(group: root, includeInSearch: true, autoFillEnabled: true, inheritedTags: [])
+        index(group: root, includeInSearch: true, autoFillEnabled: true, inheritedTags: [], folderPath: [])
 
         entryIndex = nextEntryIndex
         groupIndex = nextGroupIndex
@@ -1559,6 +1593,7 @@ final class DatabaseViewModel {
         tagEntryIDs = nextTagEntryIDs
         groupInheritedTags = nextGroupInheritedTags
         entryParentGroupIDs = nextEntryParentGroupIDs
+        entryFolderPaths = nextEntryFolderPaths
         recycleBinEntryIDs = nextRecycleBinEntryIDs
         recycleBinGroupIDs = nextRecycleBinGroupIDs
         autoFillExcludedGroupIDs = nextAutoFillExcludedGroupIDs

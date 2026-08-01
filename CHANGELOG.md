@@ -23,6 +23,8 @@ TODO before the first macOS release:
 
 ### Features
 
+- Search results and the tag browser now show which folder an entry lives in, as a small caption under the entry (#24).
+- Groups hidden from AutoFill are now also hidden from in-app search, matching how KeePass treats the underlying "enable searching" flag (#24). Browsing and the tag browser still show the group and its entries, and the context-menu wording now says "Hide from Search & AutoFill".
 - French localization: the app, the AutoFill extension, and the README/contribution guide are now available in French.
 - Spanish localization: the app, the AutoFill extension, and the README/contribution guide are now available in Spanish.
 

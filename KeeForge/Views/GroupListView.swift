@@ -758,6 +758,7 @@ struct TagBrowserRow: View {
 struct EntryRow: View {
     let entry: KPEntry
     var customIconData: Data? = nil
+    var folderPath: String? = nil
 
     var body: some View {
         HStack {
@@ -771,6 +772,18 @@ struct EntryRow: View {
                     Text(entry.username)
                         .font(.caption)
                         .foregroundStyle(.secondary)
+                }
+                if let folderPath, folderPath.isEmpty == false {
+                    HStack(spacing: 4) {
+                        Image(systemName: "folder")
+                            .accessibilityHidden(true)
+                        Text(folderPath)
+                            .lineLimit(1)
+                            .truncationMode(.head)
+                            .accessibilityIdentifier("entry-row.folder")
+                    }
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
                 }
             }
 

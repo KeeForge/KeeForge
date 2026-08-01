@@ -122,9 +122,11 @@ final class KPGroup: Identifiable, @unchecked Sendable {
     /// KeePass resolves the flag. Groups without the element (or with
     /// `.inherit`) take the parent's answer; the root defaults to enabled.
     ///
-    /// In-app browsing and the in-app search deliberately keep using
-    /// `allEntries`: hiding a group from AutoFill is not meant to hide it from
-    /// the person who owns the database.
+    /// The in-app search applies the same exclusion, resolved independently in
+    /// `DatabaseViewModel.rebuildDerivedState` (keep the inheritance order of
+    /// the two in sync). In-app browsing and the tag browser deliberately keep
+    /// using `allEntries`: hiding a group from search is not meant to hide it
+    /// from the person who owns the database.
     func autoFillEntries(
         excludingGroupID excludedGroupID: UUID? = nil,
         inheritedSearchingEnabled: Bool = true
