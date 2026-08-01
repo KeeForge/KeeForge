@@ -29,6 +29,9 @@ TODO before the first macOS release:
 - Saving a OneDrive database could show a false "Save Conflict" alert (typically on the second save in a session), and OneDrive databases could re-download in full even though nothing changed remotely. OneDrive rewrites its revision tags on its own after an upload; saves now check the file's actual content before declaring a conflict, and quietly proceed when nothing really changed.
 - Revealed passwords no longer show ambiguous hyphens that are not part of the stored password when a long value wraps onto another line.
 - Protected custom fields are now masked in entry details and stored history versions. Revealing or copying one uses the same device-owner authentication gate as passwords.
+- "Open iOS AutoFill Settings" was hidden exactly when it was needed — it only appeared once AutoFill was already on. If the one-tap prompt did not work, there was no way to reach the iOS setting from inside KeeForge. It is now always available.
+- Tapping "Turn On AutoFill" and then declining the iOS prompt closed the whole Settings screen with the status still on "Off" and no word about what happened, which looks like the switch turning itself back off. KeeForge now keeps a note on the AutoFill screen explaining that the attempt did not turn it on, and pointing at the manual route. The screen also states that the per-database selections only take effect once KeeForge is enabled as a provider in iOS.
+- "On" and "Off" in the AutoFill provider status were never translated.
 
 ## v1.11.0 (2026-07-30)
 

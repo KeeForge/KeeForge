@@ -3884,12 +3884,32 @@
         }
       }
     },
+    "Off" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aus"
+          }
+        }
+      }
+    },
     "OK" : {
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "OK"
+          }
+        }
+      }
+    },
+    "On" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "An"
           }
         }
       }
@@ -5335,6 +5355,16 @@
         }
       }
     },
+    "The last attempt did not turn it on. Open iOS AutoFill Settings and enable KeeForge there." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Der letzte Versuch hat es nicht aktiviert. Öffnen Sie die iOS-AutoFill-Einstellungen und aktivieren Sie KeeForge dort."
+          }
+        }
+      }
+    },
     "The new database could not be verified after encryption." : {
       "localizations" : {
         "de" : {
@@ -5511,6 +5541,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "In diesem Cloud-Konto ist nicht genügend Speicherplatz vorhanden."
+          }
+        }
+      }
+    },
+    "These selections only take effect once KeeForge is enabled as an AutoFill provider above." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Diese Auswahl wirkt sich erst aus, wenn KeeForge oben als AutoFill-Anbieter aktiviert ist."
           }
         }
       }

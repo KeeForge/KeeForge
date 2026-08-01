@@ -346,6 +346,35 @@ final class AppSettingsUITests: AppSettingsUITestCase {
         XCTAssertTrue(usageStatsToggle.waitForExistence(timeout: 5), "Display settings should expose the database list usage-stats toggle")
     }
 
+    /// The manual route into iOS Settings used to be hidden while the provider
+    /// was off — exactly when it is the only route left, because iOS can refuse
+    /// the one-tap prompt (#61). Under `-ui-testing` the provider always reads
+    /// as disabled, so this asserts the off state deterministically.
+    func testAutoFillSettingsOffersTheManualRouteWhileProviderIsOff() {
+        openAppSettings()
+
+        let autoFillLink = app.descendants(matching: .any).matching(identifier: "settings.autofill.link").firstMatch
+        revealInSettings(autoFillLink, maxSwipes: 2)
+        tapElement(autoFillLink)
+
+        let status = app.descendants(matching: .any)
+            .matching(identifier: "settings.autofill.provider-status").firstMatch
+        XCTAssertTrue(
+            status.waitForExistence(timeout: Self.ciElementTimeout),
+            "AutoFill settings should state the system provider status"
+        )
+        XCTAssertEqual(status.value as? String, "Off")
+
+        XCTAssertTrue(
+            app.buttons["settings.autofill.turn-on"].exists,
+            "The one-tap prompt should be offered while the provider is off"
+        )
+        XCTAssertTrue(
+            app.buttons["settings.autofill.open-ios-settings"].exists,
+            "The manual iOS Settings route must stay reachable while the provider is off"
+        )
+    }
+
     func testAutoFillSettingsListsDatabaseTogglesAndCancelableClear() {
         openAppSettings()
 
