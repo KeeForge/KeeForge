@@ -128,7 +128,8 @@ Perform this review for every release, even if the content already looks complet
 4. Check platform accuracy. Keep features available on both iOS and macOS shared; set the
    `platforms` argument for single-platform features. Never advertise an iOS-only feature in the
    Mac sheet or vice versa.
-5. Add or update every affected key and its German translation in
+5. Add or update every affected key and its translations for every shipped locale (currently
+   `de`, `fr`, and `es` — see AGENTS.md's Localization section) in
    `KeeForge/Resources/Localizable.xcstrings`. The localization tests in the RC run are the gate.
 6. Re-read the completed sheet as a user. Fix unclear titles, repetitive descriptions, missing
    major features, or claims the release does not support.

@@ -234,7 +234,7 @@ routine):
 **Still manual / Tier-3** (not replaced by this class): filling via the owning database and
 every other QuickType/Safari-rendered check, extension flows (save, switcher, empty state),
 entry-deletion suggestion sweeps, database *removal* cleanup, immediate republish when
-re-enabling the currently open database, and the German/VoiceOver passes.
+re-enabling the currently open database, and the localized-UI (`de`/`fr`/`es`) and VoiceOver passes.
 
 ## UI Test Fix Workflow
 

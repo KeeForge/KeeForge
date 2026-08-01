@@ -18,7 +18,7 @@
 - [ ] Updated `CHANGELOG.md` under `## Unreleased` (feature/bug-fix changes)
 - [ ] Ran `xcodegen generate` after adding/removing/moving source files
 - [ ] Updated the nearest folder-local `README.md` if the folder's map changed
-- [ ] Localized new UI strings in all shipped locales (`en`, `de`) and ran `LocalizationTests`
+- [ ] Localized new UI strings in all shipped locales (`en`, `de`, `fr`, `es`) and ran `LocalizationTests`
 - [ ] Kept AutoFill extension target membership/imports in sync for shared code
 - [ ] Updated `KDBXCompatibilityTests` if parser/writer/save behavior changed
 - [ ] Preserved accessibility identifiers or updated the affected UI tests
