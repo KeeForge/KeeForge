@@ -47,6 +47,63 @@ final class DatabaseViewModelTests: XCTestCase {
         XCTAssertFalse(vm.rootGroup?.allEntries.isEmpty ?? true)
     }
 
+    func testBiometricUnlockOpensDatabaseWithTheStoredCompositeKey() async throws {
+        let vm = try makeViewModel(
+            biometricCompositeKeyOperation: { [fixturePassword] _, _ in
+                try KDBXCrypto.compositeKey(password: fixturePassword, keyFileData: nil)
+            }
+        )
+
+        let outcome = await vm.unlockWithBiometrics()
+
+        XCTAssertEqual(outcome, .unlocked)
+        XCTAssertState(vm.state, is: .unlocked)
+    }
+
+    /// LocalAuthentication answers `notInteractive` when it cannot present its
+    /// prompt because the app is not foreground-active — what lock-on-background
+    /// and Quick Launch used to trigger (#60). Nothing was shown, so this is not
+    /// an unlock failure: the database stays locked and re-armable rather than
+    /// stranding the session on a "biometric.unexpected" error screen.
+    func testBiometricUnlockStaysLockedWhenThePromptCannotBePresented() async throws {
+        let vm = try makeViewModel(
+            biometricCompositeKeyOperation: { _, _ in throw LAError(.notInteractive) }
+        )
+
+        let outcome = await vm.unlockWithBiometrics()
+
+        XCTAssertEqual(outcome, .promptUnavailable)
+        XCTAssertState(vm.state, is: .locked)
+        XCTAssertNil(vm.openFailure)
+    }
+
+    /// The prompt offers a "Use Password" fallback; taking it is a choice, not
+    /// a failure.
+    func testBiometricUnlockStaysLockedWhenTheUserChoosesThePasswordFallback() async throws {
+        let vm = try makeViewModel(
+            biometricCompositeKeyOperation: { _, _ in throw LAError(.userFallback) }
+        )
+
+        let outcome = await vm.unlockWithBiometrics()
+
+        XCTAssertEqual(outcome, .passwordFallback)
+        XCTAssertState(vm.state, is: .locked)
+        XCTAssertNil(vm.openFailure)
+    }
+
+    func testBiometricUnlockStillSurfacesRealBiometricFailures() async throws {
+        let vm = try makeViewModel(
+            biometricCompositeKeyOperation: { _, _ in throw LAError(.biometryLockout) }
+        )
+
+        let outcome = await vm.unlockWithBiometrics()
+
+        XCTAssertEqual(outcome, .failed)
+        let failure = try XCTUnwrap(vm.openFailure)
+        XCTAssertEqual(failure.errorCode, "biometric.unavailable")
+        XCTAssertEqual(failure.category, DatabaseOpenFailure.Category.biometric)
+    }
+
     func testUnlockCloudDatabaseDoesNotRewriteSharedCache() async throws {
         // A cloud unlock reads its bytes FROM the shared cache, so rewriting
         // them used to silently revert an AutoFill save that landed in the
@@ -3225,6 +3282,10 @@ final class DatabaseViewModelTests: XCTestCase {
                 binaryPool: BinaryPool(rawFields: parsed.header.innerHeaderBinaryFields)
             )
         },
+        biometricCompositeKeyOperation: @escaping DatabaseViewModel.BiometricCompositeKeyOperation = { reference, reason in
+            let context = try await BiometricService.authenticate(reason: reason)
+            return try DatabaseViewModel.retrieveStoredCompositeKey(for: reference, context: context)
+        },
         conflictCopyDateProvider: @escaping @Sendable () -> Date = { .now },
         nowProvider: @escaping @Sendable () -> Date = { .now }
     ) throws -> DatabaseViewModel {
@@ -3243,6 +3304,7 @@ final class DatabaseViewModelTests: XCTestCase {
             localConflictCopyOperation: localConflictCopyOperation,
             cloudConflictCopyOperation: cloudConflictCopyOperation,
             reloadOperation: reloadOperation,
+            biometricCompositeKeyOperation: biometricCompositeKeyOperation,
             conflictCopyDateProvider: conflictCopyDateProvider,
             nowProvider: nowProvider
         )
