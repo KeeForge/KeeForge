@@ -5982,18 +5982,12 @@
         }
       }
     },
-    "Hidden from AutoFill" : {
+    "Hidden from Search & AutoFill" : {
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Aus Suche & AutoFill ausgeblendet"
-          }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Hidden from Search & AutoFill"
           }
         },
         "es" : {
@@ -6098,18 +6092,12 @@
         }
       }
     },
-    "Hide from AutoFill" : {
+    "Hide from Search & AutoFill" : {
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Aus Suche & AutoFill ausblenden"
-          }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Hide from Search & AutoFill"
           }
         },
         "es" : {
@@ -10703,18 +10691,12 @@
         }
       }
     },
-    "Show in AutoFill" : {
+    "Show in Search & AutoFill" : {
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "In Suche & AutoFill anzeigen"
-          }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Show in Search & AutoFill"
           }
         },
         "es" : {
@@ -10731,18 +10713,12 @@
         }
       }
     },
-    "Show in AutoFill (Overrides Parent)" : {
+    "Show in Search & AutoFill (Overrides Parent)" : {
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "In Suche & AutoFill anzeigen (überschreibt übergeordnete Gruppe)"
-          }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Show in Search & AutoFill (Overrides Parent)"
           }
         },
         "es" : {

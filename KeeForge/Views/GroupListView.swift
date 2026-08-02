@@ -517,10 +517,10 @@ struct GroupListView: View {
     private func autoFillExclusionButtonTitle(for groupID: UUID) -> String {
         if viewModel.isGroupExcludedFromAutoFill(groupID: groupID) {
             return viewModel.isGroupExclusionInherited(groupID: groupID)
-                ? String(localized: "Show in AutoFill (Overrides Parent)")
-                : String(localized: "Show in AutoFill")
+                ? String(localized: "Show in Search & AutoFill (Overrides Parent)")
+                : String(localized: "Show in Search & AutoFill")
         }
-        return String(localized: "Hide from AutoFill")
+        return String(localized: "Hide from Search & AutoFill")
     }
 
     private func toggleAutoFillExclusion(_ groupID: UUID) {
@@ -719,7 +719,7 @@ struct GroupRow: View {
                         Image(systemName: "key.slash")
                             .font(.caption)
                             .foregroundStyle(.secondary)
-                            .accessibilityLabel("Hidden from AutoFill")
+                            .accessibilityLabel("Hidden from Search & AutoFill")
                             .accessibilityIdentifier("group-row.autofill-excluded")
                     }
                 }
