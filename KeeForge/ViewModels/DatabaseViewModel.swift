@@ -109,6 +109,10 @@ final class DatabaseViewModel {
     struct PendingLockRequest: Identifiable, Equatable, Sendable {
         let manuallyTriggered: Bool
 
+        var requiresAuthenticationToContinueEditing: Bool {
+            manuallyTriggered == false
+        }
+
         var id: String {
             manuallyTriggered ? "manual" : "automatic"
         }
@@ -535,7 +539,7 @@ final class DatabaseViewModel {
             cloudSyncStatus = readResult.cloudSyncStatus
             try cacheDatabaseCopyForLocalDatabase(data)
 
-            let compositeKey = KDBXCrypto.compositeKey(password: password, keyFileData: keyFileData)
+            let compositeKey = try KDBXCrypto.compositeKey(password: password, keyFileData: keyFileData)
             let sessionKey = SymmetricKey(size: .bits256)
 
             let unlockPayload = try await Task.detached(priority: .userInitiated) {
@@ -998,15 +1002,31 @@ final class DatabaseViewModel {
             return
         }
 
-        // A dirty draft defers the lock behind the discard/save confirmation,
-        // which the user only resolves once they are back in KeeForge — no
-        // lock has happened yet, so the copy survives the trip regardless, and
-        // resolving it in the foreground should scrub like any other
-        // in-app lock. `preservingClipboard` deliberately does not carry over.
+        // A dirty draft defers the lock so the user can choose whether to lose
+        // it. Automatic requests require device-owner authentication before
+        // the unlocked session can resume.
         pendingLockRequest = PendingLockRequest(manuallyTriggered: manuallyTriggered)
     }
 
-    func cancelLockRequest() {
+    func continueEditingAfterLockRequest() async {
+        guard let pendingLockRequest else { return }
+
+        if pendingLockRequest.requiresAuthenticationToContinueEditing,
+           BiometricService.canAuthenticateDeviceOwner {
+            do {
+                _ = try await BiometricService.authenticateDeviceOwner(
+                    reason: String(localized: "Unlock Database")
+                )
+            } catch {
+                lockRequest(force: true)
+                return
+            }
+        }
+
+        cancelLockRequest()
+    }
+
+    private func cancelLockRequest() {
         pendingLockRequest = nil
         resetInactivityTimer()
     }

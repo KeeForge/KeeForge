@@ -116,19 +116,23 @@ final class KeyFileProcessorTests: XCTestCase {
 
     // MARK: - Composite Key Tests
 
-    func testCompositeKeyPasswordOnly() {
+    func testCompositeKeyPasswordOnly() throws {
         // Password-only should match legacy behavior: SHA256(SHA256(password))
         let password = "testpassword"
         let legacy = KDBXCrypto.compositeKey(password: password)
-        let composite = KDBXCrypto.compositeKey(password: password, keyFileData: nil)
+        let composite = try KDBXCrypto.compositeKey(password: password, keyFileData: nil)
         XCTAssertEqual(legacy, composite)
+
+        let legacyEmpty = KDBXCrypto.compositeKey(password: "")
+        let compositeEmpty = try KDBXCrypto.compositeKey(password: "", keyFileData: nil)
+        XCTAssertEqual(legacyEmpty, compositeEmpty)
     }
 
     func testCompositeKeyWithKeyFile() throws {
         let password = "demo"
         let keyFileData = try fixtureData("test-binary", ext: "key")
 
-        let composite = KDBXCrypto.compositeKey(password: password, keyFileData: keyFileData)
+        let composite = try KDBXCrypto.compositeKey(password: password, keyFileData: keyFileData)
 
         // Manual computation: SHA256(SHA256("demo") || processKeyFile(binaryKey))
         let pwdHash = Data(SHA256.hash(data: Data(password.utf8)))
@@ -144,7 +148,7 @@ final class KeyFileProcessorTests: XCTestCase {
     func testCompositeKeyKeyFileOnly() throws {
         let keyFileData = try fixtureData("test-binary", ext: "key")
 
-        let composite = KDBXCrypto.compositeKey(password: nil, keyFileData: keyFileData)
+        let composite = try KDBXCrypto.compositeKey(password: nil, keyFileData: keyFileData)
 
         // Key file only: SHA256(processKeyFile(keyFileData))
         let keyFileKey = try KeyFileProcessor.processKeyFile(keyFileData)
@@ -156,10 +160,48 @@ final class KeyFileProcessorTests: XCTestCase {
     func testCompositeKeyEmptyPasswordWithKeyFileEqualsKeyFileOnly() throws {
         let keyFileData = try fixtureData("test-binary", ext: "key")
 
-        let withEmpty = KDBXCrypto.compositeKey(password: "", keyFileData: keyFileData)
-        let withNil = KDBXCrypto.compositeKey(password: nil, keyFileData: keyFileData)
+        let withEmpty = try KDBXCrypto.compositeKey(password: "", keyFileData: keyFileData)
+        let withNil = try KDBXCrypto.compositeKey(password: nil, keyFileData: keyFileData)
 
         XCTAssertEqual(withEmpty, withNil, "Empty password should be treated same as no password")
+    }
+
+    func testCompositeKeyRejectsMalformedXMLKeyFileInsteadOfDroppingIt() {
+        let malformedKeyFile = Data("""
+        <?xml version="1.0" encoding="utf-8"?>
+        <KeyFile>
+          <Meta><Version>1.0</Version></Meta>
+          <Key><Data>not-a-32-byte-key</Data></Key>
+        </KeyFile>
+        """.utf8)
+
+        for password in [nil, "password"] as [String?] {
+            XCTAssertThrowsError(
+                try KDBXCrypto.compositeKey(password: password, keyFileData: malformedKeyFile)
+            ) { error in
+                XCTAssertEqual(error as? KeyFileProcessor.KeyFileError, .xmlKeyDataInvalid)
+            }
+        }
+    }
+
+    func testCompositeKeyRejectsXMLKeyFileWithMismatchedHash() {
+        let malformedKeyFile = Data("""
+        <?xml version="1.0" encoding="utf-8"?>
+        <KeyFile>
+          <Meta><Version>2.0</Version></Meta>
+          <Key>
+            <Data Hash="DEADBEEF">
+              000102030405060708090A0B0C0D0E0F101112131415161718191A1B1C1D1E1F
+            </Data>
+          </Key>
+        </KeyFile>
+        """.utf8)
+
+        XCTAssertThrowsError(
+            try KDBXCrypto.compositeKey(password: nil, keyFileData: malformedKeyFile)
+        ) { error in
+            XCTAssertEqual(error as? KeyFileProcessor.KeyFileError, .xmlHashMismatch)
+        }
     }
 
     // MARK: - Helpers

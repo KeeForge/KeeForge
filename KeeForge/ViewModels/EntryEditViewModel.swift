@@ -199,6 +199,16 @@ final class EntryEditViewModel {
         }
     }
 
+    var isPasswordInitiallyVisible: Bool {
+        if case .create = mode { return true }
+        return false
+    }
+
+    var requiresAuthenticationToRevealPassword: Bool {
+        if case .edit = mode { return true }
+        return false
+    }
+
     var entryDraftPayload: EntryDraftPayload {
         EntryDraftPayload(
             title: title,

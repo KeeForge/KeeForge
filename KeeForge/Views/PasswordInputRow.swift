@@ -22,6 +22,7 @@ struct PasswordInputRow<Actions: View>: View {
     @Binding var isVisible: Bool
     let fieldAccessibilityIdentifier: String
     let visibilityAccessibilityIdentifier: String
+    private let onVisibilityToggle: (() -> Void)?
     private let actions: Actions
 
     init(
@@ -30,6 +31,7 @@ struct PasswordInputRow<Actions: View>: View {
         isVisible: Binding<Bool>,
         fieldAccessibilityIdentifier: String,
         visibilityAccessibilityIdentifier: String,
+        onVisibilityToggle: (() -> Void)? = nil,
         @ViewBuilder actions: () -> Actions = { EmptyView() }
     ) {
         self.title = title
@@ -37,6 +39,7 @@ struct PasswordInputRow<Actions: View>: View {
         _isVisible = isVisible
         self.fieldAccessibilityIdentifier = fieldAccessibilityIdentifier
         self.visibilityAccessibilityIdentifier = visibilityAccessibilityIdentifier
+        self.onVisibilityToggle = onVisibilityToggle
         self.actions = actions()
     }
 
@@ -54,7 +57,11 @@ struct PasswordInputRow<Actions: View>: View {
             .accessibilityIdentifier(fieldAccessibilityIdentifier)
 
             Button {
-                isVisible.toggle()
+                if let onVisibilityToggle {
+                    onVisibilityToggle()
+                } else {
+                    isVisible.toggle()
+                }
             } label: {
                 Image(systemName: isVisible ? "eye.slash.fill" : "eye.fill")
                     .frame(width: 30, height: 30)

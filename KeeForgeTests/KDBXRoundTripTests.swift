@@ -460,6 +460,53 @@ final class KDBXRoundTripTests: XCTestCase {
         )
     }
 
+    func test_extremeBinaryTimestampsSerializeWithoutTrappingAndSaturate() throws {
+        let maximumTimestamp = binaryTimestamp(Int64.max)
+        let minimumTimestamp = binaryTimestamp(Int64.min)
+        let xml = """
+        <KeePassFile><Root><Group><Name>Root</Name><Entry>
+        <Times><CreationTime>\(maximumTimestamp)</CreationTime><LastModificationTime>\(minimumTimestamp)</LastModificationTime></Times>
+        <String><Key>Title</Key><Value>Extreme Dates</Value></String>
+        </Entry></Group></Root></KeePassFile>
+        """
+
+        let parsed = try parseXML(Data(xml.utf8))
+        var serializer = KDBXXMLSerializer(
+            rootGroup: parsed.rootGroup,
+            meta: parsed.meta,
+            innerStreamKey: roundTripInnerStreamKey,
+            sessionKey: roundTripSessionKey
+        )
+
+        let serialized = try serializer.serialize()
+        let serializedXML = String(decoding: serialized, as: UTF8.self)
+
+        XCTAssertTrue(serializedXML.contains("<CreationTime>\(maximumTimestamp)</CreationTime>"))
+        XCTAssertTrue(serializedXML.contains("<LastModificationTime>\(minimumTimestamp)</LastModificationTime>"))
+        XCTAssertNoThrow(try parseXML(serialized))
+    }
+
+    func test_ordinaryBinaryTimestampStillRoundTripsExactly() throws {
+        let timestamp = binaryTimestamp(63_113_904_000)
+        let xml = """
+        <KeePassFile><Root><Group><Name>Root</Name><Entry>
+        <Times><CreationTime>\(timestamp)</CreationTime></Times>
+        <String><Key>Title</Key><Value>Ordinary Date</Value></String>
+        </Entry></Group></Root></KeePassFile>
+        """
+
+        let parsed = try parseXML(Data(xml.utf8))
+        var serializer = KDBXXMLSerializer(
+            rootGroup: parsed.rootGroup,
+            meta: parsed.meta,
+            innerStreamKey: roundTripInnerStreamKey,
+            sessionKey: roundTripSessionKey
+        )
+        let serializedXML = String(decoding: try serializer.serialize(), as: UTF8.self)
+
+        XCTAssertTrue(serializedXML.contains("<CreationTime>\(timestamp)</CreationTime>"))
+    }
+
     func test_entryExpiry_parsesAndSurvivesRoundTrip() throws {
         let xml = """
         <KeePassFile><Root><Group><Name>Root</Name><Entry>
@@ -482,6 +529,11 @@ final class KDBXRoundTripTests: XCTestCase {
         let reparsedEntry = try XCTUnwrap(reparsed.rootGroup.allEntries.first)
         XCTAssertEqual(reparsedEntry.expires, entry.expires)
         XCTAssertEqual(reparsedEntry.expiryTime, entry.expiryTime)
+    }
+
+    private func binaryTimestamp(_ seconds: Int64) -> String {
+        var littleEndian = seconds.littleEndian
+        return withUnsafeBytes(of: &littleEndian) { Data($0) }.base64EncodedString()
     }
 
     // MARK: - DeletedObjects round-trip

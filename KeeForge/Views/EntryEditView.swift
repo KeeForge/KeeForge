@@ -13,7 +13,8 @@ struct EntryEditView: View {
     @State private var showDiscardConfirmation = false
     @State private var showDeleteConfirmation = false
     @State private var showPasswordGenerator = false
-    @State private var isPasswordVisible = true
+    @State private var isPasswordVisible: Bool
+    @State private var isAuthenticatingPasswordReveal = false
     @State private var editingErrorMessage: String?
     @State private var isSubmitting = false
 
@@ -32,6 +33,7 @@ struct EntryEditView: View {
         onComplete: @escaping (Completion) -> Void = { _ in }
     ) {
         _formViewModel = State(initialValue: formViewModel)
+        _isPasswordVisible = State(initialValue: formViewModel.isPasswordInitiallyVisible)
         self.databaseViewModel = databaseViewModel
         self.onComplete = onComplete
     }
@@ -58,7 +60,8 @@ struct EntryEditView: View {
                         text: $formViewModel.password,
                         isVisible: $isPasswordVisible,
                         fieldAccessibilityIdentifier: "entry-edit.password-field",
-                        visibilityAccessibilityIdentifier: "entry-edit.password-visibility-button"
+                        visibilityAccessibilityIdentifier: "entry-edit.password-visibility-button",
+                        onVisibilityToggle: togglePasswordVisibility
                     ) {
                         Button {
                             showPasswordGenerator = true
@@ -225,6 +228,40 @@ struct EntryEditView: View {
             Button("OK", role: .cancel) {}
         } message: {
             Text(editingErrorMessage ?? "")
+        }
+    }
+
+    private func togglePasswordVisibility() {
+        if isPasswordVisible {
+            HapticService.tap()
+            isPasswordVisible = false
+            return
+        }
+
+        guard isAuthenticatingPasswordReveal == false else { return }
+        guard formViewModel.requiresAuthenticationToRevealPassword,
+              BiometricService.canAuthenticateDeviceOwner else {
+            HapticService.tap()
+            isPasswordVisible = true
+            return
+        }
+
+        isAuthenticatingPasswordReveal = true
+        Task {
+            do {
+                _ = try await BiometricService.authenticateDeviceOwner(
+                    reason: String(localized: "View password")
+                )
+                await MainActor.run {
+                    HapticService.success()
+                    isPasswordVisible = true
+                }
+            } catch {
+                // The stored password stays concealed when authentication fails.
+            }
+            await MainActor.run {
+                isAuthenticatingPasswordReveal = false
+            }
         }
     }
 

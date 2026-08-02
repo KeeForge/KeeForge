@@ -386,6 +386,41 @@ final class PasskeyCryptoTests: XCTestCase {
         XCTAssertEqual(privateKey.publicKey.x963Representation, key.publicKey.x963Representation)
     }
 
+    func testRawPrivateScalarParses() throws {
+        let pem = """
+        -----BEGIN PRIVATE KEY-----
+        PumgYNRCqsQQNNjL16jznBA4EhFbth/8NX9evFmFl2s=
+        -----END PRIVATE KEY-----
+        """
+
+        let privateKey = try PasskeyCrypto.privateKey(fromPEM: pem)
+
+        XCTAssertEqual(
+            privateKey.rawRepresentation.map { String(format: "%02x", $0) }.joined(),
+            Self.sec1RawScalarHex
+        )
+    }
+
+    func testInvalid32BytePrivateScalarThrowsInvalidKeyData() {
+        let pem = Data(repeating: 0, count: 32).base64EncodedString()
+
+        XCTAssertThrowsError(try PasskeyCrypto.privateKey(fromPEM: pem)) { error in
+            guard case PasskeyError.invalidKeyData = error else {
+                return XCTFail("Expected invalidKeyData, got \(error)")
+            }
+        }
+    }
+
+    func testInvalid33BytePrivateKeyThrowsInvalidKeyData() {
+        let pem = Data(repeating: 0, count: 33).base64EncodedString()
+
+        XCTAssertThrowsError(try PasskeyCrypto.privateKey(fromPEM: pem)) { error in
+            guard case PasskeyError.invalidKeyData = error else {
+                return XCTFail("Expected invalidKeyData, got \(error)")
+            }
+        }
+    }
+
     // MARK: - SEC1 PEM ("BEGIN EC PRIVATE KEY")
 
     // `PasskeyCrypto.privateKey(fromPEM:)` documents support for the SEC1

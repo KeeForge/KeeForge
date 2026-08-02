@@ -268,7 +268,7 @@ enum DatabaseCreationService {
         let now = environment.now()
         let referenceID = environment.id()
         let tree = makeFreshTree(displayName: (filename as NSString).deletingPathExtension, now: now)
-        let compositeKey = KDBXCrypto.compositeKey(
+        let compositeKey = try KDBXCrypto.compositeKey(
             password: request.password,
             keyFileData: request.keyFileData
         )

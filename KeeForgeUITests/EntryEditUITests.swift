@@ -466,6 +466,10 @@ final class EntryEditSmokeUITests: EntryEditUITestCase {
         XCTAssertTrue(editButton.waitForExistence(timeout: 5))
         editButton.tap()
 
+        let concealedPasswordField = app.secureTextFields["entry-edit.password-field"]
+        XCTAssertTrue(concealedPasswordField.waitForExistence(timeout: 5))
+        app.buttons["entry-edit.password-visibility-button"].tap()
+
         let passwordField = app.textFields["entry-edit.password-field"]
         XCTAssertTrue(passwordField.waitForExistence(timeout: 5))
         replaceText(in: passwordField, with: updatedPassword)
