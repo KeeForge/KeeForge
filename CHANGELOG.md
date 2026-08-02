@@ -46,7 +46,7 @@ TODO before the first macOS release:
 - AutoFill now uses its bundled public-suffix data when organizing website suggestions, improving handling for domains such as `com.pl` and hosted sites such as `github.io`.
 - Unusual passkey data and extreme database timestamps are now handled gracefully instead of closing the app or AutoFill extension.
 
-## v1.11.0 (2026-07-30)
+## v1.11.0 (2026-08-01)
 
 ### New Features
 
