@@ -131,6 +131,18 @@ final class DatabaseViewModel {
         case error(DatabaseOpenFailure)
     }
 
+    enum BiometricUnlockOutcome: Sendable, Equatable {
+        case unlocked
+        case failed
+        /// LocalAuthentication refused to present its prompt because the app
+        /// was not foreground-active (`LAError.notInteractive`). Nothing was
+        /// shown to the user, so the database stays locked and the caller may
+        /// try again once the scene activates.
+        case promptUnavailable
+        /// The user picked the password fallback inside the biometric prompt.
+        case passwordFallback
+    }
+
     enum SortOrder: String, CaseIterable, Sendable {
         case title = "Title"
         case createdDate = "Date Created"
@@ -187,6 +199,12 @@ final class DatabaseViewModel {
         _ reference: DatabaseReference,
         _ compositeKey: Data
     ) async throws -> ReloadedDatabase
+    /// Biometric authentication plus the keychain read it gates, as one step:
+    /// the `LAContext` that authorizes the read never leaves the operation.
+    typealias BiometricCompositeKeyOperation = @Sendable (
+        _ reference: DatabaseReference,
+        _ reason: String
+    ) async throws -> Data
 
     private static let sortOrderKey = "KeeForge.sortOrder"
     private static let sortAscendingKey = "KeeForge.sortAscending"
@@ -329,6 +347,7 @@ final class DatabaseViewModel {
     private let localConflictCopyOperation: LocalConflictCopyOperation
     private let cloudConflictCopyOperation: CloudConflictCopyOperation
     private let reloadOperation: ReloadOperation
+    private let biometricCompositeKeyOperation: BiometricCompositeKeyOperation
     private let conflictCopyDateProvider: @Sendable () -> Date
     private let nowProvider: @Sendable () -> Date
     private var backgroundEnteredAt: Date?
@@ -388,6 +407,10 @@ final class DatabaseViewModel {
                 compositeKey: compositeKey
             )
         },
+        biometricCompositeKeyOperation: @escaping BiometricCompositeKeyOperation = { reference, reason in
+            let context = try await BiometricService.authenticate(reason: reason)
+            return try DatabaseViewModel.retrieveStoredCompositeKey(for: reference, context: context)
+        },
         conflictCopyDateProvider: @escaping @Sendable () -> Date = { .now },
         nowProvider: @escaping @Sendable () -> Date = { .now }
     ) {
@@ -405,6 +428,7 @@ final class DatabaseViewModel {
         self.localConflictCopyOperation = localConflictCopyOperation
         self.cloudConflictCopyOperation = cloudConflictCopyOperation
         self.reloadOperation = reloadOperation
+        self.biometricCompositeKeyOperation = biometricCompositeKeyOperation
         self.conflictCopyDateProvider = conflictCopyDateProvider
         self.nowProvider = nowProvider
     }
@@ -482,6 +506,18 @@ final class DatabaseViewModel {
             for: databaseReference.id,
             legacyFilename: databaseReference.legacyKeychainFilename
         )
+    }
+
+    /// Whether this session should open itself with biometrics instead of
+    /// showing the unlock form. The attempt itself additionally requires a
+    /// foreground-active scene — see `View.biometricAutoUnlock(_:)`.
+    var isEligibleForBiometricAutoUnlock: Bool {
+        guard SettingsService.autoUnlockWithFaceID else { return false }
+        guard hasSavedFile else { return false }
+        guard canUseBiometrics else { return false }
+        guard didManuallyLock == false else { return false }
+        guard case .locked = state else { return false }
+        return true
     }
 
     var biometricLabel: String {
@@ -575,7 +611,8 @@ final class DatabaseViewModel {
         }
     }
 
-    func unlockWithBiometrics() async {
+    @discardableResult
+    func unlockWithBiometrics() async -> BiometricUnlockOutcome {
         let failedAttemptsBeforeAttempt = failedAttempts
         prepareForUnlock()
 
@@ -583,8 +620,10 @@ final class DatabaseViewModel {
         var cloudSyncStatus: CloudSyncResolution.Status?
 
         do {
-            let context = try await BiometricService.authenticate(reason: String(localized: "Unlock your password database"))
-            let compositeKey = try retrieveStoredCompositeKey(context: context)
+            let compositeKey = try await biometricCompositeKeyOperation(
+                databaseReference,
+                String(localized: "Unlock your password database")
+            )
             let readResult = try await readDatabaseData()
             let data = readResult.data
             encryptedData = data
@@ -612,7 +651,13 @@ final class DatabaseViewModel {
                 compositeKey: compositeKey,
                 sessionKey: sessionKey
             )
+            return .unlocked
         } catch {
+            if let outcome = Self.biometricOutcomeLeavingDatabaseLocked(for: error) {
+                state = .locked
+                return outcome
+            }
+
             let diagnostics = makeUnlockDiagnostics(
                 unlockMethod: .biometrics,
                 passwordSupplied: false,
@@ -622,6 +667,24 @@ final class DatabaseViewModel {
                 cloudSyncStatus: cloudSyncStatus
             )
             handleUnlockFailure(error, diagnostics: diagnostics)
+            return .failed
+        }
+    }
+
+    /// LocalAuthentication results that are not unlock failures and must not
+    /// reach the failure screen: the prompt was never presented because the
+    /// app was not foreground-active, or the user chose the password fallback
+    /// the prompt offers. Both leave the unlock form as the right next screen.
+    private static func biometricOutcomeLeavingDatabaseLocked(
+        for error: Error
+    ) -> BiometricUnlockOutcome? {
+        let nsError = error as NSError
+        guard nsError.domain == LAError.errorDomain else { return nil }
+
+        switch LAError.Code(rawValue: nsError.code) {
+        case .notInteractive: return .promptUnavailable
+        case .userFallback: return .passwordFallback
+        default: return nil
         }
     }
 
@@ -1819,12 +1882,15 @@ final class DatabaseViewModel {
         }
     }
 
-    private func retrieveStoredCompositeKey(context: LAContext) throws -> Data {
+    nonisolated static func retrieveStoredCompositeKey(
+        for reference: DatabaseReference,
+        context: LAContext
+    ) throws -> Data {
         do {
-            return try KeychainService.retrieveCompositeKey(for: databaseReference.id, context: context)
+            return try KeychainService.retrieveCompositeKey(for: reference.id, context: context)
         } catch {
             guard KeychainService.isItemNotFound(error),
-                  let legacyFilename = databaseReference.legacyKeychainFilename else {
+                  let legacyFilename = reference.legacyKeychainFilename else {
                 throw error
             }
 

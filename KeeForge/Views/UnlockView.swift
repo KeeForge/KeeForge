@@ -411,7 +411,9 @@ struct UnlockView: View {
 
     private func unlockWithBiometrics() {
         Task {
-            await viewModel.unlockWithBiometrics()
+            if await viewModel.unlockWithBiometrics() == .passwordFallback {
+                passwordFocused = true
+            }
         }
     }
 

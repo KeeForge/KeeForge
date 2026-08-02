@@ -433,13 +433,11 @@ private struct CompactUnlockScene: View {
     @Bindable var viewModel: DatabaseViewModel
     let onReturnToList: () -> Void
 
-    @State private var autoUnlockAttemptedLockCycle: Int?
-
     var body: some View {
         Group {
             switch viewModel.state {
             case .locked:
-                if shouldShowAutoUnlockOpeningView {
+                if viewModel.isEligibleForBiometricAutoUnlock {
                     DatabaseOpeningView(
                         databaseName: viewModel.databaseDisplayName,
                         statusMessage: viewModel.unlockStatusMessage,
@@ -473,35 +471,7 @@ private struct CompactUnlockScene: View {
             }
         }
         .animation(.easeInOut(duration: 0.3), value: viewModel.state)
-        .onAppear {
-            attemptAutoUnlockIfNeeded()
-        }
-        .onChange(of: viewModel.lockCycleID) { _, _ in
-            attemptAutoUnlockIfNeeded()
-        }
-        .onChange(of: viewModel.canUseBiometrics) { _, _ in
-            attemptAutoUnlockIfNeeded()
-        }
-    }
-
-    private var shouldShowAutoUnlockOpeningView: Bool {
-        guard SettingsService.autoUnlockWithFaceID else { return false }
-        guard viewModel.hasSavedFile else { return false }
-        guard viewModel.canUseBiometrics else { return false }
-        guard !viewModel.didManuallyLock else { return false }
-        guard case .locked = viewModel.state else { return false }
-        return true
-    }
-
-    private func attemptAutoUnlockIfNeeded() {
-        guard shouldShowAutoUnlockOpeningView else { return }
-        guard autoUnlockAttemptedLockCycle != viewModel.lockCycleID else { return }
-
-        autoUnlockAttemptedLockCycle = viewModel.lockCycleID
-
-        Task {
-            await viewModel.unlockWithBiometrics()
-        }
+        .biometricAutoUnlock(viewModel)
     }
 }
 
@@ -509,13 +479,11 @@ private struct RegularDatabaseScene: View {
     @Bindable var viewModel: DatabaseViewModel
     let onReturnToList: () -> Void
 
-    @State private var autoUnlockAttemptedLockCycle: Int?
-
     var body: some View {
         Group {
             switch viewModel.state {
             case .locked:
-                if shouldShowAutoUnlockOpeningView {
+                if viewModel.isEligibleForBiometricAutoUnlock {
                     DatabaseOpeningView(
                         databaseName: viewModel.databaseDisplayName,
                         statusMessage: viewModel.unlockStatusMessage,
@@ -550,35 +518,64 @@ private struct RegularDatabaseScene: View {
             }
         }
         .animation(.easeInOut(duration: 0.25), value: viewModel.state)
-        .onAppear {
-            attemptAutoUnlockIfNeeded()
-        }
-        .onChange(of: viewModel.lockCycleID) { _, _ in
-            attemptAutoUnlockIfNeeded()
-        }
-        .onChange(of: viewModel.canUseBiometrics) { _, _ in
-            attemptAutoUnlockIfNeeded()
-        }
+        .biometricAutoUnlock(viewModel)
+    }
+}
+
+/// Runs the opt-in biometric auto-unlock at most once per lock cycle, and only
+/// while the scene is foreground-active.
+///
+/// LocalAuthentication refuses to present its prompt to a caller that is not
+/// running in the foreground and fails the evaluation with
+/// `LAError.notInteractive` instead (#60). Both lock-on-background — which
+/// starts a new lock cycle while the app is on its way out — and Quick Launch,
+/// which opens the database before the scene activates, used to reach the
+/// prompt in exactly that state, burning the cycle's one attempt on an error
+/// screen that a manual retry then cleared.
+private struct BiometricAutoUnlockModifier: ViewModifier {
+    let viewModel: DatabaseViewModel
+
+    @Environment(\.scenePhase) private var scenePhase
+    @State private var attemptedLockCycle: Int?
+
+    func body(content: Content) -> some View {
+        content
+            .onAppear {
+                attemptIfNeeded()
+            }
+            .onChange(of: scenePhase) { _, _ in
+                attemptIfNeeded()
+            }
+            .onChange(of: viewModel.lockCycleID) { _, _ in
+                attemptIfNeeded()
+            }
+            .onChange(of: viewModel.canUseBiometrics) { _, _ in
+                attemptIfNeeded()
+            }
+            .onChange(of: viewModel.didManuallyLock) { _, _ in
+                attemptIfNeeded()
+            }
     }
 
-    private var shouldShowAutoUnlockOpeningView: Bool {
-        guard SettingsService.autoUnlockWithFaceID else { return false }
-        guard viewModel.hasSavedFile else { return false }
-        guard viewModel.canUseBiometrics else { return false }
-        guard !viewModel.didManuallyLock else { return false }
-        guard case .locked = viewModel.state else { return false }
-        return true
-    }
+    private func attemptIfNeeded() {
+        guard scenePhase == .active else { return }
+        guard viewModel.isEligibleForBiometricAutoUnlock else { return }
+        guard attemptedLockCycle != viewModel.lockCycleID else { return }
 
-    private func attemptAutoUnlockIfNeeded() {
-        guard shouldShowAutoUnlockOpeningView else { return }
-        guard autoUnlockAttemptedLockCycle != viewModel.lockCycleID else { return }
-
-        autoUnlockAttemptedLockCycle = viewModel.lockCycleID
+        attemptedLockCycle = viewModel.lockCycleID
 
         Task {
-            await viewModel.unlockWithBiometrics()
+            if await viewModel.unlockWithBiometrics() == .promptUnavailable {
+                // Nothing was presented, so this lock cycle keeps its attempt.
+                attemptedLockCycle = nil
+            }
         }
+    }
+}
+
+private extension View {
+    func biometricAutoUnlock(_ viewModel: DatabaseViewModel) -> some View {
+        modifier(BiometricAutoUnlockModifier(viewModel: viewModel))
     }
 }
 
