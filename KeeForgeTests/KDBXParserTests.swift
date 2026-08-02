@@ -743,7 +743,7 @@ final class KDBXParserTests: XCTestCase {
     private func makeKDBX4IntegrityFixture() throws -> KDBX4IntegrityFixture {
         let password = "kdbx4-integrity"
         let keyFileData = Data("keeforge-kdbx4-integrity-key-file".utf8)
-        let compositeKey = KDBXCrypto.compositeKey(password: password, keyFileData: keyFileData)
+        let compositeKey = try KDBXCrypto.compositeKey(password: password, keyFileData: keyFileData)
         let rootGroup = KPGroup(
             name: "Root",
             groups: [

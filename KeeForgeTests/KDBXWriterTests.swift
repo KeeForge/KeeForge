@@ -744,7 +744,7 @@ final class KDBXWriterTests: XCTestCase {
             keyFileData = nil
         }
 
-        let compositeKey = KDBXCrypto.compositeKey(password: fixture.password, keyFileData: keyFileData)
+        let compositeKey = try KDBXCrypto.compositeKey(password: fixture.password, keyFileData: keyFileData)
         let parsed = try KDBXParser.parseWithMetaAndHeader(
             data: databaseData,
             compositeKey: compositeKey,

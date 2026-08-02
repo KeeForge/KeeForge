@@ -1,6 +1,7 @@
 @preconcurrency import AuthenticationServices
 import Foundation
 import OSLog
+import PublicSuffixList
 
 // MARK: - Record identifier
 
@@ -824,61 +825,15 @@ enum CredentialIdentityStoreManager: Sendable {
     // MARK: - Registered domain extraction
 
     /// Extracts the registered domain (eTLD+1) from a host string.
-    /// Strips `www.` prefix and collapses subdomains to the base domain.
     /// Returns nil for IP addresses, localhost, and single-label hosts.
     static func registeredDomain(from host: String) -> String? {
         let lowered = host.lowercased()
-
-        // Skip IPv6
         if lowered.contains(":") { return nil }
 
-        let labels = lowered.split(separator: ".").map(String.init)
-
-        // Skip single-label hosts (localhost, etc.)
+        let labels = lowered.split(separator: ".")
         guard labels.count >= 2 else { return nil }
-
-        // Skip IP addresses (all labels are numeric)
         if labels.allSatisfy({ $0.allSatisfy(\.isNumber) }) { return nil }
 
-        // Strip www prefix
-        var effective = labels
-        if effective.first == "www" {
-            effective.removeFirst()
-        }
-        guard effective.count >= 2 else { return nil }
-
-        // Check for known multi-part TLDs (co.uk, com.au, etc.)
-        let lastTwo = effective.suffix(2).joined(separator: ".")
-        if Self.knownMultiPartTLDs.contains(lastTwo) {
-            guard effective.count >= 3 else { return nil }
-            return effective.suffix(3).joined(separator: ".")
-        }
-
-        return effective.suffix(2).joined(separator: ".")
+        return PublicSuffixList.effectiveTLDPlusOne(lowered)
     }
-
-    private static let knownMultiPartTLDs: Set<String> = [
-        "co.uk", "org.uk", "ac.uk", "gov.uk", "me.uk", "net.uk",
-        "com.au", "org.au", "net.au", "edu.au",
-        "co.nz", "org.nz", "net.nz",
-        "co.jp", "or.jp", "ne.jp", "ac.jp",
-        "com.br", "org.br", "net.br",
-        "co.in", "org.in", "net.in",
-        "co.za", "org.za", "net.za",
-        "com.mx", "org.mx",
-        "co.kr", "or.kr",
-        "com.cn", "org.cn", "net.cn",
-        "com.tw", "org.tw", "net.tw",
-        "co.il", "org.il",
-        "com.sg", "org.sg",
-        "com.hk", "org.hk",
-        "co.th", "or.th",
-        "com.tr", "org.tr",
-        "com.ar", "org.ar",
-        "co.id",
-        "com.ph",
-        "com.my",
-        "com.ng",
-        "co.ke",
-    ]
 }

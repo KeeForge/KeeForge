@@ -262,6 +262,24 @@ final class CredentialIdentityStoreManagerTests: XCTestCase {
         XCTAssertNil(CredentialIdentityStoreManager.domainFromURLString("https://co.uk"))
     }
 
+    func testDomainUsesRegistrableDomainForUnlistedCountryCodeSuffix() {
+        XCTAssertEqual(
+            CredentialIdentityStoreManager.domainFromURLString("https://login.mybank.com.pl"),
+            "mybank.com.pl"
+        )
+    }
+
+    func testDomainKeepsPrivateSuffixTenantBoundary() {
+        XCTAssertEqual(
+            CredentialIdentityStoreManager.domainFromURLString("https://account.example.github.io"),
+            "example.github.io"
+        )
+    }
+
+    func testDomainReturnsNilForPublicSuffix() {
+        XCTAssertNil(CredentialIdentityStoreManager.domainFromURLString("https://github.io"))
+    }
+
     // MARK: - oneTimeCodeIdentity (iOS 18+)
 
     func testOTCIdentityForEntryWithTOTP() throws {

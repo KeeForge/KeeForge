@@ -39,6 +39,10 @@ TODO before the first macOS release:
 - "Open iOS AutoFill Settings" was hidden exactly when it was needed — it only appeared once AutoFill was already on. If the one-tap prompt did not work, there was no way to reach the iOS setting from inside KeeForge. It is now always available.
 - Tapping "Turn On AutoFill" and then declining the iOS prompt closed the whole Settings screen with the status still on "Off" and no word about what happened, which looks like the switch turning itself back off. KeeForge now keeps a note on the AutoFill screen explaining that the attempt did not turn it on, and pointing at the manual route. The screen also states that the per-database selections only take effect once KeeForge is enabled as a provider in iOS.
 - "On" and "Off" in the AutoFill provider status were never translated.
+- Invalid XML key files now show an error during database creation or unlock instead of continuing without that key-file component.
+- Stored passwords now start concealed in the entry editor. Returning to unsaved work after an automatic or background lock also asks for device-owner authentication.
+- AutoFill now uses its bundled public-suffix data when organizing website suggestions, improving handling for domains such as `com.pl` and hosted sites such as `github.io`.
+- Unusual passkey data and extreme database timestamps are now handled gracefully instead of closing the app or AutoFill extension.
 
 ## v1.11.0 (2026-07-30)
 

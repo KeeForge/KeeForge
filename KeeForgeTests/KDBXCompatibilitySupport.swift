@@ -532,7 +532,7 @@ enum KDBXCompatibilitySupport {
             )
             return try Data(contentsOf: keyURL)
         }
-        let compositeKey = KDBXCrypto.compositeKey(password: fixture.password, keyFileData: keyFileData)
+        let compositeKey = try KDBXCrypto.compositeKey(password: fixture.password, keyFileData: keyFileData)
 
         let sourceData: Data
         switch fixture.source {

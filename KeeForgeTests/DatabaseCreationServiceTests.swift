@@ -76,6 +76,61 @@ final class DatabaseCreationServiceTests: XCTestCase {
         XCTAssertEqual(parsed.rootGroup.groups.first?.name, "Keyed")
     }
 
+    func testCreateKeyFileOnlyDatabaseReopensWithKeyFile() async throws {
+        let destinationURL = try makeDestinationURL(name: "KeyFileOnly.kdbx")
+        let keyFileData = try SecureRandom.data(count: 32)
+
+        _ = try await DatabaseCreationService.create(
+            request: DatabaseCreationRequest(
+                displayName: "KeyFileOnly",
+                destination: .files(
+                    url: destinationURL,
+                    bookmarkData: try bookmarkData(for: destinationURL)
+                ),
+                keyFileData: keyFileData
+            )
+        )
+
+        let parsed = try KDBXParser.parseWithMeta(
+            data: Data(contentsOf: destinationURL),
+            password: nil,
+            keyFileData: keyFileData,
+            sessionKey: SymmetricKey(size: .bits256)
+        )
+
+        XCTAssertEqual(parsed.rootGroup.groups.first?.name, "KeyFileOnly")
+    }
+
+    func testCreateRejectsMalformedSuppliedKeyFileBeforeWriting() async throws {
+        let destinationURL = try makeDestinationURL(name: "MalformedKeyFile.kdbx")
+        let malformedKeyFile = Data("""
+        <?xml version="1.0" encoding="utf-8"?>
+        <KeyFile>
+          <Meta><Version>1.0</Version></Meta>
+          <Key><Data>not-a-32-byte-key</Data></Key>
+        </KeyFile>
+        """.utf8)
+
+        do {
+            _ = try await DatabaseCreationService.create(
+                request: DatabaseCreationRequest(
+                    displayName: "MalformedKeyFile",
+                    destination: .files(
+                        url: destinationURL,
+                        bookmarkData: try bookmarkData(for: destinationURL)
+                    ),
+                    keyFileData: malformedKeyFile
+                )
+            )
+            XCTFail("Expected malformed key file to be rejected.")
+        } catch KeyFileProcessor.KeyFileError.xmlKeyDataInvalid {
+            XCTAssertTrue(try Data(contentsOf: destinationURL).isEmpty)
+            XCTAssertTrue(DatabaseListStore.databases.isEmpty)
+        } catch {
+            XCTFail("Unexpected error: \(error)")
+        }
+    }
+
     func testCreateDatabaseBuildsSingleVisibleRootAndRecycleBin() async throws {
         let destinationURL = try makeDestinationURL(name: "Structure.kdbx")
 

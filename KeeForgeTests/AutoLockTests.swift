@@ -180,6 +180,22 @@ final class AutoLockTests: XCTestCase {
         }
     }
 
+    func testBackgroundLockEnabledRequiresAuthenticatedResumeForDirtyDraft() async throws {
+        SettingsService.autoLockTimeout = .fiveMinutes
+        SettingsService.lockOnBackground = true
+        let vm = try await makeUnlockedViewModel()
+        try makeDirty(vm)
+
+        vm.handleSceneDidEnterBackground()
+
+        guard case .unlocked = vm.state else {
+            XCTFail("Expected the dirty draft to await a resume decision")
+            return
+        }
+        XCTAssertNotNil(vm.draft)
+        XCTAssertTrue(vm.pendingLockRequest?.requiresAuthenticationToContinueEditing == true)
+    }
+
 #if os(iOS)
     func testBackgroundLockLeavesCopiedValueOnPasteboard() async throws {
         SettingsService.autoLockTimeout = .fiveMinutes
@@ -471,6 +487,26 @@ final class AutoLockTests: XCTestCase {
         DatabaseViewModel(
             databaseReference: try TestDatabaseSupport.makeReference(for: fixtureURL()),
             nowProvider: nowProvider
+        )
+    }
+
+    private func makeDirty(_ viewModel: DatabaseViewModel) throws {
+        let rootGroup = try XCTUnwrap(viewModel.rootGroup)
+        let sessionKey = try XCTUnwrap(viewModel.sessionKey)
+        let cleanDraft = DatabaseDraft(
+            rootGroup: rootGroup,
+            meta: KPMeta(
+                recycleBinUUID: rootGroup.recycleBinUUID,
+                hasRecycleBinUUIDElement: rootGroup.recycleBinUUID != nil
+            ),
+            sessionKey: sessionKey
+        )
+        let parentGroupID = TestDatabaseSupport.visibleRootGroupID(in: rootGroup)
+        viewModel.draft = try cleanDraft.apply(
+            .createEntry(
+                parentGroupID: parentGroupID,
+                draft: EntryDraftPayload(title: "Unsaved", password: "secret")
+            )
         )
     }
 

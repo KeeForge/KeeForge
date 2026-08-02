@@ -547,7 +547,17 @@ struct KDBXXMLSerializer {
     private func serializeDate(_ date: Date) -> String {
         // KDBX4 binary format: little-endian Int64 seconds since
         // 0001-01-01 UTC, base64-encoded.
-        let seconds = Int64(date.timeIntervalSinceReferenceDate - Self.kpEpochOffset)
+        let interval = date.timeIntervalSinceReferenceDate - Self.kpEpochOffset
+        let seconds: Int64
+        if interval.isNaN {
+            seconds = 0
+        } else if interval >= Double(Int64.max) {
+            seconds = .max
+        } else if interval <= Double(Int64.min) {
+            seconds = .min
+        } else {
+            seconds = Int64(interval)
+        }
         var leSeconds = seconds.littleEndian
         return withUnsafeBytes(of: &leSeconds) { Data($0) }.base64EncodedString()
     }

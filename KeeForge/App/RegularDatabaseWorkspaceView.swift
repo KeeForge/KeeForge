@@ -57,11 +57,7 @@ struct RegularDatabaseWorkspaceView: View {
                 "Lock and discard unsaved changes?",
                 isPresented: Binding(
                     get: { viewModel.pendingLockRequest != nil },
-                    set: { isPresented in
-                        if isPresented == false {
-                            viewModel.cancelLockRequest()
-                        }
-                    }
+                    set: { _ in }
                 )
             ) {
                 Button("Lock and Discard", role: .destructive) {
@@ -69,7 +65,9 @@ struct RegularDatabaseWorkspaceView: View {
                     viewModel.lockRequest(force: true, manuallyTriggered: manuallyTriggered)
                 }
                 Button("Keep Editing", role: .cancel) {
-                    viewModel.cancelLockRequest()
+                    Task {
+                        await viewModel.continueEditingAfterLockRequest()
+                    }
                 }
             } message: {
                 Text("Your unsaved entry changes will be lost.")

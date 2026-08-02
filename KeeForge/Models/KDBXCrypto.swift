@@ -118,7 +118,9 @@ enum KDBXCrypto {
 
     /// Build the composite key from master password (hash of hash)
     static func compositeKey(password: String) -> Data {
-        compositeKey(password: password, keyFileData: nil)
+        guard password.isEmpty == false else { return sha256(Data()) }
+        let passwordHash = sha256(Data(password.utf8))
+        return sha256(passwordHash)
     }
 
     /// Build the composite key from password and/or key file data.
@@ -129,7 +131,7 @@ enum KDBXCrypto {
     /// if keyFile:  preKey += processKeyFile(keyFileData)
     /// compositeKey = SHA256(preKey)
     /// ```
-    static func compositeKey(password: String?, keyFileData: Data?) -> Data {
+    static func compositeKey(password: String?, keyFileData: Data?) throws -> Data {
         var preKey = Data()
 
         if let password, !password.isEmpty {
@@ -138,9 +140,7 @@ enum KDBXCrypto {
         }
 
         if let keyFileData {
-            if let keyFileKey = try? KeyFileProcessor.processKeyFile(keyFileData) {
-                preKey.append(keyFileKey)
-            }
+            preKey.append(try KeyFileProcessor.processKeyFile(keyFileData))
         }
 
         return sha256(preKey)

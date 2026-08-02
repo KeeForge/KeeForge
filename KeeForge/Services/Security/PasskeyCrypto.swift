@@ -57,7 +57,11 @@ enum PasskeyCrypto: Sendable {
         //     [1] BIT STRING (optional, public key)
         //   }
 
-        guard der.count >= 32 else {
+        if der.count == 32 {
+            return der
+        }
+
+        guard der.count >= 34 else {
             throw PasskeyError.invalidKeyData
         }
 
@@ -79,11 +83,6 @@ enum PasskeyCrypto: Sendable {
             if (try? P256.Signing.PrivateKey(rawRepresentation: candidate)) != nil {
                 return candidate
             }
-        }
-
-        // Fallback: if DER is exactly 32 bytes, treat as raw key
-        if der.count == 32 {
-            return der
         }
 
         // Fallback: try using the DER directly with CryptoKit's x963 or DER representations

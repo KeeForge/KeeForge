@@ -193,7 +193,7 @@ enum KDBXParser {
 
     /// Parse and decrypt with password and/or key file data
     static func parse(data: Data, password: String?, keyFileData: Data?, sessionKey: SymmetricKey) throws -> KPGroup {
-        let compositeKey = KDBXCrypto.compositeKey(password: password, keyFileData: keyFileData)
+        let compositeKey = try KDBXCrypto.compositeKey(password: password, keyFileData: keyFileData)
         return try parse(data: data, compositeKey: compositeKey, sessionKey: sessionKey)
     }
 
@@ -203,7 +203,7 @@ enum KDBXParser {
         keyFileData: Data?,
         sessionKey: SymmetricKey
     ) throws -> (rootGroup: KPGroup, meta: KPMeta) {
-        let compositeKey = KDBXCrypto.compositeKey(password: password, keyFileData: keyFileData)
+        let compositeKey = try KDBXCrypto.compositeKey(password: password, keyFileData: keyFileData)
         return try parseWithMeta(data: data, compositeKey: compositeKey, sessionKey: sessionKey)
     }
 
@@ -213,7 +213,7 @@ enum KDBXParser {
         keyFileData: Data?,
         sessionKey: SymmetricKey
     ) throws -> (rootGroup: KPGroup, meta: KPMeta, header: Header) {
-        let compositeKey = KDBXCrypto.compositeKey(password: password, keyFileData: keyFileData)
+        let compositeKey = try KDBXCrypto.compositeKey(password: password, keyFileData: keyFileData)
         return try parseWithMetaAndHeader(data: data, compositeKey: compositeKey, sessionKey: sessionKey)
     }
 

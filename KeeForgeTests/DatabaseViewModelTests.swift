@@ -2998,11 +2998,12 @@ final class DatabaseViewModelTests: XCTestCase {
         await vm.unlock(password: fixturePassword)
         vm.draft = try makeDirtyDraft(from: vm, entryTitle: "Unsaved Entry")
 
-        vm.lockRequest()
+        vm.lockRequest(manuallyTriggered: true)
 
         XCTAssertState(vm.state, is: .unlocked)
         XCTAssertNotNil(vm.draft)
-        XCTAssertEqual(vm.pendingLockRequest, .init(manuallyTriggered: false))
+        XCTAssertEqual(vm.pendingLockRequest, .init(manuallyTriggered: true))
+        XCTAssertFalse(vm.pendingLockRequest?.requiresAuthenticationToContinueEditing == true)
 
         vm.lockRequest(force: true)
 
@@ -3011,7 +3012,21 @@ final class DatabaseViewModelTests: XCTestCase {
         XCTAssertNil(vm.pendingLockRequest)
     }
 
-    func testBackgroundTimeoutWhileDirtyPromptsBeforeLocking() async throws {
+    func testManualKeepEditingPreservesDirtyDraftWithoutAuthentication() async throws {
+        let vm = try makeViewModel()
+
+        await vm.unlock(password: fixturePassword)
+        vm.draft = try makeDirtyDraft(from: vm, entryTitle: "Unsaved Entry")
+        vm.lockRequest(manuallyTriggered: true)
+
+        await vm.continueEditingAfterLockRequest()
+
+        XCTAssertState(vm.state, is: .unlocked)
+        XCTAssertNotNil(vm.draft)
+        XCTAssertNil(vm.pendingLockRequest)
+    }
+
+    func testBackgroundTimeoutWhileDirtyRequiresAuthenticatedResume() async throws {
         let savedAutoLockTimeout = SettingsService.autoLockTimeout
         let savedLockOnBackground = SettingsService.lockOnBackground
         SettingsService.autoLockTimeout = .thirtySeconds
@@ -3034,6 +3049,7 @@ final class DatabaseViewModelTests: XCTestCase {
         XCTAssertState(vm.state, is: .unlocked)
         XCTAssertNotNil(vm.draft)
         XCTAssertEqual(vm.pendingLockRequest, .init(manuallyTriggered: false))
+        XCTAssertTrue(vm.pendingLockRequest?.requiresAuthenticationToContinueEditing == true)
     }
 
     func testSetReadOnlyUpdatesInMemoryReferenceAndStore() throws {

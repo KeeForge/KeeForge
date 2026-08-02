@@ -949,7 +949,7 @@ final class CredentialProviderCoordinator {
         generation: Int
     ) async throws {
         let keyFileData = try loadAssociatedKeyFileData(for: databaseReference)
-        let compositeKey = KDBXCrypto.compositeKey(password: password, keyFileData: keyFileData)
+        let compositeKey = try KDBXCrypto.compositeKey(password: password, keyFileData: keyFileData)
         try await loadEntries(
             compositeKey: compositeKey,
             databaseReference: databaseReference,

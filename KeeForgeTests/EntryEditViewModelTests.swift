@@ -348,6 +348,25 @@ final class EntryEditViewModelTests: XCTestCase {
         XCTAssertTrue(editViewModel.canSave, "Any change to an edit-mode form makes it saveable")
     }
 
+    func testStoredPasswordStartsConcealedAndRequiresAuthenticationToReveal() throws {
+        let entry = KPEntry(
+            title: "Existing",
+            password: try EncryptedValue.encrypt("stored-secret", using: sessionKey)
+        )
+
+        let viewModel = EntryEditViewModel(editing: entry, sessionKey: sessionKey)
+
+        XCTAssertFalse(viewModel.isPasswordInitiallyVisible)
+        XCTAssertTrue(viewModel.requiresAuthenticationToRevealPassword)
+    }
+
+    func testNewPasswordStartsVisibleWithoutRevealAuthentication() {
+        let viewModel = EntryEditViewModel(createIn: UUID())
+
+        XCTAssertTrue(viewModel.isPasswordInitiallyVisible)
+        XCTAssertFalse(viewModel.requiresAuthenticationToRevealPassword)
+    }
+
     // MARK: - Custom fields
 
     func testAddCustomFieldAppendsABlankFieldAndRemoveCustomFieldDeletesByID() {
