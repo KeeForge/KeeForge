@@ -136,18 +136,8 @@ struct EntryDetailView: View {
                         AttachmentsSection(attachments: entry.attachments, viewModel: viewModel)
                     }
 
-                    if !entry.tags.isEmpty {
-                        Section("Tags") {
-                            FlowLayout(spacing: 6) {
-                                // Enumerated rather than `id: \.self` so a
-                                // foreign file repeating a tag still renders
-                                // both chips with distinct identifiers.
-                                ForEach(Array(entry.tags.enumerated()), id: \.offset) { index, tag in
-                                    tagChip(tag, fallbackIndex: index)
-                                }
-                            }
-                        }
-                    }
+                    tagsSection
+
                     if entry.creationTime != nil ||
                         entry.lastModificationTime != nil ||
                         entry.enabledExpiryTime != nil {
@@ -259,6 +249,53 @@ struct EntryDetailView: View {
         }
     }
 
+    /// The entry's own tags, then the ones it carries only because of where it
+    /// sits. Both come from `detailTags(forEntryID:)`, the same list the tag
+    /// index is built from, so browsing to a tag can never land on an entry
+    /// whose chips fail to explain the match.
+    ///
+    /// Group tags are read-only in KeeForge — it parses a group's `<Tags>` and
+    /// never writes one — so the inherited chips sit under their own caption
+    /// instead of mixing into a strip the Edit button implies is editable.
+    @ViewBuilder
+    private var tagsSection: some View {
+        let tags = viewModel.detailTags(forEntryID: entryID)
+        if tags.own.isEmpty == false || tags.inherited.isEmpty == false {
+            Section("Tags") {
+                if tags.own.isEmpty == false {
+                    FlowLayout(spacing: 6) {
+                        // Enumerated for the identifier fallback index, which
+                        // is what gives an emoji-only tag — one that normalizes
+                        // to nothing — a usable identifier.
+                        ForEach(Array(tags.own.enumerated()), id: \.offset) { index, tag in
+                            tagChip(tag, fallbackIndex: index)
+                        }
+                    }
+                }
+
+                if tags.inherited.isEmpty == false {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Label("From this entry's groups", systemImage: "folder")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+
+                        FlowLayout(spacing: 6) {
+                            ForEach(Array(tags.inherited.enumerated()), id: \.offset) { index, tag in
+                                inheritedTagChip(tag, fallbackIndex: index)
+                            }
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    // Declared a container, like the editor's tag strips, so
+                    // the chips keep their own identifiers instead of
+                    // inheriting this one (see `README.md`).
+                    .accessibilityElement(children: .contain)
+                    .accessibilityIdentifier("entry-detail.inherited-tags")
+                }
+            }
+        }
+    }
+
     /// One tag capsule, a shortcut into that tag's filtered entry list. Follows
     /// the link-or-callback shape the row helpers elsewhere use, so the compact
     /// stack pushes while the iPad and macOS shells route through their own
@@ -285,6 +322,27 @@ struct EntryDetailView: View {
         .buttonStyle(.plain)
         .accessibilityIdentifier(
             "entry-detail.tag.\(TagAccessibility.identifierSuffix(for: tag, fallbackIndex: fallbackIndex))"
+        )
+    }
+
+    /// A tag the entry gets from an ancestor group: same destination as its own
+    /// chips, drawn outlined rather than filled so the two read apart at a
+    /// glance, and labelled for VoiceOver, which reaches a chip without the
+    /// caption above the strip.
+    private func inheritedTagChip(_ tag: String, fallbackIndex: Int) -> some View {
+        Button {
+            if let onSelectTag {
+                onSelectTag(tag)
+            } else {
+                viewModel.navigationPath.append(TagDestination.entries(tag: tag))
+            }
+        } label: {
+            TagCapsule(tag: tag, systemImage: "folder", isOutlined: true)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(Text("\(tag), from a group"))
+        .accessibilityIdentifier(
+            "entry-detail.inherited-tag.\(TagAccessibility.identifierSuffix(for: tag, fallbackIndex: fallbackIndex))"
         )
     }
 
@@ -343,6 +401,9 @@ struct TagCapsule: View {
     /// use it so the affordance reads as "tag, then remove" rather than
     /// "action, then tag" the way the leading `plus` suggestions do.
     var trailingSystemImage: String? = nil
+    /// Outlines the capsule instead of filling it, for a chip that is not the
+    /// entry's own to change: the detail screen's inherited group tags.
+    var isOutlined: Bool = false
 
     var body: some View {
         HStack(spacing: 3) {
@@ -362,9 +423,20 @@ struct TagCapsule: View {
             }
         }
         .font(.caption)
+        .foregroundStyle(
+            isOutlined
+                ? AnyShapeStyle(HierarchicalShapeStyle.secondary)
+                : AnyShapeStyle(HierarchicalShapeStyle.primary)
+        )
         .padding(.horizontal, 8)
         .padding(.vertical, 4)
-        .background(.fill, in: .capsule)
+        .background {
+            if isOutlined {
+                Capsule().strokeBorder(.tertiary)
+            } else {
+                Capsule().fill(.fill)
+            }
+        }
     }
 }
 

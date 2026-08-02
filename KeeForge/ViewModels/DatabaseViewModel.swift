@@ -716,6 +716,24 @@ final class DatabaseViewModel {
         return inheritedTags(forGroupID: parentGroupID)
     }
 
+    /// The two chip groups the entry detail screen draws: the tags `entryID`
+    /// stores itself, then the ones it carries only because of where it sits.
+    /// Concatenated they are exactly that entry's effective tags in index
+    /// order, because this splits that one list rather than deriving a second
+    /// — so a chip on the screen and a hit in the tag browser cannot disagree.
+    /// A tag on both the entry and an ancestor group lands in `own` only.
+    /// Both lists are empty for an unknown entry.
+    func detailTags(forEntryID entryID: UUID) -> (own: [String], inherited: [String]) {
+        _ = contentRevision
+        guard let entry = entryIndex[entryID] else { return ([], []) }
+        let own = TagNormalizer.tags(from: entry.tags)
+        let effective = Self.effectiveTags(
+            for: entry,
+            inheritedGroupTags: inheritedTags(forEntryID: entryID)
+        )
+        return (own, Array(effective.dropFirst(own.count)))
+    }
+
     /// Decoded image data of the entry's custom icon, if the database defines
     /// one for it in `Meta/CustomIcons`.
     func customIconData(for entry: KPEntry) -> Data? {

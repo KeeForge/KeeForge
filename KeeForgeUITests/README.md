@@ -32,6 +32,7 @@ The macOS port has its own UI-test target, `KeeForgeMacUITests/` (target `KeeFor
 - `ProtectedCustomFieldUITests` — protected custom fields start masked and reveal on demand in both entry detail and history, while retaining the established copy-control identifiers
 - `GroupIconPickerUITests` — group icon picker round-trip (`group-row.change-icon-context` → pick `group-icon-picker.icon.37` → reopen and assert the cell reports `isSelected`) plus the cancel path leaving the icon alone
 - `TagBrowserUITests` — tag-browser happy path (root `group-list.tags-row` → `tag-list.row.shared` with its entry count → the tag's entries → entry detail's `entry-detail.tag.shared` chip) using the `tag-browser` fixture; the only fixture with entry tags
+- `InheritedTagsUITests` — entry detail draws the tags an entry gets from its groups (`entry-detail.inherited-tag.<tag>` under the `entry-detail.inherited-tags` strip), keeps them apart from the entry's own `entry-detail.tag.<tag>` chips, and navigates from an inherited chip into that tag's entries; uses the `group-tags` fixture, the only bundled database with group `<Tags>`
 - `TOTPSmokeUITests` — TOTP code renders (6-digit, numeric-only) and the copy control is present/hittable in entry detail, using the `autofill-union` fixture's "Union News" entry; deliberately does not assert exact code values or countdown timing
 - `KeyFileUnlockUITests` — unlocking with a key file
 - `CloudBrowserSmokeUITests` — add Dropbox and browse the mock cloud picker
@@ -382,6 +383,13 @@ Used by `AutoFillStoreUITests` as its second ("bravo") database: one `Union` gro
 Password: `testpassword123`
 
 Used by `TagBrowserUITests`. The only bundled fixture with entry tags — `test.kdbx` and `demo.kdbx` have none. `Tagged` group: `Router Admin` (`shared`, `Work`, `Personal Notes`), `Mail Account` (`shared`, `work`), `Untagged Entry`; `Archive` group: `Old Backup` (`archive`). Regenerate with `TestFixtures/generate_tag_browser_fixture.py`; details in `../TestFixtures/README.md`.
+
+### Group Tags Fixture
+
+`TestFixtures/compatibility/group-tags.kdbx`  
+Password: `testpassword123`
+
+Used by `InheritedTagsUITests`. The only bundled fixture with group `<Tags>` — `tag-browser.kdbx` carries entry tags only. `Projects` (group tags `team;shared`) holds `Alpha Login`; `Projects/Client Work` (group tag `billable`) holds `Beta Login`, which adds its own entry tag `own-tag`; `Empty Tags Group`, `Plain Group`, and a `Recycle Bin` cover the remaining `<Tags>` states. Shared with the KDBX compatibility gate — retargeting or removing it breaks both. Regenerate with `TestFixtures/compatibility/generate_group_tags_fixture.py`; details in `../TestFixtures/README.md`.
 
 ### Protected Custom Field Fixture
 
