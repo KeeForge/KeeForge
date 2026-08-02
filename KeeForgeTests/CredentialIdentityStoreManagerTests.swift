@@ -280,7 +280,7 @@ final class CredentialIdentityStoreManagerTests: XCTestCase {
         XCTAssertNil(CredentialIdentityStoreManager.domainFromURLString("https://github.io"))
     }
 
-    // MARK: - oneTimeCodeIdentity (iOS 18+)
+    // MARK: - oneTimeCodeIdentities (iOS 18+)
 
     func testOTCIdentityForEntryWithTOTP() throws {
         guard #available(iOS 18.0, macOS 15.0, *) else {
@@ -296,7 +296,7 @@ final class CredentialIdentityStoreManagerTests: XCTestCase {
             hasPassword: false,
             hasTOTP: true
         )
-        let identity = CredentialIdentityStoreManager.oneTimeCodeIdentity(for: entry, in: someDatabaseID)
+        let identity = CredentialIdentityStoreManager.oneTimeCodeIdentities(for: entry, in: someDatabaseID).first
 
         XCTAssertNotNil(identity)
         XCTAssertEqual(identity?.label, "GitHub")
@@ -319,7 +319,7 @@ final class CredentialIdentityStoreManagerTests: XCTestCase {
             hasPassword: false,
             hasTOTP: true
         )
-        let identity = CredentialIdentityStoreManager.oneTimeCodeIdentity(for: entry, in: someDatabaseID)
+        let identity = CredentialIdentityStoreManager.oneTimeCodeIdentities(for: entry, in: someDatabaseID).first
 
         XCTAssertNotNil(identity)
         XCTAssertEqual(identity?.label, "user@example.com")
@@ -337,7 +337,7 @@ final class CredentialIdentityStoreManagerTests: XCTestCase {
             hasPassword: true,
             hasTOTP: false
         )
-        XCTAssertNil(CredentialIdentityStoreManager.oneTimeCodeIdentity(for: entry, in: someDatabaseID))
+        XCTAssertTrue(CredentialIdentityStoreManager.oneTimeCodeIdentities(for: entry, in: someDatabaseID).isEmpty)
     }
 
     func testOTCIdentityNilWhenNoURL() throws {
@@ -352,7 +352,7 @@ final class CredentialIdentityStoreManagerTests: XCTestCase {
             hasPassword: false,
             hasTOTP: true
         )
-        XCTAssertNil(CredentialIdentityStoreManager.oneTimeCodeIdentity(for: entry, in: someDatabaseID))
+        XCTAssertTrue(CredentialIdentityStoreManager.oneTimeCodeIdentities(for: entry, in: someDatabaseID).isEmpty)
     }
 
     func testOTCIdentityNilWhenNoLabelOrUsername() throws {
@@ -367,7 +367,7 @@ final class CredentialIdentityStoreManagerTests: XCTestCase {
             hasPassword: false,
             hasTOTP: true
         )
-        XCTAssertNil(CredentialIdentityStoreManager.oneTimeCodeIdentity(for: entry, in: someDatabaseID))
+        XCTAssertTrue(CredentialIdentityStoreManager.oneTimeCodeIdentities(for: entry, in: someDatabaseID).isEmpty)
     }
 
     func testOTCIdentityUsesAdditionalURLWhenPrimaryEmpty() throws {
@@ -383,7 +383,7 @@ final class CredentialIdentityStoreManagerTests: XCTestCase {
             hasTOTP: true,
             customFields: ["KP2A_URL_1": "https://backup.example.com"]
         )
-        let identity = CredentialIdentityStoreManager.oneTimeCodeIdentity(for: entry, in: someDatabaseID)
+        let identity = CredentialIdentityStoreManager.oneTimeCodeIdentities(for: entry, in: someDatabaseID).first
 
         XCTAssertNotNil(identity)
         XCTAssertEqual(identity?.serviceIdentifier.identifier, "backup.example.com")
@@ -463,6 +463,49 @@ final class CredentialIdentityStoreManagerTests: XCTestCase {
         )
 
         XCTAssertTrue(CredentialIdentityStoreManager.oneTimeCodeIdentities(for: entry, in: someDatabaseID).isEmpty)
+    }
+
+    func testOTCIdentitiesFoldWWWAndKeepExplicitPorts() throws {
+        guard #available(iOS 18.0, macOS 15.0, *) else {
+            throw XCTSkip("One-time code identities require iOS 18 / macOS 15")
+        }
+
+        let entry = makeEntry(
+            title: "Normalized",
+            url: "https://WWW.Example.com./login",
+            username: "user",
+            hasPassword: false,
+            hasTOTP: true,
+            customFields: [
+                // A bare host:port parses with `example.com` as its scheme and
+                // no host, so it only resolves via the `https://` retry.
+                "KP2A_URL_1": "vt.example.com:8443/otp",
+            ]
+        )
+
+        let identities = CredentialIdentityStoreManager.oneTimeCodeIdentities(for: entry, in: someDatabaseID)
+
+        XCTAssertEqual(identities.map { $0.serviceIdentifier.identifier }, ["example.com", "vt.example.com"])
+    }
+
+    func testOTCIdentitiesSkipHostsWithoutARegistrableDomain() throws {
+        guard #available(iOS 18.0, macOS 15.0, *) else {
+            throw XCTSkip("One-time code identities require iOS 18 / macOS 15")
+        }
+
+        for url in ["https://localhost:8080/otp", "https://192.168.1.1/otp"] {
+            let entry = makeEntry(
+                title: "Local",
+                url: url,
+                username: "user",
+                hasPassword: false,
+                hasTOTP: true
+            )
+            XCTAssertTrue(
+                CredentialIdentityStoreManager.oneTimeCodeIdentities(for: entry, in: someDatabaseID).isEmpty,
+                "\(url) has no registrable domain and must not publish an OTC identity"
+            )
+        }
     }
 
     // MARK: - hasTOTP
@@ -865,6 +908,38 @@ final class CredentialIdentityStoreManagerTests: XCTestCase {
 
         XCTAssertEqual(fake.calls, ["removeCredentialIdentities"])
         XCTAssertEqual(storedRecordIdentifiers(fake), [foreignTwinIdentifier])
+    }
+
+    func testRemoveIdentitiesForEntriesAlsoRemovesOneTimeCodeIdentities() async throws {
+        guard #available(iOS 18.0, macOS 15.0, *) else {
+            throw XCTSkip("One-time code identities require iOS 18 / macOS 15")
+        }
+
+        let fake = installFake()
+        let databaseA = UUID()
+        // TOTP only, no password: the entry's whole footprint in the store is
+        // its OTC identities, so nothing is removed unless they are rebuilt.
+        let totpEntry = makeEntry(
+            title: "TOTP Only",
+            url: "https://vt.example.com/login",
+            username: "user",
+            hasPassword: false,
+            hasTOTP: true,
+            customFields: ["KP2A_URL_1": "https://example.com/otp"]
+        )
+        let survivor = makeEntry(title: "Other", url: "https://other-site.com", username: "o", hasPassword: true)
+        let survivorIdentifier = CredentialRecordIdentifier(databaseID: databaseA, entryID: survivor.id).encoded
+        let published = CredentialIdentityStoreManager.oneTimeCodeIdentities(for: totpEntry, in: databaseA)
+        XCTAssertEqual(published.count, 2)
+        fake.stored = published
+            + CredentialIdentityStoreManager.passwordIdentities(for: survivor, in: databaseA)
+
+        let mutation = expectMutations(1, on: fake)
+        CredentialIdentityStoreManager.removeIdentities(for: [totpEntry], in: databaseA)
+        await fulfillment(of: [mutation], timeout: 1)
+
+        XCTAssertEqual(fake.calls, ["removeCredentialIdentities"])
+        XCTAssertEqual(storedRecordIdentifiers(fake), [survivorIdentifier])
     }
 
     func testClearStoreEmptiesStore() async {
@@ -1412,16 +1487,17 @@ final class CredentialIdentityStoreManagerTests: XCTestCase {
     }
 
     /// Every identity `populate` would publish for `entry` (password +
-    /// passkey, plus the one-time-code identity where available).
+    /// passkey, plus the one-time-code identities where available).
     private func publishedIdentities(for entry: KPEntry, in databaseID: UUID) -> [any ASCredentialIdentity] {
         var identities: [any ASCredentialIdentity] =
             CredentialIdentityStoreManager.passwordIdentities(for: entry, in: databaseID)
         if let passkey = CredentialIdentityStoreManager.passkeyIdentity(for: entry, in: databaseID) {
             identities.append(passkey)
         }
-        if #available(iOS 18.0, macOS 15.0, *),
-           let oneTimeCode = CredentialIdentityStoreManager.oneTimeCodeIdentity(for: entry, in: databaseID) {
-            identities.append(oneTimeCode)
+        if #available(iOS 18.0, macOS 15.0, *) {
+            identities.append(
+                contentsOf: CredentialIdentityStoreManager.oneTimeCodeIdentities(for: entry, in: databaseID)
+            )
         }
         return identities
     }

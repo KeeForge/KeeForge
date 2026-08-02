@@ -415,6 +415,40 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
         assertCleanedUp(coordinator)
     }
 
+    func test_otcList_pickerStillOffersSubstringOnlyCandidates() throws {
+        guard #available(iOS 18.0, macOS 15.0, *) else {
+            throw XCTSkip("One-time-code requests require iOS 18 / macOS 15")
+        }
+
+        let (coordinator, presenter) = makeCoordinator()
+        let sessionKey = SymmetricKey(size: .bits256)
+        func totp() throws -> TOTPConfig {
+            TOTPConfig(secret: try EncryptedValue.encrypt("JBSWY3DPEHPK3PXP", using: sessionKey))
+        }
+        // Two host matches force the picker; the third matches only on a title
+        // substring and must still be offered once the user is choosing anyway.
+        let hostMatches = try ["GitHub", "GitHub Work"].map {
+            KPEntry(title: $0, url: "https://github.com/login", totpConfig: try totp())
+        }
+        let substringOnly = KPEntry(title: "Old github.com account", url: "", totpConfig: try totp())
+
+        coordinator.prepareOneTimeCodeCredentialList(for: [githubServiceIdentifier()])
+        seedUnlockedVaultState(coordinator, entries: hostMatches + [substringOnly], sessionKey: sessionKey)
+
+        coordinator.presentOTCMatchesOrFinish()
+
+        let searchView = try XCTUnwrap(presenter.searchView, "Two host matches should present the picker")
+        XCTAssertEqual(
+            Set(searchView.entries.map(\.title)),
+            ["GitHub", "GitHub Work", "Old github.com account"]
+        )
+
+        searchView.onSelect(hostMatches[0])
+
+        XCTAssertNotNil(presenter.completedOneTimeCode)
+        assertCleanedUp(coordinator)
+    }
+
     func test_otcList_multipleMatches_presentsPickerAndCompletesOnSelection() throws {
         guard #available(iOS 18.0, macOS 15.0, *) else {
             throw XCTSkip("One-time-code requests require iOS 18 / macOS 15")

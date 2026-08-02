@@ -737,11 +737,6 @@ enum CredentialIdentityStoreManager: Sendable {
     // MARK: - One-time code identities
 
     @available(iOS 18.0, macOS 15.0, *)
-    static func oneTimeCodeIdentity(for entry: KPEntry, in databaseID: UUID) -> ASOneTimeCodeCredentialIdentity? {
-        oneTimeCodeIdentities(for: entry, in: databaseID).first
-    }
-
-    @available(iOS 18.0, macOS 15.0, *)
     static func oneTimeCodeIdentities(for entry: KPEntry, in databaseID: UUID) -> [ASOneTimeCodeCredentialIdentity] {
         guard entry.hasTOTP else { return [] }
 
@@ -831,31 +826,35 @@ enum CredentialIdentityStoreManager: Sendable {
         return registeredDomain(from: host)
     }
 
+    /// The exact request host, so an OTP field on `vt.example.com` is not
+    /// answered with every entry under `example.com`. Non-web schemes carry no
+    /// web host and are dropped rather than coerced into one — notably
+    /// `otpauth://`, whose `totp` authority is not a domain.
+    ///
+    /// Normalization goes through `CredentialMatcher`, so a published host is
+    /// always the one the matcher recomputes from the same stored URL.
     private static func otpHostFromURLString(_ urlString: String) -> String? {
         let trimmed = urlString.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return nil }
 
+        // Retry on a missing host, not a missing scheme: `example.com:8080`
+        // parses with `example.com` as its scheme and no host at all.
         let parsedURL = URL(string: trimmed)
-        let url: URL?
-        if parsedURL?.scheme == nil {
-            url = URL(string: "https://\(trimmed)")
-        } else {
-            url = parsedURL
-        }
+        let url = parsedURL?.host == nil ? URL(string: "https://\(trimmed)") : parsedURL
 
         guard let url,
               let scheme = url.scheme?.lowercased(),
               scheme == "http" || scheme == "https",
-              let host = url.host,
-              let validatedDomain = registeredDomain(from: host)
+              let rawHost = url.host
         else { return nil }
 
-        let normalizedHost = host.lowercased().trimmingCharacters(in: CharacterSet(charactersIn: "."))
-        let withoutWWW = normalizedHost.hasPrefix("www.")
-            ? String(normalizedHost.dropFirst(4))
-            : normalizedHost
-        guard !withoutWWW.isEmpty, validatedDomain == registeredDomain(from: withoutWWW) else { return nil }
-        return withoutWWW
+        // The public-suffix lookup does not tolerate a fully-qualified
+        // trailing dot, so strip it before validating.
+        var host = rawHost
+        while host.hasSuffix(".") { host.removeLast() }
+        guard registeredDomain(from: host) != nil else { return nil }
+
+        return CredentialMatcher.hostFromURLString(host)
     }
 
     // MARK: - Registered domain extraction

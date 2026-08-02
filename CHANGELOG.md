@@ -31,7 +31,7 @@ TODO before the first macOS release:
 
 ### Fixes
 
-- OTP AutoFill identities now preserve each explicit web host, including meaningful subdomains, instead of collapsing entries to their registrable domain.
+- OTP AutoFill identities now preserve each explicit web host, including meaningful subdomains, instead of collapsing entries to their registrable domain. Verification-code suggestions for an exact host now win over ones for a broader domain, so a code for `vt.example.com` fills straight away instead of asking which `example.com` entry was meant.
 - The gear button inside an open database now opens the same settings screen as the database list's "Database Details". It had been missing the file format, size, encryption and key-derivation rows, the "Include in AutoFill" toggle, and the cloud account and sync status.
 - The "Read-only" toggle in Database Details no longer offers to make a KDBX 3.1 database editable. KeeForge keeps that legacy format read-only, so turning the toggle off changed nothing; it is now disabled and says why.
 - Edited entry titles and usernames now refresh immediately in entry lists, search results, and title sorting without reopening the database.
