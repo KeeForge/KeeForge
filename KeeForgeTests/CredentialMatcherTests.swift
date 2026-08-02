@@ -187,6 +187,47 @@ final class CredentialMatcherTests: XCTestCase {
         XCTAssertEqual(matches.map(\.title), ["Exact", "Child"])
     }
 
+    func testOrderedStrictKeepsEveryEntryOnTheSameExactHost() {
+        // Two logins on one host stay selectable — narrowing to a single
+        // candidate here would auto-fill the wrong account.
+        let work = makeEntry(title: "Work", url: "https://vt.example.com", username: "work", password: "p")
+        let personal = makeEntry(title: "Personal", url: "https://vt.example.com", username: "me", password: "p")
+        let ids = [ASCredentialServiceIdentifier(identifier: "vt.example.com", type: .domain)]
+
+        let matches = CredentialMatcher.orderedStrictMatchedEntries(from: [work, personal], for: ids)
+
+        XCTAssertEqual(matches.map(\.title), ["Work", "Personal"])
+    }
+
+    func testOrderedStrictFallsThroughToTheNextIdentifierWhenTheFirstMissesEntirely() {
+        let root = makeEntry(title: "Root", url: "https://example.com", username: "u", password: "p")
+        let ids = [
+            ASCredentialServiceIdentifier(identifier: "accounts.example.com", type: .domain),
+            ASCredentialServiceIdentifier(identifier: "example.com", type: .domain),
+        ]
+
+        let matches = CredentialMatcher.orderedStrictMatchedEntries(from: [root], for: ids)
+
+        XCTAssertEqual(matches.map(\.title), ["Root"])
+    }
+
+    func testOrderedStrictIsEmptyWhenOnlySubstringSignalsMatch() {
+        // The coordinator relies on an empty result here to fall back to the
+        // broad picker rather than filling a wrong-origin entry.
+        let entries = [makeEntry(title: "Notes on bank.com", url: "", username: "u", password: "p")]
+        let ids = [ASCredentialServiceIdentifier(identifier: "bank.com", type: .domain)]
+
+        XCTAssertTrue(CredentialMatcher.orderedStrictMatchedEntries(from: entries, for: ids).isEmpty)
+        XCTAssertEqual(CredentialMatcher.matchedEntries(from: entries, for: ids).count, 1)
+    }
+
+    func testOrderedStrictNormalizesWWWInTheRequestedIdentifier() {
+        let entry = makeEntry(title: "Exact", url: "https://example.com", username: "u", password: "p")
+        let ids = [ASCredentialServiceIdentifier(identifier: "WWW.Example.com.", type: .domain)]
+
+        XCTAssertEqual(CredentialMatcher.orderedStrictMatchedEntries(from: [entry], for: ids).map(\.title), ["Exact"])
+    }
+
     func testStrictDoesNotMatchTermInURLPath() {
         // A term appearing in the path of an unrelated host must not strictly match.
         let entries = [makeEntry(title: "Evil", url: "https://evil.example/bank.com/login", username: "u", password: "p")]

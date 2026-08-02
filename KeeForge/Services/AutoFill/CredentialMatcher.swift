@@ -16,25 +16,21 @@ enum CredentialMatcher {
         from entries: [KPEntry],
         for identifiers: [ASCredentialServiceIdentifier]
     ) -> [KPEntry] {
-        for identifier in identifiers {
-            guard let term = searchTerm(for: identifier) else { continue }
+        let candidates = entries
+            .filter { !$0.isExpired() }
+            .map { (entry: $0, hosts: ([$0.url] + $0.additionalURLs).compactMap(hostFromURLString)) }
 
-            let exactMatches = entries.filter { entry in
-                guard !entry.isExpired() else { return false }
-                return ([entry.url] + entry.additionalURLs).contains { urlString in
-                    hostFromURLString(urlString) == term
-                }
+        for identifier in identifiers {
+            guard let term = searchTerm(for: identifier).map(normalizeHost) else { continue }
+
+            let exactMatches = candidates.filter { $0.hosts.contains(term) }
+            let exactMatchIDs = Set(exactMatches.map(\.entry.id))
+            let childMatches = candidates.filter { candidate in
+                guard !exactMatchIDs.contains(candidate.entry.id) else { return false }
+                return candidate.hosts.contains { $0 != term && $0.hasSuffix(".\(term)") }
             }
-            let exactMatchIDs = Set(exactMatches.map(\.id))
-            let childMatches = entries.filter { entry in
-                guard !exactMatchIDs.contains(entry.id) else { return false }
-                guard !entry.isExpired() else { return false }
-                return ([entry.url] + entry.additionalURLs).contains { urlString in
-                    guard let host = hostFromURLString(urlString) else { return false }
-                    return host != term && host.hasSuffix(".\(term)")
-                }
-            }
-            let matches = exactMatches + childMatches
+
+            let matches = (exactMatches + childMatches).map(\.entry)
             if !matches.isEmpty { return matches }
         }
         return []

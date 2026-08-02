@@ -1963,14 +1963,14 @@ final class CredentialProviderCoordinator {
             return
         }
 
+        let matches = CredentialMatcher.matchedEntries(from: totpEntries, for: serviceIdentifiers)
         let strictMatches = CredentialMatcher.orderedStrictMatchedEntries(from: totpEntries, for: serviceIdentifiers)
-        let matches = strictMatches.isEmpty
-            ? CredentialMatcher.matchedEntries(from: totpEntries, for: serviceIdentifiers)
-            : strictMatches
 
-        // Auto-complete without a picker only when the single candidate matched
-        // on host, not on a weaker URL/title substring signal.
-        if matches.count == 1, strictMatches.count == 1, let entry = strictMatches.first {
+        // Auto-complete without a picker only when the most specific requested
+        // service identifier resolves to exactly one host match. The picker
+        // still offers the broader set, including weaker URL/title substring
+        // signals, which are never safe to fill without an explicit choice.
+        if strictMatches.count == 1, let entry = strictMatches.first {
             completeOTCRequest(with: entry)
             return
         }
