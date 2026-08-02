@@ -76,17 +76,50 @@ final class CredentialProviderShellMacTests: XCTestCase {
     }
 
     /// Dismissing the unlock prompt with Cancel must route through `cleanup()`.
-    func test_unlockPromptCancel_invokesCleanup() {
+    func test_unlockPromptCancel_invokesCleanup() throws {
         let (shell, spy) = makeShell()
         // No biometric button configured, so Cancel is the second button.
         shell.runModalAlert = { _ in .alertSecondButtonReturn }
         seedUnlockedVaultState(shell.coordinator)
+        // Since slice 03 an empty registry presents the no-enabled-databases
+        // empty state instead of the unlock prompt, so a resolvable default
+        // database must exist for the prompt (and its Cancel) to appear.
+        try seedResolvableDefaultDatabase()
 
         shell.coordinator.prepareCredentialList(for: [serviceIdentifier()])
         shell.coordinator.presentationDidBecomeActive()
 
         XCTAssertEqual(spy.cancelledError?.code, .userCanceled)
         assertCleanedUp(shell.coordinator)
+    }
+
+    /// Passkey registration has no macOS creator UI; the shell must answer the
+    /// request immediately with `.userCanceled` instead of leaving it pending.
+    func test_passkeyRegistration_cancelsImmediately() {
+        let (shell, spy) = makeShell()
+
+        let identity = ASPasskeyCredentialIdentity(
+            relyingPartyIdentifier: "example.com",
+            userName: "alice@example.com",
+            credentialID: Data(),
+            userHandle: Data("user-handle".utf8),
+            recordIdentifier: nil
+        )
+        let request = ASPasskeyCredentialRequest(
+            credentialIdentity: identity,
+            clientDataHash: Data(repeating: 7, count: 32),
+            userVerificationPreference: .preferred,
+            supportedAlgorithms: [.ES256]
+        )
+
+        shell.prepareInterface(forPasskeyRegistration: request)
+
+        XCTAssertEqual(spy.cancelledError?.code, .userCanceled)
+
+        // The window closing afterwards must not double-cancel.
+        spy.cancelledError = nil
+        shell.cancelActiveRequestIfNeeded()
+        XCTAssertNil(spy.cancelledError)
     }
 
     // MARK: - Helpers
@@ -124,6 +157,24 @@ final class CredentialProviderShellMacTests: XCTestCase {
 
     private func serviceIdentifier() -> ASCredentialServiceIdentifier {
         ASCredentialServiceIdentifier(identifier: "github.com", type: .domain)
+    }
+
+    /// Registers an AutoFill-enabled database and points the active pointer at
+    /// it so identifier-less interactive flows resolve a default database
+    /// (mirrors the iOS coordinator suite's helper of the same name).
+    private func seedResolvableDefaultDatabase() throws {
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString)
+            .appendingPathComponent("default.kdbx")
+        try FileManager.default.createDirectory(
+            at: url.deletingLastPathComponent(),
+            withIntermediateDirectories: true,
+            attributes: nil
+        )
+        try Data("fixture".utf8).write(to: url)
+        let reference = try TestDatabaseSupport.makeReference(for: url)
+        DatabaseListStore.update(reference)
+        DatabaseListStore.activeAutoFillDatabaseID = reference.id
     }
 
     private func seedUnlockedVaultState(

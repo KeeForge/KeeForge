@@ -60,6 +60,10 @@ final class CredentialProviderViewController: ASCredentialProviderViewController
         coordinator.prepareInterfaceToProvideCredential(for: credentialRequest)
     }
 
+    override func prepareInterface(forPasskeyRegistration registrationRequest: ASCredentialRequest) {
+        coordinator.prepareInterface(forPasskeyRegistration: registrationRequest)
+    }
+
     override func provideCredentialWithoutUserInteraction(for credentialRequest: ASCredentialRequest) {
         coordinator.provideCredentialWithoutUserInteraction(for: credentialRequest)
     }
@@ -196,6 +200,28 @@ extension CredentialProviderViewController: CredentialProviderPresenting {
         present(host, animated: true)
     }
 
+    func presentPasskeyCreator(
+        context: CredentialProviderPasskeyCreatorContext,
+        onSave: @escaping @Sendable (String) async -> CredentialProviderEntrySaveOutcome,
+        onCancel: @escaping () -> Void
+    ) {
+        let creatorView = AutoFillPasskeyCreatorView(
+            context: context,
+            onSave: onSave,
+            onCancel: { [weak self] in
+                guard let self else {
+                    onCancel()
+                    return
+                }
+                self.dismiss(animated: false) { onCancel() }
+            }
+        )
+
+        let host = UIHostingController(rootView: creatorView)
+        host.modalPresentationStyle = .fullScreen
+        present(host, animated: true)
+    }
+
     func presentNoEnabledDatabasesState(onDismiss: @escaping () -> Void) {
         let emptyStateView = AutoFillNoEnabledDatabasesView(
             onDismiss: { [weak self] in
@@ -287,6 +313,23 @@ extension CredentialProviderViewController: CredentialProviderPresenting {
         present(alert, animated: true)
     }
 
+    func presentPasskeyRegistrationFailure(
+        message: String,
+        onAcknowledge: @escaping () -> Void
+    ) {
+        let alert = UIAlertController(
+            title: String(localized: "Couldn't Save Passkey"),
+            message: message,
+            preferredStyle: .alert
+        )
+
+        alert.addAction(UIAlertAction(title: String(localized: "OK"), style: .default) { _ in
+            onAcknowledge()
+        })
+
+        present(alert, animated: true)
+    }
+
     func presentGeneratedPassword(
         _ password: String,
         onUse: @escaping () -> Void,
@@ -322,6 +365,10 @@ extension CredentialProviderViewController: CredentialProviderPresenting {
 
     func completeAssertionRequest(using credential: ASPasskeyAssertionCredential) {
         extensionContext.completeAssertionRequest(using: credential)
+    }
+
+    func completeRegistrationRequest(using credential: ASPasskeyRegistrationCredential) {
+        extensionContext.completeRegistrationRequest(using: credential)
     }
 
     func completeOneTimeCodeRequest(code: String) {

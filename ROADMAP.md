@@ -151,7 +151,8 @@ Roadmap items are grouped by product area without an implied delivery order or t
 
 ## Advanced editing and database management
 
-- [ ] Add passkey creation, including the remaining interoperability, write-path, and recovery requirements.
+- [x] Add passkey creation from Apple's "Add Passkey" credential flow (ES256, KeePassXC-compatible storage).
+- [ ] Extend passkey registration: attach to an existing entry, conditional registration, largeBlob/PRF extensions, RS256/EdDSA algorithms.
 - [x] Display preserved custom icons and opt-in website favicons.
 - [ ] Add custom-icon import and selection plus per-entry favicon management.
 - [ ] Move, copy, and duplicate entries and groups with full metadata preservation.

@@ -708,6 +708,70 @@ final class KDBXCompatibilityTests: XCTestCase {
         XCTAssertEqual(firstXML, secondXML, "Passkey round-trip must be byte-identical")
     }
 
+    func test_passkeyEntryCreation_protectsPasskeyFieldsThroughWriteAndReparse() throws {
+        let loaded = try KDBXCompatibilitySupport.load(.syntheticRich, bundle: bundle, sessionKey: entrySessionKey)
+        let pem = "-----BEGIN PRIVATE KEY-----\nCREATED-PASSKEY-PEM\n-----END PRIVATE KEY-----"
+        let protectedKeys: Set<String> = [
+            PasskeyCredential.credentialIDKey,
+            PasskeyCredential.privateKeyPEMKey,
+            PasskeyCredential.userHandleKey,
+        ]
+        let payload = EntryDraftPayload(
+            title: "Created Passkey Entry",
+            username: "alice@example.com",
+            password: "created-passkey-password",
+            url: "https://example.com",
+            customFields: [
+                PasskeyCredential.credentialIDKey: "3q2-7wEj",
+                PasskeyCredential.privateKeyPEMKey: pem,
+                PasskeyCredential.relyingPartyKey: "example.com",
+                PasskeyCredential.usernameKey: "alice@example.com",
+                PasskeyCredential.userHandleKey: "AAEC-_z9",
+            ],
+            protectedCustomFieldKeys: protectedKeys
+        )
+
+        let updatedDraft = try DatabaseDraft(
+            rootGroup: loaded.rootGroup,
+            meta: loaded.meta,
+            sessionKey: entrySessionKey
+        ).apply(.createEntry(
+            parentGroupID: TestDatabaseSupport.visibleRootGroupID(in: loaded.rootGroup),
+            draft: payload
+        ))
+
+        let written = try KDBXWriter.write(
+            rootGroup: updatedDraft.rootGroup,
+            meta: updatedDraft.meta,
+            compositeKey: loaded.compositeKey,
+            header: loaded.header,
+            sessionKey: updatedDraft.writerSessionKey
+        )
+        let reparsed = try KDBXParser.parseWithMeta(
+            data: written,
+            compositeKey: loaded.compositeKey,
+            sessionKey: entrySessionKey
+        )
+        let reloaded = try XCTUnwrap(firstEntry(titled: "Created Passkey Entry", in: reparsed.rootGroup))
+
+        XCTAssertEqual(reloaded.protectedStringKeys.intersection(PasskeyCredential.allFieldKeys), protectedKeys)
+        XCTAssertNil(reloaded.customFields[PasskeyCredential.privateKeyPEMKey])
+        XCTAssertEqual(try XCTUnwrap(reloaded.passkeyPrivateKey).decrypt(using: entrySessionKey), pem)
+        XCTAssertEqual(reloaded.customFields[PasskeyCredential.relyingPartyKey], "example.com")
+        XCTAssertEqual(reloaded.customFields[PasskeyCredential.usernameKey], "alice@example.com")
+
+        let credentialID = try XCTUnwrap(reloaded.customFields[PasskeyCredential.credentialIDKey])
+        XCTAssertEqual(credentialID, "3q2-7wEj")
+        XCTAssertEqual(base64URLDecode(credentialID), Data([0xDE, 0xAD, 0xBE, 0xEF, 0x01, 0x23]))
+        XCTAssertEqual(base64URLDecode(credentialID).map(base64URLEncode), credentialID)
+        let userHandle = try XCTUnwrap(reloaded.customFields[PasskeyCredential.userHandleKey])
+        XCTAssertEqual(userHandle, "AAEC-_z9")
+        XCTAssertEqual(base64URLDecode(userHandle), Data([0x00, 0x01, 0x02, 0xFB, 0xFC, 0xFD]))
+        XCTAssertEqual(base64URLDecode(userHandle).map(base64URLEncode), userHandle)
+
+        XCTAssertNotNil(reloaded.passkeyCredential)
+    }
+
     private func firstEntry(titled title: String, in group: KPGroup) -> KPEntry? {
         group.allEntries.first { $0.title == title }
     }

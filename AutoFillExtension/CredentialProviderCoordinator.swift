@@ -30,6 +30,18 @@ struct CredentialProviderDatabaseSwitcherContext {
     let onSwitch: (DatabaseReference, String) -> Void
 }
 
+/// What the passkey-registration confirmation sheet shows: the relying party
+/// and user name from the request, the database the passkey will be saved
+/// into, and the editable entry title's initial value. The sheet's save
+/// callback returns only the edited title; everything else about the new
+/// entry is derived from the request by the coordinator.
+struct CredentialProviderPasskeyCreatorContext {
+    let relyingPartyIdentifier: String
+    let userName: String
+    let databaseName: String
+    let initialTitle: String
+}
+
 /// The narrow seam between the coordinator and a platform presentation shell.
 ///
 /// The shell needs no knowledge of matching or vault logic; the surface is
@@ -70,6 +82,15 @@ protocol CredentialProviderPresenting: AnyObject {
         onCancel: @escaping () -> Void
     )
 
+    /// Confirmation sheet for a passkey registration. `onSave` receives the
+    /// user-edited entry title; `onCancel` covers both the Cancel action and
+    /// sheet dismissal.
+    func presentPasskeyCreator(
+        context: CredentialProviderPasskeyCreatorContext,
+        onSave: @escaping @Sendable (String) async -> CredentialProviderEntrySaveOutcome,
+        onCancel: @escaping () -> Void
+    )
+
     /// Empty state for the zero-enabled-databases case: tells the user to
     /// turn on AutoFill for a database in KeeForge's settings. Dismissal is
     /// the only action; the coordinator cancels the request from `onDismiss`.
@@ -98,6 +119,14 @@ protocol CredentialProviderPresenting: AnyObject {
         onAcknowledge: @escaping () -> Void
     )
 
+    /// Single-button notice for a passkey-registration request the extension
+    /// cannot serve (e.g. no ES256 among the supported algorithms). The
+    /// coordinator cancels the request from `onAcknowledge`.
+    func presentPasskeyRegistrationFailure(
+        message: String,
+        onAcknowledge: @escaping () -> Void
+    )
+
     func presentGeneratedPassword(
         _ password: String,
         onUse: @escaping () -> Void,
@@ -109,6 +138,7 @@ protocol CredentialProviderPresenting: AnyObject {
 
     func completeRequest(withSelectedCredential credential: ASPasswordCredential)
     func completeAssertionRequest(using credential: ASPasskeyAssertionCredential)
+    func completeRegistrationRequest(using credential: ASPasskeyRegistrationCredential)
     /// Only reachable on iOS 18+ (one-time-code requests); the shell wraps the
     /// code in `ASOneTimeCodeCredential` under its own availability check.
     func completeOneTimeCodeRequest(code: String)
@@ -148,6 +178,11 @@ final class CredentialProviderCoordinator {
     var targetRecordIdentifier: String?
     var pendingPasskeyRequest: ASPasskeyCredentialRequest?
     var pendingPasskeyRequestParameters: ASPasskeyCredentialRequestParameters?
+    var pendingPasskeyRegistrationRequest: ASPasskeyCredentialRequest?
+    /// Deferred user-visible failure for a registration request the extension
+    /// cannot serve, presented once the shell is on screen and then cancelled
+    /// with `.failed` (mirrors `pendingReadOnlyCancellationMessage`).
+    var pendingPasskeyRegistrationFailureMessage: String?
     var hasPendingOTCRequest = false
     var hasPendingOTCListRequest = false
     var pendingGeneratePasswordPresentation = false
@@ -195,6 +230,17 @@ final class CredentialProviderCoordinator {
     /// expiration date — the copy therefore expires even though the extension
     /// process is gone by then.
     var copyToClipboard: @MainActor (String) -> Void = { ClipboardService.copy($0) }
+
+    /// Save environment for the passkey-registration flow; injectable so unit
+    /// tests can record the save and drive the conflict/error paths.
+    var passkeySaveEnvironment: AutoFillSaveCoordinator.Environment = .live
+
+    /// Reads a registration request's excluded credential IDs. Injectable
+    /// because `ASPasskeyCredentialRequest.excludedCredentials` is read-only
+    /// with no initializer that sets it, so tests cannot construct exclusions.
+    var excludedCredentialIDs: (ASPasskeyCredentialRequest) -> [Data] = { request in
+        request.excludedCredentials?.map(\.credentialID) ?? []
+    }
     #endif
 
     // Save-password and generate-password requests are iOS-only: the underlying
@@ -320,6 +366,62 @@ final class CredentialProviderCoordinator {
         }
     }
 
+    // MARK: Passkey registration (iOS-only: the macOS shell answers these
+    // requests with `.userCanceled` before the coordinator is involved)
+
+    #if os(iOS)
+    func prepareInterface(forPasskeyRegistration credentialRequest: ASCredentialRequest) {
+        beginRequest()
+        guard let registrationRequest = credentialRequest as? ASPasskeyCredentialRequest,
+              let identity = registrationRequest.credentialIdentity as? ASPasskeyCredentialIdentity,
+              // PasskeyCredential requires both; saving without them would
+              // register a credential that can never assert.
+              !identity.userName.isEmpty,
+              !identity.userHandle.isEmpty else {
+            cancelRequest(code: .failed)
+            return
+        }
+
+        serviceIdentifiers = [identity.serviceIdentifier]
+        targetRecordIdentifier = nil
+        pendingPasskeyRequest = nil
+        pendingPasskeyRequestParameters = nil
+        hasPendingOTCRequest = false
+        hasPendingOTCListRequest = false
+        clearPendingCreationRequests()
+        didAttemptAutoBiometricUnlock = false
+        pendingUnlock = false
+
+        guard registrationRequest.supportedAlgorithms.contains(.ES256) else {
+            pendingPasskeyRegistrationFailureMessage = String(localized: "This passkey request isn't supported.")
+            activatePresentationIfPossible()
+            return
+        }
+
+        // Registration targets the default database, exactly like the
+        // save-password flow: with no enabled database the deferred empty
+        // state explains how to enable one instead of failing.
+        guard let databaseReference = DatabaseListStore.defaultAutoFillDatabase else {
+            pendingNoEnabledDatabasesPresentation = true
+            activatePresentationIfPossible()
+            return
+        }
+
+        guard databaseReference.isReadOnly == false else {
+            pendingReadOnlyCancellationMessage = String(localized: "This database is read-only. Open KeeForge to enable editing.")
+            activatePresentationIfPossible()
+            return
+        }
+
+        pendingPasskeyRegistrationRequest = registrationRequest
+        // Pin the save target now so the unlock flow and the passkey save
+        // both operate on the same reference.
+        activeDatabaseReference = databaseReference
+        pendingUnlock = true
+        activatePresentationIfPossible()
+    }
+    #endif
+
     func provideCredentialWithoutUserInteraction(for credentialRequest: ASCredentialRequest) {
         beginRequest()
         if let passkeyRequest = credentialRequest as? ASPasskeyCredentialRequest {
@@ -345,6 +447,9 @@ final class CredentialProviderCoordinator {
         } else if let pendingReadOnlyCancellationMessage {
             self.pendingReadOnlyCancellationMessage = nil
             presentReadOnlyAlertAndCancel(message: pendingReadOnlyCancellationMessage)
+        } else if let pendingPasskeyRegistrationFailureMessage {
+            self.pendingPasskeyRegistrationFailureMessage = nil
+            presentPasskeyRegistrationFailureAndCancel(message: pendingPasskeyRegistrationFailureMessage)
         } else if pendingGeneratePasswordPresentation {
             pendingGeneratePasswordPresentation = false
             #if os(iOS)
@@ -980,7 +1085,9 @@ final class CredentialProviderCoordinator {
 
     private func afterUnlock() {
         guard !didFinishRequest else { return }
-        if let request = pendingPasskeyRequest {
+        if handlePendingPasskeyRegistrationIfNeeded() {
+            // Handled by the iOS-only passkey-registration flow.
+        } else if let request = pendingPasskeyRequest {
             pendingPasskeyRequest = nil
             completeInteractivePasskeyRequest(request)
         } else if handlePendingSaveRequestIfNeeded() {
@@ -1019,6 +1126,35 @@ final class CredentialProviderCoordinator {
             return true
         }
         presentEntryCreator(for: savePasswordRequest)
+        return true
+        #else
+        return false
+        #endif
+    }
+
+    /// Handles a pending passkey-registration request after unlock. Internal
+    /// (not private) so unit tests can drive the post-unlock path directly.
+    /// Always false on macOS: the shell there cancels registration requests
+    /// at its entry point, so the coordinator never sees one.
+    func handlePendingPasskeyRegistrationIfNeeded() -> Bool {
+        #if os(iOS)
+        guard let request = pendingPasskeyRegistrationRequest else { return false }
+        pendingPasskeyRegistrationRequest = nil
+        if parsedFormatVersion?.requiresReadOnlyMode == true {
+            presentReadOnlyAlertAndCancel(
+                message: String(localized: "Legacy KDBX 3.1 databases can be opened, but KeeForge only allows them in read-only mode.")
+            )
+            return true
+        }
+        guard let identity = request.credentialIdentity as? ASPasskeyCredentialIdentity else {
+            cancelRequest(code: .failed)
+            return true
+        }
+        if hasExcludedCredentialMatch(for: request, identity: identity) {
+            cancelRequest(code: .matchedExcludedCredential)
+            return true
+        }
+        presentPasskeyCreator(for: request, identity: identity)
         return true
         #else
         return false
@@ -1097,6 +1233,8 @@ final class CredentialProviderCoordinator {
         // Only the save-prepare path sets this; reset it wherever creation
         // pendings are reset (every request entry point plus cleanup()).
         pendingNoEnabledDatabasesPresentation = false
+        pendingPasskeyRegistrationRequest = nil
+        pendingPasskeyRegistrationFailureMessage = nil
         #if os(iOS)
         if #available(iOS 26.2, *) {
             pendingSavePasswordRequest = nil
@@ -1522,6 +1660,159 @@ final class CredentialProviderCoordinator {
         }
     }
 
+    /// Whether any parsed entry already stores a passkey for the request's
+    /// relying party whose credential ID appears in `excludedCredentials`
+    /// (WebAuthn's "don't re-register on this authenticator" signal).
+    private func hasExcludedCredentialMatch(
+        for request: ASPasskeyCredentialRequest,
+        identity: ASPasskeyCredentialIdentity
+    ) -> Bool {
+        let excluded = Set(excludedCredentialIDs(request))
+        guard !excluded.isEmpty else { return false }
+        let normalizedRelyingParty = CredentialIdentityStoreManager.normalizedRelyingPartyIdentifier(
+            identity.relyingPartyIdentifier
+        )
+        return parsedEntries.contains { entry in
+            guard let passkey = entry.passkeyCredential,
+                  let credentialIDData = passkey.credentialIDData else { return false }
+            return CredentialIdentityStoreManager.normalizedRelyingPartyIdentifier(passkey.relyingParty) == normalizedRelyingParty
+                && excluded.contains(credentialIDData)
+        }
+    }
+
+    private func presentPasskeyCreator(
+        for request: ASPasskeyCredentialRequest,
+        identity: ASPasskeyCredentialIdentity
+    ) {
+        let relyingPartyID = identity.relyingPartyIdentifier
+        let userName = identity.userName
+        let userHandle = identity.userHandle
+        let clientDataHash = request.clientDataHash
+
+        presenter?.presentPasskeyCreator(
+            context: CredentialProviderPasskeyCreatorContext(
+                relyingPartyIdentifier: relyingPartyID,
+                userName: userName,
+                databaseName: activeDatabaseReference?.displayName ?? "",
+                initialTitle: relyingPartyID
+            ),
+            onSave: { [weak self] title in
+                guard let self else {
+                    return .showError(String(localized: "The request is no longer available."))
+                }
+                return await self.savePasskeyEntry(
+                    title: title,
+                    relyingPartyID: relyingPartyID,
+                    userName: userName,
+                    userHandle: userHandle,
+                    clientDataHash: clientDataHash
+                )
+            },
+            onCancel: { [weak self] in
+                self?.cancelRequest(code: .userCanceled)
+            }
+        )
+    }
+
+    /// Everything the registration completion needs from the crypto step,
+    /// generated off the main actor in one hop.
+    private struct PasskeyRegistrationMaterial: Sendable {
+        let credentialID: Data
+        let privateKeyPEM: String
+        let attestationObject: Data
+    }
+
+    /// Saves the new passkey entry FIRST and only then hands the registration
+    /// credential to the system — the relying party must never receive a
+    /// credential the database did not persist.
+    private func savePasskeyEntry(
+        title: String,
+        relyingPartyID: String,
+        userName: String,
+        userHandle: Data,
+        clientDataHash: Data
+    ) async -> CredentialProviderEntrySaveOutcome {
+        guard let reference = activeDatabaseReference,
+              let parsedRootGroup,
+              let parsedMeta,
+              let sessionKey,
+              let compositeKey,
+              let openTimeSHA512 else {
+            return .showError(SaveError.saveContextUnavailable.localizedDescription)
+        }
+
+        let material: PasskeyRegistrationMaterial
+        do {
+            material = try await Task.detached(priority: .userInitiated) {
+                let credentialID = try PasskeyCrypto.generateCredentialID()
+                let privateKey = PasskeyCrypto.generatePrivateKey()
+                return PasskeyRegistrationMaterial(
+                    credentialID: credentialID,
+                    privateKeyPEM: privateKey.pemRepresentation,
+                    attestationObject: PasskeyCrypto.buildAttestationObject(
+                        relyingPartyID: relyingPartyID,
+                        credentialID: credentialID,
+                        privateKey: privateKey
+                    )
+                )
+            }.value
+        } catch {
+            return .showError(error.localizedDescription)
+        }
+
+        let trimmedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        let draftPayload = EntryDraftPayload(
+            title: trimmedTitle.isEmpty ? relyingPartyID : trimmedTitle,
+            username: userName,
+            url: "https://\(relyingPartyID)",
+            customFields: [
+                PasskeyCredential.credentialIDKey: base64URLEncode(material.credentialID),
+                PasskeyCredential.privateKeyPEMKey: material.privateKeyPEM,
+                PasskeyCredential.relyingPartyKey: relyingPartyID,
+                PasskeyCredential.usernameKey: userName,
+                PasskeyCredential.userHandleKey: base64URLEncode(userHandle),
+            ],
+            protectedCustomFieldKeys: [
+                PasskeyCredential.credentialIDKey,
+                PasskeyCredential.privateKeyPEMKey,
+                PasskeyCredential.userHandleKey,
+            ]
+        )
+
+        do {
+            let result = try await AutoFillSaveCoordinator.saveNewEntry(
+                draftPayload: draftPayload,
+                reference: reference,
+                rootGroup: parsedRootGroup,
+                meta: parsedMeta,
+                sessionKey: sessionKey,
+                compositeKey: compositeKey,
+                openTimeSHA512: openTimeSHA512,
+                environment: passkeySaveEnvironment
+            )
+
+            switch result {
+            case .saved(let outcome):
+                self.parsedRootGroup = outcome.savedRootGroup
+                self.openTimeSHA512 = outcome.newSHA512
+                let credential = ASPasskeyRegistrationCredential(
+                    relyingParty: relyingPartyID,
+                    clientDataHash: clientDataHash,
+                    credentialID: material.credentialID,
+                    attestationObject: material.attestationObject
+                )
+                finishRequest { presenter in
+                    presenter.completeRegistrationRequest(using: credential)
+                }
+                return .completed
+            case .conflict:
+                return .showWarningAndCancel(String(localized: "Database changed — open KeeForge to save"))
+            }
+        } catch {
+            return .showError(error.localizedDescription)
+        }
+    }
+
     @available(iOS 26.2, *)
     private func presentGeneratePasswordPrompt(
         for request: ASGeneratePasswordsRequest,
@@ -1555,6 +1846,12 @@ final class CredentialProviderCoordinator {
     func presentReadOnlyAlertAndCancel(message: String) {
         presenter?.presentReadOnlyNotice(message: message) { [weak self] in
             self?.cancelRequest(code: .userCanceled)
+        }
+    }
+
+    func presentPasskeyRegistrationFailureAndCancel(message: String) {
+        presenter?.presentPasskeyRegistrationFailure(message: message) { [weak self] in
+            self?.cancelRequest(code: .failed)
         }
     }
 

@@ -66,6 +66,115 @@ final class DatabaseDraftTests: XCTestCase {
         XCTAssertTrue(updatedDraft.rootGroup.entries.contains(where: { $0.title == "Root Entry" }))
     }
 
+    func test_createEntry_protectedCustomFieldKeys_protectPasskeyFieldsThroughSerialization() throws {
+        let pem = "-----BEGIN PRIVATE KEY-----\nDRAFT-PROTECTED-PEM\n-----END PRIVATE KEY-----"
+        let protectedKeys: Set<String> = [
+            PasskeyCredential.credentialIDKey,
+            PasskeyCredential.privateKeyPEMKey,
+            PasskeyCredential.userHandleKey,
+        ]
+        let tree = try makeSyntheticTree(includeRecycleBin: false)
+        let draft = DatabaseDraft(rootGroup: tree.rootGroup, meta: tree.meta, sessionKey: sessionKey)
+        let payload = EntryDraftPayload(
+            title: "Registered Passkey",
+            username: "alice@example.com",
+            url: "https://example.com",
+            customFields: [
+                PasskeyCredential.credentialIDKey: "3q2-7wEj",
+                PasskeyCredential.privateKeyPEMKey: pem,
+                PasskeyCredential.relyingPartyKey: "example.com",
+                PasskeyCredential.usernameKey: "alice@example.com",
+                PasskeyCredential.userHandleKey: "AAEC-_z9",
+            ],
+            protectedCustomFieldKeys: protectedKeys.union(["Not A Draft Field"])
+        )
+
+        let updatedDraft = try draft.apply(.createEntry(parentGroupID: tree.parentGroupID, draft: payload))
+        let parentGroup = try XCTUnwrap(findGroup(withID: tree.parentGroupID, in: updatedDraft.rootGroup))
+        let created = try XCTUnwrap(parentGroup.entries.last)
+
+        XCTAssertNil(created.customFields[PasskeyCredential.privateKeyPEMKey])
+        XCTAssertEqual(try created.passkeyPrivateKey?.decrypt(using: sessionKey), pem)
+        // Keys absent from the entry's fields are dropped; the requested
+        // passkey keys survive, including the diverted PEM key.
+        XCTAssertEqual(created.protectedStringKeys, protectedKeys)
+
+        let innerStreamKey = Data("KeeForge Draft Inner Stream Key".utf8)
+        var serializer = KDBXXMLSerializer(
+            rootGroup: updatedDraft.rootGroup,
+            meta: updatedDraft.meta,
+            innerStreamKey: innerStreamKey,
+            sessionKey: sessionKey
+        )
+        let xml = try serializer.serialize()
+        let xmlString = String(decoding: xml, as: UTF8.self)
+
+        for key in protectedKeys {
+            XCTAssertTrue(
+                xmlString.contains("<Key>\(key)</Key><Value Protected=\"True\">"),
+                "\(key) must serialize with Protected=True"
+            )
+        }
+        XCTAssertTrue(xmlString.contains("<Key>\(PasskeyCredential.relyingPartyKey)</Key><Value>example.com</Value>"))
+        XCTAssertTrue(xmlString.contains("<Key>\(PasskeyCredential.usernameKey)</Key><Value>alice@example.com</Value>"))
+        XCTAssertFalse(xmlString.contains("DRAFT-PROTECTED-PEM"))
+        XCTAssertFalse(xmlString.contains("3q2-7wEj"))
+        XCTAssertFalse(xmlString.contains("AAEC-_z9"))
+
+        let reparsed = try KDBXXMLParser(
+            data: xml,
+            innerStreamKey: innerStreamKey,
+            innerStreamID: KDBXParser.innerStreamChaCha20,
+            sessionKey: sessionKey
+        ).parse()
+        let reloaded = try XCTUnwrap(reparsed.rootGroup.allEntries.first { $0.title == "Registered Passkey" })
+
+        XCTAssertEqual(reloaded.protectedStringKeys.intersection(PasskeyCredential.allFieldKeys), protectedKeys)
+        XCTAssertNil(reloaded.customFields[PasskeyCredential.privateKeyPEMKey])
+        XCTAssertEqual(try XCTUnwrap(reloaded.passkeyPrivateKey).decrypt(using: sessionKey), pem)
+        XCTAssertEqual(reloaded.customFields[PasskeyCredential.credentialIDKey], "3q2-7wEj")
+        XCTAssertEqual(reloaded.customFields[PasskeyCredential.relyingPartyKey], "example.com")
+        XCTAssertEqual(reloaded.customFields[PasskeyCredential.usernameKey], "alice@example.com")
+        XCTAssertEqual(reloaded.customFields[PasskeyCredential.userHandleKey], "AAEC-_z9")
+        XCTAssertNotNil(reloaded.passkeyCredential)
+    }
+
+    func test_createEntry_withoutProtectedCustomFieldKeys_leavesFieldsUnprotected() throws {
+        let tree = try makeSyntheticTree(includeRecycleBin: false)
+        let draft = DatabaseDraft(rootGroup: tree.rootGroup, meta: tree.meta, sessionKey: sessionKey)
+        let payload = EntryDraftPayload(
+            title: "Unprotected Fields",
+            password: "secret",
+            customFields: ["CustomKey": "CustomValue"]
+        )
+
+        let updatedDraft = try draft.apply(.createEntry(parentGroupID: tree.parentGroupID, draft: payload))
+        let parentGroup = try XCTUnwrap(findGroup(withID: tree.parentGroupID, in: updatedDraft.rootGroup))
+        let created = try XCTUnwrap(parentGroup.entries.last)
+
+        XCTAssertTrue(created.protectedStringKeys.isEmpty)
+    }
+
+    func test_updateEntry_protectedCustomFieldKeys_addProtectionForNewPasskeyFields() throws {
+        let tree = try makeSyntheticTree(includeRecycleBin: false)
+        var payload = try makeDraftPayload(from: tree.parentEntry)
+        payload.customFields[PasskeyCredential.credentialIDKey] = "Y3JlZA"
+        payload.customFields[PasskeyCredential.userHandleKey] = "aGFuZGxl"
+        payload.protectedCustomFieldKeys = [
+            PasskeyCredential.credentialIDKey,
+            PasskeyCredential.userHandleKey,
+        ]
+
+        let draft = DatabaseDraft(rootGroup: tree.rootGroup, meta: tree.meta, sessionKey: sessionKey)
+        let updatedDraft = try draft.apply(.updateEntry(entryID: tree.parentEntry.id, draft: payload))
+        let updated = try XCTUnwrap(findEntry(withID: tree.parentEntry.id, in: updatedDraft.rootGroup))
+
+        XCTAssertTrue(updated.protectedStringKeys.contains(PasskeyCredential.credentialIDKey))
+        XCTAssertTrue(updated.protectedStringKeys.contains(PasskeyCredential.userHandleKey))
+        // The original entry's protected diverted PEM stays protected.
+        XCTAssertTrue(updated.protectedStringKeys.contains(PasskeyCredential.privateKeyPEMKey))
+    }
+
     func test_createGroup_addsSubgroupToParentGroup() throws {
         let tree = try makeSyntheticTree(includeRecycleBin: false)
         let draft = DatabaseDraft(rootGroup: tree.rootGroup, meta: tree.meta, sessionKey: sessionKey)

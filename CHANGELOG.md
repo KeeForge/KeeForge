@@ -23,6 +23,7 @@ TODO before the first macOS release:
 
 ### Features
 
+- Save new passkeys: choosing KeeForge when an app or website offers "Add Passkey" now creates a passkey entry in the default AutoFill database, stored in the KeePassXC-compatible format so other KeePass apps can sign in with it too. Previously that request showed a blank screen (#52).
 - Search results and the tag browser now show which folder an entry lives in, as a small caption under the entry (#24).
 - Groups hidden from AutoFill are now also hidden from in-app search, matching how KeePass treats the underlying "enable searching" flag (#24). Browsing and the tag browser still show the group and its entries, and the context-menu wording now says "Hide from Search & AutoFill".
 - French localization: the app, the AutoFill extension, and the README/contribution guide are now available in French.

@@ -45,14 +45,28 @@ final class CredentialProviderPresentingSpy: CredentialProviderPresenting {
         let onDismiss: () -> Void
     }
 
+    struct PasskeyCreator {
+        let context: CredentialProviderPasskeyCreatorContext
+        let onSave: @Sendable (String) async -> CredentialProviderEntrySaveOutcome
+        let onCancel: () -> Void
+    }
+
+    struct PasskeyRegistrationFailure {
+        let message: String
+        let onAcknowledge: () -> Void
+    }
+
     var unlockPrompt: UnlockPrompt?
     var unlockError: UnlockError?
     var readOnlyNotice: ReadOnlyNotice?
     var searchView: SearchView?
     var noEnabledDatabasesState: NoEnabledDatabasesState?
+    var passkeyCreator: PasskeyCreator?
+    var passkeyRegistrationFailure: PasskeyRegistrationFailure?
 
     var completedCredential: ASPasswordCredential?
     var completedAssertion: ASPasskeyAssertionCredential?
+    var completedRegistration: ASPasskeyRegistrationCredential?
     var completedOneTimeCode: String?
     var didCompleteSavePassword = false
     var completedGeneratedPasswords: [String]?
@@ -74,6 +88,10 @@ final class CredentialProviderPresentingSpy: CredentialProviderPresenting {
     /// `onUnlockErrorPresented` — lets async flows (a real unlock task)
     /// await the re-presented search with an expectation.
     var onSearchViewPresented: (() -> Void)?
+    var onPasskeyCreatorPresented: (() -> Void)?
+    /// Fired before `completedRegistration` is recorded so ordering-sensitive
+    /// tests can log the completion against other observed events.
+    var onCompleteRegistrationRequest: ((ASPasskeyRegistrationCredential) -> Void)?
 
     func presentSearchView(
         entries: [KPEntry],
@@ -109,6 +127,22 @@ final class CredentialProviderPresentingSpy: CredentialProviderPresenting {
         onSave: @escaping @Sendable (EntryDraftPayload) async -> CredentialProviderEntrySaveOutcome,
         onCancel: @escaping () -> Void
     ) {}
+
+    func presentPasskeyCreator(
+        context: CredentialProviderPasskeyCreatorContext,
+        onSave: @escaping @Sendable (String) async -> CredentialProviderEntrySaveOutcome,
+        onCancel: @escaping () -> Void
+    ) {
+        passkeyCreator = PasskeyCreator(context: context, onSave: onSave, onCancel: onCancel)
+        onPasskeyCreatorPresented?()
+    }
+
+    func presentPasskeyRegistrationFailure(
+        message: String,
+        onAcknowledge: @escaping () -> Void
+    ) {
+        passkeyRegistrationFailure = PasskeyRegistrationFailure(message: message, onAcknowledge: onAcknowledge)
+    }
 
     func presentUnlockPrompt(
         biometricOptionTitle: String?,
@@ -155,6 +189,11 @@ final class CredentialProviderPresentingSpy: CredentialProviderPresenting {
 
     func completeAssertionRequest(using credential: ASPasskeyAssertionCredential) {
         completedAssertion = credential
+    }
+
+    func completeRegistrationRequest(using credential: ASPasskeyRegistrationCredential) {
+        onCompleteRegistrationRequest?(credential)
+        completedRegistration = credential
     }
 
     func completeOneTimeCodeRequest(code: String) {
