@@ -1399,6 +1399,350 @@ final class DatabaseDraftTests: XCTestCase {
         }
     }
 
+    // MARK: - Update group
+
+    func test_updateGroup_renamesGroupKeepingIdentityAndChildren_andTouchesModificationTime() throws {
+        let tree = try makeSyntheticTree(includeRecycleBin: false)
+        let draft = DatabaseDraft(rootGroup: tree.rootGroup, meta: tree.meta, sessionKey: sessionKey)
+        let originalGroup = try XCTUnwrap(findGroup(withID: tree.parentGroupID, in: tree.rootGroup))
+        let originalEntryIDs = originalGroup.entries.map(\.id)
+        let originalSubgroupIDs = originalGroup.groups.map(\.id)
+
+        let updatedDraft = try draft.apply(
+            .updateGroup(
+                groupID: tree.parentGroupID,
+                draft: GroupDraftPayload(name: "  Renamed Parent  ", iconID: originalGroup.iconID)
+            )
+        )
+
+        let updatedGroup = try XCTUnwrap(findGroup(withID: tree.parentGroupID, in: updatedDraft.rootGroup))
+        XCTAssertEqual(updatedGroup.name, "Renamed Parent", "The name is trimmed, the way applyCreateGroup trims it")
+        XCTAssertEqual(updatedGroup.id, originalGroup.id)
+        XCTAssertEqual(updatedGroup.entries.map(\.id), originalEntryIDs)
+        XCTAssertEqual(updatedGroup.groups.map(\.id), originalSubgroupIDs)
+        XCTAssertEqual(updatedGroup.creationTime, originalGroup.creationTime)
+        XCTAssertGreaterThan(
+            try XCTUnwrap(updatedGroup.lastModificationTime),
+            try XCTUnwrap(originalGroup.lastModificationTime)
+        )
+        XCTAssertTrue(updatedDraft.isDirty)
+    }
+
+    func test_updateGroup_renameCollidingWithASibling_throws() throws {
+        let tree = try makeSyntheticTree(includeRecycleBin: false)
+        let draft = DatabaseDraft(rootGroup: tree.rootGroup, meta: tree.meta, sessionKey: sessionKey)
+        let visibleRootID = try XCTUnwrap(tree.rootGroup.groups.first?.id)
+
+        // "pàrent" differs from the sibling "Parent" only by case and a
+        // diacritic — the same comparison applyCreateGroup rejects on.
+        XCTAssertThrowsError(
+            try draft.apply(
+                .updateGroup(groupID: tree.untouchedGroupID, draft: GroupDraftPayload(name: "pàrent"))
+            )
+        ) { error in
+            XCTAssertEqual(
+                error as? DatabaseDraft.DraftError,
+                .duplicateGroupName(parentGroupID: visibleRootID, name: "pàrent")
+            )
+        }
+        XCTAssertFalse(draft.isDirty)
+    }
+
+    /// The sibling scan has to exclude the group being edited, or every save
+    /// from the group editor that leaves the name alone reads as a collision.
+    func test_updateGroup_savingAGroupUnderItsOwnCurrentNameIsAllowed() throws {
+        let tree = try makeSyntheticTree(includeRecycleBin: false)
+        let draft = DatabaseDraft(rootGroup: tree.rootGroup, meta: tree.meta, sessionKey: sessionKey)
+
+        let unchanged = try draft.apply(
+            .updateGroup(
+                groupID: tree.parentGroupID,
+                draft: GroupDraftPayload(name: "Parent", notes: "same name, new notes")
+            )
+        )
+        let unchangedGroup = try XCTUnwrap(findGroup(withID: tree.parentGroupID, in: unchanged.rootGroup))
+        XCTAssertEqual(unchangedGroup.name, "Parent")
+        XCTAssertEqual(unchangedGroup.notes, "same name, new notes")
+
+        let recased = try unchanged.apply(
+            .updateGroup(groupID: tree.parentGroupID, draft: GroupDraftPayload(name: "PARENT"))
+        )
+        let recasedGroup = try XCTUnwrap(findGroup(withID: tree.parentGroupID, in: recased.rootGroup))
+        XCTAssertEqual(recasedGroup.name, "PARENT", "A case-only change of its own name is not a collision either")
+    }
+
+    func test_updateGroup_emptyName_throws() throws {
+        let tree = try makeSyntheticTree(includeRecycleBin: false)
+        let draft = DatabaseDraft(rootGroup: tree.rootGroup, meta: tree.meta, sessionKey: sessionKey)
+
+        XCTAssertThrowsError(
+            try draft.apply(
+                .updateGroup(groupID: tree.parentGroupID, draft: GroupDraftPayload(name: "   "))
+            )
+        ) { error in
+            XCTAssertEqual(error as? DatabaseDraft.DraftError, .emptyGroupName(tree.parentGroupID))
+        }
+        XCTAssertFalse(draft.isDirty)
+    }
+
+    func test_updateGroup_tagsAddedChangedAndCleared() throws {
+        let tree = try makeSyntheticTree(includeRecycleBin: false)
+        let draft = DatabaseDraft(rootGroup: tree.rootGroup, meta: tree.meta, sessionKey: sessionKey)
+
+        let added = try draft.apply(
+            .updateGroup(
+                groupID: tree.parentGroupID,
+                draft: GroupDraftPayload(name: "Parent", tags: [" team ", "shared,shared"])
+            )
+        )
+        let addedGroup = try XCTUnwrap(findGroup(withID: tree.parentGroupID, in: added.rootGroup))
+        XCTAssertEqual(
+            addedGroup.tags,
+            ["team", "shared"],
+            "Incoming tags go through TagNormalizer, so separators and duplicates cannot smuggle in"
+        )
+
+        let changed = try added.apply(
+            .updateGroup(groupID: tree.parentGroupID, draft: GroupDraftPayload(name: "Parent", tags: ["ops"]))
+        )
+        let changedGroup = try XCTUnwrap(findGroup(withID: tree.parentGroupID, in: changed.rootGroup))
+        XCTAssertEqual(changedGroup.tags, ["ops"])
+
+        let cleared = try changed.apply(
+            .updateGroup(groupID: tree.parentGroupID, draft: GroupDraftPayload(name: "Parent", tags: []))
+        )
+        let clearedGroup = try XCTUnwrap(findGroup(withID: tree.parentGroupID, in: cleared.rootGroup))
+        XCTAssertTrue(clearedGroup.tags.isEmpty)
+    }
+
+    /// The serializer writes `<Tags>` for any non-empty list, so `hasTagsElement`
+    /// keeps meaning "the source file had the element". Raising it on an edit
+    /// would leave an empty `<Tags></Tags>` behind on a group that never had one
+    /// as soon as the user cleared the tags again.
+    func test_updateGroup_neverInventsATagsElementOnAGroupThatNeverHadOne() throws {
+        let tree = try makeSyntheticTree(includeRecycleBin: false)
+        let draft = DatabaseDraft(rootGroup: tree.rootGroup, meta: tree.meta, sessionKey: sessionKey)
+        let originalGroup = try XCTUnwrap(findGroup(withID: tree.parentGroupID, in: tree.rootGroup))
+        XCTAssertFalse(originalGroup.hasTagsElement, "Precondition: the group has no <Tags> element")
+
+        let tagged = try draft.apply(
+            .updateGroup(groupID: tree.parentGroupID, draft: GroupDraftPayload(name: "Parent", tags: ["team"]))
+        )
+        let taggedGroup = try XCTUnwrap(findGroup(withID: tree.parentGroupID, in: tagged.rootGroup))
+        XCTAssertEqual(taggedGroup.tags, ["team"])
+        XCTAssertFalse(taggedGroup.hasTagsElement)
+
+        let cleared = try tagged.apply(
+            .updateGroup(groupID: tree.parentGroupID, draft: GroupDraftPayload(name: "Parent", tags: []))
+        )
+        let clearedGroup = try XCTUnwrap(findGroup(withID: tree.parentGroupID, in: cleared.rootGroup))
+        XCTAssertTrue(clearedGroup.tags.isEmpty)
+        XCTAssertFalse(
+            clearedGroup.hasTagsElement,
+            "A group that never had <Tags> and has no tags must not gain an empty element"
+        )
+    }
+
+    func test_updateGroup_keepsAnAlreadyEmptyTagsElementWhenTagsAreCleared() throws {
+        let group = KPGroup(
+            name: "Had Empty Tags",
+            tags: ["team"],
+            hasTagsElement: true,
+            lastModificationTime: Date(timeIntervalSince1970: 0)
+        )
+        let root = KPGroup(name: "Root", groups: [group])
+        let draft = DatabaseDraft(rootGroup: root, meta: KPMeta(), sessionKey: sessionKey)
+
+        let updatedDraft = try draft.apply(
+            .updateGroup(groupID: group.id, draft: GroupDraftPayload(name: "Had Empty Tags", tags: []))
+        )
+
+        let updatedGroup = try XCTUnwrap(findGroup(withID: group.id, in: updatedDraft.rootGroup))
+        XCTAssertTrue(updatedGroup.tags.isEmpty)
+        XCTAssertTrue(
+            updatedGroup.hasTagsElement,
+            "The source file's own empty <Tags></Tags> is preserved, not deleted by an unrelated edit"
+        )
+    }
+
+    func test_updateGroup_notesSetChangedAndCleared() throws {
+        let tree = try makeSyntheticTree(includeRecycleBin: false)
+        let draft = DatabaseDraft(rootGroup: tree.rootGroup, meta: tree.meta, sessionKey: sessionKey)
+        let originalGroup = try XCTUnwrap(findGroup(withID: tree.parentGroupID, in: tree.rootGroup))
+        XCTAssertFalse(originalGroup.hasNotesElement, "Precondition: the group has no <Notes> element")
+
+        let set = try draft.apply(
+            .updateGroup(groupID: tree.parentGroupID, draft: GroupDraftPayload(name: "Parent", notes: "First note"))
+        )
+        let setGroup = try XCTUnwrap(findGroup(withID: tree.parentGroupID, in: set.rootGroup))
+        XCTAssertEqual(setGroup.notes, "First note")
+        XCTAssertTrue(setGroup.hasNotesElement)
+
+        let changed = try set.apply(
+            .updateGroup(
+                groupID: tree.parentGroupID,
+                draft: GroupDraftPayload(name: "Parent", notes: "  Second note\n")
+            )
+        )
+        let changedGroup = try XCTUnwrap(findGroup(withID: tree.parentGroupID, in: changed.rootGroup))
+        XCTAssertEqual(changedGroup.notes, "  Second note\n", "Group notes are free text and are stored untrimmed")
+
+        let cleared = try changed.apply(
+            .updateGroup(groupID: tree.parentGroupID, draft: GroupDraftPayload(name: "Parent", notes: ""))
+        )
+        let clearedGroup = try XCTUnwrap(findGroup(withID: tree.parentGroupID, in: cleared.rootGroup))
+        XCTAssertTrue(clearedGroup.notes.isEmpty)
+        XCTAssertTrue(
+            clearedGroup.hasNotesElement,
+            "Once the element exists it stays, the same three-state rule an empty <Tags></Tags> follows"
+        )
+    }
+
+    func test_updateGroup_leavesTheNotesElementAbsentWhenNotesStayEmpty() throws {
+        let tree = try makeSyntheticTree(includeRecycleBin: false)
+        let draft = DatabaseDraft(rootGroup: tree.rootGroup, meta: tree.meta, sessionKey: sessionKey)
+
+        let updatedDraft = try draft.apply(
+            .updateGroup(groupID: tree.parentGroupID, draft: GroupDraftPayload(name: "Renamed", notes: ""))
+        )
+
+        let updatedGroup = try XCTUnwrap(findGroup(withID: tree.parentGroupID, in: updatedDraft.rootGroup))
+        XCTAssertTrue(updatedGroup.notes.isEmpty)
+        XCTAssertFalse(updatedGroup.hasNotesElement, "A rename must not invent a <Notes> element")
+    }
+
+    /// Deliberately asymmetric with `setGroupIcon`, which drops the custom icon
+    /// unconditionally because the user just picked a standard one. The group
+    /// editor submits the whole form, so renaming a group or editing its notes
+    /// must leave a custom icon it never touched exactly where it was.
+    func test_updateGroup_preservesTheCustomIconWhenTheIconIDIsUnchanged() throws {
+        let customIconUUID = UUID()
+        var unknownXML = OpaqueXMLNodes()
+        unknownXML.append(xml: "<CustomIconUUID>3q2+7w==</CustomIconUUID>", insertionIndex: 0)
+        let group = KPGroup(
+            name: "Has Custom Icon",
+            iconID: 48,
+            customIconUUID: customIconUUID,
+            lastModificationTime: Date(timeIntervalSince1970: 0),
+            unknownXML: unknownXML
+        )
+        let root = KPGroup(name: "Root", groups: [group])
+        let draft = DatabaseDraft(rootGroup: root, meta: KPMeta(), sessionKey: sessionKey)
+
+        let updatedDraft = try draft.apply(
+            .updateGroup(groupID: group.id, draft: GroupDraftPayload(name: "Renamed", iconID: 48))
+        )
+
+        let updatedGroup = try XCTUnwrap(findGroup(withID: group.id, in: updatedDraft.rootGroup))
+        XCTAssertEqual(updatedGroup.name, "Renamed")
+        XCTAssertEqual(updatedGroup.customIconUUID, customIconUUID)
+        XCTAssertTrue(
+            updatedGroup.unknownXML.nodes.contains { $0.elementName == "CustomIconUUID" },
+            "The preserved element is what actually renders the custom icon in every client"
+        )
+    }
+
+    func test_updateGroup_dropsTheCustomIconWhenTheIconIDChanges() throws {
+        let customIconUUID = UUID()
+        var unknownXML = OpaqueXMLNodes()
+        unknownXML.append(xml: "<CustomIconUUID>3q2+7w==</CustomIconUUID>", insertionIndex: 0)
+        let group = KPGroup(
+            name: "Has Custom Icon",
+            iconID: 48,
+            customIconUUID: customIconUUID,
+            lastModificationTime: Date(timeIntervalSince1970: 0),
+            unknownXML: unknownXML
+        )
+        let root = KPGroup(name: "Root", groups: [group])
+        let draft = DatabaseDraft(rootGroup: root, meta: KPMeta(), sessionKey: sessionKey)
+
+        let updatedDraft = try draft.apply(
+            .updateGroup(groupID: group.id, draft: GroupDraftPayload(name: "Has Custom Icon", iconID: 37))
+        )
+
+        let updatedGroup = try XCTUnwrap(findGroup(withID: group.id, in: updatedDraft.rootGroup))
+        XCTAssertEqual(updatedGroup.iconID, 37)
+        XCTAssertNil(updatedGroup.customIconUUID)
+        XCTAssertFalse(
+            updatedGroup.unknownXML.nodes.contains { $0.elementName == "CustomIconUUID" },
+            "A <CustomIconUUID> outranks <IconID>, so the newly chosen icon would never show"
+        )
+    }
+
+    func test_updateGroup_setsAndClearsSearchingEnabled() throws {
+        let tree = try makeSyntheticTree(includeRecycleBin: false)
+        let draft = DatabaseDraft(rootGroup: tree.rootGroup, meta: tree.meta, sessionKey: sessionKey)
+
+        let hidden = try draft.apply(
+            .updateGroup(
+                groupID: tree.parentGroupID,
+                draft: GroupDraftPayload(name: "Parent", searchingEnabled: .disabled)
+            )
+        )
+        let hiddenGroup = try XCTUnwrap(findGroup(withID: tree.parentGroupID, in: hidden.rootGroup))
+        XCTAssertEqual(hiddenGroup.searchingEnabled, .disabled)
+
+        let restored = try hidden.apply(
+            .updateGroup(
+                groupID: tree.parentGroupID,
+                draft: GroupDraftPayload(name: "Parent", searchingEnabled: nil)
+            )
+        )
+        let restoredGroup = try XCTUnwrap(findGroup(withID: tree.parentGroupID, in: restored.rootGroup))
+        XCTAssertNil(
+            restoredGroup.searchingEnabled,
+            "A nil selection means \"no element\", not an explicit inherit"
+        )
+    }
+
+    /// An `<EnableSearching>` the parser could not read stays in `unknownXML`.
+    /// Only an edit that actually supplies a structured value may drop it —
+    /// otherwise saving the group editor with the visibility control untouched
+    /// would silently destroy the original app's value.
+    func test_updateGroup_keepsAnUnparsableEnableSearchingWhenTheDraftLeavesItInherited() throws {
+        var unknownXML = OpaqueXMLNodes()
+        unknownXML.append(xml: "<EnableSearching>maybe</EnableSearching>", insertionIndex: 0)
+        let group = KPGroup(
+            name: "Weird",
+            lastModificationTime: Date(timeIntervalSince1970: 0),
+            unknownXML: unknownXML
+        )
+        let root = KPGroup(name: "Root", groups: [group])
+        let draft = DatabaseDraft(rootGroup: root, meta: KPMeta(), sessionKey: sessionKey)
+
+        let renamed = try draft.apply(
+            .updateGroup(groupID: group.id, draft: GroupDraftPayload(name: "Renamed", searchingEnabled: nil))
+        )
+        let renamedGroup = try XCTUnwrap(findGroup(withID: group.id, in: renamed.rootGroup))
+        XCTAssertTrue(
+            renamedGroup.unknownXML.nodes.contains { $0.xml.contains("maybe") },
+            "The unparsable element must survive an edit that never touched it"
+        )
+
+        let hidden = try renamed.apply(
+            .updateGroup(groupID: group.id, draft: GroupDraftPayload(name: "Renamed", searchingEnabled: .disabled))
+        )
+        let hiddenGroup = try XCTUnwrap(findGroup(withID: group.id, in: hidden.rootGroup))
+        XCTAssertEqual(hiddenGroup.searchingEnabled, .disabled)
+        XCTAssertFalse(
+            hiddenGroup.unknownXML.nodes.contains { $0.elementName == "EnableSearching" },
+            "Now that a structured value replaces it, the stale copy would be written twice"
+        )
+    }
+
+    func test_updateGroup_unknownGroup_throws() throws {
+        let tree = try makeSyntheticTree(includeRecycleBin: false)
+        let draft = DatabaseDraft(rootGroup: tree.rootGroup, meta: tree.meta, sessionKey: sessionKey)
+        let missingGroupID = UUID()
+
+        XCTAssertThrowsError(
+            try draft.apply(.updateGroup(groupID: missingGroupID, draft: GroupDraftPayload(name: "Ghost")))
+        ) { error in
+            XCTAssertEqual(error as? DatabaseDraft.DraftError, .groupNotFound(missingGroupID))
+        }
+        XCTAssertFalse(draft.isDirty)
+    }
+
     private func makeSyntheticTree(
         includeRecycleBin: Bool,
         parentEntryOverride: KPEntry? = nil,

@@ -31,6 +31,7 @@ The macOS port has its own UI-test target, `KeeForgeMacUITests/` (target `KeeFor
 - `EntryHistoryUITests` — entry history sheet happy path (`entry-detail.history` → version list → one version's fields) and the restore flow (`entry-history.restore` → `entry-history.restore.confirm`, asserting the replaced state is kept by reading the history row's accessibility **value**, not its localized label), using a fixture entry that ships stored `<History>`
 - `ProtectedCustomFieldUITests` — protected custom fields start masked and reveal on demand in both entry detail and history, while retaining the established copy-control identifiers
 - `GroupIconPickerUITests` — group icon picker round-trip (`group-row.change-icon-context` → pick `group-icon-picker.icon.37` → reopen and assert the cell reports `isSelected`) plus the cancel path leaving the icon alone
+- `GroupEditUITests` — group editor round-trip from the row context menu (`group-row.edit-context` → `group-edit.name-field` / `group-edit.tags-field` → `group-edit.save`, asserting the renamed row comes back and that a tag survives reopening the editor), the cancel path discarding a rename, renaming onto a sibling's name surfacing the error and keeping both groups, and a read-only database offering no "Edit Group" item at all. Extends `EntryEditUITestCase`
 - `TagBrowserUITests` — tag-browser happy path (root `group-list.tags-row` → `tag-list.row.shared` with its entry count → the tag's entries → entry detail's `entry-detail.tag.shared` chip) using the `tag-browser` fixture; the only fixture with entry tags
 - `InheritedTagsUITests` — entry detail draws the tags an entry gets from its groups (`entry-detail.inherited-tag.<tag>` under the `entry-detail.inherited-tags` strip), keeps them apart from the entry's own `entry-detail.tag.<tag>` chips, and navigates from an inherited chip into that tag's entries; uses the `group-tags` fixture, the only bundled database with group `<Tags>`
 - `TOTPSmokeUITests` — TOTP code renders (6-digit, numeric-only) and the copy control is present/hittable in entry detail, using the `autofill-union` fixture's "Union News" entry; deliberately does not assert exact code values or countdown timing
@@ -460,6 +461,17 @@ Use the app's accessibility identifiers whenever possible, including:
 - `tag-list` / `tag-list.row.<normalized-tag>` (tag list rows; the macOS sidebar's tag rows reuse the row identifier)
 - `tag-entries.list` (a tag's filtered entry list; its rows keep `EntryListView`'s `search.entry.navlink`)
 - `entry-detail.tag.<normalized-tag>` (entry-detail tag chips)
+- `group-row.edit-context` ("Edit Group", the first item of the group row context menu; the same identifier on the iOS/iPad row and the macOS sidebar row, and absent entirely on the Recycle Bin, inside it, and in a read-only database)
+- Group editor (`GroupEditView`, pushed on iOS / a sheet on macOS):
+  - `group-edit.name-field`
+  - `group-edit.icon-button` (opens the shared `group-icon-picker.*` sheet)
+  - `group-edit.tags` / `group-edit.tag.<normalized-tag>` (applied tag pills; the strip is an accessibility container, so the pills keep their own identifiers — same shape as `entry-edit.tags`, and it renders nothing when the group has no tags)
+  - `group-edit.tags-field` (single-line; Return commits the typed tag)
+  - `group-edit.tag-suggestions` / `group-edit.tag-suggestion.<normalized-tag>` (renders nothing when there is nothing left to suggest)
+  - `group-edit.notes-field`
+  - `group-edit.autofill-toggle` ("Hide from Search & AutoFill"; seeded from the *effective* exclusion, so it reads on for a group hidden by an ancestor)
+  - `group-edit.cancel` / `group-edit.save` (Save is disabled until the form is dirty and the trimmed name non-empty)
+  - `group-edit.saving-overlay`
 - `autofill-tip.enable` / `autofill-tip.dismiss` (database-list AutoFill tip banner)
 - `settings.autofill.turn-on` / `settings.autofill.open-ios-settings` (Settings → AutoFill provider status row)
 - `settings.autofill.copy-totp` (Settings → AutoFill, copy-TOTP-after-fill toggle)

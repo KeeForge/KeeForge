@@ -7,9 +7,10 @@ implementation: pykeepass authors the file, KDBXParserTests and the
 compatibility gate prove KeeForge reads and preserves it. The groups cover
 every `<Tags>` state the parser models:
 
-* `Projects` -- `<Tags>team;shared</Tags>` plus a group `<Notes>` (an element
-  KeeForge keeps as unknown XML), so a real file exercises unknown-sibling
-  positioning next to the now-structured `<Tags>`;
+* `Projects` -- `<Tags>team;shared</Tags>` plus a group `<Notes>`, so a real
+  file exercises two structured siblings and the unknown-sibling positioning
+  around them (the notes text itself predates KeeForge structuring `<Notes>`
+  and is kept verbatim so the fixture bytes stay put);
 * `Projects/Client Work` -- nested tagged group (`billable`) whose entry also
   carries its own entry tag, for inheritance accumulation;
 * `Empty Tags Group` -- an EMPTY `<Tags/>` element (present but contentless,

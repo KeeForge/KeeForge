@@ -1038,9 +1038,15 @@ final class KDBXParserTests: XCTestCase {
         let projects = try XCTUnwrap(findGroup(named: "Projects", in: parsed.rootGroup))
         XCTAssertEqual(projects.tags, ["team", "shared"])
         XCTAssertTrue(projects.hasTagsElement)
-        XCTAssertTrue(
+        XCTAssertTrue(projects.hasNotesElement)
+        XCTAssertEqual(
+            projects.notes,
+            "Group notes ride along as unknown XML next to the structured Tags element.",
+            "The group's <Notes> parses into the structured field next to the structured <Tags>"
+        )
+        XCTAssertFalse(
             projects.unknownXML.nodes.contains { $0.xml.hasPrefix("<Notes>") },
-            "The group's <Notes> stays opaque next to the now-structured <Tags>"
+            "Group <Notes> is structured now, so no opaque copy may remain"
         )
         let alpha = try XCTUnwrap(projects.entries.first { $0.title == "Alpha Login" })
         XCTAssertEqual(alpha.username, "alpha-user")

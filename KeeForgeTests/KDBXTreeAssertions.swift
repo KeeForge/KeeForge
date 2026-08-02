@@ -107,6 +107,8 @@ enum KDBXTreeAssertions {
         XCTAssertEqual(lhs.iconID, rhs.iconID, file: file, line: line)
         XCTAssertEqual(lhs.tags, rhs.tags, file: file, line: line)
         XCTAssertEqual(lhs.hasTagsElement, rhs.hasTagsElement, file: file, line: line)
+        XCTAssertEqual(lhs.notes, rhs.notes, file: file, line: line)
+        XCTAssertEqual(lhs.hasNotesElement, rhs.hasNotesElement, file: file, line: line)
         XCTAssertEqual(lhs.isExpanded, rhs.isExpanded, file: file, line: line)
         XCTAssertEqual(lhs.searchingEnabled, rhs.searchingEnabled, file: file, line: line)
         XCTAssertEqual(lhs.creationTime, rhs.creationTime, file: file, line: line)

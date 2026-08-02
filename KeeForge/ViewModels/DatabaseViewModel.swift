@@ -875,6 +875,23 @@ final class DatabaseViewModel {
         try applyEntryEdit(.setGroupIcon(groupID: groupID, iconID: iconID))
     }
 
+    /// Applies the group editor's payload: name, tags, notes, standard icon and
+    /// AutoFill visibility in one edit.
+    ///
+    /// Rejects an empty name here, the way `createGroup` does, so the draft
+    /// layer's guard stays a backstop rather than a user-visible error. An
+    /// `iconID` outside the standard set is ignored for the same reason
+    /// `setGroupIcon` ignores it — KDBX would store the bare integer happily and
+    /// every client would render its own fallback.
+    func updateGroup(groupID: UUID, draft: GroupDraftPayload) throws {
+        guard groupIndex[groupID] != nil else { return }
+        var draft = draft
+        draft.name = draft.name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard draft.name.isEmpty == false else { return }
+        guard KPEntry.standardIconNames[draft.iconID] != nil else { return }
+        try applyEntryEdit(.updateGroup(groupID: groupID, draft: draft))
+    }
+
     /// One stored version with its position in `KPEntry.history`. Restoring addresses the
     /// raw array, so the index has to survive the display sort.
     struct EntryHistoryVersion: Identifiable, Sendable {

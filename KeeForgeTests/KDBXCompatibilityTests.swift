@@ -41,9 +41,30 @@ final class KDBXCompatibilityTests: XCTestCase {
         // opener coverage comes from `fixture-smoke-synthetic-twofish`, which
         // avoids doubling every KeePassXC check for no extra signal.
         let rich = try KDBXCompatibilitySupport.load(.syntheticRich, bundle: bundle)
+        XCTAssertEqual(
+            rich.header.formatVersion,
+            .kdbx4(minor: 0),
+            "Fixture precondition: KeeForge authors 4.0 until content requires 4.1"
+        )
+        var writtenVersions: [String: KDBXParser.FileVersion] = [:]
         for scenario in KDBXCompatibilitySupport.fullEditScenarios() {
             let result = try collector.run(scenario, on: rich)
             assertHeaderPreserved(result, loaded: rich, scenario: scenario)
+            writtenVersions[scenario.id] = result.afterHeader.formatVersion
+        }
+
+        // Group `<Tags>` is a KDBX 4.1 element, so authoring one on this 4.0
+        // fixture must bump the written header — and nothing else may. The
+        // matching artifact is opened by real KeePassXC in the external gate,
+        // which is where "the bumped file is still readable elsewhere" is
+        // proven; group tags themselves have no keepassxc-cli verb.
+        XCTAssertEqual(writtenVersions["update-group"], .kdbx4(minor: 1))
+        for (scenarioID, version) in writtenVersions where scenarioID != "update-group" {
+            XCTAssertEqual(
+                version,
+                .kdbx4(minor: 0),
+                "\(scenarioID) must not renegotiate the source's header version"
+            )
         }
 
         let twofish = try KDBXCompatibilitySupport.load(.syntheticTwofish, bundle: bundle)
@@ -301,7 +322,7 @@ final class KDBXCompatibilityTests: XCTestCase {
         let collector = try KDBXCompatibilitySupport.ArtifactCollector(testCase: self)
 
         // fixtureSmoke: creating an unrelated entry must not disturb any
-        // group's tags, has-element flag, or opaque <Notes> sibling.
+        // group's tags, has-element flag, or structured <Notes>.
         let smokeLoaded = try KDBXCompatibilitySupport.load(.groupTags, bundle: bundle)
         XCTAssertEqual(
             smokeLoaded.header.formatVersion,
@@ -332,6 +353,22 @@ final class KDBXCompatibilityTests: XCTestCase {
         )
         try assertGroupTagFixtureShape(in: updateResult.after)
 
+        // updateGroup: authoring a KeeForge group tag on the one group that
+        // never carried `<Tags>` must leave the other three states intact.
+        // `assertGroupTagFixtureShape` deliberately isn't reused here — it
+        // pins `Plain Group` as untagged, which is exactly what this edit
+        // changes; the scenario asserts every group's post-edit state itself.
+        let updateGroupLoaded = try KDBXCompatibilitySupport.load(.groupTags, bundle: bundle)
+        let updateGroupResult = try collector.run(
+            KDBXCompatibilitySupport.groupTagsFixtureUpdateGroupScenario(),
+            on: updateGroupLoaded
+        )
+        XCTAssertEqual(
+            updateGroupResult.afterHeader.formatVersion,
+            .kdbx4(minor: 1),
+            "A 4.1 source stays 4.1; the version floor never downgrades"
+        )
+
         try collector.emit()
     }
 
@@ -347,9 +384,17 @@ final class KDBXCompatibilityTests: XCTestCase {
         )
         XCTAssertEqual(projects.tags, ["team", "shared"], file: file, line: line)
         XCTAssertTrue(projects.hasTagsElement, file: file, line: line)
-        XCTAssertTrue(
+        XCTAssertTrue(projects.hasNotesElement, file: file, line: line)
+        XCTAssertEqual(
+            projects.notes,
+            "Group notes ride along as unknown XML next to the structured Tags element.",
+            "Projects' <Notes> parses into the structured field next to the structured <Tags>",
+            file: file,
+            line: line
+        )
+        XCTAssertFalse(
             projects.unknownXML.nodes.contains { $0.xml.hasPrefix("<Notes>") },
-            "Projects' <Notes> must stay opaque next to the structured <Tags>",
+            "Group <Notes> is structured now, so no opaque copy may remain",
             file: file,
             line: line
         )
@@ -469,6 +514,7 @@ final class KDBXCompatibilityTests: XCTestCase {
             "attachments-attachments-update-entry",
             "attachments-attachments-soft-delete-entry",
             "group-tags-group-tags-update-entry",
+            "group-tags-group-tags-update-group",
             "\(richID)-keeotp-source-matrix",
         ] {
             XCTAssertTrue(ids.contains(required), "missing artifact \(required)")
@@ -476,7 +522,7 @@ final class KDBXCompatibilityTests: XCTestCase {
 
         // The artifact set never shrinks silently: the gate's merged manifest
         // is compared against exactly this count.
-        XCTAssertEqual(descriptors.count, 26)
+        XCTAssertEqual(descriptors.count, 28)
     }
 
     func test_externalExpectationTables_areExhaustiveOverEveryArtifactScenario() throws {

@@ -834,7 +834,7 @@ final class KDBXRoundTripTests: XCTestCase {
         XCTAssertTrue(xmlString.contains("<EnableSearching>False</EnableSearching>"))
     }
 
-    // MARK: - Group Tags round-trip (KDBX 4.1, read-only)
+    // MARK: - Group Tags round-trip (KDBX 4.1)
 
     func test_groupTags_allThreeStates_surviveRoundTrip() throws {
         let xml = """
@@ -1109,6 +1109,302 @@ final class KDBXRoundTripTests: XCTestCase {
         XCTAssertEqual(reparsedEmpty.iconID, 30)
         XCTAssertTrue(reparsedEmpty.tags.isEmpty)
         XCTAssertTrue(reparsedEmpty.hasTagsElement, "The empty <Tags></Tags> element survives an icon change")
+    }
+
+    // MARK: - Group Notes round-trip
+
+    /// Group `<Notes>` is a structured `KPGroup` field, so the text has to come
+    /// back byte-for-byte. Unlike group `<Name>`, it is deliberately not
+    /// trimmed: leading and trailing whitespace in free-form notes is the
+    /// author's, and a save must not quietly rewrite it.
+    func test_groupNotes_structuredRoundTrip_preservesWhitespaceAndNewlinesExactly() throws {
+        let notes = "  leading spaces\nsecond line\n\ttabbed\ntrailing newline\n  "
+        let xml = """
+        <KeePassFile><Root><Group><Name>Root</Name>\
+        <Group><Name>  Padded Name  </Name><Notes>\(notes)</Notes></Group>\
+        </Group></Root></KeePassFile>
+        """
+
+        let parsed = try parseXML(Data(xml.utf8))
+        let reparsed = try serializeAndParse(parsed)
+
+        for tree in [parsed, reparsed] {
+            let container = try XCTUnwrap(tree.rootGroup.groups.first)
+            let group = try XCTUnwrap(container.groups.first)
+            XCTAssertEqual(group.notes, notes)
+            XCTAssertTrue(group.hasNotesElement)
+            XCTAssertEqual(group.name, "Padded Name", "Group <Name> is trimmed; <Notes> deliberately is not")
+            XCTAssertFalse(
+                group.unknownXML.nodes.contains { $0.elementName == "Notes" },
+                "<Notes> is structured now, so no opaque copy may be left behind"
+            )
+        }
+    }
+
+    func test_groupNotes_presenceThreeStates_surviveRoundTrip() throws {
+        let xml = """
+        <KeePassFile><Root><Group><Name>Root</Name>
+        <Group><Name>WithNotes</Name><Notes>a note</Notes></Group>
+        <Group><Name>EmptyElement</Name><Notes></Notes></Group>
+        <Group><Name>NoElement</Name></Group>
+        </Group></Root></KeePassFile>
+        """
+
+        let parsed = try parseXML(Data(xml.utf8))
+        let reparsed = try serializeAndParse(parsed)
+
+        for tree in [parsed, reparsed] {
+            let container = try XCTUnwrap(tree.rootGroup.groups.first)
+            let groups = Dictionary(uniqueKeysWithValues: container.groups.map { ($0.name, $0) })
+            XCTAssertEqual(groups["WithNotes"]?.notes, "a note")
+            XCTAssertEqual(groups["WithNotes"]?.hasNotesElement, true)
+            XCTAssertEqual(groups["EmptyElement"]?.notes, "")
+            XCTAssertEqual(
+                groups["EmptyElement"]?.hasNotesElement,
+                true,
+                "An empty <Notes></Notes> element is present, just contentless"
+            )
+            XCTAssertEqual(groups["NoElement"]?.notes, "")
+            XCTAssertEqual(
+                groups["NoElement"]?.hasNotesElement,
+                false,
+                "A group without the element must stay without it"
+            )
+        }
+    }
+
+    func test_groupNotes_absentElement_isNotAddedOnWrite() throws {
+        let root = KPGroup(name: "Root", groups: [KPGroup(name: "Plain")])
+
+        var serializer = KDBXXMLSerializer(
+            rootGroup: root,
+            meta: KPMeta(),
+            innerStreamKey: roundTripInnerStreamKey,
+            sessionKey: roundTripSessionKey
+        )
+        let xmlString = String(data: try serializer.serialize(), encoding: .utf8)!
+
+        XCTAssertFalse(
+            xmlString.contains("<Notes"),
+            "Writing a group that never had the element must not invent one"
+        )
+    }
+
+    /// KeePass's own `WriteGroup` emits `UUID, Name, Notes, IconID, …`, so
+    /// writing `<Notes>` anywhere else would move every opaque fragment a
+    /// KeePass-written file recorded after it.
+    func test_groupNotes_writtenImmediatelyAfterName() throws {
+        let root = KPGroup(
+            name: "Root",
+            groups: [KPGroup(name: "Ordered", notes: "a note", hasNotesElement: true)]
+        )
+
+        var serializer = KDBXXMLSerializer(
+            rootGroup: root,
+            meta: KPMeta(),
+            innerStreamKey: roundTripInnerStreamKey,
+            sessionKey: roundTripSessionKey
+        )
+        let xmlString = String(data: try serializer.serialize(), encoding: .utf8)!
+
+        XCTAssertTrue(xmlString.contains("<Name>Ordered</Name><Notes>a note</Notes><IconID>"))
+    }
+
+    /// Regression guard for the opaque-XML position bookkeeping: promoting the
+    /// group `<Notes>` to a structured element shifts the insertion indices of
+    /// the unmodelled siblings around it. The parser's read handler and its
+    /// `knownChildCount` arm have to accept the element under exactly the same
+    /// conditions — if they disagree, every opaque fragment after `<Notes>` in
+    /// that group slides one position, and this is the test that sees it.
+    func test_groupNotes_doNotDisturbSurroundingUnknownElements() throws {
+        let xml = """
+        <KeePassFile><Root><Group><Name>Root</Name>
+        <Group><UUID>rG5FhCLXQ0GDRLRUEBEHUw==</UUID><Name>Nested</Name>\
+        <CustomIconUUID>3q2+7wAAAAAAAAAAAAAAAA==</CustomIconUUID>\
+        <Notes>first line
+        second line</Notes>\
+        <IconID>48</IconID><IsExpanded>True</IsExpanded>\
+        <DefaultAutoTypeSequence>{USERNAME}</DefaultAutoTypeSequence>\
+        <EnableAutoType>null</EnableAutoType>\
+        <EnableSearching>False</EnableSearching>\
+        <LastTopVisibleEntry>AAAAAAAAAAAAAAAAAAAAAA==</LastTopVisibleEntry>\
+        <Tags>team;shared</Tags></Group>
+        </Group></Root></KeePassFile>
+        """
+
+        let parsed = try parseXML(Data(xml.utf8))
+        let originalContainer = try XCTUnwrap(parsed.rootGroup.groups.first)
+        let originalNested = try XCTUnwrap(originalContainer.groups.first)
+        XCTAssertEqual(originalNested.notes, "first line\nsecond line")
+
+        var serializer = KDBXXMLSerializer(
+            rootGroup: parsed.rootGroup,
+            meta: parsed.meta,
+            innerStreamKey: roundTripInnerStreamKey,
+            sessionKey: roundTripSessionKey
+        )
+        let xmlString = String(data: try serializer.serialize(), encoding: .utf8)!
+
+        XCTAssertTrue(xmlString.contains("<CustomIconUUID>3q2+7wAAAAAAAAAAAAAAAA==</CustomIconUUID>"))
+        XCTAssertTrue(xmlString.contains("<DefaultAutoTypeSequence>{USERNAME}</DefaultAutoTypeSequence>"))
+        XCTAssertTrue(xmlString.contains("<EnableAutoType>null</EnableAutoType>"))
+        XCTAssertTrue(xmlString.contains("<LastTopVisibleEntry>AAAAAAAAAAAAAAAAAAAAAA==</LastTopVisibleEntry>"))
+
+        let reparsed = try parseXML(Data(xmlString.utf8))
+        let container = try XCTUnwrap(reparsed.rootGroup.groups.first)
+        let nested = try XCTUnwrap(container.groups.first)
+        XCTAssertEqual(nested.notes, originalNested.notes)
+        XCTAssertTrue(nested.hasNotesElement)
+        XCTAssertEqual(nested.tags, ["team", "shared"])
+        XCTAssertEqual(nested.searchingEnabled, .disabled)
+        XCTAssertEqual(nested.name, "Nested")
+        XCTAssertEqual(
+            KDBXTreeAssertions.normalizedOpaqueXML(nested.unknownXML),
+            KDBXTreeAssertions.normalizedOpaqueXML(originalNested.unknownXML),
+            "Every unknown sibling must keep its exact position across a second parse"
+        )
+    }
+
+    // MARK: - Header minor version floor
+
+    /// Group `<Tags>` is a KDBX 4.1 element, so authoring one has to raise the
+    /// written header's minor version — the policy KeePassXC's
+    /// `KeePass2Writer::kdbxVersionRequired` and KeePassium both use. KDBX 3.1
+    /// never reaches the writer (`FileVersion.requiresReadOnlyMode` opens those
+    /// read-only), so only the 4.x floor matters.
+    func test_headerMinorVersion_bumpsTo41WhenAGroupTagIsAuthored() throws {
+        let fixture = try parseFixtureWithHeader(.test)
+        XCTAssertEqual(
+            fixture.header.formatVersion,
+            .kdbx4(minor: 0),
+            "Precondition: the fixture is a 4.0 database"
+        )
+        let target = try XCTUnwrap(fixture.rootGroup.groups.first)
+
+        let draft = DatabaseDraft(
+            rootGroup: fixture.rootGroup,
+            meta: fixture.meta,
+            sessionKey: roundTripSessionKey
+        )
+        let updated = try draft.apply(
+            .updateGroup(
+                groupID: target.id,
+                draft: GroupDraftPayload(name: target.name, tags: ["needs-4-1"], iconID: target.iconID)
+            )
+        )
+
+        let written = try KDBXWriter.write(
+            rootGroup: updated.rootGroup,
+            meta: updated.meta,
+            compositeKey: fixture.compositeKey,
+            header: fixture.header,
+            sessionKey: roundTripSessionKey
+        )
+
+        XCTAssertEqual(try KDBXParser.parseFileVersion(from: written), .kdbx4(minor: 1))
+    }
+
+    func test_headerMinorVersion_staysAt40WhenNoGroupCarriesATag() throws {
+        let fixture = try parseFixtureWithHeader(.test)
+        let target = try XCTUnwrap(fixture.rootGroup.groups.first)
+
+        let draft = DatabaseDraft(
+            rootGroup: fixture.rootGroup,
+            meta: fixture.meta,
+            sessionKey: roundTripSessionKey
+        )
+        let updated = try draft.apply(
+            .updateGroup(
+                groupID: target.id,
+                draft: GroupDraftPayload(
+                    name: "Renamed Without Tags",
+                    notes: "notes are a KDBX 3.1 element and force nothing",
+                    iconID: target.iconID
+                )
+            )
+        )
+
+        let written = try KDBXWriter.write(
+            rootGroup: updated.rootGroup,
+            meta: updated.meta,
+            compositeKey: fixture.compositeKey,
+            header: fixture.header,
+            sessionKey: roundTripSessionKey
+        )
+
+        XCTAssertEqual(try KDBXParser.parseFileVersion(from: written), .kdbx4(minor: 0))
+    }
+
+    /// The floor is `max(required, existing)`, never a downgrade: KeeForge
+    /// preserves opaque 4.1 XML it does not model, so stamping a 4.0 header
+    /// onto that payload would misdescribe the file. Stripping every group tag
+    /// out of a 4.1 database drops the *required* minor back to 0 and still
+    /// must not lower the header.
+    func test_headerMinorVersion_neverDowngradesA41FileEvenWithEveryGroupTagRemoved() throws {
+        let fixture = try parseFixtureWithHeader(
+            name: "group-tags",
+            subdirectory: "compatibility",
+            password: "testpassword123"
+        )
+        XCTAssertEqual(
+            fixture.header.formatVersion,
+            .kdbx4(minor: 1),
+            "Precondition: the fixture is a 4.1 database"
+        )
+
+        func stripTags(_ group: KPGroup) {
+            group.tags = []
+            group.hasTagsElement = false
+            group.groups.forEach(stripTags)
+        }
+        func carriesTag(_ group: KPGroup) -> Bool {
+            group.hasTagsElement || !group.tags.isEmpty || group.groups.contains(where: carriesTag)
+        }
+        XCTAssertTrue(carriesTag(fixture.rootGroup), "Precondition: the fixture's groups carry tags")
+        stripTags(fixture.rootGroup)
+        XCTAssertFalse(carriesTag(fixture.rootGroup), "The content now only requires 4.0")
+
+        let written = try KDBXWriter.write(
+            rootGroup: fixture.rootGroup,
+            meta: fixture.meta,
+            compositeKey: fixture.compositeKey,
+            header: fixture.header,
+            sessionKey: roundTripSessionKey
+        )
+
+        XCTAssertEqual(try KDBXParser.parseFileVersion(from: written), .kdbx4(minor: 1))
+    }
+
+    private func parseFixtureWithHeader(
+        _ fixture: KDBXTestFixture
+    ) throws -> (rootGroup: KPGroup, meta: KPMeta, header: KDBXParser.Header, compositeKey: Data) {
+        try parseFixtureWithHeader(
+            name: fixture.name,
+            subdirectory: fixture.subdirectory,
+            password: try XCTUnwrap(fixture.password)
+        )
+    }
+
+    private func parseFixtureWithHeader(
+        name: String,
+        subdirectory: String?,
+        password: String
+    ) throws -> (rootGroup: KPGroup, meta: KPMeta, header: KDBXParser.Header, compositeKey: Data) {
+        let bundle = Bundle(for: Self.self)
+        let databaseURL = try TestDatabaseSupport.fixtureURL(
+            named: name,
+            subdirectory: subdirectory,
+            bundle: bundle
+        )
+        let databaseData = try Data(contentsOf: databaseURL)
+        let compositeKey = KDBXCrypto.compositeKey(password: password)
+        let parsed = try KDBXParser.parseWithMetaAndHeader(
+            data: databaseData,
+            compositeKey: compositeKey,
+            sessionKey: roundTripSessionKey
+        )
+
+        return (parsed.rootGroup, parsed.meta, parsed.header, compositeKey)
     }
 
     /// A nonstandard KDBX 4.0 file containing group tags round-trips them

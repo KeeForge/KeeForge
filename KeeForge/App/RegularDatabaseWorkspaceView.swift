@@ -22,6 +22,10 @@ struct RegularDatabaseWorkspaceView: View {
     @State private var newGroupName = ""
     @State private var groupCreationErrorMessage: String?
     @State private var macCollapsedGroupIDs: Set<UUID> = []
+    /// Group editor presented from a sidebar row's context menu. Hosted on the
+    /// split view rather than the row, so collapsing or rebuilding the tree
+    /// cannot tear the sheet down mid-edit.
+    @State private var groupEditor: GroupEditViewModel?
     @FocusState private var isSearchFieldFocused: Bool
     #endif
 
@@ -291,6 +295,30 @@ struct RegularDatabaseWorkspaceView: View {
                 }
             )
         }
+        .sheet(item: $groupEditor) { formViewModel in
+            NavigationStack {
+                GroupEditView(
+                    formViewModel: formViewModel,
+                    databaseViewModel: viewModel
+                ) {
+                    groupEditor = nil
+                }
+            }
+            .frame(minWidth: 540, minHeight: 520)
+        }
+    }
+
+    /// Builds the sidebar row's editor when the menu item is tapped, so the form
+    /// opens on the group's state at that moment.
+    @MainActor
+    private func beginGroupEdit(_ groupID: UUID) {
+        guard let group = viewModel.group(withID: groupID) else { return }
+        groupEditor = GroupEditViewModel(
+            editing: group,
+            isHiddenFromAutoFill: viewModel.isGroupExcludedFromAutoFill(groupID: groupID),
+            isExclusionInherited: viewModel.isGroupExclusionInherited(groupID: groupID),
+            knownTags: viewModel.tagsInDisplayOrder
+        )
     }
 
     // MARK: Sidebar (group tree)
@@ -314,7 +342,8 @@ struct RegularDatabaseWorkspaceView: View {
                 MacGroupTreeRow(
                     node: rootNode,
                     viewModel: viewModel,
-                    collapsedGroupIDs: $macCollapsedGroupIDs
+                    collapsedGroupIDs: $macCollapsedGroupIDs,
+                    onEditGroup: beginGroupEdit
                 )
 
                 // Tags beneath the group tree, the way KeePassXC surfaces them.
@@ -644,6 +673,9 @@ private struct MacGroupTreeRow: View {
     let node: MacGroupNode
     @Bindable var viewModel: DatabaseViewModel
     @Binding var collapsedGroupIDs: Set<UUID>
+    /// Asks the workspace to present the group editor; the sheet is hosted
+    /// there, not on this row, which comes and goes with the tree.
+    let onEditGroup: (UUID) -> Void
 
     private var isSelected: Bool {
         viewModel.selectedGroupID == node.id
@@ -667,7 +699,8 @@ private struct MacGroupTreeRow: View {
                     MacGroupTreeRow(
                         node: child,
                         viewModel: viewModel,
-                        collapsedGroupIDs: $collapsedGroupIDs
+                        collapsedGroupIDs: $collapsedGroupIDs,
+                        onEditGroup: onEditGroup
                     )
                 }
             } label: {
@@ -703,12 +736,27 @@ private struct MacGroupTreeRow: View {
         )
         .accessibilityIdentifier("group.navlink")
         .contextMenu {
+            if canEdit {
+                Button("Edit Group") {
+                    onEditGroup(node.id)
+                }
+                .accessibilityIdentifier("group-row.edit-context")
+            }
+
             if canDelete {
                 Button(deleteTitle, role: .destructive) {
                     deleteGroup()
                 }
             }
         }
+    }
+
+    /// Same predicate as the iOS row's `canEditGroup`: the Recycle Bin and
+    /// everything inside it stay non-editable, as does a read-only database.
+    private var canEdit: Bool {
+        viewModel.isReadOnly == false
+            && viewModel.currentRootGroup?.recycleBinUUID != node.id
+            && viewModel.isGroupInRecycleBin(groupID: node.id) == false
     }
 
     private var canDelete: Bool {

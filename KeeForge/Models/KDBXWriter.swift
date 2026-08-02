@@ -91,7 +91,10 @@ enum KDBXWriter {
         sessionKey: SymmetricKey,
         headerSource: HeaderSource
     ) throws -> Data {
-        let header = try resolveHeader(from: headerSource)
+        let header = try resolveHeader(
+            from: headerSource,
+            requiredMinorVersion: requiredMinorVersion(for: rootGroup)
+        )
         let keys = try deriveKeys(compositeKey: compositeKey, header: header)
 
         let outerHeader = try buildOuterHeader(from: header)
@@ -140,7 +143,29 @@ enum KDBXWriter {
         return output
     }
 
-    private static func resolveHeader(from source: HeaderSource) throws -> KDBXParser.Header {
+    /// The lowest KDBX 4 minor version that can represent this tree.
+    ///
+    /// Group `<Tags>` is a 4.1 element; nothing else KeeForge writes is. Group
+    /// `<Notes>` exists all the way back in KDBX 3.1 and does not count.
+    private static func requiredMinorVersion(for rootGroup: KPGroup) -> UInt16 {
+        func carriesTagsElement(_ group: KPGroup) -> Bool {
+            group.hasTagsElement || !group.tags.isEmpty || group.groups.contains(where: carriesTagsElement)
+        }
+        return carriesTagsElement(rootGroup) ? 1 : 0
+    }
+
+    /// Resolves the header to write, raising its minor version to whatever the
+    /// content needs.
+    ///
+    /// Same policy as KeePassXC's `KeePass2Writer::kdbxVersionRequired` and
+    /// KeePassium: `max(required, existing)`, silently, and never a downgrade —
+    /// KeeForge preserves opaque 4.1 XML, so writing a 4.0 header over it would
+    /// misdescribe the payload. KDBX 3.1 sources are rejected outright above
+    /// (and can never get this far: `FileVersion.requiresReadOnlyMode`).
+    private static func resolveHeader(
+        from source: HeaderSource,
+        requiredMinorVersion: UInt16
+    ) throws -> KDBXParser.Header {
         var header: KDBXParser.Header
 
         switch source {
@@ -149,9 +174,12 @@ enum KDBXWriter {
                 throw WriteError.unsupportedSourceFormat(existing.formatVersion)
             }
             header = existing
+            header.formatVersion = .kdbx4(
+                minor: max(existing.formatVersion.minorVersion, requiredMinorVersion)
+            )
         case .fresh(let configuration):
             header = KDBXParser.Header(
-                formatVersion: .kdbx4(minor: defaultHeaderMinorVersion),
+                formatVersion: .kdbx4(minor: max(defaultHeaderMinorVersion, requiredMinorVersion)),
                 cipherID: configuration.cipherID,
                 compressionFlags: 1,
                 masterSeed: Data(),
