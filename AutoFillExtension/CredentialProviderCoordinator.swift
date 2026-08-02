@@ -1666,8 +1666,10 @@ final class CredentialProviderCoordinator {
             return
         }
 
-        let matches = CredentialMatcher.matchedEntries(from: totpEntries, for: serviceIdentifiers)
-        let strictMatches = CredentialMatcher.strictMatchedEntries(from: totpEntries, for: serviceIdentifiers)
+        let strictMatches = CredentialMatcher.orderedStrictMatchedEntries(from: totpEntries, for: serviceIdentifiers)
+        let matches = strictMatches.isEmpty
+            ? CredentialMatcher.matchedEntries(from: totpEntries, for: serviceIdentifiers)
+            : strictMatches
 
         // Auto-complete without a picker only when the single candidate matched
         // on host, not on a weaker URL/title substring signal.

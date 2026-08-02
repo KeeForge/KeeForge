@@ -368,7 +368,83 @@ final class CredentialIdentityStoreManagerTests: XCTestCase {
         let identity = CredentialIdentityStoreManager.oneTimeCodeIdentity(for: entry, in: someDatabaseID)
 
         XCTAssertNotNil(identity)
-        XCTAssertEqual(identity?.serviceIdentifier.identifier, "example.com")
+        XCTAssertEqual(identity?.serviceIdentifier.identifier, "backup.example.com")
+    }
+
+    func testOTCIdentitiesPreserveExplicitSubdomain() throws {
+        guard #available(iOS 18.0, macOS 15.0, *) else {
+            throw XCTSkip("One-time code identities require iOS 18 / macOS 15")
+        }
+
+        let entry = makeEntry(
+            title: "VT",
+            url: "https://vt.example.com/login",
+            username: "user",
+            hasPassword: false,
+            hasTOTP: true
+        )
+
+        let identities = CredentialIdentityStoreManager.oneTimeCodeIdentities(for: entry, in: someDatabaseID)
+
+        XCTAssertEqual(identities.map { $0.serviceIdentifier.identifier }, ["vt.example.com"])
+    }
+
+    func testOTCIdentitiesAcceptBareWebHost() throws {
+        guard #available(iOS 18.0, macOS 15.0, *) else {
+            throw XCTSkip("One-time code identities require iOS 18 / macOS 15")
+        }
+
+        let entry = makeEntry(
+            title: "Bare Host",
+            url: "vt.example.com/login",
+            username: "user",
+            hasPassword: false,
+            hasTOTP: true
+        )
+
+        let identities = CredentialIdentityStoreManager.oneTimeCodeIdentities(for: entry, in: someDatabaseID)
+
+        XCTAssertEqual(identities.map { $0.serviceIdentifier.identifier }, ["vt.example.com"])
+    }
+
+    func testOTCIdentitiesUseDistinctExplicitWebHostsInURLOrder() throws {
+        guard #available(iOS 18.0, macOS 15.0, *) else {
+            throw XCTSkip("One-time code identities require iOS 18 / macOS 15")
+        }
+
+        let entry = makeEntry(
+            title: "Multiple",
+            url: "https://vt.example.com/login",
+            username: "user",
+            hasPassword: false,
+            hasTOTP: true,
+            customFields: [
+                "KP2A_URL_1": "https://example.com/otp",
+                "KP2A_URL_2": "https://VT.EXAMPLE.COM/duplicate",
+            ]
+        )
+
+        let identities = CredentialIdentityStoreManager.oneTimeCodeIdentities(for: entry, in: someDatabaseID)
+
+        XCTAssertEqual(identities.map { $0.serviceIdentifier.identifier }, ["vt.example.com", "example.com"])
+        XCTAssertEqual(Set(identities.map(\.recordIdentifier)).count, 1)
+    }
+
+    func testOTCIdentitiesSkipOtpauthAndNonWebURLs() throws {
+        guard #available(iOS 18.0, macOS 15.0, *) else {
+            throw XCTSkip("One-time code identities require iOS 18 / macOS 15")
+        }
+
+        let entry = makeEntry(
+            title: "URI Only",
+            url: "otpauth://totp/example:user?secret=JBSWY3DPEHPK3PXP",
+            username: "user",
+            hasPassword: false,
+            hasTOTP: true,
+            customFields: ["KP2A_URL_1": "ftp://example.com/otp"]
+        )
+
+        XCTAssertTrue(CredentialIdentityStoreManager.oneTimeCodeIdentities(for: entry, in: someDatabaseID).isEmpty)
     }
 
     // MARK: - hasTOTP
@@ -582,6 +658,48 @@ final class CredentialIdentityStoreManagerTests: XCTestCase {
             storedRecordIdentifiers(fake),
             [CredentialRecordIdentifier(databaseID: databaseID, entryID: live.id).encoded]
         )
+    }
+
+    func testPopulateRefreshRemovesOldOTCDomainByRecordIdentifier() async throws {
+        guard #available(iOS 18.0, macOS 15.0, *) else {
+            throw XCTSkip("One-time code identities require iOS 18 / macOS 15")
+        }
+
+        let fake = installFake()
+        let databaseID = UUID()
+        let otherDatabaseID = UUID()
+        let entry = makeEntry(
+            title: "Subdomain",
+            url: "https://vt.example.com/login",
+            username: "user",
+            hasPassword: false,
+            hasTOTP: true
+        )
+        let oldEntry = makeEntry(
+            id: entry.id,
+            title: "Root",
+            url: "https://example.com/login",
+            username: "user",
+            hasPassword: false,
+            hasTOTP: true
+        )
+        fake.stored = CredentialIdentityStoreManager.oneTimeCodeIdentities(for: oldEntry, in: databaseID)
+            + CredentialIdentityStoreManager.passwordIdentities(
+                for: makeEntry(title: "Other", url: "https://other.example", username: "other", hasPassword: true),
+                in: otherDatabaseID
+            )
+
+        let mutation = expectMutations(2, on: fake)
+        CredentialIdentityStoreManager.populate(with: [entry], for: databaseID)
+        await fulfillment(of: [mutation], timeout: 1)
+
+        XCTAssertEqual(fake.calls, ["removeCredentialIdentities", "saveCredentialIdentities"])
+        XCTAssertTrue(fake.stored.contains {
+            ($0 as? ASOneTimeCodeCredentialIdentity)?.serviceIdentifier.identifier == "vt.example.com"
+        })
+        XCTAssertFalse(fake.stored.contains {
+            ($0 as? ASOneTimeCodeCredentialIdentity)?.serviceIdentifier.identifier == "example.com"
+        })
     }
 
     func testPopulateWithNoEligibleEntriesEmptiesStore() async {

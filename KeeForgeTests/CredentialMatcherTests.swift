@@ -177,6 +177,16 @@ final class CredentialMatcherTests: XCTestCase {
         XCTAssertEqual(CredentialMatcher.strictMatchedEntries(from: entries, for: ids).count, 1)
     }
 
+    func testOrderedStrictMatchesPreferExactHostBeforeChildSubdomain() {
+        let child = makeEntry(title: "Child", url: "https://login.vt.example.com", username: "u", password: "p")
+        let exact = makeEntry(title: "Exact", url: "https://vt.example.com", username: "u", password: "p")
+        let ids = [ASCredentialServiceIdentifier(identifier: "vt.example.com", type: .domain)]
+
+        let matches = CredentialMatcher.orderedStrictMatchedEntries(from: [child, exact], for: ids)
+
+        XCTAssertEqual(matches.map(\.title), ["Exact", "Child"])
+    }
+
     func testStrictDoesNotMatchTermInURLPath() {
         // A term appearing in the path of an unrelated host must not strictly match.
         let entries = [makeEntry(title: "Evil", url: "https://evil.example/bank.com/login", username: "u", password: "p")]

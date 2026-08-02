@@ -384,6 +384,37 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
         assertCleanedUp(coordinator)
     }
 
+    func test_otcList_prefersMostSpecificOrderedServiceIdentifier() throws {
+        guard #available(iOS 18.0, macOS 15.0, *) else {
+            throw XCTSkip("One-time-code requests require iOS 18 / macOS 15")
+        }
+
+        let (coordinator, presenter) = makeCoordinator()
+        let sessionKey = SymmetricKey(size: .bits256)
+        let specific = KPEntry(
+            title: "Specific",
+            url: "https://vt.example.com/login",
+            totpConfig: TOTPConfig(secret: try EncryptedValue.encrypt("JBSWY3DPEHPK3PXP", using: sessionKey))
+        )
+        let root = KPEntry(
+            title: "Root",
+            url: "https://example.com/login",
+            totpConfig: TOTPConfig(secret: try EncryptedValue.encrypt("JBSWY3DPEHPK3PXP", using: sessionKey))
+        )
+
+        coordinator.prepareOneTimeCodeCredentialList(for: [
+            ASCredentialServiceIdentifier(identifier: "vt.example.com", type: .domain),
+            ASCredentialServiceIdentifier(identifier: "example.com", type: .domain),
+        ])
+        seedUnlockedVaultState(coordinator, entries: [root, specific], sessionKey: sessionKey)
+
+        coordinator.presentOTCMatchesOrFinish()
+
+        XCTAssertNotNil(presenter.completedOneTimeCode, "The more specific ordered host should win")
+        XCTAssertNil(presenter.searchView)
+        assertCleanedUp(coordinator)
+    }
+
     func test_otcList_multipleMatches_presentsPickerAndCompletesOnSelection() throws {
         guard #available(iOS 18.0, macOS 15.0, *) else {
             throw XCTSkip("One-time-code requests require iOS 18 / macOS 15")

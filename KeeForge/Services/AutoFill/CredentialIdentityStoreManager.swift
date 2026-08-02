@@ -475,7 +475,7 @@ enum CredentialIdentityStoreManager: Sendable {
 
             var otcCount = 0
             if #available(iOS 18.0, macOS 15.0, *) {
-                let otcIds = eligibleEntries.compactMap { oneTimeCodeIdentity(for: $0, in: databaseID) }
+                let otcIds = eligibleEntries.flatMap { oneTimeCodeIdentities(for: $0, in: databaseID) }
                 databaseIdentities.append(contentsOf: otcIds)
                 otcCount = otcIds.count
             }
@@ -571,9 +571,6 @@ enum CredentialIdentityStoreManager: Sendable {
     /// rebuild the identities byte-identical to what was published —
     /// including the database-tagged record identifier — and every caller of
     /// this API has the open database at hand, so the id costs nothing.
-    /// One-time-code identities are intentionally not rebuilt here (matching
-    /// today's behavior); they are cleaned up by the owning database's next
-    /// full-store refresh.
     static func removeIdentities(for entries: [KPEntry], in databaseID: UUID) {
         enqueueMutation { store in
             guard await store.isEnabled() else { return }
@@ -583,6 +580,11 @@ enum CredentialIdentityStoreManager: Sendable {
 
             var identitiesToRemove: [any ASCredentialIdentity] = passwordIds
             identitiesToRemove.append(contentsOf: passkeyIds)
+            if #available(iOS 18.0, macOS 15.0, *) {
+                identitiesToRemove.append(contentsOf: entries.flatMap {
+                    oneTimeCodeIdentities(for: $0, in: databaseID)
+                })
+            }
             guard !identitiesToRemove.isEmpty else { return }
 
             do {
@@ -735,21 +737,28 @@ enum CredentialIdentityStoreManager: Sendable {
 
     @available(iOS 18.0, macOS 15.0, *)
     static func oneTimeCodeIdentity(for entry: KPEntry, in databaseID: UUID) -> ASOneTimeCodeCredentialIdentity? {
-        guard entry.hasTOTP else { return nil }
+        oneTimeCodeIdentities(for: entry, in: databaseID).first
+    }
+
+    @available(iOS 18.0, macOS 15.0, *)
+    static func oneTimeCodeIdentities(for entry: KPEntry, in databaseID: UUID) -> [ASOneTimeCodeCredentialIdentity] {
+        guard entry.hasTOTP else { return [] }
 
         let allURLs = [entry.url] + entry.additionalURLs
-        let domain = allURLs.compactMap(domainFromURLString).first
-        guard let domain else { return nil }
+        var seenHosts = Set<String>()
+        let hosts = allURLs.compactMap(otpHostFromURLString).filter { seenHosts.insert($0).inserted }
 
         let label = entry.title.isEmpty ? entry.username : entry.title
-        guard !label.isEmpty else { return nil }
+        guard !label.isEmpty else { return [] }
 
-        let serviceIdentifier = ASCredentialServiceIdentifier(identifier: domain, type: .domain)
-        return ASOneTimeCodeCredentialIdentity(
-            serviceIdentifier: serviceIdentifier,
-            label: label,
-            recordIdentifier: CredentialRecordIdentifier(databaseID: databaseID, entryID: entry.id).encoded
-        )
+        let recordIdentifier = CredentialRecordIdentifier(databaseID: databaseID, entryID: entry.id).encoded
+        return hosts.map { host in
+            ASOneTimeCodeCredentialIdentity(
+                serviceIdentifier: ASCredentialServiceIdentifier(identifier: host, type: .domain),
+                label: label,
+                recordIdentifier: recordIdentifier
+            )
+        }
     }
 
     // MARK: - Passkey identities
@@ -819,6 +828,33 @@ enum CredentialIdentityStoreManager: Sendable {
 
         guard let host else { return nil }
         return registeredDomain(from: host)
+    }
+
+    private static func otpHostFromURLString(_ urlString: String) -> String? {
+        let trimmed = urlString.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+
+        let parsedURL = URL(string: trimmed)
+        let url: URL?
+        if parsedURL?.scheme == nil {
+            url = URL(string: "https://\(trimmed)")
+        } else {
+            url = parsedURL
+        }
+
+        guard let url,
+              let scheme = url.scheme?.lowercased(),
+              scheme == "http" || scheme == "https",
+              let host = url.host,
+              let validatedDomain = registeredDomain(from: host)
+        else { return nil }
+
+        let normalizedHost = host.lowercased().trimmingCharacters(in: CharacterSet(charactersIn: "."))
+        let withoutWWW = normalizedHost.hasPrefix("www.")
+            ? String(normalizedHost.dropFirst(4))
+            : normalizedHost
+        guard !withoutWWW.isEmpty, validatedDomain == registeredDomain(from: withoutWWW) else { return nil }
+        return withoutWWW
     }
 
     // MARK: - Registered domain extraction
