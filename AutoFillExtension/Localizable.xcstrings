@@ -918,6 +918,28 @@
         }
       }
     },
+    "Group name cannot be empty." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Der Gruppenname darf nicht leer sein."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "El nombre del grupo no puede estar vacío."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Le nom du groupe ne peut pas être vide."
+          }
+        }
+      }
+    },
     "Group not found: %@" : {
       "localizations" : {
         "de" : {

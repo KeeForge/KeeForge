@@ -755,6 +755,8 @@ final class KDBXXMLParser: NSObject, XMLParserDelegate {
     private struct GroupBuilder {
         var id = UUID()
         var name = ""
+        var notes = ""
+        var hasNotesElement = false
         var iconID = 48
         var customIconUUID: UUID?
         var tags: [String] = []
@@ -773,6 +775,8 @@ final class KDBXXMLParser: NSObject, XMLParserDelegate {
             KPGroup(
                 id: id,
                 name: name,
+                notes: notes,
+                hasNotesElement: hasNotesElement,
                 iconID: iconID,
                 customIconUUID: customIconUUID,
                 tags: tags,
@@ -1267,6 +1271,19 @@ final class KDBXXMLParser: NSObject, XMLParserDelegate {
                 groupStack[index].name = currentText.trimmingCharacters(in: .whitespacesAndNewlines)
             }
 
+        case "Notes" where parentName == "Group":
+            // A group's own notes. An entry's live in `<String><Key>Notes</Key>`
+            // and never reach here, and the guards match the counter arm in
+            // `recordOpaqueXML` exactly — if the two disagree, every opaque
+            // fragment after `<Notes>` in that group shifts position. Presence
+            // is tracked separately from content (three-state, like `Tags`),
+            // and the text is stored untrimmed: leading or trailing whitespace
+            // in free-form notes is the author's.
+            if !inMeta, currentEntry == nil, let index = groupStack.indices.last {
+                groupStack[index].hasNotesElement = true
+                groupStack[index].notes = currentText
+            }
+
         case "IconID":
             let val = Int(currentText.trimmingCharacters(in: .whitespacesAndNewlines)) ?? 0
             if let currentEntry {
@@ -1492,7 +1509,8 @@ final class KDBXXMLParser: NSObject, XMLParserDelegate {
             switch elementName {
             case "UUID", "Name", "IconID", "IsExpanded", "Times", "Entry", "Group":
                 groupStack[index].knownChildCount += 1
-            case "Tags" where !inMeta && currentEntry == nil:
+            case "Tags" where !inMeta && currentEntry == nil,
+                 "Notes" where !inMeta && currentEntry == nil:
                 // Counted as structured only under exactly the conditions the
                 // parse handler accepted it (a direct group child, outside
                 // Meta, with no entry open); anywhere else the element stays

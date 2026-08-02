@@ -790,6 +790,28 @@
         }
       }
     },
+    "A parent group is hidden from Search & AutoFill. Turn this off to show this group anyway." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Eine übergeordnete Gruppe ist aus Suche & AutoFill ausgeblendet. Deaktivieren Sie diese Option, um diese Gruppe dennoch anzuzeigen."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Un grupo superior está oculto de la búsqueda y el autorrelleno. Desactive esta opción para mostrar este grupo de todas formas."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Un groupe parent est masqué de la recherche et du remplissage automatique. Désactivez cette option pour afficher ce groupe malgré tout."
+          }
+        }
+      }
+    },
     "About" : {
       "localizations" : {
         "de" : {
@@ -3606,6 +3628,28 @@
         }
       }
     },
+    "Couldn’t Update Group" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gruppe konnte nicht aktualisiert werden"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No se pudo actualizar el grupo"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Impossible de mettre à jour le groupe"
+          }
+        }
+      }
+    },
     "Create" : {
       "localizations" : {
         "de" : {
@@ -4926,6 +4970,28 @@
         }
       }
     },
+    "Edit Group" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gruppe bearbeiten"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Editar grupo"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Modifier le groupe"
+          }
+        }
+      }
+    },
     "Editing" : {
       "localizations" : {
         "de" : {
@@ -5960,6 +6026,28 @@
         }
       }
     },
+    "Group name cannot be empty." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Der Gruppenname darf nicht leer sein."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "El nombre del grupo no puede estar vacío."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Le nom du groupe ne peut pas être vide."
+          }
+        }
+      }
+    },
     "Group not found: %@" : {
       "localizations" : {
         "de" : {
@@ -6264,6 +6352,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "HTTP transmet votre nom d'utilisateur WebDAV, votre mot de passe et le trafic de la base de données sans chiffrement. Utilisez-le uniquement sur un réseau local de confiance."
+          }
+        }
+      }
+    },
+    "Icon" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Symbol"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Icono"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Icône"
           }
         }
       }
@@ -10247,6 +10357,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Rechercher"
+          }
+        }
+      }
+    },
+    "Search & AutoFill" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Suche & AutoFill"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Búsqueda y autorrelleno"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Recherche et remplissage automatique"
           }
         }
       }
@@ -14295,6 +14427,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Vos modifications de l'entrée n'ont pas encore été enregistrées dans ce brouillon de base de données."
+          }
+        }
+      }
+    },
+    "Your group changes haven't been saved to this database draft yet." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ihre Änderungen an der Gruppe wurden noch nicht in diesem Datenbankentwurf gesichert."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Los cambios del grupo aún no se han guardado en este borrador de la base de datos."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vos modifications du groupe n'ont pas encore été enregistrées dans ce brouillon de base de données."
           }
         }
       }

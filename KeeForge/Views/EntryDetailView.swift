@@ -254,8 +254,8 @@ struct EntryDetailView: View {
     /// index is built from, so browsing to a tag can never land on an entry
     /// whose chips fail to explain the match.
     ///
-    /// Group tags are read-only in KeeForge — it parses a group's `<Tags>` and
-    /// never writes one — so the inherited chips sit under their own caption
+    /// An inherited tag belongs to the group, not the entry, and is edited in
+    /// `GroupEditView` — so the inherited chips sit under their own caption
     /// instead of mixing into a strip the Edit button implies is editable.
     @ViewBuilder
     private var tagsSection: some View {

@@ -23,10 +23,11 @@ TODO before the first macOS release:
 
 ### Features
 
+- Edit a group: long-press a group and choose "Edit Group" to rename it, give it tags, pick an icon, write notes, and hide or show it in Search & AutoFill — all in one form, saved together (#73). Tags on a group carry down to the entries inside it, so tagging a folder makes everything in it findable by that tag. The Recycle Bin and its contents stay uneditable, as does a read-only database; the existing "Change Icon" and "Hide from Search & AutoFill" shortcuts are still on the same menu. Note that giving a group its first tag upgrades the database file from KDBX 4.0 to 4.1 the next time it is saved, because group tags are a 4.1 feature: current KeePass, KeePassXC, KeePassium and Strongbox versions all read 4.1, but very old KeePass releases may not, and KeeForge never puts a database back to 4.0.
 - Save new passkeys: choosing KeeForge when an app or website offers "Add Passkey" now creates a passkey entry in the default AutoFill database, stored in the KeePassXC-compatible format so other KeePass apps can sign in with it too. Previously that request showed a blank screen (#52).
 - Search results and the tag browser now show which folder an entry lives in, as a small caption under the entry (#24).
 - Groups hidden from AutoFill are now also hidden from in-app search, matching how KeePass treats the underlying "enable searching" flag (#24). Browsing and the tag browser still show the group and its entries, and the context-menu wording now says "Hide from Search & AutoFill".
-- Entry details now show the tags an entry gets from the groups it sits in, next to its own tags and marked as coming from a group, so a tag-browser result is explainable from the entry itself (#72). Group tags stay read-only, as before.
+- Entry details now show the tags an entry gets from the groups it sits in, next to its own tags and marked as coming from a group, so a tag-browser result is explainable from the entry itself (#72). Those inherited tags are not editable from the entry — they belong to the group, and are changed in the group editor above.
 - French localization: the app, the AutoFill extension, and the README/contribution guide are now available in French.
 - Spanish localization: the app, the AutoFill extension, and the README/contribution guide are now available in Spanish.
 

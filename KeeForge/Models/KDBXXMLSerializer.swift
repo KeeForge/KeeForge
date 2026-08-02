@@ -110,6 +110,16 @@ struct KDBXXMLSerializer {
         xml += element("Name", value: escape(group.name))
         knownChildCount += 1
 
+        // Immediately after `<Name>`, the position KeePass's `WriteGroup` uses,
+        // so a KeePass-written file keeps its opaque siblings where the parser
+        // recorded them. `<Notes>` is a KDBX 3.1 element too, so writing one
+        // never forces a version bump — only `<Tags>` does.
+        if group.hasNotesElement || !group.notes.isEmpty {
+            xml += try opaqueXML(from: group.unknownXML, path: [], insertionIndex: knownChildCount)
+            xml += element("Notes", value: escape(group.notes))
+            knownChildCount += 1
+        }
+
         xml += try opaqueXML(from: group.unknownXML, path: [], insertionIndex: knownChildCount)
         xml += element("IconID", value: String(group.iconID))
         knownChildCount += 1
@@ -138,8 +148,8 @@ struct KDBXXMLSerializer {
             knownChildCount += 1
         }
 
-        // KDBX 4.1 group tags are read-only: KeeForge never invents one, so no
-        // format-version bump is ever needed.
+        // KDBX 4.1. The writer raises the header's minor version whenever any
+        // group carries this element, so the two can never disagree.
         if group.hasTagsElement || !group.tags.isEmpty {
             xml += try opaqueXML(from: group.unknownXML, path: [], insertionIndex: knownChildCount)
             xml += element("Tags", value: escape(group.tags.joined(separator: ",")))

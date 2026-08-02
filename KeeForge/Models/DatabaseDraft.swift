@@ -6,6 +6,7 @@ struct DatabaseDraft: Sendable {
         case groupNotFound(UUID)
         case entryNotFound(UUID)
         case duplicateGroupName(parentGroupID: UUID, name: String)
+        case emptyGroupName(UUID)
         case protectedGroup(UUID)
         case historyVersionNotFound(entryID: UUID, index: Int)
 
@@ -17,6 +18,8 @@ struct DatabaseDraft: Sendable {
                 String(localized: "Entry not found: \(entryID.uuidString)")
             case .duplicateGroupName(_, let name):
                 String(localized: "\"\(name)\" already exists in this group.")
+            case .emptyGroupName:
+                String(localized: "Group name cannot be empty.")
             case .protectedGroup:
                 String(localized: "This group cannot be deleted.")
             case .historyVersionNotFound:
@@ -107,6 +110,8 @@ struct DatabaseDraft: Sendable {
             updatedState = try applySetGroupSearchingEnabled(groupID: groupID, value: value.modelValue)
         case .setGroupIcon(let groupID, let iconID):
             updatedState = try applySetGroupIcon(groupID: groupID, iconID: iconID)
+        case .updateGroup(let groupID, let draft):
+            updatedState = try applyUpdateGroup(groupID: groupID, draft: draft)
         case .restoreEntryVersion(let entryID, let historyIndex):
             updatedState = try applyRestoreEntryVersion(entryID: entryID, historyIndex: historyIndex)
         }
@@ -203,6 +208,8 @@ struct DatabaseDraft: Sendable {
             return KPGroup(
                 id: group.id,
                 name: group.name,
+                notes: group.notes,
+                hasNotesElement: group.hasNotesElement,
                 iconID: group.iconID,
                 customIconUUID: group.customIconUUID,
                 tags: group.tags,
@@ -239,6 +246,8 @@ struct DatabaseDraft: Sendable {
             return KPGroup(
                 id: group.id,
                 name: group.name,
+                notes: group.notes,
+                hasNotesElement: group.hasNotesElement,
                 iconID: iconID,
                 customIconUUID: nil,
                 tags: group.tags,
@@ -247,6 +256,81 @@ struct DatabaseDraft: Sendable {
                 groups: group.groups,
                 isExpanded: group.isExpanded,
                 searchingEnabled: group.searchingEnabled,
+                creationTime: group.creationTime,
+                lastModificationTime: timestamp,
+                recycleBinUUID: group.recycleBinUUID,
+                unknownXML: unknownXML
+            )
+        }
+
+        return (updatedRootGroup, currentMetaStorage)
+    }
+
+    private func applyUpdateGroup(
+        groupID: UUID,
+        draft: GroupDraftPayload
+    ) throws -> (rootGroup: KPGroup, meta: KPMeta) {
+        guard let groupPath = pathToGroup(withID: groupID, in: currentRootGroupStorage) else {
+            throw DraftError.groupNotFound(groupID)
+        }
+
+        let trimmedName = draft.name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmedName.isEmpty == false else {
+            throw DraftError.emptyGroupName(groupID)
+        }
+
+        // Siblings only, and never the group itself: re-saving an unchanged
+        // name must not read as a collision.
+        if groupPath.count >= 2 {
+            let parentGroupID = groupPath[groupPath.count - 2]
+            let siblings = findGroup(withID: parentGroupID, in: currentRootGroupStorage)?.groups ?? []
+            let collides = siblings.contains { sibling in
+                sibling.id != groupID &&
+                sibling.name.compare(trimmedName, options: [.caseInsensitive, .diacriticInsensitive]) == .orderedSame
+            }
+            if collides {
+                throw DraftError.duplicateGroupName(parentGroupID: parentGroupID, name: trimmedName)
+            }
+        }
+
+        let tags = TagNormalizer.tags(from: draft.tags)
+        let timestamp = Date.now
+        let updatedRootGroup = try rebuildGroup(in: currentRootGroupStorage, targetPath: groupPath[...]) { group in
+            var unknownXML = group.unknownXML
+            // `<Notes>` is structured now, so any preserved copy would be
+            // emitted next to it; same reason `setGroupSearchingEnabled` drops
+            // its element, and only dropped there when a structured value
+            // replaces it.
+            unknownXML.removeDirectChildren(named: "Notes")
+            if draft.searchingEnabled != nil {
+                unknownXML.removeDirectChildren(named: "EnableSearching")
+            }
+
+            // A `<CustomIconUUID>` outranks `<IconID>`, so it only goes when
+            // the user actually picked a different icon — renaming a group must
+            // not swap the icon it displays.
+            let iconChanged = draft.iconID != group.iconID
+            if iconChanged {
+                unknownXML.removeDirectChildren(named: "CustomIconUUID")
+            }
+
+            return KPGroup(
+                id: group.id,
+                name: trimmedName,
+                notes: draft.notes,
+                hasNotesElement: group.hasNotesElement || !draft.notes.isEmpty,
+                iconID: draft.iconID,
+                customIconUUID: iconChanged ? nil : group.customIconUUID,
+                tags: tags,
+                // Deliberately not raised for new tags: the serializer already
+                // writes `<Tags>` for a non-empty list, and leaving the flag
+                // alone is what keeps a group that never had the element from
+                // gaining an empty one when the user clears its tags.
+                hasTagsElement: group.hasTagsElement,
+                entries: group.entries,
+                groups: group.groups,
+                isExpanded: group.isExpanded,
+                searchingEnabled: draft.searchingEnabled?.modelValue,
                 creationTime: group.creationTime,
                 lastModificationTime: timestamp,
                 recycleBinUUID: group.recycleBinUUID,
@@ -974,6 +1058,8 @@ struct DatabaseDraft: Sendable {
         return KPGroup(
             id: group.id,
             name: group.name,
+            notes: group.notes,
+            hasNotesElement: group.hasNotesElement,
             iconID: group.iconID,
             customIconUUID: group.customIconUUID,
             tags: group.tags,
@@ -995,6 +1081,8 @@ private extension KPGroup {
         KPGroup(
             id: id,
             name: name,
+            notes: notes,
+            hasNotesElement: hasNotesElement,
             iconID: iconID,
             customIconUUID: customIconUUID,
             tags: tags,

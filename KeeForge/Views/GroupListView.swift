@@ -58,6 +58,8 @@ struct GroupListView: View {
     #endif
     @State private var showSettings = false
     @State private var activeEditor: EntryEditViewModel?
+    /// The group editor's form state, or `nil` when no editor is presented.
+    @State private var activeGroupEditor: GroupEditViewModel?
     @State private var pendingDeletion: PendingDeletion?
     @State private var isShowingNewGroupSheet = false
     @State private var newGroupName = ""
@@ -285,6 +287,7 @@ struct GroupListView: View {
         }
         .modifier(GroupListSearchModifier(view: self))
         .modifier(GroupListEditorPresentation(view: self))
+        .modifier(GroupListGroupEditorPresentation(view: self))
         // On the outer Group: an alert host on the `resolvedGroup` branch would
         // be stranded if the branch vanishes while the alert is up.
         .alert(item: $pendingDeletion, content: deletionAlert)
@@ -318,6 +321,40 @@ struct GroupListView: View {
                         databaseViewModel: view.viewModel
                     ) { _ in
                         view.activeEditor = nil
+                    }
+                }
+            #endif
+        }
+    }
+
+    /// Presents the group editor, with the same iOS-push / macOS-sheet split as
+    /// the entry editor. Attached to the body's outer `Group` so a branch that
+    /// vanishes mid-edit cannot tear the host down under a presented editor.
+    private struct GroupListGroupEditorPresentation: ViewModifier {
+        let view: GroupListView
+
+        func body(content: Content) -> some View {
+            #if os(macOS)
+            content
+                .sheet(item: view.$activeGroupEditor) { formViewModel in
+                    NavigationStack {
+                        GroupEditView(
+                            formViewModel: formViewModel,
+                            databaseViewModel: view.viewModel
+                        ) {
+                            view.activeGroupEditor = nil
+                        }
+                    }
+                    .frame(minWidth: 540, minHeight: 520)
+                }
+            #else
+            content
+                .navigationDestination(item: view.$activeGroupEditor) { formViewModel in
+                    GroupEditView(
+                        formViewModel: formViewModel,
+                        databaseViewModel: view.viewModel
+                    ) {
+                        view.activeGroupEditor = nil
                     }
                 }
             #endif
@@ -399,6 +436,13 @@ struct GroupListView: View {
         }
         .macHoverHighlight()
         .contextMenu {
+            if canEditGroup(groupID) {
+                Button("Edit Group") {
+                    activeGroupEditor = makeGroupEditor(groupID)
+                }
+                .accessibilityIdentifier("group-row.edit-context")
+            }
+
             if canChangeGroupIcon(groupID) {
                 Button("Change Icon") {
                     pendingIconChange = PendingIconChange(groupID: groupID)
@@ -485,6 +529,27 @@ struct GroupListView: View {
 
     private func groupDeleteButtonTitle(for groupID: UUID) -> String {
         viewModel.isGroupInRecycleBin(groupID: groupID) ? "Delete Permanently" : "Delete"
+    }
+
+    /// Same eligibility as the icon and AutoFill shortcuts: the Recycle Bin and
+    /// everything inside it stay non-editable, and nothing is editable in a
+    /// read-only database.
+    private func canEditGroup(_ groupID: UUID) -> Bool {
+        viewModel.isReadOnly == false
+            && viewModel.currentRootGroup?.recycleBinUUID != groupID
+            && viewModel.isGroupInRecycleBin(groupID: groupID) == false
+    }
+
+    /// Built when the menu item is tapped rather than per render, so the form
+    /// opens on the group's state at that moment.
+    private func makeGroupEditor(_ groupID: UUID) -> GroupEditViewModel? {
+        guard let group = viewModel.group(withID: groupID) else { return nil }
+        return GroupEditViewModel(
+            editing: group,
+            isHiddenFromAutoFill: viewModel.isGroupExcludedFromAutoFill(groupID: groupID),
+            isExclusionInherited: viewModel.isGroupExclusionInherited(groupID: groupID),
+            knownTags: viewModel.tagsInDisplayOrder
+        )
     }
 
     /// Same eligibility as the AutoFill toggle, for the same reasons: nothing is

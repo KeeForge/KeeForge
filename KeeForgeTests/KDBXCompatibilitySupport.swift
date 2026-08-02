@@ -152,9 +152,9 @@ enum KDBXCompatibilitySupport {
         /// Foreign-authored (pykeepass) KDBX 4.1 fixture whose groups carry
         /// `<Tags>` in all three states — content (`Projects`, nested
         /// `Client Work`), an empty element (`Empty Tags Group`), and no
-        /// element at all (`Plain Group`) — plus a group `<Notes>` that
-        /// KeeForge keeps as unknown XML right next to the now-structured
-        /// `<Tags>`. See
+        /// element at all (`Plain Group`) — plus a group `<Notes>`, so two
+        /// structured siblings sit next to each other in a foreign file's
+        /// child order. See
         /// `TestFixtures/compatibility/generate_group_tags_fixture.py` and
         /// `TestFixtures/README.md`.
         static let groupTags = Fixture(
@@ -406,6 +406,7 @@ enum KDBXCompatibilitySupport {
         "create-group",
         "hide-group-from-autofill",
         "change-group-icon",
+        "update-group",
         "restore-entry-version",
         "soft-delete-entry",
         "soft-delete-group",
@@ -423,6 +424,7 @@ enum KDBXCompatibilitySupport {
         "fixture-smoke-foreign-twofish",
         "fixture-smoke-group-tags",
         "group-tags-update-entry",
+        "group-tags-update-group",
     ]
 
     /// An entry that already exists in each fixture, with the password that
@@ -476,6 +478,18 @@ enum KDBXCompatibilitySupport {
         ]
         table["group-tags-update-entry"] = [
             .init(entryTitle: "Beta Login Updated", password: "GroupTagBetaUpdated2"),
+            .init(entryTitle: "Alpha Login", password: "GroupTagAlpha1"),
+        ]
+        // The group edits touch no entry, so both artifacts probe passwords
+        // their own scenario did not write. On `update-group` that also covers
+        // the 4.0 → 4.1 header bump: a bumped file whose protected-value stream
+        // an external opener could no longer decode would fail here.
+        table["update-group"] = [
+            .init(entryTitle: "Compat Nested Entry", password: "nested-password"),
+            .init(entryTitle: "Compat Untouched Entry", password: "untouched-password"),
+        ]
+        table["group-tags-update-group"] = [
+            .init(entryTitle: "Delta Login", password: "GroupTagDelta4"),
             .init(entryTitle: "Alpha Login", password: "GroupTagAlpha1"),
         ]
         return table
@@ -578,6 +592,7 @@ enum KDBXCompatibilitySupport {
             createGroupScenario(),
             hideGroupFromAutoFillScenario(),
             changeGroupIconScenario(),
+            updateGroupScenario(),
             restoreEntryVersionScenario(),
             softDeleteEntryScenario(),
             softDeleteGroupScenario(),
@@ -693,6 +708,93 @@ enum KDBXCompatibilitySupport {
                 // This group carries no custom icon, so nothing may be dropped from
                 // its preserved XML. The removal path is covered by
                 // `DatabaseDraftTests.test_setGroupIcon_clearsCustomIconSoTheStandardIconActuallyShows`.
+                XCTAssertEqual(afterGroup.unknownXML, beforeGroup.unknownXML)
+            }
+        )
+    }
+
+    /// The group editor's whole payload in one edit: rename, author `<Tags>`
+    /// on a group that never had them, and set structured `<Notes>`.
+    ///
+    /// Authoring a group tag is what forces the writer's 4.0 → 4.1 header bump,
+    /// so this scenario's artifact is also the one that proves a bumped file
+    /// still opens in real KeePassXC. The tags themselves are not externally
+    /// verifiable — `keepassxc-cli` has no verb that prints group tags — so
+    /// that half of the proof stays in-process, here and in
+    /// `KDBXCompatibilityTests.test_allSupportedEditScenarios_…`.
+    static func updateGroupScenario() -> Scenario {
+        let renamedName = "Compat Renamed Group"
+        let authoredNotes = "Renamed, tagged, and annotated by the group editor."
+        return Scenario(
+            id: "update-group",
+            title: "Update group renames, tags, and annotates in one edit",
+            artifactFileName: "synthetic-rich-update-group.kdbx",
+            expectedSearchTerms: ["Compat Nested Entry"],
+            // The rename has to land for this path to resolve at all.
+            expectedGroupPaths: ["Compat Group Delete Target/\(renamedName)"],
+            makeEdit: { loaded in
+                let group = try XCTUnwrap(
+                    findGroup(named: "Compat Nested Child Group", in: loaded.rootGroup)
+                )
+                return .updateGroup(
+                    groupID: group.id,
+                    draft: GroupDraftPayload(
+                        name: renamedName,
+                        tags: ["compat", "renamed"],
+                        notes: authoredNotes,
+                        iconID: group.iconID,
+                        searchingEnabled: inheritableBoolPayload(for: group.searchingEnabled)
+                    )
+                )
+            },
+            assertChange: { before, after, _ in
+                let targetID = try XCTUnwrap(before.groupID(named: "Compat Nested Child Group"))
+                let beforeGroup = try XCTUnwrap(before.groups[targetID])
+                XCTAssertFalse(
+                    beforeGroup.hasTagsElement,
+                    "Fixture precondition: the target group starts without a <Tags> element"
+                )
+                XCTAssertTrue(beforeGroup.tags.isEmpty, "Fixture precondition: the target group starts untagged")
+                XCTAssertFalse(
+                    beforeGroup.hasNotesElement,
+                    "Fixture precondition: the target group starts without a <Notes> element"
+                )
+
+                try assertUnchangedEntries(before: before, after: after)
+                // Siblings, ancestors, and the recycled subtree may not move:
+                // only the edited group is exempt from the scalar comparison.
+                try assertSurvivingGroupsPreserveScalars(
+                    before: before,
+                    after: after,
+                    excluding: [targetID]
+                )
+                assertMetaUnchanged(before: before, after: after)
+                XCTAssertEqual(after.groups.count, before.groups.count)
+                XCTAssertNil(
+                    after.groupID(named: "Compat Nested Child Group"),
+                    "The pre-rename name must not survive anywhere in the tree"
+                )
+
+                let afterGroup = try XCTUnwrap(after.groups[targetID])
+                XCTAssertEqual(afterGroup.name, renamedName)
+                XCTAssertEqual(afterGroup.tags, ["compat", "renamed"])
+                XCTAssertTrue(
+                    afterGroup.hasTagsElement,
+                    "Authored tags must come back as a real <Tags> element after the round trip"
+                )
+                XCTAssertEqual(afterGroup.notes, authoredNotes)
+                XCTAssertTrue(afterGroup.hasNotesElement)
+                XCTAssertFalse(
+                    afterGroup.unknownXML.nodes.contains { $0.xml.hasPrefix("<Notes>") },
+                    "Group <Notes> is structured, so no opaque copy may be written next to it"
+                )
+                // The icon was not touched, so nothing on the icon path may be
+                // dropped and the group's children must be exactly as before.
+                XCTAssertEqual(afterGroup.iconID, beforeGroup.iconID)
+                XCTAssertEqual(afterGroup.searchingEnabled, beforeGroup.searchingEnabled)
+                XCTAssertEqual(afterGroup.entryIDs, beforeGroup.entryIDs)
+                XCTAssertEqual(afterGroup.groupIDs, beforeGroup.groupIDs)
+                XCTAssertEqual(afterGroup.creationTime, beforeGroup.creationTime)
                 XCTAssertEqual(afterGroup.unknownXML, beforeGroup.unknownXML)
             }
         )
@@ -860,9 +962,15 @@ enum KDBXCompatibilitySupport {
                 let projects = try XCTUnwrap(after.groups[XCTUnwrap(after.groupID(named: "Projects"))])
                 XCTAssertEqual(projects.tags, ["team", "shared"])
                 XCTAssertTrue(projects.hasTagsElement)
-                XCTAssertTrue(
+                XCTAssertTrue(projects.hasNotesElement)
+                XCTAssertEqual(
+                    projects.notes,
+                    "Group notes ride along as unknown XML next to the structured Tags element.",
+                    "The group's structured <Notes> survives next to the structured <Tags>"
+                )
+                XCTAssertFalse(
                     projects.unknownXML.nodes.contains { $0.xml.hasPrefix("<Notes>") },
-                    "The group's opaque <Notes> sibling survives next to the structured <Tags>"
+                    "Group <Notes> is structured now, so no opaque copy may remain"
                 )
 
                 let clientWork = try XCTUnwrap(after.groups[XCTUnwrap(after.groupID(named: "Client Work"))])
@@ -876,6 +984,103 @@ enum KDBXCompatibilitySupport {
                 let plain = try XCTUnwrap(after.groups[XCTUnwrap(after.groupID(named: "Plain Group"))])
                 XCTAssertTrue(plain.tags.isEmpty)
                 XCTAssertFalse(plain.hasTagsElement, "A group that never had the element must not gain one")
+            }
+        )
+    }
+
+    /// Update-group scenario for the `group-tags` fixture: authors a KeeForge
+    /// group tag and structured `<Notes>` on `Plain Group` — the one group in
+    /// the fixture that never carried a `<Tags>` element — while re-saving its
+    /// name unchanged.
+    ///
+    /// Not redundant with `update-group` on the synthetic fixture: that one
+    /// authors a tag into a KeeForge-written 4.0 file with no opaque group
+    /// children and bumps the header. This one adds a tag to a foreign
+    /// (pykeepass) 4.1 file whose groups carry opaque children in a
+    /// non-canonical child order, and must leave the other three `<Tags>`
+    /// states — content, empty element, absent — untouched while doing it.
+    ///
+    /// Same external-proof limitation as `groupTagsFixtureUpdateEntryScenario`:
+    /// the gate can only prove the rewritten database still opens, lists, and
+    /// decrypts; the tag proof is the in-process assertions below.
+    static func groupTagsFixtureUpdateGroupScenario() -> Scenario {
+        let authoredTag = "keeforge-authored"
+        let authoredNotes = "Group notes authored by KeeForge on a file that already had group tags."
+        return Scenario(
+            id: "group-tags-update-group",
+            title: "Update group authors a tag on a file that already has group tags",
+            artifactFileName: "group-tags-update-group.kdbx",
+            expectedSearchTerms: ["Delta Login"],
+            expectedGroupPaths: ["Projects", "Projects/Client Work", "Empty Tags Group", "Plain Group"],
+            makeEdit: { loaded in
+                let group = try XCTUnwrap(findGroup(named: "Plain Group", in: loaded.rootGroup))
+                return .updateGroup(
+                    groupID: group.id,
+                    draft: GroupDraftPayload(
+                        name: group.name,
+                        tags: [authoredTag],
+                        notes: authoredNotes,
+                        iconID: group.iconID,
+                        searchingEnabled: inheritableBoolPayload(for: group.searchingEnabled)
+                    )
+                )
+            },
+            assertChange: { before, after, _ in
+                let targetID = try XCTUnwrap(before.groupID(named: "Plain Group"))
+                let beforeGroup = try XCTUnwrap(before.groups[targetID])
+                XCTAssertFalse(
+                    beforeGroup.hasTagsElement,
+                    "Fixture precondition: Plain Group carries no <Tags> element"
+                )
+
+                try assertUnchangedEntries(before: before, after: after)
+                // The other three group-tag states must survive an edit that
+                // adds a fourth.
+                try assertSurvivingGroupsPreserveScalars(
+                    before: before,
+                    after: after,
+                    excluding: [targetID]
+                )
+                assertMetaUnchanged(before: before, after: after)
+                XCTAssertEqual(after.groups.count, before.groups.count)
+
+                let afterGroup = try XCTUnwrap(after.groups[targetID])
+                XCTAssertEqual(
+                    afterGroup.name,
+                    "Plain Group",
+                    "Re-saving a group under its own name is not a sibling collision"
+                )
+                XCTAssertEqual(afterGroup.tags, [authoredTag])
+                XCTAssertTrue(afterGroup.hasTagsElement)
+                XCTAssertEqual(afterGroup.notes, authoredNotes)
+                XCTAssertTrue(afterGroup.hasNotesElement)
+                XCTAssertEqual(afterGroup.iconID, beforeGroup.iconID)
+                XCTAssertEqual(afterGroup.searchingEnabled, beforeGroup.searchingEnabled)
+                XCTAssertEqual(afterGroup.entryIDs, beforeGroup.entryIDs)
+                XCTAssertEqual(afterGroup.groupIDs, beforeGroup.groupIDs)
+                XCTAssertEqual(afterGroup.creationTime, beforeGroup.creationTime)
+                // Adding a `<Tags>` child renumbers nothing before it, but the
+                // content contract is the load-bearing one: nothing the foreign
+                // writer left opaque may be dropped or invented.
+                XCTAssertEqual(
+                    Set(afterGroup.unknownXML.nodes.map(\.xml)),
+                    Set(beforeGroup.unknownXML.nodes.map(\.xml))
+                )
+
+                let projects = try XCTUnwrap(after.groups[XCTUnwrap(after.groupID(named: "Projects"))])
+                XCTAssertEqual(projects.tags, ["team", "shared"])
+                XCTAssertTrue(projects.hasTagsElement)
+                XCTAssertEqual(
+                    projects.notes,
+                    "Group notes ride along as unknown XML next to the structured Tags element."
+                )
+
+                let clientWork = try XCTUnwrap(after.groups[XCTUnwrap(after.groupID(named: "Client Work"))])
+                XCTAssertEqual(clientWork.tags, ["billable"])
+
+                let emptyTags = try XCTUnwrap(after.groups[XCTUnwrap(after.groupID(named: "Empty Tags Group"))])
+                XCTAssertTrue(emptyTags.tags.isEmpty)
+                XCTAssertTrue(emptyTags.hasTagsElement, "The empty <Tags></Tags> element survives the save")
             }
         )
     }
@@ -918,6 +1123,9 @@ enum KDBXCompatibilitySupport {
         )
         descriptors.append(
             ArtifactDescriptor(fixture: .groupTags, scenario: groupTagsFixtureUpdateEntryScenario())
+        )
+        descriptors.append(
+            ArtifactDescriptor(fixture: .groupTags, scenario: groupTagsFixtureUpdateGroupScenario())
         )
         descriptors.append(
             ArtifactDescriptor(fixture: .syntheticRich, scenario: keeOTPArtifactScenario())
@@ -1192,6 +1400,8 @@ struct CompatibilitySnapshot {
     struct Group: Equatable {
         let id: UUID
         let name: String
+        let notes: String
+        let hasNotesElement: Bool
         let iconID: Int
         let tags: [String]
         let hasTagsElement: Bool
@@ -1208,6 +1418,8 @@ struct CompatibilitySnapshot {
             GroupScalars(
                 id: id,
                 name: name,
+                notes: notes,
+                hasNotesElement: hasNotesElement,
                 iconID: iconID,
                 tags: tags,
                 hasTagsElement: hasTagsElement,
@@ -1223,8 +1435,8 @@ struct CompatibilitySnapshot {
         /// The in-memory order of unknown fragments follows the source
         /// document's child order, so a rewrite that normalizes a foreign
         /// file's non-canonical child order (pykeepass emits `<Times>` before
-        /// `<Notes>`; KeeForge writes `<Notes>` at its recorded position
-        /// earlier in the sequence) permutes fragments from *different* paths
+        /// `<Name>`; KeeForge writes each known element at KeePass's position)
+        /// permutes fragments from *different* paths
         /// in the array while preserving every fragment's content and
         /// insertion position. The scalar comparison enforces the position
         /// contract — nothing dropped, moved, or invented — not the array
@@ -1247,10 +1459,14 @@ struct CompatibilitySnapshot {
     struct GroupScalars: Equatable {
         let id: UUID
         let name: String
+        /// Covered here so an unrelated edit cannot silently drop or invent a
+        /// group's structured `<Notes>`.
+        let notes: String
+        let hasNotesElement: Bool
         let iconID: Int
         /// Covered here so an unrelated edit cannot silently drop, reorder,
-        /// or invent a group's KDBX 4.1 `<Tags>` (read-only in KeeForge)
-        /// without a compatibility scenario failing.
+        /// or invent a group's KDBX 4.1 `<Tags>` without a compatibility
+        /// scenario failing. Only `updateGroup` may author one.
         let tags: [String]
         let hasTagsElement: Bool
         let isExpanded: Bool
@@ -1318,6 +1534,8 @@ struct CompatibilitySnapshot {
         let capturedGroup = Group(
             id: group.id,
             name: group.name,
+            notes: group.notes,
+            hasNotesElement: group.hasNotesElement,
             iconID: group.iconID,
             tags: group.tags,
             hasTagsElement: group.hasTagsElement,
@@ -1909,6 +2127,18 @@ private extension KDBXCompatibilitySupport {
         }
 
         return nil
+    }
+
+    /// Mirrors a parsed group's `<EnableSearching>` state back into the draft
+    /// payload, so a group edit that isn't about AutoFill visibility forwards
+    /// the value verbatim instead of clearing it.
+    static func inheritableBoolPayload(for value: KPInheritableBool?) -> InheritableBoolPayload? {
+        switch value {
+        case nil: return nil
+        case .inherit: return .inherit
+        case .enabled: return .enabled
+        case .disabled: return .disabled
+        }
     }
 
     static func findGroup(named name: String, in group: KPGroup) -> KPGroup? {

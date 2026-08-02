@@ -44,15 +44,22 @@ enum KPInheritableBool: Sendable, Hashable {
 final class KPGroup: Identifiable, @unchecked Sendable {
     var id: UUID
     var name: String
+    /// KDBX group `<Notes>`, free text. Stored untrimmed: leading or trailing
+    /// whitespace is the author's, not noise.
+    var notes: String
+    /// Whether the source XML had a `<Notes>` element, even if empty — the same
+    /// three-state presence semantics `hasTagsElement` has, so an empty
+    /// `<Notes></Notes>` round-trips and a group that never had one never
+    /// gains one.
+    var hasNotesElement: Bool
     var iconID: Int
     /// UUID referencing `Meta/CustomIcons`, when the group uses a custom icon.
     /// Read-only display copy: the source `<CustomIconUUID>` element stays in
     /// `unknownXML` so the writer round-trips it verbatim.
     var customIconUUID: UUID?
-    /// KDBX 4.1 group tags, parsed read-only so entries can inherit them
-    /// ("effective tags"). KeeForge never creates or edits a group tag; the
-    /// writer only re-emits what the parser read, so no format-version bump
-    /// is ever needed.
+    /// KDBX 4.1 group tags, used by entries to inherit ("effective tags") and
+    /// editable through the group editor. Authoring one forces the written
+    /// header minor version up to 4.1 (`KDBXWriter`).
     var tags: [String]
     /// Whether the source XML had a `<Tags>` element, even if empty. Writers
     /// use this to preserve an empty `<Tags></Tags>` that would otherwise be
@@ -74,6 +81,8 @@ final class KPGroup: Identifiable, @unchecked Sendable {
     init(
         id: UUID = UUID(),
         name: String,
+        notes: String = "",
+        hasNotesElement: Bool = false,
         iconID: Int = 48,
         customIconUUID: UUID? = nil,
         tags: [String] = [],
@@ -89,6 +98,8 @@ final class KPGroup: Identifiable, @unchecked Sendable {
     ) {
         self.id = id
         self.name = name
+        self.notes = notes
+        self.hasNotesElement = hasNotesElement
         self.iconID = iconID
         self.customIconUUID = customIconUUID
         self.tags = tags
@@ -156,6 +167,8 @@ final class KPGroup: Identifiable, @unchecked Sendable {
         return KPGroup(
             id: id,
             name: name,
+            notes: notes,
+            hasNotesElement: hasNotesElement,
             iconID: iconID,
             customIconUUID: customIconUUID,
             tags: tags,

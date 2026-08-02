@@ -2294,10 +2294,10 @@ final class DatabaseViewModelTests: XCTestCase {
 
     // MARK: - Tag inheritance (group tags)
     //
-    // Group tags are read-only, parsed from KDBX 4.1 files — neither
-    // DatabaseCreationService nor any KeeForge edit can author one — so these
-    // scenarios build KPGroup trees directly and inject them through the
-    // reload seam (`makeInjectedViewModel`).
+    // These scenarios build KPGroup trees directly and inject them through the
+    // reload seam (`makeInjectedViewModel`) rather than going through
+    // `updateGroup`, so inheritance is tested against an exact tree shape
+    // instead of whatever the editor happens to produce.
 
     func testGroupTagAppliesToEntriesInsideTheGroup() async throws {
         let alpha = KPEntry(title: "Alpha")
