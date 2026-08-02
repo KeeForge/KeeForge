@@ -1406,11 +1406,16 @@ private extension KDBXCompatibilitySupport {
                         notes: "Created through compatibility matrix",
                         customFields: [
                             "CustomKey": "CustomValue",
-                            PasskeyCredential.credentialIDKey: "created-passkey-id",
+                            PasskeyCredential.credentialIDKey: "3q2-7wEj",
                             PasskeyCredential.relyingPartyKey: "created.example.com",
                             PasskeyCredential.usernameKey: "created-passkey-user",
-                            PasskeyCredential.userHandleKey: "created-user-handle",
+                            PasskeyCredential.userHandleKey: "AAEC-_z9",
                             PasskeyCredential.privateKeyPEMKey: "created-private-key",
+                        ],
+                        protectedCustomFieldKeys: [
+                            PasskeyCredential.credentialIDKey,
+                            PasskeyCredential.privateKeyPEMKey,
+                            PasskeyCredential.userHandleKey,
                         ],
                         tags: ["compat", "created"],
                         totpConfig: .init(secret: "JBSWY3DPEHPK3PXP", period: 45, digits: 8, algorithm: .sha256)
@@ -1431,6 +1436,19 @@ private extension KDBXCompatibilitySupport {
                 // customFields.
                 XCTAssertNil(created.customFields[PasskeyCredential.privateKeyPEMKey])
                 XCTAssertEqual(created.passkeyPrivateKeyPEM, "created-private-key")
+                XCTAssertTrue(created.protectedStringKeys.isSuperset(of: [
+                    PasskeyCredential.credentialIDKey,
+                    PasskeyCredential.privateKeyPEMKey,
+                    PasskeyCredential.userHandleKey,
+                ]))
+                XCTAssertFalse(created.protectedStringKeys.contains(PasskeyCredential.relyingPartyKey))
+                XCTAssertFalse(created.protectedStringKeys.contains(PasskeyCredential.usernameKey))
+                let credentialID = try XCTUnwrap(created.customFields[PasskeyCredential.credentialIDKey])
+                XCTAssertEqual(credentialID, "3q2-7wEj")
+                XCTAssertEqual(base64URLDecode(credentialID), Data([0xDE, 0xAD, 0xBE, 0xEF, 0x01, 0x23]))
+                let userHandle = try XCTUnwrap(created.customFields[PasskeyCredential.userHandleKey])
+                XCTAssertEqual(userHandle, "AAEC-_z9")
+                XCTAssertEqual(base64URLDecode(userHandle), Data([0x00, 0x01, 0x02, 0xFB, 0xFC, 0xFD]))
                 XCTAssertEqual(created.totp?.secret, "JBSWY3DPEHPK3PXP")
             }
         )

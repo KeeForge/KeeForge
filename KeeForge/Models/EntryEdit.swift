@@ -33,6 +33,10 @@ struct EntryDraftPayload: Codable, Sendable, Equatable {
     var url: String
     var notes: String
     var customFields: [String: String]
+    /// Custom-field keys to serialize with Protected=True. Keys absent from
+    /// `customFields` are ignored; the passkey PEM key stays effective even
+    /// though the value is diverted out of customFields before storage.
+    var protectedCustomFieldKeys: Set<String>
     var tags: [String]
     var totpConfig: TOTPConfiguration?
     var lastModificationTime: Date?
@@ -44,6 +48,7 @@ struct EntryDraftPayload: Codable, Sendable, Equatable {
         url: String = "",
         notes: String = "",
         customFields: [String: String] = [:],
+        protectedCustomFieldKeys: Set<String> = [],
         tags: [String] = [],
         totpConfig: TOTPConfiguration? = nil,
         lastModificationTime: Date? = nil
@@ -54,6 +59,7 @@ struct EntryDraftPayload: Codable, Sendable, Equatable {
         self.url = url
         self.notes = notes
         self.customFields = customFields
+        self.protectedCustomFieldKeys = protectedCustomFieldKeys
         self.tags = tags
         self.totpConfig = totpConfig
         self.lastModificationTime = lastModificationTime

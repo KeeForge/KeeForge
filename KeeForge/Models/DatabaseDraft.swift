@@ -489,7 +489,9 @@ struct DatabaseDraft: Sendable {
         from draft: EntryDraftPayload,
         timestamp: Date
     ) throws -> KPEntry {
-        KPEntry(
+        let customFields = activeCustomFields(from: draft)
+        let passkeyPrivateKey = try draftPasskeyPrivateKey(from: draft, fallback: nil)
+        return KPEntry(
             title: draft.title,
             username: draft.username,
             password: try EncryptedValue.encrypt(draft.password, using: sessionKey),
@@ -497,14 +499,19 @@ struct DatabaseDraft: Sendable {
             notes: draft.notes,
             tags: draft.tags,
             hasTagsElement: !draft.tags.isEmpty,
-            customFields: activeCustomFields(from: draft),
-            passkeyPrivateKey: try draftPasskeyPrivateKey(from: draft, fallback: nil),
+            customFields: customFields,
+            passkeyPrivateKey: passkeyPrivateKey,
             totpConfig: try makeTOTPConfig(from: draft.totpConfig),
             otpURL: draft.totpConfig?.keeOTPSource?.fieldName == "otp"
                 ? draft.totpConfig?.keeOTPSource?.rawQuery
                 : nil,
             creationTime: timestamp,
-            lastModificationTime: timestamp
+            lastModificationTime: timestamp,
+            protectedStringKeys: draftProtectedStringKeys(
+                from: draft,
+                customFields: customFields,
+                passkeyPrivateKey: passkeyPrivateKey
+            )
         )
     }
 
@@ -519,6 +526,11 @@ struct DatabaseDraft: Sendable {
             meta: currentMetaStorage
         )
 
+        let customFields = activeCustomFields(from: draft)
+        let passkeyPrivateKey = try draftPasskeyPrivateKey(
+            from: draft,
+            fallback: originalEntry.passkeyPrivateKey
+        )
         return KPEntry(
             id: originalEntry.id,
             title: draft.title,
@@ -529,11 +541,8 @@ struct DatabaseDraft: Sendable {
             iconID: originalEntry.iconID,
             tags: draft.tags,
             hasTagsElement: originalEntry.hasTagsElement || !draft.tags.isEmpty,
-            customFields: activeCustomFields(from: draft),
-            passkeyPrivateKey: try draftPasskeyPrivateKey(
-                from: draft,
-                fallback: originalEntry.passkeyPrivateKey
-            ),
+            customFields: customFields,
+            passkeyPrivateKey: passkeyPrivateKey,
             totpConfig: try makeTOTPConfig(from: draft.totpConfig),
             otpURL: updatedOtpURL(draft: draft, originalEntry: originalEntry),
             creationTime: originalEntry.creationTime,
@@ -545,7 +554,11 @@ struct DatabaseDraft: Sendable {
             protectedStringKeys: preservedProtectedStringKeys(
                 from: originalEntry,
                 customFields: draft.customFields
-            ),
+            ).union(draftProtectedStringKeys(
+                from: draft,
+                customFields: customFields,
+                passkeyPrivateKey: passkeyPrivateKey
+            )),
             attachments: originalEntry.attachments
         )
     }
@@ -636,6 +649,21 @@ struct DatabaseDraft: Sendable {
             .union(["Title", "UserName", "URL", "Notes", "otp", "OTP", "Otp"])
             .union([PasskeyCredential.privateKeyPEMKey])
         return entry.protectedStringKeys.intersection(editableKeys)
+    }
+
+    /// Protection requested by the draft, limited to keys the entry will
+    /// actually serialize: its stored custom fields plus the diverted passkey
+    /// PEM key, which the serializer re-emits keyed off `protectedStringKeys`.
+    private func draftProtectedStringKeys(
+        from draft: EntryDraftPayload,
+        customFields: [String: String],
+        passkeyPrivateKey: EncryptedValue?
+    ) -> Set<String> {
+        var serializableKeys = Set(customFields.keys)
+        if passkeyPrivateKey != nil {
+            serializableKeys.insert(PasskeyCredential.privateKeyPEMKey)
+        }
+        return draft.protectedCustomFieldKeys.intersection(serializableKeys)
     }
 
     private func trimmedHistory(

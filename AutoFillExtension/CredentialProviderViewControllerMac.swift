@@ -117,6 +117,12 @@ final class CredentialProviderViewController: ASCredentialProviderViewController
         coordinator.prepareInterfaceToProvideCredential(for: credentialRequest)
     }
 
+    override func prepareInterface(forPasskeyRegistration registrationRequest: ASCredentialRequest) {
+        // Passkey registration has no macOS creator UI (the Mac targets are
+        // on hold); answer the request instead of leaving the system waiting.
+        cancelRequest(withError: ASExtensionError(.userCanceled))
+    }
+
     override func provideCredentialWithoutUserInteraction(for credentialRequest: ASCredentialRequest) {
         coordinator.provideCredentialWithoutUserInteraction(for: credentialRequest)
     }
@@ -199,6 +205,26 @@ extension CredentialProviderViewController: CredentialProviderPresenting {
         // coordinator never drives this path here. Cancel defensively.
         assertionFailure("presentEntryCreator is unreachable on macOS (save-password is iOS-only)")
         onCancel()
+    }
+
+    func presentPasskeyCreator(
+        context: CredentialProviderPasskeyCreatorContext,
+        onSave: @escaping @Sendable (String) async -> CredentialProviderEntrySaveOutcome,
+        onCancel: @escaping () -> Void
+    ) {
+        // Unreachable on macOS: registration requests are cancelled at the
+        // shell's entry point before the coordinator is involved.
+        assertionFailure("presentPasskeyCreator is unreachable on macOS (registration is cancelled at the entry point)")
+        onCancel()
+    }
+
+    func presentPasskeyRegistrationFailure(
+        message: String,
+        onAcknowledge: @escaping () -> Void
+    ) {
+        // Unreachable on macOS (see presentPasskeyCreator).
+        assertionFailure("presentPasskeyRegistrationFailure is unreachable on macOS (registration is cancelled at the entry point)")
+        onAcknowledge()
     }
 
     func presentNoEnabledDatabasesState(onDismiss: @escaping () -> Void) {
@@ -298,6 +324,14 @@ extension CredentialProviderViewController: CredentialProviderPresenting {
     func completeAssertionRequest(using credential: ASPasskeyAssertionCredential) {
         didFinishRequest = true
         completer.completeAssertionRequest(using: credential)
+    }
+
+    func completeRegistrationRequest(using credential: ASPasskeyRegistrationCredential) {
+        // Unreachable on macOS (registration is cancelled at the entry point).
+        // Fail closed.
+        assertionFailure("completeRegistrationRequest is unreachable on macOS")
+        didFinishRequest = true
+        completer.cancelRequest(withError: ASExtensionError(.failed))
     }
 
     func completeOneTimeCodeRequest(code: String) {

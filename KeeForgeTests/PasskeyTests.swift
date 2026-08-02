@@ -515,6 +515,162 @@ final class PasskeyCryptoTests: XCTestCase {
         XCTAssertEqual(identity?.relyingPartyIdentifier, "https://www.example.com/login")
     }
 
+    // MARK: - Registration authenticator data
+
+    /// Fixed key + fixed credential ID so every byte offset below is pinned.
+    private func fixedRegistrationFixture() throws -> (key: P256.Signing.PrivateKey, credentialID: Data) {
+        let key = try PasskeyCrypto.privateKey(fromPEM: Self.equivalentPKCS8PEM)
+        return (key, Data(repeating: 0xAB, count: 32))
+    }
+
+    func testAAGUIDMatchesProductIdentifier() {
+        XCTAssertEqual(PasskeyCrypto.aaguid.count, 16)
+        XCTAssertEqual(
+            PasskeyCrypto.aaguid.map { String(format: "%02x", $0) }.joined(),
+            "ff55d8c0f4fb40169fdd56dbbd251802"
+        )
+    }
+
+    func testGeneratedCredentialIDIs32RandomBytes() throws {
+        let first = try PasskeyCrypto.generateCredentialID()
+        let second = try PasskeyCrypto.generateCredentialID()
+        XCTAssertEqual(first.count, 32)
+        XCTAssertEqual(second.count, 32)
+        XCTAssertNotEqual(first, second)
+    }
+
+    func testRegistrationAuthenticatorDataLayout() throws {
+        let (key, credentialID) = try fixedRegistrationFixture()
+        let authData = PasskeyCrypto.buildRegistrationAuthenticatorData(
+            relyingPartyID: "example.com",
+            credentialID: credentialID,
+            publicKey: key.publicKey
+        )
+
+        // 37 (assertion prefix) + 16 (AAGUID) + 2 (len) + 32 (credID) + 77 (COSE key)
+        XCTAssertEqual(authData.count, 164)
+
+        let expectedRPHash = Data(SHA256.hash(data: Data("example.com".utf8)))
+        XCTAssertEqual(authData.prefix(32), expectedRPHash)
+
+        // Flags: UP | UV | AT | BE | BS
+        XCTAssertEqual(authData[32], PasskeyCrypto.registrationFlags)
+        XCTAssertEqual(authData[32], 0x5D)
+
+        // Sign count is always zero
+        XCTAssertEqual(authData.subdata(in: 33..<37), Data(repeating: 0, count: 4))
+
+        XCTAssertEqual(authData.subdata(in: 37..<53), PasskeyCrypto.aaguid)
+
+        // Credential ID length, big-endian
+        XCTAssertEqual(authData[53], 0x00)
+        XCTAssertEqual(authData[54], 0x20)
+        XCTAssertEqual(authData.subdata(in: 55..<87), credentialID)
+
+        // Followed by the COSE key map
+        XCTAssertEqual(authData[87], 0xA5)
+    }
+
+    func testCOSEKeyEncodesUncompressedCoordinates() throws {
+        let (key, credentialID) = try fixedRegistrationFixture()
+        let authData = PasskeyCrypto.buildRegistrationAuthenticatorData(
+            relyingPartyID: "example.com",
+            credentialID: credentialID,
+            publicKey: key.publicKey
+        )
+        let coseKey = authData.subdata(in: 87..<authData.count)
+
+        // {1: 2, 3: -7, -1: 1, -2: x, -3: y} in canonical order
+        XCTAssertEqual(coseKey.prefix(7), Data([0xA5, 0x01, 0x02, 0x03, 0x26, 0x20, 0x01]))
+        XCTAssertEqual(coseKey.subdata(in: 7..<10), Data([0x21, 0x58, 0x20]))
+        let x = coseKey.subdata(in: 10..<42)
+        XCTAssertEqual(coseKey.subdata(in: 42..<45), Data([0x22, 0x58, 0x20]))
+        let y = coseKey.subdata(in: 45..<77)
+        XCTAssertEqual(coseKey.count, 77)
+
+        // x963Representation is 0x04 || x || y; each coordinate exactly 32 bytes
+        let x963 = key.publicKey.x963Representation
+        XCTAssertEqual(x.count, 32)
+        XCTAssertEqual(y.count, 32)
+        XCTAssertEqual(x, Data(x963.dropFirst(1).prefix(32)))
+        XCTAssertEqual(y, Data(x963.suffix(32)))
+    }
+
+    // MARK: - Attestation object
+
+    func testAttestationObjectStructure() throws {
+        let (key, credentialID) = try fixedRegistrationFixture()
+        let attestation = PasskeyCrypto.buildAttestationObject(
+            relyingPartyID: "example.com",
+            credentialID: credentialID,
+            privateKey: key
+        )
+
+        var expectedHeader = Data([0xA3])
+        expectedHeader.append(Data([0x63]) + Data("fmt".utf8))
+        expectedHeader.append(Data([0x64]) + Data("none".utf8))
+        expectedHeader.append(Data([0x67]) + Data("attStmt".utf8))
+        expectedHeader.append(Data([0xA0]))
+        expectedHeader.append(Data([0x68]) + Data("authData".utf8))
+        expectedHeader.append(Data([0x58, 0xA4]))
+        XCTAssertEqual(attestation.prefix(expectedHeader.count), expectedHeader)
+
+        let embeddedAuthData = attestation.subdata(in: expectedHeader.count..<attestation.count)
+        let standaloneAuthData = PasskeyCrypto.buildRegistrationAuthenticatorData(
+            relyingPartyID: "example.com",
+            credentialID: credentialID,
+            publicKey: key.publicKey
+        )
+        XCTAssertEqual(embeddedAuthData, standaloneAuthData)
+    }
+
+    func testRegistrationCredentialMatchesEmbeddedCredentialID() throws {
+        let (key, credentialID) = try fixedRegistrationFixture()
+        let attestation = PasskeyCrypto.buildAttestationObject(
+            relyingPartyID: "example.com",
+            credentialID: credentialID,
+            privateKey: key
+        )
+        let credential = ASPasskeyRegistrationCredential(
+            relyingParty: "example.com",
+            clientDataHash: Data(SHA256.hash(data: Data("client-data".utf8))),
+            credentialID: credentialID,
+            attestationObject: attestation
+        )
+
+        // authData starts after the 30-byte CBOR map header; credID lives at
+        // authData offsets 55..<87 (see layout test above).
+        let embeddedCredentialID = attestation.subdata(in: (30 + 55)..<(30 + 87))
+        XCTAssertEqual(credential.credentialID, embeddedCredentialID)
+        XCTAssertEqual(credential.credentialID, credentialID)
+    }
+
+    // MARK: - Registration round-trip
+
+    func testRegistrationRoundTripSignsVerifiableAssertion() throws {
+        let key = PasskeyCrypto.generatePrivateKey()
+        let pem = key.pemRepresentation
+
+        let parsed = try PasskeyCrypto.privateKey(fromPEM: pem)
+        XCTAssertEqual(parsed.publicKey.x963Representation, key.publicKey.x963Representation)
+
+        let clientDataHash = Data(SHA256.hash(data: Data("registration-round-trip".utf8)))
+        let (authData, signature) = try PasskeyCrypto.signAssertion(
+            relyingPartyID: "example.com",
+            clientDataHash: clientDataHash,
+            privateKey: parsed
+        )
+
+        var signedData = authData
+        signedData.append(clientDataHash)
+        XCTAssertTrue(
+            try key.publicKey.isValidSignature(
+                P256.Signing.ECDSASignature(derRepresentation: signature),
+                for: signedData
+            )
+        )
+    }
+
     // MARK: - Helpers
 
     /// Encode a P256 private key as PKCS#8 PEM.

@@ -245,6 +245,7 @@
 		679B4A120D4F2E4A5C69EB43 /* CloudProviderDesktopAuthTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1190C66ABFC15FE4F0E5745C /* CloudProviderDesktopAuthTests.swift */; };
 		67D9CEC4DF7C559BB2066B9B /* DropboxCloudProviderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F7522B62793839313AC4DC5 /* DropboxCloudProviderTests.swift */; };
 		6902D7545C0B8C8C552AEE5C /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = 6D8AAE0BC5540DB06342C80C /* Localizable.xcstrings */; };
+		69EABF460EA05DB06C9E210E /* AutoFillPasskeyCreatorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C412174AA21900D65A646A54 /* AutoFillPasskeyCreatorView.swift */; };
 		6AAF0C1932C41779B6A95990 /* DatabaseDraft.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DBA8C05ADEAD4DD8BFE6152 /* DatabaseDraft.swift */; };
 		6AE385563ED9E96B0E62B389 /* KeyFileProcessor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2F67A19B307012E6FFA9545C /* KeyFileProcessor.swift */; };
 		6B84A04EB2748B6AA14D6603 /* MacScreenshotAuditUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6CB88CC16B6EF72B737A8030 /* MacScreenshotAuditUITests.swift */; };
@@ -256,6 +257,7 @@
 		6D4482B31E02010875FAE807 /* Attachment.swift in Sources */ = {isa = PBXBuildFile; fileRef = 17350EF5DF6C5C2E97B61A34 /* Attachment.swift */; };
 		6D7B0F0F5E4A1157EE41A4F3 /* EntryEditViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 42780494357246F25C55F3FD /* EntryEditViewModelTests.swift */; };
 		6E9CE1A6F7656C0A901A1633 /* kdbx41-public-custom-data.kdbx in Resources */ = {isa = PBXBuildFile; fileRef = B768B63FEA29736435D3E922 /* kdbx41-public-custom-data.kdbx */; };
+		7088E67D3FBF351954CD70F2 /* AutoFillPasskeyCreatorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C412174AA21900D65A646A54 /* AutoFillPasskeyCreatorView.swift */; };
 		70B5DFF94CC20D6BD049C9AB /* ChaCha20Tests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 15B37308F603CF890C96ED80 /* ChaCha20Tests.swift */; };
 		711E28602252C35A2481E769 /* WebDAVClientTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B16B7DC25FE8C1CEE117E7FD /* WebDAVClientTests.swift */; };
 		7144C6048A793ACF7AD5E2B5 /* MacLockMonitorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 266DACD09B3263F9CCEDE2A6 /* MacLockMonitorTests.swift */; };
@@ -338,6 +340,7 @@
 		97CEBE0EE1119CB163AD662C /* DatabaseViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B33D0F39A86A065A638C40AF /* DatabaseViewModel.swift */; };
 		982F1AF71FFA882BB9C49E87 /* KeeForgeApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7EA0111DE46F6C0B6D89B6B4 /* KeeForgeApp.swift */; };
 		9835C395159898C8481040D5 /* PasswordGenerator.swift in Sources */ = {isa = PBXBuildFile; fileRef = FD42E436B84E873D08B91ACA /* PasswordGenerator.swift */; };
+		9969E90C2E3157AF70BE7004 /* CredentialProviderRegistrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E76C796B02FF415E49F0E10C /* CredentialProviderRegistrationTests.swift */; };
 		99E14B37ADBD2349BA1C5889 /* DatabaseListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 88EB38F9BBED091894FDB7DE /* DatabaseListView.swift */; };
 		9B3870766B755B0EC44241BC /* EncryptedValue.swift in Sources */ = {isa = PBXBuildFile; fileRef = B6594B5A580C44B4042FE110 /* EncryptedValue.swift */; };
 		9B8E96A65BE457D6296C1584 /* CloudFileBrowserView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8130C3F91180C3B88DF9EE9D /* CloudFileBrowserView.swift */; };
@@ -491,6 +494,7 @@
 		D8AF5DE599A6ADBBC0E7FDF6 /* TwofishTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0D923EB4B018FB500295E74 /* TwofishTests.swift */; };
 		D8E93E95B6B7E206F55F993E /* LocalizationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B531885B533C74F391440B2B /* LocalizationTests.swift */; };
 		D9BA1A855C5E14A6B9D0FF3C /* SecureRandom.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6F135327240ED1387C8003A4 /* SecureRandom.swift */; };
+		D9DEA9F0DDD8BF48FADC5772 /* CredentialProviderRegistrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E76C796B02FF415E49F0E10C /* CredentialProviderRegistrationTests.swift */; };
 		DA24CE2E7798DDF2FABF78CB /* AutoFillStoreUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72C52BFD92487327FDD249DC /* AutoFillStoreUITests.swift */; };
 		DA2774F54BE4C3E24D709359 /* PasswordInputRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = F40669422B3751841943019C /* PasswordInputRow.swift */; };
 		DA357E2776602D6ECFA54FE4 /* LocalDatabaseSaverTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B514D9E533F3FF2EB1978959 /* LocalDatabaseSaverTests.swift */; };
@@ -861,6 +865,7 @@
 		C2C726CD862BFFCE77228AAD /* UnlockFlowUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UnlockFlowUITests.swift; sourceTree = "<group>"; };
 		C303F1BB7603F55869127E7A /* StoreKitManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoreKitManager.swift; sourceTree = "<group>"; };
 		C3331E675A8FD23ED5D8D11D /* KeeForgeMac.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = KeeForgeMac.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		C412174AA21900D65A646A54 /* AutoFillPasskeyCreatorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AutoFillPasskeyCreatorView.swift; sourceTree = "<group>"; };
 		CB23E9DACF5061CA2446BD8B /* KeeForgeMacUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = KeeForgeMacUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		CC56D360DC62F07E5B3C8C71 /* TagListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TagListView.swift; sourceTree = "<group>"; };
 		CE7654CB864A7BECF13483C8 /* ReviewPromptServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReviewPromptServiceTests.swift; sourceTree = "<group>"; };
@@ -891,6 +896,7 @@
 		E3C128E145557767D1EFDF84 /* CloudTokenStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudTokenStoreTests.swift; sourceTree = "<group>"; };
 		E6B7062FC711FD8F8EA1BEE3 /* PendingUploadQueue.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PendingUploadQueue.swift; sourceTree = "<group>"; };
 		E70FC2B01C80D00375D97318 /* EntryEditView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EntryEditView.swift; sourceTree = "<group>"; };
+		E76C796B02FF415E49F0E10C /* CredentialProviderRegistrationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CredentialProviderRegistrationTests.swift; sourceTree = "<group>"; };
 		E83812EEBF6C270EDFBA5E90 /* OpaqueXMLNodes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpaqueXMLNodes.swift; sourceTree = "<group>"; };
 		E94BF55CC229A5312D864BDE /* CloudFileBrowserViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudFileBrowserViewModelTests.swift; sourceTree = "<group>"; };
 		EA6878B6041AE23174ADDCE6 /* AutoFillEntryCreatorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AutoFillEntryCreatorView.swift; sourceTree = "<group>"; };
@@ -1187,6 +1193,7 @@
 				EA6878B6041AE23174ADDCE6 /* AutoFillEntryCreatorView.swift */,
 				37FCB8A14A23CD5B7A7C8350 /* AutoFillExtension.entitlements */,
 				7B911E75B7F5823E57680434 /* AutoFillExtensionMac.entitlements */,
+				C412174AA21900D65A646A54 /* AutoFillPasskeyCreatorView.swift */,
 				ADAA5D103A016B02FDB65F56 /* AutoFillSearchView.swift */,
 				268A6ED5FD7C908116437C5E /* CredentialProviderCoordinator.swift */,
 				5DFD74CE6911EB771A4B7FBD /* CredentialProviderViewController.swift */,
@@ -1336,6 +1343,7 @@
 				952D7703E80D468B1A3168D8 /* CredentialMatcherTests.swift */,
 				8D643ABF20BB5081268D1CFD /* CredentialProviderCoordinatorTests.swift */,
 				D638023C04BD5CB4717D22A2 /* CredentialProviderPresentingSpy.swift */,
+				E76C796B02FF415E49F0E10C /* CredentialProviderRegistrationTests.swift */,
 				A0987977B0D41FBB5C1456C5 /* CredentialProviderSaveTests.swift */,
 				77A9A874F4FED71AA9FE88D8 /* CredentialProviderShellMacTests.swift */,
 				7553437A0E9B7EDCD010211A /* DatabaseCreationServiceTests.swift */,
@@ -1893,6 +1901,7 @@
 				76030E2242827E28EB898A0B /* Attachment.swift in Sources */,
 				BDA2F1A9970A30F3D6E05AB6 /* AutoFillEntryCreatorView.swift in Sources */,
 				4AEDC15F5C9B1A173996FFAA /* AutoFillIdentityStoreFallbackReader.swift in Sources */,
+				7088E67D3FBF351954CD70F2 /* AutoFillPasskeyCreatorView.swift in Sources */,
 				0C90D211537483D4DCFB9977 /* AutoFillSaveCoordinator.swift in Sources */,
 				207C6503A89DD512BBA1D567 /* AutoFillSearchView.swift in Sources */,
 				3D38DED9BBE1B2E21B36CA45 /* BiometricService.swift in Sources */,
@@ -1966,6 +1975,7 @@
 				9F76F1FBBAF924995932EE84 /* CredentialMatcherTests.swift in Sources */,
 				DB1AC5817EDFBDDE3E25AFD1 /* CredentialProviderCoordinatorTests.swift in Sources */,
 				E1169D89C25EE7CF9328B644 /* CredentialProviderPresentingSpy.swift in Sources */,
+				9969E90C2E3157AF70BE7004 /* CredentialProviderRegistrationTests.swift in Sources */,
 				6D2B797B6DCCBF43EAF6606A /* CredentialProviderSaveTests.swift in Sources */,
 				83D6BBE001875A7E7008857F /* CredentialProviderShellMacTests.swift in Sources */,
 				D54F5E53D523E5D32D406941 /* DatabaseCreationServiceTests.swift in Sources */,
@@ -2313,6 +2323,7 @@
 				7C249710427EF896850775E7 /* CredentialMatcherTests.swift in Sources */,
 				602792380E02656AEBDEA628 /* CredentialProviderCoordinatorTests.swift in Sources */,
 				0EB5A4095C644B3F52DBC028 /* CredentialProviderPresentingSpy.swift in Sources */,
+				D9DEA9F0DDD8BF48FADC5772 /* CredentialProviderRegistrationTests.swift in Sources */,
 				C9236BDC30BEAC14BC57865C /* CredentialProviderSaveTests.swift in Sources */,
 				0EB03258C2F1161D1641359B /* CredentialProviderShellMacTests.swift in Sources */,
 				299736A638AF5ABDE9195C59 /* DatabaseCreationServiceTests.swift in Sources */,
@@ -2388,6 +2399,7 @@
 				9D4573ED84B3C93122BFD4BA /* Attachment.swift in Sources */,
 				5824A096CA626030F971EC2C /* AutoFillEntryCreatorView.swift in Sources */,
 				37DA7E7AC00E75955E6BB349 /* AutoFillIdentityStoreFallbackReader.swift in Sources */,
+				69EABF460EA05DB06C9E210E /* AutoFillPasskeyCreatorView.swift in Sources */,
 				664A0B0C848B0867E1705FE8 /* AutoFillSaveCoordinator.swift in Sources */,
 				3C24F70C9805D197748349DF /* AutoFillSearchView.swift in Sources */,
 				53BA585CA35B31BACF5563A6 /* BiometricService.swift in Sources */,

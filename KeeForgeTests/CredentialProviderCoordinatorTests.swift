@@ -1911,6 +1911,8 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
         XCTAssertNil(coordinator.targetRecordIdentifier, "target record identifier must be cleared", file: file, line: line)
         XCTAssertNil(coordinator.pendingPasskeyRequest, "pending passkey request must be cleared", file: file, line: line)
         XCTAssertNil(coordinator.pendingPasskeyRequestParameters, "pending passkey parameters must be cleared", file: file, line: line)
+        XCTAssertNil(coordinator.pendingPasskeyRegistrationRequest, "pending passkey registration request must be cleared", file: file, line: line)
+        XCTAssertNil(coordinator.pendingPasskeyRegistrationFailureMessage, "pending passkey registration failure must be cleared", file: file, line: line)
         XCTAssertFalse(coordinator.hasPendingOTCRequest, "pending OTC flag must be cleared", file: file, line: line)
         XCTAssertFalse(coordinator.hasPendingOTCListRequest, "pending OTC list flag must be cleared", file: file, line: line)
         XCTAssertNil(coordinator.pendingReadOnlyCancellationMessage, "pending read-only message must be cleared", file: file, line: line)

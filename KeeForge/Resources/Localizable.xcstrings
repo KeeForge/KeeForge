@@ -12671,6 +12671,28 @@
         }
       }
     },
+    "This passkey request isn't supported." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Diese Passkey-Anfrage wird nicht unterstützt."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Esta solicitud de llave de acceso no es compatible."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cette demande de clé d'accès n'est pas prise en charge."
+          }
+        }
+      }
+    },
     "This password is weak. You can still create the database, but a longer unique password is safer." : {
       "localizations" : {
         "de" : {
