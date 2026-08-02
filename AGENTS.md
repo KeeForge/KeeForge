@@ -2,13 +2,22 @@
 
 Entry point for coding agents working on KeeForge. This file is intentionally brief; most useful guidance now lives in folder-local `README.md` files next to the code.
 
+## High level guidance
+
+- Do not preserve backward compatibility unless required by the existing install base. Remove obsolete paths instead of adding compatibility layers, fallbacks, or migrations.
+- Choose the simplest implementation that fully meets the current requirements. Avoid speculative abstractions, configuration, and indirection.
+- Grow the system in layers. Start from the smallest version that works end to end, and add each new capability on top of a product that already works. Never trade a working product for unfinished complexity.
+- Keep components modular and concerns clearly separated.
+- Prefer established, well-maintained libraries when they reduce overall complexity or improve reliability. Do not reimplement common functionality without a clear reason.
+- Lean on the dependencies already in the project before writing your own implementation or adding packages. Do not assume a library lacks a capability without checking its documentation and types.
+- Make architectural decisions for the long term. Do not accept a stopgap that only works for now and is meant to be replaced later.
+
 ## Project Snapshot
 
 - Native iOS KeePass manager for KDBX 4.x databases; also reads KDBX 3.1 (read-only)
 - Swift 6, SwiftUI, iOS 18+ / macOS 14+, `@Observable`, strict concurrency
 - XcodeGen build graph: edit `project.yml`, then regenerate `KeeForge.xcodeproj`
 - Main targets: `KeeForge`, `KeeForgeMac`, `KeeForgeAutoFill`, `KeeForgeMacAutoFill`, `KeeForgeTests`, `KeeForgeMacTests`, `KeeForgeUITests`, `KeeForgeMacUITests`. The macOS targets are ON HOLD and must not ship (see CHANGELOG.md's "## macOS App" section).
-- Current product areas: multi-database list, local and cloud-backed vaults (Dropbox/OneDrive/WebDAV), full local edit/save, database creation, attachments viewing (read-only), AutoFill with per-database/per-group selection, TOTP, passkey authentication (no registration), password generator, tip jar, screen protection, opt-in favicons, feedback form, experimental unreleased macOS app
 
 ## Open The Local Doc First
 
@@ -35,7 +44,7 @@ Entry point for coding agents working on KeeForge. This file is intentionally br
 
 ## Agent Orchestration
 
-If you are a very powerful model like Fable 5, feel free to delegate implementation and test to sub-agents with appropriate models. If you are Claude, feel free to use Codex CLI with a strong model (e.g., GPT 5.6 sol xhigh) for subagents' tasks, too. This is important to keep context windows manageable.
+If you are a very powerful model like Fable/Opus/GPT 5.6 Sol, feel free to delegate implementation and test to sub-agents with appropriate models.
 
 Repo skills live in `.agents/skills/` (`release`, `spec-creator`, `publish-app-store-version`), symlinked under `.claude/skills/`; `release` defines the release-branch → TestFlight soak → App Store flow (`release/{major}.{minor}` branches, `rc/{version}-b{build}` candidate tags, `v{version}` as a record of the shipped build).
 
@@ -59,7 +68,6 @@ Repo skills live in `.agents/skills/` (`release`, `spec-creator`, `publish-app-s
 - When changing code shared with `AutoFillExtension`, keep extension-safe imports/APIs and target membership in sync.
 - When adding or changing database creation, edit operations, KDBX parser/writer behavior, protected fields, unknown XML handling, AutoFill save, cloud save, or local save, update `KeeForgeTests/KDBXCompatibilityTests.swift` and the compatibility artifact gate if the supported compatibility matrix changes.
 - Preserve accessibility identifiers or update the relevant UI tests in the same change.
-- Do not use MCP tools to run Xcode tests. Start a fresh `bash` session and run the test command there instead.
 - Update `CHANGELOG.md` for feature or bug-fix commits, only under `## Unreleased` — except macOS-only work, which goes under the top `## macOS App (in development)` section. It's okay to skip if the bug fix is for an unreleased feature.
 
 ### Localization
@@ -77,7 +85,6 @@ Repo skills live in `.agents/skills/` (`release`, `spec-creator`, `publish-app-s
 ### Version Control Notes
 
 - Every commit must be DCO signed off (`git commit -s`); the "DCO" status check is required.
-- Prefer committing on the current branch, or on `main` if already there. Avoid creating new branches when possible, and push directly instead of waiting for a separate branch workflow. This applies to maintainer/agent sessions; external contributors follow `CONTRIBUTING.md`'s fork + PR workflow.
 
 ## Build And Test
 
@@ -101,7 +108,6 @@ xcodebuild test -project KeeForge.xcodeproj -scheme KeeForgeMac \
 - Do not run the full UI suite unless explicitly asked.
 - `KeeForgeMacTests` compiles the `KeeForgeTests` folder; there is no `KeeForgeMacTests` directory.
 - The RC workflow (`.github/workflows/ios18-rc-tests.yml`) tests on an iOS 18 iPhone SE (3rd generation) simulator — reproduce RC failures there.
-- If Xcode reports stale project references after file moves, regenerate with `xcodegen generate`.
 
 ## Security Reminders
 
