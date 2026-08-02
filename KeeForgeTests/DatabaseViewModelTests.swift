@@ -2362,6 +2362,59 @@ final class DatabaseViewModelTests: XCTestCase {
         XCTAssertEqual(vm.inheritedTags(forEntryID: UUID()), [])
     }
 
+    func testDetailTagsSplitTheEntrysOwnTagsFromTheOnesItGetsFromItsGroups() async throws {
+        let beta = KPEntry(title: "Beta", tags: ["own-tag"], hasTagsElement: true)
+        let untagged = KPEntry(title: "Untagged")
+        let root = KPGroup(name: "Root", groups: [
+            KPGroup(name: "Projects", tags: ["team"], hasTagsElement: true, groups: [
+                KPGroup(name: "Client Work", tags: ["billable"], hasTagsElement: true, entries: [beta]),
+            ]),
+            KPGroup(name: "Plain", entries: [untagged]),
+        ])
+        let vm = try await makeInjectedViewModel(rootGroup: root)
+
+        let tags = vm.detailTags(forEntryID: beta.id)
+        XCTAssertEqual(tags.own, ["own-tag"], "The entry's own tags come first, in stored order")
+        XCTAssertEqual(
+            tags.inherited,
+            ["team", "billable"],
+            "Then the ancestors' tags, root-most first — the tag index's own ordering"
+        )
+        // The chips the detail screen draws are exactly what the tag browser
+        // matched on: neither list may carry a tag the other side lacks.
+        for tag in tags.own + tags.inherited {
+            XCTAssertEqual(
+                vm.entries(withTag: tag).map(\.id),
+                [beta.id],
+                "Browsing to \(tag) must reach the entry whose detail screen shows it"
+            )
+        }
+
+        let untaggedTags = vm.detailTags(forEntryID: untagged.id)
+        XCTAssertEqual(untaggedTags.own, [])
+        XCTAssertEqual(untaggedTags.inherited, [], "An untagged branch grants nothing")
+
+        let unknownTags = vm.detailTags(forEntryID: UUID())
+        XCTAssertEqual(unknownTags.own, [])
+        XCTAssertEqual(unknownTags.inherited, [])
+    }
+
+    func testDetailTagsShowATagSharedWithAnAncestorGroupOnceAsTheEntrysOwn() async throws {
+        let entry = KPEntry(title: "Doubly Tagged", tags: ["shared"], hasTagsElement: true)
+        let root = KPGroup(name: "Root", groups: [
+            KPGroup(name: "Shared Group", tags: ["shared", "team"], hasTagsElement: true, entries: [entry]),
+        ])
+        let vm = try await makeInjectedViewModel(rootGroup: root)
+
+        let tags = vm.detailTags(forEntryID: entry.id)
+        XCTAssertEqual(tags.own, ["shared"])
+        XCTAssertEqual(
+            tags.inherited,
+            ["team"],
+            "A tag on both the entry and its group draws one chip, the entry's own"
+        )
+    }
+
     func testRootGroupTagReachesAllLiveEntries() async throws {
         let atRoot = KPEntry(title: "At Root")
         let nested = KPEntry(title: "Nested")
