@@ -21,6 +21,10 @@ TODO before the first macOS release:
 
 ## Unreleased
 
+### New Features
+
+- Create a new credential without leaving the signup page: the AutoFill picker now has a **+** button — and a "Create New Credential" button when it has nothing to show — that opens the entry form already filled in with the site's name and address and a freshly generated password (#46). The password field has a dice button to roll a new one and an eye to check it. Saving writes the entry to the default AutoFill database and fills the form straight away, so the entry is waiting in the QuickType bar the next time you visit. New entries land in the same group as entries saved from iOS's "save password?" prompt — the database's top-level group, never the KDBX root. iOS only, and only offered when the database can actually be written to (not read-only, not a legacy KDBX 3.1 file).
+
 ## v1.12.0 (2026-08-02)
 
 ### New Features

@@ -155,6 +155,7 @@ extension CredentialProviderViewController: CredentialProviderPresenting {
         possibleEntries: [KPEntry],
         initialSearchText: String,
         databaseSwitcher: CredentialProviderDatabaseSwitcherContext?,
+        onCreateEntry: (() -> Void)?,
         onSelect: @escaping (KPEntry) -> Void,
         onSelectPossible: @escaping (KPEntry) -> Void,
         onAddURLToPossible: @escaping (KPEntry) -> Void,
@@ -178,6 +179,9 @@ extension CredentialProviderViewController: CredentialProviderPresenting {
             possibleEntries: possibleEntries,
             initialSearchText: initialSearchText,
             databaseSwitcher: wrappedSwitcher,
+            // Always nil here: entry creation writes to the database, which the
+            // coordinator only offers on iOS.
+            onCreateEntry: onCreateEntry,
             onSelect: { [weak self] entry in
                 self?.dismissHostedContent()
                 onSelect(entry)
@@ -197,13 +201,15 @@ extension CredentialProviderViewController: CredentialProviderPresenting {
 
     func presentEntryCreator(
         initialDraft: EntryDraftPayload,
+        allowsPasswordEditing: Bool,
         onSave: @escaping @Sendable (EntryDraftPayload) async -> CredentialProviderEntrySaveOutcome,
         onCancel: @escaping () -> Void
     ) {
         // Unreachable on macOS: save-password requests are iOS-only
-        // (`ASSavePasswordRequest` is `API_UNAVAILABLE(macos)`), so the
-        // coordinator never drives this path here. Cancel defensively.
-        assertionFailure("presentEntryCreator is unreachable on macOS (save-password is iOS-only)")
+        // (`ASSavePasswordRequest` is `API_UNAVAILABLE(macos)`) and the
+        // picker's create action is gated to iOS, so the coordinator never
+        // drives this path here. Cancel defensively.
+        assertionFailure("presentEntryCreator is unreachable on macOS (entry creation is iOS-only)")
         onCancel()
     }
 
