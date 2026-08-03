@@ -376,23 +376,18 @@ private struct AutoFillSettingsView: View {
             Section {
                 Toggle("Quick AutoFill", isOn: $quickAutoFillEnabled)
             } footer: {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("KeeForge suggests credentials from the databases selected below.")
-
-                    if quickAutoFillEnabled {
-                        Text("Credential suggestions appear in the keyboard bar. Requires Face ID to unlock when tapped.")
-                    }
-                }
+                Text("KeeForge suggests credentials from the databases selected below in the keyboard bar. Authentication is required when you tap a suggestion.")
             }
+
+            databasesSection
 
             Section {
                 Toggle("Copy Verification Code on AutoFill", isOn: $autoFillCopyTOTP)
                     .accessibilityIdentifier("settings.autofill.copy-totp")
             } footer: {
-                Text("When on, filling a password from AutoFill also copies that entry's verification code to the clipboard, so you can paste it into one-time code fields iOS does not recognize. The copy clears itself after the Clipboard Clear Timeout. Because AutoFill can only copy while its panel is on screen, filling a suggestion for an entry with a verification code will ask you to confirm in KeeForge instead of filling silently.")
+                Text("When AutoFill fills a password, it also copies the entry's verification code for code fields iOS does not recognize. You'll confirm the fill in KeeForge, and the code clears after the Clipboard Clear Timeout.")
             }
 
-            databasesSection
             clearEntriesSection
         }
         .navigationTitle("AutoFill")

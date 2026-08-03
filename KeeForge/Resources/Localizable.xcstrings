@@ -3782,28 +3782,6 @@
         }
       }
     },
-    "Credential suggestions appear in the keyboard bar. Requires Face ID to unlock when tapped." : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Vorschläge für Zugangsdaten werden in der Tastaturleiste angezeigt. Beim Antippen ist Face ID zum Entsperren erforderlich."
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Las sugerencias de credenciales aparecen en la barra del teclado. Requiere Face ID para desbloquear al tocarlas."
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Les suggestions d'identifiants apparaissent dans la barre du clavier. Face ID est requis pour les déverrouiller au toucher."
-          }
-        }
-      }
-    },
     "Custom Fields" : {
       "localizations" : {
         "de" : {
@@ -7236,24 +7214,24 @@
         }
       }
     },
-    "KeeForge suggests credentials from the databases selected below." : {
+    "KeeForge suggests credentials from the databases selected below in the keyboard bar. Authentication is required when you tap a suggestion." : {
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "KeeForge schlägt Zugangsdaten aus den unten ausgewählten Datenbanken vor."
+            "value" : "KeeForge schlägt Zugangsdaten aus den unten ausgewählten Datenbanken in der Tastaturleiste vor. Beim Antippen eines Vorschlags ist eine Authentifizierung erforderlich."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "KeeForge sugiere credenciales de las bases de datos seleccionadas a continuación."
+            "value" : "KeeForge sugiere credenciales de las bases de datos seleccionadas a continuación en la barra del teclado. Se requiere autenticación al tocar una sugerencia."
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "KeeForge suggère des identifiants provenant des bases de données sélectionnées ci-dessous."
+            "value" : "KeeForge suggère dans la barre du clavier des identifiants provenant des bases de données sélectionnées ci-dessous. Une authentification est requise lorsque vous touchez une suggestion."
           }
         }
       }
@@ -14233,6 +14211,28 @@
         }
       }
     },
+    "When AutoFill fills a password, it also copies the entry's verification code for code fields iOS does not recognize. You'll confirm the fill in KeeForge, and the code clears after the Clipboard Clear Timeout." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wenn AutoFill ein Passwort ausfüllt, kopiert es auch den Bestätigungscode des Eintrags für Codefelder, die iOS nicht erkennt. Sie bestätigen das Ausfüllen in KeeForge, und der Code wird nach der Löschfrist der Zwischenablage gelöscht."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cuando el autorrelleno completa una contraseña, también copia el código de verificación de la entrada para los campos de código que iOS no reconoce. Confirmará el autorrelleno en KeeForge y el código se borrará al cumplirse el tiempo de espera de borrado del portapapeles."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lorsque le remplissage automatique remplit un mot de passe, il copie également le code de vérification de l'entrée pour les champs de code qu'iOS ne reconnaît pas. Vous confirmerez le remplissage dans KeeForge et le code sera effacé après le délai d'effacement du presse-papiers."
+          }
+        }
+      }
+    },
     "When KeeForge Is Not the Active App" : {
       "localizations" : {
         "de" : {
@@ -14295,28 +14295,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Lorsque cette option est désactivée, les mots de passe, clés d'accès et codes de vérification de cette base de données ne sont ni suggérés ni disponibles dans le remplissage automatique. Une fois réactivée, les suggestions réapparaissent la prochaine fois que vous déverrouillez cette base de données."
-          }
-        }
-      }
-    },
-    "When on, filling a password from AutoFill also copies that entry's verification code to the clipboard, so you can paste it into one-time code fields iOS does not recognize. The copy clears itself after the Clipboard Clear Timeout. Because AutoFill can only copy while its panel is on screen, filling a suggestion for an entry with a verification code will ask you to confirm in KeeForge instead of filling silently." : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Wenn diese Option aktiviert ist, wird beim Ausfüllen eines Passworts über AutoFill zusätzlich der Bestätigungscode des Eintrags in die Zwischenablage kopiert, sodass Sie ihn in Felder für Einmalcodes einfügen können, die iOS nicht erkennt. Die Kopie wird nach der Löschfrist der Zwischenablage automatisch entfernt. Da AutoFill nur kopieren kann, solange sein Fenster angezeigt wird, werden Sie beim Ausfüllen eines Vorschlags für einen Eintrag mit Bestätigungscode zur Bestätigung in KeeForge aufgefordert, statt dass still ausgefüllt wird."
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Cuando está activada, al rellenar una contraseña con el autorrelleno también se copia el código de verificación de esa entrada en el portapapeles, para que pueda pegarlo en campos de códigos de un solo uso que iOS no reconoce. La copia se borra automáticamente al cumplirse el tiempo de espera de borrado del portapapeles. Dado que el autorrelleno solo puede copiar mientras su panel está en pantalla, al rellenar una sugerencia de una entrada con código de verificación se le pedirá que confirme en KeeForge en lugar de rellenarla de forma silenciosa."
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Lorsque cette option est activée, le remplissage d'un mot de passe depuis le remplissage automatique copie également le code de vérification de cette entrée dans le presse-papiers, afin que vous puissiez le coller dans les champs de code à usage unique qu'iOS ne reconnaît pas. La copie s'efface automatiquement après le délai d'effacement du presse-papiers. Comme le remplissage automatique ne peut copier que lorsque son panneau est affiché à l'écran, le remplissage d'une suggestion pour une entrée comportant un code de vérification vous demandera de confirmer dans KeeForge plutôt que de la remplir silencieusement."
           }
         }
       }
