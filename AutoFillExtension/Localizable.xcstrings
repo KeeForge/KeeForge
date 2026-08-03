@@ -1996,6 +1996,28 @@
         }
       }
     },
+    "Show All Credentials" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Alle Zugangsdaten anzeigen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mostrar todas las credenciales"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Afficher tous les identifiants"
+          }
+        }
+      }
+    },
     "Switch Database" : {
       "localizations" : {
         "de" : {
