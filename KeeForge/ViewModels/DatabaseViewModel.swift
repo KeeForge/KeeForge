@@ -69,6 +69,8 @@ enum DatabaseSaveError: Error, LocalizedError, Identifiable, Equatable, Sendable
                 self = .databaseLocationUnavailable
             case .saveContextUnavailable:
                 self = .saveContextUnavailable
+            case .rekeyVerificationFailed:
+                self = .unknown(saveError.localizedDescription)
             }
         case let cloudError as CloudProviderError:
             switch cloudError {
@@ -143,6 +145,18 @@ final class DatabaseViewModel {
         case passwordFallback
     }
 
+    /// Typed rejection reasons for `changeMasterKey`. Presentation strings are
+    /// the caller's responsibility.
+    enum RekeyError: Error, Equatable, Sendable {
+        case sessionUnavailable
+        case databaseIsReadOnly
+        case saveInProgress
+        case unsavedChanges
+        case missingKeyComponent
+        case pendingUploadsExist
+        case conflict
+    }
+
     enum SortOrder: String, CaseIterable, Sendable {
         case title = "Title"
         case createdDate = "Date Created"
@@ -171,14 +185,16 @@ final class DatabaseViewModel {
         _ draft: DatabaseDraft,
         _ reference: DatabaseReference,
         _ compositeKey: Data,
-        _ openTimeSHA512: Data
+        _ openTimeSHA512: Data,
+        _ newCompositeKey: Data?
     ) async throws -> SaveResult
     typealias CloudSaveOperation = @Sendable (
         _ draft: DatabaseDraft,
         _ reference: DatabaseReference,
         _ compositeKey: Data,
         _ openTimeSHA512: Data,
-        _ expectedRev: String?
+        _ expectedRev: String?,
+        _ newCompositeKey: Data?
     ) async throws -> SaveResult
     typealias ConflictCopyEncryptionOperation = @Sendable (
         _ draft: DatabaseDraft,
@@ -205,6 +221,10 @@ final class DatabaseViewModel {
         _ reference: DatabaseReference,
         _ reason: String
     ) async throws -> Data
+    typealias PendingUploadMarkerCheck = @Sendable (_ reference: DatabaseReference) -> Bool
+    typealias StoredKeyPresenceCheck = @Sendable (_ reference: DatabaseReference) -> Bool
+    typealias StoredKeyStoreOperation = @Sendable (_ compositeKey: Data, _ reference: DatabaseReference) throws -> Void
+    typealias StoredKeyDeleteOperation = @Sendable (_ reference: DatabaseReference) -> Void
 
     private static let sortOrderKey = "KeeForge.sortOrder"
     private static let sortAscendingKey = "KeeForge.sortAscending"
@@ -348,6 +368,10 @@ final class DatabaseViewModel {
     private let cloudConflictCopyOperation: CloudConflictCopyOperation
     private let reloadOperation: ReloadOperation
     private let biometricCompositeKeyOperation: BiometricCompositeKeyOperation
+    private let pendingUploadMarkerCheck: PendingUploadMarkerCheck
+    private let storedKeyPresenceCheck: StoredKeyPresenceCheck
+    private let storedKeyStoreOperation: StoredKeyStoreOperation
+    private let storedKeyDeleteOperation: StoredKeyDeleteOperation
     private let conflictCopyDateProvider: @Sendable () -> Date
     private let nowProvider: @Sendable () -> Date
     private var backgroundEnteredAt: Date?
@@ -363,23 +387,25 @@ final class DatabaseViewModel {
         localDatabaseReadOperation: @escaping LocalDatabaseReadOperation = { reference in
             try await DatabaseViewModel.readLocalDatabase(reference: reference)
         },
-        localSaveOperation: @escaping LocalSaveOperation = { draft, reference, compositeKey, openTimeSHA512 in
+        localSaveOperation: @escaping LocalSaveOperation = { draft, reference, compositeKey, openTimeSHA512, newCompositeKey in
             try await LocalDatabaseSaver.save(
                 draft: draft,
                 reference: reference,
                 compositeKey: compositeKey,
                 openTimeSHA512: openTimeSHA512,
-                kdfPolicy: .mainApp
+                kdfPolicy: .mainApp,
+                newCompositeKey: newCompositeKey
             )
         },
-        cloudSaveOperation: @escaping CloudSaveOperation = { draft, reference, compositeKey, openTimeSHA512, expectedRev in
+        cloudSaveOperation: @escaping CloudSaveOperation = { draft, reference, compositeKey, openTimeSHA512, expectedRev, newCompositeKey in
             try await CloudDatabaseSaver.save(
                 draft: draft,
                 reference: reference,
                 compositeKey: compositeKey,
                 openTimeSHA512: openTimeSHA512,
                 expectedRev: expectedRev,
-                kdfPolicy: .mainApp
+                kdfPolicy: .mainApp,
+                newCompositeKey: newCompositeKey
             )
         },
         conflictCopyEncryptionOperation: @escaping ConflictCopyEncryptionOperation = { draft, compositeKey, sourceData in
@@ -413,6 +439,18 @@ final class DatabaseViewModel {
             let context = try await BiometricService.authenticate(reason: reason)
             return try DatabaseViewModel.retrieveStoredCompositeKey(for: reference, context: context)
         },
+        pendingUploadMarkerCheck: @escaping PendingUploadMarkerCheck = { reference in
+            PendingUploadQueue.listMarkers(for: reference.id).isEmpty == false
+        },
+        storedKeyPresenceCheck: @escaping StoredKeyPresenceCheck = { reference in
+            KeychainService.hasStoredKey(for: reference.id, legacyFilename: reference.legacyKeychainFilename)
+        },
+        storedKeyStoreOperation: @escaping StoredKeyStoreOperation = { compositeKey, reference in
+            try KeychainService.storeCompositeKey(compositeKey, for: reference.id)
+        },
+        storedKeyDeleteOperation: @escaping StoredKeyDeleteOperation = { reference in
+            KeychainService.deleteCompositeKey(for: reference.id)
+        },
         conflictCopyDateProvider: @escaping @Sendable () -> Date = { .now },
         nowProvider: @escaping @Sendable () -> Date = { .now }
     ) {
@@ -431,6 +469,10 @@ final class DatabaseViewModel {
         self.cloudConflictCopyOperation = cloudConflictCopyOperation
         self.reloadOperation = reloadOperation
         self.biometricCompositeKeyOperation = biometricCompositeKeyOperation
+        self.pendingUploadMarkerCheck = pendingUploadMarkerCheck
+        self.storedKeyPresenceCheck = storedKeyPresenceCheck
+        self.storedKeyStoreOperation = storedKeyStoreOperation
+        self.storedKeyDeleteOperation = storedKeyDeleteOperation
         self.conflictCopyDateProvider = conflictCopyDateProvider
         self.nowProvider = nowProvider
     }
@@ -1351,7 +1393,8 @@ final class DatabaseViewModel {
                     snapshot,
                     databaseReference,
                     compositeKey,
-                    openTimeSHA512
+                    openTimeSHA512,
+                    nil
                 )
             case .cloud:
                 saveResult = try await cloudSaveOperation(
@@ -1359,7 +1402,8 @@ final class DatabaseViewModel {
                     databaseReference,
                     compositeKey,
                     openTimeSHA512,
-                    databaseReference.expectedCloudRevision
+                    databaseReference.expectedCloudRevision,
+                    nil
                 )
             }
 
@@ -1395,6 +1439,120 @@ final class DatabaseViewModel {
                 return
             }
         }
+    }
+
+    /// Re-encrypts the unlocked database under a new master key (password
+    /// and/or key file) while preserving cipher and KDF cost settings.
+    ///
+    /// `newKeyFileBookmarkData`/`newKeyFileFilename` describe the database's
+    /// key-file association after the change — pass the current values to keep
+    /// an existing key file, nil to remove it. A conflict with concurrent
+    /// changes aborts cleanly (`RekeyError.conflict`) with the file and the
+    /// session untouched.
+    func changeMasterKey(
+        newPassword: String?,
+        newKeyFileData: Data?,
+        newKeyFileBookmarkData: Data?,
+        newKeyFileFilename: String?
+    ) async throws {
+        guard case .unlocked = state, let compositeKey, let openTimeSHA512 else {
+            throw RekeyError.sessionUnavailable
+        }
+        guard isReadOnly == false else {
+            throw RekeyError.databaseIsReadOnly
+        }
+        guard isSaving == false else {
+            throw RekeyError.saveInProgress
+        }
+        guard draft == nil || draft?.isDirty == false else {
+            throw RekeyError.unsavedChanges
+        }
+        guard newPassword?.isEmpty == false || newKeyFileData != nil else {
+            throw RekeyError.missingKeyComponent
+        }
+        // Pending AutoFill upload markers hold ciphertext under the old key;
+        // draining them after a rekey would resurrect it on the remote.
+        if databaseReference.isCloudBacked, pendingUploadMarkerCheck(databaseReference) {
+            throw RekeyError.pendingUploadsExist
+        }
+
+        let newCompositeKey = try KDBXCrypto.compositeKey(
+            password: newPassword,
+            keyFileData: newKeyFileData
+        )
+        let workingDraft = try makeWorkingDraft()
+
+        let expectedLockCycleID = lockCycleID
+
+        isSaving = true
+        saveError = nil
+        defer {
+            isSaving = false
+        }
+
+        let saveResult: SaveResult
+        switch databaseReference.source {
+        case .local:
+            saveResult = try await localSaveOperation(
+                workingDraft,
+                databaseReference,
+                compositeKey,
+                openTimeSHA512,
+                newCompositeKey
+            )
+        case .cloud:
+            saveResult = try await cloudSaveOperation(
+                workingDraft,
+                databaseReference,
+                compositeKey,
+                openTimeSHA512,
+                databaseReference.expectedCloudRevision,
+                newCompositeKey
+            )
+        }
+
+        switch saveResult {
+        case .saved(let newSHA512):
+            // Keychain and reference reflect the on-disk file, so they update
+            // even if the session locked mid-flight; the in-memory secrets must
+            // not resurrect behind the lock screen.
+            refreshStoredCompositeKeyAfterRekey(newCompositeKey)
+            persistKeyFileAssociation(
+                bookmarkData: newKeyFileBookmarkData,
+                filename: newKeyFileFilename
+            )
+            if expectedLockCycleID == lockCycleID {
+                self.compositeKey = newCompositeKey
+                self.openTimeSHA512 = newSHA512
+            }
+        case .conflict:
+            throw RekeyError.conflict
+        }
+    }
+
+    private func refreshStoredCompositeKeyAfterRekey(_ newCompositeKey: Data) {
+        guard storedKeyPresenceCheck(databaseReference) else { return }
+
+        do {
+            try storedKeyStoreOperation(newCompositeKey, databaseReference)
+
+            if let legacyFilename = databaseReference.legacyKeychainFilename {
+                KeychainService.deleteLegacyCompositeKey(forFilename: legacyFilename)
+                DatabaseListStore.clearLegacyKeychainFilename(for: databaseReference.id)
+            }
+        } catch {
+            // A stale stored key would break biometric unlock outright; drop it
+            // so unlock falls back to the new password.
+            storedKeyDeleteOperation(databaseReference)
+        }
+    }
+
+    private func persistKeyFileAssociation(bookmarkData: Data?, filename: String?) {
+        var updated = DatabaseListStore.databases.first(where: { $0.id == databaseReference.id }) ?? databaseReference
+        updated.keyFileBookmarkData = bookmarkData
+        updated.keyFileFilename = filename
+        DatabaseListStore.update(updated)
+        refreshDatabaseReference()
     }
 
     func saveAsConflictCopy() async throws {

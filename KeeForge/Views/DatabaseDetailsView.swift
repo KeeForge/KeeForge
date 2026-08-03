@@ -59,6 +59,7 @@ struct DatabaseDetailsView: View {
                 editingSection
                 autoFillSection
                 keyFileSection
+                masterKeySection
                 metadataSection
                 databaseFileSection
                 cloudSyncSection
@@ -178,7 +179,7 @@ struct DatabaseDetailsView: View {
     }
 
     private var keyFileSection: some View {
-        Section("Key File") {
+        Section {
             LabeledContent("Associated File", value: currentReference.keyFileFilename ?? "None")
 
             Button("Select Key File") {
@@ -194,6 +195,29 @@ struct DatabaseDetailsView: View {
                 Button("Clear Key File", role: .destructive) {
                     try? listViewModel.setKeyFile(url: nil, for: reference)
                 }
+            }
+        } header: {
+            Text("Key File")
+        } footer: {
+            Text("KeeForge remembers this key file and prefills it when unlocking. To change the key file the database requires, change the master key.")
+        }
+    }
+
+    @ViewBuilder
+    private var masterKeySection: some View {
+        if let sessionViewModel {
+            Section {
+                NavigationLink {
+                    MasterKeyChangeView(sessionViewModel: sessionViewModel)
+                } label: {
+                    Text("Change Master Key…")
+                }
+                .disabled(isReadOnly)
+                .accessibilityIdentifier("database-details.change-master-key")
+            } header: {
+                Text("Master Key")
+            } footer: {
+                Text("Changing the master key re-encrypts this database file with a new master password and/or key file.")
             }
         }
     }

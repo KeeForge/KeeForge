@@ -15,6 +15,7 @@ enum SaveError: Error, LocalizedError, Equatable {
     case databaseIsReadOnly
     case databaseLocationUnavailable
     case saveContextUnavailable
+    case rekeyVerificationFailed
 
     var errorDescription: String? {
         switch self {
@@ -24,6 +25,8 @@ enum SaveError: Error, LocalizedError, Equatable {
             String(localized: "The database file could not be located.")
         case .saveContextUnavailable:
             String(localized: "The database is not ready to save.")
+        case .rekeyVerificationFailed:
+            String(localized: "The new database could not be verified after encryption.")
         }
     }
 }
@@ -118,6 +121,10 @@ enum LocalDatabaseSaver {
 
     /// Saves an edited database draft back to encrypted storage.
     ///
+    /// `newCompositeKey` rekeys the database: `compositeKey` still decrypts the
+    /// on-disk file, `newCompositeKey` encrypts the saved bytes, and the result
+    /// is verified to reopen with the new key before the file is replaced.
+    ///
     /// - Important: The caller must keep `draft.writerSessionKey` alive until this async call
     ///   returns. `KDBXWriter` needs that session key to re-encrypt protected values while saving.
     static func save(
@@ -125,7 +132,8 @@ enum LocalDatabaseSaver {
         reference: DatabaseReference,
         compositeKey: Data,
         openTimeSHA512: Data,
-        kdfPolicy: KDFExecutionPolicy
+        kdfPolicy: KDFExecutionPolicy,
+        newCompositeKey: Data? = nil
     ) async throws -> SaveResult {
         try await save(
             draft: draft,
@@ -133,6 +141,7 @@ enum LocalDatabaseSaver {
             compositeKey: compositeKey,
             openTimeSHA512: openTimeSHA512,
             kdfPolicy: kdfPolicy,
+            newCompositeKey: newCompositeKey,
             environment: .live
         )
     }
@@ -143,6 +152,7 @@ enum LocalDatabaseSaver {
         compositeKey: Data,
         openTimeSHA512: Data,
         kdfPolicy: KDFExecutionPolicy,
+        newCompositeKey: Data? = nil,
         environment: Environment
     ) async throws -> SaveResult {
         if reference.isReadOnly {
@@ -163,6 +173,7 @@ enum LocalDatabaseSaver {
                 compositeKey: compositeKey,
                 openTimeSHA512: openTimeSHA512,
                 kdfPolicy: kdfPolicy,
+                newCompositeKey: newCompositeKey,
                 environment: environment
             )
         }.value
@@ -174,6 +185,7 @@ enum LocalDatabaseSaver {
         compositeKey: Data,
         openTimeSHA512: Data,
         kdfPolicy: KDFExecutionPolicy,
+        newCompositeKey: Data?,
         environment: Environment
     ) throws -> SaveResult {
         guard let location = environment.resolveLocation(reference) else {
@@ -208,7 +220,14 @@ enum LocalDatabaseSaver {
         guard header.formatVersion.requiresReadOnlyMode == false else {
             throw SaveError.databaseIsReadOnly
         }
-        let newData = try environment.encryptDraft(draft, compositeKey, header, kdfPolicy)
+        let newData = try environment.encryptDraft(draft, newCompositeKey ?? compositeKey, header, kdfPolicy)
+        if let newCompositeKey {
+            do {
+                _ = try environment.extractHeader(newData, newCompositeKey, kdfPolicy)
+            } catch {
+                throw SaveError.rekeyVerificationFailed
+            }
+        }
 
         let backupDirectoryURL = environment.backupDirectoryURL(reference)
         try environment.createDirectory(backupDirectoryURL)

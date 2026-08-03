@@ -706,6 +706,121 @@ final class CloudDatabaseSaverTests: XCTestCase {
         XCTAssertEqual(try Data(contentsOf: cacheURL), context.currentData)
     }
 
+    // MARK: - Rekey (change master key, #59)
+
+    func testRekeySaveUploadsBytesEncryptedWithNewKey() async throws {
+        let reference = try makeCloudReference(remoteRev: "rev-A")
+        let cacheURL = DatabaseListStore.cacheLocation(for: reference)
+        let context = try makeDirtySaveContext(cacheURL: cacheURL, entryTitle: "Cloud Rekey Entry")
+        let newPassword = "rotated-master-123"
+        let newCompositeKey = try KDBXCrypto.compositeKey(password: newPassword, keyFileData: nil)
+        let recorder = UploadRecorder()
+        let environment = makeEnvironment(
+            getMetadata: { _ in
+                CloudFileMetadata(
+                    modifiedDate: Date(timeIntervalSince1970: 150),
+                    contentHash: "remote-hash-A",
+                    size: Int64(context.currentData.count),
+                    rev: "rev-A"
+                )
+            },
+            upload: { _, data, expectedRev, progress in
+                await recorder.record(data: data, expectedRev: expectedRev)
+                progress(1)
+                return CloudFileMetadata(
+                    modifiedDate: Date(timeIntervalSince1970: 200),
+                    contentHash: "remote-hash-B",
+                    size: Int64(data.count),
+                    rev: "rev-B"
+                )
+            }
+        )
+
+        let result = try await CloudDatabaseSaver.save(
+            draft: context.draft,
+            reference: reference,
+            compositeKey: context.compositeKey,
+            openTimeSHA512: context.openTimeSHA512,
+            expectedRev: "rev-A",
+            kdfPolicy: .mainApp,
+            newCompositeKey: newCompositeKey,
+            environment: environment
+        )
+
+        guard case .saved = result else {
+            XCTFail("Expected rekey save to succeed.")
+            return
+        }
+
+        let uploadCall = await recorder.firstCall()
+        let uploaded = try XCTUnwrap(uploadCall?.data)
+        let reparsed = try KDBXParser.parseWithMeta(
+            data: uploaded,
+            password: newPassword,
+            sessionKey: SymmetricKey(size: .bits256)
+        )
+        XCTAssertTrue(reparsed.rootGroup.allEntries.contains { $0.title == "Cloud Rekey Entry" })
+        XCTAssertThrowsError(
+            try KDBXParser.parseWithMeta(
+                data: uploaded,
+                password: fixturePassword,
+                sessionKey: SymmetricKey(size: .bits256)
+            ),
+            "The old credentials must no longer open the uploaded bytes."
+        )
+        XCTAssertEqual(try Data(contentsOf: cacheURL), uploaded)
+    }
+
+    func testRekeySaveConflictAbortsWithoutUpload() async throws {
+        let reference = try makeCloudReference(remoteRev: "rev-A")
+        let cacheURL = DatabaseListStore.cacheLocation(for: reference)
+        let context = try makeDirtySaveContext(cacheURL: cacheURL, entryTitle: "Cloud Rekey Conflict Entry")
+        let recorder = UploadRecorder()
+        let remoteData = Data("remote-moved-during-rekey".utf8)
+        let environment = makeEnvironment(
+            getMetadata: { _ in
+                CloudFileMetadata(
+                    modifiedDate: Date(timeIntervalSince1970: 175),
+                    contentHash: "remote-hash-B",
+                    size: 256,
+                    rev: "rev-B"
+                )
+            },
+            upload: { _, data, expectedRev, progress in
+                await recorder.record(data: data, expectedRev: expectedRev)
+                progress(1)
+                return CloudFileMetadata(
+                    modifiedDate: Date(timeIntervalSince1970: 200),
+                    contentHash: "remote-hash-C",
+                    size: Int64(data.count),
+                    rev: "rev-C"
+                )
+            },
+            downloadRemoteData: { _ in remoteData }
+        )
+
+        let result = try await CloudDatabaseSaver.save(
+            draft: context.draft,
+            reference: reference,
+            compositeKey: context.compositeKey,
+            openTimeSHA512: context.openTimeSHA512,
+            expectedRev: "rev-A",
+            kdfPolicy: .mainApp,
+            newCompositeKey: try KDBXCrypto.compositeKey(password: "rotated-master-123", keyFileData: nil),
+            environment: environment
+        )
+
+        guard case .conflict = result else {
+            XCTFail("Expected the rekey save to conflict.")
+            return
+        }
+
+        let uploadCallCount = await recorder.callCount()
+        XCTAssertEqual(uploadCallCount, 0)
+        XCTAssertEqual(try Data(contentsOf: cacheURL), context.currentData)
+        XCTAssertTrue(DatabaseListStore.recentBackups(for: reference).isEmpty)
+    }
+
     // MARK: - Saves with no recorded revision (M4)
 
     func testSaveWithoutRecordedRevConflictsWhenRemoteContentHashMoved() async throws {
