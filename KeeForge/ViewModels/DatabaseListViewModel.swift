@@ -6,6 +6,10 @@ struct DatabaseRowStatus: Equatable, Sendable {
     var cloudState: CloudRowState?
     var pendingUploadCount: Int = 0
     var pendingUploadConflictCount: Int = 0
+    /// Documents-resident reference whose file left the Documents folder
+    /// (Finder delete). Distinct from `hasAccessIssue`: the reference is
+    /// intact, only its file is gone, and restoring the file heals it.
+    var isDocumentsFileMissing: Bool = false
 }
 
 struct CloudRowState: Equatable, Sendable {
@@ -326,12 +330,17 @@ final class DatabaseListViewModel {
                 // database list. File-provider URLs (especially an offline SMB
                 // share) can block synchronously and freeze the app at launch.
                 // The bounded open path reports the actual access error.
+                // Documents-resident references are the exception: the missing
+                // check is a pure own-container status probe — no file
+                // provider, no writes, no heal (healing happens on the
+                // locate paths: unlock, save, and the Documents scan).
                 updatedStatuses[reference.id] = DatabaseRowStatus(
                     hasStoredKey: hasStoredKey,
                     hasAccessIssue: reference.bookmarkData == nil,
                     cloudState: nil,
                     pendingUploadCount: pendingUploadCount,
-                    pendingUploadConflictCount: pendingUploadConflictCount
+                    pendingUploadConflictCount: pendingUploadConflictCount,
+                    isDocumentsFileMissing: DatabaseListStore.isDocumentsFileMissing(for: reference)
                 )
             }
         }

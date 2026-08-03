@@ -11,6 +11,7 @@ struct UnlockView: View {
     @State private var keyFileData: Data?
     @State private var keyFileName: String?
     @State private var feedbackContext: FeedbackComposerContext?
+    @State private var showRemoveMissingConfirmation = false
     @State private var copiedErrorDetails = false
     @State private var isPasswordVisible = false
     @FocusState private var passwordFocused: Bool
@@ -44,6 +45,18 @@ struct UnlockView: View {
                 message: Text(alert.message),
                 dismissButton: .default(Text("OK"))
             )
+        }
+        .confirmationDialog(
+            "Remove Database?",
+            isPresented: $showRemoveMissingConfirmation
+        ) {
+            Button("Remove", role: .destructive) {
+                viewModel.removeMissingDocumentsDatabase()
+                onBackToDatabaseList()
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("“\(viewModel.databaseDisplayName)” will be removed from KeeForge, including its cached copy and saved biometric key.")
         }
         .onAppear {
             loadUITestKeyFileIfNeeded()
@@ -264,6 +277,14 @@ struct UnlockView: View {
                     }
                     .buttonStyle(.bordered)
                     .accessibilityIdentifier("unlock.choose-different")
+                }
+
+                if viewModel.canRemoveMissingDocumentsFile {
+                    Button("Remove from List", role: .destructive) {
+                        showRemoveMissingConfirmation = true
+                    }
+                    .buttonStyle(.bordered)
+                    .accessibilityIdentifier("unlock.remove-missing")
                 }
 
                 HStack(spacing: 10) {

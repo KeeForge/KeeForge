@@ -5850,6 +5850,28 @@
         }
       }
     },
+    "File removed from KeeForge’s folder" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Datei aus dem KeeForge-Ordner entfernt"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Archivo eliminado de la carpeta de KeeForge"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fichier supprimé du dossier KeeForge"
+          }
+        }
+      }
+    },
     "File unavailable" : {
       "localizations" : {
         "de" : {
@@ -10159,6 +10181,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Retirer la base de données ?"
+          }
+        }
+      }
+    },
+    "Remove from List" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aus der Liste entfernen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Quitar de la lista"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Retirer de la liste"
           }
         }
       }

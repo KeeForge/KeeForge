@@ -221,7 +221,8 @@ enum DatabaseCreationService {
         let bookmarkData = try SecurityScopedBookmarkManager.makeBookmarkData(for: exportedURL)
         let reference = makeReference(
             prepared: prepared,
-            bookmarkData: bookmarkData
+            bookmarkData: bookmarkData,
+            fileURL: exportedURL
         )
         try DatabaseListStore.validateCreatedLocal(reference)
         try environment.cacheDatabaseCopy(prepared.encryptedBytes, reference)
@@ -319,7 +320,8 @@ enum DatabaseCreationService {
         case .files(let url, _):
             reference = makeReference(
                 prepared: prepared,
-                bookmarkData: destinationBookmarkData(from: destination)
+                bookmarkData: destinationBookmarkData(from: destination),
+                fileURL: url
             )
             try DatabaseListStore.validateCreatedLocal(reference)
             try environment.writePrimaryFile(prepared.encryptedBytes, url, true)
@@ -403,7 +405,8 @@ enum DatabaseCreationService {
 
     private static func makeReference(
         prepared: PreparedDatabase,
-        bookmarkData: Data?
+        bookmarkData: Data?,
+        fileURL: URL? = nil
     ) -> DatabaseReference {
         DatabaseReference(
             id: prepared.id,
@@ -418,6 +421,7 @@ enum DatabaseCreationService {
             colorTag: nil,
             legacyKeychainFilename: nil,
             isReadOnly: false,
+            isDocumentsResident: fileURL.map(DatabaseListStore.isTopLevelDocumentsFile) ?? false,
             source: .local
         )
     }

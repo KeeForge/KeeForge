@@ -50,6 +50,16 @@ enum DocumentPickerService {
         data.starts(with: kdbxMagic)
     }
 
+    /// Strict 8-byte magic sniff, unlike `isSupportedDatabaseFile(at:)` which
+    /// also accepts any `.kdbx` extension. Auto-registration paths use this so
+    /// arbitrary non-database files are never claimed.
+    static func hasKDBXMagic(at url: URL) -> Bool {
+        guard let header = try? CoordinatedFileReader.readDataPrefix(from: url, byteCount: kdbxMagic.count) else {
+            return false
+        }
+        return hasKDBXHeader(header)
+    }
+
     static func invalidDatabaseSelectionAlert() -> SelectionAlert {
         SelectionAlert(
             title: String(localized: "Invalid File"),

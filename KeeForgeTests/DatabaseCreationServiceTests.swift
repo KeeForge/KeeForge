@@ -40,6 +40,7 @@ final class DatabaseCreationServiceTests: XCTestCase {
         )
 
         XCTAssertEqual(created.reference.filename, "Personal.kdbx")
+        XCTAssertFalse(created.reference.isDocumentsResident)
         XCTAssertEqual(parsed.header.formatVersion, .kdbx4(minor: 0))
         XCTAssertEqual(DatabaseListStore.databases.map(\.id), [created.reference.id])
         XCTAssertEqual(try Data(contentsOf: XCTUnwrap(DatabaseListStore.cachedDatabaseURL(for: created.reference))), encryptedBytes)
@@ -240,6 +241,62 @@ final class DatabaseCreationServiceTests: XCTestCase {
         } catch {
             XCTFail("Unexpected error: \(error)")
         }
+    }
+
+    func testCreateInDocumentsFolderMarksReferenceDocumentsResident() async throws {
+        let documentsDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: documentsDirectory, withIntermediateDirectories: true)
+        DatabaseListStore.documentsDirectoryOverride = documentsDirectory
+        defer {
+            DatabaseListStore.documentsDirectoryOverride = nil
+            try? FileManager.default.removeItem(at: documentsDirectory)
+        }
+
+        let destinationURL = documentsDirectory.appendingPathComponent("Resident.kdbx", isDirectory: false)
+        try Data().write(to: destinationURL, options: .atomic)
+
+        let created = try await DatabaseCreationService.create(
+            request: DatabaseCreationRequest(
+                displayName: "Resident",
+                destination: .files(
+                    url: destinationURL,
+                    bookmarkData: try bookmarkData(for: destinationURL)
+                ),
+                password: "correct horse battery staple"
+            )
+        )
+
+        XCTAssertTrue(created.reference.isDocumentsResident)
+        XCTAssertEqual(DatabaseListStore.databases.first?.isDocumentsResident, true)
+    }
+
+    func testRegisterExportedIntoDocumentsFolderMarksReferenceDocumentsResident() async throws {
+        let documentsDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: documentsDirectory, withIntermediateDirectories: true)
+        DatabaseListStore.documentsDirectoryOverride = documentsDirectory
+        defer {
+            DatabaseListStore.documentsDirectoryOverride = nil
+            try? FileManager.default.removeItem(at: documentsDirectory)
+        }
+
+        let prepared = try await DatabaseCreationService.prepare(
+            request: DatabasePreparationRequest(
+                displayName: "Exported",
+                password: "correct horse battery staple",
+                keyFileData: nil,
+                keyFileBookmarkData: nil,
+                keyFileFilename: nil
+            )
+        )
+        let exportedURL = documentsDirectory.appendingPathComponent(prepared.filename, isDirectory: false)
+        try prepared.encryptedBytes.write(to: exportedURL, options: .atomic)
+
+        let created = try DatabaseCreationService.registerExported(prepared, exportedURL: exportedURL)
+
+        XCTAssertTrue(created.reference.isDocumentsResident)
+        XCTAssertEqual(DatabaseListStore.databases.first?.isDocumentsResident, true)
     }
 
     func testCreateDatabaseSanitizesFilenameAndAppendsKDBXExtension() throws {

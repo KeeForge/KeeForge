@@ -44,6 +44,7 @@ struct KeeForgeApp: App {
                     activeDatabaseViewModel?.didManuallyLock = false
                     activeDatabaseViewModel?.handleSceneDidBecomeActive()
                     activeDatabaseViewModel?.refreshSharedDatabaseCacheIfPossible()
+                    scanDocumentsForSharedDatabases()
                     Task {
                         await listViewModel.drainPendingUploadsOnAppActive()
                     }
@@ -117,6 +118,22 @@ struct KeeForgeApp: App {
             listViewModel: listViewModel,
             activeDatabaseViewModel: $activeDatabaseViewModel
         )
+        #endif
+    }
+
+    /// Registers KDBX files dropped into Documents via Finder/iTunes file
+    /// sharing (iOS only; the Mac app has no shared Documents container).
+    /// Triggered from the scenePhase `.active` branch, which also fires at
+    /// cold launch.
+    private func scanDocumentsForSharedDatabases() {
+        #if os(iOS)
+        let listViewModel = self.listViewModel
+        Task.detached(priority: .utility) {
+            guard DocumentsVaultScanner.scan() else { return }
+            await MainActor.run {
+                listViewModel.reload()
+            }
+        }
         #endif
     }
 
