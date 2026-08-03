@@ -720,6 +720,28 @@
         }
       }
     },
+    "Enter a password for this credential." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Geben Sie ein Passwort für diese Zugangsdaten ein."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Introduzca una contraseña para esta credencial."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Saisissez un mot de passe pour cet identifiant."
+          }
+        }
+      }
+    },
     "Enter a title or username for this credential." : {
       "localizations" : {
         "de" : {
