@@ -77,7 +77,7 @@ final class InheritedTagsUITests: UnlockedDatabaseUITestCase {
             .matching(identifier: "entry-detail.inherited-tags")
             .firstMatch
         XCTAssertTrue(
-            inheritedStrip.waitForExistence(timeout: KeeForgeUITestCase.ciElementTimeout),
+            revealElement(inheritedStrip, in: scrollableContainer()),
             "Entry detail did not show the inherited-tags strip"
         )
 

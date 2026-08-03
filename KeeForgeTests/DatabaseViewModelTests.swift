@@ -1704,6 +1704,20 @@ final class DatabaseViewModelTests: XCTestCase {
         XCTAssertFalse(details.localizedCaseInsensitiveContains("key file data"))
     }
 
+    func testMalformedXMLKeyFileFailureKeepsItsActionableMessage() {
+        let failure = DatabaseOpenFailure.classify(
+            KeyFileProcessor.KeyFileError.xmlKeyDataInvalid,
+            isCloudBacked: false
+        )
+
+        XCTAssertEqual(failure.summary, "Key file XML contains invalid key data")
+        XCTAssertEqual(failure.errorCode, "key_file.invalid_xml_data")
+        XCTAssertEqual(failure.category, .fileAccess)
+        XCTAssertFalse(failure.countsTowardFailedAttempts)
+        XCTAssertFalse(failure.canChooseDifferentFile)
+        XCTAssertTrue(failure.canRetryUnlock)
+    }
+
     func testTwofishHeaderDiagnosticsUseRecognizedCipherName() throws {
         let loaded = try KDBXCompatibilitySupport.load(
             .syntheticTwofish,

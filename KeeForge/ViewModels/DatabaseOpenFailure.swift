@@ -242,6 +242,10 @@ struct DatabaseOpenFailure: Equatable, Sendable {
         category == .authentication
     }
 
+    var canRetryUnlock: Bool {
+        isAuthenticationFailure || errorCode.hasPrefix("key_file.")
+    }
+
     var privacyNote: String {
         String(localized: "Database contents, passwords, key files, and raw vault files are never included. Visible diagnostics may include app/device metadata and short file hash prefixes.")
     }
@@ -317,6 +321,10 @@ struct DatabaseOpenFailure: Equatable, Sendable {
             return fromCloudError(cloudError).attaching(diagnostics)
         }
 
+        if let keyFileError = error as? KeyFileProcessor.KeyFileError {
+            return fromKeyFileError(keyFileError).attaching(diagnostics)
+        }
+
         if let cryptoError = error as? KDBXCrypto.CryptoError {
             return fromCryptoError(cryptoError).attaching(diagnostics)
         }
@@ -349,6 +357,28 @@ struct DatabaseOpenFailure: Equatable, Sendable {
         var copy = self
         copy.diagnostics = diagnostics
         return copy
+    }
+
+    private static func fromKeyFileError(_ error: KeyFileProcessor.KeyFileError) -> DatabaseOpenFailure {
+        let errorCode: String
+        switch error {
+        case .emptyKeyFile:
+            errorCode = "key_file.empty"
+        case .xmlKeyDataInvalid:
+            errorCode = "key_file.invalid_xml_data"
+        case .xmlHashMismatch:
+            errorCode = "key_file.hash_mismatch"
+        }
+
+        return DatabaseOpenFailure(
+            title: String(localized: "Couldn't Open Database"),
+            summary: error.localizedDescription,
+            technicalDetails: technicalDetails(for: error),
+            errorCode: errorCode,
+            category: .fileAccess,
+            countsTowardFailedAttempts: false,
+            canChooseDifferentFile: false
+        )
     }
 
     private static func fromCryptoError(_ error: KDBXCrypto.CryptoError) -> DatabaseOpenFailure {
