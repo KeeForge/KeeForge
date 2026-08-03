@@ -2286,6 +2286,28 @@
         }
       }
     },
+    "Choose KeeForge when an app or website offers to add a passkey, and save it directly to your default AutoFill database." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wähle KeeForge, wenn eine App oder Website anbietet, einen Passkey hinzuzufügen, und speichere ihn direkt in deiner standardmäßigen AutoFill-Datenbank."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Elige KeeForge cuando una app o sitio web te ofrezca añadir una llave de acceso y guárdala directamente en tu base de datos predeterminada de Autorrelleno."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choisissez KeeForge lorsqu’une app ou un site web propose d’ajouter une clé d’accès, puis enregistrez-la directement dans votre base de données par défaut pour le Remplissage automatique."
+          }
+        }
+      }
+    },
     "Clear AutoFill Entries" : {
       "localizations" : {
         "de" : {
@@ -4970,6 +4992,28 @@
         }
       }
     },
+    "Edit groups in one place" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gruppen zentral bearbeiten"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Edita grupos desde un solo lugar"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Modifiez les groupes au même endroit"
+          }
+        }
+      }
+    },
     "Editing" : {
       "localizations" : {
         "de" : {
@@ -6990,6 +7034,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "KeeForge est gratuit et open source. Les pourboires aident à soutenir le développement. ❤️"
+          }
+        }
+      }
+    },
+    "KeeForge is now fully translated into French and Spanish throughout the app and AutoFill." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge ist jetzt in der gesamten App und in AutoFill vollständig ins Französische und Spanische übersetzt."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge ahora está completamente traducida al francés y al español en toda la app y Autorrelleno."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge est désormais entièrement traduit en français et en espagnol dans l’app et le Remplissage automatique."
           }
         }
       }
@@ -10009,6 +10075,28 @@
         }
       }
     },
+    "Rename a group, organize it with tags, choose an icon, add notes, and control whether its entries appear in Search and AutoFill." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Benenne eine Gruppe um, organisiere sie mit Tags, wähle ein Symbol, füge Notizen hinzu und lege fest, ob ihre Einträge in der Suche und in AutoFill erscheinen."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cambia el nombre de un grupo, organízalo con etiquetas, elige un icono, añade notas y controla si sus entradas aparecen en Buscar y Autorrelleno."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Renommez un groupe, organisez-le à l’aide de tags, choisissez une icône, ajoutez des notes et déterminez si ses entrées apparaissent dans la recherche et le Remplissage automatique."
+          }
+        }
+      }
+    },
     "Rename Database" : {
       "localizations" : {
         "de" : {
@@ -10203,6 +10291,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Conflit d'enregistrement"
+          }
+        }
+      }
+    },
+    "Save new passkeys with KeeForge" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Neue Passkeys mit KeeForge speichern"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Guarda nuevas llaves de acceso con KeeForge"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Enregistrez de nouvelles clés d’accès avec KeeForge"
           }
         }
       }
@@ -10427,6 +10537,28 @@
         }
       }
     },
+    "Search results and the tag browser now show the folder each entry lives in, so similarly named entries are easier to tell apart." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Suchergebnisse und der Tag-Browser zeigen jetzt den Ordner jedes Eintrags an, sodass sich ähnlich benannte Einträge leichter unterscheiden lassen."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Los resultados de búsqueda y el explorador de etiquetas ahora muestran la carpeta de cada entrada, para que sea más fácil distinguir las entradas con nombres similares."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Les résultats de recherche et le navigateur de tags affichent désormais le dossier de chaque entrée, ce qui permet de distinguer plus facilement les entrées portant des noms similaires."
+          }
+        }
+      }
+    },
     "Secure random data could not be generated." : {
       "localizations" : {
         "de" : {
@@ -10489,6 +10621,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Consulter et restaurer les versions précédentes"
+          }
+        }
+      }
+    },
+    "See where every entry belongs" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sehen, wohin jeder Eintrag gehört"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mira a qué carpeta pertenece cada entrada"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Voyez à quel dossier appartient chaque entrée"
           }
         }
       }
@@ -13767,6 +13921,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Utiliser KeeForge en français"
+          }
+        }
+      }
+    },
+    "Use KeeForge in French or Spanish" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge auf Französisch oder Spanisch verwenden"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Usa KeeForge en francés o español"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Utilisez KeeForge en français ou en espagnol"
           }
         }
       }
