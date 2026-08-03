@@ -278,13 +278,15 @@ enum DatabaseCreationService {
             meta: tree.meta,
             compositeKey: compositeKey,
             freshHeader: try DatabaseCreationDefaults.freshHeaderConfiguration(),
-            sessionKey: sessionKey
+            sessionKey: sessionKey,
+            kdfPolicy: .mainApp
         )
 
         let parsed = try KDBXParser.parseWithMetaAndHeader(
             data: encryptedBytes,
             compositeKey: compositeKey,
-            sessionKey: sessionKey
+            sessionKey: sessionKey,
+            kdfPolicy: .mainApp
         )
         guard parsed.header.formatVersion.majorVersion == KDBXParser.versionKDBX4 else {
             throw CreationError.generatedFileFailedToReopen

@@ -33,6 +33,13 @@ enum Argon2 {
         case hashFailed(Int32)
     }
 
+    /// Supported Argon2 version bytes; construction from a raw header value is
+    /// the single validation point for the "V" parameter.
+    enum Version: UInt32, Sendable {
+        case v10 = 0x10
+        case v13 = 0x13
+    }
+
     /// Derive key using Argon2d or Argon2id
     static func hash(
         password: Data,
@@ -41,6 +48,7 @@ enum Argon2 {
         memoryCost: UInt32, // in KiB
         parallelism: UInt32,
         hashLength: Int = 32,
+        version: Version,
         variant: Argon2Variant
     ) throws -> Data {
         let type: Argon2Type = switch variant {
@@ -48,6 +56,11 @@ enum Argon2 {
             .d
         case .id:
             .id
+        }
+
+        let argon2Version: Argon2Version = switch version {
+        case .v10: .V10
+        case .v13: .V13
         }
 
         do {
@@ -59,7 +72,7 @@ enum Argon2 {
                 parallelism: Int(parallelism),
                 length: hashLength,
                 type: type,
-                version: .V13
+                version: argon2Version
             )
             return result.hashData()
         } catch let error as Argon2SwiftException {

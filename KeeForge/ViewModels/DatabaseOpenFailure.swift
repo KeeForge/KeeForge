@@ -468,6 +468,16 @@ struct DatabaseOpenFailure: Equatable, Sendable {
                 countsTowardFailedAttempts: false,
                 canChooseDifferentFile: true
             )
+        case .kdfResourceLimitExceeded:
+            return DatabaseOpenFailure(
+                title: String(localized: "Key Derivation Settings Too Demanding"),
+                summary: String(localized: "This database's Argon2 settings require more memory or processing than this device can safely run. Lower the Argon2 settings in a desktop KeePass app and save the database, then try opening it again."),
+                technicalDetails: technicalDetails(for: error),
+                errorCode: "open.kdf_resource_limit",
+                category: .unsupportedFormat,
+                countsTowardFailedAttempts: false,
+                canChooseDifferentFile: true
+            )
         default:
             return DatabaseOpenFailure(
                 title: String(localized: "Couldn't Open Database"),

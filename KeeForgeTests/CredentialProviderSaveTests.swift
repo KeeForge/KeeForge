@@ -90,7 +90,8 @@ final class CredentialProviderSaveTests: XCTestCase {
                     draft: draft,
                     reference: reference,
                     compositeKey: compositeKey,
-                    openTimeSHA512: openTimeSHA512
+                    openTimeSHA512: openTimeSHA512,
+                    kdfPolicy: .autoFillExtension
                 ) {
                 case .saved(let newSHA512):
                     return .saved(
@@ -144,7 +145,8 @@ final class CredentialProviderSaveTests: XCTestCase {
         let reparsed = try KDBXParser.parseWithMetaAndHeader(
             data: cachedData,
             compositeKey: loaded.compositeKey,
-            sessionKey: loaded.sessionKey
+            sessionKey: loaded.sessionKey,
+            kdfPolicy: .autoFillExtension
         )
         XCTAssertEqual(reparsed.header.cipherID, KDBXParser.twofishCipherUUID)
         XCTAssertTrue(reparsed.rootGroup.allEntries.contains { $0.title == "Twofish AutoFill Entry" })

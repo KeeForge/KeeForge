@@ -408,6 +408,8 @@ targets:
         buildPhase: resources
       - path: TestFixtures/compatibility/unknown-inner-header.kdbx
         buildPhase: resources
+      - path: TestFixtures/compatibility/argon2-high-iterations.kdbx
+        buildPhase: resources
       - path: TestFixtures/test-v3-backup.kdbx
         buildPhase: resources
       - path: TestFixtures/demo-keyfile.key
@@ -534,6 +536,8 @@ targets:
       - path: TestFixtures/compatibility/group-tags.kdbx
         buildPhase: resources
       - path: TestFixtures/compatibility/unknown-inner-header.kdbx
+        buildPhase: resources
+      - path: TestFixtures/compatibility/argon2-high-iterations.kdbx
         buildPhase: resources
       - path: TestFixtures/test-v3-backup.kdbx
         buildPhase: resources

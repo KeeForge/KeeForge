@@ -2464,6 +2464,28 @@
         }
       }
     },
+    "This database's key derivation settings (%@ of memory × %@ iterations, %@ threads) exceed what this app can safely run. Lower the database's Argon2 settings in a desktop KeePass app and save it, then try again." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die Schlüsselableitungs-Einstellungen dieser Datenbank (%@ Arbeitsspeicher × %@ Iterationen, %@ Threads) überschreiten das, was diese App sicher ausführen kann. Verringern Sie die Argon2-Einstellungen der Datenbank in einer Desktop-KeePass-App, speichern Sie sie und versuchen Sie es dann erneut."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Los ajustes de derivación de clave de esta base de datos (%@ de memoria × %@ iteraciones, %@ hilos) superan lo que esta app puede ejecutar de forma segura. Reduzca los ajustes de Argon2 de la base de datos en una app de KeePass de escritorio, guárdela y vuelva a intentarlo."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Les paramètres de dérivation de clé de cette base de données (%@ de mémoire × %@ itérations, %@ threads) dépassent ce que cette app peut exécuter en toute sécurité. Réduisez les paramètres Argon2 de la base de données dans une app KeePass de bureau, enregistrez-la, puis réessayez."
+          }
+        }
+      }
+    },
     "This group cannot be deleted." : {
       "localizations" : {
         "de" : {

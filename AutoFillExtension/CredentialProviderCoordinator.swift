@@ -1273,7 +1273,8 @@ final class CredentialProviderCoordinator {
             try KDBXParser.parseWithMetaAndHeader(
                 data: data,
                 compositeKey: compositeKey,
-                sessionKey: key
+                sessionKey: key,
+                kdfPolicy: .autoFillExtension
             )
         }.value
 

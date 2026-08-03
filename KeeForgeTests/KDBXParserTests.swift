@@ -496,6 +496,7 @@ final class KDBXParserTests: XCTestCase {
             memoryCost: 65_536,
             parallelism: 1,
             hashLength: 32,
+            version: .v13,
             variant: .d
         )
 
@@ -1437,15 +1438,15 @@ final class KDBXParserTests: XCTestCase {
     // MARK: - Security: Argon2 Parameter Bounds Tests
 
     func testArgon2ExcessiveIterationsRejected() {
-        let data = buildKDBXWithKDFParams(iterations: 1_001, memory: 64 * 1024 * 1024, parallelism: 1)
+        // 64 MiB × 2000 iterations = 125 GiB of total work — over the 64 GiB main-app budget
+        let data = buildKDBXWithKDFParams(iterations: 2_000, memory: 64 * 1024 * 1024, parallelism: 1)
         XCTAssertThrowsError(
             try KDBXParser.parse(data: data, password: "x", sessionKey: testSessionKey)
         ) { error in
-            guard case KDBXParser.ParseError.kdfParameterOutOfRange(let msg) = error else {
-                XCTFail("Expected kdfParameterOutOfRange, got \(error)")
+            guard case KDBXParser.ParseError.kdfResourceLimitExceeded = error else {
+                XCTFail("Expected kdfResourceLimitExceeded, got \(error)")
                 return
             }
-            XCTAssertTrue(msg.contains("iterations"))
         }
     }
 
@@ -1463,16 +1464,15 @@ final class KDBXParserTests: XCTestCase {
     }
 
     func testArgon2ExcessiveMemoryRejected() {
-        // 8GB — way over the 4GB limit
+        // 8 GiB — way over the 4 GiB peak-memory budget
         let data = buildKDBXWithKDFParams(iterations: 3, memory: 8_589_934_592, parallelism: 1)
         XCTAssertThrowsError(
             try KDBXParser.parse(data: data, password: "x", sessionKey: testSessionKey)
         ) { error in
-            guard case KDBXParser.ParseError.kdfParameterOutOfRange(let msg) = error else {
-                XCTFail("Expected kdfParameterOutOfRange, got \(error)")
+            guard case KDBXParser.ParseError.kdfResourceLimitExceeded = error else {
+                XCTFail("Expected kdfResourceLimitExceeded, got \(error)")
                 return
             }
-            XCTAssertTrue(msg.contains("memory"))
         }
     }
 
@@ -1491,15 +1491,15 @@ final class KDBXParserTests: XCTestCase {
     }
 
     func testArgon2ExcessiveParallelismRejected() {
+        // 257 lanes is valid per spec (64 MiB covers the 8 KiB-per-lane minimum) but over the 256-lane budget
         let data = buildKDBXWithKDFParams(iterations: 3, memory: 64 * 1024 * 1024, parallelism: 257)
         XCTAssertThrowsError(
             try KDBXParser.parse(data: data, password: "x", sessionKey: testSessionKey)
         ) { error in
-            guard case KDBXParser.ParseError.kdfParameterOutOfRange(let msg) = error else {
-                XCTFail("Expected kdfParameterOutOfRange, got \(error)")
+            guard case KDBXParser.ParseError.kdfResourceLimitExceeded = error else {
+                XCTFail("Expected kdfResourceLimitExceeded, got \(error)")
                 return
             }
-            XCTAssertTrue(msg.contains("parallelism"))
         }
     }
 
@@ -1733,6 +1733,7 @@ final class KDBXParserTests: XCTestCase {
             memoryCost: 64 * 1024,
             parallelism: 1,
             hashLength: 32,
+            version: .v13,
             variant: .id
         )
         let argon2d = try Argon2.hash(
@@ -1742,6 +1743,7 @@ final class KDBXParserTests: XCTestCase {
             memoryCost: 64 * 1024,
             parallelism: 1,
             hashLength: 32,
+            version: .v13,
             variant: .d
         )
 

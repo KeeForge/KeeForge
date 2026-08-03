@@ -179,6 +179,19 @@ enum KDBXCompatibilitySupport {
             source: .bundled(name: "unknown-inner-header")
         )
 
+        /// Foreign-authored (pykeepass) KDBX4 fixture whose Argon2 KDF uses a
+        /// high iteration count with low memory (1500 x 1 MiB, above the
+        /// retired fixed 1000-iteration cap), the acceptance case for the
+        /// `KDFExecutionPolicy` work-budget model (issue #74). See
+        /// `TestFixtures/compatibility/generate_argon2_high_iterations_fixture.py`.
+        static let argon2HighIterations = Fixture(
+            id: "argon2-high-iterations",
+            displayName: "Argon2 high-iteration KDF fixture",
+            password: "argon2-high-iterations",
+            keyFileName: nil,
+            source: .bundled(name: "argon2-high-iterations")
+        )
+
         static let syntheticRich = Fixture(
             id: "synthetic-rich",
             displayName: "Synthetic rich KDBX4 fixture",
@@ -230,6 +243,7 @@ enum KDBXCompatibilitySupport {
         .foreignTwofish,
         .groupTags,
         .unknownInnerHeader,
+        .argon2HighIterations,
     ]
 
     /// Title of the entry `fixtureSmokeScenario` creates. Shared with the
@@ -423,6 +437,7 @@ enum KDBXCompatibilitySupport {
         "fixture-smoke-foreign-chacha20",
         "fixture-smoke-foreign-twofish",
         "fixture-smoke-group-tags",
+        "fixture-smoke-argon2-high-iterations",
         "group-tags-update-entry",
         "group-tags-update-group",
     ]
@@ -449,6 +464,7 @@ enum KDBXCompatibilitySupport {
         Fixture.foreignTwofish.id: .init(entryTitle: "Foreign Entry Alpha", password: "ForeignAlphaSecret1"),
         Fixture.groupTags.id: .init(entryTitle: "Alpha Login", password: "GroupTagAlpha1"),
         Fixture.unknownInnerHeader.id: .init(entryTitle: "Inner Header Entry", password: "UnknownHeaderSecret1"),
+        Fixture.argon2HighIterations.id: .init(entryTitle: "High Iteration Entry", password: "HighIterationSecret1"),
     ]
 
     /// Expected protected-value checks keyed by scenario id. Every smoke
