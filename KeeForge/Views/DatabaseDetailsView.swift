@@ -156,6 +156,7 @@ struct DatabaseDetailsView: View {
                     ? "Legacy KDBX 3.1 databases can be opened, but KeeForge intentionally keeps them read-only."
                     : "You can still open this database, but create, edit, and delete actions stay blocked until you turn editing back on."
             )
+            .accessibilityIdentifier("database-details.read-only-footer")
         }
     }
 
@@ -291,10 +292,12 @@ struct DatabaseDetailsView: View {
         if let fileInfo {
             if let summary = fileInfo.summary {
                 LabeledContent("Format", value: summary.formatDisplayName)
+                    .accessibilityIdentifier("database-details.file-format")
             }
 
             if let sizeBytes = fileInfo.fileSizeBytes {
                 LabeledContent("Size", value: sizeBytes.formatted(.byteCount(style: .file)))
+                    .accessibilityIdentifier("database-details.file-size")
             }
 
             if let modifiedAt = fileInfo.modifiedAt {
@@ -303,6 +306,7 @@ struct DatabaseDetailsView: View {
 
             if let summary = fileInfo.summary {
                 LabeledContent("Encryption", value: summary.cipherDisplayName)
+                    .accessibilityIdentifier("database-details.encryption")
 
                 LabeledContent("Key Derivation") {
                     VStack(alignment: .trailing, spacing: 2) {
@@ -314,8 +318,10 @@ struct DatabaseDetailsView: View {
                         }
                     }
                 }
+                .accessibilityIdentifier("database-details.key-derivation")
 
                 LabeledContent("Compression", value: summary.compressionDisplayName)
+                    .accessibilityIdentifier("database-details.compression")
             }
         } else if isLoadingFileInfo {
             HStack(spacing: 12) {

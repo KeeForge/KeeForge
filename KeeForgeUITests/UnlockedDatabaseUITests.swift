@@ -137,6 +137,10 @@ class AppSettingsUITestCase: KeeForgeUITestCase {
 // Happy-path smoke coverage for unlocked browsing and detail screens.
 @MainActor
 final class UnlockedDatabaseBrowseAndDetailUITests: UnlockedDatabaseUITestCase {
+    override var databaseFixtureName: String {
+        name.contains("testLegacyKDBX31") ? "legacy-kdbx31" : "test"
+    }
+
     func testFixtureGroupShowsExpectedEntry() {
         unlockSuccessfully()
 
@@ -173,6 +177,63 @@ final class UnlockedDatabaseBrowseAndDetailUITests: UnlockedDatabaseUITestCase {
 
         XCTAssertTrue(foundCreated || foundModified, "Entry detail should show Created or Modified timestamps")
     }
+
+    func testOpenDatabaseGearShowsCompleteDatabaseDetails() {
+        unlockSuccessfully()
+
+        let settingsButton = app.buttons["settings.button"]
+        XCTAssertTrue(settingsButton.waitForExistence(timeout: 5), "Open database gear button was not visible")
+        tapElement(settingsButton)
+
+        XCTAssertTrue(
+            app.buttons["database-details.close"].waitForExistence(timeout: Self.ciElementTimeout),
+            "The gear button did not open Database Details"
+        )
+        XCTAssertTrue(app.switches["database-details.quick-launch-toggle"].exists)
+
+        let readOnlyToggle = app.switches["database-row.read-only-toggle"]
+        XCTAssertTrue(revealElement(readOnlyToggle, in: scrollableContainer()), "Read-only toggle was not reachable")
+
+        let autoFillToggle = app.switches["database-details.autofill-toggle"]
+        XCTAssertTrue(revealElement(autoFillToggle, in: scrollableContainer()), "AutoFill toggle was not reachable")
+
+        for identifier in [
+            "database-details.file-format",
+            "database-details.file-size",
+            "database-details.encryption",
+            "database-details.key-derivation",
+            "database-details.compression",
+        ] {
+            let row = app.descendants(matching: .any).matching(identifier: identifier).firstMatch
+            XCTAssertTrue(
+                revealElement(row, in: scrollableContainer()),
+                "Database Details was missing '\(identifier)' when opened from the gear"
+            )
+        }
+    }
+
+    func testLegacyKDBX31DatabaseDetailsKeepsReadOnlyToggleDisabled() {
+        unlockSuccessfully()
+
+        let settingsButton = app.buttons["settings.button"]
+        XCTAssertTrue(settingsButton.waitForExistence(timeout: 5), "Open database gear button was not visible")
+        tapElement(settingsButton)
+
+        let readOnlyToggle = app.switches["database-row.read-only-toggle"]
+        XCTAssertTrue(
+            readOnlyToggle.waitForExistence(timeout: Self.ciElementTimeout),
+            "Legacy database details did not show the read-only toggle"
+        )
+        XCTAssertEqual(readOnlyToggle.value as? String, "1", "KDBX 3.1 must remain read-only")
+        XCTAssertFalse(readOnlyToggle.isEnabled, "KDBX 3.1 must not offer an editable mode")
+
+        let footer = app.staticTexts["database-details.read-only-footer"]
+        XCTAssertTrue(revealElement(footer, in: scrollableContainer()), "Legacy read-only explanation was not visible")
+        XCTAssertTrue(
+            footer.label.contains("KDBX 3.1"),
+            "Legacy read-only explanation should name KDBX 3.1, got: \(footer.label)"
+        )
+    }
 }
 
 // Happy-path smoke coverage for unlocked search and sorting flows.
@@ -190,6 +251,10 @@ final class UnlockedDatabaseSearchAndSortUITests: UnlockedDatabaseUITestCase {
         XCTAssertTrue(resultsCountLabel.waitForExistence(timeout: 5), "Search results count did not appear")
         XCTAssertNotEqual(resultsCountLabel.label, "results:0", "Expected search results for 'Twi'")
         XCTAssertTrue(searchResult(named: "Twitter").waitForExistence(timeout: 5), "Expected Twitter to appear in search results")
+
+        let folderCaption = app.staticTexts["entry-row.folder"].firstMatch
+        XCTAssertTrue(folderCaption.waitForExistence(timeout: 5), "Search result did not show its folder caption")
+        XCTAssertEqual(folderCaption.label, "Social")
     }
 
     func testSearchShowsFixtureMatchAndNoResultsState() {
@@ -272,6 +337,14 @@ final class RegularWidthWorkspaceUITests: UnlockedDatabaseUITestCase {
 // Secondary, non-gating coverage for root app settings surfaces.
 @MainActor
 final class AppSettingsUITests: AppSettingsUITestCase {
+    override func configureLaunch(app: XCUIApplication) throws {
+        if name.contains("testFrench") {
+            app.launchArguments += ["-AppleLanguages", "(fr)", "-AppleLocale", "fr_FR"]
+        } else if name.contains("testSpanish") {
+            app.launchArguments += ["-AppleLanguages", "(es)", "-AppleLocale", "es_ES"]
+        }
+    }
+
     /// The Security settings screen has no dedicated screen-capture-block
     /// toggle on iOS — that setting is macOS-only (`SettingsService.
     /// blockScreenCapture`'s doc comment: "iOS ignores it (iOS uses
@@ -375,6 +448,14 @@ final class AppSettingsUITests: AppSettingsUITestCase {
         )
     }
 
+    func testFrenchAutoFillStatusUsesLocalizedOffText() {
+        assertLocalizedAutoFillStatus(expectedOffText: "Désactivé")
+    }
+
+    func testSpanishAutoFillStatusUsesLocalizedOffText() {
+        assertLocalizedAutoFillStatus(expectedOffText: "Desactivado")
+    }
+
     func testAutoFillSettingsListsDatabaseTogglesAndCancelableClear() {
         openAppSettings()
 
@@ -474,6 +555,24 @@ final class AppSettingsUITests: AppSettingsUITestCase {
         }
 
         closeSettings()
+    }
+
+    private func assertLocalizedAutoFillStatus(expectedOffText: String) {
+        openAppSettings()
+
+        let autoFillLink = app.descendants(matching: .any).matching(identifier: "settings.autofill.link").firstMatch
+        revealInSettings(autoFillLink, maxSwipes: 2)
+        tapElement(autoFillLink)
+
+        let status = app.descendants(matching: .any)
+            .matching(identifier: "settings.autofill.provider-status").firstMatch
+        XCTAssertTrue(status.waitForExistence(timeout: Self.ciElementTimeout))
+        XCTAssertEqual(status.value as? String, expectedOffText)
+
+        let turnOn = app.buttons["settings.autofill.turn-on"]
+        let manualSettings = app.buttons["settings.autofill.open-ios-settings"]
+        XCTAssertTrue(turnOn.exists && turnOn.isHittable, "Localized Turn On AutoFill action was not usable")
+        XCTAssertTrue(manualSettings.exists && manualSettings.isHittable, "Localized manual Settings action was not usable")
     }
 
     func testTipJarSectionShowsProductsOrFallback() {

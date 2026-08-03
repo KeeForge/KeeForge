@@ -298,6 +298,8 @@ targets:
         buildPhase: resources
       - path: TestFixtures/demo-keyfile.key
         buildPhase: resources
+      - path: TestFixtures/invalid-xml.keyx
+        buildPhase: resources
       - path: TestFixtures/compatibility/attachments.kdbx
         buildPhase: resources
       - path: TestFixtures/autofill-union.kdbx
@@ -307,6 +309,8 @@ targets:
       - path: TestFixtures/compatibility/group-tags.kdbx
         buildPhase: resources
       - path: TestFixtures/protected-custom-field.kdbx
+        buildPhase: resources
+      - path: TestFixtures/compatibility/legacy-kdbx31.kdbx
         buildPhase: resources
 
   KeeForgeTests:

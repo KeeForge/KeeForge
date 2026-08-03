@@ -42,6 +42,7 @@ This folder contains the sample databases and key files used by unit tests, UI t
 
 - `test-binary.key`, `test-hex.key`, `test-v1.key`, `test-v2.keyx`, and `test-arbitrary.key` cover the supported key-file parsing formats.
 - `demo-keyfile.key` is the end-to-end fixture paired with `demo-keyfile.kdbx`.
+- `invalid-xml.keyx` deliberately carries non-base64 XML key data. It is bundled into `KeeForgeUITests` so `KeyFileUITests` can verify malformed XML fails visibly during unlock instead of being ignored.
 
 ## Notes
 

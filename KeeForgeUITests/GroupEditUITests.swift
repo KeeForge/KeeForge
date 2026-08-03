@@ -1,7 +1,8 @@
 import XCTest
 
 /// Coverage for the group editor reached from a group row's context menu:
-/// rename, tags, cancel/discard, the duplicate-name error, and the read-only
+/// rename, tags, notes, icon, Search & AutoFill visibility, cancel/discard,
+/// protected-group behavior, the duplicate-name error, and the read-only
 /// database offering no entry point at all.
 @MainActor
 final class GroupEditUITests: EntryEditUITestCase {
@@ -72,6 +73,58 @@ final class GroupEditUITests: EntryEditUITestCase {
         )
     }
 
+    func testNotesIconAndVisibilitySaveTogether() {
+        let notes = "Group editor UI notes"
+
+        unlockSuccessfully()
+        openGroupEditor(forGroupNamed: workGroupName)
+
+        let iconButton = app.buttons["group-edit.icon-button"]
+        XCTAssertTrue(iconButton.waitForExistence(timeout: 5), "Icon button was not visible")
+        tapElement(iconButton)
+        let iconButtons = app.buttons.matching(
+            NSPredicate(format: "identifier BEGINSWITH 'group-icon-picker.icon.'")
+        )
+        XCTAssertTrue(iconButtons.firstMatch.waitForExistence(timeout: 5), "Icon picker did not present")
+        guard let replacementIcon = iconButtons.allElementsBoundByIndex.first(where: { $0.isSelected == false }) else {
+            XCTFail("Icon picker did not expose a non-selected replacement icon")
+            return
+        }
+        let replacementIconIdentifier = replacementIcon.identifier
+        tapElement(replacementIcon)
+
+        let notesField = app.textViews["group-edit.notes-field"]
+        XCTAssertTrue(revealElement(notesField, in: scrollableContainer()), "Notes field was not reachable")
+        replaceText(in: notesField, with: notes)
+
+        let visibilityToggle = app.switches["group-edit.autofill-toggle"]
+        XCTAssertTrue(revealElement(visibilityToggle, in: scrollableContainer()), "Visibility toggle was not reachable")
+        setSwitch(visibilityToggle, isOn: true)
+
+        saveGroupEditor()
+        XCTAssertTrue(
+            app.descendants(matching: .any).matching(identifier: "group-row.autofill-excluded").firstMatch
+                .waitForExistence(timeout: Self.ciElementTimeout),
+            "Saved visibility change did not mark the group as hidden"
+        )
+
+        openGroupEditor(forGroupNamed: workGroupName)
+        let reopenedIconButton = app.buttons["group-edit.icon-button"]
+        XCTAssertTrue(reopenedIconButton.waitForExistence(timeout: 5), "Icon button was not visible")
+        tapElement(reopenedIconButton)
+        let selectedIcon = app.buttons[replacementIconIdentifier]
+        XCTAssertTrue(selectedIcon.waitForExistence(timeout: 5), "Saved icon was not visible when the picker reopened")
+        XCTAssertTrue(selectedIcon.isSelected, "Saved icon was not selected when the picker reopened")
+        tapElement(app.buttons["group-icon-picker.cancel"])
+
+        let reopenedNotes = app.textViews["group-edit.notes-field"]
+        XCTAssertTrue(revealElement(reopenedNotes, in: scrollableContainer()), "Saved notes field was not reachable")
+        XCTAssertEqual(reopenedNotes.value as? String, notes)
+        let reopenedToggle = app.switches["group-edit.autofill-toggle"]
+        XCTAssertTrue(revealElement(reopenedToggle, in: scrollableContainer()), "Saved visibility toggle was not reachable")
+        XCTAssertEqual(reopenedToggle.value as? String, "1")
+    }
+
     func testCancellingDiscardsTheRename() {
         unlockSuccessfully()
 
@@ -140,6 +193,20 @@ final class GroupEditUITests: EntryEditUITestCase {
         XCTAssertFalse(
             app.buttons["group-row.edit-context"].waitForExistence(timeout: 3),
             "A read-only database must not offer Edit Group"
+        )
+    }
+
+    func testRecycleBinOffersNoEditGroupContextAction() {
+        unlockSuccessfully()
+        createRecycleBinByDeletingEmptyGroup()
+
+        let row = groupNavRow(named: recycleBinGroupName)
+        XCTAssertTrue(revealElement(row), "Recycle Bin group was not visible")
+        row.press(forDuration: 1.2)
+
+        XCTAssertFalse(
+            app.buttons["group-row.edit-context"].waitForExistence(timeout: 3),
+            "Recycle Bin must not offer Edit Group"
         )
     }
 
@@ -217,5 +284,26 @@ final class GroupEditUITests: EntryEditUITestCase {
         } while Date() < deadline
 
         return groupNavRow(named: name).exists
+    }
+
+    private func createRecycleBinByDeletingEmptyGroup(
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        let emptyGroup = group(named: "Empty")
+        XCTAssertTrue(revealElement(emptyGroup), "Empty group was not visible", file: file, line: line)
+
+        let deleteButton = revealSwipeDeleteButton(
+            on: emptyGroup,
+            identifier: "group-row.delete-swipe",
+            file: file,
+            line: line
+        )
+        deleteButton.tap()
+
+        let alert = app.alerts["Delete Group?"]
+        XCTAssertTrue(alert.waitForExistence(timeout: 5), "Delete group alert was not visible", file: file, line: line)
+        alert.buttons["Delete"].tap()
+        waitForAutosaveAttempt()
     }
 }

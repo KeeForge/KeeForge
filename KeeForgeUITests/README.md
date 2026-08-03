@@ -22,17 +22,17 @@ The macOS port has its own UI-test target, `KeeForgeMacUITests/` (target `KeeFor
 - `UnlockFlowUITests` — basic unlock success/failure coverage
 - `QuickLaunchSmokeUITests` — single-database quick-launch routing into unlock
 - `LockUnlockUITests` — lock cycle coverage (`testManualLockBehavior`) and a single wrong-then-correct-password unlock (`testWrongThenCorrectPasswordUnlocks`); repeated-failure/lockout behavior is `BackoffUITests`' responsibility, not this class'
-- `UnlockedDatabaseBrowseAndDetailUITests` — unlocked vault browse + entry-detail happy paths
-- `UnlockedDatabaseSearchAndSortUITests` — unlocked search and sort happy paths
+- `UnlockedDatabaseBrowseAndDetailUITests` — unlocked vault browse + entry-detail happy paths, the open-vault gear's complete Database Details surface, and the disabled KDBX 3.1 read-only control
+- `UnlockedDatabaseSearchAndSortUITests` — unlocked search and sort happy paths, including folder captions on search results
 - `EntryCreateSmokeUITests` — create-entry happy path using a known fixture group
-- `EntryEditSmokeUITests` — edit-entry happy path using a known fixture entry, including a screenshot-backed regression check that a long revealed password wraps without extra characters
+- `EntryEditSmokeUITests` — edit-entry happy path using a known fixture entry, including immediate title/username refresh in group lists, search, and title sorting plus a screenshot-backed regression check that a long revealed password wraps without extra characters
 - `EntryDeleteSmokeUITests` — delete-entry happy paths using known fixture entries: row swipe/context-menu deletes, plus the entry editor's "Delete Entry" flow (`entry-edit.delete`) covering both dialog options and the already-recycled variant, asserting the editor dismisses back to a usable group list (regression cover for the v1.10.4 permanent-delete wedge)
 - `EntryAttachmentsSmokeUITests` — entry-attachments list happy path (row name/size, QuickLook preview open/dismiss) using the `attachments` fixture
 - `EntryHistoryUITests` — entry history sheet happy path (`entry-detail.history` → version list → one version's fields) and the restore flow (`entry-history.restore` → `entry-history.restore.confirm`, asserting the replaced state is kept by reading the history row's accessibility **value**, not its localized label), using a fixture entry that ships stored `<History>`
 - `ProtectedCustomFieldUITests` — protected custom fields start masked and reveal on demand in both entry detail and history, while retaining the established copy-control identifiers
 - `GroupIconPickerUITests` — group icon picker round-trip (`group-row.change-icon-context` → pick `group-icon-picker.icon.37` → reopen and assert the cell reports `isSelected`) plus the cancel path leaving the icon alone
-- `GroupEditUITests` — group editor round-trip from the row context menu (`group-row.edit-context` → `group-edit.name-field` / `group-edit.tags-field` → `group-edit.save`, asserting the renamed row comes back and that a tag survives reopening the editor), the cancel path discarding a rename, renaming onto a sibling's name surfacing the error and keeping both groups, and a read-only database offering no "Edit Group" item at all. Extends `EntryEditUITestCase`
-- `TagBrowserUITests` — tag-browser happy path (root `group-list.tags-row` → `tag-list.row.shared` with its entry count → the tag's entries → entry detail's `entry-detail.tag.shared` chip) using the `tag-browser` fixture; the only fixture with entry tags
+- `GroupEditUITests` — group editor round-trip from the row context menu (`group-row.edit-context` → form → `group-edit.save`), covering rename, tags, notes, icon, Search & AutoFill visibility, cancel, duplicate-name errors, and the read-only/Recycle Bin entry-point restrictions. Extends `EntryEditUITestCase`
+- `TagBrowserUITests` — tag-browser happy path (root `group-list.tags-row` → `tag-list.row.shared` with its entry count → folder-captioned tag results → entry detail's `entry-detail.tag.shared` chip), plus the hidden-group contract: entries leave search but remain available through tags. Uses the `tag-browser` fixture; the only fixture with entry tags
 - `InheritedTagsUITests` — entry detail draws the tags an entry gets from its groups (`entry-detail.inherited-tag.<tag>` under the `entry-detail.inherited-tags` strip), keeps them apart from the entry's own `entry-detail.tag.<tag>` chips, and navigates from an inherited chip into that tag's entries; uses the `group-tags` fixture, the only bundled database with group `<Tags>`
 - `TOTPSmokeUITests` — TOTP code renders (6-digit, numeric-only) and the copy control is present/hittable in entry detail, using the `autofill-union` fixture's "Union News" entry; deliberately does not assert exact code values or countdown timing
 - `KeyFileUnlockUITests` — unlocking with a key file
@@ -51,7 +51,7 @@ The macOS port has its own UI-test target, `KeeForgeMacUITests/` (target `KeeFor
 - `AutoFillTipUITests` — "Turn On AutoFill" banner on the database list (forced via `UI_TEST_SHOW_AUTOFILL_TIP=1`; the banner is suppressed in all other UI test classes and screenshots)
 - `WhatsNewUITests` — feature-sheet structure and dismissal (forced via `UI_TEST_SHOW_WHATS_NEW=1`; the release sheet is suppressed in all other UI test classes and screenshots)
 - `EntryEditEdgeUITests` — password generation, conflict handling, discard prompts, and read-only editing affordances
-- `KeyFileUITests` — key file selection and picker flows
+- `KeyFileUITests` — key file selection and picker flows plus visible rejection of malformed XML key data during unlock
 - `CloudAccountEdgeUITests` — sign-out / disconnected cloud account behavior
 - `AppStoreScreenshots` — screenshot capture flow using demo fixtures. **Opt-in only**: `setUp` `XCTSkip`s unless `APPSTORE_SCREENSHOTS=1` is set (mirrors `KeeForgeMacUITests/MacScreenshotAuditUITests`' `SCREENSHOT_AUDIT=1` gate), so it no longer runs — with its ~15+ s of hard `sleep()`s — on every full `KeeForgeUITests` invocation, including both RC release gates:
   ```bash
@@ -402,7 +402,7 @@ Used by `ProtectedCustomFieldUITests`. `Secrets/Protected Custom` carries a prot
 
 ### Key File Fixtures
 
-Use `demo-keyfile.kdbx` with `demo-keyfile.key` — the only key-file pair bundled into `KeeForgeUITests`. The other key-file fixtures in `TestFixtures/` (`test-binary.key`, `test-hex.key`, `test-v1.key`, `test-v2.keyx`, `test-arbitrary.key`, `test-v3-backup.kdbx`) are bundled only into the unit-test targets and **not** available to UI tests.
+Use `demo-keyfile.kdbx` with `demo-keyfile.key` for the valid key-file unlock flow. `invalid-xml.keyx` is also bundled into `KeeForgeUITests`, solely for the malformed-XML rejection case. The other key-file fixtures in `TestFixtures/` (`test-binary.key`, `test-hex.key`, `test-v1.key`, `test-v2.keyx`, `test-arbitrary.key`, `test-v3-backup.kdbx`) are bundled only into the unit-test targets and **not** available to UI tests.
 
 ### What The UI-Test Target Bundles
 
