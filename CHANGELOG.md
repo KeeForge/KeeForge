@@ -33,6 +33,7 @@ TODO before the first macOS release:
 
 ### Fixes
 
+- Entry details now show inherited group tags as a single folder pill without a redundant caption, and custom-field separators use consistent insets.
 - Automatic Face ID / Touch ID unlock no longer fails on the first try with "KeeForge couldn't finish the biometric unlock flow" (#60). The unlock ran while the app was still on its way to the foreground — where iOS refuses to show the biometric prompt at all — which spent the attempt on an error screen that a manual retry then cleared. It now waits for the app to be active, and a prompt that was never shown no longer counts as a failed unlock. Most visible on iPad, where the database stays on screen across an app switch.
 - Choosing "Use Password" in the Face ID / Touch ID prompt now returns to the master password field instead of reporting an unexpected biometric error.
 - OTP AutoFill identities now preserve each explicit web host, including meaningful subdomains, instead of collapsing entries to their registrable domain. Verification-code suggestions for an exact host now win over ones for a broader domain, so a code for `vt.example.com` fills straight away instead of asking which `example.com` entry was meant.

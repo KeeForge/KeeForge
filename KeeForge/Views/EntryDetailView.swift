@@ -124,9 +124,14 @@ struct EntryDetailView: View {
                         Section("Custom Fields") {
                             ForEach(entry.displayCustomFields.sorted(by: { $0.key < $1.key }), id: \.key) { key, value in
                                 if entry.protectedStringKeys.contains(key) {
-                                    ProtectedFieldRow(label: key, value: value)
+                                    ProtectedFieldRow(label: key, value: value, showsInlineLabel: true)
                                 } else {
-                                    FieldRow(label: key, value: value, icon: "text.justify.left")
+                                    FieldRow(
+                                        label: key,
+                                        value: value,
+                                        icon: "text.justify.left",
+                                        showsInlineLabel: true
+                                    )
                                 }
                             }
                         }
@@ -255,8 +260,8 @@ struct EntryDetailView: View {
     /// whose chips fail to explain the match.
     ///
     /// An inherited tag belongs to the group, not the entry, and is edited in
-    /// `GroupEditView` — so the inherited chips sit under their own caption
-    /// instead of mixing into a strip the Edit button implies is editable.
+    /// `GroupEditView`. Its outlined folder pill distinguishes it from an
+    /// entry-owned tag without adding a second caption above the strip.
     @ViewBuilder
     private var tagsSection: some View {
         let tags = viewModel.detailTags(forEntryID: entryID)
@@ -274,15 +279,9 @@ struct EntryDetailView: View {
                 }
 
                 if tags.inherited.isEmpty == false {
-                    VStack(alignment: .leading, spacing: 6) {
-                        Label("From this entry's groups", systemImage: "folder")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-
-                        FlowLayout(spacing: 6) {
-                            ForEach(Array(tags.inherited.enumerated()), id: \.offset) { index, tag in
-                                inheritedTagChip(tag, fallbackIndex: index)
-                            }
+                    FlowLayout(spacing: 6) {
+                        ForEach(Array(tags.inherited.enumerated()), id: \.offset) { index, tag in
+                            inheritedTagChip(tag, fallbackIndex: index)
                         }
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -509,18 +508,40 @@ struct FieldRow: View {
     var accessibilityKey: String?
     /// Identifier namespace for the copy control, matching `PasswordFieldRow`.
     var accessibilityPrefix: String = "entry"
+    /// Custom fields already sit inside a shared section. Keeping their label
+    /// in the row avoids nesting `Section` views, which gives SwiftUI
+    /// inconsistent separator insets.
+    var showsInlineLabel: Bool = false
 
+    @ViewBuilder
     var body: some View {
-        Section(label) {
-            HStack {
-                Image(systemName: icon)
-                    .foregroundStyle(.secondary)
-                    .frame(width: 24)
-                Text(value)
-                    .textSelection(.enabled)
-                Spacer()
-                CopyButton(text: value, accessibilityID: "\(accessibilityPrefix).copy.\(normalizedLabel)")
+        if showsInlineLabel {
+            VStack(alignment: .leading, spacing: 6) {
+                inlineLabel
+                fieldContent
             }
+        } else {
+            Section(label) {
+                fieldContent
+            }
+        }
+    }
+
+    private var inlineLabel: some View {
+        Text(label)
+            .font(.caption)
+            .foregroundStyle(.secondary)
+    }
+
+    private var fieldContent: some View {
+        HStack {
+            Image(systemName: icon)
+                .foregroundStyle(.secondary)
+                .frame(width: 24)
+            Text(value)
+                .textSelection(.enabled)
+            Spacer()
+            CopyButton(text: value, accessibilityID: "\(accessibilityPrefix).copy.\(normalizedLabel)")
         }
     }
 
@@ -533,43 +554,58 @@ struct ProtectedFieldRow: View {
     let label: String
     let value: String
     var accessibilityPrefix: String = "entry"
+    var showsInlineLabel: Bool = false
     @State private var revealed = false
     @State private var authenticating = false
 
+    @ViewBuilder
     var body: some View {
-        Section(label) {
-            HStack {
-                Image(systemName: "lock.fill")
+        if showsInlineLabel {
+            VStack(alignment: .leading, spacing: 6) {
+                Text(label)
+                    .font(.caption)
                     .foregroundStyle(.secondary)
-                    .frame(width: 24)
-
-                if revealed {
-                    Text(value)
-                        .font(.body.monospaced())
-                        .lineLimit(nil)
-                        .fixedSize(horizontal: false, vertical: true)
-                } else {
-                    PasswordConcealedText(accessibilityLabel: String(localized: "Hidden protected field"))
-                }
-
-                Spacer(minLength: 12)
-
-                Button(action: toggleReveal) {
-                    Image(systemName: revealed ? "eye.slash.fill" : "eye.fill")
-                        .font(.body)
-                }
-                .frame(width: 44, height: 44)
-                .contentShape(Rectangle())
-                .disabled(authenticating)
-                .accessibilityIdentifier("\(accessibilityPrefix).protected-field.\(normalizedLabel).reveal")
-
-                CopyButton(
-                    text: value,
-                    requireAuth: true,
-                    authenticationReason: String(localized: "Copy protected field"),
-                    accessibilityID: "\(accessibilityPrefix).copy.\(normalizedLabel)"
-                )
+                fieldContent
             }
+        } else {
+            Section(label) {
+                fieldContent
+            }
+        }
+    }
+
+    private var fieldContent: some View {
+        HStack {
+            Image(systemName: "lock.fill")
+                .foregroundStyle(.secondary)
+                .frame(width: 24)
+
+            if revealed {
+                Text(value)
+                    .font(.body.monospaced())
+                    .lineLimit(nil)
+                    .fixedSize(horizontal: false, vertical: true)
+            } else {
+                PasswordConcealedText(accessibilityLabel: String(localized: "Hidden protected field"))
+            }
+
+            Spacer(minLength: 12)
+
+            Button(action: toggleReveal) {
+                Image(systemName: revealed ? "eye.slash.fill" : "eye.fill")
+                    .font(.body)
+            }
+            .frame(width: 44, height: 44)
+            .contentShape(Rectangle())
+            .disabled(authenticating)
+            .accessibilityIdentifier("\(accessibilityPrefix).protected-field.\(normalizedLabel).reveal")
+
+            CopyButton(
+                text: value,
+                requireAuth: true,
+                authenticationReason: String(localized: "Copy protected field"),
+                accessibilityID: "\(accessibilityPrefix).copy.\(normalizedLabel)"
+            )
         }
     }
 
