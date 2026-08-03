@@ -18,6 +18,7 @@ struct AutoFillSearchView: View {
 
     @State private var searchText: String
     @State private var didEditSearch = false
+    @State private var showsAllEntries = false
     @State private var entryPendingURLAddition: KPEntry?
 
     init(
@@ -45,7 +46,7 @@ struct AutoFillSearchView: View {
 
     private var filteredEntries: [KPEntry] {
         guard !searchText.isEmpty else {
-            return didEditSearch ? searchEntries : entries
+            return didEditSearch || showsAllEntries ? searchEntries : entries
         }
         let query = searchText.lowercased()
         return searchEntries.filter { entry in
@@ -54,6 +55,21 @@ struct AutoFillSearchView: View {
             entry.url.lowercased().contains(query) ||
             entry.notes.lowercased().contains(query)
         }
+    }
+
+    /// Whether the picker is narrowed to matches — or to a domain search the
+    /// coordinator pre-filled — while further credentials sit behind it. A
+    /// request whose matching found nothing lands on that pre-filled search
+    /// with an empty list, so without this the full database is reachable
+    /// only by clearing a search field the user never typed into.
+    private var canShowAllEntries: Bool {
+        guard !showsAllEntries, !didEditSearch, !searchEntries.isEmpty else { return false }
+        return filteredEntries.count + possibleEntries.count < searchEntries.count
+    }
+
+    private func showAllEntries() {
+        searchText = ""
+        showsAllEntries = true
     }
 
     var body: some View {
@@ -72,6 +88,11 @@ struct AutoFillSearchView: View {
                             .accessibilityIdentifier("autofill.no-credentials-found")
                     } description: {
                         Text("No credentials match this search.")
+                    } actions: {
+                        if canShowAllEntries {
+                            Button("Show All Credentials", action: showAllEntries)
+                                .accessibilityIdentifier("autofill.show-all-entries.empty-state")
+                        }
                     }
                 }
                 Section {
@@ -93,6 +114,16 @@ struct AutoFillSearchView: View {
                                     .accessibilityIdentifier("autofill.entry.possible.add-url")
                             }
                         }
+                    }
+                }
+                // Only when something is already listed; the empty state
+                // carries its own copy of this action.
+                if canShowAllEntries, !filteredEntries.isEmpty || !filteredPossibleEntries.isEmpty {
+                    Section {
+                        Button(action: showAllEntries) {
+                            Label("Show All Credentials", systemImage: "list.bullet")
+                        }
+                        .accessibilityIdentifier("autofill.show-all-entries")
                     }
                 }
             }
