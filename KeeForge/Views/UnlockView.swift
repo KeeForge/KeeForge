@@ -116,7 +116,7 @@ struct UnlockView: View {
         if let failure = viewModel.openFailure {
             failureSection(failure)
 
-            if failure.isAuthenticationFailure {
+            if failure.canRetryUnlock {
                 passwordSection
             }
         } else if viewModel.hasSavedFile {

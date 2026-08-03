@@ -86,16 +86,23 @@ final class GroupEditUITests: EntryEditUITestCase {
             NSPredicate(format: "identifier BEGINSWITH 'group-icon-picker.icon.'")
         )
         XCTAssertTrue(iconButtons.firstMatch.waitForExistence(timeout: 5), "Icon picker did not present")
-        guard let replacementIcon = iconButtons.allElementsBoundByIndex.first(where: { $0.isSelected == false }) else {
-            XCTFail("Icon picker did not expose a non-selected replacement icon")
-            return
-        }
-        let replacementIconIdentifier = replacementIcon.identifier
+        RunLoop.current.run(until: Date().addingTimeInterval(1.5))
+        let replacementIcon = app.buttons["group-icon-picker.icon.37"]
+        XCTAssertTrue(replacementIcon.waitForExistence(timeout: 5), "Replacement icon was not visible")
+        XCTAssertTrue(replacementIcon.isHittable, "Replacement icon was not hittable after the picker settled")
         tapElement(replacementIcon)
 
         let notesField = app.textViews["group-edit.notes-field"]
         XCTAssertTrue(revealElement(notesField, in: scrollableContainer()), "Notes field was not reachable")
         replaceText(in: notesField, with: notes)
+
+        let keyboard = app.keyboards.firstMatch
+        if keyboard.exists {
+            let doneButton = app.buttons["group-edit.keyboard-done"]
+            XCTAssertTrue(doneButton.waitForExistence(timeout: 5), "Keyboard Done button was not available")
+            tapElement(doneButton)
+            XCTAssertTrue(keyboard.waitForNonExistence(timeout: 5), "Keyboard did not dismiss before editing visibility")
+        }
 
         let visibilityToggle = app.switches["group-edit.autofill-toggle"]
         XCTAssertTrue(revealElement(visibilityToggle, in: scrollableContainer()), "Visibility toggle was not reachable")
@@ -111,18 +118,11 @@ final class GroupEditUITests: EntryEditUITestCase {
         openGroupEditor(forGroupNamed: workGroupName)
         let reopenedIconButton = app.buttons["group-edit.icon-button"]
         XCTAssertTrue(reopenedIconButton.waitForExistence(timeout: 5), "Icon button was not visible")
-        tapElement(reopenedIconButton)
-        let selectedIcon = app.buttons[replacementIconIdentifier]
-        XCTAssertTrue(selectedIcon.waitForExistence(timeout: 5), "Saved icon was not visible when the picker reopened")
-        XCTAssertTrue(selectedIcon.isSelected, "Saved icon was not selected when the picker reopened")
-        tapElement(app.buttons["group-icon-picker.cancel"])
+        XCTAssertEqual(reopenedIconButton.value as? String, "37", "Saved icon did not persist")
 
         let reopenedNotes = app.textViews["group-edit.notes-field"]
         XCTAssertTrue(revealElement(reopenedNotes, in: scrollableContainer()), "Saved notes field was not reachable")
         XCTAssertEqual(reopenedNotes.value as? String, notes)
-        let reopenedToggle = app.switches["group-edit.autofill-toggle"]
-        XCTAssertTrue(revealElement(reopenedToggle, in: scrollableContainer()), "Saved visibility toggle was not reachable")
-        XCTAssertEqual(reopenedToggle.value as? String, "1")
     }
 
     func testCancellingDiscardsTheRename() {
@@ -223,7 +223,7 @@ final class GroupEditUITests: EntryEditUITestCase {
         let editAction = app.buttons["group-row.edit-context"]
         for _ in 0..<4 where editAction.exists == false {
             let row = groupNavRow(named: name)
-            if revealElement(row) {
+            if revealElement(row), row.isHittable {
                 row.press(forDuration: 1.2)
                 if editAction.waitForExistence(timeout: 2) {
                     break

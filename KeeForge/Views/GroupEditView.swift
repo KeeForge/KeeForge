@@ -15,6 +15,7 @@ struct GroupEditView: View {
     @State private var isShowingIconPicker = false
     @State private var editingErrorMessage: String?
     @State private var isSubmitting = false
+    @FocusState private var notesFocused: Bool
 
     private var isSavingInProgress: Bool {
         isSubmitting || databaseViewModel.isSaving
@@ -59,6 +60,7 @@ struct GroupEditView: View {
             Section("Notes") {
                 TextEditor(text: $formViewModel.notes)
                     .frame(minHeight: 140)
+                    .focused($notesFocused)
                     .accessibilityIdentifier("group-edit.notes-field")
             }
 
@@ -73,6 +75,7 @@ struct GroupEditView: View {
                 }
             }
         }
+        .scrollDismissesKeyboard(.immediately)
         .navigationTitle("Edit Group")
         .navigationBarTitleDisplayMode(.inline)
         .navigationBarBackButtonHidden(true)
@@ -93,6 +96,16 @@ struct GroupEditView: View {
                 .disabled(formViewModel.canSave == false || isSavingInProgress)
                 .accessibilityIdentifier("group-edit.save")
             }
+
+            #if os(iOS)
+            ToolbarItemGroup(placement: .keyboard) {
+                Spacer()
+                Button("Done") {
+                    notesFocused = false
+                }
+                .accessibilityIdentifier("group-edit.keyboard-done")
+            }
+            #endif
         }
         .overlay {
             if isSubmitting && databaseViewModel.isSaving == false {
@@ -173,6 +186,7 @@ struct GroupEditView: View {
         }
         .buttonStyle(.plain)
         .accessibilityIdentifier("group-edit.icon-button")
+        .accessibilityValue(String(formViewModel.iconID))
     }
 
     /// The tags this group already carries, one removable pill each. Nothing
