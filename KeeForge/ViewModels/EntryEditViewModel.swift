@@ -35,6 +35,7 @@ final class EntryEditViewModel {
         var totpPeriod: Int
         var totpDigits: Int
         var totpAlgorithm: TOTPAlgorithm
+        var enrolledOTPAuthURI: String?
     }
 
     let mode: Mode
@@ -59,6 +60,10 @@ final class EntryEditViewModel {
     var totpPeriod: Int
     var totpDigits: Int
     var totpAlgorithm: TOTPAlgorithm
+    /// The verbatim `otpauth://` URI this editing session enrolled from, nil
+    /// otherwise. Whether it reaches the payload is decided at payload time,
+    /// so later field edits need no invalidation bookkeeping.
+    private var enrolledOTPAuthURI: String?
 
     private let preservedCustomFields: [String: String]
     private let originalSnapshot: Snapshot
@@ -126,7 +131,8 @@ final class EntryEditViewModel {
             totpSecret: totpSecret,
             totpPeriod: totpPeriod,
             totpDigits: totpDigits,
-            totpAlgorithm: totpAlgorithm
+            totpAlgorithm: totpAlgorithm,
+            enrolledOTPAuthURI: nil
         )
     }
 
@@ -282,6 +288,42 @@ final class EntryEditViewModel {
     }
 
 
+    /// Fills the TOTP form from a parsed enrollment URI. KeeOTP-sourced
+    /// entries keep their query-rewrite path, so the URI itself is only
+    /// retained for verbatim storage when no legacy source owns the config.
+    func applyOTPAuthURI(_ uri: OTPAuthURI) {
+        totpSecret = uri.secret
+        totpPeriod = uri.period
+        totpDigits = uri.digits
+        totpAlgorithm = uri.algorithm
+        enrolledOTPAuthURI = keeOTPSource == nil ? uri.rawURI : nil
+    }
+
+    /// Parses `text` as an `otpauth://` setup link and fills the form on
+    /// success; returns the parse error — leaving the form untouched —
+    /// otherwise.
+    @discardableResult
+    func applySetupLink(_ text: String) -> OTPAuthURIError? {
+        let uri: OTPAuthURI
+        do {
+            uri = try OTPAuthURI(string: text)
+        } catch let error as OTPAuthURIError {
+            return error
+        } catch {
+            return .notAnOTPAuthURI
+        }
+        applyOTPAuthURI(uri)
+        return nil
+    }
+
+    func removeTOTP() {
+        totpSecret = ""
+        enrolledOTPAuthURI = nil
+        totpPeriod = 30
+        totpDigits = 6
+        totpAlgorithm = .sha1
+    }
+
     func addCustomField() {
         customFields.append(CustomField())
     }
@@ -316,7 +358,8 @@ final class EntryEditViewModel {
             totpSecret: totpSecret,
             totpPeriod: totpPeriod,
             totpDigits: totpDigits,
-            totpAlgorithm: totpAlgorithm
+            totpAlgorithm: totpAlgorithm,
+            enrolledOTPAuthURI: enrolledOTPAuthURI
         )
     }
 
@@ -341,8 +384,12 @@ final class EntryEditViewModel {
         guard trimmedSecret.isEmpty == false else { return nil }
 
         let secretChanged = trimmedSecret != originalSnapshot.totpSecret.trimmingCharacters(in: .whitespacesAndNewlines)
-        if secretChanged, keeOTPSource != nil,
-           Self.canonicalBase32Secret(trimmedSecret) == nil {
+        // A KeeOTP query the parser would reject on reload (non-canonical
+        // secret, or a size outside its {6, 8} whitelist) must never be
+        // written: revert to the original snapshot instead.
+        if keeOTPSource != nil,
+           (secretChanged && TOTPGenerator.canonicalBase32Secret(trimmedSecret) == nil)
+               || [6, 8].contains(totpDigits) == false {
             return EntryDraftPayload.TOTPConfiguration(
                 secret: originalSnapshot.totpSecret,
                 decodedSecret: decodedTOTPSecret,
@@ -358,7 +405,7 @@ final class EntryEditViewModel {
             || totpAlgorithm != originalSnapshot.totpAlgorithm
         let rewrittenSource = secretChanged || settingsChanged
             ? keeOTPSource?.rewriting(
-                secret: secretChanged ? Self.canonicalBase32Secret(trimmedSecret) : nil,
+                secret: secretChanged ? TOTPGenerator.canonicalBase32Secret(trimmedSecret) : nil,
                 period: totpPeriod,
                 digits: totpDigits,
                 algorithm: totpAlgorithm
@@ -371,37 +418,24 @@ final class EntryEditViewModel {
             keeOTPSource: rewrittenSource,
             period: totpPeriod,
             digits: totpDigits,
-            algorithm: totpAlgorithm
+            algorithm: totpAlgorithm,
+            otpauthURI: payloadOTPAuthURI(currentSecret: trimmedSecret)
         )
     }
 
-    private static func canonicalBase32Secret(_ value: String) -> String? {
-        let normalized = value.uppercased()
-        guard !normalized.isEmpty,
-              normalized.utf8.allSatisfy({ (65...90).contains($0) || (50...55).contains($0) }),
-              let decoded = TOTPGenerator.base32Decode(normalized), !decoded.isEmpty,
-              base32Encode(decoded) == normalized else { return nil }
-        return normalized
-    }
-
-    private static func base32Encode(_ data: Data) -> String {
-        let alphabet = Array("ABCDEFGHIJKLMNOPQRSTUVWXYZ234567".utf8)
-        var result: [UInt8] = []
-        var accumulator = 0
-        var bitCount = 0
-        for byte in data {
-            accumulator = (accumulator << 8) | Int(byte)
-            bitCount += 8
-            while bitCount >= 5 {
-                bitCount -= 5
-                result.append(alphabet[(accumulator >> bitCount) & 31])
-                accumulator &= (1 << bitCount) - 1
-            }
-        }
-        if bitCount > 0 {
-            result.append(alphabet[(accumulator << (5 - bitCount)) & 31])
-        }
-        return String(decoding: result, as: UTF8.self)
+    /// The enrolled URI is emitted only while its parsed values still match
+    /// the form; a post-enrollment edit silently drops it (the existing
+    /// verbatim-or-drop philosophy for stored otpauth URIs).
+    private func payloadOTPAuthURI(currentSecret: String) -> String? {
+        guard keeOTPSource == nil,
+              let enrolledOTPAuthURI,
+              let uri = try? OTPAuthURI(string: enrolledOTPAuthURI),
+              let decoded = TOTPGenerator.base32Decode(currentSecret), !decoded.isEmpty,
+              TOTPGenerator.base32Encode(decoded) == uri.secret,
+              uri.period == totpPeriod,
+              uri.digits == totpDigits,
+              uri.algorithm == totpAlgorithm else { return nil }
+        return enrolledOTPAuthURI
     }
 }
 

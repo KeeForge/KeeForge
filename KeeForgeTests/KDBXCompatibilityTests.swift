@@ -720,6 +720,41 @@ final class KDBXCompatibilityTests: XCTestCase {
         XCTAssertFalse(reloaded.customFields.keys.contains { $0.hasPrefix("TimeOtp-") || $0 == "OTP" || $0 == "Otp" })
     }
 
+    @MainActor
+    func test_freshOTPAuthURIEnrollment_storesProtectedVerbatimURIAndLaterEditsDropIt() throws {
+        let raw = "otpauth://totp/Compat:enroll@example.com?secret=JBSWY3DPEHPK3PXP&issuer=Compat&period=45&digits=8&algorithm=SHA256"
+        let entry = KPEntry(
+            title: "Enrollment Target",
+            password: try EncryptedValue.encrypt("password", using: entrySessionKey)
+        )
+        let viewModel = EntryEditViewModel(editing: entry, sessionKey: entrySessionKey)
+        viewModel.applyOTPAuthURI(try OTPAuthURI(string: raw))
+
+        var updated = try DatabaseDraft(rootGroup: KPGroup(name: "Root", entries: [entry]), meta: KPMeta(), sessionKey: entrySessionKey)
+            .apply(.updateEntry(entryID: entry.id, draft: viewModel.entryDraftPayload))
+        var reloaded = try writeAndReload(updated)
+        var config = try XCTUnwrap(reloaded.totpConfig)
+        XCTAssertEqual(reloaded.otpURL, raw, "Enrollment must store the URI verbatim, KeePassXC-style")
+        XCTAssertTrue(reloaded.protectedStringKeys.contains("otp"))
+        XCTAssertEqual(config.period, 45)
+        XCTAssertEqual(config.digits, 8)
+        XCTAssertEqual(config.algorithm, .sha256)
+        XCTAssertEqual(resolvedSecret(config), TOTPGenerator.base32Decode("JBSWY3DPEHPK3PXP"))
+        XCTAssertFalse(reloaded.customFields.keys.contains { $0.hasPrefix("TimeOtp-") })
+
+        // A later field edit makes the stored URI stale: it must be dropped,
+        // falling back to TimeOtp-* authoring, never rewritten.
+        let editViewModel = EntryEditViewModel(editing: reloaded, sessionKey: entrySessionKey)
+        editViewModel.totpPeriod = 60
+        updated = try DatabaseDraft(rootGroup: KPGroup(name: "Root", entries: [reloaded]), meta: KPMeta(), sessionKey: entrySessionKey)
+            .apply(.updateEntry(entryID: reloaded.id, draft: editViewModel.entryDraftPayload))
+        reloaded = try writeAndReload(updated)
+        config = try XCTUnwrap(reloaded.totpConfig)
+        XCTAssertNil(reloaded.otpURL)
+        XCTAssertEqual(config.period, 60)
+        XCTAssertEqual(resolvedSecret(config), TOTPGenerator.base32Decode("JBSWY3DPEHPK3PXP"))
+    }
+
     func test_passkeyPrivateKey_divertedOnParse_andPreservedThroughEditSaveReload() throws {
         let loaded = try KDBXCompatibilitySupport.load(.syntheticRich, bundle: bundle, sessionKey: entrySessionKey)
         let entry = try XCTUnwrap(firstEntry(titled: "Compat Update Target", in: loaded.rootGroup))

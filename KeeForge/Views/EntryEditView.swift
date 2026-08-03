@@ -1,8 +1,12 @@
 import SwiftUI
 
 struct EntryEditView: View {
+    /// Saved and cancelled are distinct on purpose: most presenters dismiss
+    /// either way, but the TOTP enrollment flow returns to its destination
+    /// list on cancel and finishes only on save.
     enum Completion {
-        case finished
+        case saved
+        case cancelled
         case deleted
     }
 
@@ -14,9 +18,21 @@ struct EntryEditView: View {
     @State private var showDeleteConfirmation = false
     @State private var showPasswordGenerator = false
     @State private var isPasswordVisible: Bool
-    @State private var isAuthenticatingPasswordReveal = false
+    @State private var isAuthenticatingReveal = false
     @State private var editingErrorMessage: String?
     @State private var isSubmitting = false
+
+    @State private var isTOTPSecretVisible: Bool
+    @State private var isManualTOTPEntryActive = false
+    @State private var showTOTPScanner = false
+    @State private var showTOTPSetupLink = false
+    @State private var showRemoveTOTPConfirmation = false
+    /// String mirror for the numeric period field; committed to the view
+    /// model only when it parses to a positive integer. Focus loss and submit
+    /// snap unparsable text back to the view model's value, so the field
+    /// never keeps showing a period that Save would not write.
+    @State private var totpPeriodText: String
+    @FocusState private var isTOTPPeriodFieldFocused: Bool
 
     private var isSavingInProgress: Bool {
         isSubmitting || databaseViewModel.isSaving
@@ -34,6 +50,8 @@ struct EntryEditView: View {
     ) {
         _formViewModel = State(initialValue: formViewModel)
         _isPasswordVisible = State(initialValue: formViewModel.isPasswordInitiallyVisible)
+        _isTOTPSecretVisible = State(initialValue: formViewModel.isPasswordInitiallyVisible)
+        _totpPeriodText = State(initialValue: String(formViewModel.totpPeriod))
         self.databaseViewModel = databaseViewModel
         self.onComplete = onComplete
     }
@@ -99,6 +117,14 @@ struct EntryEditView: View {
                         .accessibilityIdentifier("entry-edit.tags-field")
 
                     tagSuggestionStrip
+                }
+            }
+
+            Section("One-Time Password") {
+                if isTOTPConfigurationVisible {
+                    totpConfigurationRows
+                } else {
+                    totpEntryPathRows
                 }
             }
 
@@ -206,9 +232,36 @@ struct EntryEditView: View {
                 formViewModel.password = password
             }
         }
+        #if os(iOS)
+        .sheet(isPresented: $showTOTPScanner) {
+            TOTPQRScannerSheet { uri in
+                formViewModel.applyOTPAuthURI(uri)
+            }
+        }
+        #endif
+        .sheet(isPresented: $showTOTPSetupLink) {
+            TOTPSetupLinkSheet { link in
+                formViewModel.applySetupLink(link)
+            }
+        }
+        .onChange(of: totpPeriodText) { _, newValue in
+            if let period = Int(newValue), period > 0 {
+                formViewModel.totpPeriod = period
+            }
+        }
+        .onChange(of: formViewModel.totpPeriod) { _, newValue in
+            if Int(totpPeriodText) != newValue {
+                totpPeriodText = String(newValue)
+            }
+        }
+        .onChange(of: isTOTPPeriodFieldFocused) { _, isFocused in
+            if isFocused == false {
+                snapBackInvalidTOTPPeriodText()
+            }
+        }
         .alert("Discard changes?", isPresented: $showDiscardConfirmation) {
             Button("Discard Changes", role: .destructive) {
-                onComplete(.finished)
+                onComplete(.cancelled)
             }
             Button("Keep Editing", role: .cancel) {}
         } message: {
@@ -232,36 +285,150 @@ struct EntryEditView: View {
     }
 
     private func togglePasswordVisibility() {
-        if isPasswordVisible {
+        toggleProtectedFieldVisibility($isPasswordVisible, reason: String(localized: "View password"))
+    }
+
+    private func toggleTOTPSecretVisibility() {
+        toggleProtectedFieldVisibility(
+            $isTOTPSecretVisible,
+            reason: String(localized: "View verification code secret")
+        )
+    }
+
+    /// Reveal is gated behind device-owner authentication in edit mode; a
+    /// create-mode value was typed this session, so hiding and re-showing it
+    /// stays ungated.
+    private func toggleProtectedFieldVisibility(_ isVisible: Binding<Bool>, reason: String) {
+        if isVisible.wrappedValue {
             HapticService.tap()
-            isPasswordVisible = false
+            isVisible.wrappedValue = false
             return
         }
 
-        guard isAuthenticatingPasswordReveal == false else { return }
+        guard isAuthenticatingReveal == false else { return }
         guard formViewModel.requiresAuthenticationToRevealPassword,
               BiometricService.canAuthenticateDeviceOwner else {
             HapticService.tap()
-            isPasswordVisible = true
+            isVisible.wrappedValue = true
             return
         }
 
-        isAuthenticatingPasswordReveal = true
+        isAuthenticatingReveal = true
         Task {
             do {
-                _ = try await BiometricService.authenticateDeviceOwner(
-                    reason: String(localized: "View password")
-                )
+                _ = try await BiometricService.authenticateDeviceOwner(reason: reason)
                 await MainActor.run {
                     HapticService.success()
-                    isPasswordVisible = true
+                    isVisible.wrappedValue = true
                 }
             } catch {
-                // The stored password stays concealed when authentication fails.
+                // The stored secret stays concealed when authentication fails.
             }
             await MainActor.run {
-                isAuthenticatingPasswordReveal = false
+                isAuthenticatingReveal = false
             }
+        }
+    }
+
+    private var hasTOTPConfiguration: Bool {
+        formViewModel.totpSecret.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
+    }
+
+    private var isTOTPConfigurationVisible: Bool {
+        hasTOTPConfiguration || isManualTOTPEntryActive
+    }
+
+    @ViewBuilder
+    private var totpEntryPathRows: some View {
+        #if os(iOS)
+        Button {
+            showTOTPScanner = true
+        } label: {
+            Label("Scan QR Code", systemImage: "qrcode.viewfinder")
+        }
+        .accessibilityIdentifier("entry-edit.totp.scan-qr")
+        #endif
+
+        Button {
+            showTOTPSetupLink = true
+        } label: {
+            Label("Enter Setup Link", systemImage: "link")
+        }
+        .accessibilityIdentifier("entry-edit.totp.enter-link")
+
+        Button {
+            isManualTOTPEntryActive = true
+        } label: {
+            Label("Enter Setup Key", systemImage: "keyboard")
+        }
+        .accessibilityIdentifier("entry-edit.totp.enter-key")
+    }
+
+    @ViewBuilder
+    private var totpConfigurationRows: some View {
+        basicFieldRow(String(localized: "Secret Key")) {
+            PasswordInputRow(
+                title: String(localized: "Secret Key"),
+                text: $formViewModel.totpSecret,
+                isVisible: $isTOTPSecretVisible,
+                fieldAccessibilityIdentifier: "entry-edit.totp.secret-field",
+                visibilityAccessibilityIdentifier: "entry-edit.totp.secret-visibility-button",
+                onVisibilityToggle: toggleTOTPSecretVisibility
+            )
+        }
+
+        basicFieldRow(String(localized: "Period (Seconds)")) {
+            TextField(String(localized: "Period (Seconds)"), text: $totpPeriodText)
+                .keyboardType(.numberPad)
+                .focused($isTOTPPeriodFieldFocused)
+                .onSubmit(snapBackInvalidTOTPPeriodText)
+                .accessibilityIdentifier("entry-edit.totp.period-field")
+        }
+
+        // An enrolled URI may carry any digit count in 1...9; the current
+        // value always gets a tag so the picker never renders blank.
+        Picker("Digits", selection: $formViewModel.totpDigits) {
+            ForEach(Array(Set([6, 7, 8, formViewModel.totpDigits])).sorted(), id: \.self) { digits in
+                Text(verbatim: String(digits)).tag(digits)
+            }
+        }
+        .accessibilityIdentifier("entry-edit.totp.digits-picker")
+
+        Picker("Algorithm", selection: $formViewModel.totpAlgorithm) {
+            Text(verbatim: "SHA-1").tag(TOTPAlgorithm.sha1)
+            Text(verbatim: "SHA-256").tag(TOTPAlgorithm.sha256)
+            Text(verbatim: "SHA-512").tag(TOTPAlgorithm.sha512)
+        }
+        .accessibilityIdentifier("entry-edit.totp.algorithm-picker")
+
+        Button("Remove Verification Code", role: .destructive) {
+            showRemoveTOTPConfirmation = true
+        }
+        .accessibilityIdentifier("entry-edit.totp.remove")
+        // Anchored to the button for the same reason as the delete dialog.
+        .confirmationDialog(
+            "Remove Verification Code",
+            isPresented: $showRemoveTOTPConfirmation,
+            titleVisibility: .visible
+        ) {
+            Button("Remove", role: .destructive) {
+                formViewModel.removeTOTP()
+                isManualTOTPEntryActive = false
+                totpPeriodText = String(formViewModel.totpPeriod)
+            }
+            .accessibilityIdentifier("entry-edit.totp.remove-confirm")
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("The verification code will no longer be generated for this entry.")
+        }
+    }
+
+    /// Focus loss / submit for the period mirror: unparsable text snaps back
+    /// to the committed value; valid input has already been committed by the
+    /// text `onChange`.
+    private func snapBackInvalidTOTPPeriodText() {
+        if Int(totpPeriodText).map({ $0 > 0 }) != true {
+            totpPeriodText = String(formViewModel.totpPeriod)
         }
     }
 
@@ -362,7 +529,7 @@ struct EntryEditView: View {
         if formViewModel.isDirty {
             showDiscardConfirmation = true
         } else {
-            onComplete(.finished)
+            onComplete(.cancelled)
         }
     }
 
@@ -387,7 +554,7 @@ struct EntryEditView: View {
                     editingErrorMessage = saveError.localizedDescription
                     databaseViewModel.clearSaveError()
                 } else {
-                    onComplete(.finished)
+                    onComplete(.saved)
                 }
             }
         } catch {
@@ -413,6 +580,80 @@ struct EntryEditView: View {
             }
         } catch {
             editingErrorMessage = error.localizedDescription
+        }
+    }
+}
+
+/// Paste-friendly `otpauth://` enrollment: `onApply` parses and fills the
+/// entry form, returning the parse error to surface inline instead of
+/// applying anything.
+private struct TOTPSetupLinkSheet: View {
+    let onApply: (String) -> OTPAuthURIError?
+
+    @Environment(\.dismiss) private var dismiss
+    @State private var linkText = ""
+    @State private var errorMessage: String?
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                TextField(text: $linkText, prompt: Text(verbatim: "otpauth://totp/…")) {
+                    Text("Setup Link")
+                }
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+                .keyboardType(.URL)
+                .accessibilityIdentifier("entry-edit.totp.link-field")
+
+                if let errorMessage {
+                    Text(errorMessage)
+                        .font(.subheadline)
+                        .foregroundStyle(.red)
+                        .accessibilityIdentifier("entry-edit.totp.link-error")
+                }
+            }
+            .navigationTitle("Enter Setup Link")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") {
+                        dismiss()
+                    }
+                    .accessibilityIdentifier("entry-edit.totp.link-cancel")
+                }
+
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Apply") {
+                        applyTapped()
+                    }
+                    .disabled(linkText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    .accessibilityIdentifier("entry-edit.totp.link-apply")
+                }
+            }
+        }
+        #if os(iOS)
+        .presentationDetents([.medium])
+        #endif
+    }
+
+    private func applyTapped() {
+        if let error = onApply(linkText) {
+            errorMessage = Self.message(for: error)
+        } else {
+            dismiss()
+        }
+    }
+
+    static func message(for error: OTPAuthURIError) -> String {
+        switch error {
+        case .notAnOTPAuthURI:
+            String(localized: "This isn't an otpauth:// setup link.")
+        case .unsupportedType:
+            String(localized: "This setup link uses an unsupported code type. Only time-based (TOTP) codes are supported.")
+        case .missingOrInvalidSecret:
+            String(localized: "This setup link doesn't contain a valid secret.")
+        case .invalidParameter:
+            String(localized: "This setup link contains an invalid parameter.")
         }
     }
 }

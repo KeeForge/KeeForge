@@ -1456,6 +1456,28 @@
         }
       }
     },
+    "Add Verification Code" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bestätigungscode hinzufügen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Añadir código de verificación"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ajouter un code de vérification"
+          }
+        }
+      }
+    },
     "Added" : {
       "localizations" : {
         "de" : {
@@ -1588,6 +1610,50 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "點一下「建立」後，「檔案」App 會詢問加密 .kdbx 資料庫的儲存位置。"
+          }
+        }
+      }
+    },
+    "Algorithm" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Algorithmus"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Algoritmo"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Algorithme"
+          }
+        }
+      }
+    },
+    "Allow camera access in Settings to scan verification-code QR codes." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Erlauben Sie den Kamerazugriff in den Einstellungen, um QR-Codes für Bestätigungscodes zu scannen."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Permita el acceso a la cámara en Ajustes para escanear códigos QR de códigos de verificación."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Autorisez l'accès à la caméra dans Réglages pour scanner les codes QR de codes de vérification."
           }
         }
       }
@@ -1826,6 +1892,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "App 設定"
+          }
+        }
+      }
+    },
+    "Apply" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Übernehmen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aplicar"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Appliquer"
           }
         }
       }
@@ -3020,6 +3108,28 @@
         }
       }
     },
+    "Camera Access Needed" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kamerazugriff erforderlich"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Se necesita acceso a la cámara"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Accès à la caméra requis"
+          }
+        }
+      }
+    },
     "Cancel" : {
       "localizations" : {
         "de" : {
@@ -3701,6 +3811,28 @@
         }
       }
     },
+    "Choose Group" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gruppe auswählen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Elegir grupo"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choisir un groupe"
+          }
+        }
+      }
+    },
     "Choose how to remove this entry." : {
       "localizations" : {
         "de" : {
@@ -3765,6 +3897,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "當 App 或網站提供加入通行金鑰時，選擇 KeeForge，即可將其直接儲存到預設的自動填寫資料庫。"
+          }
+        }
+      }
+    },
+    "Choose where to save this verification code." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wählen Sie, wo dieser Bestätigungscode gespeichert werden soll."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Elija dónde guardar este código de verificación."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choisissez où enregistrer ce code de vérification."
           }
         }
       }
@@ -5431,6 +5585,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "無法存取資料庫檔案"
+          }
+        }
+      }
+    },
+    "Couldn’t Add Verification Code" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bestätigungscode konnte nicht hinzugefügt werden"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No se pudo añadir el código de verificación"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Impossible d'ajouter le code de vérification"
           }
         }
       }
@@ -8491,6 +8667,50 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "輸入密碼"
+          }
+        }
+      }
+    },
+    "Enter Setup Key" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Einrichtungsschlüssel eingeben"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Introducir clave de configuración"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Saisir la clé de configuration"
+          }
+        }
+      }
+    },
+    "Enter Setup Link" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Einrichtungslink eingeben"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Introducir enlace de configuración"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Saisir le lien de configuration"
           }
         }
       }
@@ -14106,6 +14326,28 @@
         }
       }
     },
+    "Not a verification-code QR code" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kein QR-Code für Bestätigungscodes"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No es un código QR de código de verificación"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ce n'est pas un code QR de code de vérification"
+          }
+        }
+      }
+    },
     "Note: Dropbox may warn that KeeForge has low number of users. That is normal for an indie app. KeeForge is open source and will only use the database file you choose to open or create." : {
       "localizations" : {
         "de" : {
@@ -14651,6 +14893,28 @@
         }
       }
     },
+    "Open and unlock a database, and KeeForge will then add the verification code." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Öffnen und entsperren Sie eine Datenbank, dann fügt KeeForge den Bestätigungscode hinzu."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Abra y desbloquee una base de datos y KeeForge añadirá entonces el código de verificación."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ouvrez et déverrouillez une base de données, puis KeeForge ajoutera le code de vérification."
+          }
+        }
+      }
+    },
     "Open Database" : {
       "localizations" : {
         "de" : {
@@ -14749,6 +15013,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "打開更多 KeePass 資料庫"
+          }
+        }
+      }
+    },
+    "Open Settings" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Einstellungen öffnen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Abrir Ajustes"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ouvrir Réglages"
           }
         }
       }
@@ -15229,6 +15515,28 @@
         }
       }
     },
+    "Period (Seconds)" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Intervall (Sekunden)"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Período (segundos)"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Période (secondes)"
+          }
+        }
+      }
+    },
     "Permissive license with attribution" : {
       "localizations" : {
         "de" : {
@@ -15535,6 +15843,28 @@
         }
       }
     },
+    "QR code scanning isn't available on this device." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Das Scannen von QR-Codes ist auf diesem Gerät nicht verfügbar."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "El escaneo de códigos QR no está disponible en este dispositivo."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La numérisation de codes QR n'est pas disponible sur cet appareil."
+          }
+        }
+      }
+    },
     "Quick AutoFill" : {
       "localizations" : {
         "de" : {
@@ -15803,6 +16133,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "唯讀資料庫"
+          }
+        }
+      }
+    },
+    "Read-Only Database" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Schreibgeschützte Datenbank"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Base de datos de solo lectura"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Base de données en lecture seule"
           }
         }
       }
@@ -16317,6 +16669,28 @@
         }
       }
     },
+    "Remove Verification Code" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bestätigungscode entfernen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Eliminar código de verificación"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Supprimer le code de vérification"
+          }
+        }
+      }
+    },
     "Rename" : {
       "localizations" : {
         "de" : {
@@ -16415,6 +16789,50 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "重新命名資料庫"
+          }
+        }
+      }
+    },
+    "Replace" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ersetzen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reemplazar"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Remplacer"
+          }
+        }
+      }
+    },
+    "Replace existing verification code?" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vorhandenen Bestätigungscode ersetzen?"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "¿Reemplazar el código de verificación existente?"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Remplacer le code de vérification existant ?"
           }
         }
       }
@@ -16965,6 +17383,28 @@
         }
       }
     },
+    "Scan QR Code" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "QR-Code scannen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Escanear código QR"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Scanner le code QR"
+          }
+        }
+      }
+    },
     "Screen Privacy" : {
       "localizations" : {
         "de" : {
@@ -17199,6 +17639,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "搜尋結果和標籤瀏覽器現在會顯示每個項目所在的資料夾，名稱相近的項目更容易區分。"
+          }
+        }
+      }
+    },
+    "Secret Key" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Geheimer Schlüssel"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Clave secreta"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Clé secrète"
           }
         }
       }
@@ -17845,6 +18307,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "設定"
+          }
+        }
+      }
+    },
+    "Setup Link" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Einrichtungslink"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Enlace de configuración"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lien de configuration"
           }
         }
       }
@@ -20435,6 +20919,50 @@
         }
       }
     },
+    "The verification code setup link is invalid or incomplete." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Der Einrichtungslink für den Bestätigungscode ist ungültig oder unvollständig."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "El enlace de configuración del código de verificación no es válido o está incompleto."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Le lien de configuration du code de vérification est invalide ou incomplet."
+          }
+        }
+      }
+    },
+    "The verification code will no longer be generated for this entry." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Für diesen Eintrag wird kein Bestätigungscode mehr generiert."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ya no se generará el código de verificación para esta entrada."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Le code de vérification ne sera plus généré pour cette entrée."
+          }
+        }
+      }
+    },
     "The WebDAV username or password was rejected." : {
       "localizations" : {
         "de" : {
@@ -20737,6 +21265,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "此資料庫有待處理的自動填寫變更。請等待同步完成後再試一次。"
+          }
+        }
+      }
+    },
+    "This database is read-only, so the verification code can’t be added to it." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Diese Datenbank ist schreibgeschützt, daher kann der Bestätigungscode nicht hinzugefügt werden."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Esta base de datos es de solo lectura, por lo que no se puede añadir el código de verificación."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cette base de données est en lecture seule, le code de vérification ne peut donc pas y être ajouté."
           }
         }
       }
@@ -21223,6 +21773,28 @@
         }
       }
     },
+    "This entry already has a verification code. Saving will replace it." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dieser Eintrag hat bereits einen Bestätigungscode. Beim Speichern wird er ersetzt."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Esta entrada ya tiene un código de verificación. Al guardar se reemplazará."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cette entrée possède déjà un code de vérification. L'enregistrement le remplacera."
+          }
+        }
+      }
+    },
     "This entry can no longer be edited. It may have been deleted, or the database may have been reopened read-only." : {
       "localizations" : {
         "de" : {
@@ -21529,6 +22101,28 @@
         }
       }
     },
+    "This isn't an otpauth:// setup link." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dies ist kein otpauth://-Einrichtungslink."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Esto no es un enlace de configuración otpauth://."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ceci n'est pas un lien de configuration otpauth://."
+          }
+        }
+      }
+    },
     "This location has no subfolders." : {
       "localizations" : {
         "de" : {
@@ -21763,6 +22357,72 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "此伺服器看起來不是 WebDAV 伺服器（HTTP %lld）。請檢查伺服器位址。"
+          }
+        }
+      }
+    },
+    "This setup link contains an invalid parameter." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dieser Einrichtungslink enthält einen ungültigen Parameter."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Este enlace de configuración contiene un parámetro no válido."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ce lien de configuration contient un paramètre non valide."
+          }
+        }
+      }
+    },
+    "This setup link doesn't contain a valid secret." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dieser Einrichtungslink enthält keinen gültigen geheimen Schlüssel."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Este enlace de configuración no contiene una clave secreta válida."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ce lien de configuration ne contient pas de clé secrète valide."
+          }
+        }
+      }
+    },
+    "This setup link uses an unsupported code type. Only time-based (TOTP) codes are supported." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dieser Einrichtungslink verwendet einen nicht unterstützten Codetyp. Es werden nur zeitbasierte Codes (TOTP) unterstützt."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Este enlace de configuración usa un tipo de código no compatible. Solo se admiten códigos basados en tiempo (TOTP)."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ce lien de configuration utilise un type de code non pris en charge. Seuls les codes basés sur le temps (TOTP) sont pris en charge."
           }
         }
       }
@@ -22375,6 +23035,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "解鎖"
+          }
+        }
+      }
+    },
+    "Unlock a Database" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Datenbank entsperren"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Desbloquee una base de datos"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Déverrouillez une base de données"
           }
         }
       }
@@ -23467,6 +24149,28 @@
         }
       }
     },
+    "Verification code" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bestätigungscode"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Código de verificación"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Code de vérification"
+          }
+        }
+      }
+    },
     "Version" : {
       "localizations" : {
         "de" : {
@@ -23701,6 +24405,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "檢視受保護欄位"
+          }
+        }
+      }
+    },
+    "View verification code secret" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Geheimen Schlüssel des Bestätigungscodes anzeigen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ver la clave secreta del código de verificación"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Afficher la clé secrète du code de vérification"
           }
         }
       }

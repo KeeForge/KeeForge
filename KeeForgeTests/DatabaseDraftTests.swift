@@ -609,6 +609,108 @@ final class DatabaseDraftTests: XCTestCase {
         XCTAssertEqual(borrowingEntry.otpURL, legacyURL)
     }
 
+    func test_payloadCarryingBothOtpauthURIAndKeeOTPSource_keeOTPSourceWinsTheOtpSlot() throws {
+        // The serializer gives `keeOTPSource` precedence over a fresh URI; the
+        // otp slot must agree in both the create and update paths, or a
+        // payload carrying both would emit divergent sources. The view model
+        // never emits both today — this pins the invariant at the consumer.
+        let query = "key=JBSWY3DPEHPK3PXP&step=30&size=6"
+        let staleURI = "otpauth://totp/Stale?secret=GEZDGNBVGY3TQOJQ"
+        let bothConfig = EntryDraftPayload.TOTPConfiguration(
+            secret: "JBSWY3DPEHPK3PXP",
+            keeOTPSource: KeeOTPSource(fieldName: "otp", rawQuery: query),
+            otpauthURI: staleURI
+        )
+
+        let createTree = try makeSyntheticTree(includeRecycleBin: false)
+        let createDraft = DatabaseDraft(rootGroup: createTree.rootGroup, meta: createTree.meta, sessionKey: sessionKey)
+        let createdDraft = try createDraft.apply(
+            .createEntry(
+                parentGroupID: createTree.parentGroupID,
+                draft: EntryDraftPayload(title: "Both Sources", totpConfig: bothConfig)
+            )
+        )
+        let createdGroup = try XCTUnwrap(findGroup(withID: createTree.parentGroupID, in: createdDraft.rootGroup))
+        let created = try XCTUnwrap(createdGroup.entries.last)
+        XCTAssertEqual(created.otpURL, query)
+        XCTAssertFalse(
+            created.protectedStringKeys.contains("otp"),
+            "The stale URI must not force protection onto the KeeOTP-owned slot"
+        )
+
+        let updateTree = try makeSyntheticTree(
+            includeRecycleBin: false,
+            parentEntryOverride: try makeLegacyOTPEntry(otpURL: staleURI)
+        )
+        var updatePayload = try makeDraftPayload(from: updateTree.parentEntry)
+        updatePayload.totpConfig = bothConfig
+        let updatedDraft = try DatabaseDraft(rootGroup: updateTree.rootGroup, meta: updateTree.meta, sessionKey: sessionKey)
+            .apply(.updateEntry(entryID: updateTree.parentEntry.id, draft: updatePayload))
+        let updated = try XCTUnwrap(findEntry(withID: updateTree.parentEntry.id, in: updatedDraft.rootGroup))
+        XCTAssertEqual(updated.otpURL, query)
+    }
+
+    func test_createEntry_withOTPAuthURI_setsOtpURLVerbatimAndProtectsTheOtpKey() throws {
+        let uri = "otpauth://totp/Fresh:user@example.com?secret=JBSWY3DPEHPK3PXP&issuer=Fresh&period=45&digits=8&algorithm=SHA256"
+        let tree = try makeSyntheticTree(includeRecycleBin: false)
+        let draft = DatabaseDraft(rootGroup: tree.rootGroup, meta: tree.meta, sessionKey: sessionKey)
+        let payload = EntryDraftPayload(
+            title: "Fresh Enrollment",
+            totpConfig: .init(
+                secret: "JBSWY3DPEHPK3PXP",
+                period: 45,
+                digits: 8,
+                algorithm: .sha256,
+                otpauthURI: uri
+            )
+        )
+
+        let updatedDraft = try draft.apply(.createEntry(parentGroupID: tree.parentGroupID, draft: payload))
+        let parentGroup = try XCTUnwrap(findGroup(withID: tree.parentGroupID, in: updatedDraft.rootGroup))
+        let created = try XCTUnwrap(parentGroup.entries.last)
+
+        XCTAssertEqual(created.otpURL, uri)
+        XCTAssertTrue(created.protectedStringKeys.contains("otp"))
+
+        let innerStreamKey = Data("KeeForge Draft Inner Stream Key".utf8)
+        var serializer = KDBXXMLSerializer(
+            rootGroup: updatedDraft.rootGroup,
+            meta: updatedDraft.meta,
+            innerStreamKey: innerStreamKey,
+            sessionKey: sessionKey
+        )
+        let xmlString = String(decoding: try serializer.serialize(), as: UTF8.self)
+        XCTAssertTrue(
+            xmlString.contains("<Key>otp</Key><Value Protected=\"True\">"),
+            "A freshly enrolled otpauth URI must serialize protected"
+        )
+        XCTAssertFalse(xmlString.contains("TimeOtp-"), "URI enrollment must not also author TimeOtp-* fields")
+    }
+
+    func test_updateEntry_reEnrollmentReplacesTheStoredOtpURL() throws {
+        let legacyURL = "otpauth://totp/Legacy:user@example.com?secret=JBSWY3DPEHPK3PXP&issuer=Legacy&period=30&digits=6"
+        let freshURL = "otpauth://totp/Fresh:user@example.com?secret=GEZDGNBVGY3TQOJQ&issuer=Fresh&period=60"
+        let tree = try makeSyntheticTree(
+            includeRecycleBin: false,
+            parentEntryOverride: try makeLegacyOTPEntry(otpURL: legacyURL)
+        )
+        var updatedPayload = try makeDraftPayload(from: tree.parentEntry)
+        updatedPayload.totpConfig = .init(
+            secret: "GEZDGNBVGY3TQOJQ",
+            period: 60,
+            otpauthURI: freshURL
+        )
+
+        let draft = DatabaseDraft(rootGroup: tree.rootGroup, meta: tree.meta, sessionKey: sessionKey)
+        let updatedDraft = try draft.apply(.updateEntry(entryID: tree.parentEntry.id, draft: updatedPayload))
+        let updatedEntry = try XCTUnwrap(findEntry(withID: tree.parentEntry.id, in: updatedDraft.rootGroup))
+
+        XCTAssertEqual(updatedEntry.otpURL, freshURL)
+        XCTAssertTrue(updatedEntry.protectedStringKeys.contains("otp"))
+        XCTAssertEqual(try XCTUnwrap(updatedEntry.totpConfig).period, 60)
+        XCTAssertEqual(try XCTUnwrap(updatedEntry.totpConfig).secret.decrypt(using: sessionKey), "GEZDGNBVGY3TQOJQ")
+    }
+
     func test_updateEntry_reEncryptsPassword_underSessionKey() throws {
         let tree = try makeSyntheticTree(includeRecycleBin: true)
         var updatedPayload = try makeDraftPayload(from: tree.parentEntry)
