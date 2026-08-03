@@ -109,4 +109,38 @@ enum TOTPGenerator {
 
         return Data(bytes)
     }
+
+    // MARK: - Base32 Encoding
+
+    /// Unpadded uppercase RFC 4648 Base32.
+    static func base32Encode(_ data: Data) -> String {
+        let alphabet = Array("ABCDEFGHIJKLMNOPQRSTUVWXYZ234567".utf8)
+        var result: [UInt8] = []
+        var accumulator = 0
+        var bitCount = 0
+        for byte in data {
+            accumulator = (accumulator << 8) | Int(byte)
+            bitCount += 8
+            while bitCount >= 5 {
+                bitCount -= 5
+                result.append(alphabet[(accumulator >> bitCount) & 31])
+                accumulator &= (1 << bitCount) - 1
+            }
+        }
+        if bitCount > 0 {
+            result.append(alphabet[(accumulator << (5 - bitCount)) & 31])
+        }
+        return String(decoding: result, as: UTF8.self)
+    }
+
+    /// Uppercases `value` and returns it only when it is already canonical
+    /// unpadded Base32 (round-trips through decode/encode unchanged).
+    static func canonicalBase32Secret(_ value: String) -> String? {
+        let normalized = value.uppercased()
+        guard !normalized.isEmpty,
+              normalized.utf8.allSatisfy({ (65...90).contains($0) || (50...55).contains($0) }),
+              let decoded = base32Decode(normalized), !decoded.isEmpty,
+              base32Encode(decoded) == normalized else { return nil }
+        return normalized
+    }
 }

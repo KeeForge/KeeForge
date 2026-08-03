@@ -8,6 +8,10 @@ struct EntryDraftPayload: Codable, Sendable, Equatable {
         var period: Int
         var digits: Int
         var algorithm: TOTPAlgorithm
+        /// Fresh-enrollment `otpauth://` URI to store verbatim in the `otp`
+        /// field. Only set while its parsed values still match the other
+        /// fields.
+        var otpauthURI: String?
 
         init(
             secret: String,
@@ -15,7 +19,8 @@ struct EntryDraftPayload: Codable, Sendable, Equatable {
             keeOTPSource: KeeOTPSource? = nil,
             period: Int = 30,
             digits: Int = 6,
-            algorithm: TOTPAlgorithm = .sha1
+            algorithm: TOTPAlgorithm = .sha1,
+            otpauthURI: String? = nil
         ) {
             self.secret = secret
             self.decodedSecret = decodedSecret
@@ -23,6 +28,7 @@ struct EntryDraftPayload: Codable, Sendable, Equatable {
             self.period = period
             self.digits = digits
             self.algorithm = algorithm
+            self.otpauthURI = otpauthURI
         }
     }
 

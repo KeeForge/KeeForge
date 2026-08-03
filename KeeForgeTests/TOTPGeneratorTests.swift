@@ -176,4 +176,47 @@ final class TOTPGeneratorTests: XCTestCase {
     func testBase32DecodeRejectsInvalidCharacters() {
         XCTAssertNil(TOTPGenerator.base32Decode("ABC$DEF"))
     }
+
+    func testBase32EncodeProducesUnpaddedUppercaseRFC4648Vectors() {
+        // RFC 4648 §10 test vectors, minus the padding this encoder omits.
+        let vectors: [(data: Data, expected: String)] = [
+            (Data(), ""),
+            (Data("f".utf8), "MY"),
+            (Data("fo".utf8), "MZXQ"),
+            (Data("foo".utf8), "MZXW6"),
+            (Data("foob".utf8), "MZXW6YQ"),
+            (Data("fooba".utf8), "MZXW6YTB"),
+            (Data("foobar".utf8), "MZXW6YTBOI"),
+        ]
+
+        for (data, expected) in vectors {
+            XCTAssertEqual(TOTPGenerator.base32Encode(data), expected)
+        }
+    }
+
+    func testBase32EncodeRoundTripsThroughDecodeIncludingPartialFinalQuantum() throws {
+        // "MFRGG" and "MY" end mid-quantum (25 and 10 bits); canonical
+        // encodings must survive decode → encode unchanged.
+        for encoded in ["MFRGG", "MY", "JBSWY3DPEHPK3PXP", "GEZDGNBVGY3TQOJQ"] {
+            let decoded = try XCTUnwrap(TOTPGenerator.base32Decode(encoded))
+            XCTAssertEqual(TOTPGenerator.base32Encode(decoded), encoded)
+        }
+    }
+
+    func testCanonicalBase32SecretUppercasesAndRejectsNonCanonicalForms() {
+        // Lowercase input is accepted and uppercased; already-canonical input
+        // passes through unchanged.
+        XCTAssertEqual(TOTPGenerator.canonicalBase32Secret("mfrgg"), "MFRGG")
+        XCTAssertEqual(TOTPGenerator.canonicalBase32Secret("JBSWY3DPEHPK3PXP"), "JBSWY3DPEHPK3PXP")
+
+        // Padding, whitespace, out-of-alphabet characters, empties, and
+        // set trailing bits ("MFRGH" re-encodes as "MFRGG") are rejected even
+        // where base32Decode alone would tolerate them: the value is destined
+        // for a KeeOTP `key=` slot that other apps parse strictly.
+        XCTAssertNil(TOTPGenerator.canonicalBase32Secret("MFRGG==="))
+        XCTAssertNil(TOTPGenerator.canonicalBase32Secret("MFRG G"))
+        XCTAssertNil(TOTPGenerator.canonicalBase32Secret("MFRGH"))
+        XCTAssertNil(TOTPGenerator.canonicalBase32Secret("1NVALID1"))
+        XCTAssertNil(TOTPGenerator.canonicalBase32Secret(""))
+    }
 }

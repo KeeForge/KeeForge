@@ -720,9 +720,11 @@ struct DatabaseDraft: Sendable {
             customFields: customFields,
             passkeyPrivateKey: passkeyPrivateKey,
             totpConfig: try makeTOTPConfig(from: draft.totpConfig),
-            otpURL: draft.totpConfig?.keeOTPSource?.fieldName == "otp"
-                ? draft.totpConfig?.keeOTPSource?.rawQuery
-                : nil,
+            otpURL: draft.totpConfig?.keeOTPSource == nil
+                ? draft.totpConfig?.otpauthURI
+                : (draft.totpConfig?.keeOTPSource?.fieldName == "otp"
+                    ? draft.totpConfig?.keeOTPSource?.rawQuery
+                    : nil),
             creationTime: timestamp,
             lastModificationTime: timestamp,
             protectedStringKeys: draftProtectedStringKeys(
@@ -786,6 +788,13 @@ struct DatabaseDraft: Sendable {
         originalEntry: KPEntry
     ) -> String? {
         guard let source = draft.totpConfig?.keeOTPSource else {
+            // A fresh enrollment URI is a deliberate re-enrollment: it
+            // replaces whatever the entry stored in the otp slot. A KeeOTP
+            // source outranks it (matching the serializer's precedence), so
+            // the URI is honored only when no legacy source owns the config.
+            if let uri = draft.totpConfig?.otpauthURI {
+                return uri
+            }
             return preservedOtpURL(draft: draft, originalEntry: originalEntry)
         }
         // A KeeOTP source in a custom-named field never owns the otp slot;
@@ -881,7 +890,14 @@ struct DatabaseDraft: Sendable {
         if passkeyPrivateKey != nil {
             serializableKeys.insert(PasskeyCredential.privateKeyPEMKey)
         }
-        return draft.protectedCustomFieldKeys.intersection(serializableKeys)
+        var keys = draft.protectedCustomFieldKeys.intersection(serializableKeys)
+        if draft.totpConfig?.otpauthURI != nil, draft.totpConfig?.keeOTPSource == nil {
+            // A freshly enrolled otpauth URI serializes into the otp slot and
+            // must be protected, matching how KeePassXC stores it. A KeeOTP
+            // source outranks the URI, so it gates here too.
+            keys.insert("otp")
+        }
+        return keys
     }
 
     private func trimmedHistory(

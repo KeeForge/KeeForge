@@ -95,6 +95,7 @@ extension SearchFieldPlacement {
 enum PlatformKeyboardTypeCompat {
     case URL
     case emailAddress
+    case numberPad
 }
 
 enum PlatformAutocapitalizationCompat {

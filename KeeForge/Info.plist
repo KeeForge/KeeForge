@@ -26,6 +26,16 @@
 				<string>msauth.$(PRODUCT_BUNDLE_IDENTIFIER)</string>
 			</array>
 		</dict>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLName</key>
+			<string>OTP Authentication</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>otpauth</string>
+			</array>
+		</dict>
 	</array>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
@@ -86,6 +96,8 @@
 	</array>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<key>NSCameraUsageDescription</key>
+	<string>KeeForge uses the camera to scan verification-code QR codes.</string>
 	<key>NSFaceIDUsageDescription</key>
 	<string>KeeForge uses Face ID to quickly unlock your password database.</string>
 	<key>NSLocalNetworkUsageDescription</key>

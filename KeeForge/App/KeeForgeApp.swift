@@ -196,6 +196,32 @@ private extension SettingsService.AppearanceMode {
     }
 }
 
+/// An incoming `otpauth://` enrollment waiting for its destination sheet.
+/// A wrapper rather than a bare `OTPAuthURI` so `sheet(item:)` has an
+/// `Identifiable` to key on.
+private struct PendingTOTPEnrollment: Identifiable {
+    /// A parked plaintext secret must not outlive the moment the user still
+    /// remembers asking for it: after this window it is discarded instead of
+    /// auto-presenting against whatever database unlocks much later.
+    static let lifetime: TimeInterval = 5 * 60
+
+    let id = UUID()
+    let uri: OTPAuthURI
+    let createdAt = Date()
+
+    var isExpired: Bool {
+        Date().timeIntervalSince(createdAt) > Self.lifetime
+    }
+}
+
+private enum TOTPEnrollmentAlert: String, Identifiable {
+    case unsupportedLink
+    case invalidLink
+    case unlockNeeded
+
+    var id: String { rawValue }
+}
+
 private struct AppRootView: View {
     @Bindable var listViewModel: DatabaseListViewModel
     @Binding var activeDatabaseViewModel: DatabaseViewModel?
@@ -204,9 +230,16 @@ private struct AppRootView: View {
     #else
     @Environment(\.requestReview) private var requestReview
     #endif
+    @Environment(\.scenePhase) private var scenePhase
     @State private var didResolveInitialRoute = false
     @State private var whatsNewRelease: WhatsNewRelease?
     @State private var pendingAutoOpenReference: DatabaseReference?
+    /// Enrollment parked until a session unlocks (or the What's New sheet
+    /// closes); promoted to `presentedTOTPEnrollment` by the state `onChange`
+    /// below, or discarded once it expires.
+    @State private var pendingTOTPEnrollment: PendingTOTPEnrollment?
+    @State private var presentedTOTPEnrollment: PendingTOTPEnrollment?
+    @State private var totpEnrollmentAlert: TOTPEnrollmentAlert?
 
     var body: some View {
         Group {
@@ -253,6 +286,78 @@ private struct AppRootView: View {
                 .presentationDetents([.large])
                 .presentationDragIndicator(.visible)
                 #endif
+        }
+        .sheet(item: $presentedTOTPEnrollment) { enrollment in
+            // The session is re-read at presentation time; when it vanished in
+            // between (locked or closed), the `onChange` below re-parks.
+            if let activeDatabaseViewModel {
+                TOTPEnrollmentDestinationView(
+                    databaseViewModel: activeDatabaseViewModel,
+                    uri: enrollment.uri
+                ) {
+                    presentedTOTPEnrollment = nil
+                    pendingTOTPEnrollment = nil
+                }
+                // Rebuild the content when either the enrollment or the
+                // session changes under the open sheet (a second otpauth URL,
+                // or a swap to another unlocked database): the content
+                // snapshots its view model in @State at init and would
+                // otherwise keep enrolling the old secret into the old
+                // database.
+                .id("\(enrollment.id)-\(activeDatabaseViewModel.databaseReference.id)")
+                #if os(macOS)
+                .frame(minWidth: 540, minHeight: 560)
+                #else
+                .presentationDetents([.large])
+                .presentationDragIndicator(.visible)
+                #endif
+            }
+        }
+        .onChange(of: activeDatabaseViewModel?.state) { _, newState in
+            if newState == .unlocked {
+                if let pendingTOTPEnrollment {
+                    self.pendingTOTPEnrollment = nil
+                    if pendingTOTPEnrollment.isExpired == false {
+                        presentedTOTPEnrollment = pendingTOTPEnrollment
+                    }
+                }
+            } else if let presentedTOTPEnrollment {
+                // Locking or closing the database mid-flow tears the sheet's
+                // data out from under it; park the enrollment again (original
+                // creation date intact) so re-unlocking within its lifetime
+                // resumes the flow instead of losing the code.
+                pendingTOTPEnrollment = presentedTOTPEnrollment
+                self.presentedTOTPEnrollment = nil
+            }
+        }
+        .onChange(of: scenePhase) { _, _ in
+            if pendingTOTPEnrollment?.isExpired == true {
+                pendingTOTPEnrollment = nil
+            }
+        }
+        .alert(item: $totpEnrollmentAlert, content: totpEnrollmentAlertContent)
+    }
+
+    private func totpEnrollmentAlertContent(for alert: TOTPEnrollmentAlert) -> Alert {
+        switch alert {
+        case .unsupportedLink:
+            Alert(
+                title: Text("Couldn’t Add Verification Code"),
+                message: Text("This setup link uses an unsupported code type. Only time-based (TOTP) codes are supported."),
+                dismissButton: .default(Text("OK"))
+            )
+        case .invalidLink:
+            Alert(
+                title: Text("Couldn’t Add Verification Code"),
+                message: Text("The verification code setup link is invalid or incomplete."),
+                dismissButton: .default(Text("OK"))
+            )
+        case .unlockNeeded:
+            Alert(
+                title: Text("Unlock a Database"),
+                message: Text("Open and unlock a database, and KeeForge will then add the verification code."),
+                dismissButton: .default(Text("OK"))
+            )
         }
     }
 
@@ -355,9 +460,21 @@ private struct AppRootView: View {
     }
 
     private func finishWhatsNewPresentation() {
-        guard let pendingAutoOpenReference else { return }
-        self.pendingAutoOpenReference = nil
-        openDatabase(pendingAutoOpenReference)
+        if let pendingAutoOpenReference {
+            self.pendingAutoOpenReference = nil
+            openDatabase(pendingAutoOpenReference)
+        }
+
+        guard let pendingTOTPEnrollment else { return }
+        if pendingTOTPEnrollment.isExpired {
+            self.pendingTOTPEnrollment = nil
+        } else if let activeDatabaseViewModel, activeDatabaseViewModel.state == .unlocked {
+            self.pendingTOTPEnrollment = nil
+            presentedTOTPEnrollment = pendingTOTPEnrollment
+        } else {
+            // Stays parked; the state `onChange` promotes it on unlock.
+            totpEnrollmentAlert = .unlockNeeded
+        }
     }
 
     private func openCreatedDatabase(_ createdDatabase: CreatedDatabase) {
@@ -375,6 +492,11 @@ private struct AppRootView: View {
             return
         }
 
+        if OTPAuthURI.isOTPAuthURL(url) {
+            handleOTPAuthURL(url)
+            return
+        }
+
         do {
             let reference = try listViewModel.addDatabase(from: url)
             openDatabaseAfterLaunchPresentation(reference)
@@ -388,6 +510,33 @@ private struct AppRootView: View {
             }) {
                 openDatabaseAfterLaunchPresentation(existing)
             }
+        }
+    }
+
+    private func handleOTPAuthURL(_ url: URL) {
+        let enrollment: PendingTOTPEnrollment
+        do {
+            enrollment = PendingTOTPEnrollment(uri: try OTPAuthURI(string: url.absoluteString))
+        } catch OTPAuthURIError.unsupportedType {
+            totpEnrollmentAlert = .unsupportedLink
+            return
+        } catch {
+            totpEnrollmentAlert = .invalidLink
+            return
+        }
+
+        if whatsNewRelease != nil {
+            // The What's New sheet is up (post-update cold launch); a
+            // competing presentation would be silently dropped by SwiftUI.
+            // Park the enrollment — no alert either — and let
+            // finishWhatsNewPresentation promote it (the same deferred
+            // deep-link pattern as openDatabaseAfterLaunchPresentation).
+            pendingTOTPEnrollment = enrollment
+        } else if let activeDatabaseViewModel, activeDatabaseViewModel.state == .unlocked {
+            presentedTOTPEnrollment = enrollment
+        } else {
+            pendingTOTPEnrollment = enrollment
+            totpEnrollmentAlert = .unlockNeeded
         }
     }
 }

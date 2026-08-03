@@ -418,11 +418,11 @@ final class EntryEditViewModelTests: XCTestCase {
 
     // MARK: - TOTP secret canonicalization (base32Encode / canonicalBase32Secret)
     //
-    // Both helpers are `private static` on EntryEditViewModel, so they are
-    // exercised only indirectly through `entryDraftPayload`'s TOTP
-    // normalization, using entries that carry a legacy `keeOTPSource` (the
-    // only branch that calls canonicalBase32Secret at all) and TOTPGenerator's
-    // public base32Decode as an independent ground truth for the round trip.
+    // The helpers live on TOTPGenerator, but the KeeOTP revert-vs-rewrite
+    // policy is this view model's, so it is exercised through
+    // `entryDraftPayload`'s TOTP normalization, using entries that carry a
+    // legacy `keeOTPSource` and TOTPGenerator's public base32Decode as an
+    // independent ground truth for the round trip.
 
     func testTOTPSecretUpdateWithValidBase32AndKeeOTPSourceRewritesTheLegacyQueryCanonically() throws {
         let keeOTPSource = KeeOTPSource(fieldName: "otp", rawQuery: "key=GEZDGNBVGY3TQOJQ&step=30&size=6")
@@ -510,5 +510,168 @@ final class EntryEditViewModelTests: XCTestCase {
 
         XCTAssertEqual(payload.totpConfig?.secret, "GEZDGNBVGY3TQOJQ")
         XCTAssertEqual(payload.totpConfig?.keeOTPSource, keeOTPSource)
+    }
+
+    func testTOTPDigitsOutsideKeeOTPWhitelistRevertsEntirelyToTheOriginalSnapshot() throws {
+        let keeOTPSource = KeeOTPSource(fieldName: "otp", rawQuery: "key=GEZDGNBVGY3TQOJQ&step=30&size=6")
+        let entry = KPEntry(
+            title: "Legacy TOTP",
+            totpConfig: TOTPConfig(
+                secret: try EncryptedValue.encrypt("GEZDGNBVGY3TQOJQ", using: sessionKey),
+                keeOTPSource: keeOTPSource,
+                period: 30,
+                digits: 6,
+                algorithm: .sha1
+            )
+        )
+        let viewModel = EntryEditViewModel(editing: entry, sessionKey: sessionKey)
+        // The KeeOTP parser only accepts size ∈ {6, 8}; writing size=7 would
+        // make the config unreadable on reload, so the whole edit reverts —
+        // timing changes included — exactly like a non-canonical secret.
+        viewModel.totpDigits = 7
+        viewModel.totpPeriod = 60
+
+        let payload = viewModel.entryDraftPayload
+
+        XCTAssertEqual(
+            payload.totpConfig,
+            EntryDraftPayload.TOTPConfiguration(
+                secret: "GEZDGNBVGY3TQOJQ",
+                keeOTPSource: keeOTPSource,
+                period: 30,
+                digits: 6,
+                algorithm: .sha1
+            )
+        )
+    }
+
+    // MARK: - otpauth:// enrollment
+
+    func testApplyOTPAuthURISetsFieldsAndPayloadCarriesURIVerbatim() throws {
+        let raw = "otpauth://totp/Example:alice@example.com?secret=mfrgg%3D%3D%3D&issuer=Example&period=45&digits=8&algorithm=SHA256"
+        let uri = try OTPAuthURI(string: raw)
+        let viewModel = EntryEditViewModel(createIn: UUID())
+
+        viewModel.applyOTPAuthURI(uri)
+
+        XCTAssertEqual(viewModel.totpSecret, "MFRGG")
+        XCTAssertEqual(viewModel.totpPeriod, 45)
+        XCTAssertEqual(viewModel.totpDigits, 8)
+        XCTAssertEqual(viewModel.totpAlgorithm, .sha256)
+        XCTAssertTrue(viewModel.isDirty)
+
+        let payload = viewModel.entryDraftPayload
+        XCTAssertEqual(payload.totpConfig?.otpauthURI, raw)
+        XCTAssertEqual(payload.totpConfig?.secret, "MFRGG")
+        XCTAssertEqual(payload.totpConfig?.period, 45)
+        XCTAssertEqual(payload.totpConfig?.digits, 8)
+        XCTAssertEqual(payload.totpConfig?.algorithm, .sha256)
+        XCTAssertNil(payload.totpConfig?.keeOTPSource)
+    }
+
+    func testEditingPeriodAfterApplyDropsOTPAuthURIButKeepsEditedValues() throws {
+        let uri = try OTPAuthURI(string: "otpauth://totp/Example:x?secret=JBSWY3DPEHPK3PXP&period=30")
+        let viewModel = EntryEditViewModel(createIn: UUID())
+        viewModel.applyOTPAuthURI(uri)
+        viewModel.totpPeriod = 60
+
+        let payload = viewModel.entryDraftPayload
+
+        XCTAssertNil(payload.totpConfig?.otpauthURI)
+        XCTAssertEqual(payload.totpConfig?.secret, "JBSWY3DPEHPK3PXP")
+        XCTAssertEqual(payload.totpConfig?.period, 60)
+    }
+
+    func testEditingSecretAfterApplyDropsOTPAuthURIButKeepsEditedSecret() throws {
+        let uri = try OTPAuthURI(string: "otpauth://totp/Example:x?secret=JBSWY3DPEHPK3PXP")
+        let viewModel = EntryEditViewModel(createIn: UUID())
+        viewModel.applyOTPAuthURI(uri)
+        viewModel.totpSecret = "GEZDGNBVGY3TQOJQ"
+
+        let payload = viewModel.entryDraftPayload
+
+        XCTAssertNil(payload.totpConfig?.otpauthURI)
+        XCTAssertEqual(payload.totpConfig?.secret, "GEZDGNBVGY3TQOJQ")
+    }
+
+    func testApplyOTPAuthURIOnKeeOTPEntryRewritesTheQueryAndOmitsTheURI() throws {
+        let keeOTPSource = KeeOTPSource(fieldName: "otp", rawQuery: "key=GEZDGNBVGY3TQOJQ&step=30&size=6")
+        let entry = KPEntry(
+            title: "Legacy TOTP",
+            totpConfig: TOTPConfig(
+                secret: try EncryptedValue.encrypt("GEZDGNBVGY3TQOJQ", using: sessionKey),
+                keeOTPSource: keeOTPSource,
+                period: 30,
+                digits: 6,
+                algorithm: .sha1
+            )
+        )
+        let viewModel = EntryEditViewModel(editing: entry, sessionKey: sessionKey)
+        let uri = try OTPAuthURI(string: "otpauth://totp/Example:x?secret=JBSWY3DPEHPK3PXP&period=45")
+
+        viewModel.applyOTPAuthURI(uri)
+
+        let payload = viewModel.entryDraftPayload
+        XCTAssertNil(payload.totpConfig?.otpauthURI)
+        let rewrittenQuery = try XCTUnwrap(payload.totpConfig?.keeOTPSource?.rawQuery)
+        XCTAssertTrue(rewrittenQuery.contains("key=JBSWY3DPEHPK3PXP"))
+        XCTAssertTrue(rewrittenQuery.contains("step=45"))
+    }
+
+    func testRemoveTOTPYieldsNilConfigAndResetsTheForm() throws {
+        let uri = try OTPAuthURI(string: "otpauth://totp/Example:x?secret=JBSWY3DPEHPK3PXP&period=45&digits=8&algorithm=SHA256")
+        let viewModel = EntryEditViewModel(createIn: UUID())
+        viewModel.applyOTPAuthURI(uri)
+
+        viewModel.removeTOTP()
+
+        XCTAssertNil(viewModel.entryDraftPayload.totpConfig)
+        XCTAssertEqual(viewModel.totpSecret, "")
+        XCTAssertEqual(viewModel.totpPeriod, 30)
+        XCTAssertEqual(viewModel.totpDigits, 6)
+        XCTAssertEqual(viewModel.totpAlgorithm, .sha1)
+    }
+
+    func testManualSecretEntryProducesPayloadWithoutOTPAuthURI() {
+        let viewModel = EntryEditViewModel(createIn: UUID())
+        viewModel.totpSecret = "JBSWY3DPEHPK3PXP"
+
+        XCTAssertNil(viewModel.entryDraftPayload.totpConfig?.otpauthURI)
+    }
+
+    func testApplySetupLinkAppliesParsedConfigurationAndReturnsNil() {
+        let viewModel = EntryEditViewModel(createIn: UUID())
+
+        let error = viewModel.applySetupLink(
+            "otpauth://totp/Example:x?secret=JBSWY3DPEHPK3PXP&period=45&digits=8&algorithm=SHA256"
+        )
+
+        XCTAssertNil(error)
+        XCTAssertEqual(viewModel.totpSecret, "JBSWY3DPEHPK3PXP")
+        XCTAssertEqual(viewModel.totpPeriod, 45)
+        XCTAssertEqual(viewModel.totpDigits, 8)
+        XCTAssertEqual(viewModel.totpAlgorithm, .sha256)
+    }
+
+    func testApplySetupLinkReturnsUnsupportedTypeForCounterBasedLinks() {
+        let viewModel = EntryEditViewModel(createIn: UUID())
+
+        let error = viewModel.applySetupLink("otpauth://hotp/Example:x?secret=JBSWY3DPEHPK3PXP")
+
+        XCTAssertEqual(error, .unsupportedType)
+        XCTAssertEqual(viewModel.totpSecret, "")
+        XCTAssertFalse(viewModel.isDirty)
+    }
+
+    func testApplySetupLinkLeavesFormUntouchedOnInvalidLink() {
+        let viewModel = EntryEditViewModel(createIn: UUID())
+        viewModel.totpSecret = "JBSWY3DPEHPK3PXP"
+        viewModel.totpPeriod = 45
+
+        let error = viewModel.applySetupLink("https://example.com/not-otpauth")
+
+        XCTAssertEqual(error, .notAnOTPAuthURI)
+        XCTAssertEqual(viewModel.totpSecret, "JBSWY3DPEHPK3PXP")
+        XCTAssertEqual(viewModel.totpPeriod, 45)
     }
 }

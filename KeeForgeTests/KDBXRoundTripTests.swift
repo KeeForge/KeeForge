@@ -141,6 +141,62 @@ final class KDBXRoundTripTests: XCTestCase {
     }
 
     @MainActor
+    func test_createSaveReload_enrollmentFromOTPAuthURIStoresProtectedVerbatimURI() throws {
+        let raw = "otpauth://totp/Example:alice@example.com?secret=JBSWY3DPEHPK3PXP&issuer=Example&period=45&digits=8&algorithm=SHA256"
+        let rootGroup = KPGroup(id: UUID(), name: "Root")
+        let viewModel = EntryEditViewModel(createIn: rootGroup.id)
+        viewModel.title = "Enrolled"
+        viewModel.applyOTPAuthURI(try OTPAuthURI(string: raw))
+
+        let draft = DatabaseDraft(rootGroup: rootGroup, meta: KPMeta(), sessionKey: roundTripSessionKey)
+        let updated = try draft.apply(.createEntry(parentGroupID: rootGroup.id, draft: viewModel.entryDraftPayload))
+        let reparsed = try serializeAndParse((rootGroup: updated.rootGroup, meta: updated.meta))
+        let reloaded = try XCTUnwrap(reparsed.rootGroup.allEntries.first)
+        let reloadedTOTP = try XCTUnwrap(reloaded.totpConfig)
+
+        XCTAssertEqual(reloaded.otpURL, raw, "The enrollment URI must be stored verbatim in the otp field")
+        XCTAssertTrue(reloaded.protectedStringKeys.contains("otp"), "The freshly authored otp field must be protected")
+        XCTAssertEqual(try reloadedTOTP.secret.decrypt(using: roundTripSessionKey), "JBSWY3DPEHPK3PXP")
+        XCTAssertEqual(reloadedTOTP.period, 45)
+        XCTAssertEqual(reloadedTOTP.digits, 8)
+        XCTAssertEqual(reloadedTOTP.algorithm, .sha256)
+        XCTAssertFalse(
+            reloaded.customFields.keys.contains { $0.hasPrefix("TimeOtp-") },
+            "URI enrollment must not also author TimeOtp-* fields"
+        )
+    }
+
+    @MainActor
+    func test_createSaveReload_uppercaseSchemeEnrollmentStaysReadable() throws {
+        // QR alphanumeric mode encodes uppercase; the stored URI's scheme and
+        // host are lowercased at authoring so the parser's case-sensitive
+        // "otpauth://" prefix check still reads it back — otherwise the entry
+        // would reload without a TOTP config and a later unrelated edit would
+        // silently drop the otp field.
+        let rootGroup = KPGroup(id: UUID(), name: "Root")
+        let viewModel = EntryEditViewModel(createIn: rootGroup.id)
+        viewModel.title = "Enrolled Uppercase"
+        viewModel.applyOTPAuthURI(try OTPAuthURI(string: "OTPAUTH://TOTP/Ex:a?SECRET=JBSWY3DPEHPK3PXP"))
+
+        let draft = DatabaseDraft(rootGroup: rootGroup, meta: KPMeta(), sessionKey: roundTripSessionKey)
+        let updated = try draft.apply(.createEntry(parentGroupID: rootGroup.id, draft: viewModel.entryDraftPayload))
+        let reparsed = try serializeAndParse((rootGroup: updated.rootGroup, meta: updated.meta))
+        let reloaded = try XCTUnwrap(reparsed.rootGroup.allEntries.first)
+        let reloadedTOTP = try XCTUnwrap(
+            reloaded.totpConfig,
+            "The stored uppercase-scheme enrollment must still parse as a TOTP config"
+        )
+
+        XCTAssertEqual(
+            reloaded.otpURL, "otpauth://totp/Ex:a?SECRET=JBSWY3DPEHPK3PXP",
+            "Scheme and host lowercased; label and query byte-verbatim"
+        )
+        XCTAssertEqual(try reloadedTOTP.secret.decrypt(using: roundTripSessionKey), "JBSWY3DPEHPK3PXP")
+        XCTAssertEqual(reloadedTOTP.period, 30)
+        XCTAssertEqual(reloadedTOTP.digits, 6)
+    }
+
+    @MainActor
     func test_editSaveReload_minimalKeeOTPSourceGainsRewrittenParameters() throws {
         let entry = KPEntry(
             title: "KeeOTP Minimal",
