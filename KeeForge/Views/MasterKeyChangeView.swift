@@ -1,0 +1,227 @@
+import SwiftUI
+
+/// Change the master key (password and/or key file) of the unlocked database.
+/// Pushed from `DatabaseDetailsView`'s Master Key section, so it lives inside
+/// the details sheet's `NavigationStack` — never a nested sheet. Hosts its own
+/// `.fileImporter`, following the details sheet's session-context wiring (the
+/// list's `onSelectKeyFile` closure never applies here because this screen is
+/// only reachable with a `sessionViewModel`).
+struct MasterKeyChangeView: View {
+    private let sessionViewModel: DatabaseViewModel
+
+    @Environment(\.dismiss) private var dismiss
+    @State private var viewModel: MasterKeyChangeViewModel
+    @State private var isNewPasswordVisible = false
+    @State private var isConfirmPasswordVisible = false
+    @State private var isKeyFileImporterPresented = false
+    @State private var isAuthenticating = false
+    @State private var selectionAlert: DocumentPickerService.SelectionAlert?
+
+    init(sessionViewModel: DatabaseViewModel) {
+        self.sessionViewModel = sessionViewModel
+        let reference = sessionViewModel.databaseReference
+        _viewModel = State(
+            initialValue: MasterKeyChangeViewModel(
+                currentKeyFileFilename: reference.keyFileFilename,
+                currentKeyFileBookmarkData: reference.keyFileBookmarkData,
+                loadCurrentKeyFile: { [weak sessionViewModel] in
+                    await sessionViewModel?.loadAssociatedKeyFile()
+                },
+                changeOperation: { [weak sessionViewModel] password, keyFileData, bookmarkData, filename in
+                    guard let sessionViewModel else {
+                        throw DatabaseViewModel.RekeyError.sessionUnavailable
+                    }
+                    try await sessionViewModel.changeMasterKey(
+                        newPassword: password,
+                        newKeyFileData: keyFileData,
+                        newKeyFileBookmarkData: bookmarkData,
+                        newKeyFileFilename: filename
+                    )
+                }
+            )
+        )
+    }
+
+    var body: some View {
+        Form {
+            passwordSection
+            keyFileSection
+        }
+        .disabled(viewModel.isWorking)
+        .navigationTitle("Change Master Key")
+        .navigationBarTitleDisplayMode(.inline)
+        .safeAreaInset(edge: .top, spacing: 0) {
+            if let errorMessage = viewModel.validationError ?? viewModel.changeError {
+                MasterKeyErrorBanner(message: errorMessage)
+                    .padding(.horizontal)
+                    .padding(.top, 8)
+                    .padding(.bottom, 6)
+            }
+        }
+        .overlay {
+            if viewModel.isWorking {
+                ProgressView("Changing Master Key")
+                    .padding()
+                    .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+            }
+        }
+        .toolbar {
+            ToolbarItem(placement: .cancellationAction) {
+                Button("Cancel") {
+                    viewModel.clearSecrets()
+                    dismiss()
+                }
+                .disabled(viewModel.isWorking)
+                .accessibilityIdentifier("master-key.cancel")
+            }
+
+            ToolbarItem(placement: .confirmationAction) {
+                Button("Save") {
+                    authenticateAndPerformChange()
+                }
+                .disabled(viewModel.isWorking || isAuthenticating)
+                .accessibilityIdentifier("master-key.save")
+            }
+        }
+        .fileImporter(
+            isPresented: $isKeyFileImporterPresented,
+            allowedContentTypes: DocumentPickerService.keyFilePickerContentTypes,
+            onCompletion: handleKeyFileSelection
+        )
+        .alert(item: $selectionAlert) { alert in
+            Alert(
+                title: Text(alert.title),
+                message: Text(alert.message),
+                dismissButton: .default(Text("OK"))
+            )
+        }
+        .onDisappear {
+            viewModel.clearSecrets()
+        }
+    }
+
+    private var passwordSection: some View {
+        Section {
+            PasswordInputRow(
+                title: String(localized: "Master password"),
+                text: $viewModel.newPassword,
+                isVisible: $isNewPasswordVisible,
+                fieldAccessibilityIdentifier: "master-key.new-password-field",
+                visibilityAccessibilityIdentifier: "master-key.new-password-visibility-button"
+            )
+
+            PasswordInputRow(
+                title: String(localized: "Confirm password"),
+                text: $viewModel.confirmPassword,
+                isVisible: $isConfirmPasswordVisible,
+                fieldAccessibilityIdentifier: "master-key.confirm-password-field",
+                visibilityAccessibilityIdentifier: "master-key.confirm-password-visibility-button"
+            )
+
+            if let warning = viewModel.passwordStrengthWarning {
+                Text(warning)
+                    .font(.footnote)
+                    .foregroundStyle(.orange)
+            }
+        } header: {
+            Text("Master Password")
+        } footer: {
+            Text("The new master key protects this database file from now on. Backups and copies made before the change still open with the previous master key.")
+        }
+    }
+
+    private var keyFileSection: some View {
+        Section {
+            LabeledContent("Selected", value: viewModel.keyFileSummary)
+
+            Button {
+                isKeyFileImporterPresented = true
+            } label: {
+                Label("Select Key File", systemImage: "key")
+            }
+            .accessibilityIdentifier("master-key.keyfile.select")
+
+            if viewModel.hasEffectiveKeyFile {
+                Button("Clear Key File", role: .destructive) {
+                    viewModel.clearKeyFile()
+                }
+                .accessibilityIdentifier("master-key.keyfile.clear")
+            }
+        } header: {
+            Text("Key File")
+        } footer: {
+            Text("The database requires this key file after the change. Clear it to unlock with the master password only.")
+        }
+    }
+
+    private func authenticateAndPerformChange() {
+        guard isAuthenticating == false, viewModel.isWorking == false else { return }
+        guard viewModel.validate() else { return }
+
+        if BiometricService.canAuthenticateDeviceOwner {
+            isAuthenticating = true
+            Task {
+                await MainActor.run {
+                    BiometricService.isBiometricAuthInProgress = true
+                }
+                do {
+                    _ = try await BiometricService.authenticateDeviceOwner(reason: "Change master key")
+                    await performChange()
+                } catch {
+                    // Intentionally no-op on failed authentication.
+                }
+                await MainActor.run {
+                    BiometricService.isBiometricAuthInProgress = false
+                    isAuthenticating = false
+                }
+            }
+        } else {
+            Task {
+                await performChange()
+            }
+        }
+    }
+
+    private func performChange() async {
+        if await viewModel.performChange() {
+            HapticService.success()
+            dismiss()
+        }
+    }
+
+    private func handleKeyFileSelection(_ result: Result<URL, Error>) {
+        switch result {
+        case .success(let url):
+            do {
+                try viewModel.selectKeyFile(url: url)
+            } catch {
+                selectionAlert = DocumentPickerService.pickerFailureAlert(for: error)
+            }
+        case .failure(let error):
+            selectionAlert = DocumentPickerService.pickerFailureAlert(for: error)
+        }
+    }
+}
+
+private struct MasterKeyErrorBanner: View {
+    let message: String
+
+    var body: some View {
+        Label {
+            Text(message)
+                .font(.subheadline.weight(.semibold))
+                .fixedSize(horizontal: false, vertical: true)
+        } icon: {
+            Image(systemName: "exclamationmark.triangle.fill")
+        }
+        .foregroundStyle(.red)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(12)
+        .background(Color.red.opacity(0.12), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .stroke(Color.red.opacity(0.35), lineWidth: 1)
+        )
+        .accessibilityIdentifier("master-key.error")
+    }
+}

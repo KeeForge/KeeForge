@@ -657,6 +657,51 @@ final class KDBXWriterTests: XCTestCase {
         try assertTreesEqual(parsed, (rootGroup: second.rootGroup, meta: second.meta))
     }
 
+    func test_writeReusedHeaderWithNewCompositeKey_newKeyOpensOldKeyFails() throws {
+        let parsed = try parseFixture(.test)
+        let newCompositeKey = try KDBXCrypto.compositeKey(
+            password: "rotated-master-123",
+            keyFileData: nil
+        )
+
+        let written = try KDBXWriter.write(
+            rootGroup: parsed.rootGroup,
+            meta: parsed.meta,
+            compositeKey: newCompositeKey,
+            header: parsed.header,
+            sessionKey: sessionKey
+        )
+
+        let reparsed = try KDBXParser.parseWithMetaAndHeader(
+            data: written,
+            compositeKey: newCompositeKey,
+            sessionKey: sessionKey
+        )
+        try assertTreesEqual(parsed, (rootGroup: reparsed.rootGroup, meta: reparsed.meta))
+        XCTAssertEqual(reparsed.header.cipherID, parsed.header.cipherID)
+        XCTAssertEqual(
+            reparsed.header.kdfParameters["$UUID"] as? Data,
+            parsed.header.kdfParameters["$UUID"] as? Data
+        )
+        XCTAssertEqual(reparsed.header.kdfParameters["I"] as? UInt64, parsed.header.kdfParameters["I"] as? UInt64)
+        XCTAssertEqual(reparsed.header.kdfParameters["M"] as? UInt64, parsed.header.kdfParameters["M"] as? UInt64)
+        XCTAssertEqual(reparsed.header.kdfParameters["P"] as? UInt32, parsed.header.kdfParameters["P"] as? UInt32)
+        XCTAssertNotEqual(reparsed.header.masterSeed, parsed.header.masterSeed)
+        XCTAssertNotEqual(
+            reparsed.header.kdfParameters["S"] as? Data,
+            parsed.header.kdfParameters["S"] as? Data
+        )
+
+        XCTAssertThrowsError(
+            try KDBXParser.parseWithMetaAndHeader(
+                data: written,
+                compositeKey: parsed.compositeKey,
+                sessionKey: sessionKey
+            ),
+            "The old composite key must fail the header HMAC of the rekeyed file."
+        )
+    }
+
     func test_writeFreshHeader_rotatesProvidedKDFSalt() throws {
         let parsed = try parseFixture(.test)
         let providedSalt = try XCTUnwrap(parsed.header.kdfParameters["S"] as? Data)

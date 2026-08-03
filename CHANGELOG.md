@@ -25,6 +25,7 @@ TODO before the first macOS release:
 
 - KeeForge now speaks Chinese: full Simplified Chinese (简体中文) and Traditional Chinese (繁體中文) localizations across the app and the AutoFill extension, plus translated README and contributor docs.
   - TODO before releasing this: add zh-Hans and zh-Hant localized App Store metadata (description, keywords, screenshots, What's New) in App Store Connect.
+- Change a database's master password: Database Details now has a "Change Master Key" screen for setting a new password and adding, replacing, or removing a key file — no need to export the database to a computer and use another KeePass app (#59). A backup under the old key is kept, and Face ID/Touch ID unlock keeps working without being set up again. Available on writable KDBX 4 databases once any pending edits are saved.
 
 ### Fixes
 

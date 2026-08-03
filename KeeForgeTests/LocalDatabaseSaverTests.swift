@@ -477,6 +477,147 @@ final class LocalDatabaseSaverTests: XCTestCase {
         }
     }
 
+    // MARK: - Rekey (change master key, #59)
+
+    func testRekeySaveWritesFileThatOpensWithNewKeyAndRejectsOldKey() async throws {
+        let databaseURL = try makeScratchDatabaseCopy()
+        let reference = try TestDatabaseSupport.makeReference(for: databaseURL)
+        let context = try makeDirtySaveContext(
+            databaseURL: databaseURL,
+            entryTitle: "Rekeyed Entry"
+        )
+        let newPassword = "rotated-master-123"
+        let newCompositeKey = try KDBXCrypto.compositeKey(password: newPassword, keyFileData: nil)
+
+        let result = try await LocalDatabaseSaver.save(
+            draft: context.draft,
+            reference: reference,
+            compositeKey: context.compositeKey,
+            openTimeSHA512: context.openTimeSHA512,
+            kdfPolicy: .mainApp,
+            newCompositeKey: newCompositeKey
+        )
+
+        guard case .saved(let newSHA512) = result else {
+            XCTFail("Expected rekey save to succeed.")
+            return
+        }
+
+        let savedData = try Data(contentsOf: databaseURL)
+        XCTAssertEqual(newSHA512, KDBXCrypto.sha512(savedData))
+
+        let reparsed = try KDBXParser.parseWithMeta(
+            data: savedData,
+            password: newPassword,
+            sessionKey: SymmetricKey(size: .bits256)
+        )
+        XCTAssertTrue(reparsed.rootGroup.allEntries.contains { $0.title == "Rekeyed Entry" })
+
+        XCTAssertThrowsError(
+            try KDBXParser.parseWithMeta(
+                data: savedData,
+                password: fixturePassword,
+                sessionKey: SymmetricKey(size: .bits256)
+            ),
+            "The old credentials must no longer open the rekeyed file."
+        )
+    }
+
+    func testRekeySaveBackupStillOpensWithOldCredentials() async throws {
+        let databaseURL = try makeScratchDatabaseCopy()
+        let reference = try TestDatabaseSupport.makeReference(for: databaseURL)
+        let originalData = try Data(contentsOf: databaseURL)
+        let context = try makeDirtySaveContext(
+            databaseURL: databaseURL,
+            entryTitle: "Rekey Backup Entry"
+        )
+
+        _ = try await LocalDatabaseSaver.save(
+            draft: context.draft,
+            reference: reference,
+            compositeKey: context.compositeKey,
+            openTimeSHA512: context.openTimeSHA512,
+            kdfPolicy: .mainApp,
+            newCompositeKey: try KDBXCrypto.compositeKey(password: "rotated-master-123", keyFileData: nil)
+        )
+
+        let backupURL = try XCTUnwrap(DatabaseListStore.recentBackups(for: reference).first)
+        XCTAssertEqual(try Data(contentsOf: backupURL), originalData)
+        let restored = try KDBXParser.parseWithMeta(
+            data: try Data(contentsOf: backupURL),
+            password: fixturePassword,
+            sessionKey: SymmetricKey(size: .bits256)
+        )
+        XCTAssertEqual(
+            restored.rootGroup.allEntries.map(\.title).sorted(),
+            context.originalRootGroup.allEntries.map(\.title).sorted()
+        )
+    }
+
+    func testRekeySaveConflictLeavesFileUntouched() async throws {
+        let databaseURL = try makeScratchDatabaseCopy()
+        let reference = try TestDatabaseSupport.makeReference(for: databaseURL)
+        let context = try makeDirtySaveContext(
+            databaseURL: databaseURL,
+            entryTitle: "Rekey Conflict Entry"
+        )
+        let remoteData = Data("changed-outside".utf8)
+        try remoteData.write(to: databaseURL, options: .atomic)
+
+        let result = try await LocalDatabaseSaver.save(
+            draft: context.draft,
+            reference: reference,
+            compositeKey: context.compositeKey,
+            openTimeSHA512: context.openTimeSHA512,
+            kdfPolicy: .mainApp,
+            newCompositeKey: try KDBXCrypto.compositeKey(password: "rotated-master-123", keyFileData: nil)
+        )
+
+        guard case .conflict = result else {
+            XCTFail("Expected the rekey save to conflict.")
+            return
+        }
+        XCTAssertEqual(try Data(contentsOf: databaseURL), remoteData)
+        XCTAssertTrue(DatabaseListStore.recentBackups(for: reference).isEmpty)
+    }
+
+    func testRekeySaveVerificationFailureLeavesFileUntouched() async throws {
+        let databaseURL = try makeScratchDatabaseCopy()
+        let reference = try TestDatabaseSupport.makeReference(for: databaseURL)
+        let originalData = try Data(contentsOf: databaseURL)
+        let context = try makeDirtySaveContext(
+            databaseURL: databaseURL,
+            entryTitle: "Rekey Verify Entry"
+        )
+        let newCompositeKey = try KDBXCrypto.compositeKey(password: "rotated-master-123", keyFileData: nil)
+        var environment = LocalDatabaseSaver.Environment.live
+        let liveExtractHeader = environment.extractHeader
+        environment.extractHeader = { data, key, kdfPolicy in
+            if key == newCompositeKey {
+                throw CocoaError(.fileReadCorruptFile)
+            }
+            return try liveExtractHeader(data, key, kdfPolicy)
+        }
+
+        do {
+            _ = try await LocalDatabaseSaver.save(
+                draft: context.draft,
+                reference: reference,
+                compositeKey: context.compositeKey,
+                openTimeSHA512: context.openTimeSHA512,
+                kdfPolicy: .mainApp,
+                newCompositeKey: newCompositeKey,
+                environment: environment
+            )
+            XCTFail("Expected the rekey save to fail verification.")
+        } catch let error as SaveError {
+            XCTAssertEqual(error, .rekeyVerificationFailed)
+        }
+
+        XCTAssertEqual(try Data(contentsOf: databaseURL), originalData)
+        XCTAssertTrue(DatabaseListStore.recentBackups(for: reference).isEmpty)
+    }
+
     private func makeDirtySaveContext(
         databaseURL: URL,
         entryTitle: String

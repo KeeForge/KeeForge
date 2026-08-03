@@ -77,13 +77,17 @@ enum CloudDatabaseSaver {
         )
     }
 
+    /// `newCompositeKey` rekeys the database: `compositeKey` still decrypts the
+    /// cached file, `newCompositeKey` encrypts the uploaded bytes, and the
+    /// result is verified to reopen with the new key before the upload.
     static func save(
         draft: DatabaseDraft,
         reference: DatabaseReference,
         compositeKey: Data,
         openTimeSHA512: Data,
         expectedRev: String?,
-        kdfPolicy: KDFExecutionPolicy
+        kdfPolicy: KDFExecutionPolicy,
+        newCompositeKey: Data? = nil
     ) async throws -> SaveResult {
         try await save(
             draft: draft,
@@ -92,6 +96,7 @@ enum CloudDatabaseSaver {
             openTimeSHA512: openTimeSHA512,
             expectedRev: expectedRev,
             kdfPolicy: kdfPolicy,
+            newCompositeKey: newCompositeKey,
             environment: .live
         )
     }
@@ -103,6 +108,7 @@ enum CloudDatabaseSaver {
         openTimeSHA512: Data,
         expectedRev: String?,
         kdfPolicy: KDFExecutionPolicy,
+        newCompositeKey: Data? = nil,
         environment: Environment
     ) async throws -> SaveResult {
         if reference.isReadOnly {
@@ -128,6 +134,7 @@ enum CloudDatabaseSaver {
                 openTimeSHA512: openTimeSHA512,
                 expectedRev: expectedRev,
                 kdfPolicy: kdfPolicy,
+                newCompositeKey: newCompositeKey,
                 environment: environment
             )
         }.value
@@ -140,6 +147,7 @@ enum CloudDatabaseSaver {
         openTimeSHA512: Data,
         expectedRev: String?,
         kdfPolicy: KDFExecutionPolicy,
+        newCompositeKey: Data?,
         environment: Environment
     ) async throws -> SaveResult {
         let cacheURL = environment.cacheURL(reference)
@@ -173,7 +181,14 @@ enum CloudDatabaseSaver {
         guard header.formatVersion.requiresReadOnlyMode == false else {
             throw SaveError.databaseIsReadOnly
         }
-        let newData = try environment.encryptDraft(draft, compositeKey, header, kdfPolicy)
+        let newData = try environment.encryptDraft(draft, newCompositeKey ?? compositeKey, header, kdfPolicy)
+        if let newCompositeKey {
+            do {
+                _ = try environment.extractHeader(newData, newCompositeKey, kdfPolicy)
+            } catch {
+                throw SaveError.rekeyVerificationFailed
+            }
+        }
 
         // Back up before uploading, so every local file operation stays ahead
         // of the remote change. Backing up afterwards would let a local write

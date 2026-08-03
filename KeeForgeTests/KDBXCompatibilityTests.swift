@@ -266,6 +266,103 @@ final class KDBXCompatibilityTests: XCTestCase {
         try KDBXCompatibilitySupport.assertLegacyFixtureIsReadOnly(bundle: bundle)
     }
 
+    /// The three master-key-change scenarios: change the password, add a key
+    /// file, and remove a key file. `Scenario.apply` already pins that the old
+    /// composite key fails the header HMAC and that the tree survives
+    /// unchanged; this method adds the header hygiene — cipher, KDF identity,
+    /// and cost parameters preserved, master seed and KDF salt rotated.
+    func test_rekeyScenarios_reEncryptUnderNewKeyAndPreserveHeaderIdentity() throws {
+        let collector = try KDBXCompatibilitySupport.ArtifactCollector(testCase: self)
+
+        let passwordOnly = try KDBXCompatibilitySupport.load(.aesBaseline, bundle: bundle)
+        let passwordOnlyResult = try collector.run(
+            KDBXCompatibilitySupport.rekeyPasswordOnlyScenario(),
+            on: passwordOnly
+        )
+        try assertRekeyHeaderHygiene(passwordOnlyResult, loaded: passwordOnly)
+        XCTAssertNil(passwordOnlyResult.rekey?.keyFileData)
+
+        let addKeyfile = try KDBXCompatibilitySupport.load(.aesBaseline, bundle: bundle)
+        let addKeyfileResult = try collector.run(
+            KDBXCompatibilitySupport.rekeyAddKeyfileScenario(),
+            on: addKeyfile
+        )
+        try assertRekeyHeaderHygiene(addKeyfileResult, loaded: addKeyfile)
+        XCTAssertNotNil(
+            addKeyfileResult.rekey?.keyFileData,
+            "The add-keyfile scenario must record key-file bytes for the external gate"
+        )
+
+        let removeKeyfile = try KDBXCompatibilitySupport.load(.passwordKeyfile, bundle: bundle)
+        let removeKeyfileResult = try collector.run(
+            KDBXCompatibilitySupport.rekeyRemoveKeyfileScenario(),
+            on: removeKeyfile
+        )
+        try assertRekeyHeaderHygiene(removeKeyfileResult, loaded: removeKeyfile)
+        XCTAssertNil(
+            removeKeyfileResult.rekey?.keyFileData,
+            "The remove-keyfile scenario's manifest entry must carry no key file"
+        )
+
+        try collector.emit()
+    }
+
+    /// Rekey reuses the source header, so identity and cost settings carry
+    /// over while every per-write random value must rotate.
+    private func assertRekeyHeaderHygiene(
+        _ result: KDBXCompatibilitySupport.ScenarioResult,
+        loaded: KDBXCompatibilitySupport.LoadedFixture,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) throws {
+        let label = "\(loaded.fixture.id)/rekey"
+        let rekey = try XCTUnwrap(result.rekey, label, file: file, line: line)
+        XCTAssertNotEqual(rekey.compositeKey, loaded.compositeKey, label, file: file, line: line)
+
+        XCTAssertEqual(result.afterHeader.cipherID, loaded.header.cipherID, label, file: file, line: line)
+        XCTAssertEqual(result.afterHeader.formatVersion, loaded.header.formatVersion, label, file: file, line: line)
+        XCTAssertEqual(
+            result.afterHeader.kdfParameters["$UUID"] as? Data,
+            loaded.header.kdfParameters["$UUID"] as? Data,
+            label,
+            file: file,
+            line: line
+        )
+        // Cost parameters for both KDF families; absent keys compare nil == nil.
+        XCTAssertEqual(
+            result.afterHeader.kdfParameters["I"] as? UInt64,
+            loaded.header.kdfParameters["I"] as? UInt64,
+            label, file: file, line: line
+        )
+        XCTAssertEqual(
+            result.afterHeader.kdfParameters["M"] as? UInt64,
+            loaded.header.kdfParameters["M"] as? UInt64,
+            label, file: file, line: line
+        )
+        XCTAssertEqual(
+            result.afterHeader.kdfParameters["P"] as? UInt32,
+            loaded.header.kdfParameters["P"] as? UInt32,
+            label, file: file, line: line
+        )
+        XCTAssertEqual(
+            result.afterHeader.kdfParameters["R"] as? UInt64,
+            loaded.header.kdfParameters["R"] as? UInt64,
+            label, file: file, line: line
+        )
+
+        let sourceSalt = try XCTUnwrap(loaded.header.kdfParameters["S"] as? Data, label, file: file, line: line)
+        let writtenSalt = try XCTUnwrap(result.afterHeader.kdfParameters["S"] as? Data, label, file: file, line: line)
+        XCTAssertNotEqual(writtenSalt, sourceSalt, "\(label): KDF salt must rotate", file: file, line: line)
+        XCTAssertEqual(writtenSalt.count, sourceSalt.count, label, file: file, line: line)
+        XCTAssertNotEqual(
+            result.afterHeader.masterSeed,
+            loaded.header.masterSeed,
+            "\(label): master seed must rotate",
+            file: file,
+            line: line
+        )
+    }
+
     func test_attachmentsFixture_preservesAttachmentsAndPoolContentHashesAcrossScenarios() throws {
         let collector = try KDBXCompatibilitySupport.ArtifactCollector(testCase: self)
 
@@ -516,13 +613,16 @@ final class KDBXCompatibilityTests: XCTestCase {
             "group-tags-group-tags-update-entry",
             "group-tags-group-tags-update-group",
             "\(richID)-keeotp-source-matrix",
+            "aes-baseline-rekey-password-only",
+            "aes-baseline-rekey-add-keyfile",
+            "password-keyfile-rekey-remove-keyfile",
         ] {
             XCTAssertTrue(ids.contains(required), "missing artifact \(required)")
         }
 
         // The artifact set never shrinks silently: the gate's merged manifest
         // is compared against exactly this count.
-        XCTAssertEqual(descriptors.count, 30)
+        XCTAssertEqual(descriptors.count, 33)
     }
 
     func test_externalExpectationTables_areExhaustiveOverEveryArtifactScenario() throws {

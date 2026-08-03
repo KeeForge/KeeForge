@@ -266,6 +266,19 @@ enum KDBXCompatibilitySupport {
         let sourceData: Data
         let sessionKey: SymmetricKey
         let keyFileData: Data?
+        /// Bundle the fixture came from, so scenario closures (e.g. a rekey
+        /// target that adds a bundled key file) can load sibling fixtures.
+        let bundle: Bundle
+    }
+
+    /// The credentials a rekey scenario writes with. `password`/`keyFileName`/
+    /// `keyFileData` are the EFFECTIVE post-rekey credentials the external
+    /// gate must use to open the artifact; `compositeKey` is derived from them.
+    struct RekeyTarget {
+        let compositeKey: Data
+        let password: String
+        let keyFileName: String?
+        let keyFileData: Data?
     }
 
     struct Scenario {
@@ -274,7 +287,14 @@ enum KDBXCompatibilitySupport {
         let artifactFileName: String
         let expectedSearchTerms: [String]
         let expectedGroupPaths: [String]
-        let makeEdit: (LoadedFixture) throws -> EntryEdit
+        /// nil for rekey-only scenarios: a master-key change is deliberately
+        /// not modeled as a content edit, so the whole tree must survive the
+        /// save byte-semantically unchanged.
+        var makeEdit: ((LoadedFixture) throws -> EntryEdit)?
+        /// When set, the write uses the rekey composite key instead of the
+        /// fixture's, `apply` pins that the old key no longer opens the
+        /// output, and the artifact manifest carries the new credentials.
+        var rekey: ((LoadedFixture) throws -> RekeyTarget)?
         let assertChange: (CompatibilitySnapshot, CompatibilitySnapshot, LoadedFixture) throws -> Void
 
         func apply(to loaded: LoadedFixture) throws -> ScenarioResult {
@@ -286,18 +306,39 @@ enum KDBXCompatibilitySupport {
                 binaryPool: beforePool
             )
             let draft = DatabaseDraft(rootGroup: loaded.rootGroup, meta: loaded.meta, sessionKey: loaded.sessionKey)
-            let edit = try makeEdit(loaded)
-            let updatedDraft = try draft.apply(edit)
+            let updatedDraft: DatabaseDraft
+            if let makeEdit {
+                updatedDraft = try draft.apply(makeEdit(loaded))
+            } else {
+                updatedDraft = draft
+            }
+            let rekeyTarget = try rekey?(loaded)
+            let writeKey = rekeyTarget?.compositeKey ?? loaded.compositeKey
             let written = try KDBXWriter.write(
                 rootGroup: updatedDraft.rootGroup,
                 meta: updatedDraft.meta,
-                compositeKey: loaded.compositeKey,
+                compositeKey: writeKey,
                 header: loaded.header,
                 sessionKey: updatedDraft.writerSessionKey
             )
+            if rekeyTarget != nil {
+                XCTAssertThrowsError(
+                    try KDBXParser.parseWithMetaAndHeader(
+                        data: written,
+                        compositeKey: loaded.compositeKey,
+                        sessionKey: loaded.sessionKey
+                    ),
+                    "\(id): the old composite key must no longer open the rekeyed database"
+                ) { error in
+                    guard case KDBXCrypto.CryptoError.hmacMismatch = error else {
+                        XCTFail("\(id): expected header HMAC rejection under the old key, got \(error)")
+                        return
+                    }
+                }
+            }
             let reparsed = try KDBXParser.parseWithMetaAndHeader(
                 data: written,
-                compositeKey: loaded.compositeKey,
+                compositeKey: writeKey,
                 sessionKey: loaded.sessionKey
             )
             let afterPool = BinaryPool(rawFields: reparsed.header.innerHeaderBinaryFields)
@@ -316,7 +357,13 @@ enum KDBXCompatibilitySupport {
             assertBinaryPoolUnchanged(before: before, after: after, scenarioID: id)
 
             try assertChange(before, after, loaded)
-            return ScenarioResult(written: written, before: before, after: after, afterHeader: reparsed.header)
+            return ScenarioResult(
+                written: written,
+                before: before,
+                after: after,
+                afterHeader: reparsed.header,
+                rekey: rekeyTarget
+            )
         }
     }
 
@@ -328,6 +375,8 @@ enum KDBXCompatibilitySupport {
         /// can assert cipher/KDF/outer-header preservation without paying for
         /// another KDF-bearing parse of the same bytes.
         let afterHeader: KDBXParser.Header
+        /// The credentials the scenario rekeyed to, nil for ordinary edits.
+        let rekey: RekeyTarget?
     }
 
     struct ArtifactManifest: Codable {
@@ -441,6 +490,9 @@ enum KDBXCompatibilitySupport {
         "fixture-smoke-argon2-high-iterations",
         "group-tags-update-entry",
         "group-tags-update-group",
+        "rekey-password-only",
+        "rekey-add-keyfile",
+        "rekey-remove-keyfile",
     ]
 
     /// An entry that already exists in each fixture, with the password that
@@ -509,6 +561,12 @@ enum KDBXCompatibilitySupport {
             .init(entryTitle: "Delta Login", password: "GroupTagDelta4"),
             .init(entryTitle: "Alpha Login", password: "GroupTagAlpha1"),
         ]
+        // The rekey artifacts are opened with the NEW credentials, so reading
+        // a pre-existing protected value back proves the whole database —
+        // including its protected-value stream — was re-encrypted intact.
+        table["rekey-password-only"] = [fixtureEntryPasswords[Fixture.aesBaseline.id]!]
+        table["rekey-add-keyfile"] = [fixtureEntryPasswords[Fixture.aesBaseline.id]!]
+        table["rekey-remove-keyfile"] = [fixtureEntryPasswords[Fixture.passwordKeyfile.id]!]
         return table
     }()
 
@@ -599,7 +657,8 @@ enum KDBXCompatibilitySupport {
             compositeKey: compositeKey,
             sourceData: sourceData,
             sessionKey: sessionKey,
-            keyFileData: keyFileData
+            keyFileData: keyFileData,
+            bundle: bundle
         )
     }
 
@@ -1180,6 +1239,112 @@ enum KDBXCompatibilitySupport {
         )
     }
 
+    // MARK: - Rekey scenarios
+
+    /// Password the rekey scenarios change to. Shared with the manifest via
+    /// `RekeyTarget.password` so the external gate opens the artifacts with it.
+    static let rekeyNewPassword = "rekeyed-master-password-1"
+
+    /// Shared assertion body for every rekey scenario: a master-key change is
+    /// not a content edit, so the tree, groups, and meta must all survive the
+    /// save unchanged. The old-key rejection and header rotation checks live
+    /// in `Scenario.apply` and the running test method respectively.
+    private static func assertRekeyLeavesTreeUnchanged(
+        before: CompatibilitySnapshot,
+        after: CompatibilitySnapshot
+    ) throws {
+        try assertUnchangedEntries(before: before, after: after)
+        try assertSurvivingGroupsPreserveScalars(before: before, after: after)
+        assertMetaUnchanged(before: before, after: after)
+        XCTAssertEqual(after.entries.count, before.entries.count)
+        XCTAssertEqual(after.groups.count, before.groups.count)
+    }
+
+    /// `.aesBaseline` (password only) rekeyed to a different password.
+    static func rekeyPasswordOnlyScenario() -> Scenario {
+        Scenario(
+            id: "rekey-password-only",
+            title: "Change master password only",
+            artifactFileName: "aes-baseline-rekey-password-only.kdbx",
+            expectedSearchTerms: ["Twitter"],
+            expectedGroupPaths: ["Social"],
+            rekey: { _ in
+                RekeyTarget(
+                    compositeKey: try KDBXCrypto.compositeKey(password: rekeyNewPassword, keyFileData: nil),
+                    password: rekeyNewPassword,
+                    keyFileName: nil,
+                    keyFileData: nil
+                )
+            },
+            assertChange: { before, after, _ in
+                try assertRekeyLeavesTreeUnchanged(before: before, after: after)
+            }
+        )
+    }
+
+    /// `.aesBaseline` rekeyed to its existing password plus the bundled
+    /// compatibility key file, so "add a key file" is the only change.
+    static func rekeyAddKeyfileScenario() -> Scenario {
+        Scenario(
+            id: "rekey-add-keyfile",
+            title: "Add a key file to the master key",
+            artifactFileName: "aes-baseline-rekey-add-keyfile.kdbx",
+            expectedSearchTerms: ["Twitter"],
+            expectedGroupPaths: ["Social"],
+            rekey: { loaded in
+                let keyFileName = try XCTUnwrap(Fixture.passwordKeyfile.keyFileName)
+                let keyURL = try TestDatabaseSupport.fixtureURL(
+                    named: keyFileName,
+                    extension: "key",
+                    subdirectory: "compatibility",
+                    bundle: loaded.bundle
+                )
+                let keyFileData = try Data(contentsOf: keyURL)
+                return RekeyTarget(
+                    compositeKey: try KDBXCrypto.compositeKey(
+                        password: loaded.fixture.password,
+                        keyFileData: keyFileData
+                    ),
+                    password: loaded.fixture.password,
+                    keyFileName: keyFileName,
+                    keyFileData: keyFileData
+                )
+            },
+            assertChange: { before, after, _ in
+                try assertRekeyLeavesTreeUnchanged(before: before, after: after)
+            }
+        )
+    }
+
+    /// `.passwordKeyfile` (password + key file) rekeyed to password only.
+    static func rekeyRemoveKeyfileScenario() -> Scenario {
+        Scenario(
+            id: "rekey-remove-keyfile",
+            title: "Remove the key file from the master key",
+            artifactFileName: "password-keyfile-rekey-remove-keyfile.kdbx",
+            expectedSearchTerms: ["KeyFile Test Entry"],
+            expectedGroupPaths: [],
+            rekey: { loaded in
+                XCTAssertNotNil(
+                    loaded.keyFileData,
+                    "Fixture precondition: the source composite key includes a key file to remove"
+                )
+                return RekeyTarget(
+                    compositeKey: try KDBXCrypto.compositeKey(
+                        password: loaded.fixture.password,
+                        keyFileData: nil
+                    ),
+                    password: loaded.fixture.password,
+                    keyFileName: nil,
+                    keyFileData: nil
+                )
+            },
+            assertChange: { before, after, _ in
+                try assertRekeyLeavesTreeUnchanged(before: before, after: after)
+            }
+        )
+    }
+
     // MARK: - Artifact set
 
     /// One `(fixture, scenario)` pair, i.e. exactly one `.kdbx` artifact for
@@ -1224,6 +1389,15 @@ enum KDBXCompatibilitySupport {
         )
         descriptors.append(
             ArtifactDescriptor(fixture: .syntheticRich, scenario: keeOTPArtifactScenario())
+        )
+        descriptors.append(
+            ArtifactDescriptor(fixture: .aesBaseline, scenario: rekeyPasswordOnlyScenario())
+        )
+        descriptors.append(
+            ArtifactDescriptor(fixture: .aesBaseline, scenario: rekeyAddKeyfileScenario())
+        )
+        descriptors.append(
+            ArtifactDescriptor(fixture: .passwordKeyfile, scenario: rekeyRemoveKeyfileScenario())
         )
         return descriptors
     }
@@ -1342,7 +1516,7 @@ enum KDBXCompatibilitySupport {
         @discardableResult
         func run(_ scenario: Scenario, on loaded: LoadedFixture) throws -> ScenarioResult {
             let result = try scenario.apply(to: loaded)
-            try record(scenario: scenario, loaded: loaded, written: result.written)
+            try record(scenario: scenario, loaded: loaded, written: result.written, rekey: result.rekey)
             return result
         }
 
@@ -1362,7 +1536,7 @@ enum KDBXCompatibilitySupport {
             attach(fragmentURL, named: fragmentName)
         }
 
-        private func record(scenario: Scenario, loaded: LoadedFixture, written: Data) throws {
+        private func record(scenario: Scenario, loaded: LoadedFixture, written: Data, rekey: RekeyTarget?) throws {
             let artifactID = "\(loaded.fixture.id)-\(scenario.id)"
             guard declaredArtifactIDs.contains(artifactID) else {
                 throw ArtifactEmissionError.undeclaredArtifact(artifactID)
@@ -1375,9 +1549,25 @@ enum KDBXCompatibilitySupport {
             try written.write(to: artifactURL, options: .atomic)
             attach(artifactURL, named: scenario.artifactFileName)
 
+            // A rekeyed artifact only opens with the credentials it was
+            // rekeyed to, so the manifest must carry the EFFECTIVE post-rekey
+            // password and key file, not the fixture's.
+            let effectivePassword: String
+            let effectiveKeyFileName: String?
+            let effectiveKeyFileData: Data?
+            if let rekey {
+                effectivePassword = rekey.password
+                effectiveKeyFileName = rekey.keyFileName
+                effectiveKeyFileData = rekey.keyFileData
+            } else {
+                effectivePassword = loaded.fixture.password
+                effectiveKeyFileName = loaded.fixture.keyFileName
+                effectiveKeyFileData = loaded.keyFileData
+            }
+
             var keyFileAttachmentName: String?
-            if let keyFileData = loaded.keyFileData, let fixtureKeyFileName = loaded.fixture.keyFileName {
-                let name = "\(fixtureKeyFileName).key"
+            if let keyFileData = effectiveKeyFileData, let keyFileName = effectiveKeyFileName {
+                let name = "\(keyFileName).key"
                 keyFileAttachmentName = name
                 if attachedKeyFileNames.insert(name).inserted {
                     let keyFileURL = outputDirectory.appendingPathComponent(name)
@@ -1390,7 +1580,7 @@ enum KDBXCompatibilitySupport {
                 ArtifactManifest.Artifact(
                     id: artifactID,
                     fileName: scenario.artifactFileName,
-                    password: loaded.fixture.password,
+                    password: effectivePassword,
                     keyFileName: keyFileAttachmentName,
                     expectedSearchTerms: scenario.expectedSearchTerms,
                     expectedGroupPaths: scenario.expectedGroupPaths,
@@ -1432,6 +1622,29 @@ enum KDBXCompatibilitySupport {
         ) { error in
             guard case KDBXWriter.WriteError.unsupportedSourceFormat(.kdbx3_1) = error else {
                 XCTFail("Expected KDBX 3.1 writer rejection, got \(error)")
+                return
+            }
+        }
+
+        // A master-key change is a write under a different composite key, so
+        // the read-only gate must reject it identically — rekey never becomes
+        // a KDBX 3.1 escape hatch.
+        let rekeyCompositeKey = try KDBXCrypto.compositeKey(
+            password: rekeyNewPassword,
+            keyFileData: nil
+        )
+        XCTAssertNotEqual(rekeyCompositeKey, loaded.compositeKey)
+        XCTAssertThrowsError(
+            try KDBXWriter.write(
+                rootGroup: loaded.rootGroup,
+                meta: loaded.meta,
+                compositeKey: rekeyCompositeKey,
+                header: loaded.header,
+                sessionKey: loaded.sessionKey
+            )
+        ) { error in
+            guard case KDBXWriter.WriteError.unsupportedSourceFormat(.kdbx3_1) = error else {
+                XCTFail("Expected KDBX 3.1 writer rejection for a rekey write, got \(error)")
                 return
             }
         }
