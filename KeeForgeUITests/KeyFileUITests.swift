@@ -4,6 +4,11 @@ import XCTest
 
 @MainActor
 final class KeyFileUITests: KeeForgeUITestCase {
+    override var keyFileFixtureName: String? {
+        name.contains("testInvalidXML") ? "invalid-xml" : nil
+    }
+
+    override var keyFileFixtureExtension: String { "keyx" }
 
     private func findKeyFileSelect() -> XCUIElement? {
         let direct = app.buttons["unlock.keyfile.select"]
@@ -35,6 +40,27 @@ final class KeyFileUITests: KeeForgeUITestCase {
             waitForDocumentPicker(timeout: 15),
             "Document picker did not appear after tapping Select key file"
         )
+    }
+
+    func testInvalidXMLKeyFileShowsUnlockError() {
+        XCTAssertTrue(openFirstDatabaseFromListIfNeeded(), "Unlock screen did not appear")
+
+        let injectedKeyFile = app.staticTexts.matching(
+            NSPredicate(format: "label CONTAINS[c] 'invalid-xml.keyx'")
+        ).firstMatch
+        XCTAssertTrue(injectedKeyFile.waitForExistence(timeout: 10), "Invalid XML key file was not injected")
+
+        let passwordField = app.secureTextFields["unlock.password.field"]
+        replaceText(in: passwordField, with: "testpassword123")
+        tapElement(app.buttons["unlock.button"])
+
+        let error = app.staticTexts["unlock.error.label"]
+        XCTAssertTrue(error.waitForExistence(timeout: Self.ciElementTimeout), "Invalid key file error was not shown")
+        XCTAssertTrue(
+            error.label.contains("invalid key data"),
+            "Unlock should identify malformed XML key data, got: \(error.label)"
+        )
+        XCTAssertTrue(passwordField.exists, "Invalid XML key file should leave the unlock form available")
     }
 }
 

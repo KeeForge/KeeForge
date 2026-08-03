@@ -63,6 +63,13 @@ final class TagBrowserUITests: UnlockedDatabaseUITestCase {
             revealElement(taggedEntry, in: scrollableContainer()),
             "Tag-filtered list did not show '\(taggedEntryName)'"
         )
+
+        let folderCaptions = app.staticTexts.matching(identifier: "entry-row.folder").allElementsBoundByIndex
+        XCTAssertEqual(folderCaptions.count, 2, "Both shared-tag results should show their folder")
+        XCTAssertTrue(
+            folderCaptions.allSatisfy { $0.label == "Tagged" },
+            "Tag results should identify their containing folder"
+        )
         tapElement(taggedEntry)
 
         // 4. Entry detail shows the chip that leads back into the same tag.
@@ -120,6 +127,42 @@ final class TagBrowserUITests: UnlockedDatabaseUITestCase {
         XCTAssertTrue(
             chipAfterBack.waitForExistence(timeout: KeeForgeUITestCase.ciElementTimeout),
             "Going back from the tag did not land on '\(taggedEntryName)', so the chip pushed more than one screen"
+        )
+    }
+
+    func testHiddenGroupEntriesLeaveSearchButRemainInTheTagBrowser() {
+        unlockSuccessfully()
+
+        let taggedGroup = groupRow(named: "Tagged")
+        XCTAssertTrue(revealElement(taggedGroup), "Tagged group was not visible")
+        taggedGroup.press(forDuration: 1.2)
+
+        let hideAction = app.buttons["group-row.autofill-exclusion-context"]
+        XCTAssertTrue(hideAction.waitForExistence(timeout: 5), "Hide from Search & AutoFill action was not visible")
+        tapElement(hideAction)
+        XCTAssertTrue(
+            app.descendants(matching: .any).matching(identifier: "group-row.autofill-excluded").firstMatch
+                .waitForExistence(timeout: Self.ciElementTimeout),
+            "Hidden-group badge did not appear"
+        )
+
+        let searchField = activateSearchField()
+        clearSearchField(searchField)
+        searchField.typeText(taggedEntryName)
+        XCTAssertTrue(app.staticTexts["search.no-results"].waitForExistence(timeout: 5))
+        XCTAssertFalse(searchResult(named: taggedEntryName).exists, "Hidden group entry remained in search")
+
+        clearSearchField(searchField)
+        let tagsRow = app.descendants(matching: .any).matching(identifier: "group-list.tags-row").firstMatch
+        XCTAssertTrue(tagsRow.waitForExistence(timeout: 5), "Tags row did not return after clearing search")
+        tapElement(tagsRow)
+
+        let sharedRow = app.descendants(matching: .any).matching(identifier: "tag-list.row.\(sharedTag)").firstMatch
+        XCTAssertTrue(sharedRow.waitForExistence(timeout: 5), "Shared tag disappeared with the hidden group")
+        tapElement(sharedRow)
+        XCTAssertTrue(
+            searchResult(named: taggedEntryName).waitForExistence(timeout: Self.ciElementTimeout),
+            "Hidden group entry should remain available through the tag browser"
         )
     }
 

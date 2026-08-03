@@ -431,24 +431,50 @@ final class EntryCreateSmokeUITests: EntryEditUITestCase {
 
 @MainActor
 final class EntryEditSmokeUITests: EntryEditUITestCase {
-    func testEditSocialDiscordSavesNewValue() {
+    func testEditedTitleAndUsernameRefreshGroupSearchAndTitleSorting() {
+        let updatedTitle = "AAA Discord UI Edited"
+        let updatedUsername = "ui-edited-user"
+
         unlockSuccessfully()
 
         openEntry(named: discordEntryTitle, inGroup: socialGroupName)
-        editCurrentEntryTitle(to: editedDiscordTitle)
+        let editButton = app.buttons["entry-detail.edit"]
+        XCTAssertTrue(editButton.waitForExistence(timeout: 5), "Edit button was not visible")
+        tapElement(editButton)
 
-        XCTAssertTrue(app.navigationBars[editedDiscordTitle].waitForExistence(timeout: 5))
+        replaceText(in: app.textFields["entry-edit.title-field"], with: updatedTitle)
+        replaceText(in: app.textFields["entry-edit.username-field"], with: updatedUsername)
+
+        let saveButton = app.buttons["entry-edit.save"]
+        tapElement(saveButton)
+        XCTAssertTrue(waitForSaveCompletion(saveButton: saveButton, timeout: 10))
+
+        XCTAssertTrue(app.navigationBars[updatedTitle].waitForExistence(timeout: 5))
         tapBackButton()
-        XCTAssertTrue(
-            revealElement(entry(named: editedDiscordTitle)),
-            "Edited entry title was not visible immediately after returning to the Social group"
-        )
+
+        let updatedRow = entry(named: updatedTitle)
+        XCTAssertTrue(revealElement(updatedRow), "Edited entry title did not refresh in the Social group")
+        XCTAssertTrue(updatedRow.label.contains(updatedUsername), "Edited username did not refresh in the Social group")
+
+        let githubRow = entry(named: "GitHub")
+        XCTAssertTrue(revealElement(githubRow), "GitHub comparison row was not visible")
+        XCTAssertLessThan(updatedRow.frame.minY, githubRow.frame.minY, "Title sorting did not refresh after the edit")
+
         tapBackButton()
-        openGroup(named: socialGroupName)
-        XCTAssertTrue(
-            revealElement(entry(named: editedDiscordTitle)),
-            "Edited entry title was not visible in the Social group after saving"
-        )
+        let searchField = app.searchFields["Search entries"].firstMatch
+        if searchField.waitForExistence(timeout: 1) == false, let container = scrollableContainer() {
+            container.swipeDown()
+        }
+        XCTAssertTrue(searchField.waitForExistence(timeout: 5), "Search field was not visible")
+        tapElement(searchField)
+        clearTextFromSearchField(searchField)
+        searchField.typeText(updatedUsername)
+
+        let searchRow = app.descendants(matching: .any).matching(
+            NSPredicate(format: "identifier == 'search.entry.navlink' AND label CONTAINS[c] %@", updatedTitle)
+        ).firstMatch
+        XCTAssertTrue(searchRow.waitForExistence(timeout: 5), "Edited username did not refresh the search index")
+        XCTAssertTrue(searchRow.label.contains(updatedUsername))
     }
 
     func testRevealedPasswordUpdatesAndWrapsWithoutExtraCharacters() {
@@ -490,6 +516,13 @@ final class EntryEditSmokeUITests: EntryEditUITestCase {
         attachment.name = "wrapped-revealed-password"
         attachment.lifetime = .keepAlways
         add(attachment)
+    }
+
+    private func clearTextFromSearchField(_ searchField: XCUIElement) {
+        let clearButton = searchField.buttons["Clear text"]
+        if clearButton.exists {
+            clearButton.tap()
+        }
     }
 }
 
