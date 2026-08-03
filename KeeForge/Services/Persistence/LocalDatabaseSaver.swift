@@ -45,8 +45,8 @@ enum LocalDatabaseSaver {
         var endBackgroundTask: @MainActor @Sendable (BackgroundTaskHandle) -> Void
         var resolveLocation: @Sendable (DatabaseReference) -> ResolvedLocation?
         var readData: @Sendable (URL) throws -> Data
-        var extractHeader: @Sendable (Data, Data) throws -> KDBXParser.Header
-        var encryptDraft: @Sendable (DatabaseDraft, Data, KDBXParser.Header) throws -> Data
+        var extractHeader: @Sendable (Data, Data, KDFExecutionPolicy) throws -> KDBXParser.Header
+        var encryptDraft: @Sendable (DatabaseDraft, Data, KDBXParser.Header, KDFExecutionPolicy) throws -> Data
         var backupDirectoryURL: @Sendable (DatabaseReference) -> URL
         var createDirectory: @Sendable (URL) throws -> Void
         var writeBackup: @Sendable (Data, URL) throws -> Void
@@ -68,20 +68,22 @@ enum LocalDatabaseSaver {
             readData: { url in
                 try CoordinatedFileReader.readData(from: url)
             },
-            extractHeader: { data, compositeKey in
+            extractHeader: { data, compositeKey, kdfPolicy in
                 try KDBXParser.parseWithMetaAndHeader(
                     data: data,
                     compositeKey: compositeKey,
-                    sessionKey: SymmetricKey(size: .bits256)
+                    sessionKey: SymmetricKey(size: .bits256),
+                    kdfPolicy: kdfPolicy
                 ).header
             },
-            encryptDraft: { draft, compositeKey, header in
+            encryptDraft: { draft, compositeKey, header, kdfPolicy in
                 try KDBXWriter.write(
                     rootGroup: draft.rootGroup,
                     meta: draft.meta,
                     compositeKey: compositeKey,
                     header: header,
-                    sessionKey: draft.writerSessionKey
+                    sessionKey: draft.writerSessionKey,
+                    kdfPolicy: kdfPolicy
                 )
             },
             backupDirectoryURL: { reference in
@@ -122,13 +124,15 @@ enum LocalDatabaseSaver {
         draft: DatabaseDraft,
         reference: DatabaseReference,
         compositeKey: Data,
-        openTimeSHA512: Data
+        openTimeSHA512: Data,
+        kdfPolicy: KDFExecutionPolicy
     ) async throws -> SaveResult {
         try await save(
             draft: draft,
             reference: reference,
             compositeKey: compositeKey,
             openTimeSHA512: openTimeSHA512,
+            kdfPolicy: kdfPolicy,
             environment: .live
         )
     }
@@ -138,6 +142,7 @@ enum LocalDatabaseSaver {
         reference: DatabaseReference,
         compositeKey: Data,
         openTimeSHA512: Data,
+        kdfPolicy: KDFExecutionPolicy,
         environment: Environment
     ) async throws -> SaveResult {
         if reference.isReadOnly {
@@ -157,6 +162,7 @@ enum LocalDatabaseSaver {
                 reference: reference,
                 compositeKey: compositeKey,
                 openTimeSHA512: openTimeSHA512,
+                kdfPolicy: kdfPolicy,
                 environment: environment
             )
         }.value
@@ -167,6 +173,7 @@ enum LocalDatabaseSaver {
         reference: DatabaseReference,
         compositeKey: Data,
         openTimeSHA512: Data,
+        kdfPolicy: KDFExecutionPolicy,
         environment: Environment
     ) throws -> SaveResult {
         guard let location = environment.resolveLocation(reference) else {
@@ -187,7 +194,8 @@ enum LocalDatabaseSaver {
             currentData = try makeUITestConflictData(
                 from: currentData,
                 compositeKey: compositeKey,
-                sequence: conflictSequence
+                sequence: conflictSequence,
+                kdfPolicy: kdfPolicy
             )
             try environment.replaceFileAtomically(currentData, location.url)
         }
@@ -196,11 +204,11 @@ enum LocalDatabaseSaver {
             return .conflict(remoteSHA512: currentSHA512, remoteData: currentData)
         }
 
-        let header = try environment.extractHeader(currentData, compositeKey)
+        let header = try environment.extractHeader(currentData, compositeKey, kdfPolicy)
         guard header.formatVersion.requiresReadOnlyMode == false else {
             throw SaveError.databaseIsReadOnly
         }
-        let newData = try environment.encryptDraft(draft, compositeKey, header)
+        let newData = try environment.encryptDraft(draft, compositeKey, header, kdfPolicy)
 
         let backupDirectoryURL = environment.backupDirectoryURL(reference)
         try environment.createDirectory(backupDirectoryURL)
@@ -262,13 +270,15 @@ enum LocalDatabaseSaver {
     private static func makeUITestConflictData(
         from data: Data,
         compositeKey: Data,
-        sequence: Int
+        sequence: Int,
+        kdfPolicy: KDFExecutionPolicy
     ) throws -> Data {
         let sessionKey = SymmetricKey(size: .bits256)
         let parsed = try KDBXParser.parseWithMetaAndHeader(
             data: data,
             compositeKey: compositeKey,
-            sessionKey: sessionKey
+            sessionKey: sessionKey,
+            kdfPolicy: kdfPolicy
         )
         let conflictMarkerParent = parsed.rootGroup.entries.isEmpty && parsed.rootGroup.groups.count == 1
             ? parsed.rootGroup.groups[0]
@@ -284,7 +294,8 @@ enum LocalDatabaseSaver {
             meta: parsed.meta,
             compositeKey: compositeKey,
             header: parsed.header,
-            sessionKey: sessionKey
+            sessionKey: sessionKey,
+            kdfPolicy: kdfPolicy
         )
     }
 

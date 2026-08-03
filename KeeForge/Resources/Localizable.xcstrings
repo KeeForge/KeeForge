@@ -7390,6 +7390,28 @@
         }
       }
     },
+    "Key Derivation Settings Too Demanding" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Schlüsselableitungs-Einstellungen zu anspruchsvoll"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ajustes de derivación de clave demasiado exigentes"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Paramètres de dérivation de clé trop exigeants"
+          }
+        }
+      }
+    },
     "Key File" : {
       "localizations" : {
         "de" : {
@@ -12827,6 +12849,50 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Cette base de données utilise un flux de champs protégés non pris en charge."
+          }
+        }
+      }
+    },
+    "This database's Argon2 settings require more memory or processing than this device can safely run. Lower the Argon2 settings in a desktop KeePass app and save the database, then try opening it again." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die Argon2-Einstellungen dieser Datenbank erfordern mehr Speicher oder Rechenleistung, als dieses Gerät sicher ausführen kann. Verringern Sie die Argon2-Einstellungen in einer Desktop-KeePass-App, speichern Sie die Datenbank und versuchen Sie dann erneut, sie zu öffnen."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Los ajustes de Argon2 de esta base de datos requieren más memoria o procesamiento de lo que este dispositivo puede ejecutar de forma segura. Reduzca los ajustes de Argon2 en una app de KeePass de escritorio, guarde la base de datos y vuelva a intentar abrirla."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Les paramètres Argon2 de cette base de données nécessitent plus de mémoire ou de calcul que ce que cet appareil peut exécuter en toute sécurité. Réduisez les paramètres Argon2 dans une app KeePass de bureau, enregistrez la base de données, puis réessayez de l'ouvrir."
+          }
+        }
+      }
+    },
+    "This database's key derivation settings (%@ of memory × %@ iterations, %@ threads) exceed what this app can safely run. Lower the database's Argon2 settings in a desktop KeePass app and save it, then try again." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die Schlüsselableitungs-Einstellungen dieser Datenbank (%@ Arbeitsspeicher × %@ Iterationen, %@ Threads) überschreiten das, was diese App sicher ausführen kann. Verringern Sie die Argon2-Einstellungen der Datenbank in einer Desktop-KeePass-App, speichern Sie sie und versuchen Sie es dann erneut."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Los ajustes de derivación de clave de esta base de datos (%@ de memoria × %@ iteraciones, %@ hilos) superan lo que esta app puede ejecutar de forma segura. Reduzca los ajustes de Argon2 de la base de datos en una app de KeePass de escritorio, guárdela y vuelva a intentarlo."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Les paramètres de dérivation de clé de cette base de données (%@ de mémoire × %@ itérations, %@ threads) dépassent ce que cette app peut exécuter en toute sécurité. Réduisez les paramètres Argon2 de la base de données dans une app KeePass de bureau, enregistrez-la, puis réessayez."
           }
         }
       }

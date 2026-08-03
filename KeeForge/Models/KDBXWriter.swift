@@ -57,14 +57,16 @@ enum KDBXWriter {
         meta: KPMeta,
         compositeKey: Data,
         header: KDBXParser.Header,
-        sessionKey: SymmetricKey
+        sessionKey: SymmetricKey,
+        kdfPolicy: KDFExecutionPolicy
     ) throws -> Data {
         try write(
             rootGroup: rootGroup,
             meta: meta,
             compositeKey: compositeKey,
             sessionKey: sessionKey,
-            headerSource: .reuse(header)
+            headerSource: .reuse(header),
+            kdfPolicy: kdfPolicy
         )
     }
 
@@ -73,14 +75,16 @@ enum KDBXWriter {
         meta: KPMeta,
         compositeKey: Data,
         freshHeader: FreshHeaderConfiguration,
-        sessionKey: SymmetricKey
+        sessionKey: SymmetricKey,
+        kdfPolicy: KDFExecutionPolicy
     ) throws -> Data {
         try write(
             rootGroup: rootGroup,
             meta: meta,
             compositeKey: compositeKey,
             sessionKey: sessionKey,
-            headerSource: .fresh(freshHeader)
+            headerSource: .fresh(freshHeader),
+            kdfPolicy: kdfPolicy
         )
     }
 
@@ -89,13 +93,14 @@ enum KDBXWriter {
         meta: KPMeta,
         compositeKey: Data,
         sessionKey: SymmetricKey,
-        headerSource: HeaderSource
+        headerSource: HeaderSource,
+        kdfPolicy: KDFExecutionPolicy
     ) throws -> Data {
         let header = try resolveHeader(
             from: headerSource,
             requiredMinorVersion: requiredMinorVersion(for: rootGroup)
         )
-        let keys = try deriveKeys(compositeKey: compositeKey, header: header)
+        let keys = try deriveKeys(compositeKey: compositeKey, header: header, kdfPolicy: kdfPolicy)
 
         let outerHeader = try buildOuterHeader(from: header)
 
@@ -224,11 +229,13 @@ enum KDBXWriter {
 
     private static func deriveKeys(
         compositeKey: Data,
-        header: KDBXParser.Header
+        header: KDBXParser.Header,
+        kdfPolicy: KDFExecutionPolicy
     ) throws -> (masterKey: Data, hmacBaseKey: Data) {
         let transformedKey = try KDBXParser.deriveKey(
             compositeKey: compositeKey,
-            kdfParams: header.kdfParameters
+            kdfParams: header.kdfParameters,
+            kdfPolicy: kdfPolicy
         )
 
         var masterPreKey = Data()

@@ -133,6 +133,7 @@ enum KDBXParser {
         case unsupportedProtectedFieldStream(UInt32)
         case malformedVariantMap
         case kdfParameterOutOfRange(String)
+        case kdfResourceLimitExceeded(iterations: UInt64, memoryBytes: UInt64, parallelism: UInt32)
 
         var errorDescription: String? {
             switch self {
@@ -149,6 +150,10 @@ enum KDBXParser {
             case .unsupportedProtectedFieldStream: String(localized: "This database uses an unsupported protected-field stream.")
             case .malformedVariantMap: String(localized: "Malformed variant map in header")
             case .kdfParameterOutOfRange(let p): String(localized: "KDF parameter out of range: \(p)")
+            case .kdfResourceLimitExceeded(let iterations, let memoryBytes, let parallelism):
+                // Same formatter as AutoFillMemoryLimit.BudgetExceeded so the two
+                // Argon2 memory errors render consistently.
+                String(localized: "This database's key derivation settings (\(Int64(clamping: memoryBytes).formatted(.byteCount(style: .memory))) of memory × \(String(iterations)) iterations, \(String(parallelism)) threads) exceed what this app can safely run. Lower the database's Argon2 settings in a desktop KeePass app and save it, then try again.")
             }
         }
     }
@@ -168,72 +173,78 @@ enum KDBXParser {
     // MARK: - Public API
 
     /// Parse and decrypt a KDBX 4.x file, returning the root group
-    static func parse(data: Data, password: String, sessionKey: SymmetricKey) throws -> KPGroup {
+    static func parse(data: Data, password: String, sessionKey: SymmetricKey, kdfPolicy: KDFExecutionPolicy) throws -> KPGroup {
         let compositeKey = KDBXCrypto.compositeKey(password: password)
-        return try parse(data: data, compositeKey: compositeKey, sessionKey: sessionKey)
+        return try parse(data: data, compositeKey: compositeKey, sessionKey: sessionKey, kdfPolicy: kdfPolicy)
     }
 
     static func parseWithMeta(
         data: Data,
         password: String,
-        sessionKey: SymmetricKey
+        sessionKey: SymmetricKey,
+        kdfPolicy: KDFExecutionPolicy
     ) throws -> (rootGroup: KPGroup, meta: KPMeta) {
         let compositeKey = KDBXCrypto.compositeKey(password: password)
-        return try parseWithMeta(data: data, compositeKey: compositeKey, sessionKey: sessionKey)
+        return try parseWithMeta(data: data, compositeKey: compositeKey, sessionKey: sessionKey, kdfPolicy: kdfPolicy)
     }
 
     static func parseWithMetaAndHeader(
         data: Data,
         password: String,
-        sessionKey: SymmetricKey
+        sessionKey: SymmetricKey,
+        kdfPolicy: KDFExecutionPolicy
     ) throws -> (rootGroup: KPGroup, meta: KPMeta, header: Header) {
         let compositeKey = KDBXCrypto.compositeKey(password: password)
-        return try parseWithMetaAndHeader(data: data, compositeKey: compositeKey, sessionKey: sessionKey)
+        return try parseWithMetaAndHeader(data: data, compositeKey: compositeKey, sessionKey: sessionKey, kdfPolicy: kdfPolicy)
     }
 
     /// Parse and decrypt with password and/or key file data
-    static func parse(data: Data, password: String?, keyFileData: Data?, sessionKey: SymmetricKey) throws -> KPGroup {
+    static func parse(data: Data, password: String?, keyFileData: Data?, sessionKey: SymmetricKey, kdfPolicy: KDFExecutionPolicy) throws -> KPGroup {
         let compositeKey = try KDBXCrypto.compositeKey(password: password, keyFileData: keyFileData)
-        return try parse(data: data, compositeKey: compositeKey, sessionKey: sessionKey)
+        return try parse(data: data, compositeKey: compositeKey, sessionKey: sessionKey, kdfPolicy: kdfPolicy)
     }
 
     static func parseWithMeta(
         data: Data,
         password: String?,
         keyFileData: Data?,
-        sessionKey: SymmetricKey
+        sessionKey: SymmetricKey,
+        kdfPolicy: KDFExecutionPolicy
     ) throws -> (rootGroup: KPGroup, meta: KPMeta) {
         let compositeKey = try KDBXCrypto.compositeKey(password: password, keyFileData: keyFileData)
-        return try parseWithMeta(data: data, compositeKey: compositeKey, sessionKey: sessionKey)
+        return try parseWithMeta(data: data, compositeKey: compositeKey, sessionKey: sessionKey, kdfPolicy: kdfPolicy)
     }
 
     static func parseWithMetaAndHeader(
         data: Data,
         password: String?,
         keyFileData: Data?,
-        sessionKey: SymmetricKey
+        sessionKey: SymmetricKey,
+        kdfPolicy: KDFExecutionPolicy
     ) throws -> (rootGroup: KPGroup, meta: KPMeta, header: Header) {
         let compositeKey = try KDBXCrypto.compositeKey(password: password, keyFileData: keyFileData)
-        return try parseWithMetaAndHeader(data: data, compositeKey: compositeKey, sessionKey: sessionKey)
+        return try parseWithMetaAndHeader(data: data, compositeKey: compositeKey, sessionKey: sessionKey, kdfPolicy: kdfPolicy)
     }
 
-    static func parse(data: Data, compositeKey: Data, sessionKey: SymmetricKey) throws -> KPGroup {
-        try parseWithMeta(data: data, compositeKey: compositeKey, sessionKey: sessionKey).rootGroup
+    static func parse(data: Data, compositeKey: Data, sessionKey: SymmetricKey, kdfPolicy: KDFExecutionPolicy) throws -> KPGroup {
+        try parseWithMeta(data: data, compositeKey: compositeKey, sessionKey: sessionKey, kdfPolicy: kdfPolicy).rootGroup
     }
 
     static func parseWithMeta(
         data: Data,
         compositeKey: Data,
-        sessionKey: SymmetricKey
+        sessionKey: SymmetricKey,
+        kdfPolicy: KDFExecutionPolicy
     ) throws -> (rootGroup: KPGroup, meta: KPMeta) {
-        let parsed = try parseWithMetaAndHeader(data: data, compositeKey: compositeKey, sessionKey: sessionKey)
+        let parsed = try parseWithMetaAndHeader(data: data, compositeKey: compositeKey, sessionKey: sessionKey, kdfPolicy: kdfPolicy)
         return (parsed.rootGroup, parsed.meta)
     }
 
     static func parseWithMetaAndHeader(
         data: Data,
         compositeKey: Data,
-        sessionKey: SymmetricKey
+        sessionKey: SymmetricKey,
+        kdfPolicy: KDFExecutionPolicy
     ) throws -> (rootGroup: KPGroup, meta: KPMeta, header: Header) {
         let version = try parseFileVersion(from: data)
         switch version {
@@ -247,7 +258,8 @@ enum KDBXParser {
             return try parseKDBX4WithMetaAndHeader(
                 data: data,
                 compositeKey: compositeKey,
-                sessionKey: sessionKey
+                sessionKey: sessionKey,
+                kdfPolicy: kdfPolicy
             )
         }
     }
@@ -277,7 +289,8 @@ enum KDBXParser {
     private static func parseKDBX4WithMetaAndHeader(
         data: Data,
         compositeKey: Data,
-        sessionKey: SymmetricKey
+        sessionKey: SymmetricKey,
+        kdfPolicy: KDFExecutionPolicy
     ) throws -> (rootGroup: KPGroup, meta: KPMeta, header: Header) {
         var reader = DataReader(data: data)
 
@@ -303,7 +316,7 @@ enum KDBXParser {
         }
 
         // 5. Derive keys
-        let transformedKey = try deriveKey(compositeKey: compositeKey, kdfParams: header.kdfParameters)
+        let transformedKey = try deriveKey(compositeKey: compositeKey, kdfParams: header.kdfParameters, kdfPolicy: kdfPolicy)
 
         // Master key = SHA256(masterSeed + transformedKey)
         var preKey = Data()
@@ -536,7 +549,7 @@ enum KDBXParser {
 
     // MARK: - Key Derivation
 
-    static func deriveKey(compositeKey: Data, kdfParams: [String: Any]) throws -> Data {
+    static func deriveKey(compositeKey: Data, kdfParams: [String: Any], kdfPolicy: KDFExecutionPolicy) throws -> Data {
         guard let uuidData = kdfParams["$UUID"] as? Data else {
             throw KDBXCrypto.CryptoError.unsupportedKDF(KDFDescriptor(identifier: "missing UUID", displayName: "Unknown KDF"))
         }
@@ -570,23 +583,42 @@ enum KDBXParser {
         let iterations = (kdfParams["I"] as? UInt64) ?? 3
         let memory = (kdfParams["M"] as? UInt64) ?? (64 * 1024 * 1024) // bytes
         let parallelism = (kdfParams["P"] as? UInt32) ?? 1
+        let argon2Version = (kdfParams["V"] as? UInt32) ?? 0x13
 
-        // Bounds checks — these params are attacker-controlled (from file header)
-        guard iterations >= 1, iterations <= 1_000 else {
-            throw ParseError.kdfParameterOutOfRange("iterations \(iterations) not in 1...1000")
+        // Format validation (RFC 9106) — these params are attacker-controlled (from file header)
+        guard iterations >= 1 else {
+            throw ParseError.kdfParameterOutOfRange("iterations \(iterations) must be >= 1")
         }
-        guard memory >= 8192, memory <= 4_294_967_296 else {
-            throw ParseError.kdfParameterOutOfRange("memory \(memory) bytes not in 8192...4294967296")
+        guard parallelism >= 1, parallelism <= 0xFF_FFFF else {
+            throw ParseError.kdfParameterOutOfRange("parallelism \(parallelism) not in 1...16777215")
         }
-        guard parallelism >= 1, parallelism <= 256 else {
-            throw ParseError.kdfParameterOutOfRange("parallelism \(parallelism) not in 1...256")
+        let memoryKiB = memory / 1024
+        guard memory >= 8192, memoryKiB >= 8 * UInt64(parallelism) else {
+            throw ParseError.kdfParameterOutOfRange("memory \(memory) bytes below Argon2 minimum for \(parallelism) lanes")
+        }
+        guard let version = Argon2.Version(rawValue: argon2Version) else {
+            throw ParseError.kdfParameterOutOfRange("unsupported Argon2 version 0x\(String(argon2Version, radix: 16))")
         }
 
-        // Safe UInt32 conversions — fail closed on overflow
+        // Resource-budget validation — run exact stored values or reject, never clamp.
+        // Runs before the UInt32 conversions so absurd values get the actionable
+        // resource-limit error, not a generic parse failure.
+        guard memory <= kdfPolicy.maxPeakMemoryBytes else {
+            throw ParseError.kdfResourceLimitExceeded(iterations: iterations, memoryBytes: memory, parallelism: parallelism)
+        }
+        let (totalWork, overflow) = memory.multipliedReportingOverflow(by: iterations)
+        guard !overflow, totalWork <= kdfPolicy.maxTotalWorkBytes else {
+            throw ParseError.kdfResourceLimitExceeded(iterations: iterations, memoryBytes: memory, parallelism: parallelism)
+        }
+        guard parallelism <= kdfPolicy.maxParallelism else {
+            throw ParseError.kdfResourceLimitExceeded(iterations: iterations, memoryBytes: memory, parallelism: parallelism)
+        }
+
+        // Unreachable under any policy whose budgets fit UInt32 KiB/iterations;
+        // kept as defense for synthetic policies.
         guard let iterationsU32 = UInt32(exactly: iterations) else {
             throw ParseError.kdfParameterOutOfRange("iterations \(iterations) overflows UInt32")
         }
-        let memoryKiB = memory / 1024
         guard let memoryCostU32 = UInt32(exactly: memoryKiB) else {
             throw ParseError.kdfParameterOutOfRange("memory \(memory) bytes overflows UInt32 KiB")
         }
@@ -598,6 +630,7 @@ enum KDBXParser {
             memoryCost: memoryCostU32,
             parallelism: parallelism,
             hashLength: 32,
+            version: version,
             variant: variant
         )
     }

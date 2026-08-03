@@ -13,8 +13,8 @@ enum CloudDatabaseSaver {
         var endBackgroundTask: @MainActor @Sendable (LocalDatabaseSaver.BackgroundTaskHandle) -> Void
         var cacheURL: @Sendable (DatabaseReference) -> URL
         var readData: @Sendable (URL) throws -> Data
-        var extractHeader: @Sendable (Data, Data) throws -> KDBXParser.Header
-        var encryptDraft: @Sendable (DatabaseDraft, Data, KDBXParser.Header) throws -> Data
+        var extractHeader: @Sendable (Data, Data, KDFExecutionPolicy) throws -> KDBXParser.Header
+        var encryptDraft: @Sendable (DatabaseDraft, Data, KDBXParser.Header, KDFExecutionPolicy) throws -> Data
         var getMetadata: @Sendable (DatabaseReference) async throws -> CloudFileMetadata
         var upload: @Sendable (DatabaseReference, Data, String?, @escaping ProgressHandler) async throws -> CloudFileMetadata
         var downloadRemoteData: @Sendable (DatabaseReference) async throws -> Data
@@ -82,7 +82,8 @@ enum CloudDatabaseSaver {
         reference: DatabaseReference,
         compositeKey: Data,
         openTimeSHA512: Data,
-        expectedRev: String?
+        expectedRev: String?,
+        kdfPolicy: KDFExecutionPolicy
     ) async throws -> SaveResult {
         try await save(
             draft: draft,
@@ -90,6 +91,7 @@ enum CloudDatabaseSaver {
             compositeKey: compositeKey,
             openTimeSHA512: openTimeSHA512,
             expectedRev: expectedRev,
+            kdfPolicy: kdfPolicy,
             environment: .live
         )
     }
@@ -100,6 +102,7 @@ enum CloudDatabaseSaver {
         compositeKey: Data,
         openTimeSHA512: Data,
         expectedRev: String?,
+        kdfPolicy: KDFExecutionPolicy,
         environment: Environment
     ) async throws -> SaveResult {
         if reference.isReadOnly {
@@ -124,6 +127,7 @@ enum CloudDatabaseSaver {
                 compositeKey: compositeKey,
                 openTimeSHA512: openTimeSHA512,
                 expectedRev: expectedRev,
+                kdfPolicy: kdfPolicy,
                 environment: environment
             )
         }.value
@@ -135,6 +139,7 @@ enum CloudDatabaseSaver {
         compositeKey: Data,
         openTimeSHA512: Data,
         expectedRev: String?,
+        kdfPolicy: KDFExecutionPolicy,
         environment: Environment
     ) async throws -> SaveResult {
         let cacheURL = environment.cacheURL(reference)
@@ -164,11 +169,11 @@ enum CloudDatabaseSaver {
             effectiveExpectedRev = remoteMetadata.rev
         }
 
-        let header = try environment.extractHeader(currentData, compositeKey)
+        let header = try environment.extractHeader(currentData, compositeKey, kdfPolicy)
         guard header.formatVersion.requiresReadOnlyMode == false else {
             throw SaveError.databaseIsReadOnly
         }
-        let newData = try environment.encryptDraft(draft, compositeKey, header)
+        let newData = try environment.encryptDraft(draft, compositeKey, header, kdfPolicy)
 
         // Back up before uploading, so every local file operation stays ahead
         // of the remote change. Backing up afterwards would let a local write

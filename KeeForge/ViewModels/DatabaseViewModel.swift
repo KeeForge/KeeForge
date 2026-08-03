@@ -368,7 +368,8 @@ final class DatabaseViewModel {
                 draft: draft,
                 reference: reference,
                 compositeKey: compositeKey,
-                openTimeSHA512: openTimeSHA512
+                openTimeSHA512: openTimeSHA512,
+                kdfPolicy: .mainApp
             )
         },
         cloudSaveOperation: @escaping CloudSaveOperation = { draft, reference, compositeKey, openTimeSHA512, expectedRev in
@@ -377,7 +378,8 @@ final class DatabaseViewModel {
                 reference: reference,
                 compositeKey: compositeKey,
                 openTimeSHA512: openTimeSHA512,
-                expectedRev: expectedRev
+                expectedRev: expectedRev,
+                kdfPolicy: .mainApp
             )
         },
         conflictCopyEncryptionOperation: @escaping ConflictCopyEncryptionOperation = { draft, compositeKey, sourceData in
@@ -582,7 +584,8 @@ final class DatabaseViewModel {
                 let parsed = try KDBXParser.parseWithMetaAndHeader(
                     data: data,
                     compositeKey: compositeKey,
-                    sessionKey: sessionKey
+                    sessionKey: sessionKey,
+                    kdfPolicy: .mainApp
                 )
                 return UnlockPayload(
                     rootGroup: parsed.rootGroup,
@@ -635,7 +638,8 @@ final class DatabaseViewModel {
                 let parsed = try KDBXParser.parseWithMetaAndHeader(
                     data: data,
                     compositeKey: compositeKey,
-                    sessionKey: sessionKey
+                    sessionKey: sessionKey,
+                    kdfPolicy: .mainApp
                 )
                 return UnlockPayload(
                     rootGroup: parsed.rootGroup,
@@ -1470,7 +1474,8 @@ final class DatabaseViewModel {
                     let refreshedRoot = try KDBXParser.parse(
                         data: data,
                         compositeKey: compositeKeyForStoreRefresh,
-                        sessionKey: SymmetricKey(size: .bits256)
+                        sessionKey: SymmetricKey(size: .bits256),
+                        kdfPolicy: .mainApp
                     )
                     await self.refreshCredentialStoreIfStillUnlocked(
                         with: refreshedRoot,
@@ -2116,14 +2121,16 @@ final class DatabaseViewModel {
             let parsed = try KDBXParser.parseWithMetaAndHeader(
                 data: sourceData,
                 compositeKey: compositeKey,
-                sessionKey: SymmetricKey(size: .bits256)
+                sessionKey: SymmetricKey(size: .bits256),
+                kdfPolicy: .mainApp
             )
             return try KDBXWriter.write(
                 rootGroup: draft.rootGroup,
                 meta: draft.meta,
                 compositeKey: compositeKey,
                 header: parsed.header,
-                sessionKey: draft.writerSessionKey
+                sessionKey: draft.writerSessionKey,
+                kdfPolicy: .mainApp
             )
         }.value
     }
@@ -2287,7 +2294,8 @@ final class DatabaseViewModel {
             try KDBXParser.parseWithMetaAndHeader(
                 data: data,
                 compositeKey: compositeKey,
-                sessionKey: sessionKey
+                sessionKey: sessionKey,
+                kdfPolicy: .mainApp
             )
         }.value
 
