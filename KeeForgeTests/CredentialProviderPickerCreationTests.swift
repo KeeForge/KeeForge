@@ -131,11 +131,39 @@ final class CredentialProviderPickerCreationTests: XCTestCase {
             EntryDraftPayload(title: "", username: "", password: "secret", url: "github.com")
         )
 
-        guard case .showError = outcome else {
+        guard case .showError(let message) = outcome else {
             return XCTFail("Expected an error outcome, got \(outcome)")
         }
+        XCTAssertEqual(message, String(localized: "Enter a title or username for this credential."))
         XCTAssertNil(presenter.completedCredential, "Nothing may be filled without a user")
         XCTAssertFalse(presenter.didCompleteSavePassword)
+    }
+
+    /// The picker route unlocks the password field, so the generated value can
+    /// be cleared. An empty password would persist an entry `hasPassword`
+    /// rejects — never published to AutoFill — and fill the form with nothing.
+    func test_saveFromCreator_emptyPassword_showsErrorWithoutSavingOrFilling() async throws {
+        let (coordinator, presenter) = makeCoordinator()
+        seedPickerState(coordinator, reference: makeLocalReference())
+
+        coordinator.presentPasswordMatchesOrFinish()
+        try XCTUnwrap(presenter.searchView?.onCreateEntry)()
+        let creator = try XCTUnwrap(presenter.entryCreator)
+
+        let outcome = await creator.onSave(
+            EntryDraftPayload(title: "GitHub", username: "octocat", password: "", url: "github.com")
+        )
+
+        // The specific message matters: a bare `.showError` would also match a
+        // save that failed for unrelated reasons, which is what this seeded
+        // vault does anyway, and the test would pass with the guard removed.
+        guard case .showError(let message) = outcome else {
+            return XCTFail("Expected an error outcome, got \(outcome)")
+        }
+        XCTAssertEqual(message, String(localized: "Enter a password for this credential."))
+        XCTAssertNil(presenter.completedCredential, "An empty password must not be filled")
+        XCTAssertFalse(presenter.didCompleteSavePassword)
+        XCTAssertNotNil(coordinator.sessionKey, "The vault must stay open so the user can correct the draft")
     }
 
     func test_saveFromCreator_missingVaultState_showsErrorWithoutCompleting() async throws {

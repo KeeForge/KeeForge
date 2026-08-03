@@ -1666,6 +1666,13 @@ final class CredentialProviderCoordinator {
             return .showError(String(localized: "Enter a title or username for this credential."))
         }
 
+        // The field is editable here, so the generated password can be cleared.
+        // Saving that would persist an entry `hasPassword` rejects — invisible
+        // to AutoFill afterwards — and fill the form with an empty credential.
+        guard !draftPayload.password.isEmpty else {
+            return .showError(String(localized: "Enter a password for this credential."))
+        }
+
         guard let reference = activeDatabaseReference,
               let parsedRootGroup,
               let parsedMeta,
