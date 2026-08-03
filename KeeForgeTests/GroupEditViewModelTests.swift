@@ -243,6 +243,15 @@ final class GroupEditViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.makeDraftPayload().searchingEnabled, .disabled)
     }
 
+    func testStoredDisabledGroupSeedsTheVisibilitySwitchOn() {
+        let viewModel = GroupEditViewModel(
+            editing: makeGroup(searchingEnabled: .disabled),
+            isHiddenFromAutoFill: true
+        )
+
+        XCTAssertTrue(viewModel.isHiddenFromAutoFill)
+    }
+
     func testShowingWritesAnExplicitEnabledSoAnInheritedExclusionIsOverridden() {
         let viewModel = GroupEditViewModel(
             editing: makeGroup(searchingEnabled: nil),

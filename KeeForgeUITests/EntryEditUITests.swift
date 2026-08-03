@@ -456,9 +456,9 @@ final class EntryEditSmokeUITests: EntryEditUITestCase {
         XCTAssertTrue(revealElement(updatedRow), "Edited entry title did not refresh in the Social group")
         XCTAssertTrue(updatedRow.label.contains(updatedUsername), "Edited username did not refresh in the Social group")
 
-        let githubRow = entry(named: "GitHub")
-        XCTAssertTrue(revealElement(githubRow), "GitHub comparison row was not visible")
-        XCTAssertLessThan(updatedRow.frame.minY, githubRow.frame.minY, "Title sorting did not refresh after the edit")
+        let twitterRow = entry(named: twitterEntryTitle)
+        XCTAssertTrue(revealElement(twitterRow), "Twitter comparison row was not visible")
+        XCTAssertLessThan(updatedRow.frame.minY, twitterRow.frame.minY, "Title sorting did not refresh after the edit")
 
         tapBackButton()
         let searchField = app.searchFields["Search entries"].firstMatch
