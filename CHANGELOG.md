@@ -21,7 +21,9 @@ TODO before the first macOS release:
 
 ## Unreleased
 
-### Features
+## v1.12.0 (2026-08-02)
+
+### New Features
 
 - Edit a group: long-press a group and choose "Edit Group" to rename it, give it tags, pick an icon, write notes, and hide or show it in Search & AutoFill — all in one form, saved together (#73). Tags on a group carry down to the entries inside it, so tagging a folder makes everything in it findable by that tag. The Recycle Bin and its contents stay uneditable, as does a read-only database; the existing "Change Icon" and "Hide from Search & AutoFill" shortcuts are still on the same menu. Note that giving a group its first tag upgrades the database file from KDBX 4.0 to 4.1 the next time it is saved, because group tags are a 4.1 feature: current KeePass, KeePassXC, KeePassium and Strongbox versions all read 4.1, but very old KeePass releases may not, and KeeForge never puts a database back to 4.0.
 - Save new passkeys: choosing KeeForge when an app or website offers "Add Passkey" now creates a passkey entry in the default AutoFill database, stored in the KeePassXC-compatible format so other KeePass apps can sign in with it too. Previously that request showed a blank screen (#52).

@@ -69,6 +69,42 @@ final class WhatsNewPresentationServiceTests: XCTestCase {
         XCTAssertFalse(macOSRelease.features.contains { $0.id == "autofill-setup" })
     }
 
+    func testVersion112CatalogHasFourHighlightsAndKeepsPasskeyRegistrationIOSOnly() throws {
+        let iOSRelease = try XCTUnwrap(
+            WhatsNewCatalog.release(version: "1.12.0", platform: .iOS)
+        )
+        let macOSRelease = try XCTUnwrap(
+            WhatsNewCatalog.release(version: "1.12.0", platform: .macOS)
+        )
+
+        XCTAssertEqual(
+            iOSRelease.features.map(\.id),
+            [
+                "group-editor",
+                "passkey-registration",
+                "entry-folder-context",
+                "french-spanish-localization",
+            ]
+        )
+        XCTAssertEqual(
+            macOSRelease.features.map(\.id),
+            [
+                "group-editor",
+                "entry-folder-context",
+                "french-spanish-localization",
+            ]
+        )
+    }
+
+    func testVersion111CatalogDoesNotClaimLaterLocalizations() throws {
+        let release = try XCTUnwrap(
+            WhatsNewCatalog.release(version: "1.11.0", platform: .iOS)
+        )
+
+        XCTAssertFalse(release.features.contains { $0.id == "french-localization" })
+        XCTAssertFalse(release.features.contains { $0.id == "spanish-localization" })
+    }
+
     func testUITestingCanSuppressOrForcePresentation() {
         XCTAssertNil(
             WhatsNewPresentationService.releaseToPresent(

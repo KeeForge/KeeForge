@@ -53,6 +53,34 @@ enum WhatsNewCatalog {
         let features: [WhatsNewFeature]
 
         switch version {
+        case "1.12.0":
+            features = [
+                WhatsNewFeature(
+                    id: "group-editor",
+                    title: "Edit groups in one place",
+                    detail: "Rename a group, organize it with tags, choose an icon, add notes, and control whether its entries appear in Search and AutoFill.",
+                    systemImage: "square.and.pencil"
+                ),
+                WhatsNewFeature(
+                    id: "passkey-registration",
+                    title: "Save new passkeys with KeeForge",
+                    detail: "Choose KeeForge when an app or website offers to add a passkey, and save it directly to your default AutoFill database.",
+                    systemImage: "person.badge.key",
+                    platforms: [.iOS]
+                ),
+                WhatsNewFeature(
+                    id: "entry-folder-context",
+                    title: "See where every entry belongs",
+                    detail: "Search results and the tag browser now show the folder each entry lives in, so similarly named entries are easier to tell apart.",
+                    systemImage: "folder"
+                ),
+                WhatsNewFeature(
+                    id: "french-spanish-localization",
+                    title: "Use KeeForge in French or Spanish",
+                    detail: "KeeForge is now fully translated into French and Spanish throughout the app and AutoFill.",
+                    systemImage: "globe"
+                ),
+            ]
         case "1.11.0":
             features = [
                 WhatsNewFeature(
@@ -78,18 +106,6 @@ enum WhatsNewCatalog {
                     title: "Give your groups their own icons",
                     detail: "Choose from the standard KeePass icon set so your groups are recognizable at a glance. Thanks to @miquno.",
                     systemImage: "paintpalette"
-                ),
-                WhatsNewFeature(
-                    id: "french-localization",
-                    title: "Use KeeForge in French",
-                    detail: "KeeForge is now fully translated into French throughout the app and AutoFill.",
-                    systemImage: "globe"
-                ),
-                WhatsNewFeature(
-                    id: "spanish-localization",
-                    title: "Use KeeForge in Spanish",
-                    detail: "KeeForge is now fully translated into Spanish throughout the app and AutoFill.",
-                    systemImage: "globe"
                 ),
             ]
         case "1.10.4":
