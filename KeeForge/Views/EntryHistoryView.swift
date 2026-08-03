@@ -150,14 +150,16 @@ private struct EntryHistoryVersionView: View {
                                     ProtectedFieldRow(
                                         label: key,
                                         value: value,
-                                        accessibilityPrefix: "entry-history"
+                                        accessibilityPrefix: "entry-history",
+                                        showsInlineLabel: true
                                     )
                                 } else {
                                     FieldRow(
                                         label: key,
                                         value: value,
                                         icon: "text.justify.left",
-                                        accessibilityPrefix: "entry-history"
+                                        accessibilityPrefix: "entry-history",
+                                        showsInlineLabel: true
                                     )
                                 }
                             }
