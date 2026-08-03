@@ -21,6 +21,10 @@ TODO before the first macOS release:
 
 ## Unreleased
 
+### New Features
+
+- Change a database's master password: Database Details now has a "Change Master Key" screen for setting a new password and adding, replacing, or removing a key file — no need to export the database to a computer and use another KeePass app (#59). A backup under the old key is kept, and Face ID/Touch ID unlock keeps working without being set up again. Available on writable KDBX 4 databases once any pending edits are saved.
+
 ## v1.13.0 (2026-08-09)
 
 ### New Features

@@ -1164,6 +1164,28 @@
         }
       }
     },
+    "Another save is in progress. Wait for it to finish, then try again." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Es läuft bereits ein Speichervorgang. Warten Sie, bis er abgeschlossen ist, und versuchen Sie es erneut."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hay otro guardado en curso. Espere a que termine e inténtelo de nuevo."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Un autre enregistrement est en cours. Attendez qu'il se termine, puis réessayez."
+          }
+        }
+      }
+    },
     "App" : {
       "localizations" : {
         "de" : {
@@ -2066,6 +2088,50 @@
         }
       }
     },
+    "Change Master Key" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Master-Schlüssel ändern"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cambiar clave maestra"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Modifier la clé principale"
+          }
+        }
+      }
+    },
+    "Change Master Key…" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Master-Schlüssel ändern…"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cambiar clave maestra…"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Modifier la clé principale…"
+          }
+        }
+      }
+    },
     "Changes not saved" : {
       "localizations" : {
         "de" : {
@@ -2084,6 +2150,50 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Modifications non enregistrées"
+          }
+        }
+      }
+    },
+    "Changing Master Key" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Master-Schlüssel wird geändert"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cambiando clave maestra"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Modification de la clé principale"
+          }
+        }
+      }
+    },
+    "Changing the master key re-encrypts this database file with a new master password and/or key file." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Beim Ändern des Master-Schlüssels wird diese Datenbankdatei mit einem neuen Master-Passwort und/oder einer neuen Schlüsseldatei neu verschlüsselt."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Al cambiar la clave maestra, este archivo de base de datos se vuelve a cifrar con una nueva contraseña maestra y/o un nuevo archivo de clave."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La modification de la clé principale rechiffre ce fichier de base de données avec un nouveau mot de passe principal et/ou un nouveau fichier de clé."
           }
         }
       }
@@ -7434,6 +7544,28 @@
         }
       }
     },
+    "KeeForge remembers this key file and prefills it when unlocking. To change the key file the database requires, change the master key." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge merkt sich diese Schlüsseldatei und trägt sie beim Entsperren automatisch ein. Um die von der Datenbank verlangte Schlüsseldatei zu ändern, ändern Sie den Master-Schlüssel."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge recuerda este archivo de clave y lo rellena automáticamente al desbloquear. Para cambiar el archivo de clave que requiere la base de datos, cambie la clave maestra."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge mémorise ce fichier de clé et le préremplit au déverrouillage. Pour changer le fichier de clé exigé par la base de données, modifiez la clé principale."
+          }
+        }
+      }
+    },
     "KeeForge suggests credentials from the databases selected below in the keyboard bar. Authentication is required when you tap a suggestion." : {
       "localizations" : {
         "de" : {
@@ -8112,6 +8244,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Table de variantes mal formée dans l'en-tête"
+          }
+        }
+      }
+    },
+    "Master Key" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Master-Schlüssel"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Clave maestra"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Clé principale"
           }
         }
       }
@@ -10603,6 +10757,28 @@
         }
       }
     },
+    "Save or discard your changes before changing the master key." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Speichern oder verwerfen Sie Ihre Änderungen, bevor Sie den Master-Schlüssel ändern."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Guarde o descarte sus cambios antes de cambiar la clave maestra."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Enregistrez ou annulez vos modifications avant de modifier la clé principale."
+          }
+        }
+      }
+    },
     "Save To" : {
       "localizations" : {
         "de" : {
@@ -12143,6 +12319,28 @@
         }
       }
     },
+    "The current key file could not be read. Select it again or clear it, then try again." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die aktuelle Schlüsseldatei konnte nicht gelesen werden. Wählen Sie sie erneut aus oder leeren Sie sie, und versuchen Sie es dann erneut."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No se pudo leer el archivo de clave actual. Selecciónelo de nuevo o bórrelo e inténtelo otra vez."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Le fichier de clé actuel n'a pas pu être lu. Sélectionnez-le à nouveau ou effacez-le, puis réessayez."
+          }
+        }
+      }
+    },
     "The database appears corrupted or incomplete." : {
       "localizations" : {
         "de" : {
@@ -12183,6 +12381,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "La base de données a été modifiée en dehors de KeeForge. Rechargez-la ou enregistrez votre brouillon en tant que copie de conflit adjacente."
+          }
+        }
+      }
+    },
+    "The database file changed since it was opened. Reload the database and try again." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die Datenbankdatei wurde seit dem Öffnen geändert. Laden Sie die Datenbank neu und versuchen Sie es erneut."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "El archivo de base de datos cambió desde que se abrió. Recargue la base de datos e inténtelo de nuevo."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Le fichier de base de données a été modifié depuis son ouverture. Rechargez la base de données et réessayez."
           }
         }
       }
@@ -12297,6 +12517,28 @@
         }
       }
     },
+    "The database is locked. Unlock it and try again." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die Datenbank ist gesperrt. Entsperren Sie sie und versuchen Sie es erneut."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La base de datos está bloqueada. Desbloquéela e inténtelo de nuevo."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La base de données est verrouillée. Déverrouillez-la et réessayez."
+          }
+        }
+      }
+    },
     "The database is missing key derivation metadata." : {
       "localizations" : {
         "de" : {
@@ -12385,6 +12627,28 @@
         }
       }
     },
+    "The database requires this key file after the change. Clear it to unlock with the master password only." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nach der Änderung verlangt die Datenbank diese Schlüsseldatei. Leeren Sie sie, um nur mit dem Master-Passwort zu entsperren."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tras el cambio, la base de datos requiere este archivo de clave. Bórrelo para desbloquear solo con la contraseña maestra."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Après la modification, la base de données exige ce fichier de clé. Effacez-le pour déverrouiller uniquement avec le mot de passe principal."
+          }
+        }
+      }
+    },
     "The entry will be moved to the recycle bin." : {
       "localizations" : {
         "de" : {
@@ -12469,6 +12733,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "La nouvelle base de données n'a pas pu être vérifiée après le chiffrement."
+          }
+        }
+      }
+    },
+    "The new master key protects this database file from now on. Backups and copies made before the change still open with the previous master key." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Der neue Master-Schlüssel schützt diese Datenbankdatei ab jetzt. Sicherungen und Kopien, die vor der Änderung erstellt wurden, lassen sich weiterhin mit dem bisherigen Master-Schlüssel öffnen."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La nueva clave maestra protege este archivo de base de datos a partir de ahora. Las copias de seguridad y copias hechas antes del cambio siguen abriéndose con la clave maestra anterior."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La nouvelle clé principale protège ce fichier de base de données à partir de maintenant. Les sauvegardes et copies effectuées avant la modification s'ouvrent toujours avec l'ancienne clé principale."
           }
         }
       }
@@ -12953,6 +13239,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Cette base de données a été modifiée dans le cloud. Rechargez-la avant de l'enregistrer à nouveau."
+          }
+        }
+      }
+    },
+    "This database has pending AutoFill changes. Let them finish syncing, then try again." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Diese Datenbank hat ausstehende AutoFill-Änderungen. Lassen Sie sie zuerst fertig synchronisieren und versuchen Sie es dann erneut."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Esta base de datos tiene cambios de autorrelleno pendientes. Deje que terminen de sincronizarse e inténtelo de nuevo."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cette base de données a des modifications de remplissage automatique en attente. Laissez-les terminer leur synchronisation, puis réessayez."
           }
         }
       }
@@ -13509,6 +13817,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Cette demande de clé d'accès n'est pas prise en charge."
+          }
+        }
+      }
+    },
+    "This password is weak. You can still change the master key, but a longer unique password is safer." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dieses Passwort ist schwach. Sie können den Master-Schlüssel trotzdem ändern, ein längeres, einzigartiges Passwort ist jedoch sicherer."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Esta contraseña es débil. Aun así puede cambiar la clave maestra, pero una contraseña más larga y única es más segura."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ce mot de passe est faible. Vous pouvez tout de même modifier la clé principale, mais un mot de passe plus long et unique est plus sûr."
           }
         }
       }

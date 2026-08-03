@@ -44,6 +44,7 @@ The macOS port has its own UI-test target, `KeeForgeMacUITests/` (target `KeeFor
 - `WebDAVConnectErrorUITests` — WebDAV connect failure surfaces `webdav.connect.error` and keeps the form up
 - `WebDAVSeededUnlockUITests` — unlock a seeded WebDAV cloud-backed database through the mock provider
 - `DatabaseCreationRegularWidthUITests` — new local database happy path on regular-width / iPad layout
+- `MasterKeyChangeUITests` — change-master-key happy path: create a local database, rotate its master password from Database Details (`database-details.change-master-key` → the `master-key.*` form), lock, and unlock with the new password; the device-owner confirmation is a no-op under `-ui-testing`. Extends `DatabaseCreationUITestCase`
 - `RegularWidthWorkspaceUITests` — regular-width / iPad workspace smoke coverage
 
 ### Secondary / Edge Coverage
@@ -481,6 +482,13 @@ Use the app's accessibility identifiers whenever possible, including:
 - `settings.autofill.turn-on` / `settings.autofill.open-ios-settings` (Settings → AutoFill provider status row)
 - `settings.autofill.copy-totp` (Settings → AutoFill, copy-TOTP-after-fill toggle)
 - `database-details.autofill-toggle` (database-details sheet, per-database AutoFill toggle)
+- `database-details.change-master-key` (database-details sheet, session context only; pushes the Change Master Key screen, disabled while read-only)
+- Change Master Key screen (`MasterKeyChangeView`, pushed inside the details sheet):
+  - `master-key.new-password-field` / `master-key.new-password-visibility-button`
+  - `master-key.confirm-password-field` / `master-key.confirm-password-visibility-button`
+  - `master-key.keyfile.select` / `master-key.keyfile.clear`
+  - `master-key.save` / `master-key.cancel`
+  - `master-key.error` (validation/change error banner)
 - `settings.autofill.database-toggle.<database-id-uuidString>` (Settings → AutoFill per-database toggles; match with a BEGINSWITH predicate)
 - `settings.autofill.clear-entries` / `settings.autofill.clear-entries.confirm` (Clear AutoFill Entries button + destructive confirmation; the confirm identifier matches two nested buttons — use `.firstMatch`)
 - AutoFill store inspector (DEBUG-only; presented at the app root by the `-autofill-store-inspector` launch argument). Counts and states are exposed as element **values** (read `element.value`, not the label):
