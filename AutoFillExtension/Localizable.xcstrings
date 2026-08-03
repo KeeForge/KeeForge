@@ -544,6 +544,28 @@
         }
       }
     },
+    "Create New Credential" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Neue Zugangsdaten erstellen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Crear nueva credencial"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Créer un identifiant"
+          }
+        }
+      }
+    },
     "Dark" : {
       "localizations" : {
         "de" : {
@@ -694,6 +716,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Échec du chiffrement"
+          }
+        }
+      }
+    },
+    "Enter a title or username for this credential." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Geben Sie einen Titel oder Benutzernamen für diese Zugangsdaten ein."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Introduzca un título o nombre de usuario para esta credencial."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Saisissez un titre ou un nom d’utilisateur pour cet identifiant."
           }
         }
       }
@@ -870,6 +914,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Le fichier est tronqué"
+          }
+        }
+      }
+    },
+    "Generate password" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Passwort generieren"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Generar contraseña"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Générer un mot de passe"
           }
         }
       }
