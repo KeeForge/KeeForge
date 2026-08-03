@@ -343,6 +343,64 @@ final class DatabaseViewModelTests: XCTestCase {
 
         XCTAssertState(vm.state, is: .error)
         XCTAssertNil(vm.rootGroup)
+        // The removal affordance is scoped to Documents-resident references.
+        XCTAssertFalse(vm.canRemoveMissingDocumentsFile)
+    }
+
+    func testMissingDocumentsFileUnlockOffersRemoveFromList() async throws {
+        let documentsDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: documentsDirectory, withIntermediateDirectories: true)
+        DatabaseListStore.documentsDirectoryOverride = documentsDirectory
+        defer {
+            DatabaseListStore.documentsDirectoryOverride = nil
+            try? FileManager.default.removeItem(at: documentsDirectory)
+        }
+
+        let fileURL = documentsDirectory.appendingPathComponent("resident.kdbx")
+        try Data(contentsOf: fixtureURL()).write(to: fileURL)
+        let reference = try DatabaseListStore.add(url: fileURL)
+        try FileManager.default.removeItem(at: fileURL)
+
+        let vm = DatabaseViewModel(databaseReference: reference)
+        await vm.unlock(password: fixturePassword)
+
+        XCTAssertEqual(vm.openFailure?.errorCode, "file.not_found")
+        XCTAssertTrue(vm.canRemoveMissingDocumentsFile)
+
+        // Same consequences as a manual list removal.
+        vm.removeMissingDocumentsDatabase()
+        XCTAssertTrue(DatabaseListStore.databases.isEmpty)
+        XCTAssertNil(DatabaseListStore.cachedDatabaseURL(for: reference.id))
+    }
+
+    func testRemoveMissingDocumentsFileIsNoOpOnceFileIsRestored() async throws {
+        let documentsDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: documentsDirectory, withIntermediateDirectories: true)
+        DatabaseListStore.documentsDirectoryOverride = documentsDirectory
+        defer {
+            DatabaseListStore.documentsDirectoryOverride = nil
+            try? FileManager.default.removeItem(at: documentsDirectory)
+        }
+
+        let fileURL = documentsDirectory.appendingPathComponent("resident.kdbx")
+        let fixtureData = try Data(contentsOf: fixtureURL())
+        try fixtureData.write(to: fileURL)
+        let reference = try DatabaseListStore.add(url: fileURL)
+        try FileManager.default.removeItem(at: fileURL)
+
+        let vm = DatabaseViewModel(databaseReference: reference)
+        await vm.unlock(password: fixturePassword)
+        XCTAssertTrue(vm.canRemoveMissingDocumentsFile)
+
+        // The affordance is evaluated once when the failure is recorded, so
+        // it stays visible — but a remove after the file came back must be a
+        // no-op (re-verified at action time) and clear the stale flag.
+        try fixtureData.write(to: fileURL)
+        vm.removeMissingDocumentsDatabase()
+        XCTAssertEqual(DatabaseListStore.databases.map(\.id), [reference.id])
+        XCTAssertFalse(vm.canRemoveMissingDocumentsFile)
     }
 
     func testUnlockShowsServerUnavailableWhenLocalReadTimesOut() async throws {

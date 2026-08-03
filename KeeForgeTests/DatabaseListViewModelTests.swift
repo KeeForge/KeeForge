@@ -40,6 +40,36 @@ final class DatabaseListViewModelTests: XCTestCase {
         XCTAssertFalse(viewModel.status(for: reference).hasAccessIssue)
     }
 
+    func testDocumentsResidentRowShowsFileMissingOnlyWhileFileIsGone() throws {
+        let documentsDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: documentsDirectory, withIntermediateDirectories: true)
+        DatabaseListStore.documentsDirectoryOverride = documentsDirectory
+        defer {
+            DatabaseListStore.documentsDirectoryOverride = nil
+            try? FileManager.default.removeItem(at: documentsDirectory)
+        }
+
+        let fileURL = documentsDirectory.appendingPathComponent("resident.kdbx")
+        try Data("fixture".utf8).write(to: fileURL)
+        let reference = try DatabaseListStore.add(url: fileURL)
+
+        let viewModel = DatabaseListViewModel()
+        XCTAssertFalse(viewModel.status(for: reference).isDocumentsFileMissing)
+
+        try FileManager.default.removeItem(at: fileURL)
+        viewModel.reload()
+        XCTAssertTrue(viewModel.status(for: reference).isDocumentsFileMissing)
+        XCTAssertFalse(viewModel.status(for: reference).hasAccessIssue)
+
+        // A restored (or replaced) file is rebindable, hence not "missing" —
+        // even while the bookmark is still stranded. The pure status check
+        // never heals; the locate paths (unlock/save/scan) do.
+        try Data("restored".utf8).write(to: fileURL)
+        viewModel.reload()
+        XCTAssertFalse(viewModel.status(for: reference).isDocumentsFileMissing)
+    }
+
     func testSingleDatabaseDoesNotAutoOpenWhenQuickLaunchIsOff() throws {
         _ = try DatabaseListStore.add(url: makeTemporaryFileURL(name: "personal.kdbx"))
         let viewModel = DatabaseListViewModel()

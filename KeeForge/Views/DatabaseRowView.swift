@@ -87,7 +87,12 @@ struct DatabaseRowView: View {
                             .lineLimit(1)
                     }
 
-                    if status.hasAccessIssue, status.cloudState == nil {
+                    if status.isDocumentsFileMissing {
+                        Text("File removed from KeeForge’s folder")
+                            .font(.caption)
+                            .foregroundStyle(.orange)
+                            .accessibilityIdentifier("database-row.documents-file-missing")
+                    } else if status.hasAccessIssue, status.cloudState == nil {
                         Text("File unavailable")
                             .font(.caption)
                             .foregroundStyle(.orange)
@@ -132,7 +137,7 @@ struct DatabaseRowView: View {
 
     @ViewBuilder
     private var sourceIcon: some View {
-        if status.hasAccessIssue {
+        if status.hasAccessIssue || status.isDocumentsFileMissing {
             Image(systemName: "exclamationmark.triangle.fill")
                 .font(.title3)
                 .foregroundStyle(.orange)

@@ -23,6 +23,7 @@ final class DatabaseReferenceTests: XCTestCase {
 
         XCTAssertFalse(decoded.isReadOnly)
         XCTAssertTrue(decoded.autoFillEnabled)
+        XCTAssertFalse(decoded.isDocumentsResident)
     }
 
     func testEncodeDecodeWithNewFieldsRoundTrips() throws {
@@ -40,6 +41,7 @@ final class DatabaseReferenceTests: XCTestCase {
             legacyKeychainFilename: "legacy",
             isReadOnly: true,
             autoFillEnabled: false,
+            isDocumentsResident: true,
             source: .cloud(
                 CloudSyncMetadata(
                     provider: CloudProviderKind.dropbox.rawValue,

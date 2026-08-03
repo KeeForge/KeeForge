@@ -14,6 +14,10 @@ struct DatabaseReference: Identifiable, Codable, Hashable, Sendable {
     var legacyKeychainFilename: String?
     var isReadOnly: Bool = false
     var autoFillEnabled: Bool = true
+    /// The file lives in the app-sandbox Documents directory (Finder/iTunes
+    /// file sharing). Finder replace is delete+recopy, so these references may
+    /// be rebound to `Documents/<filename>` when their bookmark goes stale.
+    var isDocumentsResident: Bool = false
     var source: DatabaseSource = .local
 
     var displayName: String {
@@ -80,6 +84,7 @@ extension DatabaseReference {
         case legacyKeychainFilename
         case isReadOnly
         case autoFillEnabled
+        case isDocumentsResident
         case source
     }
 
@@ -98,6 +103,7 @@ extension DatabaseReference {
         legacyKeychainFilename = try container.decodeIfPresent(String.self, forKey: .legacyKeychainFilename)
         isReadOnly = try container.decodeIfPresent(Bool.self, forKey: .isReadOnly) ?? false
         autoFillEnabled = try container.decodeIfPresent(Bool.self, forKey: .autoFillEnabled) ?? true
+        isDocumentsResident = try container.decodeIfPresent(Bool.self, forKey: .isDocumentsResident) ?? false
         source = try container.decodeIfPresent(DatabaseSource.self, forKey: .source) ?? .local
     }
 
@@ -116,6 +122,7 @@ extension DatabaseReference {
         try container.encodeIfPresent(legacyKeychainFilename, forKey: .legacyKeychainFilename)
         try container.encode(isReadOnly, forKey: .isReadOnly)
         try container.encode(autoFillEnabled, forKey: .autoFillEnabled)
+        try container.encode(isDocumentsResident, forKey: .isDocumentsResident)
         try container.encode(source, forKey: .source)
     }
 }

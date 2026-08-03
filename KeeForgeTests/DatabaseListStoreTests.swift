@@ -838,6 +838,181 @@ final class DatabaseListStoreTests: XCTestCase {
         }
     }
 
+    // MARK: - Documents-resident rebinding
+
+    func testLocateDatabaseFileRebindsDocumentsResidentReferenceWithBrokenBookmark() throws {
+        let documentsDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: documentsDirectory, withIntermediateDirectories: true)
+        DatabaseListStore.documentsDirectoryOverride = documentsDirectory
+        defer {
+            DatabaseListStore.documentsDirectoryOverride = nil
+            try? FileManager.default.removeItem(at: documentsDirectory)
+        }
+
+        let fileURL = documentsDirectory.appendingPathComponent("resident.kdbx")
+        let contents = Self.kdbxMagic + Data("fixture".utf8)
+        try contents.write(to: fileURL)
+        var reference = try DatabaseListStore.add(url: fileURL)
+        XCTAssertTrue(reference.isDocumentsResident)
+
+        reference.bookmarkData = Data("stale-bookmark".utf8)
+        DatabaseListStore.update(reference)
+        // Stale the cache so the heal's reseed is observable.
+        try DatabaseListStore.cacheDatabaseCopy(Data("stale-cache".utf8), for: reference.id)
+
+        let location = DatabaseListStore.locateDatabaseFile(for: reference)
+        guard case .available(let url) = location else {
+            XCTFail("Expected .available, got \(String(describing: location))")
+            return
+        }
+        XCTAssertEqual(url.lastPathComponent, "resident.kdbx")
+        XCTAssertEqual(try Data(contentsOf: url), contents)
+
+        // The rebind persisted a fresh, resolvable bookmark on the same id
+        // and reseeded the AutoFill shared cache with the file's bytes.
+        let stored = try XCTUnwrap(DatabaseListStore.databases.first(where: { $0.id == reference.id }))
+        XCTAssertNotEqual(stored.bookmarkData, Data("stale-bookmark".utf8))
+        XCTAssertNotNil(DatabaseListStore.resolveDatabaseURL(for: stored))
+        let cachedURL = try XCTUnwrap(DatabaseListStore.cachedDatabaseURL(for: reference.id))
+        XCTAssertEqual(try Data(contentsOf: cachedURL), contents)
+    }
+
+    func testLocateDatabaseFileDoesNotRebindToFileWithoutKDBXMagic() throws {
+        let documentsDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: documentsDirectory, withIntermediateDirectories: true)
+        DatabaseListStore.documentsDirectoryOverride = documentsDirectory
+        defer {
+            DatabaseListStore.documentsDirectoryOverride = nil
+            try? FileManager.default.removeItem(at: documentsDirectory)
+        }
+
+        let fileURL = documentsDirectory.appendingPathComponent("resident.kdbx")
+        try (Self.kdbxMagic + Data("fixture".utf8)).write(to: fileURL)
+        var reference = try DatabaseListStore.add(url: fileURL)
+
+        reference.bookmarkData = Data("stale-bookmark".utf8)
+        DatabaseListStore.update(reference)
+        // A garbage (or mid-copy) file at the path must never be bound.
+        try Data("not a database".utf8).write(to: fileURL)
+
+        XCTAssertNil(DatabaseListStore.locateDatabaseFile(for: reference))
+        let stored = try XCTUnwrap(DatabaseListStore.databases.first(where: { $0.id == reference.id }))
+        XCTAssertEqual(stored.bookmarkData, Data("stale-bookmark".utf8))
+    }
+
+    func testLocateDatabaseFileRebindsDocumentsResidentReferenceResolvedIntoTrash() throws {
+        let documentsDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: documentsDirectory, withIntermediateDirectories: true)
+        DatabaseListStore.documentsDirectoryOverride = documentsDirectory
+        defer {
+            DatabaseListStore.documentsDirectoryOverride = nil
+            try? FileManager.default.removeItem(at: documentsDirectory)
+        }
+
+        let fileURL = documentsDirectory.appendingPathComponent("resident.kdbx")
+        try (Self.kdbxMagic + Data("original".utf8)).write(to: fileURL)
+        let reference = try DatabaseListStore.add(url: fileURL)
+        XCTAssertTrue(reference.isDocumentsResident)
+
+        // Files-app Delete: the bookmark keeps following the old copy into
+        // .Trash while a fresh file appears at the original path.
+        let trashDirectory = documentsDirectory.appendingPathComponent(".Trash", isDirectory: true)
+        try FileManager.default.createDirectory(at: trashDirectory, withIntermediateDirectories: true)
+        try FileManager.default.moveItem(
+            at: fileURL,
+            to: trashDirectory.appendingPathComponent("resident.kdbx")
+        )
+        let replacement = Self.kdbxMagic + Data("replacement".utf8)
+        try replacement.write(to: fileURL)
+
+        let location = DatabaseListStore.locateDatabaseFile(for: reference)
+        guard case .available(let url) = location else {
+            XCTFail("Expected .available, got \(String(describing: location))")
+            return
+        }
+        XCTAssertFalse(url.pathComponents.contains(".Trash"))
+        XCTAssertEqual(try Data(contentsOf: url), replacement)
+
+        let stored = try XCTUnwrap(DatabaseListStore.databases.first(where: { $0.id == reference.id }))
+        let reresolvedURL = try XCTUnwrap(DatabaseListStore.resolveDatabaseURL(for: stored))
+        XCTAssertEqual(try Data(contentsOf: reresolvedURL), replacement)
+    }
+
+    func testLocateDatabaseFileKeepsInTrashWhenReplacementLacksKDBXMagic() throws {
+        let documentsDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: documentsDirectory, withIntermediateDirectories: true)
+        DatabaseListStore.documentsDirectoryOverride = documentsDirectory
+        defer {
+            DatabaseListStore.documentsDirectoryOverride = nil
+            try? FileManager.default.removeItem(at: documentsDirectory)
+        }
+
+        let fileURL = documentsDirectory.appendingPathComponent("resident.kdbx")
+        try (Self.kdbxMagic + Data("original".utf8)).write(to: fileURL)
+        var reference = try DatabaseListStore.add(url: fileURL)
+
+        let trashDirectory = documentsDirectory.appendingPathComponent(".Trash", isDirectory: true)
+        try FileManager.default.createDirectory(at: trashDirectory, withIntermediateDirectories: true)
+        let trashedURL = trashDirectory.appendingPathComponent("resident.kdbx")
+        try FileManager.default.moveItem(at: fileURL, to: trashedURL)
+        try Data("not a database".utf8).write(to: fileURL)
+        // Pin the trash-resolved branch: a real post-move resolution may
+        // follow either the moved inode or the path, so aim the bookmark at
+        // the trashed copy explicitly.
+        reference.bookmarkData = try SecurityScopedBookmarkManager.makeBookmarkData(for: trashedURL)
+        DatabaseListStore.update(reference)
+
+        // The magic-less file at the path must not be bound; the trashed
+        // classification (and the stored bookmark) stay exactly as they were.
+        let storedBefore = try XCTUnwrap(DatabaseListStore.databases.first(where: { $0.id == reference.id }))
+        let location = DatabaseListStore.locateDatabaseFile(for: storedBefore)
+        guard case .inTrash(let url) = location else {
+            XCTFail("Expected .inTrash, got \(String(describing: location))")
+            return
+        }
+        XCTAssertTrue(url.pathComponents.contains(".Trash"))
+        let storedAfter = try XCTUnwrap(DatabaseListStore.databases.first(where: { $0.id == reference.id }))
+        XCTAssertEqual(storedAfter.bookmarkData, storedBefore.bookmarkData)
+    }
+
+    func testAddDoesNotClassifyNestedDocumentsFileAsDocumentsResident() throws {
+        let documentsDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let nestedDirectory = documentsDirectory.appendingPathComponent("Sub", isDirectory: true)
+        try FileManager.default.createDirectory(at: nestedDirectory, withIntermediateDirectories: true)
+        DatabaseListStore.documentsDirectoryOverride = documentsDirectory
+        defer {
+            DatabaseListStore.documentsDirectoryOverride = nil
+            try? FileManager.default.removeItem(at: documentsDirectory)
+        }
+
+        let nestedURL = nestedDirectory.appendingPathComponent("vault.kdbx")
+        try Data("fixture".utf8).write(to: nestedURL)
+
+        // Rebind identity is exactly `Documents/<filename>`, so only direct
+        // children may carry the flag; a nested reference must never be able
+        // to steal a same-name top-level file.
+        let reference = try DatabaseListStore.add(url: nestedURL)
+        XCTAssertFalse(reference.isDocumentsResident)
+    }
+
+    func testLocateDatabaseFileReturnsNilForNonDocumentsReferenceWithBrokenBookmark() throws {
+        let fileURL = try makeTemporaryFileURL(name: "outside.kdbx")
+        var reference = try DatabaseListStore.add(url: fileURL)
+        XCTAssertFalse(reference.isDocumentsResident)
+
+        reference.bookmarkData = Data("stale-bookmark".utf8)
+        DatabaseListStore.update(reference)
+
+        XCTAssertNil(DatabaseListStore.locateDatabaseFile(for: reference))
+    }
+
+    private static let kdbxMagic = Data([0x03, 0xD9, 0xA2, 0x9A, 0x67, 0xFB, 0x4B, 0xB5])
+
     private func makeTemporaryFileURL(name: String, contents: Data = Data("fixture".utf8)) throws -> URL {
         let url = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString)

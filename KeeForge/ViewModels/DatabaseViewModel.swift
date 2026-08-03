@@ -514,6 +514,34 @@ final class DatabaseViewModel {
         return failure
     }
 
+    /// One-tap cleanup offered only for a Documents-resident database whose
+    /// file is genuinely gone from the Documents folder (Finder delete);
+    /// every other open failure keeps the standard recovery actions.
+    /// Evaluated once when the open failure is recorded — not per render —
+    /// and cleared whenever the failure is; `removeMissingDocumentsDatabase`
+    /// re-verifies before acting, so a file restored while the failure screen
+    /// is up is still safe.
+    private(set) var canRemoveMissingDocumentsFile = false
+
+    /// Same cleanup as a manual list removal: cached copy, backups, Keychain
+    /// key, pending-upload markers, and AutoFill identities all go with it.
+    /// No-op when the file reappeared since the failure was recorded.
+    func removeMissingDocumentsDatabase() {
+        guard DatabaseListStore.isDocumentsFileMissing(for: databaseReference) else {
+            canRemoveMissingDocumentsFile = false
+            return
+        }
+        DatabaseListStore.remove(id: databaseReference.id)
+    }
+
+    private func evaluateMissingDocumentsFileRemoval(for failure: DatabaseOpenFailure) -> Bool {
+        guard failure.errorCode == "file.not_found" || failure.errorCode == "file.in_recently_deleted",
+              databaseReference.isDocumentsResident else {
+            return false
+        }
+        return DatabaseListStore.isDocumentsFileMissing(for: databaseReference)
+    }
+
     var canUseBiometrics: Bool {
         guard BiometricService.isAvailable else { return false }
         return KeychainService.hasStoredKey(
@@ -573,6 +601,7 @@ final class DatabaseViewModel {
                 encryptedData: nil,
                 cloudSyncStatus: nil
             )
+            canRemoveMissingDocumentsFile = false
             state = .error(lockoutFailure(seconds: seconds, diagnostics: diagnostics))
             return
         }
@@ -670,6 +699,7 @@ final class DatabaseViewModel {
             return .unlocked
         } catch {
             if let outcome = Self.biometricOutcomeLeavingDatabaseLocked(for: error) {
+                canRemoveMissingDocumentsFile = false
                 state = .locked
                 return outcome
             }
@@ -1192,6 +1222,7 @@ final class DatabaseViewModel {
             ClipboardService.clearOwnedContents()
         }
         beginNewLockCycle()
+        canRemoveMissingDocumentsFile = false
         state = .locked
         rootGroup = nil
         openedFormatVersion = nil
@@ -1944,6 +1975,7 @@ final class DatabaseViewModel {
     }
 
     private func prepareForUnlock() {
+        canRemoveMissingDocumentsFile = false
         state = .unlocking
         draft = nil
         openTimeSHA512 = nil
@@ -2003,11 +2035,13 @@ final class DatabaseViewModel {
             if delay > 0 {
                 lockoutUntil = Date.now.addingTimeInterval(delay)
                 let seconds = Int(ceil(delay))
+                canRemoveMissingDocumentsFile = false
                 state = .error(lockoutFailure(seconds: seconds, diagnostics: diagnostics))
                 return
             }
         }
 
+        canRemoveMissingDocumentsFile = evaluateMissingDocumentsFileRemoval(for: failure)
         state = .error(failure)
     }
 

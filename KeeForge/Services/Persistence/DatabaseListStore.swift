@@ -46,6 +46,15 @@ enum DatabaseListStore {
         sharedContainerURL.appendingPathComponent(databaseListFilename, isDirectory: false)
     }
 
+    /// Test hook: replaces the app-sandbox Documents directory used for
+    /// Documents-resident classification and rebinding. Set only from tests,
+    /// before any store call, matching the UI-test statics above.
+    nonisolated(unsafe) static var documentsDirectoryOverride: URL?
+
+    static var documentsDirectoryURL: URL {
+        documentsDirectoryOverride ?? URL.documentsDirectory
+    }
+
     private nonisolated(unsafe) static var didBootstrapUITesting = false
     private nonisolated(unsafe) static var remainingUITestLocalSaveConflicts: Int?
     private nonisolated(unsafe) static var consumedUITestLocalSaveConflicts = 0
@@ -540,10 +549,15 @@ enum DatabaseListStore {
     /// into a fresh bookmark: restoring the file in Files keeps the original
     /// bookmark valid, and once the trashed copy is purged, resolution falls
     /// back to the stored path and rebinds to whatever file now lives there.
+    ///
+    /// Documents-resident references are the exception: their identity is the
+    /// path `Documents/<filename>` (Finder replace over USB is delete+recopy,
+    /// stranding the old bookmark), so a failed or trashed resolution rebinds
+    /// to the file currently at that path when one exists.
     static func locateDatabaseFile(for reference: DatabaseReference) -> LocalDatabaseFileLocation? {
         guard let bookmarkData = reference.bookmarkData,
               let resolved = SecurityScopedBookmarkManager.resolveURL(from: bookmarkData) else {
-            return nil
+            return reboundDocumentsResidentLocation(for: reference)
         }
 
         let url = resolved.url
@@ -555,6 +569,9 @@ enum DatabaseListStore {
         }
 
         if SecurityScopedBookmarkManager.isInTrashDirectory(url) {
+            if let rebound = reboundDocumentsResidentLocation(for: reference) {
+                return rebound
+            }
             return .inTrash(url)
         }
 
@@ -905,8 +922,111 @@ enum DatabaseListStore {
             lastOpenedAt: nil,
             addedAt: .now,
             colorTag: nil,
-            legacyKeychainFilename: nil
+            legacyKeychainFilename: nil,
+            isDocumentsResident: isTopLevelDocumentsFile(url)
         )
+    }
+
+    /// Direct children only: rebind identity is exactly `Documents/<filename>`,
+    /// so a nested file must never be classified as Documents-resident — its
+    /// stranded reference could otherwise steal an unrelated same-name
+    /// top-level file.
+    static func isTopLevelDocumentsFile(_ url: URL) -> Bool {
+        normalizedFilePath(for: url.deletingLastPathComponent()) == normalizedFilePath(for: documentsDirectoryURL)
+    }
+
+    /// Persists a re-minted bookmark for a stranded Documents-resident
+    /// reference, mutating ONLY `bookmarkData` on the stored copy so
+    /// concurrent edits to other fields (nickname, key file, read-only,
+    /// AutoFill, lastOpenedAt) are not rolled back. Refuses (false) when the
+    /// id is no longer listed — a removed reference must not be resurrected —
+    /// or when a different live Documents-resident reference already resolves
+    /// to `url`, which rebinding would steal. The claimant scan only resolves
+    /// Documents-resident bookmarks: they are own-container, so resolution is
+    /// cheap; a non-resident (potentially file-provider) bookmark must never
+    /// be resolved on this path.
+    @discardableResult
+    static func rebindBookmarkData(_ bookmarkData: Data, for id: UUID, toFileAt url: URL) -> Bool {
+        withStateLock {
+            var currentDatabases = loadDatabases()
+            guard let index = currentDatabases.firstIndex(where: { $0.id == id }) else { return false }
+            if let claimant = existingLocalReference(matching: url, in: currentDatabases.filter(\.isDocumentsResident)),
+               claimant.id != id {
+                return false
+            }
+            currentDatabases[index].bookmarkData = bookmarkData
+            return saveDatabases(currentDatabases)
+        }
+    }
+
+    /// Persists a re-derived Documents identity after a Files-app rename or
+    /// move, mutating ONLY `filename` and `isDocumentsResident` on the stored
+    /// copy; concurrent edits to other fields survive. A reference that left
+    /// top-level Documents drops the flag and stops participating in
+    /// path-keyed rebinding.
+    static func rederiveDocumentsIdentity(for id: UUID, filename: String, isDocumentsResident: Bool) {
+        withStateLock {
+            var currentDatabases = loadDatabases()
+            guard let index = currentDatabases.firstIndex(where: { $0.id == id }) else { return }
+            currentDatabases[index].filename = filename
+            currentDatabases[index].isDocumentsResident = isDocumentsResident
+            saveDatabases(currentDatabases)
+        }
+    }
+
+    /// Whether a Documents-resident reference's file is gone: its own
+    /// bookmark does not resolve to an available file AND nothing sits at
+    /// `Documents/<filename>`. Pure status check — no lock, no writes, no
+    /// heal; a file present at the path is rebindable and therefore NOT
+    /// missing (the locate paths perform the heal on unlock/save/scan).
+    /// Own-container URLs only, so it never blocks on a file provider.
+    static func isDocumentsFileMissing(for reference: DatabaseReference) -> Bool {
+        guard reference.isDocumentsResident else { return false }
+
+        if let bookmarkData = reference.bookmarkData,
+           let resolved = SecurityScopedBookmarkManager.resolveURL(from: bookmarkData) {
+            let url = resolved.url
+            let accessed = url.startAccessingSecurityScopedResource()
+            defer {
+                if accessed {
+                    url.stopAccessingSecurityScopedResource()
+                }
+            }
+            if SecurityScopedBookmarkManager.isInTrashDirectory(url) == false,
+               FileManager.default.fileExists(atPath: url.path) {
+                return false
+            }
+        }
+
+        let candidate = documentsDirectoryURL.appendingPathComponent(reference.filename, isDirectory: false)
+        return FileManager.default.fileExists(atPath: candidate.path) == false
+    }
+
+    /// Rebinds a Documents-resident reference to the KDBX file currently at
+    /// `Documents/<filename>` after its bookmark went stale, keeping the
+    /// reference's id, nickname, key file, and settings, and reseeding the
+    /// AutoFill shared cache with the replacement's bytes. Nil when the
+    /// reference is not Documents-resident, no file with the KDBX magic sits
+    /// at that path (a garbage or mid-copy file must never be bound), or the
+    /// rebind write was refused (id removed, or the path already belongs to
+    /// another reference).
+    private static func reboundDocumentsResidentLocation(
+        for reference: DatabaseReference
+    ) -> LocalDatabaseFileLocation? {
+        guard reference.isDocumentsResident else { return nil }
+
+        let candidate = documentsDirectoryURL.appendingPathComponent(reference.filename, isDirectory: false)
+        var isDirectory: ObjCBool = false
+        guard FileManager.default.fileExists(atPath: candidate.path, isDirectory: &isDirectory),
+              isDirectory.boolValue == false,
+              DocumentPickerService.hasKDBXMagic(at: candidate),
+              let bookmarkData = try? SecurityScopedBookmarkManager.makeBookmarkData(for: candidate),
+              rebindBookmarkData(bookmarkData, for: reference.id, toFileAt: candidate) else {
+            return nil
+        }
+
+        cacheInitialCopyIfPossible(from: candidate, for: reference.id)
+        return .available(candidate)
     }
 
     private static func makeCloudReference(from payload: UITestCloudDatabasePayload) -> DatabaseReference {
@@ -1158,7 +1278,7 @@ enum DatabaseListStore {
         url.resolvingSymlinksInPath().standardizedFileURL.path
     }
 
-    private static func cacheInitialCopyIfPossible(from url: URL, for databaseID: UUID) {
+    static func cacheInitialCopyIfPossible(from url: URL, for databaseID: UUID) {
         guard let data = try? readSecurityScopedData(from: url) else { return }
         try? cacheDatabaseCopy(data, for: databaseID)
     }
