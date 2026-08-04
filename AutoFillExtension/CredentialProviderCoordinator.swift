@@ -1978,7 +1978,14 @@ final class CredentialProviderCoordinator {
         let searchDomain = serviceIdentifiers.first.flatMap { CredentialMatcher.searchTerm(for: $0) } ?? ""
 
         if !matches.isEmpty {
-            presentSearchView(entries: matches, initialSearchText: "", includesDatabaseSwitcher: true) { [weak self] entry in
+            // Narrowed to matches, but the whole TOTP corpus stays the search
+            // and "Show All Credentials" set — as on the password path.
+            presentSearchView(
+                entries: matches,
+                searchEntries: allTOTPEntries,
+                initialSearchText: "",
+                includesDatabaseSwitcher: true
+            ) { [weak self] entry in
                 self?.completeOTCRequest(with: entry)
             }
         } else {
