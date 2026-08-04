@@ -15,14 +15,6 @@ import os
 /// The KDF parameters live in the plaintext outer header, so the requirement is
 /// known before a single byte is derived.
 enum AutoFillMemoryLimit {
-    /// Working set the parse needs on top of the KDF and the file bytes:
-    /// decrypted payload, decompressed XML, and the node graph.
-    ///
-    /// A floor, not a prediction. The check exists to catch the case that is
-    /// certain to fail — an Argon2 block larger than the whole remaining
-    /// budget — without rejecting databases that would have opened.
-    static let parseReserveBytes: UInt64 = 32 * 1024 * 1024
-
     struct BudgetExceeded: LocalizedError, Equatable {
         let requiredBytes: UInt64
         let availableBytes: UInt64
@@ -50,37 +42,38 @@ enum AutoFillMemoryLimit {
         #endif
     }
 
-    /// Throws `BudgetExceeded` when unlocking `summary` cannot fit in `remainingBytes`.
+    /// Throws `BudgetExceeded` when the key derivation alone cannot fit in
+    /// `remainingBytes`.
     ///
-    /// `databaseByteCount` is counted again on top of the already-loaded file
-    /// because the parse holds a decrypted copy of the payload alongside it.
-    static func check(
-        databaseByteCount: Int,
-        summary: KDBXFileSummary,
-        remainingBytes: UInt64
-    ) throws {
+    /// Deliberately only that. Argon2 takes its memory parameter as one
+    /// allocation, so a parameter larger than what the process may still
+    /// allocate is arithmetic, not estimation: that allocation cannot succeed,
+    /// whatever else the unlock would have gone on to do.
+    ///
+    /// The decrypt and parse that follow need memory too, and this check
+    /// deliberately does not price them. They belong to a later peak — the KDF
+    /// block is freed before the payload is decompressed — so folding them in
+    /// would compare against a budget that no single moment of the unlock ever
+    /// faces, and would start refusing databases that open today. A false
+    /// refusal breaks a vault that works; the bug it would be guarding against
+    /// only breaks one that already fails.
+    ///
+    /// The caller has the file in memory before this runs, so `remainingBytes`
+    /// already has the file's own bytes deducted — counting them again here
+    /// would be double-counting, not caution.
+    static func check(summary: KDBXFileSummary, remainingBytes: UInt64) throws {
         guard remainingBytes > 0 else { return }
 
-        let required = saturatingSum(
-            kdfMemoryBytes(for: summary.keyDerivation),
-            UInt64(clamping: databaseByteCount),
-            parseReserveBytes
-        )
-
+        let required = kdfMemoryBytes(for: summary.keyDerivation)
         guard required > remainingBytes else { return }
         throw BudgetExceeded(requiredBytes: required, availableBytes: remainingBytes)
     }
 
-    /// The header's memory parameter is attacker-controlled and is not range-checked
-    /// until `KDBXParser.deriveKey`, so summing it must not be able to trap here.
-    private static func saturatingSum(_ values: UInt64...) -> UInt64 {
-        values.reduce(UInt64.zero) { partial, value in
-            let (sum, overflowed) = partial.addingReportingOverflow(value)
-            return overflowed ? .max : sum
-        }
-    }
-
     /// AES-KDF is bounded by rounds, not memory, so it contributes nothing here.
+    ///
+    /// The header's memory parameter is attacker-controlled and is not
+    /// range-checked until `KDBXParser.deriveKey`; it is compared, never summed,
+    /// so even `UInt64.max` reaches the comparison intact rather than trapping.
     private static func kdfMemoryBytes(for keyDerivation: KDBXFileSummary.KeyDerivation) -> UInt64 {
         switch keyDerivation {
         case .argon2d(_, let memoryBytes, _), .argon2id(_, let memoryBytes, _):

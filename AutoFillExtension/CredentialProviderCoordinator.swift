@@ -1264,7 +1264,6 @@ final class CredentialProviderCoordinator {
     ) async throws {
         let data = try loadDatabaseData(for: databaseReference)
         try AutoFillMemoryLimit.check(
-            databaseByteCount: data.count,
             summary: KDBXFileSummary.inspect(data: data),
             remainingBytes: remainingMemoryBytes
         )

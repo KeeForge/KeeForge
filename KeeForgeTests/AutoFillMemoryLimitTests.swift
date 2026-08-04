@@ -5,6 +5,10 @@ import XCTest
 /// derivation it cannot survive. The failure it guards against is a process
 /// kill, so there is no error to observe after the fact — the check has to be
 /// right before Argon2 allocates.
+///
+/// The other half of "right" is refusing nothing else. A false refusal breaks a
+/// vault that opens today, so every case below that is *not* a single
+/// allocation larger than the remaining budget has to pass.
 final class AutoFillMemoryLimitTests: XCTestCase {
 
     private let megabyte: UInt64 = 1024 * 1024
@@ -19,12 +23,10 @@ final class AutoFillMemoryLimitTests: XCTestCase {
     }
 
     func testRejectsArgon2MemoryLargerThanTheRemainingBudget() {
-        let fileBytes = 2 * Int(megabyte)
         let remaining = 120 * megabyte
 
         XCTAssertThrowsError(
             try AutoFillMemoryLimit.check(
-                databaseByteCount: fileBytes,
                 summary: summary(argon2MemoryBytes: 1024 * megabyte),
                 remainingBytes: remaining
             )
@@ -33,7 +35,7 @@ final class AutoFillMemoryLimitTests: XCTestCase {
             XCTAssertEqual(
                 exceeded,
                 AutoFillMemoryLimit.BudgetExceeded(
-                    requiredBytes: 1024 * megabyte + UInt64(fileBytes) + AutoFillMemoryLimit.parseReserveBytes,
+                    requiredBytes: 1024 * megabyte,
                     availableBytes: remaining
                 )
             )
@@ -43,33 +45,39 @@ final class AutoFillMemoryLimitTests: XCTestCase {
 
     func testAcceptsATypicalDatabaseThatFitsTheBudget() throws {
         try AutoFillMemoryLimit.check(
-            databaseByteCount: 2 * Int(megabyte),
             summary: summary(argon2MemoryBytes: 64 * megabyte),
             remainingBytes: 300 * megabyte
         )
     }
 
-    /// The reserve is what separates "fits exactly" from "fits with room to
-    /// decrypt and parse", so it must be part of the comparison.
-    func testCountsTheParseReserveAgainstTheBudget() {
-        let argon2Memory = 64 * megabyte
-        let fileBytes = Int(megabyte)
-        let remainingWithoutReserve = argon2Memory + UInt64(fileBytes)
+    /// The boundary is the allocation itself, with nothing added on top. A
+    /// derivation that exactly fits is not known to fail, so it must be allowed
+    /// to try.
+    func testAcceptsAnArgon2BlockThatExactlyFitsTheBudget() throws {
+        let budget = 64 * megabyte
+
+        try AutoFillMemoryLimit.check(
+            summary: summary(argon2MemoryBytes: budget),
+            remainingBytes: budget
+        )
 
         XCTAssertThrowsError(
             try AutoFillMemoryLimit.check(
-                databaseByteCount: fileBytes,
-                summary: summary(argon2MemoryBytes: argon2Memory),
-                remainingBytes: remainingWithoutReserve
-            )
+                summary: summary(argon2MemoryBytes: budget + 1),
+                remainingBytes: budget
+            ),
+            "one byte over the budget is one byte the allocation cannot have"
         )
+    }
 
-        XCTAssertNoThrow(
-            try AutoFillMemoryLimit.check(
-                databaseByteCount: fileBytes,
-                summary: summary(argon2MemoryBytes: argon2Memory),
-                remainingBytes: remainingWithoutReserve + AutoFillMemoryLimit.parseReserveBytes
-            )
+    /// The decrypt and parse that follow the derivation are a later peak, after
+    /// the KDF block is freed. Pricing them here would refuse large databases
+    /// that open today, so a vault whose *derivation* fits must pass no matter
+    /// how big the file behind it is.
+    func testDoesNotPriceTheParseThatFollowsTheDerivation() throws {
+        try AutoFillMemoryLimit.check(
+            summary: summary(argon2MemoryBytes: 64 * megabyte),
+            remainingBytes: 64 * megabyte + 1
         )
     }
 
@@ -83,20 +91,30 @@ final class AutoFillMemoryLimitTests: XCTestCase {
             keyDerivation: .aesKDF(rounds: 100_000_000)
         )
 
-        try AutoFillMemoryLimit.check(
-            databaseByteCount: Int(megabyte),
-            summary: summary,
-            remainingBytes: 64 * megabyte
+        try AutoFillMemoryLimit.check(summary: summary, remainingBytes: 64 * megabyte)
+    }
+
+    /// A KDF this build does not recognize gets the benefit of the doubt: its
+    /// memory cost is unknown, and refusing on a guess is the one outcome worse
+    /// than the bug.
+    func testUnknownKDFIsNotRejected() throws {
+        let summary = KDBXFileSummary(
+            formatVersion: .kdbx4(minor: 0),
+            cipher: .aes256CBC,
+            isCompressed: true,
+            keyDerivation: .unknown
         )
+
+        try AutoFillMemoryLimit.check(summary: summary, remainingBytes: megabyte)
     }
 
     /// The header's memory parameter is not range-checked until the derivation
-    /// itself, so a hostile or corrupt `M` reaches this check unbounded. It has
-    /// to be rejected, not overflow the sum and trap.
+    /// itself, so a hostile or corrupt `M` reaches this check unbounded. It is
+    /// compared rather than summed, so it must be reported verbatim instead of
+    /// saturating or trapping.
     func testAbsurdHeaderMemoryIsRejectedWithoutOverflowing() {
         XCTAssertThrowsError(
             try AutoFillMemoryLimit.check(
-                databaseByteCount: Int(megabyte),
                 summary: summary(argon2MemoryBytes: .max),
                 remainingBytes: 120 * megabyte
             )
@@ -109,7 +127,6 @@ final class AutoFillMemoryLimitTests: XCTestCase {
     /// is the app and macOS case, where the extension budget does not apply.
     func testUnreportedBudgetSkipsTheCheck() throws {
         try AutoFillMemoryLimit.check(
-            databaseByteCount: 64 * Int(megabyte),
             summary: summary(argon2MemoryBytes: 4096 * megabyte),
             remainingBytes: 0
         )

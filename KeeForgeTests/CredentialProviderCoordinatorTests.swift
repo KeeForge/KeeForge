@@ -1647,8 +1647,8 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
         )
         try DatabaseListStore.cacheDatabaseCopy(fixtureData, for: database)
 
-        // The fixture's header declares 64 MiB of Argon2 memory, so a budget
-        // below that cannot cover the derivation, let alone the parse.
+        // The fixture's header declares 64 MiB of Argon2 memory, which Argon2
+        // takes as one allocation, so a budget below that cannot cover it.
         let budget: UInt64 = 32 * 1024 * 1024
         coordinator.memoryBudgetOverride = budget
 
@@ -1663,9 +1663,7 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
         await fulfillment(of: [errorPresented], timeout: 10)
 
         let expectedFailure = AutoFillMemoryLimit.BudgetExceeded(
-            requiredBytes: 64 * 1024 * 1024
-                + UInt64(fixtureData.count)
-                + AutoFillMemoryLimit.parseReserveBytes,
+            requiredBytes: 64 * 1024 * 1024,
             availableBytes: budget
         )
         XCTAssertEqual(presenter.unlockError?.message, expectedFailure.errorDescription)
