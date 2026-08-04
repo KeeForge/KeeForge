@@ -26,19 +26,27 @@ struct AutoFillEntryCreatorView: View {
         }
     }
 
+    /// Save-password requests carry the password the user already typed into
+    /// the form, so editing it there would desync the entry from what the site
+    /// received. Only the picker-initiated flow, where no password exists yet,
+    /// unlocks the field and its generate button.
+    let allowsPasswordEditing: Bool
     let onSave: @Sendable (EntryDraftPayload) async -> AutoFillEntryCreatorActionResult
     let onCancel: () -> Void
 
     @State private var draft: EntryDraftPayload
     @State private var isSaving = false
+    @State private var isPasswordVisible = false
     @State private var inlineWarningMessage: String?
     @State private var alertState: AlertState?
 
     init(
         initialDraft: EntryDraftPayload,
+        allowsPasswordEditing: Bool = false,
         onSave: @escaping @Sendable (EntryDraftPayload) async -> AutoFillEntryCreatorActionResult,
         onCancel: @escaping () -> Void
     ) {
+        self.allowsPasswordEditing = allowsPasswordEditing
         self.onSave = onSave
         self.onCancel = onCancel
         _draft = State(initialValue: initialDraft)
@@ -71,10 +79,35 @@ struct AutoFillEntryCreatorView: View {
                     }
 
                     basicFieldRow(String(localized: "Password")) {
-                        SecureField("Password", text: $draft.password)
-                            .passwordInputStyle()
-                            .disabled(true)
-                            .accessibilityIdentifier("autofill-entry-creator.password-field")
+                        if allowsPasswordEditing {
+                            PasswordInputRow(
+                                title: String(localized: "Password"),
+                                text: $draft.password,
+                                isVisible: $isPasswordVisible,
+                                fieldAccessibilityIdentifier: "autofill-entry-creator.password-field",
+                                visibilityAccessibilityIdentifier: "autofill-entry-creator.password-visibility",
+                                // Labelled, not trailing: `onVisibilityToggle`
+                                // precedes `actions` and also takes a closure,
+                                // so a trailing one binds there and the button
+                                // silently never renders.
+                                actions: {
+                                    Button {
+                                        draft.password = PasswordGenerator.generate()
+                                    } label: {
+                                        Image(systemName: "dice.fill")
+                                            .frame(width: 30, height: 30)
+                                    }
+                                    .buttonStyle(.borderless)
+                                    .accessibilityLabel("Generate password")
+                                    .accessibilityIdentifier("autofill-entry-creator.password-generator-button")
+                                }
+                            )
+                        } else {
+                            SecureField("Password", text: $draft.password)
+                                .passwordInputStyle()
+                                .disabled(true)
+                                .accessibilityIdentifier("autofill-entry-creator.password-field")
+                        }
                     }
 
                     basicFieldRow(String(localized: "URL")) {

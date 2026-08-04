@@ -116,6 +116,7 @@ extension CredentialProviderViewController: CredentialProviderPresenting {
         possibleEntries: [KPEntry],
         initialSearchText: String,
         databaseSwitcher: CredentialProviderDatabaseSwitcherContext?,
+        onCreateEntry: (() -> Void)?,
         onSelect: @escaping (KPEntry) -> Void,
         onSelectPossible: @escaping (KPEntry) -> Void,
         onAddURLToPossible: @escaping (KPEntry) -> Void,
@@ -139,12 +140,24 @@ extension CredentialProviderViewController: CredentialProviderPresenting {
                 }
             )
         }
+        // Creating an entry presents the creator next, so the picker must be
+        // dismissed first — same dismissal handling as `onSelect`/`onCancel`.
+        let wrappedCreateEntry: (() -> Void)? = onCreateEntry.map { createEntry in
+            { [weak self] in
+                guard let self else {
+                    createEntry()
+                    return
+                }
+                self.dismiss(animated: false) { createEntry() }
+            }
+        }
         let searchView = AutoFillSearchView(
             entries: entries,
             searchEntries: searchEntries,
             possibleEntries: possibleEntries,
             initialSearchText: initialSearchText,
             databaseSwitcher: wrappedSwitcher,
+            onCreateEntry: wrappedCreateEntry,
             onSelect: { [weak self] entry in
                 guard let self else {
                     onSelect(entry)
@@ -171,11 +184,13 @@ extension CredentialProviderViewController: CredentialProviderPresenting {
 
     func presentEntryCreator(
         initialDraft: EntryDraftPayload,
+        allowsPasswordEditing: Bool,
         onSave: @escaping @Sendable (EntryDraftPayload) async -> CredentialProviderEntrySaveOutcome,
         onCancel: @escaping () -> Void
     ) {
         let creatorView = AutoFillEntryCreatorView(
             initialDraft: initialDraft,
+            allowsPasswordEditing: allowsPasswordEditing,
             onSave: { draftPayload in
                 switch await onSave(draftPayload) {
                 case .completed:

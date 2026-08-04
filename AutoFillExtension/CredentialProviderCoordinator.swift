@@ -64,20 +64,30 @@ protocol CredentialProviderPresenting: AnyObject {
     /// in-search database switcher (two or more AutoFill-enabled databases).
     /// Shells wrap its `onSwitch` in their dismissal handling, exactly like
     /// `onSelect`/`onCancel`.
+    ///
+    /// `onCreateEntry` is non-nil only when the picker should offer creating a
+    /// new credential (iOS password requests against a writable database).
+    /// Presenting the creator replaces the picker, so shells wrap it in the
+    /// same dismissal handling as `onSelect`/`onCancel`.
     func presentSearchView(
         entries: [KPEntry],
         searchEntries: [KPEntry],
         possibleEntries: [KPEntry],
         initialSearchText: String,
         databaseSwitcher: CredentialProviderDatabaseSwitcherContext?,
+        onCreateEntry: (() -> Void)?,
         onSelect: @escaping (KPEntry) -> Void,
         onSelectPossible: @escaping (KPEntry) -> Void,
         onAddURLToPossible: @escaping (KPEntry) -> Void,
         onCancel: @escaping () -> Void
     )
 
+    /// `allowsPasswordEditing` is false for save-password requests, whose
+    /// password the site already received, and true for the picker-initiated
+    /// flow, where the user still has to pick one.
     func presentEntryCreator(
         initialDraft: EntryDraftPayload,
+        allowsPasswordEditing: Bool,
         onSave: @escaping @Sendable (EntryDraftPayload) async -> CredentialProviderEntrySaveOutcome,
         onCancel: @escaping () -> Void
     )
@@ -1340,7 +1350,8 @@ final class CredentialProviderCoordinator {
                 searchEntries: allPasswordEntries,
                 possibleEntries: [],
                 initialSearchText: "",
-                includesDatabaseSwitcher: true
+                includesDatabaseSwitcher: true,
+                includesEntryCreation: true
             ) { [weak self] entry in
                 self?.completeRequest(with: entry)
             }
@@ -1353,7 +1364,8 @@ final class CredentialProviderCoordinator {
                 searchEntries: allPasswordEntries,
                 possibleEntries: possibleMatches,
                 initialSearchText: possibleMatches.isEmpty ? searchDomain : "",
-                includesDatabaseSwitcher: true
+                includesDatabaseSwitcher: true,
+                includesEntryCreation: true
             ) { [weak self] entry in
                 self?.completeRequest(with: entry)
             } onSelectPossible: { [weak self] entry in
@@ -1571,6 +1583,7 @@ final class CredentialProviderCoordinator {
         possibleEntries: [KPEntry] = [],
         initialSearchText: String = "",
         includesDatabaseSwitcher: Bool = false,
+        includesEntryCreation: Bool = false,
         onSelect: @escaping (KPEntry) -> Void,
         onSelectPossible: @escaping (KPEntry) -> Void = { _ in },
         onAddURLToPossible: @escaping (KPEntry) -> Void = { _ in }
@@ -1583,6 +1596,7 @@ final class CredentialProviderCoordinator {
             possibleEntries: possibleEntries,
             initialSearchText: restoredSearchText ?? initialSearchText,
             databaseSwitcher: includesDatabaseSwitcher ? makeDatabaseSwitcherContext() : nil,
+            onCreateEntry: includesEntryCreation ? makeEntryCreationAction() : nil,
             onSelect: onSelect,
             onSelectPossible: onSelectPossible,
             onAddURLToPossible: onAddURLToPossible,
@@ -1592,8 +1606,110 @@ final class CredentialProviderCoordinator {
         )
     }
 
+    /// The picker's "create a new credential" action, or nil when this request
+    /// cannot produce one: creation writes to the database, so it needs iOS, a
+    /// writable database, a KDBX 4 file, and a service identifier to derive the
+    /// entry's name and URL from.
+    private func makeEntryCreationAction() -> (() -> Void)? {
+        #if os(iOS)
+        guard let reference = activeDatabaseReference,
+              reference.isReadOnly == false,
+              parsedFormatVersion?.requiresReadOnlyMode != true,
+              let serviceIdentifier = serviceIdentifiers.first else {
+            return nil
+        }
+        return { [weak self] in
+            self?.presentEntryCreator(for: serviceIdentifier)
+        }
+        #else
+        return nil
+        #endif
+    }
+
     // Save-password / generate-password presentation is iOS-only (see note above).
     #if os(iOS)
+    /// Picker-initiated creation. Unlike the save-password path this starts
+    /// from an empty username and a freshly generated password — the account
+    /// does not exist yet — and finishes by filling the form it was opened
+    /// from, so the request completes with a credential rather than with
+    /// `completeSavePasswordRequest`.
+    private func presentEntryCreator(for serviceIdentifier: ASCredentialServiceIdentifier) {
+        let initialDraft = AutoFillSaveCoordinator.initialDraft(
+            for: serviceIdentifier,
+            username: nil
+        )
+
+        presenter?.presentEntryCreator(
+            initialDraft: initialDraft,
+            allowsPasswordEditing: true,
+            onSave: { [weak self] draftPayload in
+                guard let self else {
+                    return .showError(String(localized: "The request is no longer available."))
+                }
+                return await self.saveNewEntryAndFill(draftPayload: draftPayload)
+            },
+            onCancel: { [weak self] in
+                self?.cancelRequest(code: .userCanceled)
+            }
+        )
+    }
+
+    /// Saves the entry, then fills the form with it. The credential is built
+    /// from the draft the user just confirmed rather than by locating the
+    /// saved entry: the plaintext is already in hand, and a brand-new entry
+    /// has no TOTP config for `completeRequest(with:)` to copy.
+    private func saveNewEntryAndFill(
+        draftPayload: EntryDraftPayload
+    ) async -> CredentialProviderEntrySaveOutcome {
+        let user = draftPayload.username.isEmpty ? draftPayload.title : draftPayload.username
+        guard !user.isEmpty else {
+            return .showError(String(localized: "Enter a title or username for this credential."))
+        }
+
+        // The field is editable here, so the generated password can be cleared.
+        // Saving that would persist an entry `hasPassword` rejects — invisible
+        // to AutoFill afterwards — and fill the form with an empty credential.
+        guard !draftPayload.password.isEmpty else {
+            return .showError(String(localized: "Enter a password for this credential."))
+        }
+
+        guard let reference = activeDatabaseReference,
+              let parsedRootGroup,
+              let parsedMeta,
+              let sessionKey,
+              let compositeKey,
+              let openTimeSHA512 else {
+            return .showError(SaveError.saveContextUnavailable.localizedDescription)
+        }
+
+        do {
+            let result = try await AutoFillSaveCoordinator.saveNewEntry(
+                draftPayload: draftPayload,
+                reference: reference,
+                rootGroup: parsedRootGroup,
+                meta: parsedMeta,
+                sessionKey: sessionKey,
+                compositeKey: compositeKey,
+                openTimeSHA512: openTimeSHA512
+            )
+
+            switch result {
+            case .saved(let outcome):
+                self.parsedRootGroup = outcome.savedRootGroup
+                self.openTimeSHA512 = outcome.newSHA512
+                let credential = ASPasswordCredential(user: user, password: draftPayload.password)
+                finishRequest { presenter in
+                    presenter.completeRequest(withSelectedCredential: credential)
+                }
+                return .completed
+            case .conflict:
+                return .showWarningAndCancel(String(localized: "Database changed — open KeeForge to save"))
+            }
+        } catch {
+            return .showError(error.localizedDescription)
+        }
+    }
+
     @available(iOS 26.2, *)
     private func presentEntryCreator(for savePasswordRequest: ASSavePasswordRequest) {
         let initialDraft = AutoFillSaveCoordinator.initialDraft(
@@ -1604,6 +1720,7 @@ final class CredentialProviderCoordinator {
 
         presenter?.presentEntryCreator(
             initialDraft: initialDraft,
+            allowsPasswordEditing: false,
             onSave: { [weak self] draftPayload in
                 guard let self else {
                     return .showError(String(localized: "The request is no longer available."))
