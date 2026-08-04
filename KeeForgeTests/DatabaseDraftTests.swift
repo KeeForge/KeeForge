@@ -1399,6 +1399,174 @@ final class DatabaseDraftTests: XCTestCase {
         }
     }
 
+    // MARK: - Set entry icon
+
+    /// Builds a one-entry draft, optionally carrying a custom icon the way a
+    /// parsed file does: the display copy *and* the preserved element, which is
+    /// the only one the writer emits.
+    private func makeEntryIconDraft(
+        customIconUUID: UUID? = nil,
+        iconID: Int = 0
+    ) throws -> (draft: DatabaseDraft, entryID: UUID) {
+        var unknownXML = OpaqueXMLNodes()
+        if let customIconUUID {
+            unknownXML.append(
+                xml: "<CustomIconUUID>\(customIconUUID.kdbxBase64String)</CustomIconUUID>",
+                insertionIndex: 2
+            )
+        }
+        let entry = KPEntry(
+            title: "Icon",
+            password: try EncryptedValue.encrypt("pw", using: sessionKey),
+            iconID: iconID,
+            customIconUUID: customIconUUID,
+            creationTime: Date(timeIntervalSince1970: 0),
+            lastModificationTime: Date(timeIntervalSince1970: 0),
+            unknownXML: unknownXML
+        )
+        let root = KPGroup(name: "Root", entries: [entry])
+        return (DatabaseDraft(rootGroup: root, meta: KPMeta(), sessionKey: sessionKey), entry.id)
+    }
+
+    private func serializedXML(of draft: DatabaseDraft) throws -> String {
+        var serializer = KDBXXMLSerializer(
+            rootGroup: draft.rootGroup,
+            meta: draft.meta,
+            innerStreamKey: Data("KeeForge Draft Inner Stream Key".utf8),
+            sessionKey: sessionKey
+        )
+        return String(decoding: try serializer.serialize(), as: UTF8.self)
+    }
+
+    /// The live entry's own children, i.e. everything the serializer writes
+    /// before `<History>`. Stored versions are full `<Entry>` elements that keep
+    /// the icon they were saved with, so a document-wide search would count
+    /// theirs too and no assertion about the current icon would mean anything.
+    private func liveEntryXML(of draft: DatabaseDraft) throws -> String {
+        let xml = try serializedXML(of: draft)
+        return xml.components(separatedBy: "<History>")[0]
+    }
+
+    /// Same reason the group edit clears it: a surviving `<CustomIconUUID>`
+    /// outranks `<IconID>` in every client, so the newly chosen standard icon
+    /// would be written and never displayed.
+    func test_setEntryIcon_standardClearsTheCustomIconSoItActuallyShows() throws {
+        let (draft, entryID) = try makeEntryIconDraft(customIconUUID: UUID(), iconID: 48)
+        let original = try XCTUnwrap(findEntry(withID: entryID, in: draft.rootGroup))
+
+        let updatedDraft = try draft.apply(.setEntryIcon(entryID: entryID, icon: .standard(iconID: 37)))
+
+        let updated = try XCTUnwrap(findEntry(withID: entryID, in: updatedDraft.rootGroup))
+        XCTAssertEqual(updated.iconID, 37)
+        XCTAssertNil(updated.customIconUUID)
+        XCTAssertFalse(
+            updated.unknownXML.nodes.contains { $0.elementName == "CustomIconUUID" },
+            "the preserved element would be written back verbatim and keep overriding IconID"
+        )
+        XCTAssertFalse(try liveEntryXML(of: updatedDraft).contains("<CustomIconUUID>"))
+        XCTAssertEqual(
+            updated.history.first?.customIconUUID,
+            original.customIconUUID,
+            "the stored version keeps the icon it was saved with; only the live entry changes"
+        )
+    }
+
+    /// The display copy alone is not enough: the serializer writes
+    /// `<CustomIconUUID>` only from the preserved XML, so a custom pick that
+    /// does not land there is lost on the next save.
+    func test_setEntryIcon_customWritesTheElementRightAfterIconID() throws {
+        let (draft, entryID) = try makeEntryIconDraft()
+        let chosen = UUID()
+
+        let updatedDraft = try draft.apply(.setEntryIcon(entryID: entryID, icon: .custom(uuid: chosen)))
+
+        let updated = try XCTUnwrap(findEntry(withID: entryID, in: updatedDraft.rootGroup))
+        XCTAssertEqual(updated.customIconUUID, chosen)
+        XCTAssertEqual(updated.iconID, 0, "a custom icon does not disturb the standard one it overrides")
+        XCTAssertTrue(
+            try serializedXML(of: updatedDraft).contains(
+                "<IconID>0</IconID><CustomIconUUID>\(chosen.kdbxBase64String)</CustomIconUUID>"
+            ),
+            "KeePass puts CustomIconUUID directly after IconID"
+        )
+    }
+
+    /// Picking a second custom icon has to replace the element, not add one:
+    /// two `<CustomIconUUID>` children are invalid and clients disagree on which
+    /// of them wins.
+    func test_setEntryIcon_customReplacesAnExistingElement() throws {
+        let (draft, entryID) = try makeEntryIconDraft(customIconUUID: UUID())
+        let chosen = UUID()
+
+        let updatedDraft = try draft.apply(.setEntryIcon(entryID: entryID, icon: .custom(uuid: chosen)))
+
+        let updated = try XCTUnwrap(findEntry(withID: entryID, in: updatedDraft.rootGroup))
+        XCTAssertEqual(
+            updated.unknownXML.nodes.filter { $0.elementName == "CustomIconUUID" }.count,
+            1
+        )
+        XCTAssertEqual(updated.customIconUUID, chosen)
+        let xml = try liveEntryXML(of: updatedDraft)
+        XCTAssertEqual(xml.components(separatedBy: "<CustomIconUUID>").count - 1, 1)
+        XCTAssertTrue(xml.contains(chosen.kdbxBase64String))
+    }
+
+    /// An icon change is an entry edit like any other, so it is undoable from
+    /// the history viewer and records what other clients record.
+    func test_setEntryIcon_pushesAHistoryVersionAndTouchesModificationTime() throws {
+        let (draft, entryID) = try makeEntryIconDraft(iconID: 48)
+        let original = try XCTUnwrap(findEntry(withID: entryID, in: draft.rootGroup))
+
+        let updatedDraft = try draft.apply(.setEntryIcon(entryID: entryID, icon: .standard(iconID: 37)))
+
+        let updated = try XCTUnwrap(findEntry(withID: entryID, in: updatedDraft.rootGroup))
+        XCTAssertEqual(updated.history.count, original.history.count + 1)
+        XCTAssertEqual(updated.history.first?.iconID, 48, "the replaced icon is what a restore brings back")
+        XCTAssertGreaterThan(
+            try XCTUnwrap(updated.lastModificationTime),
+            try XCTUnwrap(original.lastModificationTime)
+        )
+        XCTAssertTrue(updatedDraft.isDirty)
+    }
+
+    /// A parsable `<Binary>` advances the opaque-XML position space but not the
+    /// attachment anchor, so an entry whose source put one before `<IconID>`
+    /// shifts every later fragment by one. A fixed insertion index would write
+    /// the new element ahead of `<IconID>` — or, with two such attachments, ahead
+    /// of the attachment itself.
+    func test_setEntryIcon_customLandsAfterIconIDEvenWithAnEarlyAttachment() throws {
+        let entry = KPEntry(
+            title: "Icon",
+            password: try EncryptedValue.encrypt("pw", using: sessionKey),
+            creationTime: Date(timeIntervalSince1970: 0),
+            lastModificationTime: Date(timeIntervalSince1970: 0),
+            attachments: [KPAttachment(name: "note.txt", ref: 0, insertionIndex: 1)]
+        )
+        let root = KPGroup(name: "Root", entries: [entry])
+        let draft = DatabaseDraft(rootGroup: root, meta: KPMeta(), sessionKey: sessionKey)
+        let chosen = UUID()
+
+        let updatedDraft = try draft.apply(.setEntryIcon(entryID: entry.id, icon: .custom(uuid: chosen)))
+
+        XCTAssertTrue(
+            try liveEntryXML(of: updatedDraft).contains(
+                "<IconID>0</IconID><CustomIconUUID>\(chosen.kdbxBase64String)</CustomIconUUID>"
+            ),
+            "the attachment's slot must be counted, or the element lands before IconID"
+        )
+    }
+
+    func test_setEntryIcon_unknownEntry_throws() throws {
+        let (draft, _) = try makeEntryIconDraft()
+        let missingEntryID = UUID()
+
+        XCTAssertThrowsError(
+            try draft.apply(.setEntryIcon(entryID: missingEntryID, icon: .standard(iconID: 37)))
+        ) { error in
+            XCTAssertEqual(error as? DatabaseDraft.DraftError, .entryNotFound(missingEntryID))
+        }
+    }
+
     // MARK: - Update group
 
     func test_updateGroup_renamesGroupKeepingIdentityAndChildren_andTouchesModificationTime() throws {

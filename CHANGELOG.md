@@ -23,6 +23,8 @@ TODO before the first macOS release:
 
 ### New Features
 
+- Pick the icon an entry shows. Tapping the icon on an entry opens a chooser with the standard KeePass icon set and, when the database carries any, the custom icons already stored in it — the images other KeePass apps show for their entries, including favicons downloaded there. The choice is written the way KeePass writes it, so it travels with the database and every other client displays it too. Read-only databases show the icon without offering the chooser, and the icon an entry had is kept in its history, so a change can be undone from the history viewer like any other edit.
+
 - Create a new credential without leaving the signup page: the AutoFill picker now has a **+** button — and a "Create New Credential" button when it has nothing to show — that opens the entry form already filled in with the site's name and address and a freshly generated password (#46). The password field has a dice button to roll a new one and an eye to check it. Saving writes the entry to the default AutoFill database and fills the form straight away, so the entry is waiting in the QuickType bar the next time you visit. New entries land in the same group as entries saved from iOS's "save password?" prompt — the database's top-level group, never the KDBX root. iOS only, and only offered when the database can actually be written to (not read-only, not a legacy KDBX 3.1 file).
 
 ### Fixes

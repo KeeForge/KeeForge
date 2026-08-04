@@ -811,6 +811,25 @@ final class DatabaseViewModel {
         return unlockedMeta?.customIcons[uuid]
     }
 
+    /// One image from `Meta/CustomIcons`, addressable by the picker.
+    struct CustomIcon: Identifiable, Sendable, Hashable {
+        let id: UUID
+        let data: Data
+    }
+
+    /// The database's custom icons, in a stable order.
+    ///
+    /// `Meta/CustomIcons` is a dictionary and KDBX fixes no order for it, so the
+    /// UUID is what the sort runs on — an arbitrary order that at least does not
+    /// reshuffle the grid between openings of the same database.
+    var customIcons: [CustomIcon] {
+        _ = contentRevision
+        guard let icons = unlockedMeta?.customIcons else { return [] }
+        return icons
+            .sorted { $0.key.uuidString < $1.key.uuidString }
+            .map { CustomIcon(id: $0.key, data: $0.value) }
+    }
+
     /// Resolves and decodes attachment bytes for `attachment` against the
     /// currently unlocked database's inner-header binary pool. Decoding runs
     /// off the main thread; returns `nil` for dangling refs or when no
@@ -936,6 +955,31 @@ final class DatabaseViewModel {
         guard let group = groupIndex[groupID] else { return }
         guard group.iconID != iconID || group.customIconUUID != nil else { return }
         try applyEntryEdit(.setGroupIcon(groupID: groupID, iconID: iconID))
+    }
+
+    /// Changes which icon an entry displays.
+    ///
+    /// Ignores an `iconID` outside the standard set for the same reason
+    /// `setGroupIcon` does, and ignores a custom icon the database does not
+    /// define — a `<CustomIconUUID>` pointing at nothing renders as each
+    /// client's own fallback, which is worse than the icon the entry has.
+    ///
+    /// A selection that already matches is still not always a no-op: choosing
+    /// the standard icon an entry nominally carries is exactly how a custom icon
+    /// gets cleared, so only an unchanged pair of both values is dropped.
+    func setEntryIcon(_ icon: EntryIconSelection, entryID: UUID) throws {
+        guard let entry = entryIndex[entryID] else { return }
+
+        switch icon {
+        case .standard(let iconID):
+            guard KPEntry.standardIconNames[iconID] != nil else { return }
+            guard entry.iconID != iconID || entry.customIconUUID != nil else { return }
+        case .custom(let uuid):
+            guard unlockedMeta?.customIcons[uuid] != nil else { return }
+            guard entry.customIconUUID != uuid else { return }
+        }
+
+        try applyEntryEdit(.setEntryIcon(entryID: entryID, icon: icon))
     }
 
     /// Applies the group editor's payload: name, tags, notes, standard icon and
