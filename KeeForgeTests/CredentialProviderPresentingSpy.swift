@@ -35,9 +35,17 @@ final class CredentialProviderPresentingSpy: CredentialProviderPresenting {
         let possibleEntries: [KPEntry]
         let initialSearchText: String
         let databaseSwitcher: CredentialProviderDatabaseSwitcherContext?
+        let onCreateEntry: (() -> Void)?
         let onSelect: (KPEntry) -> Void
         let onSelectPossible: (KPEntry) -> Void
         let onAddURLToPossible: (KPEntry) -> Void
+        let onCancel: () -> Void
+    }
+
+    struct EntryCreator {
+        let initialDraft: EntryDraftPayload
+        let allowsPasswordEditing: Bool
+        let onSave: @Sendable (EntryDraftPayload) async -> CredentialProviderEntrySaveOutcome
         let onCancel: () -> Void
     }
 
@@ -60,6 +68,7 @@ final class CredentialProviderPresentingSpy: CredentialProviderPresenting {
     var unlockError: UnlockError?
     var readOnlyNotice: ReadOnlyNotice?
     var searchView: SearchView?
+    var entryCreator: EntryCreator?
     var noEnabledDatabasesState: NoEnabledDatabasesState?
     var passkeyCreator: PasskeyCreator?
     var passkeyRegistrationFailure: PasskeyRegistrationFailure?
@@ -89,6 +98,7 @@ final class CredentialProviderPresentingSpy: CredentialProviderPresenting {
     /// await the re-presented search with an expectation.
     var onSearchViewPresented: (() -> Void)?
     var onPasskeyCreatorPresented: (() -> Void)?
+    var onEntryCreatorPresented: (() -> Void)?
     /// Fired before `completedRegistration` is recorded so ordering-sensitive
     /// tests can log the completion against other observed events.
     var onCompleteRegistrationRequest: ((ASPasskeyRegistrationCredential) -> Void)?
@@ -99,6 +109,7 @@ final class CredentialProviderPresentingSpy: CredentialProviderPresenting {
         possibleEntries: [KPEntry],
         initialSearchText: String,
         databaseSwitcher: CredentialProviderDatabaseSwitcherContext?,
+        onCreateEntry: (() -> Void)?,
         onSelect: @escaping (KPEntry) -> Void,
         onSelectPossible: @escaping (KPEntry) -> Void,
         onAddURLToPossible: @escaping (KPEntry) -> Void,
@@ -110,6 +121,7 @@ final class CredentialProviderPresentingSpy: CredentialProviderPresenting {
             possibleEntries: possibleEntries,
             initialSearchText: initialSearchText,
             databaseSwitcher: databaseSwitcher,
+            onCreateEntry: onCreateEntry,
             onSelect: onSelect,
             onSelectPossible: onSelectPossible,
             onAddURLToPossible: onAddURLToPossible,
@@ -124,9 +136,18 @@ final class CredentialProviderPresentingSpy: CredentialProviderPresenting {
 
     func presentEntryCreator(
         initialDraft: EntryDraftPayload,
+        allowsPasswordEditing: Bool,
         onSave: @escaping @Sendable (EntryDraftPayload) async -> CredentialProviderEntrySaveOutcome,
         onCancel: @escaping () -> Void
-    ) {}
+    ) {
+        entryCreator = EntryCreator(
+            initialDraft: initialDraft,
+            allowsPasswordEditing: allowsPasswordEditing,
+            onSave: onSave,
+            onCancel: onCancel
+        )
+        onEntryCreatorPresented?()
+    }
 
     func presentPasskeyCreator(
         context: CredentialProviderPasskeyCreatorContext,

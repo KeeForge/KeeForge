@@ -9,6 +9,10 @@ struct AutoFillSearchView: View {
     let onAddURLToPossible: (KPEntry) -> Void
     let onCancel: () -> Void
     let initialSearchText: String
+    /// Non-nil only when the coordinator offers in-extension entry creation
+    /// (iOS password requests against a writable database). Nil hides both
+    /// entry points, so passkey/one-time-code pickers stay selection-only.
+    let onCreateEntry: (() -> Void)?
     /// Non-nil only when the coordinator offers the in-search database
     /// switcher (two or more AutoFill-enabled databases). Selecting a
     /// database other than the currently open one invokes
@@ -27,6 +31,7 @@ struct AutoFillSearchView: View {
         possibleEntries: [KPEntry] = [],
         initialSearchText: String = "",
         databaseSwitcher: CredentialProviderDatabaseSwitcherContext? = nil,
+        onCreateEntry: (() -> Void)? = nil,
         onSelect: @escaping (KPEntry) -> Void,
         onSelectPossible: @escaping (KPEntry) -> Void = { _ in },
         onAddURLToPossible: @escaping (KPEntry) -> Void = { _ in },
@@ -37,6 +42,7 @@ struct AutoFillSearchView: View {
         self.possibleEntries = possibleEntries
         self.initialSearchText = initialSearchText
         self.databaseSwitcher = databaseSwitcher
+        self.onCreateEntry = onCreateEntry
         self.onSelect = onSelect
         self.onSelectPossible = onSelectPossible
         self.onAddURLToPossible = onAddURLToPossible
@@ -93,6 +99,10 @@ struct AutoFillSearchView: View {
                             Button("Show All Credentials", action: showAllEntries)
                                 .accessibilityIdentifier("autofill.show-all-entries.empty-state")
                         }
+                        if let onCreateEntry {
+                            Button("Create New Credential", action: onCreateEntry)
+                                .accessibilityIdentifier("autofill.create-entry.empty-state")
+                        }
                     }
                 }
                 Section {
@@ -139,6 +149,14 @@ struct AutoFillSearchView: View {
                 }
                 if let databaseSwitcher {
                     ToolbarItem(placement: .primaryAction) { databaseSwitcherMenu(databaseSwitcher) }
+                }
+                if let onCreateEntry {
+                    ToolbarItem(placement: .primaryAction) {
+                        Button(action: onCreateEntry) {
+                            Label("Create New Credential", systemImage: "plus")
+                        }
+                        .accessibilityIdentifier("autofill.create-entry")
+                    }
                 }
             }
         }

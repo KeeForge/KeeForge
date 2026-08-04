@@ -60,6 +60,7 @@
 		160886E235CE66F6FA4C91D1 /* KDBXWriterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4817DCDBE10FCB59D878033 /* KDBXWriterTests.swift */; };
 		1609B0A92A9000260793CE71 /* DatabaseReference.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1036AABC590833FFFA1B8A2 /* DatabaseReference.swift */; };
 		168CC74285D5A4DE4043056F /* CredentialIdentityStoreManagerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CF40C9649E6870C49081C9C0 /* CredentialIdentityStoreManagerTests.swift */; };
+		16A9D6A7C4CAA92D6491803D /* CredentialProviderPickerCreationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F97E4DEBF17DC23B5695A4A /* CredentialProviderPickerCreationTests.swift */; };
 		16D96193E59AF13C025AA2BA /* KDBXTreeAssertions.swift in Sources */ = {isa = PBXBuildFile; fileRef = A38E7ED987584982FEC5D8E6 /* KDBXTreeAssertions.swift */; };
 		174EC5F2198C8767E53DBCAA /* PasswordInputRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = F40669422B3751841943019C /* PasswordInputRow.swift */; };
 		186B0BF0473B22258603AFB1 /* DatabaseCreationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2FFC8C91D571F07AF7531393 /* DatabaseCreationService.swift */; };
@@ -91,6 +92,7 @@
 		23150ED988148D32880612ED /* DatabaseReference.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1036AABC590833FFFA1B8A2 /* DatabaseReference.swift */; };
 		23588DC597F0E6CAF75E0F5D /* PendingUploadDrainerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 731F0A21E9D989FC97F13C23 /* PendingUploadDrainerTests.swift */; };
 		239576B93923570EA43C4992 /* KeeForgeTwofish in Frameworks */ = {isa = PBXBuildFile; productRef = 864AF4F1B6915B3F8B6E44D9 /* KeeForgeTwofish */; };
+		23D3D0D05922D2B15EF0779B /* CredentialProviderPickerCreationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F97E4DEBF17DC23B5695A4A /* CredentialProviderPickerCreationTests.swift */; };
 		2403A3EAED3B357B35B295FC /* GroupListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 35E6EA2FF600FFF3543FF763 /* GroupListView.swift */; };
 		24384AEA2D0C8BBECD23E396 /* KeeForgeCommands.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF45C7A930180364061D5C77 /* KeeForgeCommands.swift */; };
 		2460E9F68A9E241ECCD37601 /* KeychainServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7206D2706378C5AE8CD81A30 /* KeychainServiceTests.swift */; };
@@ -754,6 +756,7 @@
 		4D057DDB7EF1E20587FC6378 /* AutoFillStoreInspectorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AutoFillStoreInspectorView.swift; sourceTree = "<group>"; };
 		4D4331340574F2A0595CAA0E /* KDBXRoundTripTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KDBXRoundTripTests.swift; sourceTree = "<group>"; };
 		4F68006D6BBE667770D1CB5B /* BuildConfig.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = BuildConfig.xcconfig; sourceTree = "<group>"; };
+		4F97E4DEBF17DC23B5695A4A /* CredentialProviderPickerCreationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CredentialProviderPickerCreationTests.swift; sourceTree = "<group>"; };
 		50107994AC5A4E705F829F17 /* WebDAVConnectViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebDAVConnectViewModel.swift; sourceTree = "<group>"; };
 		51105ADF7C41EB47401418D9 /* TOTPGenerator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TOTPGenerator.swift; sourceTree = "<group>"; };
 		5156505659451A95FA358AA9 /* GroupIconPickerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GroupIconPickerView.swift; sourceTree = "<group>"; };
@@ -1364,6 +1367,7 @@
 				CF40C9649E6870C49081C9C0 /* CredentialIdentityStoreManagerTests.swift */,
 				952D7703E80D468B1A3168D8 /* CredentialMatcherTests.swift */,
 				8D643ABF20BB5081268D1CFD /* CredentialProviderCoordinatorTests.swift */,
+				4F97E4DEBF17DC23B5695A4A /* CredentialProviderPickerCreationTests.swift */,
 				D638023C04BD5CB4717D22A2 /* CredentialProviderPresentingSpy.swift */,
 				E76C796B02FF415E49F0E10C /* CredentialProviderRegistrationTests.swift */,
 				A0987977B0D41FBB5C1456C5 /* CredentialProviderSaveTests.swift */,
@@ -2000,6 +2004,7 @@
 				81F4C4E02760EC3153431478 /* CredentialIdentityStoreManagerTests.swift in Sources */,
 				9F76F1FBBAF924995932EE84 /* CredentialMatcherTests.swift in Sources */,
 				DB1AC5817EDFBDDE3E25AFD1 /* CredentialProviderCoordinatorTests.swift in Sources */,
+				23D3D0D05922D2B15EF0779B /* CredentialProviderPickerCreationTests.swift in Sources */,
 				E1169D89C25EE7CF9328B644 /* CredentialProviderPresentingSpy.swift in Sources */,
 				9969E90C2E3157AF70BE7004 /* CredentialProviderRegistrationTests.swift in Sources */,
 				6D2B797B6DCCBF43EAF6606A /* CredentialProviderSaveTests.swift in Sources */,
@@ -2355,6 +2360,7 @@
 				168CC74285D5A4DE4043056F /* CredentialIdentityStoreManagerTests.swift in Sources */,
 				7C249710427EF896850775E7 /* CredentialMatcherTests.swift in Sources */,
 				602792380E02656AEBDEA628 /* CredentialProviderCoordinatorTests.swift in Sources */,
+				16A9D6A7C4CAA92D6491803D /* CredentialProviderPickerCreationTests.swift in Sources */,
 				0EB5A4095C644B3F52DBC028 /* CredentialProviderPresentingSpy.swift in Sources */,
 				D9DEA9F0DDD8BF48FADC5772 /* CredentialProviderRegistrationTests.swift in Sources */,
 				C9236BDC30BEAC14BC57865C /* CredentialProviderSaveTests.swift in Sources */,
