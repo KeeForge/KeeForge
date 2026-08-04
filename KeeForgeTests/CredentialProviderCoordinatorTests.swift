@@ -1652,8 +1652,9 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
         let budget: UInt64 = 32 * 1024 * 1024
         coordinator.memoryBudgetOverride = budget
 
-        presenter.isPresentationActive = true
         coordinator.prepareCredentialList(for: [githubServiceIdentifier()])
+        presenter.isPresentationActive = true
+        coordinator.presentationDidBecomeActive()
         let prompt = try XCTUnwrap(presenter.unlockPrompt)
 
         let errorPresented = expectation(description: "unlock error presented")
@@ -1684,10 +1685,11 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
 
         coordinator.memoryBudgetOverride = 512 * 1024 * 1024
 
-        presenter.isPresentationActive = true
         coordinator.prepareCredentialList(
             for: [ASCredentialServiceIdentifier(identifier: "no-such-service.example", type: .domain)]
         )
+        presenter.isPresentationActive = true
+        coordinator.presentationDidBecomeActive()
         let prompt = try XCTUnwrap(presenter.unlockPrompt)
 
         let searchPresented = expectation(description: "search view presented")
