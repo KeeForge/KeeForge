@@ -269,10 +269,14 @@ struct EntryDetailView: View {
                     EntryIconPickerView(
                         entryTitle: entry.title,
                         selection: Self.iconSelection(of: entry),
-                        customIcons: viewModel.customIcons
-                    ) { icon in
-                        changeEntryIcon(icon)
-                    }
+                        customIcons: viewModel.customIcons,
+                        canDownloadFavicon: viewModel.canDownloadFavicon(forEntryID: entryID),
+                        onSelect: { icon in changeEntryIcon(icon) },
+                        onDownloadFavicon: {
+                            try await viewModel.downloadFavicon(forEntryID: entryID)
+                            await viewModel.saveHandlingError()
+                        }
+                    )
                 }
             } else {
                 ContentUnavailableView(

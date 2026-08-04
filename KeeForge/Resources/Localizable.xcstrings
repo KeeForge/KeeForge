@@ -3408,6 +3408,28 @@
         }
       }
     },
+    "Couldn’t Download Icon" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Symbol konnte nicht geladen werden"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No se pudo descargar el icono"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Impossible de télécharger l’icône"
+          }
+        }
+      }
+    },
     "Couldn’t Load Files" : {
       "localizations" : {
         "de" : {
@@ -4790,6 +4812,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Télécharger les favicons des sites web"
+          }
+        }
+      }
+    },
+    "Download Website Icon" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Website-Symbol herunterladen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Descargar icono del sitio web"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Télécharger l’icône du site"
           }
         }
       }
@@ -8574,6 +8618,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Aucun compte GitHub ni adresse e-mail requis. KeeForge envoie uniquement le message que vous saisissez, les détails d'erreur visibles joints, votre adresse e-mail si vous autorisez le suivi, et la photo si vous en joignez une. Les rapports d'ouverture de base de données peuvent inclure des métadonnées visibles sur l'app et l'appareil, l'état de la synchronisation cloud et de courts préfixes de hachage de fichier, mais jamais le contenu de la base de données, les mots de passe, les fichiers de clé ou les fichiers de coffre bruts."
+          }
+        }
+      }
+    },
+    "No icon could be downloaded for this website. It may not have one, or the connection failed." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Für diese Website konnte kein Symbol geladen werden. Möglicherweise hat sie keines, oder die Verbindung ist fehlgeschlagen."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No se pudo descargar ningún icono para este sitio web. Puede que no tenga uno, o que haya fallado la conexión."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aucune icône n’a pu être téléchargée pour ce site web. Il n’en a peut-être pas, ou la connexion a échoué."
           }
         }
       }
@@ -13003,6 +13069,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Cette entrée a expiré"
+          }
+        }
+      }
+    },
+    "This entry has no website address to download an icon from. Add one to the entry first." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dieser Eintrag hat keine Website-Adresse, von der ein Symbol geladen werden könnte. Fügen Sie dem Eintrag zuerst eine hinzu."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Esta entrada no tiene una dirección web de la que descargar un icono. Añada una a la entrada primero."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cette entrée n’a pas d’adresse de site web depuis laquelle télécharger une icône. Ajoutez-en une à l’entrée d’abord."
           }
         }
       }

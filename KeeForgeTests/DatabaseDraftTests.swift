@@ -1567,6 +1567,96 @@ final class DatabaseDraftTests: XCTestCase {
         }
     }
 
+    // MARK: - Add entry custom icon
+
+    private let downloadedIconData = Data([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A])
+
+    /// The stored dictionary is what the UI reads before the next save; the
+    /// preserved XML is what the writer emits. An icon that reaches only one of
+    /// them either vanishes on save or shows up as a blank cell until then.
+    func test_addEntryCustomIcon_storesTheImageInBothMetaRepresentations() throws {
+        let (draft, entryID) = try makeEntryIconDraft()
+        let iconUUID = UUID()
+
+        let updatedDraft = try draft.apply(
+            .addEntryCustomIcon(entryID: entryID, iconUUID: iconUUID, imageData: downloadedIconData)
+        )
+
+        XCTAssertEqual(updatedDraft.meta.customIcons[iconUUID], downloadedIconData)
+        let fragment = try XCTUnwrap(
+            updatedDraft.meta.unknownXML.nodes.first { $0.elementName == "CustomIcons" }?.xml
+        )
+        XCTAssertTrue(fragment.contains(downloadedIconData.base64EncodedString()))
+        XCTAssertTrue(fragment.contains(iconUUID.kdbxBase64String))
+    }
+
+    func test_addEntryCustomIcon_pointsTheEntryAtTheStoredIcon() throws {
+        let (draft, entryID) = try makeEntryIconDraft(iconID: 48)
+        let iconUUID = UUID()
+
+        let updatedDraft = try draft.apply(
+            .addEntryCustomIcon(entryID: entryID, iconUUID: iconUUID, imageData: downloadedIconData)
+        )
+
+        let updated = try XCTUnwrap(findEntry(withID: entryID, in: updatedDraft.rootGroup))
+        XCTAssertEqual(updated.customIconUUID, iconUUID)
+        XCTAssertEqual(updated.iconID, 48, "the standard icon it overrides is left alone")
+        XCTAssertEqual(updated.history.count, 1, "an icon change is an entry edit like any other")
+        XCTAssertTrue(
+            try liveEntryXML(of: updatedDraft).contains(
+                "<IconID>48</IconID><CustomIconUUID>\(iconUUID.kdbxBase64String)</CustomIconUUID>"
+            )
+        )
+    }
+
+    /// The same favicon downloaded onto three entries has to leave one icon in
+    /// the file, not three — KeePass's icon dialog shows the whole set, so
+    /// duplicates are visible clutter as well as wasted bytes.
+    func test_addEntryCustomIcon_reusesAnIdenticalImageAlreadyInTheDatabase() throws {
+        let (draft, firstEntryID) = try makeEntryIconDraft()
+        let seeded = try draft.apply(
+            .createEntry(parentGroupID: draft.rootGroup.id, draft: EntryDraftPayload(title: "Second"))
+        )
+        let secondID = try XCTUnwrap(seeded.rootGroup.entries.first { $0.title == "Second" }?.id)
+
+        let firstUUID = UUID()
+        let afterFirst = try seeded.apply(
+            .addEntryCustomIcon(entryID: firstEntryID, iconUUID: firstUUID, imageData: downloadedIconData)
+        )
+        let afterSecond = try afterFirst.apply(
+            .addEntryCustomIcon(entryID: secondID, iconUUID: UUID(), imageData: downloadedIconData)
+        )
+
+        XCTAssertEqual(afterSecond.meta.customIcons.count, 1)
+        XCTAssertEqual(
+            findEntry(withID: secondID, in: afterSecond.rootGroup)?.customIconUUID,
+            firstUUID,
+            "the second entry points at the icon the first one stored"
+        )
+        let fragment = try XCTUnwrap(
+            afterSecond.meta.unknownXML.nodes.first { $0.elementName == "CustomIcons" }?.xml
+        )
+        XCTAssertEqual(fragment.components(separatedBy: "<Icon>").count - 1, 1)
+    }
+
+    func test_addEntryCustomIcon_unknownEntry_leavesTheDatabaseAlone() throws {
+        let (draft, _) = try makeEntryIconDraft()
+        let missingEntryID = UUID()
+
+        XCTAssertThrowsError(
+            try draft.apply(
+                .addEntryCustomIcon(
+                    entryID: missingEntryID,
+                    iconUUID: UUID(),
+                    imageData: downloadedIconData
+                )
+            )
+        ) { error in
+            XCTAssertEqual(error as? DatabaseDraft.DraftError, .entryNotFound(missingEntryID))
+        }
+        XCTAssertTrue(draft.meta.customIcons.isEmpty, "a failed edit must not leave an orphaned icon behind")
+    }
+
     // MARK: - Update group
 
     func test_updateGroup_renamesGroupKeepingIdentityAndChildren_andTouchesModificationTime() throws {

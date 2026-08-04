@@ -420,6 +420,7 @@ enum KDBXCompatibilitySupport {
         "create-group",
         "hide-group-from-autofill",
         "change-group-icon",
+        "add-entry-custom-icon",
         "update-group",
         "restore-entry-version",
         "soft-delete-entry",
@@ -519,6 +520,7 @@ enum KDBXCompatibilitySupport {
         "create-group",
         "hide-group-from-autofill",
         "change-group-icon",
+        "add-entry-custom-icon",
         "restore-entry-version",
         "soft-delete-entry",
         "soft-delete-group",
@@ -608,6 +610,7 @@ enum KDBXCompatibilitySupport {
             createGroupScenario(),
             hideGroupFromAutoFillScenario(),
             changeGroupIconScenario(),
+            addEntryCustomIconScenario(),
             updateGroupScenario(),
             restoreEntryVersionScenario(),
             softDeleteEntryScenario(),
@@ -677,6 +680,82 @@ enum KDBXCompatibilitySupport {
                 XCTAssertEqual(afterEntry.history.count, 2)
                 XCTAssertEqual(afterEntry.history[0].username, "current-user")
                 XCTAssertEqual(afterEntry.history[0].password, "current-password")
+            }
+        )
+    }
+
+    /// Storing a downloaded website icon: the one edit that adds bytes to
+    /// `Meta/CustomIcons`, which the writer otherwise replays verbatim.
+    ///
+    /// The proof that matters is the full write/reparse cycle — the icon is
+    /// spliced into a preserved fragment as text, so nothing but a real parse of
+    /// the real file says whether it landed as an element or as garbage inside
+    /// one. `keepassxc-cli` has no verb that prints custom icons, so the icon
+    /// half of the check stays in-process here, the way group tags do in
+    /// `updateGroupScenario`; the artifact still proves the *file* opens.
+    static func addEntryCustomIconScenario() -> Scenario {
+        // A real 1×1 PNG rather than arbitrary bytes: what goes into a vault
+        // should be what the feature actually writes.
+        let iconData = Data(
+            base64Encoded: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=="
+        ) ?? Data()
+        let iconUUID = UUID()
+
+        return Scenario(
+            id: "add-entry-custom-icon",
+            title: "Store a downloaded website icon and point an entry at it",
+            artifactFileName: "synthetic-rich-add-entry-custom-icon.kdbx",
+            expectedSearchTerms: ["Compat Untouched Entry"],
+            expectedGroupPaths: ["Compat Group Delete Target"],
+            makeEdit: { loaded in
+                let entry = try XCTUnwrap(findEntry(titled: "Compat Untouched Entry", in: loaded.rootGroup))
+                return .addEntryCustomIcon(
+                    entryID: entry.id,
+                    iconUUID: iconUUID,
+                    imageData: iconData
+                )
+            },
+            assertChange: { before, after, _ in
+                XCTAssertFalse(iconData.isEmpty, "Fixture precondition: the test PNG must decode")
+                XCTAssertNil(
+                    before.meta.customIcons[iconUUID],
+                    "Fixture precondition: the icon must not already be in the file"
+                )
+
+                // The icon survived being written and parsed back, byte for byte.
+                XCTAssertEqual(after.meta.customIcons[iconUUID], iconData)
+
+                // Every icon the source already carried is still there and
+                // unchanged: the splice must not rewrite its neighbours.
+                for (uuid, data) in before.meta.customIcons {
+                    XCTAssertEqual(after.meta.customIcons[uuid], data, "existing custom icon \(uuid) changed")
+                }
+                XCTAssertEqual(after.meta.customIcons.count, before.meta.customIcons.count + 1)
+
+                // Meta is otherwise untouched — this edit may add an icon and
+                // nothing else.
+                XCTAssertEqual(after.meta.recycleBinUUID, before.meta.recycleBinUUID)
+                XCTAssertEqual(after.meta.historyMaxItems, before.meta.historyMaxItems)
+                XCTAssertEqual(after.meta.historyMaxSize, before.meta.historyMaxSize)
+                XCTAssertEqual(after.meta.deletedObjects, before.meta.deletedObjects)
+
+                let entryID = try XCTUnwrap(before.entryID(titled: "Compat Untouched Entry"))
+                try assertUnchangedEntries(before: before, after: after, excluding: [entryID])
+                try assertSurvivingGroupsPreserveScalars(before: before, after: after)
+
+                // The reference reached the file too, so another client shows
+                // the icon rather than the entry's standard one.
+                let afterEntry = try XCTUnwrap(after.entries[entryID])
+                let beforeEntry = try XCTUnwrap(before.entries[entryID])
+                XCTAssertTrue(
+                    afterEntry.unknownXML.nodes.contains {
+                        $0.xml == "<CustomIconUUID>\(iconUUID.kdbxBase64String)</CustomIconUUID>"
+                    },
+                    "the entry must carry the reference after a full round trip"
+                )
+                XCTAssertEqual(afterEntry.iconID, beforeEntry.iconID, "the standard icon it overrides is left alone")
+                XCTAssertEqual(afterEntry.title, beforeEntry.title)
+                XCTAssertEqual(afterEntry.password, beforeEntry.password)
             }
         )
     }

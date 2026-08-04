@@ -986,6 +986,69 @@ final class DatabaseViewModel {
         try applyEntryEdit(.setEntryIcon(entryID: entryID, icon: icon))
     }
 
+    /// Why a favicon download produced no icon. Each case is a different thing
+    /// to tell the user, which is why they are not one "it didn't work".
+    enum FaviconDownloadFailure: LocalizedError, Equatable {
+        /// The entry has no address, or one that names no public host — an IP,
+        /// `localhost`, or an internal-only name, none of which a favicon
+        /// service can be asked about.
+        case noPublicDomain
+        /// The host had nothing to give, or gave something unusable.
+        case noIconAvailable
+
+        var errorDescription: String? {
+            switch self {
+            case .noPublicDomain:
+                String(localized: "This entry has no website address to download an icon from. Add one to the entry first.")
+            case .noIconAvailable:
+                String(localized: "No icon could be downloaded for this website. It may not have one, or the connection failed.")
+            }
+        }
+    }
+
+    /// Downloads the entry's website icon, stores it in the database, and points
+    /// the entry at it.
+    ///
+    /// A cached favicon is used when one is already on disk, and a fetch does
+    /// *not* add to that cache: the image is about to live in the vault, so a
+    /// second plaintext copy keyed by domain would widen the cache's fingerprint
+    /// for no benefit. Unlike the automatic favicons in lists, this runs
+    /// whatever the "show website icons" setting says — the setting governs
+    /// fetching KeeForge does on its own, and this is the user asking.
+    func downloadFavicon(forEntryID entryID: UUID) async throws {
+        guard isReadOnly == false, let entry = entryIndex[entryID] else { return }
+        guard let domain = FaviconService.extractDomain(from: entry.url) else {
+            throw FaviconDownloadFailure.noPublicDomain
+        }
+
+        var image = FaviconService.cachedImage(for: domain)
+        if image == nil {
+            image = await FaviconService.fetchFavicon(for: domain, cachingToDisk: false)
+        }
+        guard let image, let imageData = FaviconIconEncoder.iconData(from: image) else {
+            throw FaviconDownloadFailure.noIconAvailable
+        }
+
+        // Downloading the icon an entry already displays is a no-op for the same
+        // reason re-picking the current icon is in `setEntryIcon`: the edit would
+        // cost a history version, a re-encrypt and a save for no visible change.
+        if let current = entry.customIconUUID, unlockedMeta?.customIcons[current] == imageData {
+            return
+        }
+
+        try applyEntryEdit(
+            .addEntryCustomIcon(entryID: entryID, iconUUID: UUID(), imageData: imageData)
+        )
+    }
+
+    /// Whether `downloadFavicon(forEntryID:)` has an address to work from, so
+    /// the picker can present the action as unavailable instead of offering a
+    /// button whose only possible outcome is an error.
+    func canDownloadFavicon(forEntryID entryID: UUID) -> Bool {
+        guard isReadOnly == false, let entry = entryIndex[entryID] else { return false }
+        return FaviconService.extractDomain(from: entry.url) != nil
+    }
+
     /// Applies the group editor's payload: name, tags, notes, standard icon and
     /// AutoFill visibility in one edit.
     ///

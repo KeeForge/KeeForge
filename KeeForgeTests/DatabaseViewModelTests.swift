@@ -696,6 +696,44 @@ final class DatabaseViewModelTests: XCTestCase {
         XCTAssertFalse(vm.isDirty)
     }
 
+    /// The picker asks before it offers the action, so the answer has to match
+    /// what `downloadFavicon` would actually do — a button that is enabled and
+    /// then refuses is worse than one that was never offered.
+    func testFaviconDownloadIsOfferedOnlyForAPublicWebsiteAddress() async throws {
+        let vm = try makeViewModel()
+        await vm.unlock(password: fixturePassword)
+        let rootGroupID = try XCTUnwrap(vm.visibleRootGroupID)
+
+        func entryID(url: String, title: String) throws -> UUID {
+            try vm.applyEntryEdit(
+                .createEntry(parentGroupID: rootGroupID, draft: EntryDraftPayload(title: title, url: url))
+            )
+            return try XCTUnwrap(vm.visibleRootGroup?.allEntries.first { $0.title == title }?.id)
+        }
+
+        let publicSite = try entryID(url: "https://example.com/login", title: "Public")
+        XCTAssertTrue(vm.canDownloadFavicon(forEntryID: publicSite))
+
+        for (url, title) in [
+            ("", "No URL"),
+            ("http://localhost:8080", "Localhost"),
+            ("https://192.168.1.10", "Private IP"),
+            ("https://nas.local", "Private TLD"),
+        ] {
+            let id = try entryID(url: url, title: title)
+            XCTAssertFalse(
+                vm.canDownloadFavicon(forEntryID: id),
+                "\(title) names no host a favicon service could be asked about"
+            )
+            do {
+                try await vm.downloadFavicon(forEntryID: id)
+                XCTFail("\(title) must fail before any network call")
+            } catch {
+                XCTAssertEqual(error as? DatabaseViewModel.FaviconDownloadFailure, .noPublicDomain)
+            }
+        }
+    }
+
     private func makeViewModelWithEditedEntry() async throws -> (
         vm: DatabaseViewModel, entryID: UUID, originalUsername: String, historyCountBefore: Int
     ) {
