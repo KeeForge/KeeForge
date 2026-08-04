@@ -21,6 +21,10 @@ TODO before the first macOS release:
 
 ## Unreleased
 
+### Fixes
+
+- Browse every credential from the AutoFill picker. On a site KeeForge cannot match, the picker used to open on a search it had pre-filled with the site's address and, finding nothing, report "No Credentials Found" — leaving the rest of the database reachable only by clearing a search field you never typed into. It now offers "Show All Credentials", both in that empty state and below a short list of matches, which drops the filter and lists everything you can fill. The same action appears in the verification-code picker.
+
 ## v1.12.0 (2026-08-02)
 
 ### New Features

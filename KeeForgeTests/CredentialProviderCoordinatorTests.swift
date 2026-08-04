@@ -518,6 +518,55 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
         assertCleanedUp(coordinator)
     }
 
+    /// The picker narrows to the matches, but the rest of the TOTP corpus has
+    /// to stay reachable behind "Show All Credentials" — which the view only
+    /// offers when `searchEntries` is wider than what is listed.
+    func test_otcList_multipleMatches_keepsUnrelatedTOTPEntriesInSearchCorpus() throws {
+        guard #available(iOS 18.0, macOS 15.0, *) else {
+            throw XCTSkip("One-time-code requests require iOS 18 / macOS 15")
+        }
+
+        let (coordinator, presenter) = makeCoordinator()
+        let sessionKey = SymmetricKey(size: .bits256)
+        let secret = try EncryptedValue.encrypt("JBSWY3DPEHPK3PXP", using: sessionKey)
+        let workMatch = KPEntry(
+            title: "GitHub Work",
+            url: "https://github.com",
+            totpConfig: TOTPConfig(secret: secret)
+        )
+        let personalMatch = KPEntry(
+            title: "GitHub Personal",
+            url: "https://github.com",
+            totpConfig: TOTPConfig(secret: secret)
+        )
+        let unrelated = KPEntry(
+            title: "Bank",
+            url: "https://bank.example",
+            totpConfig: TOTPConfig(secret: secret)
+        )
+
+        coordinator.prepareOneTimeCodeCredentialList(for: [githubServiceIdentifier()])
+        seedUnlockedVaultState(
+            coordinator,
+            entries: [workMatch, personalMatch, unrelated],
+            sessionKey: sessionKey
+        )
+
+        coordinator.presentOTCMatchesOrFinish()
+
+        let searchView = try XCTUnwrap(presenter.searchView, "Multiple matches must present the picker")
+        XCTAssertEqual(
+            searchView.entries.map(\.title).sorted(),
+            ["GitHub Personal", "GitHub Work"],
+            "Only the matches belong in the listed set"
+        )
+        XCTAssertEqual(
+            searchView.searchEntries.map(\.title).sorted(),
+            ["Bank", "GitHub Personal", "GitHub Work"],
+            "The unrelated TOTP entry must stay reachable through search and Show All"
+        )
+    }
+
     func test_otcList_noTOTPEntries_cancelsWithCredentialIdentityNotFound() throws {
         guard #available(iOS 18.0, macOS 15.0, *) else {
             throw XCTSkip("One-time-code requests require iOS 18 / macOS 15")
