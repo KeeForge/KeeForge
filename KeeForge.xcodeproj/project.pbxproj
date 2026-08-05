@@ -302,6 +302,7 @@
 		81234DB453AFE697C39405B0 /* EncryptedValueTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FEDEBBDC91EBD1B2FBB3716B /* EncryptedValueTests.swift */; };
 		815FA2A737B45D4FB36F1DEA /* unknown-inner-header.kdbx in Resources */ = {isa = PBXBuildFile; fileRef = F8CDC58A04801FC931A9706B /* unknown-inner-header.kdbx */; };
 		81770A3091FFDA100CCA01BA /* PasskeyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B8F8B108FB789996AD3C0BD /* PasskeyTests.swift */; };
+		819C2FD08213AA19F9AABE95 /* AutoFillMemoryLimit.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47CCBDF8ED23DD32B45AD2C3 /* AutoFillMemoryLimit.swift */; };
 		81AF01EE09EF23EEDE28DB5F /* FaviconService.swift in Sources */ = {isa = PBXBuildFile; fileRef = EBF4936791DF8FD3F2E5B144 /* FaviconService.swift */; };
 		81F4C4E02760EC3153431478 /* CredentialIdentityStoreManagerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CF40C9649E6870C49081C9C0 /* CredentialIdentityStoreManagerTests.swift */; };
 		81FEDC895186F981C9E599C5 /* CredentialMatcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB8B2C6F3F5C2509AC462D87 /* CredentialMatcher.swift */; };
@@ -329,9 +330,11 @@
 		8CBE8DF70368FAE59565D6D2 /* WebDAVClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = F265178D41B43F55813C70AD /* WebDAVClient.swift */; };
 		8D451C0FF02C60504FE778CC /* foreign-chacha20.kdbx in Resources */ = {isa = PBXBuildFile; fileRef = EF6FBD0976DB77F511EDBFFA /* foreign-chacha20.kdbx */; };
 		8E3B8C689D51A5AA273F6AF7 /* password-keyfile.kdbx in Resources */ = {isa = PBXBuildFile; fileRef = C28D00833DC5188EEBB34BE9 /* password-keyfile.kdbx */; };
+		8E54AEF7D995D0778431B77D /* AutoFillMemoryLimit.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47CCBDF8ED23DD32B45AD2C3 /* AutoFillMemoryLimit.swift */; };
 		8E99F20C4C299C88E89B34ED /* test-v1.key in Resources */ = {isa = PBXBuildFile; fileRef = 4C350259754DFA5D42D782A7 /* test-v1.key */; };
 		8EAB80EF201B8AE0EA7F865F /* EntryEdit.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0E36B86BDCAAD4E3C120428 /* EntryEdit.swift */; };
 		8F0FE540866A1995166D40ED /* DatabaseRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8DBB315683B9032E3301FD19 /* DatabaseRowView.swift */; };
+		905BA80573BBE56B2F44ACA0 /* AutoFillMemoryLimitTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA46D95A76DACF922DE02732 /* AutoFillMemoryLimitTests.swift */; };
 		90744D6CBDBAAE6F533052D5 /* DatabaseCreationUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9ECE57184BC7684A8E946B6 /* DatabaseCreationUITests.swift */; };
 		907989A3DF134C34062B1CA2 /* DatabaseOpenFailure.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA9143FF2DDC5D17637F0F7C /* DatabaseOpenFailure.swift */; };
 		90828EF7CD333ADC1E9481E2 /* KeychainServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7206D2706378C5AE8CD81A30 /* KeychainServiceTests.swift */; };
@@ -384,6 +387,7 @@
 		A4965719DE4433346A5EF843 /* CloudProviderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 70041C9E76CC7196DFCB5AE1 /* CloudProviderTests.swift */; };
 		A5BFF2A90A55B2DCA322D1EB /* OpaqueXMLNodes.swift in Sources */ = {isa = PBXBuildFile; fileRef = E83812EEBF6C270EDFBA5E90 /* OpaqueXMLNodes.swift */; };
 		A65B92FF831C88C93F890C88 /* SecurityScopedBookmarkManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA3FF6C98ADE49FE6BDB7B6D /* SecurityScopedBookmarkManager.swift */; };
+		A8C0C2410A1450B0C670BD73 /* AutoFillMemoryLimit.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47CCBDF8ED23DD32B45AD2C3 /* AutoFillMemoryLimit.swift */; };
 		A8D463BF4266378018AA0DDF /* GroupIconPickerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5156505659451A95FA358AA9 /* GroupIconPickerView.swift */; };
 		A91E8FC4271F8638EA091F79 /* KDBXOuterCipher.swift in Sources */ = {isa = PBXBuildFile; fileRef = CF9F4F443BDAB986A5BF03E8 /* KDBXOuterCipher.swift */; };
 		A9372B7A678C99EF8A54C687 /* PasswordGeneratorSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2EFC7C32376B08C5FA4229D9 /* PasswordGeneratorSheet.swift */; };
@@ -545,6 +549,7 @@
 		E60416895805E16DEF217A8F /* KDBXCompatibilityTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1F996FD4C85163E8005264E /* KDBXCompatibilityTests.swift */; };
 		E6DE92BF4AF8F01D671B9329 /* BiometricService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1C17D7E75C6066F4A179AB5F /* BiometricService.swift */; };
 		E71096533AC4FD4261EE3626 /* SecurityScopedBookmarkManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA3FF6C98ADE49FE6BDB7B6D /* SecurityScopedBookmarkManager.swift */; };
+		E73853973D59D67A8ECCA23D /* AutoFillMemoryLimit.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47CCBDF8ED23DD32B45AD2C3 /* AutoFillMemoryLimit.swift */; };
 		E74C80CC00040B23E68289C6 /* InfoPlist.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = ECCFEAA0C574981A7B48A938 /* InfoPlist.xcstrings */; };
 		E77BF5F41D48BD25D55204A9 /* ReviewPromptServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE7654CB864A7BECF13483C8 /* ReviewPromptServiceTests.swift */; };
 		E89BAD8C65517A1F8C13E3C3 /* OneDriveCloudProviderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5335012167FBEBF40FE67EC7 /* OneDriveCloudProviderTests.swift */; };
@@ -600,6 +605,7 @@
 		FCEE74CBFEA2F9F327E4140E /* KDBXCompatibilityTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1F996FD4C85163E8005264E /* KDBXCompatibilityTests.swift */; };
 		FD486340D4D2647E4B1468C9 /* GroupEditView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 46901E5630D76E1EAAA1AD82 /* GroupEditView.swift */; };
 		FD74E090AFCDCDA19FDD6F6F /* LocalDatabaseSaverTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B514D9E533F3FF2EB1978959 /* LocalDatabaseSaverTests.swift */; };
+		FD95284FF8B33DE9822F502C /* AutoFillMemoryLimitTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA46D95A76DACF922DE02732 /* AutoFillMemoryLimitTests.swift */; };
 		FDBD03B9D2BB684099B37B82 /* AttachmentQuickLookPreview.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6AA206874A10ED8FC3270063 /* AttachmentQuickLookPreview.swift */; };
 		FDD8325D11F3007AF254C73A /* MacUITestCase.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE3F7365E8B09C1E10D9EEBA /* MacUITestCase.swift */; };
 		FDFC95EE0B0F5AE1842EC0D0 /* PasswordStrengthEstimator.swift in Sources */ = {isa = PBXBuildFile; fileRef = D110757CD127D7FD4DA8F9AB /* PasswordStrengthEstimator.swift */; };
@@ -748,6 +754,7 @@
 		43638A44681D59420BAF6F8A /* SettingsServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsServiceTests.swift; sourceTree = "<group>"; };
 		44E0A599916DAE57D4D11320 /* SettingsService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsService.swift; sourceTree = "<group>"; };
 		46901E5630D76E1EAAA1AD82 /* GroupEditView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GroupEditView.swift; sourceTree = "<group>"; };
+		47CCBDF8ED23DD32B45AD2C3 /* AutoFillMemoryLimit.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AutoFillMemoryLimit.swift; sourceTree = "<group>"; };
 		4A15836C142BB997DA70F8FE /* KeeForgeUITestCase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeeForgeUITestCase.swift; sourceTree = "<group>"; };
 		4B393A7DB556210E94C0F3A2 /* AppStoreScreenshots.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppStoreScreenshots.swift; sourceTree = "<group>"; };
 		4C350259754DFA5D42D782A7 /* test-v1.key */ = {isa = PBXFileReference; path = "test-v1.key"; sourceTree = "<group>"; };
@@ -883,6 +890,7 @@
 		C303F1BB7603F55869127E7A /* StoreKitManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoreKitManager.swift; sourceTree = "<group>"; };
 		C3331E675A8FD23ED5D8D11D /* KeeForgeMac.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = KeeForgeMac.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		C412174AA21900D65A646A54 /* AutoFillPasskeyCreatorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AutoFillPasskeyCreatorView.swift; sourceTree = "<group>"; };
+		CA46D95A76DACF922DE02732 /* AutoFillMemoryLimitTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AutoFillMemoryLimitTests.swift; sourceTree = "<group>"; };
 		CB23E9DACF5061CA2446BD8B /* KeeForgeMacUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = KeeForgeMacUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		CC56D360DC62F07E5B3C8C71 /* TagListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TagListView.swift; sourceTree = "<group>"; };
 		CE7654CB864A7BECF13483C8 /* ReviewPromptServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReviewPromptServiceTests.swift; sourceTree = "<group>"; };
@@ -1250,6 +1258,7 @@
 			isa = PBXGroup;
 			children = (
 				F47550A37356BE818BDA98C1 /* AutoFillIdentityStoreFallbackReader.swift */,
+				47CCBDF8ED23DD32B45AD2C3 /* AutoFillMemoryLimit.swift */,
 				553C63DEBDFFD48E4FC4646E /* AutoFillSaveCoordinator.swift */,
 				280C8E252110A0DEC3BE5283 /* CredentialIdentityStoreManager.swift */,
 				AB8B2C6F3F5C2509AC462D87 /* CredentialMatcher.swift */,
@@ -1351,6 +1360,7 @@
 				52E6959E8F9A249BED612C30 /* AttachmentPreviewFileStoreTests.swift */,
 				914A4E61567B1123BF9E137E /* AttachmentTests.swift */,
 				3F93ABE2FAD9E2ACEED17C73 /* AutoFillIdentityStoreFallbackReaderTests.swift */,
+				CA46D95A76DACF922DE02732 /* AutoFillMemoryLimitTests.swift */,
 				2BFDB1A93AED371325A651F2 /* AutoFillStatusServiceTests.swift */,
 				149DB5F58CEC322A5B078635 /* AutoFillStoreInspectorGroupingTests.swift */,
 				6A60D769EF54ACAE8FAFEC73 /* AutoLockTests.swift */,
@@ -1931,6 +1941,7 @@
 				76030E2242827E28EB898A0B /* Attachment.swift in Sources */,
 				BDA2F1A9970A30F3D6E05AB6 /* AutoFillEntryCreatorView.swift in Sources */,
 				4AEDC15F5C9B1A173996FFAA /* AutoFillIdentityStoreFallbackReader.swift in Sources */,
+				8E54AEF7D995D0778431B77D /* AutoFillMemoryLimit.swift in Sources */,
 				7088E67D3FBF351954CD70F2 /* AutoFillPasskeyCreatorView.swift in Sources */,
 				0C90D211537483D4DCFB9977 /* AutoFillSaveCoordinator.swift in Sources */,
 				207C6503A89DD512BBA1D567 /* AutoFillSearchView.swift in Sources */,
@@ -1988,6 +1999,7 @@
 				BE63D4766D1B8C6372F1DFD4 /* AttachmentPreviewFileStoreTests.swift in Sources */,
 				E2F7F325220AD98CB6287A1B /* AttachmentTests.swift in Sources */,
 				B707DF17183CE6A4182CAFD4 /* AutoFillIdentityStoreFallbackReaderTests.swift in Sources */,
+				FD95284FF8B33DE9822F502C /* AutoFillMemoryLimitTests.swift in Sources */,
 				03C0392B0DD10CAF15FBB775 /* AutoFillStatusServiceTests.swift in Sources */,
 				04421AEC9D8A96A6A75F82C9 /* AutoFillStoreInspectorGroupingTests.swift in Sources */,
 				AC3A4F535475A40584132682 /* AutoLockTests.swift in Sources */,
@@ -2074,6 +2086,7 @@
 				FDBD03B9D2BB684099B37B82 /* AttachmentQuickLookPreview.swift in Sources */,
 				25FD5DA5969B1E92337B3978 /* AttachmentsSection.swift in Sources */,
 				26A8C10FD0B6CA2D73F96EF9 /* AutoFillIdentityStoreFallbackReader.swift in Sources */,
+				819C2FD08213AA19F9AABE95 /* AutoFillMemoryLimit.swift in Sources */,
 				B2A91F68506A350FD57ED6F5 /* AutoFillSaveCoordinator.swift in Sources */,
 				AE1CEDC7D97DAB90D13FA107 /* AutoFillSearchView.swift in Sources */,
 				7218E4538790C568C5A4AF19 /* AutoFillStatusService.swift in Sources */,
@@ -2198,6 +2211,7 @@
 				0872A78E6214B60FA91F0194 /* AttachmentQuickLookPreview.swift in Sources */,
 				BEF88171E411A4C7A9C46EE4 /* AttachmentsSection.swift in Sources */,
 				D0777741EE71219235CD4300 /* AutoFillIdentityStoreFallbackReader.swift in Sources */,
+				A8C0C2410A1450B0C670BD73 /* AutoFillMemoryLimit.swift in Sources */,
 				92642556D147F42B985AC642 /* AutoFillSaveCoordinator.swift in Sources */,
 				7F61686D97496F8187B577BF /* AutoFillStatusService.swift in Sources */,
 				25384419834AB6CC264C05FC /* AutoFillStoreInspectorModel.swift in Sources */,
@@ -2344,6 +2358,7 @@
 				96DD7C9A30EB3A4A738D3FC1 /* AttachmentPreviewFileStoreTests.swift in Sources */,
 				DC3FCA0215FE945B20266FE3 /* AttachmentTests.swift in Sources */,
 				21271BD5D8DCC0672B875273 /* AutoFillIdentityStoreFallbackReaderTests.swift in Sources */,
+				905BA80573BBE56B2F44ACA0 /* AutoFillMemoryLimitTests.swift in Sources */,
 				0E00E166755E9935BA8C31C4 /* AutoFillStatusServiceTests.swift in Sources */,
 				259148A788E9ADCD6DB573A1 /* AutoFillStoreInspectorGroupingTests.swift in Sources */,
 				593F3597EC5E308BE2BA67BC /* AutoLockTests.swift in Sources */,
@@ -2439,6 +2454,7 @@
 				9D4573ED84B3C93122BFD4BA /* Attachment.swift in Sources */,
 				5824A096CA626030F971EC2C /* AutoFillEntryCreatorView.swift in Sources */,
 				37DA7E7AC00E75955E6BB349 /* AutoFillIdentityStoreFallbackReader.swift in Sources */,
+				E73853973D59D67A8ECCA23D /* AutoFillMemoryLimit.swift in Sources */,
 				69EABF460EA05DB06C9E210E /* AutoFillPasskeyCreatorView.swift in Sources */,
 				664A0B0C848B0867E1705FE8 /* AutoFillSaveCoordinator.swift in Sources */,
 				3C24F70C9805D197748349DF /* AutoFillSearchView.swift in Sources */,

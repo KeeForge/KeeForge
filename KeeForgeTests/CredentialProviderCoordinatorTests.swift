@@ -1633,6 +1633,75 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
         XCTAssertEqual(scenario.coordinator.pendingSwitchSearchText, "typed", "The stash is untouched until a search presents")
     }
 
+    // MARK: - Extension memory budget (issue #57)
+
+    /// A database whose Argon2 memory exceeds the extension's budget must fail
+    /// with an explanation. Without the pre-flight the allocation kills the
+    /// process instead, which is what the reporter saw: AutoFill doing nothing
+    /// at all while the same vault opened fine in the app.
+    func test_unlockOverBudgetDatabase_surfacesTheLimitInsteadOfDerivingTheKey() async throws {
+        let (coordinator, presenter) = makeCoordinator()
+        let database = try seedResolvableDefaultDatabase()
+        let fixtureData = try Data(
+            contentsOf: TestDatabaseSupport.fixtureURL(named: "test", bundle: Bundle(for: Self.self))
+        )
+        try DatabaseListStore.cacheDatabaseCopy(fixtureData, for: database)
+
+        // The fixture's header declares 64 MiB of Argon2 memory, which Argon2
+        // takes as one allocation, so a budget below that cannot cover it.
+        let budget: UInt64 = 32 * 1024 * 1024
+        coordinator.memoryBudgetOverride = budget
+
+        coordinator.prepareCredentialList(for: [githubServiceIdentifier()])
+        presenter.isPresentationActive = true
+        coordinator.presentationDidBecomeActive()
+        let prompt = try XCTUnwrap(presenter.unlockPrompt)
+
+        let errorPresented = expectation(description: "unlock error presented")
+        presenter.onUnlockErrorPresented = { errorPresented.fulfill() }
+        prompt.onSubmitPassword("testpassword123")
+        await fulfillment(of: [errorPresented], timeout: 10)
+
+        let expectedFailure = AutoFillMemoryLimit.BudgetExceeded(
+            requiredBytes: 64 * 1024 * 1024,
+            availableBytes: budget
+        )
+        XCTAssertEqual(presenter.unlockError?.message, expectedFailure.errorDescription)
+        XCTAssertNil(presenter.searchView, "The vault must not open")
+        XCTAssertNil(coordinator.sessionKey, "The pre-flight runs before any vault state exists")
+    }
+
+    /// The correct password against the same fixture still opens once the
+    /// budget covers it — the guard must not become a blanket refusal.
+    func test_unlockWithinBudget_proceedsNormally() async throws {
+        let (coordinator, presenter) = makeCoordinator()
+        let database = try seedResolvableDefaultDatabase()
+        let fixtureData = try Data(
+            contentsOf: TestDatabaseSupport.fixtureURL(named: "test", bundle: Bundle(for: Self.self))
+        )
+        try DatabaseListStore.cacheDatabaseCopy(fixtureData, for: database)
+
+        coordinator.memoryBudgetOverride = 512 * 1024 * 1024
+
+        coordinator.prepareCredentialList(
+            for: [ASCredentialServiceIdentifier(identifier: "no-such-service.example", type: .domain)]
+        )
+        presenter.isPresentationActive = true
+        coordinator.presentationDidBecomeActive()
+        let prompt = try XCTUnwrap(presenter.unlockPrompt)
+
+        let searchPresented = expectation(description: "search view presented")
+        presenter.onSearchViewPresented = { searchPresented.fulfill() }
+        presenter.onUnlockErrorPresented = {
+            XCTFail("Unlock must succeed: \(presenter.unlockError?.message ?? "unknown error")")
+        }
+
+        prompt.onSubmitPassword("testpassword123")
+        await fulfillment(of: [searchPresented], timeout: 60)
+
+        XCTAssertFalse(try XCTUnwrap(presenter.searchView).searchEntries.isEmpty)
+    }
+
     // MARK: - Copy verification code on AutoFill (issue #23)
 
     #if os(iOS)

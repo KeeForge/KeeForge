@@ -230,6 +230,10 @@ final class CredentialProviderCoordinator {
     /// Suspends unlock in coordinator tests so cancellation can be verified
     /// without invoking a real biometric prompt or parsing a fixture.
     var unlockWorkOverride: (@MainActor () async throws -> Void)?
+
+    /// Stands in for the process's remaining memory so tests can drive the
+    /// pre-flight in `loadEntries` without a device under real pressure.
+    var memoryBudgetOverride: UInt64?
     #endif
 
     #if os(iOS)
@@ -1259,6 +1263,10 @@ final class CredentialProviderCoordinator {
         generation: Int
     ) async throws {
         let data = try loadDatabaseData(for: databaseReference)
+        try AutoFillMemoryLimit.check(
+            summary: KDBXFileSummary.inspect(data: data),
+            remainingBytes: remainingMemoryBytes
+        )
         let key = SymmetricKey(size: .bits256)
 
         let parsed = try await Task.detached {
@@ -1284,6 +1292,15 @@ final class CredentialProviderCoordinator {
             excludingGroupID: parsed.rootGroup.recycleBinUUID
         )
         parsedEntries = offerableEntries.filter { $0.hasPassword || $0.hasPasskey || $0.hasTOTP }
+    }
+
+    private var remainingMemoryBytes: UInt64 {
+        #if DEBUG
+        if let memoryBudgetOverride {
+            return memoryBudgetOverride
+        }
+        #endif
+        return AutoFillMemoryLimit.remainingBytes()
     }
 
     private func loadDatabaseData(for databaseReference: DatabaseReference) throws -> Data {

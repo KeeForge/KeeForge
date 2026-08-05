@@ -12671,6 +12671,34 @@
         }
       }
     },
+    "This database needs about %@ of memory to unlock, more than the %@ AutoFill is allowed to use. Open the entry in the KeeForge app, or lower the database's Argon2 memory setting in a desktop KeePass app." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Diese Datenbank benötigt zum Entsperren etwa %1$@ Arbeitsspeicher — mehr als die %2$@, die AutoFill verwenden darf. Öffnen Sie den Eintrag in der KeeForge-App oder verringern Sie die Argon2-Speichereinstellung der Datenbank in einer KeePass-App für den Computer."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "This database needs about %1$@ of memory to unlock, more than the %2$@ AutoFill is allowed to use. Open the entry in the KeeForge app, or lower the database's Argon2 memory setting in a desktop KeePass app."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Esta base de datos necesita unos %1$@ de memoria para desbloquearse, más de los %2$@ que AutoFill puede usar. Abra la entrada en la app KeeForge, o reduzca el ajuste de memoria Argon2 de la base de datos en una app KeePass de escritorio."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cette base de données a besoin d’environ %1$@ de mémoire pour être déverrouillée, soit plus que les %2$@ autorisés pour AutoFill. Ouvrez l’entrée dans l’app KeeForge, ou réduisez le réglage de mémoire Argon2 de la base de données dans une app KeePass pour ordinateur."
+          }
+        }
+      }
+    },
     "This database uses a KeePass format that KeeForge does not support yet." : {
       "localizations" : {
         "de" : {
