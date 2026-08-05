@@ -28,6 +28,7 @@ TODO before the first macOS release:
 ### Fixes
 
 - Browse every credential from the AutoFill picker. On a site KeeForge cannot match, the picker used to open on a search it had pre-filled with the site's address and, finding nothing, report "No Credentials Found" — leaving the rest of the database reachable only by clearing a search field you never typed into. It now offers "Show All Credentials", both in that empty state and below a short list of matches, which drops the filter and lists everything you can fill. The same action appears in the verification-code picker.
+- AutoFill now explains itself instead of going quiet on a database with very heavy encryption settings (#57). AutoFill extensions are allowed only a fraction of the memory the app gets, and a database configured with a large Argon2 memory setting used up that whole allowance while deriving the key — iOS shut the extension down mid-unlock, so picking KeeForge from the keyboard appeared to do nothing at all, even though the same database opened normally in the app. KeeForge now reads the database's key-derivation settings, which are stored unencrypted and can be checked before any unlocking starts, and shows how much memory the database needs against how much AutoFill has, so the fix — opening the entry in the app, or lowering the database's Argon2 memory in a desktop KeePass app — is visible instead of guesswork.
 
 ## v1.12.0 (2026-08-02)
 
