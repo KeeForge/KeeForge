@@ -10,15 +10,12 @@ name: PR Tests
 # teardown never fails a green run. Scope is unit tests only (KeeForgeTests);
 # UI tests remain release-gated via rc/* tags.
 #
-# release/** is included so fixes PR'd into a live release branch during its
-# TestFlight soak get the same gate as main. Both ref patterns are covered by
-# repository rulesets requiring this job's `unit-tests` check.
+# No base-branch filter: stacked pull requests target the branch below them
+# in the stack, not main, and they need this gate too. The main and release/**
+# rulesets require this job's `unit-tests` check.
 
 on:
   pull_request:
-    branches:
-      - main
-      - 'release/**'
 
 concurrency:
   group: pr-tests-${{ github.ref }}
