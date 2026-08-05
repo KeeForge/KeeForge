@@ -636,6 +636,66 @@ final class DatabaseViewModelTests: XCTestCase {
         XCTAssertEqual(vm.group(withID: group.id)?.lastModificationTime, modificationTimeBefore)
     }
 
+    func testSettingEntryIconAppliesToTheEntry() async throws {
+        let vm = try makeViewModel()
+        await vm.unlock(password: fixturePassword)
+
+        let entry = try XCTUnwrap(vm.visibleRootGroup?.allEntries.first)
+        XCTAssertNotEqual(entry.iconID, 37)
+
+        try vm.setEntryIcon(.standard(iconID: 37), entryID: entry.id)
+
+        XCTAssertEqual(vm.entry(withID: entry.id)?.iconID, 37)
+        XCTAssertTrue(vm.isDirty)
+    }
+
+    /// Same reason `setGroupIcon` screens the index: KDBX writes `<IconID>` as a
+    /// bare integer, so an index with no glyph is persisted happily and then
+    /// rendered as whatever fallback each client picks.
+    func testSettingEntryIconIgnoresIndexesOutsideTheStandardSet() async throws {
+        let vm = try makeViewModel()
+        await vm.unlock(password: fixturePassword)
+
+        let entry = try XCTUnwrap(vm.visibleRootGroup?.allEntries.first)
+        let originalIconID = entry.iconID
+
+        try vm.setEntryIcon(.standard(iconID: 69), entryID: entry.id)
+        try vm.setEntryIcon(.standard(iconID: -1), entryID: entry.id)
+        try vm.setEntryIcon(.standard(iconID: Int.max), entryID: entry.id)
+
+        XCTAssertEqual(vm.entry(withID: entry.id)?.iconID, originalIconID)
+        XCTAssertFalse(vm.isDirty)
+    }
+
+    /// A `<CustomIconUUID>` that resolves to nothing renders as each client's own
+    /// fallback, which is a worse outcome than leaving the icon the entry has.
+    func testSettingEntryIconIgnoresACustomIconTheDatabaseDoesNotDefine() async throws {
+        let vm = try makeViewModel()
+        await vm.unlock(password: fixturePassword)
+
+        let entry = try XCTUnwrap(vm.visibleRootGroup?.allEntries.first)
+
+        try vm.setEntryIcon(.custom(uuid: UUID()), entryID: entry.id)
+
+        XCTAssertNil(vm.entry(withID: entry.id)?.customIconUUID)
+        XCTAssertFalse(vm.isDirty)
+    }
+
+    /// Re-picking the icon an entry already shows would otherwise cost a full
+    /// re-encrypt, a save, and a history version for no visible change.
+    func testSettingEntryIconToTheCurrentIconIsANoOp() async throws {
+        let vm = try makeViewModel()
+        await vm.unlock(password: fixturePassword)
+
+        let entry = try XCTUnwrap(vm.visibleRootGroup?.allEntries.first)
+        let historyCountBefore = entry.history.count
+
+        try vm.setEntryIcon(.standard(iconID: entry.iconID), entryID: entry.id)
+
+        XCTAssertEqual(vm.entry(withID: entry.id)?.history.count, historyCountBefore)
+        XCTAssertFalse(vm.isDirty)
+    }
+
     private func makeViewModelWithEditedEntry() async throws -> (
         vm: DatabaseViewModel, entryID: UUID, originalUsername: String, historyCountBefore: Int
     ) {

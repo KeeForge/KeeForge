@@ -110,6 +110,8 @@ struct DatabaseDraft: Sendable {
             updatedState = try applySetGroupSearchingEnabled(groupID: groupID, value: value.modelValue)
         case .setGroupIcon(let groupID, let iconID):
             updatedState = try applySetGroupIcon(groupID: groupID, iconID: iconID)
+        case .setEntryIcon(let entryID, let icon):
+            updatedState = try applySetEntryIcon(entryID: entryID, icon: icon)
         case .updateGroup(let groupID, let draft):
             updatedState = try applyUpdateGroup(groupID: groupID, draft: draft)
         case .restoreEntryVersion(let entryID, let historyIndex):
@@ -261,6 +263,71 @@ struct DatabaseDraft: Sendable {
                 recycleBinUUID: group.recycleBinUUID,
                 unknownXML: unknownXML
             )
+        }
+
+        return (updatedRootGroup, currentMetaStorage)
+    }
+
+    /// Where a `<CustomIconUUID>` fragment has to sit to be written directly
+    /// after `<IconID>`, expressed in the opaque-XML position space.
+    ///
+    /// Two structured children precede it — `<UUID>` and `<IconID>` — but a
+    /// parsable `<Binary>` advances that space too while *not* advancing the
+    /// anchor `KPAttachment.insertionIndex` is expressed against, so an entry
+    /// whose source interleaved attachments that early shifts everything after
+    /// them. Counting those slots is what keeps this in step with
+    /// `KDBXXMLSerializer.serializeEntry`; a fixed 2 writes the element ahead of
+    /// `<IconID>` on exactly those entries.
+    private static func customIconUUIDInsertionIndex(for entry: KPEntry) -> Int {
+        let structuredChildrenBefore = 2
+        let attachmentsBefore = entry.attachments.count { $0.insertionIndex < structuredChildrenBefore }
+        return structuredChildrenBefore + attachmentsBefore
+    }
+
+    /// Changes which icon an entry displays.
+    ///
+    /// Both selections are expressed in the preserved XML, because that is the
+    /// only place `<CustomIconUUID>` lives — the serializer never writes one
+    /// structurally, so a display copy alone would be dropped on the next save.
+    /// A standard icon therefore removes the element the way the group edit
+    /// does, and a custom one replaces it.
+    ///
+    /// Pushes a history version like every other entry edit, so an icon change
+    /// is undoable from the history viewer and matches what other clients record.
+    private func applySetEntryIcon(
+        entryID: UUID,
+        icon: EntryIconSelection
+    ) throws -> (rootGroup: KPGroup, meta: KPMeta) {
+        guard let entryLocation = findEntryLocation(entryID: entryID, in: currentRootGroupStorage) else {
+            throw DraftError.entryNotFound(entryID)
+        }
+
+        let originalEntry = entryLocation.entry
+        var updatedEntry = originalEntry
+        updatedEntry.history = trimmedHistory(
+            appending: originalEntry.cloneForHistory(),
+            existing: originalEntry.history,
+            meta: currentMetaStorage
+        )
+        updatedEntry.lastModificationTime = Date.now
+        updatedEntry.unknownXML.removeDirectChildren(named: "CustomIconUUID")
+
+        switch icon {
+        case .standard(let iconID):
+            updatedEntry.iconID = iconID
+            updatedEntry.customIconUUID = nil
+        case .custom(let uuid):
+            updatedEntry.customIconUUID = uuid
+            updatedEntry.unknownXML.append(
+                xml: "<CustomIconUUID>\(uuid.kdbxBase64String)</CustomIconUUID>",
+                insertionIndex: Self.customIconUUIDInsertionIndex(for: originalEntry)
+            )
+        }
+
+        let updatedRootGroup = try rebuildGroup(in: currentRootGroupStorage, targetPath: entryLocation.groupPath[...]) { group in
+            var updatedEntries = group.entries
+            updatedEntries[entryLocation.entryIndex] = updatedEntry
+            return copyGroup(group, entries: updatedEntries)
         }
 
         return (updatedRootGroup, currentMetaStorage)

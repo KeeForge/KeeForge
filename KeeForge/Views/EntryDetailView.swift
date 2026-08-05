@@ -30,6 +30,7 @@ struct EntryDetailView: View {
     /// `dismiss()` would pop one navigation level.
     @State private var hasFinishedClosing = false
     @State private var isShowingHistory = false
+    @State private var isShowingIconPicker = false
 
     /// Clears the regular shells' selection and pops this screen, at most once.
     private func finishClose() {
@@ -43,6 +44,55 @@ struct EntryDetailView: View {
 
     private var entry: KPEntry? {
         viewModel.entry(withID: entryID)
+    }
+
+    /// What the entry displays today, which is what the picker opens on. A
+    /// `<CustomIconUUID>` outranks `<IconID>` in KeePass, so the custom icon
+    /// wins here for the same reason it wins on screen.
+    private static func iconSelection(of entry: KPEntry) -> EntryIconSelection {
+        if let uuid = entry.customIconUUID {
+            return .custom(uuid: uuid)
+        }
+        return .standard(iconID: entry.iconID)
+    }
+
+    /// The entry's icon, opening the picker when the database can take the edit.
+    ///
+    /// Read-only databases render the same icon as a plain image: a button that
+    /// only ever reports "this database is read-only" is a worse answer than not
+    /// offering the affordance.
+    @ViewBuilder
+    private func iconButton(for entry: KPEntry) -> some View {
+        let icon = FaviconView(
+            url: entry.url,
+            iconID: entry.iconID,
+            size: 40,
+            customIconData: viewModel.customIconData(for: entry)
+        )
+
+        if viewModel.isReadOnly {
+            icon
+        } else {
+            Button {
+                isShowingIconPicker = true
+            } label: {
+                icon
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("entry-detail.icon-button")
+            .accessibilityLabel("Icon")
+        }
+    }
+
+    private func changeEntryIcon(_ icon: EntryIconSelection) {
+        do {
+            try viewModel.setEntryIcon(icon, entryID: entryID)
+            Task {
+                await viewModel.saveHandlingError()
+            }
+        } catch {
+            viewModel.presentSaveError(error)
+        }
     }
 
     private var sessionKey: SymmetricKey? {
@@ -65,12 +115,7 @@ struct EntryDetailView: View {
                 List {
                     Section {
                         HStack {
-                            FaviconView(
-                                url: entry.url,
-                                iconID: entry.iconID,
-                                size: 40,
-                                customIconData: viewModel.customIconData(for: entry)
-                            )
+                            iconButton(for: entry)
                             Text(entry.title.isEmpty ? String(localized: "(untitled)") : entry.title)
                                 .font(.title2.bold())
                         }
@@ -219,6 +264,15 @@ struct EntryDetailView: View {
                 }
                 .sheet(isPresented: $isShowingHistory) {
                     EntryHistoryView(entryID: entryID, viewModel: viewModel)
+                }
+                .sheet(isPresented: $isShowingIconPicker) {
+                    EntryIconPickerView(
+                        entryTitle: entry.title,
+                        selection: Self.iconSelection(of: entry),
+                        customIcons: viewModel.customIcons
+                    ) { icon in
+                        changeEntryIcon(icon)
+                    }
                 }
             } else {
                 ContentUnavailableView(
