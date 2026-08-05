@@ -107,6 +107,18 @@ struct GroupDraftPayload: Codable, Sendable, Equatable {
     }
 }
 
+/// Which icon an entry displays.
+///
+/// The two cases are the two things KDBX can store, and they are exclusive:
+/// `<CustomIconUUID>` outranks `<IconID>` in every client, so picking a standard
+/// icon has to clear the custom one rather than sit alongside it.
+enum EntryIconSelection: Codable, Sendable, Equatable {
+    case standard(iconID: Int)
+    /// Addresses an image the database already carries in `Meta/CustomIcons`.
+    /// Adding one is not modeled — that section is round-tripped verbatim.
+    case custom(uuid: UUID)
+}
+
 enum EntryEdit: Codable, Sendable, Equatable {
     case createEntry(parentGroupID: UUID, draft: EntryDraftPayload)
     case createGroup(parentGroupID: UUID, name: String)
@@ -115,6 +127,7 @@ enum EntryEdit: Codable, Sendable, Equatable {
     case deleteGroup(groupID: UUID, sendToRecycleBin: Bool)
     case setGroupSearchingEnabled(groupID: UUID, value: InheritableBoolPayload)
     case setGroupIcon(groupID: UUID, iconID: Int)
+    case setEntryIcon(entryID: UUID, icon: EntryIconSelection)
     case updateGroup(groupID: UUID, draft: GroupDraftPayload)
     /// Bring a stored `<History>` version back as the entry's current state.
     /// `historyIndex` addresses `KPEntry.history` in storage order, which KDBX

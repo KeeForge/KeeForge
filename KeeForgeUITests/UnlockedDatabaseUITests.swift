@@ -606,6 +606,72 @@ final class AppSettingsUITests: AppSettingsUITestCase {
     }
 }
 
+// Coverage for changing an entry's icon from the entry detail header.
+@MainActor
+final class EntryIconPickerUITests: UnlockedDatabaseUITestCase {
+    /// Round-trips the choice the way the group picker's test does: pick an icon,
+    /// reopen the picker and confirm that cell now reports itself as selected.
+    /// That only holds if the edit reached the entry in the draft and was read
+    /// back out, which is the wiring the unit tests cannot see.
+    func testChangingAnEntryIconMarksTheNewIconAsSelected() {
+        unlockSuccessfully()
+        openEntry(named: "Discord", inGroup: "Social")
+
+        openEntryIconPicker()
+        let icon = app.buttons["entry-icon-picker.standard.37"]
+        XCTAssertTrue(icon.waitForExistence(timeout: 5), "Icon picker did not present")
+        XCTAssertFalse(icon.isSelected, "Fixture entry should not already use icon 37")
+        tapElement(icon)
+
+        XCTAssertTrue(
+            icon.waitForNonExistence(timeout: 5),
+            "Picking an icon should dismiss the picker"
+        )
+
+        openEntryIconPicker()
+        let reopened = app.buttons["entry-icon-picker.standard.37"]
+        XCTAssertTrue(reopened.waitForExistence(timeout: 5), "Icon picker did not present again")
+        XCTAssertTrue(reopened.isSelected, "The chosen icon should come back marked as selected")
+    }
+
+    func testCancellingTheEntryIconPickerLeavesTheIconAlone() {
+        unlockSuccessfully()
+        openEntry(named: "Discord", inGroup: "Social")
+
+        openEntryIconPicker()
+        let icon = app.buttons["entry-icon-picker.standard.37"]
+        XCTAssertTrue(icon.waitForExistence(timeout: 5), "Icon picker did not present")
+        XCTAssertFalse(icon.isSelected, "Fixture entry should not already use icon 37")
+
+        let cancelButton = app.buttons["entry-icon-picker.cancel"]
+        XCTAssertTrue(cancelButton.waitForExistence(timeout: 5), "Cancel button was not visible")
+        tapElement(cancelButton)
+
+        openEntryIconPicker()
+        let reopened = app.buttons["entry-icon-picker.standard.37"]
+        XCTAssertTrue(reopened.waitForExistence(timeout: 5), "Icon picker did not present again")
+        XCTAssertFalse(reopened.isSelected, "Cancelling must not change the entry's icon")
+    }
+
+    private func openEntryIconPicker(file: StaticString = #filePath, line: UInt = #line) {
+        let iconButton = app.buttons["entry-detail.icon-button"].firstMatch
+        XCTAssertTrue(
+            revealElement(iconButton),
+            "Entry icon button was not visible",
+            file: file,
+            line: line
+        )
+        tapElement(iconButton)
+    }
+
+    private func openEntry(named entryName: String, inGroup groupName: String) {
+        if app.navigationBars[groupName].exists == false {
+            openGroup(named: groupName)
+        }
+        openEntry(named: entryName)
+    }
+}
+
 // Coverage for changing a group's icon from the group context menu.
 @MainActor
 final class GroupIconPickerUITests: UnlockedDatabaseUITestCase {

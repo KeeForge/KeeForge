@@ -542,11 +542,7 @@ struct KDBXXMLSerializer {
         guard let uuid else {
             return Data(repeating: 0, count: 16).base64EncodedString()
         }
-
-        var raw = uuid.uuid
-        return withUnsafeBytes(of: &raw) { bytes in
-            Data(bytes).base64EncodedString()
-        }
+        return uuid.kdbxBase64String
     }
 
     /// Seconds from Foundation's reference date (2001-01-01 UTC) to the KeePass

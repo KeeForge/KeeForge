@@ -28,6 +28,7 @@
 		087594118C4C8877C032E574 /* Argon2Swift in Frameworks */ = {isa = PBXBuildFile; productRef = FC84449470CDFBFCDFD519BB /* Argon2Swift */; };
 		08E9FCB1777A21ED0FF41DB4 /* AcknowledgmentsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 85EE32527319A5BEDE628232 /* AcknowledgmentsView.swift */; };
 		09362745917126AC3B21F167 /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = FC41BE38D387242D08AB7810 /* Localizable.xcstrings */; };
+		09B8CCD61A1FB2A184586C21 /* KDBXUUIDEncoding.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B46BE14C31F8101CBCFB9A5 /* KDBXUUIDEncoding.swift */; };
 		09FBAFFF781352378D9795B4 /* EntryEdit.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0E36B86BDCAAD4E3C120428 /* EntryEdit.swift */; };
 		0ABB90E3E16BDE2C9D2E0998 /* PendingUploadQueue.swift in Sources */ = {isa = PBXBuildFile; fileRef = E6B7062FC711FD8F8EA1BEE3 /* PendingUploadQueue.swift */; };
 		0AEFD1CCD9D0F4F9F069D5E5 /* DatabaseListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 88EB38F9BBED091894FDB7DE /* DatabaseListView.swift */; };
@@ -81,6 +82,7 @@
 		1E9386AAE54BC4C0D33B1F5B /* CredentialIdentityStoreManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 280C8E252110A0DEC3BE5283 /* CredentialIdentityStoreManager.swift */; };
 		1FA75E9BF4CCDE4BB34A5EE1 /* MacSmokeUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2AA6343D62E6D446EC5AD832 /* MacSmokeUITests.swift */; };
 		1FA80A53C3A5B065151DDDC3 /* MSAL in Frameworks */ = {isa = PBXBuildFile; productRef = 64B6830B629BBAC2E266834E /* MSAL */; };
+		1FAC98EB662B6FB205CEDB74 /* EntryIconPickerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 016823550E7F04D95BFB201E /* EntryIconPickerView.swift */; };
 		1FC2BE613C35E9359707D14E /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = FC41BE38D387242D08AB7810 /* Localizable.xcstrings */; };
 		1FF21BCE569E82D9BB9E0DD9 /* CloudFileBrowserView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8130C3F91180C3B88DF9EE9D /* CloudFileBrowserView.swift */; };
 		207C6503A89DD512BBA1D567 /* AutoFillSearchView.swift in Sources */ = {isa = PBXBuildFile; fileRef = ADAA5D103A016B02FDB65F56 /* AutoFillSearchView.swift */; };
@@ -220,6 +222,7 @@
 		598299941927D52B73BA73BE /* URLSchemeFormatTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 81B2FABC051E0E4F1B4BCFBE /* URLSchemeFormatTests.swift */; };
 		59ADE684D5F68C0BC02EB0CC /* LocalDatabaseSaver.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7B6F08C62E668E72877D297 /* LocalDatabaseSaver.swift */; };
 		59D79B76BC1CB6561A2152A3 /* AppGroupGuardrailTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 784030A42906B5F3F8E2076B /* AppGroupGuardrailTests.swift */; };
+		5A1602EF575770C99E79A8E5 /* KDBXUUIDEncoding.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B46BE14C31F8101CBCFB9A5 /* KDBXUUIDEncoding.swift */; };
 		5A3B73AAFDDD6021EFD05A80 /* WebDAVConnectViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 50107994AC5A4E705F829F17 /* WebDAVConnectViewModel.swift */; };
 		5A7AFD448B2C67EE04D999C0 /* GroupEditViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA400D126B05676FA820F6D9 /* GroupEditViewModel.swift */; };
 		5BB5396D932F586B396D5D98 /* kdbx41-public-custom-data.kdbx in Resources */ = {isa = PBXBuildFile; fileRef = B768B63FEA29736435D3E922 /* kdbx41-public-custom-data.kdbx */; };
@@ -255,6 +258,7 @@
 		67588569A4F91D0F594C89F8 /* Entry.swift in Sources */ = {isa = PBXBuildFile; fileRef = AEF7A2480DF3853AFF0AF02B /* Entry.swift */; };
 		679B4A120D4F2E4A5C69EB43 /* CloudProviderDesktopAuthTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1190C66ABFC15FE4F0E5745C /* CloudProviderDesktopAuthTests.swift */; };
 		67D9CEC4DF7C559BB2066B9B /* DropboxCloudProviderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F7522B62793839313AC4DC5 /* DropboxCloudProviderTests.swift */; };
+		688BC8B68A809932CBAE4DD2 /* KDBXUUIDEncoding.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B46BE14C31F8101CBCFB9A5 /* KDBXUUIDEncoding.swift */; };
 		6902D7545C0B8C8C552AEE5C /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = 6D8AAE0BC5540DB06342C80C /* Localizable.xcstrings */; };
 		69EABF460EA05DB06C9E210E /* AutoFillPasskeyCreatorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C412174AA21900D65A646A54 /* AutoFillPasskeyCreatorView.swift */; };
 		6AAF0C1932C41779B6A95990 /* DatabaseDraft.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DBA8C05ADEAD4DD8BFE6152 /* DatabaseDraft.swift */; };
@@ -327,6 +331,7 @@
 		897048166743B87F85CACA6E /* DatabaseListViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = F178F4027D7DB837D823C54C /* DatabaseListViewModel.swift */; };
 		8A337E187B2D7B4382CB465A /* PasskeyCrypto.swift in Sources */ = {isa = PBXBuildFile; fileRef = DDEA3048149FA6E823621EA0 /* PasskeyCrypto.swift */; };
 		8A3A063200458F5296146348 /* EntryAttachmentsSmokeUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1C09B67C6FBD95B95F6E4107 /* EntryAttachmentsSmokeUITests.swift */; };
+		8ADDCABC35612B07C32F31CD /* KDBXUUIDEncoding.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B46BE14C31F8101CBCFB9A5 /* KDBXUUIDEncoding.swift */; };
 		8B033D10ABCF3C4C54E2B52C /* SwiftyDropbox in Frameworks */ = {isa = PBXBuildFile; productRef = 51EBD2A917385D3E88CA0277 /* SwiftyDropbox */; };
 		8BB568B0FC7686569B85396B /* CloudSyncCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2CC241709FEF1D5139F38372 /* CloudSyncCoordinator.swift */; };
 		8BB6422DAD2503E2052570CC /* FeedbackSubmissionServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF77C387846CFF3B94A08369 /* FeedbackSubmissionServiceTests.swift */; };
@@ -363,6 +368,7 @@
 		9B3870766B755B0EC44241BC /* EncryptedValue.swift in Sources */ = {isa = PBXBuildFile; fileRef = B6594B5A580C44B4042FE110 /* EncryptedValue.swift */; };
 		9B8E96A65BE457D6296C1584 /* CloudFileBrowserView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8130C3F91180C3B88DF9EE9D /* CloudFileBrowserView.swift */; };
 		9C36CE737F98C0D6D44AE500 /* Group.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA5A20BA0FFA29C1067EB5EE /* Group.swift */; };
+		9C513155C5311036E0778EA0 /* EntryIconPickerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 016823550E7F04D95BFB201E /* EntryIconPickerView.swift */; };
 		9C79590F954BF1DEAD2EDBA0 /* WebDAVSyncUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 707D0691762DF0F7082224A2 /* WebDAVSyncUITests.swift */; };
 		9CC77B4DF961BA6E3DF32559 /* WebDAVConnectView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C00AB8532846AD90E91C72B2 /* WebDAVConnectView.swift */; };
 		9D4573ED84B3C93122BFD4BA /* Attachment.swift in Sources */ = {isa = PBXBuildFile; fileRef = 17350EF5DF6C5C2E97B61A34 /* Attachment.swift */; };
@@ -698,6 +704,7 @@
 
 /* Begin PBXFileReference section */
 		012690B5F23A7226C211D172 /* KDBXParserTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KDBXParserTests.swift; sourceTree = "<group>"; };
+		016823550E7F04D95BFB201E /* EntryIconPickerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EntryIconPickerView.swift; sourceTree = "<group>"; };
 		0298F6EF01194050F3D35F5A /* EntryEditUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EntryEditUITests.swift; sourceTree = "<group>"; };
 		0330F701821BF808278069A3 /* ModelLogicTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelLogicTests.swift; sourceTree = "<group>"; };
 		04A1400E503A230DF2633686 /* TOTPGeneratorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TOTPGeneratorTests.swift; sourceTree = "<group>"; };
@@ -854,6 +861,7 @@
 		993E60D930DBEB81D759AF57 /* FeedbackSubmissionService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeedbackSubmissionService.swift; sourceTree = "<group>"; };
 		9ACF04A69BD290E352459B8D /* DatabaseFileInfoLoader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DatabaseFileInfoLoader.swift; sourceTree = "<group>"; };
 		9B09CBBB037C50562422C91B /* DatabaseReferenceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DatabaseReferenceTests.swift; sourceTree = "<group>"; };
+		9B46BE14C31F8101CBCFB9A5 /* KDBXUUIDEncoding.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KDBXUUIDEncoding.swift; sourceTree = "<group>"; };
 		9B8F8B108FB789996AD3C0BD /* PasskeyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PasskeyTests.swift; sourceTree = "<group>"; };
 		A04A6F5E71D63FC88AC15D59 /* TagNormalizerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TagNormalizerTests.swift; sourceTree = "<group>"; };
 		A0987977B0D41FBB5C1456C5 /* CredentialProviderSaveTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CredentialProviderSaveTests.swift; sourceTree = "<group>"; };
@@ -1097,6 +1105,7 @@
 				0904281BA49959779229086D /* EntryDetailView.swift */,
 				E70FC2B01C80D00375D97318 /* EntryEditView.swift */,
 				EF452B28958E3FCF8EE8A60E /* EntryHistoryView.swift */,
+				016823550E7F04D95BFB201E /* EntryIconPickerView.swift */,
 				5453C26A39D0DC4187275D6A /* EntryListView.swift */,
 				BC9852527A48C28D5D60FCFD /* FaviconView.swift */,
 				3A39542F67BB84C9DEB90C0A /* FeedbackComposerView.swift */,
@@ -1471,6 +1480,7 @@
 				3A733BA9590643828A645C9D /* KDBXFileSummary.swift */,
 				CF9F4F443BDAB986A5BF03E8 /* KDBXOuterCipher.swift */,
 				FB771146F2B327CB67076403 /* KDBXParser.swift */,
+				9B46BE14C31F8101CBCFB9A5 /* KDBXUUIDEncoding.swift */,
 				C243B2746CDA396F76E052B6 /* KDBXWriter.swift */,
 				CFE6ADCA5903D418C1004C39 /* KDBXXMLSerializer.swift */,
 				234D220DDC5508AC87A4CB08 /* KDFExecutionPolicy.swift */,
@@ -1988,6 +1998,7 @@
 				D3BDD7DF149782D73B192297 /* KDBXFileSummary.swift in Sources */,
 				B043FE5EB828EF58D17B36A2 /* KDBXOuterCipher.swift in Sources */,
 				856593F321A58DE4FFEB709F /* KDBXParser.swift in Sources */,
+				8ADDCABC35612B07C32F31CD /* KDBXUUIDEncoding.swift in Sources */,
 				065ECADA2CBD335906E15C30 /* KDBXWriter.swift in Sources */,
 				BC46512B54EB2A8F88840D05 /* KDBXXMLSerializer.swift in Sources */,
 				28C2EED2B91BE75231162804 /* KDFExecutionPolicy.swift in Sources */,
@@ -2155,6 +2166,7 @@
 				3DEA61D3CDB1940967391461 /* EntryEditView.swift in Sources */,
 				FA5E45C131BCC71E739B55AB /* EntryEditViewModel.swift in Sources */,
 				E48718E66A0A93F3E6684B7A /* EntryHistoryView.swift in Sources */,
+				1FAC98EB662B6FB205CEDB74 /* EntryIconPickerView.swift in Sources */,
 				D4AC8D1015837166561D0312 /* EntryListView.swift in Sources */,
 				4D396A9321B96E0F08BAAAE3 /* FaviconService.swift in Sources */,
 				FB5561DDBFA601D179EC1B97 /* FaviconView.swift in Sources */,
@@ -2171,6 +2183,7 @@
 				26ED95A02E755974DEE1976A /* KDBXFileSummary.swift in Sources */,
 				F5DD03D80888FE8B75A3E22F /* KDBXOuterCipher.swift in Sources */,
 				55677A80A5C3FE82D492D7A5 /* KDBXParser.swift in Sources */,
+				5A1602EF575770C99E79A8E5 /* KDBXUUIDEncoding.swift in Sources */,
 				8C73A708D9508C4931C50779 /* KDBXWriter.swift in Sources */,
 				65ED08E0928A314FBBF3FB94 /* KDBXXMLSerializer.swift in Sources */,
 				F4AC32E3745E5514D29BFAD9 /* KDFExecutionPolicy.swift in Sources */,
@@ -2279,6 +2292,7 @@
 				62DCAAA70A222807285EEC79 /* EntryEditView.swift in Sources */,
 				731B8E5859B763F5E251E680 /* EntryEditViewModel.swift in Sources */,
 				3C23738E6682F504153B437A /* EntryHistoryView.swift in Sources */,
+				9C513155C5311036E0778EA0 /* EntryIconPickerView.swift in Sources */,
 				280833ABEC59A56A76CF7DD3 /* EntryListView.swift in Sources */,
 				81AF01EE09EF23EEDE28DB5F /* FaviconService.swift in Sources */,
 				385B72B5A83190582FE70E4F /* FaviconView.swift in Sources */,
@@ -2295,6 +2309,7 @@
 				254A238588C1AE321DD0FAF9 /* KDBXFileSummary.swift in Sources */,
 				A91E8FC4271F8638EA091F79 /* KDBXOuterCipher.swift in Sources */,
 				27F56844AAA14A1BA0009462 /* KDBXParser.swift in Sources */,
+				688BC8B68A809932CBAE4DD2 /* KDBXUUIDEncoding.swift in Sources */,
 				858EED9B6FD7F607B24A3D30 /* KDBXWriter.swift in Sources */,
 				DBDC453546E7D856527A875C /* KDBXXMLSerializer.swift in Sources */,
 				B26601A932005F6840A7F099 /* KDFExecutionPolicy.swift in Sources */,
@@ -2508,6 +2523,7 @@
 				9D8EA57E26DB984BF65FE7BA /* KDBXFileSummary.swift in Sources */,
 				35D4C32EACAE43D88453662A /* KDBXOuterCipher.swift in Sources */,
 				55842C2074D95DB5E37EB360 /* KDBXParser.swift in Sources */,
+				09B8CCD61A1FB2A184586C21 /* KDBXUUIDEncoding.swift in Sources */,
 				3A1B45646614B8A3AF6B6A3F /* KDBXWriter.swift in Sources */,
 				B937BBF99B6F3ED421F9495C /* KDBXXMLSerializer.swift in Sources */,
 				2997781309DC9129714CEBF2 /* KDFExecutionPolicy.swift in Sources */,
