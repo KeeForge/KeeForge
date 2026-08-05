@@ -1025,6 +1025,10 @@ final class DatabaseViewModel {
         if image == nil {
             image = await FaviconService.fetchFavicon(for: domain, cachingToDisk: false)
         }
+        // Point of no return: everything below lands in the draft, so a caller
+        // that gave up during the fetch is told so rather than handed an edit
+        // it no longer wants.
+        try Task.checkCancellation()
         guard let image, let imageData = FaviconIconEncoder.iconData(from: image) else {
             throw FaviconDownloadFailure.noIconAvailable
         }

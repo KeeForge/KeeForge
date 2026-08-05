@@ -26,6 +26,7 @@ struct EntryIconPickerView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var isDownloading = false
     @State private var downloadErrorMessage: String?
+    @State private var downloadTask: Task<Void, Never>?
 
     /// Opens at `.large` so most of the grid is visible at once; the sheet can
     /// still be pulled down to `.medium`. Needs the `selection:` form of
@@ -100,6 +101,9 @@ struct EntryIconPickerView: View {
             }
         }
         .presentationDetents([.medium, .large], selection: $detent)
+        .onDisappear {
+            downloadTask?.cancel()
+        }
         .alert(
             "Couldn’t Download Icon",
             isPresented: Binding(
@@ -139,12 +143,17 @@ struct EntryIconPickerView: View {
         .accessibilityIdentifier("entry-icon-picker.download-favicon")
     }
 
+    /// Closing the sheet means "never mind": the task is cancelled on disappear,
+    /// so a fetch still in flight stops instead of writing an icon into a
+    /// database the user has already walked away from. Cancellation reaches the
+    /// fetch only — the caller commits the icon and saves past that point.
     private func downloadFavicon() {
         isDownloading = true
-        Task {
+        downloadTask = Task {
             do {
                 try await onDownloadFavicon()
                 dismiss()
+            } catch is CancellationError {
             } catch {
                 downloadErrorMessage = error.localizedDescription
             }
