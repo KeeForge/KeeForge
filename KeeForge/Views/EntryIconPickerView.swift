@@ -77,6 +77,11 @@ struct EntryIconPickerView: View {
                         }
                     }
                     .padding()
+                    // A pick while the download is committing would race it —
+                    // two icon choices for the same entry, last writer winning —
+                    // so the grids wait until the download settles. Cancel stays
+                    // live: closing the sheet is still how "never mind" works.
+                    .disabled(isDownloading)
                 }
                 .onAppear {
                     // Deferred a runloop pass on purpose: the grid is lazy, so
