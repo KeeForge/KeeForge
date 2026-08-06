@@ -312,14 +312,22 @@ struct DatabaseDraft: Sendable {
         }
 
         let updatedEntry = entryDisplaying(icon, entry: entryLocation.entry)
-
-        let updatedRootGroup = try rebuildGroup(in: currentRootGroupStorage, targetPath: entryLocation.groupPath[...]) { group in
-            var updatedEntries = group.entries
-            updatedEntries[entryLocation.entryIndex] = updatedEntry
-            return copyGroup(group, entries: updatedEntries)
-        }
+        let updatedRootGroup = try replacingEntry(at: entryLocation, with: updatedEntry)
 
         return (updatedRootGroup, currentMetaStorage)
+    }
+
+    /// The tree with the entry at `location` swapped for `updatedEntry`,
+    /// everything around it structurally shared.
+    private func replacingEntry(
+        at location: (groupPath: [UUID], entryIndex: Int, entry: KPEntry),
+        with updatedEntry: KPEntry
+    ) throws -> KPGroup {
+        try rebuildGroup(in: currentRootGroupStorage, targetPath: location.groupPath[...]) { group in
+            var updatedEntries = group.entries
+            updatedEntries[location.entryIndex] = updatedEntry
+            return copyGroup(group, entries: updatedEntries)
+        }
     }
 
     /// The entry as it looks displaying `icon`, history version pushed.
@@ -395,11 +403,7 @@ struct DatabaseDraft: Sendable {
         }
 
         let updatedEntry = entryDisplaying(.custom(uuid: resolvedUUID), entry: entryLocation.entry)
-        let updatedRootGroup = try rebuildGroup(in: currentRootGroupStorage, targetPath: entryLocation.groupPath[...]) { group in
-            var updatedEntries = group.entries
-            updatedEntries[entryLocation.entryIndex] = updatedEntry
-            return copyGroup(group, entries: updatedEntries)
-        }
+        let updatedRootGroup = try replacingEntry(at: entryLocation, with: updatedEntry)
 
         return (updatedRootGroup, meta)
     }
@@ -493,11 +497,7 @@ struct DatabaseDraft: Sendable {
             originalEntry: entryLocation.entry,
             timestamp: timestamp
         )
-        let updatedRootGroup = try rebuildGroup(in: currentRootGroupStorage, targetPath: entryLocation.groupPath[...]) { group in
-            var updatedEntries = group.entries
-            updatedEntries[entryLocation.entryIndex] = updatedEntry
-            return copyGroup(group, entries: updatedEntries)
-        }
+        let updatedRootGroup = try replacingEntry(at: entryLocation, with: updatedEntry)
 
         return (updatedRootGroup, currentMetaStorage)
     }
@@ -575,11 +575,7 @@ struct DatabaseDraft: Sendable {
             attachments: version.attachments
         )
 
-        let updatedRootGroup = try rebuildGroup(in: currentRootGroupStorage, targetPath: entryLocation.groupPath[...]) { group in
-            var updatedEntries = group.entries
-            updatedEntries[entryLocation.entryIndex] = restored
-            return copyGroup(group, entries: updatedEntries)
-        }
+        let updatedRootGroup = try replacingEntry(at: entryLocation, with: restored)
 
         return (updatedRootGroup, currentMetaStorage)
     }
