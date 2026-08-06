@@ -15,9 +15,18 @@ struct EntryIconPickerView: View {
     let entryTitle: String
     let selection: EntryIconSelection
     let customIcons: [DatabaseViewModel.CustomIcon]
+    /// False when the entry has no address a favicon service could be asked
+    /// about, so the action is shown disabled rather than offered and refused.
+    let canDownloadFavicon: Bool
     let onSelect: (EntryIconSelection) -> Void
+    /// Downloads the entry's website icon into the database and points the entry
+    /// at it. Throwing surfaces the reason in this sheet, where the user is.
+    let onDownloadFavicon: () async throws -> Void
 
     @Environment(\.dismiss) private var dismiss
+    @State private var isDownloading = false
+    @State private var downloadErrorMessage: String?
+    @State private var downloadTask: Task<Void, Never>?
 
     /// Opens at `.large` so most of the grid is visible at once; the sheet can
     /// still be pulled down to `.medium`. Needs the `selection:` form of
@@ -51,6 +60,8 @@ struct EntryIconPickerView: View {
             ScrollViewReader { proxy in
                 ScrollView {
                     VStack(alignment: .leading, spacing: 24) {
+                        downloadFaviconButton
+
                         if customIcons.isEmpty == false {
                             section(title: String(localized: "Custom Icons")) {
                                 ForEach(customIcons) { icon in
@@ -90,6 +101,64 @@ struct EntryIconPickerView: View {
             }
         }
         .presentationDetents([.medium, .large], selection: $detent)
+        .onDisappear {
+            downloadTask?.cancel()
+        }
+        .alert(
+            "Couldn’t Download Icon",
+            isPresented: Binding(
+                get: { downloadErrorMessage != nil },
+                set: { if $0 == false { downloadErrorMessage = nil } }
+            )
+        ) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(downloadErrorMessage ?? "")
+        }
+    }
+
+    /// Fetches the entry's website icon and stores it in the database, the way
+    /// KeePass's own icon dialog offers it.
+    ///
+    /// Dismisses on success rather than adding a cell to the grid behind it:
+    /// the icon has been applied to the entry at that point, so returning to the
+    /// entry is what shows the result.
+    private var downloadFaviconButton: some View {
+        Button {
+            downloadFavicon()
+        } label: {
+            HStack(spacing: 8) {
+                if isDownloading {
+                    ProgressView()
+                        .controlSize(.small)
+                } else {
+                    Image(systemName: "arrow.down.circle")
+                }
+                Text("Download Website Icon")
+            }
+            .frame(maxWidth: .infinity)
+        }
+        .buttonStyle(.bordered)
+        .disabled(canDownloadFavicon == false || isDownloading)
+        .accessibilityIdentifier("entry-icon-picker.download-favicon")
+    }
+
+    /// Closing the sheet means "never mind": the task is cancelled on disappear,
+    /// so a fetch still in flight stops instead of writing an icon into a
+    /// database the user has already walked away from. Cancellation reaches the
+    /// fetch only — the caller commits the icon and saves past that point.
+    private func downloadFavicon() {
+        isDownloading = true
+        downloadTask = Task {
+            do {
+                try await onDownloadFavicon()
+                dismiss()
+            } catch is CancellationError {
+            } catch {
+                downloadErrorMessage = error.localizedDescription
+            }
+            isDownloading = false
+        }
     }
 
     private func section<Cells: View>(

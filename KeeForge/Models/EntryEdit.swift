@@ -128,6 +128,15 @@ enum EntryEdit: Codable, Sendable, Equatable {
     case setGroupSearchingEnabled(groupID: UUID, value: InheritableBoolPayload)
     case setGroupIcon(groupID: UUID, iconID: Int)
     case setEntryIcon(entryID: UUID, icon: EntryIconSelection)
+    /// Stores `imageData` in `Meta/CustomIcons` and points the entry at it.
+    ///
+    /// One edit rather than two because the halves are not independently
+    /// useful: an icon nothing references is dead weight in the file, and a
+    /// reference to an icon that was never stored renders as each client's own
+    /// fallback. `iconUUID` is supplied by the caller so the edit stays a pure
+    /// function of its input; an identical image already in the database is
+    /// reused and the supplied UUID goes unused.
+    case addEntryCustomIcon(entryID: UUID, iconUUID: UUID, imageData: Data)
     case updateGroup(groupID: UUID, draft: GroupDraftPayload)
     /// Bring a stored `<History>` version back as the entry's current state.
     /// `historyIndex` addresses `KPEntry.history` in storage order, which KDBX
