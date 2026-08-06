@@ -27,16 +27,23 @@ enum CustomIconXML {
     }
 
     /// Returns `unknownXML` with the icon added to its `<CustomIcons>` fragment,
-    /// creating that element when the database has none.
+    /// creating that element when the database has none, or `nil` when the
+    /// fragment offers no place to splice into.
     ///
     /// Base64 cannot contain `<` or `>`, so searching the fragment's text for
     /// its own closing tag is unambiguous: the last occurrence is the element's
     /// own, whatever the icons inside it look like.
+    ///
+    /// `nil` rather than a rebuilt element: a fragment this cannot splice is a
+    /// fragment it does not understand, and rebuilding one from the decoded
+    /// dictionary would drop every icon whose bytes this app does not model —
+    /// the loss the whole type exists to prevent. Refusing the edit costs the
+    /// user an icon; guessing would cost them the ones they already had.
     static func adding(
         uuid: UUID,
         imageData: Data,
         to unknownXML: OpaqueXMLNodes
-    ) -> OpaqueXMLNodes {
+    ) -> OpaqueXMLNodes? {
         let icon = iconElement(uuid: uuid, imageData: imageData)
 
         guard let index = unknownXML.nodes.firstIndex(where: {
@@ -51,29 +58,23 @@ enum CustomIconXML {
         }
 
         let existing = unknownXML.nodes[index]
+        guard let spliced = inserting(icon, into: existing.xml) else { return nil }
         var updated = unknownXML
         updated.nodes[index] = OpaqueXMLNodes.Node(
             path: existing.path,
             insertionIndex: existing.insertionIndex,
-            xml: inserting(icon, into: existing.xml)
+            xml: spliced
         )
         return updated
     }
 
-    /// An empty `<CustomIcons/>` has no closing tag to insert before and has to
-    /// be opened up first. A database that has never held a custom icon is
-    /// written that way by some clients, so this is the ordinary first-icon
-    /// case, not an exotic one.
-    private static func inserting(_ icon: String, into fragment: String) -> String {
+    /// The parser renders every preserved fragment through a start/end tag pair,
+    /// so a captured `<CustomIcons>` always closes explicitly — a source
+    /// `<CustomIcons/>` reaches this type as `<CustomIcons></CustomIcons>`.
+    /// Anything else did not come from the parser.
+    private static func inserting(_ icon: String, into fragment: String) -> String? {
         let closingTag = "</\(elementName)>"
-        if let closing = fragment.range(of: closingTag, options: .backwards) {
-            return fragment.replacingCharacters(in: closing, with: icon + closingTag)
-        }
-        // Opening the empty form replaces only its `/>`, so the start tag —
-        // attributes and all — stays exactly as the other client wrote it.
-        if let selfClosing = fragment.range(of: "/>", options: .backwards) {
-            return fragment.replacingCharacters(in: selfClosing, with: ">" + icon + closingTag)
-        }
-        return "<\(elementName)>\(icon)\(closingTag)"
+        guard let closing = fragment.range(of: closingTag, options: .backwards) else { return nil }
+        return fragment.replacingCharacters(in: closing, with: icon + closingTag)
     }
 }

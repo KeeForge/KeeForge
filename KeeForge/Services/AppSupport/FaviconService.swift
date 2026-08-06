@@ -201,11 +201,14 @@ enum FaviconService: Sendable {
     // MARK: - Primary API
 
     /// Returns a cached favicon or fetches one. Returns nil if unavailable.
-    static func favicon(for domain: String) async -> PlatformImage? {
+    ///
+    /// - Parameter cachingToDisk: Forwarded to `fetchFavicon(for:cachingToDisk:)`
+    ///   for the fetch half; a favicon already on disk is reused either way.
+    static func favicon(for domain: String, cachingToDisk: Bool = true) async -> PlatformImage? {
         if let cached = cachedImage(for: domain) {
             return cached
         }
-        return await fetchFavicon(for: domain)
+        return await fetchFavicon(for: domain, cachingToDisk: cachingToDisk)
     }
 
     // MARK: - Clear Cache

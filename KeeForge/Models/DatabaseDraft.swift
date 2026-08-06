@@ -9,6 +9,7 @@ struct DatabaseDraft: Sendable {
         case emptyGroupName(UUID)
         case protectedGroup(UUID)
         case historyVersionNotFound(entryID: UUID, index: Int)
+        case customIconNotStorable
 
         var errorDescription: String? {
             switch self {
@@ -24,6 +25,8 @@ struct DatabaseDraft: Sendable {
                 String(localized: "This group cannot be deleted.")
             case .historyVersionNotFound:
                 String(localized: "That earlier version is no longer available.")
+            case .customIconNotStorable:
+                String(localized: "This database's icons are stored in a form KeeForge cannot add to without risking the ones already there.")
             }
         }
     }
@@ -371,16 +374,24 @@ struct DatabaseDraft: Sendable {
 
         var meta = currentMetaStorage
         let resolvedUUID: UUID
-        if let existing = meta.customIcons.first(where: { $0.value == imageData })?.key {
+        // Lowest UUID among the matches, not the first the dictionary happens to
+        // yield: a database can hold the same bytes under two UUIDs, and
+        // `Dictionary` order varies per launch, which would make the same edit
+        // on the same input produce different file bytes across runs.
+        let duplicates = meta.customIcons.filter { $0.value == imageData }.keys
+        if let existing = duplicates.min(by: { $0.uuidString < $1.uuidString }) {
             resolvedUUID = existing
         } else {
-            resolvedUUID = iconUUID
-            meta.customIcons[iconUUID] = imageData
-            meta.unknownXML = CustomIconXML.adding(
+            guard let unknownXML = CustomIconXML.adding(
                 uuid: iconUUID,
                 imageData: imageData,
                 to: meta.unknownXML
-            )
+            ) else {
+                throw DraftError.customIconNotStorable
+            }
+            resolvedUUID = iconUUID
+            meta.customIcons[iconUUID] = imageData
+            meta.unknownXML = unknownXML
         }
 
         let updatedEntry = entryDisplaying(.custom(uuid: resolvedUUID), entry: entryLocation.entry)

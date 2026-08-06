@@ -1639,6 +1639,55 @@ final class DatabaseDraftTests: XCTestCase {
         XCTAssertEqual(fragment.components(separatedBy: "<Icon>").count - 1, 1)
     }
 
+    /// A foreign database can hold the same image bytes under two UUIDs — the
+    /// parser stores what the file says and does not dedupe by value. Picking
+    /// whichever one `Dictionary` iteration happened to yield first would make
+    /// the same edit on the same input produce different file bytes from one
+    /// launch to the next, against `EntryEdit`'s own pure-function contract.
+    func test_addEntryCustomIcon_picksTheSameDuplicateEveryTime() throws {
+        let lower = UUID(uuidString: "00000000-0000-0000-0000-000000000001")!
+        let higher = UUID(uuidString: "FFFFFFFF-0000-0000-0000-000000000002")!
+
+        for _ in 0..<20 {
+            let (base, entryID) = try makeEntryIconDraft()
+            var meta = base.meta
+            meta.customIcons = [lower: downloadedIconData, higher: downloadedIconData]
+            let draft = DatabaseDraft(rootGroup: base.rootGroup, meta: meta, sessionKey: sessionKey)
+
+            let updated = try draft.apply(
+                .addEntryCustomIcon(entryID: entryID, iconUUID: UUID(), imageData: downloadedIconData)
+            )
+
+            XCTAssertEqual(findEntry(withID: entryID, in: updated.rootGroup)?.customIconUUID, lower)
+            XCTAssertEqual(updated.meta.customIcons.count, 2, "neither duplicate is rewritten")
+        }
+    }
+
+    /// The preserved fragment is the only copy of the icons a foreign database
+    /// carries. One this cannot splice into is one it does not understand, and
+    /// rebuilding the element from the decoded dictionary would drop every icon
+    /// whose bytes this app does not model. Refusing the edit costs the user one
+    /// icon; the alternative costs them all of them, silently, on the next save.
+    func test_addEntryCustomIcon_refusesAFragmentItCannotSpliceInto() throws {
+        let (base, entryID) = try makeEntryIconDraft()
+        var meta = base.meta
+        meta.unknownXML.append(xml: "<CustomIcons/>", insertionIndex: 0)
+        let draft = DatabaseDraft(rootGroup: base.rootGroup, meta: meta, sessionKey: sessionKey)
+
+        XCTAssertThrowsError(
+            try draft.apply(
+                .addEntryCustomIcon(entryID: entryID, iconUUID: UUID(), imageData: downloadedIconData)
+            )
+        ) { error in
+            XCTAssertEqual(error as? DatabaseDraft.DraftError, .customIconNotStorable)
+        }
+        XCTAssertEqual(
+            draft.meta.unknownXML.nodes.first { $0.elementName == "CustomIcons" }?.xml,
+            "<CustomIcons/>",
+            "the fragment it refused to touch is left exactly as it was"
+        )
+    }
+
     func test_addEntryCustomIcon_unknownEntry_leavesTheDatabaseAlone() throws {
         let (draft, _) = try makeEntryIconDraft()
         let missingEntryID = UUID()

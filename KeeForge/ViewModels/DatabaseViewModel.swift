@@ -474,6 +474,18 @@ final class DatabaseViewModel {
         draft?.rootGroup ?? rootGroup
     }
 
+    /// `Meta` as the UI has to see it, the draft's taking precedence — the
+    /// counterpart of `currentRootGroup`, and for the same reason.
+    ///
+    /// `unlockedMeta` is only refreshed by a *successful* save. Reading it
+    /// directly means a save that fails — offline, conflicted — leaves a custom
+    /// icon that is in the draft unresolvable: the entry falls back to a
+    /// standard icon and the picker omits the image, so a download that worked
+    /// looks like one that did nothing.
+    var currentMeta: KPMeta? {
+        draft?.meta ?? unlockedMeta
+    }
+
     var visibleRootGroup: KPGroup? {
         guard let visibleRootGroupID else { return nil }
         return group(withID: visibleRootGroupID)
@@ -805,14 +817,14 @@ final class DatabaseViewModel {
     /// one for it in `Meta/CustomIcons`.
     func customIconData(for entry: KPEntry) -> Data? {
         guard let uuid = entry.customIconUUID else { return nil }
-        return unlockedMeta?.customIcons[uuid]
+        return currentMeta?.customIcons[uuid]
     }
 
     /// Decoded image data of the group's custom icon, if the database defines
     /// one for it in `Meta/CustomIcons`.
     func customIconData(for group: KPGroup) -> Data? {
         guard let uuid = group.customIconUUID else { return nil }
-        return unlockedMeta?.customIcons[uuid]
+        return currentMeta?.customIcons[uuid]
     }
 
     /// One image from `Meta/CustomIcons`, addressable by the picker.
@@ -828,7 +840,7 @@ final class DatabaseViewModel {
     /// reshuffle the grid between openings of the same database.
     var customIcons: [CustomIcon] {
         _ = contentRevision
-        guard let icons = unlockedMeta?.customIcons else { return [] }
+        guard let icons = currentMeta?.customIcons else { return [] }
         return icons
             .sorted { $0.key.uuidString < $1.key.uuidString }
             .map { CustomIcon(id: $0.key, data: $0.value) }
@@ -979,7 +991,7 @@ final class DatabaseViewModel {
             guard KPEntry.standardIconNames[iconID] != nil else { return }
             guard entry.iconID != iconID || entry.customIconUUID != nil else { return }
         case .custom(let uuid):
-            guard unlockedMeta?.customIcons[uuid] != nil else { return }
+            guard currentMeta?.customIcons[uuid] != nil else { return }
             guard entry.customIconUUID != uuid else { return }
         }
 
@@ -995,6 +1007,9 @@ final class DatabaseViewModel {
         case noPublicDomain
         /// The host had nothing to give, or gave something unusable.
         case noIconAvailable
+        /// The entry is gone, or the database stopped accepting edits, between
+        /// the button being offered and being tapped.
+        case entryNotEditable
 
         var errorDescription: String? {
             switch self {
@@ -1002,6 +1017,8 @@ final class DatabaseViewModel {
                 String(localized: "This entry has no website address to download an icon from. Add one to the entry first.")
             case .noIconAvailable:
                 String(localized: "No icon could be downloaded for this website. It may not have one, or the connection failed.")
+            case .entryNotEditable:
+                String(localized: "This entry can no longer be edited. It may have been deleted, or the database may have been reopened read-only.")
             }
         }
     }
@@ -1009,34 +1026,37 @@ final class DatabaseViewModel {
     /// Downloads the entry's website icon, stores it in the database, and points
     /// the entry at it.
     ///
-    /// A cached favicon is used when one is already on disk, and a fetch does
-    /// *not* add to that cache: the image is about to live in the vault, so a
-    /// second plaintext copy keyed by domain would widen the cache's fingerprint
-    /// for no benefit. Unlike the automatic favicons in lists, this runs
-    /// whatever the "show website icons" setting says — the setting governs
-    /// fetching KeeForge does on its own, and this is the user asking.
+    /// The fetch, the cache read and the re-encode all happen off the main
+    /// actor, in `FaviconIconEncoder.downloadedIconData(for:)` — the image is
+    /// untrusted input of a size the host picks, and decoding it here would
+    /// block the UI for as long as it took.
+    ///
+    /// Unlike the automatic favicons in lists, this runs whatever the "show
+    /// website icons" setting says — the setting governs fetching KeeForge does
+    /// on its own, and this is the user asking.
     func downloadFavicon(forEntryID entryID: UUID) async throws {
-        guard isReadOnly == false, let entry = entryIndex[entryID] else { return }
+        // Throwing rather than returning: the picker reads a clean return as
+        // success and dismisses, which would show a stored icon that isn't one.
+        guard isReadOnly == false, let entry = entryIndex[entryID] else {
+            throw FaviconDownloadFailure.entryNotEditable
+        }
         guard let domain = FaviconService.extractDomain(from: entry.url) else {
             throw FaviconDownloadFailure.noPublicDomain
         }
 
-        var image = FaviconService.cachedImage(for: domain)
-        if image == nil {
-            image = await FaviconService.fetchFavicon(for: domain, cachingToDisk: false)
-        }
+        let downloaded = await FaviconIconEncoder.downloadedIconData(for: domain)
         // Point of no return: everything below lands in the draft, so a caller
         // that gave up during the fetch is told so rather than handed an edit
         // it no longer wants.
         try Task.checkCancellation()
-        guard let image, let imageData = FaviconIconEncoder.iconData(from: image) else {
+        guard let imageData = downloaded else {
             throw FaviconDownloadFailure.noIconAvailable
         }
 
         // Downloading the icon an entry already displays is a no-op for the same
         // reason re-picking the current icon is in `setEntryIcon`: the edit would
         // cost a history version, a re-encrypt and a save for no visible change.
-        if let current = entry.customIconUUID, unlockedMeta?.customIcons[current] == imageData {
+        if let current = entry.customIconUUID, currentMeta?.customIcons[current] == imageData {
             return
         }
 

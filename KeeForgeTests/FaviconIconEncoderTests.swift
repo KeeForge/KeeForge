@@ -55,14 +55,10 @@ final class FaviconIconEncoderTests: XCTestCase {
 
     // MARK: - Byte Cap
 
-    /// A 16-bit-per-channel source at the maximum edge is the one shape that
-    /// reaches the cap: it needs no downscale, so nothing on the way to the
-    /// encoder reduces it, and incompressible content puts the PNG past 100 KB.
-    func test_iconData_refusesAnEncodePastTheByteCap() {
-        let image = noiseImage(width: 128, height: 128, bitsPerComponent: 16)
-        XCTAssertNil(FaviconIconEncoder.iconData(from: platformImage(image)))
-    }
-
+    /// Worst case the encoder can be handed: incompressible content at the
+    /// maximum edge. Every source now reaches the encoder as an 8-bit redraw, so
+    /// the cap has no input that crosses it and stands only as a backstop
+    /// against an encode going unexpectedly wrong.
     func test_iconData_staysWithinTheByteCapWhenItReturnsBytes() throws {
         let data = try XCTUnwrap(FaviconIconEncoder.iconData(from: platformImage(noiseImage(width: 128, height: 128, bitsPerComponent: 8))))
         XCTAssertLessThanOrEqual(data.count, FaviconIconEncoder.maximumByteCount)
@@ -70,8 +66,9 @@ final class FaviconIconEncoderTests: XCTestCase {
 
     // MARK: - Exotic Sources
 
-    // The fixed BGRA drawing context exists for these three: each is a source
-    // format CoreGraphics will not open a matching context for.
+    // The fixed BGRA redraw exists for these three: each is a source format
+    // CoreGraphics will not open a matching context for. It runs on size *or*
+    // format, so a small one is normalized too.
 
     func test_iconData_redrawsAGrayscaleSource() throws {
         let data = try XCTUnwrap(FaviconIconEncoder.iconData(from: platformImage(grayscaleImage(width: 256, height: 256))))
@@ -86,6 +83,26 @@ final class FaviconIconEncoderTests: XCTestCase {
     func test_iconData_redrawsADeepColorSource() throws {
         let data = try XCTUnwrap(FaviconIconEncoder.iconData(from: platformImage(noiseImage(width: 256, height: 256, bitsPerComponent: 16))))
         XCTAssertEqual(try pixelSize(of: data), CGSize(width: 128, height: 128))
+    }
+
+    /// A 16-bit-per-channel source small enough to need no downscale used to
+    /// skip the redraw, carry its depth into the PNG, and be refused over the
+    /// byte cap — reported to the user as "no icon available" for a site that
+    /// served a usable one. It is redrawn on format now, at its own size.
+    func test_iconData_redrawsASmallDeepColorSourceInsteadOfRefusingIt() throws {
+        let data = try XCTUnwrap(FaviconIconEncoder.iconData(from: platformImage(noiseImage(width: 128, height: 128, bitsPerComponent: 16))))
+        XCTAssertEqual(try pixelSize(of: data), CGSize(width: 128, height: 128))
+        XCTAssertLessThanOrEqual(data.count, FaviconIconEncoder.maximumByteCount)
+    }
+
+    func test_iconData_redrawsASmallGrayscaleSourceAtItsOwnSize() throws {
+        let data = try XCTUnwrap(FaviconIconEncoder.iconData(from: platformImage(grayscaleImage(width: 32, height: 32))))
+        XCTAssertEqual(try pixelSize(of: data), CGSize(width: 32, height: 32))
+    }
+
+    func test_iconData_redrawsASmallIndexedSourceAtItsOwnSize() throws {
+        let data = try XCTUnwrap(FaviconIconEncoder.iconData(from: platformImage(indexedImage(width: 32, height: 32))))
+        XCTAssertEqual(try pixelSize(of: data), CGSize(width: 32, height: 32))
     }
 
     // MARK: - Helpers

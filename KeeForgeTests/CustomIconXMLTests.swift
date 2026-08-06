@@ -25,7 +25,7 @@ final class CustomIconXMLTests: XCTestCase {
         unknownXML.append(xml: existing, insertionIndex: 3)
         let uuid = UUID()
 
-        let updated = CustomIconXML.adding(uuid: uuid, imageData: imageData, to: unknownXML)
+        let updated = try XCTUnwrap(CustomIconXML.adding(uuid: uuid, imageData: imageData, to: unknownXML))
 
         let fragment = try XCTUnwrap(customIconsFragment(in: updated))
         XCTAssertTrue(
@@ -38,13 +38,14 @@ final class CustomIconXMLTests: XCTestCase {
     }
 
     /// A database that has never held a custom icon may still carry the element
-    /// in its empty form, which has no closing tag to insert before.
-    func test_opensAnEmptyElementKeepingItsStartTag() throws {
+    /// in its empty form. The parser renders it with an explicit closing tag
+    /// whatever the file said, so that is the shape the splice has to handle.
+    func test_addsTheFirstIconToAnEmptyElement() throws {
         var unknownXML = OpaqueXMLNodes()
-        unknownXML.append(xml: "<CustomIcons/>", insertionIndex: 0)
+        unknownXML.append(xml: "<CustomIcons></CustomIcons>", insertionIndex: 0)
         let uuid = UUID()
 
-        let updated = CustomIconXML.adding(uuid: uuid, imageData: imageData, to: unknownXML)
+        let updated = try XCTUnwrap(CustomIconXML.adding(uuid: uuid, imageData: imageData, to: unknownXML))
 
         XCTAssertEqual(
             customIconsFragment(in: updated),
@@ -52,12 +53,24 @@ final class CustomIconXMLTests: XCTestCase {
         )
     }
 
+    /// A fragment with no closing tag cannot come from the parser today. Should
+    /// a canonicalization change ever produce one, refusing the edit is the only
+    /// safe answer: rebuilding the element from the decoded dictionary would
+    /// drop every icon whose bytes this app does not model, which is a silent
+    /// loss of the user's data on the next save.
+    func test_refusesAFragmentItCannotSpliceRatherThanRebuildingIt() {
+        var unknownXML = OpaqueXMLNodes()
+        unknownXML.append(xml: "<CustomIcons/>", insertionIndex: 0)
+
+        XCTAssertNil(CustomIconXML.adding(uuid: UUID(), imageData: imageData, to: unknownXML))
+    }
+
     func test_createsTheElementWhenTheDatabaseHasNone() throws {
         var unknownXML = OpaqueXMLNodes()
         unknownXML.append(xml: "<Generator>KeePassXC</Generator>", insertionIndex: 0)
         let uuid = UUID()
 
-        let updated = CustomIconXML.adding(uuid: uuid, imageData: imageData, to: unknownXML)
+        let updated = try XCTUnwrap(CustomIconXML.adding(uuid: uuid, imageData: imageData, to: unknownXML))
 
         XCTAssertEqual(
             customIconsFragment(in: updated),
@@ -96,7 +109,7 @@ final class CustomIconXMLTests: XCTestCase {
         var unknownXML = OpaqueXMLNodes()
         unknownXML.append(xml: "<CustomIcons></CustomIcons>", insertionIndex: 0)
         let updated = CustomIconXML.adding(uuid: UUID(), imageData: everyByte, to: unknownXML)
-        let fragment = customIconsFragment(in: updated) ?? ""
+        let fragment = updated.flatMap(customIconsFragment(in:)) ?? ""
         XCTAssertEqual(fragment.components(separatedBy: "</CustomIcons>").count - 1, 1)
     }
 }
