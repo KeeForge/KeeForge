@@ -21,7 +21,7 @@ TODO before the first macOS release:
 
 ## Unreleased
 
-## v1.12.0 (2026-08-02)
+## v1.12.0 (2026-08-05)
 
 ### New Features
 
