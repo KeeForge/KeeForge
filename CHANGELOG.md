@@ -36,7 +36,7 @@ TODO before the first macOS release:
 - AutoFill now explains itself instead of going quiet on a database with very heavy encryption settings (#57). AutoFill extensions get only a fraction of the app's memory, and a database with a large Argon2 memory setting exhausted it mid-unlock — iOS killed the extension, so picking KeeForge from the keyboard appeared to do nothing even though the same database opened normally in the app. KeeForge now checks the database's key-derivation settings (stored unencrypted, so readable before unlocking starts) against the memory AutoFill actually has, and shows both numbers along with the way out: open the entry in the app, or lower the database's Argon2 memory in a desktop KeePass app.
 - Databases configured with high Argon2 iteration counts but modest memory now open: the fixed 1000-iteration ceiling has been replaced with resource budgets that model actual cost (memory × iterations), separately for the app and the AutoFill extension. Oversized configurations that could exhaust device memory are rejected with a clear message explaining how to lower the settings, instead of a generic parse error. The Argon2 version stored in the file is now honored too, so databases using the older Argon2 v1.0 unlock instead of misreporting a wrong password (#74).
 
-## v1.12.0 (2026-08-02)
+## v1.12.0 (2026-08-05)
 
 ### New Features
 
