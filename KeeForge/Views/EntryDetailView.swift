@@ -269,10 +269,17 @@ struct EntryDetailView: View {
                     EntryIconPickerView(
                         entryTitle: entry.title,
                         selection: Self.iconSelection(of: entry),
-                        customIcons: viewModel.customIcons
-                    ) { icon in
-                        changeEntryIcon(icon)
-                    }
+                        customIcons: viewModel.customIcons,
+                        canDownloadFavicon: viewModel.canDownloadFavicon(forEntryID: entryID),
+                        onSelect: { icon in changeEntryIcon(icon) },
+                        onDownloadFavicon: {
+                            try await viewModel.downloadFavicon(forEntryID: entryID)
+                            // Outside the picker's cancellable task on purpose:
+                            // the icon is in the draft by now, and closing the
+                            // sheet mid-save would leave it unwritten.
+                            await Task { await viewModel.saveHandlingError() }.value
+                        }
+                    )
                 }
             } else {
                 ContentUnavailableView(

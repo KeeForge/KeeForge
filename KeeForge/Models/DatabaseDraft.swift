@@ -9,6 +9,7 @@ struct DatabaseDraft: Sendable {
         case emptyGroupName(UUID)
         case protectedGroup(UUID)
         case historyVersionNotFound(entryID: UUID, index: Int)
+        case customIconNotStorable
 
         var errorDescription: String? {
             switch self {
@@ -24,6 +25,8 @@ struct DatabaseDraft: Sendable {
                 String(localized: "This group cannot be deleted.")
             case .historyVersionNotFound:
                 String(localized: "That earlier version is no longer available.")
+            case .customIconNotStorable:
+                String(localized: "This database's icons are stored in a form KeeForge cannot add to without risking the ones already there.")
             }
         }
     }
@@ -112,6 +115,12 @@ struct DatabaseDraft: Sendable {
             updatedState = try applySetGroupIcon(groupID: groupID, iconID: iconID)
         case .setEntryIcon(let entryID, let icon):
             updatedState = try applySetEntryIcon(entryID: entryID, icon: icon)
+        case .addEntryCustomIcon(let entryID, let iconUUID, let imageData):
+            updatedState = try applyAddEntryCustomIcon(
+                entryID: entryID,
+                iconUUID: iconUUID,
+                imageData: imageData
+            )
         case .updateGroup(let groupID, let draft):
             updatedState = try applyUpdateGroup(groupID: groupID, draft: draft)
         case .restoreEntryVersion(let entryID, let historyIndex):
@@ -302,27 +311,7 @@ struct DatabaseDraft: Sendable {
             throw DraftError.entryNotFound(entryID)
         }
 
-        let originalEntry = entryLocation.entry
-        var updatedEntry = originalEntry
-        updatedEntry.history = trimmedHistory(
-            appending: originalEntry.cloneForHistory(),
-            existing: originalEntry.history,
-            meta: currentMetaStorage
-        )
-        updatedEntry.lastModificationTime = Date.now
-        updatedEntry.unknownXML.removeDirectChildren(named: "CustomIconUUID")
-
-        switch icon {
-        case .standard(let iconID):
-            updatedEntry.iconID = iconID
-            updatedEntry.customIconUUID = nil
-        case .custom(let uuid):
-            updatedEntry.customIconUUID = uuid
-            updatedEntry.unknownXML.append(
-                xml: "<CustomIconUUID>\(uuid.kdbxBase64String)</CustomIconUUID>",
-                insertionIndex: Self.customIconUUIDInsertionIndex(for: originalEntry)
-            )
-        }
+        let updatedEntry = entryDisplaying(icon, entry: entryLocation.entry)
 
         let updatedRootGroup = try rebuildGroup(in: currentRootGroupStorage, targetPath: entryLocation.groupPath[...]) { group in
             var updatedEntries = group.entries
@@ -331,6 +320,88 @@ struct DatabaseDraft: Sendable {
         }
 
         return (updatedRootGroup, currentMetaStorage)
+    }
+
+    /// The entry as it looks displaying `icon`, history version pushed.
+    ///
+    /// Shared with `applyAddEntryCustomIcon`, which stores an image and points
+    /// the entry at it in one edit: the pointing half must be the same operation
+    /// either way, or the two paths would drift on where the element lands.
+    private func entryDisplaying(_ icon: EntryIconSelection, entry: KPEntry) -> KPEntry {
+        var updated = entry
+        updated.history = trimmedHistory(
+            appending: entry.cloneForHistory(),
+            existing: entry.history,
+            meta: currentMetaStorage
+        )
+        updated.lastModificationTime = Date.now
+        updated.unknownXML.removeDirectChildren(named: "CustomIconUUID")
+
+        switch icon {
+        case .standard(let iconID):
+            updated.iconID = iconID
+            updated.customIconUUID = nil
+        case .custom(let uuid):
+            updated.customIconUUID = uuid
+            updated.unknownXML.append(
+                xml: "<CustomIconUUID>\(uuid.kdbxBase64String)</CustomIconUUID>",
+                insertionIndex: Self.customIconUUIDInsertionIndex(for: entry)
+            )
+        }
+
+        return updated
+    }
+
+    /// Stores an image in `Meta/CustomIcons` and points the entry at it.
+    ///
+    /// An image the database already holds is reused rather than stored twice:
+    /// the same favicon downloaded onto three entries has to leave one icon in
+    /// the file, not three, and KeePass's own icon dialog shows the set, so
+    /// duplicates would be visible clutter as well as wasted bytes.
+    ///
+    /// The stored dictionary and the preserved XML are updated together. The
+    /// dictionary is what the UI reads before the next save; the XML is what the
+    /// writer emits, since `Meta/CustomIcons` is round-tripped verbatim and
+    /// never rebuilt from the dictionary.
+    private func applyAddEntryCustomIcon(
+        entryID: UUID,
+        iconUUID: UUID,
+        imageData: Data
+    ) throws -> (rootGroup: KPGroup, meta: KPMeta) {
+        guard let entryLocation = findEntryLocation(entryID: entryID, in: currentRootGroupStorage) else {
+            throw DraftError.entryNotFound(entryID)
+        }
+
+        var meta = currentMetaStorage
+        let resolvedUUID: UUID
+        // Lowest UUID among the matches, not the first the dictionary happens to
+        // yield: a database can hold the same bytes under two UUIDs, and
+        // `Dictionary` order varies per launch, which would make the same edit
+        // on the same input produce different file bytes across runs.
+        let duplicates = meta.customIcons.filter { $0.value == imageData }.keys
+        if let existing = duplicates.min(by: { $0.uuidString < $1.uuidString }) {
+            resolvedUUID = existing
+        } else {
+            guard let unknownXML = CustomIconXML.adding(
+                uuid: iconUUID,
+                imageData: imageData,
+                to: meta.unknownXML
+            ) else {
+                throw DraftError.customIconNotStorable
+            }
+            resolvedUUID = iconUUID
+            meta.customIcons[iconUUID] = imageData
+            meta.unknownXML = unknownXML
+        }
+
+        let updatedEntry = entryDisplaying(.custom(uuid: resolvedUUID), entry: entryLocation.entry)
+        let updatedRootGroup = try rebuildGroup(in: currentRootGroupStorage, targetPath: entryLocation.groupPath[...]) { group in
+            var updatedEntries = group.entries
+            updatedEntries[entryLocation.entryIndex] = updatedEntry
+            return copyGroup(group, entries: updatedEntries)
+        }
+
+        return (updatedRootGroup, meta)
     }
 
     private func applyUpdateGroup(

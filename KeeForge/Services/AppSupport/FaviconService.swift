@@ -169,7 +169,11 @@ enum FaviconService: Sendable {
 
     // MARK: - Fetch
 
-    static func fetchFavicon(for domain: String) async -> PlatformImage? {
+    /// - Parameter cachingToDisk: Pass `false` when the caller keeps the image
+    ///   itself. Storing an icon inside the database is the case that matters:
+    ///   the vault already holds it, so a copy in this plaintext per-domain
+    ///   cache would widen the fingerprint described above for nothing.
+    static func fetchFavicon(for domain: String, cachingToDisk: Bool = true) async -> PlatformImage? {
         guard let url = URL(string: "\(faviconBaseURL)\(domain).ico") else { return nil }
 
         do {
@@ -182,10 +186,11 @@ enum FaviconService: Sendable {
 
             guard let image = PlatformImage(data: data) else { return nil }
 
-            // Save to disk cache
-            ensureCacheDirectory()
-            let path = cachePath(for: domain)
-            try? data.write(to: path, options: .atomicProtected)
+            if cachingToDisk {
+                ensureCacheDirectory()
+                let path = cachePath(for: domain)
+                try? data.write(to: path, options: .atomicProtected)
+            }
 
             return image
         } catch {
@@ -196,11 +201,14 @@ enum FaviconService: Sendable {
     // MARK: - Primary API
 
     /// Returns a cached favicon or fetches one. Returns nil if unavailable.
-    static func favicon(for domain: String) async -> PlatformImage? {
+    ///
+    /// - Parameter cachingToDisk: Forwarded to `fetchFavicon(for:cachingToDisk:)`
+    ///   for the fetch half; a favicon already on disk is reused either way.
+    static func favicon(for domain: String, cachingToDisk: Bool = true) async -> PlatformImage? {
         if let cached = cachedImage(for: domain) {
             return cached
         }
-        return await fetchFavicon(for: domain)
+        return await fetchFavicon(for: domain, cachingToDisk: cachingToDisk)
     }
 
     // MARK: - Clear Cache

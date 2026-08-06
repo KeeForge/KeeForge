@@ -696,6 +696,128 @@ final class DatabaseViewModelTests: XCTestCase {
         XCTAssertFalse(vm.isDirty)
     }
 
+    /// The picker asks before it offers the action, so the answer has to match
+    /// what `downloadFavicon` would actually do — a button that is enabled and
+    /// then refuses is worse than one that was never offered.
+    func testFaviconDownloadIsOfferedOnlyForAPublicWebsiteAddress() async throws {
+        let vm = try makeViewModel()
+        await vm.unlock(password: fixturePassword)
+        let rootGroupID = try XCTUnwrap(vm.visibleRootGroupID)
+
+        func entryID(url: String, title: String) throws -> UUID {
+            try vm.applyEntryEdit(
+                .createEntry(parentGroupID: rootGroupID, draft: EntryDraftPayload(title: title, url: url))
+            )
+            return try XCTUnwrap(vm.visibleRootGroup?.allEntries.first { $0.title == title }?.id)
+        }
+
+        let publicSite = try entryID(url: "https://example.com/login", title: "Public")
+        XCTAssertTrue(vm.canDownloadFavicon(forEntryID: publicSite))
+
+        for (url, title) in [
+            ("", "No URL"),
+            ("http://localhost:8080", "Localhost"),
+            ("https://192.168.1.10", "Private IP"),
+            ("https://nas.local", "Private TLD"),
+        ] {
+            let id = try entryID(url: url, title: title)
+            XCTAssertFalse(
+                vm.canDownloadFavicon(forEntryID: id),
+                "\(title) names no host a favicon service could be asked about"
+            )
+            do {
+                try await vm.downloadFavicon(forEntryID: id)
+                XCTFail("\(title) must fail before any network call")
+            } catch {
+                XCTAssertEqual(error as? DatabaseViewModel.FaviconDownloadFailure, .noPublicDomain)
+            }
+        }
+    }
+
+    /// `unlockedMeta` is only refreshed by a successful save, so every
+    /// custom-icon read has to go through the draft as well. Otherwise a save
+    /// that fails — offline, conflicted — leaves the entry pointing at a UUID
+    /// nothing can resolve: it renders its fallback icon and the picker omits
+    /// the image, so a download that worked looks like one that did nothing.
+    /// A retry then misses the no-op guard and writes another history version.
+    func testACustomIconIsVisibleBeforeTheSaveThatWouldPersistIt() async throws {
+        let vm = try makeViewModel()
+        await vm.unlock(password: fixturePassword)
+
+        let entry = try XCTUnwrap(vm.visibleRootGroup?.allEntries.first)
+        let iconUUID = UUID()
+        let imageData = Data([0x89, 0x50, 0x4E, 0x47, 0x11, 0x22])
+
+        try vm.applyEntryEdit(
+            .addEntryCustomIcon(entryID: entry.id, iconUUID: iconUUID, imageData: imageData)
+        )
+
+        let updated = try XCTUnwrap(vm.entry(withID: entry.id))
+        XCTAssertEqual(updated.customIconUUID, iconUUID)
+        XCTAssertEqual(
+            vm.customIconData(for: updated), imageData,
+            "the entry must render the icon it was just given, saved or not"
+        )
+        XCTAssertTrue(
+            vm.customIcons.contains { $0.id == iconUUID && $0.data == imageData },
+            "and the picker must offer it"
+        )
+    }
+
+    /// Nothing was saved, so the icon is still only in the draft — and the
+    /// picker offering it has to mean picking it works.
+    func testAnUnsavedCustomIconCanBeSelectedForAnotherEntry() async throws {
+        let vm = try makeViewModel()
+        await vm.unlock(password: fixturePassword)
+
+        let entries = try XCTUnwrap(vm.visibleRootGroup?.allEntries)
+        let first = try XCTUnwrap(entries.first)
+        let second = try XCTUnwrap(entries.dropFirst().first)
+        let iconUUID = UUID()
+
+        try vm.applyEntryEdit(
+            .addEntryCustomIcon(entryID: first.id, iconUUID: iconUUID, imageData: Data([0x01, 0x02]))
+        )
+        try vm.setEntryIcon(.custom(uuid: iconUUID), entryID: second.id)
+
+        XCTAssertEqual(vm.entry(withID: second.id)?.customIconUUID, iconUUID)
+    }
+
+    /// The picker reads a clean return as success: it dismisses and runs the
+    /// follow-up save with nothing staged, which is indistinguishable from a
+    /// stored icon. The window is narrow — a tap racing a read-only flip from
+    /// another scene — but a distinct error costs nothing.
+    func testDownloadingAFaviconIntoAReadOnlyDatabaseFails() async throws {
+        var reference = try makeReference()
+        reference.isReadOnly = true
+        let vm = DatabaseViewModel(databaseReference: reference)
+
+        await vm.unlock(password: fixturePassword)
+        XCTAssertTrue(vm.isReadOnly)
+
+        let entryID = try XCTUnwrap(vm.visibleRootGroup?.allEntries.first { $0.url.isEmpty == false }?.id)
+        XCTAssertFalse(vm.canDownloadFavicon(forEntryID: entryID))
+
+        do {
+            try await vm.downloadFavicon(forEntryID: entryID)
+            XCTFail("a read-only database must refuse the edit rather than return cleanly")
+        } catch {
+            XCTAssertEqual(error as? DatabaseViewModel.FaviconDownloadFailure, .entryNotEditable)
+        }
+    }
+
+    func testDownloadingAFaviconForAnEntryThatIsGoneFails() async throws {
+        let vm = try makeViewModel()
+        await vm.unlock(password: fixturePassword)
+
+        do {
+            try await vm.downloadFavicon(forEntryID: UUID())
+            XCTFail("an entry that no longer exists must not read as a stored icon")
+        } catch {
+            XCTAssertEqual(error as? DatabaseViewModel.FaviconDownloadFailure, .entryNotEditable)
+        }
+    }
+
     private func makeViewModelWithEditedEntry() async throws -> (
         vm: DatabaseViewModel, entryID: UUID, originalUsername: String, historyCountBefore: Int
     ) {
