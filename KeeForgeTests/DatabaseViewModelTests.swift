@@ -818,6 +818,50 @@ final class DatabaseViewModelTests: XCTestCase {
         }
     }
 
+    /// `applyEntryEdit` has no reentry guard, so an edit can land while a save's
+    /// upload is in flight — and that edit's own follow-up save no-ops on
+    /// `isSaving`. The in-flight save must go around again for it: clearing the
+    /// draft unconditionally on completion silently threw the edit away, with
+    /// nothing left dirty to ever save it.
+    func testAnEditAppliedWhileASaveIsInFlightIsSavedNotDiscarded() async throws {
+        let gate = InFlightSaveGate()
+        let recorder = SavedDraftRecorder()
+
+        let vm = DatabaseViewModel(
+            databaseReference: try makeReference(),
+            localSaveOperation: { draft, _, _, _ in
+                await recorder.record(editCount: draft.pendingEdits.count)
+                await gate.parkFirstCall()
+                return .saved(newSHA512: Data("saved-\(draft.pendingEdits.count)".utf8))
+            }
+        )
+        await vm.unlock(password: fixturePassword)
+
+        let entries = try XCTUnwrap(vm.visibleRootGroup?.allEntries)
+        let first = try XCTUnwrap(entries.first)
+        let second = try XCTUnwrap(entries.dropFirst().first)
+
+        try vm.applyEntryEdit(.setEntryIcon(entryID: first.id, icon: .standard(iconID: 5)))
+        let saveTask = Task { try await vm.save() }
+        await gate.firstCallStarted()
+
+        // The mid-save edit, exactly as a view would produce it: apply, then a
+        // follow-up save that no-ops against the in-flight one.
+        try vm.applyEntryEdit(.setEntryIcon(entryID: second.id, icon: .standard(iconID: 7)))
+        await vm.saveHandlingError()
+        XCTAssertTrue(vm.isDirty, "the mid-save edit must still be pending while the first upload runs")
+
+        await gate.releaseFirstCall()
+        try await saveTask.value
+
+        let editCounts = await recorder.editCounts
+        XCTAssertEqual(editCounts, [1, 2], "the save must go around again, writing the grown draft whole")
+        XCTAssertFalse(vm.isDirty, "nothing may be left behind once both uploads landed")
+        XCTAssertNil(vm.saveError)
+        XCTAssertEqual(vm.entry(withID: first.id)?.iconID, 5)
+        XCTAssertEqual(vm.entry(withID: second.id)?.iconID, 7)
+    }
+
     private func makeViewModelWithEditedEntry() async throws -> (
         vm: DatabaseViewModel, entryID: UUID, originalUsername: String, historyCountBefore: Int
     ) {
@@ -3719,6 +3763,43 @@ private actor AsyncGate {
     func resume() {
         continuation?.resume()
         continuation = nil
+    }
+}
+
+/// Parks the first save-operation call until the test releases it, so an edit
+/// can land while that save is provably in flight. Later calls pass through.
+private actor InFlightSaveGate {
+    private var startWaiter: CheckedContinuation<Void, Never>?
+    private var hasStarted = false
+    private var releaseWaiter: CheckedContinuation<Void, Never>?
+    private var isReleased = false
+
+    func parkFirstCall() async {
+        guard hasStarted == false else { return }
+        hasStarted = true
+        startWaiter?.resume()
+        startWaiter = nil
+        guard isReleased == false else { return }
+        await withCheckedContinuation { releaseWaiter = $0 }
+    }
+
+    func firstCallStarted() async {
+        guard hasStarted == false else { return }
+        await withCheckedContinuation { startWaiter = $0 }
+    }
+
+    func releaseFirstCall() {
+        isReleased = true
+        releaseWaiter?.resume()
+        releaseWaiter = nil
+    }
+}
+
+private actor SavedDraftRecorder {
+    private(set) var editCounts: [Int] = []
+
+    func record(editCount: Int) {
+        editCounts.append(editCount)
     }
 }
 

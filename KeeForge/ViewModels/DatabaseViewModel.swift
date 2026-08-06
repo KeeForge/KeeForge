@@ -1283,14 +1283,9 @@ final class DatabaseViewModel {
         guard isSaving == false else { return }
         guard let draft else { return }
         guard draft.isDirty else { return }
-        guard let compositeKey, let openTimeSHA512 else {
+        guard let compositeKey else {
             throw SaveError.saveContextUnavailable
         }
-
-        // The awaits below outlast a lock: applying their result to a locked
-        // session would resurrect `rootGroup`/`unlockedMeta` behind the lock
-        // screen. Same guard shape as `refreshCredentialStoreIfStillUnlocked`.
-        let expectedLockCycleID = lockCycleID
 
         isSaving = true
         saveError = nil
@@ -1299,44 +1294,75 @@ final class DatabaseViewModel {
             isSaving = false
         }
 
-        let saveResult: SaveResult
-        switch databaseReference.source {
-        case .local:
-            saveResult = try await localSaveOperation(
-                draft,
-                databaseReference,
-                compositeKey,
-                openTimeSHA512
-            )
-        case .cloud:
-            saveResult = try await cloudSaveOperation(
-                draft,
-                databaseReference,
-                compositeKey,
-                openTimeSHA512,
-                databaseReference.expectedCloudRevision
-            )
-        }
+        // An edit can land while the upload below is in flight: `applyEntryEdit`
+        // has no reentry guard, so `self.draft` keeps growing past the snapshot
+        // being written while the edit's own follow-up save no-ops on
+        // `isSaving`. Clearing the draft unconditionally on completion would
+        // silently discard those edits, so each pass writes a snapshot and the
+        // loop goes around again if the draft grew behind it — the grown draft
+        // contains the saved edits plus the new ones, so re-saving it whole is
+        // correct.
+        var snapshot = draft
+        while true {
+            guard let openTimeSHA512 else {
+                throw SaveError.saveContextUnavailable
+            }
 
-        // Locked while the save was in flight: the bytes did reach storage, and
-        // the next unlock reads them back, so there is nothing to apply here.
-        guard expectedLockCycleID == lockCycleID else { return }
+            // The awaits below outlast a lock: applying their result to a locked
+            // session would resurrect `rootGroup`/`unlockedMeta` behind the lock
+            // screen. Same guard shape as `refreshCredentialStoreIfStillUnlocked`.
+            let expectedLockCycleID = lockCycleID
 
-        switch saveResult {
-        case .saved(let newSHA512):
-            rootGroup = draft.rootGroup
-            unlockedMeta = draft.meta
-            self.openTimeSHA512 = newSHA512
-            self.draft = nil
-            saveConflict = nil
-            saveError = nil
-            refreshDatabaseReference()
-            populateCredentialStoreIfNeeded(root: draft.rootGroup)
-        case .conflict(let remoteSHA512, let remoteData):
-            saveConflict = SaveConflict(
-                remoteSHA512: remoteSHA512,
-                remoteData: remoteData
-            )
+            let saveResult: SaveResult
+            switch databaseReference.source {
+            case .local:
+                saveResult = try await localSaveOperation(
+                    snapshot,
+                    databaseReference,
+                    compositeKey,
+                    openTimeSHA512
+                )
+            case .cloud:
+                saveResult = try await cloudSaveOperation(
+                    snapshot,
+                    databaseReference,
+                    compositeKey,
+                    openTimeSHA512,
+                    databaseReference.expectedCloudRevision
+                )
+            }
+
+            // Locked while the save was in flight: the bytes did reach storage,
+            // and the next unlock reads them back, so there is nothing to apply
+            // here.
+            guard expectedLockCycleID == lockCycleID else { return }
+
+            switch saveResult {
+            case .saved(let newSHA512):
+                rootGroup = snapshot.rootGroup
+                unlockedMeta = snapshot.meta
+                self.openTimeSHA512 = newSHA512
+                saveConflict = nil
+                saveError = nil
+                refreshDatabaseReference()
+                populateCredentialStoreIfNeeded(root: snapshot.rootGroup)
+
+                guard let grown = self.draft, grown.pendingEdits != snapshot.pendingEdits else {
+                    self.draft = nil
+                    return
+                }
+                // A replaced-but-pristine draft (edits discarded mid-save) has
+                // nothing to write; keep it rather than clearing state the user
+                // just chose.
+                guard grown.isDirty else { return }
+                snapshot = grown
+            case .conflict(let remoteSHA512, let remoteData):
+                saveConflict = SaveConflict(
+                    remoteSHA512: remoteSHA512,
+                    remoteData: remoteData
+                )
+                return
+            }
         }
     }
 
