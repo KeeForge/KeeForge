@@ -69,7 +69,7 @@ enum DatabaseSaveError: Error, LocalizedError, Identifiable, Equatable, Sendable
                 self = .databaseLocationUnavailable
             case .saveContextUnavailable:
                 self = .saveContextUnavailable
-            case .rekeyVerificationFailed:
+            case .rekeyVerificationFailed, .rekeyAppliedRemotely:
                 self = .unknown(saveError.localizedDescription)
             }
         case let cloudError as CloudProviderError:
@@ -314,6 +314,12 @@ final class DatabaseViewModel {
     private(set) var lockoutUntil: Date?
     private(set) var compositeKey: Data?
     private(set) var sessionKey: SymmetricKey?
+    /// Key file supplied manually at password unlock. The reference's
+    /// association is the usual key-file source, but a manual pick never
+    /// persists one, and the session otherwise retains only the derived
+    /// composite key — losing the fact that the master key includes a key
+    /// file, which "keep current key file" in the rekey flow must preserve.
+    private(set) var sessionKeyFileData: Data?
     var draft: DatabaseDraft? {
         didSet { rebuildDerivedState() }
     }
@@ -684,6 +690,7 @@ final class DatabaseViewModel {
                 compositeKey: compositeKey,
                 sessionKey: sessionKey
             )
+            sessionKeyFileData = keyFileData
         } catch {
             let diagnostics = makeUnlockDiagnostics(
                 unlockMethod: .password,
@@ -1270,6 +1277,7 @@ final class DatabaseViewModel {
         openedFormatVersion = nil
         compositeKey = nil
         sessionKey = nil
+        sessionKeyFileData = nil
         unlockedMeta = nil
         binaryPool = nil
         draft = nil
@@ -1491,24 +1499,37 @@ final class DatabaseViewModel {
         }
 
         let saveResult: SaveResult
-        switch databaseReference.source {
-        case .local:
-            saveResult = try await localSaveOperation(
-                workingDraft,
-                databaseReference,
-                compositeKey,
-                openTimeSHA512,
-                newCompositeKey
+        do {
+            switch databaseReference.source {
+            case .local:
+                saveResult = try await localSaveOperation(
+                    workingDraft,
+                    databaseReference,
+                    compositeKey,
+                    openTimeSHA512,
+                    newCompositeKey
+                )
+            case .cloud:
+                saveResult = try await cloudSaveOperation(
+                    workingDraft,
+                    databaseReference,
+                    compositeKey,
+                    openTimeSHA512,
+                    databaseReference.expectedCloudRevision,
+                    newCompositeKey
+                )
+            }
+        } catch SaveError.rekeyAppliedRemotely {
+            // The upload landed, so the cloud file already requires the new
+            // key even though the local apply failed. Point keychain and
+            // association at the key the remote now needs — the stale local
+            // cache reconciles through the normal sync-down path.
+            refreshStoredCompositeKeyAfterRekey(newCompositeKey)
+            persistKeyFileAssociation(
+                bookmarkData: newKeyFileBookmarkData,
+                filename: newKeyFileFilename
             )
-        case .cloud:
-            saveResult = try await cloudSaveOperation(
-                workingDraft,
-                databaseReference,
-                compositeKey,
-                openTimeSHA512,
-                databaseReference.expectedCloudRevision,
-                newCompositeKey
-            )
+            throw SaveError.rekeyAppliedRemotely
         }
 
         switch saveResult {
@@ -1524,6 +1545,13 @@ final class DatabaseViewModel {
             if expectedLockCycleID == lockCycleID {
                 self.compositeKey = newCompositeKey
                 self.openTimeSHA512 = newSHA512
+                // Edits can land while the rekey save is in flight (the sheet
+                // is dismissible); their own save() no-ops on `isSaving`, so
+                // flush them here under the new key. The task starts after
+                // this function's defer resets `isSaving`.
+                if draft?.isDirty == true {
+                    Task { await self.saveHandlingError() }
+                }
             }
         case .conflict:
             throw RekeyError.conflict
@@ -1542,8 +1570,13 @@ final class DatabaseViewModel {
             }
         } catch {
             // A stale stored key would break biometric unlock outright; drop it
-            // so unlock falls back to the new password.
+            // so unlock falls back to the new password. The legacy entry must
+            // go too — `retrieveStoredCompositeKey` falls back to it otherwise.
             storedKeyDeleteOperation(databaseReference)
+            if let legacyFilename = databaseReference.legacyKeychainFilename {
+                KeychainService.deleteLegacyCompositeKey(forFilename: legacyFilename)
+                DatabaseListStore.clearLegacyKeychainFilename(for: databaseReference.id)
+            }
         }
     }
 
@@ -1551,6 +1584,9 @@ final class DatabaseViewModel {
         var updated = DatabaseListStore.databases.first(where: { $0.id == databaseReference.id }) ?? databaseReference
         updated.keyFileBookmarkData = bookmarkData
         updated.keyFileFilename = filename
+        // The drainer refuses to push markers older than this: they hold
+        // ciphertext under the old key and would revert the rekeyed remote.
+        updated.lastMasterKeyChangeAt = nowProvider()
         DatabaseListStore.update(updated)
         refreshDatabaseReference()
     }
@@ -2141,6 +2177,7 @@ final class DatabaseViewModel {
         canRemoveMissingDocumentsFile = false
         state = .unlocking
         draft = nil
+        sessionKeyFileData = nil
         openTimeSHA512 = nil
         saveError = nil
         saveConflict = nil

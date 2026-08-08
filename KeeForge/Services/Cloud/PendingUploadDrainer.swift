@@ -196,6 +196,18 @@ final class PendingUploadDrainer {
                 continue
             }
 
+            // A marker enqueued while a master-key change was uploading holds
+            // ciphertext under the old key; pushing it would revert the rekey
+            // on the remote (rev-less providers) or strand an undecryptable
+            // payload (rev-tracking ones). Surface it as a conflict instead.
+            if let rekeyedAt = reference.lastMasterKeyChangeAt,
+               storedMarker.marker.createdAt < rekeyedAt {
+                storedMarker.marker.lastSyncError = environment.conflictMessage(nil)
+                _ = try? environment.updateMarker(storedMarker)
+                outcome.conflictDatabaseIDs.insert(reference.id)
+                continue
+            }
+
             if uploadedPayloadSHAs[reference.id]?.contains(storedMarker.marker.openTimeSHA512) == true {
                 try? environment.dropMarker(storedMarker)
                 outcome.drainedDatabaseIDs.insert(reference.id)

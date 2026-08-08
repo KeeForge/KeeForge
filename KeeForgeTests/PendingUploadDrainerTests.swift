@@ -101,6 +101,39 @@ final class PendingUploadDrainerTests: XCTestCase {
         )
     }
 
+    func test_drain_markerOlderThanMasterKeyChange_marksConflicted_doesNotPush() async {
+        // Enqueued while a master-key change was uploading: the payload is
+        // ciphertext under the old key, and pushing it would revert the rekey
+        // on the remote. It must surface as a conflict instead.
+        var reference = makeCloudReference(rev: "rev-1")
+        reference.lastMasterKeyChangeAt = Date(timeIntervalSince1970: 2_000)
+        let storedMarker = makeStoredMarker(databaseId: reference.id, expectedRev: "rev-1")
+        let recorder = Recorder()
+        let frozenReference = reference
+        let drainer = PendingUploadDrainer(
+            environment: makeEnvironment(
+                markers: [storedMarker],
+                reference: reference,
+                recorder: recorder,
+                pushPendingUpload: { _, _, _ in
+                    XCTFail("Old-key payload must never be pushed after a rekey")
+                    return .saved(updatedReference: frozenReference)
+                }
+            )
+        )
+
+        let outcome = await drainer.drainAll()
+
+        XCTAssertTrue(outcome.drainedDatabaseIDs.isEmpty)
+        XCTAssertEqual(outcome.conflictDatabaseIDs, [reference.id])
+        XCTAssertTrue(recorder.droppedMarkerIDs.isEmpty)
+        XCTAssertEqual(recorder.updatedMarkers.count, 1)
+        XCTAssertEqual(
+            recorder.updatedMarkers.first?.marker.lastSyncError,
+            CloudProviderError.conflict(remoteRev: nil).localizedDescription
+        )
+    }
+
     func test_drain_crossDeviceConflict_isNotAutoRebased() async {
         // A sync-down replaced the cache with another device's copy, so the
         // payload no longer matches the recorded SHA-512, even though the
