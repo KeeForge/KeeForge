@@ -373,7 +373,8 @@ struct EntryEditView: View {
                 isVisible: $isTOTPSecretVisible,
                 fieldAccessibilityIdentifier: "entry-edit.totp.secret-field",
                 visibilityAccessibilityIdentifier: "entry-edit.totp.secret-visibility-button",
-                onVisibilityToggle: toggleTOTPSecretVisibility
+                onVisibilityToggle: toggleTOTPSecretVisibility,
+                usesPasswordAutoFill: false
             )
         }
 
@@ -385,14 +386,25 @@ struct EntryEditView: View {
                 .accessibilityIdentifier("entry-edit.totp.period-field")
         }
 
-        // An enrolled URI may carry any digit count in 1...9; the current
-        // value always gets a tag so the picker never renders blank.
+        // Only what the entry's storage format can hold is offered, plus the
+        // current value — an enrolled URI may carry any digit count in 1...9,
+        // and an untagged selection renders the picker blank.
         Picker("Digits", selection: $formViewModel.totpDigits) {
-            ForEach(Array(Set([6, 7, 8, formViewModel.totpDigits])).sorted(), id: \.self) { digits in
+            ForEach(
+                Array(Set(formViewModel.supportedTOTPDigits + [formViewModel.totpDigits])).sorted(),
+                id: \.self
+            ) { digits in
                 Text(verbatim: String(digits)).tag(digits)
             }
         }
         .accessibilityIdentifier("entry-edit.totp.digits-picker")
+
+        if let message = formViewModel.unsupportedTOTPDigitsMessage {
+            Text(message)
+                .font(.subheadline)
+                .foregroundStyle(.red)
+                .accessibilityIdentifier("entry-edit.totp.digits-error")
+        }
 
         Picker("Algorithm", selection: $formViewModel.totpAlgorithm) {
             Text(verbatim: "SHA-1").tag(TOTPAlgorithm.sha1)

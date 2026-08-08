@@ -17,6 +17,17 @@ typealias PlatformImage = UIImage
 typealias PlatformImage = NSImage
 #endif
 
+// MARK: - Text content type
+
+// SwiftUI's `textContentType(_:)` takes the platform's own type; naming it lets
+// call sites store one in a property.
+
+#if canImport(UIKit)
+typealias PlatformTextContentType = UITextContentType
+#elseif canImport(AppKit)
+typealias PlatformTextContentType = NSTextContentType
+#endif
+
 extension Image {
     init(platformImage: PlatformImage) {
         #if canImport(UIKit)
