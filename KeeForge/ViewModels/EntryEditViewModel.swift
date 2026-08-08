@@ -197,12 +197,28 @@ final class EntryEditViewModel {
     }
 
     var canSave: Bool {
+        guard unsupportedTOTPDigitsMessage == nil else { return false }
         switch mode {
         case .create:
             return isDirty
         case .edit:
             return isDirty
         }
+    }
+
+    /// The digit counts this entry can actually store: a KeeOTP-sourced entry
+    /// keeps its legacy query, whose `size` the parser only accepts as 6 or 8.
+    var supportedTOTPDigits: [Int] {
+        keeOTPSource == nil ? [6, 7, 8] : [6, 8]
+    }
+
+    /// Set while the form asks for a digit count the entry's storage format
+    /// cannot express. The payload would silently revert the whole TOTP edit
+    /// rather than write a query that fails to reload, so the editor blocks
+    /// the save and explains instead.
+    var unsupportedTOTPDigitsMessage: String? {
+        guard supportedTOTPDigits.contains(totpDigits) == false else { return nil }
+        return String(localized: "This entry stores its code in the legacy KeeOTP format, which only supports 6- or 8-digit codes.")
     }
 
     var isPasswordInitiallyVisible: Bool {

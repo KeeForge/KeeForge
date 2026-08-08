@@ -80,6 +80,12 @@ final class TOTPEnrollmentViewModel {
         uri.accountName ?? ""
     }
 
+    /// Whether an empty `filteredEntryCandidates` means "nothing matched"
+    /// rather than "this database has no entries".
+    var hasActiveSearch: Bool {
+        searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
+    }
+
     var filteredEntryCandidates: [EntryCandidate] {
         let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard query.isEmpty == false else { return entryCandidates }

@@ -218,6 +218,7 @@ private enum TOTPEnrollmentAlert: String, Identifiable {
     case unsupportedLink
     case invalidLink
     case unlockNeeded
+    case linkExpired
 
     var id: String { rawValue }
 }
@@ -234,9 +235,18 @@ private struct AppRootView: View {
     @State private var didResolveInitialRoute = false
     @State private var whatsNewRelease: WhatsNewRelease?
     @State private var pendingAutoOpenReference: DatabaseReference?
+    /// SwiftUI drops a sheet or an alert raised in the same update that
+    /// dismisses another presentation — the compact unlock sheet closing on
+    /// `.unlocked`, or the What's New sheet's own `onDismiss`. Anything the
+    /// enrollment flow raises from those moments waits out the outgoing
+    /// dismissal first.
+    private static let enrollmentPresentationDelay = Duration.milliseconds(450)
+
     /// Enrollment parked until a session unlocks (or the What's New sheet
     /// closes); promoted to `presentedTOTPEnrollment` by the state `onChange`
-    /// below, or discarded once it expires.
+    /// below, or discarded once it expires. It stays parked until the sheet
+    /// reports itself on screen, so a dropped presentation still has something
+    /// to resume from.
     @State private var pendingTOTPEnrollment: PendingTOTPEnrollment?
     @State private var presentedTOTPEnrollment: PendingTOTPEnrollment?
     @State private var totpEnrollmentAlert: TOTPEnrollmentAlert?
@@ -298,6 +308,9 @@ private struct AppRootView: View {
                     presentedTOTPEnrollment = nil
                     pendingTOTPEnrollment = nil
                 }
+                // The parked copy is only released once the sheet is actually
+                // on screen; until then it is the retry path.
+                .onAppear { pendingTOTPEnrollment = nil }
                 // Rebuild the content when either the enrollment or the
                 // session changes under the open sheet (a second otpauth URL,
                 // or a swap to another unlocked database): the content
@@ -315,12 +328,7 @@ private struct AppRootView: View {
         }
         .onChange(of: activeDatabaseViewModel?.state) { _, newState in
             if newState == .unlocked {
-                if let pendingTOTPEnrollment {
-                    self.pendingTOTPEnrollment = nil
-                    if pendingTOTPEnrollment.isExpired == false {
-                        presentedTOTPEnrollment = pendingTOTPEnrollment
-                    }
-                }
+                promoteParkedTOTPEnrollment()
             } else if let presentedTOTPEnrollment {
                 // Locking or closing the database mid-flow tears the sheet's
                 // data out from under it; park the enrollment again (original
@@ -331,11 +339,43 @@ private struct AppRootView: View {
             }
         }
         .onChange(of: scenePhase) { _, _ in
-            if pendingTOTPEnrollment?.isExpired == true {
-                pendingTOTPEnrollment = nil
-            }
+            discardExpiredTOTPEnrollment()
         }
         .alert(item: $totpEnrollmentAlert, content: totpEnrollmentAlertContent)
+    }
+
+    /// Moves a parked enrollment onto the destination sheet once a session is
+    /// unlocked. The presentation is handed to a later turn because the same
+    /// `.unlocked` transition dismisses `CompactDatabaseHost`'s unlock sheet,
+    /// and the parked copy is left in place so a dropped presentation is not
+    /// the end of the incoming code.
+    private func promoteParkedTOTPEnrollment() {
+        guard discardExpiredTOTPEnrollment() == false, pendingTOTPEnrollment != nil else { return }
+        Task { @MainActor in
+            try? await Task.sleep(for: Self.enrollmentPresentationDelay)
+            guard let enrollment = pendingTOTPEnrollment,
+                  enrollment.isExpired == false,
+                  activeDatabaseViewModel?.state == .unlocked else { return }
+            presentedTOTPEnrollment = enrollment
+        }
+    }
+
+    /// Drops a parked enrollment that outlived `PendingTOTPEnrollment.lifetime`
+    /// and says so. Vanishing silently after telling the user to unlock a
+    /// database reads as the app losing their code.
+    @discardableResult
+    private func discardExpiredTOTPEnrollment() -> Bool {
+        guard pendingTOTPEnrollment?.isExpired == true else { return false }
+        pendingTOTPEnrollment = nil
+        requestTOTPEnrollmentAlert(.linkExpired)
+        return true
+    }
+
+    private func requestTOTPEnrollmentAlert(_ alert: TOTPEnrollmentAlert) {
+        Task { @MainActor in
+            try? await Task.sleep(for: Self.enrollmentPresentationDelay)
+            totpEnrollmentAlert = alert
+        }
     }
 
     private func totpEnrollmentAlertContent(for alert: TOTPEnrollmentAlert) -> Alert {
@@ -356,6 +396,12 @@ private struct AppRootView: View {
             Alert(
                 title: Text("Unlock a Database"),
                 message: Text("Open and unlock a database, and KeeForge will then add the verification code."),
+                dismissButton: .default(Text("OK"))
+            )
+        case .linkExpired:
+            Alert(
+                title: Text("Couldn’t Add Verification Code"),
+                message: Text("This setup link expired. Open it again from the service to add the verification code."),
                 dismissButton: .default(Text("OK"))
             )
         }
@@ -465,15 +511,14 @@ private struct AppRootView: View {
             openDatabase(pendingAutoOpenReference)
         }
 
-        guard let pendingTOTPEnrollment else { return }
-        if pendingTOTPEnrollment.isExpired {
-            self.pendingTOTPEnrollment = nil
-        } else if let activeDatabaseViewModel, activeDatabaseViewModel.state == .unlocked {
-            self.pendingTOTPEnrollment = nil
-            presentedTOTPEnrollment = pendingTOTPEnrollment
+        // Everything below runs from the sheet's `onDismiss`, so both the
+        // enrollment sheet and the alert are deferred past that dismissal.
+        guard discardExpiredTOTPEnrollment() == false, pendingTOTPEnrollment != nil else { return }
+        if activeDatabaseViewModel?.state == .unlocked {
+            promoteParkedTOTPEnrollment()
         } else {
             // Stays parked; the state `onChange` promotes it on unlock.
-            totpEnrollmentAlert = .unlockNeeded
+            requestTOTPEnrollmentAlert(.unlockNeeded)
         }
     }
 

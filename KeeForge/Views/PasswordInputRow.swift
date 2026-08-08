@@ -1,18 +1,22 @@
 import SwiftUI
 
 struct PasswordInputStyle: ViewModifier {
+    /// `nil` for a field that only looks like a password. Password AutoFill on
+    /// a TOTP setup key offers to replace it with a generated password.
+    var contentType: PlatformTextContentType? = .password
+
     func body(content: Content) -> some View {
         content
             .font(.body.monospaced())
             .textInputAutocapitalization(.never)
             .autocorrectionDisabled()
-            .textContentType(.password)
+            .textContentType(contentType)
     }
 }
 
 extension View {
-    func passwordInputStyle() -> some View {
-        modifier(PasswordInputStyle())
+    func passwordInputStyle(contentType: PlatformTextContentType? = .password) -> some View {
+        modifier(PasswordInputStyle(contentType: contentType))
     }
 }
 
@@ -23,6 +27,9 @@ struct PasswordInputRow<Actions: View>: View {
     let fieldAccessibilityIdentifier: String
     let visibilityAccessibilityIdentifier: String
     private let onVisibilityToggle: (() -> Void)?
+    /// Off for a row that holds something other than a password, so the
+    /// QuickType bar cannot offer to overwrite it with a generated one.
+    private let usesPasswordAutoFill: Bool
     private let actions: Actions
 
     init(
@@ -32,6 +39,7 @@ struct PasswordInputRow<Actions: View>: View {
         fieldAccessibilityIdentifier: String,
         visibilityAccessibilityIdentifier: String,
         onVisibilityToggle: (() -> Void)? = nil,
+        usesPasswordAutoFill: Bool = true,
         @ViewBuilder actions: () -> Actions = { EmptyView() }
     ) {
         self.title = title
@@ -40,6 +48,7 @@ struct PasswordInputRow<Actions: View>: View {
         self.fieldAccessibilityIdentifier = fieldAccessibilityIdentifier
         self.visibilityAccessibilityIdentifier = visibilityAccessibilityIdentifier
         self.onVisibilityToggle = onVisibilityToggle
+        self.usesPasswordAutoFill = usesPasswordAutoFill
         self.actions = actions()
     }
 
@@ -52,8 +61,8 @@ struct PasswordInputRow<Actions: View>: View {
                     SecureField(title, text: $text)
                 }
             }
-            .textContentType(.newPassword)
-            .passwordInputStyle()
+            .textContentType(usesPasswordAutoFill ? .newPassword : nil)
+            .passwordInputStyle(contentType: usesPasswordAutoFill ? .password : nil)
             .accessibilityIdentifier(fieldAccessibilityIdentifier)
 
             Button {

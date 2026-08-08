@@ -3901,6 +3901,28 @@
         }
       }
     },
+    "Choose New Entry above to save this verification code." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wähle oben „Neuer Eintrag“, um diesen Bestätigungscode zu speichern."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Elige «Nueva entrada» arriba para guardar este código de verificación."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choisis « Nouvelle entrée » ci-dessus pour enregistrer ce code de vérification."
+          }
+        }
+      }
+    },
     "Choose where to save this verification code." : {
       "localizations" : {
         "de" : {
@@ -21965,6 +21987,28 @@
         }
       }
     },
+    "This entry stores its code in the legacy KeeOTP format, which only supports 6- or 8-digit codes." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dieser Eintrag speichert seinen Code im alten KeeOTP-Format, das nur 6- oder 8-stellige Codes unterstützt."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Esta entrada guarda su código en el formato antiguo de KeeOTP, que solo admite códigos de 6 u 8 dígitos."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cette entrée stocke son code au format KeeOTP hérité, qui ne prend en charge que les codes à 6 ou 8 chiffres."
+          }
+        }
+      }
+    },
     "This entry will be removed immediately and cannot be restored from KeeForge." : {
       "localizations" : {
         "de" : {
@@ -22401,6 +22445,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Ce lien de configuration ne contient pas de clé secrète valide."
+          }
+        }
+      }
+    },
+    "This setup link expired. Open it again from the service to add the verification code." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dieser Einrichtungslink ist abgelaufen. Öffne ihn beim Dienst erneut, um den Bestätigungscode hinzuzufügen."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Este enlace de configuración ha caducado. Ábrelo de nuevo en el servicio para añadir el código de verificación."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ce lien de configuration a expiré. Ouvre-le à nouveau depuis le service pour ajouter le code de vérification."
           }
         }
       }

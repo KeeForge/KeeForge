@@ -122,7 +122,17 @@ struct TOTPEnrollmentDestinationView: View {
 
                 let candidates = model.filteredEntryCandidates
                 if candidates.isEmpty {
-                    ContentUnavailableView.search
+                    // An empty list with an empty search field means the
+                    // database has nothing to attach to, not a missed query.
+                    if model.hasActiveSearch {
+                        ContentUnavailableView.search
+                    } else {
+                        ContentUnavailableView(
+                            "No Entries",
+                            systemImage: "tray",
+                            description: Text("Choose New Entry above to save this verification code.")
+                        )
+                    }
                 } else {
                     ForEach(candidates) { candidate in
                         entryRow(for: candidate)
