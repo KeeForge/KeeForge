@@ -19,6 +19,11 @@ struct DatabaseReference: Identifiable, Codable, Hashable, Sendable {
     /// be rebound to `Documents/<filename>` when their bookmark goes stale.
     var isDocumentsResident: Bool = false
     var source: DatabaseSource = .local
+    /// When the master key last changed. Pending AutoFill upload markers
+    /// created before this hold ciphertext under the old key; the drainer
+    /// surfaces them as conflicts instead of pushing them over the rekeyed
+    /// remote.
+    var lastMasterKeyChangeAt: Date?
 
     var displayName: String {
         let trimmedNickname = nickname?.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -86,6 +91,7 @@ extension DatabaseReference {
         case autoFillEnabled
         case isDocumentsResident
         case source
+        case lastMasterKeyChangeAt
     }
 
     init(from decoder: Decoder) throws {
@@ -105,6 +111,7 @@ extension DatabaseReference {
         autoFillEnabled = try container.decodeIfPresent(Bool.self, forKey: .autoFillEnabled) ?? true
         isDocumentsResident = try container.decodeIfPresent(Bool.self, forKey: .isDocumentsResident) ?? false
         source = try container.decodeIfPresent(DatabaseSource.self, forKey: .source) ?? .local
+        lastMasterKeyChangeAt = try container.decodeIfPresent(Date.self, forKey: .lastMasterKeyChangeAt)
     }
 
     func encode(to encoder: Encoder) throws {
@@ -124,5 +131,6 @@ extension DatabaseReference {
         try container.encode(autoFillEnabled, forKey: .autoFillEnabled)
         try container.encode(isDocumentsResident, forKey: .isDocumentsResident)
         try container.encode(source, forKey: .source)
+        try container.encodeIfPresent(lastMasterKeyChangeAt, forKey: .lastMasterKeyChangeAt)
     }
 }

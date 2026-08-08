@@ -2088,6 +2088,29 @@
         }
       }
     },
+    "Change master key" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Master-Schlüssel ändern"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cambiar clave maestra"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Modifier la clé principale"
+          }
+        }
+      }
+    },
     "Change Master Key" : {
       "localizations" : {
         "de" : {
@@ -7786,6 +7809,29 @@
         }
       }
     },
+    "Key file used at unlock" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Beim Entsperren verwendete Schlüsseldatei"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Archivo de clave usado al desbloquear"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fichier de clé utilisé au déverrouillage"
+          }
+        }
+      }
+    },
     "Key file XML contains invalid key data" : {
       "localizations" : {
         "de" : {
@@ -10801,6 +10847,52 @@
         }
       }
     },
+    "Save Without a Master Password?" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ohne Master-Passwort speichern?"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "¿Guardar sin contraseña maestra?"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Enregistrer sans mot de passe principal ?"
+          }
+        }
+      }
+    },
+    "Save Without Password" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ohne Passwort speichern"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Guardar sin contraseña"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Enregistrer sans mot de passe"
+          }
+        }
+      }
+    },
     "Saving changes" : {
       "localizations" : {
         "de" : {
@@ -12649,6 +12741,29 @@
         }
       }
     },
+    "The database will require only the key file to unlock. Anyone with the key file can open it." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zum Entsperren der Datenbank ist dann nur noch die Schlüsseldatei erforderlich. Jeder, der die Schlüsseldatei besitzt, kann sie öffnen."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La base de datos solo requerirá el archivo de clave para desbloquearse. Cualquiera que tenga el archivo de clave podrá abrirla."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La base de données ne nécessitera plus que le fichier de clé pour être déverrouillée. Toute personne disposant du fichier de clé pourra l'ouvrir."
+          }
+        }
+      }
+    },
     "The entry will be moved to the recycle bin." : {
       "localizations" : {
         "de" : {
@@ -12755,6 +12870,29 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "La nouvelle clé principale protège ce fichier de base de données à partir de maintenant. Les sauvegardes et copies effectuées avant la modification s'ouvrent toujours avec l'ancienne clé principale."
+          }
+        }
+      }
+    },
+    "The new master key was uploaded, but the local copy could not be updated. The cloud file now requires the new master key." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Der neue Master-Schlüssel wurde hochgeladen, aber die lokale Kopie konnte nicht aktualisiert werden. Die Cloud-Datei erfordert jetzt den neuen Master-Schlüssel."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La nueva clave maestra se subió, pero la copia local no se pudo actualizar. El archivo en la nube ahora requiere la nueva clave maestra."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La nouvelle clé principale a été téléversée, mais la copie locale n'a pas pu être mise à jour. Le fichier cloud requiert désormais la nouvelle clé principale."
           }
         }
       }

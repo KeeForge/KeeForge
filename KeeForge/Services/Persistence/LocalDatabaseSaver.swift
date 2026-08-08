@@ -16,6 +16,7 @@ enum SaveError: Error, LocalizedError, Equatable {
     case databaseLocationUnavailable
     case saveContextUnavailable
     case rekeyVerificationFailed
+    case rekeyAppliedRemotely
 
     var errorDescription: String? {
         switch self {
@@ -27,6 +28,8 @@ enum SaveError: Error, LocalizedError, Equatable {
             String(localized: "The database is not ready to save.")
         case .rekeyVerificationFailed:
             String(localized: "The new database could not be verified after encryption.")
+        case .rekeyAppliedRemotely:
+            String(localized: "The new master key was uploaded, but the local copy could not be updated. The cloud file now requires the new master key.")
         }
     }
 }

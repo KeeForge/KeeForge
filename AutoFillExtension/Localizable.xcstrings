@@ -2326,6 +2326,52 @@
         }
       }
     },
+    "The new database could not be verified after encryption." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die neue Datenbank konnte nach der Verschlüsselung nicht verifiziert werden."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No se pudo verificar la nueva base de datos después del cifrado."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La nouvelle base de données n'a pas pu être vérifiée après le chiffrement."
+          }
+        }
+      }
+    },
+    "The new master key was uploaded, but the local copy could not be updated. The cloud file now requires the new master key." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Der neue Master-Schlüssel wurde hochgeladen, aber die lokale Kopie konnte nicht aktualisiert werden. Die Cloud-Datei erfordert jetzt den neuen Master-Schlüssel."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La nueva clave maestra se subió, pero la copia local no se pudo actualizar. El archivo en la nube ahora requiere la nueva clave maestra."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La nouvelle clé principale a été téléversée, mais la copie locale n'a pas pu être mise à jour. Le fichier cloud requiert désormais la nouvelle clé principale."
+          }
+        }
+      }
+    },
     "The request is no longer available." : {
       "localizations" : {
         "de" : {

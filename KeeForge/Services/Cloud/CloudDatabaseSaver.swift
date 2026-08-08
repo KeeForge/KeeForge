@@ -210,6 +210,7 @@ enum CloudDatabaseSaver {
                 newData: newData,
                 uploadedMetadata: uploadedMetadata,
                 openTimeSHA512: openTimeSHA512,
+                rekeyed: newCompositeKey != nil,
                 environment: environment
             )
         } catch let error as CloudProviderError {
@@ -235,6 +236,7 @@ enum CloudDatabaseSaver {
                         newData: newData,
                         uploadedMetadata: uploadedMetadata,
                         openTimeSHA512: openTimeSHA512,
+                        rekeyed: newCompositeKey != nil,
                         environment: environment
                     )
                 } catch let retryError as CloudProviderError {
@@ -254,6 +256,7 @@ enum CloudDatabaseSaver {
         newData: Data,
         uploadedMetadata: CloudFileMetadata,
         openTimeSHA512: Data,
+        rekeyed: Bool,
         environment: Environment
     ) throws -> SaveResult {
         // Markers whose payload hashes to this save's open-time SHA are
@@ -261,7 +264,14 @@ enum CloudDatabaseSaver {
         // `applyUploadedBytes`: a concurrent AutoFill save's provisional
         // marker is what gates that call's pre-overwrite backup, so
         // dropping first would clobber its bytes uncovered.
-        _ = try environment.applyUploadedBytes(reference, newData, uploadedMetadata)
+        do {
+            _ = try environment.applyUploadedBytes(reference, newData, uploadedMetadata)
+        } catch {
+            // After a rekey upload the remote already requires the new key;
+            // a generic failure would read as "nothing changed". Callers key
+            // off this to switch keychain/session to the key the remote needs.
+            throw rekeyed ? SaveError.rekeyAppliedRemotely : error
+        }
         environment.dropSupersededPendingUploads(reference.id, openTimeSHA512)
         try? environment.pruneBackups(reference, 5)
 

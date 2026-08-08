@@ -25,12 +25,14 @@ final class MasterKeyChangeViewModelTests: XCTestCase {
     private func makeViewModel(
         currentKeyFileFilename: String? = nil,
         currentKeyFileBookmarkData: Data? = nil,
+        sessionKeyFileData: Data? = nil,
         currentKeyFileLoadResult: (data: Data, filename: String)? = nil,
         recorder: ChangeRecorder = ChangeRecorder()
     ) -> MasterKeyChangeViewModel {
         MasterKeyChangeViewModel(
             currentKeyFileFilename: currentKeyFileFilename,
             currentKeyFileBookmarkData: currentKeyFileBookmarkData,
+            sessionKeyFileData: sessionKeyFileData,
             loadCurrentKeyFile: { currentKeyFileLoadResult },
             changeOperation: { password, keyFileData, bookmarkData, filename in
                 if let error = recorder.error {
@@ -303,6 +305,107 @@ final class MasterKeyChangeViewModelTests: XCTestCase {
         XCTAssertFalse(succeeded)
         XCTAssertEqual(viewModel.newPassword, "new password")
         XCTAssertNotNil(viewModel.changeError)
+    }
+
+    // MARK: - Cancellation
+
+    func testPerformChangeRefusesWhenCancelled() async throws {
+        let recorder = ChangeRecorder()
+        let viewModel = makeViewModel(recorder: recorder)
+        viewModel.newPassword = "new-password"
+        viewModel.confirmPassword = "new-password"
+        viewModel.cancelPendingChange()
+
+        let succeeded = await viewModel.performChange()
+
+        XCTAssertFalse(succeeded)
+        XCTAssertNil(recorder.captured)
+    }
+
+    func testPerformChangeAbortsWhenCancelledDuringKeyFileLoad() async throws {
+        let recorder = ChangeRecorder()
+        var viewModel: MasterKeyChangeViewModel?
+        let created = MasterKeyChangeViewModel(
+            currentKeyFileFilename: "vault.key",
+            currentKeyFileBookmarkData: Data("bookmark".utf8),
+            loadCurrentKeyFile: {
+                // The sheet was dismissed while the load was in flight.
+                viewModel?.cancelPendingChange()
+                return (Data("key-bytes".utf8), "vault.key")
+            },
+            changeOperation: { password, keyFileData, bookmarkData, filename in
+                recorder.captured = CapturedChange(
+                    password: password,
+                    keyFileData: keyFileData,
+                    bookmarkData: bookmarkData,
+                    filename: filename
+                )
+            }
+        )
+        viewModel = created
+        created.newPassword = "new-password"
+        created.confirmPassword = "new-password"
+
+        let succeeded = await created.performChange()
+
+        XCTAssertFalse(succeeded)
+        XCTAssertNil(recorder.captured, "A change cancelled mid-load must not rekey")
+    }
+
+    func testPerformChangeUsesPasswordCapturedBeforeKeyFileLoad() async throws {
+        // Dismissal clears the form; the password captured at entry must be
+        // what the change uses, never the cleared field.
+        let recorder = ChangeRecorder()
+        var viewModel: MasterKeyChangeViewModel?
+        let created = MasterKeyChangeViewModel(
+            currentKeyFileFilename: "vault.key",
+            currentKeyFileBookmarkData: Data("bookmark".utf8),
+            loadCurrentKeyFile: {
+                viewModel?.clearSecrets()
+                return (Data("key-bytes".utf8), "vault.key")
+            },
+            changeOperation: { password, keyFileData, bookmarkData, filename in
+                recorder.captured = CapturedChange(
+                    password: password,
+                    keyFileData: keyFileData,
+                    bookmarkData: bookmarkData,
+                    filename: filename
+                )
+            }
+        )
+        viewModel = created
+        created.newPassword = "new-password"
+        created.confirmPassword = "new-password"
+
+        let succeeded = await created.performChange()
+
+        XCTAssertTrue(succeeded)
+        XCTAssertEqual(recorder.captured?.password, "new-password")
+    }
+
+    // MARK: - Session key file
+
+    func testKeepCurrentUsesSessionKeyFileWhenNoAssociationExists() async throws {
+        let recorder = ChangeRecorder()
+        let sessionKeyFile = Data("session-key-bytes".utf8)
+        let viewModel = makeViewModel(sessionKeyFileData: sessionKeyFile, recorder: recorder)
+        viewModel.newPassword = "new-password"
+        viewModel.confirmPassword = "new-password"
+
+        XCTAssertTrue(viewModel.hasEffectiveKeyFile)
+        let succeeded = await viewModel.performChange()
+
+        XCTAssertTrue(succeeded)
+        XCTAssertEqual(
+            recorder.captured,
+            CapturedChange(
+                password: "new-password",
+                keyFileData: sessionKeyFile,
+                bookmarkData: nil,
+                filename: nil
+            ),
+            "A key file picked manually at unlock must survive a password-only change without gaining an association"
+        )
     }
 
     // MARK: - clearSecrets

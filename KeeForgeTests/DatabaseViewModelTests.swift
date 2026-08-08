@@ -3892,6 +3892,93 @@ final class DatabaseViewModelTests: XCTestCase {
         XCTAssertTrue(deletions.didCall, "A failed re-store must drop the stale stored key.")
     }
 
+    func testChangeMasterKeyCloudRekeyAppliedRemotelyStillRefreshesStoredKey() async throws {
+        let reference = makeCloudReference(remoteRev: "rev-A")
+        let fixtureData = try Data(contentsOf: fixtureURL())
+        let storedKeys = RekeyedKeyCapture()
+        let vm = try makeViewModel(
+            reference: reference,
+            cloudSyncOperation: { reference, _ in
+                CloudSyncResolution(
+                    reference: reference,
+                    localURL: DatabaseListStore.cacheLocation(for: reference),
+                    data: fixtureData,
+                    status: .current
+                )
+            },
+            cloudSaveOperation: { _, _, _, _, _, _ in
+                throw SaveError.rekeyAppliedRemotely
+            },
+            pendingUploadMarkerCheck: { _ in false },
+            storedKeyPresenceCheck: { _ in true },
+            storedKeyStoreOperation: { key, _ in storedKeys.record(oldKey: nil, newKey: key) }
+        )
+
+        await vm.unlock(password: fixturePassword)
+        let oldCompositeKey = try XCTUnwrap(vm.compositeKey)
+
+        do {
+            try await vm.changeMasterKey(
+                newPassword: "cloud-rotated",
+                newKeyFileData: nil,
+                newKeyFileBookmarkData: nil,
+                newKeyFileFilename: nil
+            )
+            XCTFail("Expected rekeyAppliedRemotely to propagate")
+        } catch SaveError.rekeyAppliedRemotely {
+            // Expected: the upload landed but the local apply failed.
+        }
+
+        XCTAssertEqual(
+            storedKeys.newKey,
+            try KDBXCrypto.compositeKey(password: "cloud-rotated", keyFileData: nil),
+            "Keychain must point at the key the remote now requires"
+        )
+        XCTAssertEqual(
+            vm.compositeKey,
+            oldCompositeKey,
+            "The session keeps the key matching the still-old local cache"
+        )
+    }
+
+    func testChangeMasterKeySavesDraftThatGrewDuringRekey() async throws {
+        final class Box: @unchecked Sendable {
+            var growDraft: (@MainActor () -> Void)?
+            var followUpDidRun = false
+        }
+        let box = Box()
+        let vm = try makeViewModel(
+            localSaveOperation: { _, _, _, _, newCompositeKey in
+                if newCompositeKey != nil {
+                    // An edit lands while the rekey save is in flight.
+                    await MainActor.run { box.growDraft?() }
+                } else {
+                    box.followUpDidRun = true
+                }
+                return .saved(newSHA512: Data("rekeyed-hash".utf8))
+            }
+        )
+        box.growDraft = { [weak vm, weak self] in
+            guard let vm, let self else { return }
+            vm.draft = try? self.makeDirtyDraft(from: vm, entryTitle: "Mid-Rekey Entry")
+        }
+
+        await vm.unlock(password: fixturePassword)
+        try await vm.changeMasterKey(
+            newPassword: "rotated-master",
+            newKeyFileData: nil,
+            newKeyFileBookmarkData: nil,
+            newKeyFileFilename: nil
+        )
+
+        // The flush runs in a follow-up task once `isSaving` clears.
+        for _ in 0..<200 where box.followUpDidRun == false {
+            try await Task.sleep(nanoseconds: 10_000_000)
+        }
+        XCTAssertTrue(box.followUpDidRun, "An edit applied during the rekey must be saved afterwards")
+        XCTAssertNil(vm.draft)
+    }
+
     private func assertChangeMasterKeyThrows(
         _ expected: DatabaseViewModel.RekeyError,
         on viewModel: DatabaseViewModel,
