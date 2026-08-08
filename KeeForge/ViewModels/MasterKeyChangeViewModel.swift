@@ -24,6 +24,10 @@ final class MasterKeyChangeViewModel {
     var confirmPassword = ""
     var validationError: String?
     var changeError: String?
+    /// Set when the screen is dismissed so a change already past the biometric
+    /// gate or the key-file load aborts instead of rekeying with cleared form
+    /// state. The view resets it on every Save tap.
+    var isCancelled = false
     private(set) var isWorking = false
     private(set) var keyFileChange: KeyFileChange = .keepCurrent
     private(set) var pickedKeyFileData: Data?
@@ -32,17 +36,20 @@ final class MasterKeyChangeViewModel {
 
     private let currentKeyFileFilename: String?
     private let currentKeyFileBookmarkData: Data?
+    private let sessionKeyFileData: Data?
     private let loadCurrentKeyFile: CurrentKeyFileLoader
     private let changeOperation: ChangeOperation
 
     init(
         currentKeyFileFilename: String?,
         currentKeyFileBookmarkData: Data?,
+        sessionKeyFileData: Data? = nil,
         loadCurrentKeyFile: @escaping CurrentKeyFileLoader,
         changeOperation: @escaping ChangeOperation
     ) {
         self.currentKeyFileFilename = currentKeyFileFilename
         self.currentKeyFileBookmarkData = currentKeyFileBookmarkData
+        self.sessionKeyFileData = sessionKeyFileData
         self.loadCurrentKeyFile = loadCurrentKeyFile
         self.changeOperation = changeOperation
     }
@@ -60,7 +67,13 @@ final class MasterKeyChangeViewModel {
     var keyFileSummary: String {
         switch keyFileChange {
         case .keepCurrent:
-            currentKeyFileFilename ?? String(localized: "None")
+            if let currentKeyFileFilename {
+                currentKeyFileFilename
+            } else if sessionKeyFileData != nil {
+                String(localized: "Key file used at unlock")
+            } else {
+                String(localized: "None")
+            }
         case .replace:
             pickedKeyFileFilename ?? String(localized: "None")
         case .remove:
@@ -80,7 +93,7 @@ final class MasterKeyChangeViewModel {
     }
 
     private var hasCurrentKeyFile: Bool {
-        currentKeyFileBookmarkData != nil || currentKeyFileFilename != nil
+        currentKeyFileBookmarkData != nil || currentKeyFileFilename != nil || sessionKeyFileData != nil
     }
 
     func selectKeyFile(url: URL) throws {
@@ -112,6 +125,11 @@ final class MasterKeyChangeViewModel {
         pickedKeyFileData = nil
     }
 
+    func cancelPendingChange() {
+        isCancelled = true
+        clearSecrets()
+    }
+
     func validate() -> Bool {
         clearDisplayedErrors()
 
@@ -129,7 +147,7 @@ final class MasterKeyChangeViewModel {
     }
 
     func performChange() async -> Bool {
-        guard isWorking == false else { return false }
+        guard isWorking == false, isCancelled == false else { return false }
         guard validate() else { return false }
 
         isWorking = true
@@ -137,15 +155,24 @@ final class MasterKeyChangeViewModel {
             isWorking = false
         }
 
+        // Captured before the awaits below: dismissal runs `clearSecrets()`
+        // mid-flight, and re-reading the form afterwards would rekey with an
+        // empty password.
+        let password = newPassword
+
         let effectiveKeyFile: (data: Data?, bookmark: Data?, filename: String?)
         switch keyFileChange {
         case .keepCurrent:
-            if hasCurrentKeyFile {
+            if currentKeyFileBookmarkData != nil || currentKeyFileFilename != nil {
                 guard let current = await loadCurrentKeyFile() else {
                     changeError = String(localized: "The current key file could not be read. Select it again or clear it, then try again.")
                     return false
                 }
                 effectiveKeyFile = (current.data, currentKeyFileBookmarkData, currentKeyFileFilename ?? current.filename)
+            } else if let sessionKeyFileData {
+                // Picked manually at unlock with no persisted association:
+                // keep requiring it without creating an association.
+                effectiveKeyFile = (sessionKeyFileData, nil, nil)
             } else {
                 effectiveKeyFile = (nil, nil, nil)
             }
@@ -155,9 +182,11 @@ final class MasterKeyChangeViewModel {
             effectiveKeyFile = (nil, nil, nil)
         }
 
+        guard isCancelled == false else { return false }
+
         do {
             try await changeOperation(
-                newPassword.isEmpty ? nil : newPassword,
+                password.isEmpty ? nil : password,
                 effectiveKeyFile.data,
                 effectiveKeyFile.bookmark,
                 effectiveKeyFile.filename

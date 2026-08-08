@@ -15,6 +15,7 @@ struct MasterKeyChangeView: View {
     @State private var isConfirmPasswordVisible = false
     @State private var isKeyFileImporterPresented = false
     @State private var isAuthenticating = false
+    @State private var isPasswordRemovalConfirmationPresented = false
     @State private var selectionAlert: DocumentPickerService.SelectionAlert?
 
     init(sessionViewModel: DatabaseViewModel) {
@@ -24,6 +25,7 @@ struct MasterKeyChangeView: View {
             initialValue: MasterKeyChangeViewModel(
                 currentKeyFileFilename: reference.keyFileFilename,
                 currentKeyFileBookmarkData: reference.keyFileBookmarkData,
+                sessionKeyFileData: sessionViewModel.sessionKeyFileData,
                 loadCurrentKeyFile: { [weak sessionViewModel] in
                     await sessionViewModel?.loadAssociatedKeyFile()
                 },
@@ -68,7 +70,7 @@ struct MasterKeyChangeView: View {
         .toolbar {
             ToolbarItem(placement: .cancellationAction) {
                 Button("Cancel") {
-                    viewModel.clearSecrets()
+                    viewModel.cancelPendingChange()
                     dismiss()
                 }
                 .disabled(viewModel.isWorking)
@@ -77,7 +79,7 @@ struct MasterKeyChangeView: View {
 
             ToolbarItem(placement: .confirmationAction) {
                 Button("Save") {
-                    authenticateAndPerformChange()
+                    handleSaveTap()
                 }
                 .disabled(viewModel.isWorking || isAuthenticating)
                 .accessibilityIdentifier("master-key.save")
@@ -95,8 +97,20 @@ struct MasterKeyChangeView: View {
                 dismissButton: .default(Text("OK"))
             )
         }
+        .confirmationDialog(
+            "Save Without a Master Password?",
+            isPresented: $isPasswordRemovalConfirmationPresented,
+            titleVisibility: .visible
+        ) {
+            Button("Save Without Password", role: .destructive) {
+                authenticateAndPerformChange()
+            }
+            .accessibilityIdentifier("master-key.remove-password.confirm")
+        } message: {
+            Text("The database will require only the key file to unlock. Anyone with the key file can open it.")
+        }
         .onDisappear {
-            viewModel.clearSecrets()
+            viewModel.cancelPendingChange()
         }
     }
 
@@ -154,8 +168,19 @@ struct MasterKeyChangeView: View {
         }
     }
 
+    private func handleSaveTap() {
+        guard viewModel.validate() else { return }
+
+        if viewModel.newPassword.isEmpty {
+            isPasswordRemovalConfirmationPresented = true
+        } else {
+            authenticateAndPerformChange()
+        }
+    }
+
     private func authenticateAndPerformChange() {
         guard isAuthenticating == false, viewModel.isWorking == false else { return }
+        viewModel.isCancelled = false
         guard viewModel.validate() else { return }
 
         if BiometricService.canAuthenticateDeviceOwner {
@@ -165,7 +190,9 @@ struct MasterKeyChangeView: View {
                     BiometricService.isBiometricAuthInProgress = true
                 }
                 do {
-                    _ = try await BiometricService.authenticateDeviceOwner(reason: "Change master key")
+                    _ = try await BiometricService.authenticateDeviceOwner(
+                        reason: String(localized: "Change master key")
+                    )
                     await performChange()
                 } catch {
                     // Intentionally no-op on failed authentication.
