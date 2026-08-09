@@ -43,6 +43,7 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
     func test_requestPreparedBeforeAppearance_waitsForActivePresentation() throws {
         let (coordinator, presenter) = makeCoordinator()
         try seedResolvableDefaultDatabase()
+        presenter.isPresentationActive = false
 
         coordinator.prepareCredentialList(for: [githubServiceIdentifier()])
 
@@ -65,6 +66,71 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
 
         await fulfillment(of: [promptPresented], timeout: 1)
         XCTAssertNotNil(presenter.unlockPrompt)
+    }
+
+    /// Device repro: the unlock finishes while the shell is off screen behind
+    /// the biometric sheet. The picker must present on reactivation instead of
+    /// being silently dropped, and the request must stay alive throughout.
+    func test_pickerAfterUnlockWhileShellOffScreen_presentsOnReactivation() throws {
+        let (coordinator, presenter) = makeCoordinator()
+        try seedResolvableDefaultDatabase()
+        presenter.isPresentationActive = false
+        let sessionKey = SymmetricKey(size: .bits256)
+        let entry = KPEntry(
+            title: "Example",
+            username: "user",
+            password: try EncryptedValue.encrypt("secret", using: sessionKey),
+            url: "https://example.com/login"
+        )
+
+        coordinator.prepareCredentialList(for: [githubServiceIdentifier()])
+        presenter.isPresentationActive = true
+        coordinator.presentationDidBecomeActive()
+        XCTAssertNotNil(presenter.unlockPrompt)
+
+        // The biometric sheet takes the shell off screen; the unlock lands
+        // while it is away, with nothing in the vault matching the request.
+        presenter.isPresentationActive = false
+        seedUnlockedVaultState(coordinator, entries: [entry], sessionKey: sessionKey)
+        coordinator.presentPasswordMatchesOrFinish()
+
+        XCTAssertNil(presenter.searchView, "An off-screen shell cannot present; the picker must wait")
+        XCTAssertEqual(presenter.cancelledErrorCodes, [], "A deferred picker must not cancel the request")
+
+        presenter.isPresentationActive = true
+        coordinator.presentationDidBecomeActive()
+
+        let searchView = try XCTUnwrap(presenter.searchView, "The deferred picker must present on reactivation")
+        XCTAssertEqual(searchView.entries.map(\.title), ["Example"])
+        XCTAssertEqual(searchView.initialSearchText, "github.com")
+        XCTAssertEqual(presenter.cancelledErrorCodes, [])
+
+        // The replayed picker is fully live: selecting still completes.
+        searchView.onSelect(entry)
+        let credential = try XCTUnwrap(presenter.completedCredential)
+        XCTAssertEqual(credential.user, "user")
+        XCTAssertEqual(credential.password, "secret")
+        assertCleanedUp(coordinator)
+    }
+
+    func test_newRequestDropsDeferredPresentationOfPreviousRequest() throws {
+        let (coordinator, presenter) = makeCoordinator()
+        try seedResolvableDefaultDatabase()
+        presenter.isPresentationActive = false
+        let sessionKey = SymmetricKey(size: .bits256)
+        let entries = try makeTwoGitHubEntries(sessionKey: sessionKey)
+
+        coordinator.serviceIdentifiers = [githubServiceIdentifier()]
+        seedUnlockedVaultState(coordinator, entries: entries, sessionKey: sessionKey)
+        coordinator.presentPasswordMatchesOrFinish()
+        XCTAssertNil(presenter.searchView, "The picker must defer while the shell is off screen")
+
+        coordinator.prepareCredentialList(for: [githubServiceIdentifier()])
+        presenter.isPresentationActive = true
+        coordinator.presentationDidBecomeActive()
+
+        XCTAssertNil(presenter.searchView, "A superseded picker must not replay into the new request")
+        XCTAssertNotNil(presenter.unlockPrompt, "The new request presents its own unlock flow")
     }
 
     func test_cleanup_runsOnCancel() throws {

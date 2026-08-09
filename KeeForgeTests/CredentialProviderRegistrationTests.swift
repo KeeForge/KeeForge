@@ -75,6 +75,7 @@ final class CredentialProviderRegistrationTests: XCTestCase {
     func test_prepare_nonES256_presentsDeferredFailure_thenCancelsFailed() throws {
         let (coordinator, presenter) = makeCoordinator()
         try seedResolvableDefaultDatabase()
+        presenter.isPresentationActive = false
 
         coordinator.prepareInterface(
             forPasskeyRegistration: makeRegistrationRequest(supportedAlgorithms: [])
@@ -102,6 +103,7 @@ final class CredentialProviderRegistrationTests: XCTestCase {
 
     func test_prepare_noEnabledDatabases_presentsDeferredEmptyState_thenCancelsUserCanceled() throws {
         let (coordinator, presenter) = makeCoordinator()
+        presenter.isPresentationActive = false
 
         coordinator.prepareInterface(forPasskeyRegistration: makeRegistrationRequest())
 
@@ -131,6 +133,7 @@ final class CredentialProviderRegistrationTests: XCTestCase {
         reference.isReadOnly = true
         DatabaseListStore.update(reference)
         DatabaseListStore.activeAutoFillDatabaseID = reference.id
+        presenter.isPresentationActive = false
 
         coordinator.prepareInterface(forPasskeyRegistration: makeRegistrationRequest())
 

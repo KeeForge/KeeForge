@@ -100,8 +100,10 @@ final class CredentialProviderViewController: ASCredentialProviderViewController
 // MARK: - CredentialProviderPresenting
 
 extension CredentialProviderViewController: CredentialProviderPresenting {
+    // Presenting from an off-window controller is silently dropped, and the
+    // view can be detached before the disappearance callbacks land.
     var isPresentationActive: Bool {
-        hasAppeared
+        hasAppeared && viewIfLoaded?.window != nil
     }
 
     var isDisplayingContent: Bool {
