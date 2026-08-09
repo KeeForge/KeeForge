@@ -21,6 +21,8 @@ TODO before the first macOS release:
 
 ## Unreleased
 
+## v1.13.0 (2026-08-09)
+
 ### New Features
 
 - Copy databases straight from a computer: KeeForge's Documents folder now appears in Finder (and iTunes/Windows File Sharing), and any `.kdbx` file dropped there is added to the database list automatically (#63). Replacing a file with a newer copy of the same name keeps the existing entry and its settings; deleting a file marks its entry so it can be removed with one tap — or restored by dropping the file back in.

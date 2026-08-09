@@ -3078,6 +3078,28 @@
         }
       }
     },
+    "Copy databases from your computer" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kopiere Datenbanken von deinem Computer"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Copia bases de datos desde tu ordenador"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Copiez des bases de données depuis votre ordinateur"
+          }
+        }
+      }
+    },
     "Copy Error Details" : {
       "localizations" : {
         "de" : {
@@ -3734,6 +3756,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Créez une nouvelle base de données KeePass ou importez un fichier .kdbx existant."
+          }
+        }
+      }
+    },
+    "Create credentials right from AutoFill" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Erstelle Zugangsdaten direkt in AutoFill"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Crea credenciales directamente desde Autorrelleno"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Créez des identifiants directement depuis le Remplissage automatique"
           }
         }
       }
@@ -6092,6 +6136,28 @@
         }
       }
     },
+    "Give your entries their own icons" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gib deinen Einträgen eigene Symbole"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dale a tus entradas sus propios iconos"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Donnez à vos entrées leurs propres icônes"
+          }
+        }
+      }
+    },
     "Give your groups their own icons" : {
       "localizations" : {
         "de" : {
@@ -7386,6 +7452,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "KeeForge suggère dans la barre du clavier des identifiants provenant des bases de données sélectionnées ci-dessous. Une authentification est requise lorsque vous touchez une suggestion."
+          }
+        }
+      }
+    },
+    "KeeForge's Documents folder now appears in Finder and Windows File Sharing. Drop a .kdbx file there and it joins your database list automatically." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Der Dokumente-Ordner von KeeForge erscheint jetzt im Finder und in der Windows-Dateifreigabe. Lege eine .kdbx-Datei dort ab, und sie wird automatisch in deine Datenbankliste aufgenommen."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La carpeta Documentos de KeeForge ahora aparece en el Finder y en Uso compartido de archivos de Windows. Suelta ahí un archivo .kdbx y se añadirá automáticamente a tu lista de bases de datos."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Le dossier Documents de KeeForge apparaît désormais dans le Finder et le Partage de fichiers Windows. Déposez-y un fichier .kdbx et il rejoint automatiquement votre liste de bases de données."
           }
         }
       }
@@ -11395,6 +11483,28 @@
         }
       }
     },
+    "Signing up somewhere new? The AutoFill picker's + button starts a new entry pre-filled with the site and a generated password, and fills it as soon as you save. Thanks to @miquno." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Du registrierst dich irgendwo neu? Die Taste „+“ in der AutoFill-Auswahl beginnt einen neuen Eintrag, vorausgefüllt mit der Website und einem generierten Passwort, und füllt ihn aus, sobald du speicherst. Dank an @miquno."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "¿Te registras en un sitio nuevo? El botón + del selector de Autorrelleno crea una nueva entrada rellenada con el sitio y una contraseña generada, y la rellena en cuanto guardas. Gracias a @miquno."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vous vous inscrivez quelque part ? Le bouton + du sélecteur de Remplissage automatique crée une nouvelle entrée préremplie avec le site et un mot de passe généré, puis la remplit dès l'enregistrement. Merci à @miquno."
+          }
+        }
+      }
+    },
     "Size" : {
       "localizations" : {
         "de" : {
@@ -11721,6 +11831,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Tags"
+          }
+        }
+      }
+    },
+    "Tap an entry's icon to pick from the KeePass icon set or your database's custom icons — or download the website's own icon. Your choice is saved in the database, so it shows up everywhere. Thanks to @miquno." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tippe auf das Symbol eines Eintrags, um aus dem KeePass-Symbolsatz oder den eigenen Symbolen deiner Datenbank zu wählen – oder lade das Symbol der Website herunter. Deine Wahl wird in der Datenbank gespeichert und erscheint so überall. Dank an @miquno."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Toca el icono de una entrada para elegir entre el conjunto de iconos de KeePass o los iconos personalizados de tu base de datos, o descarga el icono del sitio web. Tu elección se guarda en la base de datos, así que aparece en todas partes. Gracias a @miquno."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Touchez l'icône d'une entrée pour choisir parmi le jeu d'icônes KeePass ou les icônes personnalisées de votre base de données – ou téléchargez l'icône du site web. Votre choix est enregistré dans la base de données et apparaît donc partout. Merci à @miquno."
           }
         }
       }

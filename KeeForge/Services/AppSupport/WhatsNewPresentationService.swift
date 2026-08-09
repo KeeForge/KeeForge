@@ -53,6 +53,29 @@ enum WhatsNewCatalog {
         let features: [WhatsNewFeature]
 
         switch version {
+        case "1.13.0":
+            features = [
+                WhatsNewFeature(
+                    id: "file-sharing",
+                    title: "Copy databases from your computer",
+                    detail: "KeeForge's Documents folder now appears in Finder and Windows File Sharing. Drop a .kdbx file there and it joins your database list automatically.",
+                    systemImage: "folder.badge.plus",
+                    platforms: [.iOS]
+                ),
+                WhatsNewFeature(
+                    id: "entry-icons",
+                    title: "Give your entries their own icons",
+                    detail: "Tap an entry's icon to pick from the KeePass icon set or your database's custom icons — or download the website's own icon. Your choice is saved in the database, so it shows up everywhere. Thanks to @miquno.",
+                    systemImage: "paintpalette"
+                ),
+                WhatsNewFeature(
+                    id: "autofill-create-credential",
+                    title: "Create credentials right from AutoFill",
+                    detail: "Signing up somewhere new? The AutoFill picker's + button starts a new entry pre-filled with the site and a generated password, and fills it as soon as you save. Thanks to @miquno.",
+                    systemImage: "person.badge.plus",
+                    platforms: [.iOS]
+                ),
+            ]
         case "1.12.0":
             features = [
                 WhatsNewFeature(
