@@ -24,6 +24,24 @@ class UnlockedDatabaseUITestCase: KeeForgeUITestCase {
         tapElement(entry)
     }
 
+    func openEntry(named entryName: String, inGroup groupName: String, file: StaticString = #filePath, line: UInt = #line) {
+        if app.navigationBars[groupName].exists == false {
+            openGroup(named: groupName, file: file, line: line)
+        }
+        openEntry(named: entryName, file: file, line: line)
+    }
+
+    func openEntryIconPicker(file: StaticString = #filePath, line: UInt = #line) {
+        let iconButton = app.buttons["entry-detail.icon-button"].firstMatch
+        XCTAssertTrue(
+            revealElement(iconButton),
+            "Entry icon button was not visible",
+            file: file,
+            line: line
+        )
+        tapElement(iconButton)
+    }
+
     func groupRow(named name: String) -> XCUIElement {
         firstRowMatching(name: name, preferredIdentifier: "group.navlink")
     }
@@ -652,23 +670,171 @@ final class EntryIconPickerUITests: UnlockedDatabaseUITestCase {
         XCTAssertTrue(reopened.waitForExistence(timeout: 5), "Icon picker did not present again")
         XCTAssertFalse(reopened.isSelected, "Cancelling must not change the entry's icon")
     }
+}
 
-    private func openEntryIconPicker(file: StaticString = #filePath, line: UInt = #line) {
-        let iconButton = app.buttons["entry-detail.icon-button"].firstMatch
-        XCTAssertTrue(
-            revealElement(iconButton),
-            "Entry icon button was not visible",
-            file: file,
-            line: line
-        )
-        tapElement(iconButton)
+// Coverage for the icon picker's custom-icon grid, the favicon-download button
+// states, and the read-only entry header, using the icon-picker fixture — the
+// only bundled database whose Meta/CustomIcons carries an image.
+@MainActor
+final class EntryCustomIconPickerUITests: UnlockedDatabaseUITestCase {
+    override var databaseFixtureName: String { "icon-picker" }
+
+    /// Baked into `TestFixtures/icon-picker.kdbx` by its generator script;
+    /// change both together.
+    private let customIconCellID = "entry-icon-picker.custom.4D9C2B1E-7A35-4E68-9B0D-52F16C8A3E77"
+
+    override func configureLaunch(app: XCUIApplication) throws {
+        if name.contains("testReadOnly") {
+            app.launchEnvironment["UI_TEST_DATABASE_READ_ONLY"] = "1"
+        }
     }
 
-    private func openEntry(named entryName: String, inGroup groupName: String) {
-        if app.navigationBars[groupName].exists == false {
-            openGroup(named: groupName)
-        }
-        openEntry(named: entryName)
+    /// Round-trips a custom-icon pick the way the standard-icon test does: only an
+    /// edit that reached the draft's entry and was read back out makes the reopened
+    /// picker mark the custom cell as selected.
+    func testPickingACustomIconMarksItSelected() {
+        unlockSuccessfully()
+        openEntry(named: "Plain Entry", inGroup: "Icons")
+
+        openEntryIconPicker()
+        let customIcon = app.buttons[customIconCellID]
+        XCTAssertTrue(customIcon.waitForExistence(timeout: 5), "The custom icon cell was not in the picker")
+        XCTAssertFalse(customIcon.isSelected, "Plain Entry should start on a standard icon")
+        tapElement(customIcon)
+
+        XCTAssertTrue(
+            customIcon.waitForNonExistence(timeout: 5),
+            "Picking an icon should dismiss the picker"
+        )
+
+        openEntryIconPicker()
+        let reopened = app.buttons[customIconCellID]
+        XCTAssertTrue(reopened.waitForExistence(timeout: 5), "Icon picker did not present again")
+        XCTAssertTrue(reopened.isSelected, "The custom icon should come back marked as selected")
+    }
+
+    /// `<CustomIconUUID>` outranks `<IconID>` in every KeePass client, so picking a
+    /// standard icon has to clear the custom one — otherwise the entry would keep
+    /// displaying the custom image and the pick would look like a no-op.
+    func testPickingAStandardIconClearsTheCustomIcon() {
+        unlockSuccessfully()
+        openEntry(named: "Custom Badge", inGroup: "Icons")
+
+        openEntryIconPicker()
+        let customIcon = app.buttons[customIconCellID]
+        XCTAssertTrue(customIcon.waitForExistence(timeout: 5), "The custom icon cell was not in the picker")
+        XCTAssertTrue(customIcon.isSelected, "Custom Badge should open the picker on its custom icon")
+
+        let standardIcon = app.buttons["entry-icon-picker.standard.37"]
+        XCTAssertTrue(
+            revealElement(standardIcon, in: scrollableContainer()),
+            "Standard icon 37 was not reachable in the picker"
+        )
+        tapElement(standardIcon)
+        XCTAssertTrue(
+            standardIcon.waitForNonExistence(timeout: 5),
+            "Picking an icon should dismiss the picker"
+        )
+
+        openEntryIconPicker()
+        let reopenedStandard = app.buttons["entry-icon-picker.standard.37"]
+        XCTAssertTrue(reopenedStandard.waitForExistence(timeout: 5), "Icon picker did not present again")
+        XCTAssertTrue(reopenedStandard.isSelected, "The standard icon should come back marked as selected")
+
+        let reopenedCustom = app.buttons[customIconCellID]
+        XCTAssertTrue(
+            revealElement(reopenedCustom, in: scrollableContainer(), direction: .down),
+            "The custom icon cell was not reachable in the reopened picker"
+        )
+        XCTAssertFalse(reopenedCustom.isSelected, "Picking a standard icon must clear the custom icon")
+    }
+
+    /// A read-only database renders the entry header icon as a plain image: no
+    /// `entry-detail.icon-button` exists at all, rather than a chooser whose only
+    /// possible answer would be a refusal.
+    func testReadOnlyDatabaseOffersNoIconChooser() {
+        unlockSuccessfully()
+        openEntry(named: "Custom Badge", inGroup: "Icons")
+
+        XCTAssertTrue(
+            app.navigationBars["Custom Badge"].waitForExistence(timeout: 5),
+            "Entry detail did not open"
+        )
+        XCTAssertFalse(
+            app.buttons["entry-detail.icon-button"].exists,
+            "A read-only database must not offer the icon chooser"
+        )
+    }
+
+    /// An icon change is an entry edit, so the replaced state must be kept: the
+    /// fixture entry ships no stored `<History>`, and after the change the history
+    /// row appears reporting exactly one version. (The version screens expose no
+    /// icon to accessibility, so the pushed version's icon itself is not asserted.)
+    func testChangingTheIconPushesAHistoryVersion() {
+        unlockSuccessfully()
+        openEntry(named: "Plain Entry", inGroup: "Icons")
+
+        XCTAssertTrue(
+            app.navigationBars["Plain Entry"].waitForExistence(timeout: 5),
+            "Entry detail did not open"
+        )
+        XCTAssertFalse(
+            app.buttons["entry-detail.history"].exists,
+            "The fixture entry must start without history for this test to prove anything"
+        )
+
+        openEntryIconPicker()
+        let standardIcon = app.buttons["entry-icon-picker.standard.37"]
+        XCTAssertTrue(
+            revealElement(standardIcon, in: scrollableContainer()),
+            "Standard icon 37 was not reachable in the picker"
+        )
+        tapElement(standardIcon)
+        XCTAssertTrue(
+            standardIcon.waitForNonExistence(timeout: 5),
+            "Picking an icon should dismiss the picker"
+        )
+
+        let historyRow = app.buttons["entry-detail.history"]
+        XCTAssertTrue(
+            revealElement(historyRow, in: scrollableContainer(), direction: .up, maxSwipes: 6),
+            "Changing the icon should surface the entry's history row"
+        )
+        XCTAssertEqual(historyRow.value as? String, "1", "The replaced state must be kept as exactly one version")
+
+        tapElement(historyRow)
+        XCTAssertTrue(
+            app.buttons["entry-history.version.0"].waitForExistence(timeout: 5),
+            "History sheet showed no versions"
+        )
+        XCTAssertFalse(app.buttons["entry-history.version.1"].exists, "Exactly one version was expected")
+        app.buttons["entry-history.done"].tap()
+    }
+
+    /// "Download Website Icon" needs an address a favicon service can be asked
+    /// about, so an entry with a public URL gets the action offered enabled.
+    /// Deliberately never tapped — UI tests must not reach the network.
+    func testDownloadWebsiteIconIsEnabledForAnEntryWithAURL() {
+        unlockSuccessfully()
+        openEntry(named: "Custom Badge", inGroup: "Icons")
+
+        openEntryIconPicker()
+        let download = app.buttons["entry-icon-picker.download-favicon"]
+        XCTAssertTrue(download.waitForExistence(timeout: 5), "Download Website Icon was not offered")
+        XCTAssertTrue(download.isEnabled, "The action should be enabled for an entry with a URL")
+    }
+
+    /// Without an address there is nothing to ask a favicon service about, and the
+    /// picker explains that by rendering the action disabled instead of offering a
+    /// button whose only possible outcome is an error.
+    func testDownloadWebsiteIconIsDisabledForAnEntryWithoutAURL() {
+        unlockSuccessfully()
+        openEntry(named: "Plain Entry", inGroup: "Icons")
+
+        openEntryIconPicker()
+        let download = app.buttons["entry-icon-picker.download-favicon"]
+        XCTAssertTrue(download.waitForExistence(timeout: 5), "Download Website Icon was not offered")
+        XCTAssertFalse(download.isEnabled, "The action must be disabled for an entry without a URL")
     }
 }
 

@@ -15,15 +15,37 @@ class KeeForgeUITestCase: XCTestCase {
     /// well under this, so raising it costs nothing on the happy path.
     static let ciElementTimeout: TimeInterval = 15
 
+    /// Mirrors `DatabaseListStore`'s UI-test payload dispositions. Absent =
+    /// the historical behavior: the fixture is written to a per-launch tmp
+    /// directory and registered.
+    enum DatabaseFixtureDisposition: String {
+        /// Written to the top level of the app's Documents directory and
+        /// registered as a Documents-resident database.
+        case documents
+        /// Written to Documents but NOT registered — the app's launch
+        /// `DocumentsVaultScanner` scan must discover it.
+        case documentsUnregistered = "documents-unregistered"
+        /// Registered as Documents-resident, then the file is deleted so the
+        /// reference points at a missing resident file.
+        case documentsMissing = "documents-missing"
+    }
+
     struct DatabaseFixture {
         let resourceName: String
         let resourceExtension: String
         let injectedFilename: String
+        let disposition: DatabaseFixtureDisposition?
 
-        init(resourceName: String, resourceExtension: String = "kdbx", injectedFilename: String) {
+        init(
+            resourceName: String,
+            resourceExtension: String = "kdbx",
+            injectedFilename: String,
+            disposition: DatabaseFixtureDisposition? = nil
+        ) {
             self.resourceName = resourceName
             self.resourceExtension = resourceExtension
             self.injectedFilename = injectedFilename
+            self.disposition = disposition
         }
     }
 
@@ -62,10 +84,14 @@ class KeeForgeUITestCase: XCTestCase {
             }
 
             let fixtureData = try Data(contentsOf: fixtureURL)
-            return [
+            var payload = [
                 "filename": fixture.injectedFilename,
                 "base64": fixtureData.base64EncodedString(),
             ]
+            if let disposition = fixture.disposition {
+                payload["disposition"] = disposition.rawValue
+            }
+            return payload
         }
 
         app.launchArguments += ["-ui-testing"]
