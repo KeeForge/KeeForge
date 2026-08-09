@@ -228,10 +228,9 @@ struct EntryDetailView: View {
                 .toolbar {
                     if showsCompactLockButton {
                         ToolbarItem(placement: .topBarLeading) {
-                            Button("Lock") {
+                            LockDatabaseButton {
                                 viewModel.lockRequest(manuallyTriggered: true)
                             }
-                            .accessibilityIdentifier("lock.button")
                         }
                     }
 

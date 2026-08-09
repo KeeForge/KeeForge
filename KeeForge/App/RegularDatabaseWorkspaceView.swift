@@ -403,13 +403,9 @@ struct RegularDatabaseWorkspaceView: View {
     @ToolbarContentBuilder
     private var macToolbar: some ToolbarContent {
         ToolbarItem(placement: .navigation) {
-            Button {
+            LockDatabaseButton {
                 viewModel.lockRequest(manuallyTriggered: true)
-            } label: {
-                Image(systemName: "lock.fill")
             }
-            .help("Lock Database")
-            .accessibilityIdentifier("lock.button")
         }
 
         ToolbarItemGroup(placement: .primaryAction) {
