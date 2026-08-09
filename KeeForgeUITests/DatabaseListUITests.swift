@@ -20,7 +20,7 @@ final class DatabaseListUITests: KeeForgeUITestCase {
         XCTAssertTrue(addButton.waitForExistence(timeout: 10), "Add Database button not found")
         addButton.tap()
 
-        let filesButton = app.buttons["database.add.files"].firstMatch
+        let filesButton = menuButton(identifier: "database.add.files", label: "Files")
         XCTAssertTrue(filesButton.waitForExistence(timeout: 10), "Local Device option did not appear")
         filesButton.tap()
 

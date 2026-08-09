@@ -668,6 +668,15 @@ class KeeForgeUITestCase: XCTestCase {
         return element.isHittable
     }
 
+    /// iOS 27 drops accessibility identifiers from buttons inside a `Section`
+    /// of a SwiftUI `Menu` (the labels survive, and direct menu children keep
+    /// their identifiers), so menu items are matched by identifier or label.
+    func menuButton(identifier: String, label: String) -> XCUIElement {
+        app.buttons.matching(
+            NSPredicate(format: "identifier == %@ OR label == %@", identifier, label)
+        ).firstMatch
+    }
+
     @discardableResult
     func waitForDocumentPicker(timeout: TimeInterval = 15) -> Bool {
         let browseNav = app.navigationBars.matching(

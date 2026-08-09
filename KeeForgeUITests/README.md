@@ -337,6 +337,7 @@ Common sources of UI test flakiness in this repo:
 - password-filled create flows can trigger the system `Save Password?` sheet in the simulator
 - a row below the fold on a 375x667 screen (iPhone SE) is never materialized by a lazy `List`/`Form`, so `waitForExistence` on it can only time out however generous the timeout. Anchor "did this screen open" assertions on a navigation bar or toolbar item, and `revealElement` anything further down. Two tests failed this way on an iOS 26.5 iPhone SE: the AutoFill settings per-database toggles (pushed past the fold by the Copy Verification Code footer) and the entry-history version screen's Last Modified row
 - regular-width workspace and database-details smoke flows are much more stable when they target dedicated accessibility identifiers such as `regular-workspace.select-entry-placeholder` and `database-details.quick-launch-toggle`
+- on iOS 27, buttons inside a `Section` of a SwiftUI `Menu` lose their accessibility identifiers (labels survive; direct menu children are unaffected). Query them with `menuButton(identifier:label:)` instead of `app.buttons["the.identifier"]`
 
 When a test drives search, sorting, or modal UI, reset back to a known stable state before the next assertion. If a combined test keeps leaking state across sections, split it into multiple test methods.
 
@@ -429,6 +430,7 @@ Key helpers:
 - `openAnyEntry()` — navigate into a non-empty group and open an entry
 - `revealElement(_:in:direction:maxSwipes:)` — scroll until an element is visible and hittable
 - `waitForDocumentPicker()` — wait for the system document picker to appear
+- `menuButton(identifier:label:)` — match a menu item by accessibility identifier *or* visible label. Required for items inside a `Section` of a SwiftUI `Menu` (the toolbar add-database menu): the iOS 27 runtime drops accessibility identifiers from Section-wrapped menu buttons entirely — verified empirically, identifier on the Button, on its Label, and headerless `Section` all lose it, while direct menu children keep theirs — so identifier-only queries hang forever on iOS 27
 - `openDatabaseDetails(rowContaining:)` / `closeDatabaseDetails()` — long-press a database row, open its Database Details context action, and wait for/dismiss the details sheet. Promoted from byte-for-byte-duplicated private copies in `DatabaseListUITests` and `AutoFillStoreUITests`
 - `setSwitch(_:isOn:)` — tap a switch until its raw `"1"`/`"0"` value matches the desired state. Promoted from near-duplicate private copies in `DatabaseListUITests` and `AutoFillStoreUITests` that had drifted apart in their failure-message text ("Expected AutoFill toggle to be ..." vs. the more generic "Expected toggle to be ..."); the generic message won since `AutoFillStoreUITests` exercises this against several different toggles, not just one. Distinct from `UnlockFlowUITests`' private `setUsageStatsSwitch`, which tolerates additional value encodings ("on"/off strings, `NSNumber`) that this stricter shared helper does not — kept separate deliberately rather than merged, to avoid changing that test's behavior
 

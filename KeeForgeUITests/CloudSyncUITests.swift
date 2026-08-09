@@ -42,7 +42,7 @@ class CloudSyncBaseUITests: KeeForgeUITestCase {
         XCTAssertTrue(addButton.waitForExistence(timeout: 10), file: file, line: line)
         addButton.tap()
 
-        let dropboxButton = app.buttons["database.add.dropbox"].firstMatch
+        let dropboxButton = menuButton(identifier: "database.add.dropbox", label: "Dropbox")
         XCTAssertTrue(dropboxButton.waitForExistence(timeout: 10), file: file, line: line)
         dropboxButton.tap()
     }
