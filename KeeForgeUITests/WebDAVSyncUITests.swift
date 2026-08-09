@@ -56,7 +56,7 @@ class WebDAVSyncBaseUITests: KeeForgeUITestCase {
         XCTAssertTrue(addButton.waitForExistence(timeout: 15), "Empty-state add button did not appear", file: file, line: line)
         addButton.tap()
 
-        let webDAVButton = app.buttons["database.add.webdav"].firstMatch
+        let webDAVButton = menuButton(identifier: "database.add.webdav", label: "WebDAV")
         XCTAssertTrue(webDAVButton.waitForExistence(timeout: 10), "WebDAV add-menu entry did not appear", file: file, line: line)
         webDAVButton.tap()
     }
