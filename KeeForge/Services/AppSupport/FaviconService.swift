@@ -12,6 +12,28 @@ enum FaviconService: Sendable {
     private static let ttlSeconds: TimeInterval = 7 * 24 * 60 * 60 // 7 days
     private static let cacheDirectoryName = "favicons"
 
+    // MARK: - URL Session
+
+    static let requestTimeout: TimeInterval = 5
+    static let resourceTimeout: TimeInterval = 15
+
+    /// Ephemeral on purpose: a default session persists the host's learned
+    /// HTTP/3 capability (Alt-Svc), and on networks that silently drop UDP 443
+    /// CFNetwork then hangs in the QUIC handshake with no TCP fallback until
+    /// the task times out. An ephemeral session starts with no such knowledge,
+    /// so its first connection goes over TCP. There is no API to disable
+    /// HTTP/3 outright, hence the short timeouts and the fresh-session retry
+    /// in `fetchData(from:)`.
+    static func sessionConfiguration() -> URLSessionConfiguration {
+        let config = URLSessionConfiguration.ephemeral
+        config.timeoutIntervalForRequest = requestTimeout
+        config.timeoutIntervalForResource = resourceTimeout
+        config.waitsForConnectivity = false
+        return config
+    }
+
+    private static let session = URLSession(configuration: sessionConfiguration())
+
     // MARK: - Cache Directory
 
     static var cacheDirectory: URL {
@@ -177,7 +199,7 @@ enum FaviconService: Sendable {
         guard let url = URL(string: "\(faviconBaseURL)\(domain).ico") else { return nil }
 
         do {
-            let (data, response) = try await URLSession.shared.data(from: url)
+            let (data, response) = try await fetchData(from: url)
             guard let httpResponse = response as? HTTPURLResponse,
                   httpResponse.statusCode == 200,
                   !data.isEmpty else {
@@ -195,6 +217,19 @@ enum FaviconService: Sendable {
             return image
         } catch {
             return nil
+        }
+    }
+
+    /// A timeout usually means a stuck QUIC handshake (the session learned the
+    /// host's HTTP/3 support from an Alt-Svc header mid-session); a brand-new
+    /// ephemeral session hasn't, so its first connection retries over TCP.
+    private static func fetchData(from url: URL) async throws -> (Data, URLResponse) {
+        do {
+            return try await session.data(from: url)
+        } catch let error as URLError where error.code == .timedOut {
+            let retrySession = URLSession(configuration: sessionConfiguration())
+            defer { retrySession.finishTasksAndInvalidate() }
+            return try await retrySession.data(from: url)
         }
     }
 

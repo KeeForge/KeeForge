@@ -30,6 +30,7 @@ TODO before the first macOS release:
 
 ### Fixes
 
+- Website icons now load on networks that block QUIC traffic (UDP port 443), where every favicon download previously stalled for a minute and failed. Downloads no longer reuse the connection setup that insisted on QUIC, give up after a few seconds instead of sixty, and retry once over a plain TCP connection — the same route Safari takes on such networks. This affects both the opt-in list icons and "Download Website Icon" in the icon chooser.
 - An edit made while a save was still uploading (for example to a cloud database on a slow connection) is no longer silently lost; the save now picks up the newer change and writes it too.
 - The AutoFill picker no longer dead-ends on "No Credentials Found" for sites KeeForge cannot match: a new "Show All Credentials" action lists everything you can fill. The same action appears in the verification-code picker.
 - AutoFill now shows a clear error — naming both numbers and the way out — instead of silently doing nothing when a database's Argon2 memory setting is larger than the memory iOS gives the AutoFill extension (#57).

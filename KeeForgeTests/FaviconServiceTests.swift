@@ -215,6 +215,20 @@ final class FaviconServiceTests: XCTestCase {
         #endif
     }
 
+    // MARK: - Session Configuration
+
+    func testSessionConfigurationFailsFastOnStuckConnections() {
+        // Guards the QUIC-hang fix: short timeouts and no connectivity wait,
+        // so a stuck HTTP/3 handshake on networks dropping UDP 443 fails in
+        // seconds (and gets a TCP retry) instead of hanging for a minute.
+        let config = FaviconService.sessionConfiguration()
+        XCTAssertEqual(config.timeoutIntervalForRequest, FaviconService.requestTimeout)
+        XCTAssertEqual(config.timeoutIntervalForResource, FaviconService.resourceTimeout)
+        XCTAssertLessThanOrEqual(FaviconService.requestTimeout, 10)
+        XCTAssertLessThanOrEqual(FaviconService.resourceTimeout, 30)
+        XCTAssertFalse(config.waitsForConnectivity)
+    }
+
     // MARK: - Settings
 
     func testShowWebsiteIconsDefaultsToFalse() {
