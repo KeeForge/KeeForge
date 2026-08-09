@@ -2150,6 +2150,28 @@
         }
       }
     },
+    "That earlier version is no longer available." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Diese frühere Version ist nicht mehr verfügbar."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Esa versión anterior ya no está disponible."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cette version précédente n'est plus disponible."
+          }
+        }
+      }
+    },
     "The database appears corrupted or incomplete." : {
       "localizations" : {
         "de" : {
@@ -2460,6 +2482,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Cette base de données utilise un flux de champs protégés non pris en charge."
+          }
+        }
+      }
+    },
+    "This database's icons are stored in a form KeeForge cannot add to without risking the ones already there." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die Symbole dieser Datenbank liegen in einer Form vor, zu der KeeForge nichts hinzufügen kann, ohne die bereits vorhandenen zu gefährden."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Los iconos de esta base de datos están guardados en un formato al que KeeForge no puede añadir nada sin poner en riesgo los que ya contiene."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Les icônes de cette base de données sont enregistrées sous une forme à laquelle KeeForge ne peut rien ajouter sans risquer celles qui s’y trouvent déjà."
           }
         }
       }
