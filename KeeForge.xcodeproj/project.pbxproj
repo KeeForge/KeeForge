@@ -132,6 +132,7 @@
 		30FAB87495E057E7C880DC28 /* OneDriveCloudProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = B942B75B67043A4CB397BE27 /* OneDriveCloudProvider.swift */; };
 		310F8939E17928B0959017BC /* ClipboardService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB106882B5AF908E0B1ED82C /* ClipboardService.swift */; };
 		316E7940CB908BAD581E150F /* CloudDatabaseSaverTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FD06FD75C4769929A64951F0 /* CloudDatabaseSaverTests.swift */; };
+		319A9F3F07104A112CF7E4F1 /* VaultCloseTransition.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C4F229D9C69C5A42C3696E4 /* VaultCloseTransition.swift */; };
 		31F2445E8B8081A4A129B7C8 /* DatabaseViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 93A9DF17FFAE21E9E974D8B3 /* DatabaseViewModelTests.swift */; };
 		3273FA5CD2EEC697A05131BD /* AutoFillTipBanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 388EE3A5E207BFE8565149FE /* AutoFillTipBanner.swift */; };
 		33354A226010DF9553193BE7 /* KeeForgeMacAutoFill.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = F132E57F847216618151EAF4 /* KeeForgeMacAutoFill.appex */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
@@ -236,7 +237,6 @@
 		5D1534A2DAB9C6EC61C8551B /* CloudSyncModelsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6037B710DE638D64C1ED6576 /* CloudSyncModelsTests.swift */; };
 		5D2CF3FE49768C76388E382C /* demo.kdbx in Resources */ = {isa = PBXBuildFile; fileRef = F3D5CCD3DC2893DC1A65D6DC /* demo.kdbx */; };
 		5D4EDAB44CA7147BD468251F /* SharedVaultStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 255524A0026746268CB46642 /* SharedVaultStoreTests.swift */; };
-		5D70B9C8778ACFDBFFE725D3 /* LockDatabaseButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5CD43B8C0F8FE45BD50C90FA /* LockDatabaseButton.swift */; };
 		5DDCA6E6F91D54EEE081851C /* KeeForgeTwofish in Frameworks */ = {isa = PBXBuildFile; productRef = 421423EA8AC7EF81B1991657 /* KeeForgeTwofish */; };
 		5DE36201A042172BCE6FA97B /* demo-keyfile.kdbx in Resources */ = {isa = PBXBuildFile; fileRef = 4CC3CF24A57A3BB531DA56C2 /* demo-keyfile.kdbx */; };
 		5E17A333954ADDC0205E1B72 /* PasskeyCredential.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7AEBF3F7022FCACFF7195DB7 /* PasskeyCredential.swift */; };
@@ -407,6 +407,7 @@
 		A4965719DE4433346A5EF843 /* CloudProviderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 70041C9E76CC7196DFCB5AE1 /* CloudProviderTests.swift */; };
 		A5BFF2A90A55B2DCA322D1EB /* OpaqueXMLNodes.swift in Sources */ = {isa = PBXBuildFile; fileRef = E83812EEBF6C270EDFBA5E90 /* OpaqueXMLNodes.swift */; };
 		A65B92FF831C88C93F890C88 /* SecurityScopedBookmarkManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA3FF6C98ADE49FE6BDB7B6D /* SecurityScopedBookmarkManager.swift */; };
+		A708A76DFE6E483112E9ABBE /* VaultCloseTransition.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C4F229D9C69C5A42C3696E4 /* VaultCloseTransition.swift */; };
 		A8C0C2410A1450B0C670BD73 /* AutoFillMemoryLimit.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47CCBDF8ED23DD32B45AD2C3 /* AutoFillMemoryLimit.swift */; };
 		A8D463BF4266378018AA0DDF /* GroupIconPickerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5156505659451A95FA358AA9 /* GroupIconPickerView.swift */; };
 		A91E8FC4271F8638EA091F79 /* KDBXOuterCipher.swift in Sources */ = {isa = PBXBuildFile; fileRef = CF9F4F443BDAB986A5BF03E8 /* KDBXOuterCipher.swift */; };
@@ -430,7 +431,6 @@
 		B084A4061505EB5604BD33AD /* WebDAVCloudProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0766AA20A206C0DEE4B732D /* WebDAVCloudProvider.swift */; };
 		B158747A1FE08B2B17C251C3 /* DocumentsVaultScannerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C4F5FB08EE2BFA9321FF6C45 /* DocumentsVaultScannerTests.swift */; };
 		B161CAC5AF346F75C4FEF02B /* PasswordGeneratorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 613225A0024C030E19B2F7E1 /* PasswordGeneratorTests.swift */; };
-		B1912575B73792C110E7FF60 /* LockDatabaseButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5CD43B8C0F8FE45BD50C90FA /* LockDatabaseButton.swift */; };
 		B1F7E854E73B9A5842EDFF3F /* PlatformCompat.swift in Sources */ = {isa = PBXBuildFile; fileRef = FFB6EEC55FC21C0E0612931E /* PlatformCompat.swift */; };
 		B24D2F1E6923B539E1DEEC3C /* CloudSyncCoordinatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 633D74C75C8E56DA9DAF5458 /* CloudSyncCoordinatorTests.swift */; };
 		B2527655D4C3E131B514101B /* UITestDropboxCloudProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = F010A269DB2C2D6FD2B162EF /* UITestDropboxCloudProvider.swift */; };
@@ -799,6 +799,7 @@
 		4B393A7DB556210E94C0F3A2 /* AppStoreScreenshots.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppStoreScreenshots.swift; sourceTree = "<group>"; };
 		4C350259754DFA5D42D782A7 /* test-v1.key */ = {isa = PBXFileReference; path = "test-v1.key"; sourceTree = "<group>"; };
 		4C411976FE19647F13726F1F /* ScreenProtectionService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenProtectionService.swift; sourceTree = "<group>"; };
+		4C4F229D9C69C5A42C3696E4 /* VaultCloseTransition.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VaultCloseTransition.swift; sourceTree = "<group>"; };
 		4CC3CF24A57A3BB531DA56C2 /* demo-keyfile.kdbx */ = {isa = PBXFileReference; path = "demo-keyfile.kdbx"; sourceTree = "<group>"; };
 		4D057DDB7EF1E20587FC6378 /* AutoFillStoreInspectorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AutoFillStoreInspectorView.swift; sourceTree = "<group>"; };
 		4D4331340574F2A0595CAA0E /* KDBXRoundTripTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KDBXRoundTripTests.swift; sourceTree = "<group>"; };
@@ -813,7 +814,6 @@
 		54ACF54A8A8D4F2078DE1E9E /* TagEntriesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TagEntriesView.swift; sourceTree = "<group>"; };
 		553C63DEBDFFD48E4FC4646E /* AutoFillSaveCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AutoFillSaveCoordinator.swift; sourceTree = "<group>"; };
 		5B9296F5447FA170D81D6166 /* AutoFillStoreInspectorModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AutoFillStoreInspectorModel.swift; sourceTree = "<group>"; };
-		5CD43B8C0F8FE45BD50C90FA /* LockDatabaseButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LockDatabaseButton.swift; sourceTree = "<group>"; };
 		5CF73F233BAC9141F9575CEC /* WebDAVConnectViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebDAVConnectViewModelTests.swift; sourceTree = "<group>"; };
 		5DDEBC96D0673E928CD9681C /* WhatsNewPresentationServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WhatsNewPresentationServiceTests.swift; sourceTree = "<group>"; };
 		5DFD74CE6911EB771A4B7FBD /* CredentialProviderViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CredentialProviderViewController.swift; sourceTree = "<group>"; };
@@ -1140,7 +1140,6 @@
 				46901E5630D76E1EAAA1AD82 /* GroupEditView.swift */,
 				5156505659451A95FA358AA9 /* GroupIconPickerView.swift */,
 				35E6EA2FF600FFF3543FF763 /* GroupListView.swift */,
-				5CD43B8C0F8FE45BD50C90FA /* LockDatabaseButton.swift */,
 				F453297E09219FDE860CE5A7 /* MacUnlockPasswordField.swift */,
 				10E0212432C502CF3BCFAB93 /* PasswordDisplay.swift */,
 				2EFC7C32376B08C5FA4229D9 /* PasswordGeneratorSheet.swift */,
@@ -1345,6 +1344,7 @@
 				7EA0111DE46F6C0B6D89B6B4 /* KeeForgeApp.swift */,
 				BF45C7A930180364061D5C77 /* KeeForgeCommands.swift */,
 				F4848101D8507FA92F1BC8E8 /* RegularDatabaseWorkspaceView.swift */,
+				4C4F229D9C69C5A42C3696E4 /* VaultCloseTransition.swift */,
 			);
 			name = App;
 			path = KeeForge/App;
@@ -2236,7 +2236,6 @@
 				6AE385563ED9E96B0E62B389 /* KeyFileProcessor.swift in Sources */,
 				0268947BAC326A3BDBF92D02 /* KeychainService.swift in Sources */,
 				2FB690AA87853493C7E13651 /* LocalDatabaseSaver.swift in Sources */,
-				5D70B9C8778ACFDBFFE725D3 /* LockDatabaseButton.swift in Sources */,
 				0E360F4B6E34A3F83A656E6B /* MacLockMonitor.swift in Sources */,
 				876D97777DF4ACDFC4C4B8AE /* MacUnlockPasswordField.swift in Sources */,
 				03818561964079C90324F54F /* NavigationConformances.swift in Sources */,
@@ -2272,6 +2271,7 @@
 				A1BF18E7DDE9647E7331665E /* UITestDropboxCloudProvider.swift in Sources */,
 				C8C4A4DA9D8EEB1A479CAF54 /* UITestWebDAVCloudProvider.swift in Sources */,
 				64876E105034A7C8D1F4E829 /* UnlockView.swift in Sources */,
+				A708A76DFE6E483112E9ABBE /* VaultCloseTransition.swift in Sources */,
 				8CBE8DF70368FAE59565D6D2 /* WebDAVClient.swift in Sources */,
 				DB44CDDAE5897ABAFD93CDB2 /* WebDAVCloudProvider.swift in Sources */,
 				9CC77B4DF961BA6E3DF32559 /* WebDAVConnectView.swift in Sources */,
@@ -2365,7 +2365,6 @@
 				BC3BB1882DE6F21881AFE403 /* KeyFileProcessor.swift in Sources */,
 				C345E0CBF0AE22D43AA5D5EB /* KeychainService.swift in Sources */,
 				59ADE684D5F68C0BC02EB0CC /* LocalDatabaseSaver.swift in Sources */,
-				B1912575B73792C110E7FF60 /* LockDatabaseButton.swift in Sources */,
 				E4399D03BA819C29FDED2016 /* MacUnlockPasswordField.swift in Sources */,
 				85F4BF94918B5C26592668EA /* NavigationConformances.swift in Sources */,
 				A9E880DCC3B893C3D6E337EC /* OneDriveCloudProvider.swift in Sources */,
@@ -2400,6 +2399,7 @@
 				B2527655D4C3E131B514101B /* UITestDropboxCloudProvider.swift in Sources */,
 				C4ECF537DE2F150E57DD1970 /* UITestWebDAVCloudProvider.swift in Sources */,
 				D0017FAB9AB8A8FBBDA92361 /* UnlockView.swift in Sources */,
+				319A9F3F07104A112CF7E4F1 /* VaultCloseTransition.swift in Sources */,
 				F699E6A14BD9C97BAFF19A14 /* WebDAVClient.swift in Sources */,
 				B084A4061505EB5604BD33AD /* WebDAVCloudProvider.swift in Sources */,
 				92E678CCBA4E1E98B5C3DF69 /* WebDAVConnectView.swift in Sources */,

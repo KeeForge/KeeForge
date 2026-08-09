@@ -14,7 +14,21 @@ struct UnlockView: View {
     @State private var showRemoveMissingConfirmation = false
     @State private var copiedErrorDetails = false
     @State private var isPasswordVisible = false
+    /// Drives the header padlock. Starts shut, so opening a database from the
+    /// list shows a settled lock rather than a gratuitous animation.
+    @State private var isSealed = true
     @FocusState private var passwordFocused: Bool
+
+    /// Plays the shackle closing on the screen the user actually lands on after
+    /// pressing Lock. The lock itself already happened — this rides the arrival
+    /// transition instead of delaying it, so it costs no latency.
+    private func sealShutIfArrivingFromLock() {
+        guard viewModel.didManuallyLock else { return }
+        isSealed = false
+        withAnimation(.snappy(duration: 0.35).delay(0.15)) {
+            isSealed = true
+        }
+    }
 
     var body: some View {
         ScrollView {
@@ -82,10 +96,13 @@ struct UnlockView: View {
                         .fill(Color.accentColor.opacity(0.14))
                         .frame(width: 64, height: 64)
 
-                    Image(systemName: "externaldrive.connected.to.line.below.fill")
+                    Image(systemName: isSealed ? "lock.fill" : "lock.open.fill")
                         .font(.system(size: 28))
                         .foregroundStyle(.tint)
+                        .contentTransition(.symbolEffect(.replace.downUp))
+                        .accessibilityHidden(true)
                 }
+                .onAppear(perform: sealShutIfArrivingFromLock)
 
                 VStack(alignment: .leading, spacing: 5) {
                     Text("Open Database")

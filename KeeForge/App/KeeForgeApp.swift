@@ -440,6 +440,16 @@ private struct CompactDatabaseHost: View {
             }
 
             if hasUnlockedInThisSession, case .locked = newValue {
+                #if os(iOS)
+                // Manual locks only. An automatic lock can fire as the app is
+                // being backgrounded, and a snapshot added at that moment is
+                // exactly what iOS would capture for the app switcher — the
+                // one place vault content must never survive. Those locks keep
+                // the instant cut and `ScreenProtectionService`'s shield.
+                if viewModel.didManuallyLock {
+                    VaultCloseTransition.coverCurrentFrame()
+                }
+                #endif
                 onReturnToList()
             }
         }

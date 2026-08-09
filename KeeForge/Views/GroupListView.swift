@@ -160,9 +160,10 @@ struct GroupListView: View {
 
                         if showsCompactLockButton {
                             ToolbarItem(placement: .topBarLeading) {
-                                LockDatabaseButton {
+                                Button("Lock") {
                                     viewModel.lockRequest(manuallyTriggered: true)
                                 }
+                                .accessibilityIdentifier("lock.button")
                             }
                         }
 
@@ -200,9 +201,10 @@ struct GroupListView: View {
                                 }
 
                                 if showsCompactLockButton == false {
-                                    LockDatabaseButton {
+                                    Button("Lock") {
                                         viewModel.lockRequest(manuallyTriggered: true)
                                     }
+                                    .accessibilityIdentifier("lock.button")
                                 }
 
                                 Menu {
