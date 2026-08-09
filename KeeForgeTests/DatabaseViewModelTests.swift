@@ -403,6 +403,74 @@ final class DatabaseViewModelTests: XCTestCase {
         XCTAssertFalse(vm.canRemoveMissingDocumentsFile)
     }
 
+    func testRetryUnlockSucceedsAfterScannerHealsStoredReference() async throws {
+        let documentsDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: documentsDirectory, withIntermediateDirectories: true)
+        DatabaseListStore.documentsDirectoryOverride = documentsDirectory
+        defer {
+            DatabaseListStore.documentsDirectoryOverride = nil
+            try? FileManager.default.removeItem(at: documentsDirectory)
+        }
+
+        let fileURL = documentsDirectory.appendingPathComponent("resident.kdbx")
+        let fixtureData = try Data(contentsOf: fixtureURL())
+        try fixtureData.write(to: fileURL)
+        let reference = try DatabaseListStore.add(url: fileURL)
+        try FileManager.default.removeItem(at: fileURL)
+
+        let vm = DatabaseViewModel(databaseReference: reference)
+        await vm.unlock(password: fixturePassword)
+        XCTAssertEqual(vm.openFailure?.errorCode, "file.not_found")
+
+        // Restore the file (delete+recopy, so the original bookmark is dead)
+        // and let the foreground scan heal the stored reference. The unlock
+        // sheet is still open on its pre-heal reference snapshot; Try Again
+        // must pick up the healed bookmark instead of failing again.
+        try fixtureData.write(to: fileURL)
+        DocumentsVaultScanner.scan(directory: documentsDirectory)
+
+        await vm.unlock(password: fixturePassword)
+        XCTAssertState(vm.state, is: .unlocked)
+    }
+
+    func testRetryUnlockAdoptsRederivedIdentityFromStoredReference() async throws {
+        let documentsDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: documentsDirectory, withIntermediateDirectories: true)
+        DatabaseListStore.documentsDirectoryOverride = documentsDirectory
+        defer {
+            DatabaseListStore.documentsDirectoryOverride = nil
+            try? FileManager.default.removeItem(at: documentsDirectory)
+        }
+
+        let fileURL = documentsDirectory.appendingPathComponent("resident.kdbx")
+        let fixtureData = try Data(contentsOf: fixtureURL())
+        try fixtureData.write(to: fileURL)
+        let reference = try DatabaseListStore.add(url: fileURL)
+        let vm = DatabaseViewModel(databaseReference: reference)
+
+        // Files-app rename, noticed by a foreground scan: the stored
+        // reference's filename follows the file, the sheet's snapshot keeps
+        // the old one.
+        let renamedURL = documentsDirectory.appendingPathComponent("renamed.kdbx")
+        try FileManager.default.moveItem(at: fileURL, to: renamedURL)
+        DocumentsVaultScanner.scan(directory: documentsDirectory)
+
+        // Finder replace over USB (delete+recopy) kills the snapshot's
+        // bookmark; the next scan heals the stored reference at its rederived
+        // path. The snapshot can no longer self-heal — its path-keyed rebind
+        // looks at the old filename.
+        try FileManager.default.removeItem(at: renamedURL)
+        try fixtureData.write(to: renamedURL)
+        DocumentsVaultScanner.scan(directory: documentsDirectory)
+
+        XCTAssertEqual(DatabaseListStore.databases.map(\.id), [reference.id])
+
+        await vm.unlock(password: fixturePassword)
+        XCTAssertState(vm.state, is: .unlocked)
+    }
+
     func testUnlockShowsServerUnavailableWhenLocalReadTimesOut() async throws {
         let reference = try makeReference()
         let vm = DatabaseViewModel(

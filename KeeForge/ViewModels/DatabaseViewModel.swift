@@ -1975,6 +1975,11 @@ final class DatabaseViewModel {
     }
 
     private func prepareForUnlock() {
+        // Adopt any heal the store performed since this session's reference
+        // snapshot was taken (Documents-vault rebind, bookmark refresh,
+        // filename re-derivation), so Try Again resolves the current stored
+        // reference instead of failing on the stale one.
+        refreshDatabaseReference()
         canRemoveMissingDocumentsFile = false
         state = .unlocking
         draft = nil
