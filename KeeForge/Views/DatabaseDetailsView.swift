@@ -113,9 +113,9 @@ struct DatabaseDetailsView: View {
         Section {
             LabeledContent("Name", value: currentDisplayName)
 
-            VStack(alignment: .leading, spacing: 8) {
-                Text("Custom Name")
+            LabeledContent("Custom Name") {
                 TextField("Use filename", text: $nickname)
+                    .multilineTextAlignment(.trailing)
                     .textInputAutocapitalization(.words)
                     .onSubmit(saveNickname)
                     .accessibilityIdentifier("database-details.nickname-field")
