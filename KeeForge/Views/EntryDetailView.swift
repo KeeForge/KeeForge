@@ -768,7 +768,7 @@ struct PasswordFieldRow: View {
                     BiometricService.isBiometricAuthInProgress = true
                 }
                 do {
-                    _ = try await BiometricService.authenticateDeviceOwner(reason: "View password")
+                    _ = try await BiometricService.authenticateDeviceOwner(reason: String(localized: "View password"))
                     await MainActor.run {
                         HapticService.success()
                         revealedText = (try? password.decrypt(using: sessionKey)) ?? ""

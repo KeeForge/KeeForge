@@ -4156,28 +4156,6 @@
         }
       }
     },
-    "Database Settings" : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Datenbankeinstellungen"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Ajustes de la base de datos"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Réglages de la base de données"
-          }
-        }
-      }
-    },
     "Databases" : {
       "localizations" : {
         "de" : {
@@ -5212,6 +5190,50 @@
         }
       }
     },
+    "Enter a password for this credential." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Geben Sie ein Passwort für diese Zugangsdaten ein."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Introduzca una contraseña para esta credencial."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Saisissez un mot de passe pour cet identifiant."
+          }
+        }
+      }
+    },
+    "Enter a title or username for this credential." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Geben Sie einen Titel oder Benutzernamen für diese Zugangsdaten ein."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Introduzca un título o nombre de usuario para esta credencial."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Saisissez un titre ou un nom d’utilisateur pour cet identifiant."
+          }
+        }
+      }
+    },
     "Enter a valid database name." : {
       "localizations" : {
         "de" : {
@@ -6022,28 +6044,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Format"
-          }
-        }
-      }
-    },
-    "From this entry's groups" : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Aus den Gruppen dieses Eintrags"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "De los grupos de esta entrada"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Depuis les groupes de cette entrée"
           }
         }
       }
@@ -7192,28 +7192,6 @@
         }
       }
     },
-    "KeeForge is now fully translated into French throughout the app and AutoFill." : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "KeeForge ist jetzt in der gesamten App und in AutoFill vollständig ins Französische übersetzt."
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "KeeForge ahora está completamente traducida al francés en toda la aplicación y en Autorrelleno."
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "KeeForge est désormais entièrement traduit en français dans toute l'app et le remplissage automatique."
-          }
-        }
-      }
-    },
     "KeeForge is now fully translated into German throughout the app and AutoFill." : {
       "localizations" : {
         "de" : {
@@ -7232,28 +7210,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "KeeForge est désormais entièrement traduit en allemand, dans toute l'app et dans le Remplissage automatique."
-          }
-        }
-      }
-    },
-    "KeeForge is now fully translated into Spanish throughout the app and AutoFill." : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "KeeForge ist jetzt in der gesamten App und in AutoFill vollständig ins Spanische übersetzt."
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "KeeForge ya está totalmente traducido al español en toda la app y el autorrelleno."
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "KeeForge est désormais entièrement traduit en espagnol dans toute l’app et le remplissage automatique."
           }
         }
       }
@@ -8266,6 +8222,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Déplacer vers la corbeille"
+          }
+        }
+      }
+    },
+    "Mozilla Public License 2.0" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mozilla Public License 2.0"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mozilla Public License 2.0"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mozilla Public License 2.0"
           }
         }
       }
@@ -9719,6 +9697,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Fournisseur"
+          }
+        }
+      }
+    },
+    "Public Suffix List" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Public Suffix List"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Public Suffix List"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Public Suffix List"
           }
         }
       }
@@ -11589,6 +11589,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Assistance"
+          }
+        }
+      }
+    },
+    "swift-psl" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "swift-psl"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "swift-psl"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "swift-psl"
           }
         }
       }
@@ -14261,28 +14283,6 @@
         }
       }
     },
-    "Use KeeForge in French" : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "KeeForge auf Französisch verwenden"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Usar KeeForge en francés"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Utiliser KeeForge en français"
-          }
-        }
-      }
-    },
     "Use KeeForge in French or Spanish" : {
       "localizations" : {
         "de" : {
@@ -14323,28 +14323,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Utiliser KeeForge en allemand"
-          }
-        }
-      }
-    },
-    "Use KeeForge in Spanish" : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "KeeForge auf Spanisch verwenden"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Usar KeeForge en español"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Utiliser KeeForge en espagnol"
           }
         }
       }
@@ -14653,6 +14631,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Afficher les détails de la base de données"
+          }
+        }
+      }
+    },
+    "View password" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Passwort anzeigen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ver contraseña"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Afficher le mot de passe"
           }
         }
       }
