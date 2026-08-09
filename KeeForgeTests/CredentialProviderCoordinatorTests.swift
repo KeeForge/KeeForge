@@ -113,6 +113,29 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
         assertCleanedUp(coordinator)
     }
 
+    /// UIKit can refuse a modal without an error even while the shell looks
+    /// active; the coordinator must notice and re-queue the presentation.
+    func test_pickerDroppedByUIKitDespiteActiveShell_isRequeuedAndReplays() throws {
+        let (coordinator, presenter) = makeCoordinator()
+        try seedResolvableDefaultDatabase()
+        let sessionKey = SymmetricKey(size: .bits256)
+        let entries = try makeTwoGitHubEntries(sessionKey: sessionKey)
+
+        coordinator.serviceIdentifiers = [githubServiceIdentifier()]
+        seedUnlockedVaultState(coordinator, entries: entries, sessionKey: sessionKey)
+
+        presenter.didAttachPresentedContent = false
+        coordinator.presentPasswordMatchesOrFinish()
+        XCTAssertEqual(presenter.cancelledErrorCodes, [], "A dropped picker must not cancel the request")
+
+        presenter.didAttachPresentedContent = true
+        presenter.searchView = nil
+        coordinator.presentationDidBecomeActive()
+
+        let searchView = try XCTUnwrap(presenter.searchView, "The dropped picker must re-present on activation")
+        XCTAssertEqual(searchView.entries.count, 2)
+    }
+
     func test_newRequestDropsDeferredPresentationOfPreviousRequest() throws {
         let (coordinator, presenter) = makeCoordinator()
         try seedResolvableDefaultDatabase()

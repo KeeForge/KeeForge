@@ -58,6 +58,11 @@ protocol CredentialProviderPresenting: AnyObject {
     /// double-presenting the unlock prompt (mirrors `presentedViewController != nil`).
     var isDisplayingContent: Bool { get }
 
+    /// Whether the shell's most recent presentation actually attached — UIKit
+    /// can refuse a modal with only a console warning. Defaults to true for
+    /// shells that host content directly instead of presenting it.
+    var didAttachPresentedContent: Bool { get }
+
     // MARK: "Present this view"
 
     /// `databaseSwitcher` is non-nil only when the search UI should offer the
@@ -158,6 +163,10 @@ protocol CredentialProviderPresenting: AnyObject {
     /// the values in `ASGeneratedPassword` under its own availability check.
     func completeGeneratePasswordRequest(passwords: [String])
     func cancelRequest(withError error: ASExtensionError)
+}
+
+extension CredentialProviderPresenting {
+    var didAttachPresentedContent: Bool { true }
 }
 
 /// Owns the AutoFill extension's request handling, unlock orchestration,
@@ -299,6 +308,7 @@ final class CredentialProviderCoordinator {
 
     func prepareCredentialList(for serviceIdentifiers: [ASCredentialServiceIdentifier]) {
         beginRequest()
+        AutoFillDiagnostics.log("prepareCredentialList ids=\(serviceIdentifiers.count) active=\(presenter?.isPresentationActive == true)")
         self.serviceIdentifiers = serviceIdentifiers
         targetRecordIdentifier = nil
         pendingPasskeyRequest = nil
@@ -319,6 +329,7 @@ final class CredentialProviderCoordinator {
     /// entries (or the full TOTP list) for manual selection.
     func prepareOneTimeCodeCredentialList(for serviceIdentifiers: [ASCredentialServiceIdentifier]) {
         beginRequest()
+        AutoFillDiagnostics.log("prepareOneTimeCodeCredentialList ids=\(serviceIdentifiers.count)")
         self.serviceIdentifiers = serviceIdentifiers
         targetRecordIdentifier = nil
         pendingPasskeyRequest = nil
@@ -333,6 +344,7 @@ final class CredentialProviderCoordinator {
 
     func prepareInterfaceToProvideCredential(for credentialIdentity: ASPasswordCredentialIdentity) {
         beginRequest()
+        AutoFillDiagnostics.log("prepareInterfaceToProvideCredential(password identity)")
         serviceIdentifiers = [credentialIdentity.serviceIdentifier]
         targetRecordIdentifier = CredentialIdentityStoreManager.recordIdentifier(of: credentialIdentity)
         pendingPasskeyRequest = nil
@@ -349,6 +361,7 @@ final class CredentialProviderCoordinator {
 
     func prepareCredentialList(for serviceIdentifiers: [ASCredentialServiceIdentifier], requestParameters: ASPasskeyCredentialRequestParameters) {
         beginRequest()
+        AutoFillDiagnostics.log("prepareCredentialList(passkey parameters) ids=\(serviceIdentifiers.count)")
         self.serviceIdentifiers = serviceIdentifiers
         targetRecordIdentifier = nil
         pendingPasskeyRequest = nil
@@ -456,10 +469,11 @@ final class CredentialProviderCoordinator {
 
     /// Called by the shell once its view hierarchy is on screen.
     func presentationDidBecomeActive() {
+        AutoFillDiagnostics.log("presentationDidBecomeActive finished=\(didFinishRequest) pendingUnlock=\(pendingUnlock) pendingPresentation=\(pendingPresentation != nil)")
         guard !didFinishRequest else { return }
         if let pendingPresentation {
             self.pendingPresentation = nil
-            pendingPresentation()
+            presentWhenActive(pendingPresentation)
         } else if pendingUnlock {
             pendingUnlock = false
             presentUnlockPromptIfNeeded()
@@ -485,12 +499,38 @@ final class CredentialProviderCoordinator {
 
     /// Presents now if the shell is on screen, otherwise defers to the next
     /// `presentationDidBecomeActive()`. Every presentation that can follow an
-    /// async gap (unlock, save) must route through this so it is never dropped.
+    /// async gap (unlock, save) must route through this so it is never dropped:
+    /// a present UIKit refused despite the shell looking active is re-queued.
     private func presentWhenActive(_ present: @escaping () -> Void) {
-        if presenter?.isPresentationActive == true {
-            present()
-        } else {
+        guard let presenter, presenter.isPresentationActive else {
+            AutoFillDiagnostics.log("present deferred: shell off screen")
             pendingPresentation = present
+            return
+        }
+        present()
+        if !presenter.didAttachPresentedContent {
+            AutoFillDiagnostics.log("present dropped by UIKit despite active shell; re-queued")
+            pendingPresentation = present
+        }
+    }
+
+    /// Cheap re-entry point the shell calls on layout passes, for the case
+    /// where the view returns to a window without appearance callbacks. The
+    /// hop mirrors `activatePresentationIfPossible`: never present from
+    /// inside a layout pass.
+    func retryPendingPresentationIfPossible() {
+        guard !didFinishRequest, pendingPresentation != nil,
+              presenter?.isPresentationActive == true else { return }
+        let generation = requestGeneration
+        Task { @MainActor [weak self] in
+            guard let self,
+                  self.isRequestActive(generation),
+                  let pending = self.pendingPresentation,
+                  presenter?.isPresentationActive == true
+            else { return }
+            AutoFillDiagnostics.log("replaying deferred presentation from layout hook")
+            self.pendingPresentation = nil
+            presentWhenActive(pending)
         }
     }
 
@@ -511,6 +551,7 @@ final class CredentialProviderCoordinator {
 
     func provideCredentialWithoutUserInteraction(for credentialIdentity: ASPasswordCredentialIdentity) {
         beginRequest()
+        AutoFillDiagnostics.log("provideCredentialWithoutUserInteraction(password identity)")
         guard SettingsService.quickAutoFillEnabled else {
             cancelRequest(code: .userInteractionRequired)
             return
@@ -750,6 +791,7 @@ final class CredentialProviderCoordinator {
     // MARK: - Unlock flow
 
     func presentUnlockPromptIfNeeded() {
+        AutoFillDiagnostics.log("presentUnlockPromptIfNeeded displayingContent=\(presenter?.isDisplayingContent == true) unlockInProgress=\(isUnlockInProgress)")
         guard presenter?.isDisplayingContent != true, !isUnlockInProgress else { return }
 
         // Pin the request to its target database before any unlock UI: the
@@ -764,10 +806,12 @@ final class CredentialProviderCoordinator {
         }
 
         if shouldAutoUnlockWithBiometrics(for: databaseReference) {
+            AutoFillDiagnostics.log("auto biometric unlock starting")
             didAttemptAutoBiometricUnlock = true
             unlockWithBiometrics()
             return
         }
+        AutoFillDiagnostics.log("presenting unlock prompt biometricOption=\(canUseBiometrics(for: databaseReference))")
 
         presenter?.presentUnlockPrompt(
             biometricOptionTitle: canUseBiometrics(for: databaseReference) ? biometricActionTitle : nil,
@@ -1104,13 +1148,16 @@ final class CredentialProviderCoordinator {
         generation: Int
     ) async throws {
         let context = try await BiometricService.authenticate(reason: String(localized: "Unlock KeeForge for AutoFill"))
+        AutoFillDiagnostics.log("biometric auth ok")
         let compositeKey = try retrieveCompositeKey(for: databaseReference, context: context)
+        AutoFillDiagnostics.log("composite key retrieved")
         try await loadEntries(
             compositeKey: compositeKey,
             databaseReference: databaseReference,
             generation: generation
         )
         guard isRequestActive(generation) else { return }
+        AutoFillDiagnostics.log("unlock ok entries=\(parsedEntries.count)")
         persistCompositeKeyIfPossible(compositeKey, for: databaseReference)
         recordSuccessfulUnlock(for: databaseReference)
         afterUnlock()
@@ -1370,6 +1417,8 @@ final class CredentialProviderCoordinator {
         } else {
             possibleMatches = []
         }
+
+        AutoFillDiagnostics.log("passwordMatches all=\(allPasswordEntries.count) strict=\(strictMatches.count) matches=\(matches.count) possible=\(possibleMatches.count)")
 
         // Auto-complete without a picker only when the single candidate matched
         // on host, not on a weaker URL/title substring signal.
@@ -2232,6 +2281,7 @@ final class CredentialProviderCoordinator {
         copyTOTPCodeIfEnabled(for: entry, sessionKey: decryptionKey)
         #endif
 
+        AutoFillDiagnostics.log("completing password fill")
         let credential = ASPasswordCredential(user: user, password: decryptedPassword)
         finishRequest { presenter in
             presenter.completeRequest(withSelectedCredential: credential)
@@ -2372,6 +2422,7 @@ final class CredentialProviderCoordinator {
     // MARK: - Error handling
 
     func cancelRequest(code: ASExtensionError.Code) {
+        AutoFillDiagnostics.log("cancelRequest code=\(code.rawValue) finished=\(didFinishRequest)")
         finishRequest { presenter in
             presenter.cancelRequest(withError: ASExtensionError(code))
         }
@@ -2396,6 +2447,8 @@ final class CredentialProviderCoordinator {
     }
 
     private func showErrorAndRetry(_ error: Error) {
+        let nsError = error as NSError
+        AutoFillDiagnostics.log("unlock error \(nsError.domain)#\(nsError.code)")
         let message = error.localizedDescription
         presentWhenActive { [weak self] in
             guard let self else { return }

@@ -11,6 +11,8 @@ final class CredentialProviderPresentingSpy: CredentialProviderPresenting {
     /// On-screen by default; tests that pin off-screen behavior set it false.
     var isPresentationActive = true
     var isDisplayingContent = false
+    /// Set false to simulate UIKit refusing a modal despite an active shell.
+    var didAttachPresentedContent = true
 
     struct UnlockPrompt {
         let biometricOptionTitle: String?

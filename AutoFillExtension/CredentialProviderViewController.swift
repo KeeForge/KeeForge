@@ -26,15 +26,23 @@ final class CredentialProviderViewController: ASCredentialProviderViewController
 
     override func viewDidAppear(_ animated: Bool) {
         super.viewDidAppear(animated)
+        AutoFillDiagnostics.log("shell viewDidAppear window=\(viewIfLoaded?.window != nil) presented=\(presentedViewController != nil)")
         hasAppeared = true
         coordinator.presentationDidBecomeActive()
     }
 
     override func viewDidDisappear(_ animated: Bool) {
         super.viewDidDisappear(animated)
+        AutoFillDiagnostics.log("shell viewDidDisappear presented=\(presentedViewController != nil)")
         // Internal full-screen presentations also make the provider disappear;
         // request cancellation belongs to the coordinator's terminal paths.
         hasAppeared = false
+    }
+
+    override func viewDidLayoutSubviews() {
+        super.viewDidLayoutSubviews()
+        // Catches a view returned to a window without appearance callbacks.
+        coordinator.retryPendingPresentationIfPossible()
     }
 
     // MARK: - Request forwarding
@@ -110,6 +118,10 @@ extension CredentialProviderViewController: CredentialProviderPresenting {
         presentedViewController != nil
     }
 
+    var didAttachPresentedContent: Bool {
+        presentedViewController != nil
+    }
+
     // MARK: "Present this view"
 
     func presentSearchView(
@@ -182,6 +194,7 @@ extension CredentialProviderViewController: CredentialProviderPresenting {
         let host = UIHostingController(rootView: searchView)
         host.modalPresentationStyle = .fullScreen
         present(host, animated: true)
+        AutoFillDiagnostics.log("shell presentSearchView attached=\(presentedViewController != nil) window=\(viewIfLoaded?.window != nil)")
     }
 
     func presentEntryCreator(
