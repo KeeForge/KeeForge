@@ -18,6 +18,10 @@ struct KeeForgeApp: App {
     @AppStorage(SettingsService.appearanceModeDefaultsKey) private var appearanceModeRaw = SettingsService.AppearanceMode.system.rawValue
     @Environment(\.scenePhase) private var scenePhase
 
+    init() {
+        AutoFillDiagnostics.migrateLegacyLogLocation()
+    }
+
     var body: some Scene {
         mainWindow
 

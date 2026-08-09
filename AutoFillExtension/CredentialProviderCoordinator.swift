@@ -1628,30 +1628,51 @@ final class CredentialProviderCoordinator {
     }
 
     private func presentPasskeyMatchesOrFinish(using requestParameters: ASPasskeyCredentialRequestParameters) {
-        let matches = matchingPasskeyEntries(for: requestParameters)
-        if matches.count == 1, let entry = matches.first {
-            completePasskeyRequest(with: entry, requestParameters: requestParameters)
-            return
-        }
-
-        if !matches.isEmpty {
-            presentSearchView(entries: matches, includesDatabaseSwitcher: true) { [weak self] entry in
-                self?.completePasskeyRequest(with: entry, requestParameters: requestParameters)
-            }
-            return
-        }
-
         let expiredMatches = matchingPasskeyEntries(
             for: requestParameters,
             includeExpired: true
         ).filter { $0.isExpired() }
-        guard !expiredMatches.isEmpty else {
-            cancelRequest(code: .credentialIdentityNotFound)
+        presentPasskeyList(
+            matches: matchingPasskeyEntries(for: requestParameters),
+            expiredMatches: expiredMatches
+        ) { [weak self] entry in
+            self?.completePasskeyRequest(with: entry, requestParameters: requestParameters)
+        }
+    }
+
+    /// List decision for a parameters-driven passkey request. Internal (not
+    /// private) so unit tests can drive it: `ASPasskeyCredentialRequestParameters`
+    /// is not constructible in tests, so the parameters stay in the thin
+    /// wrapper above.
+    func presentPasskeyList(
+        matches: [KPEntry],
+        expiredMatches: [KPEntry],
+        onSelect complete: @escaping (KPEntry) -> Void
+    ) {
+        if matches.count == 1, let entry = matches.first {
+            complete(entry)
             return
         }
 
-        presentSearchView(entries: expiredMatches, includesDatabaseSwitcher: true) { [weak self] entry in
-            self?.completePasskeyRequest(with: entry, requestParameters: requestParameters)
+        if !matches.isEmpty {
+            presentSearchView(entries: matches, includesDatabaseSwitcher: true) { entry in
+                complete(entry)
+            }
+            return
+        }
+
+        guard !expiredMatches.isEmpty else {
+            // This request lists credentials of both kinds for the site, so a
+            // vault with no matching passkey must fall back to the password
+            // flow — cancelling here ends the request with no UI at all right
+            // after a successful unlock.
+            AutoFillDiagnostics.log("no passkey matches; falling back to password flow")
+            presentPasswordMatchesOrFinish()
+            return
+        }
+
+        presentSearchView(entries: expiredMatches, includesDatabaseSwitcher: true) { entry in
+            complete(entry)
         }
     }
 
