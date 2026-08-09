@@ -217,6 +217,10 @@ final class CredentialProviderCoordinator {
     /// Consumed by the next search presentation so the re-presented search —
     /// the new database's on success, the previous one's on cancel — keeps it.
     var pendingSwitchSearchText: String?
+    /// Presentation that arrived while the shell was off screen (e.g. an
+    /// unlock finishing behind the system biometric sheet), where UIKit would
+    /// silently drop it. Replayed by `presentationDidBecomeActive()`.
+    private var pendingPresentation: (() -> Void)?
 
     private var isUnlockInProgress = false
     private var didAttemptAutoBiometricUnlock = false
@@ -286,6 +290,7 @@ final class CredentialProviderCoordinator {
         unlockTask = nil
         isUnlockInProgress = false
         didFinishRequest = false
+        pendingPresentation = nil
     }
 
     private func isRequestActive(_ generation: Int) -> Bool {
@@ -452,7 +457,10 @@ final class CredentialProviderCoordinator {
     /// Called by the shell once its view hierarchy is on screen.
     func presentationDidBecomeActive() {
         guard !didFinishRequest else { return }
-        if pendingUnlock {
+        if let pendingPresentation {
+            self.pendingPresentation = nil
+            pendingPresentation()
+        } else if pendingUnlock {
             pendingUnlock = false
             presentUnlockPromptIfNeeded()
         } else if pendingNoEnabledDatabasesPresentation {
@@ -472,6 +480,17 @@ final class CredentialProviderCoordinator {
                 presentGeneratePasswordPrompt(for: pendingGeneratePasswordsRequest)
             }
             #endif
+        }
+    }
+
+    /// Presents now if the shell is on screen, otherwise defers to the next
+    /// `presentationDidBecomeActive()`. Every presentation that can follow an
+    /// async gap (unlock, save) must route through this so it is never dropped.
+    private func presentWhenActive(_ present: @escaping () -> Void) {
+        if presenter?.isPresentationActive == true {
+            present()
+        } else {
+            pendingPresentation = present
         }
     }
 
@@ -1608,20 +1627,23 @@ final class CredentialProviderCoordinator {
     ) {
         let restoredSearchText = pendingSwitchSearchText
         pendingSwitchSearchText = nil
-        presenter?.presentSearchView(
-            entries: entries,
-            searchEntries: searchEntries ?? entries,
-            possibleEntries: possibleEntries,
-            initialSearchText: restoredSearchText ?? initialSearchText,
-            databaseSwitcher: includesDatabaseSwitcher ? makeDatabaseSwitcherContext() : nil,
-            onCreateEntry: includesEntryCreation ? makeEntryCreationAction() : nil,
-            onSelect: onSelect,
-            onSelectPossible: onSelectPossible,
-            onAddURLToPossible: onAddURLToPossible,
-            onCancel: { [weak self] in
-                self?.cancelRequest(code: .userCanceled)
-            }
-        )
+        presentWhenActive { [weak self] in
+            guard let self else { return }
+            presenter?.presentSearchView(
+                entries: entries,
+                searchEntries: searchEntries ?? entries,
+                possibleEntries: possibleEntries,
+                initialSearchText: restoredSearchText ?? initialSearchText,
+                databaseSwitcher: includesDatabaseSwitcher ? makeDatabaseSwitcherContext() : nil,
+                onCreateEntry: includesEntryCreation ? makeEntryCreationAction() : nil,
+                onSelect: onSelect,
+                onSelectPossible: onSelectPossible,
+                onAddURLToPossible: onAddURLToPossible,
+                onCancel: { [weak self] in
+                    self?.cancelRequest(code: .userCanceled)
+                }
+            )
+        }
     }
 
     /// The picker's "create a new credential" action, or nil when this request
@@ -1657,19 +1679,22 @@ final class CredentialProviderCoordinator {
             username: nil
         )
 
-        presenter?.presentEntryCreator(
-            initialDraft: initialDraft,
-            allowsPasswordEditing: true,
-            onSave: { [weak self] draftPayload in
-                guard let self else {
-                    return .showError(String(localized: "The request is no longer available."))
+        presentWhenActive { [weak self] in
+            guard let self else { return }
+            presenter?.presentEntryCreator(
+                initialDraft: initialDraft,
+                allowsPasswordEditing: true,
+                onSave: { [weak self] draftPayload in
+                    guard let self else {
+                        return .showError(String(localized: "The request is no longer available."))
+                    }
+                    return await self.saveNewEntryAndFill(draftPayload: draftPayload)
+                },
+                onCancel: { [weak self] in
+                    self?.cancelRequest(code: .userCanceled)
                 }
-                return await self.saveNewEntryAndFill(draftPayload: draftPayload)
-            },
-            onCancel: { [weak self] in
-                self?.cancelRequest(code: .userCanceled)
-            }
-        )
+            )
+        }
     }
 
     /// Saves the entry, then fills the form with it. The credential is built
@@ -1736,22 +1761,25 @@ final class CredentialProviderCoordinator {
             password: savePasswordRequest.credential.password
         )
 
-        presenter?.presentEntryCreator(
-            initialDraft: initialDraft,
-            allowsPasswordEditing: false,
-            onSave: { [weak self] draftPayload in
-                guard let self else {
-                    return .showError(String(localized: "The request is no longer available."))
+        presentWhenActive { [weak self] in
+            guard let self else { return }
+            presenter?.presentEntryCreator(
+                initialDraft: initialDraft,
+                allowsPasswordEditing: false,
+                onSave: { [weak self] draftPayload in
+                    guard let self else {
+                        return .showError(String(localized: "The request is no longer available."))
+                    }
+                    return await self.saveNewEntry(
+                        draftPayload: draftPayload,
+                        for: savePasswordRequest
+                    )
+                },
+                onCancel: { [weak self] in
+                    self?.cancelRequest(code: .userCanceled)
                 }
-                return await self.saveNewEntry(
-                    draftPayload: draftPayload,
-                    for: savePasswordRequest
-                )
-            },
-            onCancel: { [weak self] in
-                self?.cancelRequest(code: .userCanceled)
-            }
-        )
+            )
+        }
     }
 
     @available(iOS 26.2, *)
@@ -1824,29 +1852,32 @@ final class CredentialProviderCoordinator {
         let userHandle = identity.userHandle
         let clientDataHash = request.clientDataHash
 
-        presenter?.presentPasskeyCreator(
-            context: CredentialProviderPasskeyCreatorContext(
-                relyingPartyIdentifier: relyingPartyID,
-                userName: userName,
-                databaseName: activeDatabaseReference?.displayName ?? "",
-                initialTitle: relyingPartyID
-            ),
-            onSave: { [weak self] title in
-                guard let self else {
-                    return .showError(String(localized: "The request is no longer available."))
-                }
-                return await self.savePasskeyEntry(
-                    title: title,
-                    relyingPartyID: relyingPartyID,
+        presentWhenActive { [weak self] in
+            guard let self else { return }
+            presenter?.presentPasskeyCreator(
+                context: CredentialProviderPasskeyCreatorContext(
+                    relyingPartyIdentifier: relyingPartyID,
                     userName: userName,
-                    userHandle: userHandle,
-                    clientDataHash: clientDataHash
-                )
-            },
-            onCancel: { [weak self] in
-                self?.cancelRequest(code: .userCanceled)
-            }
-        )
+                    databaseName: activeDatabaseReference?.displayName ?? "",
+                    initialTitle: relyingPartyID
+                ),
+                onSave: { [weak self] title in
+                    guard let self else {
+                        return .showError(String(localized: "The request is no longer available."))
+                    }
+                    return await self.savePasskeyEntry(
+                        title: title,
+                        relyingPartyID: relyingPartyID,
+                        userName: userName,
+                        userHandle: userHandle,
+                        clientDataHash: clientDataHash
+                    )
+                },
+                onCancel: { [weak self] in
+                    self?.cancelRequest(code: .userCanceled)
+                }
+            )
+        }
     }
 
     /// Everything the registration completion needs from the crypto step,
@@ -1979,14 +2010,20 @@ final class CredentialProviderCoordinator {
     #endif
 
     func presentReadOnlyAlertAndCancel(message: String) {
-        presenter?.presentReadOnlyNotice(message: message) { [weak self] in
-            self?.cancelRequest(code: .userCanceled)
+        presentWhenActive { [weak self] in
+            guard let self else { return }
+            presenter?.presentReadOnlyNotice(message: message) { [weak self] in
+                self?.cancelRequest(code: .userCanceled)
+            }
         }
     }
 
     func presentPasskeyRegistrationFailureAndCancel(message: String) {
-        presenter?.presentPasskeyRegistrationFailure(message: message) { [weak self] in
-            self?.cancelRequest(code: .failed)
+        presentWhenActive { [weak self] in
+            guard let self else { return }
+            presenter?.presentPasskeyRegistrationFailure(message: message) { [weak self] in
+                self?.cancelRequest(code: .failed)
+            }
         }
     }
 
@@ -2171,6 +2208,7 @@ final class CredentialProviderCoordinator {
         hasPendingOTCListRequest = false
         pendingSwitchPreviousDatabaseReference = nil
         pendingSwitchSearchText = nil
+        pendingPresentation = nil
         clearPendingCreationRequests()
     }
 
@@ -2358,17 +2396,21 @@ final class CredentialProviderCoordinator {
     }
 
     private func showErrorAndRetry(_ error: Error) {
-        presenter?.presentUnlockError(
-            message: error.localizedDescription,
-            onRetry: { [weak self] in
-                self?.presentUnlockPromptIfNeeded()
-            },
-            onCancel: { [weak self] in
-                // During a pending database switch (e.g. wrong password or a
-                // cancelled biometric prompt for the switched-to database),
-                // cancelling falls back to the previous database.
-                self?.cancelRequestOrRestoreSwitchedDatabase()
-            }
-        )
+        let message = error.localizedDescription
+        presentWhenActive { [weak self] in
+            guard let self else { return }
+            presenter?.presentUnlockError(
+                message: message,
+                onRetry: { [weak self] in
+                    self?.presentUnlockPromptIfNeeded()
+                },
+                onCancel: { [weak self] in
+                    // During a pending database switch (e.g. wrong password or a
+                    // cancelled biometric prompt for the switched-to database),
+                    // cancelling falls back to the previous database.
+                    self?.cancelRequestOrRestoreSwitchedDatabase()
+                }
+            )
+        }
     }
 }

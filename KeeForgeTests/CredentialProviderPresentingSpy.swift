@@ -8,7 +8,8 @@ import Foundation
 
 @MainActor
 final class CredentialProviderPresentingSpy: CredentialProviderPresenting {
-    var isPresentationActive = false
+    /// On-screen by default; tests that pin off-screen behavior set it false.
+    var isPresentationActive = true
     var isDisplayingContent = false
 
     struct UnlockPrompt {
