@@ -54,12 +54,17 @@ enum AutoFillDiagnostics {
 
     private static func append(_ line: String) {
         guard let url = fileURL, let data = line.data(using: .utf8) else { return }
-        var existing = (try? Data(contentsOf: url)) ?? Data()
-        if existing.count > maxBytes {
-            existing = existing.suffix(maxBytes / 2)
+        guard FileManager.default.fileExists(atPath: url.path) else {
+            try? data.write(to: url, options: .atomic)
+            return
         }
-        existing.append(data)
-        try? existing.write(to: url, options: .atomic)
+        guard let handle = try? FileHandle(forWritingTo: url) else { return }
+        defer { try? handle.close() }
+        guard let size = try? handle.seekToEnd() else { return }
+        try? handle.write(contentsOf: data)
+        if size > maxBytes, let trimmed = try? Data(contentsOf: url).suffix(maxBytes / 2) {
+            try? trimmed.write(to: url, options: .atomic)
+        }
     }
     #else
     static func log(_ event: String) {}

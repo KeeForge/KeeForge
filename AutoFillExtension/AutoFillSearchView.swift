@@ -88,23 +88,6 @@ struct AutoFillSearchView: View {
                             .accessibilityIdentifier("autofill.possible-matches.explanation")
                     }
                 }
-                if filteredEntries.isEmpty && filteredPossibleEntries.isEmpty {
-                    ContentUnavailableView {
-                        Label("No Credentials Found", systemImage: "magnifyingglass")
-                            .accessibilityIdentifier("autofill.no-credentials-found")
-                    } description: {
-                        Text("No credentials match this search.")
-                    } actions: {
-                        if canShowAllEntries {
-                            Button("Show All Credentials", action: showAllEntries)
-                                .accessibilityIdentifier("autofill.show-all-entries.empty-state")
-                        }
-                        if let onCreateEntry {
-                            Button("Create New Credential", action: onCreateEntry)
-                                .accessibilityIdentifier("autofill.create-entry.empty-state")
-                        }
-                    }
-                }
                 Section {
                     ForEach(filteredEntries) { entry in
                         Button { onSelect(entry) } label: { entryRow(entry) }
@@ -135,6 +118,13 @@ struct AutoFillSearchView: View {
                         }
                         .accessibilityIdentifier("autofill.show-all-entries")
                     }
+                }
+            }
+            // As an overlay, not a List row: buttons in a row share one tap
+            // target that fires every action, always landing on the last.
+            .overlay {
+                if filteredEntries.isEmpty && filteredPossibleEntries.isEmpty {
+                    noCredentialsFoundView
                 }
             }
             .searchable(text: $searchText, prompt: "Search entries")
@@ -171,6 +161,24 @@ struct AutoFillSearchView: View {
             Button("Cancel", role: .cancel) { entryPendingURLAddition = nil }
         } message: {
             Text("This adds the original request URL to the selected credential. The database will be changed only if you confirm.")
+        }
+    }
+
+    private var noCredentialsFoundView: some View {
+        ContentUnavailableView {
+            Label("No Credentials Found", systemImage: "magnifyingglass")
+                .accessibilityIdentifier("autofill.no-credentials-found")
+        } description: {
+            Text("No credentials match this search.")
+        } actions: {
+            if canShowAllEntries {
+                Button("Show All Credentials", action: showAllEntries)
+                    .accessibilityIdentifier("autofill.show-all-entries.empty-state")
+            }
+            if let onCreateEntry {
+                Button("Create New Credential", action: onCreateEntry)
+                    .accessibilityIdentifier("autofill.create-entry.empty-state")
+            }
         }
     }
 
