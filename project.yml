@@ -181,6 +181,7 @@ targets:
       - path: KeeForge/Services/Persistence/DocumentPickerService.swift
       - path: KeeForge/Services/AutoFill/AutoFillSaveCoordinator.swift
       - path: KeeForge/Services/AutoFill/AutoFillMemoryLimit.swift
+      - path: KeeForge/Services/AutoFill/AutoFillDiagnostics.swift
       - path: KeeForge/Services/Persistence/DatabaseListStore.swift
       - path: KeeForge/Services/Security/KeychainService.swift
       - path: KeeForge/Services/AppSupport/SettingsService.swift
@@ -249,6 +250,7 @@ targets:
       - path: KeeForge/Services/Persistence/DocumentPickerService.swift
       - path: KeeForge/Services/AutoFill/AutoFillSaveCoordinator.swift
       - path: KeeForge/Services/AutoFill/AutoFillMemoryLimit.swift
+      - path: KeeForge/Services/AutoFill/AutoFillDiagnostics.swift
       - path: KeeForge/Services/Persistence/DatabaseListStore.swift
       - path: KeeForge/Services/Security/KeychainService.swift
       - path: KeeForge/Services/AppSupport/SettingsService.swift

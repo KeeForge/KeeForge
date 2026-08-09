@@ -236,6 +236,7 @@
 		5D09209965C749545FF9B37C /* CloudFileBrowserSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = 76C7BB3AE108B90D95FE02D7 /* CloudFileBrowserSession.swift */; };
 		5D1534A2DAB9C6EC61C8551B /* CloudSyncModelsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6037B710DE638D64C1ED6576 /* CloudSyncModelsTests.swift */; };
 		5D2CF3FE49768C76388E382C /* demo.kdbx in Resources */ = {isa = PBXBuildFile; fileRef = F3D5CCD3DC2893DC1A65D6DC /* demo.kdbx */; };
+		5D3E91B75B1BBB4B9923CDB9 /* AutoFillDiagnostics.swift in Sources */ = {isa = PBXBuildFile; fileRef = 06A93C456F1EEB941556DDCA /* AutoFillDiagnostics.swift */; };
 		5D4EDAB44CA7147BD468251F /* SharedVaultStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 255524A0026746268CB46642 /* SharedVaultStoreTests.swift */; };
 		5DDCA6E6F91D54EEE081851C /* KeeForgeTwofish in Frameworks */ = {isa = PBXBuildFile; productRef = 421423EA8AC7EF81B1991657 /* KeeForgeTwofish */; };
 		5DE36201A042172BCE6FA97B /* demo-keyfile.kdbx in Resources */ = {isa = PBXBuildFile; fileRef = 4CC3CF24A57A3BB531DA56C2 /* demo-keyfile.kdbx */; };
@@ -512,6 +513,7 @@
 		CD4C2C7C9B5073AE8F9E6731 /* BackoffUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 166C906E1AECCEE8FDBC33D7 /* BackoffUITests.swift */; };
 		CDC4CE8E4E0796BAD33B1A4B /* InfoPlist.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = 68FE916D34E1B688CC1CC521 /* InfoPlist.xcstrings */; };
 		CF96995D0062E1729BEDFFEA /* KeychainMigrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0BB465F403FF88189ACE559 /* KeychainMigrationTests.swift */; };
+		CFDB6D78050B6CDEDD3B7B92 /* AutoFillDiagnostics.swift in Sources */ = {isa = PBXBuildFile; fileRef = 06A93C456F1EEB941556DDCA /* AutoFillDiagnostics.swift */; };
 		D0017FAB9AB8A8FBBDA92361 /* UnlockView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E2DA7B253B27404C400DB1B5 /* UnlockView.swift */; };
 		D0777741EE71219235CD4300 /* AutoFillIdentityStoreFallbackReader.swift in Sources */ = {isa = PBXBuildFile; fileRef = F47550A37356BE818BDA98C1 /* AutoFillIdentityStoreFallbackReader.swift */; };
 		D0F0C7BDEA86EC9821E0A191 /* PasskeyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B8F8B108FB789996AD3C0BD /* PasskeyTests.swift */; };
@@ -559,6 +561,7 @@
 		DF799AD406B024CAAD8B743D /* KeeForgeTwofish in Frameworks */ = {isa = PBXBuildFile; productRef = 336B83E709465A5D06020D06 /* KeeForgeTwofish */; };
 		DFACF9C48405A21B5374AC8C /* DocumentPickerService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B37093A769E7D22F7C7EC7C /* DocumentPickerService.swift */; };
 		E0A5FAB1EB180F9009612F3C /* CustomIconXMLTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8B8777AF29F684C087EE1C71 /* CustomIconXMLTests.swift */; };
+		E10F753A67DA366022EA43B4 /* AutoFillDiagnostics.swift in Sources */ = {isa = PBXBuildFile; fileRef = 06A93C456F1EEB941556DDCA /* AutoFillDiagnostics.swift */; };
 		E1169D89C25EE7CF9328B644 /* CredentialProviderPresentingSpy.swift in Sources */ = {isa = PBXBuildFile; fileRef = D638023C04BD5CB4717D22A2 /* CredentialProviderPresentingSpy.swift */; };
 		E152AFB67F2E8119575474B7 /* test-arbitrary.key in Resources */ = {isa = PBXBuildFile; fileRef = 8F5D08487A8DF3C72204ADEB /* test-arbitrary.key */; };
 		E18998A392523968184EBBA0 /* test-binary.key in Resources */ = {isa = PBXBuildFile; fileRef = B7EDDD48D0CB18EA1D45220E /* test-binary.key */; };
@@ -568,6 +571,7 @@
 		E2F7F73F314AF29EEB91F8EB /* CloudSyncUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 161DA4B3D8C56EE8B3F0EBF3 /* CloudSyncUITests.swift */; };
 		E30E6955080AA48E89CFF961 /* TagEntriesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 54ACF54A8A8D4F2078DE1E9E /* TagEntriesView.swift */; };
 		E3ADB9449B10D6F05AE1B715 /* EntryDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0904281BA49959779229086D /* EntryDetailView.swift */; };
+		E3BA655D6DE1EBD3D16E605F /* AutoFillDiagnostics.swift in Sources */ = {isa = PBXBuildFile; fileRef = 06A93C456F1EEB941556DDCA /* AutoFillDiagnostics.swift */; };
 		E3CE91C7FA62C3CE81BE0228 /* TestDatabaseSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = E358190F2BA4D4AA05650AA4 /* TestDatabaseSupport.swift */; };
 		E3D7895440CF711F291EEE23 /* CloudProviderRegistryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EEE77955BBD928FFC22F1048 /* CloudProviderRegistryTests.swift */; };
 		E3E35E925EA40FD6E2824269 /* AttachmentPreviewFileStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = BFDA78854986EA7182C73B73 /* AttachmentPreviewFileStore.swift */; };
@@ -729,6 +733,7 @@
 		04A1400E503A230DF2633686 /* TOTPGeneratorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TOTPGeneratorTests.swift; sourceTree = "<group>"; };
 		052B9C02DD70272885C3A280 /* UnlockedDatabaseUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UnlockedDatabaseUITests.swift; sourceTree = "<group>"; };
 		0676B657B099FF8BFA0A92B9 /* CloudFolderBrowserViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudFolderBrowserViewModel.swift; sourceTree = "<group>"; };
+		06A93C456F1EEB941556DDCA /* AutoFillDiagnostics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AutoFillDiagnostics.swift; sourceTree = "<group>"; };
 		07DCAC6B2242F7FC28617138 /* DatabaseCreationViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DatabaseCreationViewModel.swift; sourceTree = "<group>"; };
 		0809F99F0AAE2475591DAE55 /* password-keyfile.key */ = {isa = PBXFileReference; path = "password-keyfile.key"; sourceTree = "<group>"; };
 		0904281BA49959779229086D /* EntryDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EntryDetailView.swift; sourceTree = "<group>"; };
@@ -1312,6 +1317,7 @@
 		A92740D045994ADDE2E06545 /* AutoFill */ = {
 			isa = PBXGroup;
 			children = (
+				06A93C456F1EEB941556DDCA /* AutoFillDiagnostics.swift */,
 				F47550A37356BE818BDA98C1 /* AutoFillIdentityStoreFallbackReader.swift */,
 				47CCBDF8ED23DD32B45AD2C3 /* AutoFillMemoryLimit.swift */,
 				553C63DEBDFFD48E4FC4646E /* AutoFillSaveCoordinator.swift */,
@@ -2006,6 +2012,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				76030E2242827E28EB898A0B /* Attachment.swift in Sources */,
+				E3BA655D6DE1EBD3D16E605F /* AutoFillDiagnostics.swift in Sources */,
 				BDA2F1A9970A30F3D6E05AB6 /* AutoFillEntryCreatorView.swift in Sources */,
 				4AEDC15F5C9B1A173996FFAA /* AutoFillIdentityStoreFallbackReader.swift in Sources */,
 				8E54AEF7D995D0778431B77D /* AutoFillMemoryLimit.swift in Sources */,
@@ -2160,6 +2167,7 @@
 				E3E35E925EA40FD6E2824269 /* AttachmentPreviewFileStore.swift in Sources */,
 				FDBD03B9D2BB684099B37B82 /* AttachmentQuickLookPreview.swift in Sources */,
 				25FD5DA5969B1E92337B3978 /* AttachmentsSection.swift in Sources */,
+				5D3E91B75B1BBB4B9923CDB9 /* AutoFillDiagnostics.swift in Sources */,
 				26A8C10FD0B6CA2D73F96EF9 /* AutoFillIdentityStoreFallbackReader.swift in Sources */,
 				819C2FD08213AA19F9AABE95 /* AutoFillMemoryLimit.swift in Sources */,
 				B2A91F68506A350FD57ED6F5 /* AutoFillSaveCoordinator.swift in Sources */,
@@ -2292,6 +2300,7 @@
 				40317D349277C702F89988EB /* AttachmentPreviewFileStore.swift in Sources */,
 				0872A78E6214B60FA91F0194 /* AttachmentQuickLookPreview.swift in Sources */,
 				BEF88171E411A4C7A9C46EE4 /* AttachmentsSection.swift in Sources */,
+				CFDB6D78050B6CDEDD3B7B92 /* AutoFillDiagnostics.swift in Sources */,
 				D0777741EE71219235CD4300 /* AutoFillIdentityStoreFallbackReader.swift in Sources */,
 				A8C0C2410A1450B0C670BD73 /* AutoFillMemoryLimit.swift in Sources */,
 				92642556D147F42B985AC642 /* AutoFillSaveCoordinator.swift in Sources */,
@@ -2547,6 +2556,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				9D4573ED84B3C93122BFD4BA /* Attachment.swift in Sources */,
+				E10F753A67DA366022EA43B4 /* AutoFillDiagnostics.swift in Sources */,
 				5824A096CA626030F971EC2C /* AutoFillEntryCreatorView.swift in Sources */,
 				37DA7E7AC00E75955E6BB349 /* AutoFillIdentityStoreFallbackReader.swift in Sources */,
 				E73853973D59D67A8ECCA23D /* AutoFillMemoryLimit.swift in Sources */,
