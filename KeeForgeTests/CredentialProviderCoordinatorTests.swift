@@ -1625,12 +1625,92 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
         )
     }
 
-    // No test for the parameters-driven passkey list flow:
+    // The parameters-driven passkey list flow is tested through
+    // `presentPasskeyList(matches:expiredMatches:onSelect:)`:
     // `ASPasskeyCredentialRequestParameters` declares `init` as `NS_UNAVAILABLE`
-    // (iOS 26.5 SDK), so it is not test-constructible. The shared `afterUnlock`
-    // dispatch that would re-serve it is pinned by
-    // `test_switchDuringOTCList_reRunsOTCPickerAfterUnlock` and
+    // (iOS 26.5 SDK), so the parameters themselves stay in an untested thin
+    // wrapper. The shared `afterUnlock` dispatch that re-serves the request is
+    // pinned by `test_switchDuringOTCList_reRunsOTCPickerAfterUnlock` and
     // `test_switchCancel_restoresPreviousDatabaseAndRepresentsSearch`.
+
+    /// Device repro for the empty-fields dead end: a passkey-capable site
+    /// sends the parameters-driven list request, the vault has no passkey for
+    /// it, and the request was cancelled with `.credentialIdentityNotFound`
+    /// right after a successful unlock — no picker, no fill. It must fall
+    /// back to the password flow instead.
+    func test_passkeyList_noMatches_fallsBackToPasswordFlow() throws {
+        let (coordinator, presenter) = makeCoordinator()
+        try seedResolvableDefaultDatabase()
+        let sessionKey = SymmetricKey(size: .bits256)
+        let entries = try makeTwoGitHubEntries(sessionKey: sessionKey)
+
+        coordinator.serviceIdentifiers = [githubServiceIdentifier()]
+        seedUnlockedVaultState(coordinator, entries: entries, sessionKey: sessionKey)
+
+        coordinator.presentPasskeyList(matches: [], expiredMatches: []) { _ in
+            XCTFail("Nothing to select: there are no passkey matches")
+        }
+
+        XCTAssertEqual(presenter.cancelledErrorCodes, [], "No-passkey-match must not cancel the request")
+        let searchView = try XCTUnwrap(presenter.searchView, "The password picker must present instead")
+        XCTAssertEqual(searchView.entries.count, 2)
+
+        searchView.onSelect(entries[0])
+        let credential = try XCTUnwrap(presenter.completedCredential)
+        XCTAssertEqual(credential.user, "octocat")
+        assertCleanedUp(coordinator)
+    }
+
+    func test_passkeyList_noMatchesAndNoMatchingPasswords_presentsSearchablePicker() throws {
+        let (coordinator, presenter) = makeCoordinator()
+        try seedResolvableDefaultDatabase()
+        let sessionKey = SymmetricKey(size: .bits256)
+        let entry = KPEntry(
+            title: "Unrelated",
+            username: "user",
+            password: try EncryptedValue.encrypt("secret", using: sessionKey),
+            url: "https://example.com/login"
+        )
+
+        coordinator.serviceIdentifiers = [githubServiceIdentifier()]
+        seedUnlockedVaultState(coordinator, entries: [entry], sessionKey: sessionKey)
+
+        coordinator.presentPasskeyList(matches: [], expiredMatches: []) { _ in }
+
+        XCTAssertEqual(presenter.cancelledErrorCodes, [])
+        let searchView = try XCTUnwrap(presenter.searchView, "Even with nothing matching, the picker presents")
+        XCTAssertEqual(searchView.entries.map(\.title), ["Unrelated"])
+        XCTAssertEqual(searchView.initialSearchText, "github.com")
+    }
+
+    func test_passkeyList_singleMatch_completesDirectly() throws {
+        let (coordinator, presenter) = makeCoordinator()
+        let sessionKey = SymmetricKey(size: .bits256)
+        let entry = try makePasskeyEntry(privateKey: P256.Signing.PrivateKey(), sessionKey: sessionKey)
+        seedUnlockedVaultState(coordinator, entries: [entry], sessionKey: sessionKey)
+
+        var selected: KPEntry?
+        coordinator.presentPasskeyList(matches: [entry], expiredMatches: []) { selected = $0 }
+
+        XCTAssertEqual(selected?.id, entry.id, "A single passkey match completes without a picker")
+        XCTAssertNil(presenter.searchView)
+    }
+
+    func test_passkeyList_expiredMatchesOnly_presentsExpiredPickerNotPasswordFallback() throws {
+        let (coordinator, presenter) = makeCoordinator()
+        let sessionKey = SymmetricKey(size: .bits256)
+        let expired = try makePasskeyEntry(privateKey: P256.Signing.PrivateKey(), sessionKey: sessionKey, expired: true)
+        seedUnlockedVaultState(coordinator, entries: [expired], sessionKey: sessionKey)
+
+        var selected: KPEntry?
+        coordinator.presentPasskeyList(matches: [], expiredMatches: [expired]) { selected = $0 }
+
+        let searchView = try XCTUnwrap(presenter.searchView, "Expired matches present the confirmation picker")
+        XCTAssertEqual(searchView.entries.map(\.id), [expired.id])
+
+        searchView.onSelect(expired)
+        XCTAssertEqual(selected?.id, expired.id)
+    }
 
     // MARK: - Database switcher: cancel semantics
 
