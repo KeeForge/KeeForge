@@ -77,6 +77,20 @@ enum DatabaseListStore {
     private struct UITestDatabasePayload: Decodable {
         let filename: String
         let base64: String
+        let disposition: UITestDatabaseDisposition?
+    }
+
+    /// Where a UI-test fixture database lands and how it is registered.
+    /// Absent = the historical behavior: a per-launch tmp directory, registered.
+    private enum UITestDatabaseDisposition: String, Decodable {
+        /// Top-level Documents file, registered (`isDocumentsResident == true`).
+        case documents
+        /// Top-level Documents file, NOT registered — `DocumentsVaultScanner`
+        /// must discover it through the normal launch scan.
+        case documentsUnregistered = "documents-unregistered"
+        /// Registered as Documents-resident, then the file is deleted so the
+        /// reference points at a missing resident file.
+        case documentsMissing = "documents-missing"
     }
 
     private struct UITestCloudDatabasePayload: Decodable {
@@ -785,8 +799,10 @@ enum DatabaseListStore {
         guard ProcessInfo.processInfo.arguments.contains(uiTestingLaunchArg) else { return }
         didBootstrapUITesting = true
 
+        removeUITestDocumentsDatabases()
+
         var references =
-            uiTestDatabaseURLs().compactMap { try? makeReference(from: $0) }
+            uiTestLocalDatabaseReferences()
             + uiTestCloudDatabases()
         if uiTestEnvironmentFlag(uiTestDatabaseReadOnlyEnv) {
             references = references.map { reference in
@@ -821,23 +837,50 @@ enum DatabaseListStore {
         activeAutoFillDatabaseID = nil
     }
 
-    private static func uiTestDatabaseURLs() -> [URL] {
+    private static func uiTestLocalDatabaseReferences() -> [DatabaseReference] {
         let environment = ProcessInfo.processInfo.environment
 
         if let rawJSON = environment[uiTestDatabasesJSONEnv],
            let data = rawJSON.data(using: .utf8),
-           let payloads = try? JSONDecoder().decode([UITestDatabasePayload].self, from: data) {
-            let urls = payloads.compactMap(uiTestDatabaseURL(from:))
-            if !urls.isEmpty {
-                return urls
-            }
+           let payloads = try? JSONDecoder().decode([UITestDatabasePayload].self, from: data),
+           !payloads.isEmpty {
+            return payloads.compactMap(uiTestReference(from:))
         }
 
         if let url = uiTestDatabaseURL() {
-            return [url]
+            return [url].compactMap { try? makeReference(from: $0) }
         }
 
         return []
+    }
+
+    private static func uiTestReference(from payload: UITestDatabasePayload) -> DatabaseReference? {
+        guard let data = Data(base64Encoded: payload.base64, options: .ignoreUnknownCharacters) else {
+            return nil
+        }
+
+        switch payload.disposition {
+        case nil:
+            guard let url = writeUITestDatabase(data: data, requestedFilename: payload.filename) else {
+                return nil
+            }
+            return try? makeReference(from: url)
+        case .documents:
+            guard let url = writeUITestDocumentsDatabase(data: data, requestedFilename: payload.filename) else {
+                return nil
+            }
+            return try? makeReference(from: url)
+        case .documentsUnregistered:
+            _ = writeUITestDocumentsDatabase(data: data, requestedFilename: payload.filename)
+            return nil
+        case .documentsMissing:
+            guard let url = writeUITestDocumentsDatabase(data: data, requestedFilename: payload.filename),
+                  let reference = try? makeReference(from: url) else {
+                return nil
+            }
+            try? FileManager.default.removeItem(at: url)
+            return reference
+        }
     }
 
     private static func uiTestCloudDatabases() -> [DatabaseReference] {
@@ -872,14 +915,6 @@ enum DatabaseListStore {
         return writeUITestDatabase(data: data, requestedFilename: requestedFilename)
     }
 
-    private static func uiTestDatabaseURL(from payload: UITestDatabasePayload) -> URL? {
-        guard let data = Data(base64Encoded: payload.base64, options: .ignoreUnknownCharacters) else {
-            return nil
-        }
-
-        return writeUITestDatabase(data: data, requestedFilename: payload.filename)
-    }
-
     private static func uiTestEnvironmentFlag(_ key: String) -> Bool {
         let rawValue = ProcessInfo.processInfo.environment[key]?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         switch rawValue.lowercased() {
@@ -905,6 +940,39 @@ enum DatabaseListStore {
             return url
         } catch {
             return nil
+        }
+    }
+
+    private static func writeUITestDocumentsDatabase(data: Data, requestedFilename: String) -> URL? {
+        let safeFilename = (requestedFilename as NSString).lastPathComponent
+        let url = documentsDirectoryURL.appendingPathComponent(safeFilename, isDirectory: false)
+
+        do {
+            try FileManager.default.createDirectory(
+                at: documentsDirectoryURL,
+                withIntermediateDirectories: true,
+                attributes: nil
+            )
+            try data.write(to: url, options: .atomic)
+            return url
+        } catch {
+            return nil
+        }
+    }
+
+    /// Stale top-level KDBX files left in Documents by a previous UI-test
+    /// launch would be re-registered by `DocumentsVaultScanner` and pollute
+    /// the next test; scrub them before seeding. Reached only behind the
+    /// `-ui-testing` launch argument.
+    private static func removeUITestDocumentsDatabases() {
+        let contents = (try? FileManager.default.contentsOfDirectory(
+            at: documentsDirectoryURL,
+            includingPropertiesForKeys: nil,
+            options: [.skipsHiddenFiles]
+        )) ?? []
+
+        for url in contents where url.pathExtension.lowercased() == "kdbx" {
+            try? FileManager.default.removeItem(at: url)
         }
     }
 
