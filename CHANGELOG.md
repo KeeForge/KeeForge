@@ -27,6 +27,7 @@ TODO before the first macOS release:
 - Choose an entry's icon: tap the icon on an entry to pick from the standard KeePass icon set or the custom icons already stored in the database. The choice is saved into the database itself, so it appears in other KeePass apps and on every synced device, and it can be undone from the entry's history.
 - Download a website's icon: the icon chooser can fetch a site's favicon and store it in the database as a custom icon. The image is scaled down to a bounded size first, and the same icon used on several entries is stored only once.
 - Create a new credential without leaving the signup page: the AutoFill picker now has a **+** button — and a "Create New Credential" button when it has nothing to show — that opens an entry form pre-filled with the site's name, address, and a generated password (#46). Saving stores the entry in the default AutoFill database and fills the form right away. iOS only, and only for writable databases.
+- The lock button now shows a padlock that clicks shut as the database closes, instead of plain "Lock" text.
 
 ### Fixes
 
