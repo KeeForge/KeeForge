@@ -24,6 +24,7 @@ TODO before the first macOS release:
 ### New Features
 
 - KeeForge now speaks Chinese: full Simplified Chinese (简体中文) and Traditional Chinese (繁體中文) localizations across the app and the AutoFill extension, plus translated README and contributor docs.
+  - TODO before releasing this: add zh-Hans and zh-Hant localized App Store metadata (description, keywords, screenshots, What's New) in App Store Connect.
 
 ## v1.13.0 (2026-08-09)
 
