@@ -26,6 +26,11 @@ TODO before the first macOS release:
 - KeeForge now speaks Chinese: full Simplified Chinese (简体中文) and Traditional Chinese (繁體中文) localizations across the app and the AutoFill extension, plus translated README and contributor docs.
   - TODO before releasing this: add zh-Hans and zh-Hant localized App Store metadata (description, keywords, screenshots, What's New) in App Store Connect.
 
+### Fixes
+
+- Small-screen layout pass (iPhone SE / mini): the password generator's "Use Password" and Regenerate actions are now always visible — Use Password moved into the sheet's toolbar and Regenerate sits next to the suggested password — instead of below the fold of a 4.7" screen.
+- The Lock button in an unlocked vault is now a padlock icon on iPhone, so it no longer runs into the back button's label and reads as one phrase ("Social Lock").
+
 ## v1.13.0 (2026-08-09)
 
 ### New Features

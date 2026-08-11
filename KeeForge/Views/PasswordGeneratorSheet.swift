@@ -12,10 +12,21 @@ struct PasswordGeneratorSheet: View {
             Form {
                 Section("Suggested Password") {
                     PasswordDisplayRow(revealedText: generatedPassword) {
-                        CopyButton(
-                            text: generatedPassword,
-                            accessibilityID: "password-generator.copy"
-                        )
+                        HStack(spacing: 16) {
+                            Button {
+                                regenerate()
+                            } label: {
+                                Image(systemName: "arrow.clockwise")
+                            }
+                            .buttonStyle(.borderless)
+                            .accessibilityLabel("Regenerate")
+                            .accessibilityIdentifier("password-generator.regenerate")
+
+                            CopyButton(
+                                text: generatedPassword,
+                                accessibilityID: "password-generator.copy"
+                            )
+                        }
                     }
                 }
 
@@ -51,18 +62,6 @@ struct PasswordGeneratorSheet: View {
                     .accessibilityIdentifier("password-generator.charset-toggle")
                 }
 
-                Section {
-                    Button("Regenerate") {
-                        regenerate()
-                    }
-                    .accessibilityIdentifier("password-generator.regenerate")
-
-                    Button("Use Password") {
-                        onUse(generatedPassword)
-                        dismiss()
-                    }
-                    .accessibilityIdentifier("password-generator.use")
-                }
             }
             .navigationTitle("Password Generator")
             .navigationBarTitleDisplayMode(.inline)
@@ -71,6 +70,19 @@ struct PasswordGeneratorSheet: View {
                     Button("Close") {
                         dismiss()
                     }
+                }
+
+                // Confirmation lives in the toolbar so it is visible without
+                // scrolling on 4.7" screens (iPhone SE), where the old bottom
+                // Form section sat below the fold.
+                ToolbarItem(placement: .confirmationAction) {
+                    // "Use", not "Use Password": the longer label squeezes the
+                    // inline title into "Password Genera…" on 375pt screens.
+                    Button("Use") {
+                        onUse(generatedPassword)
+                        dismiss()
+                    }
+                    .accessibilityIdentifier("password-generator.use")
                 }
             }
             .onAppear {

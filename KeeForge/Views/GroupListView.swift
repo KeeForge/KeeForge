@@ -160,9 +160,15 @@ struct GroupListView: View {
 
                         if showsCompactLockButton {
                             ToolbarItem(placement: .topBarLeading) {
-                                Button("Lock") {
+                                // Icon, not text: this sits directly after the
+                                // system back label, and two adjacent text
+                                // buttons read as one ("Social Lock").
+                                Button {
                                     viewModel.lockRequest(manuallyTriggered: true)
+                                } label: {
+                                    Image(systemName: "lock.fill")
                                 }
+                                .accessibilityLabel("Lock")
                                 .accessibilityIdentifier("lock.button")
                             }
                         }
