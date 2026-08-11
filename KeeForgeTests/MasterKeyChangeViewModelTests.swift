@@ -87,6 +87,33 @@ final class MasterKeyChangeViewModelTests: XCTestCase {
         XCTAssertNil(recorder.captured)
     }
 
+    func testEditingPasswordFieldClearsValidationError() throws {
+        let viewModel = makeViewModel()
+        viewModel.newPassword = "one"
+        viewModel.confirmPassword = "two"
+        XCTAssertFalse(viewModel.validate())
+        XCTAssertNotNil(viewModel.validationError)
+
+        viewModel.confirmPassword = "one"
+
+        XCTAssertNil(viewModel.validationError)
+    }
+
+    func testEditingPasswordFieldClearsChangeError() async throws {
+        let recorder = ChangeRecorder()
+        recorder.error = StubError()
+        let viewModel = makeViewModel(recorder: recorder)
+        viewModel.newPassword = "secret"
+        viewModel.confirmPassword = "secret"
+        let succeeded = await viewModel.performChange()
+        XCTAssertFalse(succeeded)
+        XCTAssertNotNil(viewModel.changeError)
+
+        viewModel.newPassword = "secret2"
+
+        XCTAssertNil(viewModel.changeError)
+    }
+
     func testValidatePassesWithEmptyPasswordWhenKeepingCurrentKeyFile() throws {
         let viewModel = makeViewModel(
             currentKeyFileFilename: "current.keyx",

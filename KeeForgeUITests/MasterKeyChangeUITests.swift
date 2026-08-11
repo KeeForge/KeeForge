@@ -34,6 +34,12 @@ final class MasterKeyChangeUITests: DatabaseCreationUITestCase {
         XCTAssertTrue(saveButton.waitForExistence(timeout: 5), "Master key save button was not visible")
         tapElement(saveButton)
 
+        // `.firstMatch`: SwiftUI propagates the identifier onto the dialog
+        // button's inner elements, so the plain query is ambiguous.
+        let confirmButton = app.buttons["master-key.confirm-change"].firstMatch
+        XCTAssertTrue(confirmButton.waitForExistence(timeout: 5), "Master key change confirmation was not shown")
+        tapElement(confirmButton)
+
         XCTAssertTrue(
             changeRow.waitForExistence(timeout: 30),
             "Master key change did not dismiss back to Database Details"

@@ -209,6 +209,9 @@ struct DatabaseDetailsView: View {
             Section {
                 NavigationLink {
                     MasterKeyChangeView(sessionViewModel: sessionViewModel)
+                        // A rekey updates the stored reference; re-read it so
+                        // the Associated File row is fresh when this pops.
+                        .onDisappear { listViewModel.reload() }
                 } label: {
                     Text("Change Master Key…")
                 }
