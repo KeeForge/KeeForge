@@ -10,7 +10,7 @@ This target provides password, passkey, one-time-code, and new-credential save/g
 - `AutoFillSearchView.swift` renders the searchable SwiftUI UI shown inside the extension (shared by both shells).
 - `AutoFillEntryCreatorView.swift` renders the credential-creation UI used for save-password requests, strong-password generation follow-up, and picker-initiated creation. It is `#if os(iOS)` because save/generate-password are iOS-only (see capability notes below). Its `allowsPasswordEditing` flag separates the two callers: save-password requests carry the password the site already received, so the field stays disabled there; the picker-initiated flow unlocks it and adds a generate button (shared `PasswordInputRow`, so reveal comes with it).
 - `AutoFillPasskeyCreatorView.swift` renders the passkey-registration confirmation UI (relying party, username, target database, editable title). `#if os(iOS)` — the mac shell cancels registration at its entry point.
-- `Localizable.xcstrings` — String Catalog (source language `en`, plus `de`, `fr`, and `es`) for both AutoFill extension targets.
+- `Localizable.xcstrings` — String Catalog (source language `en`, plus `de`, `fr`, `es`, `zh-Hans`, and `zh-Hant`) for both AutoFill extension targets.
 - `InfoPlist.xcstrings` — localized Info.plist values (e.g. `CFBundleDisplayName`) for both AutoFill extension targets.
 
 ## How It Works

@@ -23,6 +23,18 @@
             "state" : "translated",
             "value" : "« %@ » existe déjà dans ce groupe."
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此群组中已存在“%@”。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此群組中已存在「%@」。"
+          }
         }
       }
     },
@@ -44,6 +56,18 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "« %@ » est déjà présent dans votre liste de bases de données."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "“%@”已在你的数据库列表中。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "「%@」已在你的資料庫列表中。"
           }
         }
       }
@@ -67,6 +91,18 @@
             "state" : "translated",
             "value" : "« %@ » est déjà utilisé par une base de données disponible uniquement dans KeeForge."
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "“%@”已被一个仅限 KeeForge 的数据库使用。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "「%@」已被僅限 KeeForge 的資料庫使用。"
+          }
         }
       }
     },
@@ -88,6 +124,18 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "(sans titre)"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "（未命名）"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "（未命名）"
           }
         }
       }
@@ -117,6 +165,18 @@
             "state" : "translated",
             "value" : "%1$@ · %2$@ itérations · %3$@ threads"
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ · %2$@ 次迭代 · %3$@ 个线程"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ · %2$@ 次疊代 · %3$@ 個執行緒"
+          }
         }
       }
     },
@@ -145,6 +205,18 @@
             "state" : "translated",
             "value" : "%1$@ (~%2$lld bits)"
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@（约 %2$lld 位）"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@（約 %2$lld 位元）"
+          }
         }
       }
     },
@@ -166,6 +238,18 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%@ tours"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 轮"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 回合"
           }
         }
       }
@@ -189,6 +273,18 @@
             "state" : "translated",
             "value" : "1 minute"
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "1 分钟"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "1 分鐘"
+          }
         }
       }
     },
@@ -210,6 +306,18 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "5 minutes"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "5 分钟"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "5 分鐘"
           }
         }
       }
@@ -233,6 +341,18 @@
             "state" : "translated",
             "value" : "10 secondes"
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "10 秒"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "10 秒"
+          }
         }
       }
     },
@@ -254,6 +374,18 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "30 secondes"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "30 秒"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "30 秒"
           }
         }
       }
@@ -277,6 +409,18 @@
             "state" : "translated",
             "value" : "Ajouter l’URL d’origine à cette entrée"
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "将原始 URL 添加到此条目"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "將原始 URL 加入此項目"
+          }
         }
       }
     },
@@ -298,6 +442,18 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Ajouter l’URL d’origine ?"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "添加原始 URL？"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "加入原始 URL？"
           }
         }
       }
@@ -321,6 +477,18 @@
             "state" : "translated",
             "value" : "Ajouter l’URL"
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "添加 URL"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "加入 URL"
+          }
         }
       }
     },
@@ -342,6 +510,18 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Remplissage automatique avec KeeForge"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "使用 KeeForge 自动填充"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "使用 KeeForge 自動填寫"
           }
         }
       }
@@ -365,6 +545,18 @@
             "state" : "translated",
             "value" : "Généralités"
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "基础"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "基礎"
+          }
         }
       }
     },
@@ -386,6 +578,18 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "HMAC de bloc invalide — mot de passe incorrect ou fichier corrompu"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "块 HMAC 无效——密码错误或文件已损坏"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "區塊 HMAC 無效——密碼錯誤或檔案已損毀"
           }
         }
       }
@@ -409,6 +613,18 @@
             "state" : "translated",
             "value" : "Annuler"
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "取消"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "取消"
+          }
         }
       }
     },
@@ -430,6 +646,18 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Choisir les identifiants"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "选择凭据"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "選擇憑證"
           }
         }
       }
@@ -453,6 +681,18 @@
             "state" : "translated",
             "value" : "Échec de la compression"
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "压缩失败"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "壓縮失敗"
+          }
         }
       }
     },
@@ -474,6 +714,18 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Impossible d'extraire les données de la clé EC P-256"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无法提取 EC P-256 密钥数据"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法擷取 EC P-256 金鑰資料"
           }
         }
       }
@@ -497,6 +749,18 @@
             "state" : "translated",
             "value" : "Impossible d'ouvrir le fichier"
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无法打开文件"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法開啟檔案"
+          }
         }
       }
     },
@@ -518,6 +782,18 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Impossible d’enregistrer"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无法保存"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法儲存"
           }
         }
       }
@@ -541,6 +817,18 @@
             "state" : "translated",
             "value" : "Impossible d'enregistrer la clé d'accès"
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无法保存通行密钥"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法儲存通行金鑰"
+          }
         }
       }
     },
@@ -562,6 +850,18 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Créer un identifiant"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "创建新凭据"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "建立新憑證"
           }
         }
       }
@@ -585,6 +885,18 @@
             "state" : "translated",
             "value" : "Sombre"
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "深色"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "深色"
+          }
         }
       }
     },
@@ -606,6 +918,18 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Base de données"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "数据库"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "資料庫"
           }
         }
       }
@@ -629,6 +953,18 @@
             "state" : "translated",
             "value" : "Base de données modifiée"
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "数据库已更改"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "資料庫已變更"
+          }
         }
       }
     },
@@ -650,6 +986,18 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Base de données modifiée — ouvrez KeeForge pour enregistrer"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "数据库已更改，请打开 KeeForge 保存"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "資料庫已變更，請開啟 KeeForge 儲存"
           }
         }
       }
@@ -673,6 +1021,18 @@
             "state" : "translated",
             "value" : "Échec de la décompression"
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "解压缩失败"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "解壓縮失敗"
+          }
         }
       }
     },
@@ -694,6 +1054,18 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Échec du déchiffrement — mot de passe incorrect ?"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "解密失败——密码错误？"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "解密失敗——密碼錯誤？"
           }
         }
       }
@@ -717,6 +1089,18 @@
             "state" : "translated",
             "value" : "Échec du chiffrement"
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "加密失败"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "加密失敗"
+          }
         }
       }
     },
@@ -738,6 +1122,18 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Saisissez un mot de passe pour cet identifiant."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "请输入此凭据的密码。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "請輸入此憑證的密碼。"
           }
         }
       }
@@ -761,6 +1157,18 @@
             "state" : "translated",
             "value" : "Saisissez un titre ou un nom d’utilisateur pour cet identifiant."
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "请输入此凭据的标题或用户名。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "請輸入此憑證的標題或使用者名稱。"
+          }
         }
       }
     },
@@ -782,6 +1190,18 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Saisissez votre mot de passe principal ou utilisez le déverrouillage biométrique."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "请输入主密码或使用生物识别。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "請輸入主密碼或使用生物辨識。"
           }
         }
       }
@@ -805,6 +1225,18 @@
             "state" : "translated",
             "value" : "Entrée introuvable : %@"
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未找到条目：%@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "找不到項目：%@"
+          }
         }
       }
     },
@@ -826,6 +1258,18 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Expiré"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已过期"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已過期"
           }
         }
       }
@@ -849,6 +1293,18 @@
             "state" : "translated",
             "value" : "Échec de la création du contrôle d'accès biométrique"
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无法创建生物识别访问控制"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法建立生物辨識存取控制"
+          }
         }
       }
     },
@@ -870,6 +1326,18 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Échec de la création de la clé de signature"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无法创建签名密钥"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法建立簽署金鑰"
           }
         }
       }
@@ -893,6 +1361,18 @@
             "state" : "translated",
             "value" : "Échec de l'analyse du XML de la base de données"
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无法解析数据库 XML"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法解析資料庫 XML"
+          }
         }
       }
     },
@@ -914,6 +1394,18 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Échec de la signature de l'assertion"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无法对断言进行签名"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法簽署斷言"
           }
         }
       }
@@ -937,6 +1429,18 @@
             "state" : "translated",
             "value" : "Le fichier est tronqué"
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "文件已被截断"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "檔案遭截斷"
+          }
         }
       }
     },
@@ -958,6 +1462,18 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Générer un mot de passe"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "生成密码"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "產生密碼"
           }
         }
       }
@@ -981,6 +1497,18 @@
             "state" : "translated",
             "value" : "Générer un mot de passe"
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "生成密码"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "產生密碼"
+          }
         }
       }
     },
@@ -1002,6 +1530,18 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Bon"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "良好"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "良好"
           }
         }
       }
@@ -1025,6 +1565,18 @@
             "state" : "translated",
             "value" : "Le nom du groupe ne peut pas être vide."
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "群组名称不能为空。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "群組名稱不能為空。"
+          }
         }
       }
     },
@@ -1046,6 +1598,18 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Groupe introuvable : %@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未找到群组：%@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "找不到群組：%@"
           }
         }
       }
@@ -1069,6 +1633,18 @@
             "state" : "translated",
             "value" : "Mot de passe masqué"
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已隐藏的密码"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已隱藏的密碼"
+          }
         }
       }
     },
@@ -1090,6 +1666,18 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Masquer %@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "隐藏 %@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "隱藏 %@"
           }
         }
       }
@@ -1113,6 +1701,18 @@
             "state" : "translated",
             "value" : "Échec de la vérification HMAC — fichier corrompu ou mot de passe incorrect"
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "HMAC 验证失败——文件已损坏或密码错误"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "HMAC 驗證失敗——檔案已損毀或密碼錯誤"
+          }
         }
       }
     },
@@ -1134,6 +1734,18 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Immédiatement"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "立即"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "立即"
           }
         }
       }
@@ -1157,6 +1769,18 @@
             "state" : "translated",
             "value" : "Fichier invalide"
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无效文件"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無效檔案"
+          }
         }
       }
     },
@@ -1178,6 +1802,18 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "En-tête interne invalide"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无效的内部标头"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無效的內部標頭"
           }
         }
       }
@@ -1201,6 +1837,18 @@
             "state" : "translated",
             "value" : "Clé principale invalide"
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无效的主密钥"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無效的主金鑰"
+          }
         }
       }
     },
@@ -1222,6 +1870,18 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Clé privée encodée en PEM invalide"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无效的 PEM 编码私钥"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無效的 PEM 編碼私鑰"
           }
         }
       }
@@ -1245,6 +1905,18 @@
             "state" : "translated",
             "value" : "Paramètre KDF hors limites : %@"
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KDF 参数超出范围：%@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KDF 參數超出範圍：%@"
+          }
         }
       }
     },
@@ -1266,6 +1938,18 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Échec de la vérification du hachage du fichier de clé — le fichier est peut-être corrompu"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "密钥文件哈希验证失败——文件可能已损坏"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "金鑰檔案雜湊驗證失敗——檔案可能已損毀"
           }
         }
       }
@@ -1289,6 +1973,18 @@
             "state" : "translated",
             "value" : "Le fichier de clé est vide"
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "密钥文件为空"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "金鑰檔案為空"
+          }
         }
       }
     },
@@ -1310,6 +2006,18 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Le XML du fichier de clé contient des données de clé invalides"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "密钥文件 XML 包含无效的密钥数据"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "金鑰檔案 XML 包含無效的金鑰資料"
           }
         }
       }
@@ -1333,6 +2041,18 @@
             "state" : "translated",
             "value" : "Échec de la récupération dans le trousseau (statut %d)"
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "钥匙串读取失败（状态 %d）"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "鑰匙圈讀取失敗（狀態 %d）"
+          }
         }
       }
     },
@@ -1354,6 +2074,18 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Échec de l'enregistrement dans le trousseau (statut %d)"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "钥匙串存储失败（状态 %d）"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "鑰匙圈儲存失敗（狀態 %d）"
           }
         }
       }
@@ -1377,6 +2109,18 @@
             "state" : "translated",
             "value" : "Les anciennes bases de données KDBX 3.1 peuvent être ouvertes, mais KeeForge ne les autorise qu'en mode lecture seule."
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "可以打开旧版 KDBX 3.1 数据库，但 KeeForge 仅允许以只读模式使用。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "可以開啟舊版 KDBX 3.1 資料庫，但 KeeForge 僅允許以唯讀模式使用。"
+          }
         }
       }
     },
@@ -1398,6 +2142,18 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Clair"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "浅色"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "淺色"
           }
         }
       }
@@ -1421,6 +2177,18 @@
             "state" : "translated",
             "value" : "Table de variantes mal formée dans l'en-tête"
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "标头中的变体映射格式错误"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "標頭中的變體對應格式錯誤"
+          }
         }
       }
     },
@@ -1442,6 +2210,18 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Mot de passe principal"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "主密码"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "主密碼"
           }
         }
       }
@@ -1465,6 +2245,18 @@
             "state" : "translated",
             "value" : "Correspondances"
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "匹配项"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "符合項目"
+          }
         }
       }
     },
@@ -1486,6 +2278,18 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Champ d'en-tête manquant : %@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "缺少标头字段：%@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "缺少標頭欄位：%@"
           }
         }
       }
@@ -1509,6 +2313,18 @@
             "state" : "translated",
             "value" : "Jamais"
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "从不"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "永不"
+          }
         }
       }
     },
@@ -1530,6 +2346,18 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Nouvel identifiant"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新建凭据"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新增憑證"
           }
         }
       }
@@ -1553,6 +2381,18 @@
             "state" : "translated",
             "value" : "Nouvelle clé d'accès"
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新建通行密钥"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新增通行金鑰"
+          }
         }
       }
     },
@@ -1574,6 +2414,18 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Aucun identifiant trouvé"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未找到凭据"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "找不到憑證"
           }
         }
       }
@@ -1597,6 +2449,18 @@
             "state" : "translated",
             "value" : "Aucun identifiant ne correspond à cette recherche."
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "没有与此搜索匹配的凭据。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "沒有符合此搜尋的憑證。"
+          }
         }
       }
     },
@@ -1618,6 +2482,18 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Aucune base de données pour le remplissage automatique"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "没有可用于自动填充的数据库"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "沒有可用於自動填寫的資料庫"
           }
         }
       }
@@ -1641,6 +2517,18 @@
             "state" : "translated",
             "value" : "Aucune correspondance exacte trouvée. Ces identifiants ne sont que des correspondances possibles."
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未找到完全匹配的结果。这些凭据仅为可能的匹配项。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "找不到完全相符的結果。這些憑證僅為可能相符的項目。"
+          }
         }
       }
     },
@@ -1662,6 +2550,18 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Aucun"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無"
           }
         }
       }
@@ -1685,6 +2585,18 @@
             "state" : "translated",
             "value" : "Fichier KDBX invalide"
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "不是有效的 KDBX 文件"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "不是有效的 KDBX 檔案"
+          }
         }
       }
     },
@@ -1706,6 +2618,18 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Notes"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "备注"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "備註"
           }
         }
       }
@@ -1729,6 +2653,18 @@
             "state" : "translated",
             "value" : "OK"
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "好"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "好"
+          }
         }
       }
     },
@@ -1750,6 +2686,18 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Identifiants de la clé d'accès introuvables"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未找到通行密钥凭据"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "找不到通行金鑰憑證"
           }
         }
       }
@@ -1773,6 +2721,18 @@
             "state" : "translated",
             "value" : "Il manque la clé privée à l'entrée de la clé d'accès"
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "通行密钥条目缺少私钥"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "通行金鑰項目缺少私密金鑰"
+          }
         }
       }
     },
@@ -1794,6 +2754,18 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Connexion par clé d'accès avec KeeForge"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "使用 KeeForge 通行密钥登录"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "使用 KeeForge 通行金鑰登入"
           }
         }
       }
@@ -1817,6 +2789,18 @@
             "state" : "translated",
             "value" : "Mot de passe"
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "密码"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "密碼"
+          }
         }
       }
     },
@@ -1838,6 +2822,18 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Force du mot de passe : %@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "密码强度：%@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "密碼強度：%@"
           }
         }
       }
@@ -1861,6 +2857,18 @@
             "state" : "translated",
             "value" : "Veuillez sélectionner une base de données KeePass au format .kdbx."
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "请选择 KeePass .kdbx 数据库。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "請選擇 KeePass .kdbx 資料庫。"
+          }
         }
       }
     },
@@ -1882,6 +2890,18 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Correspondances possibles"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "可能的匹配项"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "可能相符的項目"
           }
         }
       }
@@ -1905,6 +2925,18 @@
             "state" : "translated",
             "value" : "Base de données en lecture seule"
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "只读数据库"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "唯讀資料庫"
+          }
         }
       }
     },
@@ -1926,6 +2958,18 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Corbeille"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "回收站"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "資源回收筒"
           }
         }
       }
@@ -1949,6 +2993,18 @@
             "state" : "translated",
             "value" : "Régénérer"
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重新生成"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重新產生"
+          }
         }
       }
     },
@@ -1970,6 +3026,18 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Enregistrer et remplir"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "保存并填充"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "儲存並填寫"
           }
         }
       }
@@ -1993,6 +3061,18 @@
             "state" : "translated",
             "value" : "Enregistrer la clé d'accès"
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "保存通行密钥"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "儲存通行金鑰"
+          }
         }
       }
     },
@@ -2014,6 +3094,18 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "L'enregistrement des anciennes bases de données KDBX 3.1 n'est pas encore pris en charge."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "暂不支持保存旧版 KDBX 3.1 数据库。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "尚不支援儲存舊版 KDBX 3.1 資料庫。"
           }
         }
       }
@@ -2037,6 +3129,18 @@
             "state" : "translated",
             "value" : "Rechercher des entrées"
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "搜索条目"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "搜尋項目"
+          }
         }
       }
     },
@@ -2058,6 +3162,18 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Impossible de générer des données aléatoires sécurisées."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无法生成安全随机数据。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法產生安全隨機資料。"
           }
         }
       }
@@ -2081,6 +3197,18 @@
             "state" : "translated",
             "value" : "Afficher %@"
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "显示 %@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "顯示 %@"
+          }
         }
       }
     },
@@ -2102,6 +3230,18 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Afficher tous les identifiants"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "显示所有凭据"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "顯示所有憑證"
           }
         }
       }
@@ -2125,6 +3265,18 @@
             "state" : "translated",
             "value" : "Changer de base de données"
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "切换数据库"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "切換資料庫"
+          }
         }
       }
     },
@@ -2146,6 +3298,18 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Système par défaut"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "系统默认"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "系統預設"
           }
         }
       }
@@ -2169,6 +3333,18 @@
             "state" : "translated",
             "value" : "Cette version précédente n'est plus disponible."
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "该较早版本已不可用。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "該較早版本已無法使用。"
+          }
         }
       }
     },
@@ -2190,6 +3366,18 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "La base de données semble corrompue ou incomplète."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "数据库似乎已损坏或不完整。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "資料庫似乎已損毀或不完整。"
           }
         }
       }
@@ -2213,6 +3401,18 @@
             "state" : "translated",
             "value" : "Le fichier de base de données est introuvable."
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无法找到数据库文件。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "找不到資料庫檔案。"
+          }
         }
       }
     },
@@ -2234,6 +3434,18 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Le fichier de base de données n'a pas répondu à temps. Vérifiez que son serveur ou sa connexion réseau est disponible."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "数据库文件未及时响应。请检查其服务器或网络连接是否可用。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "資料庫檔案未及時回應。請檢查其伺服器或網路連線是否可用。"
           }
         }
       }
@@ -2257,6 +3469,18 @@
             "state" : "translated",
             "value" : "Le fichier de base de données se trouve dans « Supprimés récemment » dans l'app Fichiers. Restaurez-le dans Fichiers, ou retirez cette base de données et ajoutez à nouveau le fichier actuel."
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "数据库文件位于“文件”App 的“最近删除”中。请在“文件”中恢复它，或移除此数据库并重新添加当前文件。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "資料庫檔案位於「檔案」App 的「最近刪除」中。請在「檔案」中回復它，或移除此資料庫並重新加入目前的檔案。"
+          }
         }
       }
     },
@@ -2278,6 +3502,18 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Il manque à la base de données des métadonnées de dérivation de clé."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "数据库缺少密钥派生元数据。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "資料庫缺少金鑰衍生中繼資料。"
           }
         }
       }
@@ -2301,6 +3537,18 @@
             "state" : "translated",
             "value" : "Il manque à la base de données des données de sel pour la dérivation de clé."
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "数据库缺少密钥派生盐值数据。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "資料庫缺少金鑰衍生鹽值資料。"
+          }
         }
       }
     },
@@ -2322,6 +3570,18 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "La base de données n'est pas prête à être enregistrée."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "数据库尚未准备好保存。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "資料庫尚未準備好儲存。"
           }
         }
       }
@@ -2345,6 +3605,18 @@
             "state" : "translated",
             "value" : "La demande n'est plus disponible."
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "该请求已不可用。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此要求已無法使用。"
+          }
         }
       }
     },
@@ -2366,6 +3638,18 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Ceci ajoute l’URL de la requête d’origine à l’identifiant sélectionné. La base de données ne sera modifiée qu’après votre confirmation."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这会将原始请求 URL 添加到所选凭据。只有在你确认后，数据库才会被更改。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這會將原始請求 URL 加入所選的憑證。只有在你確認後，資料庫才會變更。"
           }
         }
       }
@@ -2389,6 +3673,18 @@
             "state" : "translated",
             "value" : "Cette base de données est en lecture seule."
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此数据库为只读。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此資料庫為唯讀。"
+          }
         }
       }
     },
@@ -2410,6 +3706,18 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Cette base de données est en lecture seule. Ouvrez KeeForge pour activer la modification."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此数据库为只读。请打开 KeeForge 以启用编辑。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此資料庫為唯讀。請開啟 KeeForge 以啟用編輯。"
           }
         }
       }
@@ -2439,6 +3747,18 @@
             "state" : "translated",
             "value" : "Cette base de données a besoin d’environ %1$@ de mémoire pour être déverrouillée, soit plus que les %2$@ autorisés pour AutoFill. Ouvrez l’entrée dans l’app KeeForge, ou réduisez le réglage de mémoire Argon2 de la base de données dans une app KeePass pour ordinateur."
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "解锁此数据库大约需要 %1$@ 内存，超出了自动填充可使用的 %2$@ 上限。请在 KeeForge App 中打开该条目，或在桌面版 KeePass 应用中调低数据库的 Argon2 内存设置。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "解鎖此資料庫大約需要 %1$@ 記憶體，超出了自動填寫可使用的 %2$@ 上限。請在 KeeForge App 中開啟該項目，或在桌面版 KeePass App 中調低資料庫的 Argon2 記憶體設定。"
+          }
         }
       }
     },
@@ -2460,6 +3780,18 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Cette base de données utilise un ancien format KeePass que KeeForge ne prend pas encore en charge."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此数据库使用 KeeForge 尚不支持的较旧 KeePass 格式。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此資料庫使用 KeeForge 尚不支援的較舊 KeePass 格式。"
           }
         }
       }
@@ -2483,6 +3815,18 @@
             "state" : "translated",
             "value" : "Cette base de données utilise un flux de champs protégés non pris en charge."
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此数据库使用不受支持的受保护字段流。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此資料庫使用不支援的受保護欄位串流。"
+          }
         }
       }
     },
@@ -2504,6 +3848,18 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Les icônes de cette base de données sont enregistrées sous une forme à laquelle KeeForge ne peut rien ajouter sans risquer celles qui s’y trouvent déjà."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此数据库的图标存储形式特殊，KeeForge 无法在不危及现有图标的情况下添加新图标。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此資料庫的圖示儲存形式特殊，KeeForge 無法在不危及現有圖示的情況下新增圖示。"
           }
         }
       }
@@ -2527,6 +3883,18 @@
             "state" : "translated",
             "value" : "Les paramètres de dérivation de clé de cette base de données (%@ de mémoire × %@ itérations, %@ threads) dépassent ce que cette app peut exécuter en toute sécurité. Réduisez les paramètres Argon2 de la base de données dans une app KeePass de bureau, enregistrez-la, puis réessayez."
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此数据库的密钥派生设置（%@ 内存 × %@ 次迭代、%@ 个线程）超出了此 App 可安全运行的范围。请在桌面版 KeePass 应用中调低数据库的 Argon2 设置并保存，然后重试。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此資料庫的金鑰衍生設定（%@ 記憶體 × %@ 次迭代、%@ 個執行緒）超出了此 App 可安全執行的範圍。請在桌面版 KeePass App 中調低資料庫的 Argon2 設定並儲存，然後再試一次。"
+          }
         }
       }
     },
@@ -2548,6 +3916,18 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Ce groupe ne peut pas être supprimé."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无法删除此群组。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法刪除此群組。"
           }
         }
       }
@@ -2571,6 +3951,18 @@
             "state" : "translated",
             "value" : "Cette demande de clé d'accès n'est pas prise en charge."
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "不支持此通行密钥请求。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "不支援此通行金鑰要求。"
+          }
         }
       }
     },
@@ -2592,6 +3984,18 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Titre"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "标题"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "標題"
           }
         }
       }
@@ -2615,6 +4019,18 @@
             "state" : "translated",
             "value" : "Réessayer"
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重试"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "再試一次"
+          }
         }
       }
     },
@@ -2636,6 +4052,18 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Activez le remplissage automatique pour une base de données dans les réglages de KeeForge pour l’utiliser ici."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在 KeeForge 的设置中为数据库开启自动填充，即可在此处使用。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在 KeeForge 的設定中為資料庫開啟自動填寫，即可在此處使用。"
           }
         }
       }
@@ -2659,6 +4087,18 @@
             "state" : "translated",
             "value" : "Inconnu"
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未知"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未知"
+          }
         }
       }
     },
@@ -2680,6 +4120,18 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Déverrouiller"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "解锁"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "解鎖"
           }
         }
       }
@@ -2703,6 +4155,18 @@
             "state" : "translated",
             "value" : "Échec du déverrouillage"
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "解锁失败"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "解鎖失敗"
+          }
         }
       }
     },
@@ -2724,6 +4188,18 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Déverrouiller KeeForge"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "解锁 KeeForge"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "解鎖 KeeForge"
           }
         }
       }
@@ -2747,6 +4223,18 @@
             "state" : "translated",
             "value" : "Déverrouiller KeeForge pour le remplissage automatique"
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "解锁 KeeForge 以使用自动填充"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "解鎖 KeeForge 以使用自動填寫"
+          }
         }
       }
     },
@@ -2768,6 +4256,18 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Chiffrement non pris en charge : %@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "不支持的加密算法：%@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "不支援的加密演算法：%@"
           }
         }
       }
@@ -2791,6 +4291,18 @@
             "state" : "translated",
             "value" : "Mode de compression non pris en charge : %u"
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "不支持的压缩模式：%u"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "不支援的壓縮模式：%u"
+          }
         }
       }
     },
@@ -2812,6 +4324,18 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Flux aléatoire interne non pris en charge : %u"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "不支持的内部随机流：%u"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "不支援的內部隨機串流：%u"
           }
         }
       }
@@ -2835,6 +4359,18 @@
             "state" : "translated",
             "value" : "Fonction de dérivation de clé non prise en charge : %@"
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "不支持的密钥派生函数：%@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "不支援的金鑰衍生函數：%@"
+          }
         }
       }
     },
@@ -2857,6 +4393,18 @@
             "state" : "translated",
             "value" : "Valeur de mappage de variante non prise en charge pour la clé : %@"
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "不支持的变体映射值，键：%@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "不支援的變體對應值，鍵：%@"
+          }
         }
       }
     },
@@ -2875,6 +4423,18 @@
           }
         },
         "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "URL"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "URL"
+          }
+        },
+        "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "URL"
@@ -2901,6 +4461,18 @@
             "state" : "translated",
             "value" : "Utiliser la biométrie"
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "使用生物识别"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "使用生物辨識"
+          }
         }
       }
     },
@@ -2922,6 +4494,18 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Utiliser Face ID"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "使用 Face ID"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "使用 Face ID"
           }
         }
       }
@@ -2945,6 +4529,18 @@
             "state" : "translated",
             "value" : "Utiliser le mot de passe"
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "使用密码"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "使用密碼"
+          }
         }
       }
     },
@@ -2966,6 +4562,18 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Utiliser Touch ID"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "使用 Touch ID"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "使用 Touch ID"
           }
         }
       }
@@ -2989,6 +4597,18 @@
             "state" : "translated",
             "value" : "Nom d'utilisateur"
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "用户名"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "使用者名稱"
+          }
         }
       }
     },
@@ -3010,6 +4630,18 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Très bon"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "很好"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "很好"
           }
         }
       }
@@ -3033,6 +4665,18 @@
             "state" : "translated",
             "value" : "Très faible"
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "很弱"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "很弱"
+          }
         }
       }
     },
@@ -3054,6 +4698,18 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Faible"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "弱"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "弱"
           }
         }
       }
@@ -3077,6 +4733,18 @@
             "state" : "translated",
             "value" : "Site web"
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "网站"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "網站"
+          }
         }
       }
     },
@@ -3099,6 +4767,18 @@
             "state" : "translated",
             "value" : "Lorsque KeeForge n'est pas l'app active"
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "当 KeeForge 不在前台时"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "當 KeeForge 不在前景時"
+          }
         }
       }
     },
@@ -3120,6 +4800,18 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Lorsque l'écran se verrouille ou se met en veille"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "当屏幕锁定或休眠时"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "當螢幕鎖定或進入睡眠時"
           }
         }
       }

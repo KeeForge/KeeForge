@@ -21,6 +21,10 @@ TODO before the first macOS release:
 
 ## Unreleased
 
+### New Features
+
+- KeeForge now speaks Chinese: full Simplified Chinese (简体中文) and Traditional Chinese (繁體中文) localizations across the app and the AutoFill extension, plus translated README and contributor docs.
+
 ## v1.13.0 (2026-08-09)
 
 ### New Features
