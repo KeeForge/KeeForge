@@ -162,6 +162,17 @@ protocol CredentialIdentityStoreProviding: Sendable {
 
 /// Production conformance wrapping `ASCredentialIdentityStore.shared`.
 struct SystemCredentialIdentityStore: CredentialIdentityStoreProviding {
+    /// iOS 27.0 beta enumeration can return objects whose class does not
+    /// conform to `ASCredentialIdentity`; Swift's deferred NSArray bridge
+    /// check then traps on first element access. The `NSArray` round-trip is
+    /// a verbatim unwrap that skips the deferred check, letting the
+    /// conditional cast drop non-conforming elements instead of trapping.
+    static func droppingNonConformingIdentities(
+        _ identities: [any ASCredentialIdentity]
+    ) -> [any ASCredentialIdentity] {
+        (identities as NSArray).compactMap { $0 as? any ASCredentialIdentity }
+    }
+
     func isEnabled() async -> Bool {
         await ASCredentialIdentityStore.shared.state().isEnabled
     }
@@ -187,7 +198,8 @@ struct SystemCredentialIdentityStore: CredentialIdentityStoreProviding {
         return await credentialIdentitiesWithSource().identities
         #else
         guard #available(iOS 17.4, macOS 14.4, *) else { return nil }
-        return await ASCredentialIdentityStore.shared.credentialIdentities(forService: nil)
+        return Self.droppingNonConformingIdentities(
+            await ASCredentialIdentityStore.shared.credentialIdentities(forService: nil))
         #endif
     }
 
@@ -195,7 +207,8 @@ struct SystemCredentialIdentityStore: CredentialIdentityStoreProviding {
     func credentialIdentitiesWithSource() async
         -> (identities: [any ASCredentialIdentity]?, source: CredentialIdentitySource) {
         guard #available(iOS 17.4, macOS 14.4, *) else { return (nil, .api) }
-        let apiIdentities = await ASCredentialIdentityStore.shared.credentialIdentities(forService: nil)
+        let apiIdentities = Self.droppingNonConformingIdentities(
+            await ASCredentialIdentityStore.shared.credentialIdentities(forService: nil))
         #if targetEnvironment(simulator)
         // Simulator enumeration bug: the API returns empty despite persisted
         // writes. Substitute the reconstructed backing-DB rows when the API is
