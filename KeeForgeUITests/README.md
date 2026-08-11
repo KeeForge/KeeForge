@@ -44,7 +44,7 @@ The macOS port has its own UI-test target, `KeeForgeMacUITests/` (target `KeeFor
 - `WebDAVConnectErrorUITests` — WebDAV connect failure surfaces `webdav.connect.error` and keeps the form up
 - `WebDAVSeededUnlockUITests` — unlock a seeded WebDAV cloud-backed database through the mock provider
 - `DatabaseCreationRegularWidthUITests` — new local database happy path on regular-width / iPad layout
-- `MasterKeyChangeUITests` — change-master-key happy path: create a local database, rotate its master password from Database Details (`database-details.change-master-key` → the `master-key.*` form), lock, and unlock with the new password; the device-owner confirmation is a no-op under `-ui-testing`. Extends `DatabaseCreationUITestCase`
+- `MasterKeyChangeUITests` — change-master-key happy path: create a local database, rotate its master password from Database Details (`database-details.change-master-key` → the `master-key.*` form, through the `master-key.confirm-change` confirmation dialog), lock, and unlock with the new password; the device-owner confirmation is a no-op under `-ui-testing`. Extends `DatabaseCreationUITestCase`
 - `RegularWidthWorkspaceUITests` — regular-width / iPad workspace smoke coverage
 
 ### Secondary / Edge Coverage
@@ -489,6 +489,7 @@ Use the app's accessibility identifiers whenever possible, including:
   - `master-key.confirm-password-field` / `master-key.confirm-password-visibility-button`
   - `master-key.keyfile.select` / `master-key.keyfile.clear`
   - `master-key.save` / `master-key.cancel`
+  - `master-key.confirm-change` (destructive action in the confirmation dialog every save presents; matches nested buttons — use `.firstMatch`)
   - `master-key.error` (validation/change error banner)
 - `settings.autofill.database-toggle.<database-id-uuidString>` (Settings → AutoFill per-database toggles; match with a BEGINSWITH predicate)
 - `settings.autofill.clear-entries` / `settings.autofill.clear-entries.confirm` (Clear AutoFill Entries button + destructive confirmation; the confirm identifier matches two nested buttons — use `.firstMatch`)

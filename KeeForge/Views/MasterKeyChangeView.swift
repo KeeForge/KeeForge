@@ -1,3 +1,4 @@
+import LocalAuthentication
 import SwiftUI
 
 /// Change the master key (password and/or key file) of the unlocked database.
@@ -15,7 +16,7 @@ struct MasterKeyChangeView: View {
     @State private var isConfirmPasswordVisible = false
     @State private var isKeyFileImporterPresented = false
     @State private var isAuthenticating = false
-    @State private var isPasswordRemovalConfirmationPresented = false
+    @State private var isChangeConfirmationPresented = false
     @State private var selectionAlert: DocumentPickerService.SelectionAlert?
 
     init(sessionViewModel: DatabaseViewModel) {
@@ -50,7 +51,7 @@ struct MasterKeyChangeView: View {
             keyFileSection
         }
         .disabled(viewModel.isWorking)
-        .navigationTitle("Change Master Key")
+        .navigationTitle("Master Key")
         .navigationBarTitleDisplayMode(.inline)
         .safeAreaInset(edge: .top, spacing: 0) {
             if let errorMessage = viewModel.validationError ?? viewModel.changeError {
@@ -98,16 +99,28 @@ struct MasterKeyChangeView: View {
             )
         }
         .confirmationDialog(
-            "Save Without a Master Password?",
-            isPresented: $isPasswordRemovalConfirmationPresented,
+            isRemovingPassword ? Text("Save Without a Master Password?") : Text("Change Master Key?"),
+            isPresented: $isChangeConfirmationPresented,
             titleVisibility: .visible
         ) {
-            Button("Save Without Password", role: .destructive) {
+            Button(role: .destructive) {
                 authenticateAndPerformChange()
+            } label: {
+                if isRemovingPassword {
+                    Text("Save Without Password")
+                } else {
+                    Text("Change Master Key")
+                }
             }
-            .accessibilityIdentifier("master-key.remove-password.confirm")
+            .accessibilityIdentifier("master-key.confirm-change")
         } message: {
-            Text("The database will require only the key file to unlock. Anyone with the key file can open it.")
+            if isRemovingPassword {
+                Text("This permanently re-encrypts the database file. It will open only with the new master key — if the new master password or key file is lost, the data in it cannot be recovered.")
+                    + Text(verbatim: " ")
+                    + Text("The database will require only the key file to unlock. Anyone with the key file can open it.")
+            } else {
+                Text("This permanently re-encrypts the database file. It will open only with the new master key — if the new master password or key file is lost, the data in it cannot be recovered.")
+            }
         }
         .onDisappear {
             viewModel.cancelPendingChange()
@@ -164,18 +177,21 @@ struct MasterKeyChangeView: View {
         } header: {
             Text("Key File")
         } footer: {
-            Text("The database requires this key file after the change. Clear it to unlock with the master password only.")
+            if viewModel.hasEffectiveKeyFile {
+                Text("The database requires this key file after the change. Clear it to unlock with the master password only.")
+            } else {
+                Text("No key file will be required after the change. The master password alone will unlock the database.")
+            }
         }
+    }
+
+    private var isRemovingPassword: Bool {
+        viewModel.newPassword.isEmpty
     }
 
     private func handleSaveTap() {
         guard viewModel.validate() else { return }
-
-        if viewModel.newPassword.isEmpty {
-            isPasswordRemovalConfirmationPresented = true
-        } else {
-            authenticateAndPerformChange()
-        }
+        isChangeConfirmationPresented = true
     }
 
     private func authenticateAndPerformChange() {
@@ -195,7 +211,13 @@ struct MasterKeyChangeView: View {
                     )
                     await performChange()
                 } catch {
-                    // Intentionally no-op on failed authentication.
+                    // A user-initiated cancel needs no explanation; anything
+                    // else (system cancel, timeout) must not look like success.
+                    if (error as? LAError)?.code != .userCancel {
+                        await MainActor.run {
+                            viewModel.changeError = String(localized: "Authentication didn't complete. The master key was not changed.")
+                        }
+                    }
                 }
                 await MainActor.run {
                     BiometricService.isBiometricAuthInProgress = false

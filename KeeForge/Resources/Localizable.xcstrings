@@ -2170,6 +2170,40 @@
         }
       }
     },
+    "Authentication didn't complete. The master key was not changed." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die Authentifizierung wurde nicht abgeschlossen. Der Master-Schlüssel wurde nicht geändert."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La autenticación no se completó. La clave maestra no se cambió."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "L’authentification n’a pas abouti. La clé principale n’a pas été modifiée."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "身份验证未完成。主密钥未被更改。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "身分驗證未完成。主金鑰未被更改。"
+          }
+        }
+      }
+    },
     "Authentication was cancelled." : {
       "localizations" : {
         "de" : {
@@ -3221,6 +3255,40 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "更改主金鑰"
+          }
+        }
+      }
+    },
+    "Change Master Key?" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Master-Schlüssel ändern?"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "¿Cambiar la clave maestra?"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Modifier la clé principale ?"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "要更改主密钥吗？"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "要更改主金鑰嗎？"
           }
         }
       }
@@ -13766,6 +13834,40 @@
         }
       }
     },
+    "No key file will be required after the change. The master password alone will unlock the database." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nach der Änderung ist keine Schlüsseldatei mehr erforderlich. Die Datenbank wird allein mit dem Master-Passwort entsperrt."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tras el cambio no se requerirá ningún archivo de clave. La contraseña maestra por sí sola desbloqueará la base de datos."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Après la modification, aucun fichier de clé ne sera requis. Le mot de passe principal suffira à déverrouiller la base de données."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "更改后将不需要密钥文件。仅使用主密码即可解锁数据库。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "更改後將不需要金鑰檔案。僅使用主密碼即可解鎖資料庫。"
+          }
+        }
+      }
+    },
     "No network connection. Using the cached copy if available." : {
       "localizations" : {
         "de" : {
@@ -21559,6 +21661,40 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "此密碼強度較弱。你仍然可以建立資料庫，但更長且獨特的密碼會更安全。"
+          }
+        }
+      }
+    },
+    "This permanently re-encrypts the database file. It will open only with the new master key — if the new master password or key file is lost, the data in it cannot be recovered." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dadurch wird die Datenbankdatei dauerhaft neu verschlüsselt. Sie lässt sich nur noch mit dem neuen Master-Schlüssel öffnen — gehen das neue Master-Passwort oder die Schlüsseldatei verloren, können die Daten nicht wiederhergestellt werden."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Esto vuelve a cifrar el archivo de la base de datos de forma permanente. Solo se abrirá con la nueva clave maestra: si pierde la nueva contraseña maestra o el archivo de clave, los datos no se podrán recuperar."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cette opération rechiffre définitivement le fichier de base de données. Il ne s’ouvrira qu’avec la nouvelle clé principale — si le nouveau mot de passe principal ou le fichier de clé est perdu, les données ne pourront pas être récupérées."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这将永久重新加密此数据库文件。它只能用新的主密钥打开——如果丢失新的主密码或密钥文件，其中的数据将无法恢复。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這將永久重新加密此資料庫檔案。它只能以新的主金鑰開啟——如果遺失新的主密碼或金鑰檔案，其中的資料將無法復原。"
           }
         }
       }

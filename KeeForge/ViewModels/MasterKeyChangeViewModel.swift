@@ -20,8 +20,12 @@ final class MasterKeyChangeViewModel {
     ) async throws -> Void
     typealias CurrentKeyFileLoader = @MainActor () async -> (data: Data, filename: String)?
 
-    var newPassword = ""
-    var confirmPassword = ""
+    var newPassword = "" {
+        didSet { if newPassword != oldValue { clearDisplayedErrors() } }
+    }
+    var confirmPassword = "" {
+        didSet { if confirmPassword != oldValue { clearDisplayedErrors() } }
+    }
     var validationError: String?
     var changeError: String?
     /// Set when the screen is dismissed so a change already past the biometric
