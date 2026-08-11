@@ -246,6 +246,28 @@ class KeeForgeUITestCase: XCTestCase {
             if elementReportsKeyboardFocus(element) != false {
                 return
             }
+            // Focus is confirmed stuck on another field. On short forms the
+            // scroll above can't create room, so every retap keeps landing on
+            // the raised keyboard (seen with the creation form's confirm field
+            // on the iPhone 17 Pro simulator). Dismiss the keyboard instead;
+            // the next tap then reaches an unoccluded field.
+            dismissKeyboardForFocusRetry()
+        }
+    }
+
+    /// Downward drag on the scroll container — Form's interactive
+    /// scroll-dismissal drops the keyboard — so a stuck-focus retap in
+    /// `focusFieldForTyping` gets an unoccluded target.
+    private func dismissKeyboardForFocusRetry() {
+        let keyboard = app.keyboards.firstMatch
+        guard keyboard.exists, let container = scrollableContainer(), container.exists else { return }
+        let start = container.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.3))
+        let end = container.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.6))
+        start.press(forDuration: 0.05, thenDragTo: end)
+
+        let deadline = Date().addingTimeInterval(2)
+        while keyboard.exists, Date() < deadline {
+            RunLoop.current.run(until: Date().addingTimeInterval(0.2))
         }
     }
 
