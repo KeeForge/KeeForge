@@ -235,10 +235,37 @@ class KeeForgeUITestCase: XCTestCase {
         for _ in 0 ..< 3 {
             scrollFieldClearOfKeyboard(element)
             tapElement(element)
-            if app.keyboards.firstMatch.waitForExistence(timeout: 2) {
+            guard app.keyboards.firstMatch.waitForExistence(timeout: 2) else { continue }
+            // A raised keyboard alone is not proof the tap moved focus: when a
+            // previous field already had the keyboard up, a missed tap (e.g.
+            // the field settling right at the keyboard's top edge on a 5.4"
+            // device) leaves focus on the old field and `typeText` fails.
+            // The AX-level keyboard-focus attribute is reliable where
+            // `hasFocus` is not; when it confirms — or can't deny — focus,
+            // we're done, otherwise scroll and tap again.
+            if elementReportsKeyboardFocus(element) != false {
                 return
             }
         }
+    }
+
+    /// Three-state focus probe: `true`/`false` from the AX keyboard-focus
+    /// attribute, `nil` when the attribute is unavailable on this runtime.
+    private func elementReportsKeyboardFocus(_ element: XCUIElement) -> Bool? {
+        let deadline = Date().addingTimeInterval(1.5)
+        var sawAttribute = false
+        repeat {
+            guard element.exists,
+                  let focused = element.value(forKey: "hasKeyboardFocus") as? Bool else {
+                return sawAttribute ? false : nil
+            }
+            sawAttribute = true
+            if focused {
+                return true
+            }
+            RunLoop.current.run(until: Date().addingTimeInterval(0.2))
+        } while Date() < deadline
+        return false
     }
 
     private func scrollFieldClearOfKeyboard(_ element: XCUIElement) {
