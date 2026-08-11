@@ -26,6 +26,10 @@ TODO before the first macOS release:
 - KeeForge now speaks Chinese: full Simplified Chinese (简体中文) and Traditional Chinese (繁體中文) localizations across the app and the AutoFill extension, plus translated README and contributor docs.
   - TODO before releasing this: add zh-Hans and zh-Hant localized App Store metadata (description, keywords, screenshots, What's New) in App Store Connect.
 
+### Fixes
+
+- iOS/iPadOS running on Mac no longer starts a lifecycle-only biometric unlock prompt while KeeForge may still be behind another window; the existing biometric action remains available, and automatic unlock is unchanged on iPhone and iPad (#84).
+
 ## v1.13.0 (2026-08-09)
 
 ### New Features
