@@ -3606,6 +3606,18 @@
             "state" : "translated",
             "value" : "La nouvelle base de données n'a pas pu être vérifiée après le chiffrement."
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新数据库在加密后无法通过验证。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新資料庫在加密後無法通過驗證。"
+          }
         }
       }
     },
@@ -3628,6 +3640,18 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "La nouvelle clé principale a été téléversée, mais la copie locale n'a pas pu être mise à jour. Le fichier cloud requiert désormais la nouvelle clé principale."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新的主密钥已上传，但本地副本无法更新。云端文件现在需要新的主密钥。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新的主金鑰已上傳，但本機副本無法更新。雲端檔案現在需要新的主金鑰。"
           }
         }
       }

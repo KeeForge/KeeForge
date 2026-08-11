@@ -1747,6 +1747,18 @@
             "state" : "translated",
             "value" : "Un autre enregistrement est en cours. Attendez qu'il se termine, puis réessayez."
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "另一次保存正在进行。请等待它完成后重试。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "另一次儲存正在進行。請等待它完成後再試一次。"
+          }
         }
       }
     },
@@ -3164,6 +3176,18 @@
             "state" : "translated",
             "value" : "Modifier la clé principale"
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "更改主密钥"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "更改主金鑰"
+          }
         }
       }
     },
@@ -3186,6 +3210,18 @@
             "state" : "translated",
             "value" : "Modifier la clé principale"
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "更改主密钥"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "更改主金鑰"
+          }
         }
       }
     },
@@ -3207,6 +3243,18 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Modifier la clé principale…"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "更改主密钥…"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "更改主金鑰…"
           }
         }
       }
@@ -3264,6 +3312,18 @@
             "state" : "translated",
             "value" : "Modification de la clé principale"
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在更改主密钥"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在更改主金鑰"
+          }
         }
       }
     },
@@ -3285,6 +3345,18 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "La modification de la clé principale rechiffre ce fichier de base de données avec un nouveau mot de passe principal et/ou un nouveau fichier de clé."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "更改主密钥会用新的主密码和/或密钥文件重新加密此数据库文件。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "更改主金鑰會以新的主密碼和/或金鑰檔案重新加密此資料庫檔案。"
           }
         }
       }
@@ -11570,6 +11642,18 @@
             "state" : "translated",
             "value" : "KeeForge mémorise ce fichier de clé et le préremplit au déverrouillage. Pour changer le fichier de clé exigé par la base de données, modifiez la clé principale."
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge 会记住此密钥文件，并在解锁时自动填入。要更改数据库所需的密钥文件，请更改主密钥。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge 會記住此金鑰檔案，並在解鎖時自動填入。要更改資料庫所需的金鑰檔案，請更改主金鑰。"
+          }
         }
       }
     },
@@ -11932,6 +12016,18 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Fichier de clé utilisé au déverrouillage"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "解锁时使用的密钥文件"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "解鎖時使用的金鑰檔案"
           }
         }
       }
@@ -12668,6 +12764,18 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Clé principale"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "主密钥"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "主金鑰"
           }
         }
       }
@@ -16534,6 +16642,18 @@
             "state" : "translated",
             "value" : "Enregistrez ou annulez vos modifications avant de modifier la clé principale."
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "请先保存或放弃你的更改，再更改主密钥。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "請先儲存或捨棄你的變更，再更改主金鑰。"
+          }
         }
       }
     },
@@ -16591,6 +16711,18 @@
             "state" : "translated",
             "value" : "Enregistrer sans mot de passe principal ?"
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "不使用主密码保存？"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "不使用主密碼儲存？"
+          }
         }
       }
     },
@@ -16613,6 +16745,18 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Enregistrer sans mot de passe"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "不使用密码保存"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "不使用密碼儲存"
           }
         }
       }
@@ -18982,6 +19126,18 @@
             "state" : "translated",
             "value" : "Le fichier de clé actuel n'a pas pu être lu. Sélectionnez-le à nouveau ou effacez-le, puis réessayez."
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无法读取当前的密钥文件。请重新选择或清除它，然后重试。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法讀取目前的金鑰檔案。請重新選取或清除它，然後再試一次。"
+          }
         }
       }
     },
@@ -19071,6 +19227,18 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Le fichier de base de données a été modifié depuis son ouverture. Rechargez la base de données et réessayez."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "数据库文件在打开后发生了更改。请重新加载数据库后重试。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "資料庫檔案在開啟後已變更。請重新載入資料庫後再試一次。"
           }
         }
       }
@@ -19264,6 +19432,18 @@
             "state" : "translated",
             "value" : "La base de données est verrouillée. Déverrouillez-la et réessayez."
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "数据库已锁定。请解锁后重试。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "資料庫已鎖定。請解鎖後再試一次。"
+          }
         }
       }
     },
@@ -19422,6 +19602,18 @@
             "state" : "translated",
             "value" : "Après la modification, la base de données exige ce fichier de clé. Effacez-le pour déverrouiller uniquement avec le mot de passe principal."
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "更改后，数据库将需要此密钥文件。清除它即可仅使用主密码解锁。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "更改後，資料庫將需要此金鑰檔案。清除它即可僅使用主密碼解鎖。"
+          }
         }
       }
     },
@@ -19444,6 +19636,18 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "La base de données ne nécessitera plus que le fichier de clé pour être déverrouillée. Toute personne disposant du fichier de clé pourra l'ouvrir."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "数据库将仅需密钥文件即可解锁。任何拥有该密钥文件的人都能打开它。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "資料庫將僅需金鑰檔案即可解鎖。任何擁有該金鑰檔案的人都能開啟它。"
           }
         }
       }
@@ -19603,6 +19807,18 @@
             "state" : "translated",
             "value" : "La nouvelle clé principale protège ce fichier de base de données à partir de maintenant. Les sauvegardes et copies effectuées avant la modification s'ouvrent toujours avec l'ancienne clé principale."
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "从现在起，新的主密钥将保护此数据库文件。更改前创建的备份和副本仍可用之前的主密钥打开。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "從現在起，新的主金鑰將保護此資料庫檔案。更改前建立的備份與副本仍可用先前的主金鑰開啟。"
+          }
         }
       }
     },
@@ -19625,6 +19841,18 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "La nouvelle clé principale a été téléversée, mais la copie locale n'a pas pu être mise à jour. Le fichier cloud requiert désormais la nouvelle clé principale."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新的主密钥已上传，但本地副本无法更新。云端文件现在需要新的主密钥。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新的主金鑰已上傳，但本機副本無法更新。雲端檔案現在需要新的主金鑰。"
           }
         }
       }
@@ -20395,6 +20623,18 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Cette base de données a des modifications de remplissage automatique en attente. Laissez-les terminer leur synchronisation, puis réessayez."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此数据库有待处理的自动填充更改。请等待同步完成后重试。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此資料庫有待處理的自動填寫變更。請等待同步完成後再試一次。"
           }
         }
       }
@@ -21273,6 +21513,18 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Ce mot de passe est faible. Vous pouvez tout de même modifier la clé principale, mais un mot de passe plus long et unique est plus sûr."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此密码强度较弱。你仍然可以更改主密钥，但更长且独特的密码会更安全。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此密碼強度較弱。你仍然可以更改主金鑰，但更長且獨特的密碼會更安全。"
           }
         }
       }
