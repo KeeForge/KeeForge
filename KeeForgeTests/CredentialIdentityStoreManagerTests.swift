@@ -1413,6 +1413,40 @@ final class CredentialIdentityStoreManagerTests: XCTestCase {
         )
     }
 
+    // MARK: - System store enumeration sanitizing
+
+    func testDroppingNonConformingIdentitiesKeepsOnlyConformingElements() {
+        let conforming = ASPasswordCredentialIdentity(
+            serviceIdentifier: ASCredentialServiceIdentifier(identifier: "example.com", type: .domain),
+            user: "user",
+            recordIdentifier: CredentialRecordIdentifier(databaseID: someDatabaseID, entryID: UUID()).encoded
+        )
+        // A lazily-bridged array whose deferred element check would trap on
+        // the NSObject — the iOS 27.0 beta enumeration shape.
+        let poisoned = NSArray(objects: conforming, NSObject()) as! [any ASCredentialIdentity]
+
+        let sanitized = SystemCredentialIdentityStore.droppingNonConformingIdentities(poisoned)
+
+        XCTAssertEqual(sanitized.count, 1)
+        XCTAssertTrue(sanitized[0] as AnyObject === conforming)
+    }
+
+    func testDroppingNonConformingIdentitiesPreservesFullyConformingArray() {
+        let identities = CredentialIdentityStoreManager.passwordIdentities(
+            for: makeEntry(title: "Site", url: "https://example.com", username: "user", hasPassword: true),
+            in: someDatabaseID
+        )
+        XCTAssertFalse(identities.isEmpty)
+
+        let sanitized = SystemCredentialIdentityStore.droppingNonConformingIdentities(identities)
+
+        XCTAssertEqual(sanitized.count, identities.count)
+        XCTAssertEqual(
+            sanitized.compactMap(CredentialIdentityStoreManager.recordIdentifier(of:)),
+            identities.compactMap(CredentialIdentityStoreManager.recordIdentifier(of:))
+        )
+    }
+
     // MARK: - Helpers
 
     private func makeEntry(
