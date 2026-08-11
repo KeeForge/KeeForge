@@ -28,6 +28,18 @@
             "state" : "translated",
             "value" : "KeeForge"
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge"
+          }
         }
       }
     },
@@ -49,6 +61,18 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Base de données KeePass (kdbx)"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeePass 数据库 (kdbx)"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeePass 資料庫 (kdbx)"
           }
         }
       }
@@ -79,6 +103,18 @@
             "state" : "translated",
             "value" : "KeeForge utilise Face ID pour déverrouiller rapidement votre base de données de mots de passe."
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge 使用 Face ID 快速解锁你的密码数据库。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge 使用 Face ID 快速解鎖你的密碼資料庫。"
+          }
         }
       }
     },
@@ -107,6 +143,18 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "KeeForge utilise votre réseau local pour se connecter aux serveurs WebDAV que vous ajoutez."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge 使用本地网络连接你添加的 WebDAV 服务器。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge 使用區域網路連接你加入的 WebDAV 伺服器。"
           }
         }
       }

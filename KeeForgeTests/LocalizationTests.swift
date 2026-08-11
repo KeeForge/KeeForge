@@ -18,7 +18,7 @@ final class LocalizationTests: XCTestCase {
     /// Every locale KeeForge ships a translation for, beyond the source
     /// language `en`. Add a locale here once its catalogs are fully
     /// translated to bring it under every check in this file.
-    private static let shippedTranslationLocales = ["de", "fr", "es"]
+    private static let shippedTranslationLocales = ["de", "fr", "es", "zh-Hans", "zh-Hant"]
 
     // MARK: - String catalog decoding
 

@@ -1787,6 +1787,8 @@
 				en,
 				es,
 				fr,
+				"zh-Hans",
+				"zh-Hant",
 			);
 			mainGroup = ED085A8C1666D500B09A3437;
 			minimizedProjectReferenceProxies = 1;
