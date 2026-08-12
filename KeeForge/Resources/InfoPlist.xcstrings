@@ -103,6 +103,18 @@
             "state" : "translated",
             "value" : "KeeForge utilise la caméra pour scanner les codes QR de codes de vérification."
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge 使用相机扫描验证码二维码。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge 使用相機掃描驗證碼 QR 碼。"
+          }
         }
       }
     },

@@ -1475,6 +1475,18 @@
             "state" : "translated",
             "value" : "Ajouter un code de vérification"
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "添加验证码"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新增驗證碼"
+          }
         }
       }
     },
@@ -1633,6 +1645,18 @@
             "state" : "translated",
             "value" : "Algorithme"
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "算法"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "演算法"
+          }
         }
       }
     },
@@ -1654,6 +1678,18 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Autorisez l'accès à la caméra dans Réglages pour scanner les codes QR de codes de vérification."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "请在“设置”中允许访问相机，以扫描验证码二维码。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "請在「設定」中允許取用相機，以掃描驗證碼 QR 碼。"
           }
         }
       }
@@ -1914,6 +1950,18 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Appliquer"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "应用"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "套用"
           }
         }
       }
@@ -3127,6 +3175,18 @@
             "state" : "translated",
             "value" : "Accès à la caméra requis"
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "需要相机访问权限"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "需要取用相機"
+          }
         }
       }
     },
@@ -3830,6 +3890,18 @@
             "state" : "translated",
             "value" : "Choisir un groupe"
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "选择群组"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "選取群組"
+          }
         }
       }
     },
@@ -3920,6 +3992,18 @@
             "state" : "translated",
             "value" : "Choisis « Nouvelle entrée » ci-dessus pour enregistrer ce code de vérification."
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "选择上方的“新建条目”以保存此验证码。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "選擇上方的「新增項目」以儲存此驗證碼。"
+          }
         }
       }
     },
@@ -3941,6 +4025,18 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Choisissez où enregistrer ce code de vérification."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "选择此验证码的保存位置。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "選擇此驗證碼的儲存位置。"
           }
         }
       }
@@ -5629,6 +5725,18 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Impossible d'ajouter le code de vérification"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无法添加验证码"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法新增驗證碼"
           }
         }
       }
@@ -8712,6 +8820,18 @@
             "state" : "translated",
             "value" : "Saisir la clé de configuration"
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "输入设置密钥"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "輸入設定金鑰"
+          }
         }
       }
     },
@@ -8733,6 +8853,18 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Saisir le lien de configuration"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "输入设置链接"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "輸入設定連結"
           }
         }
       }
@@ -14367,6 +14499,18 @@
             "state" : "translated",
             "value" : "Ce n'est pas un code QR de code de vérification"
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "不是验证码二维码"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "不是驗證碼 QR 碼"
+          }
         }
       }
     },
@@ -14934,6 +15078,18 @@
             "state" : "translated",
             "value" : "Ouvrez et déverrouillez une base de données, puis KeeForge ajoutera le code de vérification."
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "打开并解锁一个数据库，KeeForge 随后会添加该验证码。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "開啟並解鎖資料庫後，KeeForge 會接著新增該驗證碼。"
+          }
         }
       }
     },
@@ -15057,6 +15213,18 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Ouvrir Réglages"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "打开“设置”"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "打開「設定」"
           }
         }
       }
@@ -15556,6 +15724,18 @@
             "state" : "translated",
             "value" : "Période (secondes)"
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "周期（秒）"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "週期（秒）"
+          }
         }
       }
     },
@@ -15884,6 +16064,18 @@
             "state" : "translated",
             "value" : "La numérisation de codes QR n'est pas disponible sur cet appareil."
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此设备不支持扫描二维码。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此裝置不支援掃描 QR 碼。"
+          }
         }
       }
     },
@@ -16177,6 +16369,18 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Base de données en lecture seule"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "只读数据库"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "唯讀資料庫"
           }
         }
       }
@@ -16710,6 +16914,18 @@
             "state" : "translated",
             "value" : "Supprimer le code de vérification"
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "移除验证码"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "移除驗證碼"
+          }
         }
       }
     },
@@ -16834,6 +17050,18 @@
             "state" : "translated",
             "value" : "Remplacer"
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "替换"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "取代"
+          }
         }
       }
     },
@@ -16855,6 +17083,18 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Remplacer le code de vérification existant ?"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "要替换现有的验证码吗？"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "要取代現有的驗證碼嗎？"
           }
         }
       }
@@ -17424,6 +17664,18 @@
             "state" : "translated",
             "value" : "Scanner le code QR"
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "扫描二维码"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "掃描 QR 碼"
+          }
         }
       }
     },
@@ -17683,6 +17935,18 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Clé secrète"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "密钥"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "金鑰"
           }
         }
       }
@@ -18351,6 +18615,18 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Lien de configuration"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "设置链接"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "設定連結"
           }
         }
       }
@@ -20960,6 +21236,18 @@
             "state" : "translated",
             "value" : "Le lien de configuration du code de vérification est invalide ou incomplet."
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "验证码设置链接无效或不完整。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "驗證碼設定連結無效或不完整。"
+          }
         }
       }
     },
@@ -20981,6 +21269,18 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Le code de vérification ne sera plus généré pour cette entrée."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "将不再为此条目生成验证码。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "將不再為此項目產生驗證碼。"
           }
         }
       }
@@ -21309,6 +21609,18 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Cette base de données est en lecture seule, le code de vérification ne peut donc pas y être ajouté."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此数据库为只读，无法向其添加验证码。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此資料庫為唯讀，無法向其新增驗證碼。"
           }
         }
       }
@@ -21814,6 +22126,18 @@
             "state" : "translated",
             "value" : "Cette entrée possède déjà un code de vérification. L'enregistrement le remplacera."
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此条目已有验证码。保存将替换它。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此項目已有驗證碼。儲存後將取代它。"
+          }
         }
       }
     },
@@ -22006,6 +22330,18 @@
             "state" : "translated",
             "value" : "Cette entrée stocke son code au format KeeOTP hérité, qui ne prend en charge que les codes à 6 ou 8 chiffres."
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此条目以旧版 KeeOTP 格式存储验证码，该格式仅支持 6 位或 8 位验证码。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此項目以舊版 KeeOTP 格式儲存驗證碼，該格式僅支援 6 位或 8 位驗證碼。"
+          }
         }
       }
     },
@@ -22163,6 +22499,18 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Ceci n'est pas un lien de configuration otpauth://."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这不是 otpauth:// 设置链接。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這不是 otpauth:// 設定連結。"
           }
         }
       }
@@ -22424,6 +22772,18 @@
             "state" : "translated",
             "value" : "Ce lien de configuration contient un paramètre non valide."
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此设置链接包含无效参数。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此設定連結包含無效參數。"
+          }
         }
       }
     },
@@ -22445,6 +22805,18 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Ce lien de configuration ne contient pas de clé secrète valide."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此设置链接不包含有效的密钥。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此設定連結不包含有效的金鑰。"
           }
         }
       }
@@ -22468,6 +22840,18 @@
             "state" : "translated",
             "value" : "Ce lien de configuration a expiré. Ouvre-le à nouveau depuis le service pour ajouter le code de vérification."
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此设置链接已过期。请从相应服务重新打开它以添加验证码。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此設定連結已過期。請從相應服務重新開啟它以新增驗證碼。"
+          }
         }
       }
     },
@@ -22489,6 +22873,18 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Ce lien de configuration utilise un type de code non pris en charge. Seuls les codes basés sur le temps (TOTP) sont pris en charge."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此设置链接使用了不受支持的验证码类型。仅支持基于时间 (TOTP) 的验证码。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此設定連結使用了不支援的驗證碼類型。僅支援時間型 (TOTP) 驗證碼。"
           }
         }
       }
@@ -23123,6 +23519,18 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Déverrouillez une base de données"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "解锁数据库"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "解鎖資料庫"
           }
         }
       }
@@ -24234,6 +24642,18 @@
             "state" : "translated",
             "value" : "Code de vérification"
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "验证码"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "驗證碼"
+          }
         }
       }
     },
@@ -24493,6 +24913,18 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Afficher la clé secrète du code de vérification"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "查看验证码密钥"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "檢視驗證碼金鑰"
           }
         }
       }
