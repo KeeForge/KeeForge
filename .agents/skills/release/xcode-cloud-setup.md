@@ -76,11 +76,10 @@ alphanumerics only, because it is interpolated into the `db-$(DROPBOX_APP_KEY)`
 
 ## Public link settings
 
-- The link stays **enabled permanently** and is published on `README.md`, `README.de.md`, and
-  keeforge.com: `https://testflight.apple.com/join/mPAT4f1a`. Do not disable it between releases.
-  Enabled is not the same as open — Apple closes joining on its own during Beta App Review and
-  when the cap is reached — so both READMEs and the site tell visitors the beta is not open
-  continuously. That caveat is what makes the closed windows acceptable; keep it there.
+- The link stays **enabled permanently** and is published on `README.md`, its `docs/i18n/`
+  translations, and keeforge.com: `https://testflight.apple.com/join/mPAT4f1a`. Do not disable it
+  between releases. Enabled is not the same as open — Apple closes joining on its own during Beta
+  App Review and when the cap is reached — so visitors will sometimes land on a closed link.
 - Set a **tester cap** on the public link (group → **Public Link → Manage → Set Limit**). A few
   hundred is plenty for a first public beta and keeps feedback triageable; the hard ceiling is
   10,000 external testers. Currently set to 300.

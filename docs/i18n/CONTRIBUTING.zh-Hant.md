@@ -1,13 +1,13 @@
 # 參與 KeeForge 貢獻
 
-<a href="CONTRIBUTING.md">English</a> | <a href="CONTRIBUTING.de.md">Deutsch</a> | <a href="CONTRIBUTING.fr.md">Français</a> | <a href="CONTRIBUTING.es.md">Español</a> | <a href="CONTRIBUTING.zh-Hans.md">简体中文</a> | 繁體中文
+<a href="../../CONTRIBUTING.md">English</a> | <a href="CONTRIBUTING.de.md">Deutsch</a> | <a href="CONTRIBUTING.fr.md">Français</a> | <a href="CONTRIBUTING.es.md">Español</a> | <a href="CONTRIBUTING.zh-Hans.md">简体中文</a> | 繁體中文
 
 感謝你協助改進 KeeForge。
 
 ## 開始之前
 
 - 若是較大幅度的變更，請先開一個 Issue，讓範圍與做法可以先討論。
-- 先閱讀 [`AGENTS.md`](AGENTS.md)，再閱讀離你打算修改的程式碼最近的資料夾內 `README.md`。
+- 先閱讀 [`AGENTS.md`](../../AGENTS.md)，再閱讀離你打算修改的程式碼最近的資料夾內 `README.md`。
 - 讓變更保持聚焦。涉及安全性的解析器、寫入器、加密、機密處理與儲存路徑變更，都必須附上針對性的測試。
 
 ## 需求
@@ -16,7 +16,7 @@
 - Xcode 26+
 - [XcodeGen](https://github.com/yonaskolb/XcodeGen)
 - Swift 6 與嚴格並行檢查（strict concurrency）
-- Swift 套件相依：[Argon2Swift](https://github.com/tmthecoder/Argon2Swift)、[SwiftyDropbox](https://github.com/dropbox/SwiftyDropbox)、[Microsoft Authentication Library](https://github.com/AzureAD/microsoft-authentication-library-for-objc)，以及內建的 [KeeForgeTwofish](Vendor/KeeForgeTwofish) 套件
+- Swift 套件相依：[Argon2Swift](https://github.com/tmthecoder/Argon2Swift)、[SwiftyDropbox](https://github.com/dropbox/SwiftyDropbox)、[Microsoft Authentication Library](https://github.com/AzureAD/microsoft-authentication-library-for-objc)，以及內建的 [KeeForgeTwofish](../../Vendor/KeeForgeTwofish) 套件
 
 ## 從原始碼建置
 
@@ -42,7 +42,7 @@ xcodebuild test -project KeeForge.xcodeproj -scheme KeeForge \
 1. Fork 這個儲存庫，並從 `main` 建立一個主題分支。
 2. 進行能解決問題的最小、連貫的變更。
 3. 新增或更新測試，並使用最小的相關測試目標搭配 `-only-testing:`。
-4. 在 [`CHANGELOG.md`](CHANGELOG.md) 的 `## Unreleased` 之下加入功能與錯誤修正的說明。
+4. 在 [`CHANGELOG.md`](../../CHANGELOG.md) 的 `## Unreleased` 之下加入功能與錯誤修正的說明。
 5. 開一個 Pull Request，描述行為上的變更以及驗證方式。
 
 Pull Request 至少需要一個核准的審查才能合併。KeeForge 使用 squash 合併，因此請讓 Pull Request 保持聚焦，並給它一個清楚的標題。
@@ -96,4 +96,4 @@ git rebase --signoff origin/main
 
 ---
 
-其餘的開發者文件——[`AGENTS.md`](AGENTS.md) 與各資料夾內的 `README.md`——僅以英文維護。如有歧義，以[本文件的英文版本](CONTRIBUTING.md)為準。
+其餘的開發者文件——[`AGENTS.md`](../../AGENTS.md) 與各資料夾內的 `README.md`——僅以英文維護。如有歧義，以[本文件的英文版本](../../CONTRIBUTING.md)為準。

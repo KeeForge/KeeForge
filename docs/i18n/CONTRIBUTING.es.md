@@ -1,13 +1,13 @@
 # Contribuir a KeeForge
 
-<a href="CONTRIBUTING.md">English</a> | <a href="CONTRIBUTING.de.md">Deutsch</a> | <a href="CONTRIBUTING.fr.md">Français</a> | Español | <a href="CONTRIBUTING.zh-Hans.md">简体中文</a> | <a href="CONTRIBUTING.zh-Hant.md">繁體中文</a>
+<a href="../../CONTRIBUTING.md">English</a> | <a href="CONTRIBUTING.de.md">Deutsch</a> | <a href="CONTRIBUTING.fr.md">Français</a> | Español | <a href="CONTRIBUTING.zh-Hans.md">简体中文</a> | <a href="CONTRIBUTING.zh-Hant.md">繁體中文</a>
 
 Gracias por ayudar a mejorar KeeForge.
 
 ## Antes de empezar
 
 - Para un cambio importante, abra primero una incidencia para que el alcance y el enfoque puedan discutirse.
-- Lea [`AGENTS.md`](AGENTS.md) y después el `README.md` local de la carpeta más cercana al código que planea cambiar.
+- Lea [`AGENTS.md`](../../AGENTS.md) y después el `README.md` local de la carpeta más cercana al código que planea cambiar.
 - Mantenga los cambios acotados. Los cambios sensibles en materia de seguridad en el analizador, el escritor, la criptografía, el manejo de secretos y las rutas de guardado requieren pruebas específicas.
 
 ## Requisitos
@@ -16,7 +16,7 @@ Gracias por ayudar a mejorar KeeForge.
 - Xcode 26+
 - [XcodeGen](https://github.com/yonaskolb/XcodeGen)
 - Swift 6 con concurrencia estricta
-- Dependencias de Swift Package: [Argon2Swift](https://github.com/tmthecoder/Argon2Swift), [SwiftyDropbox](https://github.com/dropbox/SwiftyDropbox), [Microsoft Authentication Library](https://github.com/AzureAD/microsoft-authentication-library-for-objc), y el paquete [KeeForgeTwofish](Vendor/KeeForgeTwofish) incluido en el repositorio
+- Dependencias de Swift Package: [Argon2Swift](https://github.com/tmthecoder/Argon2Swift), [SwiftyDropbox](https://github.com/dropbox/SwiftyDropbox), [Microsoft Authentication Library](https://github.com/AzureAD/microsoft-authentication-library-for-objc), y el paquete [KeeForgeTwofish](../../Vendor/KeeForgeTwofish) incluido en el repositorio
 
 ## Compilar desde el código fuente
 
@@ -42,7 +42,7 @@ xcodebuild test -project KeeForge.xcodeproj -scheme KeeForge \
 1. Haga un fork del repositorio y cree una rama temática a partir de `main`.
 2. Haga el cambio coherente más pequeño que resuelva el problema.
 3. Añada o actualice pruebas, usando el target de pruebas más pequeño relevante y `-only-testing:`.
-4. Añada notas de funciones y correcciones bajo `## Unreleased` en [`CHANGELOG.md`](CHANGELOG.md).
+4. Añada notas de funciones y correcciones bajo `## Unreleased` en [`CHANGELOG.md`](../../CHANGELOG.md).
 5. Abra una pull request describiendo el cambio de comportamiento y cómo se verificó.
 
 Las pull requests requieren al menos una revisión de aprobación antes de fusionarse. KeeForge usa squash merges, así que mantenga la pull request acotada y déle un título claro.
@@ -97,4 +97,4 @@ No envíe código copiado de una fuente incompatible. Señale en la pull request
 
 ---
 
-El resto de la documentación para desarrolladores — [`AGENTS.md`](AGENTS.md) y los `README.md` locales de cada carpeta — se mantiene solo en inglés. En caso de duda, prevalece la [versión en inglés de este documento](CONTRIBUTING.md).
+El resto de la documentación para desarrolladores — [`AGENTS.md`](../../AGENTS.md) y los `README.md` locales de cada carpeta — se mantiene solo en inglés. En caso de duda, prevalece la [versión en inglés de este documento](../../CONTRIBUTING.md).
