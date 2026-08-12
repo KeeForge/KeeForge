@@ -53,6 +53,7 @@ struct MasterKeyChangeView: View {
         .disabled(viewModel.isWorking)
         .navigationTitle("Master Key")
         .navigationBarTitleDisplayMode(.inline)
+        .navigationBarBackButtonHidden(true)
         .safeAreaInset(edge: .top, spacing: 0) {
             if let errorMessage = viewModel.validationError ?? viewModel.changeError {
                 MasterKeyErrorBanner(message: errorMessage)
