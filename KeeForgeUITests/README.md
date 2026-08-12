@@ -69,11 +69,11 @@ The macOS port has its own UI-test target, `KeeForgeMacUITests/` (target `KeeFor
 - `SmallScreenSweepUITests.swift` — hosts `SmallScreenSweepCoreUITests`, `SmallScreenSweepBannersUITests`, `SmallScreenSweepTagsUITests`, and `SmallScreenSweepHistoryUITests`: an opt-in layout-audit sweep that walks the major screens and attaches named screenshots for review on compact devices (iPhone SE, iPhone mini). Skipped unless `TEST_RUNNER_SMALL_SCREEN_SWEEP=1` is set on the `xcodebuild` process (same env-forwarding mechanics as `AppStoreScreenshots` below). Export the captures with `xcrun xcresulttool export attachments`. Run it against a small-screen destination; it proves reachability, not pixel layout — the screenshots are the deliverable
 - `AutoFillStoreInspectorSmokeUITests` — DEBUG-only AutoFill store inspector smoke test; launches with `-autofill-store-inspector`, asserts the inspector presents at the app root and `autofill-inspector.enabled-state` reads "disabled" (safe on unprovisioned simulators). Does not extend `KeeForgeUITestCase` — the inspector replaces the normal root, so no fixture/unlock applies.
 
-### Harness-Only Classes
+### Device-Only Classes
 
-- `AutoFillStoreUITests` — store-lifecycle assertions against the **real** `ASCredentialIdentityStore`; runs only on the provisioned harness simulator (see the next section) and all-skips everywhere else via its per-test skip guard.
+- `AutoFillStoreUITests` — store-lifecycle assertions against the **real** `ASCredentialIdentityStore`; runs only on a physical iPhone with KeeForge enabled as its credential provider (see the "AutoFill Store Device Tests" section) and all-skips everywhere else via its per-test skip guard.
 
-Database-list and cloud UI tests are the current place to cover pending-upload badges / actions; the repo does not currently have a dedicated simulator harness for the system AutoFill save sheet itself.
+Database-list and cloud UI tests are the current place to cover pending-upload badges / actions; the repo does not currently have automated coverage for the system AutoFill save sheet itself.
 
 ## Running UI Tests
 
@@ -134,75 +134,39 @@ Do not run the full UI suite unless explicitly asked. It is slow and makes failu
 
 Pushing an `rc/*` tag triggers `.github/workflows/ios18-rc-tests.yml`, which runs the suites on an **iPhone SE (3rd generation)** simulator with an iOS 18 runtime (compact-width — where minimum-OS regressions have surfaced). Reproduce RC failures on that device and runtime, not the default `iPhone 17 Pro`.
 
-## AutoFill Store Harness Simulator
+## AutoFill Store Device Tests
 
-The AutoFill **store-validation** tests (the harness suite spec'd under
+The AutoFill **store-validation** tests (spec'd under
 `docs/specs/2026-07-20-autofill-store-validation-harness/`) assert against the **real**
-`ASCredentialIdentityStore`, which only goes live once a simulator has KeeForge enabled as its
-system credential (AutoFill) provider. That state cannot be set from XCUITest — it lives in the
-Settings app and persists on the device until it is erased. So those tests assume a dedicated,
-one-time-provisioned simulator, **not** the default `iPhone 17 Pro` device the suites above use.
-On any unprovisioned simulator the store is disabled and the harness tests skip cleanly
-(`XCTSkip`) rather than fail.
+`ASCredentialIdentityStore`, which only goes live once KeeForge is enabled as the system
+credential (AutoFill) provider — and simulator runtimes cannot enumerate the store at all
+(`credentialIdentities(forService:)` reads empty despite persisted writes). So
+`AutoFillStoreUITests` runs on a **physical iPhone** connected to the Mac, not a simulator.
+On any simulator, or on a device where KeeForge is not the enabled provider, the store probe
+fails its precondition and the tests skip cleanly (`XCTSkip`) rather than fail.
 
-### Provisioning
+### Device preparation
 
-Run the provisioning script (local Mac only — it drives everything through `xcrun simctl`, no
-Simulator.app required):
+One-time per device (the state persists until the app is uninstalled):
 
-```bash
-scripts/provision-autofill-harness-sim.sh
-```
+1. Connect the iPhone and pair it for development (it must appear under
+   `xcodebuild -showdestinations`).
+2. Install the Debug `KeeForge.app` (running the test target once does this).
+3. In the device's Settings app: General → AutoFill & Passwords → turn **KeeForge** on
+   (optionally turn Apple's "Passwords" provider off for a cleaner signal).
 
-It resolves the newest installed iOS runtime and an iPhone-class device type, creates (or reuses)
-a simulator named **`KeeForge-AutoFill-Harness`**, boots it, builds and installs the Debug
-`KeeForge.app`, opens Settings, and then polls until KeeForge reports it is enabled. The one
-manual step is printed while it polls:
+To spot-check the state at any time, launch the installed build with the inspector argument
+(`-autofill-store-inspector`) and confirm `autofill-inspector.enabled-state` reads "enabled".
 
-> Settings → General → AutoFill & Passwords → turn **KeeForge** on (optionally turn Apple's
-> "Passwords" provider off for a cleaner signal).
-
-Flags:
-
-- `--erase` — erase the device first for a from-scratch rebuild. **Erasing wipes provider
-  enablement**, so you will have to flip the toggle again.
-- `--app-path <path>` — install a prebuilt `.app` instead of building.
-- `--timeout <seconds>` — verification poll timeout (default `300`); lower it to exercise the
-  failure path quickly.
-
-Verification uses a fixed app-side contract: launching the installed Debug build with
-`-autofill-store-status-log` makes it emit exactly one machine-greppable line (via `print` and
-NSLog), which the script reads from the simulator's unified log:
-
-```
-KEEFORGE-AUTOFILL-STORE-STATUS: enabled=<true|false> enumeration=<available|unavailable>
-```
-
-The script exits `0` only once it sees `enabled=true`. Distinct non-zero exits carry actionable
-one-line messages: `3` duplicate harness devices (delete the extras), `6` the installed build
-never emitted the status line (rebuild/reinstall a Debug build that supports the argument), `7`
-verification timed out with the toggle still off, plus `2` usage, `4`/`5` build/install, `8`
-missing `jq`/`xcrun`, `9` runtime/device-type resolution, `10` bad `--app-path`. The script
-header documents the full table and internal testing knobs.
-
-### Re-verifying
-
-Provider enablement persists until the device is erased, so a first successful run makes every
-later run verify immediately with no manual step — re-run the script any time to confirm the
-device is still provisioned. To rebuild from scratch (e.g. after an OS/runtime change), pass
-`--erase` and flip the toggle again. To spot-check by hand, launch the installed build with the
-slice-01 inspector argument (`-autofill-store-inspector`) and confirm
-`autofill-inspector.enabled-state` reads "enabled".
-
-### Harness Suite: `AutoFillStoreUITests`
+### Device Suite: `AutoFillStoreUITests`
 
 The opt-in slice 03 class (`AutoFillStoreUITests.swift`) drives real app flows and asserts,
 through the inspector, that the real system store ends up in the documented state for each
-AutoFill lifecycle transition. Run it against the harness simulator only:
+AutoFill lifecycle transition. Run it against the prepared device only:
 
 ```bash
 xcodebuild test -project KeeForge.xcodeproj -scheme KeeForge \
-  -destination 'platform=iOS Simulator,name=KeeForge-AutoFill-Harness' \
+  -destination 'platform=iOS,name=<device name>' \
   -only-testing:KeeForgeUITests/AutoFillStoreUITests
 ```
 
@@ -222,10 +186,10 @@ Safari/QuickType behavior):
 
 **Skip guard / exclusion from normal runs.** Every test's `setUp` probes the store through the
 inspector first and `XCTSkip`s when the store is disabled or enumeration is unavailable, so the
-class is effectively excluded from the default suites: on any unprovisioned simulator
-(including the default `iPhone 17 Pro`) it reports all-skipped quickly — only the first test
-pays a probe launch; the result is cached for the rest of the process. Never add it to
-release-smoke selections; it is opt-in by destination.
+class is effectively excluded from the default suites: on any simulator (including the default
+`iPhone 17 Pro`) it reports all-skipped quickly — only the first test pays a probe launch; the
+result is cached for the rest of the process. Never add it to release-smoke selections; it is
+opt-in by destination.
 
 **Replaced manual checks** from
 [`docs/specs/2026-07-19-selectable-autofill-per-database/deferred-tests.md`](../docs/specs/2026-07-19-selectable-autofill-per-database/deferred-tests.md)
@@ -385,7 +349,7 @@ Used by `EntryAttachmentsSmokeUITests`. Single `Attachments` group with `Multi A
 `TestFixtures/autofill-union.kdbx`  
 Password: `testpassword123`
 
-Used by `AutoFillStoreUITests` as its second ("bravo") database: one `Union` group whose three entries publish exactly 3 password + 1 one-time-code AutoFill identities, with every service domain and username disjoint from `test.kdbx`'s — the simulator's credential-identity store dedups identities sharing a (service, user) pair across databases, so the multi-database union scenario needs non-overlapping fixtures. Details and regeneration recipe in `../TestFixtures/README.md`.
+Used by `AutoFillStoreUITests` as its second ("bravo") database: one `Union` group whose three entries publish exactly 3 password + 1 one-time-code AutoFill identities, with every service domain and username disjoint from `test.kdbx`'s — the system credential-identity store can dedup identities sharing a (service, user) pair across databases, so the multi-database union scenario needs non-overlapping fixtures. Details and regeneration recipe in `../TestFixtures/README.md`.
 
 ### Tag Browser Fixture
 
@@ -498,26 +462,16 @@ Use the app's accessibility identifiers whenever possible, including:
   - `master-key.error` (validation/change error banner)
 - `settings.autofill.database-toggle.<database-id-uuidString>` (Settings → AutoFill per-database toggles; match with a BEGINSWITH predicate)
 - `settings.autofill.clear-entries` / `settings.autofill.clear-entries.confirm` (Clear AutoFill Entries button + destructive confirmation; the confirm identifier matches two nested buttons — use `.firstMatch`)
-- AutoFill store inspector (DEBUG-only; presented at the app root by the `-autofill-store-inspector` launch argument). Counts and states are exposed as element **values** (read `element.value`, not the label):
+- AutoFill store inspector (DEBUG-only; presented at the app root by the `-autofill-store-inspector` launch argument, wired in `../KeeForge/App/KeeForgeApp.swift`; no effect in Release). Counts and states are exposed as element **values** (read `element.value`, not the label):
   - `autofill-inspector.enabled-state` (value `enabled` / `disabled`)
   - `autofill-inspector.enumeration-state` (value `available` / `unavailable`)
   - `autofill-inspector.total-count`
-  - `autofill-inspector.source` (value `api` / `fallback-db` — which channel supplied the identity rows; see the note below)
   - `autofill-inspector.refresh`
   - `autofill-inspector.database.<database-id-uuidString>.count` (uppercase UUID, same convention as `settings.autofill.database-toggle.<uuid>`)
   - `autofill-inspector.legacy.count` / `autofill-inspector.unrecognized.count` (rendered only when non-empty)
 
-  **Simulator enumeration caveat / seam-level fallback.** On simulator runtimes (verified iOS 18.5 and 26.5) the enumeration API `ASCredentialIdentityStore.credentialIdentities(...)` always returns an *empty array* despite persisted writes (the saves succeed and QuickType consumes them). This breaks not only the inspector but the app's *own* store maintenance (`CredentialIdentityStoreManager.populate` / `removeIdentities(forDatabase:)` enumerate-then-mutate). The fix is a single DEBUG + simulator-only fallback at the store seam (`SystemCredentialIdentityStore.credentialIdentities()`): when the API returns empty it reconstructs the real identities from the backing SQLite file (`<app-data-container>/SystemData/com.apple.AuthenticationServices/Identities/Identities.db`, read-only, metadata + public passkey identifiers only), so per-database maintenance behaves device-equivalently on simulators. The inspector surfaces which channel served the rows via `autofill-inspector.source` = `api` (API served, or everything empty) / `fallback-db` (seam read the backing DB). `autofill-inspector.total-count` and the per-database/legacy/unrecognized rows therefore reflect the true store contents on the harness even though the API reads empty. **`autofill-inspector.enumeration-state` stays API-truth** (`available` when the API returns a non-nil array — which on the harness it does, just empty — `unavailable` only when the API returns nil, e.g. macOS 14.0–14.3): it is *not* affected by the fallback and does not indicate whether rows were found.
+  **Simulator enumeration caveat.** On simulator runtimes (verified iOS 18.5 and 26.5) the enumeration API `ASCredentialIdentityStore.credentialIdentities(...)` always returns an *empty array* despite persisted writes (the saves succeed and QuickType consumes them). The inspector's counts — and the app's own enumerate-then-mutate store maintenance (`CredentialIdentityStoreManager.populate` / `removeIdentities(forDatabase:)`) — are therefore only meaningful on a physical device; `autofill-inspector.enumeration-state` still reads `available` on a simulator (the API returns a non-nil, empty array — `unavailable` means a nil result, e.g. macOS 14.0–14.3).
 
-  **Write-side simulator dedup (why `AutoFillStoreUITests` uses two disjoint fixtures).** Separately from the enumeration read bug, the simulator's `saveCredentialIdentities` dedups identities sharing `(service_id, user)` across databases, ignoring `recordIdentifier` (verified on the harness: two databases' identical-domain identities collapse to one database's set). `AutoFillStoreUITests` therefore seeds its second ("bravo") database from `autofill-union.kdbx`, fully domain/username-disjoint from `test.kdbx` ("alpha") — see the AutoFill Union Fixture section above — so no cross-database dedup can occur and `testMultiDatabaseUnionAndSingleSectionRemoval` deterministically asserts the full union: inspector total = alpha's count + bravo's, each section holds its own full set, and disabling bravo removes only its section.
-
-### DEBUG-only harness launch arguments
-
-Two developer-tooling launch arguments (no effect in Release; wired in `../KeeForge/App/KeeForgeApp.swift`):
-
-- `-autofill-store-inspector` — replaces the normal database-list root with the DEBUG AutoFill store inspector above.
-- `-autofill-store-status-log` — at launch, queries the system store off-main and emits exactly one line to both stdout (`print`, captured by `simctl launch --console-pty`) and the unified log (`NSLog`):
-  `KEEFORGE-AUTOFILL-STORE-STATUS: enabled=<true|false> enumeration=<available|unavailable>`.
-  The provisioning script polls for this exact line. The argument is otherwise behavior-neutral and composes with `-autofill-store-inspector` (both can be passed together).
+  **Why `AutoFillStoreUITests` uses two disjoint fixtures.** The system store can dedup identities sharing `(service_id, user)` across databases, ignoring `recordIdentifier`. `AutoFillStoreUITests` therefore seeds its second ("bravo") database from `autofill-union.kdbx`, fully domain/username-disjoint from `test.kdbx` ("alpha") — see the AutoFill Union Fixture section above — so no cross-database dedup can occur and `testMultiDatabaseUnionAndSingleSectionRemoval` deterministically asserts the full union: inspector total = alpha's count + bravo's, each section holds its own full set, and disabling bravo removes only its section.
 
 If a new screen or interaction needs UI coverage, add an accessibility identifier as part of the feature work rather than relying on fragile label matching.

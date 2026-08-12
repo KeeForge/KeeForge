@@ -188,11 +188,6 @@ targets:
       - path: KeeForge/Services/Persistence/SharedVaultStore.swift
       - path: KeeForge/Services/AutoFill/CredentialMatcher.swift
       - path: KeeForge/Services/AutoFill/CredentialIdentityStoreManager.swift
-      # DEBUG + simulator-only backing-store fallback reader, referenced by the
-      # seam in CredentialIdentityStoreManager.swift under
-      # `#if DEBUG && targetEnvironment(simulator)`. Compiles to nothing in
-      # Release / on-device, so the shipped extension is unaffected.
-      - path: KeeForge/Services/AutoFill/AutoFillIdentityStoreFallbackReader.swift
       - path: KeeForge/Services/AppSupport/FaviconService.swift
       # iOS branch backs the opt-in "copy verification code on AutoFill" copy
       # (system-enforced pasteboard expiration survives extension teardown).
@@ -257,11 +252,6 @@ targets:
       - path: KeeForge/Services/Persistence/SharedVaultStore.swift
       - path: KeeForge/Services/AutoFill/CredentialMatcher.swift
       - path: KeeForge/Services/AutoFill/CredentialIdentityStoreManager.swift
-      # DEBUG + simulator-only backing-store fallback reader, referenced by the
-      # seam in CredentialIdentityStoreManager.swift under
-      # `#if DEBUG && targetEnvironment(simulator)`. Compiles to nothing in
-      # Release / on-device, so the shipped extension is unaffected.
-      - path: KeeForge/Services/AutoFill/AutoFillIdentityStoreFallbackReader.swift
       - path: KeeForge/Services/AppSupport/FaviconService.swift
       # iOS branch backs the opt-in "copy verification code on AutoFill" copy
       # (system-enforced pasteboard expiration survives extension teardown).

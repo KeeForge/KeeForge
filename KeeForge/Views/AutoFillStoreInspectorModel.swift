@@ -55,10 +55,6 @@ struct InspectorStoreSnapshot: Sendable {
     let databaseBuckets: [InspectorDatabaseBucket]
     let legacyRows: [InspectorIdentityRow]
     let unrecognizedRows: [InspectorIdentityRow]
-    /// Which channel the store seam served the identities from
-    /// (`CredentialIdentitySource`). The store-state facts (`isEnabled`,
-    /// `enumerationAvailable`) stay API-truth regardless of this value.
-    let source: CredentialIdentitySource
 }
 
 // MARK: - Pure grouping helpers
@@ -163,14 +159,10 @@ enum AutoFillStoreInspectorGrouping {
 
     /// Wraps `makeBuckets` with the store-level facts. A `nil` `identities`
     /// means enumeration is unavailable (`credentialIdentities()` returned nil):
-    /// the snapshot then reports no buckets and a zero total count. `source` is
-    /// the seam's report of which channel served the identities — the API or
-    /// the simulator DB fallback — and is surfaced verbatim (it does not alter
-    /// `enumerationAvailable`, which stays API-truth).
+    /// the snapshot then reports no buckets and a zero total count.
     static func makeSnapshot(
         isEnabled: Bool,
         identities: [any ASCredentialIdentity]?,
-        source: CredentialIdentitySource = .api,
         databaseName: (UUID) -> String?
     ) -> InspectorStoreSnapshot {
         guard let identities else {
@@ -180,8 +172,7 @@ enum AutoFillStoreInspectorGrouping {
                 totalCount: 0,
                 databaseBuckets: [],
                 legacyRows: [],
-                unrecognizedRows: [],
-                source: source
+                unrecognizedRows: []
             )
         }
 
@@ -192,43 +183,8 @@ enum AutoFillStoreInspectorGrouping {
             totalCount: identities.count,
             databaseBuckets: grouped.databaseBuckets,
             legacyRows: grouped.legacyRows,
-            unrecognizedRows: grouped.unrecognizedRows,
-            source: source
+            unrecognizedRows: grouped.unrecognizedRows
         )
-    }
-}
-
-// MARK: - Launch-time status log
-
-/// Emits a single machine-readable status line describing the system
-/// credential identity store, gated behind the `-autofill-store-status-log`
-/// launch argument. The provisioning script (slice 02) polls stdout / the
-/// unified log for this exact line to decide whether the harness simulator is
-/// provisioned. The argument composes with `-autofill-store-inspector` and
-/// otherwise does not change app behavior.
-enum AutoFillStoreStatusLog {
-    static let launchArgument = "-autofill-store-status-log"
-    static let linePrefix = "KEEFORGE-AUTOFILL-STORE-STATUS"
-
-    /// If the launch argument is present, query the store off the main actor
-    /// and emit exactly one status line via both `print()` (captured on stdout
-    /// by `simctl launch --console-pty`) and `NSLog` (visible in the unified
-    /// log). Format, verbatim:
-    ///
-    ///     KEEFORGE-AUTOFILL-STORE-STATUS: enabled=<true|false> enumeration=<available|unavailable>
-    static func emitIfRequested(
-        store: any CredentialIdentityStoreProviding = SystemCredentialIdentityStore()
-    ) {
-        guard ProcessInfo.processInfo.arguments.contains(launchArgument) else { return }
-
-        Task.detached {
-            let isEnabled = await store.isEnabled()
-            let enumerationAvailable = await store.credentialIdentities() != nil
-            let line = "\(linePrefix): enabled=\(isEnabled) "
-                + "enumeration=\(enumerationAvailable ? "available" : "unavailable")"
-            print(line)
-            NSLog("%@", line)
-        }
     }
 }
 #endif
