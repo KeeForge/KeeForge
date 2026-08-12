@@ -91,6 +91,35 @@ enum DatabaseSaveError: Error, LocalizedError, Identifiable, Equatable, Sendable
     }
 }
 
+/// Whether lifecycle-triggered biometric auto-unlock is allowed on this
+/// platform. iOS builds running in compatibility mode (on a Mac, or on a
+/// Vision Pro where the runtime exposes the check) cannot trust
+/// `scenePhase == .active` to mean the window is frontmost, so they rely on
+/// the explicit biometric action in `UnlockView` instead.
+enum BiometricAutoUnlockPolicy {
+    static var allowsAutomaticUnlock: Bool {
+        #if os(iOS)
+        var isiOSAppOnVision = false
+        if #available(iOS 26.1, *) {
+            isiOSAppOnVision = ProcessInfo.processInfo.isiOSAppOnVision
+        }
+        return allowsAutomaticUnlock(
+            isiOSAppOnMac: ProcessInfo.processInfo.isiOSAppOnMac,
+            isiOSAppOnVision: isiOSAppOnVision
+        )
+        #else
+        // The native Mac app keeps lifecycle auto-unlock for now even though
+        // MacLockMonitor can start a lock cycle while the scene stays .active;
+        // revisit before the on-hold macOS target ships.
+        return true
+        #endif
+    }
+
+    static func allowsAutomaticUnlock(isiOSAppOnMac: Bool, isiOSAppOnVision: Bool) -> Bool {
+        !isiOSAppOnMac && !isiOSAppOnVision
+    }
+}
+
 @MainActor @Observable
 final class DatabaseViewModel {
     struct LocalDatabaseReadResult: Sendable {
@@ -599,9 +628,11 @@ final class DatabaseViewModel {
     }
 
     /// Whether this session should open itself with biometrics instead of
-    /// showing the unlock form. The attempt itself additionally requires a
+    /// showing the unlock form. Always false where `BiometricAutoUnlockPolicy`
+    /// disallows lifecycle prompts; the attempt itself additionally requires a
     /// foreground-active scene — see `View.biometricAutoUnlock(_:)`.
     var isEligibleForBiometricAutoUnlock: Bool {
+        guard BiometricAutoUnlockPolicy.allowsAutomaticUnlock else { return false }
         guard SettingsService.autoUnlockWithFaceID else { return false }
         guard hasSavedFile else { return false }
         guard canUseBiometrics else { return false }

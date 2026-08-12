@@ -37,12 +37,23 @@ final class DatabaseViewModelTests: XCTestCase {
         XCTAssertTrue(vm.searchResults.isEmpty)
     }
 
-    func testBiometricAutoUnlockPolicyDisablesLifecyclePromptsForIOSOnMac() {
-        XCTAssertFalse(BiometricAutoUnlockPolicy.allowsAutomaticUnlock(isIOSAppOnMac: true))
+    func testBiometricAutoUnlockPolicyDisablesLifecyclePromptsOnCompatibilityPlatforms() {
+        XCTAssertFalse(BiometricAutoUnlockPolicy.allowsAutomaticUnlock(
+            isiOSAppOnMac: true, isiOSAppOnVision: false
+        ))
+        XCTAssertFalse(BiometricAutoUnlockPolicy.allowsAutomaticUnlock(
+            isiOSAppOnMac: false, isiOSAppOnVision: true
+        ))
+        XCTAssertTrue(BiometricAutoUnlockPolicy.allowsAutomaticUnlock(
+            isiOSAppOnMac: false, isiOSAppOnVision: false
+        ))
     }
 
-    func testBiometricAutoUnlockPolicyKeepsLifecyclePromptsOnRealIOS() {
-        XCTAssertTrue(BiometricAutoUnlockPolicy.allowsAutomaticUnlock(isIOSAppOnMac: false))
+    // The simulator and the native macOS test host both run outside
+    // compatibility mode, so the shipped accessor must allow auto-unlock here;
+    // this catches an inverted platform branch that the pure helper cannot.
+    func testBiometricAutoUnlockPolicyAllowsAutomaticUnlockInTestEnvironment() {
+        XCTAssertTrue(BiometricAutoUnlockPolicy.allowsAutomaticUnlock)
     }
 
     func testUnlockWithCorrectPasswordTransitionsToUnlocked() async throws {

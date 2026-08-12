@@ -25065,6 +25065,40 @@
         }
       }
     },
+    "When background locking is off, KeeForge still uses the auto-lock timeout and locks the next time the app becomes active after that deadline has passed." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wenn das Sperren im Hintergrund deaktiviert ist, verwendet KeeForge weiterhin die Zeit bis zur automatischen Sperre und sperrt die Datenbank, sobald die App nach Ablauf dieser Frist wieder aktiv wird."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Si el bloqueo en segundo plano está desactivado, KeeForge sigue utilizando el tiempo hasta el bloqueo automático y bloquea la base de datos la próxima vez que la app vuelva a estar activa después de que ese plazo haya vencido."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lorsque le verrouillage en arrière-plan est désactivé, KeeForge continue d'utiliser le délai de verrouillage automatique et verrouille la base de données dès que l'app redevient active après l'expiration de ce délai."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "关闭后台锁定时，KeeForge 仍会使用自动锁定时限，并在超过该期限后 App 下次变为活跃时锁定。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "關閉背景鎖定時，KeeForge 仍會採用自動鎖定時限，並在超過該期限後，App 下次變為使用中時鎖定。"
+          }
+        }
+      }
+    },
     "When KeeForge Is Not the Active App" : {
       "localizations" : {
         "de" : {

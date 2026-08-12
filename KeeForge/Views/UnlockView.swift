@@ -449,8 +449,14 @@ struct UnlockView: View {
 
     private func unlockWithBiometrics() {
         Task {
-            if await viewModel.unlockWithBiometrics() == .passwordFallback {
+            switch await viewModel.unlockWithBiometrics() {
+            case .passwordFallback, .promptUnavailable:
+                // Either way nothing was unlocked and no prompt is coming;
+                // hand focus to the password field so the tap visibly did
+                // something.
                 passwordFocused = true
+            case .unlocked, .failed:
+                break
             }
         }
     }
