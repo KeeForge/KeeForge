@@ -1,13 +1,13 @@
 # 为 KeeForge 做贡献
 
-<a href="CONTRIBUTING.md">English</a> | <a href="CONTRIBUTING.de.md">Deutsch</a> | <a href="CONTRIBUTING.fr.md">Français</a> | <a href="CONTRIBUTING.es.md">Español</a> | 简体中文 | <a href="CONTRIBUTING.zh-Hant.md">繁體中文</a>
+<a href="../../CONTRIBUTING.md">English</a> | <a href="CONTRIBUTING.de.md">Deutsch</a> | <a href="CONTRIBUTING.fr.md">Français</a> | <a href="CONTRIBUTING.es.md">Español</a> | 简体中文 | <a href="CONTRIBUTING.zh-Hant.md">繁體中文</a>
 
 感谢你帮助改进 KeeForge。
 
 ## 开始之前
 
 - 对于较大的改动，请先开一个 issue，以便讨论范围和实现方式。
-- 先阅读 [`AGENTS.md`](AGENTS.md)，再阅读距离你计划修改的代码最近的文件夹内 `README.md`。
+- 先阅读 [`AGENTS.md`](../../AGENTS.md)，再阅读距离你计划修改的代码最近的文件夹内 `README.md`。
 - 保持改动聚焦。涉及安全的解析器、写入器、加密、机密处理和保存路径的改动，需要配套有针对性的测试。
 
 ## 环境要求
@@ -16,7 +16,7 @@
 - Xcode 26+
 - [XcodeGen](https://github.com/yonaskolb/XcodeGen)
 - Swift 6，启用严格并发检查
-- Swift 包依赖：[Argon2Swift](https://github.com/tmthecoder/Argon2Swift)、[SwiftyDropbox](https://github.com/dropbox/SwiftyDropbox)、[Microsoft Authentication Library](https://github.com/AzureAD/microsoft-authentication-library-for-objc)，以及内置的 [KeeForgeTwofish](Vendor/KeeForgeTwofish) 包
+- Swift 包依赖：[Argon2Swift](https://github.com/tmthecoder/Argon2Swift)、[SwiftyDropbox](https://github.com/dropbox/SwiftyDropbox)、[Microsoft Authentication Library](https://github.com/AzureAD/microsoft-authentication-library-for-objc)，以及内置的 [KeeForgeTwofish](../../Vendor/KeeForgeTwofish) 包
 
 ## 从源码构建
 
@@ -42,7 +42,7 @@ xcodebuild test -project KeeForge.xcodeproj -scheme KeeForge \
 1. Fork 本仓库，并从 `main` 创建一个主题分支。
 2. 做出能解决问题的最小的连贯改动。
 3. 添加或更新测试，使用最小的相关测试 target 并配合 `-only-testing:`。
-4. 在 [`CHANGELOG.md`](CHANGELOG.md) 的 `## Unreleased` 下添加功能和 bug 修复说明。
+4. 在 [`CHANGELOG.md`](../../CHANGELOG.md) 的 `## Unreleased` 下添加功能和 bug 修复说明。
 5. 开一个 pull request，描述行为上的变化以及如何验证。
 
 Pull request 在合并前需要至少一个批准的审阅。KeeForge 使用 squash 合并，因此请保持 pull request 聚焦，并起一个清晰的标题。
@@ -93,4 +93,4 @@ git rebase --signoff origin/main
 
 ---
 
-其余开发者文档——[`AGENTS.md`](AGENTS.md) 和各文件夹内的 `README.md`——仅以英文维护。如有歧义，以[本文档的英文版本](CONTRIBUTING.md)为准。
+其余开发者文档——[`AGENTS.md`](../../AGENTS.md) 和各文件夹内的 `README.md`——仅以英文维护。如有歧义，以[本文档的英文版本](../../CONTRIBUTING.md)为准。

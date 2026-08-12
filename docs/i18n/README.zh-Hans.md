@@ -1,11 +1,11 @@
 <p align="center">
-  <img src=".github/assets/KeeForge-iOS-Default-1024x1024@1x.png" alt="KeeForge 应用图标" width="128" />
+  <img src="../../.github/assets/KeeForge-iOS-Default-1024x1024@1x.png" alt="KeeForge 应用图标" width="128" />
 </p>
 
 <h1 align="center">KeeForge</h1>
 
 <p align="center">
-  <a href="README.md">English</a> | <a href="README.de.md">Deutsch</a> | <a href="README.fr.md">Français</a> | <a href="README.es.md">Español</a> | 简体中文 | <a href="README.zh-Hant.md">繁體中文</a>
+  <a href="../../README.md">English</a> | <a href="README.de.md">Deutsch</a> | <a href="README.fr.md">Français</a> | <a href="README.es.md">Español</a> | 简体中文 | <a href="README.zh-Hant.md">繁體中文</a>
 </p>
 
 <p align="center">
@@ -18,8 +18,13 @@
   <a href="https://apps.apple.com/us/app/keeforge/id6759309295">
     <img alt="在 App Store 下载" src="https://img.shields.io/badge/App%20Store-Download-0D96F6?style=for-the-badge&logo=appstore&logoColor=white" />
   </a>
+  <a href="https://testflight.apple.com/join/mPAT4f1a">
+    <img alt="通过 TestFlight 加入公开测试版" src="https://img.shields.io/badge/TestFlight-Public%20Beta-1F8AF0?style=for-the-badge&logo=apple&logoColor=white" />
+  </a>
+  <img alt="需要 iOS 18.0 或更高版本" src="https://img.shields.io/badge/iOS-18.0%2B-000000?style=for-the-badge&logo=apple&logoColor=white" />
+  <img alt="需要 macOS 15.0 或更高版本" src="https://img.shields.io/badge/macOS-15.0%2B-000000?style=for-the-badge&logo=apple&logoColor=white" />
   <img alt="Swift LoC" src="https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Ftokei.kojix2.net%2Fapi%2Fgithub%2FKeeForge%2FKeeForge%2Flanguages&query=%24.data.languages.Swift.code&label=swift%20loc&color=orange&style=for-the-badge" />
-  <a href="LICENSE">
+  <a href="../../LICENSE">
     <img alt="许可证：GPLv3" src="https://img.shields.io/badge/license-GPLv3-blue?style=for-the-badge" />
   </a>
 </p>
@@ -30,14 +35,10 @@ KeeForge 是一款原生 iOS KeePass 客户端，专为希望保险库始终掌�
 
 ## 公开测试版
 
-新版本会先通过 TestFlight 发布，再上架 App Store。
-
 **[通过 TestFlight 加入 KeeForge 测试版](https://testflight.apple.com/join/mPAT4f1a)**
 
 > [!WARNING]
 > **请使用数据库的副本进行测试，不要使用你的主保险库。** 测试版构建未经审核，并且与 App Store 版本共用同一 bundle 标识符和容器——因此它们会打开你真实的 `.kdbx` 文件。
-
-测试名额上限为 300 人，且在新版本处于 Apple 测试版审核期间会暂停加入，所以该链接并非随时开放。
 
 ## 亮点
 
@@ -71,7 +72,7 @@ KeeForge 非常重视数据安全：密码管理器绝不能损坏你的保险�
 - **文件在被触碰之前已受保护。** 如果文件在你打开期间被其他地方修改过，KeeForge 会拒绝覆盖；每次保存前都会写入带时间戳的备份；对已损坏的数据库直接拒绝打开，而不是加载不完整的数据。
 - **有独立程序交叉验证。** 每个版本都必须通过一道验证关卡：由 KeePassXC——一款与 KeeForge 不共享任何代码、被广泛使用的 KeePass 应用——打开 KeeForge 写入的数据库、解密其中的密码，并确认附件逐位一致。同样，其他 KeePass 软件创建的数据库也必须能在 KeeForge 中打开，并在 KeeForge 保存后仍能被其他软件读取。
 
-对技术细节感兴趣的话，测试套件的说明见 [`KeeForgeTests/README.md`](KeeForgeTests/README.md)，发布前验证关卡的说明见 [`ci_scripts/README.md`](ci_scripts/README.md)（均为英文）。
+对技术细节感兴趣的话，测试套件的说明见 [`KeeForgeTests/README.md`](../../KeeForgeTests/README.md)，发布前验证关卡的说明见 [`ci_scripts/README.md`](../../ci_scripts/README.md)（均为英文）。
 
 ## 项目结构
 
@@ -97,13 +98,13 @@ scripts/              # 本地开发工具
 
 ## 文档
 
-- [`CHANGELOG.md`](CHANGELOG.md) - 版本历史
-- [`ROADMAP.md`](ROADMAP.md) - 规划中的产品工作和当前优先事项
-- [`AGENTS.md`](AGENTS.md) - 面向编码代理的上下文
-- [`KeeForge/README.md`](KeeForge/README.md) - 应用 target 架构图
-- [`AutoFillExtension/README.md`](AutoFillExtension/README.md) - 扩展的限制和共享源码说明
-- [`SECURITY.md`](SECURITY.md) - 漏洞披露政策
-- [`docs/`](docs/) - 实现规格、审计和较长篇幅的设计文档
+- [`CHANGELOG.md`](../../CHANGELOG.md) - 版本历史
+- [`ROADMAP.md`](../../ROADMAP.md) - 规划中的产品工作和当前优先事项
+- [`AGENTS.md`](../../AGENTS.md) - 面向编码代理的上下文
+- [`KeeForge/README.md`](../../KeeForge/README.md) - 应用 target 架构图
+- [`AutoFillExtension/README.md`](../../AutoFillExtension/README.md) - 扩展的限制和共享源码说明
+- [`SECURITY.md`](../../SECURITY.md) - 漏洞披露政策
+- [`docs/`](../../docs/) - 实现规格、审计和较长篇幅的设计文档
 
 除本 README 和 [`CONTRIBUTING.zh-Hans.md`](CONTRIBUTING.zh-Hans.md) 外，开发者文档仅以英文维护。
 
@@ -115,8 +116,8 @@ scripts/              # 本地开发工具
 
 ## 参与贡献
 
-构建要求、如何从源码构建、pull request 工作流程、Developer Certificate of Origin 签署要求以及许可条款，请参阅 [`CONTRIBUTING.zh-Hans.md`](CONTRIBUTING.zh-Hans.md)。先从 [`AGENTS.md`](AGENTS.md) 开始，再打开距离你要修改的代码最近的文件夹内 `README.md`。
+构建要求、如何从源码构建、pull request 工作流程、Developer Certificate of Origin 签署要求以及许可条款，请参阅 [`CONTRIBUTING.zh-Hans.md`](CONTRIBUTING.zh-Hans.md)。先从 [`AGENTS.md`](../../AGENTS.md) 开始，再打开距离你要修改的代码最近的文件夹内 `README.md`。
 
 ## 许可证
 
-KeeForge 采用 GPLv3 许可证。详情见 [`LICENSE`](LICENSE)。
+KeeForge 采用 GPLv3 许可证。详情见 [`LICENSE`](../../LICENSE)。

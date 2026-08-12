@@ -1,11 +1,11 @@
 <p align="center">
-  <img src=".github/assets/KeeForge-iOS-Default-1024x1024@1x.png" alt="Icono de la app KeeForge" width="128" />
+  <img src="../../.github/assets/KeeForge-iOS-Default-1024x1024@1x.png" alt="Icono de la app KeeForge" width="128" />
 </p>
 
 <h1 align="center">KeeForge</h1>
 
 <p align="center">
-  <a href="README.md">English</a> | <a href="README.de.md">Deutsch</a> | <a href="README.fr.md">Français</a> | Español | <a href="README.zh-Hans.md">简体中文</a> | <a href="README.zh-Hant.md">繁體中文</a>
+  <a href="../../README.md">English</a> | <a href="README.de.md">Deutsch</a> | <a href="README.fr.md">Français</a> | Español | <a href="README.zh-Hans.md">简体中文</a> | <a href="README.zh-Hant.md">繁體中文</a>
 </p>
 
 <p align="center">
@@ -18,8 +18,13 @@
   <a href="https://apps.apple.com/us/app/keeforge/id6759309295">
     <img alt="Descargar en App Store" src="https://img.shields.io/badge/App%20Store-Download-0D96F6?style=for-the-badge&logo=appstore&logoColor=white" />
   </a>
+  <a href="https://testflight.apple.com/join/mPAT4f1a">
+    <img alt="Unirse a la beta pública en TestFlight" src="https://img.shields.io/badge/TestFlight-Public%20Beta-1F8AF0?style=for-the-badge&logo=apple&logoColor=white" />
+  </a>
+  <img alt="Requiere iOS 18.0 o posterior" src="https://img.shields.io/badge/iOS-18.0%2B-000000?style=for-the-badge&logo=apple&logoColor=white" />
+  <img alt="Requiere macOS 15.0 o posterior" src="https://img.shields.io/badge/macOS-15.0%2B-000000?style=for-the-badge&logo=apple&logoColor=white" />
   <img alt="Swift LoC" src="https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Ftokei.kojix2.net%2Fapi%2Fgithub%2FKeeForge%2FKeeForge%2Flanguages&query=%24.data.languages.Swift.code&label=swift%20loc&color=orange&style=for-the-badge" />
-  <a href="LICENSE">
+  <a href="../../LICENSE">
     <img alt="Licencia: GPLv3" src="https://img.shields.io/badge/license-GPLv3-blue?style=for-the-badge" />
   </a>
 </p>
@@ -30,14 +35,10 @@ KeeForge es un cliente nativo de KeePass para iOS pensado para quienes quieren q
 
 ## Beta pública
 
-Las nuevas versiones se publican en TestFlight antes de llegar a la App Store.
-
 **[Únase a la beta de KeeForge en TestFlight](https://testflight.apple.com/join/mPAT4f1a)**
 
 > [!WARNING]
 > **Pruebe con una copia de su base de datos, no con su bóveda principal.** Las compilaciones beta no están revisadas y comparten el identificador de paquete y el contenedor con la app de la App Store, por lo que abren sus archivos `.kdbx` reales.
-
-Las plazas están limitadas a 300 probadores, y la incorporación se cierra mientras una nueva versión está en revisión beta de Apple, así que el enlace no siempre está disponible.
 
 ## Funciones destacadas
 
@@ -71,7 +72,7 @@ KeeForge se toma muy en serio la seguridad de los datos: un gestor de contraseñ
 - **Su archivo está protegido antes de tocarlo.** KeeForge se niega a sobrescribir cambios hechos desde otro lugar mientras usted tenía el archivo abierto, escribe una copia de seguridad con marca de tiempo antes de cada guardado, y rechaza directamente las bases de datos dañadas en lugar de cargar datos parciales.
 - **Un programa independiente lo confirma.** Cada versión debe superar una prueba de control en la que KeePassXC — una app de KeePass muy usada que no comparte código con KeeForge — abre las bases de datos escritas por KeeForge, descifra las contraseñas y confirma que los archivos adjuntos coinciden bit a bit. Las bases de datos creadas por otro software de KeePass deben, a su vez, abrirse en KeeForge y seguir siendo legibles en otros programas después de que KeeForge las guarde.
 
-Para quien tenga curiosidad técnica, la batería de pruebas está descrita en [`KeeForgeTests/README.md`](KeeForgeTests/README.md) y la prueba de control previa a cada versión en [`ci_scripts/README.md`](ci_scripts/README.md) (ambas en inglés).
+Para quien tenga curiosidad técnica, la batería de pruebas está descrita en [`KeeForgeTests/README.md`](../../KeeForgeTests/README.md) y la prueba de control previa a cada versión en [`ci_scripts/README.md`](../../ci_scripts/README.md) (ambas en inglés).
 
 ## Mapa del proyecto
 
@@ -97,13 +98,13 @@ scripts/              # Herramientas de desarrollo local
 
 ## Documentación
 
-- [`CHANGELOG.md`](CHANGELOG.md) – historial de versiones
-- [`ROADMAP.md`](ROADMAP.md) – trabajo de producto planificado y prioridades abiertas
-- [`AGENTS.md`](AGENTS.md) – contexto para agentes de codificación
-- [`KeeForge/README.md`](KeeForge/README.md) – mapa de la arquitectura de los targets de la app
-- [`AutoFillExtension/README.md`](AutoFillExtension/README.md) – restricciones de la extensión y notas sobre el código compartido
-- [`SECURITY.md`](SECURITY.md) – política de divulgación de vulnerabilidades
-- [`docs/`](docs/) – especificaciones de implementación, auditorías y documentos de diseño más extensos
+- [`CHANGELOG.md`](../../CHANGELOG.md) – historial de versiones
+- [`ROADMAP.md`](../../ROADMAP.md) – trabajo de producto planificado y prioridades abiertas
+- [`AGENTS.md`](../../AGENTS.md) – contexto para agentes de codificación
+- [`KeeForge/README.md`](../../KeeForge/README.md) – mapa de la arquitectura de los targets de la app
+- [`AutoFillExtension/README.md`](../../AutoFillExtension/README.md) – restricciones de la extensión y notas sobre el código compartido
+- [`SECURITY.md`](../../SECURITY.md) – política de divulgación de vulnerabilidades
+- [`docs/`](../../docs/) – especificaciones de implementación, auditorías y documentos de diseño más extensos
 
 Aparte de este README y [`CONTRIBUTING.es.md`](CONTRIBUTING.es.md), la documentación para desarrolladores se mantiene solo en inglés.
 
@@ -115,8 +116,8 @@ Aparte de este README y [`CONTRIBUTING.es.md`](CONTRIBUTING.es.md), la documenta
 
 ## Contribuir
 
-Consulte [`CONTRIBUTING.es.md`](CONTRIBUTING.es.md) para conocer los requisitos de compilación, cómo compilar desde el código fuente, el flujo de trabajo de pull requests, el requisito de firma del Developer Certificate of Origin, y los términos de licencia. Empiece por [`AGENTS.md`](AGENTS.md) y luego abra el `README.md` local de la carpeta más cercana al código que vaya a modificar.
+Consulte [`CONTRIBUTING.es.md`](CONTRIBUTING.es.md) para conocer los requisitos de compilación, cómo compilar desde el código fuente, el flujo de trabajo de pull requests, el requisito de firma del Developer Certificate of Origin, y los términos de licencia. Empiece por [`AGENTS.md`](../../AGENTS.md) y luego abra el `README.md` local de la carpeta más cercana al código que vaya a modificar.
 
 ## Licencia
 
-KeeForge tiene licencia GPLv3. Consulte [`LICENSE`](LICENSE) para más información.
+KeeForge tiene licencia GPLv3. Consulte [`LICENSE`](../../LICENSE) para más información.

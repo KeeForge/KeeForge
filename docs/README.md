@@ -6,6 +6,8 @@ Files and folders are prefixed with the date the doc was written. Do not update 
 
 Three root files have no date prefix and are not archive material. `index.md` and `_config.yml` are the published GitHub Pages support page. The user-facing privacy policy lives at <https://keeforge.com/privacy> (source in the `keeforge.com` repo); code changes should not contradict it.
 
+`i18n/` is **living** too: it holds the translated `README.<locale>.md` and `CONTRIBUTING.<locale>.md` files for every shipped locale. Update them whenever the root `README.md` or `CONTRIBUTING.md` changes, and keep their relative links pointing at repo-root paths through `../../`.
+
 `macos-security-notes.md` is a **living** note on the macOS app's per-platform security deltas (in-memory model, App Group world-readability, screen-capture best-effort, clipboard ceiling, attachment previews, what is not fixable at the app level). Keep it truthful alongside the code; it backs the README security highlights and the in-app Settings copy.
 
 ## `specs/` — Feature Design Specs

@@ -5,7 +5,7 @@
 <h1 align="center">KeeForge</h1>
 
 <p align="center">
-  English | <a href="README.de.md">Deutsch</a> | <a href="README.fr.md">Français</a> | <a href="README.es.md">Español</a> | <a href="README.zh-Hans.md">简体中文</a> | <a href="README.zh-Hant.md">繁體中文</a>
+  English | <a href="docs/i18n/README.de.md">Deutsch</a> | <a href="docs/i18n/README.fr.md">Français</a> | <a href="docs/i18n/README.es.md">Español</a> | <a href="docs/i18n/README.zh-Hans.md">简体中文</a> | <a href="docs/i18n/README.zh-Hant.md">繁體中文</a>
 </p>
 
 <p align="center">
@@ -18,6 +18,11 @@
   <a href="https://apps.apple.com/us/app/keeforge/id6759309295">
     <img alt="Download on the App Store" src="https://img.shields.io/badge/App%20Store-Download-0D96F6?style=for-the-badge&logo=appstore&logoColor=white" />
   </a>
+  <a href="https://testflight.apple.com/join/mPAT4f1a">
+    <img alt="Join the public beta on TestFlight" src="https://img.shields.io/badge/TestFlight-Public%20Beta-1F8AF0?style=for-the-badge&logo=apple&logoColor=white" />
+  </a>
+  <img alt="Requires iOS 18.0 or later" src="https://img.shields.io/badge/iOS-18.0%2B-000000?style=for-the-badge&logo=apple&logoColor=white" />
+  <img alt="Requires macOS 15.0 or later" src="https://img.shields.io/badge/macOS-15.0%2B-000000?style=for-the-badge&logo=apple&logoColor=white" />
   <img alt="Swift LoC" src="https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Ftokei.kojix2.net%2Fapi%2Fgithub%2FKeeForge%2FKeeForge%2Flanguages&query=%24.data.languages.Swift.code&label=swift%20loc&color=orange&style=for-the-badge" />
   <a href="LICENSE">
     <img alt="License: GPLv3" src="https://img.shields.io/badge/license-GPLv3-blue?style=for-the-badge" />
@@ -34,9 +39,6 @@ KeeForge is a native iOS KeePass client for people who want their vault to stay 
 
 > [!WARNING]
 > **Test with a copy of your database, not your primary vault.** Beta builds are unreviewed, and they share the App Store app's bundle identifier and container — so they open your real `.kdbx` files.
-
-New versions go out on TestFlight before they reach the App Store.
-Places are capped at 300 testers, and joining closes while a new version is in Apple's beta review, so the link is not always open.
 
 ## Highlights
 
