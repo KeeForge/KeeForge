@@ -81,11 +81,6 @@ struct KeeForgeApp: App {
                     }
                 }
                 startMacLockMonitoringIfNeeded()
-                #if DEBUG
-                // Emits one machine-readable store-status line when launched
-                // with `-autofill-store-status-log`; no-op otherwise.
-                AutoFillStoreStatusLog.emitIfRequested()
-                #endif
             }
         }
 

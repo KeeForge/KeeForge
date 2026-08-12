@@ -9,26 +9,26 @@ import XCTest
 /// ## Precondition
 ///
 /// The system store only accepts writes once KeeForge is enabled as the
-/// simulator's credential provider. Provision the dedicated harness simulator
-/// once with the slice 02 recipe:
-///
-///     scripts/provision-autofill-harness-sim.sh
-///
-/// Device: **`KeeForge-AutoFill-Harness`** (iPhone-class, newest installed iOS
-/// runtime; provider enablement persists until the device is erased). Run the
-/// class against that device — never the default `iPhone 17 Pro`:
+/// device's credential provider, and simulator runtimes cannot enumerate the
+/// store at all (the API reads empty despite persisted writes), so this class
+/// runs on a **physical iPhone** connected to the Mac — never a simulator.
+/// One-time device setup: install the Debug app, then turn KeeForge on in
+/// Settings > General > AutoFill & Passwords (optionally turn Apple's
+/// "Passwords" provider off for a cleaner signal). The enablement persists on
+/// the device. Then:
 ///
 ///     xcodebuild test -project KeeForge.xcodeproj -scheme KeeForge \
-///       -destination 'platform=iOS Simulator,name=KeeForge-AutoFill-Harness' \
+///       -destination 'platform=iOS,name=<device name>' \
 ///       -only-testing:KeeForgeUITests/AutoFillStoreUITests
 ///
 /// ## Skip guard
 ///
 /// Every test begins with a store-state probe through the inspector and calls
 /// `XCTSkip` when the store is disabled or enumeration is unavailable, so a run
-/// in the default suites or on an unprovisioned simulator all-skips quickly
-/// instead of failing or hanging. The probe result is cached per test-runner
-/// process: only the first test pays the probe launch.
+/// in the default suites, on any simulator, or on a device where KeeForge is
+/// not the enabled provider all-skips quickly instead of failing or hanging.
+/// The probe result is cached per test-runner process: only the first test
+/// pays the probe launch.
 ///
 /// ## `-ui-testing` reseed vs. store persistence (the interplay this class is
 /// built around)
@@ -54,7 +54,7 @@ import XCTest
 ///    directly: the same reference must be re-unlockable after a relaunch.)
 /// 2. **Every test establishes its own store baseline.** The store may hold
 ///    residue from earlier runs, earlier tests in this class (tagged with
-///    now-orphaned UUIDs), or manual use of the harness device. Each test
+///    now-orphaned UUIDs), or manual use of the test device. Each test
 ///    therefore runs the confirmed Clear AutoFill Entries action right after
 ///    capturing UUIDs and never assumes the store starts empty. Combined with
 ///    per-test seeding this makes every test independent of run order.
@@ -71,38 +71,17 @@ import XCTest
 /// identities, and each fixture database publishes a known identity count, so
 /// asserting `total-count` plus the surviving sections' counts accounts for
 /// every identity before the swipe-through absence check runs.
-///
-/// ## Simulator store quirks this class is built around
-///
-/// 1. **The enumeration API reads empty.** On simulator runtimes (verified
-///    on iOS 26.5 and 18.5) the system store accepts and persists writes,
-///    but `credentialIdentities(forService:)` always returns an empty array.
-///    The DEBUG + simulator seam in `SystemCredentialIdentityStore`
-///    substitutes identities reconstructed from the store's backing
-///    `Identities.db` when the API reads empty, so both the inspector
-///    (`autofill-inspector.source` reads "fallback-db") and the app's
-///    enumeration-dependent flows — targeted removal on per-database
-///    disable, `populate`'s additive multi-database refresh — behave
-///    device-equivalently on the harness.
-/// 2. **Write-side cross-database dedup.** The simulator store collapses
-///    identities sharing the same (service, user) pair across databases,
-///    ignoring their record identifiers (measured: two databases publishing
-///    the same 5 service/user pairs survive as 5 rows; distinct pairs
-///    survive as 10). The multi-database union scenario therefore seeds
-///    "bravo" from `autofill-union.kdbx`, whose domains and usernames are
-///    fully disjoint from the default fixture's, so the union's counts are
-///    deterministic.
 @MainActor
 final class AutoFillStoreUITests: AppSettingsUITestCase {
 
     // MARK: - Fixtures
 
-    /// Two databases with fully disjoint service domains: the simulator's
-    /// store dedups identities sharing (service, user) across databases (see
-    /// the class doc), so the union scenario needs fixtures whose identities
-    /// cannot collapse into each other. "alpha" is the default `test.kdbx`;
-    /// "bravo" is `autofill-union.kdbx`, purpose-built with union-only
-    /// domains (see `TestFixtures/README.md`). Both use the same password.
+    /// Two databases with fully disjoint service domains: the system store
+    /// can dedup identities sharing (service, user) across databases, so the
+    /// union scenario needs fixtures whose identities cannot collapse into
+    /// each other. "alpha" is the default `test.kdbx`; "bravo" is
+    /// `autofill-union.kdbx`, purpose-built with union-only domains (see
+    /// `TestFixtures/README.md`). Both use the same password.
     override var databaseFixtures: [KeeForgeUITestCase.DatabaseFixture] {
         [
             .init(resourceName: "test", injectedFilename: "alpha.kdbx"),
@@ -110,7 +89,7 @@ final class AutoFillStoreUITests: AppSettingsUITestCase {
         ]
     }
 
-    /// Identities `test.kdbx` ("alpha") publishes on the iOS 18+ harness
+    /// Identities `test.kdbx` ("alpha") publishes on an iOS 18+
     /// runtime: 5 password identities — Twitter → twitter.com, Discord →
     /// discord.com, Email → example.com (mail. subdomain collapses), GitHub →
     /// github.com (URL + two KP2A_URL_* fields all collapse to one registered
@@ -141,7 +120,7 @@ final class AutoFillStoreUITests: AppSettingsUITestCase {
 
     /// UserDefaults argument-domain overrides applied to every launch so
     /// one-shot system/app overlays cannot land mid-flow on the long-lived
-    /// harness device: the StoreKit review prompt (`hasPrompted` counts
+    /// test device: the StoreKit review prompt (`hasPrompted` counts
     /// unlocks in standard defaults, which persist across runs) and the
     /// AutoFill tip banner (irrelevant while the provider is enabled, but the
     /// dismissal flag keeps argument-free launches deterministic).
@@ -174,7 +153,7 @@ final class AutoFillStoreUITests: AppSettingsUITestCase {
     /// the store state, and skips the test unless the store is enabled with
     /// enumeration available. Conservative on indeterminate state: an
     /// unreadable inspector skips rather than fails, so this class can never
-    /// break a run on an unprovisioned simulator.
+    /// break a run on a simulator or an unprepared device.
     private func skipUnlessProvisionedStoreIsAvailable() throws {
         let probe: StoreProbe
         if let cachedProbe = Self.cachedStoreProbe {
@@ -201,9 +180,9 @@ final class AutoFillStoreUITests: AppSettingsUITestCase {
 
         guard probe.isEnabled else {
             throw XCTSkip(
-                "AutoFill store is disabled — KeeForge is not this simulator's enabled "
-                    + "credential provider. Run scripts/provision-autofill-harness-sim.sh and "
-                    + "target the KeeForge-AutoFill-Harness device."
+                "AutoFill store is disabled — KeeForge is not this device's enabled "
+                    + "credential provider. Run against a physical iPhone with KeeForge "
+                    + "turned on in Settings > General > AutoFill & Passwords."
             )
         }
         guard probe.enumerationAvailable else {
@@ -640,7 +619,7 @@ final class AutoFillStoreUITests: AppSettingsUITestCase {
 
     /// Publication is gated on the Quick AutoFill flag, which lives in the App
     /// Group defaults and therefore persists across runs on the long-lived
-    /// harness device — force it on rather than assuming the default.
+    /// test device — force it on rather than assuming the default.
     private func ensureQuickAutoFillEnabled(file: StaticString = #filePath, line: UInt = #line) {
         let toggle = app.switches["Quick AutoFill"].firstMatch
         XCTAssertTrue(

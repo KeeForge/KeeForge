@@ -26,7 +26,6 @@ final class FakeCredentialIdentityStore: CredentialIdentityStoreProviding, @unch
     private var _calls: [String] = []
     private var _onMutation: (@Sendable () -> Void)?
     private var _onEnumerate: (@Sendable () -> Void)?
-    private var _reportedSource: CredentialIdentitySource = .api
     private var _activeMutations = 0
     private var _maxConcurrentMutations = 0
     private var _mutationDelayNanoseconds: UInt64 = 0
@@ -78,15 +77,6 @@ final class FakeCredentialIdentityStore: CredentialIdentityStoreProviding, @unch
     var onEnumerate: (@Sendable () -> Void)? {
         get { lock.withLock { _onEnumerate } }
         set { lock.withLock { _onEnumerate = newValue } }
-    }
-
-    /// The source the DEBUG `credentialIdentitiesWithSource()` reports, so the
-    /// inspector's pass-through of the seam's source signal is testable. The
-    /// real seam sets `.fallbackDB` only when the DB fallback served rows; tests
-    /// set this to simulate that outcome.
-    var reportedSource: CredentialIdentitySource {
-        get { lock.withLock { _reportedSource } }
-        set { lock.withLock { _reportedSource = newValue } }
     }
 
     var mutationDelayNanoseconds: UInt64 {
@@ -167,15 +157,6 @@ final class FakeCredentialIdentityStore: CredentialIdentityStoreProviding, @unch
         }
         hook?()
         return unavailable ? nil : snapshot
-    }
-
-    func credentialIdentitiesWithSource() async
-        -> (identities: [any ASCredentialIdentity]?, source: CredentialIdentitySource) {
-        let (unavailable, snapshot, source, hook) = lock.withLock {
-            (_enumerationUnavailable, _stored, _reportedSource, _onEnumerate)
-        }
-        hook?()
-        return (unavailable ? nil : snapshot, source)
     }
 
     // MARK: - Helpers
