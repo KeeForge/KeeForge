@@ -31,6 +31,8 @@ TODO before the first macOS release:
 ### Fixes
 
 - The Change Master Key screen no longer shows both a back chevron and a Cancel button; Cancel is the single way out, so an accidental edge swipe can't dismiss the form mid-change.
+- The unlock screen's Face ID / Touch ID button now moves focus to the password field when the biometric prompt cannot be shown, instead of appearing to do nothing.
+- Lifecycle biometric auto-unlock is also disabled for iPad-compatible builds on visionOS (where the runtime exposes the check), and the Auto-Unlock setting is hidden on platforms where it has no effect.
 - Small-screen layout pass (iPhone SE / mini): the password generator's "Use Password" and Regenerate actions are now always visible — Use Password moved into the sheet's toolbar and Regenerate sits next to the suggested password — instead of below the fold of a 4.7" screen.
 - The Lock button in an unlocked vault is now a padlock icon on iPhone, so it no longer runs into the back button's label and reads as one phrase ("Social Lock").
 - Fixed a repeatable crash on iOS 27.0 beta during AutoFill suggestion refresh: the system credential-identity store can return objects that don't conform to `ASCredentialIdentity`, which trapped Swift's array bridging while KeeForge enumerated the store. Non-conforming objects are now skipped.

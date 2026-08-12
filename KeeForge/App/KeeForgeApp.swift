@@ -1,5 +1,4 @@
 import AuthenticationServices
-import Foundation
 import SwiftUI
 #if os(iOS)
 import UIKit
@@ -161,20 +160,6 @@ struct KeeForgeApp: App {
 
     private var appearanceMode: SettingsService.AppearanceMode {
         SettingsService.AppearanceMode(rawValue: appearanceModeRaw) ?? .system
-    }
-}
-
-enum BiometricAutoUnlockPolicy {
-    static var allowsAutomaticUnlock: Bool {
-        #if os(iOS)
-        allowsAutomaticUnlock(isIOSAppOnMac: ProcessInfo.processInfo.isiOSAppOnMac)
-        #else
-        true
-        #endif
-    }
-
-    static func allowsAutomaticUnlock(isIOSAppOnMac: Bool) -> Bool {
-        !isIOSAppOnMac
     }
 }
 
@@ -672,7 +657,7 @@ private struct CompactUnlockScene: View {
         Group {
             switch viewModel.state {
             case .locked:
-                if viewModel.isEligibleForBiometricAutoUnlock && BiometricAutoUnlockPolicy.allowsAutomaticUnlock {
+                if viewModel.isEligibleForBiometricAutoUnlock {
                     DatabaseOpeningView(
                         databaseName: viewModel.databaseDisplayName,
                         statusMessage: viewModel.unlockStatusMessage,
@@ -718,7 +703,7 @@ private struct RegularDatabaseScene: View {
         Group {
             switch viewModel.state {
             case .locked:
-                if viewModel.isEligibleForBiometricAutoUnlock && BiometricAutoUnlockPolicy.allowsAutomaticUnlock {
+                if viewModel.isEligibleForBiometricAutoUnlock {
                     DatabaseOpeningView(
                         databaseName: viewModel.databaseDisplayName,
                         statusMessage: viewModel.unlockStatusMessage,
@@ -758,9 +743,8 @@ private struct RegularDatabaseScene: View {
 }
 
 /// Runs the opt-in biometric auto-unlock at most once per lock cycle, and only
-/// while the scene is foreground-active. iOS apps running on Mac use the
-/// explicit biometric action in UnlockView because active does not prove that
-/// the compatibility window is frontmost.
+/// while the scene is foreground-active. Platform exclusions live in
+/// `BiometricAutoUnlockPolicy`, folded into the view model's eligibility.
 ///
 /// LocalAuthentication refuses to present its prompt to a caller that is not
 /// running in the foreground and fails the evaluation with
@@ -795,7 +779,6 @@ private struct BiometricAutoUnlockModifier: ViewModifier {
     }
 
     private func attemptIfNeeded() {
-        guard BiometricAutoUnlockPolicy.allowsAutomaticUnlock else { return }
         guard scenePhase == .active else { return }
         guard viewModel.isEligibleForBiometricAutoUnlock else { return }
         guard attemptedLockCycle != viewModel.lockCycleID else { return }
