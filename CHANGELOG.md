@@ -33,6 +33,10 @@ TODO before the first macOS release:
 - The Lock button in an unlocked vault is now a padlock icon on iPhone, so it no longer runs into the back button's label and reads as one phrase ("Social Lock").
 - Fixed a repeatable crash on iOS 27.0 beta during AutoFill suggestion refresh: the system credential-identity store can return objects that don't conform to `ASCredentialIdentity`, which trapped Swift's array bridging while KeeForge enumerated the store. Non-conforming objects are now skipped.
 
+### Fixes
+
+- iOS/iPadOS running on Mac no longer starts a lifecycle-only biometric unlock prompt while KeeForge may still be behind another window; the existing biometric action remains available, and automatic unlock is unchanged on iPhone and iPad (#84).
+
 ## v1.13.0 (2026-08-09)
 
 ### New Features
