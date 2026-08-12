@@ -37,6 +37,14 @@ final class DatabaseViewModelTests: XCTestCase {
         XCTAssertTrue(vm.searchResults.isEmpty)
     }
 
+    func testBiometricAutoUnlockPolicyDisablesLifecyclePromptsForIOSOnMac() {
+        XCTAssertFalse(BiometricAutoUnlockPolicy.allowsAutomaticUnlock(isIOSAppOnMac: true))
+    }
+
+    func testBiometricAutoUnlockPolicyKeepsLifecyclePromptsOnRealIOS() {
+        XCTAssertTrue(BiometricAutoUnlockPolicy.allowsAutomaticUnlock(isIOSAppOnMac: false))
+    }
+
     func testUnlockWithCorrectPasswordTransitionsToUnlocked() async throws {
         let vm = try makeViewModel()
 
