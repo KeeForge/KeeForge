@@ -250,8 +250,16 @@ final class TOTPEnrollmentUITests: TOTPEnrollmentUITestCase {
 
 // Incoming `otpauth://` deep links: the destination sheet KeeForge presents
 // when a setup link is opened from outside the app (Safari, the iOS
-// "Set Up Codes In" integration). Driven with `XCUIDevice.shared.system.open`,
-// which opens the registered scheme without a browser round-trip.
+// "Set Up Codes In" integration). XCUITest cannot hand a URL to a running
+// unlocked session: `XCUIDevice.shared.system.open` routes to the simulator's
+// *default* code-setup app (Apple Passwords; only changeable in the Settings
+// app), and `XCUIApplication.open(_:)` relaunches the app to deliver the URL
+// (verified empirically — the app pid changes), discarding the in-memory
+// session. Every flow here therefore goes through the launched-with-URL park
+// path: the unlock-needed alert, unlock, and the promoted destination sheet.
+// The direct-present branch (a link arriving while a session is already
+// unlocked and the app stays running) and system-default routing are manual
+// device checks.
 @MainActor
 final class TOTPEnrollmentDeepLinkUITests: TOTPEnrollmentUITestCase {
     override func configureLaunch(app: XCUIApplication) throws {
@@ -266,7 +274,30 @@ final class TOTPEnrollmentDeepLinkUITests: TOTPEnrollmentUITestCase {
             XCTFail("Malformed test URL: \(string)", file: file, line: line)
             return
         }
-        XCUIDevice.shared.system.open(url)
+        app.open(url)
+    }
+
+    /// Opens an enrollment link (relaunching the app), acknowledges the
+    /// unlock-needed alert, unlocks, and waits for the parked enrollment to
+    /// promote onto the destination sheet.
+    private func openEnrollmentLinkAndUnlock(
+        _ string: String,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        openOTPAuthURL(string, file: file, line: line)
+
+        let unlockAlert = app.alerts["Unlock a Database"]
+        XCTAssertTrue(
+            unlockAlert.waitForExistence(timeout: KeeForgeUITestCase.ciElementTimeout),
+            "The unlock-needed alert did not appear for the enrollment link",
+            file: file,
+            line: line
+        )
+        tapElement(unlockAlert.buttons["OK"])
+
+        unlockSuccessfully(file: file, line: line)
+        waitForDestinationSheet(file: file, line: line)
     }
 
     private func waitForDestinationSheet(file: StaticString = #filePath, line: UInt = #line) {
@@ -288,6 +319,19 @@ final class TOTPEnrollmentDeepLinkUITests: TOTPEnrollmentUITestCase {
         ).firstMatch
     }
 
+    /// Saving inside the enrollment sheet dismisses the editor and the sheet
+    /// together; navigation queries fired while the sheet is still animating
+    /// out can bind its dying rows (hittability checks on them throw), so
+    /// wait for the sheet to be fully gone before touching the vault UI.
+    private func waitForDestinationSheetGone(file: StaticString = #filePath, line: UInt = #line) {
+        XCTAssertTrue(
+            waitForDisappearance(of: app.navigationBars["Add Verification Code"]),
+            "Destination sheet did not dismiss after the editor completed",
+            file: file,
+            line: line
+        )
+    }
+
     private func dismissDestinationSheet(file: StaticString = #filePath, line: UInt = #line) {
         let cancelButton = app.buttons["totp-enroll.cancel"]
         XCTAssertTrue(
@@ -306,10 +350,7 @@ final class TOTPEnrollmentDeepLinkUITests: TOTPEnrollmentUITestCase {
     }
 
     func testDeepLinkAttachesCodeToExistingEntry() {
-        unlockSuccessfully()
-
-        openOTPAuthURL("otpauth://totp/UnionBank:teller@unionbank-fixture.net?secret=JBSWY3DPEHPK3PXP&issuer=UnionBank")
-        waitForDestinationSheet()
+        openEnrollmentLinkAndUnlock("otpauth://totp/UnionBank:teller@unionbank-fixture.net?secret=JBSWY3DPEHPK3PXP&issuer=UnionBank")
 
         let bankRow = enrollmentEntryRow(titled: "Union Bank")
         XCTAssertTrue(
@@ -321,16 +362,14 @@ final class TOTPEnrollmentDeepLinkUITests: TOTPEnrollmentUITestCase {
         // No existing code on Union Bank, so the editor opens directly with
         // the link applied.
         saveEditorAndWaitForDismissal()
+        waitForDestinationSheetGone()
 
         openFixtureEntry(groupName: "Union", entryName: "Union Bank")
         assertDetailRendersCode(digits: 6)
     }
 
     func testDeepLinkAsksBeforeReplacingExistingCodeAndEditorCancelReturnsToSheet() {
-        unlockSuccessfully()
-
-        openOTPAuthURL("otpauth://totp/UnionNews:reader@union-news-fixture.org?secret=JBSWY3DPEHPK3PXP&issuer=UnionNews")
-        waitForDestinationSheet()
+        openEnrollmentLinkAndUnlock("otpauth://totp/UnionNews:reader@union-news-fixture.org?secret=JBSWY3DPEHPK3PXP&issuer=UnionNews")
 
         // Union News already carries a code, so picking it must confirm first.
         let newsRow = enrollmentEntryRow(titled: "Union News")
@@ -365,20 +404,23 @@ final class TOTPEnrollmentDeepLinkUITests: TOTPEnrollmentUITestCase {
     }
 
     func testDeepLinkNewEntryPrefillsFromLink() {
-        unlockSuccessfully()
-
-        openOTPAuthURL("otpauth://totp/Fresh%20Service:alice@fresh.example?secret=JBSWY3DPEHPK3PXP&issuer=Fresh%20Service")
-        waitForDestinationSheet()
+        openEnrollmentLinkAndUnlock("otpauth://totp/Fresh%20Service:alice@fresh.example?secret=JBSWY3DPEHPK3PXP&issuer=Fresh%20Service")
 
         let newEntryButton = app.buttons["totp-enroll.new-entry"]
         XCTAssertTrue(newEntryButton.waitForExistence(timeout: 5), "New Entry button was not visible")
         tapElement(newEntryButton)
 
+        // Let the group-picker push settle before touching its rows: a row can
+        // exist mid-animation with no usable frame, and hittability checks on
+        // it throw rather than return false.
+        let groupPickerBar = app.navigationBars["Choose Group"]
+        XCTAssertTrue(groupPickerBar.waitForExistence(timeout: 5), "Group picker did not open")
+
         let unionGroupOption = app.buttons.matching(
             NSPredicate(format: "identifier BEGINSWITH 'totp-enroll.group.' AND label CONTAINS[c] 'Union'")
         ).firstMatch
         XCTAssertTrue(
-            unionGroupOption.waitForExistence(timeout: 5),
+            revealElement(unionGroupOption, in: scrollableContainer()),
             "Union group option was not visible in the group picker"
         )
         tapElement(unionGroupOption)
@@ -392,28 +434,11 @@ final class TOTPEnrollmentDeepLinkUITests: TOTPEnrollmentUITestCase {
         )
 
         saveEditorAndWaitForDismissal()
+        waitForDestinationSheetGone()
 
         openGroup(named: "Union")
         openEntry(named: "Fresh Service")
         assertDetailRendersCode(digits: 6)
-    }
-
-    func testDeepLinkWhileLockedAlertsThenPromotesAfterUnlock() {
-        // Still on the database list — no unlocked session yet.
-        openOTPAuthURL("otpauth://totp/Example:alice@example.com?secret=JBSWY3DPEHPK3PXP&issuer=Example")
-
-        let unlockAlert = app.alerts["Unlock a Database"]
-        XCTAssertTrue(
-            unlockAlert.waitForExistence(timeout: KeeForgeUITestCase.ciElementTimeout),
-            "The unlock-needed alert did not appear for a deep link without a session"
-        )
-        tapElement(unlockAlert.buttons["OK"])
-
-        unlockSuccessfully()
-
-        // The parked enrollment promotes onto the fresh session.
-        waitForDestinationSheet()
-        dismissDestinationSheet()
     }
 
     func testDeepLinkUnsupportedTypeShowsAlert() {
@@ -428,9 +453,7 @@ final class TOTPEnrollmentDeepLinkUITests: TOTPEnrollmentUITestCase {
     }
 
     func testDeepLinkReadOnlyDatabaseShowsExplanation() {
-        unlockSuccessfully()
-
-        openOTPAuthURL("otpauth://totp/Example:alice@example.com?secret=JBSWY3DPEHPK3PXP&issuer=Example")
+        openEnrollmentLinkAndUnlock("otpauth://totp/Example:alice@example.com?secret=JBSWY3DPEHPK3PXP&issuer=Example")
 
         let readOnlyTitle = app.staticTexts["Read-Only Database"]
         XCTAssertTrue(
