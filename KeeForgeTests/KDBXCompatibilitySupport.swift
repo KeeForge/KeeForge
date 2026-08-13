@@ -393,6 +393,22 @@ enum KDBXCompatibilitySupport {
             let password: String
         }
 
+        /// A TOTP configuration the external opener must generate a code
+        /// from (`keepassxc-cli show --totp`). The gate recomputes the
+        /// expected code with its own reference implementation for the
+        /// 30-second (or `period`-second) windows in effect just before and
+        /// just after the CLI call, and accepts either — so a window
+        /// rollover mid-check can never flake the gate.
+        struct ExpectedTOTP: Codable {
+            let entryTitle: String
+            /// Base32 secret, as enrolled.
+            let secret: String
+            let period: Int
+            let digits: Int
+            /// `TOTPAlgorithm.rawValue` ("SHA1" / "SHA256" / "SHA512").
+            let algorithm: String
+        }
+
         struct Artifact: Codable {
             let id: String
             let fileName: String
@@ -402,6 +418,7 @@ enum KDBXCompatibilitySupport {
             let expectedGroupPaths: [String]
             var expectedAttachments: [ExpectedAttachment] = []
             var expectedPasswords: [ExpectedPassword] = []
+            var expectedTOTPs: [ExpectedTOTP] = []
         }
 
         /// Every artifact id the suite is expected to emit, repeated in every
@@ -608,6 +625,77 @@ enum KDBXCompatibilitySupport {
         }
         guard scenarioIDsWithoutPasswordExpectations.contains(scenarioID) else {
             throw ExpectationLookupError.unlistedScenario(kind: "password", scenarioID: scenarioID)
+        }
+        return []
+    }
+
+    /// TOTP configurations the external opener must generate codes from.
+    /// `update-entry` carries the fresh-enrollment path (verbatim protected
+    /// `otp` URI, the editor's primary output); `create-entry` carries the
+    /// `TimeOtp-*` authoring path used once a stored URI goes stale. Together
+    /// they prove real KeePassXC computes codes from both spellings KeeForge
+    /// writes — the in-process matrix alone would only prove KeeForge agrees
+    /// with itself.
+    static let totpExpectations: [String: [ArtifactManifest.ExpectedTOTP]] = [
+        "create-entry": [
+            .init(
+                entryTitle: "Compat Created Entry",
+                secret: "JBSWY3DPEHPK3PXP",
+                period: 45,
+                digits: 8,
+                algorithm: TOTPAlgorithm.sha256.rawValue
+            ),
+        ],
+        "update-entry": [
+            .init(
+                entryTitle: "Compat Update Target Updated",
+                secret: "JBSWY3DPEHPK3PXP",
+                period: 30,
+                digits: 6,
+                algorithm: TOTPAlgorithm.sha1.rawValue
+            ),
+        ],
+    ]
+
+    /// Scenarios that deliberately carry no external TOTP check. The KeeOTP
+    /// matrix stays internal (KeePassXC skips raw KeeOTP fields entirely);
+    /// everything else simply writes no TOTP.
+    static let scenarioIDsWithoutTOTPExpectations: Set<String> = {
+        var ids: Set<String> = [
+            "create-group",
+            "hide-group-from-autofill",
+            "change-group-icon",
+            "add-entry-custom-icon",
+            "update-group",
+            "restore-entry-version",
+            "soft-delete-entry",
+            "soft-delete-group",
+            "hard-delete-recycled-entry",
+            "hard-delete-recycled-group",
+            "recycle-bin-creation",
+            "attachments-update-entry",
+            "attachments-soft-delete-entry",
+            "group-tags-update-entry",
+            "group-tags-update-group",
+            "keeotp-source-matrix",
+            "rekey-password-only",
+            "rekey-add-keyfile",
+            "rekey-remove-keyfile",
+        ]
+        for fixture in smokeFixtures {
+            ids.insert("fixture-smoke-\(fixture.id)")
+        }
+        ids.insert("fixture-smoke-\(Fixture.attachments.id)")
+        return ids
+    }()
+
+    /// Fail-closed lookup; see `expectedAttachments(forScenarioID:)`.
+    static func expectedTOTPs(forScenarioID scenarioID: String) throws -> [ArtifactManifest.ExpectedTOTP] {
+        if let expectations = totpExpectations[scenarioID] {
+            return expectations
+        }
+        guard scenarioIDsWithoutTOTPExpectations.contains(scenarioID) else {
+            throw ExpectationLookupError.unlistedScenario(kind: "TOTP", scenarioID: scenarioID)
         }
         return []
     }
@@ -1585,7 +1673,8 @@ enum KDBXCompatibilitySupport {
                     expectedSearchTerms: scenario.expectedSearchTerms,
                     expectedGroupPaths: scenario.expectedGroupPaths,
                     expectedAttachments: try KDBXCompatibilitySupport.expectedAttachments(forScenarioID: scenario.id),
-                    expectedPasswords: try KDBXCompatibilitySupport.expectedPasswords(forScenarioID: scenario.id)
+                    expectedPasswords: try KDBXCompatibilitySupport.expectedPasswords(forScenarioID: scenario.id),
+                    expectedTOTPs: try KDBXCompatibilitySupport.expectedTOTPs(forScenarioID: scenario.id)
                 )
             )
         }
@@ -1914,6 +2003,13 @@ struct CompatibilitySnapshot {
 }
 
 private extension KDBXCompatibilitySupport {
+    /// Setup link `update-entry` enrolls on its target. Its parameters are all
+    /// otpauth defaults, so it stays consistent with the scenario's
+    /// `totpConfig` (30s / 6 digits / SHA1) and the `update-entry` row in
+    /// `totpExpectations`.
+    static let updateEntryEnrolledOTPAuthURI =
+        "otpauth://totp/Compat:updated-user@example.com?secret=JBSWY3DPEHPK3PXP&issuer=Compat"
+
     static func createEntryScenario() -> Scenario {
         Scenario(
             id: "create-entry",
@@ -1999,7 +2095,16 @@ private extension KDBXCompatibilitySupport {
                         notes: "Updated through compatibility matrix",
                         customFields: entry.customFields,
                         tags: entry.tags + ["updated"],
-                        totpConfig: .init(secret: "JBSWY3DPEHPK3PXP", period: 30, digits: 6, algorithm: .sha1),
+                        // Fresh enrollment: the verbatim URI is what the entry
+                        // editor stores when a setup link/QR is applied, so
+                        // this artifact carries the feature's primary output.
+                        totpConfig: .init(
+                            secret: "JBSWY3DPEHPK3PXP",
+                            period: 30,
+                            digits: 6,
+                            algorithm: .sha1,
+                            otpauthURI: updateEntryEnrolledOTPAuthURI
+                        ),
                         lastModificationTime: entry.lastModificationTime
                     )
                 )
@@ -2020,6 +2125,13 @@ private extension KDBXCompatibilitySupport {
                 XCTAssertNotNil(updated.passkeyPrivateKeyPEM)
                 XCTAssertTrue(updated.protectedStringKeys.contains(PasskeyCredential.privateKeyPEMKey))
                 XCTAssertEqual(updated.unknownXML, original.unknownXML)
+                XCTAssertEqual(
+                    updated.otpURL,
+                    updateEntryEnrolledOTPAuthURI,
+                    "fresh enrollment must store the otpauth URI verbatim, KeePassXC-style"
+                )
+                XCTAssertTrue(updated.protectedStringKeys.contains("otp"))
+                XCTAssertFalse(updated.customFields.keys.contains { $0.hasPrefix("TimeOtp-") })
                 XCTAssertEqual(updated.history.count, original.history.count + 1)
                 var expectedHistory = original
                 expectedHistory.history = []

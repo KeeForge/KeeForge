@@ -37,12 +37,16 @@ xcrun xcresulttool export attachments \
   --output-path "${ATTACHMENT_DIR}"
 
 python3 - "${ATTACHMENT_DIR}" "${KEEPASSXC_CLI}" <<'PY'
+import base64
 import hashlib
+import hmac
 import json
 import os
+import struct
 import subprocess
 import sys
 import tempfile
+import time
 
 attachment_dir = sys.argv[1]
 keepassxc_cli = sys.argv[2]
@@ -154,7 +158,20 @@ artifacts = [merged_artifacts[key] for key in sorted(merged_artifacts)]
 
 attachment_checks_verified = 0
 password_checks_verified = 0
+totp_checks_verified = 0
 entry_path_cache = {}
+
+TOTP_HASHES = {"SHA1": hashlib.sha1, "SHA256": hashlib.sha256, "SHA512": hashlib.sha512}
+
+def reference_totp(secret_base32, period, digits, algorithm, at_time):
+    # RFC 6238, implemented independently of both KeeForge and KeePassXC so
+    # the comparison is a genuine three-way agreement on the enrolled secret.
+    key = base64.b32decode(secret_base32 + "=" * (-len(secret_base32) % 8), casefold=True)
+    counter = struct.pack(">Q", int(at_time // period))
+    digest = hmac.new(key, counter, TOTP_HASHES[algorithm]).digest()
+    offset = digest[-1] & 0x0F
+    value = struct.unpack(">I", digest[offset:offset + 4])[0] & 0x7FFFFFFF
+    return str(value % 10 ** digits).zfill(digits)
 
 def run_keepassxc(args, password):
     process = subprocess.run(
@@ -295,6 +312,53 @@ for artifact in artifacts:
         else:
             password_checks_verified += 1
 
+    # TOTP: prove the external opener generates a code from what KeeForge
+    # enrolled, not merely that the fields survived. The expected code is
+    # recomputed here for the time windows in effect just before and just
+    # after the CLI call; the call takes well under one period, so the code
+    # KeePassXC used is always one of the two — a window rollover mid-check
+    # cannot flake the gate.
+    for expected_totp in artifact.get("expectedTOTPs", []):
+        entry_title = expected_totp["entryTitle"]
+
+        entry_path, resolve_error = resolve_entry_path(
+            db_path, base_options, artifact["password"], entry_title, artifact_id
+        )
+        if entry_path is None:
+            failures.append(resolve_error)
+            continue
+
+        before_time = time.time()
+        command = [keepassxc_cli, "show", *base_options, "-t", db_path, entry_path]
+        result = run_keepassxc(command, artifact["password"])
+        after_time = time.time()
+        if result.returncode != 0:
+            failures.append(
+                f"{artifact_id}: show --totp for {entry_title!r} failed\n"
+                f"stdout: {result.stdout}\n"
+                f"stderr: {result.stderr}"
+            )
+            continue
+
+        actual_code = result.stdout.strip()
+        acceptable_codes = {
+            reference_totp(
+                expected_totp["secret"],
+                expected_totp["period"],
+                expected_totp["digits"],
+                expected_totp["algorithm"],
+                at_time,
+            )
+            for at_time in (before_time, after_time)
+        }
+        if actual_code not in acceptable_codes:
+            failures.append(
+                f"{artifact_id}: TOTP for {entry_title!r} did not match the reference "
+                f"implementation (expected one of {sorted(acceptable_codes)}, got {actual_code!r})"
+            )
+        else:
+            totp_checks_verified += 1
+
 if failures:
     print("KDBX compatibility gate failed:", file=sys.stderr)
     for failure in failures:
@@ -304,6 +368,11 @@ if failures:
 print(
     f"KDBX compatibility gate passed for {len(artifacts)} artifacts "
     f"({attachment_checks_verified} attachment checks, "
-    f"{password_checks_verified} protected-password checks verified)."
+    f"{password_checks_verified} protected-password checks, "
+    f"{totp_checks_verified} TOTP checks verified)."
 )
+
+if totp_checks_verified == 0:
+    print("error: no TOTP checks ran — the enrollment artifacts lost their expectations", file=sys.stderr)
+    sys.exit(1)
 PY

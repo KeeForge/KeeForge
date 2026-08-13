@@ -631,11 +631,13 @@ final class KDBXCompatibilityTests: XCTestCase {
         for scenarioID in scenarioIDs {
             XCTAssertNoThrow(try KDBXCompatibilitySupport.expectedAttachments(forScenarioID: scenarioID))
             XCTAssertNoThrow(try KDBXCompatibilitySupport.expectedPasswords(forScenarioID: scenarioID))
+            XCTAssertNoThrow(try KDBXCompatibilitySupport.expectedTOTPs(forScenarioID: scenarioID))
         }
 
         // An unknown id must fail rather than quietly return "no expectations".
         XCTAssertThrowsError(try KDBXCompatibilitySupport.expectedAttachments(forScenarioID: "not-a-scenario"))
         XCTAssertThrowsError(try KDBXCompatibilitySupport.expectedPasswords(forScenarioID: "not-a-scenario"))
+        XCTAssertThrowsError(try KDBXCompatibilitySupport.expectedTOTPs(forScenarioID: "not-a-scenario"))
 
         let attachmentKeys = Set(KDBXCompatibilitySupport.attachmentExpectations.keys)
         let noAttachmentKeys = KDBXCompatibilitySupport.scenarioIDsWithoutAttachmentExpectations
@@ -646,6 +648,11 @@ final class KDBXCompatibilityTests: XCTestCase {
         let noPasswordKeys = KDBXCompatibilitySupport.scenarioIDsWithoutPasswordExpectations
         XCTAssertTrue(passwordKeys.isDisjoint(with: noPasswordKeys))
         XCTAssertEqual(passwordKeys.union(noPasswordKeys), scenarioIDs, "stale or missing password expectation ids")
+
+        let totpKeys = Set(KDBXCompatibilitySupport.totpExpectations.keys)
+        let noTOTPKeys = KDBXCompatibilitySupport.scenarioIDsWithoutTOTPExpectations
+        XCTAssertTrue(totpKeys.isDisjoint(with: noTOTPKeys))
+        XCTAssertEqual(totpKeys.union(noTOTPKeys), scenarioIDs, "stale or missing TOTP expectation ids")
 
         // Every fixture that reaches the external gate contributes a password
         // check on a value it did not author itself.
