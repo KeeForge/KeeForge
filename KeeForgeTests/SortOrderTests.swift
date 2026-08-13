@@ -142,6 +142,56 @@ final class SortOrderTests: XCTestCase {
         XCTAssertEqual(sorted.map(\.name), ["Recent", "Old"])
     }
 
+    // MARK: - Recycle Bin Placement
+
+    func testRecycleBinSortsFirstRegardlessOfSortOrder() async throws {
+        let vm = try await makeGroupTagsViewModel()
+        let recycleBinID = try XCTUnwrap(vm.currentRootGroup?.recycleBinUUID)
+        let groups = try XCTUnwrap(vm.visibleRootGroup?.groups)
+        XCTAssertTrue(groups.contains { $0.id == recycleBinID })
+
+        for order in [DatabaseViewModel.SortOrder.title, .createdDate, .modifiedDate] {
+            for ascending in [true, false] {
+                vm.sortOrder = order
+                vm.sortAscending = ascending
+
+                XCTAssertEqual(
+                    vm.sortedGroups(groups).first?.id,
+                    recycleBinID,
+                    "Recycle Bin must lead the folder list for \(order) ascending=\(ascending)"
+                )
+            }
+        }
+    }
+
+    func testRecycleBinPinningLeavesTheOtherGroupsSorted() async throws {
+        let vm = try await makeGroupTagsViewModel()
+        let recycleBinID = try XCTUnwrap(vm.currentRootGroup?.recycleBinUUID)
+        let groups = try XCTUnwrap(vm.visibleRootGroup?.groups)
+        vm.sortOrder = .title
+        vm.sortAscending = true
+
+        let sorted = vm.sortedGroups(groups)
+
+        XCTAssertEqual(sorted.count, groups.count)
+        XCTAssertEqual(
+            sorted.dropFirst().map(\.name),
+            groups.filter { $0.id != recycleBinID }
+                .map(\.name)
+                .sorted { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }
+        )
+    }
+
+    func testGroupsWithoutARecycleBinKeepPlainSortOrder() {
+        viewModel.sortOrder = .title
+        let groups = [
+            KPGroup(name: "Work"),
+            KPGroup(name: "Banking"),
+        ]
+
+        XCTAssertEqual(viewModel.sortedGroups(groups).map(\.name), ["Banking", "Work"])
+    }
+
     // MARK: - Persistence
 
     func testSortOrderPersistsToUserDefaults() {
@@ -168,5 +218,18 @@ final class SortOrderTests: XCTestCase {
 
     private func fixtureURL() throws -> URL {
         try TestDatabaseSupport.fixtureURL(named: "test", bundle: Bundle(for: SortOrderTests.self))
+    }
+
+    /// `group-tags.kdbx` is the fixture that carries a real `Meta/RecycleBinUUID`,
+    /// with the bin named so it sorts last by title.
+    private func makeGroupTagsViewModel() async throws -> DatabaseViewModel {
+        let url = try TestDatabaseSupport.fixtureURL(
+            named: "group-tags",
+            subdirectory: "compatibility",
+            bundle: Bundle(for: SortOrderTests.self)
+        )
+        let vm = try DatabaseViewModel(databaseReference: TestDatabaseSupport.makeReference(for: url))
+        await vm.unlock(password: "testpassword123")
+        return vm
     }
 }

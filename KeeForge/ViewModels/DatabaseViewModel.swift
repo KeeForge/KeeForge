@@ -1908,23 +1908,38 @@ final class DatabaseViewModel {
 
     func sortedGroups(_ groups: [KPGroup]) -> [KPGroup] {
         let asc = sortAscending
+        let ordered: [KPGroup]
         switch sortOrder {
         case .title:
-            return groups.sorted {
+            ordered = groups.sorted {
                 let result = $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending
                 return asc ? result : !result
             }
         case .createdDate:
-            return groups.sorted {
+            ordered = groups.sorted {
                 let result = ($0.creationTime ?? .distantPast) < ($1.creationTime ?? .distantPast)
                 return asc ? result : !result
             }
         case .modifiedDate:
-            return groups.sorted {
+            ordered = groups.sorted {
                 let result = ($0.lastModificationTime ?? .distantPast) < ($1.lastModificationTime ?? .distantPast)
                 return asc ? result : !result
             }
         }
+        return Self.pinningRecycleBinFirst(ordered, recycleBinID: currentRootGroup?.recycleBinUUID)
+    }
+
+    /// The bin is a fixed landmark rather than one folder among many, so it
+    /// keeps the same slot no matter which sort order or direction is active.
+    private static func pinningRecycleBinFirst(_ groups: [KPGroup], recycleBinID: UUID?) -> [KPGroup] {
+        guard let recycleBinID,
+              let index = groups.firstIndex(where: { $0.id == recycleBinID }),
+              index != 0 else {
+            return groups
+        }
+        var pinned = groups
+        pinned.insert(pinned.remove(at: index), at: 0)
+        return pinned
     }
 
     func sortedEntries(_ entries: [KPEntry]) -> [KPEntry] {
