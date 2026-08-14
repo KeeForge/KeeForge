@@ -3497,6 +3497,40 @@
         }
       }
     },
+    "Change your master password" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ändere dein Master-Passwort"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cambia tu contraseña maestra"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Changez votre mot de passe principal"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "更改主密码"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "更改主密碼"
+          }
+        }
+      }
+    },
     "Changes not saved" : {
       "localizations" : {
         "de" : {
@@ -11827,6 +11861,40 @@
         }
       }
     },
+    "KeeForge is now fully translated into Simplified and Traditional Chinese throughout the app and AutoFill." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge ist jetzt in der gesamten App und in AutoFill vollständig ins vereinfachte und traditionelle Chinesisch übersetzt."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge ahora está completamente traducida al chino simplificado y tradicional en toda la app y Autorrelleno."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge est désormais entièrement traduit en chinois simplifié et traditionnel dans l’app et le Remplissage automatique."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge 的 App 和自动填充现已全面翻译为简体中文和繁体中文。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge 的 App 和自動填寫現已全面翻譯為簡體中文和繁體中文。"
+          }
+        }
+      }
+    },
     "KeeForge is temporarily slowing down unlock attempts. Try again in %lld seconds." : {
       "localizations" : {
         "de" : {
@@ -17645,6 +17713,40 @@
         }
       }
     },
+    "Scan a QR code, paste a setup link, or type a key to add a verification code while editing an entry. Codes are saved in your database, so they work in other KeePass apps too." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Scanne einen QR-Code, füge einen Einrichtungslink ein oder tippe einen Schlüssel ein, um beim Bearbeiten eines Eintrags einen Bestätigungscode hinzuzufügen. Die Codes werden in deiner Datenbank gespeichert und funktionieren daher auch in anderen KeePass-Apps."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Escanea un código QR, pega un enlace de configuración o escribe una clave para añadir un código de verificación mientras editas una entrada. Los códigos se guardan en tu base de datos, así que también funcionan en otras apps de KeePass."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Scannez un code QR, collez un lien de configuration ou saisissez une clé pour ajouter un code de vérification lors de la modification d’une entrée. Les codes sont enregistrés dans votre base de données et fonctionnent donc aussi dans les autres apps KeePass."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "编辑条目时，可扫描二维码、粘贴设置链接或手动输入密钥来添加验证码。验证码保存在您的数据库中，因此在其他 KeePass App 中同样可用。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "編輯項目時，可掃描 QR 碼、貼上設定連結或手動輸入金鑰來新增驗證碼。驗證碼儲存在您的資料庫中，因此在其他 KeePass App 中同樣可用。"
+          }
+        }
+      }
+    },
     "Scan QR Code" : {
       "localizations" : {
         "de" : {
@@ -18495,6 +18597,40 @@
         }
       }
     },
+    "Set a new master password, or add, replace, or remove a key file, right from Database Details. A backup under the old key is kept, and Face ID or Touch ID keeps working." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lege direkt in den Datenbankdetails ein neues Master-Passwort fest oder füge eine Schlüsseldatei hinzu, ersetze sie oder entferne sie. Eine Sicherungskopie mit dem alten Schlüssel bleibt erhalten, und Face ID bzw. Touch ID funktioniert weiterhin."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Establece una nueva contraseña maestra, o añade, reemplaza o elimina un archivo de clave, directamente desde los Detalles de la base de datos. Se conserva una copia de seguridad con la clave anterior y Face ID o Touch ID sigue funcionando."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Définissez un nouveau mot de passe principal, ou ajoutez, remplacez ou supprimez un fichier de clé, directement depuis les Détails de la base de données. Une sauvegarde sous l’ancienne clé est conservée, et Face ID ou Touch ID continue de fonctionner."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "直接在“数据库详细信息”中设置新的主密码，或添加、替换、移除密钥文件。系统会保留使用旧密钥的备份，Face ID 或 Touch ID 也会继续可用。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "直接在「資料庫詳細資訊」中設定新的主密碼，或新增、取代、移除金鑰檔案。系統會保留使用舊金鑰的備份，Face ID 或 Touch ID 也會繼續可用。"
+          }
+        }
+      }
+    },
     "Set Key File" : {
       "localizations" : {
         "de" : {
@@ -18559,6 +18695,40 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "更輕鬆地設定自動填寫"
+          }
+        }
+      }
+    },
+    "Set up verification codes" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Richte Bestätigungscodes ein"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Configura códigos de verificación"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Configurez vos codes de vérification"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "设置验证码"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "設定驗證碼"
           }
         }
       }
@@ -24245,6 +24415,40 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "使用檔案名稱"
+          }
+        }
+      }
+    },
+    "Use KeeForge in Chinese" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge auf Chinesisch verwenden"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Usa KeeForge en chino"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Utilisez KeeForge en chinois"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "以中文使用 KeeForge"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "以中文使用 KeeForge"
           }
         }
       }
