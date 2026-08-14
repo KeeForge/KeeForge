@@ -169,6 +169,63 @@ final class DatabaseCreationServiceTests: XCTestCase {
         XCTAssertEqual(parameters["S"] as? Data, salt)
     }
 
+    func testCreateDatabaseUsesChosenPresetKDFParameters() throws {
+        let salt = Data(repeating: 9, count: DatabaseCreationDefaults.kdfSaltByteCount)
+        let strong = try DatabaseCreationDefaults.argon2idKDFParameters(preset: .strong, salt: salt)
+        XCTAssertEqual(strong["M"] as? UInt64, 128 << 20)
+        XCTAssertEqual(strong["I"] as? UInt64, 10)
+
+        let maximum = try DatabaseCreationDefaults.argon2idKDFParameters(preset: .maximum, salt: salt)
+        XCTAssertEqual(maximum["M"] as? UInt64, 256 << 20)
+        XCTAssertEqual(maximum["I"] as? UInt64, 12)
+    }
+
+    func testPrepareChaCha20DatabaseRoundTripsWithChaChaCipherHeader() async throws {
+        let prepared = try await DatabaseCreationService.prepare(
+            request: DatabasePreparationRequest(
+                displayName: "ChaCha",
+                password: "chacha password",
+                keyFileData: nil,
+                keyFileBookmarkData: nil,
+                keyFileFilename: nil,
+                cipher: .chacha20
+            )
+        )
+
+        let parsed = try KDBXParser.parseWithMetaAndHeader(
+            data: prepared.encryptedBytes,
+            password: "chacha password",
+            sessionKey: SymmetricKey(size: .bits256)
+        )
+
+        XCTAssertEqual(parsed.header.cipherID, KDBXParser.chachaCipherUUID)
+        XCTAssertEqual(parsed.rootGroup.groups.first?.name, "ChaCha")
+    }
+
+    func testPrepareWithStrongPresetLandsChosenParametersInHeader() async throws {
+        let prepared = try await DatabaseCreationService.prepare(
+            request: DatabasePreparationRequest(
+                displayName: "Strong",
+                password: "strong password",
+                keyFileData: nil,
+                keyFileBookmarkData: nil,
+                keyFileFilename: nil,
+                kdfPreset: .strong
+            )
+        )
+
+        let summary = try KDBXFileSummary.inspect(data: prepared.encryptedBytes)
+        XCTAssertEqual(summary.cipher, .aes256CBC)
+        XCTAssertEqual(
+            summary.keyDerivation,
+            .argon2id(
+                iterations: 10,
+                memoryBytes: 128 << 20,
+                parallelism: DatabaseCreationDefaults.argon2idParallelism
+            )
+        )
+    }
+
     func testCreateDatabaseDoesNotRegisterReferenceWhenDestinationWriteFails() async throws {
         let destinationURL = try makeDestinationURL(name: "WriteFailure.kdbx")
         let environment = failingWriteEnvironment()

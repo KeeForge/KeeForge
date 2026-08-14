@@ -58,6 +58,8 @@ final class DatabaseCreationViewModel {
     var password = ""
     var confirmPassword = ""
     var destinationChoice: DatabaseCreationDestinationChoice = .files
+    var cipher: DatabaseCreationCipher = .aes256
+    var kdfPreset: DatabaseCreationKDFPreset = .balanced
     private(set) var keyFileData: Data?
     private(set) var keyFileBookmarkData: Data?
     private(set) var keyFileFilename: String?
@@ -130,7 +132,9 @@ final class DatabaseCreationViewModel {
                     password: password.isEmpty ? nil : password,
                     keyFileData: keyFileData,
                     keyFileBookmarkData: keyFileBookmarkData,
-                    keyFileFilename: keyFileFilename
+                    keyFileFilename: keyFileFilename,
+                    cipher: cipher,
+                    kdfPreset: kdfPreset
                 ),
                 environment: environment
             )
@@ -186,7 +190,9 @@ final class DatabaseCreationViewModel {
                     password: password.isEmpty ? nil : password,
                     keyFileData: keyFileData,
                     keyFileBookmarkData: keyFileBookmarkData,
-                    keyFileFilename: keyFileFilename
+                    keyFileFilename: keyFileFilename,
+                    cipher: cipher,
+                    kdfPreset: kdfPreset
                 ),
                 environment: environment
             )

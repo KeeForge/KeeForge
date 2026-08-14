@@ -13,6 +13,7 @@ struct DatabaseCreationView: View {
     @State private var exportDocument = KDBXExportDocument(data: Data())
     @State private var isMasterPasswordVisible = false
     @State private var isConfirmPasswordVisible = false
+    @State private var isAdvancedExpanded = false
 
     var body: some View {
         NavigationStack {
@@ -156,7 +157,7 @@ struct DatabaseCreationView: View {
             } header: {
                 Text("Master Password")
             } footer: {
-                Text("KeeForge creates KDBX 4 databases encrypted with AES-256 and Argon2id key derivation. Choose a long, unique master password: it protects the entire database and cannot be recovered if forgotten.")
+                Text("Choose a long, unique master password: it protects the entire database and cannot be recovered if forgotten.")
             }
 
             Section {
@@ -178,7 +179,36 @@ struct DatabaseCreationView: View {
             } header: {
                 Text("Key File")
             }
+
+            Section {
+                DisclosureGroup(isExpanded: $isAdvancedExpanded) {
+                    Picker("Encryption", selection: $viewModel.cipher) {
+                        ForEach(DatabaseCreationCipher.allCases) { cipher in
+                            Text(cipher.displayName).tag(cipher)
+                        }
+                    }
+                    .accessibilityIdentifier("database-create.cipher-picker")
+
+                    Picker("Key Derivation", selection: $viewModel.kdfPreset) {
+                        ForEach(DatabaseCreationKDFPreset.allCases) { preset in
+                            Text(preset.displayName).tag(preset)
+                        }
+                    }
+                    .accessibilityIdentifier("database-create.kdf-preset-picker")
+                } label: {
+                    Text("Advanced")
+                }
+                .accessibilityIdentifier("database-create.advanced-disclosure")
+            } footer: {
+                Text(advancedFooter)
+            }
         }
+    }
+
+    private var advancedFooter: String {
+        let cipherName = viewModel.cipher.displayName
+        let kdfSummary = viewModel.kdfPreset.parameterSummary
+        return String(localized: "KeeForge creates KDBX 4 databases encrypted with \(cipherName) and Argon2id key derivation (\(kdfSummary)). Stronger settings take longer to unlock and may exceed AutoFill's memory limit on some devices.")
     }
 
     private var destinationFooter: String {

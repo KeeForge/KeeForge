@@ -744,6 +744,40 @@
         }
       }
     },
+    "%lld MB memory, %lld iterations" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$lld MB Speicher, %2$lld Iterationen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$lld MB de memoria, %2$lld iteraciones"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$lld Mo de mémoire, %2$lld itérations"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$lld MB 内存，%2$lld 次迭代"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$lld MB 記憶體，%2$lld 次迭代"
+          }
+        }
+      }
+    },
     "%lld nested groups" : {
       "localizations" : {
         "de" : {
@@ -2848,6 +2882,40 @@
         }
       }
     },
+    "Balanced" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ausgewogen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Equilibrado"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Équilibré"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "均衡"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "均衡"
+          }
+        }
+      }
+    },
     "Basics" : {
       "localizations" : {
         "de" : {
@@ -3865,6 +3933,40 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "選擇群組以檢視其項目。"
+          }
+        }
+      }
+    },
+    "Choose a long, unique master password: it protects the entire database and cannot be recovered if forgotten." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wählen Sie ein langes, einzigartiges Master-Passwort: Es schützt die gesamte Datenbank und kann nicht wiederhergestellt werden, wenn Sie es vergessen."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Elija una contraseña maestra larga y única: protege toda la base de datos y no se puede recuperar si la olvida."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choisissez un mot de passe principal long et unique : il protège l'ensemble de la base de données et ne peut pas être récupéré en cas d'oubli."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "请选择一个长且唯一的主密码：它保护整个数据库，忘记后将无法恢复。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "請選擇一個長且獨特的主密碼：它保護整個資料庫，忘記後將無法復原。"
           }
         }
       }
@@ -11757,36 +11859,36 @@
         }
       }
     },
-    "KeeForge creates KDBX 4 databases encrypted with AES-256 and Argon2id key derivation. Choose a long, unique master password: it protects the entire database and cannot be recovered if forgotten." : {
+    "KeeForge creates KDBX 4 databases encrypted with %@ and Argon2id key derivation (%@). Stronger settings take longer to unlock and may exceed AutoFill's memory limit on some devices." : {
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "KeeForge erstellt KDBX-4-Datenbanken, die mit AES-256 verschlüsselt sind und Argon2id zur Schlüsselableitung verwenden. Wählen Sie ein langes, einzigartiges Master-Passwort: Es schützt die gesamte Datenbank und kann nicht wiederhergestellt werden, wenn Sie es vergessen."
+            "value" : "KeeForge erstellt KDBX-4-Datenbanken, die mit %1$@ verschlüsselt sind und Argon2id zur Schlüsselableitung verwenden (%2$@). Stärkere Einstellungen verlängern das Entsperren und können auf manchen Geräten das Speicherlimit von AutoFill überschreiten."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "KeeForge crea bases de datos KDBX 4 cifradas con AES-256 y derivación de claves Argon2id. Elija una contraseña maestra larga y única: protege toda la base de datos y no se puede recuperar si la olvida."
+            "value" : "KeeForge crea bases de datos KDBX 4 cifradas con %1$@ y derivación de claves Argon2id (%2$@). Los ajustes más fuertes tardan más en desbloquear y pueden superar el límite de memoria del autorrelleno en algunos dispositivos."
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "KeeForge crée des bases de données KDBX 4 chiffrées avec AES-256 et une dérivation de clé Argon2id. Choisissez un mot de passe principal long et unique : il protège l'ensemble de la base de données et ne peut pas être récupéré en cas d'oubli."
+            "value" : "KeeForge crée des bases de données KDBX 4 chiffrées avec %1$@ et une dérivation de clé Argon2id (%2$@). Des réglages plus forts allongent le déverrouillage et peuvent dépasser la limite de mémoire du remplissage automatique sur certains appareils."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "KeeForge 创建使用 AES-256 加密和 Argon2id 密钥派生的 KDBX 4 数据库。请选择一个长且唯一的主密码：它保护整个数据库，忘记后将无法恢复。"
+            "value" : "KeeForge 创建使用 %1$@ 加密和 Argon2id 密钥派生（%2$@）的 KDBX 4 数据库。更强的设置会延长解锁时间，并可能在部分设备上超出自动填充的内存限制。"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "KeeForge 會建立使用 AES-256 加密和 Argon2id 金鑰衍生的 KDBX 4 資料庫。請選擇一個長且獨特的主密碼：它保護整個資料庫，忘記後將無法復原。"
+            "value" : "KeeForge 會建立使用 %1$@ 加密和 Argon2id 金鑰衍生（%2$@）的 KDBX 4 資料庫。更強的設定會延長解鎖時間，並可能在部分裝置上超出自動填寫的記憶體限制。"
           }
         }
       }
@@ -13522,6 +13624,40 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "主密碼"
+          }
+        }
+      }
+    },
+    "Maximum" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Maximal"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Máximo"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Maximal"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "最高"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "最高"
           }
         }
       }
@@ -19611,6 +19747,40 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "狀態"
+          }
+        }
+      }
+    },
+    "Strong" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Stark"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fuerte"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fort"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "强"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "強"
           }
         }
       }
