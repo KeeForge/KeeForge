@@ -981,6 +981,8 @@ final class DatabaseDraftTests: XCTestCase {
             .updateEntry(entryID: updateEntryID, draft: payload),
             .deleteEntry(entryID: deleteEntryID, sendToRecycleBin: true),
             .deleteGroup(groupID: deleteGroupID, sendToRecycleBin: false),
+            .moveEntry(entryID: updateEntryID, destinationGroupID: createParentID),
+            .moveGroup(groupID: deleteGroupID, destinationGroupID: createParentID),
         ]
 
         let encoder = JSONEncoder()
@@ -2154,6 +2156,214 @@ final class DatabaseDraftTests: XCTestCase {
             XCTAssertEqual(error as? DatabaseDraft.DraftError, .groupNotFound(missingGroupID))
         }
         XCTAssertFalse(draft.isDirty)
+    }
+
+    // MARK: - Move to group
+
+    /// Like recycling, a move stamps `<LocationChanged>` and touches nothing
+    /// else — `<LastModificationTime>` included.
+    func test_moveEntry_toAnotherGroup_removesFromSourceAppendsToDestination_stampsLocationChangedOnly() throws {
+        let tree = try makeSyntheticTree(includeRecycleBin: false)
+        let draft = DatabaseDraft(rootGroup: tree.rootGroup, meta: tree.meta, sessionKey: sessionKey)
+        let beforeMove = Date.now
+
+        let updated = try draft.apply(
+            .moveEntry(entryID: tree.parentEntry.id, destinationGroupID: tree.untouchedGroupID)
+        )
+
+        let source = try XCTUnwrap(findGroup(withID: tree.parentGroupID, in: updated.rootGroup))
+        XCTAssertFalse(source.entries.contains { $0.id == tree.parentEntry.id })
+
+        let destination = try XCTUnwrap(findGroup(withID: tree.untouchedGroupID, in: updated.rootGroup))
+        let moved = try XCTUnwrap(destination.entries.last)
+        XCTAssertEqual(moved.id, tree.parentEntry.id)
+
+        XCTAssertGreaterThanOrEqual(try XCTUnwrap(moved.locationChanged), beforeMove)
+        XCTAssertEqual(moved.lastModificationTime, tree.parentEntry.lastModificationTime)
+
+        var normalized = moved
+        normalized.locationChanged = tree.parentEntry.locationChanged
+        try assertEntriesEqual(normalized, tree.parentEntry)
+    }
+
+    func test_moveEntry_missingEntryOrMissingDestination_throwsWithoutMutatingDraft() throws {
+        let tree = try makeSyntheticTree(includeRecycleBin: false)
+        let draft = DatabaseDraft(rootGroup: tree.rootGroup, meta: tree.meta, sessionKey: sessionKey)
+        let originalRootGroup = draft.rootGroup
+        let missingID = UUID()
+
+        XCTAssertThrowsError(
+            try draft.apply(.moveEntry(entryID: missingID, destinationGroupID: tree.untouchedGroupID))
+        ) { error in
+            XCTAssertEqual(error as? DatabaseDraft.DraftError, .entryNotFound(missingID))
+        }
+
+        XCTAssertThrowsError(
+            try draft.apply(.moveEntry(entryID: tree.parentEntry.id, destinationGroupID: missingID))
+        ) { error in
+            XCTAssertEqual(error as? DatabaseDraft.DraftError, .groupNotFound(missingID))
+        }
+
+        XCTAssertFalse(draft.isDirty)
+        try assertGroupsEqual(draft.rootGroup, originalRootGroup)
+    }
+
+    func test_moveGroup_reparentsSubtree_stampsLocationChangedOnTheMovedGroupOnly() throws {
+        let previousMove = Date(timeIntervalSince1970: 3_000)
+        let nestedEntry = KPEntry(
+            title: "Nested Entry",
+            password: try EncryptedValue.encrypt("nested-secret", using: sessionKey),
+            creationTime: Date(timeIntervalSince1970: 1_000),
+            lastModificationTime: Date(timeIntervalSince1970: 2_000)
+        )
+        let childGroup = KPGroup(name: "Movable Child")
+        let movableGroup = KPGroup(
+            name: "Movable",
+            notes: "keep these notes",
+            hasNotesElement: true,
+            iconID: 12,
+            tags: ["alpha", "beta"],
+            hasTagsElement: true,
+            entries: [nestedEntry],
+            groups: [childGroup],
+            creationTime: Date(timeIntervalSince1970: 1_000),
+            lastModificationTime: Date(timeIntervalSince1970: 2_000),
+            locationChanged: previousMove
+        )
+        let sourceGroup = KPGroup(name: "Source", groups: [movableGroup])
+        let destinationGroup = KPGroup(name: "Destination")
+        let visibleRoot = KPGroup(name: "Visible Root", groups: [sourceGroup, destinationGroup])
+        let root = KPGroup(name: "Root", groups: [visibleRoot])
+        let draft = DatabaseDraft(rootGroup: root, meta: KPMeta(), sessionKey: sessionKey)
+        let beforeMove = Date.now
+
+        let updated = try draft.apply(
+            .moveGroup(groupID: movableGroup.id, destinationGroupID: destinationGroup.id)
+        )
+
+        let updatedSource = try XCTUnwrap(findGroup(withID: sourceGroup.id, in: updated.rootGroup))
+        XCTAssertTrue(updatedSource.groups.isEmpty)
+
+        let updatedDestination = try XCTUnwrap(findGroup(withID: destinationGroup.id, in: updated.rootGroup))
+        let moved = try XCTUnwrap(updatedDestination.groups.last)
+        XCTAssertEqual(moved.id, movableGroup.id)
+
+        let stamped = try XCTUnwrap(moved.locationChanged)
+        XCTAssertGreaterThanOrEqual(stamped, beforeMove)
+        XCTAssertGreaterThan(stamped, previousMove)
+        XCTAssertEqual(moved.lastModificationTime, movableGroup.lastModificationTime)
+
+        // Every other stored field survives the move verbatim.
+        XCTAssertEqual(moved.name, movableGroup.name)
+        XCTAssertEqual(moved.notes, movableGroup.notes)
+        XCTAssertTrue(moved.hasNotesElement)
+        XCTAssertEqual(moved.iconID, movableGroup.iconID)
+        XCTAssertEqual(moved.tags, movableGroup.tags)
+        XCTAssertTrue(moved.hasTagsElement)
+        XCTAssertEqual(moved.creationTime, movableGroup.creationTime)
+
+        // The subtree travelled with its parent: nothing inside it moved
+        // relative to the group that contains it, so `nil` stays `nil`.
+        let movedChild = try XCTUnwrap(moved.groups.first)
+        XCTAssertEqual(movedChild.id, childGroup.id)
+        XCTAssertNil(movedChild.locationChanged)
+        let movedEntry = try XCTUnwrap(moved.entries.first)
+        XCTAssertNil(movedEntry.locationChanged)
+        try assertEntriesEqual(movedEntry, nestedEntry)
+    }
+
+    func test_moveGroup_intoItselfOrOwnDescendant_throws() throws {
+        let grandchild = KPGroup(name: "Grandchild")
+        let child = KPGroup(name: "Child", groups: [grandchild])
+        let movable = KPGroup(name: "Movable", groups: [child])
+        let visibleRoot = KPGroup(name: "Visible Root", groups: [movable])
+        let root = KPGroup(name: "Root", groups: [visibleRoot])
+        let draft = DatabaseDraft(rootGroup: root, meta: KPMeta(), sessionKey: sessionKey)
+
+        for destinationID in [movable.id, child.id, grandchild.id] {
+            XCTAssertThrowsError(
+                try draft.apply(.moveGroup(groupID: movable.id, destinationGroupID: destinationID))
+            ) { error in
+                XCTAssertEqual(
+                    error as? DatabaseDraft.DraftError,
+                    .moveDestinationInsideMovedGroup(groupID: movable.id, destinationGroupID: destinationID)
+                )
+            }
+        }
+    }
+
+    func test_moveGroup_duplicateSiblingNameInDestination_throws() throws {
+        let movable = KPGroup(name: "Reports")
+        let source = KPGroup(name: "Source", groups: [movable])
+        // Case- and diacritic-insensitive collision, matching createGroup/updateGroup.
+        let destination = KPGroup(name: "Destination", groups: [KPGroup(name: "répörts")])
+        let visibleRoot = KPGroup(name: "Visible Root", groups: [source, destination])
+        let root = KPGroup(name: "Root", groups: [visibleRoot])
+        let draft = DatabaseDraft(rootGroup: root, meta: KPMeta(), sessionKey: sessionKey)
+
+        XCTAssertThrowsError(
+            try draft.apply(.moveGroup(groupID: movable.id, destinationGroupID: destination.id))
+        ) { error in
+            XCTAssertEqual(
+                error as? DatabaseDraft.DraftError,
+                .duplicateGroupName(parentGroupID: destination.id, name: "Reports")
+            )
+        }
+    }
+
+    func test_moveGroup_protectedAndMissingGroupsThrow() throws {
+        let tree = try makeSyntheticTree(includeRecycleBin: true)
+        let draft = DatabaseDraft(rootGroup: tree.rootGroup, meta: tree.meta, sessionKey: sessionKey)
+        let visibleRootID = try XCTUnwrap(tree.rootGroup.groups.first?.id)
+        let recycleBinGroupID = try XCTUnwrap(tree.recycleBinGroupID)
+        let missingGroupID = UUID()
+
+        for protectedGroupID in [tree.rootGroup.id, visibleRootID, recycleBinGroupID] {
+            XCTAssertThrowsError(
+                try draft.apply(.moveGroup(groupID: protectedGroupID, destinationGroupID: tree.untouchedGroupID))
+            ) { error in
+                XCTAssertEqual(error as? DatabaseDraft.DraftError, .protectedGroup(protectedGroupID))
+            }
+        }
+
+        XCTAssertThrowsError(
+            try draft.apply(.moveGroup(groupID: missingGroupID, destinationGroupID: tree.untouchedGroupID))
+        ) { error in
+            XCTAssertEqual(error as? DatabaseDraft.DraftError, .groupNotFound(missingGroupID))
+        }
+
+        XCTAssertThrowsError(
+            try draft.apply(.moveGroup(groupID: tree.parentGroupID, destinationGroupID: missingGroupID))
+        ) { error in
+            XCTAssertEqual(error as? DatabaseDraft.DraftError, .groupNotFound(missingGroupID))
+        }
+    }
+
+    func test_moveEdits_appendToPendingEditsAndReplayOntoAFreshDraft() throws {
+        let tree = try makeSyntheticTree(includeRecycleBin: false)
+        let moveEntryEdit = EntryEdit.moveEntry(
+            entryID: tree.parentEntry.id,
+            destinationGroupID: tree.untouchedGroupID
+        )
+        let moveGroupEdit = EntryEdit.moveGroup(
+            groupID: tree.parentGroupID,
+            destinationGroupID: tree.untouchedGroupID
+        )
+
+        let draft = DatabaseDraft(rootGroup: tree.rootGroup, meta: tree.meta, sessionKey: sessionKey)
+        let updated = try draft.apply(moveEntryEdit).apply(moveGroupEdit)
+        XCTAssertEqual(updated.pendingEdits, [moveEntryEdit, moveGroupEdit])
+
+        // Replaying the same edit sequence onto a fresh draft of the same tree
+        // lands every object in the same place.
+        let replayDraft = DatabaseDraft(rootGroup: tree.rootGroup, meta: tree.meta, sessionKey: sessionKey)
+        let replayed = try replayDraft.apply(moveEntryEdit).apply(moveGroupEdit)
+
+        for result in [updated, replayed] {
+            let destination = try XCTUnwrap(findGroup(withID: tree.untouchedGroupID, in: result.rootGroup))
+            XCTAssertTrue(destination.entries.contains { $0.id == tree.parentEntry.id })
+            XCTAssertTrue(destination.groups.contains { $0.id == tree.parentGroupID })
+        }
     }
 
     // MARK: - LocationChanged maintenance

@@ -31,6 +31,22 @@ struct GroupListView: View {
         var id: UUID { groupID }
     }
 
+    /// Identifies the item whose Move-to-Group picker is showing, so
+    /// `sheet(item:)` has an `Identifiable` to key on.
+    enum PendingMove: Identifiable {
+        case entry(UUID)
+        case group(UUID)
+
+        var id: String {
+            switch self {
+            case .entry(let entryID):
+                "entry-\(entryID.uuidString)"
+            case .group(let groupID):
+                "group-\(groupID.uuidString)"
+            }
+        }
+    }
+
     enum PendingDeletion: Identifiable {
         case entry(PendingEntryDeletion)
         case group(PendingGroupDeletion)
@@ -66,6 +82,8 @@ struct GroupListView: View {
     @State private var groupCreationErrorMessage: String?
     /// The group whose icon picker is presented, or `nil` when none is.
     @State private var pendingIconChange: PendingIconChange?
+    /// The entry or group whose Move-to-Group picker is presented, or `nil`.
+    @State private var pendingMove: PendingMove?
     #if os(macOS)
     @FocusState private var isSearchFieldFocused: Bool
     #endif
@@ -297,6 +315,25 @@ struct GroupListView: View {
         // On the outer Group: an alert host on the `resolvedGroup` branch would
         // be stranded if the branch vanishes while the alert is up.
         .alert(item: $pendingDeletion, content: deletionAlert)
+        // Also on the outer Group, for the same stranding reason. Options are
+        // resolved here rather than captured when the menu was tapped, so the
+        // picker reflects the tree as it is now.
+        .sheet(item: $pendingMove) { pending in
+            switch pending {
+            case .entry(let entryID):
+                MoveToGroupPickerView(
+                    options: viewModel.moveDestinationOptions(forEntryID: entryID)
+                ) { destinationGroupID in
+                    moveEntry(entryID, toGroupID: destinationGroupID)
+                }
+            case .group(let movedGroupID):
+                MoveToGroupPickerView(
+                    options: viewModel.moveDestinationOptions(forGroupID: movedGroupID)
+                ) { destinationGroupID in
+                    moveGroup(movedGroupID, toGroupID: destinationGroupID)
+                }
+            }
+        }
     }
 
     /// Presents the entry editor. iOS pushes it onto the navigation stack;
@@ -463,6 +500,13 @@ struct GroupListView: View {
                 .accessibilityIdentifier("group-row.autofill-exclusion-context")
             }
 
+            if canMoveGroup(groupID) {
+                Button("Move to Group…", systemImage: "folder") {
+                    pendingMove = .group(groupID)
+                }
+                .accessibilityIdentifier("group-row.move-context")
+            }
+
             if canDeleteGroup(groupID) {
                 Button(groupDeleteButtonTitle(for: groupID), role: .destructive) {
                     preparePendingGroupDeletion(groupID)
@@ -500,6 +544,13 @@ struct GroupListView: View {
         }
         .macHoverHighlight()
         .contextMenu {
+            if canMoveEntry(entry) {
+                Button("Move to Group…", systemImage: "folder") {
+                    pendingMove = .entry(entry.id)
+                }
+                .accessibilityIdentifier("entry-row.move-context")
+            }
+
             if viewModel.isReadOnly == false {
                 Button(isRecycleBin ? "Delete Permanently" : "Delete", role: .destructive) {
                     pendingDeletion = .entry(
@@ -556,6 +607,42 @@ struct GroupListView: View {
             isExclusionInherited: viewModel.isGroupExclusionInherited(groupID: groupID),
             knownTags: viewModel.tagsInDisplayOrder
         )
+    }
+
+    /// Entries can move when the database accepts edits and the entry is not
+    /// recycled — restoring from the bin is the restore flow, not a move.
+    private func canMoveEntry(_ entry: KPEntry) -> Bool {
+        viewModel.isReadOnly == false
+            && viewModel.isEntryInRecycleBin(entryID: entry.id) == false
+    }
+
+    /// `canEditGroup` plus the deletion-protection screen, which also covers
+    /// the roots the draft would refuse to reparent.
+    private func canMoveGroup(_ groupID: UUID) -> Bool {
+        canEditGroup(groupID)
+            && viewModel.isGroupProtectedFromDeletion(groupID: groupID) == false
+    }
+
+    private func moveEntry(_ entryID: UUID, toGroupID: UUID) {
+        do {
+            try viewModel.moveEntry(entryID: entryID, toGroupID: toGroupID)
+            Task {
+                await viewModel.saveHandlingError()
+            }
+        } catch {
+            viewModel.presentSaveError(error)
+        }
+    }
+
+    private func moveGroup(_ groupID: UUID, toGroupID: UUID) {
+        do {
+            try viewModel.moveGroup(groupID: groupID, toGroupID: toGroupID)
+            Task {
+                await viewModel.saveHandlingError()
+            }
+        } catch {
+            viewModel.presentSaveError(error)
+        }
     }
 
     /// Same eligibility as the AutoFill toggle, for the same reasons: nothing is

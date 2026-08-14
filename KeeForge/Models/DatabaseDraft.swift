@@ -10,6 +10,7 @@ struct DatabaseDraft: Sendable {
         case protectedGroup(UUID)
         case historyVersionNotFound(entryID: UUID, index: Int)
         case customIconNotStorable
+        case moveDestinationInsideMovedGroup(groupID: UUID, destinationGroupID: UUID)
 
         var errorDescription: String? {
             switch self {
@@ -27,6 +28,8 @@ struct DatabaseDraft: Sendable {
                 String(localized: "That earlier version is no longer available.")
             case .customIconNotStorable:
                 String(localized: "This database's icons are stored in a form KeeForge cannot add to without risking the ones already there.")
+            case .moveDestinationInsideMovedGroup:
+                String(localized: "A group cannot be moved into itself or one of its subgroups.")
             }
         }
     }
@@ -125,6 +128,10 @@ struct DatabaseDraft: Sendable {
             updatedState = try applyUpdateGroup(groupID: groupID, draft: draft)
         case .restoreEntryVersion(let entryID, let historyIndex):
             updatedState = try applyRestoreEntryVersion(entryID: entryID, historyIndex: historyIndex)
+        case .moveEntry(let entryID, let destinationGroupID):
+            updatedState = try applyMoveEntry(entryID: entryID, destinationGroupID: destinationGroupID)
+        case .moveGroup(let groupID, let destinationGroupID):
+            updatedState = try applyMoveGroup(groupID: groupID, destinationGroupID: destinationGroupID)
         }
 
         updatedState.rootGroup.recycleBinUUID = updatedState.meta.recycleBinUUID
@@ -729,6 +736,84 @@ struct DatabaseDraft: Sendable {
             updatedMeta.hasRecycleBinUUIDElement = true
             return (updatedRootGroup, updatedMeta)
         }
+    }
+
+    private func applyMoveEntry(
+        entryID: UUID,
+        destinationGroupID: UUID
+    ) throws -> (rootGroup: KPGroup, meta: KPMeta) {
+        guard let entryLocation = findEntryLocation(entryID: entryID, in: currentRootGroupStorage) else {
+            throw DraftError.entryNotFound(entryID)
+        }
+
+        guard let destinationPath = pathToGroup(withID: destinationGroupID, in: currentRootGroupStorage) else {
+            throw DraftError.groupNotFound(destinationGroupID)
+        }
+
+        let rootWithoutEntry = try rebuildGroup(in: currentRootGroupStorage, targetPath: entryLocation.groupPath[...]) { group in
+            var updatedEntries = group.entries
+            updatedEntries.remove(at: entryLocation.entryIndex)
+            return copyGroup(group, entries: updatedEntries)
+        }
+
+        // A move only reparents: `<LocationChanged>` advances while the
+        // modification time stays put, exactly as recycling records it.
+        var movedEntry = entryLocation.entry
+        movedEntry.locationChanged = Date.now
+
+        let updatedRootGroup = try rebuildGroup(in: rootWithoutEntry, targetPath: destinationPath[...]) { group in
+            var updatedEntries = group.entries
+            updatedEntries.append(movedEntry)
+            return copyGroup(group, entries: updatedEntries)
+        }
+
+        return (updatedRootGroup, currentMetaStorage)
+    }
+
+    private func applyMoveGroup(
+        groupID: UUID,
+        destinationGroupID: UUID
+    ) throws -> (rootGroup: KPGroup, meta: KPMeta) {
+        guard isProtectedGroupForDeletion(groupID, in: currentRootGroupStorage, meta: currentMetaStorage) == false else {
+            throw DraftError.protectedGroup(groupID)
+        }
+
+        guard let groupLocation = findGroupLocation(groupID: groupID, in: currentRootGroupStorage) else {
+            throw DraftError.groupNotFound(groupID)
+        }
+
+        guard containsGroup(withID: destinationGroupID, in: groupLocation.group) == false else {
+            throw DraftError.moveDestinationInsideMovedGroup(groupID: groupID, destinationGroupID: destinationGroupID)
+        }
+
+        guard let destinationPath = pathToGroup(withID: destinationGroupID, in: currentRootGroupStorage) else {
+            throw DraftError.groupNotFound(destinationGroupID)
+        }
+
+        let rootWithoutGroup = try rebuildGroup(
+            in: currentRootGroupStorage,
+            targetPath: groupLocation.parentPath[...]
+        ) { parentGroup in
+            var updatedGroups = parentGroup.groups
+            updatedGroups.remove(at: groupLocation.groupIndex)
+            return copyGroup(parentGroup, groups: updatedGroups)
+        }
+
+        // Only the moved group changed parent; its subtree did not move
+        // relative to it and keeps its own timestamps.
+        let movedGroup = copyGroup(groupLocation.group, locationChanged: Date.now)
+
+        let updatedRootGroup = try rebuildGroup(in: rootWithoutGroup, targetPath: destinationPath[...]) { group in
+            if group.groups.contains(where: { $0.name.compare(movedGroup.name, options: [.caseInsensitive, .diacriticInsensitive]) == .orderedSame }) {
+                throw DraftError.duplicateGroupName(parentGroupID: destinationGroupID, name: movedGroup.name)
+            }
+
+            var updatedGroups = group.groups
+            updatedGroups.append(movedGroup)
+            return copyGroup(group, groups: updatedGroups)
+        }
+
+        return (updatedRootGroup, currentMetaStorage)
     }
 
     private func makeCreatedEntry(
