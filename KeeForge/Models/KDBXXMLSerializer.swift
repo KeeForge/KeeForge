@@ -128,11 +128,13 @@ struct KDBXXMLSerializer {
         xml += element("IsExpanded", value: group.isExpanded ? "True" : "False")
         knownChildCount += 1
 
-        if group.creationTime != nil || group.lastModificationTime != nil || hasOpaqueTimes(group.unknownXML) {
+        if group.creationTime != nil || group.lastModificationTime != nil
+            || group.locationChanged != nil || hasOpaqueTimes(group.unknownXML) {
             xml += try opaqueXML(from: group.unknownXML, path: [], insertionIndex: knownChildCount)
             xml += try serializeTimes(
                 creationTime: group.creationTime,
                 lastModificationTime: group.lastModificationTime,
+                locationChanged: group.locationChanged,
                 unknownXML: group.unknownXML
             )
             knownChildCount += 1
@@ -223,12 +225,14 @@ struct KDBXXMLSerializer {
             attachmentAnchor += 1
         }
 
-        if entry.creationTime != nil || entry.lastModificationTime != nil || hasOpaqueTimes(entry.unknownXML) {
+        if entry.creationTime != nil || entry.lastModificationTime != nil
+            || entry.locationChanged != nil || hasOpaqueTimes(entry.unknownXML) {
             xml += try opaqueXML(from: entry.unknownXML, path: [], insertionIndex: knownChildCount)
             xml += try attachmentsXML()
             xml += try serializeTimes(
                 creationTime: entry.creationTime,
                 lastModificationTime: entry.lastModificationTime,
+                locationChanged: entry.locationChanged,
                 unknownXML: entry.unknownXML
             )
             knownChildCount += 1
@@ -401,6 +405,7 @@ struct KDBXXMLSerializer {
     private mutating func serializeTimes(
         creationTime: Date?,
         lastModificationTime: Date?,
+        locationChanged: Date?,
         unknownXML: OpaqueXMLNodes
     ) throws -> String {
         var xml = "<Times>"
@@ -415,6 +420,16 @@ struct KDBXXMLSerializer {
         if let lastModificationTime {
             xml += try opaqueXML(from: unknownXML, path: ["Times"], insertionIndex: knownChildCount)
             xml += element("LastModificationTime", value: serializeDate(lastModificationTime))
+            knownChildCount += 1
+        }
+
+        // Last of KeePass's standard `<Times>` children, which is why the
+        // unmodelled ones between it and `<LastModificationTime>`
+        // (`LastAccessTime`, `ExpiryTime`, `Expires`, `UsageCount`) land at the
+        // opaque position emitted just above and keep their recorded order.
+        if let locationChanged {
+            xml += try opaqueXML(from: unknownXML, path: ["Times"], insertionIndex: knownChildCount)
+            xml += element("LocationChanged", value: serializeDate(locationChanged))
             knownChildCount += 1
         }
 

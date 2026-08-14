@@ -800,6 +800,7 @@ final class KDBXXMLParser: NSObject, XMLParserDelegate {
         var searchingEnabled: KPInheritableBool?
         var creationTime: Date?
         var lastModificationTime: Date?
+        var locationChanged: Date?
         var unknownXML = OpaqueXMLNodes.empty
         var knownChildCount = 0
         var timesKnownChildCount = 0
@@ -820,6 +821,7 @@ final class KDBXXMLParser: NSObject, XMLParserDelegate {
                 searchingEnabled: searchingEnabled,
                 creationTime: creationTime,
                 lastModificationTime: lastModificationTime,
+                locationChanged: locationChanged,
                 recycleBinUUID: recycleBinUUID,
                 unknownXML: unknownXML
             )
@@ -1059,6 +1061,9 @@ final class KDBXXMLParser: NSObject, XMLParserDelegate {
     /// understand, so `recordOpaqueXML` keeps it as an opaque node instead of
     /// counting it as structured and losing it on write.
     private var currentEnableSearchingWasParsable = false
+    /// Same contract as `currentEnableSearchingWasParsable`, for the
+    /// `<Times>/<LocationChanged>` timestamp.
+    private var currentLocationChangedWasParsable = false
     private var historyDepth = 0
     private var inMeta = false
     private var inCustomIcons = false
@@ -1414,6 +1419,22 @@ final class KDBXXMLParser: NSObject, XMLParserDelegate {
                     .lowercased() == "true"
             }
 
+        case "LocationChanged" where parentName == "Times":
+            // Structured only when the timestamp actually parsed; otherwise it
+            // stays opaque, exactly like `EnableSearching`, so the counter arm
+            // below and the serializer's emission stay in lockstep.
+            currentLocationChangedWasParsable = false
+            guard let date = parseKPDate(currentText.trimmingCharacters(in: .whitespacesAndNewlines)) else {
+                break
+            }
+            if let currentEntry {
+                currentEntry.locationChanged = date
+                currentLocationChangedWasParsable = true
+            } else if !inMeta, let index = groupStack.indices.last {
+                groupStack[index].locationChanged = date
+                currentLocationChangedWasParsable = true
+            }
+
         case "Tags":
             if let entry = currentEntry {
                 // Track element presence separately from content so that an
@@ -1596,6 +1617,8 @@ final class KDBXXMLParser: NSObject, XMLParserDelegate {
                 switch elementName {
                 case "CreationTime", "LastModificationTime":
                     entry.timesKnownChildCount += 1
+                case "LocationChanged" where currentLocationChangedWasParsable:
+                    entry.timesKnownChildCount += 1
                 default:
                     entry.unknownXML.append(
                         xml: xml,
@@ -1608,6 +1631,8 @@ final class KDBXXMLParser: NSObject, XMLParserDelegate {
                 guard let index = groupStack.indices.last else { return }
                 switch elementName {
                 case "CreationTime", "LastModificationTime":
+                    groupStack[index].timesKnownChildCount += 1
+                case "LocationChanged" where currentLocationChangedWasParsable:
                     groupStack[index].timesKnownChildCount += 1
                 default:
                     groupStack[index].unknownXML.append(
@@ -1693,6 +1718,7 @@ private class EntryBuilder {
     var lastModificationTime: Date?
     var expires = false
     var expiryTime: Date?
+    var locationChanged: Date?
     var history: [KPEntry] = []
     var unknownXML = OpaqueXMLNodes.empty
     var knownChildCount = 0
@@ -1744,6 +1770,7 @@ private class EntryBuilder {
             lastModificationTime: lastModificationTime,
             expires: expires,
             expiryTime: expiryTime,
+            locationChanged: locationChanged,
             history: history,
             unknownXML: unknownXML,
             protectedStringKeys: protectedStringKeys,

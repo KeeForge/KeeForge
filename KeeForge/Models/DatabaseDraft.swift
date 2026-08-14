@@ -187,7 +187,8 @@ struct DatabaseDraft: Sendable {
             let newGroup = KPGroup(
                 name: trimmedName,
                 creationTime: timestamp,
-                lastModificationTime: timestamp
+                lastModificationTime: timestamp,
+                locationChanged: timestamp
             )
             var updatedGroups = group.groups
             updatedGroups.append(newGroup)
@@ -231,6 +232,7 @@ struct DatabaseDraft: Sendable {
                 searchingEnabled: value,
                 creationTime: group.creationTime,
                 lastModificationTime: timestamp,
+                locationChanged: group.locationChanged,
                 recycleBinUUID: group.recycleBinUUID,
                 unknownXML: unknownXML
             )
@@ -269,6 +271,7 @@ struct DatabaseDraft: Sendable {
                 searchingEnabled: group.searchingEnabled,
                 creationTime: group.creationTime,
                 lastModificationTime: timestamp,
+                locationChanged: group.locationChanged,
                 recycleBinUUID: group.recycleBinUUID,
                 unknownXML: unknownXML
             )
@@ -475,6 +478,7 @@ struct DatabaseDraft: Sendable {
                 searchingEnabled: draft.searchingEnabled?.modelValue,
                 creationTime: group.creationTime,
                 lastModificationTime: timestamp,
+                locationChanged: group.locationChanged,
                 recycleBinUUID: group.recycleBinUUID,
                 unknownXML: unknownXML
             )
@@ -565,6 +569,9 @@ struct DatabaseDraft: Sendable {
             lastModificationTime: Date.now,
             expires: version.expires,
             expiryTime: version.expiryTime,
+            // Restoring a version does not move the entry, so where it lives
+            // stays with the live entry, like `id` and `creationTime`.
+            locationChanged: current.locationChanged,
             history: trimmedHistory(
                 appending: current.cloneForHistory(),
                 existing: current.history,
@@ -602,17 +609,28 @@ struct DatabaseDraft: Sendable {
             return (rootWithoutEntry, updatedMeta)
         }
 
+        // Recycling is a move, so the entry's `<LocationChanged>` advances while
+        // its modification time stays put — that is how KeePass records it, and
+        // what lets a merge tell a recycle apart from an edit.
+        let timestamp = Date.now
+        var recycledEntry = entryLocation.entry
+        recycledEntry.locationChanged = timestamp
+
         switch recycleBinTarget(in: rootWithoutEntry, meta: currentMetaStorage) {
         case .existing(let recycleBinPath):
             let updatedRootGroup = try rebuildGroup(in: rootWithoutEntry, targetPath: recycleBinPath[...]) { group in
                 var updatedEntries = group.entries
-                updatedEntries.append(entryLocation.entry)
+                updatedEntries.append(recycledEntry)
                 return copyGroup(group, entries: updatedEntries)
             }
             return (updatedRootGroup, currentMetaStorage)
 
         case .create(let recycleBinID):
-            let recycleBinGroup = makeRecycleBinGroup(id: recycleBinID, entry: entryLocation.entry)
+            let recycleBinGroup = makeRecycleBinGroup(
+                id: recycleBinID,
+                entry: recycledEntry,
+                timestamp: timestamp
+            )
             let recycleBinParent = rootWithoutEntry.groups.first ?? rootWithoutEntry
             let recycleBinParentPath: [UUID] = recycleBinParent.id == rootWithoutEntry.id
                 ? [rootWithoutEntry.id]
@@ -667,17 +685,27 @@ struct DatabaseDraft: Sendable {
             return (rootWithoutGroup, updatedMeta)
         }
 
+        // Same as the entry path: the recycled group moved, so only its
+        // `<LocationChanged>` advances. Its subtree did not move relative to it
+        // and keeps its own timestamps.
+        let timestamp = Date.now
+        let recycledGroup = copyGroup(groupLocation.group, locationChanged: timestamp)
+
         switch recycleBinTarget(in: rootWithoutGroup, meta: currentMetaStorage) {
         case .existing(let recycleBinPath):
             let updatedRootGroup = try rebuildGroup(in: rootWithoutGroup, targetPath: recycleBinPath[...]) { group in
                 var updatedGroups = group.groups
-                updatedGroups.append(groupLocation.group)
+                updatedGroups.append(recycledGroup)
                 return copyGroup(group, groups: updatedGroups)
             }
             return (updatedRootGroup, currentMetaStorage)
 
         case .create(let recycleBinID):
-            let recycleBinGroup = makeRecycleBinGroup(id: recycleBinID, group: groupLocation.group)
+            let recycleBinGroup = makeRecycleBinGroup(
+                id: recycleBinID,
+                group: recycledGroup,
+                timestamp: timestamp
+            )
             let recycleBinParent = rootWithoutGroup.groups.first ?? rootWithoutGroup
             let recycleBinParentPath: [UUID] = recycleBinParent.id == rootWithoutGroup.id
                 ? [rootWithoutGroup.id]
@@ -727,6 +755,7 @@ struct DatabaseDraft: Sendable {
                     : nil),
             creationTime: timestamp,
             lastModificationTime: timestamp,
+            locationChanged: timestamp,
             protectedStringKeys: draftProtectedStringKeys(
                 from: draft,
                 customFields: customFields,
@@ -769,6 +798,7 @@ struct DatabaseDraft: Sendable {
             lastModificationTime: timestamp,
             expires: originalEntry.expires,
             expiryTime: originalEntry.expiryTime,
+            locationChanged: originalEntry.locationChanged,
             history: history,
             unknownXML: originalEntry.unknownXML,
             protectedStringKeys: preservedProtectedStringKeys(
@@ -1024,27 +1054,27 @@ struct DatabaseDraft: Sendable {
         String(localized: "Recycle Bin")
     }
 
-    private func makeRecycleBinGroup(id: UUID, entry: KPEntry) -> KPGroup {
-        let timestamp = Date.now
-        return KPGroup(
+    private func makeRecycleBinGroup(id: UUID, entry: KPEntry, timestamp: Date) -> KPGroup {
+        KPGroup(
             id: id,
             name: Self.localizedRecycleBinName,
             iconID: 43,
             entries: [entry],
             creationTime: timestamp,
-            lastModificationTime: timestamp
+            lastModificationTime: timestamp,
+            locationChanged: timestamp
         )
     }
 
-    private func makeRecycleBinGroup(id: UUID, group: KPGroup) -> KPGroup {
-        let timestamp = Date.now
-        return KPGroup(
+    private func makeRecycleBinGroup(id: UUID, group: KPGroup, timestamp: Date) -> KPGroup {
+        KPGroup(
             id: id,
             name: Self.localizedRecycleBinName,
             iconID: 43,
             groups: [group],
             creationTime: timestamp,
-            lastModificationTime: timestamp
+            lastModificationTime: timestamp,
+            locationChanged: timestamp
         )
     }
 
@@ -1191,11 +1221,15 @@ struct DatabaseDraft: Sendable {
         return updatedCurrentGroup
     }
 
+    /// Rebuilds a group with some children replaced. `locationChanged` is an
+    /// override rather than a carried field: passing one marks a reparent,
+    /// `nil` keeps whatever the group already had.
     private func copyGroup(
         _ group: KPGroup,
         entries: [KPEntry]? = nil,
         groups: [KPGroup]? = nil,
-        recycleBinUUIDOverride: RecycleBinUUIDOverride = .keep
+        recycleBinUUIDOverride: RecycleBinUUIDOverride = .keep,
+        locationChanged: Date? = nil
     ) -> KPGroup {
         let recycleBinUUID: UUID?
         switch recycleBinUUIDOverride {
@@ -1220,31 +1254,9 @@ struct DatabaseDraft: Sendable {
             searchingEnabled: group.searchingEnabled,
             creationTime: group.creationTime,
             lastModificationTime: group.lastModificationTime,
+            locationChanged: locationChanged ?? group.locationChanged,
             recycleBinUUID: recycleBinUUID,
             unknownXML: group.unknownXML
-        )
-    }
-}
-
-private extension KPGroup {
-    func deepCopy() -> KPGroup {
-        KPGroup(
-            id: id,
-            name: name,
-            notes: notes,
-            hasNotesElement: hasNotesElement,
-            iconID: iconID,
-            customIconUUID: customIconUUID,
-            tags: tags,
-            hasTagsElement: hasTagsElement,
-            entries: entries,
-            groups: groups.map { $0.deepCopy() },
-            isExpanded: isExpanded,
-            searchingEnabled: searchingEnabled,
-            creationTime: creationTime,
-            lastModificationTime: lastModificationTime,
-            recycleBinUUID: recycleBinUUID,
-            unknownXML: unknownXML
         )
     }
 }
