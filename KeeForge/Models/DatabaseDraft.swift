@@ -935,104 +935,16 @@ struct DatabaseDraft: Sendable {
         existing: [KPEntry],
         meta: KPMeta
     ) -> [KPEntry] {
-        let history = ([snapshot] + existing).map { $0.cloneForHistory() }
-        let survivors = survivingHistoryIndices(of: history, meta: meta)
-        return history.indices.filter { survivors.contains($0) }.map { history[$0] }
+        EntryHistoryTrimmer.trimmed(
+            appending: snapshot,
+            existing: existing,
+            meta: meta,
+            sessionKey: sessionKey
+        )
     }
 
     private func survivingHistoryIndices(of history: [KPEntry], meta: KPMeta) -> Set<Int> {
-        // Which versions survive is decided by recency; the survivors keep their
-        // storage order. Deciding by position instead would discard the newest
-        // versions of a KeePass-authored file, whose `<History>` is oldest-first
-        // where this app prepends, and reordering the array would rewrite a
-        // foreign file's bytes on every save.
-        let byRecency = recencyOrderedIndices(of: history)
-        var survivors = Set(history.indices)
-
-        let maxItems = meta.resolvedHistoryMaxItems
-        if maxItems >= 0, history.count > maxItems {
-            survivors = Set(byRecency.prefix(maxItems))
-        }
-
-        let maxSize = meta.resolvedHistoryMaxSize
-        if maxSize >= 0 {
-            var retained: Set<Int> = []
-            var sizeSoFar: Int64 = 0
-
-            for index in byRecency where survivors.contains(index) {
-                let entrySize = estimatedHistorySize(for: history[index])
-                if sizeSoFar + entrySize > maxSize {
-                    break
-                }
-                retained.insert(index)
-                sizeSoFar += entrySize
-            }
-
-            survivors = retained
-        }
-
-        return survivors
-    }
-
-    /// Storage indices newest first, matching `DatabaseViewModel.history(forEntryID:)`:
-    /// versions without a timestamp sort last, and ties fall back to storage order so
-    /// second-resolution KDBX timestamps still give a total order.
-    private func recencyOrderedIndices(of history: [KPEntry]) -> [Int] {
-        history.indices.sorted { lhs, rhs in
-            switch (history[lhs].lastModificationTime, history[rhs].lastModificationTime) {
-            case let (left?, right?): return left == right ? lhs < rhs : left > right
-            case (nil, _?): return false
-            case (_?, nil): return true
-            case (nil, nil): return lhs < rhs
-            }
-        }
-    }
-
-    private func estimatedHistorySize(for entry: KPEntry) -> Int64 {
-        var size = Int64(256)
-        size += Int64(entry.title.utf8.count)
-        size += Int64(entry.username.utf8.count)
-        size += Int64(entry.url.utf8.count)
-        size += Int64(entry.notes.utf8.count)
-        size += Int64(entry.tags.joined(separator: ",").utf8.count)
-        size += Int64(entry.otpURL?.utf8.count ?? 0)
-
-        if let password = try? entry.password.decrypt(using: sessionKey) {
-            size += Int64(password.utf8.count)
-        } else {
-            size += Int64(entry.password.sealedData.count)
-        }
-
-        for (key, value) in entry.customFields {
-            size += Int64(key.utf8.count + value.utf8.count)
-        }
-
-        if let passkeyPrivateKey = entry.passkeyPrivateKey {
-            // Sealed size approximates the PEM length without decrypting.
-            size += Int64(passkeyPrivateKey.sealedData.count)
-        }
-
-        if let totpConfig = entry.totpConfig {
-            if let secret = try? totpConfig.secret.decrypt(using: sessionKey) {
-                size += Int64(secret.utf8.count)
-            } else {
-                size += Int64(totpConfig.secret.sealedData.count)
-            }
-            size += Int64(String(totpConfig.period).utf8.count)
-            size += Int64(String(totpConfig.digits).utf8.count)
-            size += Int64(totpConfig.algorithm.rawValue.utf8.count)
-        }
-
-        for node in entry.unknownXML.nodes {
-            size += Int64(node.xml.utf8.count)
-            size += Int64(node.path.joined(separator: "/").utf8.count)
-        }
-
-        for key in entry.protectedStringKeys {
-            size += Int64(key.utf8.count)
-        }
-
-        return size
+        EntryHistoryTrimmer.survivingIndices(of: history, meta: meta, sessionKey: sessionKey)
     }
 
     private func recycleBinTarget(in rootGroup: KPGroup, meta: KPMeta) -> RecycleBinTarget {
