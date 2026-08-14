@@ -339,6 +339,58 @@ final class LocalDatabaseSaverTests: XCTestCase {
         XCTAssertEqual(try Data(contentsOf: databaseURL), remoteData)
     }
 
+    // A merge has already read the diverged file and folded it into the draft,
+    // so that file — and only that file — is safe to replace.
+
+    func testSaveWithReconciledRemoteHashReplacesThatFileButNoOtherState() async throws {
+        let databaseURL = try makeScratchDatabaseCopy()
+        let reference = try TestDatabaseSupport.makeReference(for: databaseURL)
+        let context = try makeDirtySaveContext(
+            databaseURL: databaseURL,
+            entryTitle: "Merged Entry"
+        )
+
+        let reconciledRemoteData = try makeDivergedDatabaseData(from: databaseURL)
+        try reconciledRemoteData.write(to: databaseURL, options: .atomic)
+        let reconciledRemoteSHA512 = KDBXCrypto.sha512(reconciledRemoteData)
+
+        let result = try await LocalDatabaseSaver.save(
+            draft: context.draft,
+            reference: reference,
+            compositeKey: context.compositeKey,
+            openTimeSHA512: context.openTimeSHA512,
+            reconciledRemoteSHA512: reconciledRemoteSHA512,
+            kdfPolicy: .mainApp
+        )
+
+        guard case .saved(let newSHA512) = result else {
+            XCTFail("A save gated on the reconciled remote must replace exactly that file.")
+            return
+        }
+        XCTAssertEqual(KDBXCrypto.sha512(try Data(contentsOf: databaseURL)), newSHA512)
+
+        // A third state under the save was never reconciled by anyone, so the
+        // widened gate must still refuse it.
+        let strangerData = try makeDivergedDatabaseData(from: databaseURL)
+        try strangerData.write(to: databaseURL, options: .atomic)
+
+        let secondResult = try await LocalDatabaseSaver.save(
+            draft: context.draft,
+            reference: reference,
+            compositeKey: context.compositeKey,
+            openTimeSHA512: context.openTimeSHA512,
+            reconciledRemoteSHA512: reconciledRemoteSHA512,
+            kdfPolicy: .mainApp
+        )
+
+        guard case .conflict(let remoteSHA512, _) = secondResult else {
+            XCTFail("Expected a conflict for content neither the session nor the merge has seen.")
+            return
+        }
+        XCTAssertEqual(remoteSHA512, KDBXCrypto.sha512(strangerData))
+        XCTAssertEqual(try Data(contentsOf: databaseURL), strangerData)
+    }
+
     func testSaveOnReadOnlyFilesystemThrowsAndLeavesOriginalIntact() async throws {
         let databaseURL = try makeScratchDatabaseCopy()
         let directoryURL = databaseURL.deletingLastPathComponent()
@@ -616,6 +668,32 @@ final class LocalDatabaseSaverTests: XCTestCase {
 
         XCTAssertEqual(try Data(contentsOf: databaseURL), originalData)
         XCTAssertTrue(DatabaseListStore.recentBackups(for: reference).isEmpty)
+    }
+
+    /// A real KDBX under the same key whose bytes differ from `databaseURL`'s
+    /// — what another client would have left behind.
+    private func makeDivergedDatabaseData(from databaseURL: URL) throws -> Data {
+        let compositeKey = try KDBXCrypto.compositeKey(password: fixturePassword)
+        let sessionKey = SymmetricKey(size: .bits256)
+        let parsed = try KDBXParser.parseWithMetaAndHeader(
+            data: try Data(contentsOf: databaseURL),
+            compositeKey: compositeKey,
+            sessionKey: sessionKey,
+            kdfPolicy: .mainApp
+        )
+        let parent = TestDatabaseSupport.visibleRootGroupID(in: parsed.rootGroup) == parsed.rootGroup.id
+            ? parsed.rootGroup
+            : parsed.rootGroup.groups[0]
+        parent.entries.append(KPEntry(title: "Diverged \(UUID().uuidString)"))
+
+        return try KDBXWriter.write(
+            rootGroup: parsed.rootGroup,
+            meta: parsed.meta,
+            compositeKey: compositeKey,
+            header: parsed.header,
+            sessionKey: sessionKey,
+            kdfPolicy: .mainApp
+        )
     }
 
     private func makeDirtySaveContext(

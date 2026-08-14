@@ -299,6 +299,111 @@ final class CloudDatabaseSaverTests: XCTestCase {
         XCTAssertEqual(updatedReference.cloudSyncMetadata?.remoteRev, "rev-C")
     }
 
+    // The merge flow's shape on cloud: the cache still holds the bytes the
+    // session opened (nothing local moved), the remote has genuinely advanced,
+    // and the draft already contains that remote's content. Passing its hash
+    // as the reconciled state is what lets the save rebase onto the fresh rev
+    // instead of bouncing off the same conflict forever.
+
+    func testSaveWithReconciledRemoteHashRebasesOntoTheDivergedRemote() async throws {
+        let reference = try makeCloudReference(remoteRev: "rev-A")
+        let cacheURL = DatabaseListStore.cacheLocation(for: reference)
+        let context = try makeDirtySaveContext(cacheURL: cacheURL, entryTitle: "Merged Cloud Entry")
+        let reconciledRemoteData = Data("reconciled-remote-bytes".utf8)
+        let recorder = UploadRecorder()
+        let environment = makeEnvironment(
+            getMetadata: { _ in
+                CloudFileMetadata(
+                    modifiedDate: Date(timeIntervalSince1970: 160),
+                    contentHash: "remote-hash-B",
+                    size: Int64(reconciledRemoteData.count),
+                    rev: "rev-B"
+                )
+            },
+            upload: { _, data, expectedRev, progress in
+                await recorder.record(data: data, expectedRev: expectedRev)
+                progress(1)
+                return CloudFileMetadata(
+                    modifiedDate: Date(timeIntervalSince1970: 200),
+                    contentHash: "remote-hash-C",
+                    size: Int64(data.count),
+                    rev: "rev-C"
+                )
+            },
+            downloadRemoteData: { _ in reconciledRemoteData }
+        )
+
+        let result = try await CloudDatabaseSaver.save(
+            draft: context.draft,
+            reference: reference,
+            compositeKey: context.compositeKey,
+            openTimeSHA512: context.openTimeSHA512,
+            reconciledRemoteSHA512: KDBXCrypto.sha512(reconciledRemoteData),
+            expectedRev: "rev-A",
+            kdfPolicy: .mainApp,
+            environment: environment
+        )
+
+        guard case .saved = result else {
+            XCTFail("A merge save must replace the remote it reconciled.")
+            return
+        }
+
+        let firstUploadCall = await recorder.firstCall()
+        let uploadCallCount = await recorder.callCount()
+        let uploadCall = try XCTUnwrap(firstUploadCall)
+        XCTAssertEqual(uploadCall.expectedRev, "rev-B", "The merge save must rebase onto the diverged head.")
+        XCTAssertEqual(uploadCallCount, 1)
+    }
+
+    func testSaveWithoutReconciledRemoteHashStillConflictsOnTheSameDivergence() async throws {
+        let reference = try makeCloudReference(remoteRev: "rev-A")
+        let cacheURL = DatabaseListStore.cacheLocation(for: reference)
+        let context = try makeDirtySaveContext(cacheURL: cacheURL, entryTitle: "Unmerged Cloud Entry")
+        let divergedRemoteData = Data("diverged-remote-bytes".utf8)
+        let recorder = UploadRecorder()
+        let environment = makeEnvironment(
+            getMetadata: { _ in
+                CloudFileMetadata(
+                    modifiedDate: Date(timeIntervalSince1970: 160),
+                    contentHash: "remote-hash-B",
+                    size: Int64(divergedRemoteData.count),
+                    rev: "rev-B"
+                )
+            },
+            upload: { _, data, expectedRev, progress in
+                await recorder.record(data: data, expectedRev: expectedRev)
+                progress(1)
+                return CloudFileMetadata(
+                    modifiedDate: Date(timeIntervalSince1970: 200),
+                    contentHash: "remote-hash-C",
+                    size: Int64(data.count),
+                    rev: "rev-C"
+                )
+            },
+            downloadRemoteData: { _ in divergedRemoteData }
+        )
+
+        let result = try await CloudDatabaseSaver.save(
+            draft: context.draft,
+            reference: reference,
+            compositeKey: context.compositeKey,
+            openTimeSHA512: context.openTimeSHA512,
+            expectedRev: "rev-A",
+            kdfPolicy: .mainApp,
+            environment: environment
+        )
+
+        guard case .conflict(let remoteSHA512, let remoteData) = result else {
+            XCTFail("An unreconciled divergence must still conflict.")
+            return
+        }
+        XCTAssertEqual(remoteSHA512, KDBXCrypto.sha512(divergedRemoteData))
+        XCTAssertEqual(remoteData, divergedRemoteData)
+        let uploadCallCount = await recorder.callCount()
+        XCTAssertEqual(uploadCallCount, 0)
+    }
+
     /// Reproduces the original OneDrive failure directly: upload responses
     /// stripped of rev and hash while `getMetadata` reports the server's own
     /// tag. The second save in a session must still succeed.

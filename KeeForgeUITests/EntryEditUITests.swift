@@ -16,7 +16,7 @@ class EntryEditUITestCase: KeeForgeUITestCase {
     let secondConflictDiscordTitle = "Discord Conflict Pass 2"
 
     override func configureLaunch(app: XCUIApplication) throws {
-        if name.contains("testSaveConflictOffersReloadAndConflictCopy") {
+        if name.contains("testSaveConflictOffersMergeReloadAndConflictCopy") {
             app.launchEnvironment["UI_TEST_LOCAL_SAVE_CONFLICT_COUNT"] = "2"
         }
         if name.contains("testReadOnlyDatabase") {
@@ -893,17 +893,20 @@ final class EntryEditEdgeUITests: EntryEditUITestCase {
         XCTAssertTrue(app.buttons["entry.password.reveal"].waitForExistence(timeout: 5))
     }
 
-    func testSaveConflictOffersReloadAndConflictCopy() {
+    func testSaveConflictOffersMergeReloadAndConflictCopy() {
         unlockSuccessfully()
 
         openEntry(named: discordEntryTitle, inGroup: socialGroupName)
         editCurrentEntryTitle(to: firstConflictDiscordTitle)
         XCTAssertTrue(waitForSaveConflictAlert())
 
+        let mergeButton = app.buttons["save-conflict.merge"].firstMatch
         let reloadButton = app.buttons["save-conflict.reload"].firstMatch
         let saveAsCopyButton = app.buttons["save-conflict.save-as-copy"].firstMatch
         let cancelButton = app.buttons["save-conflict.cancel"].firstMatch
         XCTAssertTrue(reloadButton.waitForExistence(timeout: 5))
+        // Merge Changes leads: it is the only option that keeps both sides.
+        XCTAssertTrue(mergeButton.exists)
         XCTAssertTrue(saveAsCopyButton.exists)
         XCTAssertTrue(cancelButton.exists)
         reloadButton.tap()
