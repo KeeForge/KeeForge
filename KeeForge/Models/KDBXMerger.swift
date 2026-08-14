@@ -171,6 +171,14 @@ extension KDBXMerger {
         /// Custom-icon references that arrived with remote content in this run.
         private var remoteIconReferences: Set<UUID> = []
 
+        /// Objects grafted from remote during this run. A tombstone that kills
+        /// one again leaves the merged tree exactly as local had it, so the
+        /// pair cancels instead of counting as two changes — otherwise a
+        /// remote that still carries a locally deleted object would report a
+        /// change on every merge and never settle.
+        private var graftedEntryIDs: Set<UUID> = []
+        private var graftedGroupIDs: Set<UUID> = []
+
         init(local: Side, remote: Side, sessionKey: SymmetricKey) {
             self.local = local
             self.remote = remote
@@ -252,6 +260,7 @@ extension KDBXMerger {
                 groupsByID[copy.id] = copy
                 parentByGroupID[copy.id] = targetParent
                 noteRemoteIconReference(copy.customIconUUID)
+                graftedGroupIDs.insert(copy.id)
                 summary.groupsAdded += 1
                 return
             }
@@ -316,6 +325,7 @@ extension KDBXMerger {
                 targetParent.entries.append(remoteEntry)
                 entryOwnerByID[remoteEntry.id] = targetParent
                 noteRemoteIconReference(remoteEntry.customIconUUID)
+                graftedEntryIDs.insert(remoteEntry.id)
                 summary.entriesAdded += 1
                 return
             }
@@ -467,7 +477,7 @@ extension KDBXMerger {
                         return false
                     }
                     entryOwnerByID[entry.id] = nil
-                    summary.deletionsApplied += 1
+                    recordDeletion(wasGrafted: graftedEntryIDs.contains(entry.id), isGroup: false)
                     return true
                 }
 
@@ -476,12 +486,17 @@ extension KDBXMerger {
                     guard !survivesDeletion(id: child.id, lastModificationTime: child.lastModificationTime) else {
                         return false
                     }
-                    // A group dies only once it is empty; a surviving child
-                    // keeps its parent alive, tombstone and all.
-                    guard child.entries.isEmpty, child.groups.isEmpty else { return false }
+                    // A group dies only once it is empty. Content that
+                    // outlived the deletion keeps the group alive and takes
+                    // the tombstone with it: leaving it in place would delete
+                    // the group again the moment a later merge empties it.
+                    guard child.entries.isEmpty, child.groups.isEmpty else {
+                        deletionTimes[child.id] = nil
+                        return false
+                    }
                     groupsByID[child.id] = nil
                     parentByGroupID[child.id] = nil
-                    summary.deletionsApplied += 1
+                    recordDeletion(wasGrafted: graftedGroupIDs.contains(child.id), isGroup: true)
                     return true
                 }
             }
@@ -495,6 +510,21 @@ extension KDBXMerger {
             let mergedIDs = Set(meta.deletedObjects.map(\.uuid))
             summary.tombstonesDropped = localIDs.subtracting(mergedIDs).count
             summary.tombstonesAdded = mergedIDs.subtracting(localIDs).count
+        }
+
+        /// A deletion is a change only when it removed something local had.
+        /// Killing an object this run grafted from remote just undoes the
+        /// graft, so the two cancel and the merge settles.
+        private func recordDeletion(wasGrafted: Bool, isGroup: Bool) {
+            guard wasGrafted else {
+                summary.deletionsApplied += 1
+                return
+            }
+            if isGroup {
+                summary.groupsAdded -= 1
+            } else {
+                summary.entriesAdded -= 1
+            }
         }
 
         // MARK: Meta

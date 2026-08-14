@@ -418,6 +418,15 @@ targets:
         buildPhase: resources
       - path: TestFixtures/test-arbitrary.key
         buildPhase: resources
+      # Folder reference, not the per-file listing every other fixture uses:
+      # each merge scenario directory holds a local.kdbx / remote.kdbx /
+      # merged-reference.kdbx trio, and a flat resource copy would collide on
+      # those names sixteen times over. `type: folder` copies the tree intact,
+      # so the bundle keeps `Merge/<scenario-id>/…` and a new scenario needs no
+      # project change.
+      - path: TestFixtures/Merge
+        type: folder
+        buildPhase: resources
 
   KeeForgeMacUITests:
     type: bundle.ui-testing
@@ -546,6 +555,15 @@ targets:
       - path: TestFixtures/test-v2.keyx
         buildPhase: resources
       - path: TestFixtures/test-arbitrary.key
+        buildPhase: resources
+      # Folder reference, not the per-file listing every other fixture uses:
+      # each merge scenario directory holds a local.kdbx / remote.kdbx /
+      # merged-reference.kdbx trio, and a flat resource copy would collide on
+      # those names sixteen times over. `type: folder` copies the tree intact,
+      # so the bundle keeps `Merge/<scenario-id>/…` and a new scenario needs no
+      # project change.
+      - path: TestFixtures/Merge
+        type: folder
         buildPhase: resources
 
 schemes:
