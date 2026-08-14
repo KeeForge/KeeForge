@@ -11,6 +11,8 @@ struct DatabaseCreationRequest: Sendable {
     var keyFileData: Data?
     var keyFileBookmarkData: Data?
     var keyFileFilename: String?
+    var cipher: DatabaseCreationCipher = .aes256
+    var kdfPreset: DatabaseCreationKDFPreset = .balanced
 }
 
 struct DatabasePreparationRequest: Sendable {
@@ -19,6 +21,68 @@ struct DatabasePreparationRequest: Sendable {
     var keyFileData: Data?
     var keyFileBookmarkData: Data?
     var keyFileFilename: String?
+    var cipher: DatabaseCreationCipher = .aes256
+    var kdfPreset: DatabaseCreationKDFPreset = .balanced
+}
+
+/// Outer ciphers offered when creating a database. Creation-scoped on purpose:
+/// the full `KDBXOuterCipher` set (Twofish included) stays read/compat-only.
+enum DatabaseCreationCipher: String, CaseIterable, Identifiable, Sendable {
+    case aes256
+    case chacha20
+
+    var id: String { rawValue }
+
+    var cipherID: Data {
+        switch self {
+        case .aes256: KDBXParser.aesCipherUUID
+        case .chacha20: KDBXParser.chachaCipherUUID
+        }
+    }
+
+    var displayName: String {
+        switch self {
+        case .aes256: "AES-256"
+        case .chacha20: "ChaCha20"
+        }
+    }
+}
+
+/// Argon2id tuning presets offered when creating a database. Every preset
+/// derives within the AutoFill extension's KDF policy budget.
+enum DatabaseCreationKDFPreset: String, CaseIterable, Identifiable, Sendable {
+    case balanced
+    case strong
+    case maximum
+
+    var id: String { rawValue }
+
+    var iterations: UInt64 {
+        switch self {
+        case .balanced, .strong: 10
+        case .maximum: 12
+        }
+    }
+
+    var memoryBytes: UInt64 {
+        switch self {
+        case .balanced: 64 << 20
+        case .strong: 128 << 20
+        case .maximum: 256 << 20
+        }
+    }
+
+    var displayName: String {
+        switch self {
+        case .balanced: String(localized: "Balanced")
+        case .strong: String(localized: "Strong")
+        case .maximum: String(localized: "Maximum")
+        }
+    }
+
+    var parameterSummary: String {
+        String(localized: "\(Int(memoryBytes >> 20)) MB memory, \(Int(iterations)) iterations")
+    }
 }
 
 enum DatabaseCreationDestination: Sendable, Equatable {
@@ -53,8 +117,6 @@ struct CreatedDatabase: Sendable {
 }
 
 enum DatabaseCreationDefaults {
-    static let argon2idIterations: UInt64 = 10
-    static let argon2idMemory: UInt64 = 64 * 1024 * 1024
     static let argon2Version: UInt32 = 0x13
     static let kdfSaltByteCount = 32
 
@@ -62,19 +124,25 @@ enum DatabaseCreationDefaults {
         UInt32(min(ProcessInfo.processInfo.processorCount, 4))
     }
 
-    static func freshHeaderConfiguration() throws -> KDBXWriter.FreshHeaderConfiguration {
+    static func freshHeaderConfiguration(
+        cipher: DatabaseCreationCipher = .aes256,
+        kdfPreset: DatabaseCreationKDFPreset = .balanced
+    ) throws -> KDBXWriter.FreshHeaderConfiguration {
         try KDBXWriter.FreshHeaderConfiguration(
-            cipherID: KDBXParser.aesCipherUUID,
-            kdfParameters: argon2idKDFParameters()
+            cipherID: cipher.cipherID,
+            kdfParameters: argon2idKDFParameters(preset: kdfPreset)
         )
     }
 
-    static func argon2idKDFParameters(salt: Data? = nil) throws -> [String: Any] {
+    static func argon2idKDFParameters(
+        preset: DatabaseCreationKDFPreset = .balanced,
+        salt: Data? = nil
+    ) throws -> [String: Any] {
         let resolvedSalt = try salt ?? SecureRandom.data(count: kdfSaltByteCount)
         return [
             "$UUID": KDBXParser.argon2idUUID,
-            "I": argon2idIterations,
-            "M": argon2idMemory,
+            "I": preset.iterations,
+            "M": preset.memoryBytes,
             "P": argon2idParallelism,
             "V": argon2Version,
             "S": resolvedSalt,
@@ -192,7 +260,9 @@ enum DatabaseCreationService {
                     password: request.password,
                     keyFileData: request.keyFileData,
                     keyFileBookmarkData: request.keyFileBookmarkData,
-                    keyFileFilename: request.keyFileFilename
+                    keyFileFilename: request.keyFileFilename,
+                    cipher: request.cipher,
+                    kdfPreset: request.kdfPreset
                 ),
                 environment: environment
             )
@@ -278,16 +348,22 @@ enum DatabaseCreationService {
             rootGroup: tree.rootGroup,
             meta: tree.meta,
             compositeKey: compositeKey,
-            freshHeader: try DatabaseCreationDefaults.freshHeaderConfiguration(),
+            freshHeader: try DatabaseCreationDefaults.freshHeaderConfiguration(
+                cipher: request.cipher,
+                kdfPreset: request.kdfPreset
+            ),
             sessionKey: sessionKey,
             kdfPolicy: .mainApp
         )
 
+        // Verify under the stricter AutoFill KDF policy so creation never
+        // writes a database that policy would reject (#57/#74). The extension's
+        // runtime memory pre-flight remains the authoritative device-level gate.
         let parsed = try KDBXParser.parseWithMetaAndHeader(
             data: encryptedBytes,
             compositeKey: compositeKey,
             sessionKey: sessionKey,
-            kdfPolicy: .mainApp
+            kdfPolicy: .autoFillExtension
         )
         guard parsed.header.formatVersion.majorVersion == KDBXParser.versionKDBX4 else {
             throw CreationError.generatedFileFailedToReopen

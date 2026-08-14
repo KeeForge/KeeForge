@@ -23,6 +23,8 @@ TODO before the first macOS release:
 
 ### New Features
 
+- Choose the encryption cipher and key-derivation strength when creating a database (#88). A collapsed Advanced section in the New Database form offers AES-256 (default) or ChaCha20, and three Argon2id presets — Balanced (64 MB, 10 iterations, the previous fixed default), Strong (128 MB), and Maximum (256 MB, 12 iterations) — with a live summary of the selected settings and a note that stronger settings unlock more slowly and can exceed AutoFill's memory allowance on some devices. The default path is unchanged, and every new database is validated against the AutoFill extension's KDF resource policy before it is saved.
+
 - Shared databases merge instead of colliding (#58). When another device or app changed the database while you were editing, the save-conflict prompt now offers "Merge Changes": both sets of record-level changes are combined the way KeePass 2.x Synchronize and KeePassXC merge do — newest edit wins per entry with the other version kept in its history, deletions and moves carry over, and a deletion never beats a later edit. Merged databases are verified against real KeePassXC as part of the compatibility gate. When a merge can't be proven safe (for example the two copies' attachments diverged), KeeForge says why and the existing reload / conflict-copy options remain, so nothing is ever lost silently.
 
 ## v1.14.0 (2026-08-13)

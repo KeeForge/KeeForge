@@ -154,7 +154,7 @@ Roadmap items are grouped first by intent and then by product area, without an i
 
 ### Database management and password generation
 
-- [ ] Expose database encryption algorithm and KDF tuning with safe defaults and clear warnings.
+- [x] Expose database encryption algorithm and KDF tuning with safe defaults and clear warnings.
 - [ ] Add reusable advanced password-generator recipes and per-entry generation history.
 - [ ] Add carefully designed import and export tools.
 - [x] Create new databases directly in the app.

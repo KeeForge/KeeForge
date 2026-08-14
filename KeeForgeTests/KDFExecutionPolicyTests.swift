@@ -87,6 +87,21 @@ final class KDFExecutionPolicyTests: XCTestCase {
         XCTAssertEqual(mainAppKey, extensionKey)
     }
 
+    func testEveryCreationPresetDerivesUnderTheAutoFillPolicy() throws {
+        // Every creation preset must pass the AutoFill extension's policy, which
+        // the creation flow verifies against. Admission there implies admission
+        // under .mainApp, whose only difference is a higher peak-memory ceiling.
+        for preset in DatabaseCreationKDFPreset.allCases {
+            let params = argon2Params(
+                iterations: preset.iterations,
+                memory: preset.memoryBytes,
+                parallelism: 4
+            )
+            let extensionKey = try derive(params, policy: .autoFillExtension)
+            XCTAssertEqual(extensionKey.count, 32, "\(preset.rawValue)")
+        }
+    }
+
     // MARK: - Peak memory budget
 
     func testExcessivePeakMemoryRejectedEvenWithSingleIteration() {

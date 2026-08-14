@@ -64,6 +64,38 @@ final class DatabaseCreationViewModelTests: XCTestCase {
         XCTAssertNil(viewModel.creationError)
     }
 
+    // MARK: - Advanced cipher / KDF preset selection
+
+    func testAdvancedSelectionDefaultsToAES256AndBalancedPreset() {
+        let viewModel = DatabaseCreationViewModel()
+
+        XCTAssertEqual(viewModel.cipher, .aes256)
+        XCTAssertEqual(viewModel.kdfPreset, .balanced)
+    }
+
+    func testChosenCipherAndPresetThreadIntoPreparedDatabase() async throws {
+        let viewModel = DatabaseCreationViewModel()
+        viewModel.databaseName = "Tuned"
+        viewModel.password = "tuned password"
+        viewModel.confirmPassword = "tuned password"
+        viewModel.cipher = .chacha20
+        viewModel.kdfPreset = .strong
+
+        let succeeded = await viewModel.prepareForExport()
+
+        XCTAssertTrue(succeeded)
+        let summary = try KDBXFileSummary.inspect(data: viewModel.preparedEncryptedBytes)
+        XCTAssertEqual(summary.cipher, .chacha20)
+        XCTAssertEqual(
+            summary.keyDerivation,
+            .argon2id(
+                iterations: 10,
+                memoryBytes: 128 << 20,
+                parallelism: DatabaseCreationDefaults.argon2idParallelism
+            )
+        )
+    }
+
     // MARK: - prepareForExport / completeExport lifecycle
 
     func testPrepareForExportSucceedsClearsSecretsButKeepsKeyFileMetadata() async throws {
