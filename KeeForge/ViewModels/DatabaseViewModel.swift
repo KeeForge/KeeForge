@@ -91,6 +91,36 @@ enum DatabaseSaveError: Error, LocalizedError, Identifiable, Equatable, Sendable
     }
 }
 
+/// Why `DatabaseViewModel.mergeAndSave` produced no write. Every case leaves
+/// the draft and the conflict untouched, so the user still has Reload and Save
+/// as Conflict Copy.
+///
+/// Declared outside the view model so the off-main merge can throw it.
+enum DatabaseMergeFailure: String, Error, Identifiable, Equatable, Sendable {
+    /// The other copy would not open with this database's master key, or is a
+    /// KDBX 3.1 file the writer cannot produce.
+    case remoteUnreadable
+    /// The two files store attachments differently and something points into
+    /// the pool, so grafted references could resolve to other bytes.
+    case attachmentsDiverged
+    /// State the merge needs is missing — no unlocked session, no conflict to
+    /// merge, or a save already in flight.
+    case sessionUnavailable
+
+    var id: String { rawValue }
+
+    var message: String {
+        switch self {
+        case .remoteUnreadable:
+            String(localized: "The other copy of this database could not be opened. It may use a different master key, or be an older KDBX 3.1 file. Reload the database or save your changes as a conflict copy instead.")
+        case .attachmentsDiverged:
+            String(localized: "The two copies store their attachments differently, so merging them could point an attachment at the wrong file. Reload the database or save your changes as a conflict copy instead.")
+        case .sessionUnavailable:
+            String(localized: "This database is not ready to merge right now. Reload it or save your changes as a conflict copy instead.")
+        }
+    }
+}
+
 /// Whether lifecycle-triggered biometric auto-unlock is allowed on this
 /// platform. iOS builds running in compatibility mode (on a Mac, or on a
 /// Vision Pro where the runtime exposes the check) cannot trust
@@ -215,6 +245,7 @@ final class DatabaseViewModel {
         _ reference: DatabaseReference,
         _ compositeKey: Data,
         _ openTimeSHA512: Data,
+        _ reconciledRemoteSHA512: Data?,
         _ newCompositeKey: Data?
     ) async throws -> SaveResult
     typealias CloudSaveOperation = @Sendable (
@@ -222,6 +253,7 @@ final class DatabaseViewModel {
         _ reference: DatabaseReference,
         _ compositeKey: Data,
         _ openTimeSHA512: Data,
+        _ reconciledRemoteSHA512: Data?,
         _ expectedRev: String?,
         _ newCompositeKey: Data?
     ) async throws -> SaveResult
@@ -357,6 +389,13 @@ final class DatabaseViewModel {
     private(set) var openTimeSHA512: Data?
     private(set) var saveError: DatabaseSaveError?
     private(set) var saveConflict: SaveConflict?
+    /// Why the last merge attempt wrote nothing, awaiting acknowledgement.
+    /// `saveConflict` is deliberately left standing alongside it: dismissing
+    /// this hands the user back the Reload / Save-as-Copy options rather than
+    /// leaving them at a dead end.
+    private(set) var mergeFailure: DatabaseMergeFailure?
+    /// Confirmation text for a merge that did write, awaiting acknowledgement.
+    private(set) var mergeSummaryMessage: String?
     private(set) var isSaving = false
     private(set) var pendingLockRequest: PendingLockRequest?
     private(set) var cloudSyncProgress: Double?
@@ -422,22 +461,24 @@ final class DatabaseViewModel {
         localDatabaseReadOperation: @escaping LocalDatabaseReadOperation = { reference in
             try await DatabaseViewModel.readLocalDatabase(reference: reference)
         },
-        localSaveOperation: @escaping LocalSaveOperation = { draft, reference, compositeKey, openTimeSHA512, newCompositeKey in
+        localSaveOperation: @escaping LocalSaveOperation = { draft, reference, compositeKey, openTimeSHA512, reconciledRemoteSHA512, newCompositeKey in
             try await LocalDatabaseSaver.save(
                 draft: draft,
                 reference: reference,
                 compositeKey: compositeKey,
                 openTimeSHA512: openTimeSHA512,
+                reconciledRemoteSHA512: reconciledRemoteSHA512,
                 kdfPolicy: .mainApp,
                 newCompositeKey: newCompositeKey
             )
         },
-        cloudSaveOperation: @escaping CloudSaveOperation = { draft, reference, compositeKey, openTimeSHA512, expectedRev, newCompositeKey in
+        cloudSaveOperation: @escaping CloudSaveOperation = { draft, reference, compositeKey, openTimeSHA512, reconciledRemoteSHA512, expectedRev, newCompositeKey in
             try await CloudDatabaseSaver.save(
                 draft: draft,
                 reference: reference,
                 compositeKey: compositeKey,
                 openTimeSHA512: openTimeSHA512,
+                reconciledRemoteSHA512: reconciledRemoteSHA512,
                 expectedRev: expectedRev,
                 kdfPolicy: .mainApp,
                 newCompositeKey: newCompositeKey
@@ -1316,6 +1357,8 @@ final class DatabaseViewModel {
         AttachmentPreviewFileStore.clearAll()
         saveError = nil
         saveConflict = nil
+        mergeFailure = nil
+        mergeSummaryMessage = nil
         pendingLockRequest = nil
         cloudSyncProgress = nil
         cloudSyncBannerText = nil
@@ -1379,6 +1422,7 @@ final class DatabaseViewModel {
     func discardDraft() {
         draft = nil
         saveConflict = nil
+        mergeFailure = nil
         refreshCredentialStoreForCurrentTreeIfNeeded()
     }
 
@@ -1433,6 +1477,7 @@ final class DatabaseViewModel {
                     databaseReference,
                     compositeKey,
                     openTimeSHA512,
+                    nil,
                     nil
                 )
             case .cloud:
@@ -1441,6 +1486,7 @@ final class DatabaseViewModel {
                     databaseReference,
                     compositeKey,
                     openTimeSHA512,
+                    nil,
                     databaseReference.expectedCloudRevision,
                     nil
                 )
@@ -1538,6 +1584,7 @@ final class DatabaseViewModel {
                     databaseReference,
                     compositeKey,
                     openTimeSHA512,
+                    nil,
                     newCompositeKey
                 )
             case .cloud:
@@ -1546,6 +1593,7 @@ final class DatabaseViewModel {
                     databaseReference,
                     compositeKey,
                     openTimeSHA512,
+                    nil,
                     databaseReference.expectedCloudRevision,
                     newCompositeKey
                 )
@@ -1648,6 +1696,233 @@ final class DatabaseViewModel {
         discardDraft()
     }
 
+    /// Reconciles the file that caused the conflict into the current draft and
+    /// saves the combined result, record by record (`KDBXMerger`).
+    ///
+    /// The write is gated on the bytes the conflict reported, not the
+    /// session's open-time state: those are the bytes this merge read and
+    /// folded in, so they are what it may replace. If the file moved again
+    /// since the conflict was captured the gate trips and the conflict
+    /// re-surfaces with the fresher content — one attempt per invocation, so
+    /// the loop only ever advances when the user asks it to.
+    ///
+    /// Nothing here is destructive on failure: the draft, the conflict, and
+    /// the fallback options all survive every early return.
+    func mergeAndSave() async throws {
+        if isReadOnly {
+            throw SaveError.databaseIsReadOnly
+        }
+
+        guard case .unlocked = state,
+              isSaving == false,
+              let conflict = saveConflict,
+              let compositeKey,
+              let sessionKey,
+              let openTimeSHA512
+        else {
+            mergeFailure = .sessionUnavailable
+            return
+        }
+
+        // The draft's tree is the local side, so unsaved edits take part in the
+        // merge rather than being written over it.
+        let localDraft = try makeWorkingDraft()
+        // The pool the session opened. KeeForge never adds pool entries, so it
+        // is still the pool of the local side's attachments; the merger only
+        // compares it against the remote's.
+        let localBinaryPoolFields = binaryPool?.rawFields ?? []
+        let expectedLockCycleID = lockCycleID
+
+        isSaving = true
+        saveError = nil
+        mergeFailure = nil
+        mergeSummaryMessage = nil
+        defer {
+            isSaving = false
+        }
+
+        let merged: KDBXMerger.Merged
+        do {
+            merged = try await Self.mergeRemoteOffMain(
+                remoteData: conflict.remoteData,
+                compositeKey: compositeKey,
+                sessionKey: sessionKey,
+                localRootGroup: localDraft.rootGroup,
+                localMeta: localDraft.meta,
+                localBinaryPoolFields: localBinaryPoolFields
+            )
+        } catch let failure as DatabaseMergeFailure {
+            mergeFailure = failure
+            return
+        }
+
+        // Locked while the merge ran: the merged tree holds session secrets and
+        // must not resurrect behind the lock screen.
+        guard expectedLockCycleID == lockCycleID else { return }
+
+        let mergedDraft = DatabaseDraft(
+            rootGroup: merged.rootGroup,
+            meta: merged.meta,
+            sessionKey: sessionKey
+        )
+
+        // A merge that adds nothing still has to write: the remote holding no
+        // new records says nothing about the user's unsaved edits, which are
+        // the reason this save was attempted at all. Only the confirmation
+        // wording changes.
+        let saveResult: SaveResult
+        switch databaseReference.source {
+        case .local:
+            saveResult = try await localSaveOperation(
+                mergedDraft,
+                databaseReference,
+                compositeKey,
+                openTimeSHA512,
+                conflict.remoteSHA512,
+                nil
+            )
+        case .cloud:
+            saveResult = try await cloudSaveOperation(
+                mergedDraft,
+                databaseReference,
+                compositeKey,
+                openTimeSHA512,
+                conflict.remoteSHA512,
+                databaseReference.expectedCloudRevision,
+                nil
+            )
+        }
+
+        guard expectedLockCycleID == lockCycleID else { return }
+
+        switch saveResult {
+        case .saved(let newSHA512):
+            rootGroup = mergedDraft.rootGroup
+            unlockedMeta = mergedDraft.meta
+            self.openTimeSHA512 = newSHA512
+            saveConflict = nil
+            saveError = nil
+            draft = draftReplayingEditsArriving(after: localDraft, onto: mergedDraft)
+            refreshDatabaseReference()
+            populateCredentialStoreIfNeeded(root: mergedDraft.rootGroup)
+            mergeSummaryMessage = Self.mergeSummaryMessage(for: merged.summary)
+        case .conflict(let remoteSHA512, let remoteData):
+            // Strictly different bytes from the conflict just merged — the gate
+            // accepted those — so this is a value change the alert observes.
+            saveConflict = SaveConflict(remoteSHA512: remoteSHA512, remoteData: remoteData)
+        }
+    }
+
+    func dismissMergeFailure() {
+        mergeFailure = nil
+    }
+
+    func acknowledgeMergeSummary() {
+        mergeSummaryMessage = nil
+    }
+
+    /// Parses the conflicting file and merges it into the local side, all off
+    /// the main actor. Both sides share the live session key, so protected
+    /// values graft across without a decrypt/reseal cycle.
+    nonisolated private static func mergeRemoteOffMain(
+        remoteData: Data,
+        compositeKey: Data,
+        sessionKey: SymmetricKey,
+        localRootGroup: KPGroup,
+        localMeta: KPMeta,
+        localBinaryPoolFields: [Data]
+    ) async throws -> KDBXMerger.Merged {
+        try await Task.detached(priority: .userInitiated) {
+            let remote: (rootGroup: KPGroup, meta: KPMeta, header: KDBXParser.Header)
+            do {
+                remote = try KDBXParser.parseWithMetaAndHeader(
+                    data: remoteData,
+                    compositeKey: compositeKey,
+                    sessionKey: sessionKey,
+                    kdfPolicy: .mainApp
+                )
+            } catch {
+                throw DatabaseMergeFailure.remoteUnreadable
+            }
+            // The writer is KDBX4-only, so a 3.1 remote could not be written
+            // back even if it merged cleanly.
+            guard remote.header.formatVersion.requiresReadOnlyMode == false else {
+                throw DatabaseMergeFailure.remoteUnreadable
+            }
+
+            let outcome: KDBXMerger.Outcome
+            do {
+                outcome = try KDBXMerger.merge(
+                    local: KDBXMerger.Side(
+                        rootGroup: localRootGroup,
+                        meta: localMeta,
+                        binaryPoolFields: localBinaryPoolFields
+                    ),
+                    remote: KDBXMerger.Side(
+                        rootGroup: remote.rootGroup,
+                        meta: remote.meta,
+                        binaryPoolFields: remote.header.innerHeaderBinaryFields
+                    ),
+                    sessionKey: sessionKey
+                )
+            } catch {
+                // `protectedValueUnreadable` means the two sides were parsed
+                // under different keys, which this call site rules out.
+                throw DatabaseMergeFailure.sessionUnavailable
+            }
+
+            switch outcome {
+            case .merged(let merged):
+                return merged
+            case .declined(let blockers):
+                guard blockers.contains(.attachmentPoolDivergence) else {
+                    throw DatabaseMergeFailure.sessionUnavailable
+                }
+                throw DatabaseMergeFailure.attachmentsDiverged
+            }
+        }.value
+    }
+
+    /// The edits that landed while the merge save was in flight, replayed onto
+    /// the merged tree.
+    ///
+    /// Such an edit was applied to the *pre-merge* tree, so its draft cannot be
+    /// saved as-is without writing the merge back out of the file; and its own
+    /// `save()` no-oped on `isSaving`, so dropping it would lose it silently.
+    /// Replaying just the tail leaves the user with exactly those edits
+    /// unsaved, which the unsaved-changes banner then shows.
+    private func draftReplayingEditsArriving(
+        after base: DatabaseDraft,
+        onto mergedDraft: DatabaseDraft
+    ) -> DatabaseDraft? {
+        guard let grown = draft,
+              grown.pendingEdits.count > base.pendingEdits.count,
+              Array(grown.pendingEdits.prefix(base.pendingEdits.count)) == base.pendingEdits
+        else {
+            return nil
+        }
+
+        var replayed = mergedDraft
+        for edit in grown.pendingEdits.dropFirst(base.pendingEdits.count) {
+            guard let next = try? replayed.apply(edit) else { return nil }
+            replayed = next
+        }
+        return replayed
+    }
+
+    private static func mergeSummaryMessage(for summary: KDBXMerger.Summary) -> String {
+        let changeCount = summary.entriesAdded + summary.entriesUpdated + summary.entriesMoved
+            + summary.groupsAdded + summary.groupsUpdated + summary.groupsMoved
+            + summary.historyItemsAdded + summary.deletionsApplied
+            + summary.tombstonesDropped + summary.tombstonesAdded
+            + summary.customIconsSpliced
+
+        guard changeCount > 0 else {
+            return String(localized: "The other copy had no new changes to add. Your changes were saved.")
+        }
+        return String(localized: "\(changeCount) changes from the other copy were combined with yours and saved.")
+    }
+
     func reloadDiscardingDraft() async throws {
         guard let compositeKey else {
             throw SaveError.saveContextUnavailable
@@ -1655,6 +1930,8 @@ final class DatabaseViewModel {
 
         saveError = nil
         saveConflict = nil
+        mergeFailure = nil
+        mergeSummaryMessage = nil
         navigationPath = NavigationPath()
         searchText = ""
         isSearchActive = false

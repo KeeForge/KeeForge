@@ -38,8 +38,11 @@ struct BinaryPool: Sendable {
     }
 
     /// Raw inner-header binary fields, each still including its leading
-    /// 1-byte flag. Stored as-is so the writer can re-emit them verbatim.
-    private let rawFields: [Data]
+    /// 1-byte flag. Stored as-is so the writer can re-emit them verbatim, and
+    /// readable for the same reason: comparing two files' pools byte for byte
+    /// is what tells a merge whether grafted attachment refs still mean the
+    /// same bytes.
+    let rawFields: [Data]
 
     init(rawFields: [Data]) {
         self.rawFields = rawFields

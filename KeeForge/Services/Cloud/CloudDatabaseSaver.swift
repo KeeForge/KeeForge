@@ -80,11 +80,18 @@ enum CloudDatabaseSaver {
     /// `newCompositeKey` rekeys the database: `compositeKey` still decrypts the
     /// cached file, `newCompositeKey` encrypts the uploaded bytes, and the
     /// result is verified to reopen with the new key before the upload.
+    ///
+    /// `reconciledRemoteSHA512` widens the overwrite gate by exactly one state
+    /// — see `SaveBaseline`. On this path it is what lets a merge save proceed
+    /// while the local cache still holds the open-time bytes: the remote it
+    /// reconciled is the state being replaced, and the stale recorded rev then
+    /// rebases onto the head that hashes to it.
     static func save(
         draft: DatabaseDraft,
         reference: DatabaseReference,
         compositeKey: Data,
         openTimeSHA512: Data,
+        reconciledRemoteSHA512: Data? = nil,
         expectedRev: String?,
         kdfPolicy: KDFExecutionPolicy,
         newCompositeKey: Data? = nil
@@ -94,6 +101,7 @@ enum CloudDatabaseSaver {
             reference: reference,
             compositeKey: compositeKey,
             openTimeSHA512: openTimeSHA512,
+            reconciledRemoteSHA512: reconciledRemoteSHA512,
             expectedRev: expectedRev,
             kdfPolicy: kdfPolicy,
             newCompositeKey: newCompositeKey,
@@ -106,6 +114,7 @@ enum CloudDatabaseSaver {
         reference: DatabaseReference,
         compositeKey: Data,
         openTimeSHA512: Data,
+        reconciledRemoteSHA512: Data? = nil,
         expectedRev: String?,
         kdfPolicy: KDFExecutionPolicy,
         newCompositeKey: Data? = nil,
@@ -131,7 +140,10 @@ enum CloudDatabaseSaver {
                 draft: draft,
                 reference: reference,
                 compositeKey: compositeKey,
-                openTimeSHA512: openTimeSHA512,
+                baseline: SaveBaseline(
+                    openTimeSHA512: openTimeSHA512,
+                    reconciledRemoteSHA512: reconciledRemoteSHA512
+                ),
                 expectedRev: expectedRev,
                 kdfPolicy: kdfPolicy,
                 newCompositeKey: newCompositeKey,
@@ -144,7 +156,7 @@ enum CloudDatabaseSaver {
         draft: DatabaseDraft,
         reference: DatabaseReference,
         compositeKey: Data,
-        openTimeSHA512: Data,
+        baseline: SaveBaseline,
         expectedRev: String?,
         kdfPolicy: KDFExecutionPolicy,
         newCompositeKey: Data?,
@@ -153,7 +165,7 @@ enum CloudDatabaseSaver {
         let cacheURL = environment.cacheURL(reference)
         let currentData = try environment.readData(cacheURL)
         let currentSHA512 = KDBXCrypto.sha512(currentData)
-        guard currentSHA512 == openTimeSHA512 else {
+        guard baseline.covers(currentSHA512) else {
             return .conflict(remoteSHA512: currentSHA512, remoteData: currentData)
         }
 
@@ -170,7 +182,7 @@ enum CloudDatabaseSaver {
             // to what the user opened has no conflict to resolve: rebase onto
             // the fresh rev and proceed.
             let remoteData = try? await environment.downloadRemoteData(reference)
-            guard let remoteData, KDBXCrypto.sha512(remoteData) == openTimeSHA512 else {
+            guard let remoteData, baseline.covers(KDBXCrypto.sha512(remoteData)) else {
                 let conflictData = remoteData ?? currentData
                 return .conflict(remoteSHA512: KDBXCrypto.sha512(conflictData), remoteData: conflictData)
             }
@@ -209,7 +221,7 @@ enum CloudDatabaseSaver {
                 reference: reference,
                 newData: newData,
                 uploadedMetadata: uploadedMetadata,
-                openTimeSHA512: openTimeSHA512,
+                openTimeSHA512: baseline.openTimeSHA512,
                 rekeyed: newCompositeKey != nil,
                 environment: environment
             )
@@ -227,7 +239,7 @@ enum CloudDatabaseSaver {
             let refreshedMetadata = try? await environment.getMetadata(reference)
             let remoteData = try? await environment.downloadRemoteData(reference)
             if let remoteData,
-               KDBXCrypto.sha512(remoteData) == openTimeSHA512,
+               baseline.covers(KDBXCrypto.sha512(remoteData)),
                let refreshedMetadata {
                 do {
                     let uploadedMetadata = try await environment.upload(reference, newData, refreshedMetadata.rev, { _ in })
@@ -235,7 +247,7 @@ enum CloudDatabaseSaver {
                         reference: reference,
                         newData: newData,
                         uploadedMetadata: uploadedMetadata,
-                        openTimeSHA512: openTimeSHA512,
+                        openTimeSHA512: baseline.openTimeSHA512,
                         rekeyed: newCompositeKey != nil,
                         environment: environment
                     )

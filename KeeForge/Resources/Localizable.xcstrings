@@ -510,6 +510,106 @@
         }
       }
     },
+    "%lld changes from the other copy were combined with yours and saved." : {
+      "localizations" : {
+        "de" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "1 Änderung aus der anderen Kopie wurde mit Ihren zusammengeführt und gesichert."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld Änderungen aus der anderen Kopie wurden mit Ihren zusammengeführt und gesichert."
+                }
+              }
+            }
+          }
+        },
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "1 change from the other copy was combined with yours and saved."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld changes from the other copy were combined with yours and saved."
+                }
+              }
+            }
+          }
+        },
+        "es" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "1 cambio de la otra copia se combinó con los suyos y se guardó."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld cambios de la otra copia se combinaron con los suyos y se guardaron."
+                }
+              }
+            }
+          }
+        },
+        "fr" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "1 modification de l’autre copie a été fusionnée avec les vôtres et enregistrée."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld modifications de l’autre copie ont été fusionnées avec les vôtres et enregistrées."
+                }
+              }
+            }
+          }
+        },
+        "zh-Hans" : {
+          "variations" : {
+            "plural" : {
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "已将另一个副本中的 %lld 项更改与你的更改合并并保存。"
+                }
+              }
+            }
+          }
+        },
+        "zh-Hant" : {
+          "variations" : {
+            "plural" : {
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "已將另一個副本中的 %lld 項變更與你的變更合併並儲存。"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "%lld characters" : {
       "localizations" : {
         "de" : {
@@ -3531,6 +3631,40 @@
         }
       }
     },
+    "Changes Merged" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Änderungen zusammengeführt"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cambios combinados"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Modifications fusionnées"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "更改已合并"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "變更已合併"
+          }
+        }
+      }
+    },
     "Changes not saved" : {
       "localizations" : {
         "de" : {
@@ -5941,6 +6075,40 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "無法載入資料夾"
+          }
+        }
+      }
+    },
+    "Couldn't Merge Changes" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Änderungen konnten nicht zusammengeführt werden"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No se pudieron combinar los cambios"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Impossible de fusionner les modifications"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无法合并更改"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法合併變更"
           }
         }
       }
@@ -13358,6 +13526,40 @@
         }
       }
     },
+    "Merge Changes" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Änderungen zusammenführen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Combinar cambios"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fusionner les modifications"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "合并更改"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "合併變更"
+          }
+        }
+      }
+    },
     "Message" : {
       "localizations" : {
         "de" : {
@@ -20229,36 +20431,36 @@
         }
       }
     },
-    "The database changed outside KeeForge. Reload it or save your draft as a sibling conflict copy." : {
+    "The database changed outside KeeForge. Merge both sets of changes, reload it, or save your draft as a sibling conflict copy." : {
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Die Datenbank wurde außerhalb von KeeForge geändert. Laden Sie sie neu oder sichern Sie Ihren Entwurf als Konfliktkopie neben der Datenbank."
+            "value" : "Die Datenbank wurde außerhalb von KeeForge geändert. Führen Sie beide Änderungen zusammen, laden Sie sie neu oder sichern Sie Ihren Entwurf als Konfliktkopie neben der Datenbank."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "La base de datos cambió fuera de KeeForge. Vuelva a cargarla o guarde su borrador como una copia de conflicto junto a ella."
+            "value" : "La base de datos cambió fuera de KeeForge. Combine ambos conjuntos de cambios, vuelva a cargarla o guarde su borrador como una copia de conflicto junto a ella."
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "La base de données a été modifiée en dehors de KeeForge. Rechargez-la ou enregistrez votre brouillon en tant que copie de conflit adjacente."
+            "value" : "La base de données a été modifiée en dehors de KeeForge. Fusionnez les deux ensembles de modifications, rechargez-la ou enregistrez votre brouillon en tant que copie de conflit adjacente."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "数据库已在 KeeForge 之外被更改。请重新加载，或将草稿保存为同级冲突副本。"
+            "value" : "数据库已在 KeeForge 之外被更改。你可以合并两边的更改、重新加载，或将草稿保存为同级冲突副本。"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "資料庫已在 KeeForge 之外被更改。請重新載入，或將草稿儲存為同層級的衝突副本。"
+            "value" : "資料庫已在 KeeForge 之外被更改。你可以合併兩邊的變更、重新載入，或將草稿儲存為同層級的衝突副本。"
           }
         }
       }
@@ -20911,6 +21113,74 @@
         }
       }
     },
+    "The other copy had no new changes to add. Your changes were saved." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die andere Kopie enthielt keine neuen Änderungen. Ihre Änderungen wurden gesichert."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La otra copia no tenía cambios nuevos que añadir. Sus cambios se guardaron."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "L’autre copie ne contenait aucune nouvelle modification. Vos modifications ont été enregistrées."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "另一个副本没有新的更改。你的更改已保存。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "另一個副本沒有新的變更。你的變更已儲存。"
+          }
+        }
+      }
+    },
+    "The other copy of this database could not be opened. It may use a different master key, or be an older KDBX 3.1 file. Reload the database or save your changes as a conflict copy instead." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die andere Kopie dieser Datenbank konnte nicht geöffnet werden. Möglicherweise verwendet sie einen anderen Master-Schlüssel oder ist eine ältere KDBX-3.1-Datei. Laden Sie die Datenbank stattdessen neu oder sichern Sie Ihre Änderungen als Konfliktkopie."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No se pudo abrir la otra copia de esta base de datos. Puede que use una clave maestra distinta o que sea un archivo KDBX 3.1 más antiguo. En su lugar, vuelva a cargar la base de datos o guarde sus cambios como una copia de conflicto."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "L’autre copie de cette base de données n’a pas pu être ouverte. Elle utilise peut-être une autre clé principale, ou il s’agit d’un ancien fichier KDBX 3.1. Rechargez plutôt la base de données ou enregistrez vos modifications en tant que copie de conflit."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无法打开此数据库的另一个副本。它可能使用了不同的主密钥，或者是较旧的 KDBX 3.1 文件。请改为重新加载数据库，或将更改保存为冲突副本。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法開啟此資料庫的另一個副本。它可能使用了不同的主金鑰，或是較舊的 KDBX 3.1 檔案。請改為重新載入資料庫，或將變更儲存為衝突副本。"
+          }
+        }
+      }
+    },
     "The password or key file didn't unlock this database. If you're sure they are correct, the file may be corrupted." : {
       "localizations" : {
         "de" : {
@@ -21387,6 +21657,40 @@
         }
       }
     },
+    "The two copies store their attachments differently, so merging them could point an attachment at the wrong file. Reload the database or save your changes as a conflict copy instead." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die beiden Kopien speichern ihre Anhänge unterschiedlich; beim Zusammenführen könnte ein Anhang auf die falsche Datei verweisen. Laden Sie die Datenbank stattdessen neu oder sichern Sie Ihre Änderungen als Konfliktkopie."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Las dos copias almacenan sus archivos adjuntos de forma distinta, así que combinarlas podría hacer que un adjunto apunte al archivo equivocado. En su lugar, vuelva a cargar la base de datos o guarde sus cambios como una copia de conflicto."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Les deux copies stockent leurs pièces jointes différemment : les fusionner pourrait faire pointer une pièce jointe vers le mauvais fichier. Rechargez plutôt la base de données ou enregistrez vos modifications en tant que copie de conflit."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "两个副本存储附件的方式不同，合并后附件可能指向错误的文件。请改为重新加载数据库，或将更改保存为冲突副本。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "兩個副本儲存附件的方式不同，合併後附件可能指向錯誤的檔案。請改為重新載入資料庫，或將變更儲存為衝突副本。"
+          }
+        }
+      }
+    },
     "The verification code setup link is invalid or incomplete." : {
       "localizations" : {
         "de" : {
@@ -21757,6 +22061,40 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "此資料庫有待處理的自動填寫變更。請等待同步完成後再試一次。"
+          }
+        }
+      }
+    },
+    "This database is not ready to merge right now. Reload it or save your changes as a conflict copy instead." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Diese Datenbank kann derzeit nicht zusammengeführt werden. Laden Sie sie stattdessen neu oder sichern Sie Ihre Änderungen als Konfliktkopie."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Esta base de datos no está lista para combinarse ahora mismo. En su lugar, vuelva a cargarla o guarde sus cambios como una copia de conflicto."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cette base de données ne peut pas être fusionnée pour le moment. Rechargez-la plutôt ou enregistrez vos modifications en tant que copie de conflit."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此数据库目前无法合并。请改为重新加载，或将更改保存为冲突副本。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此資料庫目前無法合併。請改為重新載入，或將變更儲存為衝突副本。"
           }
         }
       }

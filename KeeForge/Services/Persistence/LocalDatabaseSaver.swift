@@ -11,6 +11,28 @@ struct SaveConflict: Sendable, Equatable {
     let remoteData: Data
 }
 
+/// The stored states a save is allowed to overwrite.
+///
+/// `openTimeSHA512` is what the session read when it opened the file — the
+/// ordinary optimistic-concurrency baseline. `reconciledRemoteSHA512` is set
+/// only by the merge flow, which has already read the diverged file and folded
+/// it into the draft: those bytes are then just as safe to replace as the
+/// open-time ones, and nothing else is. Anything else under the save is
+/// content nobody has reconciled, and still conflicts.
+struct SaveBaseline: Sendable, Equatable {
+    let openTimeSHA512: Data
+    let reconciledRemoteSHA512: Data?
+
+    init(openTimeSHA512: Data, reconciledRemoteSHA512: Data? = nil) {
+        self.openTimeSHA512 = openTimeSHA512
+        self.reconciledRemoteSHA512 = reconciledRemoteSHA512
+    }
+
+    func covers(_ sha512: Data) -> Bool {
+        sha512 == openTimeSHA512 || sha512 == reconciledRemoteSHA512
+    }
+}
+
 enum SaveError: Error, LocalizedError, Equatable {
     case databaseIsReadOnly
     case databaseLocationUnavailable
@@ -128,6 +150,9 @@ enum LocalDatabaseSaver {
     /// on-disk file, `newCompositeKey` encrypts the saved bytes, and the result
     /// is verified to reopen with the new key before the file is replaced.
     ///
+    /// `reconciledRemoteSHA512` widens the overwrite gate by exactly one state
+    /// — see `SaveBaseline`.
+    ///
     /// - Important: The caller must keep `draft.writerSessionKey` alive until this async call
     ///   returns. `KDBXWriter` needs that session key to re-encrypt protected values while saving.
     static func save(
@@ -135,6 +160,7 @@ enum LocalDatabaseSaver {
         reference: DatabaseReference,
         compositeKey: Data,
         openTimeSHA512: Data,
+        reconciledRemoteSHA512: Data? = nil,
         kdfPolicy: KDFExecutionPolicy,
         newCompositeKey: Data? = nil
     ) async throws -> SaveResult {
@@ -143,6 +169,7 @@ enum LocalDatabaseSaver {
             reference: reference,
             compositeKey: compositeKey,
             openTimeSHA512: openTimeSHA512,
+            reconciledRemoteSHA512: reconciledRemoteSHA512,
             kdfPolicy: kdfPolicy,
             newCompositeKey: newCompositeKey,
             environment: .live
@@ -154,6 +181,7 @@ enum LocalDatabaseSaver {
         reference: DatabaseReference,
         compositeKey: Data,
         openTimeSHA512: Data,
+        reconciledRemoteSHA512: Data? = nil,
         kdfPolicy: KDFExecutionPolicy,
         newCompositeKey: Data? = nil,
         environment: Environment
@@ -174,7 +202,10 @@ enum LocalDatabaseSaver {
                 draft: draft,
                 reference: reference,
                 compositeKey: compositeKey,
-                openTimeSHA512: openTimeSHA512,
+                baseline: SaveBaseline(
+                    openTimeSHA512: openTimeSHA512,
+                    reconciledRemoteSHA512: reconciledRemoteSHA512
+                ),
                 kdfPolicy: kdfPolicy,
                 newCompositeKey: newCompositeKey,
                 environment: environment
@@ -186,7 +217,7 @@ enum LocalDatabaseSaver {
         draft: DatabaseDraft,
         reference: DatabaseReference,
         compositeKey: Data,
-        openTimeSHA512: Data,
+        baseline: SaveBaseline,
         kdfPolicy: KDFExecutionPolicy,
         newCompositeKey: Data?,
         environment: Environment
@@ -215,7 +246,7 @@ enum LocalDatabaseSaver {
             try environment.replaceFileAtomically(currentData, location.url)
         }
         let currentSHA512 = KDBXCrypto.sha512(currentData)
-        guard currentSHA512 == openTimeSHA512 else {
+        guard baseline.covers(currentSHA512) else {
             return .conflict(remoteSHA512: currentSHA512, remoteData: currentData)
         }
 
