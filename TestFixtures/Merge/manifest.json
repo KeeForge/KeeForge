@@ -1,0 +1,384 @@
+{
+  "generator": "scripts/generate-merge-fixtures.sh",
+  "oracle": "2.7.12",
+  "password": "testpassword123",
+  "kdbxVersion": "4.x (base created as 4.0 by pykeepass; keepassxc-cli may raise the minor version)",
+  "mergeCommand": "keepassxc-cli merge -s <copy of local.kdbx> <remote.kdbx>",
+  "mergeDirection": "remote.kdbx is the merge source, local.kdbx the merge target",
+  "oracleLimitation": "keepassxc-cli runs Merger in KeePassXC's KeepNewer mode (the root group's merge mode falls back to KeepNewer and Merger::mergeDeletions returns early for every mode except Synchronize), so the reference never applies DeletedObjects tombstones.",
+  "oracleNotes": [
+    "keepassxc-cli runs Merger in KeePassXC's KeepNewer mode (the root group's merge mode falls back to KeepNewer and Merger::mergeDeletions returns early for every mode except Synchronize), so the reference never applies DeletedObjects tombstones.",
+    "When the source entry wins a conflict, Merger erases the target entry and appends a clone of the source, so the winner ends up LAST in its group. Sibling order in a merged reference is an artefact, not a requirement - compare trees order-insensitively.",
+    "Merger::eraseEntry/eraseGroup restore the DeletedObjects list after deleting, so an entry replaced during conflict resolution never gains a tombstone.",
+    "keepassxc-cli `rm` (and `rmdir`) recycles on the first call and permanently deletes, writing a DeletedObjects tombstone, on the second call from inside the Recycle Bin.",
+    "Entry conflict resolution and history union ignore the merge mode entirely (Merger::mergeHistory does Q_UNUSED(mergeMethod)), so everything except deletion propagation is a faithful oracle for the Synchronize semantics KeeForge implements.",
+    "Merger reparents an entry when the source LocationChanged is newer but does NOT adopt that LocationChanged value (it only does so for groups), so a merge-moved entry keeps its stale local LocationChanged in the reference. KeeForge adopting the source value per the spec is a deliberate, safe divergence.",
+    "Merger never adopts Meta/RecycleBinUUID (there is an explicit TODO in Merger::mergeMetadata), so a reference that gained the source's Recycle Bin group still reports the all-zero RecycleBinUUID. KeeForge adopting it per the spec is a deliberate divergence."
+  ],
+  "baseTree": {
+    "rootGroup": {
+      "uuid": "00000000-0000-4000-8000-000000000000"
+    },
+    "groups": {
+      "Work": "11111111-1111-4111-8111-111111111111",
+      "Personal": "22222222-2222-4222-8222-222222222222",
+      "Archive": "33333333-3333-4333-8333-333333333333"
+    },
+    "entries": {
+      "/Work/Alpha": {
+        "uuid": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+        "username": "alpha-user",
+        "password": "AlphaSecret1",
+        "url": "https://alpha.example.com"
+      },
+      "/Work/Beta": {
+        "uuid": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+        "username": "beta-user",
+        "password": "BetaSecret2",
+        "url": "https://beta.example.com"
+      },
+      "/Personal/Gamma": {
+        "uuid": "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+        "username": "gamma-user",
+        "password": "GammaSecret3",
+        "notes": "base notes"
+      }
+    }
+  },
+  "scenarios": [
+    {
+      "id": "both-add-entries",
+      "description": "Local adds an entry to Work, remote adds a different entry to Personal.",
+      "editOrder": [
+        "local: add /Work/Local Only",
+        "remote: add /Personal/Remote Only"
+      ],
+      "assertions": [
+        "merged tree contains /Work/Local Only (username local-only-user)",
+        "merged tree contains /Personal/Remote Only (username remote-only-user)",
+        "no entry is dropped and neither addition gains history"
+      ],
+      "oracleMatchesSpec": true,
+      "files": {
+        "local": "both-add-entries/local.kdbx",
+        "remote": "both-add-entries/remote.kdbx",
+        "mergedReference": "both-add-entries/merged-reference.kdbx",
+        "expectations": "both-add-entries/expectations.txt"
+      }
+    },
+    {
+      "id": "remote-newer-wins",
+      "description": "Both sides edit Alpha's notes; the remote edit is newer.",
+      "editOrder": [
+        "local: edit /Work/Alpha notes = 'local edit (loser)'",
+        "sleep >1s",
+        "remote: edit /Work/Alpha notes = 'remote edit (winner)'"
+      ],
+      "assertions": [
+        "current /Work/Alpha carries the remote notes",
+        "the losing local version appears as a history item of the merged entry",
+        "the pre-split base version also survives in history"
+      ],
+      "oracleMatchesSpec": true,
+      "files": {
+        "local": "remote-newer-wins/local.kdbx",
+        "remote": "remote-newer-wins/remote.kdbx",
+        "mergedReference": "remote-newer-wins/merged-reference.kdbx",
+        "expectations": "remote-newer-wins/expectations.txt"
+      }
+    },
+    {
+      "id": "local-newer-wins",
+      "description": "Both sides edit Alpha's notes; the local edit is newer.",
+      "editOrder": [
+        "remote: edit /Work/Alpha notes = 'remote edit (loser)'",
+        "sleep >1s",
+        "local: edit /Work/Alpha notes = 'local edit (winner)'"
+      ],
+      "assertions": [
+        "current /Work/Alpha keeps the local notes",
+        "the losing remote version appears as a history item of the merged entry"
+      ],
+      "oracleMatchesSpec": true,
+      "files": {
+        "local": "local-newer-wins/local.kdbx",
+        "remote": "local-newer-wins/remote.kdbx",
+        "mergedReference": "local-newer-wins/merged-reference.kdbx",
+        "expectations": "local-newer-wins/expectations.txt"
+      }
+    },
+    {
+      "id": "history-union",
+      "description": "Interleaved edits give each side its own pre-existing history list.",
+      "editOrder": [
+        "local: edit notes = 'local edit 1'",
+        "remote: edit notes = 'remote edit 1'",
+        "local: edit notes = 'local edit 2'",
+        "remote: edit notes = 'remote edit 2'"
+      ],
+      "assertions": [
+        "current /Work/Alpha carries 'remote edit 2' (newest LastModificationTime)",
+        "history is the union of both sides keyed by LastModificationTime: base, 'local edit 1', 'remote edit 1', 'local edit 2'",
+        "history items are ordered chronologically and never duplicated"
+      ],
+      "oracleMatchesSpec": true,
+      "files": {
+        "local": "history-union/local.kdbx",
+        "remote": "history-union/remote.kdbx",
+        "mergedReference": "history-union/merged-reference.kdbx",
+        "expectations": "history-union/expectations.txt"
+      }
+    },
+    {
+      "id": "same-timestamp-diverged",
+      "description": "Alpha's password differs across the pair while both sides carry the exact same LastModificationTime (forced with pykeepass; two keepassxc-cli edits cannot be raced into one second reliably).",
+      "editOrder": [
+        "local: password = LocalSameSecond at T",
+        "remote: password = RemoteSameSecond at the same T"
+      ],
+      "assertions": [
+        "equal timestamps are treated as the same version: the merged entry keeps the local (target) password and no history item is pushed"
+      ],
+      "oracleMatchesSpec": true,
+      "files": {
+        "local": "same-timestamp-diverged/local.kdbx",
+        "remote": "same-timestamp-diverged/remote.kdbx",
+        "mergedReference": "same-timestamp-diverged/merged-reference.kdbx",
+        "expectations": "same-timestamp-diverged/expectations.txt"
+      }
+    },
+    {
+      "id": "move-vs-edit",
+      "description": "Remote moves Alpha to Archive, local then edits Alpha's password.",
+      "editOrder": [
+        "remote: mv /Work/Alpha -> /Archive",
+        "sleep >1s",
+        "local: edit /Work/Alpha password = AlphaEditedLocally9"
+      ],
+      "assertions": [
+        "merged Alpha lives in /Archive (remote's LocationChanged is newer)",
+        "merged Alpha keeps the locally edited password (local LastModificationTime is newer)",
+        "both effects survive; the move is not undone by the content merge"
+      ],
+      "oracleMatchesSpec": true,
+      "oracleLimitation": "The reference moves Alpha but leaves its LocationChanged at the stale local value. KeeForge adopts the source LocationChanged per the spec, so compare placement, not the LocationChanged timestamp, against this reference.",
+      "files": {
+        "local": "move-vs-edit/local.kdbx",
+        "remote": "move-vs-edit/remote.kdbx",
+        "mergedReference": "move-vs-edit/merged-reference.kdbx",
+        "expectations": "move-vs-edit/expectations.txt"
+      }
+    },
+    {
+      "id": "move-into-remote-only-group",
+      "description": "Remote creates /Remote Vault and moves Beta into it; local edits Beta.",
+      "editOrder": [
+        "remote: mkdir /Remote Vault; mv /Work/Beta -> /Remote Vault",
+        "sleep >1s",
+        "local: edit /Work/Beta notes"
+      ],
+      "assertions": [
+        "/Remote Vault is created in the merged tree",
+        "Beta lives inside /Remote Vault and carries the local notes edit"
+      ],
+      "oracleMatchesSpec": true,
+      "oracleLimitation": "A newly created group DOES adopt the source LocationChanged; the moved entry does not. Beta's LocationChanged in the reference is the stale local value.",
+      "files": {
+        "local": "move-into-remote-only-group/local.kdbx",
+        "remote": "move-into-remote-only-group/remote.kdbx",
+        "mergedReference": "move-into-remote-only-group/merged-reference.kdbx",
+        "expectations": "move-into-remote-only-group/expectations.txt"
+      }
+    },
+    {
+      "id": "delete-local-then-edit-remote",
+      "description": "Local permanently deletes Alpha (tombstone on the target side); remote edits it afterwards. Edit-after-delete resurrection.",
+      "editOrder": [
+        "local: rm /Work/Alpha, then rm '/Recycle Bin/Alpha' (permanent, writes tombstone)",
+        "sleep >1s",
+        "remote: edit /Work/Alpha notes"
+      ],
+      "assertions": [
+        "Alpha is resurrected into /Work with the remote notes edit",
+        "resurrection is required because the remote LastModificationTime is later than the local DeletionTime"
+      ],
+      "specNote": "KeeForge (Synchronize semantics) must additionally DROP the local tombstone on resurrection. The reference keeps it: the CLI never runs the deletion pass, so the target's own tombstone is carried over untouched alongside the live entry.",
+      "oracleMatchesSpec": false,
+      "oracleLimitation": "keepassxc-cli runs Merger in KeePassXC's KeepNewer mode (the root group's merge mode falls back to KeepNewer and Merger::mergeDeletions returns early for every mode except Synchronize), so the reference never applies DeletedObjects tombstones.",
+      "files": {
+        "local": "delete-local-then-edit-remote/local.kdbx",
+        "remote": "delete-local-then-edit-remote/remote.kdbx",
+        "mergedReference": "delete-local-then-edit-remote/merged-reference.kdbx",
+        "expectations": "delete-local-then-edit-remote/expectations.txt"
+      }
+    },
+    {
+      "id": "edit-remote-then-delete-local",
+      "description": "Remote edits Alpha first; local permanently deletes it afterwards. Delete-after-edit.",
+      "editOrder": [
+        "remote: edit /Work/Alpha notes",
+        "sleep >1s",
+        "local: rm /Work/Alpha, then rm '/Recycle Bin/Alpha' (permanent, writes tombstone)"
+      ],
+      "assertions": [
+        "spec: Alpha stays deleted (its LastModificationTime precedes the DeletionTime) and the tombstone survives so the deletion propagates to third replicas"
+      ],
+      "specNote": "The reference DISAGREES with the spec: it re-adds Alpha from the remote side and keeps the local tombstone, leaving a live entry and a tombstone with the same UUID. KeeForge must delete instead.",
+      "oracleMatchesSpec": false,
+      "oracleLimitation": "keepassxc-cli runs Merger in KeePassXC's KeepNewer mode (the root group's merge mode falls back to KeepNewer and Merger::mergeDeletions returns early for every mode except Synchronize), so the reference never applies DeletedObjects tombstones.",
+      "files": {
+        "local": "edit-remote-then-delete-local/local.kdbx",
+        "remote": "edit-remote-then-delete-local/remote.kdbx",
+        "mergedReference": "edit-remote-then-delete-local/merged-reference.kdbx",
+        "expectations": "edit-remote-then-delete-local/expectations.txt"
+      }
+    },
+    {
+      "id": "delete-remote-then-edit-local",
+      "description": "Remote permanently deletes Alpha (tombstone on the source side); local edits it afterwards. Edit-after-delete resurrection, mirrored direction.",
+      "editOrder": [
+        "remote: rm /Work/Alpha, then rm '/Recycle Bin/Alpha' (permanent, writes tombstone)",
+        "sleep >1s",
+        "local: edit /Work/Alpha notes"
+      ],
+      "assertions": [
+        "Alpha survives in /Work with the local notes edit",
+        "the remote tombstone is dropped from the merged DeletedObjects list"
+      ],
+      "oracleMatchesSpec": true,
+      "oracleLimitation": "The reference reaches the spec's outcome for the wrong reason: it never unions the source tombstone at all. keepassxc-cli runs Merger in KeePassXC's KeepNewer mode (the root group's merge mode falls back to KeepNewer and Merger::mergeDeletions returns early for every mode except Synchronize), so the reference never applies DeletedObjects tombstones.",
+      "files": {
+        "local": "delete-remote-then-edit-local/local.kdbx",
+        "remote": "delete-remote-then-edit-local/remote.kdbx",
+        "mergedReference": "delete-remote-then-edit-local/merged-reference.kdbx",
+        "expectations": "delete-remote-then-edit-local/expectations.txt"
+      }
+    },
+    {
+      "id": "edit-local-then-delete-remote",
+      "description": "Local edits Alpha first; remote permanently deletes it afterwards. Delete-after-edit, mirrored direction.",
+      "editOrder": [
+        "local: edit /Work/Alpha notes",
+        "sleep >1s",
+        "remote: rm /Work/Alpha, then rm '/Recycle Bin/Alpha' (permanent, writes tombstone)"
+      ],
+      "assertions": [
+        "spec: Alpha is deleted from the merged tree and the remote tombstone is kept"
+      ],
+      "specNote": "The reference DISAGREES with the spec: Alpha survives with the local edit and the remote tombstone is discarded. This is the clearest demonstration that the CLI reference cannot be used as the oracle for deletion propagation.",
+      "oracleMatchesSpec": false,
+      "oracleLimitation": "keepassxc-cli runs Merger in KeePassXC's KeepNewer mode (the root group's merge mode falls back to KeepNewer and Merger::mergeDeletions returns early for every mode except Synchronize), so the reference never applies DeletedObjects tombstones.",
+      "files": {
+        "local": "edit-local-then-delete-remote/local.kdbx",
+        "remote": "edit-local-then-delete-remote/remote.kdbx",
+        "mergedReference": "edit-local-then-delete-remote/merged-reference.kdbx",
+        "expectations": "edit-local-then-delete-remote/expectations.txt"
+      }
+    },
+    {
+      "id": "recycle-vs-edit",
+      "description": "Remote recycles Beta (a move into a newly created Recycle Bin); local edits Beta afterwards.",
+      "editOrder": [
+        "remote: rm /Work/Beta (recycles, creating the bin)",
+        "sleep >1s",
+        "local: edit /Work/Beta notes"
+      ],
+      "assertions": [
+        "the merged tree contains the remote's Recycle Bin group",
+        "Beta lives inside the Recycle Bin (recycling is a move, gated on LocationChanged)",
+        "Beta carries the local notes edit (newer LastModificationTime)",
+        "spec: the merged Meta adopts the remote's RecycleBinUUID (local had no bin)"
+      ],
+      "specNote": "The reference does NOT adopt RecycleBinUUID: the bin group is present in the tree while Meta/RecycleBinUUID stays all-zero, so a later deletion in KeePassXC would create a second bin. KeeForge adopts it per the spec.",
+      "oracleMatchesSpec": false,
+      "oracleLimitation": "Merger::mergeMetadata carries an explicit TODO for recycle-bin handling and merges only custom icons and custom data.",
+      "files": {
+        "local": "recycle-vs-edit/local.kdbx",
+        "remote": "recycle-vs-edit/remote.kdbx",
+        "mergedReference": "recycle-vs-edit/merged-reference.kdbx",
+        "expectations": "recycle-vs-edit/expectations.txt"
+      }
+    },
+    {
+      "id": "group-rename-vs-entry-add",
+      "description": "Local adds an entry to Work; remote then renames Work to 'Work Renamed'.",
+      "editOrder": [
+        "local: add /Work/Late Addition",
+        "sleep >1s",
+        "remote: rename group Work -> 'Work Renamed' with a fresh LastModificationTime"
+      ],
+      "assertions": [
+        "the merged group is named 'Work Renamed' (newer group LastModificationTime wins)",
+        "the group still contains Alpha, Beta and the locally added 'Late Addition'",
+        "a rename is not a move: LocationChanged is untouched"
+      ],
+      "oracleMatchesSpec": true,
+      "files": {
+        "local": "group-rename-vs-entry-add/local.kdbx",
+        "remote": "group-rename-vs-entry-add/remote.kdbx",
+        "mergedReference": "group-rename-vs-entry-add/merged-reference.kdbx",
+        "expectations": "group-rename-vs-entry-add/expectations.txt"
+      }
+    },
+    {
+      "id": "group-deleted-vs-entry-added",
+      "description": "Remote permanently deletes the empty Archive group; local then adds an entry inside it.",
+      "editOrder": [
+        "remote: rmdir /Archive, then rmdir '/Recycle Bin/Archive' (permanent, tombstones)",
+        "sleep >1s",
+        "local: add /Archive/Kept Entry"
+      ],
+      "assertions": [
+        "the Archive group survives because it holds live content after the merge",
+        "'Kept Entry' survives inside it",
+        "the group tombstone is not applied and not carried into merged DeletedObjects"
+      ],
+      "oracleMatchesSpec": true,
+      "oracleLimitation": "Group deletion cascade is only partially exercised: the CLI reference never runs the deletion pass. keepassxc-cli runs Merger in KeePassXC's KeepNewer mode (the root group's merge mode falls back to KeepNewer and Merger::mergeDeletions returns early for every mode except Synchronize), so the reference never applies DeletedObjects tombstones.",
+      "files": {
+        "local": "group-deleted-vs-entry-added/local.kdbx",
+        "remote": "group-deleted-vs-entry-added/remote.kdbx",
+        "mergedReference": "group-deleted-vs-entry-added/merged-reference.kdbx",
+        "expectations": "group-deleted-vs-entry-added/expectations.txt"
+      }
+    },
+    {
+      "id": "attachment-divergence",
+      "description": "Remote attaches merge-note.txt to Gamma; local only edits Gamma's notes. The KDBX4 inner-header binary pools diverge.",
+      "editOrder": [
+        "remote: attachment-import merge-note.txt onto /Personal/Gamma",
+        "sleep >1s",
+        "local: edit /Personal/Gamma notes"
+      ],
+      "assertions": [
+        "KeeForge must DECLINE this merge: the binary pools differ and an entry references an attachment, so grafted references could dangle",
+        "the merged reference is generated for completeness only and is not an expected KeeForge output"
+      ],
+      "oracleLimitation": "In the reference the local edit is newer, so the attachment-carrying remote version lands in history: the merged file keeps a binary in its pool that only a history item references. That is exactly the dangling-reference risk KeeForge declines on.",
+      "oracleMatchesSpec": true,
+      "files": {
+        "local": "attachment-divergence/local.kdbx",
+        "remote": "attachment-divergence/remote.kdbx",
+        "mergedReference": "attachment-divergence/merged-reference.kdbx",
+        "expectations": "attachment-divergence/expectations.txt"
+      }
+    },
+    {
+      "id": "identical-no-changes",
+      "description": "local.kdbx and remote.kdbx are byte-identical copies of the base database.",
+      "editOrder": [],
+      "assertions": [
+        "keepassxc-cli reports 'Database was not modified by merge operation.'",
+        "merged-reference.kdbx is byte-identical to local.kdbx",
+        "KeeForge's merge must be a no-op and must not mark the database dirty"
+      ],
+      "oracleMatchesSpec": true,
+      "files": {
+        "local": "identical-no-changes/local.kdbx",
+        "remote": "identical-no-changes/remote.kdbx",
+        "mergedReference": "identical-no-changes/merged-reference.kdbx",
+        "expectations": "identical-no-changes/expectations.txt"
+      }
+    }
+  ]
+}
