@@ -21,10 +21,11 @@ TODO before the first macOS release:
 
 ## Unreleased
 
+## v1.14.0 (2026-08-13)
+
 ### New Features
 
 - KeeForge now speaks Chinese: full Simplified Chinese (简体中文) and Traditional Chinese (繁體中文) localizations across the app and the AutoFill extension, plus translated README and contributor docs.
-  - TODO before releasing this: add zh-Hans and zh-Hant localized App Store metadata (description, keywords, screenshots, What's New) in App Store Connect.
 - Change a database's master password: Database Details now has a "Change Master Key" screen for setting a new password and adding, replacing, or removing a key file — no need to export the database to a computer and use another KeePass app (#59). A backup under the old key is kept, and Face ID/Touch ID unlock keeps working without being set up again. Available on writable KDBX 4 databases once any pending edits are saved.
 - Set up verification codes in KeeForge, instead of only showing ones added elsewhere (#65). While editing an entry, scan the service's QR code, paste an `otpauth://` setup link, or type the setup key by hand; the same section shows the period, digits, and algorithm, and can remove the code again. KeeForge now also appears under "Set Up Codes In" in iOS Settings, so a code you set up anywhere on the device can be attached to an existing entry or saved as a new one in a group you pick. Codes are written the way other KeePass apps read them, so they travel with the database. Counter-based (HOTP) and Steam codes are not supported.
 

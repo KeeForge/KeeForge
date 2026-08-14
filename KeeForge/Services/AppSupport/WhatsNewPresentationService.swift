@@ -53,6 +53,27 @@ enum WhatsNewCatalog {
         let features: [WhatsNewFeature]
 
         switch version {
+        case "1.14.0":
+            features = [
+                WhatsNewFeature(
+                    id: "change-master-key",
+                    title: "Change your master password",
+                    detail: "Set a new master password, or add, replace, or remove a key file, right from Database Details. A backup under the old key is kept, and Face ID or Touch ID keeps working.",
+                    systemImage: "lock.rotation"
+                ),
+                WhatsNewFeature(
+                    id: "totp-enrollment",
+                    title: "Set up verification codes",
+                    detail: "Scan a QR code, paste a setup link, or type a key to add a verification code while editing an entry. Codes are saved in your database, so they work in other KeePass apps too.",
+                    systemImage: "qrcode.viewfinder"
+                ),
+                WhatsNewFeature(
+                    id: "chinese-localization",
+                    title: "Use KeeForge in Chinese",
+                    detail: "KeeForge is now fully translated into Simplified and Traditional Chinese throughout the app and AutoFill.",
+                    systemImage: "globe"
+                ),
+            ]
         case "1.13.0":
             features = [
                 WhatsNewFeature(
