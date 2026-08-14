@@ -99,10 +99,9 @@ struct MasterKeyChangeView: View {
                 dismissButton: .default(Text("OK"))
             )
         }
-        .confirmationDialog(
+        .alert(
             isRemovingPassword ? Text("Save Without a Master Password?") : Text("Change Master Key?"),
-            isPresented: $isChangeConfirmationPresented,
-            titleVisibility: .visible
+            isPresented: $isChangeConfirmationPresented
         ) {
             Button(role: .destructive) {
                 authenticateAndPerformChange()
@@ -114,6 +113,9 @@ struct MasterKeyChangeView: View {
                 }
             }
             .accessibilityIdentifier("master-key.confirm-change")
+
+            Button("Cancel", role: .cancel) {}
+                .accessibilityIdentifier("master-key.cancel-change")
         } message: {
             if isRemovingPassword {
                 Text("This permanently re-encrypts the database file. It will open only with the new master key — if the new master password or key file is lost, the data in it cannot be recovered.")
