@@ -667,43 +667,51 @@ class KeeForgeUITestCase: XCTestCase {
             return true
         }
 
-        if let container, container.exists {
+        let scroller = container.flatMap { $0.exists ? $0 : nil } ?? app!
+
+        func swipe(_ direction: SwipeDirection) {
+            switch direction {
+            case .up:
+                scroller.swipeUp()
+            case .down:
+                scroller.swipeDown()
+            }
+        }
+
+        if element.waitForExistence(timeout: 1), isSafeToHitTest(element) {
+            return true
+        }
+
+        for _ in 0..<maxSwipes {
+            swipe(direction)
+
             if element.waitForExistence(timeout: 1), isSafeToHitTest(element) {
                 return true
             }
+        }
 
-            for _ in 0..<maxSwipes {
-                switch direction {
-                case .up:
-                    container.swipeUp()
-                case .down:
-                    container.swipeDown()
-                }
+        // On a short screen a row can come to rest under the navigation bar:
+        // it exists with a valid frame but is not hittable, and swiping further
+        // the same way only walks it off the top. Sweep back the other way,
+        // far enough to cover the overshoot as well as the original distance.
+        let reverse: SwipeDirection = direction == .up ? .down : .up
+        for _ in 0..<(maxSwipes * 2) {
+            swipe(reverse)
 
-                if element.waitForExistence(timeout: 1), isSafeToHitTest(element) {
-                    return true
-                }
-            }
-        } else {
-            for _ in 0..<maxSwipes {
-                switch direction {
-                case .up:
-                    app.swipeUp()
-                case .down:
-                    app.swipeDown()
-                }
-
-                if element.waitForExistence(timeout: 1), isSafeToHitTest(element) {
-                    return true
-                }
+            if element.waitForExistence(timeout: 1), isSafeToHitTest(element) {
+                return true
             }
         }
 
         return element.exists
     }
 
+    /// Reads the frame from a snapshot rather than `element.frame`. Querying an
+    /// index-bound element re-resolves it, and a container that goes away
+    /// between the query and the access raises an Objective-C exception Swift
+    /// cannot catch; `snapshot()` reports the same miss as a Swift error.
     private func hasUsableFrame(_ element: XCUIElement) -> Bool {
-        let frame = element.frame
+        guard let frame = try? element.snapshot().frame else { return false }
         return frame.minX.isFinite
             && frame.minY.isFinite
             && frame.width.isFinite
