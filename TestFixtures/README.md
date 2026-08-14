@@ -64,7 +64,9 @@ Scenarios: `both-add-entries`, `remote-newer-wins`, `local-newer-wins`, `history
 
 Everything else — entry conflict resolution, history union, history dedupe by `LastModificationTime`, moves, group renames, idempotence — is mode-independent in KeePassXC (`Merger::mergeHistory` ignores the merge mode outright) and is a faithful oracle.
 
-Regenerate the whole set with `scripts/generate-merge-fixtures.sh` (see `scripts/README.md`); `--scenario <id>` rebuilds a single one. Nothing bundles these fixtures into a test target yet — wire the paths into `../project.yml` alongside the other fixtures when the merge test suite starts consuming them.
+Regenerate the whole set with `scripts/generate-merge-fixtures.sh` (see `scripts/README.md`); `--scenario <id>` rebuilds a single one.
+
+`KeeForgeTests/KDBXMergerOracleTests.swift` consumes them, enumerating scenarios from `manifest.json`. Unlike every other fixture, they are bundled into `KeeForgeTests`/`KeeForgeMacTests` as a **folder reference** (`type: folder` in `../project.yml`), because the sixteen scenario directories all contain files named `local.kdbx`, `remote.kdbx`, and `merged-reference.kdbx` — a flat resource copy would collide. The bundle therefore keeps the `Merge/<scenario-id>/…` structure, and adding a scenario directory needs no project change (the oracle suite fails if a directory and the manifest disagree).
 
 ## Key Files
 

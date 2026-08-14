@@ -548,6 +548,27 @@ final class KDBXCompatibilityTests: XCTestCase {
         try collector.emit()
     }
 
+    /// The merge engine's output is written like any other save, so it has to
+    /// survive the same round trip: a merged tree reaches `KDBXWriter` through
+    /// a pristine draft rather than as an `EntryEdit`, and the artifact this
+    /// emits is opened by real KeePassXC in the external gate.
+    func test_mergeScenario_writesAMergedTreeThatReparsesAndOpensExternally() throws {
+        let collector = try KDBXCompatibilitySupport.ArtifactCollector(testCase: self)
+        let loaded = try KDBXCompatibilitySupport.load(.syntheticRich, bundle: bundle)
+        let scenario = KDBXCompatibilitySupport.mergeRemoteDivergenceScenario()
+
+        let result = try collector.run(scenario, on: loaded)
+
+        assertHeaderPreserved(result, loaded: loaded, scenario: scenario)
+        XCTAssertEqual(
+            result.afterHeader.formatVersion,
+            loaded.header.formatVersion,
+            "a merge must not renegotiate the source's header version"
+        )
+
+        try collector.emit()
+    }
+
     /// `Entry.attachmentHashes` only covers binaries some `<Binary>` element
     /// references, so it cannot see the pool itself being disturbed. Pin the
     /// whole-pool digest's sensitivity: every scenario compares it across the
@@ -613,6 +634,7 @@ final class KDBXCompatibilityTests: XCTestCase {
             "group-tags-group-tags-update-entry",
             "group-tags-group-tags-update-group",
             "\(richID)-keeotp-source-matrix",
+            "\(richID)-merge-remote-divergence",
             "aes-baseline-rekey-password-only",
             "aes-baseline-rekey-add-keyfile",
             "password-keyfile-rekey-remove-keyfile",
@@ -622,7 +644,7 @@ final class KDBXCompatibilityTests: XCTestCase {
 
         // The artifact set never shrinks silently: the gate's merged manifest
         // is compared against exactly this count.
-        XCTAssertEqual(descriptors.count, 33)
+        XCTAssertEqual(descriptors.count, 34)
     }
 
     func test_externalExpectationTables_areExhaustiveOverEveryArtifactScenario() throws {

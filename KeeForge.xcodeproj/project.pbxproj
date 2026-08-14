@@ -241,6 +241,7 @@
 		5A3B73AAFDDD6021EFD05A80 /* WebDAVConnectViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 50107994AC5A4E705F829F17 /* WebDAVConnectViewModel.swift */; };
 		5A7AFD448B2C67EE04D999C0 /* GroupEditViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA400D126B05676FA820F6D9 /* GroupEditViewModel.swift */; };
 		5BB5396D932F586B396D5D98 /* kdbx41-public-custom-data.kdbx in Resources */ = {isa = PBXBuildFile; fileRef = B768B63FEA29736435D3E922 /* kdbx41-public-custom-data.kdbx */; };
+		5CD4C4237D5663668464CFCD /* KDBXMergerOracleTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3BD42819A2CA0A2C67A7B6C2 /* KDBXMergerOracleTests.swift */; };
 		5D09209965C749545FF9B37C /* CloudFileBrowserSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = 76C7BB3AE108B90D95FE02D7 /* CloudFileBrowserSession.swift */; };
 		5D1534A2DAB9C6EC61C8551B /* CloudSyncModelsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6037B710DE638D64C1ED6576 /* CloudSyncModelsTests.swift */; };
 		5D2CF3FE49768C76388E382C /* demo.kdbx in Resources */ = {isa = PBXBuildFile; fileRef = F3D5CCD3DC2893DC1A65D6DC /* demo.kdbx */; };
@@ -380,6 +381,7 @@
 		931AF15233F3B6756F5499C8 /* CloudFolderBrowserViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0676B657B099FF8BFA0A92B9 /* CloudFolderBrowserViewModel.swift */; };
 		93C24272575A3A587854DDDF /* CoordinatedFileReader.swift in Sources */ = {isa = PBXBuildFile; fileRef = A9A57CF2CAD52FAEB0047900 /* CoordinatedFileReader.swift */; };
 		93E1B732760090D9CBAB5AC0 /* KDBXMerger.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4CB5054048D2A5BAD65D979D /* KDBXMerger.swift */; };
+		93F4D3DC3EF4AA4412781861 /* Merge in Resources */ = {isa = PBXBuildFile; fileRef = 0538CE7912AC14AC4ABBC3F8 /* Merge */; };
 		9441CDEE74E78B413B9B6034 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 3FFF736116CE4861D823A5B6 /* Assets.xcassets */; };
 		95FE2884C911B96BECA4ED23 /* InheritedTagsUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE7FD12A463E89F62669F96C /* InheritedTagsUITests.swift */; };
 		96335AB328E6C5ABBE87CAEB /* CredentialMatcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB8B2C6F3F5C2509AC462D87 /* CredentialMatcher.swift */; };
@@ -451,6 +453,7 @@
 		AC3A4F535475A40584132682 /* AutoLockTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6A60D769EF54ACAE8FAFEC73 /* AutoLockTests.swift */; };
 		AE1CEDC7D97DAB90D13FA107 /* AutoFillSearchView.swift in Sources */ = {isa = PBXBuildFile; fileRef = ADAA5D103A016B02FDB65F56 /* AutoFillSearchView.swift */; };
 		B02D2422E1AE17524EC50E34 /* DocumentPickerService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B37093A769E7D22F7C7EC7C /* DocumentPickerService.swift */; };
+		B03A33A5DFC129CA9F434532 /* KDBXMergerOracleTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3BD42819A2CA0A2C67A7B6C2 /* KDBXMergerOracleTests.swift */; };
 		B043FE5EB828EF58D17B36A2 /* KDBXOuterCipher.swift in Sources */ = {isa = PBXBuildFile; fileRef = CF9F4F443BDAB986A5BF03E8 /* KDBXOuterCipher.swift */; };
 		B084A4061505EB5604BD33AD /* WebDAVCloudProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0766AA20A206C0DEE4B732D /* WebDAVCloudProvider.swift */; };
 		B158747A1FE08B2B17C251C3 /* DocumentsVaultScannerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C4F5FB08EE2BFA9321FF6C45 /* DocumentsVaultScannerTests.swift */; };
@@ -538,6 +541,7 @@
 		CF96995D0062E1729BEDFFEA /* KeychainMigrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0BB465F403FF88189ACE559 /* KeychainMigrationTests.swift */; };
 		CFDB6D78050B6CDEDD3B7B92 /* AutoFillDiagnostics.swift in Sources */ = {isa = PBXBuildFile; fileRef = 06A93C456F1EEB941556DDCA /* AutoFillDiagnostics.swift */; };
 		D0017FAB9AB8A8FBBDA92361 /* UnlockView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E2DA7B253B27404C400DB1B5 /* UnlockView.swift */; };
+		D0C861C6FA0E339224FC58AC /* Merge in Resources */ = {isa = PBXBuildFile; fileRef = 0538CE7912AC14AC4ABBC3F8 /* Merge */; };
 		D0F0C7BDEA86EC9821E0A191 /* PasskeyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B8F8B108FB789996AD3C0BD /* PasskeyTests.swift */; };
 		D135A0F2787BC3C7719CD862 /* PasskeyCrypto.swift in Sources */ = {isa = PBXBuildFile; fileRef = DDEA3048149FA6E823621EA0 /* PasskeyCrypto.swift */; };
 		D1CCF2F101297F3F9CE03DF5 /* PasswordGeneratorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 613225A0024C030E19B2F7E1 /* PasswordGeneratorTests.swift */; };
@@ -760,6 +764,7 @@
 		0330F701821BF808278069A3 /* ModelLogicTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelLogicTests.swift; sourceTree = "<group>"; };
 		04A1400E503A230DF2633686 /* TOTPGeneratorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TOTPGeneratorTests.swift; sourceTree = "<group>"; };
 		052B9C02DD70272885C3A280 /* UnlockedDatabaseUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UnlockedDatabaseUITests.swift; sourceTree = "<group>"; };
+		0538CE7912AC14AC4ABBC3F8 /* Merge */ = {isa = PBXFileReference; lastKnownFileType = folder; name = Merge; path = TestFixtures/Merge; sourceTree = SOURCE_ROOT; };
 		05B4AC76C64387846397BB2B /* MasterKeyChangeViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MasterKeyChangeViewModel.swift; sourceTree = "<group>"; };
 		0676B657B099FF8BFA0A92B9 /* CloudFolderBrowserViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudFolderBrowserViewModel.swift; sourceTree = "<group>"; };
 		06A93C456F1EEB941556DDCA /* AutoFillDiagnostics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AutoFillDiagnostics.swift; sourceTree = "<group>"; };
@@ -819,6 +824,7 @@
 		388EE3A5E207BFE8565149FE /* AutoFillTipBanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AutoFillTipBanner.swift; sourceTree = "<group>"; };
 		3A39542F67BB84C9DEB90C0A /* FeedbackComposerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeedbackComposerView.swift; sourceTree = "<group>"; };
 		3A733BA9590643828A645C9D /* KDBXFileSummary.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KDBXFileSummary.swift; sourceTree = "<group>"; };
+		3BD42819A2CA0A2C67A7B6C2 /* KDBXMergerOracleTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KDBXMergerOracleTests.swift; sourceTree = "<group>"; };
 		3C6C9AB2C5B891BC5B236E08 /* DatabaseDraftTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DatabaseDraftTests.swift; sourceTree = "<group>"; };
 		3ECEDBFE3791A3AF8121C4DD /* GroupEditViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GroupEditViewModelTests.swift; sourceTree = "<group>"; };
 		3FFF736116CE4861D823A5B6 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
@@ -1434,6 +1440,7 @@
 			isa = PBXGroup;
 			children = (
 				1028DFCD0B2E32B19BDA02FE /* KeeForge.icon */,
+				0538CE7912AC14AC4ABBC3F8 /* Merge */,
 				C215140854AFDC51CA451F3C /* App */,
 				A376BB645DDF43A121708494 /* AutoFillExtension */,
 				1BDD193BABF3BD18A4AB9E58 /* compatibility */,
@@ -1512,6 +1519,7 @@
 				2F08C85C3BCC73EC603D8203 /* KDBXCompatibilitySupport.swift */,
 				E1F996FD4C85163E8005264E /* KDBXCompatibilityTests.swift */,
 				FD7891343E62D744890CF243 /* KDBXFileSummaryTests.swift */,
+				3BD42819A2CA0A2C67A7B6C2 /* KDBXMergerOracleTests.swift */,
 				D763140F783B299E5E1BD920 /* KDBXMergerTests.swift */,
 				012690B5F23A7226C211D172 /* KDBXParserTests.swift */,
 				4D4331340574F2A0595CAA0E /* KDBXRoundTripTests.swift */,
@@ -1915,6 +1923,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				D0C861C6FA0E339224FC58AC /* Merge in Resources */,
 				1A60B47E62FDC6A804525EBE /* aes-baseline.kdbx in Resources */,
 				B9865C12BB8821738A639AB7 /* argon2-high-iterations.kdbx in Resources */,
 				39803766451C7B2CEE20DE7C /* attachments.kdbx in Resources */,
@@ -1957,6 +1966,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				93F4D3DC3EF4AA4412781861 /* Merge in Resources */,
 				346CF5A63A44DC8A613632A2 /* aes-baseline.kdbx in Resources */,
 				D796B1C719D272FB6F70FA1A /* argon2-high-iterations.kdbx in Resources */,
 				5F31986BF02FFB77AC750269 /* attachments.kdbx in Resources */,
@@ -2176,6 +2186,7 @@
 				B94C1BA1D9CE59BC30E35052 /* KDBXCompatibilitySupport.swift in Sources */,
 				FCEE74CBFEA2F9F327E4140E /* KDBXCompatibilityTests.swift in Sources */,
 				45DB23A30AE1A5B18551D40B /* KDBXFileSummaryTests.swift in Sources */,
+				5CD4C4237D5663668464CFCD /* KDBXMergerOracleTests.swift in Sources */,
 				7BA51D4BD4522A58ED68568E /* KDBXMergerTests.swift in Sources */,
 				291593DDF088E24885B96297 /* KDBXParserTests.swift in Sources */,
 				738CF85337FA515142B389E8 /* KDBXRoundTripTests.swift in Sources */,
@@ -2577,6 +2588,7 @@
 				07A1A46C963C77E1BA03B252 /* KDBXCompatibilitySupport.swift in Sources */,
 				E60416895805E16DEF217A8F /* KDBXCompatibilityTests.swift in Sources */,
 				87ED2910779A455EAF662945 /* KDBXFileSummaryTests.swift in Sources */,
+				B03A33A5DFC129CA9F434532 /* KDBXMergerOracleTests.swift in Sources */,
 				7C2C41AF9DC6A330122202C2 /* KDBXMergerTests.swift in Sources */,
 				BFB9B3CB53F5C29E4AB01037 /* KDBXParserTests.swift in Sources */,
 				FC4ECE81E8504784F70387D3 /* KDBXRoundTripTests.swift in Sources */,

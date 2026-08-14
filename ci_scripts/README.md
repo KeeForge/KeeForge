@@ -23,7 +23,7 @@ This folder holds small scripts used by Xcode Cloud and local build setup.
    Entry paths are resolved by exact-title `search` hit (and cached), so entries that moved into the Recycle Bin or were renamed by the edit still resolve.
 5. On success the script prints the artifact count, attachment-check count, protected-password-check count, and TOTP-check count; zero TOTP checks fails the gate even if everything else passed.
 
-The artifact set includes a Twofish-256-CBC database, providing an external KeePassXC opener check for KeeForge's cipher-preserving output. The KeeOTP artifact retains all raw source variants for the XCTest compatibility matrix, but probes a standard entry externally because KeePassXC 2.7.12 does not expose those KeeOTP fields through its XML reader/search path.
+The artifact set includes a Twofish-256-CBC database, providing an external KeePassXC opener check for KeeForge's cipher-preserving output. It also includes `merge-remote-divergence`, the output of a record-level merge (`KDBXMerger`): real KeePassXC must open it, list the group the merge grafted in from the other side, and decrypt the protected values it carried across. The KeeOTP artifact retains all raw source variants for the XCTest compatibility matrix, but probes a standard entry externally because KeePassXC 2.7.12 does not expose those KeeOTP fields through its XML reader/search path.
 
 The artifact set itself is declared in `KeeForgeTests/KDBXCompatibilitySupport.swift` (`artifactDescriptors`) and emitted by `KeeForgeTests/KDBXCompatibilityTests.swift`; see `KeeForgeTests/README.md` for how to add one.
 

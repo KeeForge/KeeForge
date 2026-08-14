@@ -401,6 +401,25 @@ final class KDBXMergerTests: XCTestCase {
         XCTAssertEqual(merged.summary.deletionsApplied, 1)
     }
 
+    /// A remote that still carries a locally deleted object grafts it in and
+    /// the deletion pass kills it again. The merged tree equals local, so the
+    /// merge must report no change — otherwise every save conflict would offer
+    /// a merge that changes nothing and the pair would never settle.
+    func test_merge_objectGraftedAndDeletedInTheSameRunIsNotAChange() throws {
+        var localMeta = KPMeta()
+        localMeta.deletedObjects = [KPDeletedObject(uuid: alphaID, deletionTime: time(30))]
+        let local = KDBXMerger.Side(rootGroup: try makeTree(work: []), meta: localMeta)
+        let remote = try makeSide(work: [makeEntry(id: alphaID, title: "Alpha", modified: time(10))])
+
+        let merged = try mergedResult(local: local, remote: remote)
+
+        XCTAssertNil(findEntry(alphaID, in: merged.rootGroup))
+        XCTAssertEqual(merged.meta.deletedObjects.map(\.uuid), [alphaID])
+        XCTAssertEqual(merged.summary.entriesAdded, 0)
+        XCTAssertEqual(merged.summary.deletionsApplied, 0)
+        XCTAssertFalse(merged.summary.hasChanges)
+    }
+
     func test_merge_groupDeletionCascadesOnlyThroughEmptyGroups() throws {
         let doomedID = UUID()
         let localRoot = try makeTree(work: [], extraGroups: [
@@ -422,7 +441,10 @@ final class KDBXMergerTests: XCTestCase {
         )
 
         XCTAssertNotNil(findGroup(doomedID, in: survived.rootGroup))
-        XCTAssertEqual(survived.meta.deletedObjects.map(\.uuid), [doomedID])
+        // The surviving content also retires the tombstone (KeePassXC's
+        // Synchronize rule): a tombstone left behind next to a live group
+        // would delete it as soon as a later merge emptied it.
+        XCTAssertTrue(survived.meta.deletedObjects.isEmpty)
         XCTAssertEqual(survived.summary.deletionsApplied, 0)
 
         let emptyLocalRoot = try makeTree(work: [], extraGroups: [

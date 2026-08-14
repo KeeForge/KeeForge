@@ -291,6 +291,12 @@ enum KDBXCompatibilitySupport {
         /// not modeled as a content edit, so the whole tree must survive the
         /// save byte-semantically unchanged.
         var makeEdit: ((LoadedFixture) throws -> EntryEdit)?
+        /// When set, the whole tree is replaced instead of an `EntryEdit`
+        /// being applied. A merge result is not a sequence of edits, so it
+        /// reaches the writer through a pristine draft — the same path
+        /// `DatabaseViewModel` uses for a merge or a master-key change.
+        /// Mutually exclusive with `makeEdit`.
+        var makeMergedTree: ((LoadedFixture) throws -> (rootGroup: KPGroup, meta: KPMeta))?
         /// When set, the write uses the rekey composite key instead of the
         /// fixture's, `apply` pins that the old key no longer opens the
         /// output, and the artifact manifest carries the new credentials.
@@ -305,12 +311,17 @@ enum KDBXCompatibilitySupport {
                 sessionKey: loaded.sessionKey,
                 binaryPool: beforePool
             )
-            let draft = DatabaseDraft(rootGroup: loaded.rootGroup, meta: loaded.meta, sessionKey: loaded.sessionKey)
             let updatedDraft: DatabaseDraft
-            if let makeEdit {
-                updatedDraft = try draft.apply(makeEdit(loaded))
+            if let makeMergedTree {
+                let merged = try makeMergedTree(loaded)
+                updatedDraft = DatabaseDraft(
+                    rootGroup: merged.rootGroup,
+                    meta: merged.meta,
+                    sessionKey: loaded.sessionKey
+                )
             } else {
-                updatedDraft = draft
+                let draft = DatabaseDraft(rootGroup: loaded.rootGroup, meta: loaded.meta, sessionKey: loaded.sessionKey)
+                updatedDraft = try makeEdit.map { try draft.apply($0(loaded)) } ?? draft
             }
             let rekeyTarget = try rekey?(loaded)
             let writeKey = rekeyTarget?.compositeKey ?? loaded.compositeKey
@@ -507,6 +518,7 @@ enum KDBXCompatibilitySupport {
         "fixture-smoke-argon2-high-iterations",
         "group-tags-update-entry",
         "group-tags-update-group",
+        "merge-remote-divergence",
         "rekey-password-only",
         "rekey-add-keyfile",
         "rekey-remove-keyfile",
@@ -577,6 +589,16 @@ enum KDBXCompatibilitySupport {
         table["group-tags-update-group"] = [
             .init(entryTitle: "Delta Login", password: "GroupTagDelta4"),
             .init(entryTitle: "Alpha Login", password: "GroupTagAlpha1"),
+        ]
+        // A merge grafts protected values across from a database KeeForge did
+        // not write this session; reading them back externally is what proves
+        // they were re-encrypted into the artifact's own inner stream rather
+        // than carried over as foreign ciphertext. The untouched entry pins
+        // that the rest of the file survived the whole-tree write.
+        table["merge-remote-divergence"] = [
+            .init(entryTitle: mergeAddedEntryTitle, password: mergeAddedPassword),
+            .init(entryTitle: "Compat Update Target", password: mergeRemotePassword),
+            .init(entryTitle: "Compat Untouched Entry", password: "untouched-password"),
         ]
         // The rekey artifacts are opened with the NEW credentials, so reading
         // a pre-existing protected value back proves the whole database —
@@ -678,6 +700,7 @@ enum KDBXCompatibilitySupport {
             "group-tags-update-entry",
             "group-tags-update-group",
             "keeotp-source-matrix",
+            "merge-remote-divergence",
             "rekey-password-only",
             "rekey-add-keyfile",
             "rekey-remove-keyfile",
@@ -1334,6 +1357,160 @@ enum KDBXCompatibilitySupport {
         )
     }
 
+    // MARK: - Merge scenario
+
+    /// Fixed identities for the objects the merge scenario's remote side
+    /// introduces, so assertions can key on them.
+    static let mergeRemoteGroupID = UUID(uuidString: "AAAAAAAA-BBBB-CCCC-DDDD-000000000401")!
+    static let mergeRemoteEntryID = UUID(uuidString: "AAAAAAAA-BBBB-CCCC-DDDD-000000000402")!
+    static let mergeRemotePassword = "merged-remote-password"
+    static let mergeAddedPassword = "merge-added-password"
+    static let mergeAddedEntryTitle = "Compat Merge Remote Addition"
+    static let mergeRemoteGroupName = "Compat Merge Remote Group"
+
+    /// A record-level merge, written out and reopened.
+    ///
+    /// The three effects a merge has to land at once are all present: the
+    /// remote wins a content conflict (its version becomes current, local's
+    /// drops into history), a remote-only group and entry are grafted in, and
+    /// a remote move reparents an entry. The external gate then asks real
+    /// KeePassXC to open the result, list the grafted group, and decrypt a
+    /// protected value the merge carried across from the other side — the one
+    /// thing an in-process reparse cannot prove.
+    static func mergeRemoteDivergenceScenario() -> Scenario {
+        Scenario(
+            id: "merge-remote-divergence",
+            title: "Merge a divergent remote: conflict, graft, and move in one write",
+            artifactFileName: "synthetic-rich-merge-remote-divergence.kdbx",
+            expectedSearchTerms: [mergeAddedEntryTitle, "Compat Update Target"],
+            expectedGroupPaths: [mergeRemoteGroupName, "Compat Group Delete Target"],
+            makeMergedTree: { loaded in
+                let local = KDBXMerger.Side(
+                    rootGroup: loaded.rootGroup,
+                    meta: loaded.meta,
+                    binaryPoolFields: loaded.header.innerHeaderBinaryFields
+                )
+                let outcome = try KDBXMerger.merge(
+                    local: local,
+                    remote: try makeMergeRemoteSide(loaded),
+                    sessionKey: loaded.sessionKey
+                )
+                guard case .merged(let merged) = outcome else {
+                    throw MergeScenarioError.declined
+                }
+                XCTAssertTrue(merged.summary.hasChanges, "merge-remote-divergence: the pair does diverge")
+                return (merged.rootGroup, merged.meta)
+            },
+            assertChange: { before, after, _ in
+                let visibleRootID = try XCTUnwrap(before.groupID(named: "Compatibility Root"))
+                let deleteTargetID = try XCTUnwrap(before.groupID(named: "Compat Group Delete Target"))
+                let conflictID = try XCTUnwrap(before.entryID(titled: "Compat Update Target"))
+                let movedID = try XCTUnwrap(before.entryID(titled: "Compat Empty Tags"))
+
+                try assertUnchangedEntries(before: before, after: after, excluding: [conflictID, movedID])
+                try assertSurvivingGroupsPreserveScalars(before: before, after: after)
+                assertMetaUnchanged(before: before, after: after)
+
+                // The newer remote version wins the entry outright and the
+                // losing local one survives as history.
+                let localConflict = try XCTUnwrap(before.entries[conflictID])
+                let mergedConflict = try XCTUnwrap(after.entries[conflictID])
+                XCTAssertEqual(mergedConflict.password, mergeRemotePassword)
+                XCTAssertEqual(mergedConflict.notes, "Remote merge edit")
+                XCTAssertEqual(mergedConflict.history.map(\.password), [localConflict.password])
+                XCTAssertEqual(mergedConflict.history.map(\.notes), [localConflict.notes])
+
+                // The remote-only group and its entry survive the write.
+                let graftedGroup = try XCTUnwrap(after.groups[mergeRemoteGroupID])
+                XCTAssertEqual(graftedGroup.name, mergeRemoteGroupName)
+                XCTAssertEqual(graftedGroup.entryIDs, [mergeRemoteEntryID])
+                XCTAssertEqual(try XCTUnwrap(after.entries[mergeRemoteEntryID]).password, mergeAddedPassword)
+                XCTAssertEqual(try XCTUnwrap(after.groups[visibleRootID]).groupIDs.last, mergeRemoteGroupID)
+
+                // The remote move reparents the entry and changes nothing else
+                // about it.
+                XCTAssertTrue(try XCTUnwrap(after.groups[deleteTargetID]).entryIDs.contains(movedID))
+                XCTAssertFalse(try XCTUnwrap(after.groups[visibleRootID]).entryIDs.contains(movedID))
+                assertOnlyLocationChangedDiffers(
+                    before: try XCTUnwrap(before.entries[movedID]),
+                    after: try XCTUnwrap(after.entries[movedID])
+                )
+            }
+        )
+    }
+
+    enum MergeScenarioError: Error, CustomStringConvertible {
+        case declined
+
+        var description: String {
+            "merge-remote-divergence: the engine declined a pair it must be able to merge."
+        }
+    }
+
+    /// The remote side of the merge scenario: the same database as another
+    /// device would have left it. Written out and parsed back, so the merge
+    /// runs on two independent parses sharing one session key, exactly as
+    /// `DatabaseViewModel` will run it against a downloaded file.
+    private static func makeMergeRemoteSide(_ loaded: LoadedFixture) throws -> KDBXMerger.Side {
+        let remoteRoot = loaded.rootGroup.deepCopy()
+        let visibleRoot = try XCTUnwrap(remoteRoot.groups.first)
+        // Later than the fixture's single timestamp, so the remote edit wins.
+        let remoteTimestamp = Date(timeIntervalSince1970: 1_700_003_600)
+
+        let conflictIndex = try XCTUnwrap(visibleRoot.entries.firstIndex { $0.title == "Compat Update Target" })
+        visibleRoot.entries[conflictIndex].password = try EncryptedValue.encrypt(
+            mergeRemotePassword,
+            using: loaded.sessionKey
+        )
+        visibleRoot.entries[conflictIndex].notes = "Remote merge edit"
+        visibleRoot.entries[conflictIndex].lastModificationTime = remoteTimestamp
+
+        let movedIndex = try XCTUnwrap(visibleRoot.entries.firstIndex { $0.title == "Compat Empty Tags" })
+        var moved = visibleRoot.entries.remove(at: movedIndex)
+        moved.locationChanged = remoteTimestamp
+        let moveDestination = try XCTUnwrap(findGroup(named: "Compat Group Delete Target", in: remoteRoot))
+        moveDestination.entries.append(moved)
+
+        visibleRoot.groups.append(
+            KPGroup(
+                id: mergeRemoteGroupID,
+                name: mergeRemoteGroupName,
+                entries: [
+                    KPEntry(
+                        id: mergeRemoteEntryID,
+                        title: mergeAddedEntryTitle,
+                        username: "merge-added-user",
+                        password: try EncryptedValue.encrypt(mergeAddedPassword, using: loaded.sessionKey),
+                        creationTime: remoteTimestamp,
+                        lastModificationTime: remoteTimestamp,
+                        locationChanged: remoteTimestamp
+                    )
+                ],
+                creationTime: remoteTimestamp,
+                lastModificationTime: remoteTimestamp,
+                locationChanged: remoteTimestamp
+            )
+        )
+
+        let remoteData = try KDBXWriter.write(
+            rootGroup: remoteRoot,
+            meta: loaded.meta,
+            compositeKey: loaded.compositeKey,
+            header: loaded.header,
+            sessionKey: loaded.sessionKey
+        )
+        let parsed = try KDBXParser.parseWithMetaAndHeader(
+            data: remoteData,
+            compositeKey: loaded.compositeKey,
+            sessionKey: loaded.sessionKey
+        )
+        return KDBXMerger.Side(
+            rootGroup: parsed.rootGroup,
+            meta: parsed.meta,
+            binaryPoolFields: parsed.header.innerHeaderBinaryFields
+        )
+    }
+
     // MARK: - Rekey scenarios
 
     /// Password the rekey scenarios change to. Shared with the manifest via
@@ -1484,6 +1661,9 @@ enum KDBXCompatibilitySupport {
         )
         descriptors.append(
             ArtifactDescriptor(fixture: .syntheticRich, scenario: keeOTPArtifactScenario())
+        )
+        descriptors.append(
+            ArtifactDescriptor(fixture: .syntheticRich, scenario: mergeRemoteDivergenceScenario())
         )
         descriptors.append(
             ArtifactDescriptor(fixture: .aesBaseline, scenario: rekeyPasswordOnlyScenario())
