@@ -36,6 +36,11 @@ struct KPEntry: Identifiable, Sendable {
     /// KeePass only considers `expiryTime` active when this flag is true.
     var expires: Bool
     var expiryTime: Date?
+    /// KDBX `<Times>/<LocationChanged>`: when this entry last changed parent
+    /// group. `nil` means the source had no such element, and the writer must
+    /// not invent one. Set on every reparent (recycling is a move) so a merge
+    /// can tell which side moved an object more recently.
+    var locationChanged: Date?
     var history: [KPEntry]
     var unknownXML: OpaqueXMLNodes
     var protectedStringKeys: Set<String>
@@ -66,6 +71,7 @@ struct KPEntry: Identifiable, Sendable {
         lastModificationTime: Date? = nil,
         expires: Bool = false,
         expiryTime: Date? = nil,
+        locationChanged: Date? = nil,
         history: [KPEntry] = [],
         unknownXML: OpaqueXMLNodes = .empty,
         protectedStringKeys: Set<String> = [],
@@ -89,6 +95,7 @@ struct KPEntry: Identifiable, Sendable {
         self.lastModificationTime = lastModificationTime
         self.expires = expires
         self.expiryTime = expiryTime
+        self.locationChanged = locationChanged
         self.history = history
         self.unknownXML = unknownXML
         self.protectedStringKeys = protectedStringKeys

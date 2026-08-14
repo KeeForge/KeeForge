@@ -74,6 +74,11 @@ final class KPGroup: Identifiable, @unchecked Sendable {
     var searchingEnabled: KPInheritableBool?
     var creationTime: Date?
     var lastModificationTime: Date?
+    /// KDBX `<Times>/<LocationChanged>`: when this group last changed parent.
+    /// `nil` means the source had no such element, and the writer must not
+    /// invent one. Set on every reparent (recycling is a move) so a merge can
+    /// tell which side moved an object more recently.
+    var locationChanged: Date?
     /// UUID of the Recycle Bin group (only meaningful on the root group)
     var recycleBinUUID: UUID?
     var unknownXML: OpaqueXMLNodes
@@ -93,6 +98,7 @@ final class KPGroup: Identifiable, @unchecked Sendable {
         searchingEnabled: KPInheritableBool? = nil,
         creationTime: Date? = nil,
         lastModificationTime: Date? = nil,
+        locationChanged: Date? = nil,
         recycleBinUUID: UUID? = nil,
         unknownXML: OpaqueXMLNodes = .empty
     ) {
@@ -110,8 +116,39 @@ final class KPGroup: Identifiable, @unchecked Sendable {
         self.searchingEnabled = searchingEnabled
         self.creationTime = creationTime
         self.lastModificationTime = lastModificationTime
+        self.locationChanged = locationChanged
         self.recycleBinUUID = recycleBinUUID
         self.unknownXML = unknownXML
+    }
+
+    /// Recursive value-copy of the subtree.
+    ///
+    /// `KPGroup` is a reference type, so anything that stages a modified tree
+    /// (`DatabaseDraft`, and the merge engine grafting a remote subtree into a
+    /// local one) has to copy before it mutates or the "before" tree changes
+    /// underneath it. Entries are structs and copy on assignment; every stored
+    /// group property must be forwarded here or it silently vanishes from the
+    /// copy.
+    func deepCopy() -> KPGroup {
+        KPGroup(
+            id: id,
+            name: name,
+            notes: notes,
+            hasNotesElement: hasNotesElement,
+            iconID: iconID,
+            customIconUUID: customIconUUID,
+            tags: tags,
+            hasTagsElement: hasTagsElement,
+            entries: entries,
+            groups: groups.map { $0.deepCopy() },
+            isExpanded: isExpanded,
+            searchingEnabled: searchingEnabled,
+            creationTime: creationTime,
+            lastModificationTime: lastModificationTime,
+            locationChanged: locationChanged,
+            recycleBinUUID: recycleBinUUID,
+            unknownXML: unknownXML
+        )
     }
 
     /// Recursively find all entries in this group and subgroups
@@ -179,6 +216,7 @@ final class KPGroup: Identifiable, @unchecked Sendable {
             searchingEnabled: searchingEnabled,
             creationTime: creationTime,
             lastModificationTime: lastModificationTime,
+            locationChanged: locationChanged,
             recycleBinUUID: recycleBinUUID,
             unknownXML: unknownXML
         )

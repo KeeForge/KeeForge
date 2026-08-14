@@ -783,7 +783,13 @@ enum KDBXCompatibilitySupport {
             assertChange: { before, after, _ in
                 let entryID = try XCTUnwrap(before.entryID(titled: "Compat Soft Delete Target"))
                 let rootGroupID = try XCTUnwrap(before.groupID(named: "Root"))
-                try assertUnchangedEntries(before: before, after: after)
+                // Recycling moves the entry, so its `<LocationChanged>` — and
+                // nothing else about it — is allowed to differ.
+                try assertUnchangedEntries(before: before, after: after, excluding: [entryID])
+                assertOnlyLocationChangedDiffers(
+                    before: try XCTUnwrap(before.entries[entryID]),
+                    after: try XCTUnwrap(after.entries[entryID])
+                )
                 try assertSurvivingGroupsPreserveScalars(before: before, after: after, excluding: [rootGroupID])
                 XCTAssertNotNil(after.meta.recycleBinUUID)
                 XCTAssertTrue(after.meta.hasRecycleBinUUIDElement)
@@ -1141,6 +1147,7 @@ enum KDBXCompatibilitySupport {
 
                 let deletedBefore = try XCTUnwrap(before.entries[deletedID])
                 let deletedAfter = try XCTUnwrap(after.entries[deletedID])
+                assertOnlyLocationChangedDiffers(before: deletedBefore, after: deletedAfter)
                 XCTAssertEqual(deletedAfter.attachments, deletedBefore.attachments)
                 XCTAssertEqual(deletedAfter.attachmentHashes, deletedBefore.attachmentHashes)
 
@@ -1776,6 +1783,10 @@ struct CompatibilitySnapshot {
         let otpURL: String?
         let creationTime: Date?
         let lastModificationTime: Date?
+        /// Covered here so only an edit that actually reparents the entry may
+        /// touch `<Times>/<LocationChanged>` — every other scenario has to keep
+        /// it byte-identical across the save.
+        var locationChanged: Date?
         var history: [Entry]
         let unknownXML: OpaqueXMLNodes
         let protectedStringKeys: Set<String>
@@ -1806,6 +1817,7 @@ struct CompatibilitySnapshot {
         let searchingEnabled: KPInheritableBool?
         let creationTime: Date?
         let lastModificationTime: Date?
+        let locationChanged: Date?
         let recycleBinUUID: UUID?
         let unknownXML: OpaqueXMLNodes
         let entryIDs: [UUID]
@@ -1824,6 +1836,7 @@ struct CompatibilitySnapshot {
                 searchingEnabled: searchingEnabled,
                 creationTime: creationTime,
                 lastModificationTime: lastModificationTime,
+                locationChanged: locationChanged,
                 recycleBinUUID: recycleBinUUID,
                 unknownXML: Self.canonicallyOrdered(unknownXML)
             )
@@ -1872,6 +1885,10 @@ struct CompatibilitySnapshot {
         let searchingEnabled: KPInheritableBool?
         let creationTime: Date?
         let lastModificationTime: Date?
+        /// Covered here so only an edit that actually reparents the group may
+        /// touch `<Times>/<LocationChanged>`; recycling is such a move, every
+        /// other scenario must leave it alone.
+        var locationChanged: Date?
         let recycleBinUUID: UUID?
         let unknownXML: OpaqueXMLNodes
     }
@@ -1940,6 +1957,7 @@ struct CompatibilitySnapshot {
             searchingEnabled: group.searchingEnabled,
             creationTime: group.creationTime,
             lastModificationTime: group.lastModificationTime,
+            locationChanged: group.locationChanged,
             recycleBinUUID: group.recycleBinUUID,
             unknownXML: group.unknownXML,
             entryIDs: group.entries.map(\.id),
@@ -1993,6 +2011,7 @@ struct CompatibilitySnapshot {
             otpURL: entry.otpURL,
             creationTime: entry.creationTime,
             lastModificationTime: entry.lastModificationTime,
+            locationChanged: entry.locationChanged,
             history: try entry.history.map { try capture(entry: $0, sessionKey: sessionKey, binaryPool: binaryPool) },
             unknownXML: entry.unknownXML,
             protectedStringKeys: entry.protectedStringKeys,
@@ -2228,13 +2247,21 @@ private extension KDBXCompatibilitySupport {
             },
             assertChange: { before, after, _ in
                 let entryID = try XCTUnwrap(before.entryID(titled: "Compat Soft Delete Target"))
-                try assertUnchangedEntries(before: before, after: after)
+                // The recycled entry is exempt only because recycling is a
+                // move: its `<Times>/<LocationChanged>` advances. Everything
+                // else about it must be identical, asserted field-for-field
+                // below rather than by loosening the comparison.
+                try assertUnchangedEntries(before: before, after: after, excluding: [entryID])
                 try assertSurvivingGroupsPreserveScalars(before: before, after: after)
                 assertMetaUnchanged(before: before, after: after)
                 let recycleBinID = try XCTUnwrap(before.meta.recycleBinUUID)
                 let recycleBin = try XCTUnwrap(after.groups[recycleBinID])
                 XCTAssertTrue(recycleBin.entryIDs.contains(entryID))
                 XCTAssertEqual(after.entries.count, before.entries.count)
+
+                let beforeEntry = try XCTUnwrap(before.entries[entryID])
+                let afterEntry = try XCTUnwrap(after.entries[entryID])
+                assertOnlyLocationChangedDiffers(before: beforeEntry, after: afterEntry)
             }
         )
     }
@@ -2279,12 +2306,18 @@ private extension KDBXCompatibilitySupport {
             assertChange: { before, after, _ in
                 let groupID = try XCTUnwrap(before.groupID(named: "Compat Group Delete Target"))
                 try assertUnchangedEntries(before: before, after: after)
-                try assertSurvivingGroupsPreserveScalars(before: before, after: after)
+                // Only the recycled group moved, so only it is exempt — its
+                // subtree did not move relative to it and must be untouched.
+                try assertSurvivingGroupsPreserveScalars(before: before, after: after, excluding: [groupID])
                 assertMetaUnchanged(before: before, after: after)
                 let recycleBinID = try XCTUnwrap(before.meta.recycleBinUUID)
                 let recycleBin = try XCTUnwrap(after.groups[recycleBinID])
                 XCTAssertTrue(recycleBin.groupIDs.contains(groupID))
                 XCTAssertEqual(after.groups.count, before.groups.count)
+
+                let beforeGroup = try XCTUnwrap(before.groups[groupID])
+                let afterGroup = try XCTUnwrap(after.groups[groupID])
+                assertOnlyLocationChangedDiffers(before: beforeGroup, after: afterGroup)
             }
         )
     }
@@ -2586,6 +2619,70 @@ private extension KDBXCompatibilitySupport {
             let afterEntry = try XCTUnwrap(after.entries[entryID], "Missing unchanged entry \(beforeEntry.title)", file: file, line: line)
             XCTAssertEqual(afterEntry, beforeEntry, "Entry changed unexpectedly: \(beforeEntry.title)", file: file, line: line)
         }
+    }
+
+    /// Pins the exact shape of a recycle: the object moved, so its
+    /// `<Times>/<LocationChanged>` advanced past what it was and nothing else
+    /// about it changed. Written as "equal after normalizing that one field"
+    /// rather than as a shorter comparison, so a scenario that starts changing
+    /// something else still fails.
+    static func assertOnlyLocationChangedDiffers(
+        before: CompatibilitySnapshot.Entry,
+        after: CompatibilitySnapshot.Entry,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        assertLocationChangedAdvanced(
+            from: before.locationChanged,
+            to: after.locationChanged,
+            label: before.title,
+            file: file,
+            line: line
+        )
+        var normalized = after
+        normalized.locationChanged = before.locationChanged
+        XCTAssertEqual(normalized, before, "Recycled entry changed beyond its move: \(before.title)", file: file, line: line)
+    }
+
+    static func assertOnlyLocationChangedDiffers(
+        before: CompatibilitySnapshot.Group,
+        after: CompatibilitySnapshot.Group,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        assertLocationChangedAdvanced(
+            from: before.locationChanged,
+            to: after.locationChanged,
+            label: before.name,
+            file: file,
+            line: line
+        )
+        var normalized = after.scalars
+        normalized.locationChanged = before.locationChanged
+        XCTAssertEqual(normalized, before.scalars, "Recycled group changed beyond its move: \(before.name)", file: file, line: line)
+        XCTAssertEqual(after.entryIDs, before.entryIDs, file: file, line: line)
+        XCTAssertEqual(after.groupIDs, before.groupIDs, file: file, line: line)
+    }
+
+    private static func assertLocationChangedAdvanced(
+        from before: Date?,
+        to after: Date?,
+        label: String,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        guard let moved = after else {
+            XCTFail("\(label): a recycle must stamp <LocationChanged>", file: file, line: line)
+            return
+        }
+        guard let before else { return }
+        XCTAssertGreaterThan(
+            moved,
+            before,
+            "\(label): <LocationChanged> must move forward when the object is recycled",
+            file: file,
+            line: line
+        )
     }
 
     static func assertSurvivingGroupsPreserveScalars(

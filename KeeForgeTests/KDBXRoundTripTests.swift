@@ -1489,4 +1489,374 @@ final class KDBXRoundTripTests: XCTestCase {
         XCTAssertEqual(nonstandard.tags, ["from-a-4.0-file"])
         XCTAssertTrue(nonstandard.hasTagsElement)
     }
+
+    // MARK: - Times/LocationChanged
+
+    func test_locationChanged_parsesForEntriesAndGroupsAndSurvivesRoundTrip() throws {
+        let groupMoved = binaryTimestamp(63_800_000_000)
+        let entryMoved = binaryTimestamp(63_800_000_123)
+        let xml = """
+        <KeePassFile><Root><Group><Name>Root</Name>\
+        <Group><UUID>rG5FhCLXQ0GDRLRUEBEHUw==</UUID><Name>Nested</Name>\
+        <Times><CreationTime>\(binaryTimestamp(63_700_000_000))</CreationTime>\
+        <LastModificationTime>\(binaryTimestamp(63_710_000_000))</LastModificationTime>\
+        <LocationChanged>\(groupMoved)</LocationChanged></Times>\
+        <Entry><UUID>3q2+7wAAAAAAAAAAAAAAAA==</UUID>\
+        <Times><CreationTime>\(binaryTimestamp(63_700_000_000))</CreationTime>\
+        <LastModificationTime>\(binaryTimestamp(63_710_000_000))</LastModificationTime>\
+        <LocationChanged>\(entryMoved)</LocationChanged></Times>\
+        <String><Key>Title</Key><Value>Moved</Value></String></Entry>\
+        </Group></Group></Root></KeePassFile>
+        """
+
+        let parsed = try parseXML(Data(xml.utf8))
+        let nested = try XCTUnwrap(parsed.rootGroup.groups.first?.groups.first)
+        let entry = try XCTUnwrap(nested.entries.first)
+        XCTAssertEqual(nested.locationChanged, kpDate(63_800_000_000))
+        XCTAssertEqual(entry.locationChanged, kpDate(63_800_000_123))
+        XCTAssertFalse(
+            nested.unknownXML.nodes.contains { $0.xml.hasPrefix("<LocationChanged>") },
+            "A parsed <LocationChanged> is structured, so no opaque copy may remain"
+        )
+        XCTAssertFalse(entry.unknownXML.nodes.contains { $0.xml.hasPrefix("<LocationChanged>") })
+
+        var serializer = KDBXXMLSerializer(
+            rootGroup: parsed.rootGroup,
+            meta: parsed.meta,
+            innerStreamKey: roundTripInnerStreamKey,
+            sessionKey: roundTripSessionKey
+        )
+        let serialized = String(decoding: try serializer.serialize(), as: UTF8.self)
+        XCTAssertTrue(serialized.contains("<LocationChanged>\(groupMoved)</LocationChanged>"))
+        XCTAssertTrue(serialized.contains("<LocationChanged>\(entryMoved)</LocationChanged>"))
+
+        let reparsed = try parseXML(Data(serialized.utf8))
+        try KDBXTreeAssertions.assertTreesEqual(parsed, reparsed, sessionKey: roundTripSessionKey)
+    }
+
+    func test_locationChanged_absentElement_isNotAddedOnWrite() throws {
+        let xml = """
+        <KeePassFile><Root><Group><Name>Root</Name>\
+        <Times><CreationTime>\(binaryTimestamp(63_700_000_000))</CreationTime></Times>\
+        <Entry><UUID>3q2+7wAAAAAAAAAAAAAAAA==</UUID>\
+        <Times><CreationTime>\(binaryTimestamp(63_700_000_000))</CreationTime></Times>\
+        <String><Key>Title</Key><Value>Stationary</Value></String></Entry>\
+        </Group></Root></KeePassFile>
+        """
+
+        let parsed = try parseXML(Data(xml.utf8))
+        let group = try XCTUnwrap(parsed.rootGroup.groups.first)
+        XCTAssertNil(group.locationChanged)
+        XCTAssertNil(try XCTUnwrap(group.entries.first).locationChanged)
+
+        var serializer = KDBXXMLSerializer(
+            rootGroup: parsed.rootGroup,
+            meta: parsed.meta,
+            innerStreamKey: roundTripInnerStreamKey,
+            sessionKey: roundTripSessionKey
+        )
+        let serialized = String(decoding: try serializer.serialize(), as: UTF8.self)
+        XCTAssertFalse(
+            serialized.contains("<LocationChanged>"),
+            "A file without the element must never gain one on a plain round trip"
+        )
+    }
+
+    /// `<LocationChanged>` is the last of KeePass's standard `<Times>` children,
+    /// so making it structured must leave `<LastAccessTime>`, `<ExpiryTime>`,
+    /// `<Expires>`, and `<UsageCount>` — all still opaque — exactly where the
+    /// source put them. If the parser's counter arm and the serializer's
+    /// emission position disagree, every fragment recorded after
+    /// `<LastModificationTime>` slides, and this is the test that sees it.
+    func test_locationChanged_keepsTheCanonicalTimesBlockByteIdentical() throws {
+        let times = """
+        <Times><CreationTime>\(binaryTimestamp(63_700_000_000))</CreationTime>\
+        <LastModificationTime>\(binaryTimestamp(63_710_000_000))</LastModificationTime>\
+        <LastAccessTime>\(binaryTimestamp(63_720_000_000))</LastAccessTime>\
+        <ExpiryTime>\(binaryTimestamp(63_730_000_000))</ExpiryTime>\
+        <Expires>True</Expires><UsageCount>7</UsageCount>\
+        <LocationChanged>\(binaryTimestamp(63_740_000_000))</LocationChanged></Times>
+        """
+        let xml = """
+        <KeePassFile><Root><Group><UUID>rG5FhCLXQ0GDRLRUEBEHUw==</UUID><Name>Root</Name>\(times)\
+        <Entry><UUID>3q2+7wAAAAAAAAAAAAAAAA==</UUID>\(times)\
+        <String><Key>Title</Key><Value>Canonical</Value></String></Entry>\
+        </Group></Root></KeePassFile>
+        """
+
+        let parsed = try parseXML(Data(xml.utf8))
+        var serializer = KDBXXMLSerializer(
+            rootGroup: parsed.rootGroup,
+            meta: parsed.meta,
+            innerStreamKey: roundTripInnerStreamKey,
+            sessionKey: roundTripSessionKey
+        )
+        let serialized = String(decoding: try serializer.serialize(), as: UTF8.self)
+
+        XCTAssertEqual(
+            serialized.components(separatedBy: times).count - 1,
+            2,
+            "Both the group's and the entry's <Times> must come back byte-identical:\n\(serialized)"
+        )
+    }
+
+    func test_locationChanged_unparsableValue_staysOpaqueAndIsWrittenOnce() throws {
+        let xml = """
+        <KeePassFile><Root><Group><Name>Root</Name>\
+        <Times><CreationTime>\(binaryTimestamp(63_700_000_000))</CreationTime>\
+        <LocationChanged>not-a-timestamp</LocationChanged></Times>\
+        </Group></Root></KeePassFile>
+        """
+
+        let parsed = try parseXML(Data(xml.utf8))
+        XCTAssertNil(parsed.rootGroup.locationChanged)
+
+        var serializer = KDBXXMLSerializer(
+            rootGroup: parsed.rootGroup,
+            meta: parsed.meta,
+            innerStreamKey: roundTripInnerStreamKey,
+            sessionKey: roundTripSessionKey
+        )
+        let serialized = String(decoding: try serializer.serialize(), as: UTF8.self)
+
+        XCTAssertEqual(
+            serialized.components(separatedBy: "<LocationChanged>").count - 1,
+            1,
+            "The unparsable element must be replayed verbatim and exactly once"
+        )
+        XCTAssertTrue(serialized.contains("<LocationChanged>not-a-timestamp</LocationChanged>"))
+    }
+
+    func test_locationChanged_onStoredHistoryVersions_roundTrips() throws {
+        let xml = """
+        <KeePassFile><Root><Group><Name>Root</Name>\
+        <Entry><UUID>3q2+7wAAAAAAAAAAAAAAAA==</UUID>\
+        <Times><LocationChanged>\(binaryTimestamp(63_800_000_000))</LocationChanged></Times>\
+        <String><Key>Title</Key><Value>Current</Value></String>\
+        <History><Entry><UUID>3q2+7wAAAAAAAAAAAAAAAA==</UUID>\
+        <Times><LocationChanged>\(binaryTimestamp(63_600_000_000))</LocationChanged></Times>\
+        <String><Key>Title</Key><Value>Old</Value></String></Entry></History>\
+        </Entry></Group></Root></KeePassFile>
+        """
+
+        let parsed = try parseXML(Data(xml.utf8))
+        let entry = try XCTUnwrap(parsed.rootGroup.allEntries.first)
+        XCTAssertEqual(entry.locationChanged, kpDate(63_800_000_000))
+        XCTAssertEqual(try XCTUnwrap(entry.history.first).locationChanged, kpDate(63_600_000_000))
+
+        let reparsed = try serializeAndParse(parsed)
+        try KDBXTreeAssertions.assertTreesEqual(parsed, reparsed, sessionKey: roundTripSessionKey)
+    }
+
+    /// Real files, not synthetic XML: every `<Times>` element KeeForge writes
+    /// must carry the same children, in the same order, as the source file did.
+    /// Promoting `<LocationChanged>` out of the opaque set is exactly the kind
+    /// of change that silently reorders a foreign writer's `<Times>` block.
+    func test_locationChanged_realFixtures_preserveEveryTimesChildSequence() throws {
+        var sawLocationChanged = false
+
+        for fixture in Self.timesOrderFixtures {
+            let sourceXML = String(decoding: try decryptedXML(of: fixture), as: UTF8.self)
+            let parsed = try parseFixture(fixture)
+            var serializer = KDBXXMLSerializer(
+                rootGroup: parsed.rootGroup,
+                meta: parsed.meta,
+                innerStreamKey: roundTripInnerStreamKey,
+                sessionKey: roundTripSessionKey
+            )
+            let writtenXML = String(decoding: try serializer.serialize(), as: UTF8.self)
+
+            let source = Self.timesChildSequences(in: sourceXML)
+            let written = Self.timesChildSequences(in: writtenXML)
+            XCTAssertFalse(source.isEmpty, "\(fixture.name): fixture has no <Times> elements to compare")
+            XCTAssertEqual(
+                written.sorted(),
+                source.sorted(),
+                "\(fixture.name): <Times> child order changed across a save"
+            )
+            sawLocationChanged = sawLocationChanged || source.contains { $0.contains("LocationChanged") }
+        }
+
+        XCTAssertTrue(sawLocationChanged, "None of the fixtures exercises <LocationChanged>")
+    }
+
+    /// The serializer is a fixed point on every real fixture: parse → write →
+    /// parse → write reproduces the first output byte for byte. Anything that
+    /// shifts an opaque insertion index by one shows up here as a diff.
+    func test_realFixtures_serializedXMLIsAByteStableFixedPoint() throws {
+        for fixture in Self.timesOrderFixtures {
+            let first = try serializedXML(of: try parseFixture(fixture))
+            let second = try serializedXML(of: try parseXML(first))
+            XCTAssertEqual(first, second, "\(fixture.name): a second save changed the bytes")
+        }
+    }
+
+    /// KDBX4 fixtures that carry a full `<Times>` block, spanning the writers
+    /// the app has to interoperate with. `argon2-high-iterations` is left out
+    /// on purpose (its KDF is deliberately expensive) and so is
+    /// `legacy-kdbx31` (3.1 never reaches the writer).
+    private static let timesOrderFixtures: [KDBXTestFixture] = [
+        .test,
+        .demo,
+        .demoKeyfile,
+        .unknownElements,
+        .unknownInnerHeader,
+        KDBXTestFixture(
+            name: "aes-baseline",
+            subdirectory: "compatibility",
+            password: "testpassword123",
+            keyFileName: nil,
+            keyFileExtension: nil
+        ),
+        KDBXTestFixture(
+            name: "unknown-rich",
+            subdirectory: "compatibility",
+            password: "test-round-trip",
+            keyFileName: nil,
+            keyFileExtension: nil
+        ),
+        KDBXTestFixture(
+            name: "kdbx41-public-custom-data",
+            subdirectory: "compatibility",
+            password: "testpassword123",
+            keyFileName: nil,
+            keyFileExtension: nil
+        ),
+        KDBXTestFixture(
+            name: "group-tags",
+            subdirectory: "compatibility",
+            password: "testpassword123",
+            keyFileName: nil,
+            keyFileExtension: nil
+        ),
+        KDBXTestFixture(
+            name: "attachments",
+            subdirectory: "compatibility",
+            password: "testpassword123",
+            keyFileName: nil,
+            keyFileExtension: nil
+        ),
+        KDBXTestFixture(
+            name: "foreign-chacha20",
+            subdirectory: "compatibility",
+            password: "foreign-chacha20",
+            keyFileName: nil,
+            keyFileExtension: nil
+        ),
+        KDBXTestFixture(
+            name: "foreign-twofish",
+            subdirectory: "compatibility",
+            password: "foreign-twofish",
+            keyFileName: nil,
+            keyFileExtension: nil
+        ),
+    ]
+
+    /// Child element names of every `<Times>` element, in document order within
+    /// each block. The blocks themselves are compared as a multiset, because a
+    /// rewrite is entitled to move a whole entry or group to its canonical
+    /// position; what it may never do is reorder the children inside one block.
+    private static func timesChildSequences(in xml: String) -> [String] {
+        xml.components(separatedBy: "<Times>")
+            .dropFirst()
+            .compactMap { tail in
+                guard let end = tail.range(of: "</Times>") else { return nil }
+                let names = childElementNames(in: String(tail[tail.startIndex..<end.lowerBound]))
+                return canonicallyOrdered(names).joined(separator: ",")
+            }
+    }
+
+    /// Moves the two long-standing structured children to the front, in
+    /// KeePass's order.
+    ///
+    /// A writer is free to emit them the other way round — pykeepass writes the
+    /// root group's `<LastModificationTime>` first — and KeeForge has always
+    /// normalized that, from before `<LocationChanged>` was modelled. Folding
+    /// that known normalization out is what leaves this comparison testing the
+    /// property at issue: where `<LocationChanged>` sits relative to the
+    /// `<Times>` children that are still opaque.
+    private static func canonicallyOrdered(_ names: [String]) -> [String] {
+        let leading = ["CreationTime", "LastModificationTime"]
+        return leading.filter(names.contains) + names.filter { !leading.contains($0) }
+    }
+
+    private static func childElementNames(in xml: String) -> [String] {
+        var names: [String] = []
+        var remainder = Substring(xml)
+        while let open = remainder.firstIndex(of: "<") {
+            remainder = remainder[remainder.index(after: open)...]
+            guard remainder.first?.isLetter == true else { continue }
+            let name = remainder.prefix { $0.isLetter || $0.isNumber || $0 == "_" }
+            names.append(String(name))
+            remainder = remainder.dropFirst(name.count)
+        }
+        return names
+    }
+
+    private func serializedXML(of parsed: (rootGroup: KPGroup, meta: KPMeta)) throws -> Data {
+        var serializer = KDBXXMLSerializer(
+            rootGroup: parsed.rootGroup,
+            meta: parsed.meta,
+            innerStreamKey: roundTripInnerStreamKey,
+            sessionKey: roundTripSessionKey
+        )
+        return try serializer.serialize()
+    }
+
+    /// The fixture's own inner XML payload, so a test can compare KeeForge's
+    /// output against the bytes the authoring app actually wrote.
+    private func decryptedXML(of fixture: KDBXTestFixture) throws -> Data {
+        let bundle = Bundle(for: Self.self)
+        let databaseData = try Data(
+            contentsOf: try TestDatabaseSupport.fixtureURL(
+                named: fixture.name,
+                subdirectory: fixture.subdirectory,
+                bundle: bundle
+            )
+        )
+
+        let keyFileData: Data?
+        if let keyFileName = fixture.keyFileName, let keyFileExtension = fixture.keyFileExtension {
+            keyFileData = try Data(
+                contentsOf: try TestDatabaseSupport.fixtureURL(
+                    named: keyFileName,
+                    extension: keyFileExtension,
+                    bundle: bundle
+                )
+            )
+        } else {
+            keyFileData = nil
+        }
+        let compositeKey = try KDBXCrypto.compositeKey(password: fixture.password, keyFileData: keyFileData)
+
+        var reader = DataReader(data: databaseData)
+        _ = try reader.readUInt32()
+        _ = try reader.readUInt32()
+        _ = try reader.readUInt16()
+        _ = try reader.readUInt16()
+        let header = try KDBXParser.parseHeader(&reader)
+        _ = try reader.readBytes(32)
+        _ = try reader.readBytes(32)
+
+        let transformedKey = try KDBXParser.deriveKey(compositeKey: compositeKey, kdfParams: header.kdfParameters)
+        let masterKey = KDBXCrypto.sha256(header.masterSeed + transformedKey)
+        let hmacBaseKey = KDBXCrypto.sha512(header.masterSeed + transformedKey + Data([0x01]))
+
+        let encryptedPayload = try KDBXParser.readHMACBlocks(reader: &reader, baseKey: hmacBaseKey)
+        let cipher = try KDBXOuterCipher.require(uuid: header.cipherID)
+        let decrypted = try cipher.decrypt(
+            data: encryptedPayload,
+            key: masterKey,
+            iv: header.encryptionIV
+        )
+
+        let payload = header.compressionFlags == 1 ? try KDBXCrypto.gunzip(decrypted) : decrypted
+        var innerReader = DataReader(data: payload)
+        _ = try KDBXParser.parseInnerHeader(&innerReader)
+        return payload.subdata(in: innerReader.offset..<payload.count)
+    }
+
+    private func kpDate(_ secondsSinceKeePassEpoch: Int64) -> Date {
+        Date(timeIntervalSinceReferenceDate: -63_113_904_000 + TimeInterval(secondsSinceKeePassEpoch))
+    }
 }

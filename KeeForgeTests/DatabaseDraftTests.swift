@@ -806,7 +806,11 @@ final class DatabaseDraftTests: XCTestCase {
         let recycleBinGroupID = try XCTUnwrap(tree.recycleBinGroupID)
         let recycleBinGroup = try XCTUnwrap(findGroup(withID: recycleBinGroupID, in: updatedDraft.rootGroup))
         let movedGroup = try XCTUnwrap(recycleBinGroup.groups.first(where: { $0.id == tree.parentGroupID }))
-        try assertGroupsEqual(movedGroup, originalGroup)
+        XCTAssertNotNil(movedGroup.locationChanged, "Recycling is a move and must stamp <LocationChanged>")
+        // Everything except that one field has to survive the move untouched.
+        let normalized = movedGroup.deepCopy()
+        normalized.locationChanged = originalGroup.locationChanged
+        try assertGroupsEqual(normalized, originalGroup)
     }
 
     func test_deleteGroup_softDelete_lazilyCreatesRecycleBin() throws {
@@ -2152,6 +2156,161 @@ final class DatabaseDraftTests: XCTestCase {
         XCTAssertFalse(draft.isDirty)
     }
 
+    // MARK: - LocationChanged maintenance
+
+    /// Recycling is a move, so `<LocationChanged>` advances while
+    /// `<LastModificationTime>` stays where it was — the distinction a merge
+    /// needs to tell "the other side moved this" from "the other side edited it".
+    func test_deleteEntry_softDelete_stampsLocationChangedAndLeavesModificationTimeAlone() throws {
+        let previousMove = Date(timeIntervalSince1970: 3_000)
+        let entry = KPEntry(
+            title: "Recyclable",
+            password: try EncryptedValue.encrypt("secret", using: sessionKey),
+            creationTime: Date(timeIntervalSince1970: 1_000),
+            lastModificationTime: Date(timeIntervalSince1970: 2_000),
+            locationChanged: previousMove
+        )
+        let tree = try makeSyntheticTree(includeRecycleBin: true, parentEntryOverride: entry)
+        let draft = DatabaseDraft(rootGroup: tree.rootGroup, meta: tree.meta, sessionKey: sessionKey)
+        let beforeDelete = Date.now
+
+        let updated = try draft.apply(.deleteEntry(entryID: entry.id, sendToRecycleBin: true))
+        let recycled = try XCTUnwrap(findEntry(withID: entry.id, in: updated.rootGroup))
+
+        let moved = try XCTUnwrap(recycled.locationChanged)
+        XCTAssertGreaterThanOrEqual(moved, beforeDelete)
+        XCTAssertGreaterThan(moved, previousMove)
+        XCTAssertEqual(recycled.lastModificationTime, entry.lastModificationTime)
+        XCTAssertEqual(recycled.creationTime, entry.creationTime)
+
+        var normalized = recycled
+        normalized.locationChanged = entry.locationChanged
+        try assertEntriesEqual(normalized, entry)
+    }
+
+    func test_deleteEntry_softDelete_lazyRecycleBin_stampsBothTheEntryAndTheNewBin() throws {
+        let tree = try makeSyntheticTree(includeRecycleBin: false)
+        let draft = DatabaseDraft(rootGroup: tree.rootGroup, meta: tree.meta, sessionKey: sessionKey)
+        let beforeDelete = Date.now
+
+        let updated = try draft.apply(.deleteEntry(entryID: tree.parentEntry.id, sendToRecycleBin: true))
+        let recycled = try XCTUnwrap(findEntry(withID: tree.parentEntry.id, in: updated.rootGroup))
+        let binID = try XCTUnwrap(updated.meta.recycleBinUUID)
+        let bin = try XCTUnwrap(findGroup(withID: binID, in: updated.rootGroup))
+
+        XCTAssertGreaterThanOrEqual(try XCTUnwrap(recycled.locationChanged), beforeDelete)
+        // A group KeeForge itself creates has always lived where it was made.
+        XCTAssertEqual(bin.locationChanged, bin.creationTime)
+        XCTAssertGreaterThanOrEqual(try XCTUnwrap(bin.locationChanged), beforeDelete)
+    }
+
+    func test_deleteGroup_softDelete_stampsLocationChangedOnTheMovedGroupOnly() throws {
+        let tree = try makeSyntheticTree(includeRecycleBin: true)
+        let draft = DatabaseDraft(rootGroup: tree.rootGroup, meta: tree.meta, sessionKey: sessionKey)
+        let original = try XCTUnwrap(findGroup(withID: tree.parentGroupID, in: tree.rootGroup))
+        let originalChildID = try XCTUnwrap(original.groups.first?.id)
+        let beforeDelete = Date.now
+
+        let updated = try draft.apply(.deleteGroup(groupID: tree.parentGroupID, sendToRecycleBin: true))
+        let moved = try XCTUnwrap(findGroup(withID: tree.parentGroupID, in: updated.rootGroup))
+
+        XCTAssertGreaterThanOrEqual(try XCTUnwrap(moved.locationChanged), beforeDelete)
+        XCTAssertEqual(moved.lastModificationTime, original.lastModificationTime)
+        // The subtree travelled with its parent; nothing inside it moved
+        // relative to the group that contains it.
+        let movedChild = try XCTUnwrap(findGroup(withID: originalChildID, in: updated.rootGroup))
+        XCTAssertNil(movedChild.locationChanged)
+        XCTAssertNil(try XCTUnwrap(findEntry(withID: tree.parentEntry.id, in: updated.rootGroup)).locationChanged)
+    }
+
+    func test_hardDelete_leavesSurvivingObjectsLocationChangedAlone() throws {
+        let tree = try makeSyntheticTree(includeRecycleBin: true)
+        let draft = DatabaseDraft(rootGroup: tree.rootGroup, meta: tree.meta, sessionKey: sessionKey)
+        let recycleBinGroupID = try XCTUnwrap(tree.recycleBinGroupID)
+
+        let updated = try draft.apply(.deleteEntry(entryID: tree.parentEntry.id, sendToRecycleBin: false))
+
+        XCTAssertNil(try XCTUnwrap(findGroup(withID: recycleBinGroupID, in: updated.rootGroup)).locationChanged)
+        XCTAssertNil(try XCTUnwrap(findGroup(withID: tree.parentGroupID, in: updated.rootGroup)).locationChanged)
+    }
+
+    func test_createEntryAndCreateGroup_stampLocationChangedWithCreationTime() throws {
+        let tree = try makeSyntheticTree(includeRecycleBin: false)
+        let draft = DatabaseDraft(rootGroup: tree.rootGroup, meta: tree.meta, sessionKey: sessionKey)
+
+        let updated = try draft
+            .apply(.createEntry(parentGroupID: tree.parentGroupID, draft: EntryDraftPayload(title: "Fresh Entry")))
+            .apply(.createGroup(parentGroupID: tree.parentGroupID, name: "Fresh Group"))
+
+        let parent = try XCTUnwrap(findGroup(withID: tree.parentGroupID, in: updated.rootGroup))
+        let createdEntry = try XCTUnwrap(parent.entries.first { $0.title == "Fresh Entry" })
+        let createdGroup = try XCTUnwrap(parent.groups.first { $0.name == "Fresh Group" })
+
+        XCTAssertNotNil(createdEntry.locationChanged)
+        XCTAssertEqual(createdEntry.locationChanged, createdEntry.creationTime)
+        XCTAssertNotNil(createdGroup.locationChanged)
+        XCTAssertEqual(createdGroup.locationChanged, createdGroup.creationTime)
+    }
+
+    func test_editsThatDoNotReparent_leaveLocationChangedUntouched() throws {
+        let previousMove = Date(timeIntervalSince1970: 3_000)
+        let entry = KPEntry(
+            title: "Settled",
+            password: try EncryptedValue.encrypt("secret", using: sessionKey),
+            creationTime: Date(timeIntervalSince1970: 1_000),
+            lastModificationTime: Date(timeIntervalSince1970: 2_000),
+            locationChanged: previousMove
+        )
+        let groupID = UUID()
+        let group = KPGroup(
+            id: groupID,
+            name: "Settled Group",
+            entries: [entry],
+            creationTime: Date(timeIntervalSince1970: 1_000),
+            lastModificationTime: Date(timeIntervalSince1970: 2_000),
+            locationChanged: previousMove
+        )
+        let root = KPGroup(name: "Root", groups: [group])
+        let draft = DatabaseDraft(rootGroup: root, meta: KPMeta(), sessionKey: sessionKey)
+
+        var payload = try makeDraftPayload(from: entry)
+        payload.notes = "edited"
+
+        let updated = try draft
+            .apply(.updateEntry(entryID: entry.id, draft: payload))
+            .apply(.updateGroup(groupID: groupID, draft: GroupDraftPayload(name: "Renamed", searchingEnabled: nil)))
+            .apply(.setGroupIcon(groupID: groupID, iconID: 37))
+            .apply(.setEntryIcon(entryID: entry.id, icon: .standard(iconID: 12)))
+            .apply(.restoreEntryVersion(entryID: entry.id, historyIndex: 0))
+
+        XCTAssertEqual(try XCTUnwrap(findEntry(withID: entry.id, in: updated.rootGroup)).locationChanged, previousMove)
+        XCTAssertEqual(try XCTUnwrap(findGroup(withID: groupID, in: updated.rootGroup)).locationChanged, previousMove)
+    }
+
+    func test_deepCopy_carriesLocationChangedThroughTheWholeSubtree() throws {
+        let moved = Date(timeIntervalSince1970: 4_000)
+        let child = KPGroup(
+            name: "Child",
+            entries: [KPEntry(title: "Nested", locationChanged: moved)],
+            locationChanged: moved,
+            unknownXML: OpaqueXMLNodes(nodes: [
+                OpaqueXMLNodes.Node(path: ["Times"], insertionIndex: 2, xml: "<UsageCount>3</UsageCount>")
+            ])
+        )
+        let root = KPGroup(name: "Root", groups: [child], locationChanged: moved)
+
+        let copy = root.deepCopy()
+        let copiedChild = try XCTUnwrap(copy.groups.first)
+
+        XCTAssertEqual(copy.locationChanged, moved)
+        XCTAssertEqual(copiedChild.locationChanged, moved)
+        XCTAssertEqual(try XCTUnwrap(copiedChild.entries.first).locationChanged, moved)
+        XCTAssertEqual(copiedChild.unknownXML, child.unknownXML)
+
+        copiedChild.locationChanged = nil
+        XCTAssertEqual(child.locationChanged, moved, "The copy must not share storage with the original")
+    }
+
     private func makeSyntheticTree(
         includeRecycleBin: Bool,
         parentEntryOverride: KPEntry? = nil,
@@ -2413,6 +2572,7 @@ final class DatabaseDraftTests: XCTestCase {
         XCTAssertEqual(lhs.searchingEnabled, rhs.searchingEnabled, file: file, line: line)
         XCTAssertEqual(lhs.creationTime, rhs.creationTime, file: file, line: line)
         XCTAssertEqual(lhs.lastModificationTime, rhs.lastModificationTime, file: file, line: line)
+        XCTAssertEqual(lhs.locationChanged, rhs.locationChanged, file: file, line: line)
         XCTAssertEqual(lhs.recycleBinUUID, rhs.recycleBinUUID, file: file, line: line)
         XCTAssertEqual(lhs.unknownXML, rhs.unknownXML, file: file, line: line)
         XCTAssertEqual(lhs.entries.count, rhs.entries.count, file: file, line: line)
@@ -2444,6 +2604,7 @@ final class DatabaseDraftTests: XCTestCase {
         XCTAssertEqual(lhs.customFields, rhs.customFields, file: file, line: line)
         XCTAssertEqual(lhs.creationTime, rhs.creationTime, file: file, line: line)
         XCTAssertEqual(lhs.lastModificationTime, rhs.lastModificationTime, file: file, line: line)
+        XCTAssertEqual(lhs.locationChanged, rhs.locationChanged, file: file, line: line)
         XCTAssertEqual(lhs.unknownXML, rhs.unknownXML, file: file, line: line)
         XCTAssertEqual(lhs.protectedStringKeys, rhs.protectedStringKeys, file: file, line: line)
         XCTAssertEqual(lhs.history.count, rhs.history.count, file: file, line: line)
