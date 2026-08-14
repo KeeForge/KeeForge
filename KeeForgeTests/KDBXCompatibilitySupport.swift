@@ -504,6 +504,8 @@ enum KDBXCompatibilitySupport {
         "soft-delete-group",
         "hard-delete-recycled-entry",
         "hard-delete-recycled-group",
+        "move-entry",
+        "move-group",
         "recycle-bin-creation",
         "keeotp-source-matrix",
         "fixture-smoke-aes-baseline",
@@ -623,6 +625,8 @@ enum KDBXCompatibilitySupport {
         "soft-delete-group",
         "hard-delete-recycled-entry",
         "hard-delete-recycled-group",
+        "move-entry",
+        "move-group",
         "recycle-bin-creation",
         "attachments-soft-delete-entry",
         "keeotp-source-matrix",
@@ -694,6 +698,8 @@ enum KDBXCompatibilitySupport {
             "soft-delete-group",
             "hard-delete-recycled-entry",
             "hard-delete-recycled-group",
+            "move-entry",
+            "move-group",
             "recycle-bin-creation",
             "attachments-update-entry",
             "attachments-soft-delete-entry",
@@ -787,6 +793,8 @@ enum KDBXCompatibilitySupport {
             softDeleteGroupScenario(),
             hardDeleteRecycledEntryScenario(),
             hardDeleteRecycledGroupScenario(),
+            moveEntryScenario(),
+            moveGroupScenario(),
         ]
     }
 
@@ -2527,6 +2535,72 @@ private extension KDBXCompatibilitySupport {
                 let recycleBinID = try XCTUnwrap(before.meta.recycleBinUUID)
                 let recycleBin = try XCTUnwrap(after.groups[recycleBinID])
                 XCTAssertFalse(recycleBin.groupIDs.contains(groupID))
+            }
+        )
+    }
+
+    static func moveEntryScenario() -> Scenario {
+        Scenario(
+            id: "move-entry",
+            title: "Move entry to another group",
+            artifactFileName: "synthetic-rich-move-entry.kdbx",
+            expectedSearchTerms: ["Compat Soft Delete Target"],
+            expectedGroupPaths: ["Compat Group Delete Target/Compat Nested Child Group"],
+            makeEdit: { loaded in
+                let entry = try XCTUnwrap(findEntry(titled: "Compat Soft Delete Target", in: loaded.rootGroup))
+                let destination = try XCTUnwrap(findGroup(named: "Compat Nested Child Group", in: loaded.rootGroup))
+                return .moveEntry(entryID: entry.id, destinationGroupID: destination.id)
+            },
+            assertChange: { before, after, _ in
+                let entryID = try XCTUnwrap(before.entryID(titled: "Compat Soft Delete Target"))
+                let sourceID = try XCTUnwrap(before.groupID(named: "Compatibility Root"))
+                let destinationID = try XCTUnwrap(before.groupID(named: "Compat Nested Child Group"))
+                // A move reparents, so the moved entry's `<LocationChanged>` —
+                // and nothing else about it — is allowed to differ.
+                try assertUnchangedEntries(before: before, after: after, excluding: [entryID])
+                assertOnlyLocationChangedDiffers(
+                    before: try XCTUnwrap(before.entries[entryID]),
+                    after: try XCTUnwrap(after.entries[entryID])
+                )
+                try assertSurvivingGroupsPreserveScalars(before: before, after: after)
+                assertMetaUnchanged(before: before, after: after)
+                XCTAssertTrue(try XCTUnwrap(after.groups[destinationID]).entryIDs.contains(entryID))
+                XCTAssertFalse(try XCTUnwrap(after.groups[sourceID]).entryIDs.contains(entryID))
+                XCTAssertEqual(after.entries.count, before.entries.count)
+                XCTAssertEqual(after.groups.count, before.groups.count)
+            }
+        )
+    }
+
+    static func moveGroupScenario() -> Scenario {
+        Scenario(
+            id: "move-group",
+            title: "Move group with its subtree to another group",
+            artifactFileName: "synthetic-rich-move-group.kdbx",
+            expectedSearchTerms: ["Compat Nested Entry"],
+            expectedGroupPaths: ["Compat Nested Child Group"],
+            makeEdit: { loaded in
+                let group = try XCTUnwrap(findGroup(named: "Compat Nested Child Group", in: loaded.rootGroup))
+                let destination = try XCTUnwrap(findGroup(named: "Compatibility Root", in: loaded.rootGroup))
+                return .moveGroup(groupID: group.id, destinationGroupID: destination.id)
+            },
+            assertChange: { before, after, _ in
+                let groupID = try XCTUnwrap(before.groupID(named: "Compat Nested Child Group"))
+                let sourceID = try XCTUnwrap(before.groupID(named: "Compat Group Delete Target"))
+                let destinationID = try XCTUnwrap(before.groupID(named: "Compatibility Root"))
+                try assertUnchangedEntries(before: before, after: after)
+                // Only the moved group changed parent, so only it is exempt —
+                // its subtree did not move relative to it and must be untouched.
+                try assertSurvivingGroupsPreserveScalars(before: before, after: after, excluding: [groupID])
+                assertOnlyLocationChangedDiffers(
+                    before: try XCTUnwrap(before.groups[groupID]),
+                    after: try XCTUnwrap(after.groups[groupID])
+                )
+                assertMetaUnchanged(before: before, after: after)
+                XCTAssertTrue(try XCTUnwrap(after.groups[destinationID]).groupIDs.contains(groupID))
+                XCTAssertFalse(try XCTUnwrap(after.groups[sourceID]).groupIDs.contains(groupID))
+                XCTAssertEqual(after.entries.count, before.entries.count)
+                XCTAssertEqual(after.groups.count, before.groups.count)
             }
         )
     }

@@ -1250,6 +1250,40 @@
         }
       }
     },
+    "A group cannot be moved into itself or one of its subgroups." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Eine Gruppe kann nicht in sich selbst oder eine ihrer Untergruppen verschoben werden."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Un grupo no se puede mover a sí mismo ni a uno de sus subgrupos."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Un groupe ne peut pas être déplacé dans lui-même ni dans l'un de ses sous-groupes."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "群组不能移动到其自身或其子群组中。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "群組不能移動到其自身或其子群組中。"
+          }
+        }
+      }
+    },
     "A more reliable KeeForge" : {
       "localizations" : {
         "de" : {
@@ -13896,6 +13930,74 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "修改時間"
+          }
+        }
+      }
+    },
+    "Move to Group" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "In Gruppe verschieben"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mover a grupo"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Déplacer vers un groupe"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "移动到群组"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "移動到群組"
+          }
+        }
+      }
+    },
+    "Move to Group…" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "In Gruppe verschieben…"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mover a grupo…"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Déplacer vers un groupe…"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "移动到群组…"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "移動到群組…"
           }
         }
       }

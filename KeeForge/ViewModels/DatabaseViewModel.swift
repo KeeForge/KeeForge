@@ -185,6 +185,17 @@ final class DatabaseViewModel {
         let nestedGroupCount: Int
     }
 
+    /// One row of the "Move to Group" picker: a group that can receive the
+    /// moved item, with its tree depth for indentation. The current parent is
+    /// flagged rather than omitted so the picker can show where the item
+    /// already lives instead of presenting a hole in the tree.
+    struct MoveDestinationOption: Identifiable, Equatable, Sendable {
+        let id: UUID
+        let name: String
+        let depth: Int
+        let isCurrentParent: Bool
+    }
+
     enum State: Sendable, Equatable {
         case locked
         case unlocking
@@ -1089,6 +1100,94 @@ final class DatabaseViewModel {
         let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
         guard trimmedName.isEmpty == false else { return }
         try applyEntryEdit(.createGroup(parentGroupID: parentGroupID, name: trimmedName))
+    }
+
+    /// Moves an entry into another group. Silently drops a request that would
+    /// change nothing — a vanished entry or destination, or the group the
+    /// entry already sits in — the same way `setGroupIcon` screens no-ops.
+    func moveEntry(entryID: UUID, toGroupID: UUID) throws {
+        guard entryIndex[entryID] != nil else { return }
+        guard groupIndex[toGroupID] != nil else { return }
+        guard entryParentGroupIDs[entryID] != toGroupID else { return }
+        try applyEntryEdit(.moveEntry(entryID: entryID, destinationGroupID: toGroupID))
+    }
+
+    /// Reparents a group under another group. No-ops mirror `moveEntry`'s
+    /// (vanished IDs, the current parent, the group itself); draft-level
+    /// refusals — a cycle, a protected group, a sibling name collision in the
+    /// destination — propagate so the caller can present them.
+    ///
+    /// Selection needs no fixing here: a move removes no IDs, so
+    /// `synchronizeSelections()` (run by the draft rebuild) keeps everything
+    /// valid on its own.
+    func moveGroup(groupID: UUID, toGroupID: UUID) throws {
+        guard groupID != toGroupID else { return }
+        guard groupIndex[groupID] != nil else { return }
+        guard let destination = groupIndex[toGroupID] else { return }
+        guard destination.groups.contains(where: { $0.id == groupID }) == false else { return }
+        try applyEntryEdit(.moveGroup(groupID: groupID, destinationGroupID: toGroupID))
+    }
+
+    /// The groups this entry could move into, in tree order from the visible
+    /// root, with the recycle-bin subtree pruned. Empty for an unknown entry.
+    func moveDestinationOptions(forEntryID entryID: UUID) -> [MoveDestinationOption] {
+        _ = contentRevision
+        guard entryIndex[entryID] != nil else { return [] }
+        return moveDestinationOptions(
+            prunedSubtreeID: nil,
+            currentParentID: entryParentGroupIDs[entryID]
+        )
+    }
+
+    /// The groups this group could move under: same walk as the entry
+    /// variant, additionally pruning the moved group's own subtree — a group
+    /// cannot become its own descendant. Empty for an unknown group.
+    func moveDestinationOptions(forGroupID groupID: UUID) -> [MoveDestinationOption] {
+        _ = contentRevision
+        guard groupIndex[groupID] != nil else { return [] }
+        return moveDestinationOptions(
+            prunedSubtreeID: groupID,
+            currentParentID: currentRootGroup.flatMap { Self.parentGroupID(of: groupID, in: $0) }
+        )
+    }
+
+    private func moveDestinationOptions(
+        prunedSubtreeID: UUID?,
+        currentParentID: UUID?
+    ) -> [MoveDestinationOption] {
+        guard let visibleRoot = visibleRootGroup else { return [] }
+        let recycleBinID = currentRootGroup?.recycleBinUUID
+        var options: [MoveDestinationOption] = []
+
+        func collect(_ group: KPGroup, depth: Int) {
+            guard group.id != recycleBinID, group.id != prunedSubtreeID else { return }
+            options.append(
+                MoveDestinationOption(
+                    id: group.id,
+                    name: group.name,
+                    depth: depth,
+                    isCurrentParent: group.id == currentParentID
+                )
+            )
+            for child in group.groups {
+                collect(child, depth: depth + 1)
+            }
+        }
+
+        collect(visibleRoot, depth: 0)
+        return options
+    }
+
+    private static func parentGroupID(of groupID: UUID, in group: KPGroup) -> UUID? {
+        if group.groups.contains(where: { $0.id == groupID }) {
+            return group.id
+        }
+        for child in group.groups {
+            if let found = parentGroupID(of: groupID, in: child) {
+                return found
+            }
+        }
+        return nil
     }
 
     /// Whether search and AutoFill currently skip this group, taking an

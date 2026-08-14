@@ -645,6 +645,123 @@ final class DatabaseViewModelTests: XCTestCase {
         }
     }
 
+    func testMoveEntryMovesItBetweenGroupsAndMarksDirty() async throws {
+        let vm = try makeViewModel()
+        await vm.unlock(password: fixturePassword)
+
+        let workGroup = try XCTUnwrap(vm.visibleRootGroup?.groups.first(where: { $0.name == "Work" }))
+        let socialGroup = try XCTUnwrap(vm.visibleRootGroup?.groups.first(where: { $0.name == "Social" }))
+        let entry = try XCTUnwrap(socialGroup.entries.first)
+
+        try vm.moveEntry(entryID: entry.id, toGroupID: workGroup.id)
+
+        XCTAssertTrue(vm.group(withID: workGroup.id)?.entries.contains(where: { $0.id == entry.id }) == true)
+        XCTAssertFalse(vm.group(withID: socialGroup.id)?.entries.contains(where: { $0.id == entry.id }) == true)
+        XCTAssertEqual(vm.folderPath(forEntryID: entry.id), "Work")
+        XCTAssertTrue(vm.isDirty)
+    }
+
+    func testMoveEntryToItsCurrentParentIsANoOp() async throws {
+        let vm = try makeViewModel()
+        await vm.unlock(password: fixturePassword)
+
+        let socialGroup = try XCTUnwrap(vm.visibleRootGroup?.groups.first(where: { $0.name == "Social" }))
+        let entry = try XCTUnwrap(socialGroup.entries.first)
+
+        try vm.moveEntry(entryID: entry.id, toGroupID: socialGroup.id)
+
+        XCTAssertFalse(vm.isDirty)
+    }
+
+    func testMoveGroupReparentsAndDerivedStateFollows() async throws {
+        let vm = try makeViewModel()
+        await vm.unlock(password: fixturePassword)
+
+        let workGroup = try XCTUnwrap(vm.visibleRootGroup?.groups.first(where: { $0.name == "Work" }))
+        let socialGroup = try XCTUnwrap(vm.visibleRootGroup?.groups.first(where: { $0.name == "Social" }))
+        let socialEntry = try XCTUnwrap(socialGroup.entries.first)
+
+        try vm.moveGroup(groupID: socialGroup.id, toGroupID: workGroup.id)
+
+        XCTAssertTrue(vm.group(withID: workGroup.id)?.groups.contains(where: { $0.id == socialGroup.id }) == true)
+        XCTAssertFalse(vm.visibleRootGroup?.groups.contains(where: { $0.id == socialGroup.id }) == true)
+        XCTAssertNotNil(vm.group(withID: socialGroup.id))
+        XCTAssertEqual(vm.folderPath(forEntryID: socialEntry.id), "Work / Social")
+        XCTAssertTrue(vm.isDirty)
+    }
+
+    func testMoveGroupToItsCurrentParentIsANoOp() async throws {
+        let vm = try makeViewModel()
+        await vm.unlock(password: fixturePassword)
+
+        let rootGroupID = try XCTUnwrap(vm.visibleRootGroupID)
+        let socialGroup = try XCTUnwrap(vm.visibleRootGroup?.groups.first(where: { $0.name == "Social" }))
+
+        try vm.moveGroup(groupID: socialGroup.id, toGroupID: rootGroupID)
+        try vm.moveGroup(groupID: socialGroup.id, toGroupID: socialGroup.id)
+
+        XCTAssertFalse(vm.isDirty)
+    }
+
+    func testMoveDestinationOptionsExcludeRecycleBinAndFlagCurrentParent() async throws {
+        let vm = try makeViewModel()
+        await vm.unlock(password: fixturePassword)
+
+        // Recycling an entry is what creates the bin in this fixture.
+        let workGroup = try XCTUnwrap(vm.visibleRootGroup?.groups.first(where: { $0.name == "Work" }))
+        let recycledEntry = try XCTUnwrap(workGroup.entries.first)
+        try vm.deleteEntry(recycledEntry.id, sendToRecycleBin: true)
+        let recycleBinID = try XCTUnwrap(vm.currentRootGroup?.recycleBinUUID)
+
+        let socialGroup = try XCTUnwrap(vm.visibleRootGroup?.groups.first(where: { $0.name == "Social" }))
+        let entry = try XCTUnwrap(socialGroup.entries.first)
+
+        let options = vm.moveDestinationOptions(forEntryID: entry.id)
+
+        XCTAssertFalse(options.contains(where: { $0.id == recycleBinID }))
+        XCTAssertEqual(options.first?.id, vm.visibleRootGroupID)
+        XCTAssertEqual(options.first(where: { $0.isCurrentParent })?.id, socialGroup.id)
+        XCTAssertEqual(options.filter(\.isCurrentParent).count, 1)
+    }
+
+    func testMoveDestinationOptionsExcludeTheMovedGroupsOwnSubtree() async throws {
+        let vm = try makeViewModel()
+        await vm.unlock(password: fixturePassword)
+
+        let rootGroupID = try XCTUnwrap(vm.visibleRootGroupID)
+        try vm.createGroup(named: "Outer", in: rootGroupID)
+        let outer = try XCTUnwrap(vm.visibleRootGroup?.groups.first(where: { $0.name == "Outer" }))
+        try vm.createGroup(named: "Inner", in: outer.id)
+        let inner = try XCTUnwrap(vm.group(withID: outer.id)?.groups.first)
+
+        let options = vm.moveDestinationOptions(forGroupID: outer.id)
+
+        XCTAssertFalse(options.contains(where: { $0.id == outer.id }))
+        XCTAssertFalse(options.contains(where: { $0.id == inner.id }))
+        XCTAssertTrue(options.contains(where: { $0.id == rootGroupID && $0.isCurrentParent }))
+        XCTAssertEqual(vm.moveDestinationOptions(forGroupID: UUID()), [])
+    }
+
+    func testMoveGroupDuplicateNameInDestinationPropagates() async throws {
+        let vm = try makeViewModel()
+        await vm.unlock(password: fixturePassword)
+
+        let workGroup = try XCTUnwrap(vm.visibleRootGroup?.groups.first(where: { $0.name == "Work" }))
+        let socialGroup = try XCTUnwrap(vm.visibleRootGroup?.groups.first(where: { $0.name == "Social" }))
+        try vm.createGroup(named: "Projects", in: workGroup.id)
+        try vm.createGroup(named: "Projects", in: socialGroup.id)
+        let movedGroup = try XCTUnwrap(vm.group(withID: socialGroup.id)?.groups.first(where: { $0.name == "Projects" }))
+
+        XCTAssertThrowsError(
+            try vm.moveGroup(groupID: movedGroup.id, toGroupID: workGroup.id)
+        ) { error in
+            guard case DatabaseDraft.DraftError.duplicateGroupName = error else {
+                return XCTFail("Expected duplicateGroupName, got \(error)")
+            }
+        }
+        XCTAssertTrue(vm.group(withID: socialGroup.id)?.groups.contains(where: { $0.id == movedGroup.id }) == true)
+    }
+
     func testDeleteGroupRefreshesCredentialStoreAndMovesGroupToRecycleBin() async throws {
         let vm = try makeViewModel()
         let refreshExpectation = expectation(description: "Credential store refreshed after group recycle")

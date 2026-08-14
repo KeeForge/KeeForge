@@ -149,4 +149,8 @@ enum EntryEdit: Codable, Sendable, Equatable {
     /// does not fix — KeePass appends oldest-first, this app prepends. Callers
     /// must not pass a position from a sorted display list.
     case restoreEntryVersion(entryID: UUID, historyIndex: Int)
+    /// Reparent into another group. A move stamps `<LocationChanged>` and
+    /// leaves `<LastModificationTime>` alone, the same shape as recycling.
+    case moveEntry(entryID: UUID, destinationGroupID: UUID)
+    case moveGroup(groupID: UUID, destinationGroupID: UUID)
 }
