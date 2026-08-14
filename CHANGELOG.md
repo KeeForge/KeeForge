@@ -21,6 +21,10 @@ TODO before the first macOS release:
 
 ## Unreleased
 
+### New Features
+
+- Shared databases merge instead of colliding (#58). When another device or app changed the database while you were editing, the save-conflict prompt now offers "Merge Changes": both sets of record-level changes are combined the way KeePass 2.x Synchronize and KeePassXC merge do — newest edit wins per entry with the other version kept in its history, deletions and moves carry over, and a deletion never beats a later edit. Merged databases are verified against real KeePassXC as part of the compatibility gate. When a merge can't be proven safe (for example the two copies' attachments diverged), KeeForge says why and the existing reload / conflict-copy options remain, so nothing is ever lost silently.
+
 ## v1.14.0 (2026-08-13)
 
 ### New Features
