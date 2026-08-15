@@ -1216,6 +1216,40 @@
         }
       }
     },
+    "A change saved through AutoFill couldn’t be uploaded because the copy of this database in the cloud changed since. Export a copy of this database to merge it with the cloud version in another KeePass app, or discard the pending upload. KeeForge keeps a backup of the discarded change on this device." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Eine über AutoFill gespeicherte Änderung konnte nicht hochgeladen werden, weil die Kopie dieser Datenbank in der Cloud seitdem geändert wurde. Exportieren Sie eine Kopie dieser Datenbank, um sie in einer anderen KeePass-App mit der Cloud-Version zusammenzuführen, oder verwerfen Sie den ausstehenden Upload. KeeForge behält eine Sicherungskopie der verworfenen Änderung auf diesem Gerät."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Un cambio guardado mediante el autorrelleno no se pudo cargar porque la copia de esta base de datos en la nube cambió desde entonces. Exporte una copia de esta base de datos para combinarla con la versión de la nube en otra app de KeePass, o descarte la carga pendiente. KeeForge conserva una copia de seguridad del cambio descartado en este dispositivo."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Une modification enregistrée via le remplissage automatique n'a pas pu être envoyée, car la copie de cette base de données dans le cloud a changé depuis. Exportez une copie de cette base de données pour la fusionner avec la version du cloud dans une autre app KeePass, ou ignorez l'envoi en attente. KeeForge conserve une sauvegarde de la modification ignorée sur cet appareil."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "通过自动填充保存的更改无法上传，因为此数据库在云端的副本此后已发生变化。请导出此数据库的副本，在其他 KeePass App 中将其与云端版本合并，或放弃待处理的上传。KeeForge 会在此设备上保留已放弃更改的备份。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "透過自動填寫儲存的變更無法上傳，因為此資料庫在雲端的副本此後已變更。請匯出此資料庫的副本，在其他 KeePass App 中將其與雲端版本合併，或捨棄待處理的上傳。KeeForge 會在此裝置上保留已捨棄變更的備份。"
+          }
+        }
+      }
+    },
     "A database with this name already exists in this cloud folder." : {
       "localizations" : {
         "de" : {
@@ -2912,6 +2946,40 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "返回資料庫列表"
+          }
+        }
+      }
+    },
+    "Backups" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sicherungskopien"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Copias de seguridad"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sauvegardes"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "备份"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "備份"
           }
         }
       }
@@ -6147,6 +6215,40 @@
         }
       }
     },
+    "Couldn’t Export Database" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Datenbank konnte nicht exportiert werden"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No se pudo exportar la base de datos"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Impossible d'exporter la base de données"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无法导出数据库"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法匯出資料庫"
+          }
+        }
+      }
+    },
     "Couldn’t Load Files" : {
       "localizations" : {
         "de" : {
@@ -7133,6 +7235,40 @@
         }
       }
     },
+    "Database Details now lists the last five backups KeeForge made on this device before saving or replacing a database, and each one can be exported to Files." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die Datenbankdetails zeigen jetzt die letzten fünf Sicherungskopien, die KeeForge auf diesem Gerät vor dem Speichern oder Ersetzen einer Datenbank angelegt hat, und jede davon lässt sich nach „Dateien“ exportieren."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Detalles de la base de datos ahora muestra las últimas cinco copias de seguridad que KeeForge hizo en este dispositivo antes de guardar o reemplazar una base de datos, y cada una se puede exportar a Archivos."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Les Détails de la base de données affichent désormais les cinq dernières sauvegardes que KeeForge a créées sur cet appareil avant d'enregistrer ou de remplacer une base de données, et chacune peut être exportée vers Fichiers."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "“数据库详细信息”现在会列出 KeeForge 在此设备上保存或替换数据库前所做的最近五份备份，每份都可以导出到“文件”。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "「資料庫詳細資訊」現在會列出 KeeForge 在此裝置上儲存或取代資料庫前所做的最近五份備份，每份都可以匯出到「檔案」。"
+          }
+        }
+      }
+    },
     "Database File" : {
       "localizations" : {
         "de" : {
@@ -8047,6 +8183,40 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "要捨棄待上傳的內容嗎？"
+          }
+        }
+      }
+    },
+    "Discard Pending Upload…" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ausstehenden Upload verwerfen …"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Descartar carga pendiente…"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ignorer l'envoi en attente…"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "放弃待处理的上传…"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "捨棄待處理的上傳…"
           }
         }
       }
@@ -9747,6 +9917,108 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "過期時間"
+          }
+        }
+      }
+    },
+    "Export" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Export"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Exportación"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Exportation"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "导出"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "匯出"
+          }
+        }
+      }
+    },
+    "Export a copy of your database" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Exportiere eine Kopie deiner Datenbank"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Exporta una copia de tu base de datos"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Exportez une copie de votre base de données"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "导出数据库副本"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "匯出資料庫副本"
+          }
+        }
+      }
+    },
+    "Export Copy…" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kopie exportieren …"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Exportar copia…"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Exporter une copie…"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "导出副本…"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "匯出副本…"
           }
         }
       }
@@ -11927,6 +12199,40 @@
         }
       }
     },
+    "KeeForge has no local copy of this database yet. Open it once while online, then try exporting again." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge hat noch keine lokale Kopie dieser Datenbank. Öffnen Sie sie einmal, während Sie online sind, und versuchen Sie den Export dann erneut."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge aún no tiene una copia local de esta base de datos. Ábrala una vez estando en línea y vuelva a intentar la exportación."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge n'a pas encore de copie locale de cette base de données. Ouvrez-la une fois en étant en ligne, puis réessayez l'exportation."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge 尚无此数据库的本地副本。请在有网络连接时打开一次，然后重新尝试导出。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge 尚無此資料庫的本機副本。請在有網路連線時開啟一次，然後重新嘗試匯出。"
+          }
+        }
+      }
+    },
     "KeeForge hit an unexpected cloud-sync problem while opening this database." : {
       "localizations" : {
         "de" : {
@@ -12297,6 +12603,40 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "KeeForge 尚未啟用為自動填寫提供者。開啟後即可在 Safari 和其他 App 中填寫密碼。"
+          }
+        }
+      }
+    },
+    "KeeForge keeps the last five backups it made before saving or replacing this database on this device." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge behält die letzten fünf Sicherungskopien, die es vor dem Speichern oder Ersetzen dieser Datenbank auf diesem Gerät angelegt hat."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge conserva las últimas cinco copias de seguridad que creó antes de guardar o sustituir esta base de datos en este dispositivo."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge conserve les cinq dernières sauvegardes créées avant d'enregistrer ou de remplacer cette base de données sur cet appareil."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge 会在此设备上保留保存或替换此数据库前所做的最近五份备份。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge 會在此裝置上保留儲存或取代此資料庫前所做的最近五份備份。"
           }
         }
       }
@@ -13492,6 +13832,40 @@
         }
       }
     },
+    "Long-press a database — or open Database Details — and choose Export Copy… to save it to Files under a timestamped name. Handy for merging changes with another KeePass app when a cloud upload is stuck." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Halte eine Datenbank gedrückt – oder öffne die Datenbankdetails – und wähle „Kopie exportieren …“, um sie unter einem Namen mit Zeitstempel in „Dateien“ zu sichern. Praktisch, um Änderungen mit einer anderen KeePass-App zusammenzuführen, wenn ein Cloud-Upload feststeckt."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mantén pulsada una base de datos, o abre Detalles de la base de datos, y elige «Exportar copia…» para guardarla en Archivos con un nombre con marca de tiempo. Útil para combinar cambios con otra app de KeePass cuando una carga a la nube esté atascada."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Appuyez longuement sur une base de données – ou ouvrez les Détails de la base de données – et choisissez « Exporter une copie… » pour l'enregistrer dans Fichiers sous un nom horodaté. Pratique pour fusionner des modifications avec une autre app KeePass lorsqu'un envoi vers le cloud est bloqué."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "长按数据库（或打开“数据库详细信息”），选择“导出副本…”，即可以带时间戳的名称将其保存到“文件”中。当云端上传卡住时，可用它在其他 KeePass App 中合并更改。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "長按資料庫（或開啟「資料庫詳細資訊」），選擇「匯出副本…」，即可以帶時間戳記的名稱將其儲存到「檔案」中。當雲端上傳卡住時，可用它在其他 KeePass App 中合併變更。"
+          }
+        }
+      }
+    },
     "Lowercase" : {
       "localizations" : {
         "de" : {
@@ -14338,6 +14712,40 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Niels Ferguson Twofish 實作"
+          }
+        }
+      }
+    },
+    "No backups on this device." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Keine Sicherungskopien auf diesem Gerät."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No hay copias de seguridad en este dispositivo."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aucune sauvegarde sur cet appareil."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此设备上没有备份。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此裝置上沒有備份。"
           }
         }
       }
@@ -16213,6 +16621,40 @@
         }
       }
     },
+    "Pending Upload Conflict" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Konflikt beim ausstehenden Upload"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Conflicto de carga pendiente"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Conflit d'envoi en attente"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "待处理的上传冲突"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "待處理的上傳衝突"
+          }
+        }
+      }
+    },
     "Period (Seconds)" : {
       "localizations" : {
         "de" : {
@@ -16719,6 +17161,40 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "快速啟動會在 App 啟動時自動開啟此資料庫。"
+          }
+        }
+      }
+    },
+    "Reach your on-device backups" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Greife auf deine Sicherungskopien auf dem Gerät zu"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Accede a tus copias de seguridad en el dispositivo"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Accédez à vos sauvegardes sur l'appareil"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "查看设备上的备份"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "查看裝置上的備份"
           }
         }
       }
@@ -18047,6 +18523,74 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "不使用密碼儲存"
+          }
+        }
+      }
+    },
+    "Saves a copy of the database as KeeForge currently has it. Use it to merge changes into your main file with another KeePass app when a cloud upload is stuck." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Speichert eine Kopie der Datenbank in dem Stand, den KeeForge derzeit hat. Verwenden Sie sie, um Änderungen mit einer anderen KeePass-App in Ihre Hauptdatei zu übernehmen, wenn ein Cloud-Upload feststeckt."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Guarda una copia de la base de datos tal como la tiene KeeForge actualmente. Úsela para combinar los cambios en su archivo principal con otra app de KeePass cuando una carga a la nube esté atascada."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Enregistre une copie de la base de données telle que KeeForge la possède actuellement. Utilisez-la pour fusionner les modifications dans votre fichier principal avec une autre app KeePass lorsqu'un envoi vers le cloud est bloqué."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "保存 KeeForge 当前所持有的数据库副本。当云端上传卡住时，可用它在其他 KeePass App 中将更改合并到你的主文件。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "儲存 KeeForge 目前所持有的資料庫副本。當雲端上傳卡住時，可用它在其他 KeePass App 中將變更合併到你的主檔案。"
+          }
+        }
+      }
+    },
+    "Saves the locally cached copy of the database as KeeForge currently has it. Use it to merge changes into your main file with another KeePass app when a cloud upload is stuck." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Speichert die lokal zwischengespeicherte Kopie der Datenbank in dem Stand, den KeeForge derzeit hat. Verwenden Sie sie, um Änderungen mit einer anderen KeePass-App in Ihre Hauptdatei zu übernehmen, wenn ein Cloud-Upload feststeckt."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Guarda la copia almacenada localmente en caché de la base de datos tal como la tiene KeeForge actualmente. Úsela para combinar los cambios en su archivo principal con otra app de KeePass cuando una carga a la nube esté atascada."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Enregistre la copie mise en cache localement de la base de données telle que KeeForge la possède actuellement. Utilisez-la pour fusionner les modifications dans votre fichier principal avec une autre app KeePass lorsqu'un envoi vers le cloud est bloqué."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "保存 KeeForge 当前所持有的数据库本地缓存副本。当云端上传卡住时，可用它在其他 KeePass App 中将更改合并到你的主文件。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "儲存 KeeForge 目前所持有的資料庫本機快取副本。當雲端上傳卡住時，可用它在其他 KeePass App 中將變更合併到你的主檔案。"
           }
         }
       }
@@ -20771,6 +21315,40 @@
         }
       }
     },
+    "The database file could not be found. Make sure it is still available in the Files app." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die Datenbankdatei konnte nicht gefunden werden. Stellen Sie sicher, dass sie in der Dateien-App noch verfügbar ist."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No se pudo encontrar el archivo de la base de datos. Asegúrese de que sigue disponible en la app Archivos."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Le fichier de base de données est introuvable. Vérifiez qu'il est toujours disponible dans l'app Fichiers."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "找不到数据库文件。请确认它在“文件”App 中仍然可用。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "找不到資料庫檔案。請確認它在「檔案」App 中仍然可用。"
+          }
+        }
+      }
+    },
     "The database file could not be located." : {
       "localizations" : {
         "de" : {
@@ -20801,6 +21379,40 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "找不到資料庫檔案。"
+          }
+        }
+      }
+    },
+    "The database file could not be read." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die Datenbankdatei konnte nicht gelesen werden."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No se pudo leer el archivo de la base de datos."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Le fichier de base de données n'a pas pu être lu."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无法读取数据库文件。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法讀取資料庫檔案。"
           }
         }
       }
@@ -22197,6 +22809,40 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "此帳號已中斷連線。KeeForge 會保留快取副本，直到你移除該資料庫。"
+          }
+        }
+      }
+    },
+    "This backup is no longer available." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Diese Sicherungskopie ist nicht mehr verfügbar."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Esta copia de seguridad ya no está disponible."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cette sauvegarde n'est plus disponible."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此备份已不可用。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此備份已無法使用。"
           }
         }
       }

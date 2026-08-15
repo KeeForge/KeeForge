@@ -25,6 +25,7 @@ struct PendingUploadAlert: Identifiable, Equatable, Sendable {
         case writeScopeRequired
         case notAuthenticated
         case message
+        case conflict
     }
 
     let databaseId: UUID
@@ -211,12 +212,12 @@ final class DatabaseListViewModel {
 
     func drainPendingUploadsOnAppActive() async {
         let outcome = await pendingUploadDrainer.drainAll()
-        applyDrainOutcome(outcome, surfaceAlerts: false)
+        applyDrainOutcome(outcome, surfaceAlerts: false, preferredDatabaseId: nil)
     }
 
     func pushPendingChanges(for reference: DatabaseReference) async {
         let outcome = await pendingUploadDrainer.drain(databaseId: reference.id)
-        applyDrainOutcome(outcome, surfaceAlerts: true)
+        applyDrainOutcome(outcome, surfaceAlerts: true, preferredDatabaseId: reference.id)
     }
 
     /// User-confirmed resolution for the orange conflict badge: backs up the
@@ -349,10 +350,29 @@ final class DatabaseListViewModel {
         databases = DatabaseListStore.databases
     }
 
-    private func applyDrainOutcome(_ outcome: PendingUploadDrainer.DrainOutcome, surfaceAlerts: Bool) {
+    private func applyDrainOutcome(
+        _ outcome: PendingUploadDrainer.DrainOutcome,
+        surfaceAlerts: Bool,
+        preferredDatabaseId: UUID?
+    ) {
         reload()
 
-        guard surfaceAlerts, let issue = outcome.userIssue else { return }
+        guard surfaceAlerts else { return }
+
+        guard let issue = outcome.userIssue else {
+            // A conflicted push leaves the marker in place without a user
+            // issue; an explicit push still owes the user an explanation.
+            let conflictIDs = outcome.conflictDatabaseIDs
+            guard let conflictedId = preferredDatabaseId.flatMap({ conflictIDs.contains($0) ? $0 : nil })
+                ?? conflictIDs.min(by: { $0.uuidString < $1.uuidString }) else { return }
+            pendingUploadAlert = PendingUploadAlert(
+                databaseId: conflictedId,
+                kind: .conflict,
+                title: String(localized: "Pending Upload Conflict"),
+                message: String(localized: "A change saved through AutoFill couldn’t be uploaded because the copy of this database in the cloud changed since. Export a copy of this database to merge it with the cloud version in another KeePass app, or discard the pending upload. KeeForge keeps a backup of the discarded change on this device.")
+            )
+            return
+        }
 
         let alert: PendingUploadAlert
         switch issue.kind {

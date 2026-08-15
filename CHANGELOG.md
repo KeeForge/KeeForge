@@ -50,6 +50,17 @@ TODO before the first macOS release:
 
 - The Recycle Bin now always sits at the top of the group list — in both the iPhone list and the iPad/Mac sidebar — instead of moving around with the chosen sort order and direction.
 
+## v1.13.1 (2026-08-14)
+
+### New Features
+
+- Export a copy of any database to Files: long-press a database and choose "Export Copy…" (also in Database Details). It saves the database exactly as KeeForge currently has it — the locally cached copy for cloud databases — under a timestamped name, so it can never silently replace your original file. Use it to merge changes into your main database with another KeePass app when a cloud upload is stuck.
+- Reach the on-device backups: Database Details now lists the last five timestamped backups KeeForge made before saving or replacing a database on this device, and each can be exported to Files. This makes the backup taken by "Discard pending upload" (and by a cloud sync that replaces a locally changed copy) recoverable instead of invisible.
+
+### Fixes
+
+- "Push pending changes" on a cloud database whose queued AutoFill change conflicts with the copy in the cloud no longer does nothing visible (#83). It now explains the conflict and offers to export a copy of the database or discard the pending upload.
+
 ## v1.13.0 (2026-08-12)
 
 ### New Features

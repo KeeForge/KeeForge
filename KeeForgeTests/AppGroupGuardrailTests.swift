@@ -20,13 +20,24 @@ final class AppGroupGuardrailTests: XCTestCase {
     }
 
     func testCacheDirectoriesLiveUnderTheGroupContainer() {
-        let containerPath = FileManager.default
-            .containerURL(forSecurityApplicationGroupIdentifier: SharedVaultStore.appGroupID)?
-            .standardizedFileURL.path
-            ?? FileManager.default.temporaryDirectory.standardizedFileURL.path
+        // On a physical device the group container lives under `/private/var`,
+        // and Foundation drops the `/private` prefix only for paths that
+        // already exist — so a not-yet-created cache directory would compare
+        // unequal to its own parent. Normalize the prefix on both sides.
+        func normalizedPath(_ url: URL) -> String {
+            let path = url.standardizedFileURL.path
+            return path.hasPrefix("/private/") ? String(path.dropFirst("/private".count)) : path
+        }
 
-        XCTAssertTrue(SharedVaultStore.databaseCacheDirectory.standardizedFileURL.path.hasPrefix(containerPath))
-        XCTAssertTrue(SharedVaultStore.cloudCacheDirectory.standardizedFileURL.path.hasPrefix(containerPath))
+        let containerPath = normalizedPath(
+            FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: SharedVaultStore.appGroupID)
+                ?? FileManager.default.temporaryDirectory
+        )
+        let databasePath = normalizedPath(SharedVaultStore.databaseCacheDirectory)
+        let cloudPath = normalizedPath(SharedVaultStore.cloudCacheDirectory)
+
+        XCTAssertTrue(databasePath.hasPrefix(containerPath), "\(databasePath) is not under \(containerPath)")
+        XCTAssertTrue(cloudPath.hasPrefix(containerPath), "\(cloudPath) is not under \(containerPath)")
     }
 
     func testCacheDatabaseCopyWritesOnlyKDBXPayloadsUnderTheContainer() throws {
