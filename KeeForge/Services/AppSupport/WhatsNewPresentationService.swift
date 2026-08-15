@@ -74,6 +74,21 @@ enum WhatsNewCatalog {
                     systemImage: "globe"
                 ),
             ]
+        case "1.13.1":
+            features = [
+                WhatsNewFeature(
+                    id: "export-copy",
+                    title: "Export a copy of your database",
+                    detail: "Long-press a database — or open Database Details — and choose Export Copy… to save it to Files under a timestamped name. Handy for merging changes with another KeePass app when a cloud upload is stuck.",
+                    systemImage: "square.and.arrow.up"
+                ),
+                WhatsNewFeature(
+                    id: "device-backups",
+                    title: "Reach your on-device backups",
+                    detail: "Database Details now lists the last five backups KeeForge made on this device before saving or replacing a database, and each one can be exported to Files.",
+                    systemImage: "clock.arrow.circlepath"
+                ),
+            ]
         case "1.13.0":
             features = [
                 WhatsNewFeature(
