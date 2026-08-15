@@ -42,7 +42,8 @@ TODO before the first macOS release:
 ### Changes
 
 - The Recycle Bin now always sits at the top of the group list — in both the iPhone list and the iPad/Mac sidebar — instead of moving around with the chosen sort order and direction.
-## v1.13.1 (2026-08-14)
+
+## v1.13.1 (2026-08-15)
 
 ### New Features
 
