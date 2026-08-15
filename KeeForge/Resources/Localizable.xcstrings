@@ -4134,6 +4134,28 @@
         }
       }
     },
+    "Database Details now lists the last five backups KeeForge made on this device before saving or replacing a database, and each one can be exported to Files." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die Datenbankdetails zeigen jetzt die letzten fünf Sicherungskopien, die KeeForge auf diesem Gerät vor dem Speichern oder Ersetzen einer Datenbank angelegt hat, und jede davon lässt sich nach „Dateien“ exportieren."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Detalles de la base de datos ahora muestra las últimas cinco copias de seguridad que KeeForge hizo en este dispositivo antes de guardar o reemplazar una base de datos, y cada una se puede exportar a Archivos."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Les Détails de la base de données affichent désormais les cinq dernières sauvegardes que KeeForge a créées sur cet appareil avant d'enregistrer ou de remplacer une base de données, et chacune peut être exportée vers Fichiers."
+          }
+        }
+      }
+    },
     "Database File" : {
       "localizations" : {
         "de" : {
@@ -5824,6 +5846,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Exportation"
+          }
+        }
+      }
+    },
+    "Export a copy of your database" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Exportiere eine Kopie deiner Datenbank"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Exporta una copia de tu base de datos"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Exportez une copie de votre base de données"
           }
         }
       }
@@ -8248,6 +8292,28 @@
         }
       }
     },
+    "Long-press a database — or open Database Details — and choose Export Copy… to save it to Files under a timestamped name. Handy for merging changes with another KeePass app when a cloud upload is stuck." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Halte eine Datenbank gedrückt – oder öffne die Datenbankdetails – und wähle „Kopie exportieren …“, um sie unter einem Namen mit Zeitstempel in „Dateien“ zu sichern. Praktisch, um Änderungen mit einer anderen KeePass-App zusammenzuführen, wenn ein Cloud-Upload feststeckt."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mantén pulsada una base de datos, o abre Detalles de la base de datos, y elige «Exportar copia…» para guardarla en Archivos con un nombre con marca de tiempo. Útil para combinar cambios con otra app de KeePass cuando una carga a la nube esté atascada."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Appuyez longuement sur une base de données – ou ouvrez les Détails de la base de données – et choisissez « Exporter une copie… » pour l'enregistrer dans Fichiers sous un nom horodaté. Pratique pour fusionner des modifications avec une autre app KeePass lorsqu'un envoi vers le cloud est bloqué."
+          }
+        }
+      }
+    },
     "Lowercase" : {
       "localizations" : {
         "de" : {
@@ -10137,6 +10203,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Le démarrage rapide ouvre automatiquement cette base de données au lancement de l'app."
+          }
+        }
+      }
+    },
+    "Reach your on-device backups" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Greife auf deine Sicherungskopien auf dem Gerät zu"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Accede a tus copias de seguridad en el dispositivo"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Accédez à vos sauvegardes sur l'appareil"
           }
         }
       }
