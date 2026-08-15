@@ -746,6 +746,28 @@
         }
       }
     },
+    "A change saved through AutoFill couldn’t be uploaded because the copy of this database in the cloud changed since. Export a copy of this database to merge it with the cloud version in another KeePass app, or discard the pending upload. KeeForge keeps a backup of the discarded change on this device." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Eine über AutoFill gespeicherte Änderung konnte nicht hochgeladen werden, weil die Kopie dieser Datenbank in der Cloud seitdem geändert wurde. Exportieren Sie eine Kopie dieser Datenbank, um sie in einer anderen KeePass-App mit der Cloud-Version zusammenzuführen, oder verwerfen Sie den ausstehenden Upload. KeeForge behält eine Sicherungskopie der verworfenen Änderung auf diesem Gerät."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Un cambio guardado mediante el autorrelleno no se pudo cargar porque la copia de esta base de datos en la nube cambió desde entonces. Exporte una copia de esta base de datos para combinarla con la versión de la nube en otra app de KeePass, o descarte la carga pendiente. KeeForge conserva una copia de seguridad del cambio descartado en este dispositivo."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Une modification enregistrée via le remplissage automatique n'a pas pu être envoyée, car la copie de cette base de données dans le cloud a changé depuis. Exportez une copie de cette base de données pour la fusionner avec la version du cloud dans une autre app KeePass, ou ignorez l'envoi en attente. KeeForge conserve une sauvegarde de la modification ignorée sur cet appareil."
+          }
+        }
+      }
+    },
     "A database with this name already exists in this cloud folder." : {
       "localizations" : {
         "de" : {
@@ -1688,6 +1710,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Retour à la liste des bases de données"
+          }
+        }
+      }
+    },
+    "Backups" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sicherungskopien"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Copias de seguridad"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sauvegardes"
           }
         }
       }
@@ -3452,6 +3496,28 @@
         }
       }
     },
+    "Couldn’t Export Database" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Datenbank konnte nicht exportiert werden"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No se pudo exportar la base de datos"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Impossible d'exporter la base de données"
+          }
+        }
+      }
+    },
     "Couldn’t Load Files" : {
       "localizations" : {
         "de" : {
@@ -4662,6 +4728,28 @@
         }
       }
     },
+    "Discard Pending Upload…" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ausstehenden Upload verwerfen …"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Descartar carga pendiente…"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ignorer l'envoi en attente…"
+          }
+        }
+      }
+    },
     "Discard Upload" : {
       "localizations" : {
         "de" : {
@@ -5714,6 +5802,50 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Expire"
+          }
+        }
+      }
+    },
+    "Export" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Export"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Exportación"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Exportation"
+          }
+        }
+      }
+    },
+    "Export Copy…" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kopie exportieren …"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Exportar copia…"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Exporter une copie…"
           }
         }
       }
@@ -7126,6 +7258,28 @@
         }
       }
     },
+    "KeeForge has no local copy of this database yet. Open it once while online, then try exporting again." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge hat noch keine lokale Kopie dieser Datenbank. Öffnen Sie sie einmal, während Sie online sind, und versuchen Sie den Export dann erneut."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge aún no tiene una copia local de esta base de datos. Ábrala una vez estando en línea y vuelva a intentar la exportación."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge n'a pas encore de copie locale de cette base de données. Ouvrez-la une fois en étant en ligne, puis réessayez l'exportation."
+          }
+        }
+      }
+    },
     "KeeForge hit an unexpected cloud-sync problem while opening this database." : {
       "localizations" : {
         "de" : {
@@ -7342,6 +7496,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "KeeForge n'est pas encore activé en tant que fournisseur de Remplissage automatique. Activez-le pour remplir les mots de passe dans Safari et d'autres apps."
+          }
+        }
+      }
+    },
+    "KeeForge keeps the last five backups it made before saving or replacing this database on this device." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge behält die letzten fünf Sicherungskopien, die es vor dem Speichern oder Ersetzen dieser Datenbank auf diesem Gerät angelegt hat."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge conserva las últimas cinco copias de seguridad que creó antes de guardar o sustituir esta base de datos en este dispositivo."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge conserve les cinq dernières sauvegardes créées avant d'enregistrer ou de remplacer cette base de données sur cet appareil."
           }
         }
       }
@@ -8512,6 +8688,28 @@
         }
       }
     },
+    "No backups on this device." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Keine Sicherungskopien auf diesem Gerät."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No hay copias de seguridad en este dispositivo."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aucune sauvegarde sur cet appareil."
+          }
+        }
+      }
+    },
     "No cloud accounts connected" : {
       "localizations" : {
         "de" : {
@@ -9635,6 +9833,28 @@
         }
       }
     },
+    "Pending Upload Conflict" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Konflikt beim ausstehenden Upload"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Conflicto de carga pendiente"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Conflit d'envoi en attente"
+          }
+        }
+      }
+    },
     "Permissive license with attribution" : {
       "localizations" : {
         "de" : {
@@ -10621,6 +10841,50 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Enregistrer sous"
+          }
+        }
+      }
+    },
+    "Saves a copy of the database as KeeForge currently has it. Use it to merge changes into your main file with another KeePass app when a cloud upload is stuck." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Speichert eine Kopie der Datenbank in dem Stand, den KeeForge derzeit hat. Verwenden Sie sie, um Änderungen mit einer anderen KeePass-App in Ihre Hauptdatei zu übernehmen, wenn ein Cloud-Upload feststeckt."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Guarda una copia de la base de datos tal como la tiene KeeForge actualmente. Úsela para combinar los cambios en su archivo principal con otra app de KeePass cuando una carga a la nube esté atascada."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Enregistre une copie de la base de données telle que KeeForge la possède actuellement. Utilisez-la pour fusionner les modifications dans votre fichier principal avec une autre app KeePass lorsqu'un envoi vers le cloud est bloqué."
+          }
+        }
+      }
+    },
+    "Saves the locally cached copy of the database as KeeForge currently has it. Use it to merge changes into your main file with another KeePass app when a cloud upload is stuck." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Speichert die lokal zwischengespeicherte Kopie der Datenbank in dem Stand, den KeeForge derzeit hat. Verwenden Sie sie, um Änderungen mit einer anderen KeePass-App in Ihre Hauptdatei zu übernehmen, wenn ein Cloud-Upload feststeckt."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Guarda la copia almacenada localmente en caché de la base de datos tal como la tiene KeeForge actualmente. Úsela para combinar los cambios en su archivo principal con otra app de KeePass cuando una carga a la nube esté atascada."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Enregistre la copie mise en cache localement de la base de données telle que KeeForge la possède actuellement. Utilisez-la pour fusionner les modifications dans votre fichier principal avec une autre app KeePass lorsqu'un envoi vers le cloud est bloqué."
           }
         }
       }
@@ -12187,6 +12451,28 @@
         }
       }
     },
+    "The database file could not be found. Make sure it is still available in the Files app." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die Datenbankdatei konnte nicht gefunden werden. Stellen Sie sicher, dass sie in der Dateien-App noch verfügbar ist."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No se pudo encontrar el archivo de la base de datos. Asegúrese de que sigue disponible en la app Archivos."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Le fichier de base de données est introuvable. Vérifiez qu'il est toujours disponible dans l'app Fichiers."
+          }
+        }
+      }
+    },
     "The database file could not be located." : {
       "localizations" : {
         "de" : {
@@ -12205,6 +12491,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Le fichier de base de données est introuvable."
+          }
+        }
+      }
+    },
+    "The database file could not be read." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die Datenbankdatei konnte nicht gelesen werden."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No se pudo leer el archivo de la base de datos."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Le fichier de base de données n'a pas pu être lu."
           }
         }
       }
@@ -12887,6 +13195,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Ce compte est déconnecté. KeeForge conserve la copie mise en cache jusqu'à ce que vous retiriez la base de données."
+          }
+        }
+      }
+    },
+    "This backup is no longer available." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Diese Sicherungskopie ist nicht mehr verfügbar."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Esta copia de seguridad ya no está disponible."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cette sauvegarde n'est plus disponible."
           }
         }
       }
