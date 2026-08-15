@@ -1,5 +1,4 @@
 import SwiftUI
-import UniformTypeIdentifiers
 
 struct DatabaseCreationView: View {
     @Bindable var viewModel: DatabaseCreationViewModel
@@ -305,26 +304,6 @@ struct DatabaseCreationView: View {
         case .failure(let error):
             selectionAlert = DocumentPickerService.pickerFailureAlert(for: error)
         }
-    }
-}
-
-private struct KDBXExportDocument: FileDocument {
-    let data: Data
-
-    static var readableContentTypes: [UTType] {
-        [DocumentPickerService.databaseContentType]
-    }
-
-    init(data: Data) {
-        self.data = data
-    }
-
-    init(configuration: ReadConfiguration) throws {
-        data = configuration.file.regularFileContents ?? Data()
-    }
-
-    func fileWrapper(configuration: WriteConfiguration) throws -> FileWrapper {
-        FileWrapper(regularFileWithContents: data)
     }
 }
 
