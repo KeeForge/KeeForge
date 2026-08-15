@@ -460,6 +460,79 @@ final class DatabaseListViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.isAutoFillProviderEnabled, true)
     }
 
+    // MARK: - Pending upload alerts
+
+    func testPushPendingChangesSurfacesConflictAlertForPushedDatabase() async {
+        let reference = makeCloudReference()
+        let viewModel = DatabaseListViewModel(
+            pendingUploadDrainer: makeDrainer(
+                markers: [makeStoredMarker(databaseId: reference.id)],
+                reference: reference,
+                pushPendingUpload: { _, _, _ in .conflict(remoteRev: "rev-2") }
+            )
+        )
+
+        await viewModel.pushPendingChanges(for: reference)
+
+        XCTAssertEqual(viewModel.pendingUploadAlert?.kind, .conflict)
+        XCTAssertEqual(viewModel.pendingUploadAlert?.databaseId, reference.id)
+    }
+
+    func testAppActiveDrainStaysSilentOnConflict() async {
+        let reference = makeCloudReference()
+        let viewModel = DatabaseListViewModel(
+            pendingUploadDrainer: makeDrainer(
+                markers: [makeStoredMarker(databaseId: reference.id)],
+                reference: reference,
+                pushPendingUpload: { _, _, _ in .conflict(remoteRev: "rev-2") }
+            )
+        )
+
+        await viewModel.drainPendingUploadsOnAppActive()
+
+        XCTAssertNil(viewModel.pendingUploadAlert)
+    }
+
+    func testPushPendingChangesPrefersUserIssueOverConflict() async {
+        let reference = makeCloudReference()
+        let conflictMarker = makeStoredMarker(databaseId: reference.id, expectedRev: "rev-1")
+        let failingMarker = makeStoredMarker(databaseId: reference.id, expectedRev: "rev-0")
+        let viewModel = DatabaseListViewModel(
+            pendingUploadDrainer: makeDrainer(
+                markers: [conflictMarker, failingMarker],
+                reference: reference,
+                pushPendingUpload: { _, _, expectedRev in
+                    if expectedRev == conflictMarker.marker.expectedRev {
+                        return .conflict(remoteRev: "rev-2")
+                    }
+                    throw CloudProviderError.notAuthenticated
+                }
+            )
+        )
+
+        await viewModel.pushPendingChanges(for: reference)
+
+        XCTAssertEqual(viewModel.pendingUploadAlert?.kind, .notAuthenticated)
+        XCTAssertEqual(viewModel.pendingUploadAlert?.databaseId, reference.id)
+    }
+
+    func testDismissPendingUploadAlertClearsConflictAlert() async {
+        let reference = makeCloudReference()
+        let viewModel = DatabaseListViewModel(
+            pendingUploadDrainer: makeDrainer(
+                markers: [makeStoredMarker(databaseId: reference.id)],
+                reference: reference,
+                pushPendingUpload: { _, _, _ in .conflict(remoteRev: "rev-2") }
+            )
+        )
+        await viewModel.pushPendingChanges(for: reference)
+        XCTAssertNotNil(viewModel.pendingUploadAlert)
+
+        viewModel.dismissPendingUploadAlert()
+
+        XCTAssertNil(viewModel.pendingUploadAlert)
+    }
+
     func testPickerPresentationStateKeepsTargetUntilCompletion() {
         var state = PickerPresentationState<String>()
 
@@ -471,6 +544,63 @@ final class DatabaseListViewModelTests: XCTestCase {
         XCTAssertEqual(state.consumeActiveTarget(), "database")
         XCTAssertNil(state.activeTarget)
         XCTAssertFalse(state.isPresented)
+    }
+
+    private func makeCloudReference() -> DatabaseReference {
+        var reference = DatabaseListStore.addCloud(
+            provider: CloudProviderKind.dropbox.rawValue,
+            accountId: "acct-1",
+            file: CloudFile(
+                id: "/Vaults/cloud.kdbx",
+                name: "cloud.kdbx",
+                path: "/Vaults/cloud.kdbx",
+                isFolder: false,
+                modifiedDate: nil,
+                size: nil
+            )
+        )
+        reference.updateCloudSyncMetadata { metadata in
+            metadata.remoteRev = "rev-1"
+        }
+        DatabaseListStore.update(reference)
+        return reference
+    }
+
+    private func makeStoredMarker(databaseId: UUID, expectedRev: String? = "rev-1") -> PendingUploadQueue.StoredMarker {
+        PendingUploadQueue.StoredMarker(
+            id: UUID(),
+            fileURL: URL(fileURLWithPath: "/tmp/\(UUID().uuidString).json"),
+            marker: PendingUploadQueue.Marker(
+                databaseId: databaseId,
+                encryptedBytesCacheURL: "cloud-cache/\(databaseId.uuidString).kdbx",
+                openTimeSHA512: Data("open-sha".utf8),
+                expectedRev: expectedRev,
+                createdAt: Date(timeIntervalSince1970: 1_000),
+                lastSyncError: nil,
+                baseRev: expectedRev
+            )
+        )
+    }
+
+    private func makeDrainer(
+        markers: [PendingUploadQueue.StoredMarker],
+        reference: DatabaseReference,
+        pushPendingUpload: @escaping @Sendable (DatabaseReference, Data, String?) async throws -> CloudDatabaseSaver.PendingUploadPushResult
+    ) -> PendingUploadDrainer {
+        PendingUploadDrainer(
+            environment: PendingUploadDrainer.Environment(
+                beginBackgroundTask: { _ in .invalid },
+                endBackgroundTask: { _ in },
+                listMarkers: { _ in markers },
+                dropMarker: { _ in },
+                updateMarker: { $0 },
+                resolveReference: { $0 == reference.id ? reference : nil },
+                readBytes: { _ in Data("encrypted-bytes".utf8) },
+                sha512: { _ in Data("open-sha".utf8) },
+                pushPendingUpload: pushPendingUpload,
+                conflictMessage: { CloudProviderError.conflict(remoteRev: $0).localizedDescription }
+            )
+        )
     }
 
     private func makeTemporaryFileURL(name: String, contents: Data = Data("fixture".utf8)) throws -> URL {

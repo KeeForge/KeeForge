@@ -8,8 +8,8 @@ struct DatabaseFileInfo: Equatable, Sendable {
 }
 
 /// Reads file size, modification date, and the plaintext KDBX header summary
-/// for a database reference without unlocking it. Cloud-backed references use
-/// the locally cached copy; local references resolve their bookmark.
+/// for a database reference without unlocking it. File resolution is shared
+/// with the export service via `DatabaseFileAccess`.
 enum DatabaseFileInfoLoader {
     /// Real KDBX outer headers are well under a kilobyte; 64 KiB leaves room
     /// for unknown plugin header fields without reading attachment-heavy files
@@ -19,27 +19,10 @@ enum DatabaseFileInfoLoader {
 
     static func load(for reference: DatabaseReference) async -> DatabaseFileInfo? {
         try? await CoordinatedFileReader.performBlocking(timeout: readTimeout) {
-            readInfo(for: reference)
-        }
-    }
-
-    private static func readInfo(for reference: DatabaseReference) -> DatabaseFileInfo? {
-        if reference.isCloudBacked {
-            guard let url = DatabaseListStore.cachedDatabaseURL(for: reference) else { return nil }
-            return readInfo(at: url)
-        }
-
-        guard case .available(let url) = DatabaseListStore.locateDatabaseFile(for: reference) else {
-            return nil
-        }
-
-        let hasSecurityScope = url.startAccessingSecurityScopedResource()
-        defer {
-            if hasSecurityScope {
-                url.stopAccessingSecurityScopedResource()
+            try? DatabaseFileAccess.withReadableURL(for: reference) { url in
+                readInfo(at: url)
             }
         }
-        return readInfo(at: url)
     }
 
     private static func readInfo(at url: URL) -> DatabaseFileInfo? {

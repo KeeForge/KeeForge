@@ -46,6 +46,7 @@ struct DatabaseListView: View {
     @State private var showDatabaseUsageStats = SettingsService.showDatabaseUsageStats
     @State private var activeCloudProvider: CloudProviderKind?
     @State private var isDatabaseCreationPresented = false
+    @State private var exportRequest: DatabaseExportRequest?
     @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
@@ -166,9 +167,7 @@ struct DatabaseListView: View {
                 }
             )
         ) {
-            Button("OK") {
-                viewModel.dismissPendingUploadAlert()
-            }
+            pendingUploadAlertButtons
         } message: {
             Text(viewModel.pendingUploadAlert?.message ?? "")
         }
@@ -244,6 +243,43 @@ struct DatabaseListView: View {
                     onCreateDatabase(createdDatabase)
                 }
             )
+        }
+        .databaseExporter(request: $exportRequest)
+    }
+
+    @ViewBuilder
+    private var pendingUploadAlertButtons: some View {
+        if let alert = viewModel.pendingUploadAlert,
+           alert.kind == .conflict,
+           let reference = viewModel.databases.first(where: { $0.id == alert.databaseId }) {
+            // Both follow-ups present something else; started while this alert
+            // is still dismissing they are dropped silently, so wait it out.
+            Button("Export Copy…") {
+                viewModel.dismissPendingUploadAlert()
+                Task { @MainActor in
+                    try? await Task.sleep(for: .milliseconds(500))
+                    exportRequest = .currentCopy(reference)
+                }
+            }
+            .accessibilityIdentifier("pending-upload-conflict.export")
+
+            Button("Discard Pending Upload…", role: .destructive) {
+                viewModel.dismissPendingUploadAlert()
+                Task { @MainActor in
+                    try? await Task.sleep(for: .milliseconds(500))
+                    pendingUploadDiscardTarget = reference
+                }
+            }
+            .accessibilityIdentifier("pending-upload-conflict.discard")
+
+            Button("Cancel", role: .cancel) {
+                viewModel.dismissPendingUploadAlert()
+            }
+            .accessibilityIdentifier("pending-upload-conflict.cancel")
+        } else {
+            Button("OK") {
+                viewModel.dismissPendingUploadAlert()
+            }
         }
     }
 
@@ -472,6 +508,11 @@ struct DatabaseListView: View {
             )
         )
         .accessibilityIdentifier("database-row.read-only-toggle")
+
+        Button("Export Copy…") {
+            exportRequest = .currentCopy(currentReference(for: reference))
+        }
+        .accessibilityIdentifier("database-row.export-copy-action")
 
         Button("Database Details") {
             detailsReference = currentReference(for: reference)

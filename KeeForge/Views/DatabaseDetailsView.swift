@@ -29,6 +29,8 @@ struct DatabaseDetailsView: View {
     @State private var isLoadingFileInfo = true
     @State private var showKeyFilePicker = false
     @State private var showAppSettings = false
+    @State private var backups: [DatabaseExportService.Backup] = []
+    @State private var exportRequest: DatabaseExportRequest?
 
     /// True when this view created its own `DatabaseListViewModel` because the
     /// caller could not reach the app's, and therefore has to install the
@@ -61,12 +63,15 @@ struct DatabaseDetailsView: View {
                 keyFileSection
                 metadataSection
                 databaseFileSection
+                exportSection
+                backupsSection
                 cloudSyncSection
                 appSettingsSection
             }
             .navigationTitle(currentReference.displayName)
             .navigationBarTitleDisplayMode(.inline)
             .task {
+                backups = DatabaseExportService.backups(for: currentReference)
                 fileInfo = await DatabaseFileInfoLoader.load(for: currentReference)
                 isLoadingFileInfo = false
             }
@@ -104,6 +109,7 @@ struct DatabaseDetailsView: View {
             .sheet(isPresented: $showAppSettings) {
                 SettingsView(viewModel: sessionViewModel, listViewModel: listViewModel)
             }
+            .databaseExporter(request: $exportRequest)
         }
     }
 
@@ -217,6 +223,50 @@ struct DatabaseDetailsView: View {
             if currentReference.isCloudBacked {
                 Text("Values reflect the locally cached copy of this database.")
             }
+        }
+    }
+
+    private var exportSection: some View {
+        Section {
+            Button("Export Copy…") {
+                exportRequest = .currentCopy(currentReference)
+            }
+            .accessibilityIdentifier("database-details.export-copy")
+        } header: {
+            Text("Export")
+        } footer: {
+            if currentReference.isCloudBacked {
+                Text("Saves the locally cached copy of the database as KeeForge currently has it. Use it to merge changes into your main file with another KeePass app when a cloud upload is stuck.")
+            } else {
+                Text("Saves a copy of the database as KeeForge currently has it. Use it to merge changes into your main file with another KeePass app when a cloud upload is stuck.")
+            }
+        }
+    }
+
+    private var backupsSection: some View {
+        Section {
+            if backups.isEmpty {
+                Text("No backups on this device.")
+                    .foregroundStyle(.secondary)
+                    .accessibilityIdentifier("database-details.backups-empty")
+            } else {
+                ForEach(backups) { backup in
+                    Button {
+                        exportRequest = .backup(backup, currentReference)
+                    } label: {
+                        if let createdAt = backup.createdAt {
+                            Text(createdAt, format: .dateTime)
+                        } else {
+                            Text(backup.url.lastPathComponent)
+                        }
+                    }
+                    .accessibilityIdentifier("database-details.backup-row")
+                }
+            }
+        } header: {
+            Text("Backups")
+        } footer: {
+            Text("KeeForge keeps the last five backups it made before saving or replacing this database on this device.")
         }
     }
 
