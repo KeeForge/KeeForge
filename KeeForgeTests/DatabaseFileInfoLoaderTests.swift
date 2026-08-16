@@ -17,12 +17,10 @@ final class DatabaseFileInfoLoaderTests: XCTestCase {
     }
 
     private func makeLocalReference(
-        fixtureName: String,
+        fixture: KDBXTestFixture,
         filename: String
     ) throws -> (reference: DatabaseReference, byteCount: Int) {
-        let bundle = Bundle(for: DatabaseFileInfoLoaderTests.self)
-        let fixtureURL = try XCTUnwrap(bundle.url(forResource: fixtureName, withExtension: "kdbx"))
-        let fixtureData = try Data(contentsOf: fixtureURL)
+        let fixtureData = try fixture.data(in: Bundle(for: Self.self))
         let databaseURL = scratchDirectory.appendingPathComponent(filename)
         try fixtureData.write(to: databaseURL)
 
@@ -43,7 +41,7 @@ final class DatabaseFileInfoLoaderTests: XCTestCase {
     }
 
     func testLoadReadsSizeDateAndHeaderSummaryForLocalReference() async throws {
-        let (reference, byteCount) = try makeLocalReference(fixtureName: "test", filename: "loader-test.kdbx")
+        let (reference, byteCount) = try makeLocalReference(fixture: .test, filename: "loader-test.kdbx")
 
         let loaded = await DatabaseFileInfoLoader.load(for: reference)
         let info = try XCTUnwrap(loaded)

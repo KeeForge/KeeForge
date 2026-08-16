@@ -418,37 +418,8 @@ final class KDBXRoundTripTests: XCTestCase {
     }
 
     private func parseFixture(_ fixture: KDBXTestFixture) throws -> (rootGroup: KPGroup, meta: KPMeta) {
-        let bundle = Bundle(for: Self.self)
-        let databaseURL = try TestDatabaseSupport.fixtureURL(
-            named: fixture.name,
-            subdirectory: fixture.subdirectory,
-            bundle: bundle
-        )
-        let databaseData = try Data(contentsOf: databaseURL)
-
-        let keyFileData: Data?
-        if let keyFileName = fixture.keyFileName, let keyFileExtension = fixture.keyFileExtension {
-            let keyURL = try TestDatabaseSupport.fixtureURL(named: keyFileName, extension: keyFileExtension, bundle: bundle)
-            keyFileData = try Data(contentsOf: keyURL)
-        } else {
-            keyFileData = nil
-        }
-
-        if fixture.keyFileName != nil {
-            return try KDBXParser.parseWithMeta(
-                data: databaseData,
-                password: fixture.password,
-                keyFileData: keyFileData,
-                sessionKey: roundTripSessionKey
-            )
-        }
-
-        let password = try XCTUnwrap(fixture.password)
-        return try KDBXParser.parseWithMeta(
-            data: databaseData,
-            password: password,
-            sessionKey: roundTripSessionKey
-        )
+        let parsed = try fixture.parse(in: Bundle(for: Self.self), sessionKey: roundTripSessionKey)
+        return (parsed.rootGroup, parsed.meta)
     }
 
     private func serializeAndParse(
@@ -1396,11 +1367,7 @@ final class KDBXRoundTripTests: XCTestCase {
     /// out of a 4.1 database drops the *required* minor back to 0 and still
     /// must not lower the header.
     func test_headerMinorVersion_neverDowngradesA41FileEvenWithEveryGroupTagRemoved() throws {
-        let fixture = try parseFixtureWithHeader(
-            name: "kitchen-sink",
-            subdirectory: nil,
-            password: "testpassword123"
-        )
+        let fixture = try parseFixtureWithHeader(.kitchenSink)
         XCTAssertEqual(
             fixture.header.formatVersion,
             .kdbx4(minor: 1),
@@ -1433,33 +1400,7 @@ final class KDBXRoundTripTests: XCTestCase {
     private func parseFixtureWithHeader(
         _ fixture: KDBXTestFixture
     ) throws -> (rootGroup: KPGroup, meta: KPMeta, header: KDBXParser.Header, compositeKey: SymmetricKey) {
-        try parseFixtureWithHeader(
-            name: fixture.name,
-            subdirectory: fixture.subdirectory,
-            password: try XCTUnwrap(fixture.password)
-        )
-    }
-
-    private func parseFixtureWithHeader(
-        name: String,
-        subdirectory: String?,
-        password: String
-    ) throws -> (rootGroup: KPGroup, meta: KPMeta, header: KDBXParser.Header, compositeKey: SymmetricKey) {
-        let bundle = Bundle(for: Self.self)
-        let databaseURL = try TestDatabaseSupport.fixtureURL(
-            named: name,
-            subdirectory: subdirectory,
-            bundle: bundle
-        )
-        let databaseData = try Data(contentsOf: databaseURL)
-        let compositeKey = KDBXCrypto.compositeKey(password: password)
-        let parsed = try KDBXParser.parseWithMetaAndHeader(
-            data: databaseData,
-            compositeKey: compositeKey,
-            sessionKey: roundTripSessionKey
-        )
-
-        return (parsed.rootGroup, parsed.meta, parsed.header, compositeKey)
+        try fixture.parse(in: Bundle(for: Self.self), sessionKey: roundTripSessionKey)
     }
 
     /// A nonstandard KDBX 4.0 file containing group tags round-trips them
@@ -1759,27 +1700,8 @@ final class KDBXRoundTripTests: XCTestCase {
     /// output against the bytes the authoring app actually wrote.
     private func decryptedXML(of fixture: KDBXTestFixture) throws -> Data {
         let bundle = Bundle(for: Self.self)
-        let databaseData = try Data(
-            contentsOf: try TestDatabaseSupport.fixtureURL(
-                named: fixture.name,
-                subdirectory: fixture.subdirectory,
-                bundle: bundle
-            )
-        )
-
-        let keyFileData: Data?
-        if let keyFileName = fixture.keyFileName, let keyFileExtension = fixture.keyFileExtension {
-            keyFileData = try Data(
-                contentsOf: try TestDatabaseSupport.fixtureURL(
-                    named: keyFileName,
-                    extension: keyFileExtension,
-                    bundle: bundle
-                )
-            )
-        } else {
-            keyFileData = nil
-        }
-        let compositeKey = try KDBXCrypto.compositeKey(password: fixture.password, keyFileData: keyFileData)
+        let databaseData = try fixture.data(in: bundle)
+        let compositeKey = try fixture.compositeKey(in: bundle)
 
         var reader = DataReader(data: databaseData)
         _ = try reader.readUInt32()

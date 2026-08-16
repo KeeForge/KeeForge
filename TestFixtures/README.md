@@ -97,5 +97,5 @@ The remaining fixtures have no generator: the `Merge/` set is rebuilt by `script
 
 - `test.kdbx` has groups under the root, so many flows need to enter a subgroup before opening an entry.
 - `test.kdbx` is the stable fixture-backed source for common entries like Twitter, GitHub, and Email.
-- One file per content: no fixture is a byte-identical copy of another. The compatibility harness reaches shared fixtures by name and subdirectory (`KDBXCompatibilitySupport.Fixture.Source.bundled`) instead of keeping a private copy under `compatibility/`, and its fixture IDs stay stable when the file it reads moves.
+- One file per content: no fixture is a byte-identical copy of another. Every bundled database is described once by a `KDBXTestFixture` descriptor in `../KeeForgeTests/KDBXTreeAssertions.swift`; the compatibility harness points at that descriptor (`KDBXCompatibilitySupport.Fixture.Source.bundled(_:)`) instead of keeping a private copy under `compatibility/`, and its fixture IDs stay stable when the file it reads moves.
 - If you add a new fixture that tests depend on, wire it into `../project.yml`. Fixtures shared by more than one target live in the `UnitTestFixtures` and `UITestFixtures` `targetTemplates`; a target lists only its own extras (`KeeForgeUITests` does, `KeeForgeMacUITests` does not).

@@ -68,7 +68,7 @@ enum KDBXCompatibilitySupport {
 
     struct Fixture {
         enum Source {
-            case bundled(name: String, subdirectory: String? = "compatibility")
+            case bundled(KDBXTestFixture)
             case generated(cipherID: Data, hasRecycleBin: Bool)
         }
 
@@ -78,142 +78,96 @@ enum KDBXCompatibilitySupport {
         /// with the unit-test suites without renaming its coverage.
         let id: String
         let displayName: String
-        let password: String
-        let keyFileName: String?
         let source: Source
+
+        /// Password every generated fixture is written with; bundled ones take
+        /// theirs from the descriptor.
+        static let generatedPassword = "compatibility-password"
+
+        var password: String {
+            switch source {
+            case .bundled(let descriptor): descriptor.password
+            case .generated: Self.generatedPassword
+            }
+        }
+
+        /// Bundled fixture this one reads, or nil when it is generated.
+        var descriptor: KDBXTestFixture? {
+            switch source {
+            case .bundled(let descriptor): descriptor
+            case .generated: nil
+            }
+        }
 
         static let aesBaseline = Fixture(
             id: "aes-baseline",
             displayName: "AES baseline fixture",
-            password: "testpassword123",
-            keyFileName: nil,
-            source: .bundled(name: "test", subdirectory: nil)
+            source: .bundled(.test)
         )
 
         static let passwordKeyfile = Fixture(
             id: "password-keyfile",
             displayName: "Password plus key file fixture",
-            password: "demo",
-            keyFileName: "demo-keyfile",
-            source: .bundled(name: "demo-keyfile", subdirectory: nil)
+            source: .bundled(.demoKeyfile)
         )
 
         static let legacyKDBX31 = Fixture(
             id: "legacy-kdbx31",
             displayName: "Legacy KDBX 3.1 fixture",
-            password: "testpassword123",
-            keyFileName: nil,
-            source: .bundled(name: "legacy-kdbx31")
+            source: .bundled(.legacyKDBX31)
         )
 
-        /// Foreign-authored (pykeepass) KDBX 4.1 fixture that carries, in one
-        /// file, everything the narrow per-feature fixtures used to own: a
-        /// three-item binary pool (including a dedup pair two entries share and
-        /// a non-ASCII filename), group `<Tags>` in all three states —
-        /// content (`Projects`, nested `Client Work`), an empty element
-        /// (`Empty Tags Group`), no element at all (`Plain Group`) — a group
-        /// `<Notes>` sitting next to one of them, entry tags, a
-        /// `Meta/CustomIcons` image, a protected custom field that also lives
-        /// in history, a TOTP entry, and a populated `Recycle Bin` with
-        /// `Meta/RecycleBinUUID` set. It also carries the whole opaque-XML
-        /// corpus: a `PublicCustomData` (id 0x0C) outer-header field KeeForge
-        /// does not model, a `Round Trip` entry whose `<AutoType>` and
-        /// `<CustomData>` sit in deliberately awkward positions and whose
-        /// attachment is referenced from its history version too, and a
-        /// schema-invalid second `Meta/CustomData` sibling. See
-        /// `TestFixtures/generators/kitchen_sink.py` and
-        /// `TestFixtures/README.md`.
-        ///
-        /// It lives at the `TestFixtures/` root rather than in
-        /// `compatibility/`, because the UI suites bundle it too.
         static let kitchenSink = Fixture(
             id: "kitchen-sink",
             displayName: "Kitchen-sink content fixture",
-            password: "testpassword123",
-            keyFileName: nil,
-            source: .bundled(name: "kitchen-sink", subdirectory: nil)
+            source: .bundled(.kitchenSink)
         )
 
-        /// Foreign-authored (pykeepass) KDBX4 fixture with the ChaCha20 outer
-        /// cipher. Every other bundled fixture is AES-256-CBC authored by
-        /// pykeepass or KeeForge itself, so this and `foreignTwofish` are the
-        /// only fixtures that prove KeeForge's ChaCha20/Twofish outer-cipher
-        /// READ paths against a database KeeForge did not write. See
-        /// `TestFixtures/generators/foreign_ciphers.py`.
         static let foreignChaCha20 = Fixture(
             id: "foreign-chacha20",
             displayName: "Foreign-authored ChaCha20 fixture",
-            password: "foreign-chacha20",
-            keyFileName: nil,
-            source: .bundled(name: "foreign-chacha20")
+            source: .bundled(.foreignChaCha20)
         )
 
-        /// Foreign-authored (pykeepass) KDBX4 fixture with the Twofish outer
-        /// cipher. See `foreignChaCha20`.
         static let foreignTwofish = Fixture(
             id: "foreign-twofish",
             displayName: "Foreign-authored Twofish fixture",
-            password: "foreign-twofish",
-            keyFileName: nil,
-            source: .bundled(name: "foreign-twofish")
+            source: .bundled(.foreignTwofish)
         )
 
-        /// KDBX4 fixture carrying three inner-header fields KeeForge does not
-        /// recognize (0x7F with an ASCII marker, a zero-length 0x10, and a
-        /// 0x21 spliced between the two binary-pool entries), authored by a
-        /// standalone decrypt/re-encrypt script because no library round-trips
-        /// unknown inner-header items. See
-        /// `TestFixtures/generators/unknown_inner_header.py`.
         static let unknownInnerHeader = Fixture(
             id: "unknown-inner-header",
             displayName: "Unknown inner-header fields fixture",
-            password: "unknown-inner-header",
-            keyFileName: nil,
-            source: .bundled(name: "unknown-inner-header")
+            source: .bundled(.unknownInnerHeader)
         )
 
-        /// Foreign-authored (pykeepass) KDBX4 fixture whose Argon2 KDF uses a
-        /// high iteration count with low memory (1500 x 1 MiB, above the
-        /// retired fixed 1000-iteration cap), the acceptance case for the
-        /// `KDFExecutionPolicy` work-budget model (issue #74). See
-        /// `TestFixtures/generators/argon2_high_iterations.py`.
         static let argon2HighIterations = Fixture(
             id: "argon2-high-iterations",
             displayName: "Argon2 high-iteration KDF fixture",
-            password: "argon2-high-iterations",
-            keyFileName: nil,
-            source: .bundled(name: "argon2-high-iterations")
+            source: .bundled(.argon2HighIterations)
         )
 
         static let syntheticRich = Fixture(
             id: "synthetic-rich",
             displayName: "Synthetic rich KDBX4 fixture",
-            password: "compatibility-password",
-            keyFileName: nil,
             source: .generated(cipherID: KDBXParser.aesCipherUUID, hasRecycleBin: true)
         )
 
         static let syntheticNoRecycleBin = Fixture(
             id: "synthetic-no-recycle-bin",
             displayName: "Synthetic fixture without recycle bin",
-            password: "compatibility-password",
-            keyFileName: nil,
             source: .generated(cipherID: KDBXParser.aesCipherUUID, hasRecycleBin: false)
         )
 
         static let syntheticChaCha = Fixture(
             id: "synthetic-chacha",
             displayName: "Synthetic ChaCha20 fixture",
-            password: "compatibility-password",
-            keyFileName: nil,
             source: .generated(cipherID: KDBXParser.chachaCipherUUID, hasRecycleBin: true)
         )
 
         static let syntheticTwofish = Fixture(
             id: "synthetic-twofish",
             displayName: "Synthetic Twofish-256-CBC fixture",
-            password: "compatibility-password",
-            keyFileName: nil,
             source: .generated(cipherID: KDBXParser.twofishCipherUUID, hasRecycleBin: true)
         )
     }
@@ -267,6 +221,7 @@ enum KDBXCompatibilitySupport {
     struct RekeyTarget {
         let compositeKey: SymmetricKey
         let password: String
+        /// On-disk name of the key file, e.g. `demo-keyfile.key`.
         let keyFileName: String?
         let keyFileData: Data?
     }
@@ -715,26 +670,17 @@ enum KDBXCompatibilitySupport {
     }
 
     static func load(_ fixture: Fixture, bundle: Bundle, sessionKey: SymmetricKey = SymmetricKey(size: .bits256)) throws -> LoadedFixture {
-        let keyFileData = try fixture.keyFileName.map { keyFileName in
-            let keyURL = try TestDatabaseSupport.fixtureURL(
-                named: keyFileName,
-                extension: "key",
-                bundle: bundle
-            )
-            return try Data(contentsOf: keyURL)
-        }
-        let compositeKey = try KDBXCrypto.compositeKey(password: fixture.password, keyFileData: keyFileData)
-
+        let keyFileData: Data?
+        let compositeKey: SymmetricKey
         let sourceData: Data
         switch fixture.source {
-        case .bundled(let name, let subdirectory):
-            let databaseURL = try TestDatabaseSupport.fixtureURL(
-                named: name,
-                subdirectory: subdirectory,
-                bundle: bundle
-            )
-            sourceData = try Data(contentsOf: databaseURL)
+        case .bundled(let descriptor):
+            keyFileData = try descriptor.keyFileData(in: bundle)
+            compositeKey = try KDBXCrypto.compositeKey(password: descriptor.password, keyFileData: keyFileData)
+            sourceData = try descriptor.data(in: bundle)
         case .generated(let cipherID, let hasRecycleBin):
+            keyFileData = nil
+            compositeKey = try KDBXCrypto.compositeKey(password: fixture.password, keyFileData: nil)
             let generated = try makeSyntheticDatabase(
                 cipherID: cipherID,
                 hasRecycleBin: hasRecycleBin,
@@ -1569,20 +1515,15 @@ enum KDBXCompatibilitySupport {
             expectedSearchTerms: ["Twitter"],
             expectedGroupPaths: ["Social"],
             rekey: { loaded in
-                let keyFileName = try XCTUnwrap(Fixture.passwordKeyfile.keyFileName)
-                let keyURL = try TestDatabaseSupport.fixtureURL(
-                    named: keyFileName,
-                    extension: "key",
-                    bundle: loaded.bundle
-                )
-                let keyFileData = try Data(contentsOf: keyURL)
+                let keyFileFixture = try XCTUnwrap(Fixture.passwordKeyfile.descriptor)
+                let keyFileData = try XCTUnwrap(keyFileFixture.keyFileData(in: loaded.bundle))
                 return RekeyTarget(
                     compositeKey: try KDBXCrypto.compositeKey(
                         password: loaded.fixture.password,
                         keyFileData: keyFileData
                     ),
                     password: loaded.fixture.password,
-                    keyFileName: keyFileName,
+                    keyFileName: try XCTUnwrap(keyFileFixture.keyFileFileName),
                     keyFileData: keyFileData
                 )
             },
@@ -1840,13 +1781,12 @@ enum KDBXCompatibilitySupport {
                 effectiveKeyFileData = rekey.keyFileData
             } else {
                 effectivePassword = loaded.fixture.password
-                effectiveKeyFileName = loaded.fixture.keyFileName
+                effectiveKeyFileName = loaded.fixture.descriptor?.keyFileFileName
                 effectiveKeyFileData = loaded.keyFileData
             }
 
             var keyFileAttachmentName: String?
-            if let keyFileData = effectiveKeyFileData, let keyFileName = effectiveKeyFileName {
-                let name = "\(keyFileName).key"
+            if let keyFileData = effectiveKeyFileData, let name = effectiveKeyFileName {
                 keyFileAttachmentName = name
                 if attachedKeyFileNames.insert(name).inserted {
                     let keyFileURL = outputDirectory.appendingPathComponent(name)

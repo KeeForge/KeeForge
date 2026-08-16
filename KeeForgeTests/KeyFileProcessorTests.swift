@@ -207,9 +207,7 @@ final class KeyFileProcessorTests: XCTestCase {
     // MARK: - Helpers
 
     private func fixtureData(_ name: String, ext: String) throws -> Data {
-        let bundle = Bundle(for: KeyFileProcessorTests.self)
-        let url = try XCTUnwrap(bundle.url(forResource: name, withExtension: ext))
-        return try Data(contentsOf: url)
+        try TestDatabaseSupport.fixtureData(named: name, extension: ext, bundle: Bundle(for: Self.self))
     }
 
     private func dataFromHex(_ hex: String) -> Data {
