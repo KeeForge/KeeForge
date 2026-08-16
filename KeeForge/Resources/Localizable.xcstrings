@@ -14308,40 +14308,6 @@
         }
       }
     },
-    "Move to Group…" : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "In Gruppe verschieben…"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Mover a grupo…"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Déplacer vers un groupe…"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "移动到群组…"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "移動到群組…"
-          }
-        }
-      }
-    },
     "Move to Recycle Bin" : {
       "localizations" : {
         "de" : {

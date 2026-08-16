@@ -487,6 +487,13 @@ struct GroupListView: View {
                 .accessibilityIdentifier("group-row.edit-context")
             }
 
+            if canMoveGroup(groupID) {
+                Button("Move to Group") {
+                    pendingMove = .group(groupID)
+                }
+                .accessibilityIdentifier("group-row.move-context")
+            }
+
             if canChangeGroupIcon(groupID) {
                 Button("Change Icon") {
                     pendingIconChange = PendingIconChange(groupID: groupID)
@@ -499,13 +506,6 @@ struct GroupListView: View {
                     toggleAutoFillExclusion(groupID)
                 }
                 .accessibilityIdentifier("group-row.autofill-exclusion-context")
-            }
-
-            if canMoveGroup(groupID) {
-                Button("Move to Group…", systemImage: "folder") {
-                    pendingMove = .group(groupID)
-                }
-                .accessibilityIdentifier("group-row.move-context")
             }
 
             if canDeleteGroup(groupID) {
@@ -546,7 +546,7 @@ struct GroupListView: View {
         .macHoverHighlight()
         .contextMenu {
             if canMoveEntry(entry) {
-                Button("Move to Group…", systemImage: "folder") {
+                Button("Move to Group") {
                     pendingMove = .entry(entry.id)
                 }
                 .accessibilityIdentifier("entry-row.move-context")
