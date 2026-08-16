@@ -21,6 +21,10 @@ struct EntryEditView: View {
     @State private var isAuthenticatingReveal = false
     @State private var editingErrorMessage: String?
     @State private var isSubmitting = false
+    /// What a save that hit a conflict was trying to finish. The editor stays
+    /// open across the conflict, so it has to remember which completion to
+    /// report once the conflict resolves into a write that landed.
+    @State private var completionAwaitingConflict: Completion?
 
     @State private var isTOTPSecretVisible: Bool
     @State private var isManualTOTPEntryActive = false
@@ -258,6 +262,14 @@ struct EntryEditView: View {
             if isFocused == false {
                 snapBackInvalidTOTPPeriodText()
             }
+        }
+        // A conflict that resolved into a clean draft ended in a write (merge or
+        // conflict copy), so the edit landed. One cleared ahead of a fresh write
+        // leaves the draft dirty and the editor open for that write's outcome.
+        .onChange(of: conflictHasSettled) { _, settled in
+            guard settled, let completion = completionAwaitingConflict else { return }
+            completionAwaitingConflict = nil
+            onComplete(completion)
         }
         .alert("Discard changes?", isPresented: $showDiscardConfirmation) {
             Button("Discard Changes", role: .destructive) {
@@ -566,12 +578,37 @@ struct EntryEditView: View {
                     editingErrorMessage = saveError.localizedDescription
                     databaseViewModel.clearSaveError()
                 } else {
-                    onComplete(.saved)
+                    finish(.saved)
                 }
             }
         } catch {
             editingErrorMessage = error.localizedDescription
         }
+    }
+
+    /// Completes the editor, unless the save conflicted. Dismissing on a
+    /// conflict would race the root save-conflict alert: UIKit presents that
+    /// alert from the editor itself, so the presentation and this dismissal
+    /// land in one transaction and the dismissal is dropped. Wait instead for
+    /// the conflict to resolve into a write that landed.
+    private func finish(_ completion: Completion) {
+        guard databaseViewModel.saveConflict == nil else {
+            completionAwaitingConflict = completion
+            return
+        }
+        completionAwaitingConflict = nil
+        onComplete(completion)
+    }
+
+    /// True once nothing about the conflict is still on screen: the conflict
+    /// itself and the merge summary/failure alerts present from this editor
+    /// too, so popping while any of them is up hits the same dropped-dismissal
+    /// race. Popping from an alert's OK action, after it clears, is safe.
+    private var conflictHasSettled: Bool {
+        databaseViewModel.saveConflict == nil
+            && databaseViewModel.mergeSummaryMessage == nil
+            && databaseViewModel.mergeFailure == nil
+            && databaseViewModel.isDirty == false
     }
 
     private func deleteTapped(sendToRecycleBin: Bool) {
@@ -587,7 +624,7 @@ struct EntryEditView: View {
                     editingErrorMessage = saveError.localizedDescription
                     databaseViewModel.clearSaveError()
                 } else {
-                    onComplete(.deleted)
+                    finish(.deleted)
                 }
             }
         } catch {
