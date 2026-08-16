@@ -3,7 +3,7 @@
 
     python3 TestFixtures/generate_fixtures.py --list
     python3 TestFixtures/generate_fixtures.py --all --check
-    python3 TestFixtures/generate_fixtures.py group-tags            # regenerate one
+    python3 TestFixtures/generate_fixtures.py kitchen-sink          # regenerate one
     python3 TestFixtures/generate_fixtures.py --all --check \\
         --keepassxc-cli /Applications/KeePassXC.app/Contents/MacOS/keepassxc-cli
 

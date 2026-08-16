@@ -31,8 +31,11 @@ class SaveConflictMergeUITestCase: EntryEditUITestCase {
             if anchor.waitForExistence(timeout: 5) { return }
             if popNavigationStackIfPossible() == false { break }
         }
+        // The root list is long enough that the anchor group can sit below the
+        // fold, and a lazy List does not publish rows it has not drawn — so
+        // scroll for it instead of only waiting for it to exist.
         XCTAssertTrue(
-            anchor.waitForExistence(timeout: Self.ciElementTimeout),
+            revealElement(anchor),
             "Did not get back to the root group list: '\(anchorGroupName)' never appeared",
             file: file,
             line: line
@@ -169,7 +172,7 @@ final class SaveConflictMergeUITests: SaveConflictMergeUITestCase {
 // refuses to reconcile because entries in this fixture point into the pool.
 @MainActor
 final class SaveConflictMergeDeclineUITests: SaveConflictMergeUITestCase {
-    override var databaseFixtureName: String { "attachments" }
+    override var databaseFixtureName: String { "kitchen-sink" }
 
     private let attachmentsGroupName = "Attachments"
     private let plainEntryTitle = "No Attachment Entry"

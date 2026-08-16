@@ -673,13 +673,13 @@ final class EntryIconPickerUITests: UnlockedDatabaseUITestCase {
 }
 
 // Coverage for the icon picker's custom-icon grid, the favicon-download button
-// states, and the read-only entry header, using the icon-picker fixture — the
-// only bundled database whose Meta/CustomIcons carries an image.
+// states, and the read-only entry header, using `kitchen-sink.kdbx` — the only
+// bundled database whose Meta/CustomIcons carries an image.
 @MainActor
 final class EntryCustomIconPickerUITests: UnlockedDatabaseUITestCase {
-    override var databaseFixtureName: String { "icon-picker" }
+    override var databaseFixtureName: String { "kitchen-sink" }
 
-    /// Baked into `TestFixtures/icon-picker.kdbx` by its generator script;
+    /// Baked into `TestFixtures/kitchen-sink.kdbx` by its generator script;
     /// change both together.
     private let customIconCellID = "entry-icon-picker.custom.4D9C2B1E-7A35-4E68-9B0D-52F16C8A3E77"
 
@@ -1000,7 +1000,7 @@ final class EntryHistoryUITests: UnlockedDatabaseUITestCase {
 }
 
 final class ProtectedCustomFieldUITests: UnlockedDatabaseUITestCase {
-    override var databaseFixtureName: String { "protected-custom-field" }
+    override var databaseFixtureName: String { "kitchen-sink" }
 
     func testProtectedCustomFieldStartsMaskedAndRevealsOnEntryDetail() {
         unlockSuccessfully()

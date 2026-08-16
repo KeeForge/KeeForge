@@ -145,7 +145,7 @@ final class SortOrderTests: XCTestCase {
     // MARK: - Recycle Bin Placement
 
     func testRecycleBinSortsFirstRegardlessOfSortOrder() async throws {
-        let vm = try await makeGroupTagsViewModel()
+        let vm = try await makeKitchenSinkViewModel()
         let recycleBinID = try XCTUnwrap(vm.currentRootGroup?.recycleBinUUID)
         let groups = try XCTUnwrap(vm.visibleRootGroup?.groups)
         XCTAssertTrue(groups.contains { $0.id == recycleBinID })
@@ -165,7 +165,7 @@ final class SortOrderTests: XCTestCase {
     }
 
     func testRecycleBinPinningLeavesTheOtherGroupsSorted() async throws {
-        let vm = try await makeGroupTagsViewModel()
+        let vm = try await makeKitchenSinkViewModel()
         let recycleBinID = try XCTUnwrap(vm.currentRootGroup?.recycleBinUUID)
         let groups = try XCTUnwrap(vm.visibleRootGroup?.groups)
         vm.sortOrder = .title
@@ -220,12 +220,12 @@ final class SortOrderTests: XCTestCase {
         try TestDatabaseSupport.fixtureURL(named: "test", bundle: Bundle(for: SortOrderTests.self))
     }
 
-    /// `group-tags.kdbx` is the fixture that carries a real `Meta/RecycleBinUUID`,
-    /// with the bin named so it sorts last by title.
-    private func makeGroupTagsViewModel() async throws -> DatabaseViewModel {
+    /// `kitchen-sink.kdbx` is the fixture that carries a real
+    /// `Meta/RecycleBinUUID`, with root groups whose names put the bin in the
+    /// middle of every sort order, so pinning it first is never a coincidence.
+    private func makeKitchenSinkViewModel() async throws -> DatabaseViewModel {
         let url = try TestDatabaseSupport.fixtureURL(
-            named: "group-tags",
-            subdirectory: "compatibility",
+            named: "kitchen-sink",
             bundle: Bundle(for: SortOrderTests.self)
         )
         let vm = try DatabaseViewModel(databaseReference: TestDatabaseSupport.makeReference(for: url))

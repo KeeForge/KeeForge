@@ -3,14 +3,15 @@ import XCTest
 // Happy-path smoke coverage for the tag browser: root Tags row → tag list →
 // that tag's entries → entry detail → the tag chip that got you there.
 //
-// Uses `tag-browser.kdbx` (password `testpassword123`, the default
+// Uses `kitchen-sink.kdbx` (password `testpassword123`, the default
 // `unlockSuccessfully()` uses) because neither `test.kdbx` nor `demo.kdbx`
-// carries a single tag. Its `shared` tag is on two entries in two different
-// groups, so the count on the row is real data rather than a trivial "1".
+// carries a single tag. Its `shared` tag reaches four entries across three
+// groups — two carry it themselves, two inherit it from `Projects` — so the
+// count on the row is real data rather than a trivial "1".
 // See `TestFixtures/README.md`.
 @MainActor
 final class TagBrowserUITests: UnlockedDatabaseUITestCase {
-    override var databaseFixtureName: String { "tag-browser" }
+    override var databaseFixtureName: String { "kitchen-sink" }
 
     private let sharedTag = "shared"
     private let taggedEntryName = "Router Admin"
@@ -22,7 +23,7 @@ final class TagBrowserUITests: UnlockedDatabaseUITestCase {
     func testBrowsingFromTheRootTagsRowReachesATaggedEntry() {
         unlockSuccessfully()
 
-        // 1. The root list offers the tag browser, with the fixture's five
+        // 1. The root list offers the tag browser, with the fixture's eight
         //    distinct tags counted on the row.
         let tagsRow = app.descendants(matching: .any).matching(identifier: "group-list.tags-row").firstMatch
         XCTAssertTrue(
@@ -33,8 +34,8 @@ final class TagBrowserUITests: UnlockedDatabaseUITestCase {
         // SwiftUI folds a row's title and caption into one accessibility label,
         // the same way the group rows expose their "N entries" caption.
         XCTAssertTrue(
-            tagsRow.label.contains("5 tags"),
-            "Expected the Tags row to count the fixture's five distinct tags, got: \(tagsRow.label)"
+            tagsRow.label.contains("8 tags"),
+            "Expected the Tags row to count the fixture's eight distinct tags, got: \(tagsRow.label)"
         )
         tapElement(tagsRow)
 
@@ -49,8 +50,8 @@ final class TagBrowserUITests: UnlockedDatabaseUITestCase {
         XCTAssertTrue(revealElement(sharedRow, in: scrollableContainer()), "Tag row was not reachable")
         // SwiftUI folds the row's name and count captions into one label.
         XCTAssertTrue(
-            sharedRow.label.contains("2 entries"),
-            "Expected the '\(sharedTag)' row to count its two carriers, got: \(sharedRow.label)"
+            sharedRow.label.contains("4 entries"),
+            "Expected the '\(sharedTag)' row to count its four carriers, got: \(sharedRow.label)"
         )
         tapElement(sharedRow)
 
@@ -64,11 +65,13 @@ final class TagBrowserUITests: UnlockedDatabaseUITestCase {
             "Tag-filtered list did not show '\(taggedEntryName)'"
         )
 
+        // Two own carriers in `Tagged`, plus the two that inherit `shared` from
+        // `Projects`; the nested one shows its full path below the root.
         let folderCaptions = app.staticTexts.matching(identifier: "entry-row.folder").allElementsBoundByIndex
-        XCTAssertEqual(folderCaptions.count, 2, "Both shared-tag results should show their folder")
-        XCTAssertTrue(
-            folderCaptions.allSatisfy { $0.label == "Tagged" },
-            "Tag results should identify their containing folder"
+        XCTAssertEqual(
+            folderCaptions.map(\.label).sorted(),
+            ["Projects", "Projects / Client Work", "Tagged", "Tagged"],
+            "Every shared-tag result should identify its containing folder"
         )
         tapElement(taggedEntry)
 

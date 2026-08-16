@@ -1398,8 +1398,8 @@ final class KDBXRoundTripTests: XCTestCase {
     /// must not lower the header.
     func test_headerMinorVersion_neverDowngradesA41FileEvenWithEveryGroupTagRemoved() throws {
         let fixture = try parseFixtureWithHeader(
-            name: "group-tags",
-            subdirectory: "compatibility",
+            name: "kitchen-sink",
+            subdirectory: nil,
             password: "testpassword123"
         )
         XCTAssertEqual(
@@ -1702,8 +1702,7 @@ final class KDBXRoundTripTests: XCTestCase {
         .unknownElements,
         .unknownInnerHeader,
         .kdbx41PublicCustomData,
-        .groupTags,
-        .attachments,
+        .kitchenSink,
         .foreignChaCha20,
         .foreignTwofish,
     ]

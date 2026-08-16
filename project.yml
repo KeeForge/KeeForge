@@ -51,13 +51,11 @@ targetTemplates:
         buildPhase: resources
       - path: TestFixtures/compatibility/legacy-kdbx31.kdbx
         buildPhase: resources
-      - path: TestFixtures/compatibility/attachments.kdbx
+      - path: TestFixtures/kitchen-sink.kdbx
         buildPhase: resources
       - path: TestFixtures/compatibility/foreign-chacha20.kdbx
         buildPhase: resources
       - path: TestFixtures/compatibility/foreign-twofish.kdbx
-        buildPhase: resources
-      - path: TestFixtures/compatibility/group-tags.kdbx
         buildPhase: resources
       - path: TestFixtures/compatibility/unknown-inner-header.kdbx
         buildPhase: resources
@@ -91,7 +89,7 @@ targetTemplates:
         buildPhase: resources
       - path: TestFixtures/demo-keyfile.key
         buildPhase: resources
-      - path: TestFixtures/compatibility/attachments.kdbx
+      - path: TestFixtures/kitchen-sink.kdbx
         buildPhase: resources
 
 targets:
@@ -352,15 +350,7 @@ targets:
         buildPhase: resources
       - path: TestFixtures/autofill-union.kdbx
         buildPhase: resources
-      - path: TestFixtures/tag-browser.kdbx
-        buildPhase: resources
-      - path: TestFixtures/compatibility/group-tags.kdbx
-        buildPhase: resources
-      - path: TestFixtures/protected-custom-field.kdbx
-        buildPhase: resources
       - path: TestFixtures/compatibility/legacy-kdbx31.kdbx
-        buildPhase: resources
-      - path: TestFixtures/icon-picker.kdbx
         buildPhase: resources
 
   KeeForgeTests:

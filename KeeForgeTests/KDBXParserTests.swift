@@ -1056,8 +1056,8 @@ final class KDBXParserTests: XCTestCase {
 
     // MARK: - Group Tags Fixture (KDBX 4.1)
 
-    /// `compatibility/group-tags.kdbx` is authored by pykeepass (see
-    /// `TestFixtures/generators/group_tags.py`) as a real
+    /// `kitchen-sink.kdbx` is authored by pykeepass (see
+    /// `TestFixtures/generators/kitchen_sink.py`) as a real
     /// KDBX 4.1 file — the version that introduced group `<Tags>` — so this
     /// exercises the full decrypt path, not just the XML layer: header,
     /// version 4.1, KDF, outer cipher, and the group-tag parse on a database
@@ -1065,7 +1065,7 @@ final class KDBXParserTests: XCTestCase {
     /// (KeePass's canonical form), covering the semicolon split too.
     func testGroupTagsFixtureParsesGroupTagsThroughFullDecryptPath() throws {
         let bundle = Bundle(for: KDBXParserTests.self)
-        let url = try TestDatabaseSupport.fixtureURL(named: "group-tags", subdirectory: "compatibility", bundle: bundle)
+        let url = try TestDatabaseSupport.fixtureURL(named: "kitchen-sink", bundle: bundle)
         let data = try Data(contentsOf: url)
         let parsed = try KDBXParser.parseWithMetaAndHeader(
             data: data,

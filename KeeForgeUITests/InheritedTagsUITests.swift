@@ -4,14 +4,15 @@ import XCTest
 // an entry's own — the chips that explain why the tag browser listed an entry
 // that stores no such tag itself.
 //
-// Uses the `group-tags` compatibility fixture (password `testpassword123`), the
-// only bundled database with group `<Tags>`: `Projects` carries `team;shared`,
-// its `Client Work` subgroup adds `billable`, and `Client Work/Beta Login`
-// stores `own-tag` of its own. `tag-browser.kdbx`, which the rest of the tag
-// coverage uses, has no group tags at all. See `TestFixtures/README.md`.
+// Uses `kitchen-sink.kdbx` (password `testpassword123`), the only bundled
+// database with group `<Tags>`: `Projects` carries `team;shared`, its
+// `Client Work` subgroup adds `billable`, and `Client Work/Beta Login` stores
+// `own-tag` of its own. The `Tagged` group the rest of the tag coverage uses is
+// deliberately untagged, so entries there draw no inherited chips at all.
+// See `TestFixtures/README.md`.
 @MainActor
 final class InheritedTagsUITests: UnlockedDatabaseUITestCase {
-    override var databaseFixtureName: String { "group-tags" }
+    override var databaseFixtureName: String { "kitchen-sink" }
 
     /// An entry with no tags of its own still explains its tag-browser hits.
     func testEntryWithNoOwnTagsShowsItsGroupsTagsAsInheritedChips() {
