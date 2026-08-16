@@ -12,7 +12,7 @@ extension KDBXParser {
         try parse(data: data, password: password, keyFileData: keyFileData, sessionKey: sessionKey, kdfPolicy: .mainApp)
     }
 
-    static func parse(data: Data, compositeKey: Data, sessionKey: SymmetricKey) throws -> KPGroup {
+    static func parse(data: Data, compositeKey: SymmetricKey, sessionKey: SymmetricKey) throws -> KPGroup {
         try parse(data: data, compositeKey: compositeKey, sessionKey: sessionKey, kdfPolicy: .mainApp)
     }
 
@@ -35,7 +35,7 @@ extension KDBXParser {
 
     static func parseWithMeta(
         data: Data,
-        compositeKey: Data,
+        compositeKey: SymmetricKey,
         sessionKey: SymmetricKey
     ) throws -> (rootGroup: KPGroup, meta: KPMeta) {
         try parseWithMeta(data: data, compositeKey: compositeKey, sessionKey: sessionKey, kdfPolicy: .mainApp)
@@ -60,13 +60,13 @@ extension KDBXParser {
 
     static func parseWithMetaAndHeader(
         data: Data,
-        compositeKey: Data,
+        compositeKey: SymmetricKey,
         sessionKey: SymmetricKey
     ) throws -> (rootGroup: KPGroup, meta: KPMeta, header: Header) {
         try parseWithMetaAndHeader(data: data, compositeKey: compositeKey, sessionKey: sessionKey, kdfPolicy: .mainApp)
     }
 
-    static func deriveKey(compositeKey: Data, kdfParams: [String: Any]) throws -> Data {
+    static func deriveKey(compositeKey: SymmetricKey, kdfParams: [String: Any]) throws -> Data {
         try deriveKey(compositeKey: compositeKey, kdfParams: kdfParams, kdfPolicy: .mainApp)
     }
 }
@@ -75,7 +75,7 @@ extension KDBXWriter {
     static func write(
         rootGroup: KPGroup,
         meta: KPMeta,
-        compositeKey: Data,
+        compositeKey: SymmetricKey,
         header: KDBXParser.Header,
         sessionKey: SymmetricKey
     ) throws -> Data {
@@ -92,7 +92,7 @@ extension KDBXWriter {
     static func write(
         rootGroup: KPGroup,
         meta: KPMeta,
-        compositeKey: Data,
+        compositeKey: SymmetricKey,
         freshHeader: FreshHeaderConfiguration,
         sessionKey: SymmetricKey
     ) throws -> Data {
@@ -111,7 +111,7 @@ extension LocalDatabaseSaver {
     static func save(
         draft: DatabaseDraft,
         reference: DatabaseReference,
-        compositeKey: Data,
+        compositeKey: SymmetricKey,
         openTimeSHA512: Data
     ) async throws -> SaveResult {
         try await save(
@@ -126,7 +126,7 @@ extension LocalDatabaseSaver {
     static func save(
         draft: DatabaseDraft,
         reference: DatabaseReference,
-        compositeKey: Data,
+        compositeKey: SymmetricKey,
         openTimeSHA512: Data,
         environment: Environment
     ) async throws -> SaveResult {
@@ -145,7 +145,7 @@ extension CloudDatabaseSaver {
     static func save(
         draft: DatabaseDraft,
         reference: DatabaseReference,
-        compositeKey: Data,
+        compositeKey: SymmetricKey,
         openTimeSHA512: Data,
         expectedRev: String?
     ) async throws -> SaveResult {
@@ -162,7 +162,7 @@ extension CloudDatabaseSaver {
     static func save(
         draft: DatabaseDraft,
         reference: DatabaseReference,
-        compositeKey: Data,
+        compositeKey: SymmetricKey,
         openTimeSHA512: Data,
         expectedRev: String?,
         environment: Environment

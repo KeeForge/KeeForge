@@ -186,7 +186,7 @@ final class CredentialProviderShellMacTests: XCTestCase {
         coordinator.parsedRootGroup = KPGroup(name: "Root")
         coordinator.parsedMeta = KPMeta()
         coordinator.sessionKey = sessionKey
-        coordinator.compositeKey = Data("composite-key".utf8)
+        coordinator.compositeKey = SymmetricKey(data: Data("composite-key".utf8))
         coordinator.openTimeSHA512 = Data("open-sha".utf8)
     }
 

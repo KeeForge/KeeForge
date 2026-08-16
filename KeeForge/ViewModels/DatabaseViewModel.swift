@@ -254,23 +254,23 @@ final class DatabaseViewModel {
     typealias LocalSaveOperation = @Sendable (
         _ draft: DatabaseDraft,
         _ reference: DatabaseReference,
-        _ compositeKey: Data,
+        _ compositeKey: SymmetricKey,
         _ openTimeSHA512: Data,
         _ reconciledRemoteSHA512: Data?,
-        _ newCompositeKey: Data?
+        _ newCompositeKey: SymmetricKey?
     ) async throws -> SaveResult
     typealias CloudSaveOperation = @Sendable (
         _ draft: DatabaseDraft,
         _ reference: DatabaseReference,
-        _ compositeKey: Data,
+        _ compositeKey: SymmetricKey,
         _ openTimeSHA512: Data,
         _ reconciledRemoteSHA512: Data?,
         _ expectedRev: String?,
-        _ newCompositeKey: Data?
+        _ newCompositeKey: SymmetricKey?
     ) async throws -> SaveResult
     typealias ConflictCopyEncryptionOperation = @Sendable (
         _ draft: DatabaseDraft,
-        _ compositeKey: Data,
+        _ compositeKey: SymmetricKey,
         _ sourceData: Data
     ) async throws -> Data
     typealias LocalConflictCopyOperation = @Sendable (
@@ -285,17 +285,17 @@ final class DatabaseViewModel {
     ) async throws -> Void
     typealias ReloadOperation = @Sendable (
         _ reference: DatabaseReference,
-        _ compositeKey: Data
+        _ compositeKey: SymmetricKey
     ) async throws -> ReloadedDatabase
     /// Biometric authentication plus the keychain read it gates, as one step:
     /// the `LAContext` that authorizes the read never leaves the operation.
     typealias BiometricCompositeKeyOperation = @Sendable (
         _ reference: DatabaseReference,
         _ reason: String
-    ) async throws -> Data
+    ) async throws -> SymmetricKey
     typealias PendingUploadMarkerCheck = @Sendable (_ reference: DatabaseReference) -> Bool
     typealias StoredKeyPresenceCheck = @Sendable (_ reference: DatabaseReference) -> Bool
-    typealias StoredKeyStoreOperation = @Sendable (_ compositeKey: Data, _ reference: DatabaseReference) throws -> Void
+    typealias StoredKeyStoreOperation = @Sendable (_ compositeKey: SymmetricKey, _ reference: DatabaseReference) throws -> Void
     typealias StoredKeyDeleteOperation = @Sendable (_ reference: DatabaseReference) -> Void
 
     private static let sortOrderKey = "KeeForge.sortOrder"
@@ -384,7 +384,7 @@ final class DatabaseViewModel {
 
     private(set) var failedAttempts = 0
     private(set) var lockoutUntil: Date?
-    private(set) var compositeKey: Data?
+    private(set) var compositeKey: SymmetricKey?
     private(set) var sessionKey: SymmetricKey?
     /// Key file supplied manually at password unlock. The reference's
     /// association is the usual key-file source, but a manual pick never
@@ -1736,7 +1736,7 @@ final class DatabaseViewModel {
         }
     }
 
-    private func refreshStoredCompositeKeyAfterRekey(_ newCompositeKey: Data) {
+    private func refreshStoredCompositeKeyAfterRekey(_ newCompositeKey: SymmetricKey) {
         guard storedKeyPresenceCheck(databaseReference) else { return }
 
         do {
@@ -1925,7 +1925,7 @@ final class DatabaseViewModel {
     /// values graft across without a decrypt/reseal cycle.
     nonisolated private static func mergeRemoteOffMain(
         remoteData: Data,
-        compositeKey: Data,
+        compositeKey: SymmetricKey,
         sessionKey: SymmetricKey,
         localRootGroup: KPGroup,
         localMeta: KPMeta,
@@ -2182,7 +2182,7 @@ final class DatabaseViewModel {
     func refreshSharedDatabaseCacheIfPossible() {
         let expectedLockCycleID = lockCycleID
         let databaseReference = self.databaseReference
-        let compositeKeyForStoreRefresh: Data?
+        let compositeKeyForStoreRefresh: SymmetricKey?
 
         if case .unlocked = state,
            SettingsService.quickAutoFillEnabled,
@@ -2617,7 +2617,7 @@ final class DatabaseViewModel {
 
     private func finalizeSuccessfulUnlock(
         payload: UnlockPayload,
-        compositeKey: Data,
+        compositeKey: SymmetricKey,
         sessionKey: SymmetricKey
     ) {
         self.rootGroup = payload.rootGroup
@@ -2680,7 +2680,7 @@ final class DatabaseViewModel {
         )
     }
 
-    private func persistCompositeKeyForBiometricUnlock(_ compositeKey: Data) {
+    private func persistCompositeKeyForBiometricUnlock(_ compositeKey: SymmetricKey) {
         // Silently skip when `.biometryCurrentSet` cannot be satisfied — no
         // enrolled biometrics is the common Mac desktop case (no Touch ID, or
         // Touch ID never enrolled). `BiometricService.isAvailable` is false in
@@ -2703,7 +2703,7 @@ final class DatabaseViewModel {
     nonisolated static func retrieveStoredCompositeKey(
         for reference: DatabaseReference,
         context: LAContext
-    ) throws -> Data {
+    ) throws -> SymmetricKey {
         do {
             return try KeychainService.retrieveCompositeKey(for: reference.id, context: context)
         } catch {
@@ -2927,7 +2927,7 @@ final class DatabaseViewModel {
 
     private static func encryptConflictCopy(
         draft: DatabaseDraft,
-        compositeKey: Data,
+        compositeKey: SymmetricKey,
         sourceData: Data
     ) async throws -> Data {
         try await Task.detached(priority: .utility) {
@@ -3082,7 +3082,7 @@ final class DatabaseViewModel {
 
     private static func reloadDatabase(
         reference: DatabaseReference,
-        compositeKey: Data
+        compositeKey: SymmetricKey
     ) async throws -> ReloadedDatabase {
         let data: Data
         let updatedReference: DatabaseReference

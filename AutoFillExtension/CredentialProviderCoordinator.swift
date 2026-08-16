@@ -191,7 +191,7 @@ final class CredentialProviderCoordinator {
     var parsedMeta: KPMeta?
     var parsedFormatVersion: KDBXParser.FileVersion?
     var sessionKey: SymmetricKey?
-    var compositeKey: Data?
+    var compositeKey: SymmetricKey?
     var openTimeSHA512: Data?
     var activeDatabaseReference: DatabaseReference?
     var targetRecordIdentifier: String?
@@ -1269,7 +1269,7 @@ final class CredentialProviderCoordinator {
         DatabaseListStore.markDatabaseOpened(id: databaseReference.id)
     }
 
-    private func persistCompositeKeyIfPossible(_ compositeKey: Data, for databaseReference: DatabaseReference) {
+    private func persistCompositeKeyIfPossible(_ compositeKey: SymmetricKey, for databaseReference: DatabaseReference) {
         guard BiometricService.isAvailable else { return }
 
         do {
@@ -1290,7 +1290,7 @@ final class CredentialProviderCoordinator {
         }
     }
 
-    private func retrieveCompositeKey(for databaseReference: DatabaseReference, context: LAContext) throws -> Data {
+    private func retrieveCompositeKey(for databaseReference: DatabaseReference, context: LAContext) throws -> SymmetricKey {
         do {
             return try KeychainService.retrieveCompositeKey(for: databaseReference.id, context: context)
         } catch {
@@ -1324,7 +1324,7 @@ final class CredentialProviderCoordinator {
     }
 
     private func loadEntries(
-        compositeKey: Data,
+        compositeKey: SymmetricKey,
         databaseReference: DatabaseReference,
         generation: Int
     ) async throws {

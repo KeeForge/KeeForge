@@ -1,3 +1,4 @@
+import CryptoKit
 import Foundation
 import LocalAuthentication
 import Security
@@ -14,12 +15,12 @@ enum KeychainService {
         "\(compositeKeyAccount):\(filename)"
     }
 
-    static func storeCompositeKey(_ key: Data, for databaseID: UUID) throws {
+    static func storeCompositeKey(_ key: SymmetricKey, for databaseID: UUID) throws {
         let account = accountKey(for: databaseID)
         try storeCompositeKey(key, account: account)
     }
 
-    static func retrieveCompositeKey(for databaseID: UUID, context: LAContext) throws -> Data {
+    static func retrieveCompositeKey(for databaseID: UUID, context: LAContext) throws -> SymmetricKey {
         let account = accountKey(for: databaseID)
         return try retrieveCompositeKey(account: account, context: context)
     }
@@ -38,7 +39,7 @@ enum KeychainService {
         return hasStoredKey(account: legacyAccountKey(forFilename: legacyFilename))
     }
 
-    static func retrieveLegacyCompositeKey(forFilename filename: String, context: LAContext) throws -> Data {
+    static func retrieveLegacyCompositeKey(forFilename filename: String, context: LAContext) throws -> SymmetricKey {
         try retrieveCompositeKey(account: legacyAccountKey(forFilename: filename), context: context)
     }
 
@@ -58,7 +59,7 @@ enum KeychainService {
         return true
     }
 
-    private static func storeCompositeKey(_ key: Data, account: String) throws {
+    private static func storeCompositeKey(_ key: SymmetricKey, account: String) throws {
         deleteCompositeKey(account: account)
 
         var error: Unmanaged<CFError>?
@@ -71,11 +72,13 @@ enum KeychainService {
             throw KeychainError.accessControlFailed
         }
 
+        // Security's own copies of the key are out of reach; this buffer is zeroed
+        // once the query dictionary and its bridged copies release it.
         let addQuery: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
             kSecAttrAccount as String: account,
-            kSecValueData as String: key,
+            kSecValueData as String: SecureWipe.wipingData(copying: key),
             kSecAttrAccessControl as String: accessControl,
             // Required on macOS to use the iOS-style data-protection keychain
             // instead of the legacy file keychain; harmless no-op on iOS.
@@ -88,7 +91,8 @@ enum KeychainService {
         }
     }
 
-    private static func retrieveCompositeKey(account: String, context: LAContext) throws -> Data {
+    // The bytes CFData hands back are Security-framework owned and cannot be reliably wiped.
+    private static func retrieveCompositeKey(account: String, context: LAContext) throws -> SymmetricKey {
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
@@ -103,7 +107,7 @@ enum KeychainService {
         guard status == errSecSuccess, let data = result as? Data else {
             throw KeychainError.retrieveFailed(status)
         }
-        return data
+        return SymmetricKey(data: data)
     }
 
     private static func deleteCompositeKey(account: String) {

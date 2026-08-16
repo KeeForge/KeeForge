@@ -7,7 +7,7 @@ final class KDBXWriterTests: XCTestCase {
         let rootGroup: KPGroup
         let meta: KPMeta
         let header: KDBXParser.Header
-        let compositeKey: Data
+        let compositeKey: SymmetricKey
     }
 
     private let sessionKey = SymmetricKey(size: .bits256)
@@ -840,7 +840,7 @@ final class KDBXWriterTests: XCTestCase {
 
     private func readWrittenFileComponents(
         _ data: Data,
-        compositeKey: Data
+        compositeKey: SymmetricKey
     ) throws -> (
         header: KDBXParser.Header,
         headerBytes: Data,
@@ -880,7 +880,7 @@ final class KDBXWriterTests: XCTestCase {
         )
     }
 
-    private func decryptWrittenXML(_ data: Data, compositeKey: Data) throws -> Data {
+    private func decryptWrittenXML(_ data: Data, compositeKey: SymmetricKey) throws -> Data {
         var reader = DataReader(data: data)
         _ = try reader.readUInt32()
         _ = try reader.readUInt32()
@@ -930,7 +930,7 @@ final class KDBXWriterTests: XCTestCase {
     private func decryptPayload(
         _ encryptedPayload: Data,
         header: KDBXParser.Header,
-        compositeKey: Data
+        compositeKey: SymmetricKey
     ) throws -> Data {
         let transformedKey = try KDBXParser.deriveKey(compositeKey: compositeKey, kdfParams: header.kdfParameters)
 
@@ -950,7 +950,7 @@ final class KDBXWriterTests: XCTestCase {
 
     /// Raw inner-header item sequence of a written database, so ordering (not
     /// just the parsed model's contents) can be asserted.
-    private func innerHeaderItems(of written: Data, compositeKey: Data) throws -> [InnerHeaderItem] {
+    private func innerHeaderItems(of written: Data, compositeKey: SymmetricKey) throws -> [InnerHeaderItem] {
         let components = try readWrittenFileComponents(written, compositeKey: compositeKey)
         let encryptedPayload = try readEncryptedPayload(
             from: written,

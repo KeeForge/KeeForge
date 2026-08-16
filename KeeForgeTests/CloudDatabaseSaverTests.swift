@@ -1322,7 +1322,7 @@ final class CloudDatabaseSaverTests: XCTestCase {
 
 private struct CloudSaveContext {
     let draft: DatabaseDraft
-    let compositeKey: Data
+    let compositeKey: SymmetricKey
     let openTimeSHA512: Data
     let currentData: Data
 }

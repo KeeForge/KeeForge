@@ -1,3 +1,4 @@
+import CryptoKit
 import Foundation
 import LocalAuthentication
 import Security
@@ -66,7 +67,7 @@ final class KeychainServiceTests: XCTestCase {
         // storeCompositeKey deletes any existing item before adding the new
         // one, so a second store for the same account must not throw
         // errSecDuplicateItem the way a bare SecItemAdd would.
-        XCTAssertNoThrow(try KeychainService.storeCompositeKey(Data("second-key".utf8), for: databaseID))
+        XCTAssertNoThrow(try KeychainService.storeCompositeKey(SymmetricKey(data: Data("second-key".utf8)), for: databaseID))
         XCTAssertTrue(KeychainService.hasStoredKey(for: databaseID))
     }
 
@@ -115,7 +116,7 @@ final class KeychainServiceTests: XCTestCase {
 
         do {
             let retrieved = try KeychainService.retrieveCompositeKey(for: databaseID, context: context)
-            XCTAssertEqual(retrieved, keyData, "A successful retrieve must return exactly the stored bytes")
+            XCTAssertEqual(retrieved, SymmetricKey(data: keyData), "A successful retrieve must return exactly the stored bytes")
         } catch {
             // The item is protected by .biometryCurrentSet, so a headless
             // simulator/CI host without enrolled (or matchable) biometrics
@@ -177,7 +178,7 @@ final class KeychainServiceTests: XCTestCase {
         let context = LAContext()
         context.interactionNotAllowed = true
         let retrieved = try KeychainService.retrieveLegacyCompositeKey(forFilename: filename, context: context)
-        XCTAssertEqual(retrieved, keyData)
+        XCTAssertEqual(retrieved, SymmetricKey(data: keyData))
     }
 
     func testDeleteLegacyCompositeKeyRemovesTheLegacyItemOnly() throws {
@@ -246,7 +247,7 @@ final class KeychainServiceTests: XCTestCase {
 
     private func requireStore(_ key: Data, for databaseID: UUID) throws {
         do {
-            try KeychainService.storeCompositeKey(key, for: databaseID)
+            try KeychainService.storeCompositeKey(SymmetricKey(data: key), for: databaseID)
         } catch {
             throw XCTSkip("Keychain writes are unavailable in the current test host: \(error)")
         }

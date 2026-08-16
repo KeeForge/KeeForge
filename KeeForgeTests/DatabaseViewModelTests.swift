@@ -4857,11 +4857,11 @@ private actor SavedDraftRecorder {
 
 private final class RekeyedKeyCapture: @unchecked Sendable {
     private let lock = NSLock()
-    private var storedOldKey: Data?
-    private var storedNewKey: Data?
+    private var storedOldKey: SymmetricKey?
+    private var storedNewKey: SymmetricKey?
     private var storedExpectedRev: String?
 
-    func record(oldKey: Data?, newKey: Data?, expectedRev: String? = nil) {
+    func record(oldKey: SymmetricKey?, newKey: SymmetricKey?, expectedRev: String? = nil) {
         lock.lock()
         storedOldKey = oldKey
         storedNewKey = newKey
@@ -4869,13 +4869,13 @@ private final class RekeyedKeyCapture: @unchecked Sendable {
         lock.unlock()
     }
 
-    var oldKey: Data? {
+    var oldKey: SymmetricKey? {
         lock.lock()
         defer { lock.unlock() }
         return storedOldKey
     }
 
-    var newKey: Data? {
+    var newKey: SymmetricKey? {
         lock.lock()
         defer { lock.unlock() }
         return storedNewKey

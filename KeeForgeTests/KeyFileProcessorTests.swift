@@ -140,7 +140,7 @@ final class KeyFileProcessorTests: XCTestCase {
         var preKey = Data()
         preKey.append(pwdHash)
         preKey.append(keyFileKey)
-        let expected = Data(SHA256.hash(data: preKey))
+        let expected = SymmetricKey(data: SHA256.hash(data: preKey))
 
         XCTAssertEqual(composite, expected)
     }
@@ -152,7 +152,7 @@ final class KeyFileProcessorTests: XCTestCase {
 
         // Key file only: SHA256(processKeyFile(keyFileData))
         let keyFileKey = try KeyFileProcessor.processKeyFile(keyFileData)
-        let expected = Data(SHA256.hash(data: keyFileKey))
+        let expected = SymmetricKey(data: SHA256.hash(data: keyFileKey))
 
         XCTAssertEqual(composite, expected)
     }

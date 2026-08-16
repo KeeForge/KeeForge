@@ -213,7 +213,7 @@ final class CredentialProviderPickerCreationTests: XCTestCase {
         coordinator.parsedMeta = KPMeta()
         coordinator.parsedFormatVersion = .kdbx4(minor: 0)
         coordinator.sessionKey = SymmetricKey(size: .bits256)
-        coordinator.compositeKey = Data("composite-key".utf8)
+        coordinator.compositeKey = SymmetricKey(data: Data("composite-key".utf8))
         coordinator.openTimeSHA512 = Data("open-sha".utf8)
     }
 

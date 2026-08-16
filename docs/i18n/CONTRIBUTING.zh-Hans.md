@@ -16,7 +16,7 @@
 - Xcode 26+
 - [XcodeGen](https://github.com/yonaskolb/XcodeGen)
 - Swift 6，启用严格并发检查
-- Swift 包依赖：[Argon2Swift](https://github.com/tmthecoder/Argon2Swift)、[SwiftyDropbox](https://github.com/dropbox/SwiftyDropbox)、[Microsoft Authentication Library](https://github.com/AzureAD/microsoft-authentication-library-for-objc)、[swift-psl](https://github.com/ameshkov/swift-psl)，以及内置的 [KeeForgeTwofish](../../Vendor/KeeForgeTwofish) 包
+- Swift 包依赖：[argon2](https://github.com/P-H-C/phc-winner-argon2)、[SwiftyDropbox](https://github.com/dropbox/SwiftyDropbox)、[Microsoft Authentication Library](https://github.com/AzureAD/microsoft-authentication-library-for-objc)、[swift-psl](https://github.com/ameshkov/swift-psl)，以及内置的 [KeeForgeTwofish](../../Vendor/KeeForgeTwofish) 包
 
 ## 从源码构建
 

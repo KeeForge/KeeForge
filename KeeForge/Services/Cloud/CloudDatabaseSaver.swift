@@ -1,3 +1,4 @@
+import CryptoKit
 import Foundation
 
 enum CloudDatabaseSaver {
@@ -13,8 +14,8 @@ enum CloudDatabaseSaver {
         var endBackgroundTask: @MainActor @Sendable (LocalDatabaseSaver.BackgroundTaskHandle) -> Void
         var cacheURL: @Sendable (DatabaseReference) -> URL
         var readData: @Sendable (URL) throws -> Data
-        var extractHeader: @Sendable (Data, Data, KDFExecutionPolicy) throws -> KDBXParser.Header
-        var encryptDraft: @Sendable (DatabaseDraft, Data, KDBXParser.Header, KDFExecutionPolicy) throws -> Data
+        var extractHeader: @Sendable (Data, SymmetricKey, KDFExecutionPolicy) throws -> KDBXParser.Header
+        var encryptDraft: @Sendable (DatabaseDraft, SymmetricKey, KDBXParser.Header, KDFExecutionPolicy) throws -> Data
         var getMetadata: @Sendable (DatabaseReference) async throws -> CloudFileMetadata
         var upload: @Sendable (DatabaseReference, Data, String?, @escaping ProgressHandler) async throws -> CloudFileMetadata
         var downloadRemoteData: @Sendable (DatabaseReference) async throws -> Data
@@ -89,12 +90,12 @@ enum CloudDatabaseSaver {
     static func save(
         draft: DatabaseDraft,
         reference: DatabaseReference,
-        compositeKey: Data,
+        compositeKey: SymmetricKey,
         openTimeSHA512: Data,
         reconciledRemoteSHA512: Data? = nil,
         expectedRev: String?,
         kdfPolicy: KDFExecutionPolicy,
-        newCompositeKey: Data? = nil
+        newCompositeKey: SymmetricKey? = nil
     ) async throws -> SaveResult {
         try await save(
             draft: draft,
@@ -112,12 +113,12 @@ enum CloudDatabaseSaver {
     static func save(
         draft: DatabaseDraft,
         reference: DatabaseReference,
-        compositeKey: Data,
+        compositeKey: SymmetricKey,
         openTimeSHA512: Data,
         reconciledRemoteSHA512: Data? = nil,
         expectedRev: String?,
         kdfPolicy: KDFExecutionPolicy,
-        newCompositeKey: Data? = nil,
+        newCompositeKey: SymmetricKey? = nil,
         environment: Environment
     ) async throws -> SaveResult {
         if reference.isReadOnly {
@@ -155,11 +156,11 @@ enum CloudDatabaseSaver {
     private static func saveOffMain(
         draft: DatabaseDraft,
         reference: DatabaseReference,
-        compositeKey: Data,
+        compositeKey: SymmetricKey,
         baseline: SaveBaseline,
         expectedRev: String?,
         kdfPolicy: KDFExecutionPolicy,
-        newCompositeKey: Data?,
+        newCompositeKey: SymmetricKey?,
         environment: Environment
     ) async throws -> SaveResult {
         let cacheURL = environment.cacheURL(reference)

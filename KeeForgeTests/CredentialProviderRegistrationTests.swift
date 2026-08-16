@@ -474,7 +474,7 @@ final class CredentialProviderRegistrationTests: XCTestCase {
         coordinator.parsedRootGroup = KPGroup(name: "Root")
         coordinator.parsedMeta = KPMeta()
         coordinator.sessionKey = sessionKey
-        coordinator.compositeKey = Data("composite-key".utf8)
+        coordinator.compositeKey = SymmetricKey(data: Data("composite-key".utf8))
         coordinator.openTimeSHA512 = Data("open-sha".utf8)
     }
 
@@ -505,7 +505,7 @@ final class CredentialProviderRegistrationTests: XCTestCase {
 
     private func makeRecordingEnvironment(
         _ recorder: Recorder,
-        saveDraft: (@Sendable (DatabaseDraft, DatabaseReference, Data, Data) async throws -> AutoFillSaveCoordinator.SaveResult)? = nil
+        saveDraft: (@Sendable (DatabaseDraft, DatabaseReference, SymmetricKey, Data) async throws -> AutoFillSaveCoordinator.SaveResult)? = nil
     ) -> AutoFillSaveCoordinator.Environment {
         AutoFillSaveCoordinator.Environment(
             generatePassword: { "unused" },
