@@ -48,6 +48,7 @@ extension Image {
 extension NSColor {
     static var systemBackground: NSColor { .windowBackgroundColor }
     static var secondarySystemBackground: NSColor { .underPageBackgroundColor }
+    static var secondarySystemGroupedBackground: NSColor { .controlBackgroundColor }
     static var separator: NSColor { .separatorColor }
     static var placeholderText: NSColor { .placeholderTextColor }
 }
