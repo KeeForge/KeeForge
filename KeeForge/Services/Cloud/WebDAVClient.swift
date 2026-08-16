@@ -187,6 +187,11 @@ struct WebDAVClient: Sendable {
             return .unknown(String(localized: "The database is too large for this server (HTTP 413)."))
         case 507:
             return .unknown(String(localized: "The server is out of storage space (HTTP 507)."))
+        case 502, 503, 504:
+            // A gateway that cannot reach its backend, or a server in
+            // maintenance: unreachable for our purposes, so an open falls
+            // back to the cache the same way an offline device does.
+            return .serviceUnavailable
         case 500...599:
             return .unknown(String(localized: "The server reported an error (HTTP \(statusCode)). Try again shortly."))
         default:

@@ -120,8 +120,12 @@ enum CloudProviderError: LocalizedError, Equatable {
         return nsError.localizedDescription
     }
 
+    /// Whether `error` means "no working server on the other end" — the
+    /// device is offline, or the service answered 502/503/504 — so a cached
+    /// copy is the calm, expected fallback rather than an error to alarm over.
     static func isLikelyOffline(_ error: Error) -> Bool {
-        if let cloudError = error as? CloudProviderError, cloudError == .networkUnavailable {
+        if let cloudError = error as? CloudProviderError,
+           cloudError == .networkUnavailable || cloudError == .serviceUnavailable {
             return true
         }
 

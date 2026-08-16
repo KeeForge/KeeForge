@@ -20,6 +20,10 @@ final class CloudProviderTests: XCTestCase {
         XCTAssertTrue(CloudProviderError.isLikelyOffline(CloudProviderError.networkUnavailable))
     }
 
+    func testIsLikelyOfflineReturnsTrueForServiceUnavailable() {
+        XCTAssertTrue(CloudProviderError.isLikelyOffline(CloudProviderError.serviceUnavailable))
+    }
+
     func testIsLikelyOfflineReturnsTrueForURLError() {
         XCTAssertTrue(CloudProviderError.isLikelyOffline(URLError(.notConnectedToInternet)))
     }
