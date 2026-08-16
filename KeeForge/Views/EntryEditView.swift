@@ -1,14 +1,7 @@
 import SwiftUI
 
 struct EntryEditView: View {
-    /// Saved and cancelled are distinct on purpose: most presenters dismiss
-    /// either way, but the TOTP enrollment flow returns to its destination
-    /// list on cancel and finishes only on save.
-    enum Completion {
-        case saved
-        case cancelled
-        case deleted
-    }
+    typealias Completion = EntryEditCompletion
 
     @State private var formViewModel: EntryEditViewModel
     @Bindable var databaseViewModel: DatabaseViewModel
@@ -21,10 +14,7 @@ struct EntryEditView: View {
     @State private var isAuthenticatingReveal = false
     @State private var editingErrorMessage: String?
     @State private var isSubmitting = false
-    /// What a save that hit a conflict was trying to finish. The editor stays
-    /// open across the conflict, so it has to remember which completion to
-    /// report once the conflict resolves into a write that landed.
-    @State private var completionAwaitingConflict: Completion?
+    @State private var completionGate = EntryEditCompletionGate()
 
     @State private var isTOTPSecretVisible: Bool
     @State private var isManualTOTPEntryActive = false
@@ -263,13 +253,10 @@ struct EntryEditView: View {
                 snapBackInvalidTOTPPeriodText()
             }
         }
-        // A conflict that resolved into a clean draft ended in a write (merge or
-        // conflict copy), so the edit landed. One cleared ahead of a fresh write
-        // leaves the draft dirty and the editor open for that write's outcome.
         .onChange(of: conflictHasSettled) { _, settled in
-            guard settled, let completion = completionAwaitingConflict else { return }
-            completionAwaitingConflict = nil
-            onComplete(completion)
+            if let completion = completionGate.conflictSettled(settled) {
+                onComplete(completion)
+            }
         }
         .alert("Discard changes?", isPresented: $showDiscardConfirmation) {
             Button("Discard Changes", role: .destructive) {
@@ -586,29 +573,20 @@ struct EntryEditView: View {
         }
     }
 
-    /// Completes the editor, unless the save conflicted. Dismissing on a
-    /// conflict would race the root save-conflict alert: UIKit presents that
-    /// alert from the editor itself, so the presentation and this dismissal
-    /// land in one transaction and the dismissal is dropped. Wait instead for
-    /// the conflict to resolve into a write that landed.
+    /// See `EntryEditCompletionGate` for why a conflicted save does not close
+    /// the editor right away.
     private func finish(_ completion: Completion) {
-        guard databaseViewModel.saveConflict == nil else {
-            completionAwaitingConflict = completion
-            return
+        if let completion = completionGate.finish(completion, hasSaveConflict: databaseViewModel.saveConflict != nil) {
+            onComplete(completion)
         }
-        completionAwaitingConflict = nil
-        onComplete(completion)
     }
 
-    /// True once nothing about the conflict is still on screen: the conflict
-    /// itself and the merge summary/failure alerts present from this editor
-    /// too, so popping while any of them is up hits the same dropped-dismissal
-    /// race. Popping from an alert's OK action, after it clears, is safe.
     private var conflictHasSettled: Bool {
-        databaseViewModel.saveConflict == nil
-            && databaseViewModel.mergeSummaryMessage == nil
-            && databaseViewModel.mergeFailure == nil
-            && databaseViewModel.isDirty == false
+        EntryEditCompletionGate.isSettled(
+            hasSaveConflict: databaseViewModel.saveConflict != nil,
+            isPresentingMergeResult: databaseViewModel.mergeSummaryMessage != nil || databaseViewModel.mergeFailure != nil,
+            isDirty: databaseViewModel.isDirty
+        )
     }
 
     private func deleteTapped(sendToRecycleBin: Bool) {
