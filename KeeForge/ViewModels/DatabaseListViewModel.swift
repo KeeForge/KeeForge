@@ -72,9 +72,7 @@ final class DatabaseListViewModel {
     func databaseToAutoOpenOnLaunch() -> DatabaseReference? {
         guard didConsumeInitialLaunchSelection == false else { return nil }
         didConsumeInitialLaunchSelection = true
-        guard databases.count == 1 else { return nil }
-        guard let reference = databases.first, reference.isQuickLaunch else { return nil }
-        return reference
+        return DatabaseListStore.quickLaunchDatabase
     }
 
     func addDatabase(from url: URL) throws -> DatabaseReference {
