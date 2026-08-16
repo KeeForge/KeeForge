@@ -36,7 +36,7 @@ struct KDBXTestFixture {
     )
     /// KDBX4 fixture whose inner header carries three items with type IDs the
     /// format does not define; see
-    /// `TestFixtures/compatibility/generate_unknown_inner_header_fixture.py`.
+    /// `TestFixtures/generators/unknown_inner_header.py`.
     static let unknownInnerHeader = KDBXTestFixture(
         name: "unknown-inner-header",
         subdirectory: "compatibility",
@@ -48,6 +48,41 @@ struct KDBXTestFixture {
         name: "unknown-elements",
         subdirectory: "round-trip",
         password: "test-round-trip",
+        keyFileName: nil,
+        keyFileExtension: nil
+    )
+    static let kdbx41PublicCustomData = KDBXTestFixture(
+        name: "kdbx41-public-custom-data",
+        subdirectory: "compatibility",
+        password: "testpassword123",
+        keyFileName: nil,
+        keyFileExtension: nil
+    )
+    static let groupTags = KDBXTestFixture(
+        name: "group-tags",
+        subdirectory: "compatibility",
+        password: "testpassword123",
+        keyFileName: nil,
+        keyFileExtension: nil
+    )
+    static let attachments = KDBXTestFixture(
+        name: "attachments",
+        subdirectory: "compatibility",
+        password: "testpassword123",
+        keyFileName: nil,
+        keyFileExtension: nil
+    )
+    static let foreignChaCha20 = KDBXTestFixture(
+        name: "foreign-chacha20",
+        subdirectory: "compatibility",
+        password: "foreign-chacha20",
+        keyFileName: nil,
+        keyFileExtension: nil
+    )
+    static let foreignTwofish = KDBXTestFixture(
+        name: "foreign-twofish",
+        subdirectory: "compatibility",
+        password: "foreign-twofish",
         keyFileName: nil,
         keyFileExtension: nil
     )

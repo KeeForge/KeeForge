@@ -25,7 +25,7 @@ final class KDBXFileSummaryTests: XCTestCase {
     }
 
     func testInspectKDBX3Fixture() throws {
-        let summary = try KDBXFileSummary.inspect(data: fixtureData(named: "test-v3-backup"))
+        let summary = try KDBXFileSummary.inspect(data: fixtureData(named: "legacy-kdbx31"))
 
         XCTAssertEqual(summary.formatVersion, .kdbx3_1)
         XCTAssertEqual(summary.formatDisplayName, "KDBX 3.1")

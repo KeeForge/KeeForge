@@ -41,6 +41,9 @@ Package.resolved
 # CocoaPods (not used but just in case)
 Pods/
 
+# Python (TestFixtures/generators)
+__pycache__/
+
 # Fastlane
 fastlane/report.xml
 fastlane/Preview.html

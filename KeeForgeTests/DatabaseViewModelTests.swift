@@ -4733,7 +4733,7 @@ final class DatabaseViewModelTests: XCTestCase {
     }
 
     private func legacyFixtureURL() throws -> URL {
-        try TestDatabaseSupport.fixtureURL(named: "test-v3-backup", bundle: Bundle(for: DatabaseViewModelTests.self))
+        try TestDatabaseSupport.fixtureURL(named: "legacy-kdbx31", bundle: Bundle(for: DatabaseViewModelTests.self))
     }
 
     private func passkeyFields() -> [String: String] {

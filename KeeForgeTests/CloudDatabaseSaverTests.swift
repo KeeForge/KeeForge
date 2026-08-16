@@ -765,7 +765,7 @@ final class CloudDatabaseSaverTests: XCTestCase {
     }
 
     func testSaveLegacyKDBX31ThrowsDatabaseIsReadOnlyBeforeUpload() async throws {
-        let reference = try makeCloudReference(remoteRev: "rev-A", fixtureName: "test-v3-backup")
+        let reference = try makeCloudReference(remoteRev: "rev-A", fixtureName: "legacy-kdbx31")
         let cacheURL = DatabaseListStore.cacheLocation(for: reference)
         let context = try makeDirtySaveContext(cacheURL: cacheURL, entryTitle: "Legacy Cloud Save")
         let recorder = UploadRecorder()

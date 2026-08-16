@@ -13,7 +13,7 @@ final class KeyFileProcessorTests: XCTestCase {
     // MARK: - Binary Format (32 bytes exact)
 
     func testBinaryFormat32BytesReturnsRawKey() throws {
-        let data = try fixtureData("test-binary", ext: "key")
+        let data = try fixtureData("demo-keyfile", ext: "key")
         let result = try KeyFileProcessor.processKeyFile(data)
         XCTAssertEqual(result, expectedKey)
         XCTAssertEqual(result.count, 32)
@@ -130,7 +130,7 @@ final class KeyFileProcessorTests: XCTestCase {
 
     func testCompositeKeyWithKeyFile() throws {
         let password = "demo"
-        let keyFileData = try fixtureData("test-binary", ext: "key")
+        let keyFileData = try fixtureData("demo-keyfile", ext: "key")
 
         let composite = try KDBXCrypto.compositeKey(password: password, keyFileData: keyFileData)
 
@@ -146,7 +146,7 @@ final class KeyFileProcessorTests: XCTestCase {
     }
 
     func testCompositeKeyKeyFileOnly() throws {
-        let keyFileData = try fixtureData("test-binary", ext: "key")
+        let keyFileData = try fixtureData("demo-keyfile", ext: "key")
 
         let composite = try KDBXCrypto.compositeKey(password: nil, keyFileData: keyFileData)
 
@@ -158,7 +158,7 @@ final class KeyFileProcessorTests: XCTestCase {
     }
 
     func testCompositeKeyEmptyPasswordWithKeyFileEqualsKeyFileOnly() throws {
-        let keyFileData = try fixtureData("test-binary", ext: "key")
+        let keyFileData = try fixtureData("demo-keyfile", ext: "key")
 
         let withEmpty = try KDBXCrypto.compositeKey(password: "", keyFileData: keyFileData)
         let withNil = try KDBXCrypto.compositeKey(password: nil, keyFileData: keyFileData)

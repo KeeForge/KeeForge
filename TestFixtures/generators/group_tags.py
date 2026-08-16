@@ -1,74 +1,53 @@
-#!/usr/bin/env python3
-"""Generate `group-tags.kdbx`, the KDBX 4.1 fixture with group `<Tags>`.
+"""`compatibility/group-tags.kdbx` -- the KDBX 4.1 fixture with group `<Tags>`.
 
 Group tags exist only in KDBX >= 4.1, and KeeForge parses them READ-ONLY (it
 never authors or edits one), so the fixture must come from an independent
 implementation: pykeepass authors the file, KDBXParserTests and the
-compatibility gate prove KeeForge reads and preserves it. The groups cover
-every `<Tags>` state the parser models:
+compatibility gate prove KeeForge reads and preserves it. The groups cover every
+`<Tags>` state the parser models:
 
-* `Projects` -- `<Tags>team;shared</Tags>` plus a group `<Notes>`, so a real
-  file exercises two structured siblings and the unknown-sibling positioning
-  around them (the notes text itself predates KeeForge structuring `<Notes>`
-  and is kept verbatim so the fixture bytes stay put);
+* `Projects` -- `<Tags>team;shared</Tags>` plus a group `<Notes>`, so a real file
+  exercises two structured siblings and the unknown-sibling positioning around
+  them (the notes text itself predates KeeForge structuring `<Notes>` and is
+  kept verbatim so the fixture bytes stay put);
 * `Projects/Client Work` -- nested tagged group (`billable`) whose entry also
   carries its own entry tag, for inheritance accumulation;
-* `Empty Tags Group` -- an EMPTY `<Tags/>` element (present but contentless,
-  the state `hasTagsElement` exists to preserve);
+* `Empty Tags Group` -- an EMPTY `<Tags/>` element (present but contentless, the
+  state `hasTagsElement` exists to preserve);
 * `Plain Group` -- no `<Tags>` element at all (KeeForge must never add one);
 * `Recycle Bin` -- created by trashing `Trashed Login`, so the fixture also
   carries Meta/RecycleBinUUID alongside the group tags.
 
-pykeepass writes the group tag text `;`-separated (KeePass's canonical form),
-so the fixture also exercises the parser's semicolon split.
+pykeepass writes the group tag text `;`-separated (KeePass's canonical form), so
+the fixture also exercises the parser's semicolon split.
 
-Requires: pykeepass (`pip3 install --user pykeepass`). Verified against
-pykeepass 4.1.1.post1 -- re-check the two API assumptions below if a newer
-pykeepass changes its internals:
-
-1. pykeepass writes KDBX 4.0 by default and has no public setter for the
-   format version. The minor version is changed by mutating the low-level
-   Construct header container directly: `kp.kdbx.header.value.minor_version`.
-2. That header is wrapped in Construct's `RawCopy`, which caches the
-   originally-parsed (4.0) header bytes under a `data` key and re-emits them
-   verbatim on build, IGNORING any mutations to `value` -- so after changing
-   `minor_version`, `del kp.kdbx.header["data"]` is required or the saved
-   file silently stays 4.0. Same mechanism documented in
-   `generate_foreign_cipher_fixtures.py` for the cipher UUID; see
-   `construct.RawCopy._build`.
-
-pykeepass also has no group-tag API (`tags` exists on entries only), so the
-group `<Tags>` elements are inserted with lxml directly on each group's
-backing element, at KeePass's canonical position (before the child `<Entry>`/
-`<Group>` elements).
-
-Output is deterministic in CONTENT (groups, entries, tags, passwords) but NOT
-in bytes: pykeepass generates a fresh master seed, encryption IV, and KDF
-salt on every `save()`. Tests assert decoded content, not raw bytes.
-
-Usage (from the repo root):
-
-    python3 TestFixtures/compatibility/generate_group_tags_fixture.py          # regenerate
-    python3 TestFixtures/compatibility/generate_group_tags_fixture.py --check  # verify only
+pykeepass writes KDBX 4.0 with no public setter for the format version, so the
+minor version is bumped by mutating the low-level Construct header container
+directly; the cache drop that makes the mutation reach the file is explained in
+`_common.drop_rawcopy_cache`. pykeepass also has no group-tag API (`tags` exists
+on entries only), so the group `<Tags>` elements are inserted with lxml directly
+on each group's backing element, at KeePass's canonical position.
 """
 
-import argparse
 import hashlib
-import struct
-import sys
 from pathlib import Path
-
-try:
-    import pykeepass
-except ImportError:
-    raise SystemExit(
-        "pykeepass is required: pip3 install --user pykeepass "
-        "(or install it into a venv and re-run with that interpreter)"
-    )
 
 from lxml import etree
 
-OUTPUT_PATH = Path(__file__).resolve().parent / "group-tags.kdbx"
+from ._common import (
+    AESKDF_UUID,
+    ARGON2D_UUID,
+    ARGON2ID_UUID,
+    Generator,
+    drop_rawcopy_cache,
+    fixture_path,
+    kdf_parameters,
+    new_database,
+    parse_outer_header,
+    pykeepass,
+    verify_keepassxc_lists_group,
+)
+
 PASSWORD = "testpassword123"
 
 PROJECTS_NOTES = "Group notes ride along as unknown XML next to the structured Tags element."
@@ -94,11 +73,16 @@ EXPECTED_ENTRIES = {
     "Trashed Login": ("trashed-user", "GroupTagTrashed5", None),
 }
 
+KDF_NAMES = {
+    ARGON2D_UUID: "argon2d",
+    ARGON2ID_UUID: "argon2id",
+    AESKDF_UUID: "aeskdf",
+}
 
-def set_group_tags(group, text):
+
+def set_group_tags(group, text: str) -> None:
     """Insert a `<Tags>` element on the group at KeePass's canonical position
-    (after the scalar children, before any `<Entry>`/`<Group>` children).
-    pykeepass has no group-tag API, hence lxml on the backing element."""
+    (after the scalar children, before any `<Entry>`/`<Group>` children)."""
     tags = etree.Element("Tags")
     if text:
         tags.text = text
@@ -111,8 +95,8 @@ def set_group_tags(group, text):
     element.insert(insert_at, tags)
 
 
-def build_fixture(path: Path) -> None:
-    kp = pykeepass.create_database(str(path), password=PASSWORD)
+def build(path: Path) -> None:
+    kp = new_database(path, PASSWORD)
 
     projects = kp.add_group(kp.root_group, "Projects", notes=PROJECTS_NOTES)
     kp.add_entry(
@@ -138,8 +122,8 @@ def build_fixture(path: Path) -> None:
     plain_group = kp.add_group(kp.root_group, "Plain Group")
     kp.add_entry(plain_group, "Delta Login", "delta-user", "GroupTagDelta4")
 
-    # Trashing creates the Recycle Bin group and sets Meta/RecycleBinUUID, so
-    # the fixture carries a real bin alongside the group tags. The bin itself
+    # Trashing creates the Recycle Bin group and sets Meta/RecycleBinUUID, so the
+    # fixture carries a real bin alongside the group tags. The bin itself
     # deliberately gets no tags -- recycle-bin tag exclusion is covered by
     # in-memory unit tests (DatabaseViewModelTests), not this fixture.
     trashed = kp.add_entry(kp.root_group, "Trashed Login", "trashed-user", "GroupTagTrashed5")
@@ -150,20 +134,19 @@ def build_fixture(path: Path) -> None:
     set_group_tags(empty_tags_group, "")  # empty element: <Tags/>
     # Plain Group: no element at all.
 
-    # See module docstring: bump the declared format version to KDBX 4.1 (the
-    # version that introduced group tags) and drop RawCopy's cached 4.0
-    # header bytes so the mutation actually reaches the file.
+    # KDBX 4.1 is the version that introduced group tags.
     kp.kdbx.header.value.minor_version = 1
-    del kp.kdbx.header["data"]
+    drop_rawcopy_cache(kp)
     kp.save()
 
 
-def verify(path: Path) -> None:
-    # Independent header read: don't just trust the library that wrote it.
+def verify(path: Path, keepassxc_cli: str | None) -> None:
     raw = path.read_bytes()
-    minor, major = struct.unpack("<HH", raw[8:12])
-    if (major, minor) != (4, 1):
-        raise AssertionError(f"{path.name}: expected raw header version 4.1, got {major}.{minor}")
+    header = parse_outer_header(raw)
+    if (header.major, header.minor) != (4, 1):
+        raise AssertionError(
+            f"{path.name}: expected raw header version 4.1, got {header.major}.{header.minor}"
+        )
 
     kp = pykeepass.PyKeePass(str(path), password=PASSWORD)
     if kp.version != (4, 1):
@@ -171,19 +154,15 @@ def verify(path: Path) -> None:
 
     # NOTE: kp.kdf_algorithm is unusable here -- pykeepass 4.1.1 only maps the
     # KDF name for versions (3, 1) and exactly (4, 0), returning None for 4.1.
-    # Read the KDF UUID from the parsed variant dictionary instead.
-    kdf_uuid = kp.kdbx.header.value.dynamic_header.kdf_parameters.data.dict["$UUID"].value
-    kdf_names = {
-        bytes.fromhex("ef636ddf8c29444b91f7a9a403e30a0c"): "argon2d",
-        bytes.fromhex("9e298b1956db4773b23dfc3ec6f0a1e6"): "argon2id",
-        bytes.fromhex("c9d9f39a628a4460bf740d08c18a4fea"): "aeskdf",
-    }
-    kdf_name = kdf_names.get(kdf_uuid)
+    kdf_uuid = kdf_parameters(header)["$UUID"]
+    kdf_name = KDF_NAMES.get(kdf_uuid)
     if kdf_name is None:
         raise AssertionError(f"{path.name}: unrecognized KDF UUID {kdf_uuid.hex()}")
 
-    sha256 = hashlib.sha256(raw).hexdigest()
-    print(f"{path.name}: KDBX {kp.version[0]}.{kp.version[1]}, kdf={kdf_name}, sha256={sha256}")
+    print(
+        f"{path.name}: KDBX {kp.version[0]}.{kp.version[1]}, kdf={kdf_name}, "
+        f"sha256={hashlib.sha256(raw).hexdigest()}"
+    )
 
     for group_name, expected_text in EXPECTED_GROUP_TAGS.items():
         group = kp.find_groups(name=group_name, first=True)
@@ -193,7 +172,8 @@ def verify(path: Path) -> None:
         actual = None if tags_element is None else (tags_element.text or "")
         if actual != expected_text:
             raise AssertionError(
-                f"{path.name}: group {group_name!r} Tags mismatch (expected {expected_text!r}, got {actual!r})"
+                f"{path.name}: group {group_name!r} Tags mismatch "
+                f"(expected {expected_text!r}, got {actual!r})"
             )
         print(f"  group {group_name!r}: Tags={actual!r}")
 
@@ -214,24 +194,15 @@ def verify(path: Path) -> None:
             )
         print(f"  entry {title!r}: username={username!r}, tags={tags!r}")
 
+    if keepassxc_cli:
+        verify_keepassxc_lists_group(path, keepassxc_cli, PASSWORD, "Projects")
 
-def main() -> int:
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument(
-        "--check",
-        action="store_true",
-        help="verify the existing fixture on disk instead of regenerating it",
+
+GENERATORS = [
+    Generator(
+        name="group-tags",
+        output_path=fixture_path("compatibility", "group-tags.kdbx"),
+        build=build,
+        verify=verify,
     )
-    args = parser.parse_args()
-
-    print(f"pykeepass version: {getattr(pykeepass, '__version__', 'unknown')}", file=sys.stderr)
-
-    if not args.check:
-        build_fixture(OUTPUT_PATH)
-    verify(OUTPUT_PATH)
-
-    return 0
-
-
-if __name__ == "__main__":
-    raise SystemExit(main())
+]

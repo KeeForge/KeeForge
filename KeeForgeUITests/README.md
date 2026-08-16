@@ -334,11 +334,11 @@ Contents, regeneration scripts, and hashes are in `../TestFixtures/README.md`; t
 
 ### Key File Fixtures
 
-Use `demo-keyfile.kdbx` (password `demo`) with `demo-keyfile.key` for the valid key-file unlock flow (`KeyFileUnlockUITests`). `invalid-xml.keyx` is bundled solely for `KeyFileUITests`' malformed-XML rejection case. The other key-file fixtures in `TestFixtures/` (`test-binary.key`, `test-hex.key`, `test-v1.key`, `test-v2.keyx`, `test-arbitrary.key`, `test-v3-backup.kdbx`) are bundled only into the unit-test targets and **not** available to UI tests.
+Use `demo-keyfile.kdbx` (password `demo`) with `demo-keyfile.key` for the valid key-file unlock flow (`KeyFileUnlockUITests`). `invalid-xml.keyx` is bundled solely for `KeyFileUITests`' malformed-XML rejection case. The other key-file fixtures in `TestFixtures/` (`test-hex.key`, `test-v1.key`, `test-v2.keyx`, `test-arbitrary.key`) are bundled only into the unit-test targets and **not** available to UI tests.
 
 ### What The UI-Test Target Bundles
 
-Per the `KeeForgeUITests` sources in `project.yml`, exactly these fixtures ship in the UI-test bundle: `test.kdbx`, `demo.kdbx`, `demo-keyfile.kdbx`, `demo-keyfile.key`, `invalid-xml.keyx`, `compatibility/attachments.kdbx`, `autofill-union.kdbx`, `tag-browser.kdbx`, `compatibility/group-tags.kdbx`, `protected-custom-field.kdbx`, `compatibility/legacy-kdbx31.kdbx`, and `icon-picker.kdbx`. To use another fixture from a UI test, add it there and run `xcodegen generate`.
+Exactly these fixtures ship in the UI-test bundle: `test.kdbx`, `demo.kdbx`, `demo-keyfile.kdbx`, `demo-keyfile.key`, and `compatibility/attachments.kdbx` from the `UITestFixtures` target template in `project.yml` (shared with `KeeForgeMacUITests`, which bundles nothing else), plus this target's own extras — `invalid-xml.keyx`, `autofill-union.kdbx`, `tag-browser.kdbx`, `compatibility/group-tags.kdbx`, `protected-custom-field.kdbx`, `compatibility/legacy-kdbx31.kdbx`, and `icon-picker.kdbx`. To use another fixture from a UI test, add it to whichever of the two lists fits and run `xcodegen generate`.
 
 Loading mechanism: fixtures are injected through the launch environment by `KeeForgeUITestCase.setUp` (base64 of the bundled resource in `UI_TEST_DATABASES_JSON`), so a test only overrides `databaseFixtureName` — it never touches file paths. The name must match the resource added to `project.yml`.
 
