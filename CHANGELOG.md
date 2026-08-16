@@ -35,6 +35,7 @@ TODO before the first macOS release:
   - Attachment previews open in a page-sized Quick Look sheet with a title bar, Done, and Share, instead of a bare card with the file jammed against its top edge and no way to close it but a swipe.
   - "Restore this version?" and "Remove from List" confirmations pop over the button that raised them instead of floating in the middle of the screen.
   - The detail column no longer says "Select a matching entry" while the sidebar's search says "No Results".
+- The entry icon on the entry screen now carries a small pencil badge, so it's clear that tapping it opens the icon picker. Read-only databases still show the plain icon.
 - Saving an entry into a save conflict no longer leaves the entry editor stuck open behind the conflict prompt. The editor now stays put while the conflict is being resolved and closes on its own once the edit has actually been written (merged, or saved as a conflict copy); choosing Cancel keeps you in the editor so you can retry.
 
 ## v1.14.0 (2026-08-13)

@@ -77,11 +77,31 @@ struct EntryDetailView: View {
                 isShowingIconPicker = true
             } label: {
                 icon
+                    .overlay(alignment: .bottomTrailing) {
+                        editBadge
+                    }
+                    // Room for the badge's overhang so it doesn't touch the title.
+                    .padding(.trailing, 6)
+                    .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             .accessibilityIdentifier("entry-detail.icon-button")
             .accessibilityLabel("Icon")
+            .accessibilityHint("Changes the entry icon")
         }
+    }
+
+    /// The "this can be edited" cue on the icon: a small pencil badge, in the
+    /// same spot as the one on an editable avatar in Contacts. The ring is the
+    /// row's own colour so the badge reads as sitting on the row, not the icon.
+    private var editBadge: some View {
+        Image(systemName: "pencil.circle.fill")
+            .symbolRenderingMode(.palette)
+            .foregroundStyle(.white, .tint)
+            .font(.system(size: 18))
+            .background(Circle().fill(Color(.secondarySystemGroupedBackground)).padding(-2))
+            .offset(x: 6, y: 6)
+            .accessibilityHidden(true)
     }
 
     private func changeEntryIcon(_ icon: EntryIconSelection) {
