@@ -36,6 +36,7 @@ TODO before the first macOS release:
   - "Restore this version?" and "Remove from List" confirmations pop over the button that raised them instead of floating in the middle of the screen.
   - The detail column no longer says "Select a matching entry" while the sidebar's search says "No Results".
 - The entry icon on the entry screen now carries a small pencil badge, so it's clear that tapping it opens the icon picker. Read-only databases still show the plain icon.
+- Quick Launch now works with more than one database in the list (#89). Enabling it on a database opened that database automatically on launch only while it was the sole database; with two or more, the flag was shown but ignored. The flagged database now opens on cold launch regardless of how many others are listed.
 - Saving an entry into a save conflict no longer leaves the entry editor stuck open behind the conflict prompt. The editor now stays put while the conflict is being resolved and closes on its own once the edit has actually been written (merged, or saved as a conflict copy); choosing Cancel keeps you in the editor so you can retry.
 
 ### Security

@@ -88,6 +88,26 @@ final class DatabaseListViewModelTests: XCTestCase {
         XCTAssertNil(viewModel.databaseToAutoOpenOnLaunch(), "Initial launch selection should only be consumed once")
     }
 
+    func testQuickLaunchDatabaseAutoOpensAmongMultipleDatabases() throws {
+        _ = try DatabaseListStore.add(url: makeTemporaryFileURL(name: "one.kdbx"))
+        var second = try DatabaseListStore.add(url: makeTemporaryFileURL(name: "two.kdbx"))
+        second.isQuickLaunch = true
+        DatabaseListStore.update(second)
+
+        let viewModel = DatabaseListViewModel()
+
+        XCTAssertEqual(viewModel.databaseToAutoOpenOnLaunch()?.id, second.id)
+        XCTAssertNil(viewModel.databaseToAutoOpenOnLaunch(), "Initial launch selection should only be consumed once")
+    }
+
+    func testMultipleDatabasesDoNotAutoOpenWhenQuickLaunchIsOff() throws {
+        _ = try DatabaseListStore.add(url: makeTemporaryFileURL(name: "one.kdbx"))
+        _ = try DatabaseListStore.add(url: makeTemporaryFileURL(name: "two.kdbx"))
+        let viewModel = DatabaseListViewModel()
+
+        XCTAssertNil(viewModel.databaseToAutoOpenOnLaunch())
+    }
+
     func testToggleQuickLaunchClearsPreviousSelection() throws {
         var first = try DatabaseListStore.add(url: makeTemporaryFileURL(name: "one.kdbx"))
         let second = try DatabaseListStore.add(url: makeTemporaryFileURL(name: "two.kdbx"))

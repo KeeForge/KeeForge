@@ -820,12 +820,8 @@ enum DatabaseListStore {
                 return updatedReference
             }
         }
-        if references.count == 1, uiTestEnvironmentFlag(uiTestEnableQuickLaunchEnv) {
-            references = references.map { reference in
-                var updatedReference = reference
-                updatedReference.isQuickLaunch = true
-                return updatedReference
-            }
+        if uiTestEnvironmentFlag(uiTestEnableQuickLaunchEnv), references.isEmpty == false {
+            references[0].isQuickLaunch = true
         }
         // Cloud accounts live in `SharedVaultStore.cloudAccountDefaults`, which
         // differs per platform. Scrub the group suite too, or on macOS a stale
