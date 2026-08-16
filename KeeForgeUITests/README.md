@@ -68,13 +68,6 @@ The macOS port has its own UI-test target, `KeeForgeMacUITests/` (target `KeeFor
     -only-testing:KeeForgeUITests/AppStoreScreenshots
   ```
   `TEST_RUNNER_APPSTORE_SCREENSHOTS` must be a real environment variable on the `xcodebuild` process itself (Xcode strips the `TEST_RUNNER_` prefix and forwards it into the test runner's environment) — verified empirically, passing it as a trailing bare `KEY=value` argument does not work and the test silently skips. Export the resulting attachments into `build/screenshots`, then run `ci_scripts/make_appstore_screenshots.py` to composite the final App Store images (see that script's header comment).
-- `IPadSweepUITests.swift` — `IPadSweepUITestCase` (base) + `IPadSweepCoreUITests`, `IPadSweepBannersUITests`, `IPadSweepTagsUITests`, `IPadSweepHistoryUITests`, `IPadSweepAttachmentsUITests`, `IPadSweepKeyFileUITests`, `IPadSweepZzContextMenusUITests` — the regular-width (iPad split-view) layout-audit sweep: walks the major screens and attaches a named screenshot of each in both orientations (`snap` rotates and back; pass `bothOrientations: false` for menus and keyboards, which do not survive a rotation), so the captures can be exported from the `.xcresult` and reviewed for layout defects. **Opt-in only**: `setUp` `XCTSkip`s unless `IPAD_SWEEP=1` is set (same `TEST_RUNNER_` mechanism as `AppStoreScreenshots`), and it `XCTSkip`s on compact destinations. Asserts only enough to stay on rails. Long-press flows live in the `Zz` class because a context menu leaves the app and SpringBoard reporting "never idle" for the rest of the run (every later interaction then waits out a 60 s timeout). Narrow iPads in portrait (iPad mini, 744 pt) collapse the split view's sidebar behind a "Show Sidebar" button; `showSidebarIfHidden()` / the `waitForDatabaseList` override reveal it. Run one class per device, e.g.:
-  ```bash
-  TEST_RUNNER_IPAD_SWEEP=1 xcodebuild test -project KeeForge.xcodeproj -scheme KeeForge \
-    -destination 'platform=iOS Simulator,name=iPad mini (A17 Pro)' \
-    -only-testing:KeeForgeUITests/IPadSweepCoreUITests
-  ```
-  then `xcrun xcresulttool export attachments --path <bundle>.xcresult --output-path <dir>` and rename by `manifest.json`'s `suggestedHumanReadableName`.
 - `AutoFillStoreInspectorSmokeUITests` — DEBUG-only AutoFill store inspector smoke test; launches with `-autofill-store-inspector`, asserts the inspector presents at the app root and `autofill-inspector.enabled-state` reads "disabled" (safe on unprovisioned simulators). Does not extend `KeeForgeUITestCase` — the inspector replaces the normal root, so no fixture/unlock applies.
 
 ### Device-Only Classes
