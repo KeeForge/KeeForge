@@ -779,6 +779,9 @@ final class CloudSyncCoordinatorTests: XCTestCase {
             remoteContentHash: nil,
             remoteModifiedAt: nil
         )
+        // The cache path depends only on provider/account/fileId, so a copy
+        // written by another test would otherwise stand in here.
+        try? FileManager.default.removeItem(at: DatabaseListStore.cacheLocation(for: reference))
         let provider = MockCloudProvider()
         provider.metadataDelay = .milliseconds(500)
         provider.metadataResult = .failure(CloudProviderError.fileNotFound)
