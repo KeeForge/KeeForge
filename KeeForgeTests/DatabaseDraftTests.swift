@@ -203,7 +203,7 @@ final class DatabaseDraftTests: XCTestCase {
     }
 
     func test_updateEntry_updatesFields_preservesUnknownXML() throws {
-        let parsed = try parseUnknownElementsFixture()
+        let parsed = try parseKitchenSinkFixture()
         let originalEntry = try controlledUnknownsEntry(in: parsed.rootGroup)
         var updatedPayload = try makeDraftPayload(from: originalEntry)
         updatedPayload.title = "Controlled Unknowns Updated"
@@ -2693,17 +2693,13 @@ final class DatabaseDraftTests: XCTestCase {
         )
     }
 
-    private func parseUnknownElementsFixture() throws -> (rootGroup: KPGroup, meta: KPMeta) {
+    private func parseKitchenSinkFixture() throws -> (rootGroup: KPGroup, meta: KPMeta) {
         let bundle = Bundle(for: Self.self)
-        let databaseURL = try TestDatabaseSupport.fixtureURL(
-            named: "unknown-elements",
-            subdirectory: "round-trip",
-            bundle: bundle
-        )
+        let databaseURL = try TestDatabaseSupport.fixtureURL(named: "kitchen-sink", bundle: bundle)
         let databaseData = try Data(contentsOf: databaseURL)
         return try KDBXParser.parseWithMeta(
             data: databaseData,
-            password: "test-round-trip",
+            password: "testpassword123",
             sessionKey: sessionKey
         )
     }

@@ -59,7 +59,6 @@
 		115B1CF896D4326495169AF4 /* demo.kdbx in Resources */ = {isa = PBXBuildFile; fileRef = F3D5CCD3DC2893DC1A65D6DC /* demo.kdbx */; };
 		12710339D152AA543FFD4509 /* autofill-union.kdbx in Resources */ = {isa = PBXBuildFile; fileRef = 23437920ECEA26AFAA2F531F /* autofill-union.kdbx */; };
 		12913C3CA41B6BD49A7E60B9 /* PasswordGenerator.swift in Sources */ = {isa = PBXBuildFile; fileRef = FD42E436B84E873D08B91ACA /* PasswordGenerator.swift */; };
-		12CA554AB58CEA7C9842C713 /* unknown-elements.kdbx in Resources */ = {isa = PBXBuildFile; fileRef = 6C92F73C702B2C95BC3727FC /* unknown-elements.kdbx */; };
 		12E7199018B10B3CDDCCE388 /* EntryHistoryTrimmer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6B23EE0FFF365E0E5F1E571E /* EntryHistoryTrimmer.swift */; };
 		1344E56D5FE0305764940D0B /* FaviconServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E3217CA8D7D14799D216386B /* FaviconServiceTests.swift */; };
 		13C3F39941088CAE7454884D /* SecurityScopedBookmarkManagerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DB2A4FFD19CB42ECEDDAA7B9 /* SecurityScopedBookmarkManagerTests.swift */; };
@@ -241,7 +240,6 @@
 		5A7AFD448B2C67EE04D999C0 /* GroupEditViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA400D126B05676FA820F6D9 /* GroupEditViewModel.swift */; };
 		5B2C70C57069BAE039AAD884 /* kitchen-sink.kdbx in Resources */ = {isa = PBXBuildFile; fileRef = 320AC2496F42E61F67071683 /* kitchen-sink.kdbx */; };
 		5B9503870CDB4FDA5011E8D9 /* FieldReferenceResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5262DAD579E97D03F4BBD00C /* FieldReferenceResolver.swift */; };
-		5BB5396D932F586B396D5D98 /* kdbx41-public-custom-data.kdbx in Resources */ = {isa = PBXBuildFile; fileRef = B768B63FEA29736435D3E922 /* kdbx41-public-custom-data.kdbx */; };
 		5CD4C4237D5663668464CFCD /* KDBXMergerOracleTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3BD42819A2CA0A2C67A7B6C2 /* KDBXMergerOracleTests.swift */; };
 		5D09209965C749545FF9B37C /* CloudFileBrowserSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = 76C7BB3AE108B90D95FE02D7 /* CloudFileBrowserSession.swift */; };
 		5D1534A2DAB9C6EC61C8551B /* CloudSyncModelsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6037B710DE638D64C1ED6576 /* CloudSyncModelsTests.swift */; };
@@ -290,7 +288,6 @@
 		6D2B797B6DCCBF43EAF6606A /* CredentialProviderSaveTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0987977B0D41FBB5C1456C5 /* CredentialProviderSaveTests.swift */; };
 		6D4482B31E02010875FAE807 /* Attachment.swift in Sources */ = {isa = PBXBuildFile; fileRef = 17350EF5DF6C5C2E97B61A34 /* Attachment.swift */; };
 		6D7B0F0F5E4A1157EE41A4F3 /* EntryEditViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 42780494357246F25C55F3FD /* EntryEditViewModelTests.swift */; };
-		6E9CE1A6F7656C0A901A1633 /* kdbx41-public-custom-data.kdbx in Resources */ = {isa = PBXBuildFile; fileRef = B768B63FEA29736435D3E922 /* kdbx41-public-custom-data.kdbx */; };
 		7088E67D3FBF351954CD70F2 /* AutoFillPasskeyCreatorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C412174AA21900D65A646A54 /* AutoFillPasskeyCreatorView.swift */; };
 		70B5DFF94CC20D6BD049C9AB /* ChaCha20Tests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 15B37308F603CF890C96ED80 /* ChaCha20Tests.swift */; };
 		711E28602252C35A2481E769 /* WebDAVClientTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B16B7DC25FE8C1CEE117E7FD /* WebDAVClientTests.swift */; };
@@ -473,7 +470,6 @@
 		B3753042021C22B71B25E6DE /* SaveConflictAlert.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB591FE85A4ABBE2259B50FF /* SaveConflictAlert.swift */; };
 		B3A9DE3819E166A8CF0E45A4 /* KDBXWriterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4817DCDBE10FCB59D878033 /* KDBXWriterTests.swift */; };
 		B4CC67B6F57A77DA2A01E94C /* GroupEditUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0676F0C4E5413139552083A /* GroupEditUITests.swift */; };
-		B55278297B533C892F19D56F /* unknown-elements.kdbx in Resources */ = {isa = PBXBuildFile; fileRef = 6C92F73C702B2C95BC3727FC /* unknown-elements.kdbx */; };
 		B5A7450FC08F867DF42CF9D3 /* CloudFileBrowserViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E94BF55CC229A5312D864BDE /* CloudFileBrowserViewModelTests.swift */; };
 		B5DA8B6E4A9149E1B59C5D25 /* CoordinatedFileReader.swift in Sources */ = {isa = PBXBuildFile; fileRef = A9A57CF2CAD52FAEB0047900 /* CoordinatedFileReader.swift */; };
 		B6AC05995DAF7D2C27CACE6E /* EntryEditCompletionGateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A01A49238AD6DEF29C56B328 /* EntryEditCompletionGateTests.swift */; };
@@ -891,7 +887,6 @@
 		6AA206874A10ED8FC3270063 /* AttachmentQuickLookPreview.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AttachmentQuickLookPreview.swift; sourceTree = "<group>"; };
 		6AFBBC10051B412E85947EB5 /* DropboxCloudProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DropboxCloudProvider.swift; sourceTree = "<group>"; };
 		6B23EE0FFF365E0E5F1E571E /* EntryHistoryTrimmer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EntryHistoryTrimmer.swift; sourceTree = "<group>"; };
-		6C92F73C702B2C95BC3727FC /* unknown-elements.kdbx */ = {isa = PBXFileReference; path = "unknown-elements.kdbx"; sourceTree = "<group>"; };
 		6CB86A3375C87F5074F1AB7D /* UITestWebDAVCloudProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UITestWebDAVCloudProvider.swift; sourceTree = "<group>"; };
 		6CB88CC16B6EF72B737A8030 /* MacScreenshotAuditUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacScreenshotAuditUITests.swift; sourceTree = "<group>"; };
 		6D8AAE0BC5540DB06342C80C /* Localizable.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = Localizable.xcstrings; sourceTree = "<group>"; };
@@ -978,7 +973,6 @@
 		B514D9E533F3FF2EB1978959 /* LocalDatabaseSaverTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalDatabaseSaverTests.swift; sourceTree = "<group>"; };
 		B531885B533C74F391440B2B /* LocalizationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalizationTests.swift; sourceTree = "<group>"; };
 		B6594B5A580C44B4042FE110 /* EncryptedValue.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EncryptedValue.swift; sourceTree = "<group>"; };
-		B768B63FEA29736435D3E922 /* kdbx41-public-custom-data.kdbx */ = {isa = PBXFileReference; path = "kdbx41-public-custom-data.kdbx"; sourceTree = "<group>"; };
 		B7B6F08C62E668E72877D297 /* LocalDatabaseSaver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalDatabaseSaver.swift; sourceTree = "<group>"; };
 		B7D2F5605A0DFC0F10AAF87E /* TOTPEnrollmentUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TOTPEnrollmentUITests.swift; sourceTree = "<group>"; };
 		B942B75B67043A4CB397BE27 /* OneDriveCloudProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OneDriveCloudProvider.swift; sourceTree = "<group>"; };
@@ -1239,7 +1233,6 @@
 				910B7AC184C2D96616A1EF17 /* argon2-high-iterations.kdbx */,
 				EF6FBD0976DB77F511EDBFFA /* foreign-chacha20.kdbx */,
 				E38AF9B69C365E5B0B3029D1 /* foreign-twofish.kdbx */,
-				B768B63FEA29736435D3E922 /* kdbx41-public-custom-data.kdbx */,
 				FED8CAC6F5E34BB1CB405728 /* legacy-kdbx31.kdbx */,
 				F8CDC58A04801FC931A9706B /* unknown-inner-header.kdbx */,
 			);
@@ -1418,15 +1411,6 @@
 			path = KeeForge/App;
 			sourceTree = "<group>";
 		};
-		D35B1898D85AD1D33CE13604 /* round-trip */ = {
-			isa = PBXGroup;
-			children = (
-				6C92F73C702B2C95BC3727FC /* unknown-elements.kdbx */,
-			);
-			name = "round-trip";
-			path = "TestFixtures/round-trip";
-			sourceTree = "<group>";
-		};
 		E7125F33479895937960E6A0 /* ViewModels */ = {
 			isa = PBXGroup;
 			children = (
@@ -1464,7 +1448,6 @@
 				F3F9AA8A28D02AE11AD6854E /* Models */,
 				7D300A2D174014A53DD4DCE3 /* Packages */,
 				65E3F4C6ED83A516F2D23EB6 /* Resources */,
-				D35B1898D85AD1D33CE13604 /* round-trip */,
 				0F643F928D1B442EDCF4379B /* Services */,
 				71F778658A17A600FECAC9C6 /* TestFixtures */,
 				E7125F33479895937960E6A0 /* ViewModels */,
@@ -1948,7 +1931,6 @@
 				5D2CF3FE49768C76388E382C /* demo.kdbx in Resources */,
 				EABC40D7531D76B72D3D7411 /* foreign-chacha20.kdbx in Resources */,
 				BFA3725153EF5A3C0BECC4DF /* foreign-twofish.kdbx in Resources */,
-				5BB5396D932F586B396D5D98 /* kdbx41-public-custom-data.kdbx in Resources */,
 				5B2C70C57069BAE039AAD884 /* kitchen-sink.kdbx in Resources */,
 				51700A65B8C39BA7C19DD430 /* legacy-kdbx31.kdbx in Resources */,
 				E152AFB67F2E8119575474B7 /* test-arbitrary.key in Resources */,
@@ -1956,7 +1938,6 @@
 				8E99F20C4C299C88E89B34ED /* test-v1.key in Resources */,
 				FBEFDD102275DCEA7AC63146 /* test-v2.keyx in Resources */,
 				F98036B14A7239C757090B8D /* test.kdbx in Resources */,
-				12CA554AB58CEA7C9842C713 /* unknown-elements.kdbx in Resources */,
 				815FA2A737B45D4FB36F1DEA /* unknown-inner-header.kdbx in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -1984,7 +1965,6 @@
 				213739D8E5D63DBCB0B577B4 /* demo.kdbx in Resources */,
 				8D451C0FF02C60504FE778CC /* foreign-chacha20.kdbx in Resources */,
 				1CEBD0914FDDBB715E4A5EBC /* foreign-twofish.kdbx in Resources */,
-				6E9CE1A6F7656C0A901A1633 /* kdbx41-public-custom-data.kdbx in Resources */,
 				2C803BEDA85DFEA20B6821FE /* kitchen-sink.kdbx in Resources */,
 				A9E0B44D2DC253A2564C099B /* legacy-kdbx31.kdbx in Resources */,
 				151FA82F58FBFB9A44D30936 /* test-arbitrary.key in Resources */,
@@ -1992,7 +1972,6 @@
 				7725E1109FAED809C9923CFD /* test-v1.key in Resources */,
 				3423A83EB7F5E5BD32EAEE74 /* test-v2.keyx in Resources */,
 				1BC4C4DA15248EFF778D127A /* test.kdbx in Resources */,
-				B55278297B533C892F19D56F /* unknown-elements.kdbx in Resources */,
 				F0B30051F3FB652A61E07C2D /* unknown-inner-header.kdbx in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

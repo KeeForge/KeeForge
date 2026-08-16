@@ -117,7 +117,7 @@ final class KDBXWriterTests: XCTestCase {
     }
 
     func test_writtenFile_validatesOuterHeaderHMAC() throws {
-        let parsed = try parseFixture(.unknownElements)
+        let parsed = try parseFixture(.kitchenSink)
 
         let written = try KDBXWriter.write(
             rootGroup: parsed.rootGroup,
@@ -140,7 +140,7 @@ final class KDBXWriterTests: XCTestCase {
             )
         )
 
-        let reparsed = try parseWrittenFile(written, fixture: .unknownElements)
+        let reparsed = try parseWrittenFile(written, fixture: .kitchenSink)
         try assertTreesEqual(parsed, reparsed)
     }
 

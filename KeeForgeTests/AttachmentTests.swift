@@ -39,28 +39,23 @@ final class AttachmentTests: XCTestCase {
 
     // MARK: - Fixture-backed parsing
 
-    func test_unknownElementsFixture_parsesAttachmentsStructurally() throws {
+    func test_kitchenSinkFixture_parsesRoundTripAttachmentsStructurally() throws {
         let bundle = Bundle(for: Self.self)
-        let databaseURL = try TestDatabaseSupport.fixtureURL(
-            named: "unknown-elements",
-            subdirectory: "round-trip",
-            bundle: bundle
-        )
+        let databaseURL = try TestDatabaseSupport.fixtureURL(named: "kitchen-sink", bundle: bundle)
         let data = try Data(contentsOf: databaseURL)
         let parsed = try KDBXParser.parseWithMetaAndHeader(
             data: data,
-            password: "test-round-trip",
+            password: "testpassword123",
             sessionKey: sessionKey
         )
 
         let entry = try XCTUnwrap(parsed.rootGroup.allEntries.first { $0.title == "Controlled Unknowns" })
-        // Compare name/ref only: insertionIndex is positional metadata
-        // recorded from the fixture's actual `<Binary>` placement, not a
-        // value this test should hardcode.
+        // Compare names and pool content, not literal refs or insertionIndex:
+        // both are positional metadata recorded from the fixture's actual
+        // `<Binary>` placement, not values this test should hardcode.
         XCTAssertEqual(entry.attachments.map(\.name), ["round-trip.txt"])
-        XCTAssertEqual(entry.attachments.map(\.ref), [0])
         XCTAssertEqual(entry.history.first?.attachments.map(\.name), ["round-trip.txt"])
-        XCTAssertEqual(entry.history.first?.attachments.map(\.ref), [0])
+        XCTAssertEqual(entry.history.first?.attachments.map(\.ref), entry.attachments.map(\.ref))
 
         let pool = BinaryPool(rawFields: parsed.header.innerHeaderBinaryFields)
         let attachment = try XCTUnwrap(entry.attachments.first)

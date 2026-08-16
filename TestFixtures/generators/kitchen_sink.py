@@ -1,11 +1,13 @@
-"""`kitchen-sink.kdbx` -- one rich fixture replacing five narrow ones.
+"""`kitchen-sink.kdbx` -- one rich fixture replacing seven narrow ones.
 
 `tag-browser`, `protected-custom-field`, `icon-picker`,
-`compatibility/group-tags` and `compatibility/attachments` each existed for a
-single feature, so a test needing two of them had no fixture at all and every
-new aspect meant another file to bundle and maintain. This is the exact union
-of all five, plus a TOTP entry, in one KDBX **4.1** / AES-256-CBC / Argon2d
-database -- 4.1 because group `<Tags>` only exist from that minor version on.
+`compatibility/group-tags`, `compatibility/attachments`,
+`round-trip/unknown-elements` and `compatibility/kdbx41-public-custom-data`
+each existed for a single feature, so a test needing two of them had no fixture
+at all and every new aspect meant another file to bundle and maintain. This is
+the exact union of all seven, plus a TOTP entry, in one KDBX **4.1** /
+AES-256-CBC / Argon2d database -- 4.1 because group `<Tags>` only exist from
+that minor version on.
 
 Every section below carries the coverage its retired fixture used to own, and
 the section comments say what each one is for. pykeepass authors the file -- an
@@ -14,11 +16,12 @@ compatibility gate prove KeeForge reads a foreign file rather than only its own.
 
 Root groups, in child order: `Tagged`, `Archive`, `Secrets`, `Icons`,
 `Projects` (with `Client Work`), `Empty Tags Group`, `Plain Group`,
-`Attachments`, `Recycle Bin`. Nothing lives directly under the root.
+`Attachments`, `Round Trip`, `Recycle Bin`. Nothing lives directly under the
+root.
 
-Output is deterministic in CONTENT but NOT in bytes: pykeepass generates a
-fresh master seed, encryption IV and KDF salt on every `save()`. Tests assert
-decoded content, never raw bytes.
+Output is deterministic in CONTENT but NOT in bytes: `_common.new_database`
+randomizes the master seed, encryption IV and KDF salt, and pykeepass mints
+fresh UUIDs and timestamps. Tests assert decoded content, never raw bytes.
 """
 
 import base64
@@ -29,18 +32,22 @@ import uuid
 import zlib
 from pathlib import Path
 
+from construct import Container
 from lxml import etree
 
 from ._common import (
     AESKDF_UUID,
     ARGON2D_UUID,
     ARGON2ID_UUID,
+    PUBLIC_CUSTOM_DATA_FIELD_ID,
     Generator,
+    build_variant_dict,
     drop_rawcopy_cache,
     fixture_path,
     kdf_parameters,
     new_database,
     parse_outer_header,
+    parse_variant_dict,
     pykeepass,
     run_keepassxc_cli,
     verify_keepassxc_lists_group,
@@ -417,8 +424,122 @@ def add_attachments_group(kp) -> None:
 
 
 # --------------------------------------------------------------------------
-# Recycle Bin and the 4.1 header
+# Round Trip -- opaque XML in known positions (was
+# round-trip/unknown-elements.kdbx)
+#
+# KeeForge models `<AutoType>`, entry `<CustomData>` and `Meta/CustomData` as
+# opaque XML: it never interprets them, it only has to re-emit them at the
+# position it found them. What this section contributes is therefore the
+# POSITIONS, not the values:
+#
+# * the entry's `<CustomData>` sits AFTER `<Binary>` and BEFORE `<History>`, so
+#   an opaque fragment wedged between two structured siblings has a carrier;
+# * `<Password>` and `<Notes>` sit AFTER `<History>` -- a legal but
+#   non-canonical child order KeePassXC itself produces, which a writer that
+#   silently re-canonicalizes would destroy;
+# * the attachment reference is carried by the current entry AND by its single
+#   history version, so a history-only `<Binary>` cannot be dropped;
+# * `Meta` gets a SECOND `<CustomData>` sibling next to the one pykeepass
+#   already writes. Two `<CustomData>` elements under one `<Meta>` is
+#   schema-invalid and the only such construct in the corpus -- exactly the
+#   shape that breaks a parser keying opaque fragments by element name.
+#
+# The retired fixture also tagged this entry `roundtrip;unknown`. The tags are
+# deliberately NOT reproduced: nothing asserted them, they add no opaque-XML
+# coverage, and they would change the tag counts `TagBrowserUITests` pins.
 # --------------------------------------------------------------------------
+
+ROUND_TRIP_GROUP = "Round Trip"
+ROUND_TRIP_TITLE = "Controlled Unknowns"
+ROUND_TRIP_USERNAME = "roundtrip-user"
+ROUND_TRIP_URL = "https://example.com/round-trip"
+# Pinned by KDBXCompatibilitySupport.fixtureEntryPasswords (the keepassxc-cli
+# probe) and TestFixtures/README.md -- change all three together.
+ROUND_TRIP_PASSWORD = "roundtrip-pass"
+ROUND_TRIP_NOTES = "Fixture for opaque XML round-trip coverage"
+ROUND_TRIP_HISTORY_PASSWORD = "history-pass-v1"
+ROUND_TRIP_HISTORY_NOTES = "Historical revision for round-trip coverage"
+
+ROUND_TRIP_SEQUENCE = "{USERNAME}{TAB}{PASSWORD}{ENTER}"
+ROUND_TRIP_WINDOW = "RoundTrip Login"
+
+ROUND_TRIP_ATTACHMENT_NAME = "round-trip.txt"
+ROUND_TRIP_ATTACHMENT_DATA = b"round-trip-attachment-bytes"
+ROUND_TRIP_ATTACHMENT_SHA256 = "22e06efe984efab5605bccf1c0c1e208db740e16cac328dcbfa27cecee8458db"
+
+ROUND_TRIP_ENTRY_CUSTOM_DATA = ("RoundTripEntryKey", "RoundTripEntryValue-Expected")
+ROUND_TRIP_META_CUSTOM_DATA = ("RoundTripMetaKey", "RoundTripMetaValue-Expected")
+
+
+def make_custom_data(key: str, value: str):
+    """A `<CustomData>` element holding one `<Item>`."""
+    custom_data = etree.Element("CustomData")
+    item = etree.SubElement(custom_data, "Item")
+    etree.SubElement(item, "Key").text = key
+    etree.SubElement(item, "Value").text = value
+    return custom_data
+
+
+def add_round_trip_group(kp) -> None:
+    group = kp.add_group(kp.root_group, ROUND_TRIP_GROUP)
+    entry = kp.add_entry(
+        group,
+        ROUND_TRIP_TITLE,
+        ROUND_TRIP_USERNAME,
+        ROUND_TRIP_HISTORY_PASSWORD,
+        url=ROUND_TRIP_URL,
+        notes=ROUND_TRIP_HISTORY_NOTES,
+    )
+
+    # pykeepass writes an `<AutoType>` skeleton on every entry, so fill it in
+    # rather than adding a second one.
+    auto_type = entry._element.find("AutoType")
+    auto_type.find("DefaultSequence").text = ROUND_TRIP_SEQUENCE
+    auto_type.find("Association/Window").text = ROUND_TRIP_WINDOW
+
+    binary_id = kp.add_binary(ROUND_TRIP_ATTACHMENT_DATA, protected=False)
+    entry.add_attachment(binary_id, ROUND_TRIP_ATTACHMENT_NAME)
+
+    # The snapshot inherits the `<AutoType>` and `<Binary>` above, so the
+    # history version carries the attachment reference too.
+    entry.save_history()
+    # Setting a string field re-appends it, which is what lands `<Password>`
+    # and `<Notes>` after `<History>`.
+    entry.password = ROUND_TRIP_PASSWORD
+    entry.notes = ROUND_TRIP_NOTES
+
+    entry._element.find("Binary").addnext(make_custom_data(*ROUND_TRIP_ENTRY_CUSTOM_DATA))
+
+    meta = kp.tree.find("Meta")
+    meta.find("CustomData").addnext(make_custom_data(*ROUND_TRIP_META_CUSTOM_DATA))
+
+
+# --------------------------------------------------------------------------
+# Recycle Bin and the outer header
+# --------------------------------------------------------------------------
+
+# The one outer-header field KeeForge does not model (was
+# compatibility/kdbx41-public-custom-data.kdbx). KDBX 4.1 added
+# `PublicCustomData` (id 0x0C) as an unencrypted variant dictionary for plugin
+# data; KeeForge must carry it through a save byte-for-byte without
+# understanding it, and no other fixture has one.
+PUBLIC_CUSTOM_DATA = {"KeeForgeFixture": "KDBX 4.1 public custom data"}
+
+
+def add_public_custom_data(kp) -> None:
+    """Append the `PublicCustomData` header field, before the terminator.
+
+    pykeepass parses id 0x0C into the header container but offers no API to add
+    one, so the item is inserted into the Construct container directly; the
+    cache drop that makes it reach the file is explained in
+    `_common.drop_rawcopy_cache`."""
+    dynamic_header = kp.kdbx.header.value.dynamic_header
+    terminator = dynamic_header.pop("end")
+    dynamic_header["public_custom_data"] = Container(
+        id="public_custom_data", data=build_variant_dict(PUBLIC_CUSTOM_DATA)
+    )
+    dynamic_header["end"] = terminator
+    drop_rawcopy_cache(kp)
 
 
 def add_recycle_bin(kp) -> None:
@@ -449,9 +570,11 @@ def build(path: Path) -> None:
     add_icons_group(kp)
     add_group_tag_groups(kp)
     add_attachments_group(kp)
+    add_round_trip_group(kp)
     add_recycle_bin(kp)  # last under the root
 
     raise_to_kdbx41(kp)
+    add_public_custom_data(kp)
     kp.save()
 
 
@@ -460,9 +583,8 @@ def build(path: Path) -> None:
 # --------------------------------------------------------------------------
 
 
-def verify_kdbx41_header(path: Path, kp) -> str:
+def verify_kdbx41_header(path: Path, kp, header) -> str:
     """Assert the raw header says 4.1 and return the KDF's name."""
-    header = parse_outer_header(path.read_bytes())
     if (header.major, header.minor) != (4, 1):
         raise AssertionError(
             f"{path.name}: expected raw header version 4.1, got {header.major}.{header.minor}"
@@ -479,6 +601,18 @@ def verify_kdbx41_header(path: Path, kp) -> str:
     return kdf_name
 
 
+def verify_public_custom_data(path: Path, header) -> None:
+    blob = header.fields.get(PUBLIC_CUSTOM_DATA_FIELD_ID)
+    if blob is None:
+        raise AssertionError(f"{path.name}: no PublicCustomData field in the outer header")
+    actual = {key: value.decode("utf-8") for key, value in parse_variant_dict(blob).items()}
+    if actual != PUBLIC_CUSTOM_DATA:
+        raise AssertionError(
+            f"{path.name}: PublicCustomData {actual!r}, expected {PUBLIC_CUSTOM_DATA!r}"
+        )
+    print(f"  outer header field {PUBLIC_CUSTOM_DATA_FIELD_ID:#04x}: {actual!r}")
+
+
 def verify_root_groups(path: Path, kp) -> None:
     expected = [
         "Tagged",
@@ -489,6 +623,7 @@ def verify_root_groups(path: Path, kp) -> None:
         "Empty Tags Group",
         "Plain Group",
         "Attachments",
+        ROUND_TRIP_GROUP,
         kp.recyclebin_group.name,
     ]
     actual = [group.name for group in kp.root_group.subgroups]
@@ -677,9 +812,87 @@ def verify_attachments(path: Path, kp) -> None:
         raise AssertionError(
             f"{path.name}: the dedup entries must share one pool binary, got {dedup_refs!r}"
         )
-    if len(kp.binaries) != 3:
-        raise AssertionError(f"{path.name}: expected a 3-item binary pool, got {len(kp.binaries)}")
+    # Three payloads here plus the Round Trip attachment.
+    if len(kp.binaries) != 4:
+        raise AssertionError(f"{path.name}: expected a 4-item binary pool, got {len(kp.binaries)}")
     print(f"  binary pool: {len(kp.binaries)} items, dedup ref shared ({dedup_refs['Dedup Entry A']})")
+
+
+def assert_custom_data_item(path: Path, element, expected: tuple[str, str], label: str) -> None:
+    if element is None:
+        raise AssertionError(f"{path.name}: {label} <CustomData> missing")
+    items = element.findall("Item")
+    actual = [(item.findtext("Key"), item.findtext("Value")) for item in items]
+    if actual != [expected]:
+        raise AssertionError(f"{path.name}: {label} <CustomData> items {actual!r}, expected [{expected!r}]")
+
+
+def verify_round_trip_group(path: Path, kp) -> None:
+    entry = kp.find_entries(title=ROUND_TRIP_TITLE, first=True)
+    if entry is None:
+        raise AssertionError(f"{path.name}: entry {ROUND_TRIP_TITLE!r} missing")
+    if entry.group.name != ROUND_TRIP_GROUP:
+        raise AssertionError(f"{path.name}: {ROUND_TRIP_TITLE!r} is not in {ROUND_TRIP_GROUP!r}")
+    if entry.username != ROUND_TRIP_USERNAME or entry.password != ROUND_TRIP_PASSWORD:
+        raise AssertionError(f"{path.name}: {ROUND_TRIP_TITLE!r} credential mismatch")
+    if entry.url != ROUND_TRIP_URL or entry.notes != ROUND_TRIP_NOTES:
+        raise AssertionError(f"{path.name}: {ROUND_TRIP_TITLE!r} url/notes drifted")
+    if entry.tags:
+        raise AssertionError(f"{path.name}: {ROUND_TRIP_TITLE!r} must carry no tags, got {entry.tags!r}")
+
+    element = entry._element
+    auto_type = element.find("AutoType")
+    if auto_type is None or auto_type.findtext("DefaultSequence") != ROUND_TRIP_SEQUENCE:
+        raise AssertionError(f"{path.name}: {ROUND_TRIP_TITLE!r} AutoType sequence drifted")
+    if auto_type.findtext("Association/Window") != ROUND_TRIP_WINDOW:
+        raise AssertionError(f"{path.name}: {ROUND_TRIP_TITLE!r} AutoType window drifted")
+
+    # The positions ARE the coverage: an opaque <CustomData> wedged between
+    # <Binary> and <History>, and the strings trailing after <History>.
+    names = [child.tag for child in element]
+    custom_data_at = names.index("CustomData")
+    if not names.index("Binary") < custom_data_at < names.index("History"):
+        raise AssertionError(f"{path.name}: {ROUND_TRIP_TITLE!r} child order {names!r}")
+    string_keys = [string.findtext("Key") for string in element.findall("String")]
+    if string_keys != ["Title", "UserName", "URL", "Password", "Notes"]:
+        raise AssertionError(f"{path.name}: {ROUND_TRIP_TITLE!r} string order {string_keys!r}")
+    assert_custom_data_item(
+        path, element.find("CustomData"), ROUND_TRIP_ENTRY_CUSTOM_DATA, ROUND_TRIP_TITLE
+    )
+
+    attachments = [attachment.filename for attachment in entry.attachments]
+    if attachments != [ROUND_TRIP_ATTACHMENT_NAME]:
+        raise AssertionError(f"{path.name}: {ROUND_TRIP_TITLE!r} attachments {attachments!r}")
+    digest = hashlib.sha256(entry.attachments[0].binary).hexdigest()
+    if digest != ROUND_TRIP_ATTACHMENT_SHA256:
+        raise AssertionError(f"{path.name}: {ROUND_TRIP_ATTACHMENT_NAME} sha256 {digest}")
+
+    if len(entry.history) != 1:
+        raise AssertionError(
+            f"{path.name}: {ROUND_TRIP_TITLE!r} expected 1 history version, found {len(entry.history)}"
+        )
+    version = entry.history[0]
+    if version.password != ROUND_TRIP_HISTORY_PASSWORD or version.notes != ROUND_TRIP_HISTORY_NOTES:
+        raise AssertionError(f"{path.name}: {ROUND_TRIP_TITLE!r} history version drifted")
+    if version._element.find("CustomData") is not None:
+        raise AssertionError(f"{path.name}: {ROUND_TRIP_TITLE!r} history version must carry no <CustomData>")
+    entry_ref = element.find("Binary/Value").get("Ref")
+    history_ref = version._element.find("Binary/Value").get("Ref")
+    if entry_ref != history_ref:
+        raise AssertionError(
+            f"{path.name}: history <Binary> ref {history_ref!r} differs from the entry's {entry_ref!r}"
+        )
+    print(f"  entry {ROUND_TRIP_TITLE!r}: children {names!r}, Binary ref {entry_ref}")
+
+    # Two <CustomData> siblings under one <Meta> is schema-invalid, and that is
+    # exactly the shape this fixture exists to keep a parser honest about.
+    meta_custom_data = kp.tree.findall("Meta/CustomData")
+    if len(meta_custom_data) != 2:
+        raise AssertionError(
+            f"{path.name}: expected 2 Meta <CustomData> siblings, found {len(meta_custom_data)}"
+        )
+    assert_custom_data_item(path, meta_custom_data[1], ROUND_TRIP_META_CUSTOM_DATA, "second Meta")
+    print(f"  Meta: {len(meta_custom_data)} <CustomData> siblings, second is {ROUND_TRIP_META_CUSTOM_DATA[0]!r}")
 
 
 def verify_keepassxc_cli(path: Path, keepassxc_cli: str) -> None:
@@ -688,6 +901,7 @@ def verify_keepassxc_cli(path: Path, keepassxc_cli: str) -> None:
     for entry_path, expected_password in (
         ("Attachments/Multi Attachment Entry", "entry-password-1"),
         ("Projects/Alpha Login", "GroupTagAlpha1"),
+        (f"{ROUND_TRIP_GROUP}/{ROUND_TRIP_TITLE}", ROUND_TRIP_PASSWORD),
     ):
         result = run_keepassxc_cli(
             keepassxc_cli, ["show", "-q", "-s", "-a", "Password", str(path), entry_path], PASSWORD
@@ -705,11 +919,17 @@ def verify_keepassxc_cli(path: Path, keepassxc_cli: str) -> None:
             )
         print(f"  keepassxc-cli show -s -a Password {entry_path!r}: {actual!r} (matches)")
 
-    for entry_path, name, expected_data in (
-        ("Attachments/Multi Attachment Entry", NOTE_NAME, NOTE_DATA),
-        ("Attachments/Multi Attachment Entry", PIXEL_NAME, PIXEL_DATA),
-        ("Attachments/Dedup Entry A", SHARED_NAME, SHARED_DATA),
-        ("Attachments/Dedup Entry B", SHARED_NAME, SHARED_DATA),
+    for entry_path, name, expected_data, expected_digest in (
+        ("Attachments/Multi Attachment Entry", NOTE_NAME, NOTE_DATA, EXPECTED_ATTACHMENT_HASHES[NOTE_NAME]),
+        ("Attachments/Multi Attachment Entry", PIXEL_NAME, PIXEL_DATA, EXPECTED_ATTACHMENT_HASHES[PIXEL_NAME]),
+        ("Attachments/Dedup Entry A", SHARED_NAME, SHARED_DATA, EXPECTED_ATTACHMENT_HASHES[SHARED_NAME]),
+        ("Attachments/Dedup Entry B", SHARED_NAME, SHARED_DATA, EXPECTED_ATTACHMENT_HASHES[SHARED_NAME]),
+        (
+            f"{ROUND_TRIP_GROUP}/{ROUND_TRIP_TITLE}",
+            ROUND_TRIP_ATTACHMENT_NAME,
+            ROUND_TRIP_ATTACHMENT_DATA,
+            ROUND_TRIP_ATTACHMENT_SHA256,
+        ),
     ):
         with tempfile.TemporaryDirectory() as export_dir:
             export_path = f"{export_dir}/exported"
@@ -725,7 +945,7 @@ def verify_keepassxc_cli(path: Path, keepassxc_cli: str) -> None:
                 )
             exported = Path(export_path).read_bytes()
             digest = hashlib.sha256(exported).hexdigest()
-            if exported != expected_data or digest != EXPECTED_ATTACHMENT_HASHES[name]:
+            if exported != expected_data or digest != expected_digest:
                 raise AssertionError(
                     f"keepassxc-cli exported {entry_path}/{name} with sha256 {digest}"
                 )
@@ -733,19 +953,23 @@ def verify_keepassxc_cli(path: Path, keepassxc_cli: str) -> None:
 
 
 def verify(path: Path, keepassxc_cli: str | None) -> None:
+    raw = path.read_bytes()
+    header = parse_outer_header(raw)
     kp = pykeepass.PyKeePass(str(path), password=PASSWORD)
-    kdf_name = verify_kdbx41_header(path, kp)
+    kdf_name = verify_kdbx41_header(path, kp, header)
     print(
         f"{path.name}: KDBX {kp.version[0]}.{kp.version[1]}, kdf={kdf_name}, "
-        f"sha256={hashlib.sha256(path.read_bytes()).hexdigest()}"
+        f"sha256={hashlib.sha256(raw).hexdigest()}"
     )
 
+    verify_public_custom_data(path, header)
     verify_root_groups(path, kp)
     entry_tag_counts = verify_tagged_groups(path, kp)
     verify_secrets_group(path, kp)
     verify_icons_group(path, kp)
     verify_group_tags(path, kp)
     verify_attachments(path, kp)
+    verify_round_trip_group(path, kp)
 
     entry_tag_counts["own-tag"] = 1  # on Beta Login, checked by verify_group_tags
     if entry_tag_counts != EXPECTED_ENTRY_TAG_COUNTS:
