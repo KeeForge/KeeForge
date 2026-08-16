@@ -55,7 +55,7 @@ enum KDBXWriter {
     static func write(
         rootGroup: KPGroup,
         meta: KPMeta,
-        compositeKey: Data,
+        compositeKey: SymmetricKey,
         header: KDBXParser.Header,
         sessionKey: SymmetricKey,
         kdfPolicy: KDFExecutionPolicy
@@ -73,7 +73,7 @@ enum KDBXWriter {
     static func write(
         rootGroup: KPGroup,
         meta: KPMeta,
-        compositeKey: Data,
+        compositeKey: SymmetricKey,
         freshHeader: FreshHeaderConfiguration,
         sessionKey: SymmetricKey,
         kdfPolicy: KDFExecutionPolicy
@@ -91,7 +91,7 @@ enum KDBXWriter {
     private static func write(
         rootGroup: KPGroup,
         meta: KPMeta,
-        compositeKey: Data,
+        compositeKey: SymmetricKey,
         sessionKey: SymmetricKey,
         headerSource: HeaderSource,
         kdfPolicy: KDFExecutionPolicy
@@ -100,7 +100,11 @@ enum KDBXWriter {
             from: headerSource,
             requiredMinorVersion: requiredMinorVersion(for: rootGroup)
         )
-        let keys = try deriveKeys(compositeKey: compositeKey, header: header, kdfPolicy: kdfPolicy)
+        var keys = try deriveKeys(compositeKey: compositeKey, header: header, kdfPolicy: kdfPolicy)
+        defer {
+            SecureWipe.wipe(&keys.masterKey)
+            SecureWipe.wipe(&keys.hmacBaseKey)
+        }
 
         let outerHeader = try buildOuterHeader(from: header)
 
@@ -133,10 +137,11 @@ enum KDBXWriter {
         )
 
         let headerSHA256 = KDBXCrypto.sha256(outerHeader)
-        let headerHMACKey = KDBXParser.computeBlockHMACKey(
+        var headerHMACKey = KDBXParser.computeBlockHMACKey(
             blockIndex: UInt64.max,
             baseKey: keys.hmacBaseKey
         )
+        defer { SecureWipe.wipe(&headerHMACKey) }
         let headerHMAC = KDBXCrypto.hmacSHA256(key: headerHMACKey, data: outerHeader)
         let framedPayload = frameIntoHMACBlocks(encryptedPayload, baseKey: keys.hmacBaseKey)
 
@@ -228,22 +233,25 @@ enum KDBXWriter {
     }
 
     private static func deriveKeys(
-        compositeKey: Data,
+        compositeKey: SymmetricKey,
         header: KDBXParser.Header,
         kdfPolicy: KDFExecutionPolicy
     ) throws -> (masterKey: Data, hmacBaseKey: Data) {
-        let transformedKey = try KDBXParser.deriveKey(
+        var transformedKey = try KDBXParser.deriveKey(
             compositeKey: compositeKey,
             kdfParams: header.kdfParameters,
             kdfPolicy: kdfPolicy
         )
+        defer { SecureWipe.wipe(&transformedKey) }
 
-        var masterPreKey = Data()
+        var masterPreKey = Data(capacity: 64)
+        defer { SecureWipe.wipe(&masterPreKey) }
         masterPreKey.append(header.masterSeed)
         masterPreKey.append(transformedKey)
         let masterKey = KDBXCrypto.sha256(masterPreKey)
 
-        var hmacPreKey = Data()
+        var hmacPreKey = Data(capacity: 65)
+        defer { SecureWipe.wipe(&hmacPreKey) }
         hmacPreKey.append(header.masterSeed)
         hmacPreKey.append(transformedKey)
         hmacPreKey.append(Data([0x01]))
@@ -320,7 +328,8 @@ enum KDBXWriter {
             let blockSize = min(hmacBlockSize, data.count - offset)
             let blockData = data.subdata(in: offset..<(offset + blockSize))
 
-            let hmacKey = KDBXParser.computeBlockHMACKey(blockIndex: blockIndex, baseKey: baseKey)
+            var hmacKey = KDBXParser.computeBlockHMACKey(blockIndex: blockIndex, baseKey: baseKey)
+            defer { SecureWipe.wipe(&hmacKey) }
             var message = Data()
             message.append(withUInt64: blockIndex)
             message.append(withInt32: Int32(blockSize))
@@ -335,7 +344,8 @@ enum KDBXWriter {
             blockIndex &+= 1
         }
 
-        let finalHMACKey = KDBXParser.computeBlockHMACKey(blockIndex: blockIndex, baseKey: baseKey)
+        var finalHMACKey = KDBXParser.computeBlockHMACKey(blockIndex: blockIndex, baseKey: baseKey)
+        defer { SecureWipe.wipe(&finalHMACKey) }
         var finalMessage = Data()
         finalMessage.append(withUInt64: blockIndex)
         finalMessage.append(withInt32: 0)

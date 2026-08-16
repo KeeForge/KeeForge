@@ -1,14 +1,6 @@
 {
-  "originHash" : "0542f58aa0a849fc0bf9c2cbd0b275bb2bdb90dd0c902df94aba28239bf130c3",
+  "originHash" : "2549a2a0040a0a0df2d78b8d0aa45eb0e1fad92d8e792eebe56c9f224335056d",
   "pins" : [
-    {
-      "identity" : "argon2swift",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/tmthecoder/Argon2Swift.git",
-      "state" : {
-        "revision" : "53543623fefe68461b7eeea03d7f96677c2fd76d"
-      }
-    },
     {
       "identity" : "microsoft-authentication-library-for-objc",
       "kind" : "remoteSourceControl",
@@ -23,7 +15,6 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/P-H-C/phc-winner-argon2.git",
       "state" : {
-        "branch" : "master",
         "revision" : "f57e61e19229e23c4445b85494dbf7c07de721cb"
       }
     },

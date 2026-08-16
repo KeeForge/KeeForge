@@ -38,6 +38,10 @@ TODO before the first macOS release:
 - The entry icon on the entry screen now carries a small pencil badge, so it's clear that tapping it opens the icon picker. Read-only databases still show the plain icon.
 - Saving an entry into a save conflict no longer leaves the entry editor stuck open behind the conflict prompt. The editor now stays put while the conflict is being resolved and closes on its own once the edit has actually been written (merged, or saved as a conflict copy); choosing Cancel keeps you in the editor so you can retry.
 
+### Security
+
+- Key material lives in memory for less time (#93 follow-up). The composite key — the value that decrypts a database and the one Face ID/Touch ID unlock stores in the Keychain — is now held as a CryptoKit `SymmetricKey`, whose backing storage CryptoKit zeroes when the last reference goes away, instead of a plain byte buffer, and the intermediate buffers KeeForge builds while deriving keys (the master password's UTF-8 bytes and hash, the key-file digest, the transformed key, master and HMAC keys, per-block HMAC keys, and the ChaCha20 outer-cipher state) are wiped with `memset_s` as soon as they are no longer needed. Argon2 now calls the reference C implementation directly instead of through the Argon2Swift wrapper, which had left several unwiped copies of the derived key on the heap; the KDF output is unchanged and existing databases open exactly as before. This is best-effort by construction — copies held by the Security framework, CryptoKit, and the text field cannot be reached — and only narrows the window for an attacker who can already read the process's memory.
+
 ## v1.14.0 (2026-08-13)
 
 ### New Features

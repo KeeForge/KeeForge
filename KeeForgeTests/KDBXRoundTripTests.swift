@@ -1433,7 +1433,7 @@ final class KDBXRoundTripTests: XCTestCase {
 
     private func parseFixtureWithHeader(
         _ fixture: KDBXTestFixture
-    ) throws -> (rootGroup: KPGroup, meta: KPMeta, header: KDBXParser.Header, compositeKey: Data) {
+    ) throws -> (rootGroup: KPGroup, meta: KPMeta, header: KDBXParser.Header, compositeKey: SymmetricKey) {
         try parseFixtureWithHeader(
             name: fixture.name,
             subdirectory: fixture.subdirectory,
@@ -1445,7 +1445,7 @@ final class KDBXRoundTripTests: XCTestCase {
         name: String,
         subdirectory: String?,
         password: String
-    ) throws -> (rootGroup: KPGroup, meta: KPMeta, header: KDBXParser.Header, compositeKey: Data) {
+    ) throws -> (rootGroup: KPGroup, meta: KPMeta, header: KDBXParser.Header, compositeKey: SymmetricKey) {
         let bundle = Bundle(for: Self.self)
         let databaseURL = try TestDatabaseSupport.fixtureURL(
             named: name,

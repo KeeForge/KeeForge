@@ -1,3 +1,4 @@
+import CryptoKit
 import XCTest
 @testable import KeeForge
 
@@ -6,7 +7,7 @@ import XCTest
 /// rejection tests are free; acceptance tests perform a real derivation and
 /// keep memory small so the whole suite stays fast.
 final class KDFExecutionPolicyTests: XCTestCase {
-    private let compositeKey = Data("kdf-policy-composite-key".utf8)
+    private let compositeKey = SymmetricKey(data: Data("kdf-policy-composite-key".utf8))
 
     private func argon2Params(
         iterations: UInt64,

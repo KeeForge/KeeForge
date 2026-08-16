@@ -101,7 +101,7 @@ struct PreparedDatabase: Sendable {
     let meta: KPMeta
     let formatVersion: KDBXParser.FileVersion
     let sessionKey: SymmetricKey
-    let compositeKey: Data
+    let compositeKey: SymmetricKey
     let openTimeSHA512: Data
     let encryptedBytes: Data
 }
@@ -112,7 +112,7 @@ struct CreatedDatabase: Sendable {
     let meta: KPMeta
     let formatVersion: KDBXParser.FileVersion
     let sessionKey: SymmetricKey
-    let compositeKey: Data
+    let compositeKey: SymmetricKey
     let openTimeSHA512: Data
 }
 

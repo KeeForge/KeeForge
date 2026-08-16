@@ -32,20 +32,22 @@ extension KDBXParser {
     }
 
     static func deriveKDBX3MasterKey(
-        compositeKey: Data,
+        compositeKey: SymmetricKey,
         header: LegacyHeader
     ) throws -> Data {
         guard header.transformRounds >= 1, header.transformRounds <= aesKDFMaxRounds else {
             throw ParseError.kdfParameterOutOfRange("rounds \(header.transformRounds) not in 1...\(aesKDFMaxRounds)")
         }
 
-        let transformedKey = try KDBXCrypto.transformKeyAESKDF(
+        var transformedKey = try KDBXCrypto.transformKeyAESKDF(
             compositeKey: compositeKey,
             seed: header.transformSeed,
             rounds: header.transformRounds
         )
+        defer { SecureWipe.wipe(&transformedKey) }
 
-        var preKey = Data()
+        var preKey = Data(capacity: 64)
+        defer { SecureWipe.wipe(&preKey) }
         preKey.append(header.masterSeed)
         preKey.append(transformedKey)
         return KDBXCrypto.sha256(preKey)
@@ -53,7 +55,7 @@ extension KDBXParser {
 
     static func parseKDBX3WithMetaAndHeader(
         data: Data,
-        compositeKey: Data,
+        compositeKey: SymmetricKey,
         sessionKey: SymmetricKey
     ) throws -> (rootGroup: KPGroup, meta: KPMeta, header: Header) {
         let legacyHeader = try parseKDBX3Header(from: data)
@@ -63,10 +65,11 @@ extension KDBXParser {
             throw KDBXCrypto.CryptoError.unsupportedCipher(legacyHeader.cipherID.hexString)
         }
 
-        let masterKey = try deriveKDBX3MasterKey(compositeKey: compositeKey, header: legacyHeader)
         let encryptedPayload = data.subdata(in: legacyHeader.payloadOffset..<data.count)
         let decryptedPayload: Data
         do {
+            var masterKey = try deriveKDBX3MasterKey(compositeKey: compositeKey, header: legacyHeader)
+            defer { SecureWipe.wipe(&masterKey) }
             decryptedPayload = try cipher.decrypt(
                 data: encryptedPayload,
                 key: masterKey,

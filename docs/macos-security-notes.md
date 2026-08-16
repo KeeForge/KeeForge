@@ -140,4 +140,13 @@ solved:
   local attacker.
 - **Swift `String` does not zeroize.** Decrypted secrets that transit Swift value
   types cannot be reliably wiped from memory; an `mlock`/`SecureBytes`-style
-  buffer is epic backlog, not shipped.
+  buffer is epic backlog, not shipped. Key material is handled more tightly:
+  the composite key is a CryptoKit `SymmetricKey` (CryptoKit zeroes its backing
+  storage on release), and the `Data`/array intermediates KeeForge itself builds
+  from it — KDF inputs and outputs, master and HMAC keys, the ChaCha20
+  outer-cipher state, the Keychain write buffer — are wiped with `memset_s`
+  (`Models/SecureWipe.swift`); Argon2 runs through the reference C `argon2_hash`
+  directly so no wrapper keeps copies. Still out of reach: the bytes the
+  Security framework hands back on Keychain read (and its own copies on write),
+  the raw key-file bytes the session keeps, the inner random-stream keystream,
+  and CommonCrypto/CryptoKit internals.

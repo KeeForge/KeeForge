@@ -262,7 +262,7 @@ enum KDBXCompatibilitySupport {
         let rootGroup: KPGroup
         let meta: KPMeta
         let header: KDBXParser.Header
-        let compositeKey: Data
+        let compositeKey: SymmetricKey
         let sourceData: Data
         let sessionKey: SymmetricKey
         let keyFileData: Data?
@@ -275,7 +275,7 @@ enum KDBXCompatibilitySupport {
     /// `keyFileData` are the EFFECTIVE post-rekey credentials the external
     /// gate must use to open the artifact; `compositeKey` is derived from them.
     struct RekeyTarget {
-        let compositeKey: Data
+        let compositeKey: SymmetricKey
         let password: String
         let keyFileName: String?
         let keyFileData: Data?
@@ -2608,7 +2608,7 @@ private extension KDBXCompatibilitySupport {
     static func makeSyntheticDatabase(
         cipherID: Data,
         hasRecycleBin: Bool,
-        compositeKey: Data,
+        compositeKey: SymmetricKey,
         sessionKey: SymmetricKey
     ) throws -> (data: Data, rootGroup: KPGroup, meta: KPMeta) {
         let recycleBinID = hasRecycleBin ? UUID(uuidString: "AAAAAAAA-BBBB-CCCC-DDDD-000000000043")! : nil

@@ -55,7 +55,7 @@ final class CredentialProviderSaveTests: XCTestCase {
             rootGroup: root,
             meta: KPMeta(),
             sessionKey: sessionKey,
-            compositeKey: Data("composite-key".utf8),
+            compositeKey: SymmetricKey(data: Data("composite-key".utf8)),
             openTimeSHA512: Data("open-sha".utf8),
             environment: makeEnvironment(recorder: recorder)
         )
@@ -172,7 +172,7 @@ final class CredentialProviderSaveTests: XCTestCase {
             rootGroup: KPGroup(name: "Root", groups: [KPGroup(name: "MyDatabase")]),
             meta: KPMeta(),
             sessionKey: sessionKey,
-            compositeKey: Data("composite-key".utf8),
+            compositeKey: SymmetricKey(data: Data("composite-key".utf8)),
             openTimeSHA512: Data("open-sha".utf8),
             environment: makeEnvironment(
                 recorder: recorder,
@@ -232,7 +232,7 @@ final class CredentialProviderSaveTests: XCTestCase {
                 rootGroup: KPGroup(name: "Root", groups: [KPGroup(name: "MyDatabase")]),
                 meta: KPMeta(),
                 sessionKey: SymmetricKey(size: .bits256),
-                compositeKey: Data("composite-key".utf8),
+                compositeKey: SymmetricKey(data: Data("composite-key".utf8)),
                 openTimeSHA512: Data("open-sha".utf8),
                 environment: makeEnvironment(
                     recorder: recorder,
@@ -286,7 +286,7 @@ final class CredentialProviderSaveTests: XCTestCase {
             rootGroup: KPGroup(name: "Root", groups: [KPGroup(name: "MyDatabase")]),
             meta: KPMeta(),
             sessionKey: SymmetricKey(size: .bits256),
-            compositeKey: Data("composite-key".utf8),
+            compositeKey: SymmetricKey(data: Data("composite-key".utf8)),
             openTimeSHA512: Data("open-sha".utf8),
             environment: environment
         )
@@ -344,7 +344,7 @@ final class CredentialProviderSaveTests: XCTestCase {
             rootGroup: KPGroup(name: "Root", groups: [KPGroup(name: "MyDatabase")]),
             meta: KPMeta(),
             sessionKey: sessionKey,
-            compositeKey: Data("composite-key".utf8),
+            compositeKey: SymmetricKey(data: Data("composite-key".utf8)),
             openTimeSHA512: Data("open-sha".utf8),
             environment: makeEnvironment(
                 recorder: recorder,
@@ -387,7 +387,7 @@ final class CredentialProviderSaveTests: XCTestCase {
             rootGroup: root,
             meta: KPMeta(),
             sessionKey: sessionKey,
-            compositeKey: Data("composite-key".utf8),
+            compositeKey: SymmetricKey(data: Data("composite-key".utf8)),
             openTimeSHA512: Data("open-sha".utf8),
             environment: makeEnvironment(recorder: recorder)
         )
@@ -476,7 +476,7 @@ final class CredentialProviderSaveTests: XCTestCase {
 
     private func makeEnvironment(
         recorder: SaveRecorder,
-        saveDraft: (@Sendable (DatabaseDraft, DatabaseReference, Data, Data) async throws -> AutoFillSaveCoordinator.SaveResult)? = nil,
+        saveDraft: (@Sendable (DatabaseDraft, DatabaseReference, SymmetricKey, Data) async throws -> AutoFillSaveCoordinator.SaveResult)? = nil,
         relativePathForURL: (@Sendable (URL) throws -> String)? = nil
     ) -> AutoFillSaveCoordinator.Environment {
         AutoFillSaveCoordinator.Environment(
@@ -609,7 +609,7 @@ final class CredentialProviderSaveTests: XCTestCase {
     private final class SaveRecorder: @unchecked Sendable {
         struct SaveCall: Sendable {
             let referenceID: UUID
-            let compositeKey: Data
+            let compositeKey: SymmetricKey
             let openTimeSHA512: Data
             let entryTitles: [String]
         }

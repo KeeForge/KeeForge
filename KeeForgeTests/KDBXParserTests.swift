@@ -490,7 +490,7 @@ final class KDBXParserTests: XCTestCase {
 
     func testArgon2KeyDerivationKnownVector() throws {
         let derived = try Argon2.hash(
-            password: Data("password".utf8),
+            password: SymmetricKey(data: Data("password".utf8)),
             salt: Data("somesalt".utf8),
             timeCost: 2,
             memoryCost: 65_536,
@@ -504,6 +504,45 @@ final class KDBXParserTests: XCTestCase {
             derived.hexString,
             "955e5d5b163a1b60bba35fc36d0496474fba4f6b59ad53628666f07fb2f93eaf"
         )
+    }
+
+    // Reference vector from phc-winner-argon2 src/test.c (argon2id, v=19).
+    func testArgon2idKeyDerivationKnownVector() throws {
+        let derived = try Argon2.hash(
+            password: SymmetricKey(data: Data("password".utf8)),
+            salt: Data("somesalt".utf8),
+            timeCost: 2,
+            memoryCost: 65_536,
+            parallelism: 1,
+            hashLength: 32,
+            version: .v13,
+            variant: .id
+        )
+
+        XCTAssertEqual(
+            derived.hexString,
+            "09316115d5cf24ed5a15a31a3ba326e5cf32edc24702987c02b6566f61913cf7"
+        )
+    }
+
+    func testArgon2SurfacesReferenceErrorCodeForShortSalt() {
+        XCTAssertThrowsError(
+            try Argon2.hash(
+                password: SymmetricKey(data: Data("password".utf8)),
+                salt: Data("short".utf8),
+                timeCost: 2,
+                memoryCost: 8,
+                parallelism: 1,
+                version: .v13,
+                variant: .id
+            )
+        ) { error in
+            guard case Argon2.Argon2Error.hashFailed(let code) = error else {
+                XCTFail("Expected Argon2Error.hashFailed, got \(error)")
+                return
+            }
+            XCTAssertEqual(code, -6, "ARGON2_SALT_TOO_SHORT")
+        }
     }
 
     // MARK: - KDBX 3.1 Compatibility
@@ -819,7 +858,7 @@ final class KDBXParserTests: XCTestCase {
     }
 
     func testAESKDFKeyDerivationKnownVector() throws {
-        let compositeKey = Data((0..<32).map(UInt8.init))
+        let compositeKey = SymmetricKey(data: Data((0..<32).map(UInt8.init)))
         let seed = Data((32..<64).map(UInt8.init))
         let derived = try KDBXCrypto.transformKeyAESKDF(compositeKey: compositeKey, seed: seed, rounds: 10)
 
@@ -830,7 +869,7 @@ final class KDBXParserTests: XCTestCase {
     }
 
     func testAESKDFMatchesReferenceImplementationAcrossRoundCounts() throws {
-        let compositeKey = Data((0..<32).map(UInt8.init))
+        let compositeKey = SymmetricKey(data: Data((0..<32).map(UInt8.init)))
         let seed = Data((32..<64).map(UInt8.init))
 
         for rounds in [1, 2, 11, 257] {
@@ -1149,9 +1188,10 @@ final class KDBXParserTests: XCTestCase {
             .replacingOccurrences(of: ">", with: "&gt;")
     }
 
-    private func referenceAESKDFTransform(compositeKey: Data, seed: Data, rounds: UInt64) throws -> Data {
-        var left = compositeKey.prefix(16)
-        var right = compositeKey.suffix(16)
+    private func referenceAESKDFTransform(compositeKey: SymmetricKey, seed: Data, rounds: UInt64) throws -> Data {
+        let compositeKeyBytes = compositeKey.withUnsafeBytes { Data($0) }
+        var left = compositeKeyBytes.prefix(16)
+        var right = compositeKeyBytes.suffix(16)
 
         for _ in 0..<rounds {
             left = try referenceAESECBEncryptBlock(left, key: seed)
@@ -1517,7 +1557,7 @@ final class KDBXParserTests: XCTestCase {
             "S": Data((0..<32).map { UInt8($0) }),
         ]
 
-        let derivedKey = try KDBXParser.deriveKey(compositeKey: Data("composite-key".utf8), kdfParams: params)
+        let derivedKey = try KDBXParser.deriveKey(compositeKey: SymmetricKey(data: Data("composite-key".utf8)), kdfParams: params)
 
         XCTAssertEqual(derivedKey.count, 32)
     }
@@ -1646,7 +1686,7 @@ final class KDBXParserTests: XCTestCase {
     }
 
     func testAESVariantMapDerivesKey() throws {
-        let compositeKey = Data((0..<32).map(UInt8.init))
+        let compositeKey = SymmetricKey(data: Data((0..<32).map(UInt8.init)))
         let params: [String: Any] = [
             "$UUID": Data([0xC9, 0xD9, 0xF3, 0x9A, 0x62, 0x8A, 0x44, 0x60,
                             0xBF, 0x74, 0x0D, 0x08, 0xC1, 0x8A, 0x4F, 0xEA]),
@@ -1662,7 +1702,7 @@ final class KDBXParserTests: XCTestCase {
     }
 
     func testAESVariantMapRejectsRoundsAboveUpdatedMaximum() {
-        let compositeKey = Data((0..<32).map(UInt8.init))
+        let compositeKey = SymmetricKey(data: Data((0..<32).map(UInt8.init)))
         let params: [String: Any] = [
             "$UUID": KDBXParser.aesKDFUUID,
             "S": Data((32..<64).map(UInt8.init)),
@@ -1684,7 +1724,7 @@ final class KDBXParserTests: XCTestCase {
     }
 
     func testLegacyHeaderRejectsRoundsAboveUpdatedMaximum() {
-        let compositeKey = Data(repeating: 0x11, count: 32)
+        let compositeKey = SymmetricKey(data: Data(repeating: 0x11, count: 32))
         let header = KDBXParser.LegacyHeader(
             formatVersion: .kdbx3_1,
             cipherID: Data(),
@@ -1715,7 +1755,7 @@ final class KDBXParserTests: XCTestCase {
     }
 
     func testArgon2idVariantMapDerivesKey() throws {
-        let compositeKey = Data((0..<32).map(UInt8.init))
+        let compositeKey = SymmetricKey(data: Data((0..<32).map(UInt8.init)))
         let salt = Data(repeating: 0xCC, count: 32)
         let params: [String: Any] = [
             "$UUID": KDBXParser.argon2idUUID,

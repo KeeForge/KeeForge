@@ -16,7 +16,7 @@ enum AutoFillSaveCoordinator {
 
     struct Environment: Sendable {
         var generatePassword: @Sendable () -> String
-        var saveDraft: @Sendable (DatabaseDraft, DatabaseReference, Data, Data) async throws -> SaveResult
+        var saveDraft: @Sendable (DatabaseDraft, DatabaseReference, SymmetricKey, Data) async throws -> SaveResult
         var relativePathForURL: @Sendable (URL) throws -> String
         /// Writes the marker durably WITHOUT posting the Darwin drain
         /// notification — the provisional marker precedes its payload, so
@@ -120,7 +120,7 @@ enum AutoFillSaveCoordinator {
         rootGroup: KPGroup,
         meta: KPMeta,
         sessionKey: SymmetricKey,
-        compositeKey: Data,
+        compositeKey: SymmetricKey,
         openTimeSHA512: Data,
         environment: Environment = .live,
         edit: EntryEdit? = nil

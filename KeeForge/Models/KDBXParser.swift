@@ -226,13 +226,13 @@ enum KDBXParser {
         return try parseWithMetaAndHeader(data: data, compositeKey: compositeKey, sessionKey: sessionKey, kdfPolicy: kdfPolicy)
     }
 
-    static func parse(data: Data, compositeKey: Data, sessionKey: SymmetricKey, kdfPolicy: KDFExecutionPolicy) throws -> KPGroup {
+    static func parse(data: Data, compositeKey: SymmetricKey, sessionKey: SymmetricKey, kdfPolicy: KDFExecutionPolicy) throws -> KPGroup {
         try parseWithMeta(data: data, compositeKey: compositeKey, sessionKey: sessionKey, kdfPolicy: kdfPolicy).rootGroup
     }
 
     static func parseWithMeta(
         data: Data,
-        compositeKey: Data,
+        compositeKey: SymmetricKey,
         sessionKey: SymmetricKey,
         kdfPolicy: KDFExecutionPolicy
     ) throws -> (rootGroup: KPGroup, meta: KPMeta) {
@@ -242,7 +242,7 @@ enum KDBXParser {
 
     static func parseWithMetaAndHeader(
         data: Data,
-        compositeKey: Data,
+        compositeKey: SymmetricKey,
         sessionKey: SymmetricKey,
         kdfPolicy: KDFExecutionPolicy
     ) throws -> (rootGroup: KPGroup, meta: KPMeta, header: Header) {
@@ -288,7 +288,7 @@ enum KDBXParser {
 
     private static func parseKDBX4WithMetaAndHeader(
         data: Data,
-        compositeKey: Data,
+        compositeKey: SymmetricKey,
         sessionKey: SymmetricKey,
         kdfPolicy: KDFExecutionPolicy
     ) throws -> (rootGroup: KPGroup, meta: KPMeta, header: Header) {
@@ -316,38 +316,47 @@ enum KDBXParser {
         }
 
         // 5. Derive keys
-        let transformedKey = try deriveKey(compositeKey: compositeKey, kdfParams: header.kdfParameters, kdfPolicy: kdfPolicy)
+        let decryptedPayload: Data
+        do {
+            var transformedKey = try deriveKey(compositeKey: compositeKey, kdfParams: header.kdfParameters, kdfPolicy: kdfPolicy)
+            defer { SecureWipe.wipe(&transformedKey) }
 
-        // Master key = SHA256(masterSeed + transformedKey)
-        var preKey = Data()
-        preKey.append(header.masterSeed)
-        preKey.append(transformedKey)
-        let masterKey = KDBXCrypto.sha256(preKey)
+            // Master key = SHA256(masterSeed + transformedKey)
+            var preKey = Data(capacity: 64)
+            defer { SecureWipe.wipe(&preKey) }
+            preKey.append(header.masterSeed)
+            preKey.append(transformedKey)
+            var masterKey = KDBXCrypto.sha256(preKey)
+            defer { SecureWipe.wipe(&masterKey) }
 
-        // HMAC base key
-        var hmacPreKey = Data()
-        hmacPreKey.append(header.masterSeed)
-        hmacPreKey.append(transformedKey)
-        hmacPreKey.append(Data([0x01]))
-        let hmacBaseKey = KDBXCrypto.sha512(hmacPreKey)
+            // HMAC base key
+            var hmacPreKey = Data(capacity: 65)
+            defer { SecureWipe.wipe(&hmacPreKey) }
+            hmacPreKey.append(header.masterSeed)
+            hmacPreKey.append(transformedKey)
+            hmacPreKey.append(Data([0x01]))
+            var hmacBaseKey = KDBXCrypto.sha512(hmacPreKey)
+            defer { SecureWipe.wipe(&hmacBaseKey) }
 
-        // Verify header HMAC
-        let headerHMACKey = computeBlockHMACKey(blockIndex: UInt64.max, baseKey: hmacBaseKey)
-        let computedHeaderHMAC = KDBXCrypto.hmacSHA256(key: headerHMACKey, data: headerBytes)
-        guard constantTimeEqual(storedHeaderHMAC, computedHeaderHMAC) else {
-            throw KDBXCrypto.CryptoError.hmacMismatch
+            // Verify header HMAC
+            var headerHMACKey = computeBlockHMACKey(blockIndex: UInt64.max, baseKey: hmacBaseKey)
+            defer { SecureWipe.wipe(&headerHMACKey) }
+            let computedHeaderHMAC = KDBXCrypto.hmacSHA256(key: headerHMACKey, data: headerBytes)
+            guard constantTimeEqual(storedHeaderHMAC, computedHeaderHMAC) else {
+                throw KDBXCrypto.CryptoError.hmacMismatch
+            }
+
+            // 6. Read and verify HMAC blocks
+            let encryptedPayload = try readHMACBlocks(reader: &reader, baseKey: hmacBaseKey)
+
+            // 7. Decrypt payload
+            let cipher = try KDBXOuterCipher.require(uuid: header.cipherID)
+            decryptedPayload = try cipher.decrypt(
+                data: encryptedPayload,
+                key: masterKey,
+                iv: header.encryptionIV
+            )
         }
-
-        // 6. Read and verify HMAC blocks
-        let encryptedPayload = try readHMACBlocks(reader: &reader, baseKey: hmacBaseKey)
-
-        // 7. Decrypt payload
-        let cipher = try KDBXOuterCipher.require(uuid: header.cipherID)
-        let decryptedPayload = try cipher.decrypt(
-            data: encryptedPayload,
-            key: masterKey,
-            iv: header.encryptionIV
-        )
 
         var payloadForInnerHeader = decryptedPayload
         var payloadWasPreDecompressed = false
@@ -549,7 +558,7 @@ enum KDBXParser {
 
     // MARK: - Key Derivation
 
-    static func deriveKey(compositeKey: Data, kdfParams: [String: Any], kdfPolicy: KDFExecutionPolicy) throws -> Data {
+    static func deriveKey(compositeKey: SymmetricKey, kdfParams: [String: Any], kdfPolicy: KDFExecutionPolicy) throws -> Data {
         guard let uuidData = kdfParams["$UUID"] as? Data else {
             throw KDBXCrypto.CryptoError.unsupportedKDF(KDFDescriptor(identifier: "missing UUID", displayName: "Unknown KDF"))
         }
@@ -649,7 +658,8 @@ enum KDBXParser {
 
             if blockSizeRaw == 0 {
                 // Final block — verify HMAC of empty block
-                let hmacKey = computeBlockHMACKey(blockIndex: blockIndex, baseKey: baseKey)
+                var hmacKey = computeBlockHMACKey(blockIndex: blockIndex, baseKey: baseKey)
+                defer { SecureWipe.wipe(&hmacKey) }
                 var msg = Data()
                 msg.append(withUInt64: blockIndex)
                 msg.append(withInt32: 0)
@@ -660,7 +670,8 @@ enum KDBXParser {
 
             let blockData = try reader.readBytes(Int(blockSizeRaw))
 
-            let hmacKey = computeBlockHMACKey(blockIndex: blockIndex, baseKey: baseKey)
+            var hmacKey = computeBlockHMACKey(blockIndex: blockIndex, baseKey: baseKey)
+            defer { SecureWipe.wipe(&hmacKey) }
             var msg = Data()
             msg.append(withUInt64: blockIndex)
             msg.append(withInt32: blockSizeRaw)
@@ -676,9 +687,11 @@ enum KDBXParser {
     }
 
     static func computeBlockHMACKey(blockIndex: UInt64, baseKey: Data) -> Data {
-        var indexData = Data()
-        indexData.append(withUInt64: blockIndex)
-        return KDBXCrypto.sha512(indexData + baseKey)
+        var keyMaterial = Data(capacity: 8 + baseKey.count)
+        defer { SecureWipe.wipe(&keyMaterial) }
+        keyMaterial.append(withUInt64: blockIndex)
+        keyMaterial.append(baseKey)
+        return KDBXCrypto.sha512(keyMaterial)
     }
 
     // MARK: - XML Parsing

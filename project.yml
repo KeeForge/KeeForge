@@ -20,9 +20,9 @@ settings:
 packages:
   KeeForgeTwofish:
     path: Vendor/KeeForgeTwofish
-  Argon2Swift:
-    url: https://github.com/tmthecoder/Argon2Swift.git
-    revision: 53543623fefe68461b7eeea03d7f96677c2fd76d
+  argon2:
+    url: https://github.com/P-H-C/phc-winner-argon2.git
+    revision: f57e61e19229e23c4445b85494dbf7c07de721cb
   SwiftyDropbox:
     url: https://github.com/dropbox/SwiftyDropbox.git
     from: 10.0.7
@@ -56,7 +56,7 @@ targets:
       - target: KeeForgeAutoFill
         embed: true
         codeSign: true
-      - package: Argon2Swift
+      - package: argon2
       - package: KeeForgeTwofish
       - package: SwiftyDropbox
       - package: MSAL
@@ -111,7 +111,7 @@ targets:
       - target: KeeForgeMacAutoFill
         embed: true
         codeSign: true
-      - package: Argon2Swift
+      - package: argon2
       - package: KeeForgeTwofish
       - package: SwiftyDropbox
       - package: MSAL
@@ -160,7 +160,7 @@ targets:
         SWIFT_EMIT_LOC_STRINGS: "YES"
         LOCALIZATION_PREFERS_STRING_CATALOGS: "YES"
     dependencies:
-      - package: Argon2Swift
+      - package: argon2
       - package: KeeForgeTwofish
       - package: swift-psl
         product: PublicSuffixList
@@ -224,7 +224,7 @@ targets:
         SWIFT_EMIT_LOC_STRINGS: "YES"
         LOCALIZATION_PREFERS_STRING_CATALOGS: "YES"
     dependencies:
-      - package: Argon2Swift
+      - package: argon2
       - package: KeeForgeTwofish
       - package: swift-psl
         product: PublicSuffixList

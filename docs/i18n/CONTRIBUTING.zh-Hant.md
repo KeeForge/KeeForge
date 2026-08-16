@@ -16,7 +16,7 @@
 - Xcode 26+
 - [XcodeGen](https://github.com/yonaskolb/XcodeGen)
 - Swift 6 與嚴格並行檢查（strict concurrency）
-- Swift 套件相依：[Argon2Swift](https://github.com/tmthecoder/Argon2Swift)、[SwiftyDropbox](https://github.com/dropbox/SwiftyDropbox)、[Microsoft Authentication Library](https://github.com/AzureAD/microsoft-authentication-library-for-objc)、[swift-psl](https://github.com/ameshkov/swift-psl)，以及內建的 [KeeForgeTwofish](../../Vendor/KeeForgeTwofish) 套件
+- Swift 套件相依：[argon2](https://github.com/P-H-C/phc-winner-argon2)、[SwiftyDropbox](https://github.com/dropbox/SwiftyDropbox)、[Microsoft Authentication Library](https://github.com/AzureAD/microsoft-authentication-library-for-objc)、[swift-psl](https://github.com/ameshkov/swift-psl)，以及內建的 [KeeForgeTwofish](../../Vendor/KeeForgeTwofish) 套件
 
 ## 從原始碼建置
 

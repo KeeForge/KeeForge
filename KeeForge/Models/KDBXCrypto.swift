@@ -3,7 +3,7 @@ import CryptoKit
 import CommonCrypto
 import KeeForgeTwofish
 import zlib
-import Argon2Swift
+import argon2
 
 struct KDFDescriptor: Equatable, Sendable {
     let identifier: String
@@ -42,7 +42,7 @@ enum Argon2 {
 
     /// Derive key using Argon2d or Argon2id
     static func hash(
-        password: Data,
+        password: SymmetricKey,
         salt: Data,
         timeCost: UInt32,
         memoryCost: UInt32, // in KiB
@@ -51,35 +51,40 @@ enum Argon2 {
         version: Version,
         variant: Argon2Variant
     ) throws -> Data {
-        let type: Argon2Type = switch variant {
-        case .d:
-            .d
-        case .id:
-            .id
+        let type: argon2_type = switch variant {
+        case .d: Argon2_d
+        case .id: Argon2_id
         }
 
-        let argon2Version: Argon2Version = switch version {
-        case .v10: .V10
-        case .v13: .V13
+        var output = [UInt8](repeating: 0, count: hashLength)
+        defer { SecureWipe.wipe(&output) }
+
+        let status = password.withUnsafeBytes { passwordBytes in
+            salt.withUnsafeBytes { saltBytes in
+                output.withUnsafeMutableBytes { outputBytes in
+                    argon2_hash(
+                        timeCost,
+                        memoryCost,
+                        parallelism,
+                        passwordBytes.baseAddress,
+                        passwordBytes.count,
+                        saltBytes.baseAddress,
+                        saltBytes.count,
+                        outputBytes.baseAddress,
+                        outputBytes.count,
+                        nil,
+                        0,
+                        type,
+                        version.rawValue
+                    )
+                }
+            }
         }
 
-        do {
-            let result = try Argon2Swift.hashPasswordBytes(
-                password: password,
-                salt: Salt(bytes: salt),
-                iterations: Int(timeCost),
-                memory: Int(memoryCost),
-                parallelism: Int(parallelism),
-                length: hashLength,
-                type: type,
-                version: argon2Version
-            )
-            return result.hashData()
-        } catch let error as Argon2SwiftException {
-            throw Argon2Error.hashFailed(error.errorCode.rawValue)
-        } catch {
-            throw Argon2Error.hashFailed(-1)
+        guard status == Int32(ARGON2_OK.rawValue) else {
+            throw Argon2Error.hashFailed(status)
         }
+        return Data(output)
     }
 }
 
@@ -130,10 +135,13 @@ enum KDBXCrypto {
     // MARK: - Composite Key
 
     /// Build the composite key from master password (hash of hash)
-    static func compositeKey(password: String) -> Data {
-        guard password.isEmpty == false else { return sha256(Data()) }
-        let passwordHash = sha256(Data(password.utf8))
-        return sha256(passwordHash)
+    static func compositeKey(password: String) -> SymmetricKey {
+        guard password.isEmpty == false else { return SymmetricKey(data: sha256(Data())) }
+        var passwordBytes = Data(password.utf8)
+        defer { SecureWipe.wipe(&passwordBytes) }
+        var passwordHash = sha256(passwordBytes)
+        defer { SecureWipe.wipe(&passwordHash) }
+        return SymmetricKey(data: CryptoKit.SHA256.hash(data: passwordHash))
     }
 
     /// Build the composite key from password and/or key file data.
@@ -144,29 +152,36 @@ enum KDBXCrypto {
     /// if keyFile:  preKey += processKeyFile(keyFileData)
     /// compositeKey = SHA256(preKey)
     /// ```
-    static func compositeKey(password: String?, keyFileData: Data?) throws -> Data {
-        var preKey = Data()
+    static func compositeKey(password: String?, keyFileData: Data?) throws -> SymmetricKey {
+        var preKey = Data(capacity: 64)
+        defer { SecureWipe.wipe(&preKey) }
 
         if let password, !password.isEmpty {
-            let pwdHash = sha256(Data(password.utf8))
+            var passwordBytes = Data(password.utf8)
+            defer { SecureWipe.wipe(&passwordBytes) }
+            var pwdHash = sha256(passwordBytes)
+            defer { SecureWipe.wipe(&pwdHash) }
             preKey.append(pwdHash)
         }
 
         if let keyFileData {
-            preKey.append(try KeyFileProcessor.processKeyFile(keyFileData))
+            var keyFileKey = try KeyFileProcessor.processKeyFile(keyFileData)
+            defer { SecureWipe.wipe(&keyFileKey) }
+            preKey.append(keyFileKey)
         }
 
-        return sha256(preKey)
+        return SymmetricKey(data: CryptoKit.SHA256.hash(data: preKey))
     }
 
     // MARK: - AES-KDF
 
-    static func transformKeyAESKDF(compositeKey: Data, seed: Data, rounds: UInt64) throws -> Data {
-        guard compositeKey.count == kCCKeySizeAES256, seed.count == kCCKeySizeAES256 else {
+    static func transformKeyAESKDF(compositeKey: SymmetricKey, seed: Data, rounds: UInt64) throws -> Data {
+        guard compositeKey.bitCount == kCCKeySizeAES256 * 8, seed.count == kCCKeySizeAES256 else {
             throw CryptoError.invalidKey
         }
 
-        var derived = [UInt8](compositeKey)
+        var derived = compositeKey.withUnsafeBytes { [UInt8]($0) }
+        defer { SecureWipe.wipe(&derived) }
         let keyBytes = [UInt8](seed)
         let cryptor = try makeAESECBEncryptor(key: keyBytes)
         defer { CCCryptorRelease(cryptor) }
@@ -206,7 +221,7 @@ enum KDBXCrypto {
             throw CryptoError.encryptionFailed
         }
 
-        return sha256(Data(derived))
+        return Data(CryptoKit.SHA256.hash(data: derived))
     }
 
     private static func makeAESECBEncryptor(key: [UInt8]) throws -> CCCryptorRef {
@@ -382,6 +397,7 @@ enum KDBXCrypto {
     /// ChaCha20 is XOR-based, so encrypt and decrypt are the same operation.
     static func chacha20Stream(key: Data, nonce: Data, data: Data) -> Data {
         guard var keystream = ChaCha20Keystream(key: key, nonce: nonce) else { return data }
+        defer { keystream.wipe() }
         return keystream.xor(data)
     }
 
@@ -393,7 +409,7 @@ enum KDBXCrypto {
     /// value in document order, so those callers keep one instance alive and
     /// feed it values one at a time; block boundaries fall wherever they fall.
     struct ChaCha20Keystream {
-        private let initialState: [UInt32]
+        private var initialState: [UInt32]
         private var counter: UInt32 = 0
         private var block: [UInt8] = []
         private var blockOffset = 0
@@ -401,6 +417,13 @@ enum KDBXCrypto {
         init?(key: Data, nonce: Data) {
             guard let state = KDBXCrypto.chacha20InitialState(key: key, nonce: nonce) else { return nil }
             initialState = state
+        }
+
+        /// Zeroes the key words and the buffered keystream block; the stream is unusable afterwards.
+        mutating func wipe() {
+            SecureWipe.wipe(&initialState)
+            SecureWipe.wipe(&block)
+            blockOffset = block.count
         }
 
         mutating func xor(_ data: Data) -> Data {
@@ -457,8 +480,10 @@ enum KDBXCrypto {
     private static func chacha20Block(initialState: [UInt32], counter: UInt32) -> [UInt8] {
         var state = initialState
         state[12] = counter
+        defer { SecureWipe.wipe(&state) }
 
         var working = state
+        defer { SecureWipe.wipe(&working) }
         for _ in 0..<10 {
             quarterRound(&working, 0, 4, 8, 12)
             quarterRound(&working, 1, 5, 9, 13)

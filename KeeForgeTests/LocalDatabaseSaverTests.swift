@@ -840,7 +840,7 @@ final class LocalDatabaseSaverTests: XCTestCase {
 
 private struct SaveContext {
     let draft: DatabaseDraft
-    let compositeKey: Data
+    let compositeKey: SymmetricKey
     let openTimeSHA512: Data
     let originalRootGroup: KPGroup
 }

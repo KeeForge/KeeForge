@@ -73,8 +73,8 @@ enum LocalDatabaseSaver {
         var endBackgroundTask: @MainActor @Sendable (BackgroundTaskHandle) -> Void
         var resolveLocation: @Sendable (DatabaseReference) -> ResolvedLocation?
         var readData: @Sendable (URL) throws -> Data
-        var extractHeader: @Sendable (Data, Data, KDFExecutionPolicy) throws -> KDBXParser.Header
-        var encryptDraft: @Sendable (DatabaseDraft, Data, KDBXParser.Header, KDFExecutionPolicy) throws -> Data
+        var extractHeader: @Sendable (Data, SymmetricKey, KDFExecutionPolicy) throws -> KDBXParser.Header
+        var encryptDraft: @Sendable (DatabaseDraft, SymmetricKey, KDBXParser.Header, KDFExecutionPolicy) throws -> Data
         var backupDirectoryURL: @Sendable (DatabaseReference) -> URL
         var createDirectory: @Sendable (URL) throws -> Void
         var writeBackup: @Sendable (Data, URL) throws -> Void
@@ -158,11 +158,11 @@ enum LocalDatabaseSaver {
     static func save(
         draft: DatabaseDraft,
         reference: DatabaseReference,
-        compositeKey: Data,
+        compositeKey: SymmetricKey,
         openTimeSHA512: Data,
         reconciledRemoteSHA512: Data? = nil,
         kdfPolicy: KDFExecutionPolicy,
-        newCompositeKey: Data? = nil
+        newCompositeKey: SymmetricKey? = nil
     ) async throws -> SaveResult {
         try await save(
             draft: draft,
@@ -179,11 +179,11 @@ enum LocalDatabaseSaver {
     static func save(
         draft: DatabaseDraft,
         reference: DatabaseReference,
-        compositeKey: Data,
+        compositeKey: SymmetricKey,
         openTimeSHA512: Data,
         reconciledRemoteSHA512: Data? = nil,
         kdfPolicy: KDFExecutionPolicy,
-        newCompositeKey: Data? = nil,
+        newCompositeKey: SymmetricKey? = nil,
         environment: Environment
     ) async throws -> SaveResult {
         if reference.isReadOnly {
@@ -216,10 +216,10 @@ enum LocalDatabaseSaver {
     private static func saveOffMain(
         draft: DatabaseDraft,
         reference: DatabaseReference,
-        compositeKey: Data,
+        compositeKey: SymmetricKey,
         baseline: SaveBaseline,
         kdfPolicy: KDFExecutionPolicy,
-        newCompositeKey: Data?,
+        newCompositeKey: SymmetricKey?,
         environment: Environment
     ) throws -> SaveResult {
         guard let location = environment.resolveLocation(reference) else {
@@ -322,7 +322,7 @@ enum LocalDatabaseSaver {
 
     private static func makeUITestConflictData(
         from data: Data,
-        compositeKey: Data,
+        compositeKey: SymmetricKey,
         sequence: Int,
         kdfPolicy: KDFExecutionPolicy
     ) throws -> Data {
