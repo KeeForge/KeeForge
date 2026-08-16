@@ -4,14 +4,7 @@ Detailed guidance for adding, running, and fixing XCUITests in `KeeForgeUITests/
 
 Use this document for UI test methodology. Repo-wide build and test policy stays in `AGENTS.md`, and fixture details live in `../TestFixtures/README.md`.
 
-## macOS Smoke Suite
-
-The macOS port has its own UI-test target, `KeeForgeMacUITests/` (target `KeeForgeMacUITests`, scheme `KeeForgeMac`), with a Mac-flavored base class `MacUITestCase` that mirrors this target's fixture-injection launch environment but uses clicks, `typeKey` keyboard shortcuts, and right-click context menus instead of taps/swipes. It reuses the same accessibility identifiers as this suite — preserve them in both places. Notes specific to the Mac suite:
-
-- Run with `xcodebuild test -scheme KeeForgeMac -destination 'platform=macOS,arch=arm64' -only-testing:KeeForgeMacUITests/<Class>`.
-- macOS UI tests require an unlocked, active login session; they fail with "Failed to activate application (Running Background)" when the screen is locked.
-- `MacUITestCase` launches with `-ApplePersistenceIgnoreState YES`; without it, macOS state restoration can restore a zero-window session and no main window ever appears.
-- Reveal/copy-password tests assert up to the device-owner auth prompt boundary (the prompt is a system dialog XCUITest cannot automate); terminating the app in teardown dismisses it.
+macOS UI tests: see `../KeeForgeMacUITests/README.md`; the accessibility identifiers are shared — preserve them in both.
 
 ## Current Test Classes
 
@@ -24,9 +17,9 @@ The macOS port has its own UI-test target, `KeeForgeMacUITests/` (target `KeeFor
 - `LockUnlockUITests` — lock cycle coverage (`testManualLockBehavior`) and a single wrong-then-correct-password unlock (`testWrongThenCorrectPasswordUnlocks`); repeated-failure/lockout behavior is `BackoffUITests`' responsibility, not this class'
 - `UnlockedDatabaseBrowseAndDetailUITests` — unlocked vault browse + entry-detail happy paths, the open-vault gear's complete Database Details surface, and the disabled KDBX 3.1 read-only control
 - `UnlockedDatabaseSearchAndSortUITests` — unlocked search and sort happy paths, including folder captions on search results
-- `EntryCreateSmokeUITests` — create-entry happy path using a known fixture group
+- `EntryCreateSmokeUITests` — create-entry and create-group happy paths using a known fixture group
 - `EntryEditSmokeUITests` — edit-entry happy path using a known fixture entry, including immediate title/username refresh in group lists, search, and title sorting plus a screenshot-backed regression check that a long revealed password wraps without extra characters
-- `EntryDeleteSmokeUITests` — delete-entry happy paths using known fixture entries: row swipe/context-menu deletes, plus the entry editor's "Delete Entry" flow (`entry-edit.delete`) covering both dialog options and the already-recycled variant, asserting the editor dismisses back to a usable group list (regression cover for the v1.10.4 permanent-delete wedge)
+- `EntryDeleteSmokeUITests` — delete-entry happy paths using known fixture entries: row swipe/context-menu deletes, plus the entry editor's "Delete Entry" flow (`entry-edit.delete`) covering both dialog options and the already-recycled variant, asserting the editor dismisses back to a usable group list (regression cover for the permanent-delete wedge); plus group soft/permanent deletes and the Recycle Bin's no-delete guards
 - `EntryAttachmentsSmokeUITests` — entry-attachments list happy path (row name/size, QuickLook preview open/dismiss) using the `attachments` fixture
 - `EntryHistoryUITests` — entry history sheet happy path (`entry-detail.history` → version list → one version's fields) and the restore flow (`entry-history.restore` → `entry-history.restore.confirm`, asserting the replaced state is kept by reading the history row's accessibility **value**, not its localized label), using a fixture entry that ships stored `<History>`
 - `ProtectedCustomFieldUITests` — protected custom fields start masked and reveal on demand in both entry detail and history, while retaining the established copy-control identifiers
@@ -61,7 +54,7 @@ The macOS port has its own UI-test target, `KeeForgeMacUITests/` (target `KeeFor
 - `KeyFileUITests` — key file selection and picker flows plus visible rejection of malformed XML key data during unlock
 - `DocumentsVaultUITests` — Finder/iTunes File Sharing smoke coverage: a KDBX file seeded into Documents without a reference is auto-registered by the launch `DocumentsVaultScanner` scan and unlocks; a Documents-resident reference whose file is gone shows `database-row.documents-file-missing` and the unlock failure screen's `unlock.remove-missing` → confirm flow removes it from the list. Seeds via the `documents-*` `DatabaseFixture` dispositions (`documents`, `documents-unregistered`, `documents-missing`), which `DatabaseListStore`'s `-ui-testing` bootstrap materializes in the real Documents directory (scrubbing stale top-level `.kdbx` files from prior runs first). Finder replace/rebind edge cases stay unit-tested in `DocumentsVaultScannerTests`
 - `CloudAccountEdgeUITests` — sign-out / disconnected cloud account behavior
-- `AppStoreScreenshots` — screenshot capture flow using demo fixtures. **Opt-in only**: `setUp` `XCTSkip`s unless `APPSTORE_SCREENSHOTS=1` is set (mirrors `KeeForgeMacUITests/MacScreenshotAuditUITests`' `SCREENSHOT_AUDIT=1` gate), so it no longer runs — with its ~15+ s of hard `sleep()`s — on every full `KeeForgeUITests` invocation, including both RC release gates:
+- `AppStoreScreenshots` — screenshot capture flow using demo fixtures. **Opt-in only**: `setUp` `XCTSkip`s unless `APPSTORE_SCREENSHOTS=1` is set (mirrors `KeeForgeMacUITests/MacScreenshotAuditUITests`' `SCREENSHOT_AUDIT=1` gate):
   ```bash
   TEST_RUNNER_APPSTORE_SCREENSHOTS=1 xcodebuild test -project KeeForge.xcodeproj -scheme KeeForge \
     -destination 'platform=iOS Simulator,name=iPhone 17 Pro' \
@@ -88,7 +81,7 @@ xcodebuild test -project KeeForge.xcodeproj -scheme KeeForge \
 
 `-only-testing:` takes the **class** name, not the file name; run each class separately. Files hosting multiple classes:
 
-- `UnlockedDatabaseUITests.swift` — `UnlockedDatabaseUITestCase` + `AppSettingsUITestCase` (bases), `UnlockedDatabaseBrowseAndDetailUITests`, `UnlockedDatabaseSearchAndSortUITests`, `RegularWidthWorkspaceUITests`, `AppSettingsUITests`, `GroupIconPickerUITests`, `EntryHistoryUITests`, `ProtectedCustomFieldUITests`
+- `UnlockedDatabaseUITests.swift` — `UnlockedDatabaseUITestCase` + `AppSettingsUITestCase` (bases), `UnlockedDatabaseBrowseAndDetailUITests`, `UnlockedDatabaseSearchAndSortUITests`, `RegularWidthWorkspaceUITests`, `AppSettingsUITests`, `EntryIconPickerUITests`, `EntryCustomIconPickerUITests`, `GroupIconPickerUITests`, `EntryHistoryUITests`, `ProtectedCustomFieldUITests`
 - `EntryEditUITests.swift` — `EntryEditUITestCase` (base), `EntryCreateSmokeUITests`, `EntryEditSmokeUITests`, `EntryDeleteSmokeUITests`, `EntryEditEdgeUITests`
 - `CloudSyncUITests.swift` — `CloudSyncBaseUITests` (base), `CloudBrowserSmokeUITests`, `CloudUnlockSmokeUITests`, `CloudAccountEdgeUITests`
 - `WebDAVSyncUITests.swift` — `WebDAVSyncBaseUITests` (base), `WebDAVAddFlowUITests`, `WebDAVConnectErrorUITests`, `WebDAVSeededUnlockUITests`
@@ -130,11 +123,7 @@ xcodebuild test -project KeeForge.xcodeproj -scheme KeeForge \
 
 ```
 
-Do not run the full UI suite unless explicitly asked. It is slow and makes failures harder to isolate.
-
-### CI: iOS 18 RC Workflow
-
-Pushing an `rc/*` tag triggers `.github/workflows/ios18-rc-tests.yml`, which runs the suites on an **iPhone SE (3rd generation)** simulator with an iOS 18 runtime (compact-width — where minimum-OS regressions have surfaced). Reproduce RC failures on that device and runtime, not the default `iPhone 17 Pro`.
+Run policy (one class per run, no full suite, reproduce RC failures on the iOS 18 iPhone SE (3rd generation) simulator — compact-width, where minimum-OS regressions have surfaced) is in `AGENTS.md`.
 
 ## AutoFill Store Device Tests
 
@@ -193,21 +182,7 @@ class is effectively excluded from the default suites: on any simulator (includi
 result is cached for the rest of the process. Never add it to release-smoke selections; it is
 opt-in by destination.
 
-**Replaced manual checks** from
-[`docs/specs/2026-07-19-selectable-autofill-per-database/deferred-tests.md`](../docs/specs/2026-07-19-selectable-autofill-per-database/deferred-tests.md)
-(the store-state halves; anything QuickType/Safari-visible stays with the Tier-3 agent
-routine):
-
-- Slice 04 manual — "Unlock Personal, then Work: QuickType shows entries from both": the
-  both-databases-published union is now asserted at the store level (scenario 5). "Disable
-  Work while locked: its suggestions vanish, Personal's remain": automated (scenarios 2 and 5).
-- Slice 05 manual — "Disable a database (while it is locked): its suggestions disappear …
-  Re-enable: suggestions return only after its next unlock": automated (scenarios 2 and 3).
-  "Clear AutoFill Entries → confirm: QuickType is empty … unlock an enabled database and watch
-  its suggestions return": automated at the store level (scenarios 4 and 3; the cancel path was
-  already covered by `AppSettingsUITests.testAutoFillSettingsListsDatabaseTogglesAndCancelableClear`).
-
-**Still manual / Tier-3** (not replaced by this class): filling via the owning database and
+**Still manual / Tier-3** (not covered by this class): filling via the owning database and
 every other QuickType/Safari-rendered check, extension flows (save, switcher, empty state),
 entry-deletion suggestion sweeps, database *removal* cleanup, immediate republish when
 re-enabling the currently open database, and the localized-UI (`de`/`fr`/`es`) and VoiceOver passes.
@@ -345,49 +320,25 @@ Password: `demo`
 
 Used by `AppStoreScreenshots` and richer screenshot-style flows.
 
-### Attachments Fixture
+### Other Fixtures
 
-`TestFixtures/compatibility/attachments.kdbx`  
-Password: `testpassword123`
+Contents, regeneration scripts, and hashes are in `../TestFixtures/README.md`; this list only maps fixture → password → UI class.
 
-Used by `EntryAttachmentsSmokeUITests`, and by `SaveConflictMergeDeclineUITests` as the only UI-test fixture whose entries point into a binary pool. Single `Attachments` group with `Multi Attachment Entry` (attachments `note-ü.txt` and `pixel.png`), `Dedup Entry A` / `Dedup Entry B` (both attach identically-named/identical-content `shared.bin`), and `No Attachment Entry`. See `../TestFixtures/README.md` for recorded SHA-256 hashes.
-
-### AutoFill Union Fixture
-
-`TestFixtures/autofill-union.kdbx`  
-Password: `testpassword123`
-
-Used by `AutoFillStoreUITests` as its second ("bravo") database: one `Union` group whose three entries publish exactly 3 password + 1 one-time-code AutoFill identities, with every service domain and username disjoint from `test.kdbx`'s — the system credential-identity store can dedup identities sharing a (service, user) pair across databases, so the multi-database union scenario needs non-overlapping fixtures. Details and regeneration recipe in `../TestFixtures/README.md`.
-
-### Tag Browser Fixture
-
-`TestFixtures/tag-browser.kdbx`  
-Password: `testpassword123`
-
-Used by `TagBrowserUITests`. The only bundled fixture with entry tags — `test.kdbx` and `demo.kdbx` have none. `Tagged` group: `Router Admin` (`shared`, `Work`, `Personal Notes`), `Mail Account` (`shared`, `work`), `Untagged Entry`; `Archive` group: `Old Backup` (`archive`). Regenerate with `TestFixtures/generate_tag_browser_fixture.py`; details in `../TestFixtures/README.md`.
-
-### Group Tags Fixture
-
-`TestFixtures/compatibility/group-tags.kdbx`  
-Password: `testpassword123`
-
-Used by `InheritedTagsUITests`. The only bundled fixture with group `<Tags>` — `tag-browser.kdbx` carries entry tags only. `Projects` (group tags `team;shared`) holds `Alpha Login`; `Projects/Client Work` (group tag `billable`) holds `Beta Login`, which adds its own entry tag `own-tag`; `Empty Tags Group`, `Plain Group`, and a `Recycle Bin` cover the remaining `<Tags>` states. Shared with the KDBX compatibility gate — retargeting or removing it breaks both. Regenerate with `TestFixtures/compatibility/generate_group_tags_fixture.py`; details in `../TestFixtures/README.md`.
-
-### Protected Custom Field Fixture
-
-`TestFixtures/protected-custom-field.kdbx`
-
-Password: `testpassword123`
-
-Used by `ProtectedCustomFieldUITests`. `Secrets/Protected Custom` carries a protected `API Token` custom field in both the current entry and one stored history version.
+- `TestFixtures/compatibility/attachments.kdbx` (`testpassword123`) — `EntryAttachmentsSmokeUITests`; also `SaveConflictMergeDeclineUITests`, as the only UI-test fixture whose entries point into a binary pool
+- `TestFixtures/autofill-union.kdbx` (`testpassword123`) — `AutoFillStoreUITests` (second, "bravo" database, domain/username-disjoint from `test.kdbx`), `TOTPSmokeUITests`, `TOTPEnrollmentUITests`, `TOTPEnrollmentDeepLinkUITests`
+- `TestFixtures/tag-browser.kdbx` (`testpassword123`) — `TagBrowserUITests`; the only bundled fixture with entry tags
+- `TestFixtures/compatibility/group-tags.kdbx` (`testpassword123`) — `InheritedTagsUITests`; the only bundled fixture with group `<Tags>`. Shared with the KDBX compatibility gate — retargeting or removing it breaks both
+- `TestFixtures/protected-custom-field.kdbx` (`testpassword123`) — `ProtectedCustomFieldUITests`
+- `TestFixtures/icon-picker.kdbx` (`testpassword123`) — `EntryCustomIconPickerUITests`; the only bundled fixture with a `Meta/CustomIcons` image
+- `TestFixtures/compatibility/legacy-kdbx31.kdbx` (`testpassword123`) — `UnlockedDatabaseBrowseAndDetailUITests.testLegacyKDBX31DatabaseDetailsKeepsReadOnlyToggleDisabled` (read-only KDBX 3.1)
 
 ### Key File Fixtures
 
-Use `demo-keyfile.kdbx` with `demo-keyfile.key` for the valid key-file unlock flow. `invalid-xml.keyx` is also bundled into `KeeForgeUITests`, solely for the malformed-XML rejection case. The other key-file fixtures in `TestFixtures/` (`test-binary.key`, `test-hex.key`, `test-v1.key`, `test-v2.keyx`, `test-arbitrary.key`, `test-v3-backup.kdbx`) are bundled only into the unit-test targets and **not** available to UI tests.
+Use `demo-keyfile.kdbx` (password `demo`) with `demo-keyfile.key` for the valid key-file unlock flow (`KeyFileUnlockUITests`). `invalid-xml.keyx` is bundled solely for `KeyFileUITests`' malformed-XML rejection case. The other key-file fixtures in `TestFixtures/` (`test-binary.key`, `test-hex.key`, `test-v1.key`, `test-v2.keyx`, `test-arbitrary.key`, `test-v3-backup.kdbx`) are bundled only into the unit-test targets and **not** available to UI tests.
 
 ### What The UI-Test Target Bundles
 
-Per the `KeeForgeUITests` sources in `project.yml`, exactly these fixtures ship in the UI-test bundle: `test.kdbx`, `demo.kdbx`, `demo-keyfile.kdbx`, `demo-keyfile.key`, `compatibility/attachments.kdbx`, `autofill-union.kdbx`, `tag-browser.kdbx`, and `protected-custom-field.kdbx`. To use another fixture from a UI test, add it there and run `xcodegen generate`.
+Per the `KeeForgeUITests` sources in `project.yml`, exactly these fixtures ship in the UI-test bundle: `test.kdbx`, `demo.kdbx`, `demo-keyfile.kdbx`, `demo-keyfile.key`, `invalid-xml.keyx`, `compatibility/attachments.kdbx`, `autofill-union.kdbx`, `tag-browser.kdbx`, `compatibility/group-tags.kdbx`, `protected-custom-field.kdbx`, `compatibility/legacy-kdbx31.kdbx`, and `icon-picker.kdbx`. To use another fixture from a UI test, add it there and run `xcodegen generate`.
 
 Loading mechanism: fixtures are injected through the launch environment by `KeeForgeUITestCase.setUp` (base64 of the bundled resource in `UI_TEST_DATABASES_JSON`), so a test only overrides `databaseFixtureName` — it never touches file paths. The name must match the resource added to `project.yml`.
 
@@ -408,8 +359,8 @@ Key helpers:
 - `revealElement(_:in:direction:maxSwipes:)` — scroll until an element is visible and hittable
 - `waitForDocumentPicker()` — wait for the system document picker to appear
 - `menuButton(identifier:label:)` — match a menu item by accessibility identifier *or* visible label. Required for items inside a `Section` of a SwiftUI `Menu` (the toolbar add-database menu): the iOS 27 runtime drops accessibility identifiers from Section-wrapped menu buttons entirely — verified empirically, identifier on the Button, on its Label, and headerless `Section` all lose it, while direct menu children keep theirs — so identifier-only queries hang forever on iOS 27
-- `openDatabaseDetails(rowContaining:)` / `closeDatabaseDetails()` — long-press a database row, open its Database Details context action, and wait for/dismiss the details sheet. Promoted from byte-for-byte-duplicated private copies in `DatabaseListUITests` and `AutoFillStoreUITests`
-- `setSwitch(_:isOn:)` — tap a switch until its raw `"1"`/`"0"` value matches the desired state. Promoted from near-duplicate private copies in `DatabaseListUITests` and `AutoFillStoreUITests` that had drifted apart in their failure-message text ("Expected AutoFill toggle to be ..." vs. the more generic "Expected toggle to be ..."); the generic message won since `AutoFillStoreUITests` exercises this against several different toggles, not just one. Distinct from `UnlockFlowUITests`' private `setUsageStatsSwitch`, which tolerates additional value encodings ("on"/off strings, `NSNumber`) that this stricter shared helper does not — kept separate deliberately rather than merged, to avoid changing that test's behavior
+- `openDatabaseDetails(rowContaining:)` / `closeDatabaseDetails()` — long-press a database row, open its Database Details context action, and wait for/dismiss the details sheet
+- `setSwitch(_:isOn:)` — tap a switch until its raw `"1"`/`"0"` value matches. `UnlockFlowUITests`' private `setUsageStatsSwitch` stays separate because it tolerates other value encodings
 
 Prefer extending this base class over duplicating launch-environment setup or unlock logic in individual test files.
 
@@ -480,6 +431,6 @@ Use the app's accessibility identifiers whenever possible, including:
 
   **Simulator enumeration caveat.** On simulator runtimes (verified iOS 18.5 and 26.5) the enumeration API `ASCredentialIdentityStore.credentialIdentities(...)` always returns an *empty array* despite persisted writes (the saves succeed and QuickType consumes them). The inspector's counts — and the app's own enumerate-then-mutate store maintenance (`CredentialIdentityStoreManager.populate` / `removeIdentities(forDatabase:)`) — are therefore only meaningful on a physical device; `autofill-inspector.enumeration-state` still reads `available` on a simulator (the API returns a non-nil, empty array — `unavailable` means a nil result, e.g. macOS 14.0–14.3).
 
-  **Why `AutoFillStoreUITests` uses two disjoint fixtures.** The system store can dedup identities sharing `(service_id, user)` across databases, ignoring `recordIdentifier`. `AutoFillStoreUITests` therefore seeds its second ("bravo") database from `autofill-union.kdbx`, fully domain/username-disjoint from `test.kdbx` ("alpha") — see the AutoFill Union Fixture section above — so no cross-database dedup can occur and `testMultiDatabaseUnionAndSingleSectionRemoval` deterministically asserts the full union: inspector total = alpha's count + bravo's, each section holds its own full set, and disabling bravo removes only its section.
+  **Why `AutoFillStoreUITests` uses two disjoint fixtures.** The system store can dedup identities sharing `(service_id, user)` across databases, ignoring `recordIdentifier`. `AutoFillStoreUITests` therefore seeds its second ("bravo") database from `autofill-union.kdbx`, fully domain/username-disjoint from `test.kdbx` ("alpha") — see `../TestFixtures/README.md` — so no cross-database dedup can occur and `testMultiDatabaseUnionAndSingleSectionRemoval` deterministically asserts the full union: inspector total = alpha's count + bravo's, each section holds its own full set, and disabling bravo removes only its section.
 
 If a new screen or interaction needs UI coverage, add an accessibility identifier as part of the feature work rather than relying on fragile label matching.

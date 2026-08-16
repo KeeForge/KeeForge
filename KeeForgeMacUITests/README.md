@@ -1,6 +1,6 @@
 # KeeForge macOS UI Tests
 
-Smoke suite for the native macOS app (target `KeeForgeMacUITests`, scheme `KeeForgeMac`). Methodology and fixture guidance live in `../KeeForgeUITests/README.md` (see its "macOS Smoke Suite" section); this suite reuses the same fixtures and accessibility identifiers.
+Smoke suite for the native macOS app (target `KeeForgeMacUITests`, scheme `KeeForgeMac`). Methodology and fixture guidance live in `../KeeForgeUITests/README.md`; this suite reuses the same fixtures and accessibility identifiers — preserve them in both places. `MacUITestCase` mirrors the iOS target's fixture-injection launch environment but uses clicks, `typeKey` keyboard shortcuts, and right-click context menus instead of taps/swipes.
 
 ## Test Classes
 
@@ -26,4 +26,8 @@ xcodebuild test -project KeeForge.xcodeproj -scheme KeeForgeMac \
   -only-testing:KeeForgeMacUITests/MacSmokeUITests
 ```
 
-Requirements and gotchas (unlocked login session, `-ApplePersistenceIgnoreState`, click/`typeKey` interaction style, device-owner-auth prompt boundaries) are in the "macOS Smoke Suite" section referenced above — read it before running or writing Mac UI tests.
+Requirements and gotchas:
+
+- macOS UI tests require an unlocked, active login session; they fail with "Failed to activate application (Running Background)" when the screen is locked.
+- `MacUITestCase` launches with `-ApplePersistenceIgnoreState YES`; without it, macOS state restoration can restore a zero-window session and no main window ever appears.
+- Reveal/copy-password tests assert up to the device-owner auth prompt boundary (the prompt is a system dialog XCUITest cannot automate); terminating the app in teardown dismisses it.

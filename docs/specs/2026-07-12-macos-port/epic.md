@@ -2,7 +2,7 @@
 
 ## Summary
 
-Ship KeeForge as a native macOS app (SwiftUI multiplatform, macOS 14+) sharing the existing iOS codebase through `#if os()` seams — not Mac Catalyst, not a separate AppKit codebase. Closes the "Major gap" vs. Strongbox/KeePassium identified in `docs/competitive-gap-analysis.md` and the unstarted ROADMAP item.
+Ship KeeForge as a native macOS app (SwiftUI multiplatform, macOS 14+) sharing the existing iOS codebase through `#if os()` seams — not Mac Catalyst, not a separate AppKit codebase. Closes the "Major gap" vs. Strongbox/KeePassium identified in `docs/analysis/2026-04-18-competitive-gap-analysis.md` and the unstarted ROADMAP item.
 
 Why this approach: only 13 of ~70 app source files touch UIKit (mostly 1–5 line touches); all Views are pure SwiftUI on `NavigationStack`/`NavigationSplitView`; the entire Models layer, WebDAV stack, ViewModels, and all three SPM dependencies (Argon2Swift, SwiftyDropbox, MSAL) compile for macOS today. Catalyst's value is reusing UIKit code, which KeeForge barely has — and KeePassium's Catalyst experience ("80% in days, the remaining 20% took 3+ years and 127 betas") is the cautionary tale. A separate AppKit app (Strongbox's model) doubles UI maintenance forever.
 

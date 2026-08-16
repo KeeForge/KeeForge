@@ -5,7 +5,7 @@ Use this folder for small app-specific extensions and conformances that are shar
 ## Current Files
 
 - `NavigationConformances.swift` keeps navigation state workable with the app's model types.
-- `PlatformCompat.swift` is the shared iOS/macOS compatibility shim for the macOS port: `PlatformImage` (`UIImage`/`NSImage`) + `Image(platformImage:)`, UIKit semantic color names on `NSColor`, and macOS no-op/fallback shims for `navigationBarTitleDisplayMode`, `.topBarLeading`/`.topBarTrailing`, `.insetGrouped`, `.navigationBarDrawer` search placement, `keyboardType`, and `textInputAutocapitalization`. Target membership: KeeForge, KeeForgeAutoFill, KeeForgeMac. Prefer adding view-layer platform compatibility here over scattering raw `#if os()` in Views.
+- `PlatformCompat.swift` is the shared iOS/macOS compatibility shim for the macOS port: `PlatformImage` (`UIImage`/`NSImage`) + `Image(platformImage:)`, `PlatformTextContentType`, UIKit semantic color names on `NSColor`, `Data.WritingOptions.atomicProtected`, macOS no-op/fallback shims for `navigationBarTitleDisplayMode`, `.topBarLeading`/`.topBarTrailing`, `.insetGrouped`, `.navigationBarDrawer` search placement, `keyboardType`, and `textInputAutocapitalization`, plus `macSearchFocusedCompat` (macOS only; `searchFocused` availability shim) and `macHoverHighlight` (row hover highlight, no-op on iOS). Target membership: all four (KeeForge, KeeForgeMac, KeeForgeAutoFill, KeeForgeMacAutoFill). Prefer adding view-layer platform compatibility here over scattering raw `#if os()` in Views.
 
 ## Guidance
 

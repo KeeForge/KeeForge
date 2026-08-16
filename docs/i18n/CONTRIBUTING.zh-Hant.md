@@ -16,13 +16,13 @@
 - Xcode 26+
 - [XcodeGen](https://github.com/yonaskolb/XcodeGen)
 - Swift 6 與嚴格並行檢查（strict concurrency）
-- Swift 套件相依：[Argon2Swift](https://github.com/tmthecoder/Argon2Swift)、[SwiftyDropbox](https://github.com/dropbox/SwiftyDropbox)、[Microsoft Authentication Library](https://github.com/AzureAD/microsoft-authentication-library-for-objc)，以及內建的 [KeeForgeTwofish](../../Vendor/KeeForgeTwofish) 套件
+- Swift 套件相依：[Argon2Swift](https://github.com/tmthecoder/Argon2Swift)、[SwiftyDropbox](https://github.com/dropbox/SwiftyDropbox)、[Microsoft Authentication Library](https://github.com/AzureAD/microsoft-authentication-library-for-objc)、[swift-psl](https://github.com/ameshkov/swift-psl)，以及內建的 [KeeForgeTwofish](../../Vendor/KeeForgeTwofish) 套件
 
 ## 從原始碼建置
 
 ```bash
 cp BuildConfig.local.example.xcconfig BuildConfig.local.xcconfig
-# Fill in DROPBOX_APP_KEY and ONEDRIVE_CLIENT_ID for provider-enabled builds.
+# 若要建置啟用雲端服務商的版本，請填入 DROPBOX_APP_KEY 與 ONEDRIVE_CLIENT_ID。
 xcodegen generate
 open KeeForge.xcodeproj
 ```
@@ -45,7 +45,7 @@ xcodebuild test -project KeeForge.xcodeproj -scheme KeeForge \
 4. 在 [`CHANGELOG.md`](../../CHANGELOG.md) 的 `## Unreleased` 之下加入功能與錯誤修正的說明。
 5. 開一個 Pull Request，描述行為上的變更以及驗證方式。
 
-Pull Request 至少需要一個核准的審查才能合併。KeeForge 使用 squash 合併，因此請讓 Pull Request 保持聚焦，並給它一個清楚的標題。
+每個 Pull Request 在合併前都會由維護者審查。KeeForge 使用 squash 合併，因此請讓 Pull Request 保持聚焦，並給它一個清楚的標題。
 
 ### 該以哪個分支為目標
 

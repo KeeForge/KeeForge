@@ -16,7 +16,7 @@ Thanks for helping improve KeeForge.
 - Xcode 26+
 - [XcodeGen](https://github.com/yonaskolb/XcodeGen)
 - Swift 6 with strict concurrency
-- Swift Package dependencies: [Argon2Swift](https://github.com/tmthecoder/Argon2Swift), [SwiftyDropbox](https://github.com/dropbox/SwiftyDropbox), [Microsoft Authentication Library](https://github.com/AzureAD/microsoft-authentication-library-for-objc), and the vendored [KeeForgeTwofish](Vendor/KeeForgeTwofish) package
+- Swift Package dependencies: [Argon2Swift](https://github.com/tmthecoder/Argon2Swift), [SwiftyDropbox](https://github.com/dropbox/SwiftyDropbox), [Microsoft Authentication Library](https://github.com/AzureAD/microsoft-authentication-library-for-objc), [swift-psl](https://github.com/ameshkov/swift-psl), and the vendored [KeeForgeTwofish](Vendor/KeeForgeTwofish) package
 
 ## Build From Source
 
@@ -45,7 +45,7 @@ xcodebuild test -project KeeForge.xcodeproj -scheme KeeForge \
 4. Add feature and bug-fix notes under `## Unreleased` in [`CHANGELOG.md`](CHANGELOG.md).
 5. Open a pull request describing the behavior change and how it was verified.
 
-Pull requests require at least one approving review before merge. KeeForge uses squash merges, so please keep the pull request focused and give it a clear title.
+A maintainer reviews every pull request before it is merged. KeeForge uses squash merges, so please keep the pull request focused and give it a clear title.
 
 ### Which branch to target
 

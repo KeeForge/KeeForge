@@ -10,12 +10,7 @@ build with an unresolved gate.
 ## Reading the Xcode Cloud gate
 
 Xcode Cloud reports into GitHub as a check run on the RC commit, so the whole gate is readable
-with `gh` and needs no App Store Connect session:
-
-```bash
-gh api repos/KeeForge/KeeForge/commits/{rc-sha}/check-runs \
-  --jq '.check_runs[] | select(.app.name=="Xcode Cloud") | "\(.name) | \(.status) | \(.conclusion // "-")"'
-```
+with `gh` and needs no App Store Connect session — use the A8 `gh api .../check-runs` command.
 
 Poll until `status` is `completed`. Interpreting `conclusion`:
 
@@ -42,13 +37,8 @@ the per-destination device and iOS version. The failure list itself is always av
 
 ## Reading the GitHub Actions gate
 
-```bash
-gh run list --workflow ios18-rc-tests.yml --event push
-gh run watch <run-id> --exit-status
-```
-
-Match the run whose `headBranch` is the active RC tag and whose `headSha` is the RC commit. The
-`ios18-tests` job must complete successfully.
+Use the A8 `gh run list` / `gh run watch` commands. Match the run whose `headBranch` is the active
+RC tag and whose `headSha` is the RC commit. The `ios18-tests` job must complete successfully.
 
 This workflow runs the full unit + UI suites on an iPhone SE (3rd generation) at the minimum
 supported iOS 18 runtime, then a regular-width lane on an iPad (10th generation) for the two
@@ -61,7 +51,7 @@ Every failed test must be reproduced on its **exact** device and OS pair. `OS=la
 substitute and a near-miss destination proves nothing.
 
 1. Record each failed test identifier plus its simulator device type and exact iOS runtime version.
-   - **GitHub Actions**: the chosen iOS 18 runtime is in the *Create iOS 18 simulator* log step;
+   - **GitHub Actions**: the chosen iOS 18 runtime is in the *Create iOS 18 simulators* log step;
      the device is iPhone SE (3rd generation), or iPad (10th generation) for the regular-width lane.
    - **Xcode Cloud**: read the device and OS from each failed test destination.
 2. Confirm the runtime is installed locally with `xcrun simctl list runtimes` and the device type

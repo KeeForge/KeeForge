@@ -8,10 +8,10 @@ Builds and tests green but **must not be released**. Authoritative status and pr
 
 ## Target Map
 
-- `KeeForgeMac` (app, `project.yml` ~line 83): compiles the shared `KeeForge/` tree (minus `LaunchScreen.storyboard`) plus selected `AutoFillExtension/` shells (sharing rules: `KeeForge/README.md`). `MARKETING_VERSION` is `1.10.1`, intentionally behind iOS (`1.10.4`); Mac targets do not bump with iOS releases.
-- `KeeForgeMacAutoFill` (extension, ~line 205): uses `AutoFillExtension/InfoMac.plist` and `AutoFillExtension/AutoFillExtensionMac.entitlements`; its shared-source list must stay literally identical to the iOS `KeeForgeAutoFill` allow-list (marked invariant in `project.yml`).
-- `KeeForgeMacTests` (~line 421): **no folder of its own** — compiles the shared `KeeForgeTests/` sources, hosted in `KeeForgeMac.app` (`TEST_HOST`/`BUNDLE_LOADER`).
-- `KeeForgeMacUITests` (~line 397): has its own folder and README (`KeeForgeMacUITests/`).
+- `KeeForgeMac` (app target in `project.yml`): compiles the shared `KeeForge/` tree (minus `LaunchScreen.storyboard`) plus selected `AutoFillExtension/` shells (sharing rules: `KeeForge/README.md`). `MARKETING_VERSION` is `1.10.1`, intentionally behind the current iOS release; Mac targets do not bump with iOS releases.
+- `KeeForgeMacAutoFill` (extension): uses `AutoFillExtension/InfoMac.plist` and `AutoFillExtension/AutoFillExtensionMac.entitlements`; its shared-source list must stay literally identical to the iOS `KeeForgeAutoFill` allow-list (marked invariant in `project.yml`).
+- `KeeForgeMacTests`: **no folder of its own** — compiles the shared `KeeForgeTests/` sources, hosted in `KeeForgeMac.app` (`TEST_HOST`/`BUNDLE_LOADER`).
+- `KeeForgeMacUITests`: has its own folder and README (`KeeForgeMacUITests/`).
 
 ## Entitlements Gotchas
 

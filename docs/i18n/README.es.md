@@ -45,7 +45,7 @@ KeeForge es un cliente nativo de KeePass para iOS pensado para quienes quieren q
 | Área | Qué hace KeeForge |
 | --- | --- |
 | **Compatibilidad con KeePass** | Lee y escribe bases de datos KDBX 4.x con cifrado AES-256, ChaCha20 o Twofish, y AES-KDF, Argon2d o Argon2id. También abre bases de datos KDBX 3.1 en modo de solo lectura. |
-| **Edición local** | Cree, edite y elimine entradas; cree y elimine grupos; y guarde con comprobación de conflictos, copias de seguridad con marca de tiempo, y conservación del historial de entradas y del XML desconocido. |
+| **Edición local** | Cree, edite, mueva y elimine entradas y grupos; y guarde con comprobación de conflictos, copias de seguridad con marca de tiempo, y conservación del historial de entradas y del XML desconocido. |
 | **Nuevas bases de datos** | Cree nuevas bases de datos KDBX 4.x de forma local o directamente en carpetas de Dropbox, OneDrive y WebDAV. |
 | **Claves compuestas** | Desbloquee con contraseña, archivo de clave o ambos, incluidos archivos de clave binarios, hexadecimales, XML v1/v2 (`.key`/`.keyx`) y arbitrarios. |
 | **Autorrelleno** | Autorrelleno en Safari y en apps, sugerencias QuickType, creación de credenciales desde la extensión, y desbloqueo protegido con Face ID. |

@@ -67,8 +67,6 @@ struct GroupListView: View {
     /// macOS drill-down: when set, group rows call this instead of pushing a
     /// `NavigationLink` (pushed sidebar stacks render zero-height on macOS).
     var onSelectGroup: ((UUID) -> Void)? = nil
-    /// macOS drill-down: when set, a Back toolbar button pops one level.
-    var onNavigateBack: (() -> Void)? = nil
     /// iPad split view: when set, New Entry hands its editor to the host so it
     /// opens in the detail column instead of being pushed into this sidebar.
     var onCreateEntry: ((EntryEditViewModel) -> Void)? = nil
@@ -169,18 +167,6 @@ struct GroupListView: View {
                     .navigationTitle(resolvedGroup.name)
                     .navigationBarTitleDisplayMode(.large)
                     .toolbar {
-                        if let onNavigateBack {
-                            ToolbarItem(placement: .navigation) {
-                                Button {
-                                    onNavigateBack()
-                                } label: {
-                                    Image(systemName: "chevron.backward")
-                                }
-                                .accessibilityLabel("Back")
-                                .accessibilityIdentifier("group.back")
-                            }
-                        }
-
                         if showsCompactLockButton {
                             ToolbarItem(placement: .topBarLeading) {
                                 // Icon, not text: this sits directly after the
