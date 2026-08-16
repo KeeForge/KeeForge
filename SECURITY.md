@@ -8,7 +8,7 @@ Only the latest released version of KeeForge is supported with security updates.
 
 | Version | Supported |
 | ------- | --------- |
-| Latest release (currently 1.10.x) | ✅ |
+| Latest App Store release | ✅ |
 | Older versions | ❌ |
 
 ## Reporting a Vulnerability

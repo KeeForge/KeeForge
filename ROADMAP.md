@@ -49,23 +49,24 @@ Roadmap items are grouped first by intent and then by product area, without an i
 
 - [ ] Show transient saved, uploading, synchronized, and retrying states for every vault.
 - [ ] Add a local sync journal showing recent saves, uploads, downloads, conflicts, and backups.
-- [ ] Make timestamped backups easy to inspect and restore in the app.
+- [ ] Restore a backup in place from the app.
 - [ ] Add equivalent retry behavior for recoverable WebDAV failures.
 - [x] Show disconnected, stale, unavailable, pending-upload, and conflict states on vault rows and in database details.
 - [x] Create timestamped backups before saves and prove that they reopen with the original credentials.
 - [x] Retry recoverable Dropbox and OneDrive failures automatically, with calm and actionable error messages.
 - [x] Test races among in-app edits, AutoFill-created credentials, desktop edits, offline operation, and provider latency.
 - [x] Ensure queued AutoFill uploads cannot silently overwrite a newer remote vault.
+- [x] List recent timestamped backups in Database Details and export them to Files.
 
-### Three-way, entry-level sync merge
+### Sync merge
 
 - [ ] Use the last synchronized vault as the merge base.
 - [ ] Merge independent entry and group changes automatically when safe.
-- [ ] Resolve conflicts at entry or field level instead of choosing an entire file.
+- [ ] Resolve conflicts at field level instead of choosing an entire file.
 - [ ] Preview what will change before applying a resolution.
-- [ ] Preserve both sides when a conflict cannot be resolved safely.
 - [ ] Make every merge recoverable through backups and the sync journal.
-- [ ] Add deterministic tests for concurrent edits, moves, deletions, history, attachments, and unknown fields.
+- [x] Merge concurrent record-level changes (entries, groups, moves, deletions) KeePass-Synchronize style, keeping the losing version in history and declining when the merge cannot be proven lossless.
+- [x] Add deterministic merge tests for concurrent edits, moves, deletions, history, attachments, and unknown fields, verified against KeePassXC.
 
 ## Compatibility and interoperability
 
@@ -120,13 +121,15 @@ Roadmap items are grouped first by intent and then by product area, without an i
 
 - [ ] Expose arbitrary custom-field creation, editing, and deletion in the entry editor.
 - [ ] Allow custom fields to switch between protected and unprotected values.
-- [ ] Move, copy, and duplicate entries and groups with full metadata preservation.
+- [ ] Copy and duplicate entries and groups with full metadata preservation.
 - [ ] Add expiration and reminder management.
 - [ ] Add Auto-Type-style field mappings where iOS offers an equivalent mechanism.
 - [ ] Extend passkey registration: attach to an existing entry, conditional registration, largeBlob/PRF extensions, RS256/EdDSA algorithms.
-- [ ] Add custom-icon import and selection plus per-entry favicon management.
+- [ ] Import custom icons from Files and Photos.
 - [x] Add passkey creation from Apple's "Add Passkey" credential flow (ES256, KeePassXC-compatible storage).
 - [x] Display preserved custom icons and opt-in website favicons.
+- [x] Move entries and groups to another group with KDBX location-change tracking.
+- [x] Pick a standard or existing custom icon per entry and store a downloaded website icon as a custom icon.
 
 ### Entry history and tags
 
@@ -154,9 +157,9 @@ Roadmap items are grouped first by intent and then by product area, without an i
 
 ### Database management and password generation
 
-- [x] Expose database encryption algorithm and KDF tuning with safe defaults and clear warnings.
 - [ ] Add reusable advanced password-generator recipes and per-entry generation history.
 - [ ] Add carefully designed import and export tools.
+- [x] Expose database encryption algorithm and KDF tuning with safe defaults and clear warnings.
 - [x] Create new databases directly in the app.
 - [x] Configure generated-password length, character sets, and ambiguous-character exclusion.
 - [x] Display the database encryption algorithm and KDF in Database Details.
@@ -176,8 +179,6 @@ Roadmap items are grouped first by intent and then by product area, without an i
 
 ### Localization
 
-- [ ] Add Simplified Chinese localization.
-- [ ] Add Traditional Chinese localization.
 - [ ] Add Japanese localization.
 - [ ] Establish a community translation and review workflow.
 - [ ] Add release checks for layout-breaking localized strings.
@@ -185,6 +186,8 @@ Roadmap items are grouped first by intent and then by product area, without an i
 - [x] Add German localization.
 - [x] Add French localization.
 - [x] Add Spanish localization.
+- [x] Add Simplified Chinese localization.
+- [x] Add Traditional Chinese localization.
 - [x] Add release checks for untranslated strings and format-specifier drift.
 
 ## Platform and provider reach

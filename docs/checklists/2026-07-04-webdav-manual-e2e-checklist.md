@@ -1,8 +1,9 @@
 # WebDAV Manual E2E Checklist
 
-Run before releasing WebDAV changes. Automated coverage (unit tests with stubbed
-transport + mock-provider UI tests) does not touch a real server, so this pass
-verifies real-world behavior. Test against:
+Manual pass used on 2026-07-04 to verify WebDAV sync against real servers (not part
+of the release process). Automated coverage (unit tests with stubbed transport +
+mock-provider UI tests) does not touch a real server, so this pass verified
+real-world behavior. Servers tested:
 
 1. **Nextcloud** — base URL `https://<host>/remote.php/dav/files/<user>/`, using
    an app password (Settings → Security → Devices & sessions).

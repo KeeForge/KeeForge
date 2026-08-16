@@ -1,6 +1,6 @@
 # Cloud File AutoFill Research
 
-Research findings for the cloud-hosted .kdbx AutoFill bug described in [CLOUD_FILE_AUTOFILL_BUG.md](CLOUD_FILE_AUTOFILL_BUG.md).
+Research findings for the cloud-hosted .kdbx AutoFill bug (original write-up `CLOUD_FILE_AUTOFILL_BUG.md`, removed in commit 6dc6677).
 
 Date: 2026-03-08
 

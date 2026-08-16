@@ -45,7 +45,7 @@ KeeForge ist ein nativer iOS-KeePass-Client für alle, die die Kontrolle über i
 | Bereich | Was KeeForge kann |
 | --- | --- |
 | **KeePass-Kompatibilität** | Liest und schreibt KDBX-4.x-Datenbanken mit AES-256-, ChaCha20- oder Twofish-Verschlüsselung und AES-KDF, Argon2d oder Argon2id. Öffnet außerdem KDBX-3.1-Datenbanken im Nur-Lese-Modus. |
-| **Lokale Bearbeitung** | Einträge erstellen, bearbeiten und löschen; Gruppen erstellen und löschen; Speichern mit Konfliktprüfung, zeitgestempelten Backups sowie Erhalt des Eintragsverlaufs und unbekannter XML-Elemente. |
+| **Lokale Bearbeitung** | Einträge und Gruppen erstellen, bearbeiten, verschieben und löschen; Speichern mit Konfliktprüfung, zeitgestempelten Backups sowie Erhalt des Eintragsverlaufs und unbekannter XML-Elemente. |
 | **Neue Datenbanken** | Neue KDBX-4.x-Datenbanken lokal oder direkt in Dropbox-, OneDrive- und WebDAV-Ordnern anlegen. |
 | **Zusammengesetzte Schlüssel** | Entsperren mit Passwort, Schlüsseldatei oder beidem — einschließlich binärer, Hex-, XML-v1/v2- (`.key`/`.keyx`) und beliebiger Schlüsseldateien. |
 | **AutoFill** | AutoFill in Safari und Apps, QuickType-Vorschläge, Anlegen von Zugangsdaten direkt aus der Extension und per Face ID geschütztes Entsperren. |

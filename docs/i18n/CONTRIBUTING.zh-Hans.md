@@ -16,7 +16,7 @@
 - Xcode 26+
 - [XcodeGen](https://github.com/yonaskolb/XcodeGen)
 - Swift 6，启用严格并发检查
-- Swift 包依赖：[Argon2Swift](https://github.com/tmthecoder/Argon2Swift)、[SwiftyDropbox](https://github.com/dropbox/SwiftyDropbox)、[Microsoft Authentication Library](https://github.com/AzureAD/microsoft-authentication-library-for-objc)，以及内置的 [KeeForgeTwofish](../../Vendor/KeeForgeTwofish) 包
+- Swift 包依赖：[Argon2Swift](https://github.com/tmthecoder/Argon2Swift)、[SwiftyDropbox](https://github.com/dropbox/SwiftyDropbox)、[Microsoft Authentication Library](https://github.com/AzureAD/microsoft-authentication-library-for-objc)、[swift-psl](https://github.com/ameshkov/swift-psl)，以及内置的 [KeeForgeTwofish](../../Vendor/KeeForgeTwofish) 包
 
 ## 从源码构建
 
@@ -45,7 +45,7 @@ xcodebuild test -project KeeForge.xcodeproj -scheme KeeForge \
 4. 在 [`CHANGELOG.md`](../../CHANGELOG.md) 的 `## Unreleased` 下添加功能和 bug 修复说明。
 5. 开一个 pull request，描述行为上的变化以及如何验证。
 
-Pull request 在合并前需要至少一个批准的审阅。KeeForge 使用 squash 合并，因此请保持 pull request 聚焦，并起一个清晰的标题。
+每个 pull request 在合并前都会由维护者审阅。KeeForge 使用 squash 合并，因此请保持 pull request 聚焦，并起一个清晰的标题。
 
 ### 应该以哪个分支为目标
 

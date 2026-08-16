@@ -16,7 +16,7 @@ Merci de contribuer à l’amélioration de KeeForge.
 - Xcode 26+
 - [XcodeGen](https://github.com/yonaskolb/XcodeGen)
 - Swift 6 avec la concurrence stricte
-- Dépendances Swift Package : [Argon2Swift](https://github.com/tmthecoder/Argon2Swift), [SwiftyDropbox](https://github.com/dropbox/SwiftyDropbox), [Microsoft Authentication Library](https://github.com/AzureAD/microsoft-authentication-library-for-objc), et le package [KeeForgeTwofish](../../Vendor/KeeForgeTwofish) fourni en interne
+- Dépendances Swift Package : [Argon2Swift](https://github.com/tmthecoder/Argon2Swift), [SwiftyDropbox](https://github.com/dropbox/SwiftyDropbox), [Microsoft Authentication Library](https://github.com/AzureAD/microsoft-authentication-library-for-objc), [swift-psl](https://github.com/ameshkov/swift-psl), et le package [KeeForgeTwofish](../../Vendor/KeeForgeTwofish) fourni en interne
 
 ## Compiler depuis les sources
 
@@ -45,7 +45,7 @@ xcodebuild test -project KeeForge.xcodeproj -scheme KeeForge \
 4. Ajoutez des notes de fonctionnalités et de correctifs sous `## Unreleased` dans [`CHANGELOG.md`](../../CHANGELOG.md).
 5. Ouvrez une pull request décrivant le changement de comportement et la façon dont il a été vérifié.
 
-Les pull requests nécessitent au moins une revue approbatrice avant fusion. KeeForge utilise les squash merges : veillez donc à garder la pull request ciblée et à lui donner un titre clair.
+Un mainteneur relit chaque pull request avant sa fusion. KeeForge utilise les squash merges : veillez donc à garder la pull request ciblée et à lui donner un titre clair.
 
 ### Quelle branche cibler
 

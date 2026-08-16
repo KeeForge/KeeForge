@@ -71,8 +71,7 @@ alphanumerics only, because it is interpolated into the `db-$(DROPBOX_APP_KEY)`
 - The **first build of each new marketing version** goes through Beta App Review before external
   testers can install it — budget roughly a day. Later builds of the same version normally
   distribute without re-review.
-- Export compliance does not prompt: `ITSAppUsesNonExemptEncryption` is declared in
-  `KeeForge/Info.plist`.
+- Export compliance does not prompt (`ITSAppUsesNonExemptEncryption` in `KeeForge/Info.plist`).
 
 ## Public link settings
 

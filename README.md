@@ -45,7 +45,7 @@ KeeForge is a native iOS KeePass client for people who want their vault to stay 
 | Area | What KeeForge Does |
 | --- | --- |
 | **KeePass compatibility** | Reads and writes KDBX 4.x databases with AES-256, ChaCha20, or Twofish encryption and AES-KDF, Argon2d, or Argon2id. Also opens KDBX 3.1 databases in read-only mode. |
-| **Local-first editing** | Create, edit, and delete entries; create and delete groups; and save with conflict checks, timestamped backups, and preservation of entry history and unknown XML. |
+| **Local-first editing** | Create, edit, move, and delete entries and groups; and save with conflict checks, timestamped backups, and preservation of entry history and unknown XML. |
 | **New databases** | Create new KDBX 4.x databases locally or directly inside Dropbox, OneDrive, and WebDAV folders. |
 | **Composite keys** | Unlock with password, key file, or both, including binary, hex, XML v1/v2 (`.key`/`.keyx`), and arbitrary key files. |
 | **AutoFill** | Safari and app AutoFill, QuickType suggestions, credential creation from the extension, and Face ID gated unlock. |

@@ -31,7 +31,7 @@ If the requested build is absent from TestFlight, stop and report it. Do not sta
 - Reviewer fixture: `/Users/tan/Documents/test.kdbx.zip`
 - Reviewer fixture password: `testpassword123`
 - Preserve the existing reviewer note unless it is incorrect. It should tell the reviewer that the compressed test database is attached and give the password.
-- Existing App Store localizations: English (U.S.), French, German, Russian, and Spanish (Spain).
+- App Store localizations: verify against the version page in App Store Connect (last known: English (U.S.), French, German, Russian, Spanish (Spain); consider adding Simplified/Traditional Chinese since the app ships them in-app as of 1.14.0).
 
 ## Workflow
 
@@ -78,7 +78,7 @@ Draft concise English release notes from the versioned changelog section. Prefer
 Show the English draft to the user before saving it as public metadata. After approval:
 
 1. Save English (U.S.).
-2. Translate the same meaning faithfully into French, German, Russian, and Spanish (Spain).
+2. Translate the same meaning faithfully into every other localization listed on the version page.
 3. Save each localization separately.
 4. Keep product terms such as KeeForge, KeePass, KDBX, AutoFill, WebDAV, TOTP, passkey, and iOS recognizable.
 
@@ -138,7 +138,7 @@ If the user explicitly asks for final submission, request action-time confirmati
 - Exact build is processed and attached.
 - Export compliance is complete.
 - France availability is consistent with the compliance declaration.
-- English, French, German, Russian, and Spanish release notes are saved.
+- Release notes are saved for every localization listed on the version page.
 - Reviewer note includes the fixture password.
 - `test.kdbx.zip` is visibly attached.
 - Automatic release, immediate rollout, and rating retention are verified.

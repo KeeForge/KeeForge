@@ -128,8 +128,8 @@ Perform this review for every release, even if the content already looks complet
 4. Check platform accuracy. Keep features available on both iOS and macOS shared; set the
    `platforms` argument for single-platform features. Never advertise an iOS-only feature in the
    Mac sheet or vice versa.
-5. Add or update every affected key and its translations for every shipped locale (currently
-   `de`, `fr`, and `es` — see AGENTS.md's Localization section) in
+5. Add or update every affected key and its translations for every shipped locale (see AGENTS.md's
+   Localization section; `KeeForgeTests/LocalizationTests.swift` is the source of truth) in
    `KeeForge/Resources/Localizable.xcstrings`. The localization tests in the RC run are the gate.
 6. Re-read the completed sheet as a user. Fix unclear titles, repetitive descriptions, missing
    major features, or claims the release does not support.
@@ -228,7 +228,7 @@ Do **not** run the full unit or UI suites locally here — both cloud systems ru
    git push origin rc/{version}-b{build}
    ```
 
-The tag push triggers Xcode Cloud's RC workflow (test, then archive and upload to TestFlight) and
+The tag push triggers Xcode Cloud's RC workflow (test, and archive and upload to TestFlight) and
 `.github/workflows/ios18-rc-tests.yml`.
 
 ## A8. Wait for both test gates
@@ -251,8 +251,9 @@ distributed to external testers.
 4. If either gate is not green, **read `gate-adjudication.md`** and follow it. Do not distribute a
    build whose gates are unresolved.
 
-Xcode Cloud's archive action runs only after its test action passes, so a red gate means no
-TestFlight build was produced.
+Xcode Cloud's test and archive actions run in parallel. A red test action still uploads a build,
+but its `TestFlight External Testing` post-action does not run — see gate-adjudication.md for
+whether that build may be distributed by hand.
 
 ## A9. Release the build to external testers
 
@@ -261,8 +262,7 @@ TestFlight build was produced.
    monotonically increasing per app, and there is no supported way to disable that. Match on the
    commit instead: the Xcode Cloud build page shows the `rc/{version}-b{build}` tag and SHA it was
    built from. Record the TestFlight build number alongside the candidate tag; every later step
-   refers to the TestFlight number. Export compliance no longer prompts —
-   `ITSAppUsesNonExemptEncryption` is declared in `KeeForge/Info.plist`.
+   refers to the TestFlight number. Export compliance does not prompt (see Notes).
 2. Write **What to Test** notes for the build. This is the only text every tester sees, and it is
    the steering channel for the soak. Always include:
    - What changed in this build, in user terms.
@@ -519,6 +519,3 @@ Continue with Mode C from C1, reporting against the 24h target in place of 48h.
 - `ITSAppUsesNonExemptEncryption` is declared `false` in `KeeForge/Info.plist`, so App Store Connect
   does not ask the export-compliance question per build. It remains a legal declaration: if the
   app's cryptography changes materially, revisit it rather than assuming the key still applies.
-- Archives fail deliberately when `DROPBOX_APP_KEY` or `ONEDRIVE_CLIENT_ID` is missing or still a
-  placeholder (`ci_scripts/ci_pre_xcodebuild.sh`). If an RC archive fails on that, the Xcode Cloud
-  workflow is missing its environment variables — see `xcode-cloud-setup.md`.
