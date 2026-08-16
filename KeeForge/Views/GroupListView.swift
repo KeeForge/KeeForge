@@ -532,13 +532,21 @@ struct GroupListView: View {
                 Button {
                     onSelectEntry(entry)
                 } label: {
-                    EntryRow(entry: entry, customIconData: viewModel.customIconData(for: entry))
+                    EntryRow(
+                        entry: entry,
+                        username: viewModel.resolvingFieldReferences(entry.username),
+                        customIconData: viewModel.customIconData(for: entry)
+                    )
                 }
                 .buttonStyle(.plain)
                 .accessibilityIdentifier("entry.navlink")
             } else {
                 NavigationLink(value: entry) {
-                    EntryRow(entry: entry, customIconData: viewModel.customIconData(for: entry))
+                    EntryRow(
+                        entry: entry,
+                        username: viewModel.resolvingFieldReferences(entry.username),
+                        customIconData: viewModel.customIconData(for: entry)
+                    )
                 }
                 .accessibilityIdentifier("entry.navlink")
             }
@@ -916,6 +924,9 @@ struct TagBrowserRow: View {
 
 struct EntryRow: View {
     let entry: KPEntry
+    /// The subtitle to show; callers pass the entry's username with field
+    /// references resolved.
+    var username: String
     var customIconData: Data? = nil
     var folderPath: String? = nil
 
@@ -927,8 +938,8 @@ struct EntryRow: View {
             VStack(alignment: .leading) {
                 Text(entry.title.isEmpty ? String(localized: "(untitled)") : entry.title)
                     .font(.body)
-                if !entry.username.isEmpty {
-                    Text(entry.username)
+                if !username.isEmpty {
+                    Text(username)
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }

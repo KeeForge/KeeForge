@@ -647,8 +647,12 @@ private struct MacEntriesColumn: View {
         Button {
             onSelectEntry(entry)
         } label: {
-            EntryRow(entry: entry, customIconData: viewModel.customIconData(for: entry))
-                .foregroundStyle(isSelected ? Color.white : Color.primary)
+            EntryRow(
+                entry: entry,
+                username: viewModel.resolvingFieldReferences(entry.username),
+                customIconData: viewModel.customIconData(for: entry)
+            )
+            .foregroundStyle(isSelected ? Color.white : Color.primary)
         }
         .buttonStyle(.plain)
         .listRowBackground(

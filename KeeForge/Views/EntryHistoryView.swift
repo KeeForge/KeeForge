@@ -106,7 +106,7 @@ private struct EntryHistoryVersionView: View {
                     if !version.username.isEmpty {
                         FieldRow(
                             label: String(localized: "Username"),
-                            value: version.username,
+                            value: viewModel.resolvingFieldReferences(version.username),
                             icon: "person",
                             accessibilityKey: "username",
                             accessibilityPrefix: "entry-history"
@@ -116,13 +116,14 @@ private struct EntryHistoryVersionView: View {
                         PasswordFieldRow(
                             password: version.password,
                             sessionKey: sessionKey,
+                            resolveReferences: viewModel.resolvingFieldReferences,
                             accessibilityPrefix: "entry-history"
                         )
                     }
                     if !version.url.isEmpty {
                         FieldRow(
                             label: String(localized: "URL"),
-                            value: version.url,
+                            value: viewModel.resolvingFieldReferences(version.url),
                             icon: "link",
                             accessibilityKey: "url",
                             accessibilityPrefix: "entry-history"
@@ -137,7 +138,7 @@ private struct EntryHistoryVersionView: View {
                     }
                     if !version.notes.isEmpty {
                         Section("Notes") {
-                            SelectableNotesText(version.notes)
+                            SelectableNotesText(viewModel.resolvingFieldReferences(version.notes))
                         }
                     }
                     if !version.displayCustomFields.isEmpty {
@@ -149,14 +150,14 @@ private struct EntryHistoryVersionView: View {
                                 if version.protectedStringKeys.contains(key) {
                                     ProtectedFieldRow(
                                         label: key,
-                                        value: value,
+                                        value: viewModel.resolvingFieldReferences(value),
                                         accessibilityPrefix: "entry-history",
                                         showsInlineLabel: true
                                     )
                                 } else {
                                     FieldRow(
                                         label: key,
-                                        value: value,
+                                        value: viewModel.resolvingFieldReferences(value),
                                         icon: "text.justify.left",
                                         accessibilityPrefix: "entry-history",
                                         showsInlineLabel: true

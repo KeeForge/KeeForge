@@ -232,6 +232,37 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
         assertCleanedUp(coordinator)
     }
 
+    func test_completeRequest_resolvesFieldReferencesAgainstTheWholeTree() throws {
+        let (coordinator, presenter) = makeCoordinator()
+        let sessionKey = SymmetricKey(size: .bits256)
+        // In a non-searchable group, so it is never in `parsedEntries` — the
+        // reference must still find it through the whole tree.
+        let source = KPEntry(
+            title: "Corporate SSO",
+            username: "jane@corp.example",
+            password: try EncryptedValue.encrypt("sso-secret", using: sessionKey)
+        )
+        let alias = KPEntry(
+            title: "Intranet",
+            username: "{REF:U@T:Corporate SSO}",
+            password: try EncryptedValue.encrypt("{REF:P@I:\(source.id.kdbxHexString)}", using: sessionKey),
+            url: "https://intranet.corp.example"
+        )
+        seedUnlockedVaultState(coordinator, entries: [alias], sessionKey: sessionKey)
+        coordinator.parsedRootGroup = KPGroup(
+            name: "Root",
+            entries: [alias],
+            groups: [KPGroup(name: "Hidden", entries: [source], searchingEnabled: .disabled)]
+        )
+
+        coordinator.completeRequest(with: alias)
+
+        let credential = try XCTUnwrap(presenter.completedCredential)
+        XCTAssertEqual(credential.user, "jane@corp.example")
+        XCTAssertEqual(credential.password, "sso-secret")
+        assertCleanedUp(coordinator)
+    }
+
     func test_terminalCompletionIsDeliveredExactlyOnce() throws {
         let (coordinator, presenter) = makeCoordinator()
         let sessionKey = SymmetricKey(size: .bits256)

@@ -385,7 +385,9 @@ final class DatabaseViewModel {
     private(set) var failedAttempts = 0
     private(set) var lockoutUntil: Date?
     private(set) var compositeKey: SymmetricKey?
-    private(set) var sessionKey: SymmetricKey?
+    private(set) var sessionKey: SymmetricKey? {
+        didSet { fieldReferenceResolver = nil }
+    }
     /// Key file supplied manually at password unlock. The reference's
     /// association is the usual key-file source, but a manual pick never
     /// persists one, and the session otherwise retains only the derived
@@ -413,6 +415,9 @@ final class DatabaseViewModel {
     private(set) var cloudSyncBannerText: String?
     private(set) var unlockStatusMessage: String
     private var entryIndex: [UUID: KPEntry] = [:]
+    /// Built on first use over `currentRootGroup` + `sessionKey`; dropped with
+    /// `entryIndex` (`rebuildDerivedState`) and whenever the session key changes.
+    @ObservationIgnored private var fieldReferenceResolver: FieldReferenceResolver?
     private var groupIndex: [UUID: KPGroup] = [:]
     private var groupEntryCounts: [UUID: Int] = [:]
     private var searchableEntries: [KPEntry] = []
@@ -896,6 +901,29 @@ final class DatabaseViewModel {
     func group(withID groupID: UUID) -> KPGroup? {
         _ = contentRevision
         return groupIndex[groupID]
+    }
+
+    /// `raw` with every KeePass `{REF:…}` field reference replaced by the value
+    /// it points at in the current tree. Display, copy, and fill only — never
+    /// feed the result back into an edit or save.
+    func resolvingFieldReferences(_ raw: String) -> String {
+        _ = contentRevision
+        guard FieldReferenceResolver.containsReference(raw) else { return raw }
+        return currentFieldReferenceResolver().resolve(raw)
+    }
+
+    /// The entry's decrypted password with field references resolved; empty
+    /// when the database is locked.
+    func resolvedPassword(for entry: KPEntry) -> String {
+        guard let sessionKey, let plaintext = try? entry.password.decrypt(using: sessionKey) else { return "" }
+        return resolvingFieldReferences(plaintext)
+    }
+
+    private func currentFieldReferenceResolver() -> FieldReferenceResolver {
+        if let fieldReferenceResolver { return fieldReferenceResolver }
+        let resolver = FieldReferenceResolver(entries: currentRootGroup?.allEntries ?? [], sessionKey: sessionKey)
+        fieldReferenceResolver = resolver
+        return resolver
     }
 
     /// Every distinct tag carried by a live entry, unordered — callers sort for
@@ -2395,6 +2423,7 @@ final class DatabaseViewModel {
     }
 
     private func rebuildDerivedState() {
+        fieldReferenceResolver = nil
         guard let root = currentRootGroup else {
             entryIndex = [:]
             groupIndex = [:]

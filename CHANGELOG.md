@@ -30,6 +30,7 @@ TODO before the first macOS release:
 
 ### Fixes
 
+- KeePass field references now resolve (#90). An entry whose username, password, URL, notes, or custom field holds a `{REF:…}` reference — for example `{REF:P@I:…}` pointing at another entry's password — shows, copies, and AutoFills the referenced value instead of the literal text. Editing still shows the reference itself, so saving keeps it intact.
 - iPad layout pass (iPad mini, Air 11", Pro 13", both orientations):
   - "New Entry" from the group list's + menu and "Edit Group" from a group's context menu now open in the wide detail column instead of being squeezed into the sidebar while the detail column sat idle on "Select an Entry".
   - Attachment previews open in a page-sized Quick Look sheet with a title bar, Done, and Share, instead of a bare card with the file jammed against its top edge and no way to close it but a swipe.

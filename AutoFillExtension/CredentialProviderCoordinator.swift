@@ -2285,13 +2285,20 @@ final class CredentialProviderCoordinator {
     // MARK: - Complete password request
 
     func completeRequest(with entry: KPEntry) {
-        let user = entry.username.isEmpty ? entry.title : entry.username
-        guard !user.isEmpty, let decryptionKey = sessionKey else {
+        guard let decryptionKey = sessionKey else {
+            cancelRequest(code: .failed)
+            return
+        }
+        // Resolves against the whole tree, not `parsedEntries`: a `{REF:…}`
+        // may point at a password-less entry or one in a non-searchable group.
+        let resolver = FieldReferenceResolver(entries: parsedRootGroup?.allEntries ?? [], sessionKey: decryptionKey)
+        let user = resolver.resolve(entry.username.isEmpty ? entry.title : entry.username)
+        guard !user.isEmpty else {
             cancelRequest(code: .failed)
             return
         }
 
-        let decryptedPassword = (try? entry.password.decrypt(using: decryptionKey)) ?? ""
+        let decryptedPassword = resolver.resolve((try? entry.password.decrypt(using: decryptionKey)) ?? "")
 
         #if os(iOS)
         // Opt-in convenience: many sites put the one-time code in a field iOS
