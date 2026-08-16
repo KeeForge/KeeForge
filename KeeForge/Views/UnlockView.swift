@@ -60,18 +60,6 @@ struct UnlockView: View {
                 dismissButton: .default(Text("OK"))
             )
         }
-        .confirmationDialog(
-            "Remove Database?",
-            isPresented: $showRemoveMissingConfirmation
-        ) {
-            Button("Remove", role: .destructive) {
-                viewModel.removeMissingDocumentsDatabase()
-                onBackToDatabaseList()
-            }
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text("“\(viewModel.databaseDisplayName)” will be removed from KeeForge, including its cached copy and saved biometric key.")
-        }
         .onAppear {
             loadUITestKeyFileIfNeeded()
             #if os(macOS)
@@ -302,6 +290,20 @@ struct UnlockView: View {
                     }
                     .buttonStyle(.bordered)
                     .accessibilityIdentifier("unlock.remove-missing")
+                    // On the button, not the screen: iPad anchors the popover
+                    // to the source view.
+                    .confirmationDialog(
+                        "Remove Database?",
+                        isPresented: $showRemoveMissingConfirmation
+                    ) {
+                        Button("Remove", role: .destructive) {
+                            viewModel.removeMissingDocumentsDatabase()
+                            onBackToDatabaseList()
+                        }
+                        Button("Cancel", role: .cancel) {}
+                    } message: {
+                        Text("“\(viewModel.databaseDisplayName)” will be removed from KeeForge, including its cached copy and saved biometric key.")
+                    }
                 }
 
                 HStack(spacing: 10) {

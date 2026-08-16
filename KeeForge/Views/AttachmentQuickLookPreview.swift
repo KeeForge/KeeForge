@@ -48,8 +48,9 @@ extension View {
             )
         ) {
             if let previewURL = url.wrappedValue {
-                AttachmentQuickLookPreview(url: previewURL)
+                AttachmentQuickLookPreview(url: previewURL, onDone: onDismiss)
                     .ignoresSafeArea()
+                    .presentationSizing(.page)
             }
         }
         #endif
@@ -59,30 +60,40 @@ extension View {
 #if os(iOS)
 /// `UIViewControllerRepresentable` wrapper around `QLPreviewController` that
 /// previews a single file at `url`. The presenter owns the temp file's
-/// lifecycle; this view only displays it.
+/// lifecycle; this view only displays it. Embedded in a navigation controller
+/// so Quick Look draws its title and share item — as a bare child it shows
+/// nothing but the file — with a Done item because a sheet child gets none.
 struct AttachmentQuickLookPreview: UIViewControllerRepresentable {
     let url: URL
+    let onDone: () -> Void
 
-    func makeUIViewController(context: Context) -> QLPreviewController {
+    func makeUIViewController(context: Context) -> UINavigationController {
         let controller = QLPreviewController()
         controller.dataSource = context.coordinator
-        return controller
+        controller.navigationItem.leftBarButtonItem = UIBarButtonItem(
+            systemItem: .done,
+            primaryAction: UIAction { [coordinator = context.coordinator] _ in coordinator.onDone() }
+        )
+        return UINavigationController(rootViewController: controller)
     }
 
-    func updateUIViewController(_ uiViewController: QLPreviewController, context: Context) {
+    func updateUIViewController(_ navigationController: UINavigationController, context: Context) {
         context.coordinator.url = url
-        uiViewController.reloadData()
+        context.coordinator.onDone = onDone
+        (navigationController.viewControllers.first as? QLPreviewController)?.reloadData()
     }
 
     func makeCoordinator() -> Coordinator {
-        Coordinator(url: url)
+        Coordinator(url: url, onDone: onDone)
     }
 
     final class Coordinator: NSObject, QLPreviewControllerDataSource {
         var url: URL
+        var onDone: () -> Void
 
-        init(url: URL) {
+        init(url: URL, onDone: @escaping () -> Void) {
             self.url = url
+            self.onDone = onDone
         }
 
         func numberOfPreviewItems(in controller: QLPreviewController) -> Int {
