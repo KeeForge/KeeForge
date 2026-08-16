@@ -56,6 +56,8 @@ The macOS port has its own UI-test target, `KeeForgeMacUITests/` (target `KeeFor
 - `AutoFillTipUITests` — "Turn On AutoFill" banner on the database list (forced via `UI_TEST_SHOW_AUTOFILL_TIP=1`; the banner is suppressed in all other UI test classes and screenshots)
 - `WhatsNewUITests` — feature-sheet structure and dismissal (forced via `UI_TEST_SHOW_WHATS_NEW=1`; the release sheet is suppressed in all other UI test classes and screenshots)
 - `EntryEditEdgeUITests` — password generation, conflict handling, discard prompts, and read-only editing affordances
+- `SaveConflictMergeUITests` — end-to-end "Merge Changes" on a real save conflict: a local title edit conflicts with a genuinely divergent on-disk copy, Merge reports the counted-changes "Changes Merged" summary (`merge-summary.ok`), and both the remote-only entry and the local edit survive with the unsaved-changes banner cleared
+- `SaveConflictMergeDeclineUITests` — the declined-merge path on the `attachments` fixture: the divergent copy also grows a binary-pool field, so Merge reports "Couldn't Merge Changes" (`merge-failure.ok`), acknowledging it re-presents the conflict alert, and Cancel leaves the unsaved draft and its banner intact
 - `KeyFileUITests` — key file selection and picker flows plus visible rejection of malformed XML key data during unlock
 - `DocumentsVaultUITests` — Finder/iTunes File Sharing smoke coverage: a KDBX file seeded into Documents without a reference is auto-registered by the launch `DocumentsVaultScanner` scan and unlocks; a Documents-resident reference whose file is gone shows `database-row.documents-file-missing` and the unlock failure screen's `unlock.remove-missing` → confirm flow removes it from the list. Seeds via the `documents-*` `DatabaseFixture` dispositions (`documents`, `documents-unregistered`, `documents-missing`), which `DatabaseListStore`'s `-ui-testing` bootstrap materializes in the real Documents directory (scrubbing stale top-level `.kdbx` files from prior runs first). Finder replace/rebind edge cases stay unit-tested in `DocumentsVaultScannerTests`
 - `CloudAccountEdgeUITests` — sign-out / disconnected cloud account behavior
@@ -99,6 +101,7 @@ xcodebuild test -project KeeForge.xcodeproj -scheme KeeForge \
 - `WebDAVSyncUITests.swift` — `WebDAVSyncBaseUITests` (base), `WebDAVAddFlowUITests`, `WebDAVConnectErrorUITests`, `WebDAVSeededUnlockUITests`
 - `DatabaseCreationUITests.swift` — `DatabaseCreationUITestCase` (base), `DatabaseCreationCompactUITests`, `DatabaseCreationRegularWidthUITests`
 - `TOTPEnrollmentUITests.swift` — `TOTPEnrollmentUITestCase` (base), `TOTPEnrollmentUITests`, `TOTPEnrollmentDeepLinkUITests`
+- `SaveConflictMergeUITests.swift` — `SaveConflictMergeUITestCase` (base, extends `EntryEditUITestCase`), `SaveConflictMergeUITests`, `SaveConflictMergeDeclineUITests`
 
 Examples:
 
@@ -316,6 +319,12 @@ Common sources of UI test flakiness in this repo:
 
 When a test drives search, sorting, or modal UI, reset back to a known stable state before the next assertion. If a combined test keeps leaking state across sections, split it into multiple test methods.
 
+## Injected Save Conflicts
+
+Save-conflict flows are driven by a real divergent file, not a fabricated one. Under `-ui-testing`, `UI_TEST_LOCAL_SAVE_CONFLICT_COUNT=<n>` makes `LocalDatabaseSaver` rewrite the database on disk — before it compares hashes — for the first `n` local saves, adding a `UI Test Conflict <n>` entry to the visible root group (`DatabaseListStore.consumeUITestLocalSaveConflictSequence`). The open-time hash check then trips on its own, so the conflict, the remote bytes, and any merge against them are genuine. `UI_TEST_LOCAL_SAVE_CONFLICT_DIVERGES_POOL=1` additionally appends a binary-pool field to that rewritten copy, which is what makes `KDBXMerger` decline with the attachment-pool blocker on a fixture whose entries carry attachments.
+
+Set the count to exactly the number of conflicts a test wants: a merge writes again, and a leftover count would inject a third version into that write instead of letting it land.
+
 ## Fixtures
 
 ### Default Fixture
@@ -348,7 +357,7 @@ Used by `AppStoreScreenshots` and richer screenshot-style flows.
 `TestFixtures/compatibility/attachments.kdbx`  
 Password: `testpassword123`
 
-Used by `EntryAttachmentsSmokeUITests`. Single `Attachments` group with `Multi Attachment Entry` (attachments `note-ü.txt` and `pixel.png`), `Dedup Entry A` / `Dedup Entry B` (both attach identically-named/identical-content `shared.bin`), and `No Attachment Entry`. See `../TestFixtures/README.md` for recorded SHA-256 hashes.
+Used by `EntryAttachmentsSmokeUITests`, and by `SaveConflictMergeDeclineUITests` as the only UI-test fixture whose entries point into a binary pool. Single `Attachments` group with `Multi Attachment Entry` (attachments `note-ü.txt` and `pixel.png`), `Dedup Entry A` / `Dedup Entry B` (both attach identically-named/identical-content `shared.bin`), and `No Attachment Entry`. See `../TestFixtures/README.md` for recorded SHA-256 hashes.
 
 ### AutoFill Union Fixture
 

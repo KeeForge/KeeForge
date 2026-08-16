@@ -342,11 +342,18 @@ enum LocalDatabaseSaver {
                 notes: "Injected save conflict \(sequence)"
             )
         )
+        var header = parsed.header
+        if DatabaseListStore.uiTestLocalSaveConflictDivergesPool {
+            // Leading byte is the pool entry's flags field; the rest is filler.
+            header.innerHeaderBinaryFields.append(
+                Data([0x00]) + Data("keeforge-ui-test-divergent-binary-\(sequence)".utf8)
+            )
+        }
         return try KDBXWriter.write(
             rootGroup: parsed.rootGroup,
             meta: parsed.meta,
             compositeKey: compositeKey,
-            header: parsed.header,
+            header: header,
             sessionKey: sessionKey,
             kdfPolicy: kdfPolicy
         )
