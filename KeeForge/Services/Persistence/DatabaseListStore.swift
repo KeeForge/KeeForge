@@ -29,6 +29,7 @@ enum DatabaseListStore {
     private static let uiTestCloudDatabasesJSONEnv = "UI_TEST_CLOUD_DATABASES_JSON"
     private static let uiTestCloudAccountsJSONEnv = "UI_TEST_CLOUD_ACCOUNTS_JSON"
     private static let uiTestLocalSaveConflictCountEnv = "UI_TEST_LOCAL_SAVE_CONFLICT_COUNT"
+    private static let uiTestLocalSaveConflictDivergesPoolEnv = "UI_TEST_LOCAL_SAVE_CONFLICT_DIVERGES_POOL"
     private static let uiTestDatabaseReadOnlyEnv = "UI_TEST_DATABASE_READ_ONLY"
     private static let uiTestEnableQuickLaunchEnv = "UI_TEST_ENABLE_QUICK_LAUNCH"
     private static let cloudAccountsStorageKey = "KeeForge.cloudAccounts"
@@ -678,6 +679,14 @@ enum DatabaseListStore {
         consumedUITestLocalSaveConflicts += 1
         self.remainingUITestLocalSaveConflicts = remainingUITestLocalSaveConflicts - 1
         return consumedUITestLocalSaveConflicts
+    }
+
+    /// UI-test seam: the injected conflicting file also grows an extra binary
+    /// pool field, so a merge against it hits the attachment-pool divergence
+    /// blocker.
+    static var uiTestLocalSaveConflictDivergesPool: Bool {
+        ProcessInfo.processInfo.arguments.contains(uiTestingLaunchArg)
+            && ProcessInfo.processInfo.environment[uiTestLocalSaveConflictDivergesPoolEnv] == "1"
     }
 
     static func pruneBackups(for reference: DatabaseReference, keeping count: Int) throws {
