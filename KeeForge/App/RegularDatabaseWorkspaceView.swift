@@ -174,6 +174,9 @@ struct RegularDatabaseWorkspaceView: View {
                 .accessibilityIdentifier("regular-workspace.search-results-placeholder")
             }
         }
+        #if os(iOS)
+        .appSettingsToolbarButton()
+        #endif
     }
 
     #if os(iOS)
