@@ -69,6 +69,11 @@ struct GroupListView: View {
     var onSelectGroup: ((UUID) -> Void)? = nil
     /// macOS drill-down: when set, a Back toolbar button pops one level.
     var onNavigateBack: (() -> Void)? = nil
+    /// iPad split view: when set, New Entry hands its editor to the host so it
+    /// opens in the detail column instead of being pushed into this sidebar.
+    var onCreateEntry: ((EntryEditViewModel) -> Void)? = nil
+    /// iPad split view: same hand-off for the group editor.
+    var onEditGroup: ((GroupEditViewModel) -> Void)? = nil
     #if os(iOS)
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     #endif
@@ -207,11 +212,16 @@ struct GroupListView: View {
                                 if viewModel.isReadOnly == false {
                                     Menu {
                                         Button("New Entry", systemImage: "doc.badge.plus") {
-                                            activeEditor = EntryEditViewModel(
+                                            let editor = EntryEditViewModel(
                                                 createIn: resolvedGroup.id,
                                                 knownTags: viewModel.tagsInDisplayOrder,
                                                 inheritedTags: viewModel.inheritedTags(forGroupID: resolvedGroup.id)
                                             )
+                                            if let onCreateEntry {
+                                                onCreateEntry(editor)
+                                            } else {
+                                                activeEditor = editor
+                                            }
                                         }
 
                                         Button("New Group", systemImage: "folder.badge.plus") {
@@ -481,7 +491,12 @@ struct GroupListView: View {
         .contextMenu {
             if canEditGroup(groupID) {
                 Button("Edit Group") {
-                    activeGroupEditor = makeGroupEditor(groupID)
+                    guard let editor = makeGroupEditor(groupID) else { return }
+                    if let onEditGroup {
+                        onEditGroup(editor)
+                    } else {
+                        activeGroupEditor = editor
+                    }
                 }
                 .accessibilityIdentifier("group-row.edit-context")
             }

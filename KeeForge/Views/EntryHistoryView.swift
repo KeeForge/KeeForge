@@ -218,23 +218,24 @@ private struct EntryHistoryVersionView: View {
                 ToolbarItem(placement: .primaryAction) {
                     Button("Restore") { isConfirmingRestore = true }
                         .accessibilityIdentifier("entry-history.restore")
+                        // On the button, not the screen: iPad anchors the
+                        // popover to the source view.
+                        .confirmationDialog(
+                            "Restore this version?",
+                            isPresented: $isConfirmingRestore,
+                            titleVisibility: .visible
+                        ) {
+                            Button("Restore") { restore() }
+                                .accessibilityIdentifier("entry-history.restore.confirm")
+                            Button("Cancel", role: .cancel) {}
+                        } message: {
+                            if viewModel.restoreKeepsReplacedState(entryID: entryID) {
+                                Text("The entry's current contents are kept as a new history version, so you can undo this.")
+                            } else {
+                                Text("This database keeps no earlier versions, so the entry's current contents will be lost. This cannot be undone.")
+                            }
+                        }
                 }
-            }
-        }
-        .confirmationDialog(
-            "Restore this version?",
-            isPresented: $isConfirmingRestore,
-            titleVisibility: .visible
-        ) {
-            // The toolbar action carries the same label, and on iPad this is a popover.
-            Button("Restore") { restore() }
-                .accessibilityIdentifier("entry-history.restore.confirm")
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            if viewModel.restoreKeepsReplacedState(entryID: entryID) {
-                Text("The entry's current contents are kept as a new history version, so you can undo this.")
-            } else {
-                Text("This database keeps no earlier versions, so the entry's current contents will be lost. This cannot be undone.")
             }
         }
     }

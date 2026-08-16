@@ -28,6 +28,14 @@ TODO before the first macOS release:
 
 - Shared databases merge instead of colliding (#58). When another device or app changed the database while you were editing, the save-conflict prompt now offers "Merge Changes": both sets of record-level changes are combined the way KeePass 2.x Synchronize and KeePassXC merge do — newest edit wins per entry with the other version kept in its history, deletions and moves carry over, and a deletion never beats a later edit. Merged databases are verified against real KeePassXC as part of the compatibility gate. When a merge can't be proven safe (for example the two copies' attachments diverged), KeeForge says why and the existing reload / conflict-copy options remain, so nothing is ever lost silently.
 
+### Fixes
+
+- iPad layout pass (iPad mini, Air 11", Pro 13", both orientations):
+  - "New Entry" from the group list's + menu and "Edit Group" from a group's context menu now open in the wide detail column instead of being squeezed into the sidebar while the detail column sat idle on "Select an Entry".
+  - Attachment previews open in a page-sized Quick Look sheet with a title bar, Done, and Share, instead of a bare card with the file jammed against its top edge and no way to close it but a swipe.
+  - "Restore this version?" and "Remove from List" confirmations pop over the button that raised them instead of floating in the middle of the screen.
+  - The detail column no longer says "Select a matching entry" while the sidebar's search says "No Results".
+
 ## v1.14.0 (2026-08-13)
 
 ### New Features

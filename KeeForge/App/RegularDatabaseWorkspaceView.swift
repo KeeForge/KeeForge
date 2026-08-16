@@ -14,7 +14,12 @@ struct RegularDatabaseWorkspaceView: View {
     @State private var navigationPath = NavigationPath()
     @State private var presentedSaveError: DatabaseSaveError?
     @State private var isCloudReconnectInFlight = false
-    #if os(macOS)
+    #if os(iOS)
+    /// Editor opened from the sidebar (New Entry, Edit Group). Hosted in the
+    /// detail column: pushed into the 320–440pt sidebar it left the wide
+    /// column idle behind a "Select an Entry" placeholder.
+    @State private var detailEditor: DetailEditor?
+    #else
     /// Editor presented by the menu-bar New Entry command (⌘N) and the toolbar
     /// add button — a single shared sheet so presentation stays reliable.
     @State private var commandEditor: EntryEditViewModel?
@@ -41,6 +46,9 @@ struct RegularDatabaseWorkspaceView: View {
                 // root goes nil), clearing pushed group *and* tag destinations.
                 navigationPath = NavigationPath()
                 viewModel.selectEntry(nil)
+                #if os(iOS)
+                detailEditor = nil
+                #endif
             }
             .onChange(of: navigationPath) { _, _ in
                 viewModel.selectEntry(nil)
@@ -123,6 +131,21 @@ struct RegularDatabaseWorkspaceView: View {
 
     private var detailColumn: some View {
         NavigationStack {
+            #if os(iOS)
+            if let detailEditor {
+                hostedEditor(detailEditor)
+            } else {
+                selectionDetail
+            }
+            #else
+            selectionDetail
+            #endif
+        }
+    }
+
+    @ViewBuilder
+    private var selectionDetail: some View {
+        Group {
             if let selectedEntryID = viewModel.selectedEntryID {
                 EntryDetailView(
                     entryID: selectedEntryID,
@@ -133,7 +156,9 @@ struct RegularDatabaseWorkspaceView: View {
                     onSelectTag: selectTag,
                     popsOnClose: false
                 )
-            } else if viewModel.searchText.isEmpty {
+            } else if viewModel.searchText.isEmpty || viewModel.searchResults.isEmpty {
+                // With no matches the sidebar already says "No Results"; the
+                // detail must not contradict it with "select a matching entry".
                 ContentUnavailableView(
                     "Select an Entry",
                     systemImage: "key.horizontal",
@@ -150,6 +175,27 @@ struct RegularDatabaseWorkspaceView: View {
             }
         }
     }
+
+    #if os(iOS)
+    enum DetailEditor {
+        case entry(EntryEditViewModel)
+        case group(GroupEditViewModel)
+    }
+
+    @ViewBuilder
+    private func hostedEditor(_ editor: DetailEditor) -> some View {
+        switch editor {
+        case .entry(let formViewModel):
+            EntryEditView(formViewModel: formViewModel, databaseViewModel: viewModel) { _ in
+                detailEditor = nil
+            }
+        case .group(let formViewModel):
+            GroupEditView(formViewModel: formViewModel, databaseViewModel: viewModel) {
+                detailEditor = nil
+            }
+        }
+    }
+    #endif
 
     /// macOS: reacts to the menu-bar New Entry command and hosts the editor
     /// sheet it presents; no-op modifier on iOS.
@@ -191,13 +237,17 @@ struct RegularDatabaseWorkspaceView: View {
                 GroupListView(
                     groupID: rootID,
                     viewModel: viewModel,
-                    onSelectEntry: selectEntry
+                    onSelectEntry: selectEntry,
+                    onCreateEntry: hostEntryEditor,
+                    onEditGroup: hostGroupEditor
                 )
                 .navigationDestination(for: UUID.self) { groupID in
                     GroupListView(
                         groupID: groupID,
                         viewModel: viewModel,
-                        onSelectEntry: selectEntry
+                        onSelectEntry: selectEntry,
+                        onCreateEntry: hostEntryEditor,
+                        onEditGroup: hostGroupEditor
                     )
                 }
                 .navigationDestination(for: TagDestination.self) { destination in
@@ -227,6 +277,20 @@ struct RegularDatabaseWorkspaceView: View {
     private func selectEntry(_ entry: KPEntry) {
         viewModel.selectEntry(entry.id)
     }
+
+    #if os(iOS)
+    /// An editor already on screen keeps its unsaved work; the sidebar's + and
+    /// row menus stay reachable while it is up, unlike the compact push.
+    private func hostEntryEditor(_ editor: EntryEditViewModel) {
+        guard detailEditor == nil else { return }
+        detailEditor = .entry(editor)
+    }
+
+    private func hostGroupEditor(_ editor: GroupEditViewModel) {
+        guard detailEditor == nil else { return }
+        detailEditor = .group(editor)
+    }
+    #endif
 
     /// Routes an entry-detail tag chip. The detail column has no browsing stack
     /// of its own in either shell, so instead of pushing inside it, each shell
