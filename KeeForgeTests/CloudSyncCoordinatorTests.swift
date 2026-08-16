@@ -739,6 +739,118 @@ final class CloudSyncCoordinatorTests: XCTestCase {
         }
     }
 
+    // MARK: - Open-time probe deadline (#95)
+
+    func testSyncOpensCachedCopyOfflineWhenProbeMissesDeadline() async throws {
+        let reference = makeCloudReference(
+            remoteContentHash: "cached-hash",
+            remoteModifiedAt: Date(timeIntervalSince1970: 100)
+        )
+        try DatabaseListStore.cacheDatabaseCopy(Data("cached-black-hole-copy".utf8), for: reference)
+
+        let provider = MockCloudProvider()
+        provider.metadataDelay = .seconds(60)
+        provider.metadataResult = .success(
+            CloudFileMetadata(modifiedDate: Date(timeIntervalSince1970: 200), contentHash: "newer-hash", size: 128)
+        )
+
+        let startedAt = Date()
+        let resolution = try await CloudSyncCoordinator.syncIfNeededForOpen(
+            reference: reference,
+            probeDeadline: 0.2,
+            providerResolver: { _ in provider }
+        )
+
+        XCTAssertLessThan(Date().timeIntervalSince(startedAt), 5)
+        XCTAssertEqual(resolution.status, .offlineCached)
+        XCTAssertEqual(resolution.data, Data("cached-black-hole-copy".utf8))
+        XCTAssertEqual(resolution.bannerMessage, CloudSyncResolution.offlineCachedBannerMessage)
+        XCTAssertEqual(provider.metadataCallCount, 1)
+        XCTAssertTrue(provider.metadataProbeCancelled)
+        XCTAssertEqual(provider.downloadCallCount, 0)
+        XCTAssertEqual(
+            resolution.reference.cloudSyncMetadata?.lastSyncError,
+            CloudProviderError.networkUnavailable.errorDescription
+        )
+    }
+
+    func testSyncWaitsOutSlowProbeWhenNoCacheExists() async {
+        let reference = makeCloudReference(
+            remoteContentHash: nil,
+            remoteModifiedAt: nil
+        )
+        let provider = MockCloudProvider()
+        provider.metadataDelay = .milliseconds(500)
+        provider.metadataResult = .failure(CloudProviderError.fileNotFound)
+
+        do {
+            _ = try await CloudSyncCoordinator.syncIfNeededForOpen(
+                reference: reference,
+                probeDeadline: 0.1,
+                providerResolver: { _ in provider }
+            )
+            XCTFail("Expected sync to throw when there is no cache to fall back to.")
+        } catch let error as CloudProviderError {
+            XCTAssertEqual(error, .fileNotFound)
+        } catch {
+            XCTFail("Unexpected error: \(error)")
+        }
+        XCTAssertEqual(provider.metadataCallCount, 1)
+        XCTAssertFalse(provider.metadataProbeCancelled)
+    }
+
+    func testSyncWaitsOutSlowProbeWhenCachedFallbackIsDisabled() async throws {
+        let modifiedDate = Date(timeIntervalSince1970: 200)
+        let reference = makeCloudReference(
+            remoteContentHash: "same-hash",
+            remoteModifiedAt: modifiedDate
+        )
+        try DatabaseListStore.cacheDatabaseCopy(Data("cached-current-copy".utf8), for: reference)
+
+        let provider = MockCloudProvider()
+        provider.metadataDelay = .milliseconds(500)
+        provider.metadataResult = .success(
+            CloudFileMetadata(modifiedDate: modifiedDate, contentHash: "same-hash", size: 128)
+        )
+
+        let resolution = try await CloudSyncCoordinator.syncIfNeededForOpen(
+            reference: reference,
+            allowCachedFallback: false,
+            probeDeadline: 0.1,
+            providerResolver: { _ in provider }
+        )
+
+        XCTAssertEqual(resolution.status, .current)
+        XCTAssertFalse(provider.metadataProbeCancelled)
+    }
+
+    func testSyncDeadlineCoversOnlyTheProbeNotTheDownload() async throws {
+        let reference = makeCloudReference(
+            remoteContentHash: "old-hash",
+            remoteModifiedAt: Date(timeIntervalSince1970: 100)
+        )
+        try DatabaseListStore.cacheDatabaseCopy(Data("stale-copy".utf8), for: reference)
+
+        let provider = MockCloudProvider()
+        provider.metadataResult = .success(
+            CloudFileMetadata(modifiedDate: Date(timeIntervalSince1970: 200), contentHash: "new-hash", size: 128)
+        )
+        provider.downloadDelay = .milliseconds(400)
+        provider.downloadedData = Data("fresh-copy".utf8)
+
+        let resolution = try await CloudSyncCoordinator.syncIfNeededForOpen(
+            reference: reference,
+            probeDeadline: 0.1,
+            providerResolver: { _ in provider }
+        )
+
+        XCTAssertEqual(resolution.status, .downloaded)
+        XCTAssertEqual(resolution.data, Data("fresh-copy".utf8))
+        XCTAssertEqual(provider.metadataCallCount, 1)
+        XCTAssertEqual(provider.downloadCallCount, 1)
+        XCTAssertNil(resolution.reference.cloudSyncMetadata?.lastSyncError)
+    }
+
     private func makeCloudReference(
         remoteContentHash: String?,
         remoteModifiedAt: Date?
@@ -778,12 +890,17 @@ private final class MockCloudProvider: CloudProvider, @unchecked Sendable {
 
     var authenticated = true
     var metadataResult: Result<CloudFileMetadata, Error> = .failure(CloudProviderError.fileNotFound)
+    /// How long `getMetadata` sleeps before answering; models a slow or
+    /// black-holed server. Cancellation cuts the sleep short.
+    var metadataDelay: Duration = .zero
+    var downloadDelay: Duration = .zero
     var downloadedData = Data()
     /// What `download` reports about the bytes it wrote. Nil models a
     /// transport that cannot say (OneDrive), where the caller must keep the
     /// pre-download reading.
     var downloadedMetadata: CloudFileMetadata?
     private(set) var metadataCallCount = 0
+    private(set) var metadataProbeCancelled = false
     private(set) var downloadCallCount = 0
     private(set) var uploadCallCount = 0
 
@@ -812,6 +929,9 @@ private final class MockCloudProvider: CloudProvider, @unchecked Sendable {
         progress: @escaping @Sendable (Double) -> Void
     ) async throws -> CloudFileMetadata? {
         downloadCallCount += 1
+        if downloadDelay > .zero {
+            try await Task.sleep(for: downloadDelay)
+        }
         try downloadedData.write(to: localURL)
         progress(1)
         return downloadedMetadata
@@ -819,6 +939,14 @@ private final class MockCloudProvider: CloudProvider, @unchecked Sendable {
 
     func getMetadata(accountId: String, fileId: String) async throws -> CloudFileMetadata {
         metadataCallCount += 1
+        if metadataDelay > .zero {
+            do {
+                try await Task.sleep(for: metadataDelay)
+            } catch is CancellationError {
+                metadataProbeCancelled = true
+                throw CancellationError()
+            }
+        }
         return try metadataResult.get()
     }
 

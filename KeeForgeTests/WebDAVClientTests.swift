@@ -504,7 +504,20 @@ final class WebDAVClientTests: XCTestCase {
         }
         XCTAssertTrue(locked.lowercased().contains("locked"))
 
-        for serverCode in [500, 503] {
+        // Gateway / maintenance statuses read as "server unreachable" so an
+        // open takes the calm cached-copy path.
+        for unreachableCode in [502, 503, 504] {
+            let mapped = WebDAVClient.mapHTTPStatus(unreachableCode)
+            XCTAssertEqual(mapped, .serviceUnavailable)
+            if let mapped {
+                XCTAssertTrue(
+                    CloudProviderError.isLikelyOffline(mapped),
+                    "\(unreachableCode) must count as offline for the cache fallback"
+                )
+            }
+        }
+
+        for serverCode in [500, 501, 508] {
             guard case .unknown? = WebDAVClient.mapHTTPStatus(serverCode) else {
                 return XCTFail("\(serverCode) should map to .unknown")
             }

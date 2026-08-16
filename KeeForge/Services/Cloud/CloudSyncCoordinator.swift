@@ -34,9 +34,24 @@ struct CloudSyncResolution: Sendable {
 }
 
 enum CloudSyncCoordinator {
+    /// How long an open waits for the remote metadata probe when a cached copy
+    /// could stand in for it. A black-holed server (firewall, VPN, captive
+    /// portal) otherwise costs the full URLSession request timeout before the
+    /// cache fallback kicks in, and the unlock sheet is stuck for all of it.
+    static let openProbeDeadline: TimeInterval = 10
+
+    /// The metadata probe did not answer within the open deadline. Treated as
+    /// an unreachable server, so it wears the offline message.
+    struct ProbeTimeout: LocalizedError {
+        var errorDescription: String? {
+            CloudProviderError.networkUnavailable.errorDescription
+        }
+    }
+
     static func syncIfNeededForOpen(
         reference: DatabaseReference,
         allowCachedFallback: Bool = true,
+        probeDeadline: TimeInterval = openProbeDeadline,
         providerResolver: (String) -> CloudProvider? = CloudProviderRegistry.provider(for:),
         progress: @escaping @Sendable (Double) -> Void = { _ in }
     ) async throws -> CloudSyncResolution {
@@ -71,7 +86,14 @@ enum CloudSyncCoordinator {
         }
 
         do {
-            let remoteMetadata = try await provider.getMetadata(accountId: metadata.accountId, fileId: metadata.fileId)
+            // Only race the probe when a cache can absorb a miss; with nothing
+            // to fall back to, waiting out the transport is the right call.
+            let remoteMetadata = try await probeMetadata(
+                provider: provider,
+                accountId: metadata.accountId,
+                fileId: metadata.fileId,
+                deadline: allowCachedFallback && cacheExists ? probeDeadline : nil
+            )
             let needsDownload = remoteMetadata.requiresDownload(comparedTo: metadata, cacheExists: cacheExists)
 
             // Prefer the metadata the download reported: it describes the
@@ -108,14 +130,44 @@ enum CloudSyncCoordinator {
                 status: needsDownload ? .downloaded : .current
             )
         } catch {
+            let isOffline = error is ProbeTimeout || CloudProviderError.isLikelyOffline(error)
             return try fallbackResolutionIfPossible(
                 reference: updatedReference,
                 cacheURL: cacheURL,
                 cacheExists: cacheExists,
                 allowCachedFallback: allowCachedFallback,
-                status: CloudProviderError.isLikelyOffline(error) ? .offlineCached : .cachedWithError(CloudProviderError.message(for: error)),
+                status: isOffline ? .offlineCached : .cachedWithError(CloudProviderError.message(for: error)),
                 error: error
             )
+        }
+    }
+
+    /// Fetches remote metadata, giving up with `ProbeTimeout` once `deadline`
+    /// passes (nil waits for the transport). The losing side is cancelled;
+    /// URLSession's async APIs honor that, so no request outlives the race.
+    private static func probeMetadata(
+        provider: CloudProvider,
+        accountId: String,
+        fileId: String,
+        deadline: TimeInterval?
+    ) async throws -> CloudFileMetadata {
+        guard let deadline else {
+            return try await provider.getMetadata(accountId: accountId, fileId: fileId)
+        }
+
+        return try await withThrowingTaskGroup(of: CloudFileMetadata.self) { group in
+            group.addTask {
+                try await provider.getMetadata(accountId: accountId, fileId: fileId)
+            }
+            group.addTask {
+                try await Task.sleep(for: .seconds(deadline))
+                throw ProbeTimeout()
+            }
+            defer { group.cancelAll() }
+            guard let first = try await group.next() else {
+                throw ProbeTimeout()
+            }
+            return first
         }
     }
 
