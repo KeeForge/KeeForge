@@ -769,71 +769,25 @@ final class KDBXWriterTests: XCTestCase {
     }
 
     private func parseFixture(_ fixture: KDBXTestFixture) throws -> ParsedFixture {
-        let bundle = Bundle(for: Self.self)
-        let databaseURL = try TestDatabaseSupport.fixtureURL(
-            named: fixture.name,
-            subdirectory: fixture.subdirectory,
-            bundle: bundle
-        )
-        let databaseData = try Data(contentsOf: databaseURL)
-
-        let keyFileData: Data?
-        if let keyFileName = fixture.keyFileName, let keyFileExtension = fixture.keyFileExtension {
-            let keyURL = try TestDatabaseSupport.fixtureURL(
-                named: keyFileName,
-                extension: keyFileExtension,
-                bundle: bundle
-            )
-            keyFileData = try Data(contentsOf: keyURL)
-        } else {
-            keyFileData = nil
-        }
-
-        let compositeKey = try KDBXCrypto.compositeKey(password: fixture.password, keyFileData: keyFileData)
-        let parsed = try KDBXParser.parseWithMetaAndHeader(
-            data: databaseData,
-            compositeKey: compositeKey,
-            sessionKey: sessionKey
-        )
-
+        let parsed = try fixture.parse(in: Bundle(for: Self.self), sessionKey: sessionKey)
         return ParsedFixture(
             rootGroup: parsed.rootGroup,
             meta: parsed.meta,
             header: parsed.header,
-            compositeKey: compositeKey
+            compositeKey: parsed.compositeKey
         )
     }
 
+    /// Re-opens KeeForge's own output with the fixture's credentials, so the
+    /// written file is proven to accept the password (and key file) it claims.
     private func parseWrittenFile(
         _ data: Data,
         fixture: KDBXTestFixture
     ) throws -> (rootGroup: KPGroup, meta: KPMeta) {
-        let bundle = Bundle(for: Self.self)
-
-        let keyFileData: Data?
-        if let keyFileName = fixture.keyFileName, let keyFileExtension = fixture.keyFileExtension {
-            let keyURL = try TestDatabaseSupport.fixtureURL(
-                named: keyFileName,
-                extension: keyFileExtension,
-                bundle: bundle
-            )
-            keyFileData = try Data(contentsOf: keyURL)
-        } else {
-            keyFileData = nil
-        }
-
-        if fixture.keyFileName != nil {
-            return try KDBXParser.parseWithMeta(
-                data: data,
-                password: fixture.password,
-                keyFileData: keyFileData,
-                sessionKey: sessionKey
-            )
-        }
-
-        return try KDBXParser.parseWithMeta(
+        try KDBXParser.parseWithMeta(
             data: data,
-            password: try XCTUnwrap(fixture.password),
+            password: fixture.password,
+            keyFileData: try fixture.keyFileData(in: Bundle(for: Self.self)),
             sessionKey: sessionKey
         )
     }

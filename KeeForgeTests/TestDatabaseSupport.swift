@@ -22,6 +22,17 @@ enum TestDatabaseSupport {
         return try XCTUnwrap(url)
     }
 
+    /// Bytes of a bundled resource that is not a database (key files); a
+    /// database is opened through its `KDBXTestFixture` descriptor instead.
+    static func fixtureData(
+        named name: String,
+        extension ext: String,
+        subdirectory: String? = nil,
+        bundle: Bundle
+    ) throws -> Data {
+        try Data(contentsOf: fixtureURL(named: name, extension: ext, subdirectory: subdirectory, bundle: bundle))
+    }
+
     static func makeReference(
         for url: URL,
         id: UUID = UUID(),

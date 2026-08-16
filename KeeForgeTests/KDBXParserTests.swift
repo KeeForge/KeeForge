@@ -4,8 +4,8 @@ import XCTest
 @testable import KeeForge
 
 final class KDBXParserTests: XCTestCase {
-    private let fixturePassword = "testpassword123"
-    private let legacyFixturePassword = "testpassword123"
+    private let fixturePassword = KDBXTestFixture.test.password
+    private let legacyFixturePassword = KDBXTestFixture.legacyKDBX31.password
     private let testSessionKey = SymmetricKey(size: .bits256)
 
     // MARK: - Fixture Expectations
@@ -1011,31 +1011,25 @@ final class KDBXParserTests: XCTestCase {
     /// author, independent of the outer cipher.
     func testForeignChaCha20FixtureParsesAndDecryptsProtectedValues() throws {
         try assertForeignCipherFixtureParses(
-            named: "foreign-chacha20",
-            password: "foreign-chacha20",
+            .foreignChaCha20,
             expectedCipherUUID: KDBXParser.chachaCipherUUID
         )
     }
 
     func testForeignTwofishFixtureParsesAndDecryptsProtectedValues() throws {
         try assertForeignCipherFixtureParses(
-            named: "foreign-twofish",
-            password: "foreign-twofish",
+            .foreignTwofish,
             expectedCipherUUID: KDBXParser.twofishCipherUUID
         )
     }
 
     private func assertForeignCipherFixtureParses(
-        named fixtureName: String,
-        password: String,
+        _ fixture: KDBXTestFixture,
         expectedCipherUUID: Data,
         file: StaticString = #filePath,
         line: UInt = #line
     ) throws {
-        let bundle = Bundle(for: KDBXParserTests.self)
-        let url = try TestDatabaseSupport.fixtureURL(named: fixtureName, subdirectory: "compatibility", bundle: bundle)
-        let data = try Data(contentsOf: url)
-        let parsed = try KDBXParser.parseWithMetaAndHeader(data: data, password: password, sessionKey: testSessionKey)
+        let parsed = try fixture.parse(in: Bundle(for: Self.self), sessionKey: testSessionKey)
 
         XCTAssertEqual(parsed.header.formatVersion, .kdbx4(minor: 0), file: file, line: line)
         XCTAssertEqual(parsed.header.cipherID, expectedCipherUUID, file: file, line: line)
@@ -1064,14 +1058,7 @@ final class KDBXParserTests: XCTestCase {
     /// KeeForge did not write. pykeepass writes the tags `;`-separated
     /// (KeePass's canonical form), covering the semicolon split too.
     func testGroupTagsFixtureParsesGroupTagsThroughFullDecryptPath() throws {
-        let bundle = Bundle(for: KDBXParserTests.self)
-        let url = try TestDatabaseSupport.fixtureURL(named: "kitchen-sink", bundle: bundle)
-        let data = try Data(contentsOf: url)
-        let parsed = try KDBXParser.parseWithMetaAndHeader(
-            data: data,
-            password: "testpassword123",
-            sessionKey: testSessionKey
-        )
+        let parsed = try KDBXTestFixture.kitchenSink.parse(in: Bundle(for: Self.self), sessionKey: testSessionKey)
 
         XCTAssertEqual(parsed.header.formatVersion, .kdbx4(minor: 1))
 
@@ -1118,18 +1105,7 @@ final class KDBXParserTests: XCTestCase {
     /// Parsing must retain them in on-disk relative order and leave the entry,
     /// its protected password, and both attachments untouched.
     func testUnknownInnerHeaderFixtureRetainsUnknownFieldsWithoutDisturbingContent() throws {
-        let bundle = Bundle(for: KDBXParserTests.self)
-        let url = try TestDatabaseSupport.fixtureURL(
-            named: "unknown-inner-header",
-            subdirectory: "compatibility",
-            bundle: bundle
-        )
-        let data = try Data(contentsOf: url)
-        let parsed = try KDBXParser.parseWithMetaAndHeader(
-            data: data,
-            password: "unknown-inner-header",
-            sessionKey: testSessionKey
-        )
+        let parsed = try KDBXTestFixture.unknownInnerHeader.parse(in: Bundle(for: Self.self), sessionKey: testSessionKey)
 
         XCTAssertEqual(
             parsed.header.unknownInnerHeaderFields,
@@ -1240,9 +1216,7 @@ final class KDBXParserTests: XCTestCase {
     }
 
     private func fixtureData() throws -> Data {
-        let bundle = Bundle(for: KDBXParserTests.self)
-        let fixtureURL = try XCTUnwrap(bundle.url(forResource: "test", withExtension: "kdbx"))
-        return try Data(contentsOf: fixtureURL)
+        try KDBXTestFixture.test.data(in: Bundle(for: Self.self))
     }
 
     private struct Salsa20Vector {
@@ -1310,9 +1284,7 @@ final class KDBXParserTests: XCTestCase {
     }
 
     private func legacyFixtureData() throws -> Data {
-        let bundle = Bundle(for: KDBXParserTests.self)
-        let fixtureURL = try XCTUnwrap(bundle.url(forResource: "legacy-kdbx31", withExtension: "kdbx"))
-        return try Data(contentsOf: fixtureURL)
+        try KDBXTestFixture.legacyKDBX31.data(in: Bundle(for: Self.self))
     }
 
     private func makeLegacyFixtureWithCorruptedHashedBlock() throws -> Data {

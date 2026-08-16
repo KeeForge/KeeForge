@@ -40,14 +40,7 @@ final class AttachmentTests: XCTestCase {
     // MARK: - Fixture-backed parsing
 
     func test_kitchenSinkFixture_parsesRoundTripAttachmentsStructurally() throws {
-        let bundle = Bundle(for: Self.self)
-        let databaseURL = try TestDatabaseSupport.fixtureURL(named: "kitchen-sink", bundle: bundle)
-        let data = try Data(contentsOf: databaseURL)
-        let parsed = try KDBXParser.parseWithMetaAndHeader(
-            data: data,
-            password: "testpassword123",
-            sessionKey: sessionKey
-        )
+        let parsed = try KDBXTestFixture.kitchenSink.parse(in: Bundle(for: Self.self), sessionKey: sessionKey)
 
         let entry = try XCTUnwrap(parsed.rootGroup.allEntries.first { $0.title == "Controlled Unknowns" })
         // Compare names and pool content, not literal refs or insertionIndex:

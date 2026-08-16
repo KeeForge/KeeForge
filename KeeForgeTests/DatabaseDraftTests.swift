@@ -2694,14 +2694,8 @@ final class DatabaseDraftTests: XCTestCase {
     }
 
     private func parseKitchenSinkFixture() throws -> (rootGroup: KPGroup, meta: KPMeta) {
-        let bundle = Bundle(for: Self.self)
-        let databaseURL = try TestDatabaseSupport.fixtureURL(named: "kitchen-sink", bundle: bundle)
-        let databaseData = try Data(contentsOf: databaseURL)
-        return try KDBXParser.parseWithMeta(
-            data: databaseData,
-            password: "testpassword123",
-            sessionKey: sessionKey
-        )
+        let parsed = try KDBXTestFixture.kitchenSink.parse(in: Bundle(for: Self.self), sessionKey: sessionKey)
+        return (parsed.rootGroup, parsed.meta)
     }
 
     private func controlledUnknownsEntry(in rootGroup: KPGroup) throws -> KPEntry {

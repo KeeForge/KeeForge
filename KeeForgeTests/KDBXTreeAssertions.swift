@@ -3,13 +3,14 @@ import Foundation
 import XCTest
 @testable import KeeForge
 
-/// Bundled fixture descriptor shared by the XML round-trip and container-writer
-/// suites. Both suites open the same databases; only the parse entry point
-/// differs (`KDBXParser.parseWithMeta` vs `parseWithMetaAndHeader`).
+/// The catalog of bundled KDBX fixtures: every database any unit-test suite
+/// opens is described exactly once here, together with the single way to open
+/// one (see the loading extension below). Add a descriptor rather than an
+/// inline literal or a per-suite loader.
 struct KDBXTestFixture {
     let name: String
     let subdirectory: String?
-    let password: String?
+    let password: String
     let keyFileName: String?
     let keyFileExtension: String?
 
@@ -34,8 +35,20 @@ struct KDBXTestFixture {
         keyFileName: "demo-keyfile",
         keyFileExtension: "key"
     )
-    /// KDBX4 fixture whose inner header carries three items with type IDs the
-    /// format does not define; see
+    /// The only KDBX 3.1 fixture; KeeForge reads that format but never writes
+    /// it, so it never reaches the writer.
+    static let legacyKDBX31 = KDBXTestFixture(
+        name: "legacy-kdbx31",
+        subdirectory: "compatibility",
+        password: "testpassword123",
+        keyFileName: nil,
+        keyFileExtension: nil
+    )
+    /// KDBX4 fixture carrying three inner-header fields KeeForge does not
+    /// recognize (0x7F with an ASCII marker, a zero-length 0x10, and a 0x21
+    /// spliced between the two binary-pool entries), authored by a standalone
+    /// decrypt/re-encrypt script because no library round-trips unknown
+    /// inner-header items. See
     /// `TestFixtures/generators/unknown_inner_header.py`.
     static let unknownInnerHeader = KDBXTestFixture(
         name: "unknown-inner-header",
@@ -44,12 +57,24 @@ struct KDBXTestFixture {
         keyFileName: nil,
         keyFileExtension: nil
     )
-    /// The rich union fixture: group `<Tags>` in all three states, a binary
-    /// pool with a dedup pair, entry tags, a custom icon, a protected custom
-    /// field with history, a TOTP entry, a populated recycle bin, a
-    /// `PublicCustomData` outer-header field, and the `Round Trip` group's
-    /// opaque `<AutoType>`/`<CustomData>` in deliberately awkward positions.
-    /// See `TestFixtures/generators/kitchen_sink.py`.
+    /// Foreign-authored (pykeepass) KDBX 4.1 fixture that carries, in one file,
+    /// everything the narrow per-feature fixtures used to own: a three-item
+    /// binary pool (including a dedup pair two entries share and a non-ASCII
+    /// filename), group `<Tags>` in all three states — content (`Projects`,
+    /// nested `Client Work`), an empty element (`Empty Tags Group`), no element
+    /// at all (`Plain Group`) — a group `<Notes>` sitting next to one of them,
+    /// entry tags, a `Meta/CustomIcons` image, a protected custom field that
+    /// also lives in history, a TOTP entry, and a populated `Recycle Bin` with
+    /// `Meta/RecycleBinUUID` set. It also carries the whole opaque-XML corpus:
+    /// a `PublicCustomData` (id 0x0C) outer-header field KeeForge does not
+    /// model, a `Round Trip` entry whose `<AutoType>` and `<CustomData>` sit in
+    /// deliberately awkward positions and whose attachment is referenced from
+    /// its history version too, and a schema-invalid second `Meta/CustomData`
+    /// sibling. See `TestFixtures/generators/kitchen_sink.py` and
+    /// `TestFixtures/README.md`.
+    ///
+    /// It lives at the `TestFixtures/` root rather than in `compatibility/`,
+    /// because the UI suites bundle it too.
     static let kitchenSink = KDBXTestFixture(
         name: "kitchen-sink",
         subdirectory: nil,
@@ -57,6 +82,12 @@ struct KDBXTestFixture {
         keyFileName: nil,
         keyFileExtension: nil
     )
+    /// Foreign-authored (pykeepass) KDBX4 fixture with the ChaCha20 outer
+    /// cipher. Every other bundled fixture is AES-256-CBC authored by pykeepass
+    /// or KeeForge itself, so this and `foreignTwofish` are the only fixtures
+    /// that prove KeeForge's ChaCha20/Twofish outer-cipher READ paths against a
+    /// database KeeForge did not write. See
+    /// `TestFixtures/generators/foreign_ciphers.py`.
     static let foreignChaCha20 = KDBXTestFixture(
         name: "foreign-chacha20",
         subdirectory: "compatibility",
@@ -64,6 +95,8 @@ struct KDBXTestFixture {
         keyFileName: nil,
         keyFileExtension: nil
     )
+    /// Foreign-authored (pykeepass) KDBX4 fixture with the Twofish outer
+    /// cipher. See `foreignChaCha20`.
     static let foreignTwofish = KDBXTestFixture(
         name: "foreign-twofish",
         subdirectory: "compatibility",
@@ -71,6 +104,63 @@ struct KDBXTestFixture {
         keyFileName: nil,
         keyFileExtension: nil
     )
+    /// Foreign-authored (pykeepass) KDBX4 fixture whose Argon2 KDF uses a high
+    /// iteration count with low memory (1500 x 1 MiB, above the retired fixed
+    /// 1000-iteration cap), the acceptance case for the `KDFExecutionPolicy`
+    /// work-budget model (issue #74). Deliberately expensive to open. See
+    /// `TestFixtures/generators/argon2_high_iterations.py`.
+    static let argon2HighIterations = KDBXTestFixture(
+        name: "argon2-high-iterations",
+        subdirectory: "compatibility",
+        password: "argon2-high-iterations",
+        keyFileName: nil,
+        keyFileExtension: nil
+    )
+}
+
+/// The single loading path for bundled fixtures: resolve, read, derive the
+/// composite key, parse. Suites must not keep private copies of these steps.
+extension KDBXTestFixture {
+    /// On-disk name of the key file, e.g. `demo-keyfile.key`.
+    var keyFileFileName: String? {
+        guard let keyFileName, let keyFileExtension else { return nil }
+        return "\(keyFileName).\(keyFileExtension)"
+    }
+
+    func url(in bundle: Bundle) throws -> URL {
+        try TestDatabaseSupport.fixtureURL(named: name, subdirectory: subdirectory, bundle: bundle)
+    }
+
+    func keyFileURL(in bundle: Bundle) throws -> URL? {
+        guard let keyFileName, let keyFileExtension else { return nil }
+        return try TestDatabaseSupport.fixtureURL(named: keyFileName, extension: keyFileExtension, bundle: bundle)
+    }
+
+    func data(in bundle: Bundle) throws -> Data {
+        try Data(contentsOf: url(in: bundle))
+    }
+
+    func keyFileData(in bundle: Bundle) throws -> Data? {
+        guard let keyFileURL = try keyFileURL(in: bundle) else { return nil }
+        return try Data(contentsOf: keyFileURL)
+    }
+
+    func compositeKey(in bundle: Bundle) throws -> SymmetricKey {
+        try KDBXCrypto.compositeKey(password: password, keyFileData: keyFileData(in: bundle))
+    }
+
+    func parse(
+        in bundle: Bundle,
+        sessionKey: SymmetricKey
+    ) throws -> (rootGroup: KPGroup, meta: KPMeta, header: KDBXParser.Header, compositeKey: SymmetricKey) {
+        let key = try compositeKey(in: bundle)
+        let parsed = try KDBXParser.parseWithMetaAndHeader(
+            data: try data(in: bundle),
+            compositeKey: key,
+            sessionKey: sessionKey
+        )
+        return (parsed.rootGroup, parsed.meta, parsed.header, key)
+    }
 }
 
 /// Canonical "did the tree survive a save/reload" comparators.
