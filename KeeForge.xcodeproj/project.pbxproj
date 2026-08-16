@@ -595,7 +595,6 @@
 		DDA117473A2376C411E3984F /* TagEntriesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 54ACF54A8A8D4F2078DE1E9E /* TagEntriesView.swift */; };
 		DDD5B18D07C957D047585811 /* TipJarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60812E673D5622C7FA754128 /* TipJarView.swift */; };
 		DF0C9569347108D7C0B893AE /* TagNormalizer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6EC4E044FDBDD9171C7DC509 /* TagNormalizer.swift */; };
-		DF3DD3D94E72BD6D5115B715 /* IPadSweepUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 385B0BD696CB673F24020787 /* IPadSweepUITests.swift */; };
 		DF799AD406B024CAAD8B743D /* KeeForgeTwofish in Frameworks */ = {isa = PBXBuildFile; productRef = 336B83E709465A5D06020D06 /* KeeForgeTwofish */; };
 		DFA18DA04E592BE59E29ED71 /* OTPAuthURI.swift in Sources */ = {isa = PBXBuildFile; fileRef = 865A630BD5812CB4820143D8 /* OTPAuthURI.swift */; };
 		DFACF9C48405A21B5374AC8C /* DocumentPickerService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B37093A769E7D22F7C7EC7C /* DocumentPickerService.swift */; };
@@ -838,7 +837,6 @@
 		35E6EA2FF600FFF3543FF763 /* GroupListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GroupListView.swift; sourceTree = "<group>"; };
 		379C9421555E6C13A8335404 /* KeeForgeAutoFill.appex */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = "wrapper.app-extension"; path = KeeForgeAutoFill.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		37FCB8A14A23CD5B7A7C8350 /* AutoFillExtension.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = AutoFillExtension.entitlements; sourceTree = "<group>"; };
-		385B0BD696CB673F24020787 /* IPadSweepUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IPadSweepUITests.swift; sourceTree = "<group>"; };
 		388EE3A5E207BFE8565149FE /* AutoFillTipBanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AutoFillTipBanner.swift; sourceTree = "<group>"; };
 		3A39542F67BB84C9DEB90C0A /* FeedbackComposerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeedbackComposerView.swift; sourceTree = "<group>"; };
 		3A733BA9590643828A645C9D /* KDBXFileSummary.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KDBXFileSummary.swift; sourceTree = "<group>"; };
@@ -1161,7 +1159,6 @@
 				0298F6EF01194050F3D35F5A /* EntryEditUITests.swift */,
 				D0676F0C4E5413139552083A /* GroupEditUITests.swift */,
 				CE7FD12A463E89F62669F96C /* InheritedTagsUITests.swift */,
-				385B0BD696CB673F24020787 /* IPadSweepUITests.swift */,
 				4A15836C142BB997DA70F8FE /* KeeForgeUITestCase.swift */,
 				D15DBC84769C820D86294442 /* KeyFileUITests.swift */,
 				E0E5E0B52692F925F8CAB5A1 /* LockUnlockUITests.swift */,
@@ -2559,7 +2556,6 @@
 				8A3A063200458F5296146348 /* EntryAttachmentsSmokeUITests.swift in Sources */,
 				F73B54C1572F840DDD7889DF /* EntryEditUITests.swift in Sources */,
 				B4CC67B6F57A77DA2A01E94C /* GroupEditUITests.swift in Sources */,
-				DF3DD3D94E72BD6D5115B715 /* IPadSweepUITests.swift in Sources */,
 				95FE2884C911B96BECA4ED23 /* InheritedTagsUITests.swift in Sources */,
 				501B38FD078785AFEBFC0125 /* KeeForgeUITestCase.swift in Sources */,
 				DB37BBC30E20632BEC1EC52E /* KeyFileUITests.swift in Sources */,
