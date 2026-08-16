@@ -1,100 +1,86 @@
-#!/usr/bin/env python3
-"""Generate `unknown-inner-header.kdbx`, a KDBX4 fixture with spliced-in
+"""`compatibility/unknown-inner-header.kdbx` -- a KDBX4 fixture with spliced-in
 unknown inner-header fields.
 
 KDBX4's inner header (protected-stream ID/key, the binary pool, and a 0x00
 terminator) lives INSIDE the encrypted payload, so unlike the outer-header
-mutation trick used by `generate_foreign_cipher_fixtures.py` and
-`generate_group_tags_fixture.py`, splicing an item into it can't be done by
+mutations the other generators use, splicing an item into it can't be done by
 poking the parsed Construct container before save: pykeepass's own
 `InnerHeaderItem.type` field is a `construct.Mapping(Byte, {0,1,2,3})` with no
-default, so it raises `MappingError` the moment it tries to PARSE a type byte
-it doesn't recognize -- there is no way to hand pykeepass an unknown item and
-have it round-trip one back out. This is, not coincidentally, exactly the gap
-this fixture exists to probe from the other side: KeePassXC's own reader
-(`Kdbx4Reader::readInnerHeaderField`) has no default case either and just
-skips unrecognized IDs, and that leniency is what makes this fixture openable
-by an external tool at all while being unopenable by pykeepass.
+default, so it raises `MappingError` the moment it tries to PARSE a type byte it
+doesn't recognize -- there is no way to hand pykeepass an unknown item and have
+it round-trip one back out. This is, not coincidentally, exactly the gap this
+fixture exists to probe from the other side: KeePassXC's own reader
+(`Kdbx4Reader::readInnerHeaderField`) has no default case either and just skips
+unrecognized IDs, and that leniency is what makes this fixture openable by an
+external tool at all while being unopenable by pykeepass.
 
-So this script follows the epic's documented fallback: build a normal
-database with pykeepass, then decrypt/re-encrypt the payload by hand to
-splice in the unknown items, bypassing pykeepass entirely for that step.
-Concretely:
+So this module follows the epic's documented fallback: build a normal database
+with pykeepass, then decrypt/re-encrypt the payload by hand to splice in the
+unknown items, bypassing pykeepass entirely for that step. Concretely:
 
-1. pykeepass builds and saves an ordinary KDBX4 database (AES-256-CBC,
-   Argon2d, matching every other pykeepass-authored fixture in this repo).
-   Reopening THIS intermediate file with pykeepass is exactly the "reopen
-   with pykeepass" sanity check TestFixtures/README.md's other generators
-   perform -- it's just performed before the splice, not after, because after
-   the splice pykeepass can no longer read the file (see above; a MappingError
-   there is the *expected*, verified outcome, not a bug).
+1. pykeepass builds and saves an ordinary KDBX4 database (AES-256-CBC, Argon2d,
+   matching every other pykeepass-authored fixture in this repo). Reopening THIS
+   intermediate file with pykeepass is exactly the "reopen with pykeepass"
+   sanity check the other generators perform -- it's just performed before the
+   splice, not after, because after the splice pykeepass can no longer read the
+   file (see above; a MappingError there is the *expected*, verified outcome).
 2. The saved bytes are decrypted from scratch (outer header parse, Argon2d/
-   AES-KDF transform, HMAC-SHA256 block verification, AES-256-CBC decrypt,
-   zlib inflate) without reusing any pykeepass internals, so this script does
-   not depend on pykeepass's low-level Construct layout at all for this step.
-3. The decrypted inner-header item sequence is spliced with three unknown
-   fields (ids chosen to avoid 0x00-0x03, the only IDs KDBX4 defines):
+   AES-KDF transform, HMAC-SHA256 block verification, AES-256-CBC decrypt, zlib
+   inflate) without reusing any pykeepass internals, so this step does not
+   depend on pykeepass's low-level Construct layout at all.
+3. The decrypted inner-header item sequence is spliced with three unknown fields
+   (ids chosen to avoid 0x00-0x03, the only IDs KDBX4 defines):
      - id 0x7F, payload `HIGH_ID_PAYLOAD` below (a recognizable, non-trivial
        ASCII marker) -- positioned after protected_stream_key, before `end`.
      - id 0x10, zero-length payload -- positioned immediately after the 0x7F
        field, same region (after protected_stream_key, before `end`).
-     - id 0x21, payload `MID_POOL_PAYLOAD` below -- positioned BETWEEN the
-       two binary-pool entries (the fixture has two attachments specifically
-       so this position exists). KeeForge's writer is expected to normalize
-       this to before-the-pool on save (see
+     - id 0x21, payload `MID_POOL_PAYLOAD` below -- positioned BETWEEN the two
+       binary-pool entries (the fixture has two attachments specifically so this
+       position exists). KeeForge's writer is expected to normalize this to
+       before-the-pool on save (see
        docs/specs/2026-07-26-kdbx-format-hardening/02-unknown-inner-header-preservation.md);
-       this fixture is what lets a test observe that normalization actually
-       happening.
+       this fixture is what lets a test observe that normalization happening.
    Native pykeepass save order is [binary, binary, protected_stream_id,
    protected_stream_key, end] (its `DynamicDict` lumps all `binary` items at
    whichever position the `binary` key first appears, which happens to be
-   first -- see the trace in this script's history/PR description if that
-   ever needs re-deriving), so the final on-disk sequence produced here is:
-   [binary(alpha), unknown 0x21, binary(beta), protected_stream_id,
-   protected_stream_key, unknown 0x7F, unknown 0x10, end].
+   first), so the final on-disk sequence produced here is: [binary(alpha),
+   unknown 0x21, binary(beta), protected_stream_id, protected_stream_key,
+   unknown 0x7F, unknown 0x10, end].
 4. The spliced plaintext is recompressed/repadded/re-encrypted with the SAME
    master seed, IV, and KDF parameters pykeepass already generated (the outer
    header is never touched), then repacked into HMAC-authenticated payload
-   blocks using KDBX4's documented block format, so the result is a fully
-   valid, independently-verifiable KDBX4 file.
+   blocks using KDBX4's documented block format, so the result is a fully valid,
+   independently-verifiable KDBX4 file.
 
-Requires: pykeepass (`pip3 install --user pykeepass`), and its transitive
-deps `argon2-cffi` and `pycryptodomex`, which this script also uses directly
-for the from-scratch decrypt/re-encrypt. Verified against pykeepass 4.1.1.post1.
-
-Output is deterministic in CONTENT (group/entry/field/attachment bytes, all
-three unknown-field ids/payloads/positions) but NOT in bytes: pykeepass
-generates a fresh master seed, encryption IV, and KDF salt on every
-`create_database()` call, carried through unchanged into the final file.
-
-Usage (from the repo root):
-
-    python3 TestFixtures/compatibility/generate_unknown_inner_header_fixture.py          # regenerate
-    python3 TestFixtures/compatibility/generate_unknown_inner_header_fixture.py --check  # verify only
+Also requires pykeepass's transitive deps `argon2-cffi` and `pycryptodomex`,
+used directly here for the from-scratch decrypt/re-encrypt.
 """
 
-import argparse
 import hashlib
 import hmac
 import struct
-import subprocess
-import sys
+import tempfile
 import zlib
 from pathlib import Path
-
-try:
-    import pykeepass
-except ImportError:
-    raise SystemExit(
-        "pykeepass is required: pip3 install --user pykeepass "
-        "(or install it into a venv and re-run with that interpreter)"
-    )
 
 import argon2
 from Cryptodome.Cipher import AES
 from Cryptodome.Util import Padding as CryptoPadding
 
-OUTPUT_PATH = Path(__file__).resolve().parent / "unknown-inner-header.kdbx"
+from ._common import (
+    AES256_CIPHER_UUID,
+    AESKDF_UUID,
+    ARGON2D_UUID,
+    ARGON2ID_UUID,
+    Generator,
+    fixture_path,
+    kdf_parameters,
+    new_database,
+    parse_outer_header,
+    pykeepass,
+    run_keepassxc_cli,
+)
+
 PASSWORD = "unknown-inner-header"
 
 GROUP_NAME = "Unknown Header"
@@ -109,8 +95,8 @@ ATTACHMENT_ALPHA_DATA = b"alpha attachment payload for unknown-inner-header fixt
 ATTACHMENT_BETA_NAME = "beta-attachment.txt"
 ATTACHMENT_BETA_DATA = b"beta attachment payload for unknown-inner-header fixture\n"
 
-# Unknown inner-header fields spliced in after the normal pykeepass save --
-# see module docstring step 3 for exact intended positions.
+# Unknown inner-header fields spliced in after the normal pykeepass save -- see
+# module docstring step 3 for exact intended positions.
 HIGH_ID = 0x7F
 HIGH_ID_PAYLOAD = b"kdbx-format-hardening-fixture:unknown-field-0x7f-marker"
 ZERO_LEN_ID = 0x10
@@ -120,17 +106,12 @@ MID_POOL_PAYLOAD = b"mid-pool-unknown-field"
 
 KNOWN_INNER_HEADER_TYPES = {0x00, 0x01, 0x02, 0x03}
 
-AES256_CIPHER_UUID = bytes.fromhex("31c1f2e6bf714350be5805216afc5aff")
-ARGON2D_UUID = bytes.fromhex("ef636ddf8c29444b91f7a9a403e30a0c")
-ARGON2ID_UUID = bytes.fromhex("9e298b1956db4773b23dfc3ec6f0a1e6")
-AESKDF_UUID = bytes.fromhex("c9d9f39a628a4460bf740d08c18a4fea")
-
 
 # -------------------- build the base (unspliced) database --------------------
 
 
 def build_base_database(path: Path) -> None:
-    kp = pykeepass.create_database(str(path), password=PASSWORD)
+    kp = new_database(path, PASSWORD)
     group = kp.add_group(kp.root_group, GROUP_NAME)
     entry = kp.add_entry(
         group,
@@ -159,47 +140,12 @@ def verify_base_database(path: Path) -> None:
     attachment_names = sorted(a.filename for a in entry.attachments)
     if attachment_names != sorted([ATTACHMENT_ALPHA_NAME, ATTACHMENT_BETA_NAME]):
         raise AssertionError(f"{path.name}: base build attachments mismatch: {attachment_names}")
-    print(f"  base build: pykeepass reopened OK, entry+2 attachments present")
+    print("  base build: pykeepass reopened OK, entry+2 attachments present")
 
 
 # -------------------- from-scratch KDBX4 decrypt/re-encrypt --------------------
 # Deliberately independent of pykeepass's Construct layout (see module
 # docstring) -- this is the standalone fallback the epic calls for.
-
-
-def read_variant_dict(data: bytes, offset: int) -> tuple[dict, int]:
-    offset += 2  # version, unused here
-    result: dict[str, bytes] = {}
-    while True:
-        item_type = data[offset]
-        offset += 1
-        if item_type == 0:
-            break
-        (key_len,) = struct.unpack_from("<I", data, offset)
-        offset += 4
-        key = data[offset:offset + key_len].decode("utf-8")
-        offset += key_len
-        (value_len,) = struct.unpack_from("<I", data, offset)
-        offset += 4
-        result[key] = data[offset:offset + value_len]
-        offset += value_len
-    return result, offset
-
-
-def parse_outer_header(data: bytes) -> tuple[dict[int, bytes], bytes, int]:
-    if data[0:4] != struct.pack("<I", 0x9AA2D903) or data[4:8] != struct.pack("<I", 0xB54BFB67):
-        raise ValueError("bad KDBX signature")
-    offset = 12
-    fields: dict[int, bytes] = {}
-    while True:
-        field_id = data[offset]
-        (size,) = struct.unpack_from("<I", data, offset + 1)
-        value = data[offset + 5:offset + 5 + size]
-        offset += 5 + size
-        if field_id == 0:
-            break
-        fields[field_id] = value
-    return fields, data[0:offset], offset
 
 
 def aes_kdf(seed: bytes, rounds: int, key_composite: bytes) -> bytes:
@@ -211,50 +157,49 @@ def aes_kdf(seed: bytes, rounds: int, key_composite: bytes) -> bytes:
 
 
 def derive_transformed_key(password: str, kdf_params: dict) -> bytes:
-    # Matches pykeepass.kdbx_parsing.common.compute_key_composite: the
-    # password is hashed once, then re-hashed with the (empty, no-keyfile)
-    # composite -- a double hash, not a single sha256(password).
+    # Matches pykeepass.kdbx_parsing.common.compute_key_composite: the password
+    # is hashed once, then re-hashed with the (empty, no-keyfile) composite -- a
+    # double hash, not a single sha256(password).
     key_composite = hashlib.sha256(hashlib.sha256(password.encode("utf-8")).digest()).digest()
     uuid = kdf_params["$UUID"]
     if uuid in (ARGON2D_UUID, ARGON2ID_UUID):
         return argon2.low_level.hash_secret_raw(
             secret=key_composite,
             salt=kdf_params["S"],
-            time_cost=struct.unpack("<Q", kdf_params["I"])[0],
-            memory_cost=struct.unpack("<Q", kdf_params["M"])[0] // 1024,
-            parallelism=struct.unpack("<I", kdf_params["P"])[0],
+            time_cost=kdf_params["I"],
+            memory_cost=kdf_params["M"] // 1024,
+            parallelism=kdf_params["P"],
             hash_len=32,
             type=(argon2.low_level.Type.ID if uuid == ARGON2ID_UUID else argon2.low_level.Type.D),
-            version=struct.unpack("<I", kdf_params["V"])[0],
+            version=kdf_params["V"],
         )
     if uuid == AESKDF_UUID:
-        return aes_kdf(kdf_params["S"], struct.unpack("<Q", kdf_params["R"])[0], key_composite)
+        return aes_kdf(kdf_params["S"], kdf_params["R"], key_composite)
     raise ValueError(f"unsupported KDF uuid {uuid.hex()}")
 
 
 class Kdbx4Body:
     """Everything needed to decrypt an existing KDBX4 file and re-encrypt a
-    replacement plaintext payload under the SAME outer header (master seed,
-    IV, KDF params, cipher all unchanged -- only the payload content
-    differs)."""
+    replacement plaintext payload under the SAME outer header (master seed, IV,
+    KDF params, cipher all unchanged -- only the payload content differs)."""
 
     def __init__(self, path: Path, password: str):
         data = path.read_bytes()
-        fields, header_bytes, body_offset = parse_outer_header(data)
+        header = parse_outer_header(data)
+        fields, header_bytes, body_offset = header.fields, header.raw, header.end
         if fields[2] != AES256_CIPHER_UUID:
             raise ValueError("this script only handles the AES-256-CBC outer cipher")
 
-        kdf_params, _ = read_variant_dict(fields[11], 0)
-        transformed_key = derive_transformed_key(password, kdf_params)
+        transformed_key = derive_transformed_key(password, kdf_parameters(header))
         master_seed = fields[4]
         master_key = hashlib.sha256(master_seed + transformed_key).digest()
         hmac_key_source = hashlib.sha512(master_seed + transformed_key + b"\x01").digest()
 
-        sha256_field = data[body_offset:body_offset + 32]
+        sha256_field = data[body_offset : body_offset + 32]
         if hashlib.sha256(header_bytes).digest() != sha256_field:
             raise AssertionError("header sha256 integrity field mismatch -- corrupt header")
 
-        cred_check_field = data[body_offset + 32:body_offset + 64]
+        cred_check_field = data[body_offset + 32 : body_offset + 64]
         outer_hmac_key = hashlib.sha512(b"\xff" * 8 + hmac_key_source).digest()
         if hmac.new(outer_hmac_key, header_bytes, hashlib.sha256).digest() != cred_check_field:
             raise AssertionError("cred_check HMAC mismatch -- wrong password or corrupt header")
@@ -263,11 +208,11 @@ class Kdbx4Body:
         encrypted_blocks = []
         block_index = 0
         while True:
-            block_hmac = data[offset:offset + 32]
+            block_hmac = data[offset : offset + 32]
             offset += 32
             (block_len,) = struct.unpack_from("<I", data, offset)
             offset += 4
-            block_data = data[offset:offset + block_len]
+            block_data = data[offset : offset + block_len]
             offset += block_len
 
             block_key = hashlib.sha512(struct.pack("<Q", block_index) + hmac_key_source).digest()
@@ -299,9 +244,7 @@ class Kdbx4Body:
         self.raw_payload = zlib.decompress(plaintext, 16 + 15) if self.compressed else plaintext
 
     def rebuild(self, new_raw_payload: bytes) -> bytes:
-        plaintext = (
-            zlib_compress(new_raw_payload) if self.compressed else new_raw_payload
-        )
+        plaintext = zlib_compress(new_raw_payload) if self.compressed else new_raw_payload
         padded = CryptoPadding.pad(plaintext, 16)
         cipher = AES.new(self.master_key, AES.MODE_CBC, self.encryption_iv)
         encrypted = cipher.encrypt(padded)
@@ -313,11 +256,13 @@ class Kdbx4Body:
 
         block_index = 0
         offset = 0
-        chunk_size = 2 ** 20
+        chunk_size = 2**20
         while True:
-            chunk = encrypted[offset:offset + chunk_size]
+            chunk = encrypted[offset : offset + chunk_size]
             offset += chunk_size
-            block_key = hashlib.sha512(struct.pack("<Q", block_index) + self.hmac_key_source).digest()
+            block_key = hashlib.sha512(
+                struct.pack("<Q", block_index) + self.hmac_key_source
+            ).digest()
             block_hmac = hmac.new(
                 block_key,
                 struct.pack("<Q", block_index) + struct.pack("<I", len(chunk)) + chunk,
@@ -346,7 +291,7 @@ def parse_inner_header(raw: bytes) -> tuple[list[tuple[int, bytes]], int]:
         offset += 1
         (length,) = struct.unpack_from("<I", raw, offset)
         offset += 4
-        payload = raw[offset:offset + length]
+        payload = raw[offset : offset + length]
         offset += length
         items.append((type_id, payload))
         if type_id == 0x00:
@@ -368,12 +313,14 @@ def splice_unknown_fields(items: list[tuple[int, bytes]]) -> list[tuple[int, byt
     if len(binary_indices) != 2:
         raise AssertionError(
             f"expected exactly 2 binary-pool entries in the base build, found {len(binary_indices)} "
-            "-- pykeepass's inner-header lumping behavior may have changed, re-derive this script's assumptions"
+            "-- pykeepass's inner-header lumping behavior may have changed, re-derive this "
+            "module's assumptions"
         )
     if [t for t, _ in items] != [0x03, 0x03, 0x01, 0x02, 0x00]:
         raise AssertionError(
             f"unexpected base inner-header shape {[hex(t) for t, _ in items]}; "
-            "expected pykeepass's native [binary, binary, protected_stream_id, protected_stream_key, end]"
+            "expected pykeepass's native [binary, binary, protected_stream_id, "
+            "protected_stream_key, end]"
         )
 
     binary_alpha, binary_beta, protected_stream_id, protected_stream_key, end = items
@@ -389,7 +336,7 @@ def splice_unknown_fields(items: list[tuple[int, bytes]]) -> list[tuple[int, byt
     ]
 
 
-def build_fixture(path: Path) -> None:
+def build(path: Path) -> None:
     build_base_database(path)
     verify_base_database(path)
 
@@ -408,8 +355,8 @@ def build_fixture(path: Path) -> None:
 
 def verify_pykeepass_rejects_unknown_fields(path: Path) -> None:
     """The whole point of this fixture: an independent implementation with a
-    strict inner-header type mapping cannot open it. Confirm that's still
-    true (and still MappingError specifically), not some unrelated break."""
+    strict inner-header type mapping cannot open it. Confirm that's still true
+    (and still MappingError specifically), not some unrelated break."""
     try:
         pykeepass.PyKeePass(str(path), password=PASSWORD)
     except Exception as exc:  # noqa: BLE001 - deliberately broad, see below
@@ -426,9 +373,9 @@ def verify_pykeepass_rejects_unknown_fields(path: Path) -> None:
     )
 
 
-def verify_inner_header_sequence(path: Path) -> list[tuple[int, int]]:
+def verify_inner_header_sequence(path: Path) -> None:
     body = Kdbx4Body(path, PASSWORD)
-    items, inner_header_len = parse_inner_header(body.raw_payload)
+    items, _ = parse_inner_header(body.raw_payload)
     expected_types = [0x03, MID_POOL_ID, 0x03, 0x01, 0x02, HIGH_ID, ZERO_LEN_ID, 0x00]
     actual_types = [t for t, _ in items]
     if actual_types != expected_types:
@@ -444,38 +391,34 @@ def verify_inner_header_sequence(path: Path) -> list[tuple[int, int]]:
         raise AssertionError("zero-length unknown field payload not empty")
     unknown_count = sum(1 for t, _ in items if t not in KNOWN_INNER_HEADER_TYPES)
     if unknown_count != 3:
-        raise AssertionError(f"expected exactly 3 unknown inner-header fields, found {unknown_count}")
+        raise AssertionError(
+            f"expected exactly 3 unknown inner-header fields, found {unknown_count}"
+        )
 
     print(f"  inner header sequence ({len(items)} items):")
     for index, (type_id, payload) in enumerate(items):
         marker = "" if type_id in KNOWN_INNER_HEADER_TYPES else "  <- unknown"
         print(f"    [{index}] type=0x{type_id:02x} length={len(payload)}{marker}")
 
-    return [(t, len(p)) for t, p in items]
-
-
-def run_keepassxc_cli(keepassxc_cli: str, args: list[str], password: str) -> subprocess.CompletedProcess:
-    return subprocess.run(
-        [keepassxc_cli, *args],
-        input=f"{password}\n",
-        text=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-    )
-
 
 def verify_keepassxc_cli(path: Path, keepassxc_cli: str) -> None:
     entry_path = f"{GROUP_NAME}/{ENTRY_TITLE}"
 
-    result = run_keepassxc_cli(keepassxc_cli, ["show", "-q", "-s", "-a", "Password", str(path), entry_path], PASSWORD)
+    result = run_keepassxc_cli(
+        keepassxc_cli,
+        ["show", "-q", "-s", "-a", "Password", str(path), entry_path],
+        PASSWORD,
+    )
     if result.returncode != 0:
-        raise AssertionError(f"keepassxc-cli show failed:\nstdout: {result.stdout}\nstderr: {result.stderr}")
+        raise AssertionError(
+            f"keepassxc-cli show failed:\nstdout: {result.stdout}\nstderr: {result.stderr}"
+        )
     actual_password = result.stdout.rstrip("\r\n")
     if actual_password != ENTRY_PASSWORD:
-        raise AssertionError(f"keepassxc-cli returned password {actual_password!r}, expected {ENTRY_PASSWORD!r}")
+        raise AssertionError(
+            f"keepassxc-cli returned password {actual_password!r}, expected {ENTRY_PASSWORD!r}"
+        )
     print(f"  keepassxc-cli show -s -a Password: {actual_password!r} (matches)")
-
-    import tempfile
 
     for name, expected_data in (
         (ATTACHMENT_ALPHA_NAME, ATTACHMENT_ALPHA_DATA),
@@ -509,28 +452,11 @@ def verify(path: Path, keepassxc_cli: str | None) -> None:
         print("  (skipping keepassxc-cli verification -- no --keepassxc-cli path given)")
 
 
-def main() -> int:
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument(
-        "--check",
-        action="store_true",
-        help="verify the existing fixture on disk instead of regenerating it",
+GENERATORS = [
+    Generator(
+        name="unknown-inner-header",
+        output_path=fixture_path("compatibility", "unknown-inner-header.kdbx"),
+        build=build,
+        verify=verify,
     )
-    parser.add_argument(
-        "--keepassxc-cli",
-        default=None,
-        help="path to keepassxc-cli; if given, also verifies the fixture opens externally",
-    )
-    args = parser.parse_args()
-
-    print(f"pykeepass version: {getattr(pykeepass, '__version__', 'unknown')}", file=sys.stderr)
-
-    if not args.check:
-        build_fixture(OUTPUT_PATH)
-    verify(OUTPUT_PATH, args.keepassxc_cli)
-
-    return 0
-
-
-if __name__ == "__main__":
-    raise SystemExit(main())
+]

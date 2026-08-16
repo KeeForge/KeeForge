@@ -995,7 +995,7 @@ final class KDBXParserTests: XCTestCase {
 
     /// `compatibility/foreign-chacha20.kdbx` and `compatibility/foreign-twofish.kdbx`
     /// are authored by pykeepass (see
-    /// `TestFixtures/compatibility/generate_foreign_cipher_fixtures.py`), an
+    /// `TestFixtures/generators/foreign_ciphers.py`), an
     /// independent KDBX implementation, specifically to exercise KeeForge's
     /// ChaCha20 and Twofish outer-cipher READ paths against a database
     /// KeeForge did not write itself. Every other bundled fixture is
@@ -1057,7 +1057,7 @@ final class KDBXParserTests: XCTestCase {
     // MARK: - Group Tags Fixture (KDBX 4.1)
 
     /// `compatibility/group-tags.kdbx` is authored by pykeepass (see
-    /// `TestFixtures/compatibility/generate_group_tags_fixture.py`) as a real
+    /// `TestFixtures/generators/group_tags.py`) as a real
     /// KDBX 4.1 file — the version that introduced group `<Tags>` — so this
     /// exercises the full decrypt path, not just the XML layer: header,
     /// version 4.1, KDF, outer cipher, and the group-tag parse on a database
@@ -1114,7 +1114,7 @@ final class KDBXParserTests: XCTestCase {
     /// `compatibility/unknown-inner-header.kdbx` carries three inner-header
     /// items whose type IDs KDBX4 does not define — including a zero-length
     /// one and one spliced between the two binary-pool entries (see
-    /// `TestFixtures/compatibility/generate_unknown_inner_header_fixture.py`).
+    /// `TestFixtures/generators/unknown_inner_header.py`).
     /// Parsing must retain them in on-disk relative order and leave the entry,
     /// its protected password, and both attachments untouched.
     func testUnknownInnerHeaderFixtureRetainsUnknownFieldsWithoutDisturbingContent() throws {
@@ -1311,7 +1311,7 @@ final class KDBXParserTests: XCTestCase {
 
     private func legacyFixtureData() throws -> Data {
         let bundle = Bundle(for: KDBXParserTests.self)
-        let fixtureURL = try XCTUnwrap(bundle.url(forResource: "test-v3-backup", withExtension: "kdbx"))
+        let fixtureURL = try XCTUnwrap(bundle.url(forResource: "legacy-kdbx31", withExtension: "kdbx"))
         return try Data(contentsOf: fixtureURL)
     }
 

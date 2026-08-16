@@ -71,6 +71,10 @@ enum KDBXCompatibilitySupport {
             case generated(cipherID: Data, hasRecycleBin: Bool)
         }
 
+        /// Artifact ID consumed by the gate's manifests and by the allow-lists
+        /// in `KDBXCompatibilityTests`; deliberately independent of the
+        /// bundled resource a fixture reads, so a fixture can share a file
+        /// with the unit-test suites without renaming its coverage.
         let id: String
         let displayName: String
         let password: String
@@ -82,15 +86,15 @@ enum KDBXCompatibilitySupport {
             displayName: "AES baseline fixture",
             password: "testpassword123",
             keyFileName: nil,
-            source: .bundled(name: "aes-baseline")
+            source: .bundled(name: "test", subdirectory: nil)
         )
 
         static let passwordKeyfile = Fixture(
             id: "password-keyfile",
             displayName: "Password plus key file fixture",
             password: "demo",
-            keyFileName: "password-keyfile",
-            source: .bundled(name: "password-keyfile")
+            keyFileName: "demo-keyfile",
+            source: .bundled(name: "demo-keyfile", subdirectory: nil)
         )
 
         static let unknownRich = Fixture(
@@ -98,7 +102,7 @@ enum KDBXCompatibilitySupport {
             displayName: "Unknown XML fixture",
             password: "test-round-trip",
             keyFileName: nil,
-            source: .bundled(name: "unknown-rich")
+            source: .bundled(name: "unknown-elements", subdirectory: "round-trip")
         )
 
         static let kdbx41PublicCustomData = Fixture(
@@ -130,7 +134,7 @@ enum KDBXCompatibilitySupport {
         /// pykeepass or KeeForge itself, so this and `foreignTwofish` are the
         /// only fixtures that prove KeeForge's ChaCha20/Twofish outer-cipher
         /// READ paths against a database KeeForge did not write. See
-        /// `TestFixtures/compatibility/generate_foreign_cipher_fixtures.py`.
+        /// `TestFixtures/generators/foreign_ciphers.py`.
         static let foreignChaCha20 = Fixture(
             id: "foreign-chacha20",
             displayName: "Foreign-authored ChaCha20 fixture",
@@ -155,7 +159,7 @@ enum KDBXCompatibilitySupport {
         /// element at all (`Plain Group`) — plus a group `<Notes>`, so two
         /// structured siblings sit next to each other in a foreign file's
         /// child order. See
-        /// `TestFixtures/compatibility/generate_group_tags_fixture.py` and
+        /// `TestFixtures/generators/group_tags.py` and
         /// `TestFixtures/README.md`.
         static let groupTags = Fixture(
             id: "group-tags",
@@ -170,7 +174,7 @@ enum KDBXCompatibilitySupport {
         /// 0x21 spliced between the two binary-pool entries), authored by a
         /// standalone decrypt/re-encrypt script because no library round-trips
         /// unknown inner-header items. See
-        /// `TestFixtures/compatibility/generate_unknown_inner_header_fixture.py`.
+        /// `TestFixtures/generators/unknown_inner_header.py`.
         static let unknownInnerHeader = Fixture(
             id: "unknown-inner-header",
             displayName: "Unknown inner-header fields fixture",
@@ -183,7 +187,7 @@ enum KDBXCompatibilitySupport {
         /// high iteration count with low memory (1500 x 1 MiB, above the
         /// retired fixed 1000-iteration cap), the acceptance case for the
         /// `KDFExecutionPolicy` work-budget model (issue #74). See
-        /// `TestFixtures/compatibility/generate_argon2_high_iterations_fixture.py`.
+        /// `TestFixtures/generators/argon2_high_iterations.py`.
         static let argon2HighIterations = Fixture(
             id: "argon2-high-iterations",
             displayName: "Argon2 high-iteration KDF fixture",
@@ -734,7 +738,6 @@ enum KDBXCompatibilitySupport {
             let keyURL = try TestDatabaseSupport.fixtureURL(
                 named: keyFileName,
                 extension: "key",
-                subdirectory: "compatibility",
                 bundle: bundle
             )
             return try Data(contentsOf: keyURL)
@@ -1562,8 +1565,8 @@ enum KDBXCompatibilitySupport {
         )
     }
 
-    /// `.aesBaseline` rekeyed to its existing password plus the bundled
-    /// compatibility key file, so "add a key file" is the only change.
+    /// `.aesBaseline` rekeyed to its existing password plus `.passwordKeyfile`'s
+    /// bundled key file, so "add a key file" is the only change.
     static func rekeyAddKeyfileScenario() -> Scenario {
         Scenario(
             id: "rekey-add-keyfile",
@@ -1576,7 +1579,6 @@ enum KDBXCompatibilitySupport {
                 let keyURL = try TestDatabaseSupport.fixtureURL(
                     named: keyFileName,
                     extension: "key",
-                    subdirectory: "compatibility",
                     bundle: loaded.bundle
                 )
                 let keyFileData = try Data(contentsOf: keyURL)

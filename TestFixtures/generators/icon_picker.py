@@ -1,47 +1,30 @@
-#!/usr/bin/env python3
-"""Generate `icon-picker.kdbx`, the custom-icon fixture the entry icon picker UI tests need.
+"""`icon-picker.kdbx` -- the custom-icon fixture the entry icon picker UI tests need.
 
 No other bundled fixture carries a `Meta/CustomIcons` image, so the picker's
-custom-icon grid had no fixture-backed content to assert against. This script
-authors a small KDBX4 / AES-256 database (same recipe as `tag-browser.kdbx`)
-with exactly one custom icon whose UUID the UI tests hardcode:
+custom-icon grid had no fixture-backed content to assert against. This authors a
+small KDBX4 / AES-256 database (same recipe as `tag-browser.kdbx`) with exactly
+one custom icon whose UUID the UI tests hardcode:
 
 * `Icons/Custom Badge` displays that custom icon (`<CustomIconUUID>` set) and
   carries a public URL, so "Download Website Icon" is offered enabled;
 * `Icons/Plain Entry` uses a standard icon and has no URL, so the download
   action renders disabled.
 
-pykeepass (4.1.1.post1) exposes no custom-icon API, so the icon and the
-entry's `<CustomIconUUID>` are written straight into the XML tree; both are
-plain base64 text elements the format defines.
-
-Content is deterministic; bytes are not — pykeepass randomizes the master
-seed, encryption IV, and KDF salt on every `save()`.
-
-Requires: pykeepass (`pip3 install --user pykeepass`). Usage (from the repo root):
-
-    python3 TestFixtures/generate_icon_picker_fixture.py          # regenerate
-    python3 TestFixtures/generate_icon_picker_fixture.py --check  # verify only
+pykeepass exposes no custom-icon API, so the icon and the entry's
+`<CustomIconUUID>` are written straight into the XML tree; both are plain
+base64 text elements the format defines.
 """
 
-import argparse
 import base64
 import struct
-import sys
 import uuid
 import zlib
 from pathlib import Path
 
-try:
-    import pykeepass
-    from lxml import etree
-except ImportError:
-    raise SystemExit(
-        "pykeepass is required: pip3 install --user pykeepass "
-        "(or install it into a venv and re-run with that interpreter)"
-    )
+from lxml import etree
 
-OUTPUT_PATH = Path(__file__).resolve().parent / "icon-picker.kdbx"
+from ._common import Generator, fixture_path, new_database, pykeepass
+
 PASSWORD = "testpassword123"
 
 # Hardcoded in KeeForgeUITests (accessibility identifier
@@ -76,10 +59,8 @@ PNG_DATA = make_png()
 UUID_B64 = base64.b64encode(CUSTOM_ICON_UUID.bytes).decode()
 
 
-def build_fixture(path: Path) -> None:
-    if path.exists():
-        path.unlink()
-    kp = pykeepass.create_database(str(path), password=PASSWORD)
+def build(path: Path) -> None:
+    kp = new_database(path, PASSWORD)
 
     group = kp.add_group(kp.root_group, "Icons")
     custom_entry = kp.add_entry(
@@ -102,7 +83,7 @@ def build_fixture(path: Path) -> None:
     kp.save()
 
 
-def verify(path: Path) -> None:
+def verify(path: Path, keepassxc_cli: str | None) -> None:
     kp = pykeepass.PyKeePass(str(path), password=PASSWORD)
     if kp.version[0] != 4:
         raise AssertionError(f"{path.name}: expected KDBX 4.x, got {kp.version}")
@@ -138,22 +119,11 @@ def verify(path: Path) -> None:
     )
 
 
-def main() -> int:
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument(
-        "--check",
-        action="store_true",
-        help="verify the existing fixture on disk instead of regenerating it",
+GENERATORS = [
+    Generator(
+        name="icon-picker",
+        output_path=fixture_path("icon-picker.kdbx"),
+        build=build,
+        verify=verify,
     )
-    args = parser.parse_args()
-
-    print(f"pykeepass version: {getattr(pykeepass, '__version__', 'unknown')}", file=sys.stderr)
-
-    if not args.check:
-        build_fixture(OUTPUT_PATH)
-    verify(OUTPUT_PATH)
-    return 0
-
-
-if __name__ == "__main__":
-    raise SystemExit(main())
+]

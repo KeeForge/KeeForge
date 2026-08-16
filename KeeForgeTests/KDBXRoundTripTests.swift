@@ -1701,55 +1701,11 @@ final class KDBXRoundTripTests: XCTestCase {
         .demoKeyfile,
         .unknownElements,
         .unknownInnerHeader,
-        KDBXTestFixture(
-            name: "aes-baseline",
-            subdirectory: "compatibility",
-            password: "testpassword123",
-            keyFileName: nil,
-            keyFileExtension: nil
-        ),
-        KDBXTestFixture(
-            name: "unknown-rich",
-            subdirectory: "compatibility",
-            password: "test-round-trip",
-            keyFileName: nil,
-            keyFileExtension: nil
-        ),
-        KDBXTestFixture(
-            name: "kdbx41-public-custom-data",
-            subdirectory: "compatibility",
-            password: "testpassword123",
-            keyFileName: nil,
-            keyFileExtension: nil
-        ),
-        KDBXTestFixture(
-            name: "group-tags",
-            subdirectory: "compatibility",
-            password: "testpassword123",
-            keyFileName: nil,
-            keyFileExtension: nil
-        ),
-        KDBXTestFixture(
-            name: "attachments",
-            subdirectory: "compatibility",
-            password: "testpassword123",
-            keyFileName: nil,
-            keyFileExtension: nil
-        ),
-        KDBXTestFixture(
-            name: "foreign-chacha20",
-            subdirectory: "compatibility",
-            password: "foreign-chacha20",
-            keyFileName: nil,
-            keyFileExtension: nil
-        ),
-        KDBXTestFixture(
-            name: "foreign-twofish",
-            subdirectory: "compatibility",
-            password: "foreign-twofish",
-            keyFileName: nil,
-            keyFileExtension: nil
-        ),
+        .kdbx41PublicCustomData,
+        .groupTags,
+        .attachments,
+        .foreignChaCha20,
+        .foreignTwofish,
     ]
 
     /// Child element names of every `<Times>` element, in document order within

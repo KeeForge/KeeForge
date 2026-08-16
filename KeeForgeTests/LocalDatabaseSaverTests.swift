@@ -507,7 +507,7 @@ final class LocalDatabaseSaverTests: XCTestCase {
     }
 
     func testSaveLegacyKDBX31ThrowsDatabaseIsReadOnly() async throws {
-        let databaseURL = try makeScratchDatabaseCopy(fixtureName: "test-v3-backup")
+        let databaseURL = try makeScratchDatabaseCopy(fixtureName: "legacy-kdbx31")
         let reference = try TestDatabaseSupport.makeReference(for: databaseURL)
         let context = try makeDirtySaveContext(
             databaseURL: databaseURL,

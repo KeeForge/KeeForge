@@ -32,6 +32,68 @@ packages:
   swift-psl:
     url: https://github.com/ameshkov/swift-psl.git
     from: 1.1.161
+targetTemplates:
+  # Fixture bundles shared by more than one test target. Templates merge their
+  # `sources` into the target's own, so a target adds only its extras.
+  UnitTestFixtures:
+    sources:
+      - path: TestFixtures/test.kdbx
+        buildPhase: resources
+      - path: TestFixtures/demo.kdbx
+        buildPhase: resources
+      - path: TestFixtures/demo-keyfile.kdbx
+        buildPhase: resources
+      - path: TestFixtures/demo-keyfile.key
+        buildPhase: resources
+      - path: TestFixtures/round-trip/unknown-elements.kdbx
+        buildPhase: resources
+      - path: TestFixtures/compatibility/kdbx41-public-custom-data.kdbx
+        buildPhase: resources
+      - path: TestFixtures/compatibility/legacy-kdbx31.kdbx
+        buildPhase: resources
+      - path: TestFixtures/compatibility/attachments.kdbx
+        buildPhase: resources
+      - path: TestFixtures/compatibility/foreign-chacha20.kdbx
+        buildPhase: resources
+      - path: TestFixtures/compatibility/foreign-twofish.kdbx
+        buildPhase: resources
+      - path: TestFixtures/compatibility/group-tags.kdbx
+        buildPhase: resources
+      - path: TestFixtures/compatibility/unknown-inner-header.kdbx
+        buildPhase: resources
+      - path: TestFixtures/compatibility/argon2-high-iterations.kdbx
+        buildPhase: resources
+      - path: TestFixtures/test-hex.key
+        buildPhase: resources
+      - path: TestFixtures/test-v1.key
+        buildPhase: resources
+      - path: TestFixtures/test-v2.keyx
+        buildPhase: resources
+      - path: TestFixtures/test-arbitrary.key
+        buildPhase: resources
+      # Folder reference, not the per-file listing every other fixture uses:
+      # each merge scenario directory holds a local.kdbx / remote.kdbx /
+      # merged-reference.kdbx trio, and a flat resource copy would collide on
+      # those names sixteen times over. `type: folder` copies the tree intact,
+      # so the bundle keeps `Merge/<scenario-id>/…` and a new scenario needs no
+      # project change.
+      - path: TestFixtures/Merge
+        type: folder
+        buildPhase: resources
+
+  UITestFixtures:
+    sources:
+      - path: TestFixtures/test.kdbx
+        buildPhase: resources
+      - path: TestFixtures/demo.kdbx
+        buildPhase: resources
+      - path: TestFixtures/demo-keyfile.kdbx
+        buildPhase: resources
+      - path: TestFixtures/demo-keyfile.key
+        buildPhase: resources
+      - path: TestFixtures/compatibility/attachments.kdbx
+        buildPhase: resources
+
 targets:
   KeeForge:
     type: application
@@ -274,6 +336,8 @@ targets:
   KeeForgeUITests:
     type: bundle.ui-testing
     platform: iOS
+    templates:
+      - UITestFixtures
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.keevault.app.uitests
@@ -284,17 +348,7 @@ targets:
     sources:
       - path: KeeForgeUITests
         excludes: ["README.md"]
-      - path: TestFixtures/test.kdbx
-        buildPhase: resources
-      - path: TestFixtures/demo.kdbx
-        buildPhase: resources
-      - path: TestFixtures/demo-keyfile.kdbx
-        buildPhase: resources
-      - path: TestFixtures/demo-keyfile.key
-        buildPhase: resources
       - path: TestFixtures/invalid-xml.keyx
-        buildPhase: resources
-      - path: TestFixtures/compatibility/attachments.kdbx
         buildPhase: resources
       - path: TestFixtures/autofill-union.kdbx
         buildPhase: resources
@@ -312,6 +366,8 @@ targets:
   KeeForgeTests:
     type: bundle.unit-test
     platform: iOS
+    templates:
+      - UnitTestFixtures
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.keevault.app.tests
@@ -372,65 +428,12 @@ targets:
     sources:
       - path: KeeForgeTests
         excludes: ["README.md"]
-      - path: TestFixtures/test.kdbx
-        buildPhase: resources
-      - path: TestFixtures/demo.kdbx
-        buildPhase: resources
-      - path: TestFixtures/demo-keyfile.kdbx
-        buildPhase: resources
-      - path: TestFixtures/round-trip/unknown-elements.kdbx
-        buildPhase: resources
-      - path: TestFixtures/compatibility/aes-baseline.kdbx
-        buildPhase: resources
-      - path: TestFixtures/compatibility/password-keyfile.kdbx
-        buildPhase: resources
-      - path: TestFixtures/compatibility/password-keyfile.key
-        buildPhase: resources
-      - path: TestFixtures/compatibility/unknown-rich.kdbx
-        buildPhase: resources
-      - path: TestFixtures/compatibility/kdbx41-public-custom-data.kdbx
-        buildPhase: resources
-      - path: TestFixtures/compatibility/legacy-kdbx31.kdbx
-        buildPhase: resources
-      - path: TestFixtures/compatibility/attachments.kdbx
-        buildPhase: resources
-      - path: TestFixtures/compatibility/foreign-chacha20.kdbx
-        buildPhase: resources
-      - path: TestFixtures/compatibility/foreign-twofish.kdbx
-        buildPhase: resources
-      - path: TestFixtures/compatibility/group-tags.kdbx
-        buildPhase: resources
-      - path: TestFixtures/compatibility/unknown-inner-header.kdbx
-        buildPhase: resources
-      - path: TestFixtures/compatibility/argon2-high-iterations.kdbx
-        buildPhase: resources
-      - path: TestFixtures/test-v3-backup.kdbx
-        buildPhase: resources
-      - path: TestFixtures/demo-keyfile.key
-        buildPhase: resources
-      - path: TestFixtures/test-binary.key
-        buildPhase: resources
-      - path: TestFixtures/test-hex.key
-        buildPhase: resources
-      - path: TestFixtures/test-v1.key
-        buildPhase: resources
-      - path: TestFixtures/test-v2.keyx
-        buildPhase: resources
-      - path: TestFixtures/test-arbitrary.key
-        buildPhase: resources
-      # Folder reference, not the per-file listing every other fixture uses:
-      # each merge scenario directory holds a local.kdbx / remote.kdbx /
-      # merged-reference.kdbx trio, and a flat resource copy would collide on
-      # those names sixteen times over. `type: folder` copies the tree intact,
-      # so the bundle keeps `Merge/<scenario-id>/…` and a new scenario needs no
-      # project change.
-      - path: TestFixtures/Merge
-        type: folder
-        buildPhase: resources
 
   KeeForgeMacUITests:
     type: bundle.ui-testing
     platform: macOS
+    templates:
+      - UITestFixtures
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.keevault.app.uitests
@@ -441,20 +444,12 @@ targets:
     sources:
       - path: KeeForgeMacUITests
         excludes: ["README.md"]
-      - path: TestFixtures/test.kdbx
-        buildPhase: resources
-      - path: TestFixtures/demo.kdbx
-        buildPhase: resources
-      - path: TestFixtures/demo-keyfile.kdbx
-        buildPhase: resources
-      - path: TestFixtures/demo-keyfile.key
-        buildPhase: resources
-      - path: TestFixtures/compatibility/attachments.kdbx
-        buildPhase: resources
 
   KeeForgeMacTests:
     type: bundle.unit-test
     platform: macOS
+    templates:
+      - UnitTestFixtures
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.keevault.app.tests
@@ -510,61 +505,6 @@ targets:
     sources:
       - path: KeeForgeTests
         excludes: ["README.md"]
-      - path: TestFixtures/test.kdbx
-        buildPhase: resources
-      - path: TestFixtures/demo.kdbx
-        buildPhase: resources
-      - path: TestFixtures/demo-keyfile.kdbx
-        buildPhase: resources
-      - path: TestFixtures/round-trip/unknown-elements.kdbx
-        buildPhase: resources
-      - path: TestFixtures/compatibility/aes-baseline.kdbx
-        buildPhase: resources
-      - path: TestFixtures/compatibility/password-keyfile.kdbx
-        buildPhase: resources
-      - path: TestFixtures/compatibility/password-keyfile.key
-        buildPhase: resources
-      - path: TestFixtures/compatibility/unknown-rich.kdbx
-        buildPhase: resources
-      - path: TestFixtures/compatibility/kdbx41-public-custom-data.kdbx
-        buildPhase: resources
-      - path: TestFixtures/compatibility/legacy-kdbx31.kdbx
-        buildPhase: resources
-      - path: TestFixtures/compatibility/attachments.kdbx
-        buildPhase: resources
-      - path: TestFixtures/compatibility/foreign-chacha20.kdbx
-        buildPhase: resources
-      - path: TestFixtures/compatibility/foreign-twofish.kdbx
-        buildPhase: resources
-      - path: TestFixtures/compatibility/group-tags.kdbx
-        buildPhase: resources
-      - path: TestFixtures/compatibility/unknown-inner-header.kdbx
-        buildPhase: resources
-      - path: TestFixtures/compatibility/argon2-high-iterations.kdbx
-        buildPhase: resources
-      - path: TestFixtures/test-v3-backup.kdbx
-        buildPhase: resources
-      - path: TestFixtures/demo-keyfile.key
-        buildPhase: resources
-      - path: TestFixtures/test-binary.key
-        buildPhase: resources
-      - path: TestFixtures/test-hex.key
-        buildPhase: resources
-      - path: TestFixtures/test-v1.key
-        buildPhase: resources
-      - path: TestFixtures/test-v2.keyx
-        buildPhase: resources
-      - path: TestFixtures/test-arbitrary.key
-        buildPhase: resources
-      # Folder reference, not the per-file listing every other fixture uses:
-      # each merge scenario directory holds a local.kdbx / remote.kdbx /
-      # merged-reference.kdbx trio, and a flat resource copy would collide on
-      # those names sixteen times over. `type: folder` copies the tree intact,
-      # so the bundle keeps `Merge/<scenario-id>/…` and a new scenario needs no
-      # project change.
-      - path: TestFixtures/Merge
-        type: folder
-        buildPhase: resources
 
 schemes:
   KeeForge:

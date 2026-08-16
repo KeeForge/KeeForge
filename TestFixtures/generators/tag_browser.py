@@ -1,10 +1,9 @@
-#!/usr/bin/env python3
-"""Generate `tag-browser.kdbx`, the tagged fixture the tag-browser UI test needs.
+"""`tag-browser.kdbx` -- the tagged fixture the tag-browser UI test needs.
 
 Neither `test.kdbx` nor `demo.kdbx` carries a single entry tag, so the tag
-browser had no fixture-backed content to assert against. This script authors a
-small KDBX4 / AES-256 database (same recipe as `autofill-union.kdbx` and
-`compatibility/attachments.kdbx` — `keepassxc-cli db-create` only writes KDBX
+browser had no fixture-backed content to assert against. This authors a small
+KDBX4 / AES-256 database (same recipe as `autofill-union.kdbx` and
+`compatibility/attachments.kdbx` -- `keepassxc-cli db-create` only writes KDBX
 3.1) whose tags cover the cases the browser has to get right:
 
 * `shared` is carried by two entries in two different groups, so a count above
@@ -15,33 +14,12 @@ small KDBX4 / AES-256 database (same recipe as `autofill-union.kdbx` and
   carrier;
 * `Personal Notes` contains a space, exercising the hyphenated accessibility
   identifier suffix (`tag-list.row.personal-notes`).
-
-Requires: pykeepass (`pip3 install --user pykeepass`). Verified against
-pykeepass 4.1.1.post1.
-
-Content is deterministic; bytes are not — pykeepass randomizes the master seed,
-encryption IV, and KDF salt on every `save()`. Tests assert decoded content, so
-re-running this script is safe.
-
-Usage (from the repo root):
-
-    python3 TestFixtures/generate_tag_browser_fixture.py          # regenerate
-    python3 TestFixtures/generate_tag_browser_fixture.py --check  # verify only
 """
 
-import argparse
-import sys
 from pathlib import Path
 
-try:
-    import pykeepass
-except ImportError:
-    raise SystemExit(
-        "pykeepass is required: pip3 install --user pykeepass "
-        "(or install it into a venv and re-run with that interpreter)"
-    )
+from ._common import Generator, fixture_path, new_database, pykeepass
 
-OUTPUT_PATH = Path(__file__).resolve().parent / "tag-browser.kdbx"
 PASSWORD = "testpassword123"
 
 # group name -> entries. Documented in TestFixtures/README.md; the UI test
@@ -91,10 +69,8 @@ EXPECTED_TAG_COUNTS = {
 }
 
 
-def build_fixture(path: Path) -> None:
-    if path.exists():
-        path.unlink()
-    kp = pykeepass.create_database(str(path), password=PASSWORD)
+def build(path: Path) -> None:
+    kp = new_database(path, PASSWORD)
 
     for group_name, entry_specs in GROUPS.items():
         group = kp.add_group(kp.root_group, group_name)
@@ -112,7 +88,7 @@ def build_fixture(path: Path) -> None:
     kp.save()
 
 
-def verify(path: Path) -> None:
+def verify(path: Path, keepassxc_cli: str | None) -> None:
     kp = pykeepass.PyKeePass(str(path), password=PASSWORD)
     if kp.version[0] != 4:
         raise AssertionError(f"{path.name}: expected KDBX 4.x, got {kp.version}")
@@ -143,22 +119,11 @@ def verify(path: Path) -> None:
     )
 
 
-def main() -> int:
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument(
-        "--check",
-        action="store_true",
-        help="verify the existing fixture on disk instead of regenerating it",
+GENERATORS = [
+    Generator(
+        name="tag-browser",
+        output_path=fixture_path("tag-browser.kdbx"),
+        build=build,
+        verify=verify,
     )
-    args = parser.parse_args()
-
-    print(f"pykeepass version: {getattr(pykeepass, '__version__', 'unknown')}", file=sys.stderr)
-
-    if not args.check:
-        build_fixture(OUTPUT_PATH)
-    verify(OUTPUT_PATH)
-    return 0
-
-
-if __name__ == "__main__":
-    raise SystemExit(main())
+]
