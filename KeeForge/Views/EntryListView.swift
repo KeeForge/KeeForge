@@ -58,6 +58,7 @@ struct EntryListView: View {
                 } label: {
                     EntryRow(
                         entry: entry,
+                        username: viewModel.resolvingFieldReferences(entry.username),
                         customIconData: viewModel.customIconData(for: entry),
                         folderPath: viewModel.folderPath(forEntryID: entry.id)
                     )
@@ -68,6 +69,7 @@ struct EntryListView: View {
                 NavigationLink(value: entry) {
                     EntryRow(
                         entry: entry,
+                        username: viewModel.resolvingFieldReferences(entry.username),
                         customIconData: viewModel.customIconData(for: entry),
                         folderPath: viewModel.folderPath(forEntryID: entry.id)
                     )

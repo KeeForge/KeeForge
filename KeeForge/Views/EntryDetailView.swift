@@ -152,19 +152,28 @@ struct EntryDetailView: View {
                     }
 
                     if !entry.username.isEmpty {
-                        FieldRow(label: String(localized: "Username"), value: entry.username, icon: "person.fill", accessibilityKey: "username")
+                        FieldRow(
+                            label: String(localized: "Username"),
+                            value: viewModel.resolvingFieldReferences(entry.username),
+                            icon: "person.fill",
+                            accessibilityKey: "username"
+                        )
                     }
 
                     if entry.hasPassword {
-                        PasswordFieldRow(password: entry.password, sessionKey: sessionKey)
+                        PasswordFieldRow(
+                            password: entry.password,
+                            sessionKey: sessionKey,
+                            resolveReferences: viewModel.resolvingFieldReferences
+                        )
                     }
 
                     if !entry.url.isEmpty {
-                        URLFieldRow(url: entry.url)
+                        URLFieldRow(url: viewModel.resolvingFieldReferences(entry.url))
                     }
 
                     ForEach(Array(entry.additionalURLs.enumerated()), id: \.offset) { index, url in
-                        URLFieldRow(url: url, label: String(localized: "URL \(index + 2)"))
+                        URLFieldRow(url: viewModel.resolvingFieldReferences(url), label: String(localized: "URL \(index + 2)"))
                     }
 
                     if let totpConfig = entry.totpConfig {
@@ -173,7 +182,7 @@ struct EntryDetailView: View {
 
                     if !entry.notes.isEmpty {
                         Section("Notes") {
-                            SelectableNotesText(entry.notes)
+                            SelectableNotesText(viewModel.resolvingFieldReferences(entry.notes))
                                 .accessibilityIdentifier("entry.notes")
                         }
                     }
@@ -189,11 +198,15 @@ struct EntryDetailView: View {
                         Section("Custom Fields") {
                             ForEach(entry.displayCustomFields.sorted(by: { $0.key < $1.key }), id: \.key) { key, value in
                                 if entry.protectedStringKeys.contains(key) {
-                                    ProtectedFieldRow(label: key, value: value, showsInlineLabel: true)
+                                    ProtectedFieldRow(
+                                        label: key,
+                                        value: viewModel.resolvingFieldReferences(value),
+                                        showsInlineLabel: true
+                                    )
                                 } else {
                                     FieldRow(
                                         label: key,
-                                        value: value,
+                                        value: viewModel.resolvingFieldReferences(value),
                                         icon: "text.justify.left",
                                         showsInlineLabel: true
                                     )
@@ -736,6 +749,9 @@ struct ProtectedFieldRow: View {
 struct PasswordFieldRow: View {
     let password: EncryptedValue
     let sessionKey: SymmetricKey
+    /// Applied to the decrypted plaintext before it is shown or copied, so a
+    /// `{REF:…}` password reads and copies as the value it points at.
+    var resolveReferences: (String) -> String = { $0 }
     /// Identifier namespace for the reveal and copy controls. Defaults to the live
     /// entry detail's long-standing `entry.*` ids; the history viewer passes its own
     /// so the two screens never contribute the same identifier to one hierarchy.
@@ -757,7 +773,7 @@ struct PasswordFieldRow: View {
                 .accessibilityIdentifier("\(accessibilityPrefix).password.reveal")
 
                 CopyButton(
-                    resolveText: { (try? password.decrypt(using: sessionKey)) ?? "" },
+                    resolveText: { plaintext(of: password) },
                     requireAuth: true,
                     accessibilityID: "\(accessibilityPrefix).copy.password"
                 )
@@ -765,8 +781,12 @@ struct PasswordFieldRow: View {
         }
         .onChange(of: password) { _, updatedPassword in
             guard revealed else { return }
-            revealedText = (try? updatedPassword.decrypt(using: sessionKey)) ?? ""
+            revealedText = plaintext(of: updatedPassword)
         }
+    }
+
+    private func plaintext(of value: EncryptedValue) -> String {
+        resolveReferences((try? value.decrypt(using: sessionKey)) ?? "")
     }
 
     private func toggleReveal() {
@@ -797,7 +817,7 @@ struct PasswordFieldRow: View {
                     _ = try await BiometricService.authenticateDeviceOwner(reason: String(localized: "View password"))
                     await MainActor.run {
                         HapticService.success()
-                        revealedText = (try? password.decrypt(using: sessionKey)) ?? ""
+                        revealedText = plaintext(of: password)
                         revealed = true
                     }
                 } catch {
@@ -810,7 +830,7 @@ struct PasswordFieldRow: View {
             }
         } else {
             HapticService.tap()
-            revealedText = (try? password.decrypt(using: sessionKey)) ?? ""
+            revealedText = plaintext(of: password)
             revealed = true
         }
     }

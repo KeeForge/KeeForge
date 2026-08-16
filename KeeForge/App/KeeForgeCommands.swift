@@ -77,8 +77,8 @@ struct KeeForgeCommands: Commands {
             Divider()
 
             Button("Copy Username") {
-                guard let entry = selectedEntry else { return }
-                ClipboardService.copy(entry.username)
+                guard let viewModel, let entry = selectedEntry else { return }
+                ClipboardService.copy(viewModel.resolvingFieldReferences(entry.username))
             }
             .keyboardShortcut("b", modifiers: [.command, .shift])
             .disabled(selectedEntry?.username.isEmpty != false)
@@ -123,7 +123,7 @@ struct KeeForgeCommands: Commands {
     }
 
     private func copySelectedEntryPassword() {
-        guard let viewModel, let entry = selectedEntry, let sessionKey = viewModel.sessionKey else { return }
+        guard let viewModel, let entry = selectedEntry, viewModel.sessionKey != nil else { return }
 
         Task { @MainActor in
             // Same device-owner gate as reveal/copy in the entry detail view:
@@ -136,7 +136,7 @@ struct KeeForgeCommands: Commands {
                     return
                 }
             }
-            ClipboardService.copy((try? entry.password.decrypt(using: sessionKey)) ?? "")
+            ClipboardService.copy(viewModel.resolvedPassword(for: entry))
         }
     }
 }
