@@ -21,10 +21,9 @@ final class KDBXCompatibilityTests: XCTestCase {
 
     /// Smoke fixtures whose scenario is run (and emitted) by a dedicated
     /// deeper test below, so the generic smoke sweep skips them and no
-    /// scenario executes twice per suite run.
+    /// scenario executes twice per suite run. (`kitchen-sink` needs no entry
+    /// here — it is not in `smokeFixtures` at all.)
     private static let smokeFixtureIDsWithDedicatedTests: Set<String> = [
-        KDBXCompatibilitySupport.Fixture.unknownRich.id,
-        KDBXCompatibilitySupport.Fixture.kdbx41PublicCustomData.id,
         KDBXCompatibilitySupport.Fixture.unknownInnerHeader.id,
     ]
 
@@ -99,41 +98,6 @@ final class KDBXCompatibilityTests: XCTestCase {
         try collector.emit()
     }
 
-    func test_unknownXMLFixture_preservesAttachmentReferencesAndCustomDataOnWrite() throws {
-        let collector = try KDBXCompatibilitySupport.ArtifactCollector(testCase: self)
-        let loaded = try KDBXCompatibilitySupport.load(.unknownRich, bundle: bundle)
-        let scenario = KDBXCompatibilitySupport.fixtureSmokeScenario(fixtureID: loaded.fixture.id)
-        let result = try collector.run(scenario, on: loaded)
-
-        assertSmokeShape(result, fixture: loaded.fixture)
-
-        // `<Binary>` attachment refs are now parsed structurally into
-        // `KPEntry.attachments` instead of falling into unknownXML.
-        let beforeAttachments = result.before.entries.values.flatMap(\.attachments)
-        let afterAttachments = result.after.entries.values.flatMap(\.attachments)
-        XCTAssertTrue(beforeAttachments.contains { $0.name == "round-trip.txt" && $0.ref == 0 })
-        XCTAssertTrue(afterAttachments.contains { $0.name == "round-trip.txt" && $0.ref == 0 })
-
-        let beforeHistoryAttachments = result.before.entries.values.flatMap(\.history).flatMap(\.attachments)
-        let afterHistoryAttachments = result.after.entries.values.flatMap(\.history).flatMap(\.attachments)
-        XCTAssertTrue(beforeHistoryAttachments.contains { $0.name == "round-trip.txt" && $0.ref == 0 })
-        XCTAssertTrue(afterHistoryAttachments.contains { $0.name == "round-trip.txt" && $0.ref == 0 })
-
-        let beforeUnknownXML = result.before.entries.values.map(\.unknownXML.nodes).flatMap { $0 }.map(\.xml).joined()
-        let afterUnknownXML = result.after.entries.values.map(\.unknownXML.nodes).flatMap { $0 }.map(\.xml).joined()
-        let beforeMetaUnknownXML = result.before.meta.unknownXML.nodes.map(\.xml).joined()
-        let afterMetaUnknownXML = result.after.meta.unknownXML.nodes.map(\.xml).joined()
-
-        XCTAssertFalse(beforeUnknownXML.contains("round-trip.txt"))
-        XCTAssertFalse(afterUnknownXML.contains("round-trip.txt"))
-        XCTAssertTrue(beforeUnknownXML.contains("RoundTripEntryValue-Expected"))
-        XCTAssertTrue(afterUnknownXML.contains("RoundTripEntryValue-Expected"))
-        XCTAssertTrue(beforeMetaUnknownXML.contains("RoundTripMetaValue-Expected"))
-        XCTAssertTrue(afterMetaUnknownXML.contains("RoundTripMetaValue-Expected"))
-
-        try collector.emit()
-    }
-
     func test_metaWithoutRecycleBinUUID_doesNotDuplicateOpaqueMetaChildrenAcrossSaves() throws {
         // Regression: serializeMeta emitted the index-0 opaque fragments
         // unconditionally, then re-emitted them at the next emission site
@@ -197,27 +161,6 @@ final class KDBXCompatibilityTests: XCTestCase {
         assertNoDuplication(secondSave, "second save")
 
         XCTAssertEqual(firstSave.unknownXML.nodes, secondSave.unknownXML.nodes)
-    }
-
-    func test_kdbx41Fixture_capturesAndPreservesUnknownOuterHeaderFields() throws {
-        let collector = try KDBXCompatibilitySupport.ArtifactCollector(testCase: self)
-        let loaded = try KDBXCompatibilitySupport.load(.kdbx41PublicCustomData, bundle: bundle)
-
-        XCTAssertEqual(loaded.header.formatVersion, .kdbx4(minor: 1))
-        let publicCustomData = try XCTUnwrap(
-            loaded.header.unknownOuterHeaderFields.first { $0.id == 12 }
-        )
-        XCTAssertNotNil(publicCustomData.data.range(of: Data("KeeForgeFixture".utf8)))
-        XCTAssertNotNil(publicCustomData.data.range(of: Data("KDBX 4.1 public custom data".utf8)))
-
-        let scenario = KDBXCompatibilitySupport.fixtureSmokeScenario(fixtureID: loaded.fixture.id)
-        let result = try collector.run(scenario, on: loaded)
-
-        assertSmokeShape(result, fixture: loaded.fixture)
-        XCTAssertEqual(result.afterHeader.formatVersion, .kdbx4(minor: 1))
-        XCTAssertEqual(result.afterHeader.unknownOuterHeaderFields, loaded.header.unknownOuterHeaderFields)
-
-        try collector.emit()
     }
 
     /// `unknown-inner-header.kdbx` carries three inner-header fields KDBX4
@@ -364,26 +307,36 @@ final class KDBXCompatibilityTests: XCTestCase {
 
     /// The kitchen-sink fixture's dedicated pass. It is deliberately absent
     /// from `smokeFixtures` so its smoke scenario runs exactly once — here,
-    /// where the attachment and group-tag invariants can be asserted on the
-    /// same reparsed snapshots — followed by the four edit scenarios that
-    /// belong to it.
+    /// where the attachment, group-tag, opaque-XML and outer-header invariants
+    /// can be asserted on the same reparsed snapshots — followed by the four
+    /// edit scenarios that belong to it.
     ///
-    /// `keepassxc-cli` has no verb that prints group tags, so the external
-    /// gate can only prove the rewritten database opens with its structure and
-    /// protected values intact; the group-tag preservation proof is in-process,
+    /// `keepassxc-cli` has no verb that prints group tags, an unknown
+    /// outer-header field, or opaque XML, so the external gate can only prove
+    /// the rewritten database opens with its structure, attachments and
+    /// protected values intact; those three preservation proofs are in-process,
     /// on the snapshots asserted here and in the scenarios' own checks.
-    func test_kitchenSinkFixture_preservesAttachmentsGroupTagsAndPoolHashesAcrossScenarios() throws {
+    func test_kitchenSinkFixture_preservesAttachmentsTagsOpaqueXMLAndOuterHeaderAcrossScenarios() throws {
         let collector = try KDBXCompatibilitySupport.ArtifactCollector(testCase: self)
 
         // fixtureSmoke: creating an unrelated entry should not disturb any
-        // existing entry's attachments, their resolved pool bytes, or any
-        // group's tags, has-element flag, or structured <Notes>.
+        // existing entry's attachments, their resolved pool bytes, any group's
+        // tags, has-element flag, or structured <Notes>, any opaque fragment,
+        // or the header field KeeForge does not model.
         let smokeLoaded = try KDBXCompatibilitySupport.load(.kitchenSink, bundle: bundle)
         XCTAssertEqual(
             smokeLoaded.header.formatVersion,
             .kdbx4(minor: 1),
             "Fixture precondition: group tags are a KDBX 4.1 feature and the fixture must really be 4.1"
         )
+        // KDBX 4.1's `PublicCustomData` (id 0x0C) is plugin data KeeForge
+        // never interprets; it has to survive a save byte-for-byte.
+        let publicCustomData = try XCTUnwrap(
+            smokeLoaded.header.unknownOuterHeaderFields.first { $0.id == 12 }
+        )
+        XCTAssertNotNil(publicCustomData.data.range(of: Data("KeeForgeFixture".utf8)))
+        XCTAssertNotNil(publicCustomData.data.range(of: Data("KDBX 4.1 public custom data".utf8)))
+
         let smokeResult = try collector.run(
             KDBXCompatibilitySupport.fixtureSmokeScenario(fixtureID: KDBXCompatibilitySupport.Fixture.kitchenSink.id),
             on: smokeLoaded
@@ -394,8 +347,14 @@ final class KDBXCompatibilityTests: XCTestCase {
             .kdbx4(minor: 1),
             "A rewrite must keep the source's 4.1 version, not renegotiate it"
         )
+        XCTAssertEqual(
+            smokeResult.afterHeader.unknownOuterHeaderFields,
+            smokeLoaded.header.unknownOuterHeaderFields
+        )
         try assertGroupTagFixtureShape(in: smokeResult.before)
         try assertGroupTagFixtureShape(in: smokeResult.after)
+        try assertRoundTripFixtureShape(in: smokeResult.before)
+        try assertRoundTripFixtureShape(in: smokeResult.after)
 
         let multiEntryID = try XCTUnwrap(smokeResult.before.entryID(titled: "Multi Attachment Entry"))
         let multiBefore = try XCTUnwrap(smokeResult.before.entries[multiEntryID])
@@ -456,6 +415,47 @@ final class KDBXCompatibilityTests: XCTestCase {
         )
 
         try collector.emit()
+    }
+
+    /// The `Round Trip` entry's opaque XML and its history-carried attachment.
+    ///
+    /// `<Binary>` refs are parsed structurally into `KPEntry.attachments`
+    /// rather than falling into `unknownXML`, so the attachment is checked by
+    /// name and by the pool bytes its ref resolves to — never by a literal
+    /// index, which is an artifact of the fixture's pool ordering.
+    private func assertRoundTripFixtureShape(
+        in snapshot: CompatibilitySnapshot,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) throws {
+        let entryID = try XCTUnwrap(
+            snapshot.entryID(titled: "Controlled Unknowns"),
+            file: file,
+            line: line
+        )
+        let entry = try XCTUnwrap(snapshot.entries[entryID], file: file, line: line)
+
+        XCTAssertEqual(entry.attachments.map(\.name), ["round-trip.txt"], file: file, line: line)
+        XCTAssertEqual(
+            entry.attachmentHashes,
+            [KDBXCompatibilitySupport.AttachmentFixtureHashes.roundTripTxt],
+            file: file,
+            line: line
+        )
+        XCTAssertEqual(entry.history.count, 1, file: file, line: line)
+        let version = try XCTUnwrap(entry.history.first, file: file, line: line)
+        XCTAssertEqual(version.attachments.map(\.name), ["round-trip.txt"], file: file, line: line)
+        XCTAssertEqual(version.attachments.map(\.ref), entry.attachments.map(\.ref), file: file, line: line)
+
+        let entryUnknownXML = entry.unknownXML.nodes.map(\.xml).joined()
+        XCTAssertFalse(entryUnknownXML.contains("round-trip.txt"), file: file, line: line)
+        XCTAssertTrue(entryUnknownXML.contains("RoundTripEntryValue-Expected"), file: file, line: line)
+        XCTAssertTrue(entryUnknownXML.contains("RoundTrip Login"), file: file, line: line)
+        XCTAssertTrue(
+            snapshot.meta.unknownXML.nodes.map(\.xml).joined().contains("RoundTripMetaValue-Expected"),
+            file: file,
+            line: line
+        )
     }
 
     private func assertGroupTagFixtureShape(
@@ -633,7 +633,7 @@ final class KDBXCompatibilityTests: XCTestCase {
 
         // The artifact set never shrinks silently: the gate's merged manifest
         // is compared against exactly this count.
-        XCTAssertEqual(descriptors.count, 35)
+        XCTAssertEqual(descriptors.count, 33)
     }
 
     func test_externalExpectationTables_areExhaustiveOverEveryArtifactScenario() throws {

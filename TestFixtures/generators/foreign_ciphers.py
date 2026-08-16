@@ -75,8 +75,10 @@ def build(path: Path, *, password: str, cipher: str) -> None:
 
     dynamic_header = kp.kdbx.header.value.dynamic_header
     dynamic_header.cipher_id.data = cipher
-    # ChaCha20 needs a 12-byte nonce; AES/Twofish CBC need a 16-byte IV.
-    dynamic_header.encryption_iv.data = os.urandom(12 if cipher == "chacha20" else 16)
+    # ChaCha20 needs a 12-byte nonce; `new_database` already wrote the 16-byte
+    # CBC IV the other two ciphers want.
+    if cipher == "chacha20":
+        dynamic_header.encryption_iv.data = os.urandom(12)
     drop_rawcopy_cache(kp)
 
     group = kp.add_group(kp.root_group, GROUP_NAME)

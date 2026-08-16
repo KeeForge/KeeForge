@@ -51,6 +51,9 @@ enum KDBXCompatibilitySupport {
         static let noteUnicodeTxt = "bcc1c6cd101bd5b27356a7004361fd1e1ff74ed2ef416e3252997d328efd3727"
         static let pixelPNG = "3ec322a42990a3067cc6c73f3856a86e55bdd8baf19d2166954a8fb319329a72"
         static let sharedBin = "fd184a4f05cf3d4f39ab726bda3d3a923da30e9ab2d6697b69c2d39d7ea1ab18"
+        /// The `Round Trip` entry's attachment, referenced by its current
+        /// version and by its stored history version.
+        static let roundTripTxt = "22e06efe984efab5605bccf1c0c1e208db740e16cac328dcbfa27cecee8458db"
     }
 
     /// SHA-256 hashes of the two attachments in
@@ -95,22 +98,6 @@ enum KDBXCompatibilitySupport {
             source: .bundled(name: "demo-keyfile", subdirectory: nil)
         )
 
-        static let unknownRich = Fixture(
-            id: "unknown-rich",
-            displayName: "Unknown XML fixture",
-            password: "test-round-trip",
-            keyFileName: nil,
-            source: .bundled(name: "unknown-elements", subdirectory: "round-trip")
-        )
-
-        static let kdbx41PublicCustomData = Fixture(
-            id: "kdbx41-public-custom-data",
-            displayName: "KDBX 4.1 public custom data fixture",
-            password: "testpassword123",
-            keyFileName: nil,
-            source: .bundled(name: "kdbx41-public-custom-data")
-        )
-
         static let legacyKDBX31 = Fixture(
             id: "legacy-kdbx31",
             displayName: "Legacy KDBX 3.1 fixture",
@@ -128,7 +115,12 @@ enum KDBXCompatibilitySupport {
         /// `<Notes>` sitting next to one of them, entry tags, a
         /// `Meta/CustomIcons` image, a protected custom field that also lives
         /// in history, a TOTP entry, and a populated `Recycle Bin` with
-        /// `Meta/RecycleBinUUID` set. See
+        /// `Meta/RecycleBinUUID` set. It also carries the whole opaque-XML
+        /// corpus: a `PublicCustomData` (id 0x0C) outer-header field KeeForge
+        /// does not model, a `Round Trip` entry whose `<AutoType>` and
+        /// `<CustomData>` sit in deliberately awkward positions and whose
+        /// attachment is referenced from its history version too, and a
+        /// schema-invalid second `Meta/CustomData` sibling. See
         /// `TestFixtures/generators/kitchen_sink.py` and
         /// `TestFixtures/README.md`.
         ///
@@ -236,8 +228,6 @@ enum KDBXCompatibilitySupport {
     static let smokeFixtures: [Fixture] = [
         .aesBaseline,
         .passwordKeyfile,
-        .unknownRich,
-        .kdbx41PublicCustomData,
         .syntheticChaCha,
         .syntheticTwofish,
         .foreignChaCha20,
@@ -466,6 +456,7 @@ enum KDBXCompatibilitySupport {
             .init(entryTitle: "Multi Attachment Entry", attachmentName: "pixel.png", sha256: AttachmentFixtureHashes.pixelPNG),
             .init(entryTitle: "Dedup Entry A", attachmentName: "shared.bin", sha256: AttachmentFixtureHashes.sharedBin),
             .init(entryTitle: "Dedup Entry B", attachmentName: "shared.bin", sha256: AttachmentFixtureHashes.sharedBin),
+            .init(entryTitle: "Controlled Unknowns", attachmentName: "round-trip.txt", sha256: AttachmentFixtureHashes.roundTripTxt),
         ],
         "attachments-update-entry": [
             .init(entryTitle: "Multi Attachment Entry Updated", attachmentName: "note-ü.txt", sha256: AttachmentFixtureHashes.noteUnicodeTxt),
@@ -510,8 +501,6 @@ enum KDBXCompatibilitySupport {
         "keeotp-source-matrix",
         "fixture-smoke-aes-baseline",
         "fixture-smoke-password-keyfile",
-        "fixture-smoke-unknown-rich",
-        "fixture-smoke-kdbx41-public-custom-data",
         "fixture-smoke-synthetic-chacha",
         "fixture-smoke-synthetic-twofish",
         "fixture-smoke-foreign-chacha20",
@@ -538,8 +527,6 @@ enum KDBXCompatibilitySupport {
     static let fixtureEntryPasswords: [String: ArtifactManifest.ExpectedPassword] = [
         Fixture.aesBaseline.id: .init(entryTitle: "Twitter", password: "twitterpass123"),
         Fixture.passwordKeyfile.id: .init(entryTitle: "KeyFile Test Entry", password: "keyfilepass123"),
-        Fixture.unknownRich.id: .init(entryTitle: "Controlled Unknowns", password: "roundtrip-pass"),
-        Fixture.kdbx41PublicCustomData.id: .init(entryTitle: "Twitter", password: "twitterpass123"),
         Fixture.kitchenSink.id: .init(entryTitle: "Multi Attachment Entry", password: "entry-password-1"),
         Fixture.syntheticChaCha.id: .init(entryTitle: "Compat Untouched Entry", password: "untouched-password"),
         Fixture.syntheticTwofish.id: .init(entryTitle: "Compat Untouched Entry", password: "untouched-password"),

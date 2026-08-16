@@ -3,14 +3,16 @@
 Every fixture here is authored with pykeepass -- an implementation independent
 of KeeForge -- so the parser tests and the compatibility gate prove KeeForge
 reads foreign files rather than only its own. Output is deterministic in
-CONTENT but NOT in bytes: pykeepass generates a fresh master seed, encryption
-IV, and KDF salt on every `save()`, so regenerating a fixture always changes
-the file. Tests assert decoded content, never raw bytes.
+CONTENT but NOT in bytes: `new_database` randomizes the master seed, encryption
+IV, and KDF salt, and pykeepass mints fresh UUIDs and timestamps, so
+regenerating a fixture always changes the file. Tests assert decoded content,
+never raw bytes.
 
 Verified against pykeepass 4.1.1.post1.
 """
 
 import argparse
+import os
 import struct
 import subprocess
 import sys
@@ -41,6 +43,10 @@ AESKDF_UUID = bytes.fromhex("c9d9f39a628a4460bf740d08c18a4fea")
 
 KDBX_SIGNATURE = (0x9AA2D903, 0xB54BFB67)
 KDF_PARAMETERS_FIELD_ID = 0x0B
+PUBLIC_CUSTOM_DATA_FIELD_ID = 0x0C
+
+VARIANT_DICT_VERSION = 0x0100
+VARIANT_DICT_STRING_TYPE = 0x18
 
 
 @dataclass(frozen=True)
@@ -63,9 +69,35 @@ def banner() -> None:
 
 
 def new_database(path: Path, password: str):
-    """Fresh pykeepass database at `path`, replacing any existing file."""
+    """Fresh pykeepass database at `path`, replacing any existing file, with
+    freshly randomized crypto material.
+
+    pykeepass 4.1.1 builds every new database from one blank template that ships
+    a FIXED master seed, encryption IV and Argon2 salt, and `save()` never
+    regenerates them -- left alone, every fixture in this repo would be
+    encrypted under the same three constants. Randomizing them here is what
+    makes the claim "only the content is deterministic" true.
+    """
     path.unlink(missing_ok=True)
-    return pykeepass.create_database(str(path), password=password)
+    kp = pykeepass.create_database(str(path), password=password)
+    dynamic_header = kp.kdbx.header.value.dynamic_header
+    dynamic_header.master_seed.data = os.urandom(32)
+    dynamic_header.encryption_iv.data = os.urandom(16)  # AES-256-CBC block size
+    dynamic_header.kdf_parameters.data.dict["S"].value = os.urandom(32)
+    drop_rawcopy_cache(kp)
+    return kp
+
+
+def build_variant_dict(entries: dict[str, str]) -> bytes:
+    """Serialize a KDBX4 variant dictionary of String (0x18) items -- the
+    inverse of `parse_variant_dict` for the one value type the fixtures need."""
+    blob = struct.pack("<H", VARIANT_DICT_VERSION)
+    for key, value in entries.items():
+        key_bytes = key.encode("utf-8")
+        value_bytes = value.encode("utf-8")
+        blob += struct.pack("<BI", VARIANT_DICT_STRING_TYPE, len(key_bytes)) + key_bytes
+        blob += struct.pack("<I", len(value_bytes)) + value_bytes
+    return blob + b"\x00"
 
 
 def drop_rawcopy_cache(kp) -> None:
@@ -79,8 +111,11 @@ def drop_rawcopy_cache(kp) -> None:
     (see `construct.RawCopy._build`). Without dropping the cache the saved file
     silently keeps the original header while the payload is written from the
     mutated values -- a cipher-mismatched, unopenable file.
+
+    Idempotent: `new_database` already drops the cache, and generators that
+    mutate the header again call this once more.
     """
-    del kp.kdbx.header["data"]
+    kp.kdbx.header.pop("data", None)
 
 
 class OuterHeader(NamedTuple):

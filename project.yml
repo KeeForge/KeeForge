@@ -45,10 +45,6 @@ targetTemplates:
         buildPhase: resources
       - path: TestFixtures/demo-keyfile.key
         buildPhase: resources
-      - path: TestFixtures/round-trip/unknown-elements.kdbx
-        buildPhase: resources
-      - path: TestFixtures/compatibility/kdbx41-public-custom-data.kdbx
-        buildPhase: resources
       - path: TestFixtures/compatibility/legacy-kdbx31.kdbx
         buildPhase: resources
       - path: TestFixtures/kitchen-sink.kdbx

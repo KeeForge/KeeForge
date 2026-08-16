@@ -44,24 +44,12 @@ struct KDBXTestFixture {
         keyFileName: nil,
         keyFileExtension: nil
     )
-    static let unknownElements = KDBXTestFixture(
-        name: "unknown-elements",
-        subdirectory: "round-trip",
-        password: "test-round-trip",
-        keyFileName: nil,
-        keyFileExtension: nil
-    )
-    static let kdbx41PublicCustomData = KDBXTestFixture(
-        name: "kdbx41-public-custom-data",
-        subdirectory: "compatibility",
-        password: "testpassword123",
-        keyFileName: nil,
-        keyFileExtension: nil
-    )
     /// The rich union fixture: group `<Tags>` in all three states, a binary
     /// pool with a dedup pair, entry tags, a custom icon, a protected custom
-    /// field with history, a TOTP entry, and a populated recycle bin. See
-    /// `TestFixtures/generators/kitchen_sink.py`.
+    /// field with history, a TOTP entry, a populated recycle bin, a
+    /// `PublicCustomData` outer-header field, and the `Round Trip` group's
+    /// opaque `<AutoType>`/`<CustomData>` in deliberately awkward positions.
+    /// See `TestFixtures/generators/kitchen_sink.py`.
     static let kitchenSink = KDBXTestFixture(
         name: "kitchen-sink",
         subdirectory: nil,

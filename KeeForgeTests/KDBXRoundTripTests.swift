@@ -227,7 +227,7 @@ final class KDBXRoundTripTests: XCTestCase {
     }
 
     func test_unknownNodes_controlledFixture_capturesCustomData() throws {
-        let parsed = try parseFixture(.unknownElements)
+        let parsed = try parseFixture(.kitchenSink)
         let entry = try controlledUnknownsEntry(in: parsed.rootGroup)
 
         let metaCustomData = try XCTUnwrap(
@@ -259,11 +259,10 @@ final class KDBXRoundTripTests: XCTestCase {
         XCTAssertFalse(entryCustomData.isEmpty)
         XCTAssertFalse(autoType.isEmpty)
         XCTAssertEqual(binaryAttachment.name, "round-trip.txt")
-        XCTAssertEqual(binaryAttachment.ref, 0)
         XCTAssertEqual(entry.history.count, 1)
         XCTAssertTrue(entry.history[0].notes.contains("Historical revision for round-trip coverage"))
         XCTAssertEqual(entry.history[0].attachments.first?.name, "round-trip.txt")
-        XCTAssertEqual(entry.history[0].attachments.first?.ref, 0)
+        XCTAssertEqual(entry.history[0].attachments.first?.ref, binaryAttachment.ref)
 
         let reparsed = try serializeAndParse(parsed)
         let reparsedEntry = try controlledUnknownsEntry(in: reparsed.rootGroup)
@@ -290,11 +289,11 @@ final class KDBXRoundTripTests: XCTestCase {
             )
         )
         XCTAssertEqual(reparsedEntry.attachments.first?.name, "round-trip.txt")
-        XCTAssertEqual(reparsedEntry.attachments.first?.ref, 0)
+        XCTAssertEqual(reparsedEntry.attachments.first?.ref, binaryAttachment.ref)
         XCTAssertEqual(reparsedEntry.history.count, 1)
         XCTAssertTrue(reparsedEntry.history[0].notes.contains("Historical revision for round-trip coverage"))
         XCTAssertEqual(reparsedEntry.history[0].attachments.first?.name, "round-trip.txt")
-        XCTAssertEqual(reparsedEntry.history[0].attachments.first?.ref, 0)
+        XCTAssertEqual(reparsedEntry.history[0].attachments.first?.ref, binaryAttachment.ref)
         XCTAssertEqual(parsed.meta.recycleBinUUID, reparsed.meta.recycleBinUUID)
         XCTAssertEqual(entry.title, reparsedEntry.title)
         XCTAssertEqual(entry.username, reparsedEntry.username)
@@ -306,7 +305,7 @@ final class KDBXRoundTripTests: XCTestCase {
     }
 
     func test_unknownNodes_controlledFixture_specificContentPreserved() throws {
-        let parsed = try parseFixture(.unknownElements)
+        let parsed = try parseFixture(.kitchenSink)
         let entry = try controlledUnknownsEntry(in: parsed.rootGroup)
 
         let originalMetaCustomData = try XCTUnwrap(
@@ -1699,9 +1698,7 @@ final class KDBXRoundTripTests: XCTestCase {
         .test,
         .demo,
         .demoKeyfile,
-        .unknownElements,
         .unknownInnerHeader,
-        .kdbx41PublicCustomData,
         .kitchenSink,
         .foreignChaCha20,
         .foreignTwofish,
