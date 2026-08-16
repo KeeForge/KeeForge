@@ -43,12 +43,10 @@ enum KDBXCompatibilitySupport {
         ]
     }
 
-    /// Recorded SHA-256 hashes for `TestFixtures/compatibility/attachments.kdbx`
-    /// content, generated deterministically via `pykeepass` (see
-    /// `TestFixtures/README.md`). `keepassxc-cli db-create` only produces
-    /// KDBX 3.1 databases and exposes no cipher/KDF override flags, so this
-    /// fixture cannot be regenerated with the CLI used by the other
-    /// compatibility fixtures.
+    /// Recorded SHA-256 hashes for the attachments in
+    /// `TestFixtures/kitchen-sink.kdbx`, pinned in
+    /// `TestFixtures/generators/kitchen_sink.py` and re-verified there through
+    /// `keepassxc-cli attachment-export` (see `TestFixtures/README.md`).
     enum AttachmentFixtureHashes {
         static let noteUnicodeTxt = "bcc1c6cd101bd5b27356a7004361fd1e1ff74ed2ef416e3252997d328efd3727"
         static let pixelPNG = "3ec322a42990a3067cc6c73f3856a86e55bdd8baf19d2166954a8fb319329a72"
@@ -121,12 +119,27 @@ enum KDBXCompatibilitySupport {
             source: .bundled(name: "legacy-kdbx31")
         )
 
-        static let attachments = Fixture(
-            id: "attachments",
-            displayName: "Attachments fixture",
+        /// Foreign-authored (pykeepass) KDBX 4.1 fixture that carries, in one
+        /// file, everything the narrow per-feature fixtures used to own: a
+        /// three-item binary pool (including a dedup pair two entries share and
+        /// a non-ASCII filename), group `<Tags>` in all three states —
+        /// content (`Projects`, nested `Client Work`), an empty element
+        /// (`Empty Tags Group`), no element at all (`Plain Group`) — a group
+        /// `<Notes>` sitting next to one of them, entry tags, a
+        /// `Meta/CustomIcons` image, a protected custom field that also lives
+        /// in history, a TOTP entry, and a populated `Recycle Bin` with
+        /// `Meta/RecycleBinUUID` set. See
+        /// `TestFixtures/generators/kitchen_sink.py` and
+        /// `TestFixtures/README.md`.
+        ///
+        /// It lives at the `TestFixtures/` root rather than in
+        /// `compatibility/`, because the UI suites bundle it too.
+        static let kitchenSink = Fixture(
+            id: "kitchen-sink",
+            displayName: "Kitchen-sink content fixture",
             password: "testpassword123",
             keyFileName: nil,
-            source: .bundled(name: "attachments")
+            source: .bundled(name: "kitchen-sink", subdirectory: nil)
         )
 
         /// Foreign-authored (pykeepass) KDBX4 fixture with the ChaCha20 outer
@@ -151,22 +164,6 @@ enum KDBXCompatibilitySupport {
             password: "foreign-twofish",
             keyFileName: nil,
             source: .bundled(name: "foreign-twofish")
-        )
-
-        /// Foreign-authored (pykeepass) KDBX 4.1 fixture whose groups carry
-        /// `<Tags>` in all three states — content (`Projects`, nested
-        /// `Client Work`), an empty element (`Empty Tags Group`), and no
-        /// element at all (`Plain Group`) — plus a group `<Notes>`, so two
-        /// structured siblings sit next to each other in a foreign file's
-        /// child order. See
-        /// `TestFixtures/generators/group_tags.py` and
-        /// `TestFixtures/README.md`.
-        static let groupTags = Fixture(
-            id: "group-tags",
-            displayName: "KDBX 4.1 group tags fixture",
-            password: "testpassword123",
-            keyFileName: nil,
-            source: .bundled(name: "group-tags")
         )
 
         /// KDBX4 fixture carrying three inner-header fields KeeForge does not
@@ -234,8 +231,8 @@ enum KDBXCompatibilitySupport {
     /// Single source of truth: `KDBXCompatibilityTests` iterates this list and
     /// `artifactDescriptors` derives the matching artifact set from it, so the
     /// matrix and the external-opener gate can no longer drift apart. The
-    /// `attachments` fixture is deliberately not here — it has a dedicated
-    /// attachment-focused test that runs its smoke scenario plus two more.
+    /// `kitchenSink` fixture is deliberately not here — it has a dedicated
+    /// test that runs its smoke scenario plus four more.
     static let smokeFixtures: [Fixture] = [
         .aesBaseline,
         .passwordKeyfile,
@@ -245,7 +242,6 @@ enum KDBXCompatibilitySupport {
         .syntheticTwofish,
         .foreignChaCha20,
         .foreignTwofish,
-        .groupTags,
         .unknownInnerHeader,
         .argon2HighIterations,
     ]
@@ -465,7 +461,7 @@ enum KDBXCompatibilitySupport {
     /// scenarios where the referenced entry (and its attachment) is expected
     /// to still exist, under its post-edit title, in the written artifact.
     static let attachmentExpectations: [String: [ArtifactManifest.ExpectedAttachment]] = [
-        "fixture-smoke-attachments": [
+        "fixture-smoke-kitchen-sink": [
             .init(entryTitle: "Multi Attachment Entry", attachmentName: "note-ü.txt", sha256: AttachmentFixtureHashes.noteUnicodeTxt),
             .init(entryTitle: "Multi Attachment Entry", attachmentName: "pixel.png", sha256: AttachmentFixtureHashes.pixelPNG),
             .init(entryTitle: "Dedup Entry A", attachmentName: "shared.bin", sha256: AttachmentFixtureHashes.sharedBin),
@@ -520,7 +516,6 @@ enum KDBXCompatibilitySupport {
         "fixture-smoke-synthetic-twofish",
         "fixture-smoke-foreign-chacha20",
         "fixture-smoke-foreign-twofish",
-        "fixture-smoke-group-tags",
         "fixture-smoke-argon2-high-iterations",
         "group-tags-update-entry",
         "group-tags-update-group",
@@ -545,12 +540,11 @@ enum KDBXCompatibilitySupport {
         Fixture.passwordKeyfile.id: .init(entryTitle: "KeyFile Test Entry", password: "keyfilepass123"),
         Fixture.unknownRich.id: .init(entryTitle: "Controlled Unknowns", password: "roundtrip-pass"),
         Fixture.kdbx41PublicCustomData.id: .init(entryTitle: "Twitter", password: "twitterpass123"),
-        Fixture.attachments.id: .init(entryTitle: "Multi Attachment Entry", password: "entry-password-1"),
+        Fixture.kitchenSink.id: .init(entryTitle: "Multi Attachment Entry", password: "entry-password-1"),
         Fixture.syntheticChaCha.id: .init(entryTitle: "Compat Untouched Entry", password: "untouched-password"),
         Fixture.syntheticTwofish.id: .init(entryTitle: "Compat Untouched Entry", password: "untouched-password"),
         Fixture.foreignChaCha20.id: .init(entryTitle: "Foreign Entry Alpha", password: "ForeignAlphaSecret1"),
         Fixture.foreignTwofish.id: .init(entryTitle: "Foreign Entry Alpha", password: "ForeignAlphaSecret1"),
-        Fixture.groupTags.id: .init(entryTitle: "Alpha Login", password: "GroupTagAlpha1"),
         Fixture.unknownInnerHeader.id: .init(entryTitle: "Inner Header Entry", password: "UnknownHeaderSecret1"),
         Fixture.argon2HighIterations.id: .init(entryTitle: "High Iteration Entry", password: "HighIterationSecret1"),
     ]
@@ -718,7 +712,7 @@ enum KDBXCompatibilitySupport {
         for fixture in smokeFixtures {
             ids.insert("fixture-smoke-\(fixture.id)")
         }
-        ids.insert("fixture-smoke-\(Fixture.attachments.id)")
+        ids.insert("fixture-smoke-\(Fixture.kitchenSink.id)")
         return ids
     }()
 
@@ -1112,7 +1106,7 @@ enum KDBXCompatibilitySupport {
         )
     }
 
-    /// Update-entry scenario for the `attachments` fixture: edits the
+    /// Update-entry scenario for the `kitchen-sink` fixture: edits the
     /// non-attachment fields of `Multi Attachment Entry` (which carries two
     /// attachments) and asserts its attachments and their resolved pool
     /// content hashes survive untouched.
@@ -1157,19 +1151,20 @@ enum KDBXCompatibilitySupport {
         )
     }
 
-    /// Soft-delete scenario for the `attachments` fixture: sends `Dedup
-    /// Entry A` to the recycle bin (creating it, since the fixture starts
-    /// without one) and asserts both dedup entries' shared attachment bytes
-    /// remain resolvable and identical afterward.
+    /// Soft-delete scenario for the `kitchen-sink` fixture: sends `Dedup
+    /// Entry A` into the recycle bin the fixture already carries and asserts
+    /// both dedup entries' shared attachment bytes remain resolvable and
+    /// identical afterward. Recycling into an existing bin is the complement of
+    /// `recycleBinCreationScenario`, which covers the bin-less path.
     static func attachmentsFixtureSoftDeleteScenario() -> Scenario {
         Scenario(
             id: "attachments-soft-delete-entry",
             title: "Soft delete entry preserves sibling dedup attachment",
             artifactFileName: "attachments-soft-delete-entry.kdbx",
             expectedSearchTerms: ["Dedup Entry B"],
-            // The attachments fixture has no recycle bin, so this edit creates
-            // one with the UI-language name.
-            expectedGroupPaths: [DatabaseDraft.localizedRecycleBinName],
+            // The fixture's own bin, authored by pykeepass — no group is
+            // created and the UI-language name is never used.
+            expectedGroupPaths: ["Recycle Bin"],
             makeEdit: { loaded in
                 let entry = try XCTUnwrap(findEntry(titled: "Dedup Entry A", in: loaded.rootGroup))
                 return .deleteEntry(entryID: entry.id, sendToRecycleBin: true)
@@ -1190,14 +1185,26 @@ enum KDBXCompatibilitySupport {
                 XCTAssertEqual(survivor.attachmentHashes, [AttachmentFixtureHashes.sharedBin])
                 XCTAssertEqual(deletedAfter.attachmentHashes, [AttachmentFixtureHashes.sharedBin])
 
+                XCTAssertEqual(
+                    after.meta.recycleBinUUID,
+                    before.meta.recycleBinUUID,
+                    "The fixture's own bin is reused, so no new one is registered"
+                )
+                XCTAssertEqual(after.groups.count, before.groups.count)
                 let recycleBinID = try XCTUnwrap(after.meta.recycleBinUUID)
                 let recycleBin = try XCTUnwrap(after.groups[recycleBinID])
+                XCTAssertEqual(recycleBin.name, "Recycle Bin")
                 XCTAssertTrue(recycleBin.entryIDs.contains(deletedID))
+                let trashedID = try XCTUnwrap(before.entryID(titled: "Trashed Login"))
+                XCTAssertTrue(
+                    recycleBin.entryIDs.contains(trashedID),
+                    "The entry the fixture already had in the bin stays there"
+                )
             }
         )
     }
 
-    /// Update-entry scenario for the `group-tags` fixture: edits `Beta Login`
+    /// Update-entry scenario for the `kitchen-sink` fixture: edits `Beta Login`
     /// (nested under both tagged groups) and asserts every group's tags and
     /// has-element flag survive the save untouched.
     ///
@@ -1209,7 +1216,7 @@ enum KDBXCompatibilitySupport {
     /// survived is in-process: `assertSurvivingGroupsPreserveScalars` (whose
     /// `GroupScalars` carries `tags`/`hasTagsElement`) plus the explicit
     /// per-group assertions below and in
-    /// `KDBXCompatibilityTests.test_groupTagsFixture_…`.
+    /// `KDBXCompatibilityTests.test_kitchenSinkFixture_…`.
     static func groupTagsFixtureUpdateEntryScenario() -> Scenario {
         Scenario(
             id: "group-tags-update-entry",
@@ -1271,7 +1278,7 @@ enum KDBXCompatibilitySupport {
         )
     }
 
-    /// Update-group scenario for the `group-tags` fixture: authors a KeeForge
+    /// Update-group scenario for the `kitchen-sink` fixture: authors a KeeForge
     /// group tag and structured `<Notes>` on `Plain Group` — the one group in
     /// the fixture that never carried a `<Tags>` element — while re-saving its
     /// name unchanged.
@@ -1655,19 +1662,19 @@ enum KDBXCompatibilitySupport {
             ArtifactDescriptor(fixture: $0, scenario: fixtureSmokeScenario(fixtureID: $0.id))
         })
         descriptors.append(
-            ArtifactDescriptor(fixture: .attachments, scenario: fixtureSmokeScenario(fixtureID: Fixture.attachments.id))
+            ArtifactDescriptor(fixture: .kitchenSink, scenario: fixtureSmokeScenario(fixtureID: Fixture.kitchenSink.id))
         )
         descriptors.append(
-            ArtifactDescriptor(fixture: .attachments, scenario: attachmentsFixtureUpdateEntryScenario())
+            ArtifactDescriptor(fixture: .kitchenSink, scenario: attachmentsFixtureUpdateEntryScenario())
         )
         descriptors.append(
-            ArtifactDescriptor(fixture: .attachments, scenario: attachmentsFixtureSoftDeleteScenario())
+            ArtifactDescriptor(fixture: .kitchenSink, scenario: attachmentsFixtureSoftDeleteScenario())
         )
         descriptors.append(
-            ArtifactDescriptor(fixture: .groupTags, scenario: groupTagsFixtureUpdateEntryScenario())
+            ArtifactDescriptor(fixture: .kitchenSink, scenario: groupTagsFixtureUpdateEntryScenario())
         )
         descriptors.append(
-            ArtifactDescriptor(fixture: .groupTags, scenario: groupTagsFixtureUpdateGroupScenario())
+            ArtifactDescriptor(fixture: .kitchenSink, scenario: groupTagsFixtureUpdateGroupScenario())
         )
         descriptors.append(
             ArtifactDescriptor(fixture: .syntheticRich, scenario: keeOTPArtifactScenario())

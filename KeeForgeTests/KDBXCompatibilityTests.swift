@@ -25,7 +25,6 @@ final class KDBXCompatibilityTests: XCTestCase {
     private static let smokeFixtureIDsWithDedicatedTests: Set<String> = [
         KDBXCompatibilitySupport.Fixture.unknownRich.id,
         KDBXCompatibilitySupport.Fixture.kdbx41PublicCustomData.id,
-        KDBXCompatibilitySupport.Fixture.groupTags.id,
         KDBXCompatibilitySupport.Fixture.unknownInnerHeader.id,
     ]
 
@@ -363,16 +362,40 @@ final class KDBXCompatibilityTests: XCTestCase {
         )
     }
 
-    func test_attachmentsFixture_preservesAttachmentsAndPoolContentHashesAcrossScenarios() throws {
+    /// The kitchen-sink fixture's dedicated pass. It is deliberately absent
+    /// from `smokeFixtures` so its smoke scenario runs exactly once — here,
+    /// where the attachment and group-tag invariants can be asserted on the
+    /// same reparsed snapshots — followed by the four edit scenarios that
+    /// belong to it.
+    ///
+    /// `keepassxc-cli` has no verb that prints group tags, so the external
+    /// gate can only prove the rewritten database opens with its structure and
+    /// protected values intact; the group-tag preservation proof is in-process,
+    /// on the snapshots asserted here and in the scenarios' own checks.
+    func test_kitchenSinkFixture_preservesAttachmentsGroupTagsAndPoolHashesAcrossScenarios() throws {
         let collector = try KDBXCompatibilitySupport.ArtifactCollector(testCase: self)
 
         // fixtureSmoke: creating an unrelated entry should not disturb any
-        // existing entry's attachments or their resolved pool bytes.
-        let smokeLoaded = try KDBXCompatibilitySupport.load(.attachments, bundle: bundle)
+        // existing entry's attachments, their resolved pool bytes, or any
+        // group's tags, has-element flag, or structured <Notes>.
+        let smokeLoaded = try KDBXCompatibilitySupport.load(.kitchenSink, bundle: bundle)
+        XCTAssertEqual(
+            smokeLoaded.header.formatVersion,
+            .kdbx4(minor: 1),
+            "Fixture precondition: group tags are a KDBX 4.1 feature and the fixture must really be 4.1"
+        )
         let smokeResult = try collector.run(
-            KDBXCompatibilitySupport.fixtureSmokeScenario(fixtureID: KDBXCompatibilitySupport.Fixture.attachments.id),
+            KDBXCompatibilitySupport.fixtureSmokeScenario(fixtureID: KDBXCompatibilitySupport.Fixture.kitchenSink.id),
             on: smokeLoaded
         )
+        assertSmokeShape(smokeResult, fixture: smokeLoaded.fixture)
+        XCTAssertEqual(
+            smokeResult.afterHeader.formatVersion,
+            .kdbx4(minor: 1),
+            "A rewrite must keep the source's 4.1 version, not renegotiate it"
+        )
+        try assertGroupTagFixtureShape(in: smokeResult.before)
+        try assertGroupTagFixtureShape(in: smokeResult.after)
 
         let multiEntryID = try XCTUnwrap(smokeResult.before.entryID(titled: "Multi Attachment Entry"))
         let multiBefore = try XCTUnwrap(smokeResult.before.entries[multiEntryID])
@@ -398,70 +421,36 @@ final class KDBXCompatibilityTests: XCTestCase {
         XCTAssertEqual(smokeResult.before.entries[noAttachmentEntryID]?.attachments, [])
 
         // updateEntry: editing non-attachment fields preserves attachments.
-        let updateLoaded = try KDBXCompatibilitySupport.load(.attachments, bundle: bundle)
+        let updateLoaded = try KDBXCompatibilitySupport.load(.kitchenSink, bundle: bundle)
         try collector.run(KDBXCompatibilitySupport.attachmentsFixtureUpdateEntryScenario(), on: updateLoaded)
 
         // softDelete: recycling one dedup entry doesn't disturb its sibling.
-        let softDeleteLoaded = try KDBXCompatibilitySupport.load(.attachments, bundle: bundle)
+        let softDeleteLoaded = try KDBXCompatibilitySupport.load(.kitchenSink, bundle: bundle)
         try collector.run(KDBXCompatibilitySupport.attachmentsFixtureSoftDeleteScenario(), on: softDeleteLoaded)
 
-        try collector.emit()
-    }
-
-    /// `group-tags.kdbx` is the pykeepass-authored KDBX 4.1 fixture whose
-    /// groups carry `<Tags>` in all three states (content, empty element, no
-    /// element; see `TestFixtures/README.md`). `keepassxc-cli` has no verb
-    /// that prints group tags, so the external gate can only prove the
-    /// rewritten database opens with its structure and protected values
-    /// intact — the group-tag preservation proof is in-process, on the
-    /// reparsed snapshots asserted here and in the scenarios' own checks.
-    func test_groupTagsFixture_preservesGroupTagsAcrossSaves() throws {
-        let collector = try KDBXCompatibilitySupport.ArtifactCollector(testCase: self)
-
-        // fixtureSmoke: creating an unrelated entry must not disturb any
-        // group's tags, has-element flag, or structured <Notes>.
-        let smokeLoaded = try KDBXCompatibilitySupport.load(.groupTags, bundle: bundle)
-        XCTAssertEqual(
-            smokeLoaded.header.formatVersion,
-            .kdbx4(minor: 1),
-            "Fixture precondition: group tags are a KDBX 4.1 feature and the fixture must really be 4.1"
-        )
-        let smokeResult = try collector.run(
-            KDBXCompatibilitySupport.fixtureSmokeScenario(fixtureID: KDBXCompatibilitySupport.Fixture.groupTags.id),
-            on: smokeLoaded
-        )
-        assertSmokeShape(smokeResult, fixture: smokeLoaded.fixture)
-        XCTAssertEqual(
-            smokeResult.afterHeader.formatVersion,
-            .kdbx4(minor: 1),
-            "A rewrite must keep the source's 4.1 version, not renegotiate it"
-        )
-        try assertGroupTagFixtureShape(in: smokeResult.before)
-        try assertGroupTagFixtureShape(in: smokeResult.after)
-
-        // updateEntry: editing an entry nested under both tagged groups runs
-        // the copyGroup/replacingChildGroup funnel over exactly the groups
-        // that carry tags; the scenario's own assertions re-check every
-        // group's tags on the reparsed tree.
-        let updateLoaded = try KDBXCompatibilitySupport.load(.groupTags, bundle: bundle)
-        let updateResult = try collector.run(
+        // group-tags updateEntry: editing an entry nested under both tagged
+        // groups runs the copyGroup/replacingChildGroup funnel over exactly
+        // the groups that carry tags; the scenario's own assertions re-check
+        // every group's tags on the reparsed tree.
+        let tagUpdateLoaded = try KDBXCompatibilitySupport.load(.kitchenSink, bundle: bundle)
+        let tagUpdateResult = try collector.run(
             KDBXCompatibilitySupport.groupTagsFixtureUpdateEntryScenario(),
-            on: updateLoaded
+            on: tagUpdateLoaded
         )
-        try assertGroupTagFixtureShape(in: updateResult.after)
+        try assertGroupTagFixtureShape(in: tagUpdateResult.after)
 
-        // updateGroup: authoring a KeeForge group tag on the one group that
-        // never carried `<Tags>` must leave the other three states intact.
-        // `assertGroupTagFixtureShape` deliberately isn't reused here — it
-        // pins `Plain Group` as untagged, which is exactly what this edit
+        // group-tags updateGroup: authoring a KeeForge group tag on the one
+        // group that never carried `<Tags>` must leave the other three states
+        // intact. `assertGroupTagFixtureShape` deliberately isn't reused here —
+        // it pins `Plain Group` as untagged, which is exactly what this edit
         // changes; the scenario asserts every group's post-edit state itself.
-        let updateGroupLoaded = try KDBXCompatibilitySupport.load(.groupTags, bundle: bundle)
-        let updateGroupResult = try collector.run(
+        let tagUpdateGroupLoaded = try KDBXCompatibilitySupport.load(.kitchenSink, bundle: bundle)
+        let tagUpdateGroupResult = try collector.run(
             KDBXCompatibilitySupport.groupTagsFixtureUpdateGroupScenario(),
-            on: updateGroupLoaded
+            on: tagUpdateGroupLoaded
         )
         XCTAssertEqual(
-            updateGroupResult.afterHeader.formatVersion,
+            tagUpdateGroupResult.afterHeader.formatVersion,
             .kdbx4(minor: 1),
             "A 4.1 source stays 4.1; the version floor never downgrades"
         )
@@ -628,11 +617,11 @@ final class KDBXCompatibilityTests: XCTestCase {
 
         for required in [
             "synthetic-no-recycle-bin-recycle-bin-creation",
-            "attachments-fixture-smoke-attachments",
-            "attachments-attachments-update-entry",
-            "attachments-attachments-soft-delete-entry",
-            "group-tags-group-tags-update-entry",
-            "group-tags-group-tags-update-group",
+            "kitchen-sink-fixture-smoke-kitchen-sink",
+            "kitchen-sink-attachments-update-entry",
+            "kitchen-sink-attachments-soft-delete-entry",
+            "kitchen-sink-group-tags-update-entry",
+            "kitchen-sink-group-tags-update-group",
             "\(richID)-keeotp-source-matrix",
             "\(richID)-merge-remote-divergence",
             "aes-baseline-rekey-password-only",
@@ -644,7 +633,7 @@ final class KDBXCompatibilityTests: XCTestCase {
 
         // The artifact set never shrinks silently: the gate's merged manifest
         // is compared against exactly this count.
-        XCTAssertEqual(descriptors.count, 36)
+        XCTAssertEqual(descriptors.count, 35)
     }
 
     func test_externalExpectationTables_areExhaustiveOverEveryArtifactScenario() throws {
@@ -678,7 +667,7 @@ final class KDBXCompatibilityTests: XCTestCase {
 
         // Every fixture that reaches the external gate contributes a password
         // check on a value it did not author itself.
-        for fixture in KDBXCompatibilitySupport.smokeFixtures + [KDBXCompatibilitySupport.Fixture.attachments] {
+        for fixture in KDBXCompatibilitySupport.smokeFixtures + [KDBXCompatibilitySupport.Fixture.kitchenSink] {
             XCTAssertNotNil(
                 KDBXCompatibilitySupport.fixtureEntryPasswords[fixture.id],
                 "\(fixture.id) has no pre-existing entry password for the external gate"

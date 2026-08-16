@@ -1,13 +1,13 @@
 import XCTest
 
 // Happy-path smoke coverage for the read-only entry-attachments list and its
-// QuickLook preview sheet. Uses the `attachments` compatibility fixture
-// (password `testpassword123`), which has a real KDBX4 binary pool with a
-// non-ASCII attachment name and a small PNG, unlike `test.kdbx` which has no
-// attachments at all.
+// QuickLook preview sheet. Uses `kitchen-sink.kdbx` (password
+// `testpassword123`), which has a real KDBX4 binary pool with a non-ASCII
+// attachment name and a small PNG, unlike `test.kdbx` which has no attachments
+// at all.
 @MainActor
 final class EntryAttachmentsSmokeUITests: UnlockedDatabaseUITestCase {
-    override var databaseFixtureName: String { "attachments" }
+    override var databaseFixtureName: String { "kitchen-sink" }
 
     func testAttachmentsSectionShowsExpectedRowsWithNameAndSize() {
         unlockSuccessfully()

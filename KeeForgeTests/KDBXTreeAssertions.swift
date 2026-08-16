@@ -58,16 +58,13 @@ struct KDBXTestFixture {
         keyFileName: nil,
         keyFileExtension: nil
     )
-    static let groupTags = KDBXTestFixture(
-        name: "group-tags",
-        subdirectory: "compatibility",
-        password: "testpassword123",
-        keyFileName: nil,
-        keyFileExtension: nil
-    )
-    static let attachments = KDBXTestFixture(
-        name: "attachments",
-        subdirectory: "compatibility",
+    /// The rich union fixture: group `<Tags>` in all three states, a binary
+    /// pool with a dedup pair, entry tags, a custom icon, a protected custom
+    /// field with history, a TOTP entry, and a populated recycle bin. See
+    /// `TestFixtures/generators/kitchen_sink.py`.
+    static let kitchenSink = KDBXTestFixture(
+        name: "kitchen-sink",
+        subdirectory: nil,
         password: "testpassword123",
         keyFileName: nil,
         keyFileExtension: nil

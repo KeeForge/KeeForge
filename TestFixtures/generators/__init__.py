@@ -12,21 +12,15 @@ from pathlib import Path
 from . import (
     argon2_high_iterations,
     foreign_ciphers,
-    group_tags,
-    icon_picker,
-    protected_custom_field,
-    tag_browser,
+    kitchen_sink,
     unknown_inner_header,
 )
 from ._common import Generator, banner, build_parser
 
 MODULES = (
-    icon_picker,
-    protected_custom_field,
-    tag_browser,
+    kitchen_sink,
     argon2_high_iterations,
     foreign_ciphers,
-    group_tags,
     unknown_inner_header,
 )
 
