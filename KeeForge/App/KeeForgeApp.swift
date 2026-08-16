@@ -14,6 +14,8 @@ struct KeeForgeApp: App {
     @State private var screenProtectionService = ScreenProtectionService()
     #if os(macOS)
     @State private var macLockMonitor = MacLockMonitor()
+    #else
+    @State private var isShowingAppSettings = false
     #endif
     @AppStorage(SettingsService.appearanceModeDefaultsKey) private var appearanceModeRaw = SettingsService.AppearanceMode.system.rawValue
     @Environment(\.scenePhase) private var scenePhase
@@ -39,6 +41,13 @@ struct KeeForgeApp: App {
             #if os(macOS)
             .frame(minWidth: 900, minHeight: 560)
             .focusedSceneValue(\.databaseViewModel, activeDatabaseViewModel)
+            #else
+            // App-owned Settings sheet (⌘, / the Mac-compat toolbar gear),
+            // above the root so it survives the lock/unlock root swap.
+            .environment(\.presentAppSettings, { isShowingAppSettings = true })
+            .sheet(isPresented: $isShowingAppSettings) {
+                SettingsView(viewModel: activeDatabaseViewModel, listViewModel: listViewModel)
+            }
             #endif
             .preferredColorScheme(appearanceMode.preferredColorScheme)
             .onChange(of: scenePhase) { _, newPhase in
@@ -94,6 +103,9 @@ struct KeeForgeApp: App {
             }
         #else
         return windowGroup
+            .commands {
+                AppSettingsCommands(isPresented: $isShowingAppSettings)
+            }
         #endif
     }
 
@@ -402,18 +414,23 @@ private struct AppRootView: View {
                     )
                     .navigationSplitViewColumnWidth(min: 300, ideal: 340, max: 380)
                 } detail: {
-                    if let activeDatabaseViewModel {
-                        RegularDatabaseScene(
-                            viewModel: activeDatabaseViewModel,
-                            onReturnToList: returnToDatabaseList
-                        )
-                    } else {
-                        ContentUnavailableView(
-                            "Select a Database",
-                            systemImage: "externaldrive.connected.to.line.below",
-                            description: Text("Choose a database from the sidebar to unlock and browse it.")
-                        )
+                    Group {
+                        if let activeDatabaseViewModel {
+                            RegularDatabaseScene(
+                                viewModel: activeDatabaseViewModel,
+                                onReturnToList: returnToDatabaseList
+                            )
+                        } else {
+                            ContentUnavailableView(
+                                "Select a Database",
+                                systemImage: "externaldrive.connected.to.line.below",
+                                description: Text("Choose a database from the sidebar to unlock and browse it.")
+                            )
+                        }
                     }
+                    #if os(iOS)
+                    .appSettingsToolbarButton()
+                    #endif
                 }
                 .navigationSplitViewStyle(.balanced)
                 #if os(macOS)
