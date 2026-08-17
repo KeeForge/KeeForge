@@ -8,6 +8,7 @@ Static app resources live here.
 - `LaunchScreen.storyboard` — launch screen UI
 - `Localizable.xcstrings` — String Catalog (source language `en`, plus `de`, `fr`, `es`, `zh-Hans`, and `zh-Hant`) shared by the iOS and macOS app targets
 - `InfoPlist.xcstrings` — localized Info.plist values (usage descriptions, bundle name) for both app targets
+- `PrivacyInfo.xcprivacy` — Apple privacy manifest for both app targets (required-reason API declarations, no tracking); the extensions carry their own copy in `../../AutoFillExtension/`. Update it when adding required-reason API usage (UserDefaults, file timestamps, disk space, boot time, active keyboards) or any off-device data flow
 
 ## Guidance
 
