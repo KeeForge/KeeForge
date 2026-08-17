@@ -12,6 +12,7 @@ This target provides password, passkey, one-time-code, and new-credential save/g
 - `AutoFillPasskeyCreatorView.swift` renders the passkey-registration confirmation UI (relying party, username, target database, editable title). `#if os(iOS)` — the mac shell cancels registration at its entry point.
 - `Localizable.xcstrings` — String Catalog (source language `en`, plus `de`, `fr`, `es`, `zh-Hans`, and `zh-Hant`) for both AutoFill extension targets.
 - `InfoPlist.xcstrings` — localized Info.plist values (e.g. `CFBundleDisplayName`) for both AutoFill extension targets.
+- `PrivacyInfo.xcprivacy` — Apple privacy manifest for both extension targets. The extensions collect nothing and make no network requests; the required-reason declarations (UserDefaults, file timestamps) come from allow-listed shared sources (`SharedVaultStore`, `SettingsService`, `FaviconService`). Revisit it when the allow-list changes.
 
 ## How It Works
 

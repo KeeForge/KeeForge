@@ -30,6 +30,7 @@ TODO before the first macOS release:
 
 ### Fixes
 
+- App Store compliance: added Apple privacy manifests (`PrivacyInfo.xcprivacy`) to the app and AutoFill extension targets declaring the required-reason APIs in use (UserDefaults, file timestamps) with no tracking and no analytics, and replaced the legacy `armv7` entry in `UIRequiredDeviceCapabilities` with `arm64`.
 - KeePass field references now resolve (#90). An entry whose username, password, URL, notes, or custom field holds a `{REF:…}` reference — for example `{REF:P@I:…}` pointing at another entry's password — shows, copies, and AutoFills the referenced value instead of the literal text. Editing still shows the reference itself, so saving keeps it intact.
 - iPad layout pass (iPad mini, Air 11", Pro 13", both orientations):
   - "New Entry" from the group list's + menu and "Edit Group" from a group's context menu now open in the wide detail column instead of being squeezed into the sidebar while the detail column sat idle on "Select an Entry".
