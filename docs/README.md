@@ -55,6 +55,7 @@ Point-in-time security reviews; findings may have been fixed (or new issues intr
 | Date | Doc | Topic |
 |---|---|---|
 | 2026-07-04 | `checklists/2026-07-04-webdav-manual-e2e-checklist.md` | Manual WebDAV sync verification against real servers |
+| 2026-08-17 | `checklists/2026-08-17-ios-27-readiness-checklist.md` | iOS 27 / Xcode 27 readiness audit and preparation checklist (against beta 5) |
 
 ## Adding A New Doc
 
