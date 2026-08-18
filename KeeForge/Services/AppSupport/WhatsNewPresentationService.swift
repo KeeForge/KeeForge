@@ -53,6 +53,27 @@ enum WhatsNewCatalog {
         let features: [WhatsNewFeature]
 
         switch version {
+        case "1.15.0":
+            features = [
+                WhatsNewFeature(
+                    id: "merge-changes",
+                    title: "Merge changes instead of choosing",
+                    detail: "When another device changed your database while you were editing, the save prompt now offers Merge Changes. Both sets of edits are combined the way KeePass and KeePassXC do, so neither has to be thrown away.",
+                    systemImage: "arrow.triangle.merge"
+                ),
+                WhatsNewFeature(
+                    id: "move-to-group",
+                    title: "Move entries and groups",
+                    detail: "Long-press an entry or group and choose Move to Group to file it somewhere else. Moves travel with your database, so your other devices and other KeePass apps see them too.",
+                    systemImage: "folder"
+                ),
+                WhatsNewFeature(
+                    id: "database-encryption-options",
+                    title: "Choose your encryption",
+                    detail: "A new Advanced section in the New Database form lets you pick AES-256 or ChaCha20, and how much work it takes to unlock — Balanced, Strong, or Maximum. The default is unchanged.",
+                    systemImage: "lock.shield"
+                ),
+            ]
         case "1.14.0":
             features = [
                 WhatsNewFeature(
