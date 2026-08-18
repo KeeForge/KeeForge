@@ -1352,6 +1352,40 @@
         }
       }
     },
+    "A new Advanced section in the New Database form lets you pick AES-256 or ChaCha20, and how much work it takes to unlock — Balanced, Strong, or Maximum. The default is unchanged." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Im Formular „Neue Datenbank“ kannst du unter „Erweitert“ jetzt AES-256 oder ChaCha20 wählen – und wie aufwendig das Entsperren sein soll: Ausgewogen, Stark oder Maximal. Die Voreinstellung bleibt unverändert."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Una nueva sección «Avanzado» en el formulario «Nueva base de datos» te permite elegir AES-256 o ChaCha20, y cuánto esfuerzo cuesta desbloquear: Equilibrado, Fuerte o Máximo. El valor por omisión no cambia."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Une nouvelle section « Avancé » du formulaire « Nouvelle base de données » vous permet de choisir AES-256 ou ChaCha20, ainsi que l’effort requis pour déverrouiller : Équilibré, Fort ou Maximal. La valeur par défaut est inchangée."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "“新建数据库”表单中新增的“高级”部分，可让你选择 AES-256 或 ChaCha20，以及解锁所需的运算强度——均衡、强或最高。默认设置保持不变。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "「新增資料庫」表單中新增的「進階」部分，可讓你選擇 AES-256 或 ChaCha20，以及解鎖所需的運算強度——均衡、強或最高。預設設定維持不變。"
+          }
+        }
+      }
+    },
     "A parent group is hidden from Search & AutoFill. Turn this off to show this group anyway." : {
       "localizations" : {
         "de" : {
@@ -4375,6 +4409,40 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "選擇此驗證碼的儲存位置。"
+          }
+        }
+      }
+    },
+    "Choose your encryption" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wähle deine Verschlüsselung"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Elige tu cifrado"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choisissez votre chiffrement"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "选择你的加密方式"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "選擇你的加密方式"
           }
         }
       }
@@ -13832,6 +13900,40 @@
         }
       }
     },
+    "Long-press an entry or group and choose Move to Group to file it somewhere else. Moves travel with your database, so your other devices and other KeePass apps see them too." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Halte einen Eintrag oder eine Gruppe gedrückt und wähle „In Gruppe verschieben“, um ihn woanders abzulegen. Verschiebungen werden in der Datenbank gespeichert, sodass deine anderen Geräte und andere KeePass-Apps sie ebenfalls sehen."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mantén pulsada una entrada o un grupo y elige «Mover a grupo» para colocarlo en otro sitio. Los movimientos se guardan en la base de datos, así que tus otros dispositivos y otras apps de KeePass también los ven."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Appuyez longuement sur une entrée ou un groupe et choisissez « Déplacer vers un groupe » pour le ranger ailleurs. Les déplacements sont enregistrés dans votre base de données : vos autres appareils et les autres apps KeePass les voient aussi."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "长按条目或群组，选择“移动到群组”，即可将其归入别处。移动会随数据库一同保存，你的其他设备和其他 KeePass 应用同样能看到。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "長按項目或群組，選擇「移動到群組」，即可將其歸入別處。移動會隨資料庫一併儲存，你的其他裝置和其他 KeePass App 同樣能看到。"
+          }
+        }
+      }
+    },
     "Lowercase" : {
       "localizations" : {
         "de" : {
@@ -14070,6 +14172,40 @@
         }
       }
     },
+    "Merge changes instead of choosing" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Änderungen zusammenführen statt auswählen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Combina los cambios en lugar de elegir"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fusionnez les modifications au lieu de choisir"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "合并更改，无需二选一"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "合併變更，無需二選一"
+          }
+        }
+      }
+    },
     "Message" : {
       "localizations" : {
         "de" : {
@@ -14270,6 +14406,40 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "修改時間"
+          }
+        }
+      }
+    },
+    "Move entries and groups" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Einträge und Gruppen verschieben"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mueve entradas y grupos"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Déplacez entrées et groupes"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "移动条目和群组"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "移動項目和群組"
           }
         }
       }
@@ -26453,6 +26623,40 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "KeeForge 新功能"
+          }
+        }
+      }
+    },
+    "When another device changed your database while you were editing, the save prompt now offers Merge Changes. Both sets of edits are combined the way KeePass and KeePassXC do, so neither has to be thrown away." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wenn ein anderes Gerät deine Datenbank geändert hat, während du sie bearbeitet hast, bietet die Speicherabfrage jetzt „Änderungen zusammenführen“ an. Beide Bearbeitungen werden so kombiniert, wie KeePass und KeePassXC es tun – keine davon muss verworfen werden."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cuando otro dispositivo cambió tu base de datos mientras la editabas, el aviso de guardado ahora ofrece «Combinar cambios». Ambos conjuntos de ediciones se combinan igual que en KeePass y KeePassXC, sin descartar ninguno."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lorsqu’un autre appareil a modifié votre base de données pendant que vous la modifiiez, l’invite d’enregistrement propose désormais « Fusionner les modifications ». Les deux séries de modifications sont combinées comme le font KeePass et KeePassXC, sans qu’aucune ne soit abandonnée."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "当你正在编辑时，其他设备也修改了数据库，保存提示现在会提供“合并更改”。两边的修改会按 KeePass 和 KeePassXC 的方式合并，无需舍弃任何一方。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "當你正在編輯時，其他裝置也修改了資料庫，儲存提示現在會提供「合併變更」。兩邊的修改會依 KeePass 與 KeePassXC 的方式合併，無需捨棄任何一方。"
           }
         }
       }
