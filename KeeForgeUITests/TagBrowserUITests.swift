@@ -143,6 +143,10 @@ final class TagBrowserUITests: UnlockedDatabaseUITestCase {
         let hideAction = app.buttons["group-row.autofill-exclusion-context"]
         XCTAssertTrue(hideAction.waitForExistence(timeout: 5), "Hide from Search & AutoFill action was not visible")
         tapElement(hideAction)
+        // `Tagged` sorts last in this fixture, and the list returns to the top
+        // once the toggle saves, so the lazily-rendered row has to be brought
+        // back on screen before its badge exists to assert on.
+        XCTAssertTrue(revealElement(taggedGroup), "Tagged group was not visible after hiding")
         XCTAssertTrue(
             app.descendants(matching: .any).matching(identifier: "group-row.autofill-excluded").firstMatch
                 .waitForExistence(timeout: Self.ciElementTimeout),
