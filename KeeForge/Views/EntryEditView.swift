@@ -225,6 +225,9 @@ struct EntryEditView: View {
             PasswordGeneratorSheet { password in
                 formViewModel.password = password
             }
+            // Shorter than the default: the generator is a compact control
+            // stack, not a form.
+            .macSheetFrame(minHeight: 420)
         }
         #if os(iOS)
         .sheet(isPresented: $showTOTPScanner) {

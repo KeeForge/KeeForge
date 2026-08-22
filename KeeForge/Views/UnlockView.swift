@@ -52,6 +52,7 @@ struct UnlockView: View {
         )
         .sheet(item: $feedbackContext) { context in
             FeedbackComposerView(context: context)
+                .macSheetFrame()
         }
         .alert(item: $selectionAlert) { alert in
             Alert(
