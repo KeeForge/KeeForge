@@ -12,6 +12,7 @@ import SwiftUI
 protocol CredentialProviderRequestCompleting: AnyObject {
     func completeRequest(withSelectedCredential credential: ASPasswordCredential)
     func completeAssertionRequest(using credential: ASPasskeyAssertionCredential)
+    func completeRegistrationRequest(using credential: ASPasskeyRegistrationCredential)
     func completeOneTimeCode(code: String)
     func cancelRequest(withError error: ASExtensionError)
 }
@@ -118,9 +119,7 @@ final class CredentialProviderViewController: ASCredentialProviderViewController
     }
 
     override func prepareInterface(forPasskeyRegistration registrationRequest: ASCredentialRequest) {
-        // Passkey registration has no macOS creator UI (the Mac targets are
-        // on hold); answer the request instead of leaving the system waiting.
-        cancelRequest(withError: ASExtensionError(.userCanceled))
+        coordinator.prepareInterface(forPasskeyRegistration: registrationRequest)
     }
 
     override func provideCredentialWithoutUserInteraction(for credentialRequest: ASCredentialRequest) {
@@ -218,18 +217,26 @@ extension CredentialProviderViewController: CredentialProviderPresenting {
         onSave: @escaping @Sendable (String) async -> CredentialProviderEntrySaveOutcome,
         onCancel: @escaping () -> Void
     ) {
-        // Unreachable on macOS: registration requests are cancelled at the
-        // shell's entry point before the coordinator is involved.
-        assertionFailure("presentPasskeyCreator is unreachable on macOS (registration is cancelled at the entry point)")
-        onCancel()
+        let creatorView = AutoFillPasskeyCreatorView(
+            context: context,
+            onSave: onSave,
+            onCancel: { [weak self] in
+                self?.dismissHostedContent()
+                onCancel()
+            }
+        )
+        hostContent(creatorView)
     }
 
     func presentPasskeyRegistrationFailure(
         message: String,
         onAcknowledge: @escaping () -> Void
     ) {
-        // Unreachable on macOS (see presentPasskeyCreator).
-        assertionFailure("presentPasskeyRegistrationFailure is unreachable on macOS (registration is cancelled at the entry point)")
+        let alert = NSAlert()
+        alert.messageText = String(localized: "Couldn't Create Passkey")
+        alert.informativeText = message
+        alert.addButton(withTitle: String(localized: "OK"))
+        _ = runModalAlert(alert)
         onAcknowledge()
     }
 
@@ -333,11 +340,8 @@ extension CredentialProviderViewController: CredentialProviderPresenting {
     }
 
     func completeRegistrationRequest(using credential: ASPasskeyRegistrationCredential) {
-        // Unreachable on macOS (registration is cancelled at the entry point).
-        // Fail closed.
-        assertionFailure("completeRegistrationRequest is unreachable on macOS")
         didFinishRequest = true
-        completer.cancelRequest(withError: ASExtensionError(.failed))
+        completer.completeRegistrationRequest(using: credential)
     }
 
     func completeOneTimeCodeRequest(code: String) {
@@ -410,6 +414,10 @@ private final class ExtensionContextCompleter: CredentialProviderRequestCompleti
 
     func completeAssertionRequest(using credential: ASPasskeyAssertionCredential) {
         context.completeAssertionRequest(using: credential)
+    }
+
+    func completeRegistrationRequest(using credential: ASPasskeyRegistrationCredential) {
+        context.completeRegistrationRequest(using: credential)
     }
 
     func completeOneTimeCode(code: String) {

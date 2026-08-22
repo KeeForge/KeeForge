@@ -198,6 +198,7 @@ targets:
       # compatible; nothing in the app references them at runtime.
       - path: AutoFillExtension/CredentialProviderViewControllerMac.swift
       - path: AutoFillExtension/AutoFillSearchView.swift
+      - path: AutoFillExtension/AutoFillPasskeyCreatorView.swift
       - path: KeeForge.icon
         buildPhase: resources
 

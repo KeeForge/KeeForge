@@ -567,6 +567,7 @@
 		D54F5E53D523E5D32D406941 /* DatabaseCreationServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7553437A0E9B7EDCD010211A /* DatabaseCreationServiceTests.swift */; };
 		D56DDC1248B6DCF58C817A83 /* PendingUploadQueue.swift in Sources */ = {isa = PBXBuildFile; fileRef = E6B7062FC711FD8F8EA1BEE3 /* PendingUploadQueue.swift */; };
 		D5F1B9A600C34772BF703564 /* CloudProviderRegistryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EEE77955BBD928FFC22F1048 /* CloudProviderRegistryTests.swift */; };
+		D6013E3C4654B208C6D9ECCA /* AutoFillPasskeyCreatorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C412174AA21900D65A646A54 /* AutoFillPasskeyCreatorView.swift */; };
 		D60E824CAF57BAF67DE77841 /* SettingsServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 43638A44681D59420BAF6F8A /* SettingsServiceTests.swift */; };
 		D6731B3FAF7B564B8F9439B7 /* DatabaseListUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8CA9912B84B19D308EAEDF9F /* DatabaseListUITests.swift */; };
 		D6A5B3678CFBC42CC9E25669 /* PasswordStrengthEstimatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F8C59064BBAD164E487E1AF /* PasswordStrengthEstimatorTests.swift */; };
@@ -2259,6 +2260,7 @@
 				25FD5DA5969B1E92337B3978 /* AttachmentsSection.swift in Sources */,
 				5D3E91B75B1BBB4B9923CDB9 /* AutoFillDiagnostics.swift in Sources */,
 				819C2FD08213AA19F9AABE95 /* AutoFillMemoryLimit.swift in Sources */,
+				D6013E3C4654B208C6D9ECCA /* AutoFillPasskeyCreatorView.swift in Sources */,
 				B2A91F68506A350FD57ED6F5 /* AutoFillSaveCoordinator.swift in Sources */,
 				AE1CEDC7D97DAB90D13FA107 /* AutoFillSearchView.swift in Sources */,
 				7218E4538790C568C5A4AF19 /* AutoFillStatusService.swift in Sources */,

@@ -1,7 +1,3 @@
-// Passkey registration is handled on iOS only (the macOS shell cancels the
-// request at its entry point), so this confirmation UI is gated to iOS like
-// AutoFillEntryCreatorView.
-#if os(iOS)
 import SwiftUI
 
 struct AutoFillPasskeyCreatorView: View {
@@ -65,16 +61,14 @@ struct AutoFillPasskeyCreatorView: View {
                             .font(.caption)
                             .foregroundStyle(.secondary)
 
-                        TextField("Title", text: $title)
-                            .textInputAutocapitalization(.words)
-                            .autocorrectionDisabled()
+                        titleField
                             .accessibilityIdentifier("autofill-passkey-creator.title-field")
                     }
                     .padding(.vertical, 2)
                 }
             }
             .navigationTitle("New Passkey")
-            .navigationBarTitleDisplayMode(.inline)
+            .passkeyNavigationTitleStyle()
             .disabled(isSaving)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -111,6 +105,17 @@ struct AutoFillPasskeyCreatorView: View {
         }
     }
 
+    @ViewBuilder
+    private var titleField: some View {
+        #if os(iOS)
+        TextField("Title", text: $title)
+            .textInputAutocapitalization(.words)
+            .autocorrectionDisabled()
+        #else
+        TextField("Title", text: $title)
+        #endif
+    }
+
     private func save() async {
         guard !isSaving else { return }
         isSaving = true
@@ -131,4 +136,13 @@ struct AutoFillPasskeyCreatorView: View {
     }
 }
 
-#endif
+private extension View {
+    @ViewBuilder
+    func passkeyNavigationTitleStyle() -> some View {
+        #if os(iOS)
+        navigationBarTitleDisplayMode(.inline)
+        #else
+        self
+        #endif
+    }
+}

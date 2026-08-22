@@ -257,6 +257,7 @@ final class CredentialProviderCoordinator {
     /// expiration date — the copy therefore expires even though the extension
     /// process is gone by then.
     var copyToClipboard: @MainActor (String) -> Void = { ClipboardService.copy($0) }
+    #endif
 
     /// Save environment for the passkey-registration flow; injectable so unit
     /// tests can record the save and drive the conflict/error paths.
@@ -266,9 +267,11 @@ final class CredentialProviderCoordinator {
     /// because `ASPasskeyCredentialRequest.excludedCredentials` is read-only
     /// with no initializer that sets it, so tests cannot construct exclusions.
     var excludedCredentialIDs: (ASPasskeyCredentialRequest) -> [Data] = { request in
-        request.excludedCredentials?.map(\.credentialID) ?? []
+        #if os(macOS)
+        guard #available(macOS 15.0, *) else { return [] }
+        #endif
+        return request.excludedCredentials?.map(\.credentialID) ?? []
     }
-    #endif
 
     // Save-password and generate-password requests are iOS-only: the underlying
     // AuthenticationServices types are `API_UNAVAILABLE(macos)` (verified against
@@ -398,10 +401,8 @@ final class CredentialProviderCoordinator {
         }
     }
 
-    // MARK: Passkey registration (iOS-only: the macOS shell answers these
-    // requests with `.userCanceled` before the coordinator is involved)
+    // MARK: Passkey registration
 
-    #if os(iOS)
     func prepareInterface(forPasskeyRegistration credentialRequest: ASCredentialRequest) {
         beginRequest()
         guard let registrationRequest = credentialRequest as? ASPasskeyCredentialRequest,
@@ -452,7 +453,6 @@ final class CredentialProviderCoordinator {
         pendingUnlock = true
         activatePresentationIfPossible()
     }
-    #endif
 
     func provideCredentialWithoutUserInteraction(for credentialRequest: ASCredentialRequest) {
         beginRequest()
@@ -1166,7 +1166,7 @@ final class CredentialProviderCoordinator {
     private func afterUnlock() {
         guard !didFinishRequest else { return }
         if handlePendingPasskeyRegistrationIfNeeded() {
-            // Handled by the iOS-only passkey-registration flow.
+            // Handled by the shared passkey-registration flow.
         } else if let request = pendingPasskeyRequest {
             pendingPasskeyRequest = nil
             completeInteractivePasskeyRequest(request)
@@ -1214,10 +1214,7 @@ final class CredentialProviderCoordinator {
 
     /// Handles a pending passkey-registration request after unlock. Internal
     /// (not private) so unit tests can drive the post-unlock path directly.
-    /// Always false on macOS: the shell there cancels registration requests
-    /// at its entry point, so the coordinator never sees one.
     func handlePendingPasskeyRegistrationIfNeeded() -> Bool {
-        #if os(iOS)
         guard let request = pendingPasskeyRegistrationRequest else { return false }
         pendingPasskeyRegistrationRequest = nil
         if parsedFormatVersion?.requiresReadOnlyMode == true {
@@ -1231,14 +1228,19 @@ final class CredentialProviderCoordinator {
             return true
         }
         if hasExcludedCredentialMatch(for: request, identity: identity) {
+            #if os(macOS)
+            if #available(macOS 15.0, *) {
+                cancelRequest(code: .matchedExcludedCredential)
+            } else {
+                cancelRequest(code: .failed)
+            }
+            #else
             cancelRequest(code: .matchedExcludedCredential)
+            #endif
             return true
         }
         presentPasskeyCreator(for: request, identity: identity)
         return true
-        #else
-        return false
-        #endif
     }
 
     /// The database this request is pinned to. Resolution normally pins it
@@ -1892,6 +1894,7 @@ final class CredentialProviderCoordinator {
             return .showError(error.localizedDescription)
         }
     }
+    #endif
 
     /// Whether any parsed entry already stores a passkey for the request's
     /// relying party whose credential ID appears in `excludedCredentials`
@@ -2049,6 +2052,7 @@ final class CredentialProviderCoordinator {
         }
     }
 
+    #if os(iOS)
     @available(iOS 26.2, *)
     private func presentGeneratePasswordPrompt(
         for request: ASGeneratePasswordsRequest,
