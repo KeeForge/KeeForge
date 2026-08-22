@@ -2746,6 +2746,40 @@
         }
       }
     },
+    "AutoFill can unlock with Touch ID on its own. KeeForge itself never unlocks automatically — use the Touch ID button on the unlock screen." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AutoFill kann sich selbst mit Touch ID entsperren. KeeForge selbst entsperrt sich nie automatisch – verwende dafür die Touch-ID-Taste im Entsperrbildschirm."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "El autorrelleno puede desbloquearse por sí solo con Touch ID. KeeForge nunca se desbloquea automáticamente: usa el botón de Touch ID en la pantalla de desbloqueo."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Le remplissage automatique peut se déverrouiller seul avec Touch ID. KeeForge ne se déverrouille jamais automatiquement — utilisez le bouton Touch ID de l'écran de déverrouillage."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "自动填充可以自行使用触控 ID 解锁。KeeForge 本身绝不会自动解锁——请使用解锁屏幕上的触控 ID 按钮。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "自動填寫可以自行使用觸控 ID 解鎖。KeeForge 本身絕不會自動解鎖——請使用解鎖畫面上的觸控 ID 按鈕。"
+          }
+        }
+      }
+    },
     "AutoFill from all your databases" : {
       "localizations" : {
         "de" : {
@@ -2810,6 +2844,40 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "iOS 中的自動填寫"
+          }
+        }
+      }
+    },
+    "AutoFill in macOS" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AutoFill unter macOS"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Autorrelleno en macOS"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Remplissage automatique dans macOS"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "macOS 中的自动填充"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "macOS 中的自動填寫"
           }
         }
       }
@@ -4137,6 +4205,40 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "選擇項目以檢視或編輯其詳細資訊。"
+          }
+        }
+      }
+    },
+    "Choose an entry's icon from the KeePass icon set or your database's custom icons — or download the website's own icon. Your choice is saved in the database, so it shows up everywhere. Thanks to @miquno." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wähle das Symbol eines Eintrags aus dem KeePass-Symbolsatz oder den eigenen Symbolen deiner Datenbank – oder lade das Symbol der Website herunter. Deine Wahl wird in der Datenbank gespeichert und erscheint so überall. Dank an @miquno."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Elige el icono de una entrada entre el conjunto de iconos de KeePass o los iconos personalizados de tu base de datos, o descarga el icono del sitio web. Tu elección se guarda en la base de datos, así que aparece en todas partes. Gracias a @miquno."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choisissez l'icône d'une entrée parmi le jeu d'icônes KeePass ou les icônes personnalisées de votre base de données – ou téléchargez l'icône du site web. Votre choix est enregistré dans la base de données et apparaît donc partout. Merci à @miquno."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "可从 KeePass 图标集或数据库的自定图标中选择条目的图标，也可以下载网站自己的图标。您的选择会保存在数据库中，因此会在各处显示。感谢 @miquno。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "可從 KeePass 圖示集或資料庫的自訂圖示中選擇項目的圖示，也可以下載網站本身的圖示。您的選擇會儲存在資料庫中，因此會在各處顯示。感謝 @miquno。"
           }
         }
       }
@@ -7269,36 +7371,36 @@
         }
       }
     },
-    "Database Details now lists the last five backups KeeForge made on this device before saving or replacing a database, and each one can be exported to Files." : {
+    "Database Details now lists the last five backups KeeForge made on this device before saving or replacing a database, and each one can be exported." : {
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Die Datenbankdetails zeigen jetzt die letzten fünf Sicherungskopien, die KeeForge auf diesem Gerät vor dem Speichern oder Ersetzen einer Datenbank angelegt hat, und jede davon lässt sich nach „Dateien“ exportieren."
+            "value" : "Die Datenbankdetails zeigen jetzt die letzten fünf Sicherungskopien, die KeeForge auf diesem Gerät vor dem Speichern oder Ersetzen einer Datenbank angelegt hat, und jede davon lässt sich exportieren."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Detalles de la base de datos ahora muestra las últimas cinco copias de seguridad que KeeForge hizo en este dispositivo antes de guardar o reemplazar una base de datos, y cada una se puede exportar a Archivos."
+            "value" : "Detalles de la base de datos ahora muestra las últimas cinco copias de seguridad que KeeForge hizo en este dispositivo antes de guardar o reemplazar una base de datos, y cada una se puede exportar."
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Les Détails de la base de données affichent désormais les cinq dernières sauvegardes que KeeForge a créées sur cet appareil avant d'enregistrer ou de remplacer une base de données, et chacune peut être exportée vers Fichiers."
+            "value" : "Les Détails de la base de données affichent désormais les cinq dernières sauvegardes que KeeForge a créées sur cet appareil avant d'enregistrer ou de remplacer une base de données, et chacune peut être exportée."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "“数据库详细信息”现在会列出 KeeForge 在此设备上保存或替换数据库前所做的最近五份备份，每份都可以导出到“文件”。"
+            "value" : "“数据库详细信息”现在会列出 KeeForge 在此设备上保存或替换数据库前所做的最近五份备份，每份都可以导出。"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "「資料庫詳細資訊」現在會列出 KeeForge 在此裝置上儲存或取代資料庫前所做的最近五份備份，每份都可以匯出到「檔案」。"
+            "value" : "「資料庫詳細資訊」現在會列出 KeeForge 在此裝置上儲存或取代資料庫前所做的最近五份備份，每份都可以匯出。"
           }
         }
       }
@@ -7537,6 +7639,40 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "資料庫"
+          }
+        }
+      }
+    },
+    "Databases now offer Export Copy… — from the database list and from Database Details — to save a copy under a timestamped name. Handy for merging changes with another KeePass app when a cloud upload is stuck." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Datenbanken bieten jetzt „Kopie exportieren …“ – in der Datenbankliste und in den Datenbankdetails –, um eine Kopie unter einem Namen mit Zeitstempel zu sichern. Praktisch, um Änderungen mit einer anderen KeePass-App zusammenzuführen, wenn ein Cloud-Upload feststeckt."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Las bases de datos ahora ofrecen «Exportar copia…», desde la lista de bases de datos y desde Detalles de la base de datos, para guardar una copia con un nombre con marca de tiempo. Útil para combinar cambios con otra app de KeePass cuando una carga a la nube esté atascada."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Les bases de données proposent désormais « Exporter une copie… » – depuis la liste des bases de données et depuis les Détails de la base de données – pour enregistrer une copie sous un nom horodaté. Pratique pour fusionner des modifications avec une autre app KeePass lorsqu'un envoi vers le cloud est bloqué."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "数据库现在提供“导出副本…”——在数据库列表和“数据库详细信息”中——可以带时间戳的名称保存副本。当云端上传卡住时，可用它在其他 KeePass App 中合并更改。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "資料庫現在提供「匯出副本…」——在資料庫列表和「資料庫詳細資訊」中——可以帶時間戳記的名稱儲存副本。當雲端上傳卡住時，可用它在其他 KeePass App 中合併變更。"
           }
         }
       }
@@ -9577,6 +9713,40 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "項目"
+          }
+        }
+      }
+    },
+    "Entries and groups now offer a Move to Group action that files them somewhere else. Moves travel with your database, so your other devices and other KeePass apps see them too." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Einträge und Gruppen bieten jetzt die Aktion „In Gruppe verschieben“, um sie woanders abzulegen. Verschiebungen werden in der Datenbank gespeichert, sodass deine anderen Geräte und andere KeePass-Apps sie ebenfalls sehen."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Las entradas y los grupos ahora ofrecen la acción «Mover a grupo» para colocarlos en otro sitio. Los movimientos se guardan en la base de datos, así que tus otros dispositivos y otras apps de KeePass también los ven."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Les entrées et les groupes proposent désormais une action « Déplacer vers un groupe » pour les ranger ailleurs. Les déplacements sont enregistrés dans votre base de données : vos autres appareils et les autres apps KeePass les voient aussi."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "条目和群组现在提供“移动到群组”操作，可将其归入别处。移动会随数据库一同保存，你的其他设备和其他 KeePass 应用同样能看到。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "項目和群組現在提供「移動到群組」操作，可將其歸入別處。移動會隨資料庫一併儲存，你的其他裝置和其他 KeePass App 同樣能看到。"
           }
         }
       }
@@ -12641,6 +12811,40 @@
         }
       }
     },
+    "KeeForge isn't enabled as an AutoFill provider yet. Turn it on under General > AutoFill & Passwords to fill passwords in Safari and other apps." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge ist noch nicht als AutoFill-Anbieter aktiviert. Aktivieren Sie KeeForge unter „Allgemein“ > „AutoFill & Passwörter“, um Passwörter in Safari und anderen Apps auszufüllen."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge todavía no está habilitado como proveedor de Autorrelleno. Actívelo en «General» > «Autorrelleno y contraseñas» para rellenar contraseñas en Safari y otras aplicaciones."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge n'est pas encore activé en tant que fournisseur de Remplissage automatique. Activez-le dans « Général » > « Remplissage automatique et mots de passe » pour remplir les mots de passe dans Safari et d'autres apps."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge 尚未启用为自动填充提供方。请在“通用”>“自动填充与密码”中开启，即可在 Safari 和其他 App 中填充密码。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge 尚未啟用為自動填寫提供者。請在「一般」>「自動填寫與密碼」中開啟，即可在 Safari 和其他 App 中填寫密碼。"
+          }
+        }
+      }
+    },
     "KeeForge keeps the last five backups it made before saving or replacing this database on this device." : {
       "localizations" : {
         "de" : {
@@ -12875,6 +13079,40 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "KeeForge 會在鍵盤列中根據下方所選的資料庫提供憑證建議。點一下建議時需要進行驗證。"
+          }
+        }
+      }
+    },
+    "KeeForge suggests credentials from the databases selected below when macOS offers to fill a password. Authentication is required when you choose a suggestion." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge schlägt Zugangsdaten aus den unten ausgewählten Datenbanken vor, wenn macOS anbietet, ein Passwort auszufüllen. Beim Auswählen eines Vorschlags ist eine Authentifizierung erforderlich."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge sugiere credenciales de las bases de datos seleccionadas a continuación cuando macOS ofrece rellenar una contraseña. Se requiere autenticación al elegir una sugerencia."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge suggère des identifiants provenant des bases de données sélectionnées ci-dessous lorsque macOS propose de remplir un mot de passe. Une authentification est requise lorsque vous choisissez une suggestion."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "当 macOS 提示填充密码时，KeeForge 会根据下方所选的数据库提供凭据建议。选择建议时需要进行验证。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "當 macOS 提示填寫密碼時，KeeForge 會根據下方所選的資料庫提供憑證建議。選擇建議時需要進行驗證。"
           }
         }
       }
@@ -13862,74 +14100,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "App 進入背景時鎖定"
-          }
-        }
-      }
-    },
-    "Long-press a database — or open Database Details — and choose Export Copy… to save it to Files under a timestamped name. Handy for merging changes with another KeePass app when a cloud upload is stuck." : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Halte eine Datenbank gedrückt – oder öffne die Datenbankdetails – und wähle „Kopie exportieren …“, um sie unter einem Namen mit Zeitstempel in „Dateien“ zu sichern. Praktisch, um Änderungen mit einer anderen KeePass-App zusammenzuführen, wenn ein Cloud-Upload feststeckt."
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Mantén pulsada una base de datos, o abre Detalles de la base de datos, y elige «Exportar copia…» para guardarla en Archivos con un nombre con marca de tiempo. Útil para combinar cambios con otra app de KeePass cuando una carga a la nube esté atascada."
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Appuyez longuement sur une base de données – ou ouvrez les Détails de la base de données – et choisissez « Exporter une copie… » pour l'enregistrer dans Fichiers sous un nom horodaté. Pratique pour fusionner des modifications avec une autre app KeePass lorsqu'un envoi vers le cloud est bloqué."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "长按数据库（或打开“数据库详细信息”），选择“导出副本…”，即可以带时间戳的名称将其保存到“文件”中。当云端上传卡住时，可用它在其他 KeePass App 中合并更改。"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "長按資料庫（或開啟「資料庫詳細資訊」），選擇「匯出副本…」，即可以帶時間戳記的名稱將其儲存到「檔案」中。當雲端上傳卡住時，可用它在其他 KeePass App 中合併變更。"
-          }
-        }
-      }
-    },
-    "Long-press an entry or group and choose Move to Group to file it somewhere else. Moves travel with your database, so your other devices and other KeePass apps see them too." : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Halte einen Eintrag oder eine Gruppe gedrückt und wähle „In Gruppe verschieben“, um ihn woanders abzulegen. Verschiebungen werden in der Datenbank gespeichert, sodass deine anderen Geräte und andere KeePass-Apps sie ebenfalls sehen."
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Mantén pulsada una entrada o un grupo y elige «Mover a grupo» para colocarlo en otro sitio. Los movimientos se guardan en la base de datos, así que tus otros dispositivos y otras apps de KeePass también los ven."
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Appuyez longuement sur une entrée ou un groupe et choisissez « Déplacer vers un groupe » pour le ranger ailleurs. Les déplacements sont enregistrés dans votre base de données : vos autres appareils et les autres apps KeePass les voient aussi."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "长按条目或群组，选择“移动到群组”，即可将其归入别处。移动会随数据库一同保存，你的其他设备和其他 KeePass 应用同样能看到。"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "長按項目或群組，選擇「移動到群組」，即可將其歸入別處。移動會隨資料庫一併儲存，你的其他裝置和其他 KeePass App 同樣能看到。"
           }
         }
       }
@@ -16111,6 +16281,40 @@
         }
       }
     },
+    "Open AutoFill Settings…" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AutoFill-Einstellungen öffnen …"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Abrir los ajustes de autorrelleno…"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ouvrir les réglages de Remplissage automatique…"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "打开自动填充设置…"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "打開自動填寫設定…"
+          }
+        }
+      }
+    },
     "Open Database" : {
       "localizations" : {
         "de" : {
@@ -16651,6 +16855,40 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "密碼強度：%@"
+          }
+        }
+      }
+    },
+    "Paste a setup link or type a key to add a verification code while editing an entry. Codes are saved in your database, so they work in other KeePass apps too." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Füge einen Einrichtungslink ein oder tippe einen Schlüssel ein, um beim Bearbeiten eines Eintrags einen Bestätigungscode hinzuzufügen. Die Codes werden in deiner Datenbank gespeichert und funktionieren daher auch in anderen KeePass-Apps."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pega un enlace de configuración o escribe una clave para añadir un código de verificación mientras editas una entrada. Los códigos se guardan en tu base de datos, así que también funcionan en otras apps de KeePass."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Collez un lien de configuration ou saisissez une clé pour ajouter un code de vérification lors de la modification d’une entrée. Les codes sont enregistrés dans votre base de données et fonctionnent donc aussi dans les autres apps KeePass."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "编辑条目时，可粘贴设置链接或手动输入密钥来添加验证码。验证码保存在您的数据库中，因此在其他 KeePass App 中同样可用。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "編輯項目時，可貼上設定連結或手動輸入金鑰來新增驗證碼。驗證碼儲存在您的資料庫中，因此在其他 KeePass App 中同樣可用。"
           }
         }
       }
@@ -19683,36 +19921,36 @@
         }
       }
     },
-    "Set a new master password, or add, replace, or remove a key file, right from Database Details. A backup under the old key is kept, and Face ID or Touch ID keeps working." : {
+    "Set a new master password, or add, replace, or remove a key file, right from Database Details. A backup under the old key is kept, and biometric unlock keeps working." : {
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Lege direkt in den Datenbankdetails ein neues Master-Passwort fest oder füge eine Schlüsseldatei hinzu, ersetze sie oder entferne sie. Eine Sicherungskopie mit dem alten Schlüssel bleibt erhalten, und Face ID bzw. Touch ID funktioniert weiterhin."
+            "value" : "Lege direkt in den Datenbankdetails ein neues Master-Passwort fest oder füge eine Schlüsseldatei hinzu, ersetze sie oder entferne sie. Eine Sicherungskopie mit dem alten Schlüssel bleibt erhalten, und die biometrische Entsperrung funktioniert weiterhin."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Establece una nueva contraseña maestra, o añade, reemplaza o elimina un archivo de clave, directamente desde los Detalles de la base de datos. Se conserva una copia de seguridad con la clave anterior y Face ID o Touch ID sigue funcionando."
+            "value" : "Establece una nueva contraseña maestra, o añade, reemplaza o elimina un archivo de clave, directamente desde los Detalles de la base de datos. Se conserva una copia de seguridad con la clave anterior y el desbloqueo biométrico sigue funcionando."
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Définissez un nouveau mot de passe principal, ou ajoutez, remplacez ou supprimez un fichier de clé, directement depuis les Détails de la base de données. Une sauvegarde sous l’ancienne clé est conservée, et Face ID ou Touch ID continue de fonctionner."
+            "value" : "Définissez un nouveau mot de passe principal, ou ajoutez, remplacez ou supprimez un fichier de clé, directement depuis les Détails de la base de données. Une sauvegarde sous l’ancienne clé est conservée, et le déverrouillage biométrique continue de fonctionner."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "直接在“数据库详细信息”中设置新的主密码，或添加、替换、移除密钥文件。系统会保留使用旧密钥的备份，Face ID 或 Touch ID 也会继续可用。"
+            "value" : "直接在“数据库详细信息”中设置新的主密码，或添加、替换、移除密钥文件。系统会保留使用旧密钥的备份，生物识别解锁也会继续可用。"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "直接在「資料庫詳細資訊」中設定新的主密碼，或新增、取代、移除金鑰檔案。系統會保留使用舊金鑰的備份，Face ID 或 Touch ID 也會繼續可用。"
+            "value" : "直接在「資料庫詳細資訊」中設定新的主密碼，或新增、取代、移除金鑰檔案。系統會保留使用舊金鑰的備份，生物辨識解鎖也會繼續可用。"
           }
         }
       }
@@ -20835,40 +21073,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "標籤"
-          }
-        }
-      }
-    },
-    "Tap an entry's icon to pick from the KeePass icon set or your database's custom icons — or download the website's own icon. Your choice is saved in the database, so it shows up everywhere. Thanks to @miquno." : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Tippe auf das Symbol eines Eintrags, um aus dem KeePass-Symbolsatz oder den eigenen Symbolen deiner Datenbank zu wählen – oder lade das Symbol der Website herunter. Deine Wahl wird in der Datenbank gespeichert und erscheint so überall. Dank an @miquno."
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Toca el icono de una entrada para elegir entre el conjunto de iconos de KeePass o los iconos personalizados de tu base de datos, o descarga el icono del sitio web. Tu elección se guarda en la base de datos, así que aparece en todas partes. Gracias a @miquno."
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Touchez l'icône d'une entrée pour choisir parmi le jeu d'icônes KeePass ou les icônes personnalisées de votre base de données – ou téléchargez l'icône du site web. Votre choix est enregistré dans la base de données et apparaît donc partout. Merci à @miquno."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "轻点条目的图标，即可从 KeePass 图标集或数据库的自定图标中选择，也可以下载网站自己的图标。您的选择会保存在数据库中，因此会在各处显示。感谢 @miquno。"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "點一下項目的圖示，即可從 KeePass 圖示集或資料庫的自訂圖示中選擇，也可以下載網站本身的圖示。您的選擇會儲存在資料庫中，因此會在各處顯示。感謝 @miquno。"
           }
         }
       }
@@ -24689,6 +24893,40 @@
         }
       }
     },
+    "To fill passwords from KeeForge in Safari and other apps, enable KeeForge in System Settings under General > AutoFill & Passwords." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Um Passwörter aus KeeForge in Safari und anderen Apps auszufüllen, aktivieren Sie KeeForge in den Systemeinstellungen unter „Allgemein“ > „AutoFill & Passwörter“."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Para rellenar contraseñas de KeeForge en Safari y otras apps, active KeeForge en Ajustes del Sistema, en «General» > «Autorrelleno y contraseñas»."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pour remplir des mots de passe depuis KeeForge dans Safari et d'autres apps, activez KeeForge dans Réglages Système, sous « Général » > « Remplissage automatique et mots de passe »."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "若要在 Safari 和其他 App 中填充 KeeForge 的密码，请在“系统设置”的“通用”>“自动填充与密码”中启用 KeeForge。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "若要在 Safari 和其他 App 中填寫 KeeForge 的密碼，請在「系統設定」的「一般」>「自動填寫與密碼」中啟用 KeeForge。"
+          }
+        }
+      }
+    },
     "Too Many Failed Attempts" : {
       "localizations" : {
         "de" : {
@@ -25161,6 +25399,40 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "解鎖資料庫以檢視群組和項目。"
+          }
+        }
+      }
+    },
+    "Unlock AutoFill with Touch ID" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AutoFill mit Touch ID entsperren"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Desbloquear Autorrelleno con Touch ID"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Déverrouiller le remplissage automatique avec Touch ID"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "使用触控 ID 解锁自动填充"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "使用觸控 ID 解鎖自動填寫"
           }
         }
       }

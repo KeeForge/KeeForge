@@ -48,6 +48,11 @@ struct WhatsNewRelease: Identifiable, Sendable {
 /// `MARKETING_VERSION`. Use only the changelog's New Features section as input,
 /// then rewrite those bullets as short, benefit-led copy. Bug fixes and
 /// internal changes do not belong in this catalog.
+///
+/// The same entry is read on iPhone, iPad, and Mac, so copy must be true on all
+/// of them: never name a gesture (a Mac has no long-press) and never point at a
+/// platform-specific destination. A feature one platform does not have belongs
+/// behind `platforms:`, or needs a second entry carrying that platform's wording.
 enum WhatsNewCatalog {
     static func release(version: String, platform: WhatsNewPlatform) -> WhatsNewRelease? {
         let features: [WhatsNewFeature]
@@ -64,7 +69,7 @@ enum WhatsNewCatalog {
                 WhatsNewFeature(
                     id: "move-to-group",
                     title: "Move entries and groups",
-                    detail: "Long-press an entry or group and choose Move to Group to file it somewhere else. Moves travel with your database, so your other devices and other KeePass apps see them too.",
+                    detail: "Entries and groups now offer a Move to Group action that files them somewhere else. Moves travel with your database, so your other devices and other KeePass apps see them too.",
                     systemImage: "folder"
                 ),
                 WhatsNewFeature(
@@ -79,14 +84,24 @@ enum WhatsNewCatalog {
                 WhatsNewFeature(
                     id: "change-master-key",
                     title: "Change your master password",
-                    detail: "Set a new master password, or add, replace, or remove a key file, right from Database Details. A backup under the old key is kept, and Face ID or Touch ID keeps working.",
+                    detail: "Set a new master password, or add, replace, or remove a key file, right from Database Details. A backup under the old key is kept, and biometric unlock keeps working.",
                     systemImage: "lock.rotation"
                 ),
                 WhatsNewFeature(
                     id: "totp-enrollment",
                     title: "Set up verification codes",
                     detail: "Scan a QR code, paste a setup link, or type a key to add a verification code while editing an entry. Codes are saved in your database, so they work in other KeePass apps too.",
-                    systemImage: "qrcode.viewfinder"
+                    systemImage: "qrcode.viewfinder",
+                    platforms: [.iOS]
+                ),
+                // Same feature, minus the camera: `TOTPQRScannerSheet` is
+                // iOS-only, so the Mac wording cannot promise QR scanning.
+                WhatsNewFeature(
+                    id: "totp-enrollment-mac",
+                    title: "Set up verification codes",
+                    detail: "Paste a setup link or type a key to add a verification code while editing an entry. Codes are saved in your database, so they work in other KeePass apps too.",
+                    systemImage: "timer",
+                    platforms: [.macOS]
                 ),
                 WhatsNewFeature(
                     id: "chinese-localization",
@@ -100,13 +115,13 @@ enum WhatsNewCatalog {
                 WhatsNewFeature(
                     id: "export-copy",
                     title: "Export a copy of your database",
-                    detail: "Long-press a database — or open Database Details — and choose Export Copy… to save it to Files under a timestamped name. Handy for merging changes with another KeePass app when a cloud upload is stuck.",
+                    detail: "Databases now offer Export Copy… — from the database list and from Database Details — to save a copy under a timestamped name. Handy for merging changes with another KeePass app when a cloud upload is stuck.",
                     systemImage: "square.and.arrow.up"
                 ),
                 WhatsNewFeature(
                     id: "device-backups",
                     title: "Reach your on-device backups",
-                    detail: "Database Details now lists the last five backups KeeForge made on this device before saving or replacing a database, and each one can be exported to Files.",
+                    detail: "Database Details now lists the last five backups KeeForge made on this device before saving or replacing a database, and each one can be exported.",
                     systemImage: "clock.arrow.circlepath"
                 ),
             ]
@@ -122,7 +137,7 @@ enum WhatsNewCatalog {
                 WhatsNewFeature(
                     id: "entry-icons",
                     title: "Give your entries their own icons",
-                    detail: "Tap an entry's icon to pick from the KeePass icon set or your database's custom icons — or download the website's own icon. Your choice is saved in the database, so it shows up everywhere. Thanks to @miquno.",
+                    detail: "Choose an entry's icon from the KeePass icon set or your database's custom icons — or download the website's own icon. Your choice is saved in the database, so it shows up everywhere. Thanks to @miquno.",
                     systemImage: "paintpalette"
                 ),
                 WhatsNewFeature(

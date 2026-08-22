@@ -141,10 +141,11 @@ Everything decided **once** for this release lands on `main` before the cut; onl
 group — they describe work already merged to `main`, and the changelog heading already commits to
 the version number, so holding the matching `MARKETING_VERSION` back buys nothing.
 
-Set `MARKETING_VERSION` to the new version string (e.g. `"1.11.0"`) on **both** the `KeeForge` and
-`KeeForgeAutoFill` targets in `project.yml`. Leave `CURRENT_PROJECT_VERSION` alone — that is A5's,
-and it changes with every candidate. Do not touch the `KeeForgeMac` / `KeeForgeMacAutoFill`
-versions; the macOS targets are on hold and release separately.
+Set `MARKETING_VERSION` to the new version string (e.g. `"1.11.0"`) on **all four** product
+targets in `project.yml` — `KeeForge`, `KeeForgeAutoFill`, `KeeForgeMac`, and `KeeForgeMacAutoFill`.
+The Mac targets ship in lockstep with iOS (same version, same build number), so there are exactly 4
+values to update. Leave `CURRENT_PROJECT_VERSION` alone — that is A5's, and it changes with every
+candidate.
 
 ```bash
 xcodegen generate
@@ -180,12 +181,11 @@ one commit on `main` undoes all of it together.
 ## A5. Set the candidate build number
 
 On the release branch, set `CURRENT_PROJECT_VERSION` to `"1"` — the first candidate build of this
-version — on **both** the `KeeForge` and `KeeForgeAutoFill` targets in `project.yml`. They must
-always carry identical values; there are exactly 2 values to update. Use precise
-string-replacement edits.
+version — on **all four** product targets in `project.yml` (`KeeForge`, `KeeForgeAutoFill`,
+`KeeForgeMac`, `KeeForgeMacAutoFill`). They must always carry identical values; there are exactly 4
+values to update. Use precise string-replacement edits.
 
-`MARKETING_VERSION` is already correct from A4. Do not touch the `KeeForgeMac` /
-`KeeForgeMacAutoFill` versions; the macOS targets are on hold and release separately.
+`MARKETING_VERSION` is already correct from A4.
 
 ## A6. Regenerate and run the local KDBX gate
 
@@ -514,8 +514,15 @@ Continue with Mode C from C1, reporting against the 24h target in place of 48h.
 
 # Notes
 
-- The macOS targets are on hold and are not part of this workflow. Do not bump
-  `KeeForgeMac`/`KeeForgeMacAutoFill` versions here.
-- `ITSAppUsesNonExemptEncryption` is declared `false` in `KeeForge/Info.plist`, so App Store Connect
+- The macOS targets ship in lockstep with iOS: all four product targets carry the same
+  `MARKETING_VERSION` and `CURRENT_PROJECT_VERSION`, bumped together in A4 and A5.
+- The KDBX compatibility gate runs **per platform**. Run it for iOS as documented, then again with
+  `KDBX_COMPAT_SCHEME=KeeForgeMac` (which switches the test target to `KeeForgeMacTests` and the
+  destination to `platform=macOS`). Both must pass before a candidate ships.
+- `KeeForgeMacUITests` cannot run on a headless runner — it needs an unlocked, active login session
+  — so the Mac smoke suite stays a **local** pre-release step. `.github/workflows/macos-rc-tests.yml`
+  covers the Mac unit suite on each `rc/*` tag.
+- `ITSAppUsesNonExemptEncryption` is declared `false` in `KeeForge/Info.plist` and
+  `KeeForgeMac/Info.plist`, so App Store Connect
   does not ask the export-compliance question per build. It remains a legal declaration: if the
   app's cryptography changes materially, revisit it rather than assuming the key still applies.

@@ -122,10 +122,10 @@ enum DatabaseMergeFailure: String, Error, Identifiable, Equatable, Sendable {
 }
 
 /// Whether lifecycle-triggered biometric auto-unlock is allowed on this
-/// platform. iOS builds running in compatibility mode (on a Mac, or on a
-/// Vision Pro where the runtime exposes the check) cannot trust
-/// `scenePhase == .active` to mean the window is frontmost, so they rely on
-/// the explicit biometric action in `UnlockView` instead.
+/// platform. Only iOS on its own hardware qualifies: everywhere else
+/// `scenePhase == .active` fails to prove the window is frontmost when a lock
+/// cycle begins, so those platforms rely on the explicit biometric action in
+/// `UnlockView` instead.
 enum BiometricAutoUnlockPolicy {
     static var allowsAutomaticUnlock: Bool {
         #if os(iOS)
@@ -138,10 +138,17 @@ enum BiometricAutoUnlockPolicy {
             isiOSAppOnVision: isiOSAppOnVision
         )
         #else
-        // The native Mac app keeps lifecycle auto-unlock for now even though
-        // MacLockMonitor can start a lock cycle while the scene stays .active;
-        // revisit before the on-hold macOS target ships.
-        return true
+        // The native Mac app never auto-unlocks. `MacLockMonitor` starts its
+        // lock cycles from screen lock, screensaver, sleep, user switching and
+        // — under the strict policy — app deactivation, all delivered
+        // synchronously while the scene can still report `.active`, so the
+        // attempt in `View.biometricAutoUnlock(_:)` would raise a Touch ID
+        // prompt for a Mac the user just walked away from, and
+        // `.promptUnavailable` hands the cycle its attempt back so it repeats.
+        // Touch ID stays one click away in `UnlockView`, and
+        // `SettingsService.autoUnlockWithFaceID` still governs the Mac
+        // AutoFill extension.
+        return false
         #endif
     }
 
@@ -2145,22 +2152,27 @@ final class DatabaseViewModel {
     func handleSceneDidEnterBackground() {
         guard case .unlocked = state else { return }
 
+        #if os(iOS)
         if SettingsService.lockOnBackground {
             // Scene phase cannot tell an app switch from a device lock, so iOS
             // keeps the pasteboard (#34) and a copy can outlive a screen lock
-            // by up to the clipboard-clear timeout. On macOS this entry point
-            // comes from `MacLockMonitor`, which only fires when the user
-            // walked away — scrub there.
-            #if os(iOS)
+            // by up to the clipboard-clear timeout.
             lockRequest(preservingClipboard: true)
-            #else
-            lockRequest()
-            #endif
             return
         }
 
         backgroundEnteredAt = nowProvider()
         cancelInactivityTimer(clearDeadline: false)
+        #else
+        // macOS reaches this only from `MacLockMonitor`, which has already
+        // applied `SettingsService.macLockPolicy` and whose triggers all mean
+        // the user walked away. Locking here is the macOS security guarantee
+        // (`KeeForgeMac/README.md`), so it must never depend on
+        // `lockOnBackground` — an iOS-only setting the Mac never renders and
+        // cannot repair. The clipboard is scrubbed too: macOS has no expiring,
+        // device-local copy (`docs/macos-security-notes.md`).
+        lockRequest()
+        #endif
     }
 
     func handleSceneDidBecomeActive() {

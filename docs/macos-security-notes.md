@@ -65,6 +65,46 @@ OneDrive account emails, WebDAV `user@host/path` display strings — so:
   world-readable container. (`SharedVaultStore.cloudAccountDefaults`,
   `CloudAccountStore.migrateAccounts(from:to:)`.)
 
+## Lock lifecycle — driven only by `MacLockMonitor`, and unconditional
+
+macOS has no "scene entered background" moment worth locking on (windows
+background on minimize and app hide), so `MacLockMonitor` is the whole lock
+lifecycle: screen lock, screensaver start, system sleep, fast-user-switch
+session resign, and — only under the strict `Lock Automatically` option — app
+deactivation. It applies `SettingsService.macLockPolicy` itself, and that
+picker (Settings ▸ Security) is the only lock switch the Mac exposes.
+
+The lock path is therefore **unconditional** once a trigger fires:
+`DatabaseViewModel.handleSceneDidEnterBackground()` locks on macOS without
+consulting `SettingsService.lockOnBackground`. That key is iOS-only (`Lock When
+App Goes to Background`, rendered only by the iOS Security settings screen), so
+gating the Mac on it would let an imported or shared-defaults `false` silently
+disable the whole macOS lock guarantee with no UI to notice or repair it.
+macOS also never takes the iOS clipboard exemption: every Mac lock trigger
+means the user walked away, so the copy is scrubbed (see "Clipboard" below).
+
+## No lifecycle biometric auto-unlock on macOS
+
+`BiometricAutoUnlockPolicy.allowsAutomaticUnlock` is `false` for the native Mac
+app, so KeeForge never raises a Touch ID prompt on its own there; the Mac keeps
+the explicit "Unlock with Touch ID" button in `UnlockView`.
+
+The reason is the same one that disables it for iOS apps running in
+compatibility mode on a Mac (#84): `scenePhase == .active` does not prove the
+window is frontmost. On macOS it is worse — `MacLockMonitor`'s triggers are
+delivered synchronously while the scene still reports `.active`, and sleep and
+fast-user-switch resign do not deactivate the app at all. An automatic attempt
+would therefore fire in the same turn as the lock the user's *absence* just
+caused, raising a prompt against a machine that is locking, sleeping, or
+running a screensaver; and because an attempt that comes back
+`.promptUnavailable` returns its lock cycle's one attempt, it would retry
+rather than settle.
+
+`SettingsService.autoUnlockWithFaceID` remains meaningful on the Mac: it still
+gates the macOS AutoFill extension's auto-unlock
+(`AutoFillExtension/CredentialProviderCoordinator.swift`), which runs in its
+own foreground extension context.
+
 ## Screen privacy — layered, and best-effort on macOS 15+
 
 iOS uses `UIScreen.isCaptured` to shield the app while it is being recorded.

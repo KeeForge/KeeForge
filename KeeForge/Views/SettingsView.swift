@@ -61,6 +61,17 @@ struct SettingsView: View {
             }
             .accessibilityIdentifier("settings.tab.security")
 
+            AutoFillSettingsView(
+                quickAutoFillEnabled: $quickAutoFillEnabled,
+                autoFillCopyTOTP: $autoFillCopyTOTP,
+                listViewModel: listViewModel
+            )
+            .formStyle(.grouped)
+            .tabItem {
+                Label("AutoFill", systemImage: "text.cursor")
+            }
+            .accessibilityIdentifier("settings.tab.autofill")
+
             MacDisplaySettingsTab(
                 showWebsiteIcons: $showWebsiteIcons,
                 showDatabaseUsageStats: $showDatabaseUsageStats,
@@ -382,22 +393,34 @@ private struct AutoFillSettingsView: View {
             Section {
                 Toggle("Quick AutoFill", isOn: $quickAutoFillEnabled)
             } footer: {
+                #if os(macOS)
+                Text("KeeForge suggests credentials from the databases selected below when macOS offers to fill a password. Authentication is required when you choose a suggestion.")
+                #else
                 Text("KeeForge suggests credentials from the databases selected below in the keyboard bar. Authentication is required when you tap a suggestion.")
+                #endif
             }
 
             databasesSection
 
+            #if os(iOS)
+            // iOS only: the Mac extension never copies the code, because the
+            // AutoFill one-time-code API is macOS 15+ and this app's floor is
+            // macOS 14 — `AutoFillExtension/InfoMac.plist` therefore does not
+            // advertise `ProvidesOneTimeCodes`.
             Section {
                 Toggle("Copy Verification Code on AutoFill", isOn: $autoFillCopyTOTP)
                     .accessibilityIdentifier("settings.autofill.copy-totp")
             } footer: {
                 Text("When AutoFill fills a password, it also copies the entry's verification code for code fields iOS does not recognize. You'll confirm the fill in KeeForge, and the code clears after the Clipboard Clear Timeout.")
             }
+            #endif
 
             clearEntriesSection
         }
+        #if os(iOS)
         .navigationTitle("AutoFill")
         .navigationBarTitleDisplayMode(.inline)
+        #endif
         .onAppear {
             listViewModel.reload()
         }
@@ -475,10 +498,11 @@ private struct AutoFillSettingsView: View {
 
     private var providerSection: some View {
         Section {
-            LabeledContent("AutoFill in iOS", value: providerStatusText)
+            LabeledContent(providerStatusTitle, value: providerStatusText)
                 .accessibilityIdentifier("settings.autofill.provider-status")
                 .accessibilityValue(providerStatusText)
 
+            #if os(iOS)
             // The manual route has to stay available while the provider is off:
             // iOS can refuse the one-tap prompt outright, and it tears this
             // sheet down when the prompt closes, so a user it does not work for
@@ -494,14 +518,27 @@ private struct AutoFillSettingsView: View {
                 Task { await AutoFillStatusService.openAutoFillSettings() }
             }
             .accessibilityIdentifier("settings.autofill.open-ios-settings")
+            #else
+            // `ASSettingsHelper` is macos(14.0), so the deep link works here;
+            // only `requestToTurnOnCredentialProviderExtension` (macOS 15+) is
+            // out of reach, which is why there is no one-click enable button.
+            Button("Open AutoFill Settings…") {
+                Task { await AutoFillStatusService.openAutoFillSettings() }
+            }
+            .accessibilityIdentifier("settings.autofill.open-mac-settings")
+            #endif
         } footer: {
             VStack(alignment: .leading, spacing: 8) {
                 if isProviderEnabled == false {
+                    #if os(macOS)
+                    Text("KeeForge isn't enabled as an AutoFill provider yet. Turn it on under General > AutoFill & Passwords to fill passwords in Safari and other apps.")
+                    #else
                     Text("KeeForge isn't enabled as an AutoFill provider yet. Turn it on to fill passwords in Safari and other apps.")
 
                     if listViewModel.isAutoFillEnableRequestRejected {
                         Text("The last attempt did not turn it on. Open iOS AutoFill Settings and enable KeeForge there.")
                     }
+                    #endif
                 } else if isProviderEnabled == true {
                     Text("KeeForge is enabled as an AutoFill provider.")
                 }
@@ -509,8 +546,17 @@ private struct AutoFillSettingsView: View {
         }
     }
 
-    /// `LabeledContent(_:value:)` takes a plain `String`, so these have to go
-    /// through the catalog explicitly — a bare literal here ships as English.
+    /// `LabeledContent(_:value:)` takes plain `String`s, so the title and the
+    /// value both have to go through the catalog explicitly — a bare literal
+    /// here ships as English.
+    private var providerStatusTitle: String {
+        #if os(macOS)
+        String(localized: "AutoFill in macOS")
+        #else
+        String(localized: "AutoFill in iOS")
+        #endif
+    }
+
     private var providerStatusText: String {
         guard let isProviderEnabled else { return "—" }
         return isProviderEnabled ? String(localized: "On") : String(localized: "Off")
@@ -677,11 +723,18 @@ private struct MacSecuritySettingsTab: View {
                     }
                 }
 
+                // Governs the AutoFill extension only: the app itself never
+                // auto-unlocks on macOS (`BiometricAutoUnlockPolicy`), so a
+                // label promising that would be false.
                 if BiometricService.isAvailable {
-                    Toggle("Auto-Unlock with Touch ID", isOn: $autoUnlockWithBiometrics)
+                    Toggle("Unlock AutoFill with Touch ID", isOn: $autoUnlockWithBiometrics)
                 }
             } footer: {
                 Text("KeeForge always locks on screen lock, screensaver, system sleep, and user switching. The stricter option also locks whenever another app becomes active.")
+
+                if BiometricService.isAvailable {
+                    Text("AutoFill can unlock with Touch ID on its own. KeeForge itself never unlocks automatically — use the Touch ID button on the unlock screen.")
+                }
             }
 
             Section {

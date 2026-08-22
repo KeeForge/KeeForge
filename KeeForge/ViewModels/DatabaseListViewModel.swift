@@ -258,8 +258,10 @@ final class DatabaseListViewModel {
             await refreshAutoFillStatus()
             isAutoFillEnableRequestRejected = isAutoFillProviderEnabled != true
         case .none:
-            // No-op request (macOS, where the AutoFill extension does not ship
-            // yet) — nothing was asked, so there is nothing to record.
+            // macOS: the request opened System Settings instead of prompting,
+            // so nothing was observed yet. The provider state is re-read when
+            // the app becomes active again (`DatabaseListView`'s scene-phase
+            // refresh), which is what dismisses the tip.
             break
         }
     }

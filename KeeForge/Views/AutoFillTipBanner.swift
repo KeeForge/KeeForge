@@ -22,6 +22,17 @@ struct AutoFillTipBanner: View {
                 .accessibilityIdentifier("autofill-tip.dismiss")
             }
 
+            #if os(macOS)
+            Text("To fill passwords from KeeForge in Safari and other apps, enable KeeForge in System Settings under General > AutoFill & Passwords.")
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+
+            // macOS has no in-app enable prompt, so the button opens the
+            // system pane instead (`AutoFillStatusService`).
+            Button("Open AutoFill Settings…", action: onEnable)
+                .buttonStyle(.borderedProminent)
+                .accessibilityIdentifier("autofill-tip.enable")
+            #else
             Text("To fill passwords from KeeForge in Safari and other apps, enable KeeForge in iOS AutoFill settings.")
                 .font(.footnote)
                 .foregroundStyle(.secondary)
@@ -29,6 +40,7 @@ struct AutoFillTipBanner: View {
             Button("Turn On…", action: onEnable)
                 .buttonStyle(.borderedProminent)
                 .accessibilityIdentifier("autofill-tip.enable")
+            #endif
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(16)

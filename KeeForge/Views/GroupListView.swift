@@ -1,27 +1,6 @@
 import SwiftUI
 
 struct GroupListView: View {
-    struct PendingEntryDeletion: Identifiable {
-        let entryID: UUID
-        let sendToRecycleBin: Bool
-
-        var id: String {
-            "\(entryID.uuidString)-\(sendToRecycleBin)"
-        }
-    }
-
-    struct PendingGroupDeletion: Identifiable {
-        let groupID: UUID
-        let groupName: String
-        let entryCount: Int
-        let nestedGroupCount: Int
-        let sendToRecycleBin: Bool
-
-        var id: String {
-            "\(groupID.uuidString)-\(sendToRecycleBin)"
-        }
-    }
-
     /// Identifies the group whose icon picker is showing. A wrapper rather than a bare
     /// `UUID?` so `sheet(item:)` has an `Identifiable` to key on without retroactively
     /// conforming a standard-library type.
@@ -29,36 +8,6 @@ struct GroupListView: View {
         let groupID: UUID
 
         var id: UUID { groupID }
-    }
-
-    /// Identifies the item whose Move-to-Group picker is showing, so
-    /// `sheet(item:)` has an `Identifiable` to key on.
-    enum PendingMove: Identifiable {
-        case entry(UUID)
-        case group(UUID)
-
-        var id: String {
-            switch self {
-            case .entry(let entryID):
-                "entry-\(entryID.uuidString)"
-            case .group(let groupID):
-                "group-\(groupID.uuidString)"
-            }
-        }
-    }
-
-    enum PendingDeletion: Identifiable {
-        case entry(PendingEntryDeletion)
-        case group(PendingGroupDeletion)
-
-        var id: String {
-            switch self {
-            case .entry(let action):
-                "entry-\(action.id)"
-            case .group(let action):
-                "group-\(action.id)"
-            }
-        }
     }
 
     let groupID: UUID
@@ -315,19 +264,10 @@ struct GroupListView: View {
         // resolved here rather than captured when the menu was tapped, so the
         // picker reflects the tree as it is now.
         .sheet(item: $pendingMove) { pending in
-            switch pending {
-            case .entry(let entryID):
-                MoveToGroupPickerView(
-                    options: viewModel.moveDestinationOptions(forEntryID: entryID)
-                ) { destinationGroupID in
-                    moveEntry(entryID, toGroupID: destinationGroupID)
-                }
-            case .group(let movedGroupID):
-                MoveToGroupPickerView(
-                    options: viewModel.moveDestinationOptions(forGroupID: movedGroupID)
-                ) { destinationGroupID in
-                    moveGroup(movedGroupID, toGroupID: destinationGroupID)
-                }
+            MoveToGroupPickerView(
+                options: pending.destinationOptions(viewModel: viewModel)
+            ) { destinationGroupID in
+                pending.apply(destinationGroupID: destinationGroupID, viewModel: viewModel)
             }
         }
     }
@@ -632,28 +572,6 @@ struct GroupListView: View {
             && viewModel.isGroupProtectedFromDeletion(groupID: groupID) == false
     }
 
-    private func moveEntry(_ entryID: UUID, toGroupID: UUID) {
-        do {
-            try viewModel.moveEntry(entryID: entryID, toGroupID: toGroupID)
-            Task {
-                await viewModel.saveHandlingError()
-            }
-        } catch {
-            viewModel.presentSaveError(error)
-        }
-    }
-
-    private func moveGroup(_ groupID: UUID, toGroupID: UUID) {
-        do {
-            try viewModel.moveGroup(groupID: groupID, toGroupID: toGroupID)
-            Task {
-                await viewModel.saveHandlingError()
-            }
-        } catch {
-            viewModel.presentSaveError(error)
-        }
-    }
-
     /// Same eligibility as the AutoFill toggle, for the same reasons: nothing is
     /// editable in a read-only database, and the Recycle Bin row always draws a trash
     /// can regardless of the stored `iconID`, so picking an icon there would appear to
@@ -709,76 +627,12 @@ struct GroupListView: View {
     }
 
     private func preparePendingGroupDeletion(_ groupID: UUID) {
-        guard let summary = viewModel.groupDeletionSummary(forGroupID: groupID) else { return }
-        pendingDeletion = .group(
-            PendingGroupDeletion(
-                groupID: groupID,
-                groupName: summary.name,
-                entryCount: summary.entryCount,
-                nestedGroupCount: summary.nestedGroupCount,
-                sendToRecycleBin: viewModel.isGroupInRecycleBin(groupID: groupID) == false
-            )
-        )
+        guard let pending = PendingGroupDeletion(groupID: groupID, viewModel: viewModel) else { return }
+        pendingDeletion = .group(pending)
     }
 
     private func deletionAlert(for deletion: PendingDeletion) -> Alert {
-        switch deletion {
-        case .entry(let action):
-            Alert(
-                title: Text(action.sendToRecycleBin ? "Delete Entry?" : "Delete Permanently?"),
-                message: Text(action.sendToRecycleBin
-                    ? "The entry will be moved to the recycle bin."
-                    : "This entry will be removed immediately and cannot be restored from KeeForge."),
-                primaryButton: .destructive(Text(action.sendToRecycleBin ? "Delete" : "Delete Permanently")) {
-                    do {
-                        try viewModel.deleteEntry(action.entryID, sendToRecycleBin: action.sendToRecycleBin)
-                        Task {
-                            await viewModel.saveHandlingError()
-                        }
-                    } catch {
-                        viewModel.presentSaveError(error)
-                    }
-                },
-                secondaryButton: .cancel()
-            )
-
-        case .group(let action):
-            Alert(
-                title: Text(action.sendToRecycleBin ? "Delete Group?" : "Delete Permanently?"),
-                message: Text(groupDeletionMessage(for: action)),
-                primaryButton: .destructive(Text(action.sendToRecycleBin ? "Delete" : "Delete Permanently")) {
-                    do {
-                        try viewModel.deleteGroup(action.groupID, sendToRecycleBin: action.sendToRecycleBin)
-                        Task {
-                            await viewModel.saveHandlingError()
-                        }
-                    } catch {
-                        viewModel.presentSaveError(error)
-                    }
-                },
-                secondaryButton: .cancel()
-            )
-        }
-    }
-
-    private func groupDeletionMessage(for action: PendingGroupDeletion) -> String {
-        let contents = "\(entryCountText(action.entryCount)) and \(nestedGroupCountText(action.nestedGroupCount))"
-        if action.sendToRecycleBin {
-            return String(localized: "\"\(action.groupName)\" contains \(contents). The group and its contents will be moved to the recycle bin.")
-        }
-        return String(localized: "\"\(action.groupName)\" contains \(contents). The group and its contents will be removed immediately and cannot be restored from KeeForge.")
-    }
-
-    private func entryCountText(_ count: Int) -> String {
-        count == 1
-            ? String(localized: "1 entry")
-            : String(localized: "\(count) entries")
-    }
-
-    private func nestedGroupCountText(_ count: Int) -> String {
-        count == 1
-            ? String(localized: "1 nested group")
-            : String(localized: "\(count) nested groups")
+        deletion.confirmationAlert(viewModel: viewModel)
     }
 }
 
