@@ -64,7 +64,12 @@ struct DatabaseListView: View {
                                             .fill(Color.accentColor.opacity(0.16))
                                     )
                             } else {
+                                // Hover only on the unselected branch: both this
+                                // and the selection highlight above drive
+                                // `.listRowBackground`, so applying it to a
+                                // selected row would replace the selection fill.
                                 databaseRowButton(for: reference)
+                                    .macHoverHighlight()
                             }
                         }
                         .onMove(perform: viewModel.moveDatabases)
@@ -209,6 +214,7 @@ struct DatabaseListView: View {
                     pickerState.present(.keyFile(currentReference(for: reference)))
                 }
             )
+            .macSheetFrame()
         }
         .sheet(
             isPresented: $showSettings,
@@ -218,6 +224,7 @@ struct DatabaseListView: View {
             }
         ) {
             SettingsView(listViewModel: viewModel)
+                .macSheetFrame()
         }
         .sheet(
             item: $activeCloudProvider,
@@ -234,6 +241,7 @@ struct DatabaseListView: View {
                     selectionAlert = makeCloudSelectionAlert(error: error, provider: provider)
                 }
             )
+            .macSheetFrame()
         }
         .sheet(isPresented: $isDatabaseCreationPresented) {
             DatabaseCreationView(
@@ -243,6 +251,7 @@ struct DatabaseListView: View {
                     onCreateDatabase(createdDatabase)
                 }
             )
+            .macSheetFrame()
         }
         .databaseExporter(request: $exportRequest)
     }

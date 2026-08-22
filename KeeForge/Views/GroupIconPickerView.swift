@@ -66,6 +66,7 @@ struct GroupIconPickerView: View {
             }
         }
         .presentationDetents([.medium, .large], selection: $detent)
+        .macSheetFrame(minWidth: 620, minHeight: 560)
     }
 
     private func iconButton(for iconID: Int) -> some View {

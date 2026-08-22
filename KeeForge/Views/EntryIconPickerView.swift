@@ -106,6 +106,7 @@ struct EntryIconPickerView: View {
             }
         }
         .presentationDetents([.medium, .large], selection: $detent)
+        .macSheetFrame(minWidth: 620, minHeight: 560)
         .onDisappear {
             downloadTask?.cancel()
         }

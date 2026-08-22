@@ -215,6 +215,28 @@ extension View {
     }
 }
 
+// MARK: - Sheet sizing (macOS)
+
+extension View {
+    /// Gives a sheet a usable size on macOS.
+    ///
+    /// `.presentationDetents` compiles on macOS but does nothing there, so a
+    /// sheet that relies on detents alone sizes itself to its content — a grid
+    /// or a short form then opens comically small. Apply this alongside the
+    /// detents; it is inert on iOS, where the detents are what matter.
+    ///
+    /// The defaults match the 540x560 convention already used for the editor
+    /// and settings sheets. Pass a wider `minWidth` for grid content.
+    @ViewBuilder
+    func macSheetFrame(minWidth: CGFloat = 540, minHeight: CGFloat = 560) -> some View {
+        #if os(macOS)
+        frame(minWidth: minWidth, minHeight: minHeight)
+        #else
+        self
+        #endif
+    }
+}
+
 // MARK: - File protection
 
 extension Data.WritingOptions {

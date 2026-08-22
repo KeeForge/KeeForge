@@ -302,6 +302,7 @@ struct EntryDetailView: View {
                 }
                 .sheet(isPresented: $isShowingHistory) {
                     EntryHistoryView(entryID: entryID, viewModel: viewModel)
+                        .macSheetFrame()
                 }
                 .sheet(isPresented: $isShowingIconPicker) {
                     EntryIconPickerView(
