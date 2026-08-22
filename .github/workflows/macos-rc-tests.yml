@@ -1,0 +1,124 @@
+name: macOS RC Tests
+
+# Per-candidate macOS coverage, the Mac counterpart to ios18-rc-tests.yml.
+#
+# Scope is the full macOS unit suite (KeeForgeMacTests, which compiles the
+# shared KeeForgeTests sources against the Mac app). KeeForgeMacUITests is
+# deliberately NOT run here: those tests drive real windows and need an
+# unlocked, active login session, which a headless GitHub runner does not have
+# (see KeeForgeMacUITests/README.md). They stay a local pre-release step.
+#
+# Minimum-OS caveat: the deployment target is macOS 14, but GitHub-hosted
+# runners are macos-15 and Apple does not offer a macOS 14 image. This job
+# therefore proves the suite on macOS 15, not on the actual floor — a macOS 14
+# smoke pass stays part of the manual release checklist.
+#
+# Trigger mirrors the iOS RC gate: one rc/{version}-b{build} tag per candidate
+# build, pushed from a release/{major}.{minor} branch. rc tags are permanent and
+# are never moved or deleted; the deletion guard below keeps a manually removed
+# tag from starting a run.
+
+on:
+  push:
+    tags:
+      - 'rc/*'
+  workflow_dispatch:
+
+concurrency:
+  group: macos-rc-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  macos-rc-tests:
+    if: github.event_name == 'workflow_dispatch' || github.event.deleted == false
+    runs-on: macos-15
+    timeout-minutes: 60
+    env:
+      SCHEME: KeeForgeMac
+      PROJECT: KeeForge.xcodeproj
+      DESTINATION: 'platform=macOS'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Select Xcode
+        run: |
+          # Use latest available Xcode on the runner
+          XCODE_PATH=$(ls -d /Applications/Xcode_*.app 2>/dev/null | sort -V | tail -1)
+          echo "Using Xcode: $XCODE_PATH"
+          sudo xcode-select -s "$XCODE_PATH"
+          xcodebuild -version
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Prepare build config
+        env:
+          DROPBOX_APP_KEY: ciplaceholderdropboxappkey
+        run: BOOTSTRAP_LOCAL_CONFIG_FROM_ENV=1 ./ci_scripts/prepare_build_config.sh .
+
+      - name: Generate project
+        run: xcodegen generate
+
+      # Runners have no signing account, so the app is ad-hoc signed with no
+      # entitlements (unsandboxed). Local runs keep automatic signing with the
+      # full sandbox entitlements — see project.yml.
+      - name: Run macOS unit tests
+        run: |
+          set -uo pipefail
+          mkdir -p build
+          log=build/macos-rc-unit.log
+
+          # Judge success on XCTest's aggregate summary, never on xcodebuild's
+          # raw exit code — see the rationale in pr-tests.yml.
+          set +e
+          xcodebuild test \
+            -project "$PROJECT" \
+            -scheme "$SCHEME" \
+            -destination "$DESTINATION" \
+            -only-testing:KeeForgeMacTests \
+            -skipPackagePluginValidation \
+            -retry-tests-on-failure \
+            -test-iterations 3 \
+            -resultBundlePath build/macos-rc-unit.xcresult \
+            CODE_SIGN_STYLE=Manual \
+            CODE_SIGN_IDENTITY=- \
+            CODE_SIGN_ENTITLEMENTS= \
+            DEVELOPMENT_TEAM= \
+            PROVISIONING_PROFILE_SPECIFIER= \
+            2>&1 | tee "$log"
+          status=${PIPESTATUS[0]}
+          set -e
+          echo "KeeForgeMacTests: xcodebuild exit=$status"
+
+          maxfail=$(grep -oE "[0-9]+ failures? \(" "$log" | grep -oE "^[0-9]+" | sort -rn | head -1)
+
+          if [ -z "$maxfail" ]; then
+            echo "::error::KeeForgeMacTests: no test summary produced (xcodebuild exit=$status); tests did not run — see uploaded logs."
+            exit 1
+          fi
+          if [ "$maxfail" -gt 0 ]; then
+            echo "::error::KeeForgeMacTests: $maxfail test failure(s) remained after retries."
+            exit 1
+          fi
+
+          flaked=$(grep -oE "Test Case '[^']*' failed" "$log" | sort -u || true)
+          if [ -n "$flaked" ]; then
+            echo "::warning::KeeForgeMacTests: passed with retries; the following attempt(s) failed once then passed:"
+            echo "$flaked"
+          fi
+          if [ "$status" -ne 0 ]; then
+            echo "::warning::KeeForgeMacTests: 0 failures but xcodebuild exited $status (post-run teardown artifact); treating as success."
+          fi
+          echo "KeeForgeMacTests: PASS (0 failures)"
+
+      - name: Upload test logs and result bundles
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-rc-test-results
+          path: |
+            build/*.log
+            build/*.xcresult
+          if-no-files-found: warn
+          retention-days: 14
