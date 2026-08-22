@@ -14,6 +14,7 @@ final class MacLockMonitorTests: XCTestCase {
     private var policy: SettingsService.MacLockPolicy = .screenLockOrSleep
     private var receivedTriggers: [MacLockMonitor.Trigger] = []
     private var becameActiveCount = 0
+    private var remainingHostWindows = 0
 
     override func setUp() async throws {
         try await super.setUp()
@@ -23,12 +24,14 @@ final class MacLockMonitorTests: XCTestCase {
         policy = .screenLockOrSleep
         receivedTriggers = []
         becameActiveCount = 0
+        remainingHostWindows = 0
 
         monitor = MacLockMonitor(
             notificationCenter: appCenter,
             workspaceNotificationCenter: workspaceCenter,
             distributedNotificationCenter: distributedCenter,
-            lockPolicyProvider: { [weak self] in self?.policy ?? .screenLockOrSleep }
+            lockPolicyProvider: { [weak self] in self?.policy ?? .screenLockOrSleep },
+            remainingWindowCounter: { [weak self] _ in self?.remainingHostWindows ?? 0 }
         )
         monitor.onLockTriggered = { [weak self] trigger in
             self?.receivedTriggers.append(trigger)
@@ -92,6 +95,32 @@ final class MacLockMonitorTests: XCTestCase {
     }
 
     // MARK: - Became active
+
+    // MARK: - Window close
+
+    func testClosingTheLastHostWindowFiresLock() {
+        remainingHostWindows = 0
+        monitor.handleWindowWillClose(nil)
+        XCTAssertEqual(receivedTriggers, [.lastWindowClosed])
+    }
+
+    func testClosingAWindowWhileAnotherRemainsDoesNotFireLock() {
+        remainingHostWindows = 1
+        monitor.handleWindowWillClose(nil)
+        XCTAssertTrue(receivedTriggers.isEmpty)
+    }
+
+    /// Unlike app deactivation, this trigger is unconditional: the vault has no
+    /// window left to lock it from under any policy.
+    func testWindowCloseFiresLockUnderEveryPolicy() {
+        for candidate in [SettingsService.MacLockPolicy.screenLockOrSleep, .appDeactivates] {
+            policy = candidate
+            receivedTriggers = []
+            remainingHostWindows = 0
+            monitor.handleWindowWillClose(nil)
+            XCTAssertEqual(receivedTriggers, [.lastWindowClosed], "policy \(candidate)")
+        }
+    }
 
     func testDidBecomeActiveNotificationFiresBecameActiveCallback() {
         appCenter.post(name: NSApplication.didBecomeActiveNotification, object: nil)

@@ -14,6 +14,12 @@ import Foundation
 /// - app deactivation (`NSApplication.didResignActiveNotification`) — only
 ///   under the strict `SettingsService.MacLockPolicy.appDeactivates` option;
 ///   the default policy ignores it because it fires on every window switch.
+/// - the last window closing (`NSWindow.willCloseNotification`). ⌘W closes the
+///   only window without quitting, and the session lives in app-level state,
+///   so without this an unlocked vault would sit decrypted in memory with no
+///   window to lock it from. Like the triggers above it is unconditional; a
+///   dirty draft still defers through the usual discard prompt, which the user
+///   sees when the window comes back.
 ///
 /// `NSApplication.didBecomeActiveNotification` drives the became-active
 /// callback (pending-upload drain + inactivity-timer resume).
@@ -34,12 +40,17 @@ final class MacLockMonitor {
         case systemWillSleep
         case sessionResignedActive
         case appResignedActive
+        case lastWindowClosed
     }
 
     static let screenIsLockedNotification = Notification.Name("com.apple.screenIsLocked")
     static let screensaverDidStartNotification = Notification.Name("com.apple.screensaver.didstart")
 
     typealias LockPolicyProvider = @MainActor () -> SettingsService.MacLockPolicy
+    /// How many windows that could still host the app's UI remain, ignoring the
+    /// one that is closing. Injected so tests can drive the trigger without
+    /// real windows.
+    typealias RemainingWindowCounter = @MainActor (_ excluding: NSWindow?) -> Int
 
     var onLockTriggered: ((Trigger) -> Void)?
     var onDidBecomeActive: (() -> Void)?
@@ -52,6 +63,7 @@ final class MacLockMonitor {
     private let workspaceNotificationCenter: NotificationCenter
     private let distributedNotificationCenter: NotificationCenter
     private let lockPolicyProvider: LockPolicyProvider
+    private let remainingWindowCounter: RemainingWindowCounter
     private let now: @MainActor () -> Date
     private let activityThrottle: TimeInterval
     private var observers: [(center: NotificationCenter, token: NSObjectProtocol)] = []
@@ -63,6 +75,7 @@ final class MacLockMonitor {
         workspaceNotificationCenter: NotificationCenter = NSWorkspace.shared.notificationCenter,
         distributedNotificationCenter: NotificationCenter = DistributedNotificationCenter.default(),
         lockPolicyProvider: @escaping LockPolicyProvider = { SettingsService.macLockPolicy },
+        remainingWindowCounter: @escaping RemainingWindowCounter = MacLockMonitor.countRemainingHostWindows,
         now: @escaping @MainActor () -> Date = { Date() },
         activityThrottle: TimeInterval = 2
     ) {
@@ -70,6 +83,7 @@ final class MacLockMonitor {
         self.workspaceNotificationCenter = workspaceNotificationCenter
         self.distributedNotificationCenter = distributedNotificationCenter
         self.lockPolicyProvider = lockPolicyProvider
+        self.remainingWindowCounter = remainingWindowCounter
         self.now = now
         self.activityThrottle = activityThrottle
     }
@@ -95,6 +109,7 @@ final class MacLockMonitor {
         observe(notificationCenter, NSApplication.didBecomeActiveNotification) { monitor in
             monitor.onDidBecomeActive?()
         }
+        observeWindowClose()
 
         startActivityMonitor()
     }
@@ -143,6 +158,45 @@ final class MacLockMonitor {
         }
         activityMonitor = nil
         lastActivityForwardedAt = nil
+    }
+
+    /// Sheets, panels (the About panel, open/save panels) and closed-but-alive
+    /// windows cannot host the app's UI, so they never keep a vault unlocked.
+    /// A *minimized* window does — it is one Dock click from being on screen —
+    /// and so does Settings, which the user is still working in; closing that
+    /// one later runs this check again.
+    private static func countRemainingHostWindows(excluding closingWindow: NSWindow?) -> Int {
+        NSApplication.shared.windows.filter { window in
+            window !== closingWindow
+                && (window.isVisible || window.isMiniaturized)
+                && window.canBecomeMain
+                && window.isSheet == false
+        }.count
+    }
+
+    /// Exposed for tests, which cannot close a real window.
+    func handleWindowWillClose(_ closingWindow: NSWindow?) {
+        guard remainingWindowCounter(closingWindow) == 0 else { return }
+        onLockTriggered?(.lastWindowClosed)
+    }
+
+    /// Registered on its own rather than through `observe`, which drops the
+    /// notification: this is the one observer that needs the posting object,
+    /// and `Notification` is not `Sendable`, so the object is read on the
+    /// posting thread — always the main thread for a window notification.
+    private func observeWindowClose() {
+        let token = notificationCenter.addObserver(
+            forName: NSWindow.willCloseNotification,
+            object: nil,
+            queue: nil
+        ) { [weak self] notification in
+            guard Thread.isMainThread else { return }
+            let window = notification.object as? NSWindow
+            MainActor.assumeIsolated {
+                self?.handleWindowWillClose(window)
+            }
+        }
+        observers.append((center: notificationCenter, token: token))
     }
 
     private func handleLockTrigger(_ trigger: Trigger) {

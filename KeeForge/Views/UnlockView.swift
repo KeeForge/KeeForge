@@ -201,6 +201,11 @@ struct UnlockView: View {
                     .buttonStyle(.plain)
                     .accessibilityLabel(isPasswordVisible ? "Hide master password" : "Show master password")
                     .accessibilityIdentifier("unlock.password-visibility-button")
+                    .macHelp(
+                        isPasswordVisible
+                            ? String(localized: "Hide master password")
+                            : String(localized: "Show master password")
+                    )
                 }
                 .modifier(UnlockPasswordRowContainer())
             }
@@ -379,6 +384,7 @@ struct UnlockView: View {
                     .buttonStyle(.plain)
                     .accessibilityLabel("Clear key file")
                     .accessibilityIdentifier("unlock.keyfile.clear")
+                    .macHelp(String(localized: "Clear key file"))
                 }
 
                 Button("Select") {

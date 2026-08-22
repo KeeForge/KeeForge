@@ -21,6 +21,7 @@ struct PasswordGeneratorSheet: View {
                             .buttonStyle(.borderless)
                             .accessibilityLabel("Regenerate")
                             .accessibilityIdentifier("password-generator.regenerate")
+                            .macHelp(String(localized: "Regenerate"))
 
                             CopyButton(
                                 text: generatedPassword,

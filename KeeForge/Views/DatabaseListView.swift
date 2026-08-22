@@ -110,6 +110,7 @@ struct DatabaseListView: View {
                         Image(systemName: "gearshape")
                     }
                     .accessibilityIdentifier("database.settings.button")
+                    .macHelp(String(localized: "Settings"))
                     #else
                     Button {
                         showSettings = true
@@ -126,6 +127,7 @@ struct DatabaseListView: View {
                     }
                     .menuOrder(.fixed)
                     .accessibilityIdentifier("database.add.button")
+                    .macHelp(String(localized: "Add Database"))
                 }
             }
         }

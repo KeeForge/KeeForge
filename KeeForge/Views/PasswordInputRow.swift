@@ -78,6 +78,7 @@ struct PasswordInputRow<Actions: View>: View {
             .buttonStyle(.borderless)
             .accessibilityLabel(isVisible ? "Hide \(title)" : "Show \(title)")
             .accessibilityIdentifier(visibilityAccessibilityIdentifier)
+            .macHelp(isVisible ? String(localized: "Hide \(title)") : String(localized: "Show \(title)"))
 
             actions
         }

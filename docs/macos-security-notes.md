@@ -70,9 +70,20 @@ OneDrive account emails, WebDAV `user@host/path` display strings — so:
 macOS has no "scene entered background" moment worth locking on (windows
 background on minimize and app hide), so `MacLockMonitor` is the whole lock
 lifecycle: screen lock, screensaver start, system sleep, fast-user-switch
-session resign, and — only under the strict `Lock Automatically` option — app
-deactivation. It applies `SettingsService.macLockPolicy` itself, and that
-picker (Settings ▸ Security) is the only lock switch the Mac exposes.
+session resign, the last window closing, and — only under the strict `Lock
+Automatically` option — app deactivation. It applies
+`SettingsService.macLockPolicy` itself, and that picker (Settings ▸ Security) is
+the only lock switch the Mac exposes.
+
+The window-close trigger exists because ⌘W closes the only window without
+quitting, while the session lives in app-level `@State`: without it an unlocked
+vault would sit decrypted in memory with no window to lock it from and no
+File ▸ New Window to get it back. `NSWindow.willCloseNotification` fires the
+lock only when no window that could host the app's UI remains (sheets and
+panels never count; the Settings window does, and closing it later re-runs the
+check). Like every other trigger it is unconditional and policy-independent —
+`lockRequest()` still defers a *dirty* draft to the usual discard prompt, which
+the user sees when the window comes back.
 
 The lock path is therefore **unconditional** once a trigger fires:
 `DatabaseViewModel.handleSceneDidEnterBackground()` locks on macOS without

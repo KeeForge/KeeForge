@@ -84,6 +84,7 @@ struct EntryEditView: View {
                         .buttonStyle(.borderless)
                         .accessibilityLabel("Generate password")
                         .accessibilityIdentifier("entry-edit.password-generator-button")
+                        .macHelp(String(localized: "Generate password"))
                     }
 
                     PasswordStrengthIndicator(password: formViewModel.password)

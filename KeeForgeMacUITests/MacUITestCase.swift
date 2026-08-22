@@ -214,11 +214,17 @@ class MacUITestCase: XCTestCase {
         clickRow(identifier: "entry.navlink", containing: name, rowKind: "Entry", file: file, line: line)
     }
 
-    /// Clicks the first HITTABLE row button matching the identifier + label.
-    /// Restricted to `.button` and filtered for hittability: SwiftUI can
-    /// propagate row identifiers onto zero-sized wrapper elements and keeps
-    /// stale navigation layers in the hierarchy, neither of which can be
-    /// clicked (XCUITest fails with "Unable to find hit point").
+    /// Clicks the first HITTABLE row matching the identifier and visible text.
+    ///
+    /// Deliberately NOT restricted to `.button`: the macOS vault columns are
+    /// native `List(selection:)`, so their rows surface as `Outline`/`Table`
+    /// cells whose text is a `StaticText` descendant, not as buttons. That text
+    /// also lands in the AppKit `value` attribute rather than `label` for most
+    /// SwiftUI `Text`, so the predicate has to accept either. The hittability
+    /// and height filters stay — SwiftUI propagates row identifiers onto
+    /// zero-sized wrapper elements and keeps stale navigation layers in the
+    /// hierarchy, neither of which can be clicked (XCUITest fails with "Unable
+    /// to find hit point").
     private func clickRow(
         identifier: String,
         containing name: String,
@@ -226,8 +232,11 @@ class MacUITestCase: XCTestCase {
         file: StaticString = #filePath,
         line: UInt = #line
     ) {
-        let query = app.buttons.matching(
-            NSPredicate(format: "identifier == %@ AND label CONTAINS[c] %@", identifier, name)
+        let query = app.descendants(matching: .any).matching(
+            NSPredicate(
+                format: "identifier == %@ AND (label CONTAINS[c] %@ OR value CONTAINS[c] %@)",
+                identifier, name, name
+            )
         )
 
         let deadline = Date().addingTimeInterval(15)
@@ -242,6 +251,43 @@ class MacUITestCase: XCTestCase {
         } while Date() < deadline
 
         XCTFail("\(rowKind) '\(name)' was not clickable within 15 seconds", file: file, line: line)
+    }
+
+    /// Any element carrying a vault row identifier, regardless of element type
+    /// (see `clickRow` for why the type is not pinned).
+    func rowQuery(identifier: String) -> XCUIElementQuery {
+        app.descendants(matching: .any).matching(identifier: identifier)
+    }
+
+    /// The visible text of a SwiftUI element. Most `Text` on macOS reports
+    /// through the AppKit `value` attribute and leaves `label` empty, so
+    /// reading only one of the two misses half the hierarchy. Returns "" for an
+    /// element that has gone away, which a rebuilding SwiftUI view does between
+    /// a query and the read that follows it.
+    func displayText(of element: XCUIElement) -> String {
+        guard element.exists else { return "" }
+        let label = element.label
+        if label.isEmpty == false { return label }
+        return element.value as? String ?? ""
+    }
+
+    /// Polls until an element carrying `identifier` reports `expected` as its
+    /// visible text. Re-queries every pass rather than holding one element, so a
+    /// view that rebuilds mid-wait cannot fail the read.
+    func waitForDisplayText(
+        _ expected: String,
+        identifier: String,
+        timeout: TimeInterval = 15
+    ) -> Bool {
+        let deadline = Date().addingTimeInterval(timeout)
+        repeat {
+            let matches = rowQuery(identifier: identifier).allElementsBoundByIndex
+            if matches.contains(where: { displayText(of: $0) == expected }) {
+                return true
+            }
+            RunLoop.current.run(until: Date().addingTimeInterval(0.2))
+        } while Date() < deadline
+        return false
     }
 
     // MARK: - Menu commands

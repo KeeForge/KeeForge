@@ -2,6 +2,8 @@ import CryptoKit
 import SwiftUI
 #if os(iOS)
 import UIKit
+#else
+import AppKit
 #endif
 
 struct EntryDetailView: View {
@@ -88,6 +90,7 @@ struct EntryDetailView: View {
             .accessibilityIdentifier("entry-detail.icon-button")
             .accessibilityLabel("Icon")
             .accessibilityHint("Changes the entry icon")
+            .macHelp(String(localized: "Changes the entry icon"))
         }
     }
 
@@ -138,6 +141,7 @@ struct EntryDetailView: View {
                             iconButton(for: entry)
                             Text(entry.title.isEmpty ? String(localized: "(untitled)") : entry.title)
                                 .font(.title2.bold())
+                                .accessibilityIdentifier("entry-detail.title")
                         }
                     }
 
@@ -602,20 +606,91 @@ struct SelectableNotesText: UIViewRepresentable {
     }
 }
 #else
-/// Interim macOS notes rendering — plain `Text` with `.textSelection(.enabled)`
-/// stands in for the UIKit `UITextView` wrapper until slice 02's view polish.
-struct SelectableNotesText: View {
+/// The macOS counterpart of the UIKit wrapper above: a non-editable, selectable
+/// `NSTextView` that reports a width-aware height and turns URLs and email
+/// addresses in a note into clickable links.
+struct SelectableNotesText: NSViewRepresentable {
     let text: String
 
     init(_ text: String) {
         self.text = text
     }
 
-    var body: some View {
-        Text(text)
-            .font(.body)
-            .textSelection(.enabled)
-            .frame(maxWidth: .infinity, alignment: .leading)
+    /// Holds the TextKit 1 stack's storage. `NSLayoutManager` does not keep its
+    /// text storage alive, so without this the storage would be deallocated the
+    /// moment `makeNSView` returned.
+    @MainActor
+    final class Coordinator {
+        let textStorage = NSTextStorage()
+    }
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator()
+    }
+
+    func makeNSView(context: Context) -> NSTextView {
+        // Built explicitly rather than through `NSTextView(frame:)`, which
+        // opts into TextKit 2 — whose `layoutManager` is nil, and sizing below
+        // needs one.
+        let layoutManager = NSLayoutManager()
+        let textContainer = NSTextContainer(size: CGSize(width: 0, height: CGFloat.greatestFiniteMagnitude))
+        textContainer.widthTracksTextView = true
+        textContainer.lineFragmentPadding = 0
+        layoutManager.addTextContainer(textContainer)
+        context.coordinator.textStorage.addLayoutManager(layoutManager)
+
+        let textView = NSTextView(frame: .zero, textContainer: textContainer)
+        textView.isEditable = false
+        textView.isSelectable = true
+        textView.drawsBackground = false
+        textView.textContainerInset = .zero
+        textView.isVerticallyResizable = true
+        textView.isHorizontallyResizable = false
+        textView.linkTextAttributes = [
+            .foregroundColor: NSColor.linkColor,
+            .underlineStyle: NSUnderlineStyle.single.rawValue,
+            .cursor: NSCursor.pointingHand,
+        ]
+        textView.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        return textView
+    }
+
+    func updateNSView(_ textView: NSTextView, context: Context) {
+        context.coordinator.textStorage.setAttributedString(Self.attributedNotes(text))
+    }
+
+    func sizeThatFits(_ proposal: ProposedViewSize, nsView: NSTextView, context: Context) -> CGSize? {
+        guard let width = proposal.width, width > 0, width < CGFloat.greatestFiniteMagnitude,
+              let textContainer = nsView.textContainer,
+              let layoutManager = nsView.layoutManager else {
+            return nil
+        }
+
+        textContainer.containerSize = CGSize(width: width, height: CGFloat.greatestFiniteMagnitude)
+        layoutManager.ensureLayout(for: textContainer)
+        return CGSize(width: width, height: ceil(layoutManager.usedRect(for: textContainer).height))
+    }
+
+    /// Plain body text with detected URLs and email addresses marked as links.
+    static func attributedNotes(_ text: String) -> NSAttributedString {
+        let attributed = NSMutableAttributedString(
+            string: text,
+            attributes: [
+                .font: NSFont.preferredFont(forTextStyle: .body),
+                .foregroundColor: NSColor.labelColor,
+            ]
+        )
+
+        guard let detector = try? NSDataDetector(types: NSTextCheckingResult.CheckingType.link.rawValue) else {
+            return attributed
+        }
+
+        let range = NSRange(location: 0, length: (text as NSString).length)
+        for match in detector.matches(in: text, range: range) {
+            guard let url = match.url else { continue }
+            attributed.addAttribute(.link, value: url, range: match.range)
+        }
+        return attributed
     }
 }
 #endif
@@ -722,6 +797,7 @@ struct ProtectedFieldRow: View {
             .contentShape(Rectangle())
             .disabled(authenticating)
             .accessibilityIdentifier("\(accessibilityPrefix).protected-field.\(normalizedLabel).reveal")
+            .macHelp(revealed ? String(localized: "Hide \(label)") : String(localized: "Show \(label)"))
 
             CopyButton(
                 text: value,
@@ -794,6 +870,7 @@ struct PasswordFieldRow: View {
                 .contentShape(Rectangle())
                 .disabled(authenticating)
                 .accessibilityIdentifier("\(accessibilityPrefix).password.reveal")
+                .macHelp(revealTooltip)
 
                 CopyButton(
                     resolveText: { plaintext(of: password) },
@@ -806,6 +883,12 @@ struct PasswordFieldRow: View {
             guard revealed else { return }
             revealedText = plaintext(of: updatedPassword)
         }
+    }
+
+    /// Reuses the parameterized Show/Hide strings the password input row uses.
+    private var revealTooltip: String {
+        let field = String(localized: "Password")
+        return revealed ? String(localized: "Hide \(field)") : String(localized: "Show \(field)")
     }
 
     private func plaintext(of value: EncryptedValue) -> String {
@@ -959,6 +1042,7 @@ struct CopyButton: View {
         .contentShape(Rectangle())
         .buttonStyle(.borderless)
         .accessibilityIdentifier(accessibilityID)
+        .macHelp(String(localized: "Copy"))
     }
 
     private func performCopy() {

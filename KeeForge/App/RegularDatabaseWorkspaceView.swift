@@ -64,7 +64,7 @@ struct RegularDatabaseWorkspaceView: View {
                 guard oldValue != newValue else { return }
                 viewModel.selectEntry(nil)
             }
-            .modifier(NewEntryCommandHandling(view: self))
+            .modifier(MacCommandHandling(view: self))
             .alert(item: $presentedSaveError) { error in
                 Alert(
                     title: Text("Couldn't Save Database"),
@@ -207,9 +207,10 @@ struct RegularDatabaseWorkspaceView: View {
     }
     #endif
 
-    /// macOS: reacts to the menu-bar New Entry command and hosts the editor
-    /// sheet it presents; no-op modifier on iOS.
-    private struct NewEntryCommandHandling: ViewModifier {
+    /// macOS: reacts to the menu-bar commands that need a presentation the
+    /// workspace owns (New Entry, New Group, Edit Entry, Delete) and hosts the
+    /// entry-editor sheet; no-op modifier on iOS.
+    private struct MacCommandHandling: ViewModifier {
         let view: RegularDatabaseWorkspaceView
 
         func body(content: Content) -> some View {
@@ -218,6 +219,18 @@ struct RegularDatabaseWorkspaceView: View {
                 .onChange(of: view.viewModel.newEntryRequestID) { oldValue, newValue in
                     guard newValue != oldValue else { return }
                     view.beginNewEntryFromCommand()
+                }
+                .onChange(of: view.viewModel.newGroupRequestID) { oldValue, newValue in
+                    guard newValue != oldValue else { return }
+                    view.beginNewGroup()
+                }
+                .onChange(of: view.viewModel.editEntryRequestID) { oldValue, newValue in
+                    guard newValue != oldValue else { return }
+                    view.beginSelectedEntryEdit()
+                }
+                .onChange(of: view.viewModel.deleteSelectionRequestID) { oldValue, newValue in
+                    guard newValue != oldValue else { return }
+                    view.beginSelectionDeletion()
                 }
                 .sheet(item: view.$commandEditor) { formViewModel in
                     NavigationStack {
@@ -429,10 +442,34 @@ struct RegularDatabaseWorkspaceView: View {
         )
     }
 
+    /// Bridges the sidebar's single native selection onto the two mutually
+    /// exclusive selections the view model already owns. A `nil` write is
+    /// ignored: clicking the list's empty area must not leave the workspace
+    /// with nothing selected and an empty content column.
+    private var macSidebarSelection: Binding<MacSidebarSelection?> {
+        Binding(
+            get: {
+                if let tag = viewModel.selectedTag { return .tag(tag) }
+                if let groupID = viewModel.selectedGroupID { return .group(groupID) }
+                return nil
+            },
+            set: { newValue in
+                switch newValue {
+                case .group(let groupID):
+                    viewModel.selectedGroupID = groupID
+                case .tag(let tag):
+                    viewModel.selectedTag = tag
+                case nil:
+                    break
+                }
+            }
+        )
+    }
+
     @ViewBuilder
     private var macSidebarColumn: some View {
         if let rootID = viewModel.visibleRootGroupID, let rootNode = macGroupNode(for: rootID) {
-            List {
+            List(selection: macSidebarSelection) {
                 MacGroupTreeRow(
                     node: rootNode,
                     viewModel: viewModel,
@@ -450,6 +487,7 @@ struct RegularDatabaseWorkspaceView: View {
                     Section("Tags") {
                         ForEach(Array(tags.enumerated()), id: \.element) { index, tag in
                             MacTagRow(tag: tag, fallbackIndex: index, viewModel: viewModel)
+                                .tag(MacSidebarSelection.tag(tag))
                         }
                     }
                 }
@@ -488,7 +526,7 @@ struct RegularDatabaseWorkspaceView: View {
             } else {
                 MacEntriesColumn(
                     viewModel: viewModel,
-                    onSelectEntry: selectEntry,
+                    onOpenEntry: { beginEntryEdit(entryID: $0) },
                     onRequestMove: { pendingMove = $0 },
                     onRequestDeletion: { pendingDeletion = $0 }
                 )
@@ -596,6 +634,49 @@ struct RegularDatabaseWorkspaceView: View {
             inheritedTags: viewModel.inheritedTags(forGroupID: targetGroupID)
         )
     }
+
+    /// Opens the editor on the selected entry — the ⌘E command and the entry
+    /// row's double-click both land here. `EntryDetailView`'s own Edit button
+    /// keeps its editor; this one exists because neither the menu bar nor a
+    /// content-column row can reach into the detail column's state.
+    @MainActor
+    private func beginEntryEdit(entryID: UUID) {
+        guard commandEditor == nil, viewModel.isReadOnly == false else { return }
+        guard let entry = viewModel.entry(withID: entryID), let sessionKey = viewModel.sessionKey else { return }
+
+        commandEditor = EntryEditViewModel(
+            editing: entry,
+            sessionKey: sessionKey,
+            knownTags: viewModel.tagsInDisplayOrder,
+            inheritedTags: viewModel.inheritedTags(forEntryID: entryID)
+        )
+    }
+
+    @MainActor
+    private func beginSelectedEntryEdit() {
+        guard let entryID = viewModel.selectedEntryID else { return }
+        beginEntryEdit(entryID: entryID)
+    }
+
+    /// Menu-bar Delete: raises the same `PendingDeletion` confirmation the row
+    /// context menus raise, never a direct delete.
+    @MainActor
+    private func beginSelectionDeletion() {
+        switch viewModel.deletableSelection {
+        case .entry(let entryID):
+            pendingDeletion = .entry(
+                PendingEntryDeletion(
+                    entryID: entryID,
+                    sendToRecycleBin: viewModel.isEntryInRecycleBin(entryID: entryID) == false
+                )
+            )
+        case .group(let groupID):
+            guard let pending = PendingGroupDeletion(groupID: groupID, viewModel: viewModel) else { return }
+            pendingDeletion = .group(pending)
+        case nil:
+            return
+        }
+    }
     #endif
 
     @MainActor
@@ -640,14 +721,30 @@ struct RegularDatabaseWorkspaceView: View {
 }
 
 #if os(macOS)
-/// The macOS content column: the selected group's entries, each a plain button
-/// carrying `entry.navlink` with a manual selection highlight. A dedicated
-/// `@Bindable` observing view (not an inline `@ViewBuilder` on the workspace) so
-/// it re-renders on `DatabaseViewModel.contentRevision` changes — e.g. after an
-/// edit renames an entry, which an inline computed property missed.
+/// What the macOS sidebar's native `List(selection:)` carries. The two cases
+/// mirror `DatabaseViewModel.selectedGroupID` / `selectedTag`, which stay the
+/// source of truth; this type only exists because one list needs one selection
+/// value.
+enum MacSidebarSelection: Hashable {
+    case group(UUID)
+    case tag(String)
+}
+
+/// The macOS content column: the selected group's entries in a native
+/// `List(selection:)` bound to `DatabaseViewModel.selectedEntryID`, so arrow
+/// keys, type-select, and the focus ring come from AppKit rather than being
+/// hand-rolled. A dedicated `@Bindable` observing view (not an inline
+/// `@ViewBuilder` on the workspace) so it re-renders on
+/// `DatabaseViewModel.contentRevision` changes — e.g. after an edit renames an
+/// entry, which an inline computed property missed.
 private struct MacEntriesColumn: View {
     @Bindable var viewModel: DatabaseViewModel
-    let onSelectEntry: (KPEntry) -> Void
+    /// A row's tap handler consumes the click, so the list never becomes first
+    /// responder on its own and the arrow keys would go nowhere; the handler
+    /// hands focus over explicitly.
+    @FocusState private var isListFocused: Bool
+    /// Double-click and Return; the workspace hosts the editor sheet.
+    let onOpenEntry: (UUID) -> Void
     /// Raised to the workspace, which hosts the picker and the confirmation;
     /// a row-scoped host dies with the row the action removes.
     let onRequestMove: (PendingMove) -> Void
@@ -669,12 +766,16 @@ private struct MacEntriesColumn: View {
                         description: Text("This group has no entries.")
                     )
                 } else {
-                    List {
-                        ForEach(entries) { entry in
-                            entryRow(entry)
-                        }
+                    List(entries, selection: $viewModel.selectedEntryID) { entry in
+                        entryRow(entry)
                     }
                     .listStyle(.inset)
+                    .focused($isListFocused)
+                    .onKeyPress(.return) {
+                        guard let entryID = viewModel.selectedEntryID else { return .ignored }
+                        onOpenEntry(entryID)
+                        return .handled
+                    }
                 }
             }
             .navigationSubtitle(group.name)
@@ -687,24 +788,25 @@ private struct MacEntriesColumn: View {
         }
     }
 
-    @ViewBuilder
     private func entryRow(_ entry: KPEntry) -> some View {
-        let isSelected = viewModel.selectedEntryID == entry.id
-        Button {
-            onSelectEntry(entry)
-        } label: {
-            EntryRow(
-                entry: entry,
-                username: viewModel.resolvingFieldReferences(entry.username),
-                customIconData: viewModel.customIconData(for: entry)
-            )
-            .foregroundStyle(isSelected ? Color.white : Color.primary)
-        }
-        .buttonStyle(.plain)
-        .listRowBackground(
-            RoundedRectangle(cornerRadius: 6, style: .continuous)
-                .fill(isSelected ? Color.accentColor : Color.clear)
+        EntryRow(
+            entry: entry,
+            username: viewModel.resolvingFieldReferences(entry.username),
+            customIconData: viewModel.customIconData(for: entry)
         )
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .contentShape(Rectangle())
+        // Any tap gesture on a row consumes the click the enclosing `List`
+        // would have used to move its selection — `simultaneousGesture` too —
+        // so the single-click case has to be handled here as well. Order
+        // matters: the two-tap gesture must be attached first.
+        .onTapGesture(count: 2) {
+            onOpenEntry(entry.id)
+        }
+        .onTapGesture {
+            viewModel.selectedEntryID = entry.id
+            isListFocused = true
+        }
         .accessibilityIdentifier("entry.navlink")
         .contextMenu {
             if canMove(entry) {
@@ -741,49 +843,33 @@ private struct MacEntriesColumn: View {
     }
 }
 
-/// A macOS sidebar tag row: the tag name with its live-entry count, carrying
-/// the same manual selection highlight the group rows use (native list
-/// selection is not used anywhere in this sidebar). Selecting one clears the
-/// group selection through `DatabaseViewModel`, so exactly one row highlights.
+/// A macOS sidebar tag row: the tag name with its live-entry count. Selection
+/// is the enclosing `List`'s, tagged `MacSidebarSelection.tag`; writing it
+/// clears the group selection through `DatabaseViewModel`, so exactly one
+/// sidebar row highlights.
 private struct MacTagRow: View {
     let tag: String
     let fallbackIndex: Int
     @Bindable var viewModel: DatabaseViewModel
 
-    private var isSelected: Bool {
-        viewModel.selectedTag == tag
-    }
-
     var body: some View {
-        Button {
-            viewModel.selectedTag = tag
-        } label: {
-            Label {
-                HStack {
-                    Text(tag)
-                        .lineLimit(1)
-                        .truncationMode(.tail)
-                    Spacer(minLength: 4)
-                    Text(viewModel.entryCount(forTag: tag).formatted())
-                        .font(.caption)
-                        .foregroundStyle(isSelected ? Color.white : Color.secondary)
-                }
-            } icon: {
-                Image(systemName: "tag")
-                    .foregroundStyle(isSelected ? Color.white : Color.accentColor)
+        Label {
+            HStack {
+                Text(tag)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                Spacer(minLength: 4)
+                Text(viewModel.entryCount(forTag: tag).formatted())
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
-            .font(.body)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .contentShape(Rectangle())
+        } icon: {
+            Image(systemName: "tag")
         }
-        .buttonStyle(.plain)
-        .foregroundStyle(isSelected ? Color.white : Color.primary)
-        .listRowBackground(
-            RoundedRectangle(cornerRadius: 6, style: .continuous)
-                .fill(isSelected ? Color.accentColor : Color.clear)
-                .padding(.horizontal, 6)
-                .padding(.vertical, 1)
-        )
+        .font(.body)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .contentShape(Rectangle())
+        .help(tag)
         .accessibilityIdentifier(
             "tag-list.row.\(TagAccessibility.identifierSuffix(for: tag, fallbackIndex: fallbackIndex))"
         )
@@ -801,8 +887,9 @@ struct MacGroupNode: Identifiable {
 
 /// Recursive sidebar row. Concrete (not an opaque `some View` helper) so it can
 /// reference itself for nested groups. Parent groups render as a
-/// `DisclosureGroup` defaulting to expanded; the row itself is a plain button
-/// carrying `group.navlink` with a manual sidebar-style selection highlight.
+/// `DisclosureGroup` defaulting to expanded; every row carries `group.navlink`
+/// and its `MacSidebarSelection` tag, so the enclosing `List(selection:)` draws
+/// the highlight and handles arrow keys and type-select.
 private struct MacGroupTreeRow: View {
     let node: MacGroupNode
     @Bindable var viewModel: DatabaseViewModel
@@ -814,25 +901,23 @@ private struct MacGroupTreeRow: View {
     let onRequestMove: (PendingMove) -> Void
     let onRequestDeletion: (PendingDeletion) -> Void
 
-    private var isSelected: Bool {
-        viewModel.selectedGroupID == node.id
+    private var isExpanded: Binding<Bool> {
+        Binding(
+            get: { collapsedGroupIDs.contains(node.id) == false },
+            set: { isExpanded in
+                if isExpanded {
+                    collapsedGroupIDs.remove(node.id)
+                } else {
+                    collapsedGroupIDs.insert(node.id)
+                }
+            }
+        )
     }
 
     var body: some View {
-        if let children = node.children {
-            DisclosureGroup(
-                isExpanded: Binding(
-                    get: { collapsedGroupIDs.contains(node.id) == false },
-                    set: { isExpanded in
-                        if isExpanded {
-                            collapsedGroupIDs.remove(node.id)
-                        } else {
-                            collapsedGroupIDs.insert(node.id)
-                        }
-                    }
-                )
-            ) {
-                ForEach(children) { child in
+        if node.children != nil {
+            DisclosureGroup(isExpanded: isExpanded) {
+                ForEach(node.children ?? []) { child in
                     MacGroupTreeRow(
                         node: child,
                         viewModel: viewModel,
@@ -843,36 +928,29 @@ private struct MacGroupTreeRow: View {
                     )
                 }
             } label: {
+                // No double-click-to-toggle here on purpose: a `TapGesture` on
+                // the label consumes the click the list needs to change its
+                // selection, and selecting a group is what this row is for.
+                // The disclosure triangle stays the way to fold a group.
                 row
             }
+            .tag(MacSidebarSelection.group(node.id))
         } else {
-            row
+            row.tag(MacSidebarSelection.group(node.id))
         }
     }
 
     private var row: some View {
-        Button {
-            viewModel.selectedGroupID = node.id
-        } label: {
-            Label {
-                Text(node.name)
-                    .lineLimit(1)
-            } icon: {
-                Image(systemName: node.icon)
-                    .foregroundStyle(isSelected ? Color.white : Color.accentColor)
-            }
-            .font(.body)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .contentShape(Rectangle())
+        Label {
+            Text(node.name)
+                .lineLimit(1)
+        } icon: {
+            Image(systemName: node.icon)
         }
-        .buttonStyle(.plain)
-        .foregroundStyle(isSelected ? Color.white : Color.primary)
-        .listRowBackground(
-            RoundedRectangle(cornerRadius: 6, style: .continuous)
-                .fill(isSelected ? Color.accentColor : Color.clear)
-                .padding(.horizontal, 6)
-                .padding(.vertical, 1)
-        )
+        .font(.body)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .contentShape(Rectangle())
+        .help(node.name)
         .accessibilityIdentifier("group.navlink")
         .contextMenu {
             if canEdit {

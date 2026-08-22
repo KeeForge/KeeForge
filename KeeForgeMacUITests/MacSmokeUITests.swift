@@ -37,7 +37,10 @@ final class MacSmokeUITests: MacUITestCase {
 
         for groupName in ["Social", "Work", "Empty"] {
             let group = app.descendants(matching: .any).matching(
-                NSPredicate(format: "identifier == 'group.navlink' AND label CONTAINS[c] %@", groupName)
+                NSPredicate(
+                    format: "identifier == 'group.navlink' AND (label CONTAINS[c] %@ OR value CONTAINS[c] %@)",
+                    groupName, groupName
+                )
             ).firstMatch
             XCTAssertTrue(group.waitForExistence(timeout: 15), "Group '\(groupName)' missing from root group list")
         }
@@ -64,6 +67,47 @@ final class MacSmokeUITests: MacUITestCase {
         XCTAssertNotNil(
             NSPasteboard.general.string(forType: concealedType),
             "Copies must carry org.nspasteboard.ConcealedType so clipboard managers skip them"
+        )
+    }
+
+    // MARK: - Keyboard navigation
+
+    /// The vault columns are native `List(selection:)`, so the arrow keys are
+    /// AppKit's, not something the app implements. These two tests are what
+    /// catch a regression back to hand-rolled button rows, where nothing moved.
+    func testDownArrowMovesTheEntrySelection() {
+        unlockSuccessfully()
+        openGroup(named: "Work")
+        // Title-ascending is the default sort, so Email precedes GitHub.
+        openEntry(named: "Email")
+
+        XCTAssertTrue(
+            waitForDisplayText("Email", identifier: "entry-detail.title"),
+            "Entry detail did not open on 'Email'"
+        )
+
+        app.typeKey(XCUIKeyboardKey.downArrow, modifierFlags: [])
+
+        XCTAssertTrue(
+            waitForDisplayText("GitHub", identifier: "entry-detail.title"),
+            "Arrow-key navigation did not move the entry selection"
+        )
+    }
+
+    func testDownArrowMovesTheSidebarGroupSelection() {
+        unlockSuccessfully()
+        // 'Empty' has no entries and sorts before 'Social' and 'Work', so any
+        // downward move lands on a group that does have some.
+        openGroup(named: "Empty")
+
+        let entryRow = rowQuery(identifier: "entry.navlink").firstMatch
+        XCTAssertFalse(entryRow.exists, "The 'Empty' group should show no entry rows")
+
+        app.typeKey(XCUIKeyboardKey.downArrow, modifierFlags: [])
+
+        XCTAssertTrue(
+            entryRow.waitForExistence(timeout: 10),
+            "Arrow-key navigation did not move the sidebar selection to the next group"
         )
     }
 
@@ -166,14 +210,14 @@ final class MacSmokeUITests: MacUITestCase {
         XCTAssertTrue(saveButton.waitForExistence(timeout: 5), "Save button missing")
         saveButton.click()
 
-        // The renamed entry surfaces as its content-column row button. Scope the
-        // query to `entry.navlink` buttons: a broad `descendants(.any)` +
-        // CONTAINS scan over the three-column hierarchy times out the
-        // accessibility query on macOS.
-        let renamed = app.buttons.matching(
-            NSPredicate(format: "identifier == 'entry.navlink' AND label CONTAINS[c] %@", "Discord Renamed")
-        ).firstMatch
-        XCTAssertTrue(renamed.waitForExistence(timeout: 30), "Renamed entry did not appear after save")
+        // The renamed entry surfaces as a content-column row. Matching is done
+        // in Swift over the identifier query rather than with a CONTAINS
+        // predicate: a broad `descendants(.any)` + CONTAINS scan over the
+        // three-column hierarchy times out the accessibility query on macOS.
+        XCTAssertTrue(
+            waitForDisplayText("Discord Renamed", identifier: "entry.navlink", timeout: 30),
+            "Renamed entry did not appear after save"
+        )
     }
 
     // MARK: - Menu-bar commands

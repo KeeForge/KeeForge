@@ -215,6 +215,24 @@ extension View {
     }
 }
 
+// MARK: - Tooltips (macOS)
+
+extension View {
+    /// Hover tooltip for an icon-only control on macOS; no-op on iOS.
+    ///
+    /// Deliberately not plain `.help()`: on iOS that becomes the VoiceOver
+    /// hint, so applying it alongside the existing `accessibilityLabel`s would
+    /// change what iOS reads out. Pass the same text the label already uses.
+    @ViewBuilder
+    func macHelp(_ text: String) -> some View {
+        #if os(macOS)
+        help(text)
+        #else
+        self
+        #endif
+    }
+}
+
 // MARK: - Sheet sizing (macOS)
 
 extension View {

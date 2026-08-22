@@ -385,6 +385,15 @@ final class DatabaseViewModel {
     /// Incremented by the macOS menu-bar "Find" command (⌘F); the group list
     /// observes it and focuses the search field.
     private(set) var searchFocusRequestID = 0
+    /// Incremented by the macOS menu-bar "New Group" command (⇧⌘N); the
+    /// unlocked workspace observes it and presents the new-group sheet.
+    private(set) var newGroupRequestID = 0
+    /// Incremented by the macOS menu-bar "Edit Entry" command (⌘E); the
+    /// unlocked workspace observes it and opens the editor on the selection.
+    private(set) var editEntryRequestID = 0
+    /// Incremented by the macOS menu-bar "Delete" command (⌘⌫); the unlocked
+    /// workspace observes it and raises the shared delete confirmation.
+    private(set) var deleteSelectionRequestID = 0
     var sortOrder: SortOrder {
         didSet { Self.persistSortOrder(sortOrder) }
     }
@@ -1459,6 +1468,58 @@ final class DatabaseViewModel {
     func requestSearchFocus() {
         guard case .unlocked = state else { return }
         searchFocusRequestID += 1
+    }
+
+    /// Requests presenting the new-group sheet under the selected group. Used
+    /// by the macOS menu-bar New Group command.
+    func requestNewGroup() {
+        guard case .unlocked = state, isReadOnly == false else { return }
+        newGroupRequestID += 1
+    }
+
+    /// Requests opening the entry editor on the current selection. Used by the
+    /// macOS menu-bar Edit Entry command.
+    func requestEntryEdit() {
+        guard canEditSelectedEntry else { return }
+        editEntryRequestID += 1
+    }
+
+    /// Requests the delete confirmation for the current selection. Used by the
+    /// macOS menu-bar Delete command; the workspace raises the same alert the
+    /// row context menus use, so a menu-bar delete never bypasses it.
+    func requestDeleteSelection() {
+        guard deletableSelection != nil else { return }
+        deleteSelectionRequestID += 1
+    }
+
+    /// Whether the macOS Edit Entry command applies right now.
+    var canEditSelectedEntry: Bool {
+        guard case .unlocked = state, isReadOnly == false, sessionKey != nil else { return false }
+        guard let selectedEntryID else { return false }
+        return entry(withID: selectedEntryID) != nil
+    }
+
+    /// What the macOS Delete command would act on: the selected entry when
+    /// there is one, otherwise the selected group. Sidebar and content
+    /// selection are mutually exclusive in practice — selecting a group clears
+    /// the entry selection — so the entry-first order matches what the user is
+    /// looking at.
+    enum SelectionDeletionTarget: Equatable {
+        case entry(UUID)
+        case group(UUID)
+    }
+
+    var deletableSelection: SelectionDeletionTarget? {
+        guard case .unlocked = state, isReadOnly == false else { return nil }
+        if let selectedEntryID, entry(withID: selectedEntryID) != nil {
+            return .entry(selectedEntryID)
+        }
+        if let selectedGroupID,
+           group(withID: selectedGroupID) != nil,
+           isGroupProtectedFromDeletion(groupID: selectedGroupID) == false {
+            return .group(selectedGroupID)
+        }
+        return nil
     }
 
     func lock(manuallyTriggered: Bool = false, preservingClipboard: Bool = false) {
