@@ -1,0 +1,38 @@
+# Spec overlay for the notarized Developer ID (direct-download) macOS build.
+#
+#   xcodegen generate --spec project-direct.yml
+#
+# It produces the same project as `project.yml` with one difference: the
+# `KeeForgeMac` target links Sparkle and compiles with KEEFORGE_DIRECT_DOWNLOAD,
+# which turns on in-app updates and swaps the StoreKit tip jar for a GitHub
+# Sponsors link.
+#
+# Why an overlay and not a second target: both channels must ship an app called
+# KeeForge.app — the bundle name is user-visible and the executable name is
+# baked into the signature, so it cannot be renamed after signing. Two targets
+# in one project would therefore both declare the same product path, which
+# Xcode rejects outright ("Multiple commands produce .../KeeForge.app"). Two
+# specs keep the channels mutually exclusive by construction, which is what we
+# want anyway: an App Store build must never contain Sparkle.
+#
+# ci_scripts/build_mac_direct.sh regenerates with this spec before archiving.
+# Plain `xcodegen generate` always yields the App Store build, so no existing
+# workflow changes and the default is the safe one.
+include:
+  - project.yml
+
+packages:
+  Sparkle:
+    url: https://github.com/sparkle-project/Sparkle.git
+    from: 2.9.6
+
+targets:
+  KeeForgeMac:
+    settings:
+      base:
+        SWIFT_ACTIVE_COMPILATION_CONDITIONS: $(inherited) KEEFORGE_DIRECT_DOWNLOAD
+    # Appended to the dependencies project.yml already declares — XcodeGen
+    # merges lists from an include rather than replacing them, so restating the
+    # others here would register each one twice.
+    dependencies:
+      - package: Sparkle

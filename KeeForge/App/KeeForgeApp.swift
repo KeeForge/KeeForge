@@ -82,7 +82,11 @@ struct KeeForgeApp: App {
                 AttachmentPreviewFileStore.purgeOrphanedFiles()
                 // At launch, not on Tip Jar open, so out-of-app completions
                 // (Ask to Buy, deferred SCA) are still delivered and finished.
-                StoreKitManager.shared.start()
+                // A direct-download build has no App Store receipt, so it never
+                // touches StoreKit at all.
+                if DistributionChannel.supportsStoreKit {
+                    StoreKitManager.shared.start()
+                }
                 pendingUploadDrainer.startObserving {
                     Task {
                         await listViewModel.drainPendingUploadsOnAppActive()
@@ -100,6 +104,11 @@ struct KeeForgeApp: App {
                     listViewModel: listViewModel,
                     activeDatabaseViewModel: $activeDatabaseViewModel
                 )
+                #if KEEFORGE_DIRECT_DOWNLOAD
+                CommandGroup(after: .appInfo) {
+                    CheckForUpdatesCommand()
+                }
+                #endif
             }
         #else
         return windowGroup

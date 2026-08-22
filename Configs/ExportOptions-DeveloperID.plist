@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>method</key>
+	<string>developer-id</string>
+	<!-- Both channels stay sandboxed and hardened; the export must not strip
+	     entitlements or re-sign with a different identity. -->
+	<key>signingStyle</key>
+	<string>automatic</string>
+	<key>destination</key>
+	<string>export</string>
+	<!-- Notarization is done explicitly by ci_scripts/build_mac_direct.sh so the
+	     entitlement checks run before anything is submitted to Apple. -->
+	<key>manageAppVersionAndBuildNumber</key>
+	<false/>
+</dict>
+</plist>
