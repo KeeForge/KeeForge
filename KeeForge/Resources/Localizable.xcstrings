@@ -4039,6 +4039,40 @@
         }
       }
     },
+    "Check for Updates…" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nach Updates suchen …"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Buscar actualizaciones…"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rechercher les mises à jour…"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "检查更新…"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "檢查更新…"
+          }
+        }
+      }
+    },
     "Choose a database from the sidebar to unlock and browse it." : {
       "localizations" : {
         "de" : {
@@ -12573,6 +12607,40 @@
         }
       }
     },
+    "KeeForge is free and open source. Sponsorship covers the Apple Developer Program and the time that goes into it." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge ist kostenlos und quelloffen. Sponsoring deckt das Apple Developer Program und die investierte Zeit."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge es gratuito y de código abierto. El patrocinio cubre el Apple Developer Program y el tiempo dedicado."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge est gratuit et open source. Le parrainage couvre le programme Apple Developer et le temps qui y est consacré."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge 免费且开源。赞助用于支付 Apple Developer Program 的费用以及投入的时间。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge 免費且開源。贊助用於支付 Apple Developer Program 的費用以及投入的時間。"
+          }
+        }
+      }
+    },
     "KeeForge is free and open source. Tips help support development. ❤️" : {
       "localizations" : {
         "de" : {
@@ -20699,6 +20767,40 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "原始碼"
+          }
+        }
+      }
+    },
+    "Sponsor KeeForge" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge unterstützen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Patrocinar KeeForge"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Soutenir KeeForge"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "赞助 KeeForge"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "贊助 KeeForge"
           }
         }
       }

@@ -519,6 +519,15 @@ Continue with Mode C from C1, reporting against the 24h target in place of 48h.
 - The KDBX compatibility gate runs **per platform**. Run it for iOS as documented, then again with
   `KDBX_COMPAT_SCHEME=KeeForgeMac` (which switches the test target to `KeeForgeMacTests` and the
   destination to `platform=macOS`). Both must pass before a candidate ships.
+- The Mac ships through **two channels**. The Mac App Store build is the default
+  (`xcodegen generate`) and is archived like the iOS app. The notarized
+  Developer ID build is produced by `ci_scripts/build_mac_direct.sh`, which
+  regenerates from the `project-direct.yml` overlay spec, archives, exports,
+  refuses to submit anything that is unsandboxed or carries a
+  `com.apple.security.cs.*` exception, notarizes, staples, and emits the appcast
+  zip. Run it **after** the App Store build is cut, from the same commit, so both
+  channels ship identical code — then sign the zip with Sparkle's `sign_update`
+  and publish the appcast entry.
 - `KeeForgeMacUITests` cannot run on a headless runner — it needs an unlocked, active login session
   — so the Mac smoke suite stays a **local** pre-release step. `.github/workflows/macos-rc-tests.yml`
   covers the Mac unit suite on each `rc/*` tag.

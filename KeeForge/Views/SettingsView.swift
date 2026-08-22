@@ -96,7 +96,7 @@ struct SettingsView: View {
             NavigationStack {
                 Form {
                     feedbackSection
-                    TipJarView()
+                    SupportKeeForgeSection()
                     AboutSectionContent()
                 }
                 .formStyle(.grouped)
@@ -115,7 +115,7 @@ struct SettingsView: View {
                     settingsNavigationSection
                     cloudAccountsSection
                     feedbackSection
-                    TipJarView()
+                    SupportKeeForgeSection()
                     aboutNavigationSection
                 }
             )

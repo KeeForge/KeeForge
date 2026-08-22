@@ -14,13 +14,11 @@ enum ReviewPromptService {
     nonisolated(unsafe) static var minimumActions = 10
     nonisolated(unsafe) static var defaults: UserDefaults = .standard
 
-    /// Distribution-channel gate. The Mac App Store and iOS App Store builds
-    /// leave this `true`. Slice 07 introduces a real channel flag for the
-    /// notarized Developer ID (direct-download) build; that build must set this
-    /// to `false` so the StoreKit review prompt — which only works for App
-    /// Store installs — silently no-ops instead of failing. Hook lives here so
-    /// slice 07 only has to flip it at launch.
-    nonisolated(unsafe) static var isAppStoreBuild = true
+    /// Distribution-channel gate, defaulted from the build's own channel: the
+    /// StoreKit review prompt only works for an App Store install, so the
+    /// notarized Developer ID build silently no-ops instead of failing. Still a
+    /// `var` so tests can drive both sides.
+    nonisolated(unsafe) static var isAppStoreBuild = DistributionChannel.supportsStoreKit
 
     /// Injected review presenter. macOS has no scene-based StoreKit entry point
     /// the way iOS does; the app wires SwiftUI's `RequestReviewAction`

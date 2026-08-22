@@ -81,6 +81,15 @@
 	<string>msauth.$(PRODUCT_BUNDLE_IDENTIFIER)://auth</string>
 	<key>GITCommitHash</key>
 	<string>$(GIT_COMMIT_HASH)</string>
+	<!-- Sparkle, direct-download channel only. Both values come from build
+	     settings that are empty for the Mac App Store target, which does not
+	     link Sparkle at all; keeping one Info.plist avoids a third copy of
+	     this file to keep in sync. SUPublicEDKey is the public half of the
+	     EdDSA pair — the private key never enters the repo or CI logs. -->
+	<key>SUFeedURL</key>
+	<string>$(SPARKLE_FEED_URL)</string>
+	<key>SUPublicEDKey</key>
+	<string>$(SPARKLE_PUBLIC_ED_KEY)</string>
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
 	<key>LSApplicationCategoryType</key>

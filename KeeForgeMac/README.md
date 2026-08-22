@@ -6,7 +6,7 @@ Configuration folder for the native macOS app target — only `Info.plist` and `
 
 No longer on hold — the Mac app is being brought to a shippable state, but it **has not shipped yet**. Authoritative status and the remaining pre-release checklist: `CHANGELOG.md` under `## macOS App`. Log macOS work there, not under `## Unreleased` (iOS release notes).
 
-Still open before it can ship: slice 07 distribution (`docs/specs/2026-07-12-macos-port/07-distribution.md`) — Sparkle, notarization, Developer ID signing and the MAS-vs-direct channel seam — plus the manual QA matrix and the unresolved "AutoFill provider missing from System Settings" bug, whose next diagnostic step needs a distribution-signed build.
+Still open before it can ship: the credential-dependent half of slice 07 (`docs/specs/2026-07-12-macos-port/07-distribution.md`) — a Developer ID certificate, hand-made Developer ID profiles, notarization credentials, an EdDSA key and appcast hosting — plus the manual QA matrix and the unresolved "AutoFill provider missing from System Settings" bug, whose next diagnostic step needs a distribution-signed build. The in-repo plumbing for both channels is in place (see "Distribution Channels" below).
 
 ## Target Map
 
@@ -37,3 +37,14 @@ xcodebuild test -project KeeForge.xcodeproj -scheme KeeForgeMac \
 ```
 
 Prefer the smallest `-only-testing:` slice, as with iOS. The `macos-unit-tests` job in `.github/workflows/pr-tests.yml` runs the same suite on every PR, and `.github/workflows/macos-rc-tests.yml` runs it on each `rc/*` tag; both are ad-hoc signed with entitlements stripped (no signing account on runners). `ci.yml`'s `macos-build-and-test` remains for manual dispatch.
+
+## Distribution Channels
+
+One target, two channels, chosen when the project is generated rather than when it is built:
+
+- `xcodegen generate` — **Mac App Store**: no Sparkle in the binary, StoreKit tip jar, universal purchase with iOS. The default, so every ordinary workflow and every CI job builds this.
+- `xcodegen generate --spec project-direct.yml` — **Developer ID direct download**: links Sparkle, compiles `KEEFORGE_DIRECT_DOWNLOAD`, shows GitHub Sponsors instead of the tip jar, never calls StoreKit. `ci_scripts/build_mac_direct.sh` drives it and restores the App Store spec on exit.
+
+Two specs rather than two targets: both channels ship an app named `KeeForge.app` (the executable name is inside the signature and cannot be renamed afterwards), and two targets producing the same product path is a hard Xcode error. Separate specs also make the channels mutually exclusive by construction — an App Store build must never contain an updater.
+
+Read the channel at runtime through `DistributionChannel` only. `SUFeedURL` / `SUPublicEDKey` in `Info.plist` come from the `SPARKLE_FEED_URL` and `SPARKLE_PUBLIC_ED_KEY` build settings and are empty in the App Store build, which ignores them.
