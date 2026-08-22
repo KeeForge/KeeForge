@@ -128,3 +128,96 @@ jobs:
             build/*.xcresult
           if-no-files-found: warn
           retention-days: 14
+
+  macos-unit-tests:
+    runs-on: macos-15
+    timeout-minutes: 45
+    env:
+      SCHEME: KeeForgeMac
+      PROJECT: KeeForge.xcodeproj
+      DESTINATION: 'platform=macOS'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Select Xcode
+        run: |
+          # Use latest available Xcode on the runner
+          XCODE_PATH=$(ls -d /Applications/Xcode_*.app 2>/dev/null | sort -V | tail -1)
+          echo "Using Xcode: $XCODE_PATH"
+          sudo xcode-select -s "$XCODE_PATH"
+          xcodebuild -version
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Prepare build config
+        env:
+          DROPBOX_APP_KEY: ciplaceholderdropboxappkey
+        run: BOOTSTRAP_LOCAL_CONFIG_FROM_ENV=1 ./ci_scripts/prepare_build_config.sh .
+
+      - name: Generate project
+        run: xcodegen generate
+
+      # Runners have no signing account, so the app is ad-hoc signed with no
+      # entitlements (unsandboxed). Local runs keep automatic signing with the
+      # full sandbox entitlements — see project.yml.
+      - name: Run macOS unit tests
+        run: |
+          set -uo pipefail
+          mkdir -p build
+          log=build/macos-unit.log
+
+          # Same aggregate-verdict rule as the iOS job above: judge on XCTest's
+          # summary failure count, never on xcodebuild's raw exit code.
+          set +e
+          xcodebuild test \
+            -project "$PROJECT" \
+            -scheme "$SCHEME" \
+            -destination "$DESTINATION" \
+            -only-testing:KeeForgeMacTests \
+            -skipPackagePluginValidation \
+            -retry-tests-on-failure \
+            -test-iterations 3 \
+            -resultBundlePath build/macos-unit.xcresult \
+            CODE_SIGN_STYLE=Manual \
+            CODE_SIGN_IDENTITY=- \
+            CODE_SIGN_ENTITLEMENTS= \
+            DEVELOPMENT_TEAM= \
+            PROVISIONING_PROFILE_SPECIFIER= \
+            2>&1 | tee "$log"
+          status=${PIPESTATUS[0]}
+          set -e
+          echo "KeeForgeMacTests: xcodebuild exit=$status"
+
+          maxfail=$(grep -oE "[0-9]+ failures? \(" "$log" | grep -oE "^[0-9]+" | sort -rn | head -1)
+
+          if [ -z "$maxfail" ]; then
+            echo "::error::KeeForgeMacTests: no test summary produced (xcodebuild exit=$status); tests did not run — see uploaded logs."
+            exit 1
+          fi
+          if [ "$maxfail" -gt 0 ]; then
+            echo "::error::KeeForgeMacTests: $maxfail test failure(s) remained after retries."
+            exit 1
+          fi
+
+          flaked=$(grep -oE "Test Case '[^']*' failed" "$log" | sort -u || true)
+          if [ -n "$flaked" ]; then
+            echo "::warning::KeeForgeMacTests: passed with retries; the following attempt(s) failed once then passed:"
+            echo "$flaked"
+          fi
+          if [ "$status" -ne 0 ]; then
+            echo "::warning::KeeForgeMacTests: 0 failures but xcodebuild exited $status (post-run teardown artifact); treating as success."
+          fi
+          echo "KeeForgeMacTests: PASS (0 failures)"
+
+      - name: Upload test logs and result bundles
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pr-macos-unit-test-results
+          path: |
+            build/*.log
+            build/*.xcresult
+          if-no-files-found: warn
+          retention-days: 14

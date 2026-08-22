@@ -19,16 +19,26 @@ fi
 
 RESULT_BUNDLE="${KDBX_COMPAT_RESULT_BUNDLE:-${REPO_ROOT}/build/KDBXCompatibilityGate.xcresult}"
 ATTACHMENT_DIR="${KDBX_COMPAT_ATTACHMENTS_DIR:-${REPO_ROOT}/build/KDBXCompatibilityGateAttachments}"
-DESTINATION="${KDBX_COMPAT_DESTINATION:-platform=iOS Simulator,name=iPhone 17 Pro}"
+# The gate runs per platform: the iOS scheme by default, the macOS scheme when
+# KDBX_COMPAT_SCHEME=KeeForgeMac (its test target compiles the same KeeForgeTests
+# sources, so only the target prefix changes).
+SCHEME="${KDBX_COMPAT_SCHEME:-KeeForge}"
+if [[ "${SCHEME}" == "KeeForgeMac" ]]; then
+  TEST_TARGET="${KDBX_COMPAT_TEST_TARGET:-KeeForgeMacTests}"
+  DESTINATION="${KDBX_COMPAT_DESTINATION:-platform=macOS}"
+else
+  TEST_TARGET="${KDBX_COMPAT_TEST_TARGET:-KeeForgeTests}"
+  DESTINATION="${KDBX_COMPAT_DESTINATION:-platform=iOS Simulator,name=iPhone 17 Pro}"
+fi
 
 rm -rf "${RESULT_BUNDLE}" "${ATTACHMENT_DIR}"
 mkdir -p "$(dirname "${RESULT_BUNDLE}")" "${ATTACHMENT_DIR}"
 
 cd "${REPO_ROOT}"
 
-xcodebuild test -project KeeForge.xcodeproj -scheme KeeForge \
+xcodebuild test -project KeeForge.xcodeproj -scheme "${SCHEME}" \
   -destination "${DESTINATION}" \
-  -only-testing:KeeForgeTests/KDBXCompatibilityTests \
+  -only-testing:"${TEST_TARGET}/KDBXCompatibilityTests" \
   -resultBundlePath "${RESULT_BUNDLE}" \
   -quiet
 

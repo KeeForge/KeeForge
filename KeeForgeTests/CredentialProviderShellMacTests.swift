@@ -68,6 +68,9 @@ final class CredentialProviderShellMacTests: XCTestCase {
         // Bypass the real modal; simulate the user clicking the only button.
         shell.runModalAlert = { _ in .alertFirstButtonReturn }
         seedUnlockedVaultState(shell.coordinator)
+        // The coordinator defers every presentation until the shell is on
+        // screen, so the alert only runs once appearance has been reported.
+        shell.viewDidAppear()
 
         shell.coordinator.presentReadOnlyAlertAndCancel(message: "This database is read-only.")
 

@@ -2806,7 +2806,7 @@
 				CODE_SIGN_ENTITLEMENTS = KeeForgeMac/KeeForgeMac.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = KeeForgeMac/Info.plist;
@@ -2815,10 +2815,10 @@
 					"@executable_path/../Frameworks",
 				);
 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
-				MARKETING_VERSION = 1.10.1;
+				MARKETING_VERSION = 1.15.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.keevault.app;
 				PRODUCT_MODULE_NAME = KeeForge;
-				PRODUCT_NAME = KeeForgeMac;
+				PRODUCT_NAME = KeeForge;
 				SDKROOT = macosx;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 			};
@@ -2830,7 +2830,7 @@
 				CODE_SIGN_ENTITLEMENTS = AutoFillExtension/AutoFillExtensionMac.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = AutoFillExtension/InfoMac.plist;
@@ -2841,7 +2841,7 @@
 				);
 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 1.10.1;
+				MARKETING_VERSION = 1.15.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.keevault.app.autofill;
 				SDKROOT = macosx;
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -2938,7 +2938,7 @@
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = com.keevault.app.tests;
 				SDKROOT = macosx;
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/KeeForgeMac.app/Contents/MacOS/KeeForgeMac";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/KeeForge.app/Contents/MacOS/KeeForge";
 				TEST_TARGET_NAME = KeeForgeMac;
 			};
 			name = Debug;
@@ -2973,7 +2973,7 @@
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = com.keevault.app.tests;
 				SDKROOT = macosx;
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/KeeForgeMac.app/Contents/MacOS/KeeForgeMac";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/KeeForge.app/Contents/MacOS/KeeForge";
 				TEST_TARGET_NAME = KeeForgeMac;
 			};
 			name = Release;
@@ -2984,7 +2984,7 @@
 				CODE_SIGN_ENTITLEMENTS = AutoFillExtension/AutoFillExtensionMac.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = AutoFillExtension/InfoMac.plist;
@@ -2995,7 +2995,7 @@
 				);
 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 1.10.1;
+				MARKETING_VERSION = 1.15.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.keevault.app.autofill;
 				SDKROOT = macosx;
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -3010,7 +3010,7 @@
 				CODE_SIGN_ENTITLEMENTS = KeeForgeMac/KeeForgeMac.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = KeeForgeMac/Info.plist;
@@ -3019,10 +3019,10 @@
 					"@executable_path/../Frameworks",
 				);
 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
-				MARKETING_VERSION = 1.10.1;
+				MARKETING_VERSION = 1.15.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.keevault.app;
 				PRODUCT_MODULE_NAME = KeeForge;
-				PRODUCT_NAME = KeeForgeMac;
+				PRODUCT_NAME = KeeForge;
 				SDKROOT = macosx;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 			};
