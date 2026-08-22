@@ -1,7 +1,5 @@
 // Passkey-registration flow tests for `CredentialProviderCoordinator`.
-// The whole flow is iOS-only (the macOS shell answers registration requests
-// with `.userCanceled` before the coordinator is involved — covered by
-// CredentialProviderShellMacTests), so every test here is gated to iOS.
+// The coordinator is shared by the iOS and macOS credential-provider shells.
 import AuthenticationServices
 import CryptoKit
 import XCTest
@@ -9,7 +7,6 @@ import XCTest
 
 @MainActor
 final class CredentialProviderRegistrationTests: XCTestCase {
-#if os(iOS)
     override func setUp() async throws {
         try await super.setUp()
         await resetCredentialIdentityStoreState()
@@ -184,7 +181,15 @@ final class CredentialProviderRegistrationTests: XCTestCase {
 
         XCTAssertTrue(coordinator.handlePendingPasskeyRegistrationIfNeeded())
 
+        #if os(macOS)
+        if #available(macOS 15.0, *) {
+            XCTAssertEqual(presenter.cancelledError?.code, .matchedExcludedCredential)
+        } else {
+            XCTAssertEqual(presenter.cancelledError?.code, .failed)
+        }
+        #else
         XCTAssertEqual(presenter.cancelledError?.code, .matchedExcludedCredential)
+        #endif
         XCTAssertNil(presenter.passkeyCreator)
         assertCleanedUp(coordinator)
     }
@@ -540,5 +545,4 @@ final class CredentialProviderRegistrationTests: XCTestCase {
             now: { .now }
         )
     }
-#endif
 }

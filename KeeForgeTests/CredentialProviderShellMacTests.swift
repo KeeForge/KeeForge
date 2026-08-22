@@ -96,10 +96,11 @@ final class CredentialProviderShellMacTests: XCTestCase {
         assertCleanedUp(shell.coordinator)
     }
 
-    /// Passkey registration has no macOS creator UI; the shell must answer the
-    /// request immediately with `.userCanceled` instead of leaving it pending.
-    func test_passkeyRegistration_cancelsImmediately() {
+    /// Passkey registration is forwarded to the shared coordinator so macOS
+    /// can unlock the target vault and present the creator UI.
+    func test_passkeyRegistration_forwardsToCoordinator() throws {
         let (shell, spy) = makeShell()
+        let reference = try seedResolvableDefaultDatabase()
 
         let identity = ASPasskeyCredentialIdentity(
             relyingPartyIdentifier: "example.com",
@@ -117,12 +118,10 @@ final class CredentialProviderShellMacTests: XCTestCase {
 
         shell.prepareInterface(forPasskeyRegistration: request)
 
-        XCTAssertEqual(spy.cancelledError?.code, .userCanceled)
-
-        // The window closing afterwards must not double-cancel.
-        spy.cancelledError = nil
-        shell.cancelActiveRequestIfNeeded()
         XCTAssertNil(spy.cancelledError)
+        XCTAssertNotNil(shell.coordinator.pendingPasskeyRegistrationRequest)
+        XCTAssertEqual(shell.coordinator.activeDatabaseReference?.id, reference.id)
+        XCTAssertTrue(shell.coordinator.pendingUnlock)
     }
 
     // MARK: - Helpers
@@ -131,6 +130,7 @@ final class CredentialProviderShellMacTests: XCTestCase {
     private final class CompleterSpy: CredentialProviderRequestCompleting {
         var completedCredential: ASPasswordCredential?
         var completedAssertion: ASPasskeyAssertionCredential?
+        var completedRegistration: ASPasskeyRegistrationCredential?
         var completedOneTimeCode: String?
         var cancelledError: ASExtensionError?
 
@@ -140,6 +140,10 @@ final class CredentialProviderShellMacTests: XCTestCase {
 
         func completeAssertionRequest(using credential: ASPasskeyAssertionCredential) {
             completedAssertion = credential
+        }
+
+        func completeRegistrationRequest(using credential: ASPasskeyRegistrationCredential) {
+            completedRegistration = credential
         }
 
         func completeOneTimeCode(code: String) {
@@ -165,7 +169,8 @@ final class CredentialProviderShellMacTests: XCTestCase {
     /// Registers an AutoFill-enabled database and points the active pointer at
     /// it so identifier-less interactive flows resolve a default database
     /// (mirrors the iOS coordinator suite's helper of the same name).
-    private func seedResolvableDefaultDatabase() throws {
+    @discardableResult
+    private func seedResolvableDefaultDatabase() throws -> DatabaseReference {
         let url = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString)
             .appendingPathComponent("default.kdbx")
@@ -178,6 +183,7 @@ final class CredentialProviderShellMacTests: XCTestCase {
         let reference = try TestDatabaseSupport.makeReference(for: url)
         DatabaseListStore.update(reference)
         DatabaseListStore.activeAutoFillDatabaseID = reference.id
+        return reference
     }
 
     private func seedUnlockedVaultState(
