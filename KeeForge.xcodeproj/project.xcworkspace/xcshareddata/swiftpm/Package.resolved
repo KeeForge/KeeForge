@@ -1,5 +1,5 @@
 {
-  "originHash" : "6164db63f47be591d16cb337176d0356d858ac832cddd18d5ac0c16a0965ed9f",
+  "originHash" : "fb0c6ade0c39645d472754fced6d2240048c3e836bb93d1ae2256f9b914d4553",
   "pins" : [
     {
       "identity" : "microsoft-authentication-library-for-objc",
@@ -25,6 +25,15 @@
       "state" : {
         "revision" : "30a462bdb4398ea835a3585472229e0d74b36ba5",
         "version" : "3.0.0"
+      }
+    },
+    {
+      "identity" : "sparkle",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/sparkle-project/Sparkle.git",
+      "state" : {
+        "revision" : "ac2def288cbff5cfc7df3ffef6abdf45b72bcb0a",
+        "version" : "2.9.6"
       }
     },
     {
