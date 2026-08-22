@@ -175,6 +175,11 @@ struct KeeForgeApp: App {
                 await listViewModel.drainPendingUploadsOnAppActive()
             }
         }
+        macLockMonitor.onUserActivity = {
+            // Only meaningful while a vault is open; resetInactivityTimer()
+            // already no-ops in every other state.
+            activeViewModel.wrappedValue?.resetInactivityTimer()
+        }
         macLockMonitor.start()
         #endif
     }

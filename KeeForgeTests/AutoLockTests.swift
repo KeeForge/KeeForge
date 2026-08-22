@@ -384,6 +384,54 @@ final class AutoLockTests: XCTestCase {
         }
     }
 
+    // MARK: - macOS user-activity idle detection
+
+    /// The Auto-Lock Timeout has to mean idleness, not "time since the selection
+    /// last changed" — otherwise typing a long note, whose state lives in
+    /// `EntryEditViewModel`, trips the timeout mid-edit.
+    func testMacUserActivityForwardsOnceWithinTheThrottle() {
+        var clock = Date(timeIntervalSince1970: 1_000)
+        var forwarded = 0
+        let monitor = MacLockMonitor(
+            notificationCenter: NotificationCenter(),
+            workspaceNotificationCenter: NotificationCenter(),
+            distributedNotificationCenter: NotificationCenter(),
+            now: { clock },
+            activityThrottle: 2
+        )
+        defer { monitor.stop() }
+        monitor.onUserActivity = { forwarded += 1 }
+
+        monitor.handleUserActivity()
+        XCTAssertEqual(forwarded, 1, "first interaction should forward immediately")
+
+        // A key-repeat or scroll burst inside the throttle window.
+        clock = clock.addingTimeInterval(0.5)
+        monitor.handleUserActivity()
+        clock = clock.addingTimeInterval(0.5)
+        monitor.handleUserActivity()
+        XCTAssertEqual(forwarded, 1, "bursts inside the throttle window must not reschedule the timer")
+
+        clock = clock.addingTimeInterval(2)
+        monitor.handleUserActivity()
+        XCTAssertEqual(forwarded, 2, "interaction after the throttle window should forward again")
+    }
+
+    /// Activity resets the idle timer; it must never hold a vault open through a
+    /// real lock trigger.
+    func testMacUserActivityDoesNotPreventScreenLock() async throws {
+        SettingsService.macLockPolicy = .screenLockOrSleep
+        let vm = try await makeUnlockedViewModel()
+        let harness = MacTriggerHarness(viewModel: vm)
+        defer { harness.monitor.stop() }
+        harness.monitor.onUserActivity = { vm.resetInactivityTimer() }
+
+        harness.monitor.handleUserActivity()
+        harness.distributedCenter.post(name: MacLockMonitor.screenIsLockedNotification, object: nil)
+
+        assertLocked(vm, "Activity must not defeat the screen-lock guarantee")
+    }
+
     private func assertLocked(
         _ vm: DatabaseViewModel,
         _ message: String,

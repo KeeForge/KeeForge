@@ -18,6 +18,12 @@ import Foundation
 /// `NSApplication.didBecomeActiveNotification` drives the became-active
 /// callback (pending-upload drain + inactivity-timer resume).
 ///
+/// It also watches deliberate user interaction so the Auto-Lock Timeout means
+/// idleness rather than "time since the selection last changed". Without this
+/// the timer is only reset by view-model mutations, so typing a long note —
+/// which lives in `EntryEditViewModel` and touches none of them — would trip a
+/// 1- or 5-minute timeout mid-edit.
+///
 /// Notification centers are injected so unit tests can post notifications
 /// without really locking the screen.
 @MainActor
@@ -37,23 +43,35 @@ final class MacLockMonitor {
 
     var onLockTriggered: ((Trigger) -> Void)?
     var onDidBecomeActive: (() -> Void)?
+    /// Deliberate interaction with this app; resets the inactivity timer only.
+    /// It can never extend a vault past a lock trigger — those lock immediately
+    /// regardless of how active the user is.
+    var onUserActivity: (() -> Void)?
 
     private let notificationCenter: NotificationCenter
     private let workspaceNotificationCenter: NotificationCenter
     private let distributedNotificationCenter: NotificationCenter
     private let lockPolicyProvider: LockPolicyProvider
+    private let now: @MainActor () -> Date
+    private let activityThrottle: TimeInterval
     private var observers: [(center: NotificationCenter, token: NSObjectProtocol)] = []
+    private var activityMonitor: Any?
+    private var lastActivityForwardedAt: Date?
 
     init(
         notificationCenter: NotificationCenter = .default,
         workspaceNotificationCenter: NotificationCenter = NSWorkspace.shared.notificationCenter,
         distributedNotificationCenter: NotificationCenter = DistributedNotificationCenter.default(),
-        lockPolicyProvider: @escaping LockPolicyProvider = { SettingsService.macLockPolicy }
+        lockPolicyProvider: @escaping LockPolicyProvider = { SettingsService.macLockPolicy },
+        now: @escaping @MainActor () -> Date = { Date() },
+        activityThrottle: TimeInterval = 2
     ) {
         self.notificationCenter = notificationCenter
         self.workspaceNotificationCenter = workspaceNotificationCenter
         self.distributedNotificationCenter = distributedNotificationCenter
         self.lockPolicyProvider = lockPolicyProvider
+        self.now = now
+        self.activityThrottle = activityThrottle
     }
 
     func start() {
@@ -77,6 +95,40 @@ final class MacLockMonitor {
         observe(notificationCenter, NSApplication.didBecomeActiveNotification) { monitor in
             monitor.onDidBecomeActive?()
         }
+
+        startActivityMonitor()
+    }
+
+    /// Deliberate interaction only: keys, clicks and scrolls. Cursor movement is
+    /// excluded on purpose — a drifting or jiggled mouse is not a reason to keep
+    /// a vault unlocked, and `.mouseMoved` is not even delivered unless a window
+    /// opts in. A *local* monitor sees only events routed to this app, so
+    /// working in another app correctly counts as idle here.
+    private func startActivityMonitor() {
+        guard activityMonitor == nil else { return }
+        let mask: NSEvent.EventTypeMask = [
+            .keyDown, .flagsChanged, .leftMouseDown, .rightMouseDown, .otherMouseDown, .scrollWheel,
+        ]
+        activityMonitor = NSEvent.addLocalMonitorForEvents(matching: mask) { [weak self] event in
+            MainActor.assumeIsolated {
+                self?.handleUserActivity()
+            }
+            // Never consume the event; the app still has to receive it.
+            return event
+        }
+    }
+
+    /// Throttled so a scroll or key-repeat burst resets the timer once rather
+    /// than rescheduling it hundreds of times. Exposed for tests, which cannot
+    /// synthesize real `NSEvent`s.
+    func handleUserActivity() {
+        let timestamp = now()
+        if let lastActivityForwardedAt,
+           timestamp.timeIntervalSince(lastActivityForwardedAt) < activityThrottle {
+            return
+        }
+        lastActivityForwardedAt = timestamp
+        onUserActivity?()
     }
 
     /// Removes all observers. The app keeps one monitor alive for its whole
@@ -86,6 +138,11 @@ final class MacLockMonitor {
             observer.center.removeObserver(observer.token)
         }
         observers.removeAll()
+        if let activityMonitor {
+            NSEvent.removeMonitor(activityMonitor)
+        }
+        activityMonitor = nil
+        lastActivityForwardedAt = nil
     }
 
     private func handleLockTrigger(_ trigger: Trigger) {
