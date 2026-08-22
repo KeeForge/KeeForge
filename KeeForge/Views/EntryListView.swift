@@ -1,19 +1,12 @@
 import SwiftUI
 
 struct EntryListView: View {
-    struct PendingEntryDeletion: Identifiable {
-        let entryID: UUID
-        let sendToRecycleBin: Bool
-
-        var id: String {
-            "\(entryID.uuidString)-\(sendToRecycleBin)"
-        }
-    }
-
     let entries: [KPEntry]
     @Bindable var viewModel: DatabaseViewModel
     var onSelectEntry: ((KPEntry) -> Void)? = nil
     @State private var pendingEntryDeletion: PendingEntryDeletion?
+    /// The entry whose Move-to-Group picker is presented, or `nil` when none is.
+    @State private var pendingMove: PendingMove?
 
     var body: some View {
         Group {
@@ -28,25 +21,20 @@ struct EntryListView: View {
         }
         // Outside the branches: deleting the last entry flips to the empty
         // branch, which would tear down a branch-scoped alert host.
-        .alert(item: $pendingEntryDeletion) { action in
-            Alert(
-                title: Text(action.sendToRecycleBin ? "Delete Entry?" : "Delete Permanently?"),
-                message: Text(action.sendToRecycleBin
-                    ? "The entry will be moved to the recycle bin."
-                    : "This entry will be removed immediately and cannot be restored from KeeForge."),
-                primaryButton: .destructive(Text(action.sendToRecycleBin ? "Delete" : "Delete Permanently")) {
-                    do {
-                        try viewModel.deleteEntry(action.entryID, sendToRecycleBin: action.sendToRecycleBin)
-                        Task {
-                            await viewModel.saveHandlingError()
-                        }
-                    } catch {
-                        viewModel.presentSaveError(error)
-                    }
-                },
-                secondaryButton: .cancel()
-            )
+        .alert(item: $pendingEntryDeletion, content: deletionAlert)
+        // Outside for the same reason. Destinations are resolved when the
+        // picker is built, not when the menu was tapped.
+        .sheet(item: $pendingMove) { pending in
+            MoveToGroupPickerView(
+                options: pending.destinationOptions(viewModel: viewModel)
+            ) { destinationGroupID in
+                pending.apply(destinationGroupID: destinationGroupID, viewModel: viewModel)
+            }
         }
+    }
+
+    private func deletionAlert(for action: PendingEntryDeletion) -> Alert {
+        PendingDeletion.entry(action).confirmationAlert(viewModel: viewModel)
     }
 
     @ViewBuilder
@@ -79,6 +67,13 @@ struct EntryListView: View {
         }
         .macHoverHighlight()
         .contextMenu {
+            if canMove(entry) {
+                Button("Move to Group") {
+                    pendingMove = .entry(entry.id)
+                }
+                .accessibilityIdentifier("entry-row.move-context")
+            }
+
             if viewModel.isReadOnly == false {
                 Button(deletionTitle(for: entry), role: .destructive) {
                     pendingEntryDeletion = PendingEntryDeletion(
@@ -112,5 +107,12 @@ struct EntryListView: View {
 
     private func sendDeletionToRecycleBin(for entry: KPEntry) -> Bool {
         viewModel.isEntryInRecycleBin(entryID: entry.id) == false
+    }
+
+    /// Matches the group list: entries move while the database accepts edits
+    /// and the entry is not recycled — restoring from the bin is its own flow.
+    private func canMove(_ entry: KPEntry) -> Bool {
+        viewModel.isReadOnly == false
+            && viewModel.isEntryInRecycleBin(entryID: entry.id) == false
     }
 }

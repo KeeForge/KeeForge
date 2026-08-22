@@ -49,11 +49,16 @@ final class DatabaseViewModelTests: XCTestCase {
         ))
     }
 
-    // The simulator and the native macOS test host both run outside
-    // compatibility mode, so the shipped accessor must allow auto-unlock here;
-    // this catches an inverted platform branch that the pure helper cannot.
-    func testBiometricAutoUnlockPolicyAllowsAutomaticUnlockInTestEnvironment() {
+    // Catches an inverted platform branch that the pure helper cannot: the
+    // simulator runs outside compatibility mode and must allow auto-unlock,
+    // while the native Mac app never does — `MacLockMonitor` starts lock
+    // cycles while the scene still reports `.active`.
+    func testBiometricAutoUnlockPolicyMatchesPlatformInTestEnvironment() {
+        #if os(iOS)
         XCTAssertTrue(BiometricAutoUnlockPolicy.allowsAutomaticUnlock)
+        #else
+        XCTAssertFalse(BiometricAutoUnlockPolicy.allowsAutomaticUnlock)
+        #endif
     }
 
     func testUnlockWithCorrectPasswordTransitionsToUnlocked() async throws {

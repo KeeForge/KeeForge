@@ -1,5 +1,8 @@
 import AuthenticationServices
 import Foundation
+#if os(macOS)
+import AppKit
+#endif
 
 /// Tracks whether KeeForge is enabled as the system AutoFill credential
 /// provider and owns the "enable AutoFill" tip dismissal flag.
@@ -31,11 +34,14 @@ enum AutoFillStatusService {
         return await enabledProvider()
     }
 
-    /// iOS: shows the system prompt in-app and returns whether the provider
+    /// Asks the user to enable KeeForge as the system AutoFill provider.
+    ///
+    /// iOS shows the system prompt in-app and reports whether the provider
     /// ended up enabled — `false` when the user declined it or iOS refused.
-    /// macOS: nil, a no-op until the Mac AutoFill extension ships (slice 05 of
-    /// the macOS port); `requestToTurnOnCredentialProviderExtension` needs
-    /// macOS 15 and there is no extension to enable yet.
+    /// macOS has no in-app prompt below macOS 15, so it opens the system
+    /// AutoFill settings instead and returns `nil`: nothing was observed, and
+    /// the caller learns the outcome from the next `isAutoFillEnabled()`
+    /// refresh when the app becomes active again.
     static func requestEnableAutoFill() async -> Bool? {
         await enableRequester()
     }
@@ -44,16 +50,38 @@ enum AutoFillStatusService {
         #if os(iOS)
         return await ASSettingsHelper.requestToTurnOnCredentialProviderExtension()
         #else
+        await openAutoFillSettings()
         return nil
         #endif
     }
 
+    /// Opens the system's AutoFill provider settings: Settings ▸ General ▸
+    /// AutoFill & Passwords on iOS, System Settings ▸ General ▸ AutoFill &
+    /// Passwords on macOS. This is the single macOS entry point for that pane
+    /// — call it instead of re-deriving the deep link.
     static func openAutoFillSettings() async {
         #if os(iOS)
         try? await ASSettingsHelper.openCredentialProviderAppSettings()
+        #else
+        do {
+            try await ASSettingsHelper.openCredentialProviderAppSettings()
+        } catch {
+            // The helper is the documented route, but a failure here would
+            // leave the Mac with no way to reach the pane from inside the app.
+            if let url = Self.macAutoFillSettingsURL {
+                _ = NSWorkspace.shared.open(url)
+            }
+        }
         #endif
-        // macOS has no credential-provider settings deep link.
     }
+
+    #if os(macOS)
+    /// System Settings' Passwords pane, which hosts the AutoFill provider
+    /// list the app needs the user to reach.
+    private static let macAutoFillSettingsURL = URL(
+        string: "x-apple.systempreferences:com.apple.Passwords-Settings.extension"
+    )
+    #endif
 
     /// UI tests suppress the tip by default so it cannot pollute unrelated
     /// tests or App Store screenshots; UI_TEST_SHOW_AUTOFILL_TIP=1 opts a

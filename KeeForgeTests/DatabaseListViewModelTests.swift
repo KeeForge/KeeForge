@@ -432,8 +432,8 @@ final class DatabaseListViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.isAutoFillProviderEnabled, true)
     }
 
-    /// macOS returns nil because no extension ships there yet; nothing was
-    /// asked, so nothing may be reported.
+    /// macOS returns nil because it routes the user to System Settings rather
+    /// than prompting; nothing was answered, so nothing may be reported.
     func testRequestEnableAutoFillReportsNothingWhenRequestIsANoOp() async throws {
         _ = try DatabaseListStore.add(url: makeTemporaryFileURL(name: "personal.kdbx"))
         AutoFillStatusService.enabledProvider = { false }

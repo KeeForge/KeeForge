@@ -31,6 +31,13 @@ struct RegularDatabaseWorkspaceView: View {
     /// split view rather than the row, so collapsing or rebuilding the tree
     /// cannot tear the sheet down mid-edit.
     @State private var groupEditor: GroupEditViewModel?
+    /// Deletion confirmation and Move-to-Group destination raised by a sidebar
+    /// or entry row. Hosted on the split view for the same reason the group
+    /// editor is: rows come and go with the tree, and deleting the last entry
+    /// in a column would tear a row-scoped host down mid-presentation.
+    @State private var pendingDeletion: PendingDeletion?
+    @State private var pendingMove: PendingMove?
+    @State private var isShowingDatabaseDetails = false
     @FocusState private var isSearchFieldFocused: Bool
     #endif
 
@@ -373,6 +380,26 @@ struct RegularDatabaseWorkspaceView: View {
             }
             .frame(minWidth: 540, minHeight: 520)
         }
+        .sheet(item: $pendingMove) { pending in
+            MoveToGroupPickerView(
+                options: pending.destinationOptions(viewModel: viewModel)
+            ) { destinationGroupID in
+                pending.apply(destinationGroupID: destinationGroupID, viewModel: viewModel)
+            }
+            .frame(minWidth: 540, minHeight: 560)
+        }
+        .sheet(isPresented: $isShowingDatabaseDetails) {
+            DatabaseDetailsView(
+                reference: viewModel.databaseReference,
+                sessionViewModel: viewModel
+            )
+            .frame(minWidth: 540, minHeight: 560)
+        }
+        .alert(item: $pendingDeletion, content: deletionAlert)
+    }
+
+    private func deletionAlert(for deletion: PendingDeletion) -> Alert {
+        deletion.confirmationAlert(viewModel: viewModel)
     }
 
     /// Builds the sidebar row's editor when the menu item is tapped, so the form
@@ -410,7 +437,9 @@ struct RegularDatabaseWorkspaceView: View {
                     node: rootNode,
                     viewModel: viewModel,
                     collapsedGroupIDs: $macCollapsedGroupIDs,
-                    onEditGroup: beginGroupEdit
+                    onEditGroup: beginGroupEdit,
+                    onRequestMove: { pendingMove = $0 },
+                    onRequestDeletion: { pendingDeletion = $0 }
                 )
 
                 // Tags beneath the group tree, the way KeePassXC surfaces them.
@@ -457,8 +486,13 @@ struct RegularDatabaseWorkspaceView: View {
                 TagEntriesView(tag: selectedTag, viewModel: viewModel, onSelectEntry: selectEntry)
                     .id(viewModel.contentRevision)
             } else {
-                MacEntriesColumn(viewModel: viewModel, onSelectEntry: selectEntry)
-                    .id(viewModel.contentRevision)
+                MacEntriesColumn(
+                    viewModel: viewModel,
+                    onSelectEntry: selectEntry,
+                    onRequestMove: { pendingMove = $0 },
+                    onRequestDeletion: { pendingDeletion = $0 }
+                )
+                .id(viewModel.contentRevision)
             }
         } else {
             SearchView(viewModel: viewModel, onSelectEntry: selectEntry)
@@ -521,6 +555,14 @@ struct RegularDatabaseWorkspaceView: View {
             .menuIndicator(.hidden)
             .help("Sort")
             .accessibilityIdentifier("sort.menu")
+
+            Button {
+                isShowingDatabaseDetails = true
+            } label: {
+                Image(systemName: "info.circle")
+            }
+            .help("Database Details")
+            .accessibilityIdentifier("database-details.button")
 
             SettingsLink {
                 Image(systemName: "gearshape")
@@ -606,6 +648,10 @@ struct RegularDatabaseWorkspaceView: View {
 private struct MacEntriesColumn: View {
     @Bindable var viewModel: DatabaseViewModel
     let onSelectEntry: (KPEntry) -> Void
+    /// Raised to the workspace, which hosts the picker and the confirmation;
+    /// a row-scoped host dies with the row the action removes.
+    let onRequestMove: (PendingMove) -> Void
+    let onRequestDeletion: (PendingDeletion) -> Void
 
     private var resolvedGroup: KPGroup? {
         guard let groupID = viewModel.selectedGroupID ?? viewModel.visibleRootGroupID else { return nil }
@@ -661,20 +707,37 @@ private struct MacEntriesColumn: View {
         )
         .accessibilityIdentifier("entry.navlink")
         .contextMenu {
-            if viewModel.isReadOnly == false {
-                Button("Delete", role: .destructive) {
-                    do {
-                        try viewModel.deleteEntry(
-                            entry.id,
-                            sendToRecycleBin: viewModel.isEntryInRecycleBin(entryID: entry.id) == false
-                        )
-                        Task { await viewModel.saveHandlingError() }
-                    } catch {
-                        viewModel.presentSaveError(error)
-                    }
+            if canMove(entry) {
+                Button("Move to Group") {
+                    onRequestMove(.entry(entry.id))
                 }
+                .accessibilityIdentifier("entry-row.move-context")
+            }
+
+            if viewModel.isReadOnly == false {
+                let sendToRecycleBin = viewModel.isEntryInRecycleBin(entryID: entry.id) == false
+                Button(sendToRecycleBin ? "Delete" : "Delete Permanently", role: .destructive) {
+                    onRequestDeletion(
+                        .entry(
+                            PendingEntryDeletion(
+                                entryID: entry.id,
+                                sendToRecycleBin: sendToRecycleBin
+                            )
+                        )
+                    )
+                }
+                .accessibilityIdentifier(
+                    sendToRecycleBin ? "entry-row.delete-context" : "entry-row.delete-permanent"
+                )
             }
         }
+    }
+
+    /// Same predicate as the iOS row's `canMoveEntry`: a recycled entry comes
+    /// back through the restore flow, not through a move.
+    private func canMove(_ entry: KPEntry) -> Bool {
+        viewModel.isReadOnly == false
+            && viewModel.isEntryInRecycleBin(entryID: entry.id) == false
     }
 }
 
@@ -747,6 +810,9 @@ private struct MacGroupTreeRow: View {
     /// Asks the workspace to present the group editor; the sheet is hosted
     /// there, not on this row, which comes and goes with the tree.
     let onEditGroup: (UUID) -> Void
+    /// Same hand-off for the Move-to-Group picker and the delete confirmation.
+    let onRequestMove: (PendingMove) -> Void
+    let onRequestDeletion: (PendingDeletion) -> Void
 
     private var isSelected: Bool {
         viewModel.selectedGroupID == node.id
@@ -771,7 +837,9 @@ private struct MacGroupTreeRow: View {
                         node: child,
                         viewModel: viewModel,
                         collapsedGroupIDs: $collapsedGroupIDs,
-                        onEditGroup: onEditGroup
+                        onEditGroup: onEditGroup,
+                        onRequestMove: onRequestMove,
+                        onRequestDeletion: onRequestDeletion
                     )
                 }
             } label: {
@@ -814,10 +882,22 @@ private struct MacGroupTreeRow: View {
                 .accessibilityIdentifier("group-row.edit-context")
             }
 
+            if canMove {
+                Button("Move to Group") {
+                    onRequestMove(.group(node.id))
+                }
+                .accessibilityIdentifier("group-row.move-context")
+            }
+
             if canDelete {
                 Button(deleteTitle, role: .destructive) {
-                    deleteGroup()
+                    requestDeletion()
                 }
+                .accessibilityIdentifier(
+                    viewModel.isGroupInRecycleBin(groupID: node.id)
+                        ? "group-row.delete-permanent"
+                        : "group-row.delete-context"
+                )
             }
         }
     }
@@ -834,18 +914,19 @@ private struct MacGroupTreeRow: View {
         viewModel.isReadOnly == false && viewModel.isGroupProtectedFromDeletion(groupID: node.id) == false
     }
 
+    /// The iOS row's `canMoveGroup`: editable, plus the deletion-protection
+    /// screen that also covers the roots the draft would refuse to reparent.
+    private var canMove: Bool {
+        canEdit && viewModel.isGroupProtectedFromDeletion(groupID: node.id) == false
+    }
+
     private var deleteTitle: String {
         viewModel.isGroupInRecycleBin(groupID: node.id) ? "Delete Permanently" : "Delete"
     }
 
-    private func deleteGroup() {
-        let sendToRecycleBin = viewModel.isGroupInRecycleBin(groupID: node.id) == false
-        do {
-            try viewModel.deleteGroup(node.id, sendToRecycleBin: sendToRecycleBin)
-            Task { await viewModel.saveHandlingError() }
-        } catch {
-            viewModel.presentSaveError(error)
-        }
+    private func requestDeletion() {
+        guard let pending = PendingGroupDeletion(groupID: node.id, viewModel: viewModel) else { return }
+        onRequestDeletion(.group(pending))
     }
 }
 #endif

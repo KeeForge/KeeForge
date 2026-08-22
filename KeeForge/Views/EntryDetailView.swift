@@ -256,8 +256,7 @@ struct EntryDetailView: View {
                         }
                     }
                 }
-                .navigationTitle(entry.title)
-                .navigationBarTitleDisplayMode(.inline)
+                .modifier(EntryDetailTitle(title: entry.title))
                 .toolbar {
                     if showsCompactLockButton {
                         ToolbarItem(placement: .topBarLeading) {
@@ -486,6 +485,29 @@ struct EntryDetailView: View {
                 }
             }
         }
+    }
+}
+
+/// Titles the entry screen per shell: iOS pushes it, so the entry's title is the
+/// inline navigation title. macOS renders it in the split view's detail column,
+/// which is the innermost `navigationTitle`/`navigationSubtitle` in the window
+/// and would therefore rename the whole window — Window menu, Mission Control,
+/// window switcher, screenshots — after a secret-bearing entry name. The window
+/// title belongs to the database (`RegularDatabaseWorkspaceView.macSplitView`)
+/// and its subtitle to the content column's group, tag, or search context
+/// (`MacEntriesColumn`, `TagEntriesView`), so the Mac side titles nothing here;
+/// the entry's own name is already the header of this screen.
+private struct EntryDetailTitle: ViewModifier {
+    let title: String
+
+    func body(content: Content) -> some View {
+        #if os(macOS)
+        content
+        #else
+        content
+            .navigationTitle(title)
+            .navigationBarTitleDisplayMode(.inline)
+        #endif
     }
 }
 

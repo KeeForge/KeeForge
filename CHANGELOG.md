@@ -1,23 +1,40 @@
 # Changelog
 
-## macOS App (in development — ON HOLD, do not release until revisited)
+## macOS App (in development — preparing the first release)
 
-Not part of any iOS release. The `KeeForgeMac` targets build and test green but the Mac app must not ship until the items below are done and the UX has been personally approved.
+Not shipped yet, and still not part of any iOS release, but no longer on hold. The Mac app now ships in **version lockstep with iOS**: all four product targets carry the same version and build number, and one release bump covers them together.
 
-Done so far (2026-07-12 → 2026-07-15, spec: `docs/specs/2026-07-12-macos-port/`):
-- Native macOS build target: full KDBX core, local vaults, unit suite (701 tests) running natively; App Sandbox + Hardened Runtime, provisioning verified.
+Done in the original port (2026-07-12 → 2026-07-15, spec: `docs/specs/2026-07-12-macos-port/`):
+- Native macOS build target: full KDBX core, local vaults, unit suite running natively; App Sandbox + Hardened Runtime, provisioning verified.
 - Menu bar commands, Settings window, automatic locking on screen lock/sleep/screensaver; Escape on the unlock screen returns to the database list.
 - System-wide AutoFill extension (passwords + passkeys) embedded and signed — see TODO on Settings visibility.
 - Screen-privacy protections (blur on focus loss, screen-capture blocking toggle), attachment Quick Look, review prompts, favicon cache kept out of the world-readable group container (`docs/macos-security-notes.md`).
 - Dropbox/OneDrive OAuth implemented but hidden in the UI; WebDAV fully available.
 - Native visual polish pass: three-column sidebar navigation, Mac toolbar, standard input fields, tightened density, window sizing.
 
+Release-readiness pass (2026-08-22), closing the parity debt from iOS v1.11 → v1.15:
+- **Deleting an entry or group on the Mac now asks first.** The macOS context menus deleted immediately and saved to disk with no confirmation — including "Delete Permanently" on a recycle-bin group and its whole subtree. The confirmation copy is now shared with iOS instead of duplicated, so the two can't drift.
+- **Move to Group works on the Mac.** The v1.15 feature was wired only into the iOS group list, which macOS never renders, so moving an entry or group was impossible in the Mac app.
+- **Database Details is reachable while a vault is open**, from a new toolbar button. This is what makes **Change Master Key** (v1.14) reachable on macOS at all, along with the on-device backups list and Export Copy from inside an open database.
+- **AutoFill has a Settings tab on the Mac.** Per-database AutoFill toggles, Quick AutoFill, and Clear AutoFill Entries had no macOS UI even though the extension ships in the app bundle. Rows that cannot work on macOS (the one-tap enable prompt, verification-code copying) are hidden rather than shown as dead controls.
+- **⌘F focuses the search field on macOS 14.** The menu item was enabled but did nothing below macOS 15, where the SwiftUI search-focus API begins.
+- **Entry names no longer leak into the window title**, and from there into the Window menu, Mission Control, and screenshots.
+- **Locking on screen lock, sleep, and screensaver is unconditional on macOS.** It was gated on an iOS-only setting with no macOS UI, so a stray value could have disabled the Mac's only lock driver with no way to notice or fix it.
+- **Biometric auto-unlock no longer fires on a locking Mac.** Lifecycle auto-unlock could race the Mac lock monitor and raise a Touch ID prompt in the same turn as a lock caused by the user walking away — the native counterpart of the #84 iOS-on-Mac fix. The explicit "Unlock with Touch ID" button is unchanged.
+- **Setting up a verification code from an `otpauth://` link works.** The handler and its UI were built but the Mac app never registered the URL scheme, so the system could not hand it the link.
+- **The AutoFill tip banner works on the Mac**: it had iOS copy and a button that did nothing, and never retired itself.
+- What's New notes no longer tell Mac users to "long-press" or "tap", or promise QR scanning the Mac cannot do.
+- Build and release plumbing: `LSApplicationCategoryType` (its absence is a hard App Store validation failure) and `ITSAppUsesNonExemptEncryption` added; the shipped bundle is `KeeForge.app` rather than `KeeForgeMac.app`; the KDBX compatibility gate runs per platform via `KDBX_COMPAT_SCHEME=KeeForgeMac`; the Mac unit suite now runs on every PR and every `rc/*` tag, instead of only on manual dispatch — which is how a red `CredentialProviderShellMacTests` had gone unnoticed.
+
 TODO before the first macOS release:
 - [ ] User verdict on the UX polish pass (daily-drive the app; after-screenshots reviewed).
 - [ ] AutoFill provider not appearing in System Settings → AutoFill & Passwords despite correct registration/entitlements. Next rungs: reboot, distribution-signed build (comes with slice 07), diff against a known-working provider.
-- [ ] Re-enable Dropbox/OneDrive UI after end-to-end validation on Mac (`TODO(macos-port)` in `CloudSyncModels.swift`); register/verify redirect URIs in the Dropbox and Azure consoles.
+- [ ] Re-enable Dropbox/OneDrive UI after end-to-end validation on Mac (`TODO(macos-port)` in `CloudSyncModels.swift`); register/verify redirect URIs in the Dropbox and Azure consoles. Deferred for the first release: WebDAV only.
 - [ ] Slice 07 — distribution (`07-distribution.md`): App Store Connect Mac platform + universal purchase, TestFlight, Developer ID certificate + provisioning profile for `com.keevault.app.autofill` (xcodebuild cannot auto-create DevID profiles), notarization, Sparkle (EdDSA key, appcast hosting), MAS/Developer ID build-config seam, tip-jar vs Sponsors swap, release-skill/docs updates.
-- [ ] Manual QA: cloud sign-in end-to-end with relaunch token survival; AutoFill matrix (Safari/Chromium/native fill, webauthn.io passkeys, cancel-everywhere relock); reveal-auth prompt on a non-Touch-ID Mac; ⇧⌘4 capture-block behavior recorded on macOS 26.
+- [ ] Native keyboard navigation in the vault: the three Mac columns are buttons, not `List(selection:)`, so there is no arrow-key movement, type-select, or double-click-to-open.
+- [ ] Remaining Mac UX polish: menu-bar gaps (New Group, Open ⌘O, Delete, Edit, Copy URL, Help, About panel), macOS sheet sizing, hover feedback on the workspace and database-list rows, tooltips on icon-only controls, the interim plain-text notes renderer, and an activity-driven auto-lock timer.
+- [ ] Add `macos-unit-tests` to the `main` and `release/**` rulesets' required status checks.
+- [ ] Manual QA: cloud sign-in end-to-end with relaunch token survival; AutoFill matrix (Safari/Chromium/native fill, webauthn.io passkeys, cancel-everywhere relock); reveal-auth prompt on a non-Touch-ID Mac; ⇧⌘4 capture-block behavior recorded on macOS 26; a macOS 14 pass, since CI runners are macOS 15 and Apple ships no macOS 14 image.
 
 ## Unreleased
 

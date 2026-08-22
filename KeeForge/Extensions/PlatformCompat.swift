@@ -135,16 +135,51 @@ extension View {
 
 #if os(macOS)
 extension View {
-    /// `searchFocused(_:)` is macOS 15+. On macOS 14 this is a no-op: the
-    /// menu-bar Find command cannot programmatically focus the search field
-    /// there, but search itself still works.
+    /// `searchFocused(_:)` is macOS 15+, and this app's floor is macOS 14, so
+    /// below 15 the focus request is serviced through AppKit instead — SwiftUI
+    /// offers no other route to the `.searchable` field there.
+    @MainActor
     @ViewBuilder
     func macSearchFocusedCompat(_ isFocused: FocusState<Bool>.Binding) -> some View {
         if #available(macOS 15.0, *) {
             searchFocused(isFocused)
         } else {
-            self
+            onChange(of: isFocused.wrappedValue) { _, isRequested in
+                guard isRequested else { return }
+                // Nothing binds this `FocusState` on the AppKit path, so clear
+                // it back down: the next request has to read as a fresh change.
+                isFocused.wrappedValue = false
+                MacSearchFieldFocus.focusSearchField()
+            }
         }
+    }
+}
+
+/// Makes the `.searchable` field first responder on macOS 14. Quietly does
+/// nothing when the window has no search field.
+@MainActor
+private enum MacSearchFieldFocus {
+    static func focusSearchField() {
+        guard let window = NSApplication.shared.keyWindow ?? NSApplication.shared.mainWindow else { return }
+
+        // SwiftUI hosts `.searchable` in an `NSSearchToolbarItem`, whose
+        // `beginSearchInteraction()` also expands a collapsed field.
+        if let searchItem = window.toolbar?.items.lazy.compactMap({ $0 as? NSSearchToolbarItem }).first {
+            searchItem.beginSearchInteraction()
+            return
+        }
+
+        guard let contentView = window.contentView,
+              let searchField = firstSearchField(in: contentView) else { return }
+        window.makeFirstResponder(searchField)
+    }
+
+    private static func firstSearchField(in view: NSView) -> NSSearchField? {
+        if let searchField = view as? NSSearchField { return searchField }
+        for subview in view.subviews {
+            if let match = firstSearchField(in: subview) { return match }
+        }
+        return nil
     }
 }
 #endif

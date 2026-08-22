@@ -279,6 +279,10 @@ final class AutoLockTests: XCTestCase {
     }
 #endif
 
+    // The lock-on-background switch and its deferred inactivity check are iOS
+    // scene-phase behavior. macOS never defers: `handleSceneDidEnterBackground`
+    // is reached only from `MacLockMonitor`, which always locks.
+#if os(iOS)
     func testBackgroundLockDisabledPreservesVaultAndResumesRemainingTime() async throws {
         SettingsService.autoLockTimeout = .fiveMinutes
         SettingsService.lockOnBackground = false
@@ -355,6 +359,7 @@ final class AutoLockTests: XCTestCase {
             return
         }
     }
+#endif
 
     // MARK: - macOS trigger mapping (MacLockMonitor → lock paths)
 
@@ -437,6 +442,20 @@ final class AutoLockTests: XCTestCase {
         harness.workspaceCenter.post(name: NSWorkspace.sessionDidResignActiveNotification, object: nil)
 
         assertLocked(vm, "Expected .locked after the session-resign trigger")
+    }
+
+    /// `lockOnBackground` is an iOS-only setting that macOS never renders, so
+    /// a stale `false` in defaults must not disable the Mac lock guarantee.
+    func testMacScreenLockTriggerLocksEvenWithBackgroundLockDisabled() async throws {
+        SettingsService.lockOnBackground = false
+        SettingsService.macLockPolicy = .screenLockOrSleep
+        let vm = try await makeUnlockedViewModel()
+        let harness = MacTriggerHarness(viewModel: vm)
+        defer { harness.monitor.stop() }
+
+        harness.distributedCenter.post(name: MacLockMonitor.screenIsLockedNotification, object: nil)
+
+        assertLocked(vm, "Expected .locked after the screen-lock trigger with lockOnBackground off")
     }
 
     func testMacAppDeactivationDoesNotLockUnderDefaultPolicy() async throws {
