@@ -20,6 +20,7 @@ struct AutoFillTipBanner: View {
                 }
                 .accessibilityLabel("Dismiss")
                 .accessibilityIdentifier("autofill-tip.dismiss")
+                .macHelp(String(localized: "Dismiss"))
             }
 
             #if os(macOS)

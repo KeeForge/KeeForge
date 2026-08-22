@@ -2714,6 +2714,51 @@ final class DatabaseViewModelTests: XCTestCase {
         XCTAssertEqual(vm.tagsInDisplayOrder, firstOrder)
     }
 
+    // MARK: - macOS menu-bar command targets
+
+    func testDeletableSelectionPrefersTheSelectedEntryOverTheSelectedGroup() async throws {
+        let vm = try await makeCreatedViewModel(displayName: "Delete Target")
+        let rootID = try XCTUnwrap(vm.visibleRootGroupID)
+        try vm.createGroup(named: "Work", in: rootID)
+        let groupID = try XCTUnwrap(vm.visibleRootGroup?.groups.first(where: { $0.name == "Work" })?.id)
+
+        try vm.applyEntryEdit(
+            .createEntry(parentGroupID: groupID, draft: EntryDraftPayload(title: "GitHub"))
+        )
+        let entryID = try XCTUnwrap(vm.group(withID: groupID)?.entries.first?.id)
+
+        vm.selectedGroupID = groupID
+        XCTAssertEqual(vm.deletableSelection, .group(groupID))
+
+        vm.selectEntry(entryID)
+        XCTAssertEqual(vm.deletableSelection, .entry(entryID))
+    }
+
+    func testDeletableSelectionIsNilForAGroupThatCannotBeDeleted() async throws {
+        let vm = try await makeCreatedViewModel(displayName: "Protected Delete Target")
+        let rootID = try XCTUnwrap(vm.visibleRootGroupID)
+
+        vm.selectedGroupID = rootID
+
+        XCTAssertTrue(vm.isGroupProtectedFromDeletion(groupID: rootID))
+        XCTAssertNil(vm.deletableSelection, "⌘⌫ must not offer to delete the vault root")
+    }
+
+    func testCanEditSelectedEntryRequiresALiveEntrySelection() async throws {
+        let vm = try await makeCreatedViewModel(displayName: "Edit Target")
+        let rootID = try XCTUnwrap(vm.visibleRootGroupID)
+
+        XCTAssertFalse(vm.canEditSelectedEntry, "⌘E is off with nothing selected")
+
+        try vm.applyEntryEdit(
+            .createEntry(parentGroupID: rootID, draft: EntryDraftPayload(title: "GitHub"))
+        )
+        let entryID = try XCTUnwrap(vm.visibleRootGroup?.entries.first?.id)
+        vm.selectEntry(entryID)
+
+        XCTAssertTrue(vm.canEditSelectedEntry)
+    }
+
     func testSelectedTagAndSelectedGroupAreMutuallyExclusive() async throws {
         let vm = try await makeCreatedViewModel(displayName: "Tag Selection")
         let parentGroupID = try XCTUnwrap(vm.visibleRootGroupID)

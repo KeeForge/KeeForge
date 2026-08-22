@@ -197,7 +197,7 @@ final class MacScreenshotAuditUITests: MacUITestCase {
         settle()
         snap("04-group-selected")
 
-        let entry = app.buttons.matching(identifier: "entry.navlink").firstMatch
+        let entry = rowQuery(identifier: "entry.navlink").firstMatch
         if entry.waitForExistence(timeout: 10) {
             entry.click()
             settle()
@@ -232,7 +232,7 @@ final class MacScreenshotAuditUITests: MacUITestCase {
         //    drop the app out of the foreground. Best effort: re-focus an entry,
         //    open the editor, snap the frontmost window (the sheet), then cancel.
         forceActivateApp()
-        let editorEntry = app.buttons.matching(identifier: "entry.navlink").firstMatch
+        let editorEntry = rowQuery(identifier: "entry.navlink").firstMatch
         if editorEntry.waitForExistence(timeout: 5), editorEntry.isHittable {
             editorEntry.click()
         }
