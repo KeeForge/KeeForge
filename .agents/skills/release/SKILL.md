@@ -55,7 +55,7 @@ Identify which mode applies before touching anything. Ask the user if it is ambi
 Reference files, read on demand:
 
 - `gate-adjudication.md` — how to read the two CI gates and adjudicate test failures locally.
-  Read this whenever a gate is not green.
+  Read this whenever a gate is not green in A8. Gates are adjudicated there and nowhere else.
 - `xcode-cloud-setup.md` — the one-time App Store Connect workflow configuration this process
   depends on. Read it if archives or TestFlight uploads are not appearing as expected.
 
@@ -379,6 +379,14 @@ The merge also carries the release mechanics (version bump, build numbers, What'
 # Mode C — Ship the soaked build
 
 Enter this mode when the user decides to ship, after the A10 signals have been reported to them.
+
+**Do not re-check the CI gates here.** Both gates were read and adjudicated in A8, and accepting
+them is what allowed the build to reach external testers in the first place (invariant 3). That
+verdict is Mode A's job and it is final: do not poll Xcode Cloud or GitHub Actions check runs for
+the RC commit, do not reopen `gate-adjudication.md`, and do not treat a test action that was red but
+accepted as a flake — or a later re-run of either workflow — as a reason to stop. The soaked binary
+already carries the verdict. If it turns out a gate was never accepted, you are not in Mode C; go
+back to A8.
 
 ## C1. Confirm what you are shipping
 

@@ -1,8 +1,9 @@
 # Adjudicating a Failed RC Gate
 
-Read this when either RC gate in step A8 is not green. Both gates must be **accepted** before a
-candidate build is distributed to external testers. A gate is accepted when it is green, or when
-every actual XCTest failure from that gate passes an exact local reproduction.
+Read this when either RC gate in step A8 is not green. A8 is the only step that adjudicates gates —
+Mode C ships an already-accepted build and never revisits them. Both gates must be **accepted**
+before a candidate build is distributed to external testers. A gate is accepted when it is green,
+or when every actual XCTest failure from that gate passes an exact local reproduction.
 
 Wait for both runs to reach a terminal state before adjudicating either one. Do not distribute a
 build with an unresolved gate.
