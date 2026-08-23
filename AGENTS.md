@@ -17,7 +17,7 @@ Entry point for coding agents working on KeeForge. This file is intentionally br
 - Native iOS KeePass manager for KDBX 4.x databases; also reads KDBX 3.1 (read-only)
 - Swift 6, SwiftUI, iOS 18+ / macOS 14+, `@Observable`, strict concurrency
 - XcodeGen build graph: edit `project.yml`, then regenerate `KeeForge.xcodeproj`
-- Main targets: `KeeForge`, `KeeForgeMac`, `KeeForgeAutoFill`, `KeeForgeMacAutoFill`, `KeeForgeTests`, `KeeForgeMacTests`, `KeeForgeUITests`, `KeeForgeMacUITests`. The macOS targets are ON HOLD and must not ship (see CHANGELOG.md's "## macOS App" section).
+- Main targets: `KeeForge`, `KeeForgeMac`, `KeeForgeAutoFill`, `KeeForgeMacAutoFill`, `KeeForgeTests`, `KeeForgeMacTests`, `KeeForgeUITests`, `KeeForgeMacUITests`. The macOS targets are being prepared for their first release and have not shipped yet; the remaining checklist is CHANGELOG.md's "## macOS App" section, and macOS work is logged there rather than under `## Unreleased`.
 
 ## Open The Local Doc First
 
@@ -119,6 +119,7 @@ Mac XCUITest is the slowest and most fragile lever available: it needs an unlock
 
 - Put Mac behavior in `@Observable` view models and cover it in `KeeForgeMacTests`, which runs headless and shares the iOS unit sources. Keep `KeeForgeMacUITests` a thin smoke layer over flows that only exist as UI.
 - For Mac-specific layout deltas, prefer SwiftUI previews or the `MacScreenshotAuditUITests` capture pass over driving the app with new assertions.
+- What a given change has to test is a table in `KeeForgeMac/README.md` ("What Mac Work Has To Test"). Read the row for your change before you call it done.
 - Shared SwiftUI is the default and keeps macOS nearly free — but a targeted AppKit view is the right answer where SwiftUI on Mac cannot express the interaction at all (keyboard navigation in search results and the tag browser are the known cases). Take the escape hatch deliberately, not as a workaround for a flaky test.
 
 ## Security Reminders

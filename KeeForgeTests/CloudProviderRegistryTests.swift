@@ -5,9 +5,9 @@ import XCTest
 final class CloudProviderRegistryTests: XCTestCase {
     func testAvailableProvidersContainsCloudProviders() {
         #if os(macOS)
-        // TODO(macos-port): re-enable Dropbox/OneDrive once the macOS cloud
-        // OAuth paths are validated end-to-end. They are hidden from the UI for
-        // now; WebDAV stays available.
+        // macOS ships WebDAV only: the Dropbox and OneDrive OAuth paths are
+        // implemented but have never been validated end-to-end on a Mac, so
+        // they stay out of the UI. Unhiding them is a later release's call.
         XCTAssertEqual(CloudProviderRegistry.availableProviders, [.webDAV])
         #else
         XCTAssertEqual(CloudProviderRegistry.availableProviders, [.dropbox, .oneDrive, .webDAV])

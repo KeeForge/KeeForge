@@ -46,11 +46,12 @@ enum CloudProviderKind: String, Codable, CaseIterable, Hashable, Identifiable, S
     /// destination picker. It does not touch `provider(for:)` resolution, so
     /// already-connected databases continue to open and sync.
     ///
-    /// TODO(macos-port): re-enable after cloud OAuth is validated on macOS.
-    /// The Dropbox and OneDrive macOS OAuth paths (slice 03) are implemented
-    /// and unit-tested but not yet validated end-to-end on a Mac, so they are
-    /// temporarily hidden from the macOS UI. WebDAV stays available on every
-    /// platform. iOS is unaffected (all providers remain visible).
+    /// macOS ships WebDAV only for its first release. The Dropbox and OneDrive
+    /// macOS OAuth paths (slice 03) are implemented and unit-tested but have
+    /// never been validated end-to-end on a Mac, so they stay out of the macOS
+    /// UI rather than shipping unproven; re-enabling them is a decision for a
+    /// later release, not an oversight. iOS is unaffected — all providers
+    /// remain visible there.
     var isAvailableOnCurrentPlatform: Bool {
         #if os(macOS)
         switch self {

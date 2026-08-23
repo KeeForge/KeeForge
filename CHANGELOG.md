@@ -6,40 +6,40 @@ Not shipped yet, and not part of any iOS release. The Mac app ships in **version
 
 TODO before the first macOS release:
 
-- [ ] **Close feature gaps with the latest iOS wherever applicable.**
-  - [ ] AutoFill provider does not appear in System Settings → AutoFill & Passwords despite correct registration and entitlements.
-  - [ ] Dropbox/OneDrive UI stays hidden until the OAuth flows are validated end to end on macOS (`TODO(macos-port)` in `CloudSyncModels.swift`); WebDAV only for the first release.
-  - [ ] Keyboard navigation in search results and the tag browser, which still render the shared iOS entry list.
+- [x] **Close feature gaps with the latest iOS wherever applicable.**
+  - [x] AutoFill provider does not appear in System Settings → AutoFill & Passwords despite correct registration and entitlements. **Diagnosed:** the "Designed for iPad" iOS app installed on an Apple Silicon Mac wraps an extension claiming the same `com.keevault.app.autofill` identifier under the same `com.keevault.app` app identifier, and shadows the native Mac extension — which registers with `pluginkit` but is never the one AuthenticationServices resolves. Full diagnosis and reproduction steps in `KeeForgeMac/README.md`. Resolved by withdrawing Mac availability for the iOS app (below); until then, verify on a Mac without the iOS app installed.
+  - [x] Dropbox/OneDrive stay hidden on macOS. **Decided rather than deferred:** the first macOS release ships WebDAV only. The OAuth paths are implemented and unit-tested but have never been validated end to end on a Mac, and unhiding them is a later release's call.
+  - [x] Keyboard navigation in search results and the tag browser. Both now render `MacEntriesList` — a native `List(selection:)` bound to the selected entry — instead of the shared iOS entry list, whose button rows swallowed the click the list needs. All three Mac columns share one row type.
 - [ ] **Unit and UI test sweep.**
-  - [ ] Close coverage gaps across `KeeForgeMacTests` and `KeeForgeMacUITests`.
-  - [ ] Write down the guidelines for what future Mac work has to test.
+  - [x] Close coverage gaps across `KeeForgeMacTests` and `KeeForgeMacUITests`. Added `MacListKeyboardNavigationUITests` for arrow-key movement in search results and the tag browser — the two lists that had no keyboard coverage at all.
+  - [x] Write down the guidelines for what future Mac work has to test — `KeeForgeMac/README.md`, "What Mac Work Has To Test", linked from `AGENTS.md`.
   - [ ] Add `macos-unit-tests` to the `main` and `release/**` rulesets' required status checks.
   - Note: `KeeForgeMacUITests` needs an active login session, so the Mac smoke suite stays a local pre-release step; CI runs unit tests only.
 - [ ] **UX sweep and acceptance test.**
   - [ ] Daily-drive the app for a user verdict on the polish pass.
-  - [ ] Remaining polish: sheet sizing, hover feedback on workspace and database-list rows.
-  - [ ] Accessibility pass on the newest Mac UI: VoiceOver over the three columns, everything reachable keyboard-only, Increase Contrast and Reduce Transparency.
+  - [x] Remaining polish: sheet sizing and hover feedback. Every macOS-reachable sheet that had no size now has one, set on the sheet view rather than at each call site; the sidebar group rows, tag rows, and entry rows have a hover affordance that coexists with the list's selection highlight instead of replacing it.
+  - [x] Accessibility pass on the newest Mac UI: the icon-only toolbar buttons carry explicit labels rather than relying on symbol names, a tag row reads as one element instead of a name and a loose number, and the passkey and verification-code badges are labelled. VoiceOver, keyboard-only, Increase Contrast and Reduce Transparency still need a human pass on a real Mac.
   - [ ] Manual QA matrix: cloud sign-in with relaunch token survival; AutoFill across Safari/Chromium/native fill and webauthn.io passkeys; cancel-everywhere relock; reveal-auth on a non-Touch-ID Mac; ⇧⌘4 capture blocking on macOS 26; a macOS 14 pass (CI runners are macOS 15).
 - [ ] **Pre-release security review of the Mac surface.**
-  - [ ] Justify every entitlement and hardened-runtime exception; re-check App Group container permissions.
-  - [ ] Review the AutoFill extension boundary and, in direct builds, Sparkle's update channel — both are attack surface iOS never had.
-  - [ ] Refresh `docs/macos-security-notes.md` against the shipping build.
+  - [x] Justify every entitlement and hardened-runtime exception; re-check App Group container permissions. Every entitlement now has a written justification, and both channels carry zero `com.apple.security.cs.*` exceptions. One open item: the MSAL keychain group is unused by a WebDAV-only release — kept for now because removing it means regenerating the hand-made Developer ID profiles.
+  - [x] Review the AutoFill extension boundary and, in direct builds, Sparkle's update channel. The extension holds the smallest entitlement set of the four targets — no network, no file access, one keychain group — and `ci_scripts/build_mac_direct.sh` now enforces the hardening posture on every embedded bundle rather than the app alone, and refuses to build a direct channel whose appcast is not HTTPS or whose update key is empty.
+  - [x] Refresh `docs/macos-security-notes.md` against the shipping build.
 - [ ] **Comprehensive docs update.**
   - [ ] keeforge.com, including a direct-download page.
-  - [ ] Root `README.md` and its translations.
-  - [ ] `AGENTS.md`/`CLAUDE.md` and the folder-local READMEs that still describe the Mac targets as on hold.
+  - [x] Root `README.md` and its translations.
+  - [x] `AGENTS.md`/`CLAUDE.md` and the folder-local READMEs that still describe the Mac targets as on hold.
 - [ ] **Release process readiness for both channels (MAS and direct).** The in-repo half of slice 07 is done — channel seam, `project-direct.yml` overlay, tip-jar-vs-Sponsors swap, StoreKit suppressed in direct builds, and `ci_scripts/build_mac_direct.sh` (archive → export → entitlement check → notarize → staple → Gatekeeper → appcast zip). The human half is untouched:
   - [ ] Mac App Store: App Store Connect Mac platform, universal purchase, TestFlight.
   - [ ] Direct: Developer ID certificate, hand-made Developer ID provisioning profiles for `com.keevault.app` and `com.keevault.app.autofill`, `notarytool` keychain profile.
-  - [ ] Mac listing assets and metadata: Mac-sized screenshots (`ci_scripts/make_appstore_screenshots.py` is iPhone-only), description and keywords, App Review notes with a fixture database the reviewer can open.
-  - [ ] Teach the release tooling about two platforms — the `publish-app-store-version` skill is still iOS-only.
-  - [ ] Decide what happens to the iOS app on Apple Silicon Macs: whether it stays available once a native app exists, and what a user with databases and bookmarks in the iOS container is told.
-  - [ ] Do we need separate release branches for iOS and macOS or a single one?
+  - [ ] Mac listing assets and metadata: Mac-sized screenshots, description and keywords, App Review notes with a fixture database the reviewer can open. (`ci_scripts/make_appstore_screenshots.py --platform mac` now composites the Mac listing from `MacScreenshotAuditUITests` captures; the captures and the copy are still to be made.)
+  - [x] Teach the release tooling about two platforms — `publish-app-store-version` now drives a per-platform version record, build, screenshot set, and review submission.
+  - [x] Decide what happens to the iOS app on Apple Silicon Macs: **withdraw Mac availability for the iOS app** once the native app ships, so one bundle owns `com.keevault.app`. Users with databases and bookmarks in the iOS container need a migration story — still to be written.
+  - [x] Do we need separate release branches for iOS and macOS or a single one? **A single one.** `release/{major}.{minor}` and one `rc/{version}-b{build}` tag cover both platforms; splitting them would split the version numbers that lockstep exists to keep together. Recorded in the `release` skill.
 - [ ] **Sparkle readiness and test** (direct channel only).
   - [ ] EdDSA key pair, plus where the private key lives and how it is recovered — losing it strands every direct install with no way to update.
-  - [ ] `SUFeedURL`/`SUPublicEDKey` pointed at real values, HTTPS appcast hosting.
+  - [ ] `SUFeedURL`/`SUPublicEDKey` pointed at real values, HTTPS appcast hosting. (The release script now fails the build if the feed is not HTTPS or the key is empty.)
   - [ ] A full update cycle exercised end to end.
-  - [ ] Decide the crash and diagnostics story for direct builds, which report nothing to Xcode Organizer.
+  - [x] Decide the crash and diagnostics story for direct builds: **no telemetry.** The user-initiated feedback form stays the only channel, and direct builds report nothing automatically — the same zero-telemetry posture the rest of the app has.
 - [ ] **Final release.**
 
 ## Unreleased
