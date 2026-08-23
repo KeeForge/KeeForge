@@ -213,6 +213,52 @@ extension View {
         self
         #endif
     }
+
+    /// Gives a `Form` the grouped, inset look on macOS; no-op on iOS.
+    ///
+    /// macOS defaults a `Form` to the `.columns` style: labels in a
+    /// right-aligned column and rows running edge to edge, with none of the
+    /// insets or grouped backgrounds a sheet needs. The Settings tabs already
+    /// opt into `.grouped`; sheeted editors need the same so they match.
+    @ViewBuilder
+    func macGroupedForm() -> some View {
+        #if os(macOS)
+        formStyle(.grouped)
+        #else
+        self
+        #endif
+    }
+
+    /// Gives text fields a visible bezel on macOS; no-op on iOS.
+    ///
+    /// Inside a grouped `Form` macOS draws `TextField`s borderless, so a row
+    /// reads as a caption over empty space with nothing showing where to type.
+    /// iOS list rows are borderless by convention and must stay that way.
+    @ViewBuilder
+    func macFormFieldStyle() -> some View {
+        #if os(macOS)
+        textFieldStyle(.roundedBorder)
+        #else
+        self
+        #endif
+    }
+
+    /// Hides a control's built-in label on macOS; no-op on iOS.
+    ///
+    /// A `Form` row that captions its own field is the common cross-platform
+    /// shape: iOS treats a `TextField`'s title as placeholder text and drops it
+    /// once there is a value, while macOS renders it as a second, right-aligned
+    /// label beside the caption — and reserves a label column that pushes the
+    /// field off the row. Applying `.labelsHidden()` unconditionally would cost
+    /// iOS its placeholder, so it stays platform-scoped.
+    @ViewBuilder
+    func macLabelsHidden() -> some View {
+        #if os(macOS)
+        labelsHidden()
+        #else
+        self
+        #endif
+    }
 }
 
 // MARK: - Tooltips (macOS)

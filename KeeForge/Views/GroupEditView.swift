@@ -76,6 +76,7 @@ struct GroupEditView: View {
             }
         }
         .scrollDismissesKeyboard(.immediately)
+        .macGroupedForm()
         .navigationTitle("Edit Group")
         .navigationBarTitleDisplayMode(.inline)
         .navigationBarBackButtonHidden(true)
@@ -263,7 +264,10 @@ struct GroupEditView: View {
                 .foregroundStyle(.secondary)
 
             content()
+                .macLabelsHidden()
+                .macFormFieldStyle()
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.vertical, 2)
     }
 

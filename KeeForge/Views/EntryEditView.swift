@@ -176,6 +176,7 @@ struct EntryEditView: View {
                 }
             }
         }
+        .macGroupedForm()
         .navigationTitle(navigationTitle)
         .navigationBarTitleDisplayMode(.inline)
         .navigationBarBackButtonHidden(true)
@@ -536,7 +537,10 @@ struct EntryEditView: View {
                 .foregroundStyle(.secondary)
 
             content()
+                .macLabelsHidden()
+                .macFormFieldStyle()
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.vertical, 2)
     }
 
