@@ -178,6 +178,96 @@ unlocked session's decrypted secrets could in principle be recovered from disk i
 the machine is seized while suspended. FileVault plus locking on sleep is the
 mitigation; there is no app-level fix.
 
+## Entitlements and hardened-runtime posture
+
+Reviewed against the shipping build before the first Mac release. Both channels
+are sandboxed and hardened-runtime, and **neither carries a single
+`com.apple.security.cs.*` exception** — no disabled library validation, no
+allow-jit, no unsigned-executable-memory, no `get-task-allow`. Sparkle 2 needs
+none of them: Xcode signs its XPC services with the same team id, and library
+validation permits a same-team load. `ci_scripts/build_mac_direct.sh` enforces
+this on the app *and* on every nested bundle it embeds, so an exception added to
+the AutoFill extension or to a Sparkle XPC service fails the release build
+rather than shipping quietly.
+
+What the **app** (`KeeForgeMac/KeeForgeMac.entitlements`) asks for, and why:
+
+| Entitlement | Why it is needed |
+| --- | --- |
+| `app-sandbox` | Required for the Mac App Store, kept for the direct channel too. |
+| `files.user-selected.read-write` | The user picks a `.kdbx` themselves; there is no other way to reach it. Grants access to what they chose, nothing else. |
+| `files.bookmarks.app-scope` | Re-opening that same file after relaunch without asking again. The alternative is a file picker on every launch. |
+| `network.client` | Cloud sync (WebDAV for the first release), opt-in favicon fetching, and the user-initiated feedback form. Outbound only; there is no `network.server`. |
+| `application-groups` → `group.com.keevault.shared` | The only channel through which the AutoFill extension sees a database. See the container caveat above. |
+| `keychain-access-groups` → `com.keevault.sharedkeychain` | Composite keys shared with the extension. Must stay **first**: an item stored without an explicit `kSecAttrAccessGroup` lands in the first listed group. |
+| `keychain-access-groups` → `com.microsoft.identity.universalstorage` | MSAL's macOS token cache, which it enables only after a suffix match on this entitlement. **Unused by the first release** — see below. |
+
+Open item for the first release: the MSAL keychain group is the one entitlement
+the shipping build never exercises. Dropbox and OneDrive are hidden from the
+macOS UI (`CloudProviderKind.isAvailableOnCurrentPlatform`), so nothing on the
+Mac ever authenticates through MSAL and nothing writes to that group. It is
+therefore surface with no current purpose. It stays for now because removing it
+means regenerating the hand-made Developer ID provisioning profiles when the
+OAuth flows are validated and the providers are unhidden; a first release that
+kept it is a smaller risk than a re-signing cycle. Revisit if OneDrive slips
+another release.
+
+## AutoFill extension boundary
+
+The macOS AutoFill extension is the process that holds decrypted vault contents
+while it fills, so its entitlement set is deliberately the **smallest of the
+four targets** — smaller than the app's, and identical to the iOS extension's
+apart from `app-sandbox`, which iOS extensions get implicitly:
+
+- **No `network.client`.** The extension cannot reach the network at all. It
+  cannot sync, cannot fetch favicons, and cannot exfiltrate over a socket even
+  if a parsing bug were exploited inside it. Cloud work belongs to the app.
+- **No `files.user-selected.read-write`, no `files.bookmarks.app-scope`.** The
+  extension cannot resolve a security-scoped bookmark or reach the user's
+  original `.kdbx` on disk. It reads only the encrypted copy the app cached into
+  the App Group container — which is why the app refreshes that copy on save.
+- **One keychain group**, the shared one, in the same order as the app's, so a
+  composite key written by either process is readable by the other and by
+  nothing else. MSAL's group is app-only and intentionally absent.
+
+The boundary is enforced by more than review: `AppGroupGuardrailTests` pins the
+group container's write surface to encrypted KDBX payloads, bookmark blobs, and
+filename metadata, and the container is world-readable to the user's other
+processes on macOS 14 (above), so widening that surface is a security change and
+not a convenience one.
+
+The memory ceiling is a separate constraint with a security edge:
+`KDFExecutionPolicy.autoFillExtension` bounds what a hostile KDBX header can ask
+the extension to allocate. It is the **only** KDF guard on macOS, where
+`os_proc_available_memory` does not exist and the iOS pre-flight has nothing to
+read (`AutoFillExtension/README.md`).
+
+## Sparkle update channel — direct builds only
+
+Attack surface the iOS app never had, and it exists in exactly one of the two
+channels. The App Store build cannot contain an updater by construction: Sparkle
+is declared in `project-direct.yml`, an overlay spec, so a plain
+`xcodegen generate` produces a project with no Sparkle package in it at all.
+There is no runtime flag to get this wrong.
+
+What authenticates an update in the direct channel:
+
+- **EdDSA signatures.** Sparkle verifies each download against `SUPublicEDKey`
+  before it will install. The private half lives in the login keychain, never in
+  the repo and never in CI logs. Losing it strands every direct install with no
+  supported way to update them — treat its backup as a release-critical secret,
+  not a developer convenience.
+- **HTTPS appcast.** `SUFeedURL` must be `https://`. The release script refuses
+  to build otherwise, and refuses an empty `SUPublicEDKey`, so a direct build
+  that could not authenticate its own updates never reaches notarization.
+- **Notarized, stapled payload.** The zip the appcast serves is the stapled app,
+  so a first launch offline still passes Gatekeeper.
+
+Residual risk to be honest about: whoever controls the appcast host and the
+EdDSA private key together can push code to every direct install. That is
+inherent to self-distributed updates. The App Store channel does not have this
+property, which is one reason it is the default build.
+
 ## Not fixable at the app level
 
 These are outside KeeForge's control on macOS and should not be represented as
