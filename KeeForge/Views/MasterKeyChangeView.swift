@@ -50,6 +50,7 @@ struct MasterKeyChangeView: View {
             passwordSection
             keyFileSection
         }
+        .macGroupedForm()
         .disabled(viewModel.isWorking)
         .navigationTitle("Master Key")
         .navigationBarTitleDisplayMode(.inline)
@@ -139,6 +140,7 @@ struct MasterKeyChangeView: View {
                 fieldAccessibilityIdentifier: "master-key.new-password-field",
                 visibilityAccessibilityIdentifier: "master-key.new-password-visibility-button"
             )
+            .macFormFieldStyle()
 
             PasswordInputRow(
                 title: String(localized: "Confirm password"),
@@ -147,6 +149,7 @@ struct MasterKeyChangeView: View {
                 fieldAccessibilityIdentifier: "master-key.confirm-password-field",
                 visibilityAccessibilityIdentifier: "master-key.confirm-password-visibility-button"
             )
+            .macFormFieldStyle()
 
             if let warning = viewModel.passwordStrengthWarning {
                 Text(warning)

@@ -69,6 +69,7 @@ struct DatabaseDetailsView: View {
                 cloudSyncSection
                 appSettingsSection
             }
+            .macGroupedForm()
             .navigationTitle(currentReference.displayName)
             .navigationBarTitleDisplayMode(.inline)
             .task {
@@ -125,6 +126,8 @@ struct DatabaseDetailsView: View {
                     .multilineTextAlignment(.trailing)
                     .textInputAutocapitalization(.words)
                     .onSubmit(saveNickname)
+                    .macLabelsHidden()
+                    .macFormFieldStyle()
                     .accessibilityIdentifier("database-details.nickname-field")
             }
 
