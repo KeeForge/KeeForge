@@ -93,22 +93,72 @@ fi
 # none — Xcode signs its XPC services with the team id and library validation
 # permits a same-team load. If an update fails, the signing is wrong; do not
 # "fix" it by adding an exception here.
+#
+# Checked on the app *and* on every nested bundle it embeds. The AutoFill
+# extension and Sparkle's XPC services are separately signed with their own
+# entitlements, so an exception added to one of them would never appear in the
+# app's own and would otherwise ship unnoticed.
+check_hardening() {
+  local bundle="$1"
+  local entitlements
+  entitlements="$(codesign -d --entitlements - --xml "${bundle}" 2>/dev/null | plutil -convert xml1 -o - - 2>/dev/null || true)"
+
+  if grep -q "com.apple.security.cs." <<<"${entitlements}"; then
+    echo "error: ${bundle##*/} carries a com.apple.security.cs.* exception:" >&2
+    grep -o "com.apple.security.cs.[a-z.-]*" <<<"${entitlements}" | sort -u >&2
+    return 1
+  fi
+  if grep -q "get-task-allow" <<<"${entitlements}"; then
+    echo "error: ${bundle##*/} carries get-task-allow (debug signing)" >&2
+    return 1
+  fi
+  echo "    ${bundle##*/}: no exceptions"
+}
+
 echo "==> Checking entitlements"
-ENTITLEMENTS="$(codesign -d --entitlements - --xml "${APP_PATH}" 2>/dev/null | plutil -convert xml1 -o - -)"
-if grep -q "com.apple.security.cs." <<<"${ENTITLEMENTS}"; then
-  echo "error: build carries a com.apple.security.cs.* exception:" >&2
-  grep -o "com.apple.security.cs.[a-z.-]*" <<<"${ENTITLEMENTS}" | sort -u >&2
-  exit 1
-fi
-if grep -q "get-task-allow" <<<"${ENTITLEMENTS}"; then
-  echo "error: build carries get-task-allow (debug signing)" >&2
-  exit 1
-fi
-if ! grep -q "com.apple.security.app-sandbox" <<<"${ENTITLEMENTS}"; then
+APP_ENTITLEMENTS="$(codesign -d --entitlements - --xml "${APP_PATH}" 2>/dev/null | plutil -convert xml1 -o - -)"
+if ! grep -q "com.apple.security.app-sandbox" <<<"${APP_ENTITLEMENTS}"; then
   echo "error: build is not sandboxed; both channels must stay sandboxed" >&2
   exit 1
 fi
+
+check_hardening "${APP_PATH}"
+while IFS= read -r NESTED; do
+  check_hardening "${NESTED}"
+done < <(find "${APP_PATH}/Contents" \
+  \( -name "*.appex" -o -name "*.xpc" -o -name "*.app" \) -print)
+
+# The AutoFill extension must stay sandboxed in its own right: it is the process
+# that holds decrypted vault contents while filling.
+APPEX="$(find "${APP_PATH}/Contents" -name "*.appex" -print -quit)"
+if [[ -n "${APPEX}" ]]; then
+  if ! codesign -d --entitlements - --xml "${APPEX}" 2>/dev/null \
+    | plutil -convert xml1 -o - - \
+    | grep -q "com.apple.security.app-sandbox"; then
+    echo "error: ${APPEX##*/} is not sandboxed" >&2
+    exit 1
+  fi
+fi
 echo "    hardened runtime + sandbox, no exceptions"
+
+# An update channel is only as good as the two values that authenticate it. An
+# empty SUPublicEDKey makes Sparkle refuse every update (fail-closed, but the
+# channel is then dead), and a plaintext feed hands an on-path attacker the
+# update metadata. Both are build-time settings, so catch them here rather than
+# after the appcast is live.
+echo "==> Checking the Sparkle update channel"
+BUILT_FEED_URL="$(/usr/libexec/PlistBuddy -c "Print :SUFeedURL" "${APP_PATH}/Contents/Info.plist" 2>/dev/null || true)"
+BUILT_ED_KEY="$(/usr/libexec/PlistBuddy -c "Print :SUPublicEDKey" "${APP_PATH}/Contents/Info.plist" 2>/dev/null || true)"
+if [[ -z "${BUILT_ED_KEY}" ]]; then
+  echo "error: SUPublicEDKey is empty; a direct build with no update key cannot ever update." >&2
+  echo "Set SPARKLE_PUBLIC_ED_KEY in BuildConfig.local.xcconfig." >&2
+  exit 1
+fi
+if [[ "${BUILT_FEED_URL}" != https://* ]]; then
+  echo "error: SUFeedURL must be an https:// URL, got '${BUILT_FEED_URL}'" >&2
+  exit 1
+fi
+echo "    appcast ${BUILT_FEED_URL}, update key present"
 
 ZIP_PATH="${OUT_DIR}/KeeForge.zip"
 echo "==> Zipping for notarization"
