@@ -219,6 +219,9 @@ final class MacScreenshotAuditUITests: MacUITestCase {
             configuration.width = Int(window.frame.width * 2)
             configuration.height = Int(window.frame.height * 2)
             configuration.showsCursor = false
+            // Without this SCK can render the window 1:1 into the Retina-sized
+            // buffer, leaving half-scale content in the corner of the image.
+            configuration.scalesToFit = true
             return try await SCScreenshotManager.captureImage(
                 contentFilter: SCContentFilter(desktopIndependentWindow: window),
                 configuration: configuration
