@@ -290,6 +290,68 @@ class MacUITestCase: XCTestCase {
         return false
     }
 
+    /// Clicks the first hittable row carrying `identifier`, whatever it says.
+    /// The name-matching `clickRow` cannot be used where the point of the test
+    /// is that it does not care which row it lands on — only that the next
+    /// keystroke moves off it.
+    @discardableResult
+    func clickFirstRow(
+        identifier: String,
+        timeout: TimeInterval = 15,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) -> String {
+        let deadline = Date().addingTimeInterval(timeout)
+        repeat {
+            if let row = rowQuery(identifier: identifier).allElementsBoundByIndex.first(where: {
+                $0.exists && $0.isHittable && $0.frame.height > 1
+            }) {
+                row.click()
+                return displayText(of: row)
+            }
+            RunLoop.current.run(until: Date().addingTimeInterval(0.25))
+        } while Date() < deadline
+
+        XCTFail("No hittable '\(identifier)' row within \(Int(timeout)) seconds", file: file, line: line)
+        return ""
+    }
+
+    /// The entry title the detail column is currently showing, or "" if none.
+    func detailTitle() -> String {
+        let matches = rowQuery(identifier: "entry-detail.title").allElementsBoundByIndex
+        return matches.map(displayText(of:)).first { $0.isEmpty == false } ?? ""
+    }
+
+    /// Polls until the detail column shows something other than `previous`.
+    func waitForDetailTitleToChange(from previous: String, timeout: TimeInterval = 15) -> String? {
+        let deadline = Date().addingTimeInterval(timeout)
+        repeat {
+            let current = detailTitle()
+            if current.isEmpty == false, current != previous {
+                return current
+            }
+            RunLoop.current.run(until: Date().addingTimeInterval(0.2))
+        } while Date() < deadline
+        return nil
+    }
+
+    /// Reads the `results:N` overlay the search screen renders under
+    /// `-ui-testing`. Returns -1 if it never appears.
+    func searchResultCount(timeout: TimeInterval = 20) -> Int {
+        let overlay = app.staticTexts["search.results.count"]
+        guard overlay.waitForExistence(timeout: timeout) else { return -1 }
+
+        let deadline = Date().addingTimeInterval(timeout)
+        repeat {
+            let text = displayText(of: overlay)
+            if text.hasPrefix("results:"), let value = Int(text.dropFirst("results:".count)) {
+                if value > 0 { return value }
+            }
+            RunLoop.current.run(until: Date().addingTimeInterval(0.2))
+        } while Date() < deadline
+        return 0
+    }
+
     // MARK: - Menu commands
 
     func typeCommandShortcut(_ key: String, modifiers: XCUIElement.KeyModifierFlags = [.command]) {

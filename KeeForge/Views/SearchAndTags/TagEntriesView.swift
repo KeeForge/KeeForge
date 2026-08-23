@@ -26,15 +26,33 @@ struct TagEntriesView: View {
                     description: Text("No entries carry this tag anymore.")
                 )
             } else {
-                EntryListView(
-                    entries: entries,
-                    viewModel: viewModel,
-                    onSelectEntry: onSelectEntry
-                )
-                .accessibilityIdentifier("tag-entries.list")
+                TagEntriesList(entries: entries, viewModel: viewModel, onSelectEntry: onSelectEntry)
+                    .accessibilityIdentifier("tag-entries.list")
             }
         }
         .modifier(TagEntriesTitle(tag: tag))
+    }
+}
+
+/// The tag's entries, per shell — the same split `SearchView` makes, and for
+/// the same reason: macOS selects an entry in the content column rather than
+/// pushing it, so the column needs the native `List(selection:)` that carries
+/// arrow keys and type-select.
+private struct TagEntriesList: View {
+    let entries: [KPEntry]
+    @Bindable var viewModel: DatabaseViewModel
+    let onSelectEntry: ((KPEntry) -> Void)?
+
+    var body: some View {
+        #if os(macOS)
+        MacEntriesList(viewModel: viewModel, entries: entries)
+        #else
+        EntryListView(
+            entries: entries,
+            viewModel: viewModel,
+            onSelectEntry: onSelectEntry
+        )
+        #endif
     }
 }
 

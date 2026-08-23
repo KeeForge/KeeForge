@@ -331,10 +331,11 @@ struct RegularDatabaseWorkspaceView: View {
     // MARK: - macOS three-column workspace
 
     /// Canonical Mac password-manager layout: a three-column
-    /// `NavigationSplitView` (group tree / entries / entry detail). Group and
-    /// entry rows stay plain buttons carrying `group.navlink` / `entry.navlink`
-    /// so the existing selection-by-identifier smoke helpers keep working, with
-    /// a manual sidebar-style highlight standing in for native list selection.
+    /// `NavigationSplitView` (group tree / entries / entry detail). All three
+    /// browsing columns are native `List(selection:)`s, so arrow keys,
+    /// type-select, and the focus ring come from AppKit; rows keep their
+    /// `group.navlink` / `entry.navlink` identifiers, but they surface as
+    /// cells rather than buttons (`KeeForgeMacUITests/README.md`).
     private var macSplitView: some View {
         NavigationSplitView {
             macSidebarColumn
@@ -399,7 +400,6 @@ struct RegularDatabaseWorkspaceView: View {
             ) { destinationGroupID in
                 pending.apply(destinationGroupID: destinationGroupID, viewModel: viewModel)
             }
-            .frame(minWidth: 540, minHeight: 560)
         }
         .sheet(isPresented: $isShowingDatabaseDetails) {
             DatabaseDetailsView(
@@ -548,6 +548,7 @@ struct RegularDatabaseWorkspaceView: View {
                 Image(systemName: "lock.fill")
             }
             .help("Lock Database")
+            .accessibilityLabel("Lock Database")
             .accessibilityIdentifier("lock.button")
         }
 
@@ -560,6 +561,7 @@ struct RegularDatabaseWorkspaceView: View {
                 Image(systemName: "lock.fill")
                     .foregroundStyle(.orange)
                     .help("Read-only database")
+                    .accessibilityLabel("Read-only database")
                     .accessibilityIdentifier("database.read-only-indicator")
             } else {
                 Menu {
@@ -574,6 +576,7 @@ struct RegularDatabaseWorkspaceView: View {
                 }
                 .menuIndicator(.hidden)
                 .help("Add Entry or Group")
+                .accessibilityLabel("Add Entry or Group")
                 .accessibilityIdentifier("entry-list.add-entry")
             }
 
@@ -592,6 +595,7 @@ struct RegularDatabaseWorkspaceView: View {
             }
             .menuIndicator(.hidden)
             .help("Sort")
+            .accessibilityLabel("Sort")
             .accessibilityIdentifier("sort.menu")
 
             Button {
@@ -600,12 +604,14 @@ struct RegularDatabaseWorkspaceView: View {
                 Image(systemName: "info.circle")
             }
             .help("Database Details")
+            .accessibilityLabel("Database Details")
             .accessibilityIdentifier("database-details.button")
 
             SettingsLink {
                 Image(systemName: "gearshape")
             }
             .help("Settings")
+            .accessibilityLabel("Settings")
             .accessibilityIdentifier("settings.button")
         }
     }
@@ -767,7 +773,14 @@ private struct MacEntriesColumn: View {
                     )
                 } else {
                     List(entries, selection: $viewModel.selectedEntryID) { entry in
-                        entryRow(entry)
+                        MacEntryRow(
+                            entry: entry,
+                            viewModel: viewModel,
+                            isListFocused: $isListFocused,
+                            onOpenEntry: onOpenEntry,
+                            onRequestMove: onRequestMove,
+                            onRequestDeletion: onRequestDeletion
+                        )
                     }
                     .listStyle(.inset)
                     .focused($isListFocused)
@@ -786,60 +799,6 @@ private struct MacEntriesColumn: View {
                 description: Text("Choose a group to view its entries.")
             )
         }
-    }
-
-    private func entryRow(_ entry: KPEntry) -> some View {
-        EntryRow(
-            entry: entry,
-            username: viewModel.resolvingFieldReferences(entry.username),
-            customIconData: viewModel.customIconData(for: entry)
-        )
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .contentShape(Rectangle())
-        // Any tap gesture on a row consumes the click the enclosing `List`
-        // would have used to move its selection — `simultaneousGesture` too —
-        // so the single-click case has to be handled here as well. Order
-        // matters: the two-tap gesture must be attached first.
-        .onTapGesture(count: 2) {
-            onOpenEntry(entry.id)
-        }
-        .onTapGesture {
-            viewModel.selectedEntryID = entry.id
-            isListFocused = true
-        }
-        .accessibilityIdentifier("entry.navlink")
-        .contextMenu {
-            if canMove(entry) {
-                Button("Move to Group") {
-                    onRequestMove(.entry(entry.id))
-                }
-                .accessibilityIdentifier("entry-row.move-context")
-            }
-
-            if viewModel.isReadOnly == false {
-                let sendToRecycleBin = viewModel.isEntryInRecycleBin(entryID: entry.id) == false
-                Button(sendToRecycleBin ? "Delete" : "Delete Permanently", role: .destructive) {
-                    onRequestDeletion(
-                        .entry(
-                            PendingEntryDeletion(
-                                entryID: entry.id,
-                                sendToRecycleBin: sendToRecycleBin
-                            )
-                        )
-                    )
-                }
-                .accessibilityIdentifier(
-                    sendToRecycleBin ? "entry-row.delete-context" : "entry-row.delete-permanent"
-                )
-            }
-        }
-    }
-
-    /// Same predicate as the iOS row's `canMoveEntry`: a recycled entry comes
-    /// back through the restore flow, not through a move.
-    private func canMove(_ entry: KPEntry) -> Bool {
-        viewModel.isReadOnly == false
-            && viewModel.isEntryInRecycleBin(entryID: entry.id) == false
     }
 }
 
@@ -869,7 +828,10 @@ private struct MacTagRow: View {
         .font(.body)
         .frame(maxWidth: .infinity, alignment: .leading)
         .contentShape(Rectangle())
+        .macSelectableRowHover()
         .help(tag)
+        // Without this the name and the count read as two separate elements.
+        .accessibilityElement(children: .combine)
         .accessibilityIdentifier(
             "tag-list.row.\(TagAccessibility.identifierSuffix(for: tag, fallbackIndex: fallbackIndex))"
         )
@@ -950,6 +912,7 @@ private struct MacGroupTreeRow: View {
         .font(.body)
         .frame(maxWidth: .infinity, alignment: .leading)
         .contentShape(Rectangle())
+        .macSelectableRowHover()
         .help(node.name)
         .accessibilityIdentifier("group.navlink")
         .contextMenu {
