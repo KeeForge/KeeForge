@@ -296,6 +296,44 @@ class MacUITestCase: XCTestCase {
         app.typeKey(key, modifierFlags: modifiers)
     }
 
+    // MARK: - Settings window
+
+    /// Selects a tab in the Settings window by its visible name.
+    ///
+    /// The `Settings { }` scene restores whichever tab was open last through
+    /// `com_apple_SwiftUI_Settings_selectedTabIndex`, which persists in the
+    /// app's own preferences and therefore survives a UI-test launch. A test
+    /// that needs a specific tab's controls has to select the tab rather than
+    /// assume the first one. The `settings.tab.*` identifiers sit on the tab
+    /// *content*, not on the control that switches tabs, so the visible name is
+    /// the only handle — matched across element types and both text attributes,
+    /// like the vault rows.
+    @discardableResult
+    func selectSettingsTab(
+        named name: String,
+        timeout: TimeInterval = 15,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) -> Bool {
+        let query = app.descendants(matching: .any).matching(
+            NSPredicate(format: "label == %@ OR value == %@", name, name)
+        )
+
+        let deadline = Date().addingTimeInterval(timeout)
+        repeat {
+            if let tab = query.allElementsBoundByIndex.first(where: {
+                $0.exists && $0.isHittable && $0.frame.height > 1
+            }) {
+                tab.click()
+                return true
+            }
+            RunLoop.current.run(until: Date().addingTimeInterval(0.25))
+        } while Date() < deadline
+
+        XCTFail("Settings tab '\(name)' was not clickable within \(Int(timeout)) seconds", file: file, line: line)
+        return false
+    }
+
     // MARK: - Toolbar
 
     /// Clicks a toolbar control, expanding the macOS "more toolbar items"
