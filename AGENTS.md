@@ -48,7 +48,9 @@ Entry point for coding agents working on KeeForge. This file is intentionally br
 
 If you are a very powerful model like Fable/Opus/GPT 5.6 Sol, feel free to delegate implementation and test to sub-agents with appropriate models.
 
-Repo skills live in `.agents/skills/` (`release`, `spec-creator`, `publish-app-store-version`), symlinked under `.claude/skills/`; `release` defines the release-branch → TestFlight soak → App Store flow (`release/{major}.{minor}` branches, `rc/{version}-b{build}` candidate tags, `v{version}` as a record of the shipped build).
+Repo skills live in `.agents/skills/` (`release`, `spec-creator`, `publish-app-store-version`, `keeforge-github-issues`), symlinked under `.claude/skills/`; `release` defines the release-branch → TestFlight soak → App Store flow (`release/{major}.{minor}` branches, `rc/{version}-b{build}` candidate tags, `v{version}` as a record of the shipped build).
+
+Use `keeforge-github-issues` for every GitHub issue mutation.
 
 ## Repo-Wide Rules
 
