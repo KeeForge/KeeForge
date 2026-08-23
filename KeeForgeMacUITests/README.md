@@ -8,13 +8,20 @@ Smoke suite for the native macOS app (target `KeeForgeMacUITests`, scheme `KeeFo
 - `MacDatabaseListUITests` — two seeded databases, right-click Remove flow.
 - `MacWebDAVSmokeUITests` — seeded WebDAV mock round-trip via `UITestWebDAVCloudProvider` (`UI_TEST_WEBDAV_PAYLOAD_JSON`), unlock + ⌘L.
 - `MacWhatsNewUITests` — current Mac-filtered feature content and dismissal, forced through `UI_TEST_SHOW_WHATS_NEW=1` while the sheet stays suppressed in all unrelated UI tests.
-- `MacScreenshotAuditUITests` — walks the primary screens and attaches `.keepAlways` per-window screenshots for visual UX auditing (app windows only, never the whole desktop). Skips unless launched with `TEST_RUNNER_SCREENSHOT_AUDIT=1` (`TEST_RUNNER_SCREENSHOT_AUDIT_DARK=1` adds a dark-appearance pass); export with `xcrun xcresulttool export attachments`:
+- `MacScreenshotAuditUITests` — walks the primary screens and attaches `.keepAlways` per-window screenshots for visual UX auditing (app windows only, never the whole desktop). Covers the database list, unlock, vault root, a selected group, entry detail, ⌘F search, every Settings tab, the entry-editor sheet, and the three-column layout at the 900pt minimum window size. Skips unless launched with `TEST_RUNNER_SCREENSHOT_AUDIT=1` (`TEST_RUNNER_SCREENSHOT_AUDIT_DARK=1` adds a dark-appearance pass); export with `xcrun xcresulttool export attachments`:
 
   ```bash
   TEST_RUNNER_SCREENSHOT_AUDIT=1 xcodebuild test -project KeeForge.xcodeproj -scheme KeeForgeMac \
     -destination 'platform=macOS,arch=arm64' \
     -only-testing:KeeForgeMacUITests/MacScreenshotAuditUITests
   ```
+
+  Two things this harness has to do that are not obvious:
+
+  - **It launches with `-KeeForge.blockScreenCapture NO`.** The app blocks screen capture by default, which sets `sharingType = .none` on every window and excludes them from the capture composite — ScreenCaptureKit then returns a blank image, and a screen-region capture returns whatever sits *behind* the app. A screenshot harness has to opt out of the protection it is photographing.
+  - **It needs Screen Recording permission for `KeeForgeMacUITests-Runner`**, because captures come from each window's own content via ScreenCaptureKit rather than from `XCUIElement.screenshot()` (which region-captures the screen). Without the permission every capture is recorded as a skip in the `00-skipped-captures` attachment rather than attaching whatever was underneath. Grant it once under System Settings → Privacy & Security → Screen & System Audio Recording.
+
+  Skipped captures are always reported — in that attachment and in the test log — so a short export is visibly a harness problem rather than a screen that does not exist.
 
   Both variables must be real environment variables on the `xcodebuild` process itself (Xcode strips the `TEST_RUNNER_` prefix and forwards them into the test runner's environment) — verified empirically on the macOS destination, passing one as a trailing bare `KEY=value` argument makes it a build-setting override that never reaches the test runner, and the class silently skips as if unset. Same footnote as the iOS `AppStoreScreenshots` gate in `../KeeForgeUITests/README.md`.
 
