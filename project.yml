@@ -416,7 +416,7 @@ targets:
       - package: KeeForgeTwofish
     sources:
       - path: KeeForgeTests
-        excludes: ["README.md"]
+        excludes: ["README.md", "**/README.md"]
 
   KeeForgeMacUITests:
     type: bundle.ui-testing
@@ -493,7 +493,7 @@ targets:
       - package: KeeForgeTwofish
     sources:
       - path: KeeForgeTests
-        excludes: ["README.md"]
+        excludes: ["README.md", "**/README.md"]
 
 schemes:
   KeeForge:

@@ -34,6 +34,7 @@ Entry point for coding agents working on KeeForge. This file is intentionally br
 - `KeeForgeMac/README.md` — macOS target constraints
 - `AutoFillExtension/README.md` — extension constraints and shared-source notes
 - `KeeForgeTests/README.md` — unit-test map and selection rules
+- `KeeForgeTests/Support/README.md` — shared fixtures, fakes, spies, and assertion helpers
 - `KeeForgeUITests/README.md` — XCUITest workflow and flake-avoidance guidance
 - `KeeForgeMacUITests/README.md` — macOS XCUITest workflow
 - `TestFixtures/README.md` — bundled databases, passwords, and key files
