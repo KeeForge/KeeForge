@@ -114,6 +114,7 @@ struct WebDAVConnectView: View {
                 }
             }
         }
+        .macSheetFrame(minWidth: 480, minHeight: 380)
     }
 
     private func connect() {

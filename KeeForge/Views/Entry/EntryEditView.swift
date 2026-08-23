@@ -669,6 +669,7 @@ private struct TOTPSetupLinkSheet: View {
         #if os(iOS)
         .presentationDetents([.medium])
         #endif
+        .macSheetFrame(minWidth: 460, minHeight: 220)
     }
 
     private func applyTapped() {

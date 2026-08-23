@@ -52,5 +52,8 @@ struct MoveToGroupPickerView: View {
                 }
             }
         }
+        // Sized here rather than at each presentation: four surfaces raise this
+        // picker, and a group tree needs room whichever one asked for it.
+        .macSheetFrame(minWidth: 460, minHeight: 420)
     }
 }

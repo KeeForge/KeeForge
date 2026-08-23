@@ -682,6 +682,7 @@ struct NewGroupSheet: View {
                 Text(errorMessage ?? "Please try again.")
             }
         }
+        .macSheetFrame(minWidth: 420, minHeight: 180)
     }
 }
 
@@ -825,12 +826,16 @@ struct EntryRow: View {
                 Image(systemName: "person.badge.key.fill")
                     .font(.caption)
                     .foregroundStyle(.purple)
+                    .accessibilityLabel("Has a passkey")
+                    .accessibilityIdentifier("entry-row.passkey")
             }
 
             if entry.totpConfig != nil {
                 Image(systemName: "clock.badge.checkmark")
                     .font(.caption)
                     .foregroundStyle(.green)
+                    .accessibilityLabel("Has a verification code")
+                    .accessibilityIdentifier("entry-row.totp")
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)

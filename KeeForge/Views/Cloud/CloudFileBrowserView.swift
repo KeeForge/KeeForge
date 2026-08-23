@@ -288,6 +288,7 @@ struct CloudFolderPickerView: View {
                 }
             }
         }
+        .macSheetFrame(minWidth: 520, minHeight: 460)
         .task {
             session.refreshAccounts()
         }
