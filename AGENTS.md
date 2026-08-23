@@ -109,6 +109,14 @@ xcodebuild test -project KeeForge.xcodeproj -scheme KeeForgeMac \
 - `KeeForgeMacTests` compiles the `KeeForgeTests` folder; there is no `KeeForgeMacTests` directory.
 - The RC workflow (`.github/workflows/ios18-rc-tests.yml`) tests on an iOS 18 iPhone SE (3rd generation) simulator — reproduce RC failures there.
 
+### macOS Test Strategy
+
+Mac XCUITest is the slowest and most fragile lever available: it needs an unlocked login session, grabs real screen and input focus, and serializes against every other Xcode run on the machine. Reach for it last.
+
+- Put Mac behavior in `@Observable` view models and cover it in `KeeForgeMacTests`, which runs headless and shares the iOS unit sources. Keep `KeeForgeMacUITests` a thin smoke layer over flows that only exist as UI.
+- For Mac-specific layout deltas, prefer SwiftUI previews or the `MacScreenshotAuditUITests` capture pass over driving the app with new assertions.
+- Shared SwiftUI is the default and keeps macOS nearly free — but a targeted AppKit view is the right answer where SwiftUI on Mac cannot express the interaction at all (keyboard navigation in search results and the tag browser are the known cases). Take the escape hatch deliberately, not as a workaround for a flaky test.
+
 ## Security Reminders
 
 - Secrets are re-encrypted in memory with a per-session `SymmetricKey`; lock clears the session key and invalidates `EncryptedValue` access.
