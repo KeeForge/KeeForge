@@ -1,0 +1,4 @@
+interface:
+  display_name: "KeeForge GitHub Issues"
+  short_description: "Safely mutate KeeForge issues"
+  default_prompt: "Use $keeforge-github-issues to create or update a KeeForge GitHub issue."
