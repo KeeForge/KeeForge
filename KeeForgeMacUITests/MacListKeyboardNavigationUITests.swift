@@ -35,7 +35,7 @@ final class MacListKeyboardNavigationUITests: MacUITestCase {
 
         clickFirstRow(identifier: "search.entry.navlink")
 
-        let firstTitle = detailTitle()
+        let firstTitle = waitForAnyDetailTitle()
         XCTAssertFalse(firstTitle.isEmpty, "Clicking a search result did not open it in the detail column")
 
         app.typeKey(XCUIKeyboardKey.downArrow, modifierFlags: [])
@@ -62,7 +62,7 @@ final class MacListKeyboardNavigationUITests: MacUITestCase {
 
         clickFirstRow(identifier: "search.entry.navlink")
 
-        let firstTitle = detailTitle()
+        let firstTitle = waitForAnyDetailTitle()
         XCTAssertFalse(firstTitle.isEmpty, "Clicking a tag result did not open it in the detail column")
 
         app.typeKey(XCUIKeyboardKey.downArrow, modifierFlags: [])
