@@ -1,5 +1,6 @@
 import AppKit
 import CoreGraphics
+import ScreenCaptureKit
 import XCTest
 
 private extension CGRect {
@@ -23,9 +24,18 @@ private extension CGRect {
 ///
 /// Then export: `xcrun xcresulttool export attachments --path <xcresult> --output-path <dir>`.
 ///
-/// The harness only ever screenshots the app's own windows — it never falls
-/// back to `XCUIApplication.screenshot()`, which on macOS captures the entire
-/// desktop and would leak whatever the user has on screen.
+/// The harness only ever screenshots the app's own windows. Captures come from
+/// each window's own content via ScreenCaptureKit — never `XCUIElement.screenshot()`
+/// or `XCUIApplication.screenshot()`, both of which capture the *screen* and hand
+/// back whatever the user has in front. On macOS 26 the element variant returns
+/// the windows behind the app as soon as a second app window exists, verified with
+/// the app confirmed frontmost and unoccluded.
+///
+/// Two preconditions, both of which the harness reports rather than works around:
+/// the runner needs Screen Recording permission, and the app must launch with
+/// `blockScreenCapture` off (see `configureLaunch`). Without either, every capture
+/// is recorded in the `00-skipped-captures` attachment instead of attaching
+/// whatever happened to be underneath.
 @MainActor
 final class MacScreenshotAuditUITests: MacUITestCase {
 
@@ -37,25 +47,34 @@ final class MacScreenshotAuditUITests: MacUITestCase {
     }
 
     override func configureLaunch(app: XCUIApplication) throws {
+        // The app blocks screen capture by default (`sharingType = .none` on
+        // every window), so its windows are excluded from the capture
+        // composite: ScreenCaptureKit returns a blank image and a screen-region
+        // capture returns whatever sits BEHIND the app. A screenshot harness has
+        // to opt out of the protection it is trying to photograph.
+        //
+        // `-key value` pairs go BEFORE the bare `-ui-testing` flag, which the
+        // base class keeps last so it is not swallowed as another key's value.
+        insertLaunchArguments(["-KeeForge.blockScreenCapture", "NO"], into: app)
+
         if ProcessInfo.processInfo.environment["SCREENSHOT_AUDIT_DARK"] == "1" {
             // Force the process into dark appearance regardless of the host's
             // system setting (the app follows the system when its appearance
             // preference is "System", which is the default in tests).
             //
-            // NSUserDefaults argument parsing pairs `-key value`, and the base
-            // class deliberately keeps the bare `-ui-testing` flag LAST so it is
-            // not swallowed as another key's value. Insert this `-key value`
-            // pair BEFORE `-ui-testing` to preserve that invariant.
             // Seed the app's own appearance preference (`@AppStorage`) to dark;
             // the app renders with `preferredColorScheme`, so an OS-level
             // `-AppleInterfaceStyle` override does not reach it when the
             // preference is "System".
-            let darkArgs = ["-KeeForge.appearanceMode", "dark"]
-            if let index = app.launchArguments.firstIndex(of: "-ui-testing") {
-                app.launchArguments.insert(contentsOf: darkArgs, at: index)
-            } else {
-                app.launchArguments += darkArgs
-            }
+            insertLaunchArguments(["-KeeForge.appearanceMode", "dark"], into: app)
+        }
+    }
+
+    private func insertLaunchArguments(_ arguments: [String], into app: XCUIApplication) {
+        if let index = app.launchArguments.firstIndex(of: "-ui-testing") {
+            app.launchArguments.insert(contentsOf: arguments, at: index)
+        } else {
+            app.launchArguments += arguments
         }
     }
 
@@ -68,34 +87,73 @@ final class MacScreenshotAuditUITests: MacUITestCase {
             .processIdentifier
     }
 
-    /// True when the physically frontmost real on-screen window belongs to the
-    /// app-under-test.
+    /// True when the app-under-test owns the active (menu-bar-owning)
+    /// application slot. Needs no Screen Recording permission, unlike the
+    /// window-list check below.
+    private var isAppActiveApplication: Bool {
+        NSWorkspace.shared.frontmostApplication?.bundleIdentifier == Self.appBundleIdentifier
+    }
+
+    private struct ScreenWindow {
+        let pid: pid_t
+        let id: CGWindowID
+        let rect: CGRect
+    }
+
+    /// The on-screen, normal-layer windows the window server reports, ordered
+    /// front to back.
     ///
-    /// `CGWindowListCopyWindowInfo` returns window *metadata* (no Screen
-    /// Recording permission required, unlike image capture), ordered front to
-    /// back. `XCUIElement.screenshot()` region-captures the screen behind the
-    /// element, so it only stays leak-proof when the app actually owns the
-    /// frontmost pixels — this check gates every capture on exactly that, so the
-    /// harness can never grab the user's other windows or desktop.
+    /// On macOS 14+ this list is trimmed to the caller's OWN windows unless the
+    /// process holds Screen Recording permission — which is exactly why the
+    /// harness cannot assume it sees the whole screen.
+    private func orderedScreenWindows() -> [ScreenWindow] {
+        guard let list = CGWindowListCopyWindowInfo(
+            [.optionOnScreenOnly, .excludeDesktopElements],
+            kCGNullWindowID
+        ) as? [[String: Any]] else {
+            return []
+        }
+        return list.compactMap { info in
+            guard let pid = info[kCGWindowOwnerPID as String] as? pid_t,
+                  let id = info[kCGWindowNumber as String] as? CGWindowID,
+                  (info[kCGWindowLayer as String] as? Int) == 0,
+                  let boundsDict = info[kCGWindowBounds as String] as? [String: Any],
+                  let rect = CGRect(dictionaryRepresentation: boundsDict as CFDictionary),
+                  rect.width > 1, rect.height > 1 else {
+                return nil
+            }
+            return ScreenWindow(pid: pid, id: id, rect: rect)
+        }
+    }
+
+    /// The window-server record for the app window at `rect`.
+    private func appScreenWindow(matching rect: CGRect) -> ScreenWindow? {
+        guard let pid = appProcessID else { return nil }
+        return orderedScreenWindows().first {
+            $0.pid == pid && abs($0.rect.origin.x - rect.origin.x) < 3
+                && abs($0.rect.origin.y - rect.origin.y) < 3
+                && abs($0.rect.width - rect.width) < 3
+                && abs($0.rect.height - rect.height) < 3
+        }
+    }
+
+    /// True when the frontmost real on-screen window belongs to the app.
     private func isAppWindowFrontmost() -> Bool {
-        guard let pid = appProcessID,
-              let list = CGWindowListCopyWindowInfo(
-                [.optionOnScreenOnly, .excludeDesktopElements],
-                kCGNullWindowID
-              ) as? [[String: Any]] else {
+        guard let pid = appProcessID else { return false }
+        guard let front = orderedScreenWindows().first(where: {
+            $0.rect.width > 200 && $0.rect.height > 200
+        }) else {
             return false
         }
-        for info in list {
-            guard (info[kCGWindowLayer as String] as? Int) == 0,
-                  let boundsDict = info[kCGWindowBounds as String] as? [String: Any],
-                  let bounds = CGRect(dictionaryRepresentation: boundsDict as CFDictionary),
-                  bounds.width > 200, bounds.height > 200 else {
-                continue
-            }
-            // First (frontmost) real window decides: it must be ours.
-            return (info[kCGWindowOwnerPID as String] as? pid_t) == pid
-        }
-        return false
+        return front.pid == pid
+    }
+
+    /// The gate the keyboard steps go through: the app must own the active
+    /// application slot *and* the frontmost real window. Captures no longer
+    /// depend on it — `windowImage(id:)` does not care what is on top — but a
+    /// ⌘-shortcut still has to be delivered to the right app.
+    private var isAppForeground: Bool {
+        isAppActiveApplication && isAppWindowFrontmost()
     }
 
     /// The app window element with the largest frame (the main window).
@@ -112,24 +170,20 @@ final class MacScreenshotAuditUITests: MacUITestCase {
         app.activate()
     }
 
-    /// Waits until the app owns the frontmost pixels for two consecutive checks
+    /// Waits until the app owns the foreground for two consecutive checks
     /// (a stable foreground, not a momentary flicker), re-activating as needed.
     ///
-    /// NOTE: the frontmost check depends on `CGWindowListCopyWindowInfo` seeing
-    /// other apps' windows, which requires Screen Recording permission for the
-    /// runner. Without it the runner sees only its own app's windows, so the
-    /// check can only confirm the app is frontmost among its OWN windows — it
-    /// falls back to a best-effort forced activation. With the permission (e.g.
-    /// on a clean CI runner) the check is a true physical-frontmost gate.
+    /// This only raises the app so keyboard shortcuts land; captures are
+    /// occlusion-independent and do not rely on it.
     @discardableResult
     private func waitForStableForeground(timeout: TimeInterval = 8) -> Bool {
         let deadline = Date().addingTimeInterval(timeout)
         while Date() < deadline {
             forceActivateApp()
             RunLoop.current.run(until: Date().addingTimeInterval(0.5))
-            if isAppWindowFrontmost() {
+            if isAppForeground {
                 RunLoop.current.run(until: Date().addingTimeInterval(0.3))
-                if isAppWindowFrontmost() {
+                if isAppForeground {
                     RunLoop.current.run(until: Date().addingTimeInterval(0.4))
                     return true
                 }
@@ -138,70 +192,146 @@ final class MacScreenshotAuditUITests: MacUITestCase {
         return false
     }
 
-    /// Captures a window element via `XCUIElement.screenshot()`, but only while
-    /// the app is confirmed to own the frontmost pixels — checked immediately
-    /// before AND after the capture, so a focus flip mid-capture discards the
-    /// image instead of leaking. If the app cannot be held in the foreground
-    /// (e.g. the machine is actively in use during the run), attach nothing.
-    private func snapWindow(_ window: @autoclosure () -> XCUIElement?, _ name: String) {
-        guard waitForStableForeground(), let element = window(), element.exists else { return }
-        // A zero/near-zero frame element cannot be screenshotted (XCUITest
-        // raises "Image creation failed"); skip rather than fail the run.
-        guard element.frame.width > 1, element.frame.height > 1 else { return }
-        guard isAppWindowFrontmost() else { return }
+    /// Captures one window's own content.
+    ///
+    /// This is what makes the harness leak-proof by construction: the image is
+    /// composited from that window alone, so no other app's pixels can enter it
+    /// no matter what is on screen. `XCUIElement.screenshot()` cannot promise
+    /// that — it region-captures the screen, and on macOS 26 it returns the
+    /// windows *behind* the app once a second app window exists, which is how a
+    /// "window" capture ends up holding the user's desktop.
+    ///
+    /// `nonisolated` and self-contained so no ScreenCaptureKit object crosses an
+    /// actor boundary; only the `CGImage` comes back.
+    private nonisolated static func windowImage(id: CGWindowID) async -> CGImage? {
+        do {
+            let content = try await SCShareableContent.excludingDesktopWindows(
+                false,
+                onScreenWindowsOnly: true
+            )
+            guard let window = content.windows.first(where: { $0.windowID == id }) else {
+                return nil
+            }
+            let configuration = SCStreamConfiguration()
+            // `SCWindow.frame` is in points and the runner reports a
+            // backingScaleFactor of 1, so ask for Retina pixels explicitly —
+            // reading the screen's scale here yields half-resolution captures.
+            configuration.width = Int(window.frame.width * 2)
+            configuration.height = Int(window.frame.height * 2)
+            configuration.showsCursor = false
+            return try await SCScreenshotManager.captureImage(
+                contentFilter: SCContentFilter(desktopIndependentWindow: window),
+                configuration: configuration
+            )
+        } catch {
+            return nil
+        }
+    }
 
-        let shot = element.screenshot()
+    /// Attaches a capture of one app window, or records why it was skipped.
+    private func snapWindow(_ window: @autoclosure () -> XCUIElement?, _ name: String) async {
+        guard waitForStableForeground(), let element = window(), element.exists,
+              element.frame.width > 1, element.frame.height > 1 else {
+            noteSkip(name, reason: "app never held the foreground")
+            return
+        }
+        guard let record = appScreenWindow(matching: element.frame) else {
+            noteSkip(name, reason: "no window-server record for \(element.frame)")
+            return
+        }
+        guard let image = await Self.windowImage(id: record.id) else {
+            noteSkip(
+                name,
+                reason: "window capture failed — grant Screen Recording to KeeForgeMacUITests-Runner"
+            )
+            return
+        }
 
-        // Discard if focus flipped to another app during the capture.
-        guard isAppWindowFrontmost() else { return }
-
-        let attachment = XCTAttachment(screenshot: shot)
+        let attachment = XCTAttachment(
+            image: NSImage(cgImage: image, size: NSSize(width: image.width, height: image.height))
+        )
         attachment.name = name
         attachment.lifetime = .keepAlways
         add(attachment)
     }
 
     /// Snaps the app's main window (largest app-owned window).
-    private func snap(_ name: String) {
-        snapWindow(mainWindowElement, name)
+    private func snap(_ name: String) async {
+        await snapWindow(mainWindowElement, name)
     }
 
-    /// Snaps the frontmost app window (an editor sheet or the settings window).
-    private func snapFrontWindow(_ name: String) {
-        snapWindow(app.windows.firstMatch, name)
+    /// The app window (or attached sheet) that hosts `identifier`.
+    ///
+    /// Secondary surfaces are addressed by content, never by `windows.firstMatch`:
+    /// that returns the main window when the surface failed to open, so the
+    /// capture silently mislabels the main window as "settings" or "editor".
+    private func surface(hosting identifier: String) -> XCUIElement? {
+        let sheet = app.sheets.firstMatch
+        if sheet.exists, sheet.descendants(matching: .any)[identifier].exists {
+            return sheet
+        }
+        return app.windows.allElementsBoundByIndex.first {
+            $0.descendants(matching: .any)[identifier].exists
+        }
+    }
+
+    /// Snaps the app window or sheet hosting `identifier`, recording a skip when
+    /// that surface never opened.
+    private func snapSurface(hosting identifier: String, _ name: String) async {
+        guard surface(hosting: identifier) != nil else {
+            noteSkip(name, reason: "no surface hosting '\(identifier)'")
+            return
+        }
+        await snapWindow(self.surface(hosting: identifier), name)
+    }
+
+    private var skippedCaptures: [String] = []
+
+    private func noteSkip(_ name: String, reason: String) {
+        skippedCaptures.append("\(name): \(reason)")
     }
 
     private func settle(_ seconds: TimeInterval = 1.0) {
         RunLoop.current.run(until: Date().addingTimeInterval(seconds))
     }
 
-    func testCaptureScreens() {
+    /// Sends a ⌘-shortcut only while the app owns the foreground. Typing one
+    /// blind delivers it to whatever app is actually in front — on a developer
+    /// Mac that means ⌘W and ⌘, land in the user's own windows.
+    @discardableResult
+    private func typeAppShortcut(_ key: String) -> Bool {
+        guard waitForStableForeground() else { return false }
+        typeCommandShortcut(key)
+        return true
+    }
+
+    func testCaptureScreens() async {
         // 1. Database list
         settle(2)
-        snap("01-database-list")
+        await snap("01-database-list")
 
         // 2. Unlock screen
         _ = openFirstDatabaseFromListIfNeeded()
         settle()
-        snap("02-unlock")
+        await snap("02-unlock")
 
         // 3. Unlocked vault root (three-column: groups / entries / detail)
         unlockSuccessfully()
         settle()
-        snap("03-vault-root")
+        await snap("03-vault-root")
 
         // 4. Entry detail — must navigate into a group first; the vault root
         //    shows the group tree in the sidebar, and entry rows live in the
         //    content column only after a group is selected.
         openGroup(named: "Work")
         settle()
-        snap("04-group-selected")
+        await snap("04-group-selected")
 
         let entry = rowQuery(identifier: "entry.navlink").firstMatch
         if entry.waitForExistence(timeout: 10) {
             entry.click()
             settle()
-            snap("05-entry-detail")
+            await snap("05-entry-detail")
         }
 
         // NOTE ON ORDERING: the keyboard-driven captures (⌘F search, ⌘, settings)
@@ -212,43 +342,86 @@ final class MacScreenshotAuditUITests: MacUITestCase {
         // the entry clicks above.
 
         // 6. Search focused with results.
-        typeCommandShortcut("f")
-        app.typeText("a")
-        settle()
-        snap("06-search")
-        // Clear the search so later steps see the normal browse UI.
-        clearSearchField()
-        settle()
+        if typeAppShortcut("f") {
+            app.typeText("a")
+            settle()
+            await snap("06-search")
+            // Clear the search so later steps see the normal browse UI.
+            clearSearchField()
+            settle()
+        } else {
+            noteSkip("06-search", reason: "⌘F could not be delivered")
+        }
 
         // 7. Settings window + each tab.
-        typeCommandShortcut(",")
-        settle(1.5)
-        captureSettingsTabs()
-        // Close the settings window.
-        typeCommandShortcut("w")
-        settle()
+        if typeAppShortcut(",") {
+            settle(1.5)
+            await captureSettingsTabs()
+            // Close the settings window.
+            typeAppShortcut("w")
+            settle()
+        } else {
+            noteSkip("07-settings", reason: "⌘, could not be delivered")
+        }
 
         // 8. Entry edit sheet (⌘N) — last, because presenting/dismissing it can
         //    drop the app out of the foreground. Best effort: re-focus an entry,
-        //    open the editor, snap the frontmost window (the sheet), then cancel.
-        forceActivateApp()
+        //    open the editor, snap the sheet, then cancel.
+        waitForStableForeground()
         let editorEntry = rowQuery(identifier: "entry.navlink").firstMatch
         if editorEntry.waitForExistence(timeout: 5), editorEntry.isHittable {
             editorEntry.click()
         }
-        typeCommandShortcut("n")
-        if app.textFields["entry-edit.title-field"].waitForExistence(timeout: 8) {
+        if typeAppShortcut("n"), app.textFields["entry-edit.title-field"].waitForExistence(timeout: 8) {
             settle(0.6)
-            snapFrontWindow("08-entry-editor-sheet")
+            await snapSurface(hosting: "entry-edit.title-field", "08-entry-editor-sheet")
             let cancelButton = app.buttons["entry-edit.cancel"].firstMatch
             if cancelButton.waitForExistence(timeout: 3), cancelButton.isHittable {
                 cancelButton.click()
             }
             settle()
+        } else {
+            noteSkip("08-entry-editor-sheet", reason: "the editor never opened")
         }
 
         // 9. Back to the main window in a clean state.
-        snap("09-final-state")
+        await snap("09-final-state")
+
+        // 10. The three columns and the five-item toolbar at the window's
+        //     minimum size (900x560), where crowding and truncation show up.
+        shrinkMainWindowToMinimum()
+        settle()
+        await snap("10-minimum-width")
+
+        attachCaptureReport()
+    }
+
+    /// Drags the main window's bottom-right corner far up and left; AppKit
+    /// clamps the drag at the scene's `minWidth`/`minHeight`, so the window
+    /// lands exactly on its minimum size.
+    private func shrinkMainWindowToMinimum() {
+        waitForStableForeground()
+        guard let window = mainWindowElement, window.exists else {
+            noteSkip("10-minimum-width", reason: "no main window to resize")
+            return
+        }
+        let corner = window.coordinate(withNormalizedOffset: CGVector(dx: 1, dy: 1))
+        let target = corner.withOffset(
+            CGVector(dx: -window.frame.width, dy: -window.frame.height)
+        )
+        corner.press(forDuration: 0.4, thenDragTo: target)
+    }
+
+    /// Records which captures were skipped, so a short export is obviously a
+    /// harness/foreground problem rather than a screen that does not exist.
+    private func attachCaptureReport() {
+        guard skippedCaptures.isEmpty == false else { return }
+        let report = skippedCaptures.joined(separator: "\n")
+        print("SCREENSHOT AUDIT — skipped captures:\n\(report)")
+        let attachment = XCTAttachment(string: report)
+        attachment.name = "00-skipped-captures"
+        attachment.lifetime = .keepAlways
+        add(attachment)
     }
 
     private func clearSearchField() {
@@ -260,27 +433,33 @@ final class MacScreenshotAuditUITests: MacUITestCase {
         }
     }
 
-    private func captureSettingsTabs() {
-        let tabIdentifiers = [
-            ("settings.tab.security", "07a-settings-security"),
-            ("settings.tab.display", "07b-settings-display"),
-            ("settings.tab.cloud", "07c-settings-cloud"),
-            ("settings.tab.about", "07d-settings-about"),
+    private func captureSettingsTabs() async {
+        // The `settings.tab.*` identifiers sit on each tab's CONTENT view, not
+        // on its `.tabItem`, so the tab bar is addressed by title and the
+        // capture is addressed by the identifier of the content it revealed.
+        let tabs = [
+            ("Security", "settings.tab.security", "07a-settings-security"),
+            ("AutoFill", "settings.tab.autofill", "07b-settings-autofill"),
+            ("Display", "settings.tab.display", "07c-settings-display"),
+            ("Cloud", "settings.tab.cloud", "07d-settings-cloud"),
+            ("About", "settings.tab.about", "07e-settings-about"),
         ]
 
-        for (tabIdentifier, name) in tabIdentifiers {
-            // TabView tab items surface as buttons or radio buttons depending on
+        for (title, contentIdentifier, name) in tabs {
+            // TabView tab items surface as radio buttons or buttons depending on
             // the macOS version; try both, best effort.
-            let tabButton = app.buttons[tabIdentifier].firstMatch
-            let tabRadio = app.radioButtons[tabIdentifier].firstMatch
-            if tabButton.waitForExistence(timeout: 2), tabButton.isHittable {
-                tabButton.click()
-            } else if tabRadio.exists, tabRadio.isHittable {
+            let tabRadio = app.radioButtons[title].firstMatch
+            let tabButton = app.buttons[title].firstMatch
+            if tabRadio.waitForExistence(timeout: 3), tabRadio.isHittable {
                 tabRadio.click()
+            } else if tabButton.exists, tabButton.isHittable {
+                tabButton.click()
+            } else {
+                noteSkip(name, reason: "settings tab '\(title)' was not reachable")
+                continue
             }
             settle(0.6)
-            // The settings window is frontmost while it is open.
-            snapFrontWindow(name)
+            await snapSurface(hosting: contentIdentifier, name)
         }
     }
 }
