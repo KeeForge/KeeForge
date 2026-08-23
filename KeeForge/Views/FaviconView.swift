@@ -10,6 +10,7 @@ struct FaviconView: View {
 
     @State private var image: PlatformImage?
     @State private var didAttemptFetch = false
+    @Environment(\.backgroundProminence) private var backgroundProminence
 
     private var customIcon: PlatformImage? {
         customIconData.flatMap { PlatformImage(data: $0) }
@@ -62,7 +63,15 @@ struct FaviconView: View {
 
     private var fallbackIcon: some View {
         Image(systemName: KPEntry.systemIconName(for: iconID))
-            .foregroundStyle(.tint)
+            .foregroundStyle(fallbackIconStyle)
             .font(.system(size: size * 0.6))
+    }
+
+    /// A selected list row raises `backgroundProminence`, and only then is the
+    /// row's fill the accent color — which `.tint` would render the glyph in
+    /// too, leaving it accent-on-accent at 1.34:1. An unselected row, or a
+    /// selected one in an unfocused list, keeps the accent glyph.
+    private var fallbackIconStyle: AnyShapeStyle {
+        backgroundProminence == .increased ? AnyShapeStyle(.white) : AnyShapeStyle(.tint)
     }
 }
