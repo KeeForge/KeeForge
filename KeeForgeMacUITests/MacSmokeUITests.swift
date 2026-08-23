@@ -2,13 +2,11 @@ import AppKit
 import XCTest
 
 /// macOS smoke suite covering the slice-02 core Mac UX: unlock, browse,
-/// search, entry detail, reveal/copy auth boundaries, edit + save, menu-bar
-/// commands (⌘L, ⌘N, ⌘F, ⌘,), and unlock-screen keyboard handling.
+/// search, entry detail, keyboard navigation, edit + save, menu-bar commands
+/// (⌘L, ⌘N, ⌘F, ⌘,), and unlock-screen keyboard handling.
 ///
-/// Reveal/copy-password authentication cannot be completed from XCUITest (the
-/// device-owner prompt is a system dialog outside the app process), so those
-/// tests assert up to the prompt boundary: the app must NOT reveal or copy
-/// without authentication completing.
+/// The reveal/copy-password authentication boundary lives in its own class
+/// below, which launches the app with the pending-authentication stub.
 @MainActor
 final class MacSmokeUITests: MacUITestCase {
     private let concealedType = NSPasteboard.PasteboardType("org.nspasteboard.ConcealedType")
@@ -111,62 +109,6 @@ final class MacSmokeUITests: MacUITestCase {
         )
     }
 
-    // MARK: - Reveal / copy password auth boundary
-
-    func testRevealPasswordRequiresAuthentication() {
-        unlockSuccessfully()
-        openGroup(named: "Work")
-        openEntry(named: "GitHub")
-
-        let reveal = app.buttons["entry.password.reveal"].firstMatch
-        XCTAssertTrue(reveal.waitForExistence(timeout: 15), "Password reveal button missing")
-        reveal.click()
-
-        // Boundary assertion: the reveal button disables while the
-        // device-owner authentication prompt is up; the password must not
-        // reveal without it. (The prompt itself is a system dialog that
-        // XCUITest cannot automate; the app terminates in teardown, which
-        // dismisses it.)
-        let deadline = Date().addingTimeInterval(8)
-        var sawAuthInFlight = false
-        while Date() < deadline {
-            if reveal.exists, reveal.isEnabled == false {
-                sawAuthInFlight = true
-                break
-            }
-            RunLoop.current.run(until: Date().addingTimeInterval(0.2))
-        }
-
-        XCTAssertTrue(
-            sawAuthInFlight,
-            "Reveal did not enter the authenticating state — password may have been revealed without device-owner authentication"
-        )
-    }
-
-    func testCopyPasswordDoesNotCopyWithoutAuthentication() {
-        unlockSuccessfully()
-        openGroup(named: "Work")
-        openEntry(named: "GitHub")
-
-        let copyPassword = app.buttons["entry.copy.password"].firstMatch
-        XCTAssertTrue(copyPassword.waitForExistence(timeout: 15), "Copy password button missing")
-
-        let changeCountBefore = NSPasteboard.general.changeCount
-        copyPassword.click()
-
-        // Boundary assertion: nothing may land on the pasteboard while the
-        // authentication prompt is pending.
-        let deadline = Date().addingTimeInterval(3)
-        while Date() < deadline {
-            XCTAssertEqual(
-                NSPasteboard.general.changeCount,
-                changeCountBefore,
-                "Password was copied without device-owner authentication"
-            )
-            RunLoop.current.run(until: Date().addingTimeInterval(0.3))
-        }
-    }
-
     // MARK: - Search (⌘F)
 
     func testSearchViaCommandFShowsResultCount() {
@@ -257,6 +199,13 @@ final class MacSmokeUITests: MacUITestCase {
 
         typeCommandShortcut(",")
 
+        let settingsWindow = app.windows["com_apple_SwiftUI_Settings_window"]
+        XCTAssertTrue(settingsWindow.waitForExistence(timeout: 15), "⌘, did not open the Settings window")
+
+        // The window reopens on whichever tab was used last, which persists in
+        // the app's preferences across launches; pick Security explicitly.
+        selectSettingsTab(named: "Security")
+
         let lockPolicyPicker = app.descendants(matching: .any)
             .matching(identifier: "settings.lock-policy.picker")
             .firstMatch
@@ -280,6 +229,72 @@ final class MacSmokeUITests: MacUITestCase {
         }
         XCTAssertFalse(passwordField.exists, "Escape did not leave the unlock screen")
         XCTAssertTrue(placeholder.waitForExistence(timeout: 10), "Database-list placeholder did not appear after Escape")
+    }
+}
+
+/// Reveal/copy-password authentication boundary.
+///
+/// The real device-owner prompt is a system dialog XCUITest cannot dismiss, so
+/// the app skips the gate entirely under `-ui-testing`. Launching with
+/// `UI_TEST_DEVICE_OWNER_AUTH_PENDING` re-arms it with a stub that never
+/// completes — exactly the state a user is in while the prompt is on screen —
+/// so these tests can assert that authentication is requested and that nothing
+/// is disclosed until it succeeds.
+@MainActor
+final class MacPasswordAuthBoundaryUITests: MacUITestCase {
+    override func configureLaunch(app: XCUIApplication) throws {
+        app.launchEnvironment["UI_TEST_DEVICE_OWNER_AUTH_PENDING"] = "1"
+    }
+
+    func testRevealPasswordRequiresAuthentication() {
+        unlockSuccessfully()
+        openGroup(named: "Work")
+        openEntry(named: "GitHub")
+
+        let reveal = app.buttons["entry.password.reveal"].firstMatch
+        XCTAssertTrue(reveal.waitForExistence(timeout: 15), "Password reveal button missing")
+        reveal.click()
+
+        // The reveal button disables while authentication is in flight, which
+        // is the observable proof that the click went to the device-owner gate
+        // rather than straight to the plaintext.
+        let deadline = Date().addingTimeInterval(8)
+        var sawAuthInFlight = false
+        while Date() < deadline {
+            if reveal.exists, reveal.isEnabled == false {
+                sawAuthInFlight = true
+                break
+            }
+            RunLoop.current.run(until: Date().addingTimeInterval(0.2))
+        }
+
+        XCTAssertTrue(
+            sawAuthInFlight,
+            "Reveal did not enter the authenticating state — password may have been revealed without device-owner authentication"
+        )
+    }
+
+    func testCopyPasswordDoesNotCopyWithoutAuthentication() {
+        unlockSuccessfully()
+        openGroup(named: "Work")
+        openEntry(named: "GitHub")
+
+        let copyPassword = app.buttons["entry.copy.password"].firstMatch
+        XCTAssertTrue(copyPassword.waitForExistence(timeout: 15), "Copy password button missing")
+
+        let changeCountBefore = NSPasteboard.general.changeCount
+        copyPassword.click()
+
+        // Nothing may land on the pasteboard while authentication is pending.
+        let deadline = Date().addingTimeInterval(3)
+        while Date() < deadline {
+            XCTAssertEqual(
+                NSPasteboard.general.changeCount,
+                changeCountBefore,
+                "Password was copied without device-owner authentication"
+            )
+            RunLoop.current.run(until: Date().addingTimeInterval(0.3))
+        }
     }
 }
 
