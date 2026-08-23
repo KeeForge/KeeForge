@@ -16,7 +16,7 @@
                   <BuildableReference
                      BuildableIdentifier = "primary"
                      BlueprintIdentifier = "7D53BCAE20990F6856D21F58"
-                     BuildableName = "KeeForgeMac.app"
+                     BuildableName = "KeeForge.app"
                      BlueprintName = "KeeForgeMac"
                      ReferencedContainer = "container:KeeForge.xcodeproj">
                   </BuildableReference>
@@ -34,7 +34,7 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "7D53BCAE20990F6856D21F58"
-               BuildableName = "KeeForgeMac.app"
+               BuildableName = "KeeForge.app"
                BlueprintName = "KeeForgeMac"
                ReferencedContainer = "container:KeeForge.xcodeproj">
             </BuildableReference>
@@ -65,7 +65,7 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "7D53BCAE20990F6856D21F58"
-            BuildableName = "KeeForgeMac.app"
+            BuildableName = "KeeForge.app"
             BlueprintName = "KeeForgeMac"
             ReferencedContainer = "container:KeeForge.xcodeproj">
          </BuildableReference>
@@ -113,7 +113,7 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "7D53BCAE20990F6856D21F58"
-            BuildableName = "KeeForgeMac.app"
+            BuildableName = "KeeForge.app"
             BlueprintName = "KeeForgeMac"
             ReferencedContainer = "container:KeeForge.xcodeproj">
          </BuildableReference>
@@ -132,7 +132,7 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "7D53BCAE20990F6856D21F58"
-            BuildableName = "KeeForgeMac.app"
+            BuildableName = "KeeForge.app"
             BlueprintName = "KeeForgeMac"
             ReferencedContainer = "container:KeeForge.xcodeproj">
          </BuildableReference>

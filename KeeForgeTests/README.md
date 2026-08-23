@@ -35,7 +35,7 @@ xcodebuild test -project KeeForge.xcodeproj -scheme KeeForge \
 
 ## macOS Test Target
 
-This folder is compiled into both `KeeForgeTests` (iOS) and `KeeForgeMacTests` (macOS, hosted by `KeeForgeMac.app`). Run the Mac suite with:
+This folder is compiled into both `KeeForgeTests` (iOS) and `KeeForgeMacTests` (macOS, hosted by `KeeForge.app`). Run the Mac suite with:
 
 ```bash
 xcodebuild test -project KeeForge.xcodeproj -scheme KeeForgeMac \
