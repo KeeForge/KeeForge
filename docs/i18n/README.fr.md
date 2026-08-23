@@ -86,7 +86,7 @@ KeeForge/
 ├── ViewModels/       # Liste des bases de données, déverrouillage, enregistrement, recherche, tri, état TOTP
 ├── Views/            # Écrans SwiftUI, éditeur, réglages, pourboire, contrôles réutilisables
 AutoFillExtension/    # Fournisseur d’identifiants du remplissage automatique, authentification par clé d’accès, création d’identifiants
-KeeForgeMac/          # Application macOS native expérimentale (non publiée, en pause)
+KeeForgeMac/          # Application macOS native (première version en préparation)
 KeeForgeMacUITests/   # Couverture XCUITest pour l’application macOS
 KeeForgeTests/        # Tests unitaires
 KeeForgeUITests/      # Couverture XCUITest

@@ -524,6 +524,15 @@ Continue with Mode C from C1, reporting against the 24h target in place of 48h.
 
 - The macOS targets ship in lockstep with iOS: all four product targets carry the same
   `MARKETING_VERSION` and `CURRENT_PROJECT_VERSION`, bumped together in A4 and A5.
+- **One release branch covers both platforms.** `release/{major}.{minor}` is not per-platform, and
+  neither is `rc/{version}-b{build}`: one candidate tag fires `ios18-rc-tests.yml`,
+  `macos-rc-tests.yml`, and the Xcode Cloud RC workflow together, and the build they all test is
+  the build both platforms ship. Splitting the branch would mean splitting the version numbers,
+  which is the thing lockstep exists to prevent. A platform-specific fix still goes onto the shared
+  release branch and respins one candidate for both.
+- The two platforms diverge only at App Store Connect, which keeps a **separate version record,
+  build, screenshot set, and review submission per platform**. Shipping is therefore not done when
+  iOS is submitted; see the `publish-app-store-version` skill.
 - The KDBX compatibility gate runs **per platform**. Run it for iOS as documented, then again with
   `KDBX_COMPAT_SCHEME=KeeForgeMac` (which switches the test target to `KeeForgeMacTests` and the
   destination to `platform=macOS`). Both must pass before a candidate ships.

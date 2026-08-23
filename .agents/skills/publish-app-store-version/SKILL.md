@@ -1,6 +1,6 @@
 ---
 name: publish-app-store-version
-description: Prepare and publish an already-built KeeForge version through the App Store Connect website. Use when the user asks to create or finish an App Store version, publish an uploaded build, prepare an App Review submission, stage everything before the final submit, or operate App Store Connect after the release/tag/CI workflow is complete. Covers build processing, export compliance, localized release notes, reviewer information and test fixture, release settings, review staging, and final submission. Do not use for version bumps, release candidates, tags, compatibility gates, or archive creation; use the release skill for those tasks.
+description: Prepare and publish an already-built KeeForge version — iOS, macOS, or both — through the App Store Connect website. Use when the user asks to create or finish an App Store version, publish an uploaded build, prepare an App Review submission, stage everything before the final submit, or operate App Store Connect after the release/tag/CI workflow is complete. Covers build processing, export compliance, localized release notes, reviewer information and test fixture, release settings, review staging, and final submission. Do not use for version bumps, release candidates, tags, compatibility gates, or archive creation; use the release skill for those tasks.
 ---
 
 # Publish KeeForge App Store Version
@@ -12,6 +12,48 @@ Drive the post-build App Store Connect workflow for KeeForge. Use browser contro
 Do not repeat the repository release workflow. Assume the requested version was already cut unless the user says otherwise. If no processed build exists, report that clearly or wait for the user to upload one.
 
 Treat **Submit for Review** as the final consequential action. Prepare everything first and stop immediately before it unless the user explicitly asks to submit and confirms at action time.
+
+## Two platforms, one version number
+
+KeeForge ships an iOS app and a Mac App Store app from the same record, in version lockstep: all
+four product targets carry the same `MARKETING_VERSION` and `CURRENT_PROJECT_VERSION`, and one
+release bump covers them together. In App Store Connect that is **one app with two platforms**,
+each with its own version record, its own build, its own screenshots, and its own review
+submission.
+
+Establish which platforms are in play before touching anything:
+
+1. Ask the user, or read it from the handoff, whether this release covers iOS, macOS, or both.
+2. On the app's page, check which platforms exist. The Mac platform has to be added once, ever
+   (**Add Platform → macOS**) — that is a one-time account-level change, so confirm with the user
+   before doing it and never do it as a side effect of publishing.
+3. Do every numbered step below once per platform in play. They are separate version records:
+   creating the iOS version does not create the Mac one, and a build attached to one is invisible
+   to the other.
+
+Platform-specific deltas, everywhere they matter:
+
+- **Builds.** Each platform has its own TestFlight build list. The `release` skill hands over one
+  `{version, build}` pair; verify that pair is present and `Complete` under **each** platform, not
+  just the first. The Mac build comes from the same `rc/*` tag as the iOS one.
+- **Screenshots.** iOS screenshots do not satisfy the Mac listing and vice versa. The Mac version
+  needs its own Mac-sized captures; `ci_scripts/make_appstore_screenshots.py` produces iPhone
+  frames only, and the Mac ones come from `KeeForgeMacUITests/MacScreenshotAuditUITests` (see
+  `KeeForgeMacUITests/README.md`).
+- **Reviewer notes.** The same fixture database and password apply, but the note should say how to
+  open it on the platform under review, and the Mac note should mention that AutoFill is enabled in
+  System Settings → General → AutoFill & Passwords rather than iOS's Settings → Passwords.
+- **Export compliance.** Declared per platform. `KeeForgeMac/Info.plist` carries the same
+  `ITSAppUsesNonExemptEncryption` value as `KeeForge/Info.plist`; verify it resolved on the Mac
+  record too rather than assuming it inherited.
+- **Universal purchase.** If the apps are meant to be one purchase across platforms, that is
+  configured once on the app record and is an account-level change — confirm before setting it.
+- **Submission.** Each platform is submitted for review separately, and can be in a different
+  review state. "Submitted" for iOS says nothing about macOS.
+
+The direct-download (Developer ID) Mac channel does **not** go through App Store Connect at all.
+It is built, notarized, and published by `ci_scripts/build_mac_direct.sh` plus the Sparkle appcast.
+Nothing in this skill applies to it.
 
 ## The build is already chosen
 
@@ -38,15 +80,16 @@ If the requested build is absent from TestFlight, stop and report it. Do not sta
 ### 1. Inspect current state
 
 1. Open the KeeForge app in App Store Connect.
-2. Check whether the requested iOS version already exists and note its state.
-3. Check TestFlight build uploads for the exact marketing version and build number handed over by the `release` skill.
-4. Treat `Complete` as processed. Do not attach a build that is still processing or failed.
-5. Confirm the build was distributed to external testers — that is the one that was soaked. A build that only ever reached internal testers has not been through the process.
-6. If the build is missing, report it and stop. Builds are produced by the Xcode Cloud **Tests (RC)** workflow on an `rc/*` tag; no workflow triggers on `v*`. Never start a build from here.
+2. Note which platforms the app record carries, and which of them this release covers.
+3. Per platform: check whether the requested version already exists and note its state.
+4. Per platform: check TestFlight build uploads for the exact marketing version and build number handed over by the `release` skill.
+5. Treat `Complete` as processed. Do not attach a build that is still processing or failed.
+6. Confirm the build was distributed to external testers — that is the one that was soaked. A build that only ever reached internal testers has not been through the process.
+7. If the build is missing, report it and stop. Builds are produced by the Xcode Cloud **Tests (RC)** workflow on an `rc/*` tag; no workflow triggers on `v*`. Never start a build from here.
 
 ### 2. Create the App Store version when needed
 
-Create the exact version through **Add iOS App**. Confirm immediately before creating the version record because it changes App Store Connect state.
+Create the exact version through **Add iOS App** (or **Add macOS App** for the Mac platform). Confirm immediately before creating the version record because it changes App Store Connect state. Repeat per platform in play.
 
 Do not create a duplicate version if it already exists.
 
@@ -133,6 +176,9 @@ If the user explicitly asks for final submission, request action-time confirmati
 
 ## Final checklist
 
+Run this list once per platform in play.
+
+- Every platform this release covers was identified up front, and none was left half-done.
 - Exact version record exists.
 - The attached build is the exact soaked build number from the handoff, not merely the newest.
 - Exact build is processed and attached.
@@ -143,4 +189,6 @@ If the user explicitly asks for final submission, request action-time confirmati
 - `test.kdbx.zip` is visibly attached.
 - Automatic release, immediate rollout, and rating retention are verified.
 - Draft submission shows the exact version and build as ready.
+- Screenshots on the version page are that platform's own, not the other's.
 - Final submit is untouched unless separately confirmed.
+- Each platform's submission state is reported separately; one being submitted says nothing about the other.

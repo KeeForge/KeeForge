@@ -86,7 +86,7 @@ KeeForge/
 ├── ViewModels/       # 数据库列表、解锁、保存、搜索、排序、TOTP 状态
 ├── Views/            # SwiftUI 界面、编辑器、设置、打赏、可复用控件
 AutoFillExtension/    # 自动填充凭据提供方、通行密钥认证、凭据创建
-KeeForgeMac/          # 实验性原生 macOS 应用（未发布，已搁置）
+KeeForgeMac/          # 原生 macOS 应用（正在准备首个版本）
 KeeForgeMacUITests/   # macOS 应用的 XCUITest 覆盖
 KeeForgeTests/        # 单元测试
 KeeForgeUITests/      # XCUITest 覆盖
