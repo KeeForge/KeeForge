@@ -34,6 +34,9 @@ struct WebDAVConnectView: View {
                         .textContentType(.URL)
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
+                        // The section header already captions this field.
+                        .macLabelsHidden()
+                        .macFormFieldStyle()
                         .accessibilityIdentifier("webdav.connect.server-field")
                 } header: {
                     Text("Server")
@@ -46,6 +49,7 @@ struct WebDAVConnectView: View {
                         .textContentType(.username)
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
+                        .macFormFieldStyle()
                         .accessibilityIdentifier("webdav.connect.username-field")
 
                     PasswordInputRow(
@@ -55,6 +59,7 @@ struct WebDAVConnectView: View {
                         fieldAccessibilityIdentifier: "webdav.connect.password-field",
                         visibilityAccessibilityIdentifier: "webdav.connect.password-visibility-button"
                     )
+                    .macFormFieldStyle()
                 } header: {
                     Text("Account")
                 }
@@ -85,6 +90,7 @@ struct WebDAVConnectView: View {
                     }
                 }
             }
+            .macGroupedForm()
             .navigationTitle("Connect WebDAV")
             .navigationBarTitleDisplayMode(.inline)
             .disabled(viewModel.isConnecting)

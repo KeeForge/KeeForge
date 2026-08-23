@@ -48,6 +48,7 @@ struct FeedbackComposerView: View {
                             Text("No GitHub or email required. KeeForge only sends the message you type, plus visible attached error details, the follow-up email if you enable follow-up, and the photo if you attach one. Database-open reports may include visible app/device metadata, cloud sync status, and short file hash prefixes, but never database contents, passwords, key files, or raw vault files.")
                         }
                     }
+                    .macGroupedForm()
                 }
             }
             .navigationTitle(model.context.title)
@@ -130,6 +131,7 @@ struct FeedbackComposerView: View {
                     .keyboardType(.emailAddress)
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
+                    .macFormFieldStyle()
                     .accessibilityIdentifier("feedback.contact-email")
             }
         } header: {
