@@ -317,9 +317,24 @@ class MacUITestCase: XCTestCase {
     }
 
     /// The entry title the detail column is currently showing, or "" if none.
+    /// An instantaneous read — the detail column takes a moment to render after
+    /// a selection changes, so a test that has just clicked wants
+    /// `waitForAnyDetailTitle()` instead.
     func detailTitle() -> String {
         let matches = rowQuery(identifier: "entry-detail.title").allElementsBoundByIndex
         return matches.map(displayText(of:)).first { $0.isEmpty == false } ?? ""
+    }
+
+    /// Polls until the detail column shows any entry, and returns its title.
+    /// Returns "" if none appears within the timeout.
+    func waitForAnyDetailTitle(timeout: TimeInterval = 15) -> String {
+        let deadline = Date().addingTimeInterval(timeout)
+        repeat {
+            let current = detailTitle()
+            if current.isEmpty == false { return current }
+            RunLoop.current.run(until: Date().addingTimeInterval(0.2))
+        } while Date() < deadline
+        return ""
     }
 
     /// Polls until the detail column shows something other than `previous`.
