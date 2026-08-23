@@ -4,6 +4,7 @@ This folder owns provider abstractions plus the cloud-backed open/save pipeline.
 
 ## Main Files
 
+- `CloudSyncModels.swift` describes cloud provider files and sync metadata used by the database list and sync coordinator. Optimistic concurrency uses a single opaque `rev` field; the provider-specific mapping (Dropbox rev, OneDrive cTag/eTag, WebDAV ETag → `rev`) happens in the this folder providers.
 - `CloudProvider.swift` and `CloudProviderRegistry.swift` define the provider boundary the rest of the app talks to.
 - `CloudAccountStore.swift` and `CloudTokenStore.swift` persist provider account state and auth material.
 - `CloudSyncCoordinator.swift` decides when to reuse cache, download before open, or refresh metadata after cloud saves. If a pending AutoFill upload marker is still queued, a sync-down first writes a best-effort timestamped backup of the shared cache into the savers' backup directory (the cache is that save's only copy until the upload drains).

@@ -28,6 +28,7 @@ Entry point for coding agents working on KeeForge. This file is intentionally br
 - `KeeForge/Services/{AppSupport,AutoFill,Cloud,Persistence,Security}/README.md` — per-subfolder service maps and constraints
 - `KeeForge/ViewModels/README.md` — list, unlock, save, search, sort, and TOTP state ownership
 - `KeeForge/Views/README.md` — screen ownership and UI/testing conventions
+- `KeeForge/Views/{Cloud,Components,DatabaseList,Entry,Group,SearchAndTags,Settings,TOTP,Unlock}/README.md` — per-feature screen maps
 - `KeeForge/Extensions/README.md` — shared Swift extension helpers
 - `KeeForge/Resources/README.md` — string catalogs, assets, and resource conventions
 - `KeeForgeMac/README.md` — macOS target constraints
