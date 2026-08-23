@@ -201,6 +201,23 @@ private struct MacHoverHighlightModifier: ViewModifier {
             }
     }
 }
+
+private struct MacSelectableRowHoverModifier: ViewModifier {
+    @State private var isHovered = false
+
+    func body(content: Content) -> some View {
+        content
+            .background {
+                if isHovered {
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        .fill(Color.primary.opacity(0.06))
+                }
+            }
+            .onHover { hovering in
+                isHovered = hovering
+            }
+    }
+}
 #endif
 
 extension View {
@@ -209,6 +226,22 @@ extension View {
     func macHoverHighlight() -> some View {
         #if os(macOS)
         modifier(MacHoverHighlightModifier())
+        #else
+        self
+        #endif
+    }
+
+    /// Hover highlight for a row inside a `List(selection:)` on macOS; no-op on
+    /// iOS.
+    ///
+    /// Separate from `macHoverHighlight()` because that one tints through
+    /// `listRowBackground`, which is also what such a list paints its selection
+    /// with — a selected row would lose its highlight. This draws behind the
+    /// row's own content instead, where the two can coexist.
+    @ViewBuilder
+    func macSelectableRowHover() -> some View {
+        #if os(macOS)
+        modifier(MacSelectableRowHoverModifier())
         #else
         self
         #endif

@@ -5,6 +5,7 @@ Smoke suite for the native macOS app (target `KeeForgeMacUITests`, scheme `KeeFo
 ## Test Classes
 
 - `MacSmokeUITests` — unlock success/failure, group browse, entry detail + copy-username pasteboard round-trip, ⌘F search + result count, edit + save, ⌘L lock, ⌘N new entry, ⌘, settings window, Escape on the unlock screen, and arrow-key movement in the sidebar and entries columns.
+- `MacListKeyboardNavigationUITests` — arrow-key movement in the two content-column lists that are not a group's entries: search results and the tag browser. Both render `MacEntriesList` rather than the shared iOS `EntryListView`, whose button rows swallow the click a native `List(selection:)` needs; these tests are what catch a regression back to it. They assert only that a keystroke moves the selection, never which entry it lands on, so they do not re-encode the fixture's sort order. Uses `kitchen-sink.kdbx` — the only bundled database with entry tags, so the only one whose sidebar has a Tags section.
 - `MacPasswordAuthBoundaryUITests` — reveal/copy-password device-owner-auth boundaries, launched with `UI_TEST_DEVICE_OWNER_AUTH_PENDING=1` (see below).
 - `MacDatabaseListUITests` — two seeded databases, right-click Remove flow.
 - `MacWebDAVSmokeUITests` — seeded WebDAV mock round-trip via `UITestWebDAVCloudProvider` (`UI_TEST_WEBDAV_PAYLOAD_JSON`), unlock + ⌘L.

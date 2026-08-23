@@ -24,11 +24,7 @@ struct SearchView: View {
                 )
                 .accessibilityIdentifier("search.no-results")
             } else {
-                EntryListView(
-                    entries: viewModel.searchResults,
-                    viewModel: viewModel,
-                    onSelectEntry: onSelectEntry
-                )
+                SearchResultsList(viewModel: viewModel, onSelectEntry: onSelectEntry)
                     .accessibilityIdentifier("search.results")
             }
         }
@@ -43,6 +39,28 @@ struct SearchView: View {
                     .accessibilityIdentifier("search.results.count")
             }
         }
+    }
+}
+
+/// The results themselves, per shell. macOS renders them in the split view's
+/// content column, where selection — not a push — is how an entry is opened,
+/// so it uses the native `List(selection:)` that gives the column arrow keys
+/// and type-select; the button rows of the shared `EntryListView` would eat the
+/// click the list needs. iOS keeps the shared list.
+private struct SearchResultsList: View {
+    @Bindable var viewModel: DatabaseViewModel
+    let onSelectEntry: ((KPEntry) -> Void)?
+
+    var body: some View {
+        #if os(macOS)
+        MacEntriesList(viewModel: viewModel, entries: viewModel.searchResults)
+        #else
+        EntryListView(
+            entries: viewModel.searchResults,
+            viewModel: viewModel,
+            onSelectEntry: onSelectEntry
+        )
+        #endif
     }
 }
 
