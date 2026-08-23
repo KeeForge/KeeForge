@@ -2,15 +2,43 @@
 
 ## macOS App (in development — preparing the first release)
 
-Not shipped yet, and not part of any iOS release.
+Not shipped yet, and not part of any iOS release. The Mac app ships in **version lockstep with iOS**: all four product targets carry the same version and build number, and one release bump covers them together. The port, the iOS v1.11 → v1.15 parity pass, the keyboard-first pass, and a screenshot-driven visual sweep are done; what remains is tracked below.
 
 TODO before the first macOS release:
-- [ ] **Close feature gaps with the latest iOS wherever applicable.** Known gaps: AutoFill provider does not appear in System Settings → AutoFill & Passwords despite correct registration/entitlements; Dropbox/OneDrive UI still hidden pending end-to-end Mac validation (`TODO(macos-port)` in `CloudSyncModels.swift`) — WebDAV only for the first release; keyboard navigation missing in search results and the tag browser, which still render the shared iOS entry list.
-- [ ] **Unit and UI test sweep**: close coverage gaps across the Mac suites, and write down the guidelines for what future Mac work must test. Also add `macos-unit-tests` to the `main` and `release/**` rulesets' required status checks.
-- [ ] **UX sweep and acceptance test**: daily-drive the app for a user verdict; finish remaining polish (sheet sizing, hover feedback on workspace and database-list rows); run the manual QA matrix — cloud sign-in with relaunch token survival, AutoFill across Safari/Chromium/native fill and webauthn.io passkeys, cancel-everywhere relock, reveal-auth on a non-Touch-ID Mac, ⇧⌘4 capture blocking on macOS 26, and a macOS 14 pass (CI runners are macOS 15).
-- [ ] **Comprehensive docs update**: keeforge.com, root `README.md` and its translations, `AGENTS.md`/`CLAUDE.md`, and the folder-local READMEs that still describe the Mac targets as on hold.
-- [ ] **Release process readiness for both channels (MAS and direct).** The in-repo half of slice 07 is done — channel seam, `project-direct.yml` overlay, tip-jar-vs-Sponsors swap, StoreKit suppressed in direct builds, and `ci_scripts/build_mac_direct.sh` (archive → export → entitlement check → notarize → staple → Gatekeeper → appcast zip). The human half is untouched: App Store Connect Mac platform + universal purchase, TestFlight, a Developer ID certificate, hand-made Developer ID provisioning profiles for `com.keevault.app` and `com.keevault.app.autofill`, and a `notarytool` keychain profile.
-- [ ] **Sparkle readiness and test**: EdDSA key pair, `SUFeedURL`/`SUPublicEDKey` pointed at real values, HTTPS appcast hosting, and a full update cycle exercised end to end.
+
+- [ ] **Close feature gaps with the latest iOS wherever applicable.**
+  - [ ] AutoFill provider does not appear in System Settings → AutoFill & Passwords despite correct registration and entitlements.
+  - [ ] Dropbox/OneDrive UI stays hidden until the OAuth flows are validated end to end on macOS (`TODO(macos-port)` in `CloudSyncModels.swift`); WebDAV only for the first release.
+  - [ ] Keyboard navigation in search results and the tag browser, which still render the shared iOS entry list.
+- [ ] **Unit and UI test sweep.**
+  - [ ] Close coverage gaps across `KeeForgeMacTests` and `KeeForgeMacUITests`.
+  - [ ] Write down the guidelines for what future Mac work has to test.
+  - [ ] Add `macos-unit-tests` to the `main` and `release/**` rulesets' required status checks.
+  - Note: `KeeForgeMacUITests` needs an active login session, so the Mac smoke suite stays a local pre-release step; CI runs unit tests only.
+- [ ] **UX sweep and acceptance test.**
+  - [ ] Daily-drive the app for a user verdict on the polish pass.
+  - [ ] Remaining polish: sheet sizing, hover feedback on workspace and database-list rows.
+  - [ ] Accessibility pass on the newest Mac UI: VoiceOver over the three columns, everything reachable keyboard-only, Increase Contrast and Reduce Transparency.
+  - [ ] Manual QA matrix: cloud sign-in with relaunch token survival; AutoFill across Safari/Chromium/native fill and webauthn.io passkeys; cancel-everywhere relock; reveal-auth on a non-Touch-ID Mac; ⇧⌘4 capture blocking on macOS 26; a macOS 14 pass (CI runners are macOS 15).
+- [ ] **Pre-release security review of the Mac surface.**
+  - [ ] Justify every entitlement and hardened-runtime exception; re-check App Group container permissions.
+  - [ ] Review the AutoFill extension boundary and, in direct builds, Sparkle's update channel — both are attack surface iOS never had.
+  - [ ] Refresh `docs/macos-security-notes.md` against the shipping build.
+- [ ] **Comprehensive docs update.**
+  - [ ] keeforge.com, including a direct-download page.
+  - [ ] Root `README.md` and its translations.
+  - [ ] `AGENTS.md`/`CLAUDE.md` and the folder-local READMEs that still describe the Mac targets as on hold.
+- [ ] **Release process readiness for both channels (MAS and direct).** The in-repo half of slice 07 is done — channel seam, `project-direct.yml` overlay, tip-jar-vs-Sponsors swap, StoreKit suppressed in direct builds, and `ci_scripts/build_mac_direct.sh` (archive → export → entitlement check → notarize → staple → Gatekeeper → appcast zip). The human half is untouched:
+  - [ ] Mac App Store: App Store Connect Mac platform, universal purchase, TestFlight.
+  - [ ] Direct: Developer ID certificate, hand-made Developer ID provisioning profiles for `com.keevault.app` and `com.keevault.app.autofill`, `notarytool` keychain profile.
+  - [ ] Mac listing assets and metadata: Mac-sized screenshots (`ci_scripts/make_appstore_screenshots.py` is iPhone-only), description and keywords, App Review notes with a fixture database the reviewer can open.
+  - [ ] Teach the release tooling about two platforms — the `publish-app-store-version` skill is still iOS-only.
+  - [ ] Decide what happens to the iOS app on Apple Silicon Macs: whether it stays available once a native app exists, and what a user with databases and bookmarks in the iOS container is told.
+- [ ] **Sparkle readiness and test** (direct channel only).
+  - [ ] EdDSA key pair, plus where the private key lives and how it is recovered — losing it strands every direct install with no way to update.
+  - [ ] `SUFeedURL`/`SUPublicEDKey` pointed at real values, HTTPS appcast hosting.
+  - [ ] A full update cycle exercised end to end.
+  - [ ] Decide the crash and diagnostics story for direct builds, which report nothing to Xcode Organizer.
 - [ ] **Final release.**
 
 ## Unreleased
