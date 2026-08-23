@@ -68,7 +68,7 @@ Repo skills live in `.agents/skills/` (`release`, `spec-creator`, `publish-app-s
 - When changing code shared with `AutoFillExtension`, keep extension-safe imports/APIs and target membership in sync.
 - When adding or changing database creation, edit operations, KDBX parser/writer behavior, protected fields, unknown XML handling, AutoFill save, cloud save, or local save, update `KeeForgeTests/KDBXCompatibilityTests.swift` and the compatibility artifact gate if the supported compatibility matrix changes.
 - Preserve accessibility identifiers or update the relevant UI tests in the same change.
-- Update `CHANGELOG.md` for feature or bug-fix commits, only under `## Unreleased` — except macOS-only work, which goes under the top `## macOS App (in development)` section. It's okay to skip if the bug fix is for an unreleased feature.
+- Update `CHANGELOG.md` for feature or bug-fix commits, only under `## Unreleased` — except macOS-only work. It's okay to skip if the bug fix is for an unreleased feature. Keep changelog updates concise, simple and user facing, don't include implementation details unless necessary.
 
 ### Localization
 
