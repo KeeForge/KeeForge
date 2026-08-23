@@ -130,7 +130,7 @@ targets:
       - path: KeeForge/ViewModels
         excludes: ["README.md"]
       - path: KeeForge/Views
-        excludes: ["README.md"]
+        excludes: ["README.md", "**/README.md"]
       - path: KeeForge/Extensions
         excludes: ["README.md"]
       - path: KeeForge/Resources
@@ -183,7 +183,7 @@ targets:
       - path: KeeForge/ViewModels
         excludes: ["README.md"]
       - path: KeeForge/Views
-        excludes: ["README.md"]
+        excludes: ["README.md", "**/README.md"]
       - path: KeeForge/Extensions
         excludes: ["README.md"]
       - path: KeeForge/Resources
@@ -256,10 +256,11 @@ targets:
       - path: KeeForge/Services/Persistence/LocalDatabaseSaver.swift
       - path: KeeForge/Services/Security/PasskeyCrypto.swift
       - path: KeeForge/Services/Cloud/PendingUploadQueue.swift
+      - path: KeeForge/Services/Cloud/CloudSyncModels.swift
       - path: KeeForge/Services/AutoFill/PasswordGenerator.swift
       - path: KeeForge/Services/AutoFill/PasswordStrengthEstimator.swift
-      - path: KeeForge/Views/PasswordDisplay.swift
-      - path: KeeForge/Views/PasswordInputRow.swift
+      - path: KeeForge/Views/Components/PasswordDisplay.swift
+      - path: KeeForge/Views/Components/PasswordInputRow.swift
       - path: KeeForge/Services/Persistence/SecurityScopedBookmarkManager.swift
       - path: KeeForge/Extensions/PlatformCompat.swift
       # <<< SHARED AUTOFILL ALLOW-LIST (maintenance invariant) <<<
@@ -320,10 +321,11 @@ targets:
       - path: KeeForge/Services/Persistence/LocalDatabaseSaver.swift
       - path: KeeForge/Services/Security/PasskeyCrypto.swift
       - path: KeeForge/Services/Cloud/PendingUploadQueue.swift
+      - path: KeeForge/Services/Cloud/CloudSyncModels.swift
       - path: KeeForge/Services/AutoFill/PasswordGenerator.swift
       - path: KeeForge/Services/AutoFill/PasswordStrengthEstimator.swift
-      - path: KeeForge/Views/PasswordDisplay.swift
-      - path: KeeForge/Views/PasswordInputRow.swift
+      - path: KeeForge/Views/Components/PasswordDisplay.swift
+      - path: KeeForge/Views/Components/PasswordInputRow.swift
       - path: KeeForge/Services/Persistence/SecurityScopedBookmarkManager.swift
       - path: KeeForge/Extensions/PlatformCompat.swift
       # <<< SHARED AUTOFILL ALLOW-LIST (maintenance invariant) <<<
