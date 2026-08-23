@@ -10,10 +10,10 @@ TODO before the first macOS release:
   - [x] AutoFill provider does not appear in System Settings → AutoFill & Passwords despite correct registration and entitlements. **Diagnosed:** the "Designed for iPad" iOS app installed on an Apple Silicon Mac wraps an extension claiming the same `com.keevault.app.autofill` identifier under the same `com.keevault.app` app identifier, and shadows the native Mac extension — which registers with `pluginkit` but is never the one AuthenticationServices resolves. Full diagnosis and reproduction steps in `KeeForgeMac/README.md`. Resolved by withdrawing Mac availability for the iOS app (below); until then, verify on a Mac without the iOS app installed.
   - [x] Dropbox/OneDrive stay hidden on macOS. **Decided rather than deferred:** the first macOS release ships WebDAV only. The OAuth paths are implemented and unit-tested but have never been validated end to end on a Mac, and unhiding them is a later release's call.
   - [x] Keyboard navigation in search results and the tag browser. Both now render `MacEntriesList` — a native `List(selection:)` bound to the selected entry — instead of the shared iOS entry list, whose button rows swallowed the click the list needs. All three Mac columns share one row type.
-- [ ] **Unit and UI test sweep.**
+- [x] **Unit and UI test sweep.**
   - [x] Close coverage gaps across `KeeForgeMacTests` and `KeeForgeMacUITests`. Added `MacListKeyboardNavigationUITests` for arrow-key movement in search results and the tag browser — the two lists that had no keyboard coverage at all.
   - [x] Write down the guidelines for what future Mac work has to test — `KeeForgeMac/README.md`, "What Mac Work Has To Test", linked from `AGENTS.md`.
-  - [ ] Add `macos-unit-tests` to the `main` and `release/**` rulesets' required status checks.
+  - [x] Add `macos-unit-tests` to the `main` and `release/**` rulesets' required status checks. Both rulesets now require it alongside `unit-tests` and `DCO`.
   - Note: `KeeForgeMacUITests` needs an active login session, so the Mac smoke suite stays a local pre-release step; CI runs unit tests only.
 - [ ] **UX sweep and acceptance test.**
   - [ ] Daily-drive the app for a user verdict on the polish pass.
