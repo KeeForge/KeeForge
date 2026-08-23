@@ -815,6 +815,7 @@
 		161DA4B3D8C56EE8B3F0EBF3 /* CloudSyncUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudSyncUITests.swift; sourceTree = "<group>"; };
 		166C906E1AECCEE8FDBC33D7 /* BackoffUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackoffUITests.swift; sourceTree = "<group>"; };
 		17350EF5DF6C5C2E97B61A34 /* Attachment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Attachment.swift; sourceTree = "<group>"; };
+		189BE6C37F1E15048700B583 /* KeeForge.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = KeeForge.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		1918E2A2912B83E28D34C5E2 /* LaunchScreen.storyboard */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; path = LaunchScreen.storyboard; sourceTree = "<group>"; };
 		1ACD45ABA542C39B3E99FDF4 /* DatabaseCreationViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DatabaseCreationViewModelTests.swift; sourceTree = "<group>"; };
 		1B37093A769E7D22F7C7EC7C /* DocumentPickerService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DocumentPickerService.swift; sourceTree = "<group>"; };
@@ -1009,7 +1010,6 @@
 		C2C726CD862BFFCE77228AAD /* UnlockFlowUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UnlockFlowUITests.swift; sourceTree = "<group>"; };
 		C303F1BB7603F55869127E7A /* StoreKitManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoreKitManager.swift; sourceTree = "<group>"; };
 		C325ECE2F3A9193BE553AD19 /* TipJarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TipJarView.swift; sourceTree = "<group>"; };
-		C3331E675A8FD23ED5D8D11D /* KeeForgeMac.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = KeeForgeMac.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		C412174AA21900D65A646A54 /* AutoFillPasskeyCreatorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AutoFillPasskeyCreatorView.swift; sourceTree = "<group>"; };
 		C45BE2A6CCF55DA054986A15 /* WebDAVConnectView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebDAVConnectView.swift; sourceTree = "<group>"; };
 		C4F5FB08EE2BFA9321FF6C45 /* DocumentsVaultScannerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DocumentsVaultScannerTests.swift; sourceTree = "<group>"; };
@@ -1460,8 +1460,8 @@
 			isa = PBXGroup;
 			children = (
 				1C1B7D9F6B63224D55DF5C4A /* KeeForge.app */,
+				189BE6C37F1E15048700B583 /* KeeForge.app */,
 				379C9421555E6C13A8335404 /* KeeForgeAutoFill.appex */,
-				C3331E675A8FD23ED5D8D11D /* KeeForgeMac.app */,
 				F132E57F847216618151EAF4 /* KeeForgeMacAutoFill.appex */,
 				65027967D3D168FF503B9FC7 /* KeeForgeMacTests.xctest */,
 				CB23E9DACF5061CA2446BD8B /* KeeForgeMacUITests.xctest */,
@@ -1837,7 +1837,7 @@
 				80BD433FCE467939D48BA9AE /* PublicSuffixList */,
 			);
 			productName = KeeForgeMac;
-			productReference = C3331E675A8FD23ED5D8D11D /* KeeForgeMac.app */;
+			productReference = 189BE6C37F1E15048700B583 /* KeeForge.app */;
 			productType = "com.apple.product-type.application";
 		};
 		F371729A79BBD757456723E9 /* KeeForgeTests */ = {
@@ -2132,7 +2132,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "set -euo pipefail\n\n# TARGET_BUILD_DIR (not BUILT_PRODUCTS_DIR) is the location the test\n# bundle is actually assembled and run from — for a host-app-embedded\n# unit test that is KeeForgeMac.app/Contents/PlugIns/KeeForgeMacTests.xctest,\n# which is what Bundle(for:) resolves to at runtime.\ndest=\"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}\"\nmkdir -p \"${dest}\"\n\ncopy_catalog() {\n  src=\"$1\"\n  dst=\"$2\"\n  if [ ! -f \"${src}\" ]; then\n    echo \"error: raw xcstrings source missing: ${src}\" >&2\n    exit 1\n  fi\n  /bin/cp -f \"${src}\" \"${dest}/${dst}\"\n}\n\ncopy_catalog \"${SRCROOT}/KeeForge/Resources/Localizable.xcstrings\" \"KeeForge_Localizable.xcstrings\"\ncopy_catalog \"${SRCROOT}/KeeForge/Resources/InfoPlist.xcstrings\" \"KeeForge_InfoPlist.xcstrings\"\ncopy_catalog \"${SRCROOT}/AutoFillExtension/Localizable.xcstrings\" \"AutoFillExtension_Localizable.xcstrings\"\ncopy_catalog \"${SRCROOT}/AutoFillExtension/InfoPlist.xcstrings\" \"AutoFillExtension_InfoPlist.xcstrings\"\n";
+			shellScript = "set -euo pipefail\n\n# TARGET_BUILD_DIR (not BUILT_PRODUCTS_DIR) is the location the test\n# bundle is actually assembled and run from — for a host-app-embedded\n# unit test that is KeeForge.app/Contents/PlugIns/KeeForgeMacTests.xctest,\n# which is what Bundle(for:) resolves to at runtime.\ndest=\"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}\"\nmkdir -p \"${dest}\"\n\ncopy_catalog() {\n  src=\"$1\"\n  dst=\"$2\"\n  if [ ! -f \"${src}\" ]; then\n    echo \"error: raw xcstrings source missing: ${src}\" >&2\n    exit 1\n  fi\n  /bin/cp -f \"${src}\" \"${dest}/${dst}\"\n}\n\ncopy_catalog \"${SRCROOT}/KeeForge/Resources/Localizable.xcstrings\" \"KeeForge_Localizable.xcstrings\"\ncopy_catalog \"${SRCROOT}/KeeForge/Resources/InfoPlist.xcstrings\" \"KeeForge_InfoPlist.xcstrings\"\ncopy_catalog \"${SRCROOT}/AutoFillExtension/Localizable.xcstrings\" \"AutoFillExtension_Localizable.xcstrings\"\ncopy_catalog \"${SRCROOT}/AutoFillExtension/InfoPlist.xcstrings\" \"AutoFillExtension_InfoPlist.xcstrings\"\n";
 		};
 		804041F2AB24067D2581A5CF /* Bundle raw .xcstrings catalogs for LocalizationTests */ = {
 			isa = PBXShellScriptBuildPhase;

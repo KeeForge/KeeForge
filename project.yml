@@ -144,6 +144,7 @@ targets:
   KeeForgeMac:
     type: application
     platform: macOS
+    productName: KeeForge
     settings:
       base:
         INFOPLIST_FILE: KeeForgeMac/Info.plist
@@ -469,7 +470,7 @@ targets:
 
           # TARGET_BUILD_DIR (not BUILT_PRODUCTS_DIR) is the location the test
           # bundle is actually assembled and run from — for a host-app-embedded
-          # unit test that is KeeForgeMac.app/Contents/PlugIns/KeeForgeMacTests.xctest,
+          # unit test that is KeeForge.app/Contents/PlugIns/KeeForgeMacTests.xctest,
           # which is what Bundle(for:) resolves to at runtime.
           dest="${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}"
           mkdir -p "${dest}"
