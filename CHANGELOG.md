@@ -34,6 +34,7 @@ TODO before the first macOS release:
   - [ ] Mac listing assets and metadata: Mac-sized screenshots (`ci_scripts/make_appstore_screenshots.py` is iPhone-only), description and keywords, App Review notes with a fixture database the reviewer can open.
   - [ ] Teach the release tooling about two platforms — the `publish-app-store-version` skill is still iOS-only.
   - [ ] Decide what happens to the iOS app on Apple Silicon Macs: whether it stays available once a native app exists, and what a user with databases and bookmarks in the iOS container is told.
+  - [ ] Do we need separate release branches for iOS and macOS or a single one?
 - [ ] **Sparkle readiness and test** (direct channel only).
   - [ ] EdDSA key pair, plus where the private key lives and how it is recovered — losing it strands every direct install with no way to update.
   - [ ] `SUFeedURL`/`SUPublicEDKey` pointed at real values, HTTPS appcast hosting.
