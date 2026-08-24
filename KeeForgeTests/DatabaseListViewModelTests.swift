@@ -30,6 +30,36 @@ final class DatabaseListViewModelTests: XCTestCase {
         try await super.tearDown()
     }
 
+    func testMoveDatabasesPublishesTheNewOrderImmediately() throws {
+        let first = try DatabaseListStore.add(url: makeTemporaryFileURL(name: "one.kdbx"))
+        let second = try DatabaseListStore.add(url: makeTemporaryFileURL(name: "two.kdbx"))
+
+        let viewModel = DatabaseListViewModel()
+        XCTAssertEqual(viewModel.databases.map(\.id), [first.id, second.id])
+
+        viewModel.moveDatabases(from: IndexSet(integer: 0), to: 2)
+
+        XCTAssertEqual(
+            viewModel.databases.map(\.id),
+            [second.id, first.id],
+            "The published list must carry the new order without waiting for a reload"
+        )
+    }
+
+    func testMoveDatabasesDropsBetweenLaterRows() throws {
+        let first = try DatabaseListStore.add(url: makeTemporaryFileURL(name: "one.kdbx"))
+        let second = try DatabaseListStore.add(url: makeTemporaryFileURL(name: "two.kdbx"))
+        let third = try DatabaseListStore.add(url: makeTemporaryFileURL(name: "three.kdbx"))
+
+        let viewModel = DatabaseListViewModel()
+
+        // SwiftUI reports the drop index in the pre-move list, so dropping the
+        // first row between the second and third arrives as destination 2.
+        viewModel.moveDatabases(from: IndexSet(integer: 0), to: 2)
+
+        XCTAssertEqual(viewModel.databases.map(\.id), [second.id, first.id, third.id])
+    }
+
     func testLocalRowStatusDefersBookmarkAccessUntilOpen() throws {
         var reference = try DatabaseListStore.add(url: makeTemporaryFileURL(name: "offline-share.kdbx"))
         reference.bookmarkData = Data("unresolvable-offline-bookmark".utf8)
