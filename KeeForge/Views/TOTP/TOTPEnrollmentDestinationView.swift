@@ -91,7 +91,7 @@ struct TOTPEnrollmentDestinationView: View {
             NavigationStack {
                 editor(formViewModel)
             }
-            .frame(minWidth: 540, minHeight: 560)
+            .macSheetFrame()
         }
         #endif
     }

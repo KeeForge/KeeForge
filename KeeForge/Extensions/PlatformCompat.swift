@@ -332,20 +332,40 @@ extension View {
 
 // MARK: - Sheet sizing (macOS)
 
+#if os(macOS)
+enum MacSheetMetrics {
+    /// The tallest a sheet may become.
+    ///
+    /// Without a ceiling a sheet grows to its content's full height, and a
+    /// scrolling form is taller than any window. AppKit then clamps the sheet
+    /// to the parent window's *frame* height while still anchoring it below the
+    /// *toolbar*, so the sheet hangs past the bottom of the window by the
+    /// difference between the two — a visible overhang, not a clipped sheet.
+    /// Capping the height here keeps the form scrolling inside a sheet that
+    /// fits, which is also what a fixed-size AppKit sheet does.
+    ///
+    /// Sized to fit the window's minimum height (`KeeForgeApp`) with the
+    /// toolbar above it; raising one means raising the other.
+    static let maxHeight: CGFloat = 560
+}
+#endif
+
 extension View {
     /// Gives a sheet a usable size on macOS.
     ///
     /// `.presentationDetents` compiles on macOS but does nothing there, so a
     /// sheet that relies on detents alone sizes itself to its content — a grid
-    /// or a short form then opens comically small. Apply this alongside the
+    /// or a short form then opens comically small, and a long form opens taller
+    /// than the window (`MacSheetMetrics.maxHeight`). Apply this alongside the
     /// detents; it is inert on iOS, where the detents are what matter.
     ///
-    /// The defaults match the 540x560 convention already used for the editor
-    /// and settings sheets. Pass a wider `minWidth` for grid content.
+    /// The default `minWidth` matches the 540pt convention already used for the
+    /// editor and settings sheets; pass a wider one for grid content.
+    /// `minHeight` must stay at or below `MacSheetMetrics.maxHeight`.
     @ViewBuilder
     func macSheetFrame(minWidth: CGFloat = 540, minHeight: CGFloat = 560) -> some View {
         #if os(macOS)
-        frame(minWidth: minWidth, minHeight: minHeight)
+        frame(minWidth: minWidth, minHeight: minHeight, maxHeight: MacSheetMetrics.maxHeight)
         #else
         self
         #endif

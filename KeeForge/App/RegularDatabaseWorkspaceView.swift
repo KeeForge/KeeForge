@@ -241,7 +241,7 @@ struct RegularDatabaseWorkspaceView: View {
                             view.commandEditor = nil
                         }
                     }
-                    .frame(minWidth: 540, minHeight: 560)
+                    .macSheetFrame()
                 }
             #else
             content
@@ -392,7 +392,7 @@ struct RegularDatabaseWorkspaceView: View {
                     groupEditor = nil
                 }
             }
-            .frame(minWidth: 540, minHeight: 520)
+            .macSheetFrame(minHeight: 520)
         }
         .sheet(item: $pendingMove) { pending in
             MoveToGroupPickerView(
@@ -406,7 +406,7 @@ struct RegularDatabaseWorkspaceView: View {
                 reference: viewModel.databaseReference,
                 sessionViewModel: viewModel
             )
-            .frame(minWidth: 540, minHeight: 560)
+            .macSheetFrame()
         }
         .alert(item: $pendingDeletion, content: deletionAlert)
     }
@@ -539,6 +539,10 @@ struct RegularDatabaseWorkspaceView: View {
 
     // MARK: Toolbar
 
+    /// Database-scoped actions sit in the `.navigation` region, beside the lock
+    /// button and over the group/entry columns. `.primaryAction` would park
+    /// them at the trailing edge, above the entry detail — next to the detail's
+    /// own Edit button, where they read as actions on the selected entry.
     @ToolbarContentBuilder
     private var macToolbar: some ToolbarContent {
         ToolbarItem(placement: .navigation) {
@@ -552,7 +556,7 @@ struct RegularDatabaseWorkspaceView: View {
             .accessibilityIdentifier("lock.button")
         }
 
-        ToolbarItemGroup(placement: .primaryAction) {
+        ToolbarItemGroup(placement: .navigation) {
             if let warningText = viewModel.cloudSyncBannerText {
                 CloudSyncWarningButton(message: warningText)
             }
