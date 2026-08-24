@@ -219,20 +219,10 @@ struct DatabaseListView: View {
     private var databaseList: some View {
         List {
             ForEach(viewModel.databases) { reference in
-                if reference.id == selectedDatabaseID {
-                    databaseRowButton(for: reference)
-                        .listRowBackground(
-                            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                .fill(Color.accentColor.opacity(0.16))
-                        )
-                } else {
-                    // Hover only on the unselected branch: both this
-                    // and the selection highlight above drive
-                    // `.listRowBackground`, so applying it to a
-                    // selected row would replace the selection fill.
-                    databaseRowButton(for: reference)
-                        .macHoverHighlight()
-                }
+                databaseRowButton(for: reference)
+                    .modifier(
+                        DatabaseRowChrome(isSelected: reference.id == selectedDatabaseID)
+                    )
             }
             .onMove(perform: viewModel.moveDatabases)
         }
@@ -351,7 +341,6 @@ struct DatabaseListView: View {
                 filenameSubtitle: viewModel.detailSubtitle(for: reference)
             )
         }
-        .id("\(reference.id.uuidString)-\(showDatabaseUsageStats)")
         .buttonStyle(.plain)
         .accessibilityIdentifier("database.row")
         .contextMenu {
@@ -672,4 +661,31 @@ struct DatabaseListView: View {
         )
     }
 
+}
+
+/// Selection and hover chrome for a database row.
+///
+/// The branch lives inside a modifier rather than inside the `ForEach` body so
+/// every row stays one concrete view type: an `if`/`else` there gives the list
+/// two row types to reconcile, and a drag reorder then repaints the old order.
+///
+/// Hover applies only to the unselected branch: both it and the selection
+/// highlight drive `.listRowBackground`, so tinting a selected row on hover
+/// would replace the selection fill.
+private struct DatabaseRowChrome: ViewModifier {
+    let isSelected: Bool
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if isSelected {
+            content
+                .listRowBackground(
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .fill(Color.accentColor.opacity(0.16))
+                )
+        } else {
+            content
+                .macHoverHighlight()
+        }
+    }
 }

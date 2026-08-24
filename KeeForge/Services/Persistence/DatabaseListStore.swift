@@ -455,15 +455,19 @@ enum DatabaseListStore {
         }
     }
 
+    /// `destination` indexes the list as it was *before* the move, so it has to
+    /// be pulled back by however many moved rows sat above it.
     static func move(from source: IndexSet, to destination: Int) {
         withStateLock {
             var currentDatabases = loadDatabases()
             let movingItems = source.map { currentDatabases[$0] }
+            let liftedAbove = source.count { $0 < destination }
+
             for index in source.sorted(by: >) {
                 currentDatabases.remove(at: index)
             }
 
-            let insertionIndex = min(destination, currentDatabases.count)
+            let insertionIndex = min(max(destination - liftedAbove, 0), currentDatabases.count)
             currentDatabases.insert(contentsOf: movingItems, at: insertionIndex)
             saveDatabases(currentDatabases)
         }
