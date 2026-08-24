@@ -34,6 +34,10 @@ struct DatabaseListView: View {
     let onSelectDatabase: (DatabaseReference) -> Void
     let onCreateDatabase: (CreatedDatabase) -> Void
     var selectedDatabaseID: UUID? = nil
+    /// Whether the host puts this view in a split view's sidebar column.
+    /// Passed in rather than read from `horizontalSizeClass`, which a sidebar
+    /// column reports as compact however wide the window is.
+    var isSidebarColumn = false
 
     @State private var pickerState = PickerPresentationState<PickerTarget>()
     @State private var selectionAlert: DocumentPickerService.SelectionAlert?
@@ -50,87 +54,7 @@ struct DatabaseListView: View {
     @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
-        NavigationStack {
-            Group {
-                if viewModel.databases.isEmpty {
-                    emptyState
-                } else {
-                    List {
-                        ForEach(viewModel.databases) { reference in
-                            if reference.id == selectedDatabaseID {
-                                databaseRowButton(for: reference)
-                                    .listRowBackground(
-                                        RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                            .fill(Color.accentColor.opacity(0.16))
-                                    )
-                            } else {
-                                // Hover only on the unselected branch: both this
-                                // and the selection highlight above drive
-                                // `.listRowBackground`, so applying it to a
-                                // selected row would replace the selection fill.
-                                databaseRowButton(for: reference)
-                                    .macHoverHighlight()
-                            }
-                        }
-                        .onMove(perform: viewModel.moveDatabases)
-                    }
-                    .listStyle(.insetGrouped)
-                    .refreshable {
-                        viewModel.refreshBookmarks()
-                    }
-                }
-            }
-            .safeAreaInset(edge: .top, spacing: 0) {
-                if viewModel.shouldShowAutoFillTip {
-                    AutoFillTipBanner(
-                        onEnable: { Task { await viewModel.requestEnableAutoFill() } },
-                        onDismiss: { viewModel.dismissAutoFillTip() }
-                    )
-                }
-            }
-            .navigationTitle("KeeForge")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                // `EditButton` does not exist on macOS; list rows reorder via
-                // drag and delete via context menus / swipe actions there.
-                #if os(iOS)
-                if !viewModel.databases.isEmpty {
-                    ToolbarItem(placement: .topBarLeading) {
-                        EditButton()
-                            .accessibilityIdentifier("database.edit.button")
-                    }
-                }
-                #endif
-
-                ToolbarItemGroup(placement: .topBarTrailing) {
-                    // macOS uses the standard Settings window (⌘,) instead of
-                    // a sheet, which on the Mac would have no close affordance.
-                    #if os(macOS)
-                    SettingsLink {
-                        Image(systemName: "gearshape")
-                    }
-                    .accessibilityIdentifier("database.settings.button")
-                    .macHelp(String(localized: "Settings"))
-                    #else
-                    Button {
-                        showSettings = true
-                    } label: {
-                        Image(systemName: "gearshape")
-                    }
-                    .accessibilityIdentifier("database.settings.button")
-                    #endif
-
-                    Menu {
-                        addDatabaseMenuContent
-                    } label: {
-                        Image(systemName: "plus")
-                    }
-                    .menuOrder(.fixed)
-                    .accessibilityIdentifier("database.add.button")
-                    .macHelp(String(localized: "Add Database"))
-                }
-            }
-        }
+        listShell
         .onAppear {
             refreshUsageStatsVisibility()
             viewModel.reload()
@@ -256,6 +180,125 @@ struct DatabaseListView: View {
             .macSheetFrame()
         }
         .databaseExporter(request: $exportRequest)
+    }
+
+    /// The list and its chrome, without a navigation container.
+    ///
+    /// macOS hosts this view as the window's sidebar column and gives it the
+    /// split view's own navigation; wrapping it in a `NavigationStack` there
+    /// would paint an opaque background over the sidebar material.
+    @ViewBuilder
+    private var listShell: some View {
+        #if os(macOS)
+        listContent
+        #else
+        NavigationStack {
+            listContent
+        }
+        #endif
+    }
+
+    /// The vault list, styled for where it is hosted.
+    ///
+    /// A sidebar column has to use `.sidebar`. The grouped style draws its rows
+    /// on a card meant for a plain grouped page; over a sidebar's own
+    /// background that card comes out *darker* than the column behind it on
+    /// iPadOS, and opaque over the material on macOS. Full screen on iPhone,
+    /// grouped is still the right look.
+    @ViewBuilder
+    private var styledDatabaseList: some View {
+        if isSidebarColumn {
+            databaseList
+                .listStyle(.sidebar)
+        } else {
+            databaseList
+                .listStyle(.insetGrouped)
+        }
+    }
+
+    private var databaseList: some View {
+        List {
+            ForEach(viewModel.databases) { reference in
+                if reference.id == selectedDatabaseID {
+                    databaseRowButton(for: reference)
+                        .listRowBackground(
+                            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                .fill(Color.accentColor.opacity(0.16))
+                        )
+                } else {
+                    // Hover only on the unselected branch: both this
+                    // and the selection highlight above drive
+                    // `.listRowBackground`, so applying it to a
+                    // selected row would replace the selection fill.
+                    databaseRowButton(for: reference)
+                        .macHoverHighlight()
+                }
+            }
+            .onMove(perform: viewModel.moveDatabases)
+        }
+    }
+
+    private var listContent: some View {
+        Group {
+            if viewModel.databases.isEmpty {
+                emptyState
+            } else {
+                styledDatabaseList
+                    .refreshable {
+                        viewModel.refreshBookmarks()
+                    }
+            }
+        }
+        .safeAreaInset(edge: .top, spacing: 0) {
+            if viewModel.shouldShowAutoFillTip {
+                AutoFillTipBanner(
+                    onEnable: { Task { await viewModel.requestEnableAutoFill() } },
+                    onDismiss: { viewModel.dismissAutoFillTip() }
+                )
+            }
+        }
+        .navigationTitle("KeeForge")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            // `EditButton` does not exist on macOS; list rows reorder via
+            // drag and delete via context menus / swipe actions there.
+            #if os(iOS)
+            if !viewModel.databases.isEmpty {
+                ToolbarItem(placement: .topBarLeading) {
+                    EditButton()
+                        .accessibilityIdentifier("database.edit.button")
+                }
+            }
+            #endif
+
+            ToolbarItemGroup(placement: .topBarTrailing) {
+                // macOS uses the standard Settings window (⌘,) instead of
+                // a sheet, which on the Mac would have no close affordance.
+                #if os(macOS)
+                SettingsLink {
+                    Image(systemName: "gearshape")
+                }
+                .accessibilityIdentifier("database.settings.button")
+                .macHelp(String(localized: "Settings"))
+                #else
+                Button {
+                    showSettings = true
+                } label: {
+                    Image(systemName: "gearshape")
+                }
+                .accessibilityIdentifier("database.settings.button")
+                #endif
+
+                Menu {
+                    addDatabaseMenuContent
+                } label: {
+                    Image(systemName: "plus")
+                }
+                .menuOrder(.fixed)
+                .accessibilityIdentifier("database.add.button")
+                .macHelp(String(localized: "Add Database"))
+            }
+        }
     }
 
     @ViewBuilder

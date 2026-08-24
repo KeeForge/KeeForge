@@ -424,7 +424,8 @@ private struct AppRootView: View {
                         viewModel: listViewModel,
                         onSelectDatabase: openDatabase,
                         onCreateDatabase: openCreatedDatabase,
-                        selectedDatabaseID: activeDatabaseViewModel?.databaseReference.id
+                        selectedDatabaseID: activeDatabaseViewModel?.databaseReference.id,
+                        isSidebarColumn: true
                     )
                     .navigationSplitViewColumnWidth(min: 300, ideal: 340, max: 380)
                 } detail: {

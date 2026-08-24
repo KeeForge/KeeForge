@@ -127,7 +127,9 @@ struct TipJarView: View {
                         .font(.callout.bold())
                         .foregroundStyle(.blue)
                 }
+                .contentShape(Rectangle())
             }
+            .macPlainRowButton()
             .disabled(store.isPurchasing)
         }
     }

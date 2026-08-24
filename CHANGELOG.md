@@ -17,6 +17,7 @@ TODO before the first macOS release:
   - Note: `KeeForgeMacUITests` needs an active login session, so the Mac smoke suite stays a local pre-release step; CI runs unit tests only.
 - [ ] **UX sweep and acceptance test.**
   - [ ] Daily-drive the app for a user verdict on the polish pass.
+  - [x] Settings window and sidebar polish. The settings tabs are pinned to a fixed preferences-pane size instead of stretching to whatever width their longest footer paragraph wanted — a settings window sizes itself to its widest tab, which had left every label an arm's length from its control. Tip-jar rows no longer draw a bordered control inside the section card, and the database-list sidebar uses the sidebar material like the unlocked vault's group tree instead of an opaque white sheet.
   - [x] Remaining polish: sheet sizing and hover feedback. Every macOS-reachable sheet that had no size now has one, set on the sheet view rather than at each call site; the sidebar group rows, tag rows, and entry rows have a hover affordance that coexists with the list's selection highlight instead of replacing it.
   - [x] Accessibility pass on the newest Mac UI: the icon-only toolbar buttons carry explicit labels rather than relying on symbol names, a tag row reads as one element instead of a name and a loose number, and the passkey and verification-code badges are labelled. VoiceOver, keyboard-only, Increase Contrast and Reduce Transparency still need a human pass on a real Mac.
   - [ ] Manual QA matrix: cloud sign-in with relaunch token survival; AutoFill across Safari/Chromium/native fill and webauthn.io passkeys; cancel-everywhere relock; reveal-auth on a non-Touch-ID Mac; ⇧⌘4 capture blocking on macOS 26; a macOS 14 pass (CI runners are macOS 15).
@@ -43,6 +44,11 @@ TODO before the first macOS release:
 - [ ] **Final release.**
 
 ## Unreleased
+
+### Fixes
+
+- iPad: the database list sidebar's rows sat on a card slightly *darker* than the sidebar behind them, so nothing stood out. The list now uses the standard sidebar look, matching the group sidebar of an unlocked database. The iPhone list is unchanged.
+- Settings' Cloud section now says how to connect an account when none is connected, instead of showing only "No cloud accounts connected".
 
 ## v1.15.0 (2026-08-21)
 

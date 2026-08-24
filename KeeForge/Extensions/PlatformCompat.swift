@@ -312,6 +312,24 @@ extension View {
     }
 }
 
+// MARK: - Row buttons (macOS)
+
+extension View {
+    /// Renders a whole-row `Button` as plain content on macOS; no-op on iOS.
+    ///
+    /// A `Button` whose label fills a row draws as a bordered control inside a
+    /// grouped `Form` on macOS — a gray slab sitting inside the section's own
+    /// gray card. Plain keeps the row reading as a row, the way it does on iOS.
+    @ViewBuilder
+    func macPlainRowButton() -> some View {
+        #if os(macOS)
+        buttonStyle(.plain)
+        #else
+        self
+        #endif
+    }
+}
+
 // MARK: - Sheet sizing (macOS)
 
 extension View {

@@ -1556,6 +1556,40 @@
         }
       }
     },
+    "Add a cloud database from the database list to connect an account." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fügen Sie in der Datenbankliste eine Cloud-Datenbank hinzu, um ein Konto zu verbinden."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Añada una base de datos en la nube desde la lista de bases de datos para conectar una cuenta."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ajoutez une base de données cloud depuis la liste des bases de données pour connecter un compte."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在数据库列表中添加云数据库即可连接账户。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在資料庫列表中加入雲端資料庫即可連接帳號。"
+          }
+        }
+      }
+    },
     "Add a master password, key file, or both." : {
       "localizations" : {
         "de" : {
