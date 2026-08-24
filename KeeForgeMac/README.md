@@ -50,7 +50,7 @@ Two release tasks fall out of this: the direct-download and Mac listing pages on
 ## Entitlements Gotchas
 
 - App Sandbox + Hardened Runtime, user-selected read-write files, network client, app-scoped security bookmarks, App Group `group.com.keevault.shared`.
-- `keychain-access-groups` ordering matters: items stored without an explicit `kSecAttrAccessGroup` land in the **first** listed group, so `com.keevault.sharedkeychain` must stay first (see comments in both entitlements files). The app also lists `com.microsoft.identity.universalstorage` (MSAL's macOS token cache; silent OneDrive token refresh depends on it); the Mac extension intentionally omits it.
+- `keychain-access-groups`: the app and the extension both list exactly one group, `com.keevault.sharedkeychain`. Ordering matters the moment a second one is added — items stored without an explicit `kSecAttrAccessGroup` land in the **first** listed group, so the shared group must stay first (see comments in both entitlements files). MSAL's macOS token cache group (`com.microsoft.identity.universalstorage`) is deliberately absent: macOS ships WebDAV only, so nothing authenticates through MSAL. Re-enabling OneDrive means adding it back *and* regenerating the Developer ID profiles, which embed the entitlements.
 
 ## Info.plist Sync
 
