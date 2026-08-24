@@ -206,8 +206,8 @@ That list is the whole of it. An earlier draft also carried
 the shipping build never exercises: Dropbox and OneDrive are hidden from the
 macOS UI (`CloudProviderKind.isAvailableOnCurrentPlatform`), so nothing on a Mac
 authenticates through MSAL and nothing writes to that group. It was removed
-before the first release rather than after — a hand-made Developer ID profile
-embeds the entitlements it authorizes, so changing the set later costs a profile
+before the first release rather than after — a Developer ID profile embeds the
+entitlements it authorizes, so changing the set later costs a profile
 regeneration and a re-sign.
 
 Be accurate about what that bought. Keychain access groups are namespaced by the
