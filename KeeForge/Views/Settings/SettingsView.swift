@@ -44,7 +44,6 @@ struct SettingsView: View {
     /// shown by the `Settings { }` scene (⌘,) and by in-app settings sheets.
     private var macSettingsLayout: some View {
         applyingChangeHandlers(macSettingsTabs)
-            .frame(minWidth: 560, minHeight: 480)
     }
 
     private var macSettingsTabs: some View {
@@ -56,6 +55,7 @@ struct SettingsView: View {
                 autoUnlockWithBiometrics: $autoUnlockWithFaceID,
                 blockScreenCapture: $blockScreenCapture
             )
+            .frame(width: MacSettingsPane.width, height: MacSettingsPane.height)
             .tabItem {
                 Label("Security", systemImage: "lock.shield")
             }
@@ -67,6 +67,7 @@ struct SettingsView: View {
                 listViewModel: listViewModel
             )
             .formStyle(.grouped)
+            .frame(width: MacSettingsPane.width, height: MacSettingsPane.height)
             .tabItem {
                 Label("AutoFill", systemImage: "text.cursor")
             }
@@ -79,6 +80,7 @@ struct SettingsView: View {
                 sortOrder: $sortOrder,
                 sortAscending: $sortAscending
             )
+            .frame(width: MacSettingsPane.width, height: MacSettingsPane.height)
             .tabItem {
                 Label("Display", systemImage: "eye")
             }
@@ -88,6 +90,7 @@ struct SettingsView: View {
                 cloudAccountsSection
             }
             .formStyle(.grouped)
+            .frame(width: MacSettingsPane.width, height: MacSettingsPane.height)
             .tabItem {
                 Label("Cloud", systemImage: "icloud")
             }
@@ -101,6 +104,7 @@ struct SettingsView: View {
                 }
                 .formStyle(.grouped)
             }
+            .frame(width: MacSettingsPane.width, height: MacSettingsPane.height)
             .tabItem {
                 Label("About", systemImage: "info.circle")
             }
@@ -310,7 +314,9 @@ struct SettingsView: View {
         } header: {
             Text("Cloud Accounts")
         } footer: {
-            if cloudAccounts.isEmpty == false {
+            if cloudAccounts.isEmpty {
+                Text("Add a cloud database from the database list to connect an account.")
+            } else {
                 Text("Signing out disconnects future syncs but keeps cached cloud databases available until you remove them.")
             }
         }
@@ -699,6 +705,18 @@ private struct AboutSectionContent: View {
 #if os(macOS)
 
 // MARK: - macOS settings tabs
+
+/// The size every settings tab is pinned to.
+///
+/// Fixed, not a minimum: a settings window sizes itself to its widest tab, and
+/// each `Form` footer wants a full line for its paragraph, so a free-sizing
+/// window opens far wider than any Mac settings window — leaving every label an
+/// arm's length from its control. One size for all tabs also keeps the window
+/// from resizing under the pointer as the user moves between them.
+private enum MacSettingsPane {
+    static let width: CGFloat = 540
+    static let height: CGFloat = 520
+}
 
 private struct MacSecuritySettingsTab: View {
     @Binding var autoLockTimeout: SettingsService.AutoLockTimeout
