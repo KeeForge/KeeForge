@@ -262,23 +262,21 @@ struct EntryDetailView: View {
                 }
                 .modifier(EntryDetailTitle(title: entry.title))
                 .toolbar {
-                    if showsCompactLockButton {
-                        ToolbarItem(placement: .topBarLeading) {
-                            // Icon, not text: this sits directly after the
-                            // system back label, and two adjacent text
-                            // buttons read as one ("Social Lock").
-                            Button {
-                                viewModel.lockRequest(manuallyTriggered: true)
-                            } label: {
-                                Image(systemName: "lock.fill")
-                            }
-                            .accessibilityLabel("Lock")
-                            .accessibilityIdentifier("lock.button")
-                        }
-                    }
-
                     ToolbarItem(placement: .topBarTrailing) {
                         HStack(spacing: 12) {
+                            // Leads the trailing group rather than sitting
+                            // beside the system back button, which made an
+                            // accidental lock a one-tap mistake.
+                            if showsCompactLockButton {
+                                Button {
+                                    viewModel.lockRequest(manuallyTriggered: true)
+                                } label: {
+                                    Image(systemName: "lock.fill")
+                                }
+                                .accessibilityLabel("Lock")
+                                .accessibilityIdentifier("lock.button")
+                            }
+
                             if let warningText = viewModel.cloudSyncBannerText {
                                 CloudSyncWarningButton(message: warningText)
                             }

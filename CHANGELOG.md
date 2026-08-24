@@ -53,6 +53,7 @@ TODO before the first macOS release:
 
 ### Fixes
 
+- The Lock button moved to the right side of the navigation bar, away from the Back button it was easy to hit by mistake (#106).
 - iPad: the database list sidebar's rows sat on a card slightly *darker* than the sidebar behind them, so nothing stood out. The list now uses the standard sidebar look, matching the group sidebar of an unlocked database. The iPhone list is unchanged.
 - Settings' Cloud section now says how to connect an account when none is connected, instead of showing only "No cloud accounts connected".
 
