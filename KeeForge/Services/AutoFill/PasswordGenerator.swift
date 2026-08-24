@@ -1,7 +1,7 @@
 import Foundation
 
 enum PasswordGenerator {
-    struct Options: Equatable, Sendable {
+    struct Options: Equatable, Sendable, Codable {
         var length: Int
         var includeUppercase: Bool
         var includeLowercase: Bool
@@ -23,6 +23,28 @@ enum PasswordGenerator {
             self.includeDigits = includeDigits
             self.includeSymbols = includeSymbols
             self.excludeAmbiguous = excludeAmbiguous
+        }
+
+        /// Decodes field by field so a stored value written before a new option
+        /// existed keeps the options the user did pick instead of resetting
+        /// them all to the defaults.
+        init(from decoder: any Decoder) throws {
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            let defaults = Options()
+            self.init(
+                length: try container.decodeIfPresent(Int.self, forKey: .length)
+                    ?? defaults.length,
+                includeUppercase: try container.decodeIfPresent(Bool.self, forKey: .includeUppercase)
+                    ?? defaults.includeUppercase,
+                includeLowercase: try container.decodeIfPresent(Bool.self, forKey: .includeLowercase)
+                    ?? defaults.includeLowercase,
+                includeDigits: try container.decodeIfPresent(Bool.self, forKey: .includeDigits)
+                    ?? defaults.includeDigits,
+                includeSymbols: try container.decodeIfPresent(Bool.self, forKey: .includeSymbols)
+                    ?? defaults.includeSymbols,
+                excludeAmbiguous: try container.decodeIfPresent(Bool.self, forKey: .excludeAmbiguous)
+                    ?? defaults.excludeAmbiguous
+            )
         }
     }
 

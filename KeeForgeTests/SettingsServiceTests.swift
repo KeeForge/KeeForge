@@ -16,6 +16,7 @@ final class SettingsServiceTests: XCTestCase {
     private let hasTippedKey = "KeeForge.hasTipped"
     private let macLockPolicyKey = "KeeForge.macLockPolicy"
     private let blockScreenCaptureKey = "KeeForge.blockScreenCapture"
+    private let passwordGeneratorOptionsKey = "KeeForge.passwordGeneratorOptions"
 
     private var sharedDefaults: UserDefaults {
         UserDefaults(suiteName: SharedVaultStore.appGroupID) ?? .standard
@@ -29,6 +30,7 @@ final class SettingsServiceTests: XCTestCase {
         UserDefaults.standard.removeObject(forKey: clipboardKey)
         sharedDefaults.removeObject(forKey: clipboardKey)
         sharedDefaults.removeObject(forKey: autoFillCopyTOTPKey)
+        sharedDefaults.removeObject(forKey: passwordGeneratorOptionsKey)
     }
 
     override func tearDown() {
@@ -45,6 +47,7 @@ final class SettingsServiceTests: XCTestCase {
         sharedDefaults.removeObject(forKey: quickAutoFillEnabledKey)
         sharedDefaults.removeObject(forKey: clipboardKey)
         sharedDefaults.removeObject(forKey: autoFillCopyTOTPKey)
+        sharedDefaults.removeObject(forKey: passwordGeneratorOptionsKey)
         super.tearDown()
     }
 
@@ -304,6 +307,57 @@ final class SettingsServiceTests: XCTestCase {
         // App-local (per-device UI preference), not App Group-shared.
         SettingsService.blockScreenCapture = false
         XCTAssertNil(sharedDefaults.object(forKey: blockScreenCaptureKey))
+    }
+
+    // MARK: - Password Generator Options
+
+    func testPasswordGeneratorOptionsDefaultToGeneratorDefaults() {
+        sharedDefaults.removeObject(forKey: passwordGeneratorOptionsKey)
+        XCTAssertEqual(SettingsService.passwordGeneratorOptions, PasswordGenerator.Options())
+    }
+
+    func testPasswordGeneratorOptionsPersist() {
+        let options = PasswordGenerator.Options(
+            length: 42,
+            includeUppercase: false,
+            includeLowercase: true,
+            includeDigits: true,
+            includeSymbols: false,
+            excludeAmbiguous: false
+        )
+
+        SettingsService.passwordGeneratorOptions = options
+
+        XCTAssertEqual(SettingsService.passwordGeneratorOptions, options)
+    }
+
+    func testPasswordGeneratorOptionsUseSharedDefaults() {
+        // App Group-shared so the AutoFill extensions generate with the same
+        // settings the app's generator sheet last used.
+        SettingsService.passwordGeneratorOptions = PasswordGenerator.Options(length: 31)
+
+        XCTAssertNotNil(sharedDefaults.object(forKey: passwordGeneratorOptionsKey))
+        XCTAssertNil(UserDefaults.standard.object(forKey: passwordGeneratorOptionsKey))
+    }
+
+    func testPasswordGeneratorOptionsFallBackToDefaultsWhenStoredValueIsUnreadable() {
+        sharedDefaults.set(Data("not json".utf8), forKey: passwordGeneratorOptionsKey)
+
+        XCTAssertEqual(SettingsService.passwordGeneratorOptions, PasswordGenerator.Options())
+    }
+
+    func testPasswordGeneratorOptionsKeepStoredFieldsWhenOneIsMissing() {
+        // A payload written before a newer option existed keeps the choices the
+        // user did make instead of resetting every option.
+        let stored = #"{"length":48,"includeUppercase":false,"includeLowercase":true,"includeDigits":true,"includeSymbols":false}"#
+        sharedDefaults.set(Data(stored.utf8), forKey: passwordGeneratorOptionsKey)
+
+        let options = SettingsService.passwordGeneratorOptions
+
+        XCTAssertEqual(options.length, 48)
+        XCTAssertFalse(options.includeUppercase)
+        XCTAssertFalse(options.includeSymbols)
+        XCTAssertTrue(options.excludeAmbiguous)
     }
 
     // MARK: - Screen Protection Policy (macOS)

@@ -92,7 +92,9 @@ struct AutoFillEntryCreatorView: View {
                                 // silently never renders.
                                 actions: {
                                     Button {
-                                        draft.password = PasswordGenerator.generate()
+                                        draft.password = PasswordGenerator.generate(
+                                            options: SettingsService.passwordGeneratorOptions
+                                        )
                                     } label: {
                                         Image(systemName: "dice.fill")
                                             .frame(width: 30, height: 30)
