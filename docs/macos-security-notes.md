@@ -200,17 +200,35 @@ What the **app** (`KeeForgeMac/KeeForgeMac.entitlements`) asks for, and why:
 | `network.client` | Cloud sync (WebDAV for the first release), opt-in favicon fetching, and the user-initiated feedback form. Outbound only; there is no `network.server`. |
 | `application-groups` → `group.com.keevault.shared` | The only channel through which the AutoFill extension sees a database. See the container caveat above. |
 | `keychain-access-groups` → `com.keevault.sharedkeychain` | Composite keys shared with the extension. Must stay **first**: an item stored without an explicit `kSecAttrAccessGroup` lands in the first listed group. |
-| `keychain-access-groups` → `com.microsoft.identity.universalstorage` | MSAL's macOS token cache, which it enables only after a suffix match on this entitlement. **Unused by the first release** — see below. |
 
-Open item for the first release: the MSAL keychain group is the one entitlement
-the shipping build never exercises. Dropbox and OneDrive are hidden from the
-macOS UI (`CloudProviderKind.isAvailableOnCurrentPlatform`), so nothing on the
-Mac ever authenticates through MSAL and nothing writes to that group. It is
-therefore surface with no current purpose. It stays for now because removing it
-means regenerating the hand-made Developer ID provisioning profiles when the
-OAuth flows are validated and the providers are unhidden; a first release that
-kept it is a smaller risk than a re-signing cycle. Revisit if OneDrive slips
-another release.
+That list is the whole of it. An earlier draft also carried
+`com.microsoft.identity.universalstorage`, MSAL's macOS token cache group, which
+the shipping build never exercises: Dropbox and OneDrive are hidden from the
+macOS UI (`CloudProviderKind.isAvailableOnCurrentPlatform`), so nothing on a Mac
+authenticates through MSAL and nothing writes to that group. It was removed
+before the first release rather than after — a hand-made Developer ID profile
+embeds the entitlements it authorizes, so changing the set later costs a profile
+regeneration and a re-sign.
+
+Be accurate about what that bought. Keychain access groups are namespaced by the
+team prefix, so `$(AppIdentifierPrefix)com.microsoft.identity.universalstorage`
+was only ever reachable by apps signed with this team's identity — Microsoft's
+own apps included a different prefix and could not reach it. Removing it closed
+no path an attacker had. What it does is keep the entitlement set equal to what
+the app actually uses, so a future reviewer of this file does not have to
+re-derive why an unused permission is there.
+
+The larger version of the same question is still open: `SwiftyDropbox` and
+`MSAL` remain dependencies of the `KeeForgeMac` target, and
+`DropboxCloudProvider.swift` / `OneDriveCloudProvider.swift` compile into it, so
+both OAuth SDKs ship inside a binary whose UI cannot invoke them. Cutting that
+means `#if`-guarding the providers and giving up the property that their code
+stays compiled and unit-tested on both platforms. Not done, and deliberately so.
+
+Whoever unhides OneDrive on macOS must add the keychain group back — MSAL checks
+for it by suffix match before enabling its cache, and silent token refresh
+across relaunch does not work without it — and regenerate the Developer ID
+profiles in the same change. Both entitlements files carry that note.
 
 ## AutoFill extension boundary
 
