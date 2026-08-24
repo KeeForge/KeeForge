@@ -101,6 +101,8 @@ struct MacEntryRow: View {
         }
         .accessibilityIdentifier(rowIdentifier)
         .contextMenu {
+            EntryRowCopyActions(entry: entry, viewModel: viewModel)
+
             if canMove {
                 Button("Move to Group") {
                     onRequestMove(.entry(entry.id))

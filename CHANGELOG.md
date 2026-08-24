@@ -49,6 +49,7 @@ TODO before the first macOS release:
 
 ### New Features
 
+- Long-press an entry in a list to copy its username or password without opening it (#102). Copying the password asks for Face ID, Touch ID, or your passcode first, the same as in the entry itself.
 - The password generator now remembers your settings (#97). Length, character sets, and "Exclude Ambiguous Characters" carry over the next time you open it, and the password suggested when creating an entry from AutoFill uses the same settings.
 
 ### Fixes

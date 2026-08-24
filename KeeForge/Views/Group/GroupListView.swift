@@ -488,6 +488,8 @@ struct GroupListView: View {
         }
         .macHoverHighlight()
         .contextMenu {
+            EntryRowCopyActions(entry: entry, viewModel: viewModel)
+
             if canMoveEntry(entry) {
                 Button("Move to Group") {
                     pendingMove = .entry(entry.id)
