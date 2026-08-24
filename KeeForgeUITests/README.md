@@ -20,6 +20,7 @@ macOS UI tests: see `../KeeForgeMacUITests/README.md`; the accessibility identif
 - `EntryCreateSmokeUITests` — create-entry and create-group happy paths using a known fixture group
 - `EntryEditSmokeUITests` — edit-entry happy path using a known fixture entry, including immediate title/username refresh in group lists, search, and title sorting plus a screenshot-backed regression check that a long revealed password wraps without extra characters
 - `EntryDeleteSmokeUITests` — delete-entry happy paths using known fixture entries: row swipe/context-menu deletes, plus the entry editor's "Delete Entry" flow (`entry-edit.delete`) covering both dialog options and the already-recycled variant, asserting the editor dismisses back to a usable group list (regression cover for the permanent-delete wedge); plus group soft/permanent deletes and the Recycle Bin's no-delete guards
+- `EntryRowCopyUITests` — the Copy Username / Copy Password items a long press adds to an entry row (`entry-row.copy-username-context`, `entry-row.copy-password-context`), asserted as offered and tappable; the pasteboard itself is never read, because reading it from the runner process raises the system paste prompt
 - `EntryAttachmentsSmokeUITests` — entry-attachments list happy path (row name/size, QuickLook preview open/dismiss) using the `kitchen-sink` fixture
 - `EntryHistoryUITests` — entry history sheet happy path (`entry-detail.history` → version list → one version's fields) and the restore flow (`entry-history.restore` → `entry-history.restore.confirm`, asserting the replaced state is kept by reading the history row's accessibility **value**, not its localized label), using a fixture entry that ships stored `<History>`
 - `ProtectedCustomFieldUITests` — protected custom fields start masked and reveal on demand in both entry detail and history, while retaining the established copy-control identifiers
@@ -392,6 +393,7 @@ Use the app's accessibility identifiers whenever possible, including:
 - `tag-list` / `tag-list.row.<normalized-tag>` (tag list rows; the macOS sidebar's tag rows reuse the row identifier)
 - `tag-entries.list` (a tag's filtered entry list; its rows keep `EntryListView`'s `search.entry.navlink`)
 - `entry-detail.tag.<normalized-tag>` (entry-detail tag chips)
+- `entry-row.copy-username-context` / `entry-row.copy-password-context` (the copy pair every entry row's context menu leads with, on all three shells; each is absent when its field is empty, and the password one also needs an unlocked session)
 - `group-row.edit-context` ("Edit Group", the first item of the group row context menu; the same identifier on the iOS/iPad row and the macOS sidebar row, and absent entirely on the Recycle Bin, inside it, and in a read-only database)
 - Group editor (`GroupEditView`, pushed on iOS / a sheet on macOS):
   - `group-edit.name-field`

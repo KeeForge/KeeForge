@@ -67,6 +67,8 @@ struct EntryListView: View {
         }
         .macHoverHighlight()
         .contextMenu {
+            EntryRowCopyActions(entry: entry, viewModel: viewModel)
+
             if canMove(entry) {
                 Button("Move to Group") {
                     pendingMove = .entry(entry.id)

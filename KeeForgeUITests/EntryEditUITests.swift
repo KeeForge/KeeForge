@@ -220,11 +220,11 @@ class EntryEditUITestCase: KeeForgeUITestCase {
         return deleteButton
     }
 
-    /// Opens a row context menu and waits for its delete action, retrying the
+    /// Opens a row context menu and waits for one of its actions, retrying the
     /// long press because XCTest can report a row as hittable just before the
     /// gesture is swallowed by list settling or the saving overlay.
     @discardableResult
-    func revealContextDeleteButton(
+    func revealContextMenuButton(
         rowNamed name: String,
         identifier: String,
         preferredIdentifier: String,
@@ -232,23 +232,23 @@ class EntryEditUITestCase: KeeForgeUITestCase {
         file: StaticString = #filePath,
         line: UInt = #line
     ) -> XCUIElement {
-        let deleteButton = app.buttons[identifier]
+        let action = app.buttons[identifier]
         for _ in 0..<attempts {
             let row = firstRowMatching(name: name, preferredIdentifier: preferredIdentifier)
             if revealElement(row) {
                 row.press(forDuration: 1.2)
-                if deleteButton.waitForExistence(timeout: 2) {
-                    return deleteButton
+                if action.waitForExistence(timeout: 2) {
+                    return action
                 }
             }
         }
         XCTAssertTrue(
-            deleteButton.waitForExistence(timeout: 2),
-            "Context delete action '\(identifier)' was not visible for row '\(name)'",
+            action.waitForExistence(timeout: 2),
+            "Context action '\(identifier)' was not visible for row '\(name)'",
             file: file,
             line: line
         )
-        return deleteButton
+        return action
     }
 
     func openEntry(named name: String, file: StaticString = #filePath, line: UInt = #line) {
@@ -556,7 +556,7 @@ final class EntryDeleteSmokeUITests: EntryEditUITestCase {
         unlockSuccessfully()
 
         openGroup(named: socialGroupName)
-        let deleteButton = revealContextDeleteButton(
+        let deleteButton = revealContextMenuButton(
             rowNamed: discordEntryTitle,
             identifier: "entry-row.delete-context",
             preferredIdentifier: "entry.navlink"
@@ -618,7 +618,7 @@ final class EntryDeleteSmokeUITests: EntryEditUITestCase {
     func testContextMenuDeleteEmptyGroupSoftDeleteMovesToRecycleBin() {
         unlockSuccessfully()
 
-        let deleteButton = revealContextDeleteButton(
+        let deleteButton = revealContextMenuButton(
             rowNamed: "Empty",
             identifier: "group-row.delete-context",
             preferredIdentifier: "group.navlink"
