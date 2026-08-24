@@ -290,7 +290,7 @@ struct GroupListView: View {
                             view.activeEditor = nil
                         }
                     }
-                    .frame(minWidth: 540, minHeight: 560)
+                    .macSheetFrame()
                 }
             #else
             content
@@ -324,7 +324,7 @@ struct GroupListView: View {
                             view.activeGroupEditor = nil
                         }
                     }
-                    .frame(minWidth: 540, minHeight: 520)
+                    .macSheetFrame(minHeight: 520)
                 }
             #else
             content

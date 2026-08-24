@@ -39,7 +39,10 @@ struct KeeForgeApp: App {
         let windowGroup = WindowGroup {
             rootView
             #if os(macOS)
-            .frame(minWidth: 900, minHeight: 560)
+            // The height floor is the content area, so it must stay clear of
+            // `MacSheetMetrics.maxHeight` — a sheet is anchored under the
+            // toolbar and would otherwise sit flush with the window's bottom.
+            .frame(minWidth: 900, minHeight: 620)
             .focusedSceneValue(\.databaseViewModel, activeDatabaseViewModel)
             #else
             // App-owned Settings sheet (⌘, / the Mac-compat toolbar gear),
@@ -295,8 +298,7 @@ private struct AppRootView: View {
                     idealWidth: 560,
                     maxWidth: 640,
                     minHeight: 500,
-                    idealHeight: 620,
-                    maxHeight: 760
+                    maxHeight: MacSheetMetrics.maxHeight
                 )
                 #else
                 .presentationDetents([.large])
@@ -325,7 +327,7 @@ private struct AppRootView: View {
                 // database.
                 .id("\(enrollment.id)-\(activeDatabaseViewModel.databaseReference.id)")
                 #if os(macOS)
-                .frame(minWidth: 540, minHeight: 560)
+                .macSheetFrame()
                 #else
                 .presentationDetents([.large])
                 .presentationDragIndicator(.visible)

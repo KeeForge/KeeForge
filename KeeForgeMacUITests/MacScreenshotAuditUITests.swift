@@ -387,11 +387,28 @@ final class MacScreenshotAuditUITests: MacUITestCase {
             noteSkip("08-entry-editor-sheet", reason: "the editor never opened")
         }
 
+        // 8a. Database details sheet — the tallest form the app sheets, and the
+        //     one where a sheet taller than the window shows first.
+        let detailsButton = app.buttons["database-details.button"].firstMatch
+        if detailsButton.waitForExistence(timeout: 5), detailsButton.isHittable {
+            detailsButton.click()
+            if app.buttons["database-details.close"].waitForExistence(timeout: 8) {
+                settle(0.6)
+                await snapSurface(hosting: "database-details.close", "08a-database-details")
+                app.buttons["database-details.close"].firstMatch.click()
+                settle()
+            } else {
+                noteSkip("08a-database-details", reason: "the details sheet never opened")
+            }
+        } else {
+            noteSkip("08a-database-details", reason: "the details toolbar button was not hittable")
+        }
+
         // 9. Back to the main window in a clean state.
         await snap("09-final-state")
 
         // 10. The three columns and the five-item toolbar at the window's
-        //     minimum size (900x560), where crowding and truncation show up.
+        //     minimum size (900x620), where crowding and truncation show up.
         shrinkMainWindowToMinimum()
         settle()
         await snap("10-minimum-width")
