@@ -16,6 +16,7 @@ enum SettingsService {
         static let hasTipped = "KeeForge.hasTipped"
         static let macLockPolicy = "KeeForge.macLockPolicy"
         static let blockScreenCapture = "KeeForge.blockScreenCapture"
+        static let passwordGeneratorOptions = "KeeForge.passwordGeneratorOptions"
     }
 
     static let appearanceModeDefaultsKey = Key.appearanceMode
@@ -252,6 +253,26 @@ enum SettingsService {
         }
         set {
             UserDefaults.standard.set(newValue, forKey: Key.hasTipped)
+        }
+    }
+
+    // MARK: - Password Generator Options
+    //
+    // App Group-shared so the generator the extensions reach for matches the
+    // settings last chosen in the app's generator sheet.
+
+    static var passwordGeneratorOptions: PasswordGenerator.Options {
+        get {
+            guard let data = sharedDefaults.data(forKey: Key.passwordGeneratorOptions),
+                  let stored = try? JSONDecoder().decode(PasswordGenerator.Options.self, from: data)
+            else {
+                return PasswordGenerator.Options()
+            }
+            return stored
+        }
+        set {
+            guard let data = try? JSONEncoder().encode(newValue) else { return }
+            sharedDefaults.set(data, forKey: Key.passwordGeneratorOptions)
         }
     }
 

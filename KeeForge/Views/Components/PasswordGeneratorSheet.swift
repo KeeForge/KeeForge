@@ -4,8 +4,10 @@ struct PasswordGeneratorSheet: View {
     let onUse: (String) -> Void
 
     @Environment(\.dismiss) private var dismiss
-    @State private var options = PasswordGenerator.Options()
-    @State private var generatedPassword = PasswordGenerator.generate()
+    @State private var options = SettingsService.passwordGeneratorOptions
+    @State private var generatedPassword = PasswordGenerator.generate(
+        options: SettingsService.passwordGeneratorOptions
+    )
 
     var body: some View {
         NavigationStack {
@@ -89,7 +91,8 @@ struct PasswordGeneratorSheet: View {
             .onAppear {
                 regenerate()
             }
-            .onChange(of: options) { _, _ in
+            .onChange(of: options) { _, newOptions in
+                SettingsService.passwordGeneratorOptions = newOptions
                 regenerate()
             }
         }

@@ -47,6 +47,10 @@ TODO before the first macOS release:
 
 ## Unreleased
 
+### New Features
+
+- The password generator now remembers your settings (#97). Length, character sets, and "Exclude Ambiguous Characters" carry over the next time you open it, and the password suggested when creating an entry from AutoFill uses the same settings.
+
 ### Fixes
 
 - iPad: the database list sidebar's rows sat on a card slightly *darker* than the sidebar behind them, so nothing stood out. The list now uses the standard sidebar look, matching the group sidebar of an unlocked database. The iPhone list is unchanged.
