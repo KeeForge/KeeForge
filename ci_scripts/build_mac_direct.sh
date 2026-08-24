@@ -9,9 +9,11 @@
 #
 # Prerequisites, none of which live in the repo:
 #   * A "Developer ID Application" certificate in the login keychain.
-#   * A Developer ID provisioning profile for com.keevault.app AND one for
-#     com.keevault.app.autofill. xcodebuild cannot create Developer ID profiles
-#     automatically — make them by hand in the developer portal first.
+#   * Developer ID provisioning profiles for com.keevault.app and
+#     com.keevault.app.autofill. Xcode creates both on demand — the archive and
+#     export below pass -allowProvisioningUpdates — so no portal visit is
+#     needed. Making them by hand still works if you prefer to pin the
+#     entitlements a profile authorizes.
 #   * A notarytool credential profile stored in the keychain:
 #       xcrun notarytool store-credentials keeforge-notary \
 #         --apple-id <apple-id> --team-id <team-id> --password <app-specific-password>
@@ -74,13 +76,15 @@ xcodebuild archive \
   -scheme "${SCHEME}" \
   -destination 'generic/platform=macOS' \
   -archivePath "${ARCHIVE_PATH}" \
-  -derivedDataPath "${DERIVED_DATA}"
+  -derivedDataPath "${DERIVED_DATA}" \
+  -allowProvisioningUpdates
 
 echo "==> Exporting with Developer ID"
 xcodebuild -exportArchive \
   -archivePath "${ARCHIVE_PATH}" \
   -exportPath "${EXPORT_PATH}" \
-  -exportOptionsPlist "${EXPORT_OPTIONS}"
+  -exportOptionsPlist "${EXPORT_OPTIONS}" \
+  -allowProvisioningUpdates
 
 APP_PATH="${EXPORT_PATH}/KeeForge.app"
 if [[ ! -d "${APP_PATH}" ]]; then

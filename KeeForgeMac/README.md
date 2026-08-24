@@ -6,7 +6,7 @@ Configuration folder for the native macOS app target — only `Info.plist` and `
 
 No longer on hold — the Mac app is being brought to a shippable state, but it **has not shipped yet**. Authoritative status and the remaining pre-release checklist: `CHANGELOG.md` under `## macOS App`. Log macOS work there, not under `## Unreleased` (iOS release notes).
 
-Still open before it can ship: the credential-dependent half of slice 07 (`docs/specs/2026-07-12-macos-port/07-distribution.md`) — a Developer ID certificate, hand-made Developer ID profiles, notarization credentials, an EdDSA key and appcast hosting — plus the manual QA matrix. The in-repo plumbing for both channels is in place (see "Distribution Channels" below).
+Still open before it can ship: the credential-dependent half of slice 07 (`docs/specs/2026-07-12-macos-port/07-distribution.md`) — notarization credentials, an EdDSA key and appcast hosting — plus the manual QA matrix. The Developer ID certificate is in place, and the provisioning profiles are not a manual step: Xcode creates them on demand when the archive and export pass `-allowProvisioningUpdates`, which `ci_scripts/build_mac_direct.sh` does. The in-repo plumbing for both channels is in place (see "Distribution Channels" below).
 
 ## AutoFill Provider Missing From System Settings
 
@@ -25,7 +25,7 @@ Every extra bundle claiming `com.keevault.app` is a candidate shadow. On a devel
 
 What this means for the release: it is the same question as "what happens to the iOS app on Apple Silicon Macs", and it is answered the same way — **withdraw Mac availability for the iOS app** when the native app ships, so exactly one bundle owns the identifier. Until that is done in App Store Connect, verify Mac AutoFill on a Mac that does not have the iOS app installed. Users who migrate need the databases and bookmarks in their iOS container accounted for; that migration story is a release task, not a code one.
 
-Not yet ruled out, because it needs a certificate that does not exist yet: whether a distribution-signed build behaves differently from the development-signed one. Re-check after the Developer ID cert exists, on a clean Mac.
+One variable is now ruled out: signing. A Developer ID build installed at `/Applications/KeeForge.app` registers its extension with `pluginkit` exactly as the development-signed one did, so distribution signing changes nothing here. What the pane itself does is still unverified — check it on a Mac with no iOS app and no DerivedData build claiming the same identifier.
 
 ## Moving Off The iOS App On A Mac
 
