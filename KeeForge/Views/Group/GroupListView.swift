@@ -116,23 +116,25 @@ struct GroupListView: View {
                     .navigationTitle(resolvedGroup.name)
                     .navigationBarTitleDisplayMode(.large)
                     .toolbar {
-                        if showsCompactLockButton {
-                            ToolbarItem(placement: .topBarLeading) {
-                                // Icon, not text: this sits directly after the
-                                // system back label, and two adjacent text
-                                // buttons read as one ("Social Lock").
+                        ToolbarItem(placement: .topBarTrailing) {
+                            HStack(spacing: 12) {
+                                // Leads the trailing group rather than sitting
+                                // beside the system back button, which made an
+                                // accidental lock a one-tap mistake.
                                 Button {
                                     viewModel.lockRequest(manuallyTriggered: true)
                                 } label: {
-                                    Image(systemName: "lock.fill")
+                                    if showsCompactLockButton {
+                                        // Compact bars are all icons; a text
+                                        // label would be the odd wide one out.
+                                        Image(systemName: "lock.fill")
+                                    } else {
+                                        Text("Lock")
+                                    }
                                 }
                                 .accessibilityLabel("Lock")
                                 .accessibilityIdentifier("lock.button")
-                            }
-                        }
 
-                        ToolbarItem(placement: .topBarTrailing) {
-                            HStack(spacing: 12) {
                                 if let warningText = viewModel.cloudSyncBannerText {
                                     CloudSyncWarningButton(message: warningText)
                                 }
@@ -167,13 +169,6 @@ struct GroupListView: View {
                                         Image(systemName: "plus")
                                     }
                                     .accessibilityIdentifier("entry-list.add-entry")
-                                }
-
-                                if showsCompactLockButton == false {
-                                    Button("Lock") {
-                                        viewModel.lockRequest(manuallyTriggered: true)
-                                    }
-                                    .accessibilityIdentifier("lock.button")
                                 }
 
                                 Menu {
