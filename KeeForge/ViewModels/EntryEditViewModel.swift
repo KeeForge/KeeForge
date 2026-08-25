@@ -38,8 +38,14 @@ final class EntryEditViewModel {
         var enrolledOTPAuthURI: String?
     }
 
-    let mode: Mode
+    /// Mutable only in its `.create` payload: the destination group is a
+    /// field of the New Entry form, not a fixed property of the session.
+    private(set) var mode: Mode
     let passkeyCredential: PasskeyCredential?
+    /// Whether the form opened prefilled from an existing entry — the
+    /// Duplicate flow. Its password is already a stored secret, so it hides
+    /// and authenticates like an edit rather than like a freshly typed one.
+    let isSeededFromExistingEntry: Bool
     let unknownXMLNodeCount: Int
 
     var title: String
@@ -66,6 +72,11 @@ final class EntryEditViewModel {
     private var enrolledOTPAuthURI: String?
 
     private let preservedCustomFields: [String: String]
+    /// Custom-field keys the form has to ask for `Protected=True` on, because
+    /// nothing behind it will. An edit inherits protection from the entry it
+    /// is rewriting; a create has no such original, so a duplicate would write
+    /// the source's protected fields out in the clear without this.
+    private let seededProtectedCustomFieldKeys: Set<String>
     private let originalSnapshot: Snapshot
     private let decodedTOTPSecret: Data?
     private let keeOTPSource: KeeOTPSource?
@@ -76,9 +87,10 @@ final class EntryEditViewModel {
     private let knownTags: [String]
     /// The tags this entry's location already grants it, from its group and
     /// that group's ancestors. Suggesting one would offer a no-op, so they are
-    /// excluded for as long as the editor is open (the entry cannot move while
-    /// it is being edited).
-    private let inheritedTags: Set<String>
+    /// excluded. Re-supplied by `setCreateDestination(to:inheritedTags:)` when
+    /// a New Entry form is aimed at a different group; an entry being edited
+    /// cannot move, so there it stays as it opened.
+    private var inheritedTags: Set<String>
 
     init(
         mode: Mode,
@@ -92,6 +104,7 @@ final class EntryEditViewModel {
         inheritedTags: [String] = [],
         editableCustomFields: [CustomField] = [],
         preservedCustomFields: [String: String] = [:],
+        seededProtectedCustomFieldKeys: Set<String> = [],
         totpSecret: String = "",
         totpDecodedSecret: Data? = nil,
         keeOTPSource: KeeOTPSource? = nil,
@@ -99,7 +112,8 @@ final class EntryEditViewModel {
         totpDigits: Int = 6,
         totpAlgorithm: TOTPAlgorithm = .sha1,
         passkeyCredential: PasskeyCredential? = nil,
-        unknownXMLNodeCount: Int = 0
+        unknownXMLNodeCount: Int = 0,
+        isSeededFromExistingEntry: Bool = false
     ) {
         self.mode = mode
         self.title = title
@@ -112,6 +126,7 @@ final class EntryEditViewModel {
         self.inheritedTags = Set(inheritedTags)
         self.customFields = editableCustomFields
         self.preservedCustomFields = preservedCustomFields
+        self.seededProtectedCustomFieldKeys = seededProtectedCustomFieldKeys
         self.totpSecret = totpSecret
         self.decodedTOTPSecret = totpDecodedSecret
         self.keeOTPSource = keeOTPSource
@@ -120,20 +135,43 @@ final class EntryEditViewModel {
         self.totpAlgorithm = totpAlgorithm
         self.passkeyCredential = passkeyCredential
         self.unknownXMLNodeCount = unknownXMLNodeCount
-        originalSnapshot = Snapshot(
-            title: title,
-            username: username,
-            password: password,
-            url: url,
-            notes: notes,
-            tags: TagNormalizer.tags(from: tags),
-            customFields: editableCustomFields,
-            totpSecret: totpSecret,
-            totpPeriod: totpPeriod,
-            totpDigits: totpDigits,
-            totpAlgorithm: totpAlgorithm,
-            enrolledOTPAuthURI: nil
-        )
+        self.isSeededFromExistingEntry = isSeededFromExistingEntry
+        // A create-mode form has nothing saved behind it, so its baseline is
+        // the empty entry even when it opens prefilled from another one. That
+        // is what lets a duplicate be saved without an edit, and what makes
+        // Cancel offer to discard it.
+        switch mode {
+        case .create:
+            originalSnapshot = Snapshot(
+                title: "",
+                username: "",
+                password: "",
+                url: "",
+                notes: "",
+                tags: [],
+                customFields: [],
+                totpSecret: "",
+                totpPeriod: 30,
+                totpDigits: 6,
+                totpAlgorithm: .sha1,
+                enrolledOTPAuthURI: nil
+            )
+        case .edit:
+            originalSnapshot = Snapshot(
+                title: title,
+                username: username,
+                password: password,
+                url: url,
+                notes: notes,
+                tags: TagNormalizer.tags(from: tags),
+                customFields: editableCustomFields,
+                totpSecret: totpSecret,
+                totpPeriod: totpPeriod,
+                totpDigits: totpDigits,
+                totpAlgorithm: totpAlgorithm,
+                enrolledOTPAuthURI: nil
+            )
+        }
     }
 
     convenience init(
@@ -192,6 +230,72 @@ final class EntryEditViewModel {
         )
     }
 
+    /// A New Entry form prefilled from `entry`, for the Duplicate action.
+    ///
+    /// Only what the entry editor itself owns is carried over: the basics,
+    /// tags, editable custom fields, and the TOTP configuration. The copy is a
+    /// new entry, so the original's passkey credential, unknown KeePass XML,
+    /// attachments, history, icon, and legacy KeeOTP storage stay with it — a
+    /// second entry claiming the same passkey would be a credential the site
+    /// never registered.
+    convenience init(
+        duplicating entry: KPEntry,
+        sessionKey: SymmetricKey,
+        into parentGroupID: UUID,
+        knownTags: [String] = [],
+        inheritedTags: [String] = []
+    ) {
+        let editableCustomFields = entry.displayCustomFields
+            .sorted(by: { $0.key.localizedCaseInsensitiveCompare($1.key) == .orderedAscending })
+            .map { CustomField(key: $0.key, value: $0.value) }
+        let password = (try? entry.password.decrypt(using: sessionKey)) ?? ""
+        let totpSecret = (try? entry.totpConfig?.secret.decrypt(using: sessionKey)) ?? ""
+
+        self.init(
+            mode: .create(parentGroupID: parentGroupID),
+            title: Self.duplicateTitle(for: entry.title),
+            username: entry.username,
+            password: password,
+            url: entry.url,
+            notes: entry.notes,
+            tags: entry.tags,
+            knownTags: knownTags,
+            inheritedTags: inheritedTags,
+            editableCustomFields: editableCustomFields,
+            seededProtectedCustomFieldKeys: entry.protectedStringKeys.intersection(
+                editableCustomFields.map(\.key)
+            ),
+            totpSecret: totpSecret,
+            totpPeriod: entry.totpConfig?.period ?? 30,
+            totpDigits: entry.totpConfig?.digits ?? 6,
+            totpAlgorithm: entry.totpConfig?.algorithm ?? .sha1,
+            isSeededFromExistingEntry: true
+        )
+    }
+
+    /// Marks the copy apart from its source in the list it lands in. An
+    /// untitled entry stays untitled rather than becoming a bare "copy".
+    private static func duplicateTitle(for title: String) -> String {
+        guard title.isEmpty == false else { return "" }
+        return String(localized: "\(title) copy")
+    }
+
+    /// The group a New Entry form will save into; `nil` while editing.
+    var createDestinationGroupID: UUID? {
+        guard case .create(let parentGroupID) = mode else { return nil }
+        return parentGroupID
+    }
+
+    /// Retargets a New Entry form at another group, with that group's
+    /// inherited tags so the suggestion strip keeps matching where the entry
+    /// is actually going. Ignored while editing: an entry moves through the
+    /// Move to Group flow, not through its editor.
+    func setCreateDestination(to groupID: UUID, inheritedTags: [String]) {
+        guard case .create = mode else { return }
+        mode = .create(parentGroupID: groupID)
+        self.inheritedTags = Set(inheritedTags)
+    }
+
     var isDirty: Bool {
         currentSnapshot != originalSnapshot
     }
@@ -221,14 +325,16 @@ final class EntryEditViewModel {
         return String(localized: "This entry stores its code in the legacy KeeOTP format, which only supports 6- or 8-digit codes.")
     }
 
+    /// A password the user is about to type is shown; one that came out of
+    /// the database — an edit, or a duplicate — starts hidden.
     var isPasswordInitiallyVisible: Bool {
-        if case .create = mode { return true }
+        if case .create = mode { return isSeededFromExistingEntry == false }
         return false
     }
 
     var requiresAuthenticationToRevealPassword: Bool {
         if case .edit = mode { return true }
-        return false
+        return isSeededFromExistingEntry
     }
 
     var entryDraftPayload: EntryDraftPayload {
@@ -239,6 +345,7 @@ final class EntryEditViewModel {
             url: url,
             notes: notes,
             customFields: mergedCustomFields(),
+            protectedCustomFieldKeys: seededProtectedCustomFieldKeys,
             tags: normalizedTags(),
             totpConfig: normalizedTOTPConfiguration()
         )

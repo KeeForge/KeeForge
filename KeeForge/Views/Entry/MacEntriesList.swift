@@ -26,6 +26,10 @@ struct MacEntriesList: View {
     @FocusState private var isListFocused: Bool
     @State private var pendingDeletion: PendingDeletion?
     @State private var pendingMove: PendingMove?
+    /// The prefilled New Entry form a Duplicate raised. Hosted here rather
+    /// than raised to the workspace the way the group column does it, because
+    /// these lists own their presentations.
+    @State private var duplicateEditor: EntryEditViewModel?
 
     var body: some View {
         List(entries, selection: $viewModel.selectedEntryID) { entry in
@@ -37,6 +41,7 @@ struct MacEntriesList: View {
                 isListFocused: $isListFocused,
                 onOpenEntry: openEntry,
                 onRequestMove: { pendingMove = $0 },
+                onRequestDuplicate: { duplicateEditor = $0 },
                 onRequestDeletion: { pendingDeletion = $0 }
             )
         }
@@ -54,6 +59,17 @@ struct MacEntriesList: View {
             ) { destinationGroupID in
                 pending.apply(destinationGroupID: destinationGroupID, viewModel: viewModel)
             }
+        }
+        .sheet(item: $duplicateEditor) { formViewModel in
+            NavigationStack {
+                EntryEditView(
+                    formViewModel: formViewModel,
+                    databaseViewModel: viewModel
+                ) { _ in
+                    duplicateEditor = nil
+                }
+            }
+            .macSheetFrame()
         }
     }
 
@@ -76,6 +92,7 @@ struct MacEntryRow: View {
     @FocusState.Binding var isListFocused: Bool
     let onOpenEntry: (UUID) -> Void
     let onRequestMove: (PendingMove) -> Void
+    let onRequestDuplicate: (EntryEditViewModel) -> Void
     let onRequestDeletion: (PendingDeletion) -> Void
 
     var body: some View {
@@ -102,6 +119,10 @@ struct MacEntryRow: View {
         .accessibilityIdentifier(rowIdentifier)
         .contextMenu {
             EntryRowCopyActions(entry: entry, viewModel: viewModel)
+
+            EntryRowDuplicateAction(entryID: entry.id, viewModel: viewModel) { editor in
+                onRequestDuplicate(editor)
+            }
 
             if canMove {
                 Button("Move to Group") {

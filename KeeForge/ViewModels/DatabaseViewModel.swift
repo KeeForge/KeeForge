@@ -992,6 +992,12 @@ final class DatabaseViewModel {
         return TagNormalizer.tags(from: groupInheritedTags[groupID] ?? [])
     }
 
+    /// The group `entryID` currently sits in; `nil` for an unknown entry.
+    func parentGroupID(forEntryID entryID: UUID) -> UUID? {
+        _ = contentRevision
+        return entryParentGroupIDs[entryID]
+    }
+
     /// `inheritedTags(forGroupID:)` for the group currently holding `entryID` —
     /// what the entry gets from where it sits, excluding its own tags. Empty
     /// for an unknown entry.
@@ -1193,6 +1199,15 @@ final class DatabaseViewModel {
             prunedSubtreeID: groupID,
             currentParentID: currentRootGroup.flatMap { Self.parentGroupID(of: groupID, in: $0) }
         )
+    }
+
+    /// The groups a new entry could be created in, for the entry editor's
+    /// destination row. Same walk as the move variants — the recycle bin is
+    /// never a destination — with `currentGroupID` marked as the one the form
+    /// is already aimed at.
+    func groupDestinationOptions(currentGroupID: UUID?) -> [MoveDestinationOption] {
+        _ = contentRevision
+        return moveDestinationOptions(prunedSubtreeID: nil, currentParentID: currentGroupID)
     }
 
     private func moveDestinationOptions(

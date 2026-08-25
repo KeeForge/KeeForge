@@ -674,4 +674,163 @@ final class EntryEditViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.totpSecret, "JBSWY3DPEHPK3PXP")
         XCTAssertEqual(viewModel.totpPeriod, 45)
     }
+    // MARK: - Duplicating an entry
+
+    func testDuplicatingEntryCopiesTheEditableFieldsAndMarksTheTitleAsACopy() throws {
+        let entry = KPEntry(
+            title: "Bank",
+            username: "alice",
+            password: try EncryptedValue.encrypt("secret", using: sessionKey),
+            url: "https://example.com",
+            notes: "recovery codes in the safe",
+            tags: ["work"],
+            hasTagsElement: true,
+            customFields: ["Environment": "Production"],
+            totpConfig: TOTPConfig(
+                secret: try EncryptedValue.encrypt("JBSWY3DPEHPK3PXP", using: sessionKey),
+                period: 45,
+                digits: 8,
+                algorithm: .sha256
+            )
+        )
+        let parentGroupID = UUID()
+
+        let viewModel = EntryEditViewModel(
+            duplicating: entry,
+            sessionKey: sessionKey,
+            into: parentGroupID
+        )
+
+        XCTAssertEqual(viewModel.mode, .create(parentGroupID: parentGroupID))
+        // Asserted by shape rather than by string: the suffix is localized.
+        XCTAssertTrue(viewModel.title.hasPrefix("Bank"))
+        XCTAssertNotEqual(viewModel.title, "Bank")
+
+        let payload = viewModel.entryDraftPayload
+        XCTAssertEqual(payload.username, "alice")
+        XCTAssertEqual(payload.password, "secret")
+        XCTAssertEqual(payload.url, "https://example.com")
+        XCTAssertEqual(payload.notes, "recovery codes in the safe")
+        XCTAssertEqual(payload.tags, ["work"])
+        XCTAssertEqual(payload.customFields["Environment"], "Production")
+        XCTAssertEqual(payload.totpConfig?.secret, "JBSWY3DPEHPK3PXP")
+        XCTAssertEqual(payload.totpConfig?.period, 45)
+        XCTAssertEqual(payload.totpConfig?.digits, 8)
+        XCTAssertEqual(payload.totpConfig?.algorithm, .sha256)
+    }
+
+    func testDuplicatingEntryKeepsProtectedCustomFieldsProtected() {
+        let entry = KPEntry(
+            title: "Bank",
+            customFields: ["Recovery Code": "12345", "Environment": "Production"],
+            protectedStringKeys: ["Recovery Code"]
+        )
+
+        let viewModel = EntryEditViewModel(
+            duplicating: entry,
+            sessionKey: sessionKey,
+            into: UUID()
+        )
+
+        // The copy is a new entry, so nothing downstream can inherit the
+        // original's protection flags — the form has to ask for them.
+        XCTAssertEqual(viewModel.entryDraftPayload.protectedCustomFieldKeys, ["Recovery Code"])
+    }
+
+    func testDuplicatingEntryWithAnEmptyTitleLeavesItEmpty() {
+        let viewModel = EntryEditViewModel(
+            duplicating: KPEntry(username: "alice"),
+            sessionKey: sessionKey,
+            into: UUID()
+        )
+
+        XCTAssertEqual(viewModel.title, "")
+    }
+
+    func testDuplicatingEntryLeavesThePasskeyAndUnknownXMLWithTheOriginal() throws {
+        let entry = KPEntry(
+            title: "Passkey",
+            customFields: [
+                "Environment": "Production",
+                PasskeyCredential.credentialIDKey: "credential-id",
+                PasskeyCredential.relyingPartyKey: "example.com",
+                PasskeyCredential.usernameKey: "alice@example.com",
+                PasskeyCredential.userHandleKey: "user-handle",
+            ],
+            passkeyPrivateKey: try EncryptedValue.encrypt("private-key", using: sessionKey),
+            unknownXML: OpaqueXMLNodes(nodes: [.init(insertionIndex: 0, xml: "<Custom/>")])
+        )
+
+        let viewModel = EntryEditViewModel(
+            duplicating: entry,
+            sessionKey: sessionKey,
+            into: UUID()
+        )
+
+        XCTAssertNil(viewModel.passkeyCredential)
+        XCTAssertEqual(viewModel.unknownXMLNodeCount, 0)
+
+        let payload = viewModel.entryDraftPayload
+        XCTAssertEqual(payload.customFields["Environment"], "Production")
+        for key in PasskeyCredential.allFieldKeys {
+            XCTAssertNil(payload.customFields[key])
+        }
+    }
+
+    func testDuplicateIsSavableUntouchedAndKeepsTheCopiedPasswordProtected() throws {
+        let entry = KPEntry(
+            title: "Bank",
+            password: try EncryptedValue.encrypt("secret", using: sessionKey)
+        )
+
+        let viewModel = EntryEditViewModel(
+            duplicating: entry,
+            sessionKey: sessionKey,
+            into: UUID()
+        )
+
+        XCTAssertTrue(viewModel.isDirty)
+        XCTAssertTrue(viewModel.canSave)
+        XCTAssertFalse(viewModel.isPasswordInitiallyVisible)
+        XCTAssertTrue(viewModel.requiresAuthenticationToRevealPassword)
+    }
+
+    func testNewEntryFormStillOpensEmptyUnsavableAndWithItsPasswordVisible() {
+        let viewModel = EntryEditViewModel(createIn: UUID())
+
+        XCTAssertFalse(viewModel.canSave)
+        XCTAssertTrue(viewModel.isPasswordInitiallyVisible)
+        XCTAssertFalse(viewModel.requiresAuthenticationToRevealPassword)
+    }
+
+    // MARK: - The create form's destination group
+
+    func testSetCreateDestinationRetargetsTheFormAndRefreshesInheritedTagSuggestions() {
+        let origin = UUID()
+        let destination = UUID()
+        let viewModel = EntryEditViewModel(
+            createIn: origin,
+            knownTags: ["home", "work"],
+            inheritedTags: ["work"]
+        )
+
+        XCTAssertEqual(viewModel.createDestinationGroupID, origin)
+        XCTAssertEqual(viewModel.tagSuggestions, ["home"])
+
+        viewModel.setCreateDestination(to: destination, inheritedTags: ["home"])
+
+        XCTAssertEqual(viewModel.createDestinationGroupID, destination)
+        XCTAssertEqual(viewModel.mode, .create(parentGroupID: destination))
+        XCTAssertEqual(viewModel.tagSuggestions, ["work"])
+    }
+
+    func testSetCreateDestinationIsIgnoredWhileEditingAnEntry() {
+        let entry = KPEntry(title: "Bank")
+        let viewModel = EntryEditViewModel(editing: entry, sessionKey: sessionKey)
+
+        viewModel.setCreateDestination(to: UUID(), inheritedTags: [])
+
+        XCTAssertNil(viewModel.createDestinationGroupID)
+        XCTAssertEqual(viewModel.mode, .edit(entryID: entry.id))
+    }
 }
