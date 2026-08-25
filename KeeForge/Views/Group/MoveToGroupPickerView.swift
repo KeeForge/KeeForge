@@ -10,6 +10,10 @@ import SwiftUI
 /// nothing.
 struct MoveToGroupPickerView: View {
     let options: [DatabaseViewModel.MoveDestinationOption]
+    /// Titled per caller: moving an existing item and choosing where a new
+    /// entry will be created are the same pick over the same tree, but they
+    /// are not the same sentence.
+    var navigationTitle: LocalizedStringKey = "Move to Group"
     let onSelect: (UUID) -> Void
 
     @Environment(\.dismiss) private var dismiss
@@ -39,7 +43,7 @@ struct MoveToGroupPickerView: View {
                 .accessibilityIdentifier("move-picker.group.\(option.id.uuidString)")
                 .macHoverHighlight()
             }
-            .navigationTitle("Move to Group")
+            .navigationTitle(navigationTitle)
             #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
             #endif

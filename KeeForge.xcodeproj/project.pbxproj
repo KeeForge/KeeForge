@@ -114,6 +114,7 @@
 		254A238588C1AE321DD0FAF9 /* KDBXFileSummary.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3A733BA9590643828A645C9D /* KDBXFileSummary.swift */; };
 		259148A788E9ADCD6DB573A1 /* AutoFillStoreInspectorGroupingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 149DB5F58CEC322A5B078635 /* AutoFillStoreInspectorGroupingTests.swift */; };
 		25BFA955FFF79E54F6F98E89 /* EntryEditView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CAB9CB7D5F3120A16D3D7D7E /* EntryEditView.swift */; };
+		2631C138D8751076163C1501 /* EntryRowDuplicateAction.swift in Sources */ = {isa = PBXBuildFile; fileRef = 64D2970205BB303CDA5A78A0 /* EntryRowDuplicateAction.swift */; };
 		264EE7881CAD7CAD36E80E79 /* DropboxCloudProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6AFBBC10051B412E85947EB5 /* DropboxCloudProvider.swift */; };
 		26C6C8F1FBF4C3CFBD4165AD /* SettingsService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 44E0A599916DAE57D4D11320 /* SettingsService.swift */; };
 		26CEC156DFC11E3AD7C8C7D7 /* DatabaseFileAccess.swift in Sources */ = {isa = PBXBuildFile; fileRef = 01CABCF3E768742B25CA802D /* DatabaseFileAccess.swift */; };
@@ -324,6 +325,7 @@
 		776466A679F17BCB1E7E3762 /* TwofishTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0D923EB4B018FB500295E74 /* TwofishTests.swift */; };
 		7773C42734CD4B651C8EF7B7 /* CredentialMatcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB8B2C6F3F5C2509AC462D87 /* CredentialMatcher.swift */; };
 		7991355F2A9BA147B460445B /* GroupEditViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3ECEDBFE3791A3AF8121C4DD /* GroupEditViewModelTests.swift */; };
+		7AA65543BE3ED502FF8BEA55 /* EntryDuplicateUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A225E7C96451506F1DE532D2 /* EntryDuplicateUITests.swift */; };
 		7AF427B2C82399DFAFDA2068 /* StoreKitManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = C303F1BB7603F55869127E7A /* StoreKitManager.swift */; };
 		7B4A383B0CCBEC221D249972 /* PendingUploadDrainerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 731F0A21E9D989FC97F13C23 /* PendingUploadDrainerTests.swift */; };
 		7BA51D4BD4522A58ED68568E /* KDBXMergerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D763140F783B299E5E1BD920 /* KDBXMergerTests.swift */; };
@@ -456,6 +458,7 @@
 		AA14F338CB19654F4C13192F /* Entry.swift in Sources */ = {isa = PBXBuildFile; fileRef = AEF7A2480DF3853AFF0AF02B /* Entry.swift */; };
 		AA1C4769A8F9001B39F19A35 /* MasterKeyChangeViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 05B4AC76C64387846397BB2B /* MasterKeyChangeViewModel.swift */; };
 		AA4DD3D6E492A2B81997D974 /* CloudSyncModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 08702F9E96C5B224C101B058 /* CloudSyncModels.swift */; };
+		AA8AB683250C1761356F5580 /* EntryRowDuplicateAction.swift in Sources */ = {isa = PBXBuildFile; fileRef = 64D2970205BB303CDA5A78A0 /* EntryRowDuplicateAction.swift */; };
 		AA8AD68448B0231DD9EC68F9 /* CredentialProviderViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5DFD74CE6911EB771A4B7FBD /* CredentialProviderViewController.swift */; };
 		AAE58420285704CD0AA393B0 /* CredentialProviderCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 268A6ED5FD7C908116437C5E /* CredentialProviderCoordinator.swift */; };
 		AB262501A61481EC22FA6C77 /* CredentialProviderViewControllerMac.swift in Sources */ = {isa = PBXBuildFile; fileRef = 63CD5B20E6190897E216C7F3 /* CredentialProviderViewControllerMac.swift */; };
@@ -911,6 +914,7 @@
 		633D74C75C8E56DA9DAF5458 /* CloudSyncCoordinatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudSyncCoordinatorTests.swift; sourceTree = "<group>"; };
 		6371CF6584F8950C4679FE28 /* DatabaseListViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DatabaseListViewModelTests.swift; sourceTree = "<group>"; };
 		63CD5B20E6190897E216C7F3 /* CredentialProviderViewControllerMac.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CredentialProviderViewControllerMac.swift; sourceTree = "<group>"; };
+		64D2970205BB303CDA5A78A0 /* EntryRowDuplicateAction.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EntryRowDuplicateAction.swift; sourceTree = "<group>"; };
 		65027967D3D168FF503B9FC7 /* KeeForgeMacTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = KeeForgeMacTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		66DF057AA435224858861550 /* CloudAccountStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudAccountStoreTests.swift; sourceTree = "<group>"; };
 		68FE916D34E1B688CC1CC521 /* InfoPlist.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = InfoPlist.xcstrings; sourceTree = "<group>"; };
@@ -981,6 +985,7 @@
 		A01A49238AD6DEF29C56B328 /* EntryEditCompletionGateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EntryEditCompletionGateTests.swift; sourceTree = "<group>"; };
 		A04A6F5E71D63FC88AC15D59 /* TagNormalizerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TagNormalizerTests.swift; sourceTree = "<group>"; };
 		A0987977B0D41FBB5C1456C5 /* CredentialProviderSaveTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CredentialProviderSaveTests.swift; sourceTree = "<group>"; };
+		A225E7C96451506F1DE532D2 /* EntryDuplicateUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EntryDuplicateUITests.swift; sourceTree = "<group>"; };
 		A27CD1F92E039BFE26CEBD31 /* PendingRowActions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PendingRowActions.swift; sourceTree = "<group>"; };
 		A3660A7394A4B715ECCC64FF /* TOTPViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TOTPViewModelTests.swift; sourceTree = "<group>"; };
 		A4B29C7E6A73F5DDFE71DB6E /* SharedVaultStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SharedVaultStore.swift; sourceTree = "<group>"; };
@@ -1179,6 +1184,7 @@
 				8CA9912B84B19D308EAEDF9F /* DatabaseListUITests.swift */,
 				1209029C4B875501D2326C3D /* DocumentsVaultUITests.swift */,
 				1C09B67C6FBD95B95F6E4107 /* EntryAttachmentsSmokeUITests.swift */,
+				A225E7C96451506F1DE532D2 /* EntryDuplicateUITests.swift */,
 				0298F6EF01194050F3D35F5A /* EntryEditUITests.swift */,
 				225F6ADE53ECA272B4721EFB /* EntryRowCopyUITests.swift */,
 				D0676F0C4E5413139552083A /* GroupEditUITests.swift */,
@@ -1304,6 +1310,7 @@
 				E5188612D8251D8EEAA729F2 /* EntryIconPickerView.swift */,
 				C8F125AC304D7385EF54E7A8 /* EntryListView.swift */,
 				DE329B5193927500F922C84C /* EntryRowCopyActions.swift */,
+				64D2970205BB303CDA5A78A0 /* EntryRowDuplicateAction.swift */,
 				596A02F7CDB9320B4B325A37 /* MacEntriesList.swift */,
 				A27CD1F92E039BFE26CEBD31 /* PendingRowActions.swift */,
 			);
@@ -2411,6 +2418,7 @@
 				5C06127D64C6675A64D3CA38 /* EntryIconPickerView.swift in Sources */,
 				B283218F7F6FB2F72076119C /* EntryListView.swift in Sources */,
 				AEC5F5CE3289124448F27CC3 /* EntryRowCopyActions.swift in Sources */,
+				AA8AB683250C1761356F5580 /* EntryRowDuplicateAction.swift in Sources */,
 				A41B683E166EFC655E37B44E /* FaviconIconEncoder.swift in Sources */,
 				4D396A9321B96E0F08BAAAE3 /* FaviconService.swift in Sources */,
 				65150CEF897121752B259164 /* FaviconView.swift in Sources */,
@@ -2564,6 +2572,7 @@
 				29DDAA2E34F0D576EE67B15A /* EntryIconPickerView.swift in Sources */,
 				C4C8E7DC122BD0F87C49FAB6 /* EntryListView.swift in Sources */,
 				EBD80723C6978E5DAB7C41F9 /* EntryRowCopyActions.swift in Sources */,
+				2631C138D8751076163C1501 /* EntryRowDuplicateAction.swift in Sources */,
 				0DB261D955659EE3DFF1505A /* FaviconIconEncoder.swift in Sources */,
 				81AF01EE09EF23EEDE28DB5F /* FaviconService.swift in Sources */,
 				57449CE2BB90C9576529E881 /* FaviconView.swift in Sources */,
@@ -2663,6 +2672,7 @@
 				D6731B3FAF7B564B8F9439B7 /* DatabaseListUITests.swift in Sources */,
 				C830C4BDCE2A486F2F1F27C8 /* DocumentsVaultUITests.swift in Sources */,
 				8A3A063200458F5296146348 /* EntryAttachmentsSmokeUITests.swift in Sources */,
+				7AA65543BE3ED502FF8BEA55 /* EntryDuplicateUITests.swift in Sources */,
 				F73B54C1572F840DDD7889DF /* EntryEditUITests.swift in Sources */,
 				12D8828D451B1607F6400D83 /* EntryRowCopyUITests.swift in Sources */,
 				B4CC67B6F57A77DA2A01E94C /* GroupEditUITests.swift in Sources */,

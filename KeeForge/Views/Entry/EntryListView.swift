@@ -7,6 +7,11 @@ struct EntryListView: View {
     @State private var pendingEntryDeletion: PendingEntryDeletion?
     /// The entry whose Move-to-Group picker is presented, or `nil` when none is.
     @State private var pendingMove: PendingMove?
+    /// The prefilled New Entry form a Duplicate raised, or `nil` when none is.
+    /// A sheet rather than a push: this list is the search results and the tag
+    /// browser, which the iPad renders in the sidebar column, and a form
+    /// pushed there would open beside the entry it was copied from.
+    @State private var duplicateEditor: EntryEditViewModel?
 
     var body: some View {
         Group {
@@ -29,6 +34,17 @@ struct EntryListView: View {
                 options: pending.destinationOptions(viewModel: viewModel)
             ) { destinationGroupID in
                 pending.apply(destinationGroupID: destinationGroupID, viewModel: viewModel)
+            }
+        }
+        // Outside the branches for the same reason as the hosts above.
+        .sheet(item: $duplicateEditor) { formViewModel in
+            NavigationStack {
+                EntryEditView(
+                    formViewModel: formViewModel,
+                    databaseViewModel: viewModel
+                ) { _ in
+                    duplicateEditor = nil
+                }
             }
         }
     }
@@ -68,6 +84,10 @@ struct EntryListView: View {
         .macHoverHighlight()
         .contextMenu {
             EntryRowCopyActions(entry: entry, viewModel: viewModel)
+
+            EntryRowDuplicateAction(entryID: entry.id, viewModel: viewModel) { editor in
+                duplicateEditor = editor
+            }
 
             if canMove(entry) {
                 Button("Move to Group") {

@@ -20,6 +20,7 @@ struct EntryEditView: View {
     @State private var isManualTOTPEntryActive = false
     @State private var showTOTPScanner = false
     @State private var showTOTPSetupLink = false
+    @State private var showGroupPicker = false
     @State private var showRemoveTOTPConfirmation = false
     /// String mirror for the numeric period field; committed to the view
     /// model only when it parses to a positive integer. Focus loss and submit
@@ -112,6 +113,12 @@ struct EntryEditView: View {
                         .accessibilityIdentifier("entry-edit.tags-field")
 
                     tagSuggestionStrip
+                }
+            }
+
+            if formViewModel.createDestinationGroupID != nil {
+                Section("Group") {
+                    destinationGroupRow
                 }
             }
 
@@ -241,6 +248,21 @@ struct EntryEditView: View {
         .sheet(isPresented: $showTOTPSetupLink) {
             TOTPSetupLinkSheet { link in
                 formViewModel.applySetupLink(link)
+            }
+        }
+        .sheet(isPresented: $showGroupPicker) {
+            // Options are resolved when the picker is built, not when the row
+            // was tapped, so it reflects the tree as it is now.
+            MoveToGroupPickerView(
+                options: databaseViewModel.groupDestinationOptions(
+                    currentGroupID: formViewModel.createDestinationGroupID
+                ),
+                navigationTitle: "Select Group"
+            ) { groupID in
+                formViewModel.setCreateDestination(
+                    to: groupID,
+                    inheritedTags: databaseViewModel.inheritedTags(forGroupID: groupID)
+                )
             }
         }
         .onChange(of: totpPeriodText) { _, newValue in
@@ -525,6 +547,35 @@ struct EntryEditView: View {
         case .edit:
             String(localized: "Edit Entry")
         }
+    }
+
+    /// Where a New Entry form will save. Only create mode has one: an entry
+    /// being edited moves through the Move to Group flow instead.
+    @ViewBuilder
+    private var destinationGroupRow: some View {
+        Button {
+            showGroupPicker = true
+        } label: {
+            HStack {
+                Label(destinationGroupName, systemImage: "folder")
+
+                Spacer()
+
+                Image(systemName: "chevron.right")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .accessibilityHidden(true)
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier("entry-edit.group")
+        .macHoverHighlight()
+    }
+
+    private var destinationGroupName: String {
+        guard let groupID = formViewModel.createDestinationGroupID else { return "" }
+        return databaseViewModel.group(withID: groupID)?.name ?? ""
     }
 
     private func basicFieldRow<Content: View>(

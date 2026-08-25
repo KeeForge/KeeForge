@@ -729,6 +729,27 @@ final class DatabaseViewModelTests: XCTestCase {
         XCTAssertEqual(options.filter(\.isCurrentParent).count, 1)
     }
 
+    func testGroupDestinationOptionsExcludeRecycleBinAndFlagTheCurrentDestination() async throws {
+        let vm = try makeViewModel()
+        await vm.unlock(password: fixturePassword)
+
+        // Recycling an entry is what creates the bin in this fixture.
+        let workGroup = try XCTUnwrap(vm.visibleRootGroup?.groups.first(where: { $0.name == "Work" }))
+        let recycledEntry = try XCTUnwrap(workGroup.entries.first)
+        try vm.deleteEntry(recycledEntry.id, sendToRecycleBin: true)
+        let recycleBinID = try XCTUnwrap(vm.currentRootGroup?.recycleBinUUID)
+
+        let socialGroup = try XCTUnwrap(vm.visibleRootGroup?.groups.first(where: { $0.name == "Social" }))
+
+        let options = vm.groupDestinationOptions(currentGroupID: socialGroup.id)
+
+        XCTAssertFalse(options.contains(where: { $0.id == recycleBinID }))
+        XCTAssertEqual(options.first?.id, vm.visibleRootGroupID)
+        XCTAssertEqual(options.filter(\.isCurrentParent).map(\.id), [socialGroup.id])
+        // A form with no destination yet simply flags nothing.
+        XCTAssertTrue(vm.groupDestinationOptions(currentGroupID: nil).allSatisfy { $0.isCurrentParent == false })
+    }
+
     func testMoveDestinationOptionsExcludeTheMovedGroupsOwnSubtree() async throws {
         let vm = try makeViewModel()
         await vm.unlock(password: fixturePassword)

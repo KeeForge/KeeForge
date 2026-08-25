@@ -490,6 +490,14 @@ struct GroupListView: View {
         .contextMenu {
             EntryRowCopyActions(entry: entry, viewModel: viewModel)
 
+            EntryRowDuplicateAction(entryID: entry.id, viewModel: viewModel) { editor in
+                if let onCreateEntry {
+                    onCreateEntry(editor)
+                } else {
+                    activeEditor = editor
+                }
+            }
+
             if canMoveEntry(entry) {
                 Button("Move to Group") {
                     pendingMove = .entry(entry.id)

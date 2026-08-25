@@ -50,6 +50,7 @@ TODO before the first macOS release:
 ### New Features
 
 - Long-press an entry in a list to copy its username or password without opening it (#102). Copying the password asks for Face ID, Touch ID, or your passcode first, the same as in the entry itself.
+- Duplicate an entry (#104). Long-press an entry and choose "Duplicate" to open a New Entry form already filled in from it, including its password, tags, custom fields, and verification code. Pick a different group for the copy before saving if you want it somewhere else. The copy does not carry over attachments, entry history, passkeys, or a custom icon.
 - The password generator now remembers your settings (#97). Length, character sets, and "Exclude Ambiguous Characters" carry over the next time you open it, and the password suggested when creating an entry from AutoFill uses the same settings.
 
 ### Fixes

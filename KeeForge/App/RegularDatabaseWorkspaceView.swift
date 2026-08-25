@@ -528,6 +528,7 @@ struct RegularDatabaseWorkspaceView: View {
                     viewModel: viewModel,
                     onOpenEntry: { beginEntryEdit(entryID: $0) },
                     onRequestMove: { pendingMove = $0 },
+                    onRequestDuplicate: { beginEntryDuplicate($0) },
                     onRequestDeletion: { pendingDeletion = $0 }
                 )
                 .id(viewModel.contentRevision)
@@ -662,6 +663,14 @@ struct RegularDatabaseWorkspaceView: View {
         )
     }
 
+    /// Opens the prefilled New Entry form the content column's Duplicate item
+    /// built, in the workspace's own editor sheet.
+    @MainActor
+    private func beginEntryDuplicate(_ formViewModel: EntryEditViewModel) {
+        guard commandEditor == nil else { return }
+        commandEditor = formViewModel
+    }
+
     @MainActor
     private func beginSelectedEntryEdit() {
         guard let entryID = viewModel.selectedEntryID else { return }
@@ -758,6 +767,9 @@ private struct MacEntriesColumn: View {
     /// Raised to the workspace, which hosts the picker and the confirmation;
     /// a row-scoped host dies with the row the action removes.
     let onRequestMove: (PendingMove) -> Void
+    /// Raised to the workspace too, so a duplicate opens the one editor sheet
+    /// ⌘N and ⌘E open rather than a second one over this column.
+    let onRequestDuplicate: (EntryEditViewModel) -> Void
     let onRequestDeletion: (PendingDeletion) -> Void
 
     private var resolvedGroup: KPGroup? {
@@ -783,6 +795,7 @@ private struct MacEntriesColumn: View {
                             isListFocused: $isListFocused,
                             onOpenEntry: onOpenEntry,
                             onRequestMove: onRequestMove,
+                            onRequestDuplicate: onRequestDuplicate,
                             onRequestDeletion: onRequestDeletion
                         )
                     }
