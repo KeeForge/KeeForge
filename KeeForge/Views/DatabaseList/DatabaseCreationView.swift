@@ -110,9 +110,11 @@ struct DatabaseCreationView: View {
     private var formContent: some View {
         Form {
             Section {
-                TextField("Database name", text: $viewModel.databaseName)
-                    .textInputAutocapitalization(.words)
-                    .accessibilityIdentifier("database-create.name-field")
+                labeledField(String(localized: "Database name")) {
+                    TextField("Database name", text: $viewModel.databaseName)
+                        .textInputAutocapitalization(.words)
+                        .accessibilityIdentifier("database-create.name-field")
+                }
             } header: {
                 Text("Database")
             } footer: {
@@ -120,33 +122,39 @@ struct DatabaseCreationView: View {
             }
 
             Section {
-                Picker("Save To", selection: $viewModel.destinationChoice) {
-                    ForEach(DatabaseCreationDestinationChoice.availableChoices) { destination in
-                        Text(destination.title).tag(destination)
+                labeledField(String(localized: "Save To")) {
+                    Picker("Save To", selection: $viewModel.destinationChoice) {
+                        ForEach(DatabaseCreationDestinationChoice.availableChoices) { destination in
+                            Text(destination.title).tag(destination)
+                        }
                     }
+                    .pickerStyle(.segmented)
+                    .accessibilityIdentifier("database-create.destination-picker")
                 }
-                .pickerStyle(.segmented)
-                .accessibilityIdentifier("database-create.destination-picker")
-            } header: {
-                Text("Destination")
             }
 
             Section {
-                PasswordInputRow(
-                    title: String(localized: "Master password"),
-                    text: $viewModel.password,
-                    isVisible: $isMasterPasswordVisible,
-                    fieldAccessibilityIdentifier: "database-create.password-field",
-                    visibilityAccessibilityIdentifier: "database-create.password-visibility-button"
-                )
+                labeledField(String(localized: "Master password")) {
+                    PasswordInputRow(
+                        title: String(localized: "Master password"),
+                        text: $viewModel.password,
+                        isVisible: $isMasterPasswordVisible,
+                        fieldAccessibilityIdentifier: "database-create.password-field",
+                        visibilityAccessibilityIdentifier: "database-create.password-visibility-button",
+                        usesPasswordAutoFill: false
+                    )
+                }
 
-                PasswordInputRow(
-                    title: String(localized: "Confirm password"),
-                    text: $viewModel.confirmPassword,
-                    isVisible: $isConfirmPasswordVisible,
-                    fieldAccessibilityIdentifier: "database-create.confirm-password-field",
-                    visibilityAccessibilityIdentifier: "database-create.confirm-password-visibility-button"
-                )
+                labeledField(String(localized: "Confirm password")) {
+                    PasswordInputRow(
+                        title: String(localized: "Confirm password"),
+                        text: $viewModel.confirmPassword,
+                        isVisible: $isConfirmPasswordVisible,
+                        fieldAccessibilityIdentifier: "database-create.confirm-password-field",
+                        visibilityAccessibilityIdentifier: "database-create.confirm-password-visibility-button",
+                        usesPasswordAutoFill: false
+                    )
+                }
 
                 if let warning = viewModel.passwordStrengthWarning {
                     Text(warning)
@@ -160,7 +168,10 @@ struct DatabaseCreationView: View {
             }
 
             Section {
-                LabeledContent("Selected", value: viewModel.keyFileSummary)
+                labeledField(String(localized: "Selected")) {
+                    Text(viewModel.keyFileSummary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
 
                 Button {
                     isKeyFileImporterPresented = true
@@ -204,19 +215,51 @@ struct DatabaseCreationView: View {
         }
     }
 
+    /// Top-aligned caption over its field, matching the entry/group editors.
+    /// `macLabelsHidden` drops the field's own label so macOS does not reserve a
+    /// leading label column that pushes multi-control rows off the sheet.
+    private func labeledField<Content: View>(
+        _ title: String,
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(title)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+            content()
+                .macLabelsHidden()
+                .macFormFieldStyle()
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.vertical, 2)
+    }
+
     private var advancedFooter: String {
         let cipherName = viewModel.cipher.displayName
         let kdfSummary = viewModel.kdfPreset.parameterSummary
+        #if os(macOS)
+        return String(localized: "KeeForge creates KDBX 4 databases encrypted with \(cipherName) and Argon2id key derivation (\(kdfSummary)). Stronger settings take longer to unlock.")
+        #else
         return String(localized: "KeeForge creates KDBX 4 databases encrypted with \(cipherName) and Argon2id key derivation (\(kdfSummary)). Stronger settings take longer to unlock and may exceed AutoFill's memory limit on some devices.")
+        #endif
     }
 
     private var destinationFooter: String {
         switch viewModel.destinationChoice {
         case .files:
+            #if os(macOS)
+            return String(localized: "After you click Create, KeeForge asks where to save the encrypted .kdbx database.")
+            #else
             return String(localized: "After you tap Create, Files will ask where to save the encrypted .kdbx database.")
+            #endif
         case .dropbox, .oneDrive, .webDAV:
             let providerName = selectedCloudProvider?.displayName ?? String(localized: "cloud")
+            #if os(macOS)
+            return String(localized: "After you click Create, choose the \(providerName) folder for the encrypted .kdbx database.")
+            #else
             return String(localized: "After you tap Create, choose the \(providerName) folder for the encrypted .kdbx database.")
+            #endif
         }
     }
 

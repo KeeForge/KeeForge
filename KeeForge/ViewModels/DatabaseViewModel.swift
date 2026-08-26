@@ -2418,19 +2418,20 @@ final class DatabaseViewModel {
                 return asc ? result : !result
             }
         }
-        return Self.pinningRecycleBinFirst(ordered, recycleBinID: currentRootGroup?.recycleBinUUID)
+        return Self.pinningRecycleBinLast(ordered, recycleBinID: currentRootGroup?.recycleBinUUID)
     }
 
     /// The bin is a fixed landmark rather than one folder among many, so it
-    /// keeps the same slot no matter which sort order or direction is active.
-    private static func pinningRecycleBinFirst(_ groups: [KPGroup], recycleBinID: UUID?) -> [KPGroup] {
+    /// keeps the bottom slot no matter which sort order or direction is active —
+    /// the placement most KeePass apps use.
+    private static func pinningRecycleBinLast(_ groups: [KPGroup], recycleBinID: UUID?) -> [KPGroup] {
         guard let recycleBinID,
               let index = groups.firstIndex(where: { $0.id == recycleBinID }),
-              index != 0 else {
+              index != groups.count - 1 else {
             return groups
         }
         var pinned = groups
-        pinned.insert(pinned.remove(at: index), at: 0)
+        pinned.append(pinned.remove(at: index))
         return pinned
     }
 

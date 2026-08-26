@@ -220,7 +220,7 @@ struct EntryDetailView: View {
                     }
 
                     if !entry.attachments.isEmpty {
-                        AttachmentsSection(attachments: entry.attachments, viewModel: viewModel)
+                        AttachmentsSection(entryID: entry.id, attachments: entry.attachments, viewModel: viewModel)
                     }
 
                     tagsSection

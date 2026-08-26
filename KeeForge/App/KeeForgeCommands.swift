@@ -49,6 +49,16 @@ struct KeeForgeCommands: Commands {
         }
 
         CommandGroup(replacing: .newItem) {
+            // Parity with "Open Database…"; presents from the database list,
+            // which hosts the creation sheet, so it is disabled while a vault
+            // is open.
+            Button("New Database…") {
+                listViewModel.requestNewDatabase()
+            }
+            .disabled(isUnlocked)
+
+            Divider()
+
             Button("New Entry") {
                 viewModel?.requestNewEntry()
             }

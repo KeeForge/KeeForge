@@ -37,6 +37,9 @@ struct RegularDatabaseWorkspaceView: View {
     /// in a column would tear a row-scoped host down mid-presentation.
     @State private var pendingDeletion: PendingDeletion?
     @State private var pendingMove: PendingMove?
+    /// Parent for the next group the New Group sheet creates. Set by "New
+    /// Subgroup" to target a specific row; otherwise the current selection.
+    @State private var newGroupParentID: UUID?
     @State private var isShowingDatabaseDetails = false
     @FocusState private var isSearchFieldFocused: Bool
     #endif
@@ -366,14 +369,16 @@ struct RegularDatabaseWorkspaceView: View {
                 errorMessage: $groupCreationErrorMessage,
                 onCancel: {
                     newGroupName = ""
+                    newGroupParentID = nil
                     groupCreationErrorMessage = nil
                     isShowingNewGroupSheet = false
                 },
                 onCreate: { name in
-                    guard let parentID = viewModel.selectedGroupID ?? viewModel.visibleRootGroupID else { return }
+                    guard let parentID = newGroupParentID ?? viewModel.selectedGroupID ?? viewModel.visibleRootGroupID else { return }
                     do {
                         try viewModel.createGroup(named: name, in: parentID)
                         newGroupName = ""
+                        newGroupParentID = nil
                         groupCreationErrorMessage = nil
                         isShowingNewGroupSheet = false
                         Task { await viewModel.saveHandlingError() }
@@ -408,11 +413,27 @@ struct RegularDatabaseWorkspaceView: View {
             )
             .macSheetFrame()
         }
-        .alert(item: $pendingDeletion, content: deletionAlert)
-    }
-
-    private func deletionAlert(for deletion: PendingDeletion) -> Alert {
-        deletion.confirmationAlert(viewModel: viewModel)
+        // A `confirmationDialog`, not an `.alert(item:)`: two sibling
+        // `.alert(item:)` on this view chain (this one plus `presentedSaveError`)
+        // collide and SwiftUI silently drops one, so the delete confirmation
+        // never presented. The dialog uses a separate presentation channel and
+        // co-exists with the alerts.
+        .confirmationDialog(
+            pendingDeletion?.confirmationTitle ?? "",
+            isPresented: Binding(
+                get: { pendingDeletion != nil },
+                set: { if $0 == false { pendingDeletion = nil } }
+            ),
+            titleVisibility: .visible,
+            presenting: pendingDeletion
+        ) { deletion in
+            Button(deletion.confirmActionTitle, role: .destructive) {
+                deletion.performDeletion(viewModel: viewModel)
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: { deletion in
+            Text(deletion.confirmationMessage)
+        }
     }
 
     /// Builds the sidebar row's editor when the menu item is tapped, so the form
@@ -476,7 +497,8 @@ struct RegularDatabaseWorkspaceView: View {
                     collapsedGroupIDs: $macCollapsedGroupIDs,
                     onEditGroup: beginGroupEdit,
                     onRequestMove: { pendingMove = $0 },
-                    onRequestDeletion: { pendingDeletion = $0 }
+                    onRequestDeletion: { pendingDeletion = $0 },
+                    onRequestNewSubgroup: beginNewSubgroup
                 )
 
                 // Tags beneath the group tree, the way KeePassXC surfaces them.
@@ -623,6 +645,16 @@ struct RegularDatabaseWorkspaceView: View {
 
     private func beginNewGroup() {
         newGroupName = ""
+        newGroupParentID = nil
+        groupCreationErrorMessage = nil
+        isShowingNewGroupSheet = true
+    }
+
+    /// "New Subgroup" from a sidebar row: creates the group under that specific
+    /// group rather than whatever is currently selected.
+    private func beginNewSubgroup(parentID: UUID) {
+        newGroupName = ""
+        newGroupParentID = parentID
         groupCreationErrorMessage = nil
         isShowingNewGroupSheet = true
     }
@@ -879,6 +911,8 @@ private struct MacGroupTreeRow: View {
     /// Same hand-off for the Move-to-Group picker and the delete confirmation.
     let onRequestMove: (PendingMove) -> Void
     let onRequestDeletion: (PendingDeletion) -> Void
+    /// Opens the New Group sheet targeting this row's group as the parent.
+    let onRequestNewSubgroup: (UUID) -> Void
 
     private var isExpanded: Binding<Bool> {
         Binding(
@@ -903,7 +937,8 @@ private struct MacGroupTreeRow: View {
                         collapsedGroupIDs: $collapsedGroupIDs,
                         onEditGroup: onEditGroup,
                         onRequestMove: onRequestMove,
-                        onRequestDeletion: onRequestDeletion
+                        onRequestDeletion: onRequestDeletion,
+                        onRequestNewSubgroup: onRequestNewSubgroup
                     )
                 }
             } label: {
@@ -934,6 +969,11 @@ private struct MacGroupTreeRow: View {
         .accessibilityIdentifier("group.navlink")
         .contextMenu {
             if canEdit {
+                Button("New Subgroup") {
+                    onRequestNewSubgroup(node.id)
+                }
+                .accessibilityIdentifier("group-row.new-subgroup")
+
                 Button("Edit Group") {
                     onEditGroup(node.id)
                 }

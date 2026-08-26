@@ -22,6 +22,13 @@ TODO before the first macOS release:
   - [x] Sheets no longer hang below the bottom of the window: a sheet grew to its content's full height, which AppKit clamped to the window frame while still anchoring it under the toolbar. Every macOS sheet now has a height ceiling and scrolls inside it, and the window's minimum height rose to fit one.
   - [x] The database actions (new entry/group, sort, database details, settings) moved next to the lock button, over the group and entry columns, instead of sitting above the entry detail beside its Edit button.
   - [x] Accessibility pass on the newest Mac UI: the icon-only toolbar buttons carry explicit labels rather than relying on symbol names, a tag row reads as one element instead of a name and a loose number, and the passkey and verification-code badges are labelled. VoiceOver, keyboard-only, Increase Contrast and Reduce Transparency still need a human pass on a real Mac.
+  - [x] Second manual UI sweep, fixes:
+    - The entry Delete confirmation (row context menu and menu-bar ⌘⌫) now presents and deletes. Two `.alert(item:)` on the workspace were colliding, so SwiftUI dropped the deletion one and it silently did nothing; it is a `confirmationDialog` now.
+    - The "Restore" button on an earlier entry version now shows on macOS — a `.primaryAction` toolbar item inside a sheet's pushed view never surfaced, so it moved into the version's content.
+    - Group rows gain a "New Subgroup" action targeting that group, and File ▸ New Database… was added for parity with Open Database….
+    - The New Database sheet no longer clips its labels on the left and its helper text on the right: every field uses a top-aligned label like the other editors, and the copy reads "click"/"a save panel" instead of the iOS "tap"/"Files" wording. Its master-password fields also stop offering the system strong-password sheet.
+    - Settings opens on the Security tab, and the Settings button sits at the toolbar's trailing edge in both the locked database list and the unlocked vault instead of jumping sides.
+    - An attachment's Quick Look preview no longer lingers over another entry or sheet after you switch away from it.
   - [ ] Manual QA matrix: cloud sign-in with relaunch token survival; AutoFill across Safari/Chromium/native fill and webauthn.io passkeys; cancel-everywhere relock; reveal-auth on a non-Touch-ID Mac; ⇧⌘4 capture blocking on macOS 26; a macOS 14 pass (CI runners are macOS 15).
 - [x] **Pre-release security review of the Mac surface.**
   - [x] Justify every entitlement and hardened-runtime exception; re-check App Group container permissions. Every entitlement now has a written justification, and both channels carry zero `com.apple.security.cs.*` exceptions. The MSAL keychain-access group was dropped from the Mac app: a WebDAV-only release never authenticates through MSAL, and a Developer ID profile embeds the entitlements it authorizes, so the set is settled before the profiles are made rather than after. Re-enabling OneDrive on macOS means adding it back and regenerating those profiles.
@@ -56,6 +63,8 @@ TODO before the first macOS release:
 ### Fixes
 
 - The Lock button moved to the right side of the navigation bar, away from the Back button it was easy to hit by mistake (#106).
+- The New Entry button now reads "Create" when you're creating an entry (including from Duplicate), instead of "Save". Editing an existing entry still says "Save".
+- The Recycle Bin now sorts to the bottom of the group list instead of above your own groups, matching where most KeePass apps keep it.
 - iPad: the database list sidebar's rows sat on a card slightly *darker* than the sidebar behind them, so nothing stood out. The list now uses the standard sidebar look, matching the group sidebar of an unlocked database. The iPhone list is unchanged.
 - Settings' Cloud section now says how to connect an account when none is connected, instead of showing only "No cloud accounts connected".
 - Reordering databases in the list now takes effect straight away (#109). Dragging a database to a new position used to snap back to the old order until you left the app and came back, and dropping a database between two others further down the list put it in the wrong place.

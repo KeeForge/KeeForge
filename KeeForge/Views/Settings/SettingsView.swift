@@ -24,6 +24,9 @@ struct SettingsView: View {
     @State private var feedbackContext: FeedbackComposerContext?
     @State private var macLockPolicy = SettingsService.macLockPolicy
     @State private var blockScreenCapture = SettingsService.blockScreenCapture
+    #if os(macOS)
+    @State private var selectedMacTab: MacSettingsTab = .security
+    #endif
 
     var body: some View {
         Group {
@@ -47,7 +50,9 @@ struct SettingsView: View {
     }
 
     private var macSettingsTabs: some View {
-        TabView {
+        // An explicit selection defaulting to Security keeps the window landing
+        // on the first tab rather than restoring a previously selected one.
+        TabView(selection: $selectedMacTab) {
             MacSecuritySettingsTab(
                 autoLockTimeout: $autoLockTimeout,
                 macLockPolicy: $macLockPolicy,
@@ -60,6 +65,7 @@ struct SettingsView: View {
                 Label("Security", systemImage: "lock.shield")
             }
             .accessibilityIdentifier("settings.tab.security")
+            .tag(MacSettingsTab.security)
 
             AutoFillSettingsView(
                 quickAutoFillEnabled: $quickAutoFillEnabled,
@@ -72,6 +78,7 @@ struct SettingsView: View {
                 Label("AutoFill", systemImage: "text.cursor")
             }
             .accessibilityIdentifier("settings.tab.autofill")
+            .tag(MacSettingsTab.autofill)
 
             MacDisplaySettingsTab(
                 showWebsiteIcons: $showWebsiteIcons,
@@ -85,6 +92,7 @@ struct SettingsView: View {
                 Label("Display", systemImage: "eye")
             }
             .accessibilityIdentifier("settings.tab.display")
+            .tag(MacSettingsTab.display)
 
             Form {
                 cloudAccountsSection
@@ -95,6 +103,7 @@ struct SettingsView: View {
                 Label("Cloud", systemImage: "icloud")
             }
             .accessibilityIdentifier("settings.tab.cloud")
+            .tag(MacSettingsTab.cloud)
 
             NavigationStack {
                 Form {
@@ -109,6 +118,7 @@ struct SettingsView: View {
                 Label("About", systemImage: "info.circle")
             }
             .accessibilityIdentifier("settings.tab.about")
+            .tag(MacSettingsTab.about)
         }
     }
     #else
@@ -705,6 +715,12 @@ private struct AboutSectionContent: View {
 #if os(macOS)
 
 // MARK: - macOS settings tabs
+
+/// Identifies each settings tab so the window can default to Security instead
+/// of restoring whichever tab was open last.
+private enum MacSettingsTab: Hashable {
+    case security, autofill, display, cloud, about
+}
 
 /// The size every settings tab is pinned to.
 ///

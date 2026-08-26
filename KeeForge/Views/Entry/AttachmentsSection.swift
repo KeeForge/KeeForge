@@ -5,19 +5,23 @@ import SwiftUI
 /// a short-lived plaintext temp file for QuickLook preview / sharing, and
 /// clean that temp file up as soon as the row's preview/share flow ends.
 struct AttachmentsSection: View {
+    /// The entry these attachments belong to. Used only to tear a live preview
+    /// down when the shown entry changes (see `AttachmentRow`).
+    let entryID: UUID
     let attachments: [KPAttachment]
     @Bindable var viewModel: DatabaseViewModel
 
     var body: some View {
         Section("Attachments") {
             ForEach(Array(attachments.enumerated()), id: \.offset) { index, attachment in
-                AttachmentRow(attachment: attachment, index: index, viewModel: viewModel)
+                AttachmentRow(entryID: entryID, attachment: attachment, index: index, viewModel: viewModel)
             }
         }
     }
 }
 
 private struct AttachmentRow: View {
+    let entryID: UUID
     let attachment: KPAttachment
     let index: Int
     @Bindable var viewModel: DatabaseViewModel
@@ -71,6 +75,11 @@ private struct AttachmentRow: View {
         .accessibilityIdentifier("entry.attachment.\(index)")
         .attachmentQuickLookPreview(url: $previewURL, onDismiss: cleanUpTempFile)
         .onDisappear(perform: cleanUpTempFile)
+        // Selecting another entry reuses this row rather than tearing it down
+        // (the shells share one detail column), so `onDisappear` may never
+        // fire. Without this the macOS Quick Look panel would linger over the
+        // newly selected entry — and over any sheet opened on top of it.
+        .onChange(of: entryID) { _, _ in cleanUpTempFile() }
     }
 
     private func preparePreview() {

@@ -2032,6 +2032,74 @@
         }
       }
     },
+    "After you click Create, choose the %@ folder for the encrypted .kdbx database." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nachdem Sie auf „Erstellen“ geklickt haben, wählen Sie den Ordner „%@“ für die verschlüsselte .kdbx-Datenbank."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Después de hacer clic en «Crear», elija la carpeta «%@» para la base de datos .kdbx cifrada."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Après avoir cliqué sur « Créer », choisissez le dossier « %@ » pour la base de données .kdbx chiffrée."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "点按“创建”后，请为加密 .kdbx 数据库选择 %@ 文件夹。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "點按「建立」後，請為加密 .kdbx 資料庫選擇 %@ 資料夾。"
+          }
+        }
+      }
+    },
+    "After you click Create, KeeForge asks where to save the encrypted .kdbx database." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nachdem Sie auf „Erstellen“ geklickt haben, fragt KeeForge, wo die verschlüsselte .kdbx-Datenbank gesichert werden soll."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Después de hacer clic en «Crear», KeeForge le preguntará dónde guardar la base de datos .kdbx cifrada."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Après avoir cliqué sur « Créer », KeeForge vous demandera où enregistrer la base de données .kdbx chiffrée."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "点按“创建”后，KeeForge 会询问加密 .kdbx 数据库的保存位置。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "點按「建立」後，KeeForge 會詢問加密 .kdbx 資料庫的儲存位置。"
+          }
+        }
+      }
+    },
     "After you tap Create, choose the %@ folder for the encrypted .kdbx database." : {
       "localizations" : {
         "de" : {
@@ -13124,6 +13192,40 @@
         }
       }
     },
+    "KeeForge creates KDBX 4 databases encrypted with %@ and Argon2id key derivation (%@). Stronger settings take longer to unlock." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge erstellt KDBX-4-Datenbanken, die mit %1$@ verschlüsselt sind und Argon2id zur Schlüsselableitung verwenden (%2$@). Stärkere Einstellungen verlängern das Entsperren."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge crea bases de datos KDBX 4 cifradas con %1$@ y derivación de claves Argon2id (%2$@). Los ajustes más fuertes tardan más en desbloquear."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge crée des bases de données KDBX 4 chiffrées avec %1$@ et une dérivation de clé Argon2id (%2$@). Des réglages plus forts allongent le déverrouillage."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge 创建使用 %1$@ 加密和 Argon2id 密钥派生（%2$@）的 KDBX 4 数据库。更强的设置会延长解锁时间。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge 會建立使用 %1$@ 加密和 Argon2id 金鑰衍生（%2$@）的 KDBX 4 資料庫。更強的設定會延長解鎖時間。"
+          }
+        }
+      }
+    },
     "KeeForge has no local copy of this database yet. Open it once while online, then try exporting again." : {
       "localizations" : {
         "de" : {
@@ -15675,6 +15777,40 @@
         }
       }
     },
+    "New Database…" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Neue Datenbank…"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nueva base de datos…"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nouvelle base de données…"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新建数据库…"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新增資料庫…"
+          }
+        }
+      }
+    },
     "New Entry" : {
       "localizations" : {
         "de" : {
@@ -15773,6 +15909,40 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "新增通行金鑰"
+          }
+        }
+      }
+    },
+    "New Subgroup" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Neue Untergruppe"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nuevo subgrupo"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nouveau sous-groupe"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新建子群组"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新增子群組"
           }
         }
       }
