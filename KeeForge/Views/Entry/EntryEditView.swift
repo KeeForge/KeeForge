@@ -198,7 +198,7 @@ struct EntryEditView: View {
             }
 
             ToolbarItem(placement: .confirmationAction) {
-                Button("Save") {
+                Button(confirmButtonTitle) {
                     saveTapped()
                 }
                 .disabled(formViewModel.canSave == false || isSavingInProgress)
@@ -546,6 +546,17 @@ struct EntryEditView: View {
             String(localized: "New Entry")
         case .edit:
             String(localized: "Edit Entry")
+        }
+    }
+
+    /// Creating an entry (new or duplicated) reads "Create", matching the New
+    /// Database and New Group flows; editing an existing entry keeps "Save".
+    private var confirmButtonTitle: String {
+        switch formViewModel.mode {
+        case .create:
+            String(localized: "Create")
+        case .edit:
+            String(localized: "Save")
         }
     }
 

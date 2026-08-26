@@ -144,7 +144,7 @@ final class SortOrderTests: XCTestCase {
 
     // MARK: - Recycle Bin Placement
 
-    func testRecycleBinSortsFirstRegardlessOfSortOrder() async throws {
+    func testRecycleBinSortsLastRegardlessOfSortOrder() async throws {
         let vm = try await makeKitchenSinkViewModel()
         let recycleBinID = try XCTUnwrap(vm.currentRootGroup?.recycleBinUUID)
         let groups = try XCTUnwrap(vm.visibleRootGroup?.groups)
@@ -156,9 +156,9 @@ final class SortOrderTests: XCTestCase {
                 vm.sortAscending = ascending
 
                 XCTAssertEqual(
-                    vm.sortedGroups(groups).first?.id,
+                    vm.sortedGroups(groups).last?.id,
                     recycleBinID,
-                    "Recycle Bin must lead the folder list for \(order) ascending=\(ascending)"
+                    "Recycle Bin must trail the folder list for \(order) ascending=\(ascending)"
                 )
             }
         }
@@ -175,7 +175,7 @@ final class SortOrderTests: XCTestCase {
 
         XCTAssertEqual(sorted.count, groups.count)
         XCTAssertEqual(
-            sorted.dropFirst().map(\.name),
+            sorted.dropLast().map(\.name),
             groups.filter { $0.id != recycleBinID }
                 .map(\.name)
                 .sorted { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }

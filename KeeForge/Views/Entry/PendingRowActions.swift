@@ -59,48 +59,75 @@ enum PendingDeletion: Identifiable {
 }
 
 extension PendingDeletion {
+    /// The confirmation's title, shared by the iOS `Alert` and the macOS
+    /// `confirmationDialog`.
+    var confirmationTitle: String {
+        switch self {
+        case .entry(let action):
+            action.sendToRecycleBin
+                ? String(localized: "Delete Entry?")
+                : String(localized: "Delete Permanently?")
+        case .group(let action):
+            action.sendToRecycleBin
+                ? String(localized: "Delete Group?")
+                : String(localized: "Delete Permanently?")
+        }
+    }
+
+    /// The destructive button's title.
+    var confirmActionTitle: String {
+        let sendToRecycleBin: Bool
+        switch self {
+        case .entry(let action):
+            sendToRecycleBin = action.sendToRecycleBin
+        case .group(let action):
+            sendToRecycleBin = action.sendToRecycleBin
+        }
+        return sendToRecycleBin ? String(localized: "Delete") : String(localized: "Delete Permanently")
+    }
+
+    /// The confirmation's explanatory message.
+    var confirmationMessage: String {
+        switch self {
+        case .entry(let action):
+            action.sendToRecycleBin
+                ? String(localized: "The entry will be moved to the recycle bin.")
+                : String(localized: "This entry will be removed immediately and cannot be restored from KeeForge.")
+        case .group(let action):
+            Self.groupDeletionMessage(for: action)
+        }
+    }
+
+    /// Performs the deletion and saves, surfacing any error. Shared by both
+    /// platforms' confirmations.
+    @MainActor
+    func performDeletion(viewModel: DatabaseViewModel) {
+        do {
+            switch self {
+            case .entry(let action):
+                try viewModel.deleteEntry(action.entryID, sendToRecycleBin: action.sendToRecycleBin)
+            case .group(let action):
+                try viewModel.deleteGroup(action.groupID, sendToRecycleBin: action.sendToRecycleBin)
+            }
+            Task { await viewModel.saveHandlingError() }
+        } catch {
+            viewModel.presentSaveError(error)
+        }
+    }
+
     /// Hosts belong on the body's outer container: deleting the last row flips
     /// a list into its empty branch, which would tear a branch-scoped alert
     /// host down while the alert is up.
     @MainActor
     func confirmationAlert(viewModel: DatabaseViewModel) -> Alert {
-        switch self {
-        case .entry(let action):
-            Alert(
-                title: Text(action.sendToRecycleBin ? "Delete Entry?" : "Delete Permanently?"),
-                message: Text(action.sendToRecycleBin
-                    ? "The entry will be moved to the recycle bin."
-                    : "This entry will be removed immediately and cannot be restored from KeeForge."),
-                primaryButton: .destructive(Text(action.sendToRecycleBin ? "Delete" : "Delete Permanently")) {
-                    do {
-                        try viewModel.deleteEntry(action.entryID, sendToRecycleBin: action.sendToRecycleBin)
-                        Task {
-                            await viewModel.saveHandlingError()
-                        }
-                    } catch {
-                        viewModel.presentSaveError(error)
-                    }
-                },
-                secondaryButton: .cancel()
-            )
-
-        case .group(let action):
-            Alert(
-                title: Text(action.sendToRecycleBin ? "Delete Group?" : "Delete Permanently?"),
-                message: Text(Self.groupDeletionMessage(for: action)),
-                primaryButton: .destructive(Text(action.sendToRecycleBin ? "Delete" : "Delete Permanently")) {
-                    do {
-                        try viewModel.deleteGroup(action.groupID, sendToRecycleBin: action.sendToRecycleBin)
-                        Task {
-                            await viewModel.saveHandlingError()
-                        }
-                    } catch {
-                        viewModel.presentSaveError(error)
-                    }
-                },
-                secondaryButton: .cancel()
-            )
-        }
+        Alert(
+            title: Text(confirmationTitle),
+            message: Text(confirmationMessage),
+            primaryButton: .destructive(Text(confirmActionTitle)) {
+                performDeletion(viewModel: viewModel)
+            },
+            secondaryButton: .cancel()
+        )
     }
 
     private static func groupDeletionMessage(for action: PendingGroupDeletion) -> String {

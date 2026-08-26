@@ -201,6 +201,20 @@ private struct EntryHistoryVersionView: View {
                             )
                         }
                     }
+
+                    #if os(macOS)
+                    // A `.primaryAction` toolbar item inside a sheet's pushed
+                    // NavigationStack does not surface on macOS, so the Restore
+                    // control lives in the content here instead of the toolbar.
+                    if viewModel.isReadOnly == false {
+                        Section {
+                            restoreConfirmation(
+                                Button("Restore") { isConfirmingRestore = true }
+                                    .accessibilityIdentifier("entry-history.restore")
+                            )
+                        }
+                    }
+                    #endif
                 }
             } else {
                 ContentUnavailableView(
@@ -213,30 +227,35 @@ private struct EntryHistoryVersionView: View {
         .navigationTitle("Earlier Version")
         #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
-        #endif
         .toolbar {
             if viewModel.isReadOnly == false, version != nil {
                 ToolbarItem(placement: .primaryAction) {
-                    Button("Restore") { isConfirmingRestore = true }
-                        .accessibilityIdentifier("entry-history.restore")
-                        // On the button, not the screen: iPad anchors the
-                        // popover to the source view.
-                        .confirmationDialog(
-                            "Restore this version?",
-                            isPresented: $isConfirmingRestore,
-                            titleVisibility: .visible
-                        ) {
-                            Button("Restore") { restore() }
-                                .accessibilityIdentifier("entry-history.restore.confirm")
-                            Button("Cancel", role: .cancel) {}
-                        } message: {
-                            if viewModel.restoreKeepsReplacedState(entryID: entryID) {
-                                Text("The entry's current contents are kept as a new history version, so you can undo this.")
-                            } else {
-                                Text("This database keeps no earlier versions, so the entry's current contents will be lost. This cannot be undone.")
-                            }
-                        }
+                    restoreConfirmation(
+                        Button("Restore") { isConfirmingRestore = true }
+                            .accessibilityIdentifier("entry-history.restore")
+                    )
                 }
+            }
+        }
+        #endif
+    }
+
+    /// The Restore confirmation, attached to the Restore button (not the
+    /// screen) so iPad anchors the popover to the source view.
+    private func restoreConfirmation(_ button: some View) -> some View {
+        button.confirmationDialog(
+            "Restore this version?",
+            isPresented: $isConfirmingRestore,
+            titleVisibility: .visible
+        ) {
+            Button("Restore") { restore() }
+                .accessibilityIdentifier("entry-history.restore.confirm")
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            if viewModel.restoreKeepsReplacedState(entryID: entryID) {
+                Text("The entry's current contents are kept as a new history version, so you can undo this.")
+            } else {
+                Text("This database keeps no earlier versions, so the entry's current contents will be lost. This cannot be undone.")
             }
         }
     }

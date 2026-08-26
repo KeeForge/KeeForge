@@ -56,6 +56,9 @@ final class DatabaseListViewModel {
     /// down together with its own prompt, so anything modal raised at that
     /// moment is dropped before it can appear.
     private(set) var isAutoFillEnableRequestRejected = false
+    /// Incremented by the macOS File ▸ New Database… command; the list view
+    /// observes it and presents the creation sheet it hosts.
+    private(set) var newDatabaseRequestID = 0
     private var didConsumeInitialLaunchSelection = false
     private let pendingUploadDrainer: PendingUploadDrainer
 
@@ -67,6 +70,12 @@ final class DatabaseListViewModel {
     func reload() {
         databases = DatabaseListStore.databases
         refreshRowStatuses()
+    }
+
+    /// macOS File ▸ New Database…: signals the list view to present its
+    /// creation sheet.
+    func requestNewDatabase() {
+        newDatabaseRequestID += 1
     }
 
     func databaseToAutoOpenOnLaunch() -> DatabaseReference? {

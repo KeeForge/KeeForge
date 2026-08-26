@@ -179,6 +179,11 @@ struct DatabaseListView: View {
             )
             .macSheetFrame()
         }
+        #if os(macOS)
+        .onChange(of: viewModel.newDatabaseRequestID) { _, _ in
+            isDatabaseCreationPresented = true
+        }
+        #endif
         .databaseExporter(request: $exportRequest)
     }
 
@@ -262,9 +267,20 @@ struct DatabaseListView: View {
             #endif
 
             ToolbarItemGroup(placement: .topBarTrailing) {
-                // macOS uses the standard Settings window (⌘,) instead of
-                // a sheet, which on the Mac would have no close affordance.
                 #if os(macOS)
+                // Add first, Settings last, so the gear stays at the trailing
+                // edge in both the locked list and the unlocked workspace
+                // instead of jumping sides between the two states. macOS uses
+                // the standard Settings window (⌘,) rather than a sheet.
+                Menu {
+                    addDatabaseMenuContent
+                } label: {
+                    Image(systemName: "plus")
+                }
+                .menuOrder(.fixed)
+                .accessibilityIdentifier("database.add.button")
+                .macHelp(String(localized: "Add Database"))
+
                 SettingsLink {
                     Image(systemName: "gearshape")
                 }
@@ -277,7 +293,6 @@ struct DatabaseListView: View {
                     Image(systemName: "gearshape")
                 }
                 .accessibilityIdentifier("database.settings.button")
-                #endif
 
                 Menu {
                     addDatabaseMenuContent
@@ -287,6 +302,7 @@ struct DatabaseListView: View {
                 .menuOrder(.fixed)
                 .accessibilityIdentifier("database.add.button")
                 .macHelp(String(localized: "Add Database"))
+                #endif
             }
         }
     }
