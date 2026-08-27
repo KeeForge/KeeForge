@@ -847,6 +847,22 @@ final class DatabaseViewModelTests: XCTestCase {
         XCTAssertEqual(vm.selectedEntryID, entry.id)
     }
 
+    func testRecyclingSelectedEntryClearsSelection() async throws {
+        let vm = try makeViewModel()
+        await vm.unlock(password: fixturePassword)
+
+        let socialGroup = try XCTUnwrap(vm.visibleRootGroup?.groups.first(where: { $0.name == "Social" }))
+        let entry = try XCTUnwrap(socialGroup.entries.first)
+        vm.selectGroup(socialGroup.id)
+        vm.selectEntry(entry.id)
+
+        try vm.deleteEntry(entry.id, sendToRecycleBin: true)
+
+        XCTAssertNotNil(vm.entry(withID: entry.id))
+        XCTAssertTrue(vm.isEntryInRecycleBin(entryID: entry.id))
+        XCTAssertNil(vm.selectedEntryID)
+    }
+
     func testHidingGroupFromAutoFillMarksItAndItsSubgroupsExcluded() async throws {
         let vm = try makeViewModel()
         await vm.unlock(password: fixturePassword)
