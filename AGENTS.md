@@ -121,6 +121,7 @@ Mac XCUITest is the slowest and most fragile lever available: it needs an unlock
 - For Mac-specific layout deltas, prefer SwiftUI previews or the `MacScreenshotAuditUITests` capture pass over driving the app with new assertions.
 - What a given change has to test is a table in `KeeForgeMac/README.md` ("What Mac Work Has To Test"). Read the row for your change before you call it done.
 - Shared SwiftUI is the default and keeps macOS nearly free — but a targeted AppKit view is the right answer where SwiftUI on Mac cannot express the interaction at all (keyboard navigation in search results and the tag browser are the known cases). Take the escape hatch deliberately, not as a workaround for a flaky test.
+- To capture the Mac app's own windows (screenshots, visual audits), disable screen-capture blocking with the launch argument `-KeeForge.blockScreenCapture NO` — the argument-domain override of `SettingsService.blockScreenCapture`. This pair must come *before* the bare `-ui-testing` flag (`MacScreenshotAuditUITests` inserts it there).
 
 ## Security Reminders
 
