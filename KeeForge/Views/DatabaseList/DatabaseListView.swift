@@ -487,7 +487,7 @@ struct DatabaseListView: View {
             selectionAlert = nil
             pickerState.present(.database)
         } label: {
-            Label("Files", systemImage: "iphone")
+            Label("Files", systemImage: filesMenuSymbolName)
         }
         .accessibilityIdentifier("database.add.files")
 
@@ -503,6 +503,17 @@ struct DatabaseListView: View {
             }
             .accessibilityIdentifier("database.add.\(providerKind.rawValue)")
         }
+    }
+
+    /// The "Files" source opens the OS file browser. An iPhone glyph reads wrong
+    /// on a Mac, so use a folder symbol there; iOS keeps the device glyph that
+    /// matches the Files app.
+    private var filesMenuSymbolName: String {
+        #if os(macOS)
+        "folder"
+        #else
+        "iphone"
+        #endif
     }
 
     @ViewBuilder
