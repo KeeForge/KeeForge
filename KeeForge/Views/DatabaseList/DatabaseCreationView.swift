@@ -213,6 +213,7 @@ struct DatabaseCreationView: View {
                 Text(advancedFooter)
             }
         }
+        .macGroupedForm()
     }
 
     /// Top-aligned caption over its field, matching the entry/group editors.
