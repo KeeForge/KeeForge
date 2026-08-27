@@ -164,6 +164,10 @@ final class MacScreenshotAuditUITests: MacUITestCase {
     /// Raises the app over other apps as forcefully as the test process can:
     /// `XCUIApplication.activate()` plus `NSRunningApplication.activate()`.
     private func forceActivateApp() {
+        guard let app,
+              app.state == .runningForeground || app.state == .runningBackground else {
+            return
+        }
         NSWorkspace.shared.runningApplications
             .first { $0.bundleIdentifier == Self.appBundleIdentifier }?
             .activate()
@@ -238,8 +242,22 @@ final class MacScreenshotAuditUITests: MacUITestCase {
             noteSkip(name, reason: "app never held the foreground")
             return
         }
-        guard let record = appScreenWindow(matching: element.frame) else {
-            noteSkip(name, reason: "no window-server record for \(element.frame)")
+
+        // An attached sheet has its own accessibility frame and window-server
+        // record, but ScreenCaptureKit composites its pixels into the parent
+        // window. Capturing the sheet record therefore renders the parent at
+        // 1x into a Retina buffer sized for the sheet, leaving black padding.
+        // Capture the parent window instead; the sheet remains visible in the
+        // resulting image with its surrounding context.
+        let captureElement: XCUIElement
+        if element.elementType == .sheet, let mainWindowElement {
+            captureElement = mainWindowElement
+        } else {
+            captureElement = element
+        }
+
+        guard let record = appScreenWindow(matching: captureElement.frame) else {
+            noteSkip(name, reason: "no window-server record for \(captureElement.frame)")
             return
         }
         guard let image = await Self.windowImage(id: record.id) else {
@@ -360,9 +378,11 @@ final class MacScreenshotAuditUITests: MacUITestCase {
         if typeAppShortcut(",") {
             settle(1.5)
             await captureSettingsTabs()
-            // Close the settings window.
-            typeAppShortcut("w")
-            settle()
+            guard closeSettingsWindow() else {
+                noteSkip("07-settings-close", reason: "the Settings window did not close")
+                attachCaptureReport()
+                return
+            }
         } else {
             noteSkip("07-settings", reason: "⌘, could not be delivered")
         }
@@ -454,32 +474,51 @@ final class MacScreenshotAuditUITests: MacUITestCase {
     }
 
     private func captureSettingsTabs() async {
-        // The `settings.tab.*` identifiers sit on each tab's CONTENT view, not
-        // on its `.tabItem`, so the tab bar is addressed by title and the
-        // capture is addressed by the identifier of the content it revealed.
-        let tabs = [
-            ("Security", "settings.tab.security", "07a-settings-security"),
-            ("AutoFill", "settings.tab.autofill", "07b-settings-autofill"),
-            ("Display", "settings.tab.display", "07c-settings-display"),
-            ("Cloud", "settings.tab.cloud", "07d-settings-cloud"),
-            ("About", "settings.tab.about", "07e-settings-about"),
+        // SwiftUI exposes only the selected Settings tab to XCUITest on macOS
+        // 26, even though all five controls are visible and reachable through
+        // AppKit accessibility. The pane has a fixed 540pt width, and the
+        // system lays the five controls out at stable positions in its toolbar,
+        // so address them through window-relative coordinates. Each click is
+        // still verified through the identifier on the content it reveals.
+        let tabs: [(String, CGFloat, String, String)] = [
+            ("Security", 0.292, "settings.tab.security", "07a-settings-security"),
+            ("AutoFill", 0.396, "settings.tab.autofill", "07b-settings-autofill"),
+            ("Display", 0.500, "settings.tab.display", "07c-settings-display"),
+            ("Cloud", 0.604, "settings.tab.cloud", "07d-settings-cloud"),
+            ("About", 0.708, "settings.tab.about", "07e-settings-about"),
         ]
 
-        for (title, contentIdentifier, name) in tabs {
-            // TabView tab items surface as radio buttons or buttons depending on
-            // the macOS version; try both, best effort.
-            let tabRadio = app.radioButtons[title].firstMatch
-            let tabButton = app.buttons[title].firstMatch
-            if tabRadio.waitForExistence(timeout: 3), tabRadio.isHittable {
-                tabRadio.click()
-            } else if tabButton.exists, tabButton.isHittable {
-                tabButton.click()
-            } else {
-                noteSkip(name, reason: "settings tab '\(title)' was not reachable")
+        let settingsWindow = app.windows["com_apple_SwiftUI_Settings_window"].firstMatch
+        guard settingsWindow.waitForExistence(timeout: 5) else {
+            for (title, _, _, name) in tabs {
+                noteSkip(name, reason: "Settings window missing before selecting '\(title)'")
+            }
+            return
+        }
+
+        for (title, horizontalPosition, contentIdentifier, name) in tabs {
+            settingsWindow.coordinate(
+                withNormalizedOffset: CGVector(dx: horizontalPosition, dy: 0.09)
+            ).click()
+            settle(0.6)
+            guard surface(hosting: contentIdentifier) != nil else {
+                noteSkip(name, reason: "settings tab '\(title)' did not reveal its content")
                 continue
             }
-            settle(0.6)
             await snapSurface(hosting: contentIdentifier, name)
         }
+    }
+
+    /// Closes the Settings window through its standard traffic-light control.
+    /// Activating the app before sending ⌘W can raise the main window instead,
+    /// leaving Settings open to interrupt the later sheet interactions.
+    private func closeSettingsWindow() -> Bool {
+        let settingsWindow = app.windows["com_apple_SwiftUI_Settings_window"].firstMatch
+        guard settingsWindow.exists else { return true }
+
+        settingsWindow.coordinate(withNormalizedOffset: CGVector(dx: 0, dy: 0))
+            .withOffset(CGVector(dx: 16, dy: 16))
+            .click()
+        return settingsWindow.waitForNonExistence(timeout: 5)
     }
 }

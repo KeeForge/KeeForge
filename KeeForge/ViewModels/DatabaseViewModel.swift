@@ -1127,6 +1127,12 @@ final class DatabaseViewModel {
 
     func deleteEntry(_ entryID: UUID, sendToRecycleBin: Bool) throws {
         try applyEntryEdit(.deleteEntry(entryID: entryID, sendToRecycleBin: sendToRecycleBin))
+
+        // A recycled entry still exists in the rebuilt index, so a mounted
+        // detail view cannot observe its disappearance and close itself.
+        if selectedEntryID == entryID, entryIndex[entryID] != nil {
+            selectedEntryID = nil
+        }
     }
 
     func deleteGroup(_ groupID: UUID, sendToRecycleBin: Bool) throws {

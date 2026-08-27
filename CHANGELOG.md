@@ -23,6 +23,7 @@ TODO before the first macOS release:
   - [x] The database actions (new entry/group, sort, database details, settings) moved next to the lock button, over the group and entry columns, instead of sitting above the entry detail beside its Edit button.
   - [x] Accessibility pass on the newest Mac UI: the icon-only toolbar buttons carry explicit labels rather than relying on symbol names, a tag row reads as one element instead of a name and a loose number, and the passkey and verification-code badges are labelled. VoiceOver, keyboard-only, Increase Contrast and Reduce Transparency still need a human pass on a real Mac.
   - [x] Second manual UI sweep, fixes:
+    - Deleting the selected entry into the Recycle Bin now clears its old detail pane and Edit action instead of leaving the recycled entry editable from its former group.
     - The entry Delete confirmation (row context menu and menu-bar ⌘⌫) now presents and deletes. Two `.alert(item:)` on the workspace were colliding, so SwiftUI dropped the deletion one and it silently did nothing; it is a `confirmationDialog` now.
     - The "Restore" button on an earlier entry version now shows on macOS — a `.primaryAction` toolbar item inside a sheet's pushed view never surfaced, so it moved into the version's content.
     - Group rows gain a "New Subgroup" action targeting that group, and File ▸ New Database… was added for parity with Open Database….

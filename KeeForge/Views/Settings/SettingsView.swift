@@ -112,12 +112,12 @@ struct SettingsView: View {
                     AboutSectionContent()
                 }
                 .formStyle(.grouped)
+                .accessibilityIdentifier("settings.tab.about")
             }
             .frame(width: MacSettingsPane.width, height: MacSettingsPane.height)
             .tabItem {
                 Label("About", systemImage: "info.circle")
             }
-            .accessibilityIdentifier("settings.tab.about")
             .tag(MacSettingsTab.about)
         }
     }
