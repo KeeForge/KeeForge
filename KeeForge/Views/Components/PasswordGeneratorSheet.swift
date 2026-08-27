@@ -66,6 +66,7 @@ struct PasswordGeneratorSheet: View {
                 }
 
             }
+            .macGroupedForm()
             .navigationTitle("Password Generator")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
