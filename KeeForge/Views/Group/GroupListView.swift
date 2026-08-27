@@ -656,6 +656,7 @@ struct NewGroupSheet: View {
                         .accessibilityIdentifier("group-create.name-field")
                 }
             }
+            .macGroupedForm()
             .navigationTitle("New Group")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
