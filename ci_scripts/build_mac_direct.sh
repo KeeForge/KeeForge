@@ -225,10 +225,10 @@ cat <<APPCAST_ITEM
             <sparkle:shortVersionString>${SHORT_VERSION}</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>${MIN_SYSTEM}</sparkle:minimumSystemVersion>
             <sparkle:releaseNotesLink>https://keeforge.com/changelog</sparkle:releaseNotesLink>
-            <enclosure url="https://keeforge.com/downloads/KeeForge-${SHORT_VERSION}.zip"
+            <enclosure url="https://downloads.keeforge.com/KeeForge-${SHORT_VERSION}.zip"
                        ${SIGNATURE_ATTRS}
                        type="application/octet-stream" />
         </item>
 APPCAST_ITEM
 echo
-echo "Upload ${ZIP_PATH##*/} as KeeForge-${SHORT_VERSION}.zip to the enclosure URL above."
+echo "Upload ${ZIP_PATH##*/} to R2 as KeeForge-${SHORT_VERSION}.zip, reachable at the enclosure URL above."
