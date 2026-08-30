@@ -2,8 +2,9 @@ import Foundation
 
 /// Append-only breadcrumb log for diagnosing AutoFill request flows on a
 /// development device. DEBUG-only; release builds compile every call to a
-/// no-op. Lines carry event names, flags, and counts — never entry data,
-/// URLs, or secrets.
+/// no-op and never evaluate its argument, so interpolating a probe (e.g.
+/// biometric availability) costs nothing there. Lines carry event names,
+/// flags, and counts — never entry data, URLs, or secrets.
 ///
 /// The log lives at `Library/autofill-diagnostics.log` in the App Group
 /// container — `Library` because devicectl's file service only reaches
@@ -31,8 +32,8 @@ enum AutoFillDiagnostics {
             .appendingPathComponent("autofill-diagnostics.log")
     }
 
-    static func log(_ event: String) {
-        let line = "\(timestampFormatter.string(from: Date())) [\(ProcessInfo.processInfo.processName)] \(event)\n"
+    static func log(_ event: @autoclosure () -> String) {
+        let line = "\(timestampFormatter.string(from: Date())) [\(ProcessInfo.processInfo.processName)] \(event())\n"
         queue.async { append(line) }
     }
 
@@ -67,7 +68,7 @@ enum AutoFillDiagnostics {
         }
     }
     #else
-    static func log(_ event: String) {}
+    static func log(_ event: @autoclosure () -> String) {}
     static func migrateLegacyLogLocation() {}
     #endif
 }
