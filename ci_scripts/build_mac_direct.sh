@@ -64,9 +64,17 @@ mkdir -p "${OUT_DIR}"
 echo "==> Generating project from the direct-download spec"
 xcodegen generate --spec project-direct.yml
 
+# Resolving the direct spec's extra dependency rewrites the workspace's
+# Package.resolved originHash. That file belongs to the checked-in App Store
+# project, so restore it too — otherwise every release run leaves the tree dirty.
+RESOLVED_FILE="KeeForge.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved"
+
 restore_appstore_project() {
   echo "==> Restoring the App Store project spec"
   (cd "${REPO_ROOT}" && xcodegen generate >/dev/null)
+  if git -C "${REPO_ROOT}" ls-files --error-unmatch "${RESOLVED_FILE}" >/dev/null 2>&1; then
+    git -C "${REPO_ROOT}" checkout -- "${RESOLVED_FILE}" 2>/dev/null || true
+  fi
 }
 trap restore_appstore_project EXIT
 
@@ -186,11 +194,41 @@ spctl --assess --type execute --verbose=4 "${APP_PATH}"
 rm -f "${ZIP_PATH}"
 ditto -c -k --keepParent "${APP_PATH}" "${ZIP_PATH}"
 
+# sign_update ships inside the Sparkle SPM artifact bundle, which the archive
+# above already resolved into this run's derived data. Locating it there keeps
+# the appcast signature a step of this script rather than a tool the releaser has
+# to go find; the EdDSA private key is read from the login keychain and never
+# printed.
+SIGN_UPDATE="$(find "${DERIVED_DATA}/SourcePackages/artifacts" -name sign_update -path "*/Sparkle/bin/*" -print -quit 2>/dev/null || true)"
+if [[ -z "${SIGN_UPDATE}" ]]; then
+  echo "error: could not find sign_update under ${DERIVED_DATA}/SourcePackages/artifacts" >&2
+  exit 1
+fi
+
+echo "==> Signing the appcast payload"
+SIGNATURE_ATTRS="$("${SIGN_UPDATE}" "${ZIP_PATH}")"
+
+SHORT_VERSION="$(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" "${APP_PATH}/Contents/Info.plist")"
+BUILD_NUMBER="$(/usr/libexec/PlistBuddy -c "Print :CFBundleVersion" "${APP_PATH}/Contents/Info.plist")"
+MIN_SYSTEM="$(/usr/libexec/PlistBuddy -c "Print :LSMinimumSystemVersion" "${APP_PATH}/Contents/Info.plist" 2>/dev/null || true)"
+
 echo
 echo "Done. Notarized, stapled app: ${APP_PATH}"
 echo "Appcast payload:              ${ZIP_PATH}"
 echo
-echo "Next: sign the zip for Sparkle and add the appcast entry."
-echo "  ./bin/sign_update ${ZIP_PATH}"
-echo "(sign_update ships in the Sparkle release; it reads the EdDSA private key"
-echo " from the login keychain and prints the sparkle:edSignature attribute.)"
+echo "Appcast entry for ${BUILT_FEED_URL} — paste into <channel>, newest first:"
+echo
+cat <<APPCAST_ITEM
+        <item>
+            <title>${SHORT_VERSION}</title>
+            <sparkle:version>${BUILD_NUMBER}</sparkle:version>
+            <sparkle:shortVersionString>${SHORT_VERSION}</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>${MIN_SYSTEM}</sparkle:minimumSystemVersion>
+            <sparkle:releaseNotesLink>https://keeforge.com/changelog</sparkle:releaseNotesLink>
+            <enclosure url="https://keeforge.com/downloads/KeeForge-${SHORT_VERSION}.zip"
+                       ${SIGNATURE_ATTRS}
+                       type="application/octet-stream" />
+        </item>
+APPCAST_ITEM
+echo
+echo "Upload ${ZIP_PATH##*/} as KeeForge-${SHORT_VERSION}.zip to the enclosure URL above."
