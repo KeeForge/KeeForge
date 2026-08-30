@@ -170,8 +170,6 @@ targets:
         codeSign: true
       - package: argon2
       - package: KeeForgeTwofish
-      - package: SwiftyDropbox
-      - package: MSAL
       - package: swift-psl
         product: PublicSuffixList
     sources:
@@ -179,8 +177,18 @@ targets:
         excludes: ["README.md"]
       - path: KeeForge/Models
         excludes: ["README.md"]
+      # The first Mac release is WebDAV-only, so the Dropbox and OneDrive
+      # providers are excluded rather than compiled and hidden. Excluding them
+      # is what lets the SwiftyDropbox and MSAL packages come off the target:
+      # MSAL is an embedded dynamic framework and ships whole whether or not a
+      # symbol is called. Re-enabling either provider on macOS means restoring
+      # its file here and its package above together.
       - path: KeeForge/Services
-        excludes: ["README.md", "**/README.md"]
+        excludes:
+          - "README.md"
+          - "**/README.md"
+          - "Cloud/DropboxCloudProvider.swift"
+          - "Cloud/OneDriveCloudProvider.swift"
       - path: KeeForge/ViewModels
         excludes: ["README.md"]
       - path: KeeForge/Views
@@ -493,8 +501,15 @@ targets:
       - target: KeeForgeMac
       - package: KeeForgeTwofish
     sources:
+      # These suites import SwiftyDropbox/MSAL directly, and the Mac app no
+      # longer links either. They stay covered by KeeForgeTests on iOS.
       - path: KeeForgeTests
-        excludes: ["README.md", "**/README.md"]
+        excludes:
+          - "README.md"
+          - "**/README.md"
+          - "DropboxCloudProviderTests.swift"
+          - "OneDriveCloudProviderTests.swift"
+
 
 schemes:
   KeeForge:

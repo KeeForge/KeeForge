@@ -27,15 +27,24 @@ final class CloudProviderRegistryTests: XCTestCase {
     }
 
     func testProviderResolutionStaysUnfilteredForHiddenProviders() {
+        #if os(macOS)
+        // The Mac app does not compile either provider, so resolution is not
+        // merely filtered — the types are absent. Nothing can have connected
+        // one, because neither has ever been reachable from the Mac UI.
+        XCTAssertNil(CloudProviderRegistry.provider(for: CloudProviderKind.dropbox.rawValue))
+        XCTAssertNil(CloudProviderRegistry.provider(for: CloudProviderKind.oneDrive.rawValue))
+        #else
         // The UI gate must not affect provider(for:) resolution: an
         // already-connected Dropbox/OneDrive database must still resolve its
         // provider (and therefore stay openable) even on platforms where the
         // provider is hidden from the add/import UI.
         XCTAssertNotNil(CloudProviderRegistry.provider(for: CloudProviderKind.dropbox.rawValue))
         XCTAssertNotNil(CloudProviderRegistry.provider(for: CloudProviderKind.oneDrive.rawValue))
+        #endif
         XCTAssertNotNil(CloudProviderRegistry.provider(for: CloudProviderKind.webDAV.rawValue))
     }
 
+    #if !os(macOS)
     func testProviderReturnsDropboxSharedInstance() {
         let provider = CloudProviderRegistry.provider(for: CloudProviderKind.dropbox.rawValue)
 
@@ -47,6 +56,7 @@ final class CloudProviderRegistryTests: XCTestCase {
 
         XCTAssertTrue(provider === OneDriveCloudProvider.shared)
     }
+    #endif
 
     func testProviderReturnsWebDAVSharedInstance() {
         let provider = CloudProviderRegistry.provider(for: CloudProviderKind.webDAV.rawValue)
