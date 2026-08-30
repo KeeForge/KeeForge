@@ -26,6 +26,22 @@ final class URLSchemeFormatTests: XCTestCase {
         }
     }
 
+    #if os(macOS)
+    /// The Mac app ships WebDAV only and links neither cloud SDK, so it must not
+    /// advertise OAuth callback schemes nothing can service.
+    func testMacBundleDeclaresNoOAuthSchemes() throws {
+        let schemes = try declaredURLSchemes()
+
+        XCTAssertTrue(
+            schemes.filter { $0.hasPrefix("db-") }.isEmpty,
+            "The Mac app declares a Dropbox OAuth scheme but does not link SwiftyDropbox"
+        )
+        XCTAssertTrue(
+            schemes.filter { $0.hasPrefix("msauth") }.isEmpty,
+            "The Mac app declares a OneDrive OAuth scheme but does not link MSAL"
+        )
+    }
+    #else
     func testDropboxSchemeIsSubstituted() throws {
         let schemes = try declaredURLSchemes()
         let dropboxSchemes = schemes.filter { $0.hasPrefix("db-") }
@@ -36,6 +52,7 @@ final class URLSchemeFormatTests: XCTestCase {
             "DROPBOX_APP_KEY was not substituted into the Dropbox URL scheme"
         )
     }
+    #endif
 
     private func declaredURLSchemes() throws -> [String] {
         let urlTypes = try XCTUnwrap(
