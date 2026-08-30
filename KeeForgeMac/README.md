@@ -10,35 +10,37 @@ Still open before it can ship: the credential-dependent half of slice 07 (`docs/
 
 ## AutoFill Provider Missing From System Settings
 
-Long tracked as an unexplained bug. The in-repo registration surface is **not** the cause and has been re-verified: `InfoMac.plist` carries the right `NSExtensionPointIdentifier` (`com.apple.authentication-services-credential-provider-ui`), the principal class resolves (`KeeForgeMacAutoFill.CredentialProviderViewController`, matching the `#if os(macOS)` shell), the package type is `XPC!`, and the capability keys are the two that exist on the macOS 14 floor. `pluginkit` sees the built extension and registers it.
+**Fixed.** The cause was a missing entitlement on the *containing app*, not on the extension.
 
-The cause is a **bundle-identifier collision with the iOS app running on Apple Silicon**. The "Designed for iPad" build installed from the App Store lands at `/Applications/KeeForge.app` as a wrapped bundle, and inside it `Wrapper/KeeForge.app/PlugIns/KeeForgeAutoFill.appex` claims `com.keevault.app.autofill` — the same extension identifier as the native Mac extension, under the same app identifier `com.keevault.app`. macOS resolves a credential provider by identifier, so the iOS wrapper shadows the native extension: the Mac appex is registered but never the one AuthenticationServices resolves, and an iOS-wrapped credential provider is not listed in the Mac AutoFill pane. The symptom is exactly "correct registration and entitlements, still absent".
+`AutoFillExtension/AutoFillExtensionMac.entitlements` carried `com.apple.developer.authentication-services.autofill-credential-provider`; `KeeForgeMac/KeeForgeMac.entitlements` did not. The iOS app target (`KeeForge/KeeForge.entitlements`) always had it, so this was macOS-only drift. macOS lists a credential provider in System Settings → General → AutoFill & Passwords only when the containing app claims that entitlement too. With it on the extension alone, `pluginkit` registers the appex happily and the pane never shows it — exactly the "correct registration and entitlements, still absent" symptom.
 
-Reproduce the diagnosis on any Mac:
+Why it went unfound for so long: every check that was run looked at the extension, where the entitlement was present and correct. Nothing compared the Mac app target against its iOS counterpart.
+
+The App ID `com.keevault.app` already carries the AutoFill Credential Provider capability — the iOS app uses it — and the Developer ID profile already authorizes the entitlement, so the fix was the entitlements file alone: no portal change, no hand-made profile, no rebuild of the extension.
+
+Verifying on a Mac:
 
 ```bash
+codesign -d --entitlements - --xml /Applications/KeeForge.app | plutil -p - | grep autofill
 pluginkit -mAvvv -p com.apple.authentication-services-credential-provider-ui
-mdfind "kMDItemCFBundleIdentifier == 'com.keevault.app'"
 ```
 
-Every extra bundle claiming `com.keevault.app` is a candidate shadow. On a development Mac the list also picks up stale `/Applications` copies from earlier builds and every DerivedData product, which are noise of the same kind.
-
-What this means for the release: it is the same question as "what happens to the iOS app on Apple Silicon Macs", and it is answered the same way — **withdraw Mac availability for the iOS app** when the native app ships, so exactly one bundle owns the identifier. Until that is done in App Store Connect, verify Mac AutoFill on a Mac that does not have the iOS app installed. Users who migrate need the databases and bookmarks in their iOS container accounted for; that migration story is a release task, not a code one.
-
-One variable is now ruled out: signing. A Developer ID build installed at `/Applications/KeeForge.app` registers its extension with `pluginkit` exactly as the development-signed one did, so distribution signing changes nothing here. What the pane itself does is still unverified — check it on a Mac with no iOS app and no DerivedData build claiming the same identifier.
+The first must print the entitlement. The second should list exactly one provider, at the `/Applications` path. More than one registration of `com.keevault.app.autofill` means a stale build is competing for the identifier; macOS resolves an identifier to a single winner, so clear the strays before trusting what the pane shows. DerivedData `Debug/KeeForge.app` products and old `/Applications` copies are the usual sources, and `mdfind "kMDItemCFBundleIdentifier == 'com.keevault.app'"` lists the candidates.
 
 ## Moving Off The iOS App On A Mac
 
-Withdrawing Mac availability for the iOS app stops new installs; it does not remove the ones already there, and Apple gives no migration path between the two containers. So the release needs an answer for a user who has been running "Designed for iPad" KeeForge on a Mac and now installs the native app. What actually has to move:
+**Withdrawing Mac availability for the iOS app is an open product decision, not a fix.** It was recorded here as the resolution for the AutoFill bug above; that diagnosis was wrong, and the native provider now appears with the iOS app's availability untouched. What is left is the ordinary question of whether two KeeForge builds should be installable on one Mac. The arguments for withdrawing are that exactly one bundle then owns `com.keevault.app`, and that users are not left choosing between two apps with the same name and icon — neither is functional, and nothing below depends on the answer.
+
+Whichever way that goes, a user who has been running "Designed for iPad" KeeForge on a Mac and then installs the native app needs a migration answer: withdrawing availability stops new installs but does not remove existing ones, and Apple gives no migration path between the two containers. What actually has to move:
 
 - **Local databases** live inside the iOS app's own container and are not visible to the Mac app's sandbox. The user exports each one (Database Details → Export) to somewhere in their own filesystem, then adds it in the native app. Nothing is converted — it is the same `.kdbx` either way.
 - **Security-scoped bookmarks do not transfer.** A database the iOS-on-Mac app could reopen silently has to be picked once in the native app; that is inherent to a different app container, not a bug.
 - **Cloud and WebDAV databases** are re-added by connecting the account again in the native app. The remote file is untouched, so no export step is involved; only the connection is new.
 - **Keychain items are shared**, so a database whose composite key was stored for Touch ID unlock keeps working once the same database is added to the native app — both bundles carry the `com.keevault.sharedkeychain` access group.
-- **AutoFill has to be re-enabled once**, in System Settings → General → AutoFill & Passwords, pointing at the native app. Until the iOS app is gone, both claim the same extension identifier and the native one is shadowed (above).
+- **AutoFill has to be re-enabled once**, in System Settings → General → AutoFill & Passwords, pointing at the native app. Both bundles claim the same extension identifier and macOS resolves an identifier to a single winner, so which one the pane offers with both installed is untested. If the native provider does not appear, check for a competing registration with the `pluginkit` command above.
 - **Nothing is deleted by the transition.** The iOS app's container survives until the user removes the app themselves, so the export step can be repeated if something was missed. Say so explicitly wherever this is written up for users — the failure mode people fear here is losing a vault.
 
-Two release tasks fall out of this: the direct-download and Mac listing pages on keeforge.com need this as user-facing copy, and the App Store Connect change (unchecking Mac availability for the iOS app) should land only after the native app is live, so nobody is left without either.
+One release task falls out of this regardless of the decision: the direct-download and Mac listing pages on keeforge.com need the migration steps as user-facing copy. If Mac availability for the iOS app is withdrawn, that App Store Connect change should land only after the native app is live, so nobody is left without either.
 
 ## Target Map
 
