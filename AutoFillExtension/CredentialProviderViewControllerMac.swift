@@ -79,7 +79,13 @@ final class CredentialProviderViewController: ASCredentialProviderViewController
     override func viewDidAppear() {
         super.viewDidAppear()
         hasAppeared = true
-        coordinator.presentationDidBecomeActive()
+        // AppKit suppresses `NSAlert.runModal()` started inside the
+        // window-ordering transaction this runs in, and the suppressed
+        // response reads as Cancel, so the unlock prompt waits a turn.
+        Task { @MainActor [weak self] in
+            guard let self, self.hasAppeared else { return }
+            self.coordinator.presentationDidBecomeActive()
+        }
     }
 
     override func viewDidDisappear() {

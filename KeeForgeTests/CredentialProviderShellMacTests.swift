@@ -96,6 +96,32 @@ final class CredentialProviderShellMacTests: XCTestCase {
         assertCleanedUp(shell.coordinator)
     }
 
+    /// `viewDidAppear` must not drive the coordinator's presentation
+    /// synchronously. AppKit calls it from inside the window-ordering
+    /// transaction and suppresses any `NSAlert.runModal()` started there, so a
+    /// synchronous unlock prompt never draws and its return value reads as
+    /// Cancel — the AutoFill panel flashes and the request dies without
+    /// filling. The cue must land on a later main-loop turn instead.
+    func test_viewDidAppear_defersPresentationOutOfAppKitTransaction() async throws {
+        let (shell, spy) = makeShell()
+        var alertsRun = 0
+        shell.runModalAlert = { _ in
+            alertsRun += 1
+            return .alertSecondButtonReturn // Cancel: no biometric button configured.
+        }
+        try seedResolvableDefaultDatabase()
+
+        shell.coordinator.prepareCredentialList(for: [serviceIdentifier()])
+        shell.viewDidAppear()
+
+        XCTAssertEqual(alertsRun, 0, "the unlock prompt must not run inside viewDidAppear")
+
+        await Task.yield()
+
+        XCTAssertEqual(alertsRun, 1, "the unlock prompt must run once the transaction has committed")
+        XCTAssertEqual(spy.cancelledError?.code, .userCanceled)
+    }
+
     /// Passkey registration is forwarded to the shared coordinator so macOS
     /// can unlock the target vault and present the creator UI.
     func test_passkeyRegistration_forwardsToCoordinator() throws {
