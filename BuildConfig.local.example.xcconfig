@@ -13,5 +13,10 @@ ONEDRIVE_CLIENT_ID = YOUR_ONEDRIVE_CLIENT_ID
 // SUFeedURL must be HTTPS. SPARKLE_PUBLIC_ED_KEY is the *public* half printed by
 // Sparkle's generate_keys tool — the private key belongs in the login keychain
 // and must never be committed or echoed into CI logs.
-// SPARKLE_FEED_URL = https://example.com/keeforge/appcast.xml
+//
+// xcconfig strips "//" to end of line even in the middle of a value, so writing
+// the URL literally would leave "https:" in the Info.plist. Splice the scheme
+// separator in through a variable instead.
+// SPARKLE_FEED_SLASH = /
+// SPARKLE_FEED_URL = https:$(SPARKLE_FEED_SLASH)$(SPARKLE_FEED_SLASH)example.com/keeforge/appcast.xml
 // SPARKLE_PUBLIC_ED_KEY = YOUR_SPARKLE_PUBLIC_ED_KEY
