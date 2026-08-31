@@ -80,75 +80,39 @@ struct AutoFillSearchView: View {
 
     var body: some View {
         NavigationStack {
-            List {
-                if filteredEntries.isEmpty && searchText.isEmpty && !possibleEntries.isEmpty {
-                    Section {
-                        Text("No exact matches were found. These credentials are possible matches only.")
-                            .foregroundStyle(.secondary)
-                            .accessibilityIdentifier("autofill.possible-matches.explanation")
-                    }
-                }
-                Section {
-                    ForEach(filteredEntries) { entry in
-                        Button { onSelect(entry) } label: { entryRow(entry) }
-                            .accessibilityIdentifier("autofill.entry.exact")
-                    }
-                } header: {
-                    if !filteredEntries.isEmpty { Text("Matches") }
-                }
-                if !possibleEntries.isEmpty {
-                    Section("Possible matches") {
-                        ForEach(filteredPossibleEntries) { entry in
-                            VStack(alignment: .leading, spacing: 8) {
-                                Button { onSelectPossible(entry) } label: { entryRow(entry) }
-                                    .accessibilityIdentifier("autofill.entry.possible.use")
-                                Button("Add original URL to this entry") { entryPendingURLAddition = entry }
-                                    .font(.caption)
-                                    .accessibilityIdentifier("autofill.entry.possible.add-url")
-                            }
-                        }
-                    }
-                }
-                // Only when something is already listed; the empty state
-                // carries its own copy of this action.
-                if canShowAllEntries, !filteredEntries.isEmpty || !filteredPossibleEntries.isEmpty {
-                    Section {
-                        Button(action: showAllEntries) {
-                            Label("Show All Credentials", systemImage: "list.bullet")
-                        }
-                        .accessibilityIdentifier("autofill.show-all-entries")
-                    }
-                }
-            }
-            // As an overlay, not a List row: buttons in a row share one tap
-            // target that fires every action, always landing on the last.
-            .overlay {
-                if filteredEntries.isEmpty && filteredPossibleEntries.isEmpty {
-                    noCredentialsFoundView
-                }
-            }
-            .searchable(text: $searchText, prompt: "Search entries")
-            .onChange(of: searchText) { _, _ in
-                didEditSearch = true
-            }
-            .navigationTitle("Choose Credential")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
+            #if os(macOS)
+            VStack(spacing: 0) {
+                macHeader
+                entryList
+                AutoFillMacFooter {
                     Button("Cancel") { onCancel() }
-                }
-                if let databaseSwitcher {
-                    ToolbarItem(placement: .primaryAction) { databaseSwitcherMenu(databaseSwitcher) }
-                }
-                if let onCreateEntry {
-                    ToolbarItem(placement: .primaryAction) {
-                        Button(action: onCreateEntry) {
-                            Label("Create New Credential", systemImage: "plus")
-                        }
-                        .accessibilityIdentifier("autofill.create-entry")
-                    }
+                        .keyboardShortcut(.cancelAction)
+                        .accessibilityIdentifier("autofill.cancel")
                 }
             }
+            #else
+            entryList
+                .searchable(text: $searchText, prompt: "Search entries")
+                .navigationTitle("Choose Credential")
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("Cancel") { onCancel() }
+                            .accessibilityIdentifier("autofill.cancel")
+                    }
+                    if let databaseSwitcher {
+                        ToolbarItem(placement: .primaryAction) { databaseSwitcherMenu(databaseSwitcher) }
+                    }
+                    if let onCreateEntry {
+                        ToolbarItem(placement: .primaryAction) {
+                            Button(action: onCreateEntry) {
+                                Label("Create New Credential", systemImage: "plus")
+                            }
+                            .accessibilityIdentifier("autofill.create-entry")
+                        }
+                    }
+                }
+            #endif
         }
         .alert("Add Original URL?", isPresented: Binding(
             get: { entryPendingURLAddition != nil },
@@ -161,6 +125,82 @@ struct AutoFillSearchView: View {
             Button("Cancel", role: .cancel) { entryPendingURLAddition = nil }
         } message: {
             Text("This adds the original request URL to the selected credential. The database will be changed only if you confirm.")
+        }
+    }
+
+    #if os(macOS)
+    /// Stands in for the navigation bar and `.searchable` field macOS drops
+    /// (see `AutoFillMacChrome.swift`).
+    private var macHeader: some View {
+        AutoFillMacHeader {
+            VStack(spacing: 10) {
+                HStack(spacing: 12) {
+                    Text("Choose Credential")
+                        .font(.headline)
+                    Spacer()
+                    if let databaseSwitcher {
+                        databaseSwitcherMenu(databaseSwitcher)
+                            .fixedSize()
+                    }
+                }
+                TextField("Search entries", text: $searchText)
+                    .textFieldStyle(.roundedBorder)
+                    .accessibilityIdentifier("autofill.search-field")
+            }
+        }
+    }
+    #endif
+
+    private var entryList: some View {
+        List {
+            if filteredEntries.isEmpty && searchText.isEmpty && !possibleEntries.isEmpty {
+                Section {
+                    Text("No exact matches were found. These credentials are possible matches only.")
+                        .foregroundStyle(.secondary)
+                        .accessibilityIdentifier("autofill.possible-matches.explanation")
+                }
+            }
+            Section {
+                ForEach(filteredEntries) { entry in
+                    Button { onSelect(entry) } label: { entryRow(entry) }
+                        .accessibilityIdentifier("autofill.entry.exact")
+                }
+            } header: {
+                if !filteredEntries.isEmpty { Text("Matches") }
+            }
+            if !possibleEntries.isEmpty {
+                Section("Possible matches") {
+                    ForEach(filteredPossibleEntries) { entry in
+                        VStack(alignment: .leading, spacing: 8) {
+                            Button { onSelectPossible(entry) } label: { entryRow(entry) }
+                                .accessibilityIdentifier("autofill.entry.possible.use")
+                            Button("Add original URL to this entry") { entryPendingURLAddition = entry }
+                                .font(.caption)
+                                .accessibilityIdentifier("autofill.entry.possible.add-url")
+                        }
+                    }
+                }
+            }
+            // Only when something is already listed; the empty state
+            // carries its own copy of this action.
+            if canShowAllEntries, !filteredEntries.isEmpty || !filteredPossibleEntries.isEmpty {
+                Section {
+                    Button(action: showAllEntries) {
+                        Label("Show All Credentials", systemImage: "list.bullet")
+                    }
+                    .accessibilityIdentifier("autofill.show-all-entries")
+                }
+            }
+        }
+        // As an overlay, not a List row: buttons in a row share one tap
+        // target that fires every action, always landing on the last.
+        .overlay {
+            if filteredEntries.isEmpty && filteredPossibleEntries.isEmpty {
+                noCredentialsFoundView
+            }
+        }
+        .onChange(of: searchText) { _, _ in
+            didEditSearch = true
         }
     }
 
@@ -257,20 +297,35 @@ struct AutoFillNoEnabledDatabasesView: View {
 
     var body: some View {
         NavigationStack {
-            ContentUnavailableView {
-                Label("No Databases for AutoFill", systemImage: "lock.slash")
-                    .accessibilityIdentifier("autofill.no-enabled-databases")
-            } description: {
-                Text("Turn on AutoFill for a database in KeeForge’s settings to use it here.")
-            }
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") {
-                        onDismiss()
-                    }
-                    .accessibilityIdentifier("autofill.no-enabled-databases.cancel")
+            #if os(macOS)
+            VStack(spacing: 0) {
+                emptyState
+                AutoFillMacFooter {
+                    Button("Cancel", action: onDismiss)
+                        .keyboardShortcut(.cancelAction)
+                        .accessibilityIdentifier("autofill.no-enabled-databases.cancel")
                 }
             }
+            #else
+            emptyState
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("Cancel") {
+                            onDismiss()
+                        }
+                        .accessibilityIdentifier("autofill.no-enabled-databases.cancel")
+                    }
+                }
+            #endif
+        }
+    }
+
+    private var emptyState: some View {
+        ContentUnavailableView {
+            Label("No Databases for AutoFill", systemImage: "lock.slash")
+                .accessibilityIdentifier("autofill.no-enabled-databases")
+        } description: {
+            Text("Turn on AutoFill for a database in KeeForge’s settings to use it here.")
         }
     }
 }
