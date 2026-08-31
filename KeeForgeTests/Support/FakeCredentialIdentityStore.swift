@@ -21,7 +21,6 @@ final class FakeCredentialIdentityStore: CredentialIdentityStoreProviding, @unch
     private let lock = NSLock()
 
     private var _isEnabledValue = true
-    private var _enumerationUnavailable = false
     private var _stored: [any ASCredentialIdentity] = []
     private var _calls: [String] = []
     private var _onMutation: (@Sendable () -> Void)?
@@ -35,13 +34,6 @@ final class FakeCredentialIdentityStore: CredentialIdentityStoreProviding, @unch
     var isEnabledValue: Bool {
         get { lock.withLock { _isEnabledValue } }
         set { lock.withLock { _isEnabledValue = newValue } }
-    }
-
-    /// When true, `credentialIdentities()` returns nil — the macOS 14.0–14.3
-    /// "store enumeration unavailable" simulation.
-    var enumerationUnavailable: Bool {
-        get { lock.withLock { _enumerationUnavailable } }
-        set { lock.withLock { _enumerationUnavailable = newValue } }
     }
 
     /// The store contents. Settable so tests can seed multi-database state
@@ -151,12 +143,12 @@ final class FakeCredentialIdentityStore: CredentialIdentityStoreProviding, @unch
         hook?()
     }
 
-    func credentialIdentities() async -> [any ASCredentialIdentity]? {
-        let (unavailable, snapshot, hook) = lock.withLock {
-            (_enumerationUnavailable, _stored, _onEnumerate)
+    func credentialIdentities() async -> [any ASCredentialIdentity] {
+        let (snapshot, hook) = lock.withLock {
+            (_stored, _onEnumerate)
         }
         hook?()
-        return unavailable ? nil : snapshot
+        return snapshot
     }
 
     // MARK: - Helpers

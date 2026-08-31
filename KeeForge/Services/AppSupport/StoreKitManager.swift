@@ -90,14 +90,12 @@ final class StoreKitManager {
     /// Best-effort reconciliation of the persisted tip flag from StoreKit history.
     ///
     /// Tips are consumable products, so completed purchases only appear in
-    /// `Transaction.all` on iOS 18+/macOS 15+ (and only with
+    /// `Transaction.all` on KeeForge's deployment floors (and only with
     /// `SKIncludeConsumableInAppPurchaseHistory` set in Info.plist, which it is).
-    /// Our iOS minimum is now 18, but the macOS minimum is still 14, so on
-    /// macOS 14 this history can be empty even for someone who has tipped;
-    /// the persisted `SettingsService.hasTipped` flag remains the source of
-    /// truth. This method
-    /// only ever *promotes* `hasTipped` to true via `rememberTip()` and never
-    /// regresses a previously recorded tip back to false.
+    /// The persisted `SettingsService.hasTipped` flag remains the source of
+    /// truth. This method only ever *promotes* `hasTipped` to true via
+    /// `rememberTip()` and never regresses a previously recorded tip back to
+    /// false.
     func refreshTipHistory() async {
         for await result in Transaction.all {
             guard case .verified(let transaction) = result else { continue }

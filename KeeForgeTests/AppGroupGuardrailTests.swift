@@ -2,7 +2,6 @@ import XCTest
 @testable import KeeForge
 
 /// App Group guardrail (macOS port, slice 01): the group container
-/// `group.com.keevault.shared` is user-world-readable on macOS 14, unlike iOS.
 /// Standing rule: only encrypted KDBX payloads, security-scoped bookmark
 /// blobs, and filename metadata may be written there — never key material,
 /// passwords, or decrypted content. These tests pin `SharedVaultStore`'s

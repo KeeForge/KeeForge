@@ -423,13 +423,12 @@ Use the app's accessibility identifiers whenever possible, including:
 - `settings.autofill.clear-entries` / `settings.autofill.clear-entries.confirm` (Clear AutoFill Entries button + destructive confirmation; the confirm identifier matches two nested buttons — use `.firstMatch`)
 - AutoFill store inspector (DEBUG-only; presented at the app root by the `-autofill-store-inspector` launch argument, wired in `../KeeForge/App/KeeForgeApp.swift`; no effect in Release). Counts and states are exposed as element **values** (read `element.value`, not the label):
   - `autofill-inspector.enabled-state` (value `enabled` / `disabled`)
-  - `autofill-inspector.enumeration-state` (value `available` / `unavailable`)
   - `autofill-inspector.total-count`
   - `autofill-inspector.refresh`
   - `autofill-inspector.database.<database-id-uuidString>.count` (uppercase UUID, same convention as `settings.autofill.database-toggle.<uuid>`)
   - `autofill-inspector.legacy.count` / `autofill-inspector.unrecognized.count` (rendered only when non-empty)
 
-  **Simulator enumeration caveat.** On simulator runtimes (verified iOS 18.5 and 26.5) the enumeration API `ASCredentialIdentityStore.credentialIdentities(...)` always returns an *empty array* despite persisted writes (the saves succeed and QuickType consumes them). The inspector's counts — and the app's own enumerate-then-mutate store maintenance (`CredentialIdentityStoreManager.populate` / `removeIdentities(forDatabase:)`) — are therefore only meaningful on a physical device; `autofill-inspector.enumeration-state` still reads `available` on a simulator (the API returns a non-nil, empty array — `unavailable` means a nil result, e.g. macOS 14.0–14.3).
+  **Simulator enumeration caveat.** On simulator runtimes (verified iOS 18.5 and 26.5) the enumeration API `ASCredentialIdentityStore.credentialIdentities(...)` always returns an *empty array* despite persisted writes (the saves succeed and QuickType consumes them). The inspector's counts — and the app's own enumerate-then-mutate store maintenance (`CredentialIdentityStoreManager.populate` / `removeIdentities(forDatabase:)`) — are therefore only meaningful on a physical device.
 
   **Why `AutoFillStoreUITests` uses two disjoint fixtures.** The system store can dedup identities sharing `(service_id, user)` across databases, ignoring `recordIdentifier`. `AutoFillStoreUITests` therefore seeds its second ("bravo") database from `autofill-union.kdbx`, fully domain/username-disjoint from `test.kdbx` ("alpha") — see `../TestFixtures/README.md` — so no cross-database dedup can occur and `testMultiDatabaseUnionAndSingleSectionRemoval` deterministically asserts the full union: inspector total = alpha's count + bravo's, each section holds its own full set, and disabling bravo removes only its section.
 

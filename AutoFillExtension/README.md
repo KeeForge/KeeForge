@@ -45,8 +45,8 @@ This target provides password, passkey, one-time-code, and new-credential save/g
 
 ## macOS Capability Notes (macOS 26.5 SDK, verified against AuthenticationServices headers)
 
-- **Passwords + passkeys**: available on macOS 14 — advertised via `ProvidesPasswords` / `ProvidesPasskeys` in `InfoMac.plist`. All `ASPasskey*` / `ASPassword*` request/credential types are `macos(14.0)`.
-- **One-time codes**: `ASOneTimeCodeCredential`, `ASOneTimeCodeCredentialRequest`, and `completeOneTimeCodeRequest(using:)` are `macos(15.0)+`, **not** macOS 14. The coordinator's OTC paths compile behind `@available(iOS 18.0, macOS 15.0, *)`, but `ProvidesOneTimeCodes` is **not** advertised on macOS (the slice guardrail only carries capability keys that exist on the macOS 14 floor). Deferred; can be flipped on for a macOS-15 minimum later.
+- **Passwords + passkeys**: advertised via `ProvidesPasswords` / `ProvidesPasskeys` in `InfoMac.plist`.
+- **One-time codes**: advertised via `ProvidesOneTimeCodes`. `ASOneTimeCodeCredential`, `ASOneTimeCodeCredentialRequest`, and `completeOneTimeCodeRequest(using:)` require macOS 15, which is the Mac app and extension's deployment floor.
 - **Save-password / generate-password**: `ASSavePasswordRequest`, `ASGeneratePasswordsRequest`, `ASGeneratedPassword`, `completeSavePasswordRequest`, and `completeGeneratePasswordRequest` are `API_UNAVAILABLE(macos)` on every macOS version. The coordinator's save/generate surface is `#if os(iOS)`; the mac shell's `presentEntryCreator` / `presentGeneratedPassword` / `completeSave…` / `completeGenerate…` are unreachable stubs. `Supports*PasswordCredentials*` keys are omitted from `InfoMac.plist`.
 
 ## Change Carefully

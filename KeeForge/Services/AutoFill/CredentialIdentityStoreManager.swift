@@ -103,16 +103,11 @@ protocol CredentialIdentityStoreProviding: Sendable {
     func saveCredentialIdentities(_ identities: [any ASCredentialIdentity]) async throws
     func removeCredentialIdentities(_ identities: [any ASCredentialIdentity]) async throws
     func removeAllCredentialIdentities() async throws
-    /// Every identity this app has published, or `nil` where store
-    /// enumeration is unavailable:
-    /// `credentialIdentities(forService:credentialIdentityTypes:)` needs
-    /// iOS 17.4 / macOS 14.4, and within KeeForge's deployment targets
-    /// (iOS 18.0, macOS 14.0) only macOS 14.0–14.3 falls short.
-    ///
+    /// Every identity this app has published.
     /// Simulator runtimes (verified iOS 18.5 and 26.5) return an empty array
     /// despite persisted writes, so enumeration-dependent flows can only be
     /// exercised on a physical device.
-    func credentialIdentities() async -> [any ASCredentialIdentity]?
+    func credentialIdentities() async -> [any ASCredentialIdentity]
 }
 
 /// Production conformance wrapping `ASCredentialIdentityStore.shared`.
@@ -148,9 +143,8 @@ struct SystemCredentialIdentityStore: CredentialIdentityStoreProviding {
         try await ASCredentialIdentityStore.shared.removeAllCredentialIdentities()
     }
 
-    func credentialIdentities() async -> [any ASCredentialIdentity]? {
-        guard #available(iOS 17.4, macOS 14.4, *) else { return nil }
-        return Self.droppingNonConformingIdentities(
+    func credentialIdentities() async -> [any ASCredentialIdentity] {
+        Self.droppingNonConformingIdentities(
             await ASCredentialIdentityStore.shared.credentialIdentities(forService: nil))
     }
 }
@@ -354,9 +348,8 @@ enum CredentialIdentityStoreManager: Sendable {
     ///
     /// Refresh decision tree:
     /// 1. Enumerate the store.
-    /// 2. If enumeration is unavailable (`credentialIdentities()` returns
-    ///    nil — macOS 14.0–14.3), or it shows no other database's identities
-    ///    (a `.current` tag owned by a different database) and no identity
+    /// 2. If enumeration shows no other database's identities (a `.current`
+    ///    tag owned by a different database) and no identity
     ///    lacks a readable runtime `recordIdentifier`, do an atomic whole-store
     ///    `replaceCredentialIdentities` exactly as before aggregation
     ///    (`removeAllCredentialIdentities` when this database has no eligible
@@ -376,12 +369,6 @@ enum CredentialIdentityStoreManager: Sendable {
     /// Because each refresh first drops the database's own stale identities,
     /// a deleted entry can never linger past its database's next refresh; no
     /// Strongbox-style periodic full clear is needed.
-    ///
-    /// macOS 14.0–14.3 consequence of step 2's fallback: without enumeration
-    /// every refresh is a full replace, so other databases' suggestions
-    /// vanish until their next unlock repopulates them (KeePassium-style lazy
-    /// repopulation — the pre-aggregation single-active behavior, and the
-    /// only option without an enumeration API).
     ///
     /// The queue serializes calls within this process only. The main app and
     /// extension are separate processes and can still mutate the system store
@@ -425,21 +412,21 @@ enum CredentialIdentityStoreManager: Sendable {
             }
 
             let storedIdentities = await store.credentialIdentities()
-            let otherDatabaseIdentitiesPresent = storedIdentities?.contains { identity in
+            let otherDatabaseIdentitiesPresent = storedIdentities.contains { identity in
                 guard let recordIdentifier = recordIdentifier(of: identity),
                       case .current(let parsed) = CredentialRecordIdentifier.parse(recordIdentifier)
                 else { return false }
                 return parsed.databaseID != databaseID
-            } ?? false
-            let unattributedIdentitiesPresent = storedIdentities?.contains {
+            }
+            let unattributedIdentitiesPresent = storedIdentities.contains {
                 recordIdentifier(of: $0) == nil
-            } ?? false
+            }
 
             do {
                 if unattributedIdentitiesPresent {
                     logger.warning("Credential identity refresh preserved system identities without readable record identifiers")
                 }
-                if let storedIdentities, otherDatabaseIdentitiesPresent || unattributedIdentitiesPresent {
+                if otherDatabaseIdentitiesPresent || unattributedIdentitiesPresent {
                     // Additive per-database refresh: drop this database's own
                     // (possibly stale) identities plus every legacy bare-UUID
                     // identity, then save the current set. `.unrecognized`
@@ -553,16 +540,6 @@ enum CredentialIdentityStoreManager: Sendable {
     /// `.unrecognized` (stale) identifiers are left untouched; a later
     /// whole-store replace (a refresh that finds no other database's
     /// identities, or `clearStore()`) purges them.
-    ///
-    /// On macOS 14.0–14.3 store enumeration is unavailable
-    /// (`credentialIdentities()` returns nil); this logs and removes nothing,
-    /// so callers needing a hard guarantee there must fall back to
-    /// `clearStore()` + lazy repopulation. The slice 04 lifecycle callers
-    /// (`DatabaseListStore.setAutoFillEnabled` / `remove(id:)`) deliberately
-    /// do not: on that OS every `populate` is a whole-store replace anyway,
-    /// so a disabled/removed database's stale suggestions linger only until
-    /// any enabled database's next refresh, and the extension already treats
-    /// them as stale on tap.
     static func removeIdentities(forDatabase databaseID: UUID, includingLegacyIdentifiers: Bool = false) {
         #if DEBUG
         let observer = storeProviderOverrideStorage.getRemoveDatabaseObserver()
@@ -584,10 +561,7 @@ enum CredentialIdentityStoreManager: Sendable {
                 return
             }
 
-            guard let storedIdentities = await store.credentialIdentities() else {
-                logger.error("Identity-store enumeration unavailable on this OS; targeted removal skipped")
-                return
-            }
+            let storedIdentities = await store.credentialIdentities()
 
             let identitiesToRemove = storedIdentities.filter { identity in
                 guard let recordIdentifier = recordIdentifier(of: identity) else { return false }
@@ -619,12 +593,9 @@ enum CredentialIdentityStoreManager: Sendable {
     /// a tapped suggestion's entry no longer exists in its successfully
     /// unlocked database: the single stale suggestion disappears without
     /// touching the rest of the store.
-    ///
     /// Like `removeIdentities(forDatabase:)` this works purely by store
     /// enumeration, so it needs no entry data and works while every database
-    /// is locked. On macOS 14.0–14.3 (no enumeration API) it logs and removes
-    /// nothing; the stale identity dies at the owning database's next
-    /// full-store refresh instead.
+    /// is locked.
     static func removeIdentity(withRecordIdentifier recordIdentifier: String) {
         #if DEBUG
         let observer = storeProviderOverrideStorage.getRemoveIdentityObserver()
@@ -646,10 +617,7 @@ enum CredentialIdentityStoreManager: Sendable {
                 return
             }
 
-            guard let storedIdentities = await store.credentialIdentities() else {
-                logger.error("Identity-store enumeration unavailable on this OS; single-identity removal skipped")
-                return
-            }
+            let storedIdentities = await store.credentialIdentities()
 
             let identitiesToRemove = storedIdentities.filter {
                 Self.recordIdentifier(of: $0) == recordIdentifier

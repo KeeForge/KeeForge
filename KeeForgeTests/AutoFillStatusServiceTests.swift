@@ -61,11 +61,7 @@ final class AutoFillStatusServiceTests: XCTestCase {
 
         AutoFillStatusService.enableRequester = { false }
         let declined = await AutoFillStatusService.requestEnableAutoFill()
-        XCTAssertEqual(declined, false, "a declined request must stay distinguishable from a no-op")
-
-        AutoFillStatusService.enableRequester = { nil }
-        let noOp = await AutoFillStatusService.requestEnableAutoFill()
-        XCTAssertNil(noOp)
+        XCTAssertFalse(declined)
     }
 
     // MARK: - UI-test suppression

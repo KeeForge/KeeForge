@@ -130,20 +130,6 @@ final class AutoFillStoreInspectorGroupingTests: XCTestCase {
 
     // MARK: - makeSnapshot
 
-    func testSnapshotNilIdentitiesReportsEnumerationUnavailable() {
-        let snapshot = AutoFillStoreInspectorGrouping.makeSnapshot(
-            isEnabled: true,
-            identities: nil
-        ) { _ in nil }
-
-        XCTAssertTrue(snapshot.isEnabled)
-        XCTAssertFalse(snapshot.enumerationAvailable)
-        XCTAssertEqual(snapshot.totalCount, 0)
-        XCTAssertTrue(snapshot.databaseBuckets.isEmpty)
-        XCTAssertTrue(snapshot.legacyRows.isEmpty)
-        XCTAssertTrue(snapshot.unrecognizedRows.isEmpty)
-    }
-
     func testSnapshotDisabledEmptyStore() {
         let snapshot = AutoFillStoreInspectorGrouping.makeSnapshot(
             isEnabled: false,
@@ -151,7 +137,6 @@ final class AutoFillStoreInspectorGroupingTests: XCTestCase {
         ) { _ in nil }
 
         XCTAssertFalse(snapshot.isEnabled)
-        XCTAssertTrue(snapshot.enumerationAvailable)
         XCTAssertEqual(snapshot.totalCount, 0)
         XCTAssertTrue(snapshot.databaseBuckets.isEmpty)
     }
@@ -170,7 +155,6 @@ final class AutoFillStoreInspectorGroupingTests: XCTestCase {
         ) { _ in "Vault" }
 
         XCTAssertTrue(snapshot.isEnabled)
-        XCTAssertTrue(snapshot.enumerationAvailable)
         XCTAssertEqual(snapshot.totalCount, 3)
         XCTAssertEqual(snapshot.databaseBuckets.count, 1)
         XCTAssertEqual(snapshot.databaseBuckets.first?.count, 2)

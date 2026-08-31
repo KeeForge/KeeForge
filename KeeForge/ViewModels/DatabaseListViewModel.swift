@@ -256,22 +256,15 @@ final class DatabaseListViewModel {
     }
 
     func requestEnableAutoFill() async {
-        switch await AutoFillStatusService.requestEnableAutoFill() {
-        case .some(true):
+        if await AutoFillStatusService.requestEnableAutoFill() {
             isAutoFillProviderEnabled = true
             isAutoFillEnableRequestRejected = false
-        case .some(false):
+        } else {
             // The prompt closed without authorizing KeeForge. Confirm that
             // against the real provider state before recording it — the result
             // describes the prompt, not the store.
             await refreshAutoFillStatus()
             isAutoFillEnableRequestRejected = isAutoFillProviderEnabled != true
-        case .none:
-            // macOS: the request opened System Settings instead of prompting,
-            // so nothing was observed yet. The provider state is re-read when
-            // the app becomes active again (`DatabaseListView`'s scene-phase
-            // refresh), which is what dismisses the tip.
-            break
         }
     }
 

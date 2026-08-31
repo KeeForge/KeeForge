@@ -50,7 +50,6 @@ struct InspectorDatabaseBucket: Identifiable, Sendable, Hashable {
 /// store. Sendable so it can be built off the main actor and handed back.
 struct InspectorStoreSnapshot: Sendable {
     let isEnabled: Bool
-    let enumerationAvailable: Bool
     let totalCount: Int
     let databaseBuckets: [InspectorDatabaseBucket]
     let legacyRows: [InspectorIdentityRow]
@@ -157,29 +156,15 @@ enum AutoFillStoreInspectorGrouping {
         return (databaseBuckets, legacyRows, unrecognizedRows)
     }
 
-    /// Wraps `makeBuckets` with the store-level facts. A `nil` `identities`
-    /// means enumeration is unavailable (`credentialIdentities()` returned nil):
-    /// the snapshot then reports no buckets and a zero total count.
+    /// Wraps `makeBuckets` with the store-level facts.
     static func makeSnapshot(
         isEnabled: Bool,
-        identities: [any ASCredentialIdentity]?,
+        identities: [any ASCredentialIdentity],
         databaseName: (UUID) -> String?
     ) -> InspectorStoreSnapshot {
-        guard let identities else {
-            return InspectorStoreSnapshot(
-                isEnabled: isEnabled,
-                enumerationAvailable: false,
-                totalCount: 0,
-                databaseBuckets: [],
-                legacyRows: [],
-                unrecognizedRows: []
-            )
-        }
-
         let grouped = makeBuckets(from: identities, databaseName: databaseName)
         return InspectorStoreSnapshot(
             isEnabled: isEnabled,
-            enumerationAvailable: true,
             totalCount: identities.count,
             databaseBuckets: grouped.databaseBuckets,
             legacyRows: grouped.legacyRows,

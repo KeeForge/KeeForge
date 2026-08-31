@@ -48,13 +48,10 @@ enum FaviconService: Sendable {
     /// - iOS keeps it in the App Group container. The App Group is sandbox-
     ///   private on iOS, and the AutoFill extension reads the cache there so it
     ///   can show icons without re-fetching.
-    /// - macOS relocates it into the app's *own* sandbox container
-    ///   (Application Support). On macOS the App Group container is readable by
-    ///   the user's other (non-sandboxed) processes, so a domain fingerprint in
-    ///   the group container would be world-readable to the logged-in user.
-    ///   Keeping it in the app container closes that exposure; the mac AutoFill
-    ///   extension renders without favicons or re-fetches rather than widening
-    ///   the group-container surface.
+    /// - macOS keeps it in the app's *own* sandbox container (Application
+    ///   Support). The Mac extension does not need the cache, so sharing a
+    ///   plaintext domain fingerprint would widen the App Group surface for no
+    ///   product benefit.
     ///
     /// Extension-safe: uses only Foundation `FileManager` APIs (no UIKit/AppKit).
     private static var cacheContainerURL: URL {

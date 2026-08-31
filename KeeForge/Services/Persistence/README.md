@@ -22,7 +22,7 @@ This folder owns database references, cached copies, file access, and local-save
 
 ## App Group Guardrail (macOS)
 
-- The App Group container `group.com.keevault.shared` is user-world-readable on macOS 14 (unlike iOS, where the container is inside the app sandbox).
+- Keep the App Group container `group.com.keevault.shared` limited to data the app and extension genuinely share. Plaintext app-only metadata belongs in the app sandbox.
 - Standing rule: only encrypted KDBX payloads, security-scoped bookmark blobs, and filename metadata may be written to the group container (files or the shared `UserDefaults` suite) — never key material, master passwords, session keys, or decrypted content.
 - `KeeForgeTests/AppGroupGuardrailTests.swift` pins `SharedVaultStore`'s write surface to that shape; extend it whenever new writes to the group container are added.
 - `SecurityScopedBookmarkManager.swift` uses `.withSecurityScope` for both bookmark creation and resolution on macOS (plain bookmarks grant no sandbox access across relaunch there); iOS keeps `options: []`. Resolution falls back to a plain resolve on macOS for older bookmark data.

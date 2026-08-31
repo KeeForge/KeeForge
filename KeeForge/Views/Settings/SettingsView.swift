@@ -419,10 +419,9 @@ private struct AutoFillSettingsView: View {
             databasesSection
 
             #if os(iOS)
-            // iOS only: the Mac extension never copies the code, because the
-            // AutoFill one-time-code API is macOS 15+ and this app's floor is
-            // macOS 14 — `AutoFillExtension/InfoMac.plist` therefore does not
-            // advertise `ProvidesOneTimeCodes`.
+            // The Mac extension supplies verification codes directly. This
+            // copy fallback stays iOS-only because its pasteboard expiration
+            // survives the short-lived extension process there.
             Section {
                 Toggle("Copy Verification Code on AutoFill", isOn: $autoFillCopyTOTP)
                     .accessibilityIdentifier("settings.autofill.copy-totp")
@@ -518,11 +517,10 @@ private struct AutoFillSettingsView: View {
                 .accessibilityIdentifier("settings.autofill.provider-status")
                 .accessibilityValue(providerStatusText)
 
-            #if os(iOS)
             // The manual route has to stay available while the provider is off:
-            // iOS can refuse the one-tap prompt outright, and it tears this
+            // the system can refuse the one-tap prompt outright, and it tears this
             // sheet down when the prompt closes, so a user it does not work for
-            // otherwise has no way into iOS Settings from inside KeeForge.
+            // otherwise has no way into Settings from inside KeeForge.
             if isProviderEnabled == false {
                 Button("Turn On AutoFill") {
                     Task { await listViewModel.requestEnableAutoFill() }
@@ -530,14 +528,12 @@ private struct AutoFillSettingsView: View {
                 .accessibilityIdentifier("settings.autofill.turn-on")
             }
 
+            #if os(iOS)
             Button("Open iOS AutoFill Settings") {
                 Task { await AutoFillStatusService.openAutoFillSettings() }
             }
             .accessibilityIdentifier("settings.autofill.open-ios-settings")
             #else
-            // `ASSettingsHelper` is macos(14.0), so the deep link works here;
-            // only `requestToTurnOnCredentialProviderExtension` (macOS 15+) is
-            // out of reach, which is why there is no one-click enable button.
             Button("Open AutoFill Settings…") {
                 Task { await AutoFillStatusService.openAutoFillSettings() }
             }

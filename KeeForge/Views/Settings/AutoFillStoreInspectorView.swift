@@ -143,11 +143,6 @@ struct AutoFillStoreInspectorView: View {
                 identifier: "autofill-inspector.enabled-state"
             )
             valueRow(
-                field: "Enumeration",
-                value: snapshot.enumerationAvailable ? "available" : "unavailable",
-                identifier: "autofill-inspector.enumeration-state"
-            )
-            valueRow(
                 field: "Total identities",
                 value: "\(snapshot.totalCount)",
                 identifier: "autofill-inspector.total-count"

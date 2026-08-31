@@ -4,7 +4,7 @@ options:
   developmentLanguage: en
   deploymentTarget:
     iOS: "18.0"
-    macOS: "14.0"
+    macOS: "15.0"
   xcodeVersion: "16.0"
   minimumXcodeGenVersion: "2.38"
 configFiles:
@@ -277,7 +277,7 @@ targets:
   KeeForgeMacAutoFill:
     type: app-extension
     platform: macOS
-    deploymentTarget: "14.0"
+    deploymentTarget: "15.0"
     settings:
       base:
         INFOPLIST_FILE: AutoFillExtension/InfoMac.plist
