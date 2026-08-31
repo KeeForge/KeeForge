@@ -27,6 +27,21 @@ pluginkit -mAvvv -p com.apple.authentication-services-credential-provider-ui
 
 The first must print the entitlement. The second should list exactly one provider, at the `/Applications` path. More than one registration of `com.keevault.app.autofill` means a stale build is competing for the identifier; macOS resolves an identifier to a single winner, so clear the strays before trusting what the pane shows. DerivedData `Debug/KeeForge.app` products and old `/Applications` copies are the usual sources, and `mdfind "kMDItemCFBundleIdentifier == 'com.keevault.app'"` lists the candidates.
 
+## AutoFill Suggestions Come From One Database At A Time
+
+**Platform limit, not a bug to fix.** macOS reports `ASCredentialIdentityStoreState.supportsIncrementalUpdates == false` (verified against a real enabled provider on macOS 26.5, `isEnabled == true`). Apple's contract for that mode is explicit: `saveCredentialIdentities` means "pass *all* credential identities", and `removeCredentialIdentities` is documented as usable only when incremental updates are supported. Store enumeration is no better — `credentialIdentities(forService: nil)` comes back empty, or holding private `SFPasswordCredentialIdentity` objects that do not respond to `recordIdentifier`.
+
+The iOS aggregation design depends on both: it enumerates the store, attributes each identity to a database through the `v2:<database>:<entry>` record identifier, then removes that database's own identities and saves the fresh set. On macOS neither half works, so what shipped was non-deterministic — Safari suggested from whichever database was unlocked last — and every targeted removal was a silent no-op, leaving a disabled or deleted database's suggestions in the store indefinitely.
+
+`CredentialIdentityStoreManager` now reads `CredentialIdentityStoreCapabilities` before every write. Without incremental updates:
+
+- a refresh is one `replaceCredentialIdentities` (or `removeAllCredentialIdentities` when the database has no eligible entries), so the most recently unlocked AutoFill-enabled database owns the store;
+- a targeted removal clears the store instead, which is the only reduction available and is self-healing — suggestions return on the next unlock.
+
+Record identifiers are still tagged and still resolve, so tapping a suggestion unlocks its owning database. The other databases stay reachable through the extension's database switcher and `defaultAutoFillDatabase`. The gate is the runtime flag rather than `#if os(macOS)`, so aggregation starts working on its own if a macOS release ever reports incremental support.
+
+Diagnosing this on a Mac: launch with `-autofill-store-inspector` (DEBUG only) and read the Store State section, which reports **Incremental updates** alongside Enabled and the identity count.
+
 ## Moving Off The iOS App On A Mac
 
 **Withdrawing Mac availability for the iOS app is an open product decision, not a fix.** It was recorded here as the resolution for the AutoFill bug above; that diagnosis was wrong, and the native provider now appears with the iOS app's availability untouched. What is left is the ordinary question of whether two KeeForge builds should be installable on one Mac. The arguments for withdrawing are that exactly one bundle then owns `com.keevault.app`, and that users are not left choosing between two apps with the same name and icon — neither is functional, and nothing below depends on the answer.
@@ -85,6 +100,7 @@ The rule of thumb from `../AGENTS.md` ("macOS Test Strategy") in the form a chan
 | An accessibility identifier | Update every suite that names it, in the same change — `../KeeForgeUITests/` and `../KeeForgeMacUITests/` share identifiers by convention. |
 | User-facing text | Translations for all five shipped locales plus a `LocalizationTests` run; the Mac targets use the same four catalogs the iOS ones do. |
 | Parser, writer, protected fields, unknown XML, or any save path | `../KeeForgeTests/KDBXCompatibilityTests.swift`, plus the compatibility gate per platform: `KDBX_COMPAT_SCHEME=KeeForgeMac ci_scripts/run_kdbx_compatibility_gate.sh`. |
+| Anything writing to the system credential identity store | A `KeeForgeTests/CredentialIdentityStoreManagerTests.swift` case against `FakeCredentialIdentityStore` with `supportsIncrementalUpdatesValue = false`, alongside the incremental one. macOS takes that branch for every write. |
 | Entitlements, the App Group container, the AutoFill extension boundary, or Sparkle | `docs/macos-security-notes.md` refreshed against what actually shipped, and `AppGroupGuardrailTests` re-run if the container's write surface moved. |
 
 Two standing constraints behind the table:

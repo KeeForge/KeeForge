@@ -21,6 +21,7 @@ final class FakeCredentialIdentityStore: CredentialIdentityStoreProviding, @unch
     private let lock = NSLock()
 
     private var _isEnabledValue = true
+    private var _supportsIncrementalUpdatesValue = true
     private var _stored: [any ASCredentialIdentity] = []
     private var _calls: [String] = []
     private var _onMutation: (@Sendable () -> Void)?
@@ -34,6 +35,14 @@ final class FakeCredentialIdentityStore: CredentialIdentityStoreProviding, @unch
     var isEnabledValue: Bool {
         get { lock.withLock { _isEnabledValue } }
         set { lock.withLock { _isEnabledValue = newValue } }
+    }
+
+    /// Mirrors `ASCredentialIdentityStore.state().supportsIncrementalUpdates`.
+    /// Set false to simulate macOS, where enumeration and targeted removal are
+    /// unavailable and every write is a whole-store replace.
+    var supportsIncrementalUpdatesValue: Bool {
+        get { lock.withLock { _supportsIncrementalUpdatesValue } }
+        set { lock.withLock { _supportsIncrementalUpdatesValue = newValue } }
     }
 
     /// The store contents. Settable so tests can seed multi-database state
@@ -82,8 +91,11 @@ final class FakeCredentialIdentityStore: CredentialIdentityStoreProviding, @unch
 
     // MARK: - CredentialIdentityStoreProviding
 
-    func isEnabled() async -> Bool {
-        isEnabledValue
+    func capabilities() async -> CredentialIdentityStoreCapabilities {
+        CredentialIdentityStoreCapabilities(
+            isEnabled: isEnabledValue,
+            supportsIncrementalUpdates: supportsIncrementalUpdatesValue
+        )
     }
 
     func replaceCredentialIdentities(_ identities: [any ASCredentialIdentity]) async throws {

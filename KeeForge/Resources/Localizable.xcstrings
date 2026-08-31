@@ -15029,6 +15029,40 @@
         }
       }
     },
+    "macOS shows suggestions from one database at a time — whichever you unlocked most recently. Unlock another selected database to switch which entries appear." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "macOS zeigt Vorschläge immer nur aus einer Datenbank – aus der zuletzt entsperrten. Entsperren Sie eine andere ausgewählte Datenbank, um zu wechseln, welche Einträge erscheinen."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "macOS muestra sugerencias de una sola base de datos a la vez: la que haya desbloqueado más recientemente. Desbloquee otra base de datos seleccionada para cambiar qué entradas aparecen."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "macOS n'affiche les suggestions que d'une seule base de données à la fois : la dernière que vous avez déverrouillée. Déverrouillez une autre base de données sélectionnée pour changer les entrées proposées."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "macOS 一次只显示一个数据库的建议，即最近解锁的那个。解锁另一个已选择的数据库，即可切换出现的条目。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "macOS 一次只顯示一個資料庫的建議，即最近解鎖的那個。解鎖另一個已選取的資料庫，即可切換出現的條目。"
+          }
+        }
+      }
+    },
     "Malformed variant map in header" : {
       "localizations" : {
         "de" : {
