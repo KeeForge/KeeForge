@@ -351,7 +351,7 @@ struct RegularDatabaseWorkspaceView: View {
         }
         .navigationTitle(viewModel.databaseDisplayName)
         .searchable(text: $viewModel.searchText, prompt: "Search entries")
-        .macSearchFocusedCompat($isSearchFieldFocused)
+        .searchFocused($isSearchFieldFocused)
         .onChange(of: viewModel.searchFocusRequestID) { _, _ in
             isSearchFieldFocused = true
         }

@@ -27,13 +27,8 @@
 			<!--
 			 macOS 26.5 SDK capability findings (verified against the
 			 AuthenticationServices headers):
-			   * ProvidesPasswords / ProvidesPasskeys: available on macOS 14 -> advertised.
-			   * ProvidesOneTimeCodes: the OTC APIs (ASOneTimeCodeCredential,
-			     ASOneTimeCodeCredentialRequest, completeOneTimeCodeRequest(using:))
-			     are macos(15.0)+, NOT macOS 14. Per the slice guardrail we only
-			     carry a capability key that exists on the macOS 14 floor, so OTC
-			     is deferred here (the coordinator's OTC paths still compile behind
-			     `@available(macOS 15.0, *)` and can be flipped on later).
+			   * Password, passkey, and one-time-code fulfillment are all
+			     available on KeeForge's macOS 15 floor.
 			   * SupportsSavePasswordCredentials / SupportsGeneratePasswordCredentials
 			     (+ ...WithUI): the underlying request types are
 			     `API_UNAVAILABLE(macos)` on every macOS version -> intentionally omitted.
@@ -43,6 +38,8 @@
 				<key>ProvidesPasswords</key>
 				<true/>
 				<key>ProvidesPasskeys</key>
+				<true/>
+				<key>ProvidesOneTimeCodes</key>
 				<true/>
 			</dict>
 		</dict>

@@ -31,13 +31,12 @@ Accepted residuals of this model (on both platforms):
 - Transient `String`/`Data` copies made during parsing and signing cannot be
   zeroized (see "Swift `String` does not zeroize" below).
 
-## App Group container world-readability (macOS 14)
+## App Group container minimization
 
 On iOS the App Group container (`group.com.keevault.shared`) is sandbox-private.
-On macOS 14 the same container is **readable by the logged-in user's other
-(non-sandboxed) processes**. Standing guardrail (epic-wide): only encrypted KDBX
-bytes, security-scoped bookmarks, and filenames are ever written there — never key
-material.
+On macOS, KeeForge minimizes the shared surface regardless of container
+permissions: only encrypted KDBX bytes, security-scoped bookmarks, and filenames
+are written there — never key material or app-only plaintext metadata.
 
 Slice 06 tightens one specific case: the **favicon disk cache**. A favicon cache
 is a plaintext, per-domain fingerprint of the vault's entries (which sites you
@@ -46,8 +45,8 @@ macOS:
 
 - **iOS** keeps the favicon cache in the App Group container so the AutoFill
   extension can read icons without re-fetching.
-- **macOS** relocates it to the app's own sandbox container (Application
-  Support), which is not group-shared. The macOS AutoFill extension therefore
+- **macOS** keeps it in the app's own sandbox container (Application Support).
+  The macOS AutoFill extension therefore
   renders without favicons or re-fetches them rather than widening the
   group-container exposure. (`FaviconService.cacheDirectory`.)
 
@@ -58,12 +57,8 @@ OneDrive account emails, WebDAV `user@host/path` display strings — so:
 - **iOS** keeps them in the App Group `UserDefaults` suite (sandbox-private;
   unchanged behavior). The AutoFill extensions do not read this key.
 - **macOS** stores them in the app's own sandbox defaults
-  (`UserDefaults.standard`). On first access, `CloudAccountStore` runs a
-  one-time migration that copies any value an earlier build wrote to the group
-  suite into standard defaults (without clobbering an existing value) and then
-  deletes it from the group suite, scrubbing previously written PII from the
-  world-readable container. (`SharedVaultStore.cloudAccountDefaults`,
-  `CloudAccountStore.migrateAccounts(from:to:)`.)
+  (`UserDefaults.standard`). The extension never reads these records, so there
+  is no reason to put the PII in shared storage.
 
 ## Lock lifecycle — driven only by `MacLockMonitor`, and unconditional
 
@@ -133,8 +128,9 @@ macOS has no equivalent signal, so protection is layered:
    observer, so there are no per-window call sites. **This is best-effort: on
    macOS 15 and later, ScreenCaptureKit-based capture ignores `sharingType`**, so
    a determined screen recorder can still capture the window. When it does work
-   (notably ⇧⌘4 and legacy capture on macOS 14), a screenshot of KeeForge comes
-   out black or fails — that is the protection working, not a bug.
+   (including some screenshot and legacy-capture paths), a screenshot of
+   KeeForge comes out black or fails — that is the protection working, not a
+   bug.
 
 This matches the competitive landscape: Strongbox ships the same opt-in toggle,
 Bitwarden blocks by default, KeePassium relies on screen-lock instead.
@@ -250,9 +246,8 @@ apart from `app-sandbox`, which iOS extensions get implicitly:
 
 The boundary is enforced by more than review: `AppGroupGuardrailTests` pins the
 group container's write surface to encrypted KDBX payloads, bookmark blobs, and
-filename metadata, and the container is world-readable to the user's other
-processes on macOS 14 (above), so widening that surface is a security change and
-not a convenience one.
+filename metadata. Widening that surface is a security change, not a convenience
+one.
 
 The memory ceiling is a separate constraint with a security edge:
 `KDFExecutionPolicy.autoFillExtension` bounds what a hostile KDBX header can ask

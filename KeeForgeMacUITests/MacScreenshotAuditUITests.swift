@@ -103,9 +103,8 @@ final class MacScreenshotAuditUITests: MacUITestCase {
     /// The on-screen, normal-layer windows the window server reports, ordered
     /// front to back.
     ///
-    /// On macOS 14+ this list is trimmed to the caller's OWN windows unless the
-    /// process holds Screen Recording permission — which is exactly why the
-    /// harness cannot assume it sees the whole screen.
+    /// Without Screen Recording permission this list is trimmed to the caller's
+    /// own windows, so the harness cannot assume it sees the whole screen.
     private func orderedScreenWindows() -> [ScreenWindow] {
         guard let list = CGWindowListCopyWindowInfo(
             [.optionOnScreenOnly, .excludeDesktopElements],

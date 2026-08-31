@@ -267,9 +267,6 @@ final class CredentialProviderCoordinator {
     /// because `ASPasskeyCredentialRequest.excludedCredentials` is read-only
     /// with no initializer that sets it, so tests cannot construct exclusions.
     var excludedCredentialIDs: (ASPasskeyCredentialRequest) -> [Data] = { request in
-        #if os(macOS)
-        guard #available(macOS 15.0, *) else { return [] }
-        #endif
         return request.excludedCredentials?.map(\.credentialID) ?? []
     }
 
@@ -1228,15 +1225,7 @@ final class CredentialProviderCoordinator {
             return true
         }
         if hasExcludedCredentialMatch(for: request, identity: identity) {
-            #if os(macOS)
-            if #available(macOS 15.0, *) {
-                cancelRequest(code: .matchedExcludedCredential)
-            } else {
-                cancelRequest(code: .failed)
-            }
-            #else
             cancelRequest(code: .matchedExcludedCredential)
-            #endif
             return true
         }
         presentPasskeyCreator(for: request, identity: identity)

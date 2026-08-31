@@ -15,7 +15,7 @@ Entry point for coding agents working on KeeForge. This file is intentionally br
 ## Project Snapshot
 
 - Native iOS KeePass manager for KDBX 4.x databases; also reads KDBX 3.1 (read-only)
-- Swift 6, SwiftUI, iOS 18+ / macOS 14+, `@Observable`, strict concurrency
+- Swift 6, SwiftUI, iOS 18+ / macOS 15+, `@Observable`, strict concurrency
 - XcodeGen build graph: edit `project.yml`, then regenerate `KeeForge.xcodeproj`
 - Main targets: `KeeForge`, `KeeForgeMac`, `KeeForgeAutoFill`, `KeeForgeMacAutoFill`, `KeeForgeTests`, `KeeForgeMacTests`, `KeeForgeUITests`, `KeeForgeMacUITests`. The macOS targets are being prepared for their first release and have not shipped yet; the remaining checklist is CHANGELOG.md's "## macOS App" section, and macOS work is logged there rather than under `## Unreleased`.
 

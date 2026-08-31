@@ -865,26 +865,6 @@ final class CredentialIdentityStoreManagerTests: XCTestCase {
         XCTAssertEqual(storedRecordIdentifiers(fake), [otherIdentifier])
     }
 
-    func testTargetedRemovalSkipsWhenEnumerationUnavailable() async {
-        // macOS 14.0–14.3 contract: no enumeration API, so targeted removal
-        // logs and removes nothing (callers fall back to clearStore()).
-        let fake = installFake()
-        fake.enumerationUnavailable = true
-        let databaseA = UUID()
-        fake.stored = [
-            seededPasswordIdentity(
-                recordIdentifier: CredentialRecordIdentifier(databaseID: databaseA, entryID: UUID()).encoded
-            ),
-        ]
-        fake.onMutation = { XCTFail("Targeted removal must skip entirely when enumeration is unavailable") }
-
-        CredentialIdentityStoreManager.removeIdentities(forDatabase: databaseA)
-        try? await Task.sleep(for: .milliseconds(100))
-
-        XCTAssertTrue(fake.calls.isEmpty)
-        XCTAssertEqual(fake.stored.count, 1)
-    }
-
     func testRemoveIdentitiesForEntriesRebuildsTaggedIdentities() async throws {
         let fake = installFake()
         let databaseA = UUID()
@@ -1035,20 +1015,6 @@ final class CredentialIdentityStoreManagerTests: XCTestCase {
         CredentialIdentityStoreManager.removeIdentity(
             withRecordIdentifier: CredentialRecordIdentifier(databaseID: UUID(), entryID: UUID()).encoded
         )
-        try? await Task.sleep(for: .milliseconds(100))
-
-        XCTAssertTrue(fake.calls.isEmpty)
-        XCTAssertEqual(fake.stored.count, 1)
-    }
-
-    func testRemoveIdentityWithRecordIdentifierSkipsWhenEnumerationUnavailable() async {
-        let fake = installFake()
-        fake.enumerationUnavailable = true
-        let targetIdentifier = CredentialRecordIdentifier(databaseID: UUID(), entryID: UUID()).encoded
-        fake.stored = [seededPasswordIdentity(recordIdentifier: targetIdentifier)]
-        fake.onMutation = { XCTFail("Single-identity removal must skip when enumeration is unavailable") }
-
-        CredentialIdentityStoreManager.removeIdentity(withRecordIdentifier: targetIdentifier)
         try? await Task.sleep(for: .milliseconds(100))
 
         XCTAssertTrue(fake.calls.isEmpty)
@@ -1266,29 +1232,6 @@ final class CredentialIdentityStoreManagerTests: XCTestCase {
 
         XCTAssertEqual(fake.calls, ["removeAllCredentialIdentities"])
         XCTAssertTrue(fake.stored.isEmpty)
-    }
-
-    func testRefreshFallsBackToWholeReplaceWhenEnumerationUnavailable() async {
-        // macOS 14.0–14.3 contract: without enumeration every refresh is a
-        // full replace, so other databases' identities are wiped and
-        // repopulate lazily on their next unlock.
-        let fake = installFake()
-        fake.enumerationUnavailable = true
-        let databaseA = UUID()
-        let databaseB = UUID()
-        let entryA = makeEntry(title: "A", url: "https://a-site.com", username: "a", hasPassword: true)
-        let entryB = makeEntry(title: "B", url: "https://b-site.com", username: "b", hasPassword: true)
-        fake.stored = CredentialIdentityStoreManager.passwordIdentities(for: entryB, in: databaseB)
-
-        let mutation = expectMutations(1, on: fake, description: "Whole-store replace fallback")
-        CredentialIdentityStoreManager.populate(with: [entryA], for: databaseA)
-        await fulfillment(of: [mutation], timeout: 1)
-
-        XCTAssertEqual(fake.calls, ["replaceCredentialIdentities"])
-        XCTAssertEqual(
-            storedRecordIdentifiers(fake),
-            [CredentialRecordIdentifier(databaseID: databaseA, entryID: entryA.id).encoded]
-        )
     }
 
     func testRefreshSurvivesStoreClearedBetweenEnumerateAndMutate() async {

@@ -8,11 +8,6 @@ name: macOS RC Tests
 # unlocked, active login session, which a headless GitHub runner does not have
 # (see KeeForgeMacUITests/README.md). They stay a local pre-release step.
 #
-# Minimum-OS caveat: the deployment target is macOS 14, but GitHub-hosted
-# runners are macos-15 and Apple does not offer a macOS 14 image. This job
-# therefore proves the suite on macOS 15, not on the actual floor — a macOS 14
-# smoke pass stays part of the manual release checklist.
-#
 # Trigger mirrors the iOS RC gate: one rc/{version}-b{build} tag per candidate
 # build, pushed from a release/{major}.{minor} branch. rc tags are permanent and
 # are never moved or deleted; the deletion guard below keeps a manually removed

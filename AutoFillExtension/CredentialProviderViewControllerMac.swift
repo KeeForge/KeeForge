@@ -103,7 +103,7 @@ final class CredentialProviderViewController: ASCredentialProviderViewController
         coordinator.cancelRequest(code: .userCanceled)
     }
 
-    // MARK: - Request forwarding (macOS 14 available surface)
+    // MARK: - Request forwarding
 
     override func prepareCredentialList(for serviceIdentifiers: [ASCredentialServiceIdentifier]) {
         coordinator.prepareCredentialList(for: serviceIdentifiers)
@@ -427,12 +427,6 @@ private final class ExtensionContextCompleter: CredentialProviderRequestCompleti
     }
 
     func completeOneTimeCode(code: String) {
-        guard #available(macOS 15.0, *) else {
-            // One-time codes require macOS 15; unreachable below that (the
-            // extension does not advertise `ProvidesOneTimeCodes` on macOS).
-            context.cancelRequest(withError: ASExtensionError(.failed))
-            return
-        }
         context.completeOneTimeCodeRequest(using: ASOneTimeCodeCredential(code: code))
     }
 

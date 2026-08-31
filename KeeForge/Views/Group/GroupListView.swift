@@ -359,7 +359,7 @@ struct GroupListView: View {
                         placement: .navigationBarDrawer(displayMode: .always),
                         prompt: "Search entries"
                     )
-                    .macSearchFocusedCompat(view.$isSearchFieldFocused)
+                    .searchFocused(view.$isSearchFieldFocused)
                     .onChange(of: view.viewModel.searchFocusRequestID) { _, _ in
                         view.isSearchFieldFocused = true
                     }

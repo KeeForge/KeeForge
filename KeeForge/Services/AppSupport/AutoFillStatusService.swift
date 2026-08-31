@@ -17,7 +17,7 @@ enum AutoFillStatusService {
     nonisolated(unsafe) static var enabledProvider: @Sendable () async -> Bool = {
         await ASCredentialIdentityStore.shared.state().isEnabled
     }
-    nonisolated(unsafe) static var enableRequester: @Sendable () async -> Bool? = {
+    nonisolated(unsafe) static var enableRequester: @Sendable () async -> Bool = {
         await systemEnableRequest()
     }
 
@@ -36,23 +36,13 @@ enum AutoFillStatusService {
 
     /// Asks the user to enable KeeForge as the system AutoFill provider.
     ///
-    /// iOS shows the system prompt in-app and reports whether the provider
-    /// ended up enabled — `false` when the user declined it or iOS refused.
-    /// macOS has no in-app prompt below macOS 15, so it opens the system
-    /// AutoFill settings instead and returns `nil`: nothing was observed, and
-    /// the caller learns the outcome from the next `isAutoFillEnabled()`
-    /// refresh when the app becomes active again.
-    static func requestEnableAutoFill() async -> Bool? {
+    /// The system prompt reports whether the provider ended up enabled.
+    static func requestEnableAutoFill() async -> Bool {
         await enableRequester()
     }
 
-    private static func systemEnableRequest() async -> Bool? {
-        #if os(iOS)
-        return await ASSettingsHelper.requestToTurnOnCredentialProviderExtension()
-        #else
-        await openAutoFillSettings()
-        return nil
-        #endif
+    private static func systemEnableRequest() async -> Bool {
+        await ASSettingsHelper.requestToTurnOnCredentialProviderExtension()
     }
 
     /// Opens the system's AutoFill provider settings: Settings ▸ General ▸

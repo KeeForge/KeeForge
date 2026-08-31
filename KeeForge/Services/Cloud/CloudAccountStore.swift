@@ -3,42 +3,11 @@ import Foundation
 enum CloudAccountStore {
     private static let storageKey = "KeeForge.cloudAccounts"
 
-    #if os(macOS)
-    /// One-time scrub of the App Group suite, run as a side effect of the
-    /// first `defaults` access. `static let` gives thread-safe lazy init.
-    private static let didScrubGroupSuite: Bool = {
-        if let groupSuite = UserDefaults(suiteName: SharedVaultStore.appGroupID) {
-            migrateAccounts(from: groupSuite, to: .standard)
-        }
-        return true
-    }()
-    #endif
-
     /// The `UserDefaults` backing cloud-account records: app-sandbox standard
     /// defaults on macOS, the App Group suite on iOS. See
-    /// `SharedVaultStore.cloudAccountDefaults` for the full privacy rationale
-    /// (App Group containers are readable by the logged-in user's other
-    /// non-sandboxed processes on macOS 14). On macOS, first access also
-    /// scrubs any value an earlier build wrote to the group suite.
+    /// `SharedVaultStore.cloudAccountDefaults` for the privacy rationale.
     private static var defaults: UserDefaults {
-        #if os(macOS)
-        _ = didScrubGroupSuite
-        #endif
         return SharedVaultStore.cloudAccountDefaults
-    }
-
-    /// One-time migration/scrub used on macOS: earlier builds wrote
-    /// cloud-account records to the App Group suite. Copies any legacy value
-    /// to `destination` (without clobbering a value already there), then
-    /// removes it from `source` so previously written PII is scrubbed from
-    /// the group container. Platform-independent and injection-based so it
-    /// can be unit-tested on the iOS test destination.
-    static func migrateAccounts(from source: UserDefaults, to destination: UserDefaults) {
-        guard let legacyData = source.data(forKey: storageKey) else { return }
-        if destination.data(forKey: storageKey) == nil {
-            destination.set(legacyData, forKey: storageKey)
-        }
-        source.removeObject(forKey: storageKey)
     }
 
     static var accounts: [CloudAccount] {

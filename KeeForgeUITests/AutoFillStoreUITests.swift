@@ -113,7 +113,6 @@ final class AutoFillStoreUITests: AppSettingsUITestCase {
 
     private static let inspectorArgument = "-autofill-store-inspector"
     private static let enabledStateID = "autofill-inspector.enabled-state"
-    private static let enumerationStateID = "autofill-inspector.enumeration-state"
     private static let totalCountID = "autofill-inspector.total-count"
     private static let refreshID = "autofill-inspector.refresh"
     private static let databaseTogglePrefix = "settings.autofill.database-toggle."
@@ -133,7 +132,6 @@ final class AutoFillStoreUITests: AppSettingsUITestCase {
 
     private struct StoreProbe {
         let isEnabled: Bool
-        let enumerationAvailable: Bool
     }
 
     /// Cached once per test-runner process so only the first test performs the
@@ -150,8 +148,8 @@ final class AutoFillStoreUITests: AppSettingsUITestCase {
     }
 
     /// Launches the inspector (registry untouched — no `-ui-testing`), reads
-    /// the store state, and skips the test unless the store is enabled with
-    /// enumeration available. Conservative on indeterminate state: an
+    /// the store state, and skips the test unless the store is enabled.
+    /// Conservative on indeterminate state: an
     /// unreadable inspector skips rather than fails, so this class can never
     /// break a run on a simulator or an unprepared device.
     private func skipUnlessProvisionedStoreIsAvailable() throws {
@@ -165,12 +163,10 @@ final class AutoFillStoreUITests: AppSettingsUITestCase {
             _ = inspector.wait(for: .runningForeground, timeout: 30)
 
             let enabledState = inspector.staticTexts[Self.enabledStateID]
-            var result = StoreProbe(isEnabled: false, enumerationAvailable: false)
+            var result = StoreProbe(isEnabled: false)
             if enabledState.waitForExistence(timeout: 30) {
                 result = StoreProbe(
-                    isEnabled: (enabledState.value as? String) == "enabled",
-                    enumerationAvailable:
-                        (inspector.staticTexts[Self.enumerationStateID].value as? String) == "available"
+                    isEnabled: (enabledState.value as? String) == "enabled"
                 )
             }
             inspector.terminate()
@@ -184,9 +180,6 @@ final class AutoFillStoreUITests: AppSettingsUITestCase {
                     + "credential provider. Run against a physical iPhone with KeeForge "
                     + "turned on in Settings > General > AutoFill & Passwords."
             )
-        }
-        guard probe.enumerationAvailable else {
-            throw XCTSkip("AutoFill store enumeration is unavailable on this runtime.")
         }
     }
 
@@ -244,10 +237,8 @@ final class AutoFillStoreUITests: AppSettingsUITestCase {
         launchInspector()
         waitForInspectorValue(Self.totalCountID, toEqual: "0")
         assertInspectorDatabaseSectionAbsent(ids.alpha)
-        // "Nothing else changes": the provider stays enabled and enumerable —
-        // targeted removal must not degrade store availability.
+        // "Nothing else changes": targeted removal must not disable the provider.
         assertInspectorValue(Self.enabledStateID, equals: "enabled")
-        assertInspectorValue(Self.enumerationStateID, equals: "available")
     }
 
     // MARK: - Scenario 3: lazy republish on re-enable

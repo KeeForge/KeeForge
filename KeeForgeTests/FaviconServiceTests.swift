@@ -186,9 +186,8 @@ final class FaviconServiceTests: XCTestCase {
         )
 
         #if os(macOS)
-        // On macOS the App Group container is world-readable to the user's
-        // other processes, so the favicon cache (a plaintext domain fingerprint
-        // of the vault) must live in the app's own sandbox container instead.
+        // The Mac extension does not need the plaintext domain fingerprint,
+        // so the cache must stay in the app's own sandbox container.
         if let groupURL {
             XCTAssertFalse(
                 dir.path.hasPrefix(groupURL.path),
