@@ -133,10 +133,12 @@ final class AutoFillStoreInspectorGroupingTests: XCTestCase {
     func testSnapshotDisabledEmptyStore() {
         let snapshot = AutoFillStoreInspectorGrouping.makeSnapshot(
             isEnabled: false,
+            supportsIncrementalUpdates: false,
             identities: []
         ) { _ in nil }
 
         XCTAssertFalse(snapshot.isEnabled)
+        XCTAssertFalse(snapshot.supportsIncrementalUpdates)
         XCTAssertEqual(snapshot.totalCount, 0)
         XCTAssertTrue(snapshot.databaseBuckets.isEmpty)
     }
@@ -151,10 +153,12 @@ final class AutoFillStoreInspectorGroupingTests: XCTestCase {
 
         let snapshot = AutoFillStoreInspectorGrouping.makeSnapshot(
             isEnabled: true,
+            supportsIncrementalUpdates: true,
             identities: identities
         ) { _ in "Vault" }
 
         XCTAssertTrue(snapshot.isEnabled)
+        XCTAssertTrue(snapshot.supportsIncrementalUpdates)
         XCTAssertEqual(snapshot.totalCount, 3)
         XCTAssertEqual(snapshot.databaseBuckets.count, 1)
         XCTAssertEqual(snapshot.databaseBuckets.first?.count, 2)

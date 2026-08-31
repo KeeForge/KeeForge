@@ -478,6 +478,16 @@ private struct AutoFillSettingsView: View {
                    listViewModel.databases.contains(where: { $0.autoFillEnabled }) == false {
                     Text("AutoFill is on, but no databases are selected.")
                 }
+
+                #if os(macOS)
+                // macOS credential identity stores do not support incremental
+                // updates, so suggestions cannot be aggregated across
+                // databases (see CredentialIdentityStoreManager.populate).
+                if quickAutoFillEnabled,
+                   listViewModel.databases.count(where: { $0.autoFillEnabled }) > 1 {
+                    Text("macOS shows suggestions from one database at a time — whichever you unlocked most recently. Unlock another selected database to switch which entries appear.")
+                }
+                #endif
             }
         }
     }

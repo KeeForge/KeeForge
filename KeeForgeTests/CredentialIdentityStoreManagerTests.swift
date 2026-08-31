@@ -1356,6 +1356,101 @@ final class CredentialIdentityStoreManagerTests: XCTestCase {
         )
     }
 
+    // MARK: - Stores without incremental updates (macOS)
+
+    /// macOS reports `supportsIncrementalUpdates == false`, where Apple
+    /// defines `saveCredentialIdentities` as "pass all credential identities"
+    /// and `removeCredentialIdentities` as unsupported. Aggregation is
+    /// therefore impossible: a refresh must be one whole-store replace, and
+    /// the refreshed database becomes the only one the system suggests from.
+    func testNonIncrementalStoreReplacesWholeStoreEvenWithAnotherDatabasePresent() async {
+        let fake = installFake()
+        fake.supportsIncrementalUpdatesValue = false
+        fake.onEnumerate = { XCTFail("A non-incremental refresh must not enumerate the store") }
+
+        let databaseA = UUID()
+        let databaseB = UUID()
+        let entryA = makeEntry(title: "A", url: "https://a-site.com", username: "a-user", hasPassword: true)
+        let entryB = makeEntry(title: "B", url: "https://b-site.com", username: "b-user", hasPassword: true)
+        fake.stored = CredentialIdentityStoreManager.passwordIdentities(for: entryB, in: databaseB)
+
+        let refresh = expectMutations(1, on: fake, description: "Whole-store replace")
+        CredentialIdentityStoreManager.populate(with: [entryA], for: databaseA)
+        await fulfillment(of: [refresh], timeout: 1)
+
+        XCTAssertEqual(fake.calls, ["replaceCredentialIdentities"])
+        XCTAssertEqual(
+            storedRecordIdentifiers(fake),
+            [CredentialRecordIdentifier(databaseID: databaseA, entryID: entryA.id).encoded]
+        )
+    }
+
+    func testNonIncrementalRefreshWithNoEligibleEntriesClearsStore() async {
+        let fake = installFake()
+        fake.supportsIncrementalUpdatesValue = false
+
+        let databaseA = UUID()
+        let entryA = makeEntry(title: "A", url: "https://a-site.com", username: "a-user", hasPassword: true)
+        fake.stored = CredentialIdentityStoreManager.passwordIdentities(for: entryA, in: databaseA)
+
+        let refresh = expectMutations(1, on: fake, description: "Clear")
+        CredentialIdentityStoreManager.populate(with: [], for: databaseA)
+        await fulfillment(of: [refresh], timeout: 1)
+
+        XCTAssertEqual(fake.calls, ["removeAllCredentialIdentities"])
+        XCTAssertTrue(fake.stored.isEmpty)
+    }
+
+    func testNonIncrementalTargetedDatabaseRemovalClearsStore() async {
+        let fake = installFake()
+        fake.supportsIncrementalUpdatesValue = false
+
+        let databaseA = UUID()
+        let entryA = makeEntry(title: "A", url: "https://a-site.com", username: "a-user", hasPassword: true)
+        fake.stored = CredentialIdentityStoreManager.passwordIdentities(for: entryA, in: databaseA)
+
+        let removal = expectMutations(1, on: fake, description: "Clear in place of targeted removal")
+        CredentialIdentityStoreManager.removeIdentities(forDatabase: databaseA)
+        await fulfillment(of: [removal], timeout: 1)
+
+        XCTAssertEqual(fake.calls, ["removeAllCredentialIdentities"])
+        XCTAssertTrue(fake.stored.isEmpty)
+    }
+
+    func testNonIncrementalSingleIdentityRemovalClearsStore() async {
+        let fake = installFake()
+        fake.supportsIncrementalUpdatesValue = false
+
+        let databaseA = UUID()
+        let entryA = makeEntry(title: "A", url: "https://a-site.com", username: "a-user", hasPassword: true)
+        fake.stored = CredentialIdentityStoreManager.passwordIdentities(for: entryA, in: databaseA)
+
+        let removal = expectMutations(1, on: fake, description: "Clear in place of single-identity removal")
+        CredentialIdentityStoreManager.removeIdentity(
+            withRecordIdentifier: CredentialRecordIdentifier(databaseID: databaseA, entryID: entryA.id).encoded
+        )
+        await fulfillment(of: [removal], timeout: 1)
+
+        XCTAssertEqual(fake.calls, ["removeAllCredentialIdentities"])
+        XCTAssertTrue(fake.stored.isEmpty)
+    }
+
+    func testNonIncrementalStoreSkipsEverythingWhenProviderDisabled() async {
+        let fake = installFake()
+        fake.supportsIncrementalUpdatesValue = false
+        fake.isEnabledValue = false
+        fake.onMutation = { XCTFail("A disabled provider must not be mutated") }
+
+        let databaseA = UUID()
+        let entryA = makeEntry(title: "A", url: "https://a-site.com", username: "a-user", hasPassword: true)
+
+        CredentialIdentityStoreManager.populate(with: [entryA], for: databaseA)
+        CredentialIdentityStoreManager.removeIdentities(forDatabase: databaseA)
+        await CredentialIdentityStoreManager.waitForPendingMutations()
+
+        XCTAssertTrue(fake.calls.isEmpty)
+    }
+
     // MARK: - System store enumeration sanitizing
 
     func testDroppingNonConformingIdentitiesKeepsOnlyConformingElements() {

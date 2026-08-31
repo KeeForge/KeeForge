@@ -49,9 +49,10 @@ final class AutoFillStoreInspectorViewModel {
         store: any CredentialIdentityStoreProviding,
         databaseName: @Sendable (UUID) -> String?
     ) async -> InspectorStoreSnapshot {
-        let isEnabled = await store.isEnabled()
+        let capabilities = await store.capabilities()
         return AutoFillStoreInspectorGrouping.makeSnapshot(
-            isEnabled: isEnabled,
+            isEnabled: capabilities.isEnabled,
+            supportsIncrementalUpdates: capabilities.supportsIncrementalUpdates,
             identities: await store.credentialIdentities(),
             databaseName: databaseName
         )
@@ -141,6 +142,11 @@ struct AutoFillStoreInspectorView: View {
                 field: "Enabled",
                 value: snapshot.isEnabled ? "enabled" : "disabled",
                 identifier: "autofill-inspector.enabled-state"
+            )
+            valueRow(
+                field: "Incremental updates",
+                value: snapshot.supportsIncrementalUpdates ? "supported" : "unsupported",
+                identifier: "autofill-inspector.incremental-updates"
             )
             valueRow(
                 field: "Total identities",
