@@ -423,6 +423,26 @@ final class MacScreenshotAuditUITests: MacUITestCase {
             noteSkip("08a-database-details", reason: "the details toolbar button was not hittable")
         }
 
+        // 8b. Entry history browser — the Mac shell is a versions/detail split
+        //     rather than the iOS push, so it is its own screen to eyeball.
+        //     Needs a fixture entry that ships stored versions.
+        openGroup(named: "Social")
+        openEntry(named: "Twitter")
+        let historyRow = app.buttons["entry-detail.history"].firstMatch
+        if historyRow.waitForExistence(timeout: 5), historyRow.isHittable {
+            historyRow.click()
+            if app.buttons["entry-history.done"].waitForExistence(timeout: 8) {
+                settle(0.6)
+                await snapSurface(hosting: "entry-history.done", "08b-entry-history")
+                app.buttons["entry-history.done"].firstMatch.click()
+                settle()
+            } else {
+                noteSkip("08b-entry-history", reason: "the history sheet never opened")
+            }
+        } else {
+            noteSkip("08b-entry-history", reason: "the history row was not hittable")
+        }
+
         // 9. Back to the main window in a clean state.
         await snap("09-final-state")
 

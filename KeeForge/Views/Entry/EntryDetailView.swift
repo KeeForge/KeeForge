@@ -304,7 +304,7 @@ struct EntryDetailView: View {
                 }
                 .sheet(isPresented: $isShowingHistory) {
                     EntryHistoryView(entryID: entryID, viewModel: viewModel)
-                        .macSheetFrame()
+                        .macSheetFrame(minWidth: 760, minHeight: 520)
                 }
                 .sheet(isPresented: $isShowingIconPicker) {
                     EntryIconPickerView(
