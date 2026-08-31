@@ -37,60 +37,26 @@ struct AutoFillPasskeyCreatorView: View {
 
     var body: some View {
         NavigationStack {
-            Form {
-                if let inlineWarningMessage {
-                    Section {
-                        Text(inlineWarningMessage)
-                            .foregroundStyle(.orange)
-                            .accessibilityIdentifier("autofill-passkey-creator.database-changed-warning")
+            #if os(macOS)
+            VStack(spacing: 0) {
+                AutoFillMacHeader {
+                    HStack {
+                        Text("New Passkey")
+                            .font(.headline)
+                        Spacer()
                     }
                 }
-
-                Section {
-                    LabeledContent("Website", value: context.relyingPartyIdentifier)
-                        .accessibilityIdentifier("autofill-passkey-creator.relying-party")
-                    LabeledContent("Username", value: context.userName)
-                        .accessibilityIdentifier("autofill-passkey-creator.username")
-                    LabeledContent("Database", value: context.databaseName)
-                        .accessibilityIdentifier("autofill-passkey-creator.database")
-                }
-
-                Section {
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text("Title")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-
-                        titleField
-                            .accessibilityIdentifier("autofill-passkey-creator.title-field")
-                    }
-                    .padding(.vertical, 2)
+                form
+                AutoFillMacFooter {
+                    cancelButton
+                        .keyboardShortcut(.cancelAction)
+                    saveButton
+                        .keyboardShortcut(.defaultAction)
                 }
             }
-            .navigationTitle("New Passkey")
-            .passkeyNavigationTitleStyle()
-            .disabled(isSaving)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel", action: onCancel)
-                        .disabled(isSaving)
-                        .accessibilityIdentifier("autofill-passkey-creator.cancel")
-                }
-
-                ToolbarItem(placement: .confirmationAction) {
-                    if isSaving {
-                        ProgressView()
-                    } else {
-                        Button("Save Passkey") {
-                            Task {
-                                await save()
-                            }
-                        }
-                        .disabled(isSaving)
-                        .accessibilityIdentifier("autofill-passkey-creator.save")
-                    }
-                }
-            }
+            #else
+            form
+            #endif
         }
         .alert(item: $alertState) { state in
             Alert(
@@ -103,6 +69,74 @@ struct AutoFillPasskeyCreatorView: View {
                 }
             )
         }
+    }
+
+    private var cancelButton: some View {
+        Button("Cancel", action: onCancel)
+            .disabled(isSaving)
+            .accessibilityIdentifier("autofill-passkey-creator.cancel")
+    }
+
+    @ViewBuilder
+    private var saveButton: some View {
+        if isSaving {
+            ProgressView()
+        } else {
+            Button("Save Passkey") {
+                Task {
+                    await save()
+                }
+            }
+            .accessibilityIdentifier("autofill-passkey-creator.save")
+        }
+    }
+
+    private var form: some View {
+        Form {
+            if let inlineWarningMessage {
+                Section {
+                    Text(inlineWarningMessage)
+                        .foregroundStyle(.orange)
+                        .accessibilityIdentifier("autofill-passkey-creator.database-changed-warning")
+                }
+            }
+
+            Section {
+                LabeledContent("Website", value: context.relyingPartyIdentifier)
+                    .accessibilityIdentifier("autofill-passkey-creator.relying-party")
+                LabeledContent("Username", value: context.userName)
+                    .accessibilityIdentifier("autofill-passkey-creator.username")
+                LabeledContent("Database", value: context.databaseName)
+                    .accessibilityIdentifier("autofill-passkey-creator.database")
+            }
+
+            Section {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Title")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+
+                    titleField
+                        .accessibilityIdentifier("autofill-passkey-creator.title-field")
+                }
+                .padding(.vertical, 2)
+            }
+        }
+        .macGroupedForm()
+        .navigationTitle("New Passkey")
+        .passkeyNavigationTitleStyle()
+        .disabled(isSaving)
+        #if os(iOS)
+        .toolbar {
+            ToolbarItem(placement: .cancellationAction) {
+                cancelButton
+            }
+
+            ToolbarItem(placement: .confirmationAction) {
+                saveButton
+            }
+        }
+        #endif
     }
 
     @ViewBuilder

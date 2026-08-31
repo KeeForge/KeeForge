@@ -208,6 +208,7 @@ targets:
       - path: AutoFillExtension/CredentialProviderViewControllerMac.swift
       - path: AutoFillExtension/AutoFillSearchView.swift
       - path: AutoFillExtension/AutoFillPasskeyCreatorView.swift
+      - path: AutoFillExtension/AutoFillMacChrome.swift
       - path: KeeForge.icon
         buildPhase: resources
 
