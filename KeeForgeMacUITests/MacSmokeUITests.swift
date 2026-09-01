@@ -314,6 +314,12 @@ final class MacDatabaseListUITests: MacUITestCase {
         XCTAssertTrue(testRow.waitForExistence(timeout: 15), "Seeded test.kdbx row missing")
         XCTAssertTrue(demoRow.waitForExistence(timeout: 15), "Seeded demo.kdbx row missing")
 
+        // Select the row first, so the removal happens while the detail column
+        // is showing that database's own session.
+        demoRow.click()
+        let passwordField = app.secureTextFields["unlock.password.field"]
+        XCTAssertTrue(passwordField.waitForExistence(timeout: 15), "Detail column did not open the selected database")
+
         demoRow.rightClick()
 
         let removeMenuItem = app.menuItems["Remove"].firstMatch
@@ -332,5 +338,11 @@ final class MacDatabaseListUITests: MacUITestCase {
         }
         XCTAssertFalse(demoRow.exists, "demo.kdbx row was not removed")
         XCTAssertTrue(testRow.exists, "test.kdbx row must survive the removal")
+
+        let detailDeadline = Date().addingTimeInterval(15)
+        while passwordField.exists, Date() < detailDeadline {
+            RunLoop.current.run(until: Date().addingTimeInterval(0.25))
+        }
+        XCTAssertFalse(passwordField.exists, "Detail column still showed the removed database")
     }
 }

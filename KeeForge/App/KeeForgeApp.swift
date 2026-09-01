@@ -349,6 +349,14 @@ private struct AppRootView: View {
         .onChange(of: scenePhase) { _, _ in
             discardExpiredTOTPEnrollment()
         }
+        .onChange(of: listViewModel.databases.map(\.id)) { _, identifiers in
+            // The split layout keeps the sidebar list live next to the detail
+            // column, so a database can be removed while its own session is
+            // the one on screen. Drop the session with it.
+            guard let activeID = activeDatabaseViewModel?.databaseReference.id,
+                  identifiers.contains(activeID) == false else { return }
+            activeDatabaseViewModel = nil
+        }
         .alert(item: $totpEnrollmentAlert, content: totpEnrollmentAlertContent)
     }
 
