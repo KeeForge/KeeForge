@@ -74,6 +74,7 @@ TODO before the first macOS release:
 - iPad: the database list sidebar's rows sat on a card slightly *darker* than the sidebar behind them, so nothing stood out. The list now uses the standard sidebar look, matching the group sidebar of an unlocked database. The iPhone list is unchanged.
 - Settings' Cloud section now says how to connect an account when none is connected, instead of showing only "No cloud accounts connected".
 - Reordering databases in the list now takes effect straight away (#109). Dragging a database to a new position used to snap back to the old order until you left the app and came back, and dropping a database between two others further down the list put it in the wrong place.
+- iPad and Mac: removing the database you had selected now clears the panel beside the list, instead of leaving it showing the database you just removed.
 
 ## v1.15.0 (2026-08-21)
 
