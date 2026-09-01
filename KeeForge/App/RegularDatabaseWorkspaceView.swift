@@ -585,11 +585,7 @@ struct RegularDatabaseWorkspaceView: View {
             }
 
             if viewModel.isReadOnly {
-                Image(systemName: "lock.fill")
-                    .foregroundStyle(.orange)
-                    .help("Read-only database")
-                    .accessibilityLabel("Read-only database")
-                    .accessibilityIdentifier("database.read-only-indicator")
+                ReadOnlyIndicator(isFormatReadOnly: viewModel.isFormatReadOnly)
             } else {
                 Menu {
                     Button("New Entry", systemImage: "doc.badge.plus") {
