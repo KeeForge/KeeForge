@@ -8,9 +8,11 @@ import SwiftUI
 /// beside its neighbours. Pressing it explains which of the two reasons applies,
 /// the way `CloudSyncWarningButton` explains its own state.
 ///
-/// `pencil.slash` rather than a lock: the lock glyph is what the Lock Database
+/// `eyeglasses` rather than a lock: the lock glyph is what the Lock Database
 /// button next to it uses, and two locks in one toolbar say nothing about
-/// editing being off.
+/// editing being off. Not an eye either — that is the reveal-secret control
+/// everywhere else in the app, and the entry detail shows one on its password
+/// row while this sits in the same window's toolbar.
 struct ReadOnlyIndicator: View {
     let isFormatReadOnly: Bool
     @State private var isShowingExplanation = false
@@ -25,7 +27,7 @@ struct ReadOnlyIndicator: View {
         Button {
             isShowingExplanation = true
         } label: {
-            Image(systemName: "pencil.slash")
+            Image(systemName: "eyeglasses")
                 .foregroundStyle(.orange)
         }
         .tint(.orange)
