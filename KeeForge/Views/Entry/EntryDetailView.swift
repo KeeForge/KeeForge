@@ -132,6 +132,17 @@ struct EntryDetailView: View {
         #endif
     }
 
+    /// macOS states the read-only condition once, in the window toolbar the
+    /// workspace owns. This screen's toolbar merges into that same bar, so
+    /// repeating it here put two indicators side by side in one toolbar.
+    private var showsReadOnlyIndicator: Bool {
+        #if os(iOS)
+        true
+        #else
+        false
+        #endif
+    }
+
     var body: some View {
         Group {
             if let entry, let sessionKey {
@@ -281,12 +292,7 @@ struct EntryDetailView: View {
                                 CloudSyncWarningButton(message: warningText)
                             }
 
-                            if viewModel.isReadOnly {
-                                Image(systemName: "lock.fill")
-                                    .foregroundStyle(.orange)
-                                    .accessibilityLabel("Read-only database")
-                                    .accessibilityIdentifier("database.read-only-indicator")
-                            } else {
+                            if viewModel.isReadOnly == false {
                                 Button("Edit") {
                                     guard let currentEntry = viewModel.entry(withID: entryID),
                                           let currentSessionKey = viewModel.sessionKey else { return }
@@ -298,6 +304,8 @@ struct EntryDetailView: View {
                                     )
                                 }
                                 .accessibilityIdentifier("entry-detail.edit")
+                            } else if showsReadOnlyIndicator {
+                                ReadOnlyIndicator(isFormatReadOnly: viewModel.isFormatReadOnly)
                             }
                         }
                     }

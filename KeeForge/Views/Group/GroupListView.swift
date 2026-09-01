@@ -140,10 +140,7 @@ struct GroupListView: View {
                                 }
 
                                 if viewModel.isReadOnly {
-                                    Image(systemName: "lock.fill")
-                                        .foregroundStyle(.orange)
-                                        .accessibilityLabel("Read-only database")
-                                        .accessibilityIdentifier("database.read-only-indicator")
+                                    ReadOnlyIndicator(isFormatReadOnly: viewModel.isFormatReadOnly)
                                 }
 
                                 if viewModel.isReadOnly == false {
