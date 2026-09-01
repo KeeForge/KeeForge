@@ -162,6 +162,43 @@ final class MacSmokeUITests: MacUITestCase {
         )
     }
 
+    /// Double-clicking a row opens the editor. Paired with
+    /// `testDownArrowMovesTheEntrySelection`, which single-clicks a row and
+    /// asserts the detail pane follows: the row carries only a two-click
+    /// gesture, so a single click has to reach the native `List(selection:)`
+    /// and a double click still has to open the editor.
+    func testDoubleClickingAnEntryRowOpensTheEditor() {
+        unlockSuccessfully()
+        openGroup(named: "Social")
+
+        let query = app.descendants(matching: .any).matching(
+            NSPredicate(
+                format: "identifier == %@ AND (label CONTAINS[c] %@ OR value CONTAINS[c] %@)",
+                "entry.navlink", "Discord", "Discord"
+            )
+        )
+
+        let deadline = Date().addingTimeInterval(15)
+        var clicked = false
+        repeat {
+            if let row = query.allElementsBoundByIndex.first(where: {
+                $0.exists && $0.isHittable && $0.frame.height > 1
+            }) {
+                row.doubleClick()
+                clicked = true
+                break
+            }
+            RunLoop.current.run(until: Date().addingTimeInterval(0.25))
+        } while Date() < deadline
+        XCTAssertTrue(clicked, "Entry 'Discord' was not clickable within 15 seconds")
+
+        let titleField = app.textFields["entry-edit.title-field"]
+        XCTAssertTrue(
+            titleField.waitForExistence(timeout: 15),
+            "Double-clicking the entry row did not open the editor"
+        )
+    }
+
     // MARK: - Menu-bar commands
 
     func testLockViaCommandLReturnsToUnlockScreen() {
