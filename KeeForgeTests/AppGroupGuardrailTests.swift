@@ -6,7 +6,7 @@ import XCTest
 /// blobs, and filename metadata may be written there — never key material,
 /// passwords, or decrypted content. These tests pin `SharedVaultStore`'s
 /// write surface to exactly that shape. See
-/// `KeeForge/Services/Persistence/README.md` for the guardrail note.
+/// `KeeForge/Services/Persistence/CLAUDE.md` for the guardrail note.
 final class AppGroupGuardrailTests: XCTestCase {
     override func setUp() {
         super.setUp()

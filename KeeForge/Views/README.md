@@ -9,22 +9,6 @@ This folder contains the SwiftUI screens for all supported app UIs: the compact 
 - macOS app: the `KeeForgeMac` target compiles this entire folder and always uses the regular (split-view) layout; it has its own `KeeForgeMacTests` and `KeeForgeMacUITests` targets.
 - Treat all three shells as first-class product surfaces. If a feature adds navigation, chrome, editing, or status UI, verify how it lands in each presentation.
 
-## Folder Map
-
-Each subfolder owns one feature area and carries its own screen map.
-
-| Folder | Owns |
-| --- | --- |
-| `DatabaseList/` | Database picking, creation, per-database settings, master-key changes, export to Files |
-| `Unlock/` | Password and key-file entry, biometric affordances |
-| `Group/` | Post-unlock group navigation, group editor, group icon and move-destination pickers |
-| `Entry/` | Entry detail, editing, history, attachments, icon selection, shared row actions |
-| `SearchAndTags/` | Search results and the tag browser |
-| `TOTP/` | QR scanning and the incoming `otpauth://` destination picker |
-| `Cloud/` | Cloud provider file browsing and the manual WebDAV connect form |
-| `Settings/` | App settings, release education, support surfaces, DEBUG-only developer tooling |
-| `Components/` | Reusable controls shared across the feature folders |
-
 ## UI Rules
 
 - Keep business logic in view models and services; views should compose state, trigger intents, and manage local presentation state only.

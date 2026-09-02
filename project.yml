@@ -122,19 +122,19 @@ targets:
       # KeeForgeCommands.swift (menu bar) and MacLockMonitor.swift (lock
       # lifecycle) are macOS-only: members of KeeForgeMac, excluded here.
       - path: KeeForge/App
-        excludes: ["README.md", "KeeForgeCommands.swift"]
+        excludes: ["README.md", "CLAUDE.md", "KeeForgeCommands.swift"]
       - path: KeeForge/Models
-        excludes: ["README.md"]
+        excludes: ["README.md", "CLAUDE.md"]
       - path: KeeForge/Services
-        excludes: ["README.md", "**/README.md", "AppSupport/MacLockMonitor.swift"]
+        excludes: ["README.md", "CLAUDE.md", "**/README.md", "**/CLAUDE.md", "AppSupport/MacLockMonitor.swift"]
       - path: KeeForge/ViewModels
-        excludes: ["README.md"]
+        excludes: ["README.md", "CLAUDE.md"]
       - path: KeeForge/Views
-        excludes: ["README.md", "**/README.md"]
+        excludes: ["README.md", "CLAUDE.md", "**/README.md", "**/CLAUDE.md"]
       - path: KeeForge/Extensions
-        excludes: ["README.md"]
+        excludes: ["README.md", "CLAUDE.md"]
       - path: KeeForge/Resources
-        excludes: ["README.md"]
+        excludes: ["README.md", "CLAUDE.md"]
       # Platform-neutral AutoFill coordinator is compiled into the app target
       # too so KeeForgeTests (hosted by the app) can unit-test it.
       - path: AutoFillExtension/CredentialProviderCoordinator.swift
@@ -174,9 +174,9 @@ targets:
         product: PublicSuffixList
     sources:
       - path: KeeForge/App
-        excludes: ["README.md"]
+        excludes: ["README.md", "CLAUDE.md"]
       - path: KeeForge/Models
-        excludes: ["README.md"]
+        excludes: ["README.md", "CLAUDE.md"]
       # The first Mac release is WebDAV-only, so the Dropbox and OneDrive
       # providers are excluded rather than compiled and hidden. Excluding them
       # is what lets the SwiftyDropbox and MSAL packages come off the target:
@@ -186,17 +186,19 @@ targets:
       - path: KeeForge/Services
         excludes:
           - "README.md"
+          - "CLAUDE.md"
           - "**/README.md"
+          - "**/CLAUDE.md"
           - "Cloud/DropboxCloudProvider.swift"
           - "Cloud/OneDriveCloudProvider.swift"
       - path: KeeForge/ViewModels
-        excludes: ["README.md"]
+        excludes: ["README.md", "CLAUDE.md"]
       - path: KeeForge/Views
-        excludes: ["README.md", "**/README.md"]
+        excludes: ["README.md", "CLAUDE.md", "**/README.md", "**/CLAUDE.md"]
       - path: KeeForge/Extensions
-        excludes: ["README.md"]
+        excludes: ["README.md", "CLAUDE.md"]
       - path: KeeForge/Resources
-        excludes: ["README.md", "LaunchScreen.storyboard"]
+        excludes: ["README.md", "CLAUDE.md", "LaunchScreen.storyboard"]
       # Platform-neutral AutoFill coordinator is compiled into the Mac app target
       # too so KeeForgeMacTests (hosted by the app) can unit-test it — mirrors the
       # iOS KeeForge target. Its save/generate-password paths compile out on macOS.
@@ -235,9 +237,9 @@ targets:
       # Exclude the macOS-only Info.plist / entitlements so they are not bundled
       # as stray resources in the iOS extension.
       - path: AutoFillExtension
-        excludes: ["README.md", "InfoMac.plist", "AutoFillExtensionMac.entitlements"]
+        excludes: ["README.md", "CLAUDE.md", "InfoMac.plist", "AutoFillExtensionMac.entitlements"]
       - path: KeeForge/Models
-        excludes: ["README.md"]
+        excludes: ["README.md", "CLAUDE.md"]
       # >>> SHARED AUTOFILL ALLOW-LIST (maintenance invariant) >>>
       # These explicit service/view paths MUST stay literally identical — same
       # paths, same order — to the KeeForgeMacAutoFill target below. The two
@@ -302,9 +304,9 @@ targets:
       # (CredentialProviderViewControllerMac.swift) lives beside the iOS shell in
       # this folder, each gated by `#if os()`.
       - path: AutoFillExtension
-        excludes: ["README.md", "Info.plist", "AutoFillExtension.entitlements"]
+        excludes: ["README.md", "CLAUDE.md", "Info.plist", "AutoFillExtension.entitlements"]
       - path: KeeForge/Models
-        excludes: ["README.md"]
+        excludes: ["README.md", "CLAUDE.md"]
       # >>> SHARED AUTOFILL ALLOW-LIST (maintenance invariant) >>>
       # MUST stay literally identical — same paths, same order — to the
       # KeeForgeAutoFill target above. See the note there. Edit both together.
@@ -354,7 +356,7 @@ targets:
       - target: KeeForge
     sources:
       - path: KeeForgeUITests
-        excludes: ["README.md"]
+        excludes: ["README.md", "CLAUDE.md"]
       - path: TestFixtures/invalid-xml.keyx
         buildPhase: resources
       - path: TestFixtures/autofill-union.kdbx
@@ -426,7 +428,7 @@ targets:
       - package: KeeForgeTwofish
     sources:
       - path: KeeForgeTests
-        excludes: ["README.md", "**/README.md"]
+        excludes: ["README.md", "CLAUDE.md", "**/README.md", "**/CLAUDE.md"]
 
   KeeForgeMacUITests:
     type: bundle.ui-testing
@@ -442,7 +444,7 @@ targets:
       - target: KeeForgeMac
     sources:
       - path: KeeForgeMacUITests
-        excludes: ["README.md"]
+        excludes: ["README.md", "CLAUDE.md"]
 
   KeeForgeMacTests:
     type: bundle.unit-test
@@ -507,7 +509,9 @@ targets:
       - path: KeeForgeTests
         excludes:
           - "README.md"
+          - "CLAUDE.md"
           - "**/README.md"
+          - "**/CLAUDE.md"
           - "DropboxCloudProviderTests.swift"
           - "OneDriveCloudProviderTests.swift"
 

@@ -4,7 +4,7 @@ Detailed guidance for adding, running, and fixing XCUITests in `KeeForgeUITests/
 
 Use this document for UI test methodology. Repo-wide build and test policy stays in `AGENTS.md`, and fixture details live in `../TestFixtures/README.md`.
 
-macOS UI tests: see `../KeeForgeMacUITests/README.md`; the accessibility identifiers are shared — preserve them in both.
+macOS UI tests: see `../KeeForgeMacUITests/CLAUDE.md`; the accessibility identifiers are shared — preserve them in both.
 
 ## Current Test Classes
 

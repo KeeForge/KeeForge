@@ -39,7 +39,7 @@ Platform-specific deltas, everywhere they matter:
 - **Screenshots.** iOS screenshots do not satisfy the Mac listing and vice versa. The Mac version
   needs its own Mac-sized captures; `ci_scripts/make_appstore_screenshots.py` produces iPhone
   frames only, and the Mac ones come from `KeeForgeMacUITests/MacScreenshotAuditUITests` (see
-  `KeeForgeMacUITests/README.md`).
+  `KeeForgeMacUITests/CLAUDE.md`).
 - **Reviewer notes.** The same fixture database and password apply, but the note should say how to
   open it on the platform under review, and the Mac note should mention that AutoFill is enabled in
   System Settings → General → AutoFill & Passwords rather than iOS's Settings → Passwords.

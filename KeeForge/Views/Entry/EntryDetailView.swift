@@ -397,7 +397,7 @@ struct EntryDetailView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                     // Declared a container, like the editor's tag strips, so
                     // the chips keep their own identifiers instead of
-                    // inheriting this one (see `README.md`).
+                    // inheriting this one (see `CLAUDE.md`).
                     .accessibilityElement(children: .contain)
                     .accessibilityIdentifier("entry-detail.inherited-tags")
                 }

@@ -18,7 +18,7 @@ This folder owns database references, cached copies, file access, and local-save
 ## Change Carefully
 
 - App Group paths, bookmark payloads, backup directory layout, and cached-copy semantics are compatibility boundaries.
-- If you move persistence behavior across app and extension boundaries, update `../../../project.yml` and `../../../AutoFillExtension/README.md` in the same change.
+- If you move persistence behavior across app and extension boundaries, update `../../../project.yml` and `../../../AutoFillExtension/CLAUDE.md` in the same change.
 
 ## App Group Guardrail (macOS)
 

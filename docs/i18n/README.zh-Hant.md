@@ -72,7 +72,7 @@ KeeForge 非常重視資料安全：密碼管理工具絕不能損毀你的保�
 - **檔案在被動到之前就已受到保護。** 若檔案在你開啟期間曾在其他地方被修改，KeeForge 會拒絕覆寫；每次儲存前都會先寫入帶時間戳記的備份；遇到損毀的資料庫則直接拒絕開啟，而不是載入不完整的資料。
 - **由獨立程式交叉驗證。** 每個版本都必須通過一道關卡：由 KeePassXC——一款廣泛使用、與 KeeForge 不共用任何程式碼的 KeePass App——開啟 KeeForge 寫入的資料庫、解密其中的密碼，並確認附件逐位元完全相符。反過來，其他 KeePass 軟體建立的資料庫也必須能在 KeeForge 中開啟，且經 KeeForge 儲存後仍能在其他軟體中正常讀取。
 
-想深入了解技術細節的話，測試套件的說明在 [`KeeForgeTests/README.md`](../../KeeForgeTests/README.md)，發佈前的驗證關卡則在 [`ci_scripts/README.md`](../../ci_scripts/README.md)（皆為英文）。
+想深入了解技術細節的話，測試套件的說明在 [`KeeForgeTests/CLAUDE.md`](../../KeeForgeTests/CLAUDE.md)，發佈前的驗證關卡則在 [`ci_scripts/README.md`](../../ci_scripts/README.md)（皆為英文）。
 
 ## 專案地圖
 
@@ -102,7 +102,7 @@ scripts/              # 本機開發工具
 - [`ROADMAP.md`](../../ROADMAP.md) - 規劃中的產品工作與待辦優先事項
 - [`AGENTS.md`](../../AGENTS.md) - 給編碼代理程式的背景資訊
 - [`KeeForge/README.md`](../../KeeForge/README.md) - App 目標的架構地圖
-- [`AutoFillExtension/README.md`](../../AutoFillExtension/README.md) - 延伸功能限制與共用程式碼說明
+- [`AutoFillExtension/CLAUDE.md`](../../AutoFillExtension/CLAUDE.md) - 延伸功能限制與共用程式碼說明
 - [`SECURITY.md`](../../SECURITY.md) - 弱點揭露政策
 - [`docs/`](../../docs/) - 實作規格、稽核與較長篇的設計文件
 

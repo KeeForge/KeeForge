@@ -32,7 +32,7 @@ the class silently skips. Without them this script has nothing to composite.
 
 The Mac audit harness additionally needs Screen Recording permission for
 `KeeForgeMacUITests-Runner`, and reports anything it could not capture in its
-`00-skipped-captures` attachment (see KeeForgeMacUITests/README.md). A short
+`00-skipped-captures` attachment (see KeeForgeMacUITests/CLAUDE.md). A short
 export is a harness problem, not a missing screen.
 """
 
