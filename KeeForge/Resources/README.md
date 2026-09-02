@@ -15,3 +15,9 @@ Static app resources live here.
 - Prefer asset-catalog additions over ad hoc image files.
 - If a resource name is referenced from SwiftUI or tests, rename it carefully and update call sites together.
 - App and extension plists plus entitlements live outside this folder; target wiring still happens through `../../project.yml` and the target-specific plist files.
+
+## Catalog Mechanics
+
+- Four catalogs: `Localizable.xcstrings` + `InfoPlist.xcstrings` here, mirrored under `../../AutoFillExtension/`; the same four also serve the macOS targets.
+- When adding a new locale, also translate the root `README.md` and `CONTRIBUTING.md` (translations live in `../../docs/i18n/` as `README.<locale>.md` and `CONTRIBUTING.<locale>.md`, and link back to root paths with `../../`; folder-local READMEs and the rest of the developer docs stay English-only) and the separate `keeforge.com` website repo, which needs the same locale coverage.
+- Xcode reserializes `.xcstrings` into its own canonical style on open/build, so editing a catalog as plain JSON causes a large reordering diff next time. After any programmatic catalog edit, run `swift ../../scripts/normalize-xcstrings.swift` (no args = all catalogs; `--check` verifies) so committed bytes match Xcode's.
