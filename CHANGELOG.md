@@ -25,6 +25,7 @@ Fixed decisions and invariants:
 - [ ] **2. Add Mac archive/TestFlight delivery to Xcode Cloud's `Tests (RC)` workflow.** Configure App Store Connect/Xcode Cloud and document the final action graph in `.agents/skills/release/xcode-cloud-setup.md`.
   - One `rc/*` tag must start: Xcode Cloud tests plus iOS and `KeeForgeMac` archives/uploads, `.github/workflows/ios18-rc-tests.yml`, and `.github/workflows/macos-rc-tests.yml`.
   - External distribution remains blocked until all three cloud verdicts are green or explicitly adjudicated. Confirm both processed TestFlight builds show the same RC tag and SHA, then record their separate build numbers.
+  - Audit status (2026-09-02, read-only): KeeForge ASC currently has iOS-only delivery; workflow Mac actions and a native Mac external group remain blocked on explicit account-level confirmation.
   - Done with a non-shipping setup RC tag (kept permanently) whose iOS and Mac builds both reach their TestFlight lists and whose three check URLs are recorded; do not use that candidate for release unless it passes the normal gates.
 
 - [ ] **3. Automate the direct artifact and GitHub Release handoff.** Extend `ci_scripts/build_mac_direct.sh` or add a companion script under `ci_scripts/`; update its README in the same change.
