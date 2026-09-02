@@ -72,7 +72,7 @@ KeeForge takes data safety very seriously: a password manager must never corrupt
 - **Your file is protected before it's touched.** KeeForge refuses to overwrite changes made from elsewhere while you had the file open, writes a timestamped backup before every save, and rejects damaged databases outright instead of loading partial data.
 - **An independent program agrees.** Every release must pass a gate where KeePassXC — a widely used KeePass app that shares no code with KeeForge — opens KeeForge-written databases, decrypts the passwords, and confirms attachments match bit for bit. Databases created by other KeePass software must likewise open in KeeForge and stay readable elsewhere after KeeForge saves them.
 
-For the technically curious, the test suite is mapped in [`KeeForgeTests/README.md`](KeeForgeTests/README.md) and the pre-release verification gate in [`ci_scripts/README.md`](ci_scripts/README.md).
+For the technically curious, the test suite is mapped in [`KeeForgeTests/CLAUDE.md`](KeeForgeTests/CLAUDE.md) and the pre-release verification gate in [`ci_scripts/README.md`](ci_scripts/README.md).
 
 ## Project Map
 
@@ -102,7 +102,7 @@ scripts/              # Local dev tooling
 - [`ROADMAP.md`](ROADMAP.md) - planned product work and open priorities
 - [`AGENTS.md`](AGENTS.md) - context for coding agents
 - [`KeeForge/README.md`](KeeForge/README.md) - app-target architecture map
-- [`AutoFillExtension/README.md`](AutoFillExtension/README.md) - extension constraints and shared-source notes
+- [`AutoFillExtension/CLAUDE.md`](AutoFillExtension/CLAUDE.md) - extension constraints and shared-source notes
 - [`SECURITY.md`](SECURITY.md) - vulnerability disclosure policy
 - [`docs/`](docs/) - implementation specs, audits, and longer-form design docs
 

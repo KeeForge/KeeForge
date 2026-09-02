@@ -72,7 +72,7 @@ KeeForge nimmt Datensicherheit sehr ernst: Ein Passwort-Manager darf deinen Tres
 - **Deine Datei ist geschützt, bevor sie angefasst wird.** KeeForge weigert sich, Änderungen zu überschreiben, die anderswo gemacht wurden, während die Datei bei dir geöffnet war; es legt vor jedem Speichern ein zeitgestempeltes Backup an und lehnt beschädigte Datenbanken rundweg ab, statt unvollständige Daten zu laden.
 - **Ein unabhängiges Programm bestätigt das.** Jede Version muss ein Prüf-Gate bestehen, in dem KeePassXC — eine weit verbreitete KeePass-App, die keinen Code mit KeeForge teilt — von KeeForge geschriebene Datenbanken öffnet, die Passwörter entschlüsselt und bestätigt, dass Anhänge Bit für Bit übereinstimmen. Umgekehrt müssen Datenbanken aus anderer KeePass-Software sich in KeeForge öffnen lassen und auch nach dem Speichern durch KeeForge anderswo lesbar bleiben.
 
-Für technisch Interessierte: Die Test-Suite ist in [`KeeForgeTests/README.md`](../../KeeForgeTests/README.md) beschrieben, das Prüf-Gate vor jedem Release in [`ci_scripts/README.md`](../../ci_scripts/README.md) (beide auf Englisch).
+Für technisch Interessierte: Die Test-Suite ist in [`KeeForgeTests/CLAUDE.md`](../../KeeForgeTests/CLAUDE.md) beschrieben, das Prüf-Gate vor jedem Release in [`ci_scripts/README.md`](../../ci_scripts/README.md) (beide auf Englisch).
 
 ## Projektübersicht
 
@@ -102,7 +102,7 @@ scripts/              # Lokale Entwickler-Tools
 - [`ROADMAP.md`](../../ROADMAP.md) – geplante Produktarbeit und offene Prioritäten
 - [`AGENTS.md`](../../AGENTS.md) – Kontext für Coding-Agents
 - [`KeeForge/README.md`](../../KeeForge/README.md) – Architekturübersicht des App-Targets
-- [`AutoFillExtension/README.md`](../../AutoFillExtension/README.md) – Extension-Einschränkungen und Hinweise zu geteiltem Code
+- [`AutoFillExtension/CLAUDE.md`](../../AutoFillExtension/CLAUDE.md) – Extension-Einschränkungen und Hinweise zu geteiltem Code
 - [`SECURITY.md`](../../SECURITY.md) – Richtlinie zur Meldung von Sicherheitslücken
 - [`docs/`](../../docs/) – Implementierungs-Specs, Audits und längere Design-Dokumente
 

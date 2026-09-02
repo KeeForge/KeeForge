@@ -4,15 +4,7 @@ Use this folder as the main map for the app target. The subfolder READMEs hold t
 
 These sources compile into four targets: `KeeForge` (iOS app), `KeeForgeAutoFill` (iOS extension, selected files), `KeeForgeMac` (experimental native macOS app), and `KeeForgeMacAutoFill` (macOS extension, same allow-list as the iOS one). The Mac app compiles the full tree minus `Resources/LaunchScreen.storyboard`, plus the macOS-only `App/KeeForgeCommands.swift` and `Services/AppSupport/MacLockMonitor.swift` (both excluded from the iOS target) and two AutoFillExtension shells (`CredentialProviderViewControllerMac.swift`, `AutoFillSearchView.swift`) so `KeeForgeMacTests` can exercise them; both app targets additionally compile `../AutoFillExtension/CredentialProviderCoordinator.swift` so the hosted unit tests can exercise it. The iOS `Info.plist` and `KeeForge.entitlements` live in this folder; the Mac equivalents in `../KeeForgeMac/`. Platform divergence goes through `Extensions/PlatformCompat.swift` for view-layer patterns and `#if os()` seams in Services — not all small: `Services/Security/ScreenProtectionService.swift` is two full per-platform implementations. Keep all four targets compiling when touching shared files. Shared `KeeForgeTests` sources also compile into the macOS-hosted `KeeForgeMacTests` target; `KeeForgeMacUITests` covers the Mac UI.
 
-## Open Next
-
-- `App/README.md` — scene lifecycle and root routing
-- `Models/README.md` — parser, writer, edit-draft, and persisted models
-- `Services/README.md` — persistence, cloud sync, security, AutoFill helpers, and app-support services
-- `ViewModels/README.md` — observable app state, including draft/save ownership
-- `Views/README.md` — SwiftUI screens and UI conventions
-- `Extensions/README.md` — target-wide conformances and small shared extensions
-- `Resources/README.md` — asset catalog, launch screen, and the `Localizable`/`InfoPlist` string catalogs
+Each subfolder's `CLAUDE.md` loads automatically when you work in it; `Services/README.md`, `Views/README.md`, and `Resources/README.md` are opened on demand.
 
 ## Cross-Cutting Flows
 
@@ -30,5 +22,5 @@ These sources compile into four targets: `KeeForge` (iOS app), `KeeForgeAutoFill
 ## Working Rules
 
 - Start from the folder that owns the behavior, then open the matching tests before changing code.
-- If a change crosses app and extension boundaries, check both `../AutoFillExtension/README.md` and `../project.yml`.
+- If a change crosses app and extension boundaries, check both `../AutoFillExtension/CLAUDE.md` and `../project.yml`.
 - Adding files: folder globs vs. the AutoFill allow-lists — see `AGENTS.md` → Workflows.

@@ -248,7 +248,7 @@ final class OneDriveCloudProvider: CloudProvider, @unchecked Sendable {
         progress: @escaping @Sendable (Double) -> Void
     ) async throws -> CloudCreatedFile {
         let token = try await accessToken(accountId: accountId)
-        // Create-only semantics are required here (see `Cloud/README.md`), and
+        // Create-only semantics are required here (see `Cloud/CLAUDE.md`), and
         // only the upload-session body carries
         // `@microsoft.graph.conflictBehavior: fail`. Never route this through
         // the simple PUT, which would silently overwrite an existing file.

@@ -4,7 +4,7 @@ import SwiftUI
 /// Browses an entry's stored `<History>` versions and restores one.
 ///
 /// A sheet rather than a push: pushed levels inside the macOS sidebar column render
-/// zero-height (see `README.md`). Two shells over one field list — iOS pushes the
+/// zero-height (see `CLAUDE.md`). Two shells over one field list — iOS pushes the
 /// version inside the sheet's own `NavigationStack`, macOS shows the versions and
 /// the selected one side by side, because pushing inside a Mac sheet drops the
 /// sheet's buttons and leaves the pushed list inset for a bar it never draws.

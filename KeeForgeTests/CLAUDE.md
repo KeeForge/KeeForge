@@ -46,7 +46,7 @@ Keep new tests platform-neutral where possible; gate genuinely platform-specific
 
 ## Test Helpers
 
-- Shared fixtures, fakes, spies, and assertion helpers live in `Support/` and are documented in `Support/README.md`. They declare no test classes; add new shared infrastructure there rather than beside a suite.
+- Shared fixtures, fakes, spies, and assertion helpers live in `Support/` and are documented in `Support/CLAUDE.md`. They declare no test classes; add new shared infrastructure there rather than beside a suite.
 - Shared databases and key files are documented in `../TestFixtures/README.md`.
 
 ## KDBX Compatibility Story

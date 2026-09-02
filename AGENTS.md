@@ -21,22 +21,17 @@ Entry point for coding agents working on KeeForge. This file is intentionally br
 
 ## Open The Local Doc First
 
-- `KeeForge/README.md` — app-target map and cross-cutting flows
-- `KeeForge/App/README.md` — app lifecycle, root navigation, scene handling
-- `KeeForge/Models/README.md` — parser, writer, edit-draft, and core data-model guidance
-- `KeeForge/Services/README.md` — storage, local save, cloud sync, keychain, bookmarks, device integrations
-- `KeeForge/Services/{AppSupport,AutoFill,Cloud,Persistence,Security}/README.md` — per-subfolder service maps and constraints
-- `KeeForge/ViewModels/README.md` — list, unlock, save, search, sort, and TOTP state ownership
-- `KeeForge/Views/README.md` — screen ownership and UI/testing conventions
-- `KeeForge/Views/{Cloud,Components,DatabaseList,Entry,Group,SearchAndTags,Settings,TOTP,Unlock}/README.md` — per-feature screen maps
-- `KeeForge/Extensions/README.md` — shared Swift extension helpers
+Folders that own source files carry a `CLAUDE.md`, which loads on its own when you work
+in them — `KeeForge/{App,Models,ViewModels,Extensions}`, every `KeeForge/Services/*` and
+`KeeForge/Views/*` subfolder, `AutoFillExtension`, `KeeForgeTests` (and its `Support`),
+and `KeeForgeMacUITests`. The docs below are read on demand:
+
+- `KeeForge/README.md` — app-target map and cross-cutting flows that span folders
+- `KeeForge/Services/README.md` — save-path split, App Group and Keychain boundaries, shared AutoFill allow-list rules
+- `KeeForge/Views/README.md` — UI rules every shell shares: the macOS grouped-form requirement, the `ForEach`/`.onMove` single-row-type rule, and the identifier surface
 - `KeeForge/Resources/README.md` — string catalogs, assets, and resource conventions
-- `KeeForgeMac/README.md` — macOS target constraints
-- `AutoFillExtension/README.md` — extension constraints and shared-source notes
-- `KeeForgeTests/README.md` — unit-test map and selection rules
-- `KeeForgeTests/Support/README.md` — shared fixtures, fakes, spies, and assertion helpers
+- `KeeForgeMac/README.md` — macOS target constraints and "What Mac Work Has To Test"
 - `KeeForgeUITests/README.md` — XCUITest workflow and flake-avoidance guidance
-- `KeeForgeMacUITests/README.md` — macOS XCUITest workflow
 - `TestFixtures/README.md` — bundled databases, passwords, and key files
 - `Vendor/KeeForgeTwofish/README.md` — vendored Twofish cipher package
 - `ci_scripts/README.md` — Xcode Cloud bootstrap and `run_kdbx_compatibility_gate.sh`, the required local release gate
