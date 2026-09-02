@@ -68,6 +68,7 @@ Fixed decisions and invariants:
 - [ ] **9. Complete Mac listing and reviewer metadata.** In App Store Connect, prepare the Mac-specific promotional text, description, keywords, support/privacy URLs, category/age-rating fields, and release notes in every localization shown on the Mac version page.
   - Say that v1 supports local files and WebDAV but not Dropbox/OneDrive. Reviewer notes must explain how to open the attached `/Users/tan/Documents/test.kdbx.zip` (`testpassword123`) and enable AutoFill in System Settings → General → AutoFill & Passwords.
   - Verify contact information, attachment visibility, `ITSAppUsesNonExemptEncryption = false` resolution, France availability consistency, rating retention, manual release, and the absence of sign-in requirements beyond an optional WebDAV test.
+  - Local status (2026-09-02, read-only): a paste-ready listing/reviewer template is prepared in `.agents/skills/publish-app-store-version/mac-listing-metadata.md`; ASC fields and the live locale set cannot be verified or saved while the UI is locked, so this package remains unchecked.
   - Done when every text/reviewer field is saved and the only remaining submission inputs are the final RC build and screenshots.
 
 ### Phase 4 — Accept, soak, review, and ship one RC
