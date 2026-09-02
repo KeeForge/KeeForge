@@ -18,10 +18,11 @@ description: >
 
 Releases run on one dedicated `release/{major}.{minor}` branch. Each candidate produces three
 artifacts from one commit: an iOS App Store/TestFlight build, a Mac App Store/TestFlight build,
-and a notarized direct-download Mac build. The two App Store builds are soaked in their respective
-external TestFlight groups and the direct build is soaked separately; ship only those exact
-artifacts. This is a sequential, high-stakes workflow: each step depends on the previous one
-succeeding. Do not skip steps or proceed past a failure.
+and a notarized direct-download Mac build. Archives/uploads may be automatic, but the two App Store
+builds are moved manually to their respective external TestFlight groups only after every required
+gate is accepted; the direct build is staged and soaked separately. Ship only those exact artifacts.
+This is a sequential, high-stakes workflow: each step depends on the previous one succeeding. Do not
+skip steps or proceed past a failure.
 
 Test execution model: the full unit suites and hosted UI suites run on **Xcode Cloud** and
 **GitHub Actions**. `KeeForgeMacUITests/MacSmokeUITests` is the required local UI smoke because it
@@ -64,7 +65,10 @@ unlike the soak targets in A10 they are not judgement calls.
    from it and from each other, so the manifest maps all three artifacts to the same SHA.
 3. **All gates are accepted before external distribution.** Accept the Xcode Cloud verdict, the
    iOS 18 GitHub Actions verdict, the macOS GitHub Actions verdict, both local KDBX gates, and the
-   local Mac smoke suite; green or explicitly adjudicated per `gate-adjudication.md`.
+   local Mac smoke suite; green or explicitly adjudicated per `gate-adjudication.md`. Before
+   external distribution or direct-artifact staging, both exact exported Mac apps must also pass
+   `ci_scripts/verify_mac_artifact.sh` with universal `arm64,x86_64`, unless an explicit product
+   decision records a different architecture set.
 4. **Tags are immutable and `v{version}` is post-approval evidence.** Never delete, move, or
    force-push an `rc/*` tag. Create `v{version}` only after both App Store submissions have code
    approval and the final go decision; it triggers no build.
@@ -370,40 +374,56 @@ testers or the direct build is called a release candidate.
    failure.
 
 Xcode Cloud's test and archive actions run in parallel. A red test action may still upload a build,
-but its TestFlight post-action does not run — see gate-adjudication.md for whether that exact build
-may be distributed by hand after adjudication. This applies independently to iOS and Mac.
+but that build remains blocked from external distribution until the failure is adjudicated and all
+required gates are accepted. External TestFlight distribution is always a deliberate manual action
+in App Store Connect, independently for iOS and Mac.
 
-## A9. Record all three artifacts and release the App Store builds to external testers
+## A9. Verify all three artifacts and manually distribute the App Store builds
 
 1. Find both processed builds in App Store Connect under TestFlight for marketing version
    `{version}`. Their numbers may differ from `repoBuild` and from each other because Xcode Cloud
    assigns platform-specific numbers. Match each build to the `rc/{version}-b{repoBuild}` tag and
    SHA, then record `iosTestFlightBuild` and `macTestFlightBuild` in the manifest. Export compliance
    does not prompt (see Notes).
-2. Write platform-specific **What to Test** notes for each build. These are the only text each
+2. Obtain/export the exact MAS `.app` from the accepted Xcode Cloud archive without rebuilding.
+   Run the artifact check on that exact exported app:
+   ```bash
+   ci_scripts/verify_mac_artifact.sh --channel mas --app <exact-mas-app> --architectures arm64,x86_64
+   ```
+   Do not substitute a local rebuild or a different archive. The expected architecture set is the
+   universal `arm64,x86_64`; a different set requires an explicit product decision recorded in the
+   manifest before continuing.
+3. Run `ci_scripts/build_mac_direct.sh` from the same clean RC SHA, verify its direct
+   `CFBundleVersion` equals the repo build, and run the same fail-closed check on its exact exported
+   app:
+   ```bash
+   ci_scripts/verify_mac_artifact.sh --channel direct --app <exact-direct-app> --architectures arm64,x86_64
+   ```
+   Both artifact checks must pass before any external distribution or direct-artifact staging.
+   Then run `ci_scripts/release_direct_artifact.sh stage` to generate a complete unpublished appcast
+   while preserving older items and recording the base-feed hash. Do not run `handoff` until C7's
+   post-approval go decision.
+4. Write platform-specific **What to Test** notes for each build. These are the only text each
    tester group sees, and are the steering channel for the soak. Always include:
    - What changed in this build, in user terms.
    - **"Test against a copy of your database, not your primary vault."** A TestFlight build shares
      the production bundle ID and container, so testers are running an unreviewed candidate
      against their real KDBX files.
    - Any area you specifically want exercised.
-3. If this is the **first build of this marketing version**, submit for Beta App Review and expect
-   roughly a day before external distribution. Later builds of the same version normally skip it.
-   Do not announce a ship date until this clears. Until it does, the published public link shows
+5. If this is the **first build of this marketing version/platform**, obtain explicit action-time user
+   confirmation immediately before submitting it for Beta App Review and expect roughly a day before
+   external distribution. Later builds of the same version normally skip it. Do not announce a ship
+   date until this clears. Until it does, the published public link shows
    *"This beta isn't accepting any new testers right now"* to everyone arriving from `README.md`
    or keeforge.com — expected, and another reason not to announce early.
-4. Distribute each platform to its external group. The iOS public link is permanently enabled and published, so this
-   reaches every tester accumulated from earlier releases, not just people who opted into this one.
-5. Record each platform's distribution timestamp — the soak clocks start here, not at the branch
+6. Obtain separate explicit action-time user confirmation immediately before distributing each
+   platform to its external group. This is a manual App Store Connect action; do not batch the
+   confirmation across iOS and Mac. The iOS public link is permanently enabled and published, so
+   distribution reaches every tester accumulated from earlier releases, not just people who opted
+   into this one.
+7. Record each platform's distribution timestamp — the soak clocks start here, not at the branch
    cut.
-6. Run `ci_scripts/build_mac_direct.sh` from the same clean RC SHA after the MAS archive is cut.
-   It stages the notarized zip as `KeeForge-{version}-b{repoBuild}.zip` and writes
-   `direct-artifact.json` with the exact SHA-256, size, Sparkle signature attributes, notarization
-   submission ID, version/build, source commit/tree SHA, and archive/symbol paths. Then run
-   `ci_scripts/release_direct_artifact.sh stage` to generate a complete unpublished appcast while
-   preserving older items and recording the base-feed hash. The direct artifact has no TestFlight
-   metrics and is tested separately in A10. Do not run `handoff` until C7's post-approval go
-   decision.
+   The direct artifact has no TestFlight metrics and is tested separately in A10.
 
 ## A10. Soak
 
@@ -562,8 +582,11 @@ changelog is not compiled into the binary.
 
 Invoke `publish-app-store-version` once for iOS and once for macOS. Attach the exact soaked
 TestFlight build numbers from the manifest, save the platform-specific metadata/screenshots, and
-submit each platform for App Review separately. Configure both records for manual release and
-leave approved versions held. `v{version}` does not exist yet.
+stage each platform independently through **Ready for Review**, then stop. Do not submit either
+platform yet. If the user later requests submission, obtain separate explicit action-time
+confirmation immediately before each platform's **Submit for Review** click; confirmation for one
+platform does not authorize the other. Configure both records for manual release and leave approved
+versions held. `v{version}` does not exist yet.
 
 If Apple requests a metadata-only correction, fix only that platform's record. If Apple requests a
 code change, return to Mode B and respin all three artifacts. Never substitute a newer unsoaked
@@ -695,7 +718,11 @@ Continue with Mode C from C1, reporting against the 24h target in place of 48h.
   refuses to submit anything that is unsandboxed or carries a
   `com.apple.security.cs.*` exception, notarizes, staples, and emits the appcast
   zip and writes a non-secret `direct-artifact.json` handoff record. Run it **after** the App Store
-  build is cut, from the same commit, so both channels ship identical code — then use
+  build is cut, from the same commit, so both channels ship identical code. Obtain/export the exact
+  MAS app from the accepted Xcode Cloud archive without rebuilding, and run
+  `ci_scripts/verify_mac_artifact.sh` on both exact exported apps with `--architectures arm64,x86_64`
+  before external distribution or direct-artifact staging. A different architecture set requires
+  an explicit product decision recorded in the manifest. Only after both checks pass, use
   `ci_scripts/release_direct_artifact.sh stage` to preserve older appcast items. After both App Store
   submissions have code approval and the final go decision, create `v{version}` and use that
   companion's `handoff` command: it verifies both local and origin tags resolve to the artifact SHA,

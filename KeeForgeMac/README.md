@@ -111,7 +111,7 @@ Until this matrix is populated from the real installed app, the migration rules 
 
 ## Info.plist Sync
 
-Keep `Info.plist` in sync with `KeeForge/Info.plist` and `AutoFillExtension/InfoMac.plist`, minus the cloud OAuth surface: the Mac app builds neither cloud SDK, so it deliberately declares **no** `db-*`/`msauth.*` URL scheme and none of the `DropboxAppKey`/`OneDriveClientID`/`OneDriveRedirectURI` keys the iOS plist carries (`URLSchemeFormatTests` pins their absence). What must stay in sync: the `otpauth` scheme that routes incoming verification-code links into `TOTPEnrollmentDestinationView`, the ATS arbitrary-loads-plus-first-party-exceptions setup, kdbx document/UTType declarations, and the build-var keys `DropboxAppKey` / `OneDriveClientID` the app reads at runtime.
+Keep `Info.plist` in sync with `KeeForge/Info.plist` and `AutoFillExtension/InfoMac.plist`, minus the cloud OAuth surface: the Mac app builds neither cloud SDK, so it deliberately declares **no** `db-*`/`msauth.*` URL scheme and none of the `DropboxAppKey`/`OneDriveClientID`/`OneDriveRedirectURI` keys the iOS plist carries (`URLSchemeFormatTests` pins their absence). What must stay in sync: the `otpauth` scheme that routes incoming verification-code links into `TOTPEnrollmentDestinationView`, the ATS arbitrary-loads-plus-first-party-exceptions setup, and kdbx document/UTType declarations. `DropboxAppKey`, `OneDriveClientID`, and `OneDriveRedirectURI` are explicitly excluded from the Mac plist and runtime/configuration surface.
 
 ## Security Posture
 
