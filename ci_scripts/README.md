@@ -8,7 +8,9 @@ This folder holds small scripts used by Xcode Cloud and local build setup.
 - `ci_post_clone.sh` installs XcodeGen, prepares the build config, and regenerates the Xcode project after checkout.
 - `ci_pre_xcodebuild.sh` re-runs `prepare_build_config.sh` right before each `xcodebuild` action, where `CI_XCODEBUILD_ACTION` is reliably set, so an `archive` workflow without a real `DROPBOX_APP_KEY` fails before it produces a binary.
 - `run_kdbx_compatibility_gate.sh` validates KeeForge-written databases with `keepassxc-cli`. This is a required local release gate; Xcode Cloud does not install KeePassXC. Install KeePassXC or set `KEEPASSXC_CLI=/path/to/keepassxc-cli`, and override `KDBX_COMPAT_DESTINATION` if the default `iPhone 17 Pro` simulator is unavailable. Set `KDBX_COMPAT_SCHEME=KeeForgeMac` to run the same gate against the macOS app (which switches the test target to `KeeForgeMacTests` and the destination to `platform=macOS`); both platforms must pass before a release. See "KDBX Compatibility Gate" below.
-- `build_mac_direct.sh` archives, exports, notarizes and staples the **Developer ID direct-download** macOS build, then emits the zip the Sparkle appcast serves. It regenerates the project from `project-direct.yml` first (the overlay spec that adds Sparkle and defines `KEEFORGE_DIRECT_DOWNLOAD`) and restores the App Store spec on exit. It refuses to submit anything to Apple unless the exported app is sandboxed, has no `get-task-allow`, and carries no `com.apple.security.cs.*` exception. Needs a Developer ID certificate and a `notarytool` keychain profile. The Developer ID provisioning profiles for `com.keevault.app` and `com.keevault.app.autofill` are not a prerequisite — the archive and export pass `-allowProvisioningUpdates`, and Xcode creates both on demand. The Mac App Store build does **not** go through this script. It finishes by signing the zip with `sign_update` — located inside the Sparkle SPM artifact bundle in the run's own derived data, so there is no tool to install — and printing a ready-to-paste appcast `<item>`.
+- `build_mac_direct.sh` archives, exports, notarizes and staples the **Developer ID direct-download** macOS build, then emits the zip the Sparkle appcast serves. It regenerates the project from `project-direct.yml` first (the overlay spec that adds Sparkle and defines `KEEFORGE_DIRECT_DOWNLOAD`) and restores the App Store spec on exit. It refuses to submit anything to Apple unless the exported app is sandboxed, has no `get-task-allow`, and carries no `com.apple.security.cs.*` exception. Needs a Developer ID certificate and a `notarytool` keychain profile. The Developer ID provisioning profiles for `com.keevault.app` and `com.keevault.app.autofill` are not a prerequisite — the archive and export pass `-allowProvisioningUpdates`, and Xcode creates both on demand. The Mac App Store build does **not** go through this script. It finishes by signing the zip with `sign_update`, records the notarization ID and all artifact facts in `direct-artifact.json`, and prints machine-readable handoff paths. The final asset is `KeeForge-{version}-b{repoBuild}.zip`; it is not published by this script.
+- `release_direct_artifact.sh` stages a complete appcast and performs the guarded direct-channel handoff. `stage` validates the build JSON and preserves older appcast items while recording the base-feed SHA (or explicit absence) and staged-feed SHA. `handoff` requires local **and origin** `v{version}` and `rc/{version}-b{repoBuild}` tags to resolve to the artifact SHA. It creates a new draft release, or safely resumes only an exact existing draft: an absent asset is uploaded once, while a present asset is downloaded through the GitHub API and verified without clobbering. Published or mismatched releases fail closed. It never publishes the appcast. `verify-public-url` separately verifies the final public download URL and writes evidence; `publish-appcast --staged FILE --metadata FILE --public-verification FILE --destination FILE` is the explicit final step. It requires the evidence, compares the destination with the staged base SHA, and atomically replaces it only on a match (or explicit absence). `--fixture DIR` exercises zip/hash validation, draft-verification abstraction, base mismatch refusal, duplicate refusal, older-item preservation, and atomic publication with no network, `gh`, Apple, notarization, or build.
+- `generate_appcast.py` is the deterministic, standard-library appcast builder used by the staging and fixture paths. It inserts the new signed item ahead of older items and rejects a duplicate version/build.
 - `make_appstore_screenshots.py` formats raw screenshots into App Store-ready images, for either listing: `--platform iphone` (the default) reads `build/screenshots` and writes `build/appstore` at 1320×2868; `--platform mac` reads `build/screenshots-mac` and writes `build/appstore-mac` at 2880×1800, landscape, with the window sitting whole on the canvas rather than bleeding off the bottom edge the way a phone does. It does not capture the raw screenshots itself — see its header comment for the `xcodebuild`/`xcresulttool` steps per platform, including the opt-in gates each capture class requires (`TEST_RUNNER_APPSTORE_SCREENSHOTS=1` for `AppStoreScreenshots`, `TEST_RUNNER_SCREENSHOT_AUDIT=1` for `MacScreenshotAuditUITests`; both `XCTSkip` by default, and both variables must be real environment variables on the `xcodebuild` process). It warns when an expected screen was missing from the input directory, so a listing that is short a screen is never mistaken for one that was meant to be.
 
 ## Three-channel release evidence
@@ -38,6 +40,62 @@ direct artifact from the same clean SHA; do not publish its GitHub Release asset
 appcast until both App Store submissions have code approval and the final go decision. The first
 coordinated launch uses manual release for both App Store records; preserve existing rating and
 make any macOS phased-release choice only when explicitly decided.
+
+## Direct artifact handoff
+
+After the MAS archive and direct build are accepted, the direct build directory contains
+`direct-artifact.json`, whose non-secret fields include the version/build, source commit and tree
+SHA, exact zip name/path, SHA-256, byte size, notarization submission ID, Sparkle enclosure
+attributes, and archive/symbol paths. Stage the unpublished feed with:
+
+```bash
+ci_scripts/release_direct_artifact.sh stage \
+  --artifact-json build/mac-direct/direct-artifact.json \
+  --output-dir scratch/direct-release \
+  --input-appcast /path/to/current-appcast.xml
+```
+
+Only after both App Store submissions have code approval and the final go decision, create the
+post-approval `v{version}` tag and run `handoff` with the same artifact JSON. The handoff checks
+that `v{version}`, `rc/{version}-b{repoBuild}`, and the artifact's commit SHA are identical before
+calling `gh`; it creates a new draft release and uploads the exact `KeeForge-{version}-b{repoBuild}.zip`
+once. If a prior run already created the draft, only that exact draft is resumed: an absent asset
+is uploaded once, while a present asset is downloaded through `gh api` and verified without
+clobbering. A draft release is not a public URL, so after publishing the release run
+manually/explicitly in GitHub (there is no script invocation for this promotion), run the
+unauthenticated `verify-public-url` and retain its SHA/size evidence. Then invoke `publish-appcast` with the staged
+metadata, public evidence, and explicit deployment destination. Publication uses an atomic
+compare-and-swap against the base appcast hash, so a concurrent feed change aborts. Never use
+`--clobber`, replace a mismatched release/asset, or publish a feed without final public URL
+verification.
+
+The final two commands are explicit and must be run only after the draft release is published:
+
+```bash
+ci_scripts/release_direct_artifact.sh verify-public-url \
+  --artifact-json build/mac-direct/direct-artifact.json \
+  --output scratch/direct-release/public-verification.json
+ci_scripts/release_direct_artifact.sh publish-appcast \
+  --staged scratch/direct-release/appcast.xml \
+  --metadata scratch/direct-release/staged-appcast.json \
+  --public-verification scratch/direct-release/public-verification.json \
+  --destination /path/to/deployed/appcast.xml
+```
+
+The publication command records an explicit absent base when staging a first feed; for later
+releases, it requires the destination's current bytes to match the staged base SHA immediately
+before an atomic rename. It will not overwrite an unrelated or concurrently changed feed.
+
+For a safe offline rehearsal (the normal test path):
+
+```bash
+ci_scripts/release_direct_artifact.sh --fixture "$(mktemp -d)"
+```
+
+The fixture keeps an older item, creates a deterministic zip, validates its hash/size, verifies the
+local download through the same byte-check abstraction used for GitHub assets, exercises duplicate
+and base-mismatch refusal, and atomically publishes against a matching local base. It does not
+invoke `gh`, `curl`, `xcodebuild`, `notarytool`, tags, pushes, or ASC.
 
 ## KDBX Compatibility Gate
 

@@ -22,8 +22,16 @@
 #     repo and never in CI logs.
 #
 # Usage: ci_scripts/build_mac_direct.sh [output-dir]
+#
+# The build writes direct-artifact.json beside the zip. It is a non-secret
+# handoff record consumed by release_direct_artifact.sh after App Review.
 
 set -euo pipefail
+
+if ! command -v jq >/dev/null 2>&1; then
+  echo "error: jq is required before starting the archive/notarization flow" >&2
+  exit 1
+fi
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
@@ -172,14 +180,22 @@ if [[ "${BUILT_FEED_URL}" != https://* ]]; then
 fi
 echo "    appcast ${BUILT_FEED_URL}, update key present"
 
-ZIP_PATH="${OUT_DIR}/KeeForge.zip"
+ZIP_PATH="${OUT_DIR}/.notarization-payload.zip"
 echo "==> Zipping for notarization"
 ditto -c -k --keepParent "${APP_PATH}" "${ZIP_PATH}"
 
 echo "==> Notarizing (this waits for Apple)"
+NOTARY_JSON="${OUT_DIR}/notarization.json"
 xcrun notarytool submit "${ZIP_PATH}" \
   --keychain-profile "${NOTARY_PROFILE}" \
-  --wait
+  --wait \
+  --output-format json >"${NOTARY_JSON}"
+NOTARIZATION_ID="$(jq -er '.id // .submissionId' "${NOTARY_JSON}")"
+NOTARIZATION_STATUS="$(jq -er '.status // empty' "${NOTARY_JSON}")"
+if [[ "${NOTARIZATION_STATUS}" != "Accepted" ]]; then
+  echo "error: notarization status is '${NOTARIZATION_STATUS}', expected Accepted" >&2
+  exit 1
+fi
 
 echo "==> Stapling"
 xcrun stapler staple "${APP_PATH}"
@@ -211,10 +227,68 @@ SIGNATURE_ATTRS="$("${SIGN_UPDATE}" "${ZIP_PATH}")"
 SHORT_VERSION="$(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" "${APP_PATH}/Contents/Info.plist")"
 BUILD_NUMBER="$(/usr/libexec/PlistBuddy -c "Print :CFBundleVersion" "${APP_PATH}/Contents/Info.plist")"
 MIN_SYSTEM="$(/usr/libexec/PlistBuddy -c "Print :LSMinimumSystemVersion" "${APP_PATH}/Contents/Info.plist" 2>/dev/null || true)"
+ZIP_FILENAME="KeeForge-${SHORT_VERSION}-b${BUILD_NUMBER}.zip"
+FINAL_ZIP_PATH="${OUT_DIR}/${ZIP_FILENAME}"
+mv "${ZIP_PATH}" "${FINAL_ZIP_PATH}"
+ZIP_SHA256="$(shasum -a 256 "${FINAL_ZIP_PATH}" | awk '{print $1}')"
+ZIP_SIZE="$(stat -f '%z' "${FINAL_ZIP_PATH}")"
+
+# sign_update returns enclosure attributes, normally
+# sparkle:edSignature="..." length="...". Keep both the raw value and the
+# parsed values so a handoff never has to re-sign the final bytes.
+SPARKLE_ED_SIGNATURE="$(sed -n 's/.*sparkle:edSignature="\([^"]*\)".*/\1/p' <<<"${SIGNATURE_ATTRS}")"
+SPARKLE_LENGTH="$(sed -n 's/.* \(sparkle:\)\?length="\([^"]*\)".*/\2/p' <<<"${SIGNATURE_ATTRS}")"
+if [[ -z "${SPARKLE_ED_SIGNATURE}" || -z "${SPARKLE_LENGTH}" ]]; then
+  echo "error: sign_update did not return sparkle:edSignature and length attributes" >&2
+  exit 1
+fi
+if [[ "${SPARKLE_LENGTH}" != "${ZIP_SIZE}" ]]; then
+  echo "error: Sparkle signature length (${SPARKLE_LENGTH}) does not match zip size (${ZIP_SIZE})" >&2
+  exit 1
+fi
+ARTIFACT_JSON="${KEEFORGE_DIRECT_ARTIFACT_JSON:-${OUT_DIR}/direct-artifact.json}"
+SOURCE_SHA="$(git -C "${REPO_ROOT}" rev-parse HEAD)"
+SOURCE_TREE="$(git -C "${REPO_ROOT}" rev-parse 'HEAD^{tree}')"
+mkdir -p "$(dirname "${ARTIFACT_JSON}")"
+jq -n \
+  --arg version "${SHORT_VERSION}" \
+  --arg repoBuild "${BUILD_NUMBER}" \
+  --arg commitSHA "${SOURCE_SHA}" \
+  --arg sourceTree "${SOURCE_TREE}" \
+  --arg zipPath "${FINAL_ZIP_PATH}" \
+  --arg zipFilename "${ZIP_FILENAME}" \
+  --arg sha256 "${ZIP_SHA256}" \
+  --arg notarizationSubmissionID "${NOTARIZATION_ID}" \
+  --arg notarizationStatus "${NOTARIZATION_STATUS}" \
+  --arg sparkleSignature "${SIGNATURE_ATTRS}" \
+  --arg sparkleEDSignature "${SPARKLE_ED_SIGNATURE}" \
+  --arg sparkleLength "${SPARKLE_LENGTH}" \
+  --arg archivePath "${ARCHIVE_PATH}" \
+  --arg symbolsPath "${ARCHIVE_PATH}/dSYMs" \
+  --arg appPath "${APP_PATH}" \
+  --arg feedURL "${BUILT_FEED_URL}" \
+  --arg minimumSystemVersion "${MIN_SYSTEM}" \
+  --argjson sizeBytes "${ZIP_SIZE}" \
+  '{schemaVersion: 1, version: $version, repoBuild: ($repoBuild | tonumber), commitSHA: $commitSHA,
+    sourceTree: $sourceTree, zipPath: $zipPath, zipFilename: $zipFilename,
+    sha256: $sha256, sizeBytes: $sizeBytes, notarizationSubmissionID: $notarizationSubmissionID,
+    notarizationStatus: $notarizationStatus,
+    sparkleSignature: $sparkleSignature,
+    sparkleSignatureAttributes: {"sparkle:edSignature": $sparkleEDSignature, length: $sparkleLength},
+    archivePath: $archivePath, symbolsPath: $symbolsPath, appPath: $appPath,
+    feedURL: $feedURL, minimumSystemVersion: $minimumSystemVersion}' \
+  >"${ARTIFACT_JSON}"
 
 echo
 echo "Done. Notarized, stapled app: ${APP_PATH}"
-echo "Appcast payload:              ${ZIP_PATH}"
+echo "Appcast payload:              ${FINAL_ZIP_PATH}"
+echo "Artifact handoff JSON:        ${ARTIFACT_JSON}"
+echo "SHA-256:                      ${ZIP_SHA256}"
+echo "Size (bytes):                 ${ZIP_SIZE}"
+echo "Notarization submission ID:   ${NOTARIZATION_ID}"
+echo "Version/build:                ${SHORT_VERSION}/${BUILD_NUMBER}"
+echo "Archive:                      ${ARCHIVE_PATH}"
+echo "Symbols:                      ${ARCHIVE_PATH}/dSYMs"
 echo
 echo "Appcast entry for ${BUILT_FEED_URL} — paste into <channel>, newest first:"
 echo
@@ -225,10 +299,10 @@ cat <<APPCAST_ITEM
             <sparkle:shortVersionString>${SHORT_VERSION}</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>${MIN_SYSTEM}</sparkle:minimumSystemVersion>
             <sparkle:releaseNotesLink>https://keeforge.com/changelog</sparkle:releaseNotesLink>
-            <enclosure url="https://downloads.keeforge.com/KeeForge-${SHORT_VERSION}.zip"
+            <enclosure url="https://github.com/KeeForge/KeeForge/releases/download/v${SHORT_VERSION}/${ZIP_FILENAME}"
                        ${SIGNATURE_ATTRS}
                        type="application/octet-stream" />
         </item>
 APPCAST_ITEM
 echo
-echo "Upload ${ZIP_PATH##*/} to R2 as KeeForge-${SHORT_VERSION}.zip, reachable at the enclosure URL above."
+echo "Stage the appcast and hand off the draft GitHub Release with ci_scripts/release_direct_artifact.sh."

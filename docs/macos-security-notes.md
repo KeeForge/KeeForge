@@ -272,7 +272,12 @@ What authenticates an update in the direct channel:
   not a developer convenience.
 - **HTTPS appcast.** `SUFeedURL` must be `https://`. The release script refuses
   to build otherwise, and refuses an empty `SUPublicEDKey`, so a direct build
-  that could not authenticate its own updates never reaches notarization.
+  that could not authenticate its own updates never reaches notarization. The
+  signed zip is hosted as an immutable GitHub Release asset. Draft assets are
+  verified through authenticated GitHub API bytes; after the release is
+  published, the final public download URL is verified separately. The staged
+  feed is published only with that evidence and an atomic base-feed
+  compare-and-swap, so a concurrent feed change cannot be silently replaced.
 - **Notarized, stapled payload.** The zip the appcast serves is the stapled app,
   so a first launch offline still passes Gatekeeper.
 

@@ -140,7 +140,12 @@ alphanumerics only, because it is interpolated into the `db-$(DROPBOX_APP_KEY)`
   covered by `.github/workflows/macos-rc-tests.yml`.
 - `ci_scripts/build_mac_direct.sh` is intentionally outside Xcode Cloud. Run it after the MAS
   archive from the same clean RC SHA, verify its direct `CFBundleVersion` equals the repo build,
-  and stage (do not publish) its zip/appcast item until the final go decision.
+  and stage (do not publish) its `KeeForge-{version}-b{repoBuild}.zip`, `direct-artifact.json`,
+  and appcast through `ci_scripts/release_direct_artifact.sh stage` until the final go decision.
+  After the post-approval `v{version}` tag exists, `handoff` safely creates or resumes the exact
+  draft GitHub Release and verifies its asset through the API. A draft is not public: run
+  `verify-public-url` after publishing it, then use `publish-appcast`'s atomic base-feed
+  compare-and-swap as a separate final step.
 
 ## Candidate identity and evidence
 
