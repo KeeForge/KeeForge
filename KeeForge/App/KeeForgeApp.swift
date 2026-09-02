@@ -85,11 +85,11 @@ struct KeeForgeApp: App {
                 AttachmentPreviewFileStore.purgeOrphanedFiles()
                 // At launch, not on Tip Jar open, so out-of-app completions
                 // (Ask to Buy, deferred SCA) are still delivered and finished.
-                // A direct-download build has no App Store receipt, so it never
-                // touches StoreKit at all.
-                if DistributionChannel.supportsStoreKit {
+                // The direct target compiles this path out because it has no
+                // App Store receipt and must not link StoreKit.
+                #if !KEEFORGE_DIRECT_DOWNLOAD
                     StoreKitManager.shared.start()
-                }
+                #endif
                 pendingUploadDrainer.startObserving {
                     Task {
                         await listViewModel.drainPendingUploadsOnAppActive()
@@ -237,7 +237,7 @@ private struct AppRootView: View {
     @Binding var activeDatabaseViewModel: DatabaseViewModel?
     #if os(iOS)
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
-    #else
+    #elseif !KEEFORGE_DIRECT_DOWNLOAD
     @Environment(\.requestReview) private var requestReview
     #endif
     @Environment(\.scenePhase) private var scenePhase
@@ -279,7 +279,7 @@ private struct AppRootView: View {
                       databaseViewModel.databaseReference.id == databaseID else { return }
                 databaseViewModel.populateCredentialStoreIfUnlocked()
             }
-            #if os(macOS)
+            #if os(macOS) && !KEEFORGE_DIRECT_DOWNLOAD
             // macOS has no scene-based StoreKit review entry point; inject the
             // SwiftUI RequestReviewAction so ReviewPromptService can present the
             // modern prompt without a view dependency.

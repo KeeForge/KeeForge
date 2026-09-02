@@ -36,6 +36,7 @@ Fixed decisions and invariants:
 
 - [ ] **4. Finish and prove the Sparkle trust chain.** The private EdDSA key stays in the login Keychain; export its recovery copy with Sparkle's `generate_keys -x` and store it in the KeeForge vault/off-machine, never in the repo or logs.
   - Verify the direct app's built `SUFeedURL` and `SUPublicEDKey`; verify the MAS app has no Sparkle framework, XPC service, feed, or updater UI. Refresh `docs/macos-security-notes.md` if the final hosting or signing flow changes.
+  - Artifact preflight is available as `ci_scripts/verify_mac_artifact.sh`; it fail-closes on missing sandbox/hardened runtime, wrong architectures, MAS Sparkle/feed/key content, or direct StoreKit/Sparkle/feed/key boundary drift, and prints no key value. The direct target now conditionally compiles out StoreKit sources and startup references; the live signing-key backup and update rehearsal remain manual.
   - Exercise an HTTPS test appcast update from an older notarized direct build to a newer one signed by the same key. Test download, signature verification, installation, relaunch, and the lock path while a database is unlocked; also launch a freshly downloaded quarantined zip on a clean Mac and confirm Gatekeeper passes.
   - Done when the full update succeeds without a hardened-runtime exception and a deliberately altered zip is rejected.
 

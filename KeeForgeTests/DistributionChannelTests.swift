@@ -28,12 +28,14 @@ final class DistributionChannelTests: XCTestCase {
         #endif
     }
 
-    /// The unit suites host in the App Store app. If this ever fails, the test
-    /// host is the direct build — which also means the tests just ran against a
-    /// binary with Sparkle linked in. Asserted on the channel rather than on
-    /// `ReviewPromptService.isAppStoreBuild`, which is a mutable seam other
-    /// suites drive and execution order is randomized.
-    func testTestHostIsAnAppStoreBuild() {
+    /// The test host must match the project-generation channel. The normal
+    /// unit-test scheme hosts the App Store app; a direct-only test run hosts
+    /// the direct app and must not accidentally regain StoreKit.
+    func testTestHostMatchesCompilationChannel() {
+        #if KEEFORGE_DIRECT_DOWNLOAD
+        XCTAssertEqual(DistributionChannel.current, .directDownload)
+        #else
         XCTAssertEqual(DistributionChannel.current, .appStore)
+        #endif
     }
 }

@@ -1,3 +1,4 @@
+#if !KEEFORGE_DIRECT_DOWNLOAD
 import StoreKit
 import SwiftUI
 
@@ -134,3 +135,4 @@ struct TipJarView: View {
         }
     }
 }
+#endif

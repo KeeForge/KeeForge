@@ -11,9 +11,8 @@ struct SupportKeeForgeSection: View {
     private static let sponsorsURL = URL(string: "https://github.com/sponsors/crazytan")
 
     var body: some View {
-        if DistributionChannel.supportsStoreKit {
-            TipJarView()
-        } else if let url = Self.sponsorsURL {
+        #if KEEFORGE_DIRECT_DOWNLOAD
+        if let url = Self.sponsorsURL {
             Section {
                 Link(destination: url) {
                     Label("Sponsor KeeForge", systemImage: "heart")
@@ -23,5 +22,8 @@ struct SupportKeeForgeSection: View {
                 Text("KeeForge is free and open source. Sponsorship covers the Apple Developer Program and the time that goes into it.")
             }
         }
+        #else
+        TipJarView()
+        #endif
     }
 }

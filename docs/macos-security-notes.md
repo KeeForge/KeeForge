@@ -263,6 +263,16 @@ is declared in `project-direct.yml`, an overlay spec, so a plain
 `xcodegen generate` produces a project with no Sparkle package in it at all.
 There is no runtime flag to get this wrong.
 
+The channel boundary is also checked after export by
+`ci_scripts/verify_mac_artifact.sh`. It requires the MAS artifact to have no
+Sparkle framework, updater XPC, feed, public key, or updater strings, and the
+direct artifact to have Sparkle plus an HTTPS feed and public key. It rejects
+StoreKit linkage in a direct artifact even when the UI is hidden by a runtime
+condition. The direct compilation condition now excludes `StoreKitManager` and
+`TipJarView`, removes StoreKit from the shared macOS review-service build, and
+compiles out the app's StoreKit startup reference; the runtime
+`DistributionChannel` check remains a second line of defense.
+
 What authenticates an update in the direct channel:
 
 - **EdDSA signatures.** Sparkle verifies each download against `SUPublicEDKey`
@@ -285,6 +295,54 @@ Residual risk to be honest about: whoever controls the appcast host and the
 EdDSA private key together can push code to every direct install. That is
 inherent to self-distributed updates. The App Store channel does not have this
 property, which is one reason it is the default build.
+
+### Manual Sparkle rehearsal (test feed only)
+
+Run this once before the first direct release, and again after changing the
+feed host, signing key, updater configuration, or release handoff. This is a
+manual test on a disposable Mac or VM; it is not a production publication
+procedure. Never place the private key, a vault password, or a token in a
+command, appcast, screenshot, or log.
+
+1. Confirm that the recovery copy of the Sparkle EdDSA private key is already
+   stored in the KeeForge vault and an off-machine backup. Do not generate,
+   export, or print it during the rehearsal. Prepare two direct-download apps:
+   an older notarized/stapled build and the newer notarized/stapled build that
+   will be tested. They must use the same key pair and the same planned
+   `arm64,x86_64` architecture set.
+2. Create an isolated HTTPS test host (a temporary hostname or local TLS
+   service with a trusted certificate) and a test appcast containing only the
+   newer build. Sign the exact newer zip with Sparkle's `sign_update` using the
+   login Keychain key; copy only its public `sparkle:edSignature` and byte
+   `length` attributes into the enclosure. Use the test feed URL in the older
+   app's `SUFeedURL`; never point this rehearsal at `https://keeforge.com/appcast.xml`.
+3. On a clean test account, install the older app from its notarized zip and
+   run `ci_scripts/verify_mac_artifact.sh --channel direct --app <older-app> \
+   --architectures arm64,x86_64`. Open a disposable copy of
+   `/Users/tan/Documents/test.kdbx.zip`, unlock it, and leave the vault visibly
+   unlocked while starting the update check. Confirm Sparkle downloads the
+   exact newer zip, verifies its signature, replaces the app, and does not
+   present a hardened-runtime or sandbox exception.
+4. After the updater relaunches KeeForge, confirm the newer version is running,
+   the vault is locked, and unlock is required again. This is the important
+   relaunch boundary: no unlocked session or decrypted vault content may be
+   carried across the updater restart. Re-open the disposable vault and verify
+   that it still reads correctly.
+5. For the tamper test, make a byte-level copy of the newer zip, alter one byte
+   without changing the appcast signature or `length`, and serve that altered
+   file at the enclosure URL. Check for updates from the older app. Sparkle
+   must reject the download, leave the older app installed and running, and
+   report no successful installation. Restore the exact signed zip afterwards.
+6. Download the exact signed zip afresh in a clean account, retain its browser
+   quarantine attribute, and launch it without manually clearing quarantine.
+   Confirm Gatekeeper accepts the stapled app and the direct artifact verifier
+   still passes. Remove the test app, test feed, temporary vault copy, and any
+   test logs when the evidence has been recorded without secrets.
+
+The package is not complete until the off-machine key backup and both halves of
+this rehearsal (successful update and altered-zip rejection) have been observed
+on the real direct artifacts. The repository verifier only proves static
+artifact properties; it cannot replace this end-to-end trust-chain test.
 
 ## Not fixable at the app level
 
