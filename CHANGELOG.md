@@ -70,6 +70,8 @@ TODO before the first macOS release:
 
 ### Fixes
 
+- Changes typed into an entry or group you're editing are no longer lost when the database locks. KeeForge now asks whether to save or discard them first, instead of closing the editor and dropping them.
+- If a save failed, the prompt shown when the database locks now offers to try saving again, rather than only discarding the changes or staying unlocked.
 - The Lock button moved to the right side of the navigation bar, away from the Back button it was easy to hit by mistake (#106).
 - The New Entry button now reads "Create" when you're creating an entry (including from Duplicate), instead of "Save". Editing an existing entry still says "Save".
 - The Recycle Bin now sorts to the bottom of the group list instead of above your own groups, matching where most KeePass apps keep it.

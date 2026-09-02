@@ -8,6 +8,8 @@ struct EntryEditView: View {
     let onComplete: (Completion) -> Void
 
     @State private var showDiscardConfirmation = false
+    /// Identifies this editor in the view model's unsaved-editor registry.
+    @State private var editorID = UUID()
     @State private var showDeleteConfirmation = false
     @State private var showPasswordGenerator = false
     @State private var isPasswordVisible: Bool
@@ -284,6 +286,46 @@ struct EntryEditView: View {
             if let completion = completionGate.conflictSettled(settled) {
                 onComplete(completion)
             }
+        }
+        .onChange(of: formViewModel.isDirty, initial: true) { _, isDirty in
+            databaseViewModel.setEditorHasUnsavedChanges(isDirty, editorID: editorID)
+        }
+        .onChange(of: pendingEditorLockRequest != nil) { _, isPending in
+            // Anything presented above the editor would swallow the prompt.
+            guard isPending else { return }
+            showPasswordGenerator = false
+            showTOTPScanner = false
+            showTOTPSetupLink = false
+            showGroupPicker = false
+            showDeleteConfirmation = false
+            showRemoveTOTPConfirmation = false
+            showDiscardConfirmation = false
+        }
+        .onDisappear {
+            databaseViewModel.setEditorHasUnsavedChanges(false, editorID: editorID)
+        }
+        .alert(
+            "Save your changes before locking?",
+            isPresented: Binding(
+                get: { pendingEditorLockRequest != nil },
+                set: { _ in }
+            )
+        ) {
+            Button("Save and Lock") {
+                guard let request = pendingEditorLockRequest else { return }
+                saveTapped(resuming: request)
+            }
+            Button("Discard and Lock", role: .destructive) {
+                guard let request = pendingEditorLockRequest else { return }
+                databaseViewModel.setEditorHasUnsavedChanges(false, editorID: editorID)
+                onComplete(.cancelled)
+                databaseViewModel.resumeLockRequest(request)
+            }
+            Button("Keep Editing", role: .cancel) {
+                Task { await databaseViewModel.continueEditingAfterLockRequest() }
+            }
+        } message: {
+            Text("Your entry changes haven't been saved to this database yet.")
         }
         .alert("Discard changes?", isPresented: $showDiscardConfirmation) {
             Button("Discard Changes", role: .destructive) {
@@ -614,7 +656,15 @@ struct EntryEditView: View {
         }
     }
 
-    private func saveTapped() {
+    /// The lock request this editor's fields are holding up, if any.
+    private var pendingEditorLockRequest: DatabaseViewModel.PendingLockRequest? {
+        guard let request = databaseViewModel.pendingLockRequest,
+              request.reason == .openEditor,
+              formViewModel.isDirty else { return nil }
+        return request
+    }
+
+    private func saveTapped(resuming lockRequest: DatabaseViewModel.PendingLockRequest? = nil) {
         do {
             switch formViewModel.mode {
             case .create(let parentGroupID):
@@ -626,20 +676,31 @@ struct EntryEditView: View {
                     .updateEntry(entryID: entryID, draft: formViewModel.entryDraftPayload)
                 )
             }
-
-            isSubmitting = true
-            Task { @MainActor in
-                await databaseViewModel.saveHandlingError()
-                isSubmitting = false
-                if let saveError = databaseViewModel.saveError {
-                    editingErrorMessage = saveError.localizedDescription
-                    databaseViewModel.clearSaveError()
-                } else {
-                    finish(.saved)
-                }
-            }
         } catch {
             editingErrorMessage = error.localizedDescription
+            return
+        }
+
+        // In the draft now: a write that fails from here is the workspace's.
+        databaseViewModel.setEditorHasUnsavedChanges(false, editorID: editorID)
+
+        isSubmitting = true
+        Task { @MainActor in
+            await databaseViewModel.saveHandlingError()
+            isSubmitting = false
+
+            if let lockRequest {
+                finish(.saved)
+                databaseViewModel.resumeLockRequest(lockRequest)
+                return
+            }
+
+            if let saveError = databaseViewModel.saveError {
+                editingErrorMessage = saveError.localizedDescription
+                databaseViewModel.clearSaveError()
+            } else {
+                finish(.saved)
+            }
         }
     }
 
