@@ -76,6 +76,11 @@ If the requested build is absent from TestFlight, stop and report it. Do not sta
 - Read `CHANGELOG.md` and use only the section for the requested version. Do not include `Unreleased` entries.
 - Reviewer fixture: `/Users/tan/Documents/test.kdbx.zip`
 - Reviewer fixture password: `testpassword123`
+- For native Mac listing/reviewer copy, use the companion
+  [`mac-listing-metadata.md`](mac-listing-metadata.md) template. It records
+  repo-known URLs/capabilities, locale drafts, field-limit guardrails, and
+  unresolved ASC verification placeholders; it is not a substitute for the
+  live Mac version page.
 - Preserve the existing reviewer note unless it is incorrect. It should tell the reviewer that the compressed test database is attached and give the password.
 - App Store localizations: verify against the version page in App Store Connect (last known: English (U.S.), French, German, Russian, Spanish (Spain); consider adding Simplified/Traditional Chinese since the app ships them in-app as of 1.14.0).
 - Release manifest: `scratch/release-manifests/{version}-b{repoBuild}.json`. Verify both processed
