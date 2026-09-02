@@ -1605,6 +1605,9 @@ final class DatabaseViewModel {
         selectedGroupID = nil
         selectedTag = nil
         selectedEntryID = nil
+        #if os(macOS)
+        grantPendingWindowCloseIfNeeded()
+        #endif
     }
 
     func lockRequest(
@@ -1672,6 +1675,75 @@ final class DatabaseViewModel {
         lockRequest(manuallyTriggered: request.manuallyTriggered)
     }
 
+    #if os(macOS)
+    /// What the Mac window delegate has to do about a close it is holding.
+    enum WindowCloseDecision: Equatable {
+        /// Nothing is unsaved: let the close commit. The last window going
+        /// away locks the vault through `MacLockMonitor` as usual.
+        case close
+        /// An open editor owns the decision, and is now showing the prompt it
+        /// already has for a deferred lock. The close waits for
+        /// `onWindowCloseGranted`.
+        case waitForEditorPrompt
+        /// A write that already failed is still unsaved. The caller asks,
+        /// because unlike the editor's fields it can drive the retry itself.
+        case promptForUnsavedDraft
+    }
+
+    /// Fired when a close that was waiting on unsaved work may commit: the
+    /// vault locked with nothing left unsaved behind it.
+    @ObservationIgnored var onWindowCloseGranted: (() -> Void)?
+
+    /// Set for as long as a window close is waiting on an answer, so the lock
+    /// that answers it can let the window go.
+    private var isWindowClosePending = false
+
+    /// Called before a window close commits. It never locks by itself — the
+    /// lock is the ordinary last-window one, taken once the close is granted.
+    func requestWindowClose() -> WindowCloseDecision {
+        guard case .unlocked = state else { return .close }
+
+        // Only the editor can save or discard its own fields, so it prompts.
+        if hasUnsavedEditor {
+            isWindowClosePending = true
+            lockRequest(manuallyTriggered: true)
+            return .waitForEditorPrompt
+        }
+
+        guard isDirty else { return .close }
+
+        isWindowClosePending = true
+        return .promptForUnsavedDraft
+    }
+
+    /// Save, chosen in the close prompt: retry the write that failed, then
+    /// lock. A second failure re-defers to the workspace prompt with the close
+    /// still waiting on it, exactly as `saveAndLockAfterLockRequest()` does.
+    func saveAndCloseWindow() async {
+        guard isWindowClosePending else { return }
+        await saveHandlingError()
+        lockRequest(manuallyTriggered: true)
+    }
+
+    /// Don't Save, chosen in the close prompt.
+    func discardAndCloseWindow() {
+        guard isWindowClosePending else { return }
+        lockRequest(force: true, manuallyTriggered: true)
+    }
+
+    /// Cancel, chosen in the close prompt or in whichever prompt the close was
+    /// waiting on: the window stays open and the session is untouched.
+    func cancelWindowClose() {
+        isWindowClosePending = false
+    }
+
+    private func grantPendingWindowCloseIfNeeded() {
+        guard isWindowClosePending else { return }
+        isWindowClosePending = false
+        onWindowCloseGranted?()
+    }
+    #endif
+
     func continueEditingAfterLockRequest() async {
         guard let pendingLockRequest else { return }
 
@@ -1697,6 +1769,11 @@ final class DatabaseViewModel {
 
     private func cancelLockRequest() {
         pendingLockRequest = nil
+        #if os(macOS)
+        // Keep Editing is also the Cancel of a window close waiting on this
+        // prompt: the window stays open.
+        cancelWindowClose()
+        #endif
         resetInactivityTimer()
     }
 

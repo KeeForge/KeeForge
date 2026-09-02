@@ -17,9 +17,10 @@ import Foundation
 /// - the last window closing (`NSWindow.willCloseNotification`). ⌘W closes the
 ///   only window without quitting, and the session lives in app-level state,
 ///   so without this an unlocked vault would sit decrypted in memory with no
-///   window to lock it from. Like the triggers above it is unconditional; a
-///   dirty draft still defers through the usual discard prompt, which the user
-///   sees when the window comes back.
+///   window to lock it from. Like the triggers above it is unconditional.
+///   Unsaved work is settled before the close commits, by
+///   `MacWindowCloseGuard` — this notification arrives too late to prompt in,
+///   so by the time it fires nothing is left to defer.
 ///
 /// `NSApplication.didBecomeActiveNotification` drives the became-active
 /// callback (pending-upload drain + inactivity-timer resume).
@@ -162,10 +163,12 @@ final class MacLockMonitor {
 
     /// Sheets, panels (the About panel, open/save panels) and closed-but-alive
     /// windows cannot host the app's UI, so they never keep a vault unlocked.
+    /// `MacWindowCloseGuard` shares this count, so both halves of the
+    /// window-close trigger agree on what a host window is.
     /// A *minimized* window does — it is one Dock click from being on screen —
     /// and so does Settings, which the user is still working in; closing that
     /// one later runs this check again.
-    private static func countRemainingHostWindows(excluding closingWindow: NSWindow?) -> Int {
+    static func countRemainingHostWindows(excluding closingWindow: NSWindow?) -> Int {
         NSApplication.shared.windows.filter { window in
             window !== closingWindow
                 && (window.isVisible || window.isMiniaturized)
