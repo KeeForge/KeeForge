@@ -13,11 +13,11 @@ Do not repeat the repository release workflow. Assume the requested version was 
 
 Treat **Submit for Review** as the final consequential action. Prepare everything first and stop immediately before it unless the user explicitly asks to submit and confirms at action time.
 
-## Two platforms, one version number
+## Two App Store platforms, three release channels
 
 KeeForge ships an iOS app and a Mac App Store app from the same record, in version lockstep: all
-four product targets carry the same `MARKETING_VERSION` and `CURRENT_PROJECT_VERSION`, and one
-release bump covers them together. In App Store Connect that is **one app with two platforms**,
+four product targets carry the same `MARKETING_VERSION` and globally monotonic repo
+`CURRENT_PROJECT_VERSION`, and one release bump covers them together. In App Store Connect that is **one app with two platforms**,
 each with its own version record, its own build, its own screenshots, and its own review
 submission.
 
@@ -33,9 +33,10 @@ Establish which platforms are in play before touching anything:
 
 Platform-specific deltas, everywhere they matter:
 
-- **Builds.** Each platform has its own TestFlight build list. The `release` skill hands over one
-  `{version, build}` pair; verify that pair is present and `Complete` under **each** platform, not
-  just the first. The Mac build comes from the same `rc/*` tag as the iOS one.
+- **Builds.** Each platform has its own TestFlight build list. The `release` manifest hands over
+  one `{version, repoBuild, rcTag, commitSHA, iosTestFlightBuild, macTestFlightBuild}` mapping;
+  verify each platform's own build number is present and `Complete`, not just the first. The Mac
+  build comes from the same `rc/*` tag/SHA as the iOS one.
 - **Screenshots.** iOS screenshots do not satisfy the Mac listing and vice versa. The Mac version
   needs its own Mac-sized captures; `ci_scripts/make_appstore_screenshots.py` produces iPhone
   frames only, and the Mac ones come from `KeeForgeMacUITests/MacScreenshotAuditUITests` (see
@@ -52,18 +53,21 @@ Platform-specific deltas, everywhere they matter:
   review state. "Submitted" for iOS says nothing about macOS.
 
 The direct-download (Developer ID) Mac channel does **not** go through App Store Connect at all.
-It is built, notarized, and published by `ci_scripts/build_mac_direct.sh` plus the Sparkle appcast.
-Nothing in this skill applies to it.
+It is built and notarized from the same RC SHA, then staged and later published by
+`ci_scripts/build_mac_direct.sh` plus the Sparkle appcast. This skill never uploads or releases the
+direct artifact, but it verifies its manifest entry before the App Store versions are submitted.
 
 ## The build is already chosen
 
-The `release` skill soaks a specific build on the public TestFlight channel and hands this skill an
-exact `{marketing version, build number}` pair. That pair is the release. This skill **selects**
-that already-uploaded build; it never triggers, requests, or waits for a new one.
+The `release` skill soaks one RC across both external TestFlight groups and the direct channel, then
+hands this skill the non-secret release manifest. It includes the exact `{marketing version,
+repoBuild, rcTag, commitSHA, iosTestFlightBuild, macTestFlightBuild, directCFBundleVersion}`
+mapping. This skill **selects** the two already-uploaded builds; it never triggers, requests, or
+waits for a new one.
 
-If the user supplies a version without a build number, ask for it — do not infer it from "the
-latest build". The latest TestFlight build is not necessarily the soaked one, and shipping a
-different binary than the one that was soaked defeats the entire release process.
+If the manifest or either platform build number is missing, ask for the release handoff — do not
+infer it from "the latest build". The latest TestFlight build is not necessarily the soaked one,
+and shipping a different binary than the one that was soaked defeats the entire release process.
 
 If the requested build is absent from TestFlight, stop and report it. Do not start a build.
 
@@ -74,6 +78,11 @@ If the requested build is absent from TestFlight, stop and report it. Do not sta
 - Reviewer fixture password: `testpassword123`
 - Preserve the existing reviewer note unless it is incorrect. It should tell the reviewer that the compressed test database is attached and give the password.
 - App Store localizations: verify against the version page in App Store Connect (last known: English (U.S.), French, German, Russian, Spanish (Spain); consider adding Simplified/Traditional Chinese since the app ships them in-app as of 1.14.0).
+- Release manifest: `scratch/release-manifests/{version}-b{repoBuild}.json`. Verify both processed
+  platform build numbers map to the same RC tag/SHA and that `directCFBundleVersion` equals
+  `repoBuild` before changing App Store Connect. The manifest may contain hashes, URLs, IDs,
+  statuses, and paths, but never passwords, tokens, credentials, private keys, keychain profiles,
+  or cloud secret values.
 
 ## Workflow
 
@@ -82,14 +91,16 @@ If the requested build is absent from TestFlight, stop and report it. Do not sta
 1. Open the KeeForge app in App Store Connect.
 2. Note which platforms the app record carries, and which of them this release covers.
 3. Per platform: check whether the requested version already exists and note its state.
-4. Per platform: check TestFlight build uploads for the exact marketing version and build number handed over by the `release` skill.
+4. Per platform: check TestFlight build uploads for the exact marketing version and platform build
+   number handed over in the release manifest.
 5. Treat `Complete` as processed. Do not attach a build that is still processing or failed.
-6. Confirm the build was distributed to external testers — that is the one that was soaked. A build that only ever reached internal testers has not been through the process.
+6. Confirm each build was distributed to its external testers — those are the builds that were
+   soaked. A build that only ever reached internal testers has not been through the process.
 7. If the build is missing, report it and stop. Builds are produced by the Xcode Cloud **Tests (RC)** workflow on an `rc/*` tag; no workflow triggers on `v*`. Never start a build from here.
 
 ### 2. Create the App Store version when needed
 
-Create the exact version through **Add iOS App** (or **Add macOS App** for the Mac platform). Confirm immediately before creating the version record because it changes App Store Connect state. Repeat per platform in play.
+Create the exact version through **Add iOS App** (or **Add macOS App** for the Mac platform). Confirm immediately before creating the version record because it changes App Store Connect state. Repeat per platform in play. Do not create or release either record until the final RC manifest is accepted.
 
 Do not create a duplicate version if it already exists.
 
@@ -149,8 +160,11 @@ Do not upload a duplicate when the attachment is already present. If the file is
 
 Preserve the prior version's settings unless the user requests a change. For KeeForge, verify:
 
-- **Automatically release this version** is selected.
-- **Release update to all users immediately** is selected.
+- **Manually release this version** is selected for both platform records for the first coordinated
+  native Mac launch. Do not select automatic/immediate release.
+- If App Store Connect offers phased release for macOS, record it only if the user explicitly chose
+  it; otherwise manual timing is the rollout control. Keep iOS and macOS settings independently
+  visible.
 - **Keep existing rating** remains selected.
 
 Report any difference before changing it.
@@ -172,7 +186,8 @@ If the user explicitly asks for final submission, request action-time confirmati
 
 1. Click **Submit for Review** once.
 2. Verify the resulting submission state from the page.
-3. Report the observed state and the configured automatic-release behavior.
+3. Report each platform's resulting state and its manual/phased release setting. Do not click a
+   release control as part of submission.
 
 ## Final checklist
 
@@ -187,7 +202,7 @@ Run this list once per platform in play.
 - Release notes are saved for every localization listed on the version page.
 - Reviewer note includes the fixture password.
 - `test.kdbx.zip` is visibly attached.
-- Automatic release, immediate rollout, and rating retention are verified.
+- Manual release (and any explicitly chosen macOS phased setting) and rating retention are verified.
 - Draft submission shows the exact version and build as ready.
 - Screenshots on the version page are that platform's own, not the other's.
 - Final submit is untouched unless separately confirmed.

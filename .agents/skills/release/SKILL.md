@@ -1,11 +1,12 @@
 ---
 name: release
 description: >
-  Run the KeeForge iOS release process: cut a release/{major}.{minor} branch, build release
-  candidates onto the public TestFlight channel, soak them, and ship the exact soaked build to
-  the App Store. Bumps versions and build numbers in project.yml, updates CHANGELOG.md and the
-  What's New sheet, runs the local KDBX compatibility gate, and pushes rc/{version}-b{build}
-  tags so Xcode Cloud and the iOS 18 GitHub Actions workflow test and archive each candidate.
+  Run the KeeForge three-channel release process: cut a release/{major}.{minor} branch, build
+  iOS, Mac App Store, and direct-download Mac candidates from one immutable RC, soak the exact
+  artifacts, and ship the exact accepted builds. Bumps versions and the globally monotonic repo
+  build in project.yml, updates CHANGELOG.md and the What's New sheet, runs both local KDBX
+  compatibility gates plus the local Mac smoke, and pushes rc/{version}-b{repoBuild} tags so Xcode
+  Cloud and both GitHub Actions workflows test and archive each candidate.
   Use this skill whenever the user wants to cut a release, start a release branch, respin a
   release candidate, ship a soaked build, bump the version, or prepare a build for
   TestFlight/App Store. Triggers on phrases like "release", "new version", "bump version",
@@ -15,31 +16,58 @@ description: >
 
 # KeeForge Release Workflow
 
-Releases run on a dedicated `release/{major}.{minor}` branch, reach users through the public
-TestFlight channel first, and ship the **exact binary that was soaked**. This is a sequential,
-high-stakes workflow: each step depends on the previous one succeeding. Do not skip steps or
-proceed past a failure.
+Releases run on one dedicated `release/{major}.{minor}` branch. Each candidate produces three
+artifacts from one commit: an iOS App Store/TestFlight build, a Mac App Store/TestFlight build,
+and a notarized direct-download Mac build. The two App Store builds are soaked in their respective
+external TestFlight groups and the direct build is soaked separately; ship only those exact
+artifacts. This is a sequential, high-stakes workflow: each step depends on the previous one
+succeeding. Do not skip steps or proceed past a failure.
 
-Test execution model: the full unit and UI suites run on **Xcode Cloud** and **GitHub Actions**.
-Do not run them locally up front. Run focused local XCTest reproductions only when a cloud test
-fails — see `gate-adjudication.md`.
+Test execution model: the full unit suites and hosted UI suites run on **Xcode Cloud** and
+**GitHub Actions**. `KeeForgeMacUITests/MacSmokeUITests` is the required local UI smoke because it
+needs an unlocked active login session. Do not run the full hosted suites locally up front. Run
+focused local XCTest reproductions only when a cloud test fails — see `gate-adjudication.md`.
+
+## Shared release state and manifest
+
+The release handoff is one state record, not a single build number:
+
+`{version, repoBuild, rcTag, commitSHA, iosTestFlightBuild, macTestFlightBuild, directCFBundleVersion}`.
+
+`repoBuild` is the globally monotonic `CURRENT_PROJECT_VERSION` in `project.yml`; it increases for
+every minor, major, patch, and respin candidate and is identical on `KeeForge`,
+`KeeForgeAutoFill`, `KeeForgeMac`, and `KeeForgeMacAutoFill`. It is never reset for a new marketing
+version. The direct build's `CFBundleVersion` is this repo build. Xcode Cloud may assign separate,
+platform-specific TestFlight build numbers; record both and match each back to the RC tag and SHA.
+Do not compare either TestFlight number with `repoBuild` or force the platform numbers to match.
+
+During a release, record the state in `scratch/release-manifests/{version}-b{repoBuild}.json`.
+That path is gitignored and is working state, not a secret store. The manifest must contain only
+non-secret evidence: `schemaVersion`, `version`, `repoBuild`, `rcTag`, `commitSHA`, `sourceTree`,
+both platform build numbers/version records, distribution timestamps and soak metrics, all gate
+verdicts/URLs or log paths, direct zip filename/URL/SHA-256, Sparkle signature attributes,
+notarization ID, archive/symbol locations, review states, release timestamps, and accepted soak
+exceptions. Never put passwords, tokens, App Store Connect credentials, private signing keys,
+keychain profiles, or cloud secret values in it or in logs. At ship time preserve the completed
+non-secret manifest with the release evidence (for example, GitHub Release notes/asset or the
+team's secure release archive); the scratch copy is not the long-term record.
 
 ## The four invariants
 
 Violating any of these invalidates the release. They outrank convenience at every step, and
 unlike the soak targets in A10 they are not judgement calls.
 
-1. **Ship the binary you soaked.** The App Store build is selected from TestFlight, never
-   re-archived. `v{version}` is a record of what shipped, not a build trigger.
-2. **Every candidate gets its own build number and its own `rc/` tag.** Bump
-   `CURRENT_PROJECT_VERSION` for each one so candidates are never confused with each other. Note
-   that Xcode Cloud overrides this number on the binary it uploads (see A9), so the uniqueness App
-   Store Connect actually enforces is Xcode Cloud's, not yours — but a stale build number in the
-   repo makes every later step ambiguous about which candidate is which.
-3. **Both CI gates are accepted before a build reaches external testers.** Green, or every
-   failure adjudicated per `gate-adjudication.md`. The soak window is flexible; this is not.
-4. **Tags are immutable.** Never delete, move, or force-push a tag. Every `rc/*` tag is a
-   permanent record of one candidate build.
+1. **Ship exactly what was soaked.** Select the iOS and Mac App Store builds from TestFlight and
+   publish the staged direct zip; never re-archive or substitute a newer build after soaking.
+2. **Every candidate has one globally increasing repo build and one immutable RC tag.** All four
+   product targets carry that repo build. Xcode Cloud's iOS and Mac TestFlight numbers may differ
+   from it and from each other, so the manifest maps all three artifacts to the same SHA.
+3. **All gates are accepted before external distribution.** Accept the Xcode Cloud verdict, the
+   iOS 18 GitHub Actions verdict, the macOS GitHub Actions verdict, both local KDBX gates, and the
+   local Mac smoke suite; green or explicitly adjudicated per `gate-adjudication.md`.
+4. **Tags are immutable and `v{version}` is post-approval evidence.** Never delete, move, or
+   force-push an `rc/*` tag. Create `v{version}` only after both App Store submissions have code
+   approval and the final go decision; it triggers no build.
 
 ## Pick the mode first
 
@@ -54,8 +82,9 @@ Identify which mode applies before touching anything. Ask the user if it is ambi
 
 Reference files, read on demand:
 
-- `gate-adjudication.md` — how to read the two CI gates and adjudicate test failures locally.
-  Read this whenever a gate is not green in A8. Gates are adjudicated there and nowhere else.
+- `gate-adjudication.md` — how to read cloud check runs and adjudicate test failures locally.
+  Read this whenever a cloud gate is not green in A8; apply the same test-vs-infrastructure
+  distinction to the macOS workflow and never override a non-test failure with a local pass.
 - `xcode-cloud-setup.md` — the one-time App Store Connect workflow configuration this process
   depends on. Read it if archives or TestFlight uploads are not appearing as expected.
 
@@ -143,9 +172,8 @@ the version number, so holding the matching `MARKETING_VERSION` back buys nothin
 
 Set `MARKETING_VERSION` to the new version string (e.g. `"1.11.0"`) on **all four** product
 targets in `project.yml` — `KeeForge`, `KeeForgeAutoFill`, `KeeForgeMac`, and `KeeForgeMacAutoFill`.
-The Mac targets ship in lockstep with iOS (same version, same build number), so there are exactly 4
-values to update. Leave `CURRENT_PROJECT_VERSION` alone — that is A5's, and it changes with every
-candidate.
+The Mac targets ship in lockstep with iOS (same marketing version and repo build). Leave
+`CURRENT_PROJECT_VERSION` alone here; A5 advances it globally for the first candidate.
 
 ```bash
 xcodegen generate
@@ -180,10 +208,88 @@ one commit on `main` undoes all of it together.
 
 ## A5. Set the candidate build number
 
-On the release branch, set `CURRENT_PROJECT_VERSION` to `"1"` — the first candidate build of this
-version — on **all four** product targets in `project.yml` (`KeeForge`, `KeeForgeAutoFill`,
-`KeeForgeMac`, `KeeForgeMacAutoFill`). They must always carry identical values; there are exactly 4
-values to update. Use precise string-replacement edits.
+Determine `repoBuild` mechanically; never guess from the latest TestFlight number or from a single
+working-tree value. The new four-target invariant begins with this process: older revisions may
+predate the Mac targets and may contain unequal or reset build values. Scan those revisions for
+every numeric value belonging to whichever of the four targets existed, using their maximum only as
+the legacy floor. Separately require the current working tree to satisfy the new invariant. First
+fetch the refs used for release bookkeeping, then validate every present new-process manifest. Run
+this in a fresh Bash shell; any failed check is a stop, not a reason to fall back to a guessed value:
+
+```bash
+set -euo pipefail
+git fetch origin --tags 'refs/heads/release/*:refs/remotes/origin/release/*'
+refs=(HEAD)
+while read -r ref; do refs+=("$ref"); done < <(
+  git for-each-ref --format='%(refname)' refs/heads/release refs/remotes/origin/release refs/tags/rc refs/tags/v
+)
+
+target_values() {
+  awk '
+    /^  (KeeForge|KeeForgeAutoFill|KeeForgeMac|KeeForgeMacAutoFill):$/ { target=$1; sub(/:$/, "", target); next }
+    /^  [^ ]/ { target="" }
+    target && /CURRENT_PROJECT_VERSION:/ {
+      value=$0; sub(/^.*CURRENT_PROJECT_VERSION:[[:space:]]*"?/, "", value); sub(/"[[:space:]]*$/, "", value)
+      if (value ~ /^[0-9]+$/) print target ":" value
+    }
+  ' "${1:--}"
+}
+
+historical_values() {
+  target_values "${1:--}" | cut -d: -f2
+}
+
+check_current_project() {
+  local file=${1:--} rows names expected values
+  rows=$(target_values "$file")
+  test "$(printf '%s\n' "$rows" | wc -l | tr -d ' ')" -eq 4
+  names=$(printf '%s\n' "$rows" | cut -d: -f1 | sort)
+  expected=$(printf '%s\n' KeeForge KeeForgeAutoFill KeeForgeMac KeeForgeMacAutoFill | sort)
+  test "$names" = "$expected"
+  values=$(printf '%s\n' "$rows" | cut -d: -f2 | sort -u)
+  test "$(printf '%s\n' "$values" | wc -l | tr -d ' ')" -eq 1
+  printf '%s\n' "$values"
+}
+
+commits=$(for ref in "${refs[@]}"; do git rev-list "$ref" -- project.yml; done | sort -u)
+test -n "$commits"
+history_values=$(while read -r sha; do git show "$sha:project.yml" 2>/dev/null | historical_values; done <<<"$commits")
+test -n "$history_values"
+current_value=$(check_current_project project.yml)
+test -n "$current_value"
+
+manifest_values=""
+while read -r manifest; do
+  test -n "$manifest"
+  manifest_build=$(jq -er '.repoBuild | select(type == "number" and floor == .)' "$manifest")
+  expected_tag="rc/$(jq -er '.version | strings' "$manifest")-b${manifest_build}"
+  case "$(basename "$manifest")" in
+    *"-b${manifest_build}.json") ;;
+    *) echo "manifest filename does not match repoBuild: $manifest" >&2; exit 1 ;;
+  esac
+  test "$(jq -er --arg tag "$expected_tag" 'select(.rcTag == $tag) | .repoBuild' "$manifest")" = "$manifest_build"
+  manifest_values+="${manifest_build}\n"
+done < <(find scratch/release-manifests -type f -name '*.json' -print 2>/dev/null || true)
+
+all_values=$(printf '%b\n%b' "$history_values" "$manifest_values" | sed '/^$/d' | sort -n -u)
+test -n "$all_values"
+printf 'validated repo builds: %s\n' "$all_values"
+repoBuild=$(( $(printf '%s\n' "$all_values" | tail -n 1) + 1 ))
+printf 'next repoBuild: %s\n' "$repoBuild"
+```
+
+Stop if the current `project.yml` does not contain exactly one numeric
+`CURRENT_PROJECT_VERSION` for each of `KeeForge`, `KeeForgeAutoFill`, `KeeForgeMac`, and
+`KeeForgeMacAutoFill`, or if those four current values differ. Historical revisions are not required
+to satisfy this new invariant: absent Mac targets, unequal values, and old resets are tolerated, but
+only numeric values from an existing target contribute to the legacy floor. Stop if a present
+new-process manifest is malformed/missing `repoBuild`, or if its `repoBuild` disagrees with its
+filename/RC tag. The greatest validated value across reachable project history and manifests is the
+previous global maximum; set `repoBuild` to exactly that value plus one on all four current targets.
+Re-check that all four current values are identical before committing and record the result in the
+new manifest. A missing project history or no usable numeric historical value is not evidence that
+the floor is zero; stop and resolve the scope instead. A manifest from a different release may
+legitimately have a lower build; only malformed or internally inconsistent evidence is a disagreement.
 
 `MARKETING_VERSION` is already correct from A4.
 
@@ -193,10 +299,10 @@ values to update. Use precise string-replacement edits.
 xcodegen generate
 ```
 
-Run the KDBX compatibility gate in a fresh `bash` session, under the repo's Xcode lock. This is a
-required local gate for **every candidate build** — Xcode Cloud does not install KeePassXC, so
-the release machine is the only place KeeForge-written databases are cross-validated against
-another KeePass implementation:
+Run the KDBX compatibility gate twice in a fresh `bash` session, under the repo's Xcode lock. Both
+are required for **every candidate build** — Xcode Cloud does not install KeePassXC, so the release
+machine is the only place KeeForge-written databases are cross-validated against another KeePass
+implementation:
 
 ```bash
 LOG=/Users/tan/src/KeeForge/scratch/xcode-logs/$(date +%Y%m%d-%H%M%S)-kdbx-gate.log
@@ -206,10 +312,14 @@ mkdir -p "$(dirname "$LOG")"
 echo "exit=$? log=$LOG"
 ```
 
+Repeat with `KDBX_COMPAT_SCHEME=KeeForgeMac` and a separate log. Record both verdicts/paths as
+`gates.kdbxIOS` and `gates.kdbxMac`.
+
 If `keepassxc-cli` is not installed, stop and ask the user to install KeePassXC (or point
 `KEEPASSXC_CLI` at the binary). Do not skip this gate or proceed past a failure.
 
-Do **not** run the full unit or UI suites locally here — both cloud systems run them in A8.
+Do **not** run the full unit or UI suites locally here — the cloud systems run them in A8. The
+required local Mac smoke is the only UI exception.
 
 ## A7. Commit, push, and tag the candidate
 
@@ -219,52 +329,59 @@ Do **not** run the full unit or UI suites locally here — both cloud systems ru
    git add project.yml KeeForge.xcodeproj
    ```
    Add `CHANGELOG.md` and the What's New files too if this candidate actually changed them.
-2. Commit with `-s`: `Release candidate v{version} build {build}`
+2. Commit with `-s`: `Release candidate v{version} repo build {repoBuild}`
 3. Push the branch: `git push origin release/{major}.{minor}`
 4. Tag the candidate. **One tag per build**, carrying the build number so the tag identifies the
    commit each candidate was built from:
    ```bash
-   git tag -a rc/{version}-b{build} -m "RC v{version} build {build}"
-   git push origin rc/{version}-b{build}
+   git tag -a rc/{version}-b{repoBuild} -m "RC v{version} repo build {repoBuild}"
+   git push origin rc/{version}-b{repoBuild}
    ```
 
-The tag push triggers Xcode Cloud's RC workflow (test, and archive and upload to TestFlight) and
-`.github/workflows/ios18-rc-tests.yml`.
+The tag push triggers Xcode Cloud's RC workflow (iOS and Mac tests plus MAS archives/uploads),
+`.github/workflows/ios18-rc-tests.yml`, and `.github/workflows/macos-rc-tests.yml`.
 
-## A8. Wait for both test gates
+## A8. Wait for all cloud gates and local Mac smoke
 
-The RC tag starts two independent full-suite runs. Both must be accepted before the build is
-distributed to external testers.
+The RC tag starts three cloud verdicts. All three, plus the two KDBX verdicts from A6 and the
+local Mac smoke suite, must be accepted before either App Store build is distributed to external
+testers or the direct build is called a release candidate.
 
-1. Monitor Xcode Cloud through GitHub — it mirrors onto the RC commit as a check run:
+1. Monitor Xcode Cloud through GitHub — it mirrors onto the RC commit as check runs for the iOS
+   and Mac actions:
    ```bash
    gh api repos/KeeForge/KeeForge/commits/{rc-sha}/check-runs \
      --jq '.check_runs[] | select(.app.name=="Xcode Cloud") | "\(.name) | \(.status) | \(.conclusion // "-")"'
    ```
-2. Monitor GitHub Actions:
+2. Monitor the iOS GitHub Actions gate:
    ```bash
    gh run list --workflow ios18-rc-tests.yml --event push
    gh run watch <run-id> --exit-status
    ```
    Find the run whose `headBranch` is the RC tag and whose `headSha` is the RC commit.
-3. Record each run's URL, commit SHA, status, and conclusion. Both must target the RC commit.
-4. If either gate is not green, **read `gate-adjudication.md`** and follow it. Do not distribute a
-   build whose gates are unresolved.
+3. Monitor the macOS GitHub Actions gate using `macos-rc-tests.yml` and match its `headSha` to the
+   RC commit.
+4. Record all three URLs, commit SHA, status, and conclusion in the manifest. The Xcode Cloud,
+   iOS, and Mac runs must target the same RC commit.
+5. Run `KeeForgeMacUITests/MacSmokeUITests` locally on an unlocked release Mac under the repo
+   Xcode lock. Record its result and log/result bundle path as `gates.localMacSmoke`.
+6. If any cloud gate is not green, **read `gate-adjudication.md`** and follow it. Do not distribute
+   a build whose gates are unresolved; a local pass cannot override a non-test infrastructure
+   failure.
 
-Xcode Cloud's test and archive actions run in parallel. A red test action still uploads a build,
-but its `TestFlight External Testing` post-action does not run — see gate-adjudication.md for
-whether that build may be distributed by hand.
+Xcode Cloud's test and archive actions run in parallel. A red test action may still upload a build,
+but its TestFlight post-action does not run — see gate-adjudication.md for whether that exact build
+may be distributed by hand after adjudication. This applies independently to iOS and Mac.
 
-## A9. Release the build to external testers
+## A9. Record all three artifacts and release the App Store builds to external testers
 
-1. Find the build in App Store Connect under TestFlight for marketing version `{version}`.
-   **Its build number will not be the one in `project.yml`** — Xcode Cloud assigns its own,
-   monotonically increasing per app, and there is no supported way to disable that. Match on the
-   commit instead: the Xcode Cloud build page shows the `rc/{version}-b{build}` tag and SHA it was
-   built from. Record the TestFlight build number alongside the candidate tag; every later step
-   refers to the TestFlight number. Export compliance does not prompt (see Notes).
-2. Write **What to Test** notes for the build. This is the only text every tester sees, and it is
-   the steering channel for the soak. Always include:
+1. Find both processed builds in App Store Connect under TestFlight for marketing version
+   `{version}`. Their numbers may differ from `repoBuild` and from each other because Xcode Cloud
+   assigns platform-specific numbers. Match each build to the `rc/{version}-b{repoBuild}` tag and
+   SHA, then record `iosTestFlightBuild` and `macTestFlightBuild` in the manifest. Export compliance
+   does not prompt (see Notes).
+2. Write platform-specific **What to Test** notes for each build. These are the only text each
+   tester group sees, and are the steering channel for the soak. Always include:
    - What changed in this build, in user terms.
    - **"Test against a copy of your database, not your primary vault."** A TestFlight build shares
      the production bundle ID and container, so testers are running an unreviewed candidate
@@ -275,9 +392,15 @@ whether that build may be distributed by hand.
    Do not announce a ship date until this clears. Until it does, the published public link shows
    *"This beta isn't accepting any new testers right now"* to everyone arriving from `README.md`
    or keeforge.com — expected, and another reason not to announce early.
-4. Distribute to the public-link group. The link is permanently enabled and published, so this
+4. Distribute each platform to its external group. The iOS public link is permanently enabled and published, so this
    reaches every tester accumulated from earlier releases, not just people who opted into this one.
-5. Record the distribution timestamp — the soak clock starts here, not at the branch cut.
+5. Record each platform's distribution timestamp — the soak clocks start here, not at the branch
+   cut.
+6. Run `ci_scripts/build_mac_direct.sh` from the same clean RC SHA after the MAS archive is cut.
+   Stage, do not publish, the notarized zip and appcast item. Verify that its `CFBundleVersion`
+   equals `repoBuild`; record the zip hash, Sparkle signature attributes, notarization ID, and
+   archive/symbol paths in the manifest. The direct artifact has no TestFlight metrics and is
+   tested separately in A10.
 
 ## A10. Soak
 
@@ -289,14 +412,19 @@ Targets for the **current** build (a minor release; patches use 24h — see D4):
 
 | Signal | Where to read it | Target |
 | --- | --- | --- |
-| Time since this build reached external testers | distribution timestamp recorded in A9 | 48h |
-| Unique installs of this exact build | App Store Connect → TestFlight | 5 |
-| New crash signatures for this build | TestFlight → Crashes, and Xcode Organizer | 0 |
+| Time since each App Store build reached external testers | platform distribution timestamps recorded in A9 | 48h |
+| Unique installs of each exact App Store build | App Store Connect → each platform's TestFlight | 5 |
+| New crash signatures for each App Store build | TestFlight → Crashes, and Xcode Organizer | 0 |
 | Open P0/P1 reports | TestFlight → Feedback, `feedback.keeforge.com` | none |
 
-Report each signal as **met** or **short**, with its actual value, and state plainly what is
-being accepted by shipping early. "18h of a 48h target, 2 installs, no crashes, one P2 open" is a
-useful thing for the user to weigh; "soak complete" is not.
+For the direct Mac artifact, record install success on clean Apple-silicon and Intel hardware/VMs,
+launch/quarantine behavior, and the full Sparkle update cycle separately; it has no TestFlight
+metrics.
+
+Report each App Store signal as **met** or **short**, with its actual value, and report direct Mac
+install/update results separately. State plainly what is being accepted by shipping early.
+"18h of a 48h target, 2 iOS installs, 1 Mac install, no crashes, one P2 open" is useful; "soak
+complete" is not. Both App Store builds and the direct artifact must still be the same accepted RC.
 
 Two habits keep this honest when the targets are relaxed:
 
@@ -304,7 +432,7 @@ Two habits keep this honest when the targets are relaxed:
   carry over from the candidate it replaced. Report the current build's numbers, never the
   version's cumulative ones.
 - **Record what was accepted.** When shipping short of target, note which signals were short in
-  the `v{version}` tag message (C4). This costs nothing and makes the pattern visible over several
+  the `v{version}` tag message (C5). This costs nothing and makes the pattern visible over several
   releases, which is the thing worth knowing.
 
 Watch all three feedback channels: screenshot feedback, Send Beta Feedback text, and crash
@@ -315,7 +443,8 @@ against shipping short, when the build touches `KDBXParser`, `KDBX3Parser`, `KDB
 `KDBXXMLSerializer`, or the local/cloud save paths — a bad write reaches users' real vaults, and
 the App Store rollback story is "ship another version."
 
-When the user is satisfied, go to **Mode C**.
+When the user is satisfied, go to **Mode C**. Do not create `v{version}` until both platform
+submissions have code approval and the final go decision.
 
 ---
 
@@ -333,8 +462,10 @@ Never amend or force-push an existing release commit; the fix is always a new co
 
 ## B2. Bump the build number
 
-In `project.yml`, increment `CURRENT_PROJECT_VERSION` by 1 on **both** the `KeeForge` and
-`KeeForgeAutoFill` targets. `MARKETING_VERSION` does not change.
+In `project.yml`, increment the globally monotonic `CURRENT_PROJECT_VERSION` by 1 on **all four**
+targets: `KeeForge`, `KeeForgeAutoFill`, `KeeForgeMac`, and `KeeForgeMacAutoFill`. Never reset it;
+`MARKETING_VERSION` does not change. Update `repoBuild` in the new manifest and rebuild iOS, MAS,
+and direct artifacts from the new RC commit.
 
 If the fix warrants a user-visible changelog line, add it to the version's section in
 `CHANGELOG.md` (not `## Unreleased` — this version is no longer unreleased on this branch).
@@ -343,7 +474,7 @@ If the fix warrants a user-visible changelog line, add it to the version's secti
 
 Run A6 (regenerate + KDBX gate), then A7 with the new build number, then A8 and A9.
 
-The KDBX gate runs again for this build. It is not inherited from the previous candidate.
+Both KDBX gates run again for this build. They are not inherited from the previous candidate.
 
 ## B4. Restart the soak
 
@@ -362,7 +493,7 @@ on main?" an exact question git can answer, which cherry-picking cannot.
 git switch main
 git pull --ff-only
 git merge --no-ff origin/release/{major}.{minor} \
-  -m "Merge release/{major}.{minor} into main (v{version} build {build})"
+  -m "Merge release/{major}.{minor} into main (v{version} repo build {repoBuild})"
 git push origin main
 ```
 
@@ -371,8 +502,8 @@ git push origin main
 to the version section while `main` has accumulated new `## Unreleased` entries. Resolve by keeping
 both — `## Unreleased` with main's newer entries on top, the version section below it.
 
-The merge also carries the release mechanics (version bump, build numbers, What's New content) to
-`main`. That is intended, and it is why Mode C has no separate sync step.
+The merge carries the release mechanics (version bump, repo build, and What's New content) to
+`main`; that is intended, so Mode C has no separate sync step.
 
 ---
 
@@ -380,7 +511,7 @@ The merge also carries the release mechanics (version bump, build numbers, What'
 
 Enter this mode when the user decides to ship, after the A10 signals have been reported to them.
 
-**Do not re-check the CI gates here.** Both gates were read and adjudicated in A8, and accepting
+**Do not re-check the CI gates here.** All cloud gates and local gates were read and adjudicated in A8, and accepting
 them is what allowed the build to reach external testers in the first place (invariant 3). That
 verdict is Mode A's job and it is final: do not poll Xcode Cloud or GitHub Actions check runs for
 the RC commit, do not reopen `gate-adjudication.md`, and do not treat a test action that was red but
@@ -392,17 +523,17 @@ back to A8.
 
 Record explicitly, and state it back to the user before proceeding:
 
-- The marketing version and the **TestFlight** build number of the soaked build.
-- Its `rc/{version}-b{build}` tag and commit SHA. Note these disagree by design: the candidate tag
-  says `b3` where TestFlight says build 39, because Xcode Cloud renumbers. The tag identifies the
-  commit; the TestFlight number identifies the binary.
-- The distribution timestamp and elapsed soak time.
-- The unique-install count and crash count.
+- The marketing version, repo build, and both **TestFlight** build numbers of the soaked builds.
+- Its `rc/{version}-b{repoBuild}` tag and commit SHA. The tag identifies the commit; each
+  platform-specific TestFlight number identifies its binary, and neither is required to equal the
+  repo build.
+- The direct Mac `CFBundleVersion`, zip hash, and notarization ID.
+- Both distribution timestamps, elapsed soak times, unique-install/crash counts, and direct install/update results.
 - Which A10 signals, if any, are short of target.
 
-The TestFlight build number here **is** the build you will select in App Store Connect. If it does
-not match the build you distributed and soaked, stop — something is out of sync. Do not compare it
-against `CURRENT_PROJECT_VERSION`; those never match.
+Each TestFlight build number here **is** the build you will select for its platform in App Store
+Connect. If either does not match the build distributed and soaked, stop — something is out of
+sync. Do not substitute a newer build.
 
 ## C2. Audit that main has every fix
 
@@ -424,20 +555,30 @@ If `CHANGELOG.md`'s `## v{version} ({date})` no longer matches the actual ship d
 release branch now. This is a documentation-only change and does **not** require a new build — the
 changelog is not compiled into the binary.
 
-## C4. Tag the shipped build
+## C4. Stage both App Store submissions; do not create the shipped tag yet
 
-`v{version}` is a permanent record of what shipped. It triggers no build.
+Invoke `publish-app-store-version` once for iOS and once for macOS. Attach the exact soaked
+TestFlight build numbers from the manifest, save the platform-specific metadata/screenshots, and
+submit each platform for App Review separately. Configure both records for manual release and
+leave approved versions held. `v{version}` does not exist yet.
+
+If Apple requests a metadata-only correction, fix only that platform's record. If Apple requests a
+code change, return to Mode B and respin all three artifacts. Never substitute a newer unsoaked
+build.
+
+## C5. Create the shipped tag after review approval and final go
+
+Wait until both App Store submissions have code approval and the user gives the final coordinated
+go decision. Then create `v{version}` on the accepted RC commit; it triggers no build and records
+the code that actually shipped. Include any accepted soak exception in the tag message.
 
 ```bash
 git fetch origin --tags
-rc_tag='rc/{version}-b{build}'
+rc_tag='rc/{version}-b{repoBuild}'
 rc_commit=$(git rev-list -n1 "$rc_tag")
-git tag -a 'v{version}' -m 'Release v{version} — shipped build {build} (from '"$rc_tag"')' "$rc_commit"
+git tag -a 'v{version}' -m 'Release v{version} — shipped RC '"$rc_tag" "$rc_commit"
 git push origin 'refs/tags/v{version}'
 ```
-
-If any A10 signal was short of target, add a line to the tag message saying which and why — for
-example `Shipped at 18h of 48h: fix confirmed by reporter, no crashes.` One sentence is enough.
 
 Keep every `rc/*` tag. They are the audit trail of the candidates, including the ones that were
 replaced.
@@ -446,27 +587,33 @@ If `git fetch origin --tags` reports `! [rejected] ... (would clobber existing t
 has drifted from the remote. The remote is authoritative for released tags: inspect both sides,
 then realign with `git fetch origin --tags --force`.
 
-## C5. Confirm main reflects the shipped state
+## C6. Confirm main reflects the shipped state
 
 A4 put the changelog section, the What's New content, and `MARKETING_VERSION` on `main` before the
-cut, and the B5 merges carried each candidate's build number across. Verify rather than redo:
+cut, and the B5 merges carried each candidate's repo build across. Verify rather than redo:
 
-- `main`'s `MARKETING_VERSION` is `{version}` on both the `KeeForge` and `KeeForgeAutoFill` targets.
+- `main`'s `MARKETING_VERSION` is `{version}` on all four targets: `KeeForge`, `KeeForgeAutoFill`,
+  `KeeForgeMac`, and `KeeForgeMacAutoFill`.
+- `main`'s `CURRENT_PROJECT_VERSION` is the accepted `repoBuild` on all four targets, and the
+  direct artifact's `CFBundleVersion` is also that `repoBuild`. Do not compare either value with
+  the platform-specific TestFlight build numbers.
 - `main`'s `CHANGELOG.md` has the `## v{version}` section, with an empty `## Unreleased` above it
   ready for the next cycle.
 
-`CURRENT_PROJECT_VERSION` is **not** checked against TestFlight. Xcode Cloud manages build numbers
-itself and overrides whatever the project carries — `rc/1.11.0-b3` shipped as TestFlight build 39 —
-so the two disagreeing is the normal state, not drift. Apple exposes no supported way to turn that
-off. What matters is that the repo's build numbers stay unique and increasing per candidate, which
-A5 and B2 already guarantee.
+`CURRENT_PROJECT_VERSION` is **not** checked against either TestFlight number. Xcode Cloud manages
+platform-specific build numbers and may override the project value. The repo value must still be
+globally unique and increasing and must equal the direct build's `CFBundleVersion`; A5 and B2
+guarantee that. The manifest is the authoritative mapping between the repo build, both TestFlight
+numbers, and the direct artifact.
 
 Fix any real drift with a single `-s` commit on `main`, then push.
 
-## C6. Hand off to App Store Connect
+## C7. Release the approved channels and verify production
 
-Invoke the `publish-app-store-version` skill. Give it the exact marketing version **and build
-number** from C1 — that skill selects an already-uploaded build and must not trigger a new one.
+After `v{version}` exists and both platform records are approved, manually release iOS and native
+macOS at the coordinated time. Publish the verified GitHub Release/direct zip, then publish the
+production Sparkle appcast last. Verify live installs, migration, AutoFill, WebDAV, channel
+boundaries, and both App Store version/build numbers; preserve the completed non-secret manifest.
 
 Keep the release branch. It is where `{version}.1` will come from.
 
@@ -491,8 +638,8 @@ Verify the branch tip is at or after the `v{major}.{minor}.0` tag.
 ## D2. Land the fix and bump
 
 1. Land the fix (Mode B1) and port it to `main` (Mode B5).
-2. In `project.yml`, set `MARKETING_VERSION` to the patch version and reset
-   `CURRENT_PROJECT_VERSION` to `"1"`, on both targets.
+2. In `project.yml`, set `MARKETING_VERSION` to the patch version and increment the global
+   `CURRENT_PROJECT_VERSION` on all four targets. Never reset it to `"1"`.
 3. Add a `## v{version} ({date})` section to `CHANGELOG.md` above the previous version's section.
 4. Run A3 only if the patch has a user-visible highlight worth a What's New sheet. Most patches do
    not; confirm `WhatsNewCatalog` has no case rather than shipping an empty sheet.
@@ -507,7 +654,7 @@ Patch releases target **24h** instead of 48h. Every other A10 signal is measured
 same way.
 
 When the patch fixes an active crash or data-loss bug already reaching users, recommend shipping
-as soon as both A8 gates are green — for that class of bug, more soak time is usually worse for
+  as soon as all A8 gates are accepted — for that class of bug, more soak time is usually worse for
 users than less. Say that explicitly rather than leaving the user to infer it.
 
 The gates themselves are still invariant 3: green, or every failure adjudicated. A patch under
@@ -523,9 +670,10 @@ Continue with Mode C from C1, reporting against the 24h target in place of 48h.
 # Notes
 
 - The macOS targets ship in lockstep with iOS: all four product targets carry the same
-  `MARKETING_VERSION` and `CURRENT_PROJECT_VERSION`, bumped together in A4 and A5.
+  `MARKETING_VERSION` and globally monotonic `CURRENT_PROJECT_VERSION`, bumped together in A4/A5
+  and every respin/patch.
 - **One release branch covers both platforms.** `release/{major}.{minor}` is not per-platform, and
-  neither is `rc/{version}-b{build}`: one candidate tag fires `ios18-rc-tests.yml`,
+  neither is `rc/{version}-b{repoBuild}`: one candidate tag fires `ios18-rc-tests.yml`,
   `macos-rc-tests.yml`, and the Xcode Cloud RC workflow together, and the build they all test is
   the build both platforms ship. Splitting the branch would mean splitting the version numbers,
   which is the thing lockstep exists to prevent. A platform-specific fix still goes onto the shared
@@ -535,7 +683,8 @@ Continue with Mode C from C1, reporting against the 24h target in place of 48h.
   iOS is submitted; see the `publish-app-store-version` skill.
 - The KDBX compatibility gate runs **per platform**. Run it for iOS as documented, then again with
   `KDBX_COMPAT_SCHEME=KeeForgeMac` (which switches the test target to `KeeForgeMacTests` and the
-  destination to `platform=macOS`). Both must pass before a candidate ships.
+  destination to `platform=macOS`). Both must pass before external distribution, alongside all
+  three cloud verdicts and local Mac smoke.
 - The Mac ships through **two channels**. The Mac App Store build is the default
   (`xcodegen generate`) and is archived like the iOS app. The notarized
   Developer ID build is produced by `ci_scripts/build_mac_direct.sh`, which
@@ -544,7 +693,8 @@ Continue with Mode C from C1, reporting against the 24h target in place of 48h.
   `com.apple.security.cs.*` exception, notarizes, staples, and emits the appcast
   zip. Run it **after** the App Store build is cut, from the same commit, so both
   channels ship identical code — then sign the zip with Sparkle's `sign_update`
-  and publish the appcast entry.
+  and stage the appcast item. Publish the GitHub Release asset and appcast only after both App Store
+  submissions have code approval and the final go decision.
 - `KeeForgeMacUITests` cannot run on a headless runner — it needs an unlocked, active login session
   — so the Mac smoke suite stays a **local** pre-release step. `.github/workflows/macos-rc-tests.yml`
   covers the Mac unit suite on each `rc/*` tag.

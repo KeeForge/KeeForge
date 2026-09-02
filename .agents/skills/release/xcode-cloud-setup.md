@@ -8,37 +8,38 @@ web UI; none of it lives in this repo.
 
 | Trigger | Workflow | Actions |
 | --- | --- | --- |
-| `rc/*` tag push | **Tests (RC)** | Test - iOS (Required to Pass) + Archive - iOS (Distribution Preparation: App Store Connect) |
+| `rc/*` tag push | **Tests (RC)** | Test - iOS + Test - macOS (both Required to Pass), Archive - iOS + Archive - macOS (both Distribution Preparation: App Store Connect), and one external-TestFlight post-action per archive |
 | `v*` tag push | *(none — the `Release` workflow is deactivated)* | — |
 
 Two properties matter:
 
-1. **Test and archive live in the same workflow, and the test action is Required to Pass.** App
+1. **Both platform tests and both platform archives live in the same workflow, and both test
+   actions are Required to Pass.** App
    Store Connect lists a workflow's actions alphabetically and offers no way to reorder them, so
-   "test first" is not something you configure — and the two actions in fact run **in parallel**.
+   "test first" is not something you configure — all four actions run in **parallel**.
    What Required to Pass buys is that a red test action fails the *build*, and post-actions do not
    run on a failed build. So the gate sits on **TestFlight distribution, not on the archive**: an
-   archive whose tests failed can still finish and upload, and `TestFlight External Testing` then
-   shows *Did Not Run*. That is the observed behavior, not a theory — `rc/1.11.0-b2` uploaded build
-   38 with its test action red and never reached a tester.
+   archive whose tests failed can still finish and upload, and its `TestFlight External Testing`
+   post-action then shows *Did Not Run*. This applies independently to iOS and Mac; an uploaded
+   build may be distributed by hand only after the failure is adjudicated.
 
-   Leaving the archive ungated is deliberate. When a cloud test failure turns out to be a flake
+   Leaving the archives ungated is deliberate. When a cloud test failure turns out to be a flake
    (`gate-adjudication.md`), the binary already exists and can be distributed by hand; gating the
-   archive would force a respin to rebuild a binary that was never at fault. Switching the test
-   action to *Not Required to Pass* would remove the real gate and let a build distribute over
-   failing tests. Splitting test and archive into two workflows both triggered on `rc/*` would have
-   the same effect, because neither could gate the other.
+   archive would force a respin to rebuild a binary that was never at fault. Switching either test
+   action to *Not Required to Pass* would remove the real gate and let a build distribute
+   over failing tests. Splitting tests and archives into workflows both triggered on `rc/*` would
+   have the same effect, because neither could gate the other.
 2. **No workflow triggers on `v*`.** The `v{version}` tag is a record of what shipped. The App Store
    build is selected in App Store Connect from the already-uploaded TestFlight build. If a `v*`
    trigger still exists from the previous process, deactivate it (workflow `⋯` menu → **Deactivate**,
    which stops its start conditions from firing) — otherwise every ship produces a stray archive
    that nobody tested, with a build number that collides with the soaked one.
 
-## Environment variables for the archive action
+## Environment variables for the archive actions
 
 `ci_scripts/ci_pre_xcodebuild.sh` fails an archive when `DROPBOX_APP_KEY` or `ONEDRIVE_CLIENT_ID`
 is missing or still a CI placeholder, rather than shipping a build with broken cloud sign-in. The
-Tests (RC) workflow now archives, so **it must carry the real values**. They are set per workflow,
+Tests (RC) workflow now archives both platforms, so **it must carry the real values**. They are set per workflow,
 not per action — Xcode Cloud applies them to every action in the workflow. Add them under
 **Tests (RC) → Environment → Environment Variables → Add → New Environment Variable**:
 
@@ -59,18 +60,22 @@ alphanumerics only, because it is interpolated into the `db-$(DROPBOX_APP_KEY)`
 
 ## TestFlight distribution
 
-- The archive action's **Distribution Preparation** must be **App Store Connect** ("Eligible for
+- Each archive action's **Distribution Preparation** must be **App Store Connect** ("Eligible for
   distribution to all testers and customers"), not *TestFlight (Internal Testing Only)*.
-- External delivery is a separate post-action, not a property of the archive: **Post-Actions →
-  TestFlight External Testing**, with *Artifact* set to the archive action and *Groups* set to the
-  public-link group. That group is currently the external group named `Test` — an internal group
-  shares the name, so check the heading it sits under in TestFlight.
+- External delivery is a separate post-action per archive, not a property of the archive:
+  **Post-Actions → TestFlight External Testing**, with *Artifact* set to the corresponding iOS or
+  macOS archive and *Groups* set to that platform's external group. The iOS public-link group is
+  currently the external group named `Test` — an internal group shares the name, so check the
+  heading it sits under in TestFlight. Create/use a dedicated Mac external group for the native
+  build; do not send the MAS build to the iOS group.
 - Saving a workflow configured for external testing forces **Restrict Editing** on; App Store
   Connect offers only *Restrict and Save*. Afterwards only the Account Holder, Admins, and App
   Managers can change it.
-- The **first build of each new marketing version** goes through Beta App Review before external
-  testers can install it — budget roughly a day. Later builds of the same version normally
-  distribute without re-review.
+- The **first build of each new marketing version/platform** goes through Beta App Review before
+  external testers can install it — budget roughly a day. Later builds of the same platform/version
+  normally distribute without re-review. External distribution remains blocked until the Xcode
+  Cloud, iOS GitHub Actions, and macOS GitHub Actions verdicts, both local KDBX gates, and local
+  Mac smoke are accepted and the manifest maps both processed builds to the same RC SHA.
 - Export compliance does not prompt (`ITSAppUsesNonExemptEncryption` in `KeeForge/Info.plist`).
 
 ## Public link settings
@@ -101,7 +106,25 @@ alphanumerics only, because it is interpolated into the `db-$(DROPBOX_APP_KEY)`
 ## What Xcode Cloud does not cover
 
 - `ci_scripts/run_kdbx_compatibility_gate.sh` needs `keepassxc-cli`, which Xcode Cloud does not
-  install. It stays a required **local** gate, run once per candidate build.
-- Minimum-OS coverage: Xcode Cloud's test action can only pin the latest runtime or iOS 16.4, with
-  no iOS 18.x runtime available. `.github/workflows/ios18-rc-tests.yml` on GitHub-hosted `macos-15`
-  runners covers iOS 18 and the iPad regular-width lane.
+  install. It stays a required **local** gate per platform, run twice per candidate (iOS and
+  `KDBX_COMPAT_SCHEME=KeeForgeMac`). The local `KeeForgeMacUITests/MacSmokeUITests` suite is also
+  required and needs an unlocked active login session.
+- Minimum-OS coverage: Xcode Cloud's iOS test action can only pin the latest runtime or iOS 16.4,
+  with no iOS 18.x runtime available. `.github/workflows/ios18-rc-tests.yml` on GitHub-hosted
+  `macos-15` runners covers iOS 18 and the iPad regular-width lane. The native Mac unit gate is
+  covered by `.github/workflows/macos-rc-tests.yml`.
+- `ci_scripts/build_mac_direct.sh` is intentionally outside Xcode Cloud. Run it after the MAS
+  archive from the same clean RC SHA, verify its direct `CFBundleVersion` equals the repo build,
+  and stage (do not publish) its zip/appcast item until the final go decision.
+
+## Candidate identity and evidence
+
+One `rc/{version}-b{repoBuild}` tag starts the workflow. The iOS and Mac archive actions build the
+four product targets from that SHA and may receive different App Store Connect TestFlight build
+numbers. Match each processed build to the RC tag/SHA and record the pair in
+`scratch/release-manifests/{version}-b{repoBuild}.json` along with the direct build's
+`CFBundleVersion` (which equals `repoBuild`). The manifest also records all three cloud check URLs,
+both KDBX log paths, local Mac smoke result, artifact hashes/signatures, and notarization ID. It
+must contain no credentials, tokens, passwords, private keys, keychain profiles, or cloud secret
+values. Preserve the completed non-secret manifest with the final release evidence; it is not an
+App Store Connect submission and never triggers a release.
