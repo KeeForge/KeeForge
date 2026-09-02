@@ -1,6 +1,6 @@
 import Foundation
-import StoreKit
 #if os(iOS)
+import StoreKit
 import UIKit
 #endif
 

@@ -36,3 +36,7 @@ targets:
     # others here would register each one twice.
     dependencies:
       - package: Sparkle
+  KeeForgeMacTests:
+    settings:
+      base:
+        SWIFT_ACTIVE_COMPILATION_CONDITIONS: $(inherited) KEEFORGE_DIRECT_DOWNLOAD

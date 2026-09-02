@@ -1,3 +1,4 @@
+#if !KEEFORGE_DIRECT_DOWNLOAD
 import XCTest
 @testable import KeeForge
 
@@ -33,3 +34,4 @@ final class StoreKitManagerTests: XCTestCase {
         XCTAssertNotEqual(PurchaseResult.error("x"), PurchaseResult.pending)
     }
 }
+#endif

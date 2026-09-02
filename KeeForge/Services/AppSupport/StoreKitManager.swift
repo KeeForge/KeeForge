@@ -1,3 +1,4 @@
+#if !KEEFORGE_DIRECT_DOWNLOAD
 import Observation
 import StoreKit
 
@@ -139,3 +140,4 @@ final class StoreKitManager {
         isPurchasing = false
     }
 }
+#endif
