@@ -4145,6 +4145,184 @@ final class DatabaseViewModelTests: XCTestCase {
         XCTAssertNotNil(vm.draft)
     }
 
+    #if os(macOS)
+
+    // MARK: - Window Close (macOS)
+
+    func testWindowCloseIsAllowedWhileLocked() throws {
+        let vm = try makeViewModel()
+
+        XCTAssertEqual(vm.requestWindowClose(), .close)
+    }
+
+    func testWindowCloseIsAllowedWhenNothingIsUnsaved() async throws {
+        let vm = try makeViewModel()
+        await vm.unlock(password: fixturePassword)
+
+        XCTAssertEqual(vm.requestWindowClose(), .close)
+        XCTAssertNil(vm.pendingLockRequest)
+    }
+
+    /// ⌘W with an editor holding fields: the editor prompts, because only it
+    /// can save them. Manually triggered, so Keep Editing needs no owner
+    /// authentication — the user is right there, cancelling their own close.
+    func testWindowCloseWithAnUnsavedEditorDefersToItsPrompt() async throws {
+        let vm = try makeViewModel()
+        await vm.unlock(password: fixturePassword)
+        vm.setEditorHasUnsavedChanges(true, editorID: UUID())
+
+        XCTAssertEqual(vm.requestWindowClose(), .waitForEditorPrompt)
+
+        XCTAssertState(vm.state, is: .unlocked)
+        XCTAssertEqual(vm.pendingLockRequest, .init(manuallyTriggered: true, reason: .openEditor))
+    }
+
+    func testWindowCloseIsGrantedOnceTheEditorPromptEndsInALock() async throws {
+        let vm = try makeViewModel()
+        await vm.unlock(password: fixturePassword)
+        let editorID = UUID()
+        vm.setEditorHasUnsavedChanges(true, editorID: editorID)
+        var grantCount = 0
+        vm.onWindowCloseGranted = { grantCount += 1 }
+
+        XCTAssertEqual(vm.requestWindowClose(), .waitForEditorPrompt)
+        let request = try XCTUnwrap(vm.pendingLockRequest)
+        vm.setEditorHasUnsavedChanges(false, editorID: editorID)
+        vm.resumeLockRequest(request)
+
+        XCTAssertState(vm.state, is: .locked)
+        XCTAssertEqual(grantCount, 1)
+    }
+
+    /// Keep Editing is the Cancel of the close it was holding: the window
+    /// stays open and the session is untouched.
+    func testKeepEditingCancelsTheWaitingWindowClose() async throws {
+        let vm = try makeViewModel()
+        await vm.unlock(password: fixturePassword)
+        vm.setEditorHasUnsavedChanges(true, editorID: UUID())
+        var grantCount = 0
+        vm.onWindowCloseGranted = { grantCount += 1 }
+        XCTAssertEqual(vm.requestWindowClose(), .waitForEditorPrompt)
+
+        await vm.continueEditingAfterLockRequest()
+
+        XCTAssertState(vm.state, is: .unlocked)
+        XCTAssertNil(vm.pendingLockRequest)
+        XCTAssertEqual(grantCount, 0)
+
+        // The close is no longer waiting, so a later lock must not close a
+        // window the user chose to keep.
+        vm.lockRequest(force: true)
+        XCTAssertEqual(grantCount, 0)
+    }
+
+    func testWindowCloseWithADirtyDraftAsksTheCaller() async throws {
+        let vm = try makeViewModel()
+        await vm.unlock(password: fixturePassword)
+        vm.draft = try makeDirtyDraft(from: vm, entryTitle: "Unsaved Entry")
+
+        XCTAssertEqual(vm.requestWindowClose(), .promptForUnsavedDraft)
+
+        XCTAssertState(vm.state, is: .unlocked)
+        XCTAssertNil(vm.pendingLockRequest, "the caller owns this prompt, not the workspace")
+    }
+
+    func testSaveAndCloseWindowGrantsTheCloseWhenTheRetrySucceeds() async throws {
+        let vm = try makeViewModel(
+            localSaveOperation: { _, _, _, _, _, _ in
+                .saved(newSHA512: Data("closed-after-save".utf8))
+            }
+        )
+        await vm.unlock(password: fixturePassword)
+        vm.draft = try makeDirtyDraft(from: vm, entryTitle: "Retry Then Close")
+        var grantCount = 0
+        vm.onWindowCloseGranted = { grantCount += 1 }
+        XCTAssertEqual(vm.requestWindowClose(), .promptForUnsavedDraft)
+
+        await vm.saveAndCloseWindow()
+
+        XCTAssertState(vm.state, is: .locked)
+        XCTAssertNil(vm.draft)
+        XCTAssertEqual(grantCount, 1)
+    }
+
+    /// A retry can fail again: the window stays open on the workspace prompt,
+    /// with the close still waiting for an answer.
+    func testSaveAndCloseWindowKeepsTheWindowWhenTheRetryFails() async throws {
+        let vm = try makeViewModel(
+            localSaveOperation: { _, _, _, _, _, _ in
+                throw SaveError.saveContextUnavailable
+            }
+        )
+        await vm.unlock(password: fixturePassword)
+        vm.draft = try makeDirtyDraft(from: vm, entryTitle: "Unwritable")
+        var grantCount = 0
+        vm.onWindowCloseGranted = { grantCount += 1 }
+        XCTAssertEqual(vm.requestWindowClose(), .promptForUnsavedDraft)
+
+        await vm.saveAndCloseWindow()
+
+        XCTAssertState(vm.state, is: .unlocked)
+        XCTAssertNotNil(vm.draft)
+        XCTAssertEqual(vm.pendingLockRequest, .init(manuallyTriggered: true, reason: .draft))
+        XCTAssertEqual(grantCount, 0)
+
+        // Answering that prompt with Lock and Discard finishes the close.
+        vm.lockRequest(force: true, manuallyTriggered: true)
+        XCTAssertEqual(grantCount, 1)
+    }
+
+    func testDiscardAndCloseWindowLocksAndGrantsTheClose() async throws {
+        let vm = try makeViewModel()
+        await vm.unlock(password: fixturePassword)
+        vm.draft = try makeDirtyDraft(from: vm, entryTitle: "Discarded On Close")
+        var grantCount = 0
+        vm.onWindowCloseGranted = { grantCount += 1 }
+        XCTAssertEqual(vm.requestWindowClose(), .promptForUnsavedDraft)
+
+        vm.discardAndCloseWindow()
+
+        XCTAssertState(vm.state, is: .locked)
+        XCTAssertNil(vm.draft)
+        XCTAssertEqual(grantCount, 1)
+    }
+
+    func testCancelWindowCloseLeavesTheSessionExactlyAsItWas() async throws {
+        let vm = try makeViewModel()
+        await vm.unlock(password: fixturePassword)
+        vm.draft = try makeDirtyDraft(from: vm, entryTitle: "Kept Open")
+        var grantCount = 0
+        vm.onWindowCloseGranted = { grantCount += 1 }
+        XCTAssertEqual(vm.requestWindowClose(), .promptForUnsavedDraft)
+
+        vm.cancelWindowClose()
+
+        XCTAssertState(vm.state, is: .unlocked)
+        XCTAssertNotNil(vm.draft)
+        XCTAssertNil(vm.pendingLockRequest)
+        XCTAssertEqual(grantCount, 0)
+
+        // A cancelled close must not be granted by some later lock.
+        vm.lockRequest(force: true)
+        XCTAssertEqual(grantCount, 0)
+    }
+
+    /// The prompt's own actions are no-ops without a close waiting on them, so
+    /// a stray call can never lock a session on its own.
+    func testCloseActionsDoNothingWithoutAPendingClose() async throws {
+        let vm = try makeViewModel()
+        await vm.unlock(password: fixturePassword)
+        vm.draft = try makeDirtyDraft(from: vm, entryTitle: "Untouched")
+
+        vm.discardAndCloseWindow()
+        await vm.saveAndCloseWindow()
+
+        XCTAssertState(vm.state, is: .unlocked)
+        XCTAssertNotNil(vm.draft)
+    }
+
+    #endif
+
     func testSetReadOnlyUpdatesInMemoryReferenceAndStore() throws {
         let reference = try makeReference()
         DatabaseListStore.update(reference)

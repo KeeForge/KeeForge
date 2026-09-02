@@ -14,6 +14,7 @@ struct KeeForgeApp: App {
     @State private var screenProtectionService = ScreenProtectionService()
     #if os(macOS)
     @State private var macLockMonitor = MacLockMonitor()
+    @State private var macWindowCloseGuard = MacWindowCloseGuard()
     #else
     @State private var isShowingAppSettings = false
     #endif
@@ -184,6 +185,12 @@ struct KeeForgeApp: App {
             activeViewModel.wrappedValue?.resetInactivityTimer()
         }
         macLockMonitor.start()
+
+        // The monitor's window-close trigger fires after the close is
+        // committed, which is too late to ask about unsaved work; the guard
+        // runs before it.
+        macWindowCloseGuard.vaultProvider = { activeViewModel.wrappedValue }
+        macWindowCloseGuard.start()
         #endif
     }
 
