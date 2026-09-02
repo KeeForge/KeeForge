@@ -3972,7 +3972,7 @@ final class DatabaseViewModelTests: XCTestCase {
 
         XCTAssertState(vm.state, is: .unlocked)
         XCTAssertNotNil(vm.draft)
-        XCTAssertEqual(vm.pendingLockRequest, .init(manuallyTriggered: true))
+        XCTAssertEqual(vm.pendingLockRequest, .init(manuallyTriggered: true, reason: .draft))
         XCTAssertFalse(vm.pendingLockRequest?.requiresAuthenticationToContinueEditing == true)
 
         vm.lockRequest(force: true)
@@ -4018,8 +4018,131 @@ final class DatabaseViewModelTests: XCTestCase {
 
         XCTAssertState(vm.state, is: .unlocked)
         XCTAssertNotNil(vm.draft)
-        XCTAssertEqual(vm.pendingLockRequest, .init(manuallyTriggered: false))
+        XCTAssertEqual(vm.pendingLockRequest, .init(manuallyTriggered: false, reason: .draft))
         XCTAssertTrue(vm.pendingLockRequest?.requiresAuthenticationToContinueEditing == true)
+    }
+
+    // MARK: - Lock With An Open Editor
+
+    /// The draft stays clean while the user types, so a lock trigger used to
+    /// fire immediately and take the editor down with the typing still in it.
+    func testLockWhileEditorHasUnsavedChangesDefersDespiteCleanDraft() async throws {
+        let vm = try makeViewModel()
+        await vm.unlock(password: fixturePassword)
+        XCTAssertFalse(vm.isDirty)
+
+        vm.setEditorHasUnsavedChanges(true, editorID: UUID())
+        vm.lockRequest()
+
+        XCTAssertState(vm.state, is: .unlocked)
+        XCTAssertEqual(vm.pendingLockRequest, .init(manuallyTriggered: false, reason: .openEditor))
+    }
+
+    func testForcedLockStillLocksWithAnUnsavedEditor() async throws {
+        let vm = try makeViewModel()
+        await vm.unlock(password: fixturePassword)
+        vm.setEditorHasUnsavedChanges(true, editorID: UUID())
+
+        vm.lockRequest(force: true)
+
+        XCTAssertState(vm.state, is: .locked)
+        XCTAssertNil(vm.pendingLockRequest)
+        XCTAssertFalse(vm.hasUnsavedEditor)
+    }
+
+    func testResumingAnEditorLockRequestLocksOnceNothingIsUnsaved() async throws {
+        let vm = try makeViewModel()
+        await vm.unlock(password: fixturePassword)
+        let editorID = UUID()
+        vm.setEditorHasUnsavedChanges(true, editorID: editorID)
+        vm.lockRequest()
+        let request = try XCTUnwrap(vm.pendingLockRequest)
+
+        vm.setEditorHasUnsavedChanges(false, editorID: editorID)
+        vm.resumeLockRequest(request)
+
+        XCTAssertState(vm.state, is: .locked)
+        XCTAssertNil(vm.pendingLockRequest)
+    }
+
+    /// A write that fails on the way out must not let the lock complete
+    /// silently; it hands off to the prompt that owns a dirty draft.
+    func testResumingAnEditorLockRequestFallsBackToTheDraftPromptWhenTheWriteFailed() async throws {
+        let vm = try makeViewModel()
+        await vm.unlock(password: fixturePassword)
+        let editorID = UUID()
+        vm.setEditorHasUnsavedChanges(true, editorID: editorID)
+        vm.lockRequest()
+        let request = try XCTUnwrap(vm.pendingLockRequest)
+
+        vm.draft = try makeDirtyDraft(from: vm, entryTitle: "Written To Draft")
+        vm.setEditorHasUnsavedChanges(false, editorID: editorID)
+        vm.resumeLockRequest(request)
+
+        XCTAssertState(vm.state, is: .unlocked)
+        XCTAssertEqual(vm.pendingLockRequest, .init(manuallyTriggered: false, reason: .draft))
+    }
+
+    func testSaveAndLockAfterLockRequestLocksWhenTheRetrySucceeds() async throws {
+        let vm = try makeViewModel(
+            localSaveOperation: { _, _, _, _, _, _ in
+                .saved(newSHA512: Data("retried-save".utf8))
+            }
+        )
+        await vm.unlock(password: fixturePassword)
+        vm.draft = try makeDirtyDraft(from: vm, entryTitle: "Retry Me")
+        vm.lockRequest()
+        XCTAssertEqual(vm.pendingLockRequest?.reason, .draft)
+
+        await vm.saveAndLockAfterLockRequest()
+
+        XCTAssertState(vm.state, is: .locked)
+        XCTAssertNil(vm.pendingLockRequest)
+        XCTAssertNil(vm.draft)
+    }
+
+    func testSaveAndLockAfterLockRequestKeepsThePromptWhenTheRetryFails() async throws {
+        let vm = try makeViewModel(
+            localSaveOperation: { _, _, _, _, _, _ in
+                throw SaveError.saveContextUnavailable
+            }
+        )
+        await vm.unlock(password: fixturePassword)
+        vm.draft = try makeDirtyDraft(from: vm, entryTitle: "Unwritable")
+        vm.lockRequest()
+
+        await vm.saveAndLockAfterLockRequest()
+
+        XCTAssertState(vm.state, is: .unlocked)
+        XCTAssertEqual(vm.pendingLockRequest, .init(manuallyTriggered: false, reason: .draft))
+        XCTAssertNotNil(vm.draft)
+    }
+
+    /// Keep Editing after an automatic lock has to prove the user is back.
+    func testKeepEditingAfterAutomaticLockCompletesTheLockWhenOwnerAuthIsUnavailable() async throws {
+        let vm = try makeViewModel(deviceOwnerAuthAvailabilityCheck: { false })
+        await vm.unlock(password: fixturePassword)
+        vm.draft = try makeDirtyDraft(from: vm, entryTitle: "Automatic Lock Entry")
+        vm.lockRequest()
+
+        await vm.continueEditingAfterLockRequest()
+
+        XCTAssertState(vm.state, is: .locked)
+        XCTAssertNil(vm.pendingLockRequest)
+        XCTAssertNil(vm.draft)
+    }
+
+    func testKeepEditingAfterManualLockNeedsNoOwnerAuthentication() async throws {
+        let vm = try makeViewModel(deviceOwnerAuthAvailabilityCheck: { false })
+        await vm.unlock(password: fixturePassword)
+        vm.draft = try makeDirtyDraft(from: vm, entryTitle: "Manual Lock Entry")
+        vm.lockRequest(manuallyTriggered: true)
+
+        await vm.continueEditingAfterLockRequest()
+
+        XCTAssertState(vm.state, is: .unlocked)
+        XCTAssertNil(vm.pendingLockRequest)
+        XCTAssertNotNil(vm.draft)
     }
 
     func testSetReadOnlyUpdatesInMemoryReferenceAndStore() throws {
@@ -4618,6 +4741,9 @@ final class DatabaseViewModelTests: XCTestCase {
         storedKeyDeleteOperation: @escaping DatabaseViewModel.StoredKeyDeleteOperation = { reference in
             KeychainService.deleteCompositeKey(for: reference.id)
         },
+        deviceOwnerAuthAvailabilityCheck: @escaping DatabaseViewModel.DeviceOwnerAuthAvailabilityCheck = {
+            BiometricService.canAuthenticateDeviceOwner
+        },
         conflictCopyDateProvider: @escaping @Sendable () -> Date = { .now },
         nowProvider: @escaping @Sendable () -> Date = { .now }
     ) throws -> DatabaseViewModel {
@@ -4641,6 +4767,7 @@ final class DatabaseViewModelTests: XCTestCase {
             storedKeyPresenceCheck: storedKeyPresenceCheck,
             storedKeyStoreOperation: storedKeyStoreOperation,
             storedKeyDeleteOperation: storedKeyDeleteOperation,
+            deviceOwnerAuthAvailabilityCheck: deviceOwnerAuthAvailabilityCheck,
             conflictCopyDateProvider: conflictCopyDateProvider,
             nowProvider: nowProvider
         )

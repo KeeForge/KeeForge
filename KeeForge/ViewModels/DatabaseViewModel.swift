@@ -175,14 +175,22 @@ final class DatabaseViewModel {
     }
 
     struct PendingLockRequest: Identifiable, Equatable, Sendable {
+        /// Which unsaved state is holding the lock, and so which UI owns the
+        /// decision: only the editor can resolve its own fields.
+        enum Reason: String, Equatable, Sendable {
+            case openEditor
+            case draft
+        }
+
         let manuallyTriggered: Bool
+        let reason: Reason
 
         var requiresAuthenticationToContinueEditing: Bool {
             manuallyTriggered == false
         }
 
         var id: String {
-            manuallyTriggered ? "manual" : "automatic"
+            "\(manuallyTriggered ? "manual" : "automatic").\(reason.rawValue)"
         }
     }
 
@@ -304,6 +312,8 @@ final class DatabaseViewModel {
     typealias StoredKeyPresenceCheck = @Sendable (_ reference: DatabaseReference) -> Bool
     typealias StoredKeyStoreOperation = @Sendable (_ compositeKey: SymmetricKey, _ reference: DatabaseReference) throws -> Void
     typealias StoredKeyDeleteOperation = @Sendable (_ reference: DatabaseReference) -> Void
+    /// Injected so tests can drive the no-authentication-available branch.
+    typealias DeviceOwnerAuthAvailabilityCheck = @MainActor () -> Bool
 
     private static let sortOrderKey = "KeeForge.sortOrder"
     private static let sortAscendingKey = "KeeForge.sortAscending"
@@ -427,6 +437,9 @@ final class DatabaseViewModel {
     private(set) var mergeSummaryMessage: String?
     private(set) var isSaving = false
     private(set) var pendingLockRequest: PendingLockRequest?
+    /// Open editors holding fields the draft has not seen. Without this a lock
+    /// trigger tears the editor down and drops the typing with no prompt.
+    private var unsavedEditorIDs: Set<UUID> = []
     private(set) var cloudSyncProgress: Double?
     private(set) var cloudSyncBannerText: String?
     private(set) var unlockStatusMessage: String
@@ -478,6 +491,7 @@ final class DatabaseViewModel {
     private let storedKeyPresenceCheck: StoredKeyPresenceCheck
     private let storedKeyStoreOperation: StoredKeyStoreOperation
     private let storedKeyDeleteOperation: StoredKeyDeleteOperation
+    private let deviceOwnerAuthAvailabilityCheck: DeviceOwnerAuthAvailabilityCheck
     private let conflictCopyDateProvider: @Sendable () -> Date
     private let nowProvider: @Sendable () -> Date
     private var backgroundEnteredAt: Date?
@@ -559,6 +573,9 @@ final class DatabaseViewModel {
         storedKeyDeleteOperation: @escaping StoredKeyDeleteOperation = { reference in
             KeychainService.deleteCompositeKey(for: reference.id)
         },
+        deviceOwnerAuthAvailabilityCheck: @escaping DeviceOwnerAuthAvailabilityCheck = {
+            BiometricService.canAuthenticateDeviceOwner
+        },
         conflictCopyDateProvider: @escaping @Sendable () -> Date = { .now },
         nowProvider: @escaping @Sendable () -> Date = { .now }
     ) {
@@ -581,6 +598,7 @@ final class DatabaseViewModel {
         self.storedKeyPresenceCheck = storedKeyPresenceCheck
         self.storedKeyStoreOperation = storedKeyStoreOperation
         self.storedKeyDeleteOperation = storedKeyDeleteOperation
+        self.deviceOwnerAuthAvailabilityCheck = deviceOwnerAuthAvailabilityCheck
         self.conflictCopyDateProvider = conflictCopyDateProvider
         self.nowProvider = nowProvider
     }
@@ -1576,6 +1594,7 @@ final class DatabaseViewModel {
         mergeFailure = nil
         mergeSummaryMessage = nil
         pendingLockRequest = nil
+        unsavedEditorIDs.removeAll()
         cloudSyncProgress = nil
         cloudSyncBannerText = nil
         unlockStatusMessage = databaseReference.isCloudBacked
@@ -1600,7 +1619,19 @@ final class DatabaseViewModel {
             return
         }
 
-        if force || isDirty == false {
+        if force {
+            discardDraft()
+            lock(manuallyTriggered: manuallyTriggered, preservingClipboard: preservingClipboard)
+            return
+        }
+
+        // Only the editor can save or discard its own fields, so it goes first.
+        if hasUnsavedEditor {
+            pendingLockRequest = PendingLockRequest(manuallyTriggered: manuallyTriggered, reason: .openEditor)
+            return
+        }
+
+        if isDirty == false {
             discardDraft()
             lock(manuallyTriggered: manuallyTriggered, preservingClipboard: preservingClipboard)
             return
@@ -1609,14 +1640,48 @@ final class DatabaseViewModel {
         // A dirty draft defers the lock so the user can choose whether to lose
         // it. Automatic requests require device-owner authentication before
         // the unlocked session can resume.
-        pendingLockRequest = PendingLockRequest(manuallyTriggered: manuallyTriggered)
+        pendingLockRequest = PendingLockRequest(manuallyTriggered: manuallyTriggered, reason: .draft)
+    }
+
+    var hasUnsavedEditor: Bool {
+        unsavedEditorIDs.isEmpty == false
+    }
+
+    /// Called by editors as their form dirties and again as they go away.
+    func setEditorHasUnsavedChanges(_ hasUnsavedChanges: Bool, editorID: UUID) {
+        if hasUnsavedChanges {
+            unsavedEditorIDs.insert(editorID)
+        } else {
+            unsavedEditorIDs.remove(editorID)
+        }
+    }
+
+    /// Re-drives a request the editor was holding, once it has saved into the
+    /// draft or discarded. Re-defers if that save failed and left it dirty.
+    func resumeLockRequest(_ request: PendingLockRequest) {
+        pendingLockRequest = nil
+        lockRequest(manuallyTriggered: request.manuallyTriggered)
+    }
+
+    /// Workspace prompt action: retry the failed write, then lock. A second
+    /// failure re-defers, leaving Discard and Keep Editing on offer.
+    func saveAndLockAfterLockRequest() async {
+        guard let request = pendingLockRequest, request.reason == .draft else { return }
+        pendingLockRequest = nil
+        await saveHandlingError()
+        lockRequest(manuallyTriggered: request.manuallyTriggered)
     }
 
     func continueEditingAfterLockRequest() async {
         guard let pendingLockRequest else { return }
 
-        if pendingLockRequest.requiresAuthenticationToContinueEditing,
-           BiometricService.canAuthenticateDeviceOwner {
+        if pendingLockRequest.requiresAuthenticationToContinueEditing {
+            // Unavailable authentication is not a pass: finish the lock.
+            guard deviceOwnerAuthAvailabilityCheck() else {
+                lockRequest(force: true)
+                return
+            }
+
             do {
                 _ = try await BiometricService.authenticateDeviceOwner(
                     reason: String(localized: "Unlock Database")

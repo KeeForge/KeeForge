@@ -937,10 +937,15 @@ struct DatabaseNavigationView: View {
         .alert(
             "Lock and discard unsaved changes?",
             isPresented: Binding(
-                get: { viewModel.pendingLockRequest != nil },
+                get: { viewModel.pendingLockRequest?.reason == .draft },
                 set: { _ in }
             )
         ) {
+            if viewModel.isReadOnly == false {
+                Button("Retry Save and Lock") {
+                    Task { await viewModel.saveAndLockAfterLockRequest() }
+                }
+            }
             Button("Lock and Discard", role: .destructive) {
                 let manuallyTriggered = viewModel.pendingLockRequest?.manuallyTriggered ?? false
                 viewModel.lockRequest(force: true, manuallyTriggered: manuallyTriggered)
