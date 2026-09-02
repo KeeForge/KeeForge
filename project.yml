@@ -119,14 +119,23 @@ targets:
       - package: swift-psl
         product: PublicSuffixList
     sources:
-      # KeeForgeCommands.swift (menu bar) and MacLockMonitor.swift (lock
-      # lifecycle) are macOS-only: members of KeeForgeMac, excluded here.
+      # KeeForgeCommands.swift (menu bar), MacLockMonitor.swift (lock
+      # lifecycle) and MacWindowCloseGuard.swift (window close) are macOS-only:
+      # members of KeeForgeMac, excluded here.
       - path: KeeForge/App
         excludes: ["README.md", "CLAUDE.md", "AGENTS.md", "KeeForgeCommands.swift"]
       - path: KeeForge/Models
         excludes: ["README.md", "CLAUDE.md", "AGENTS.md"]
       - path: KeeForge/Services
-        excludes: ["README.md", "CLAUDE.md", "AGENTS.md", "**/README.md", "**/CLAUDE.md", "**/AGENTS.md", "AppSupport/MacLockMonitor.swift"]
+        excludes:
+          - "README.md"
+          - "CLAUDE.md"
+          - "AGENTS.md"
+          - "**/README.md"
+          - "**/CLAUDE.md"
+          - "**/AGENTS.md"
+          - "AppSupport/MacLockMonitor.swift"
+          - "AppSupport/MacWindowCloseGuard.swift"
       - path: KeeForge/ViewModels
         excludes: ["README.md", "CLAUDE.md", "AGENTS.md"]
       - path: KeeForge/Views

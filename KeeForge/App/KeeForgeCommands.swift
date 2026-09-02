@@ -82,6 +82,18 @@ struct KeeForgeCommands: Commands {
         }
 
         CommandGroup(replacing: .saveItem) {
+            // SwiftUI's `.saveItem` group is where the standard File ▸ Close
+            // lives, so replacing the group took ⌘W with it. It has to be put
+            // back: closing the last window is a lock trigger, and
+            // `MacWindowCloseGuard` is what settles unsaved work before that
+            // close commits.
+            Button("Close Window") {
+                NSApp.keyWindow?.performClose(nil)
+            }
+            .keyboardShortcut("w", modifiers: .command)
+
+            Divider()
+
             Button("Save") {
                 guard let viewModel else { return }
                 Task {
