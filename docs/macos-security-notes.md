@@ -70,15 +70,39 @@ Automatically` option — app deactivation. It applies
 `SettingsService.macLockPolicy` itself, and that picker (Settings ▸ Security) is
 the only lock switch the Mac exposes.
 
-The window-close trigger exists because ⌘W closes the only window without
-quitting, while the session lives in app-level `@State`: without it an unlocked
+The window-close trigger exists because ⌘W (File ▸ Close Window, an item
+`KeeForgeCommands` has to supply itself — see `KeeForge/App/README.md`) closes
+the only window without quitting, while the session lives in app-level
+`@State`: without it an unlocked
 vault would sit decrypted in memory with no window to lock it from and no
 File ▸ New Window to get it back. `NSWindow.willCloseNotification` fires the
 lock only when no window that could host the app's UI remains (sheets and
 panels never count; the Settings window does, and closing it later re-runs the
-check). Like every other trigger it is unconditional and policy-independent —
-`lockRequest()` still defers a *dirty* draft to the usual discard prompt, which
-the user sees when the window comes back.
+check). Like every other trigger it is unconditional and policy-independent.
+
+That notification arrives *after* the close is committed, which is too late for
+the two states that defer a lock instead of taking it (below) — their prompts
+belong to views that go away with the window, so ⌘W with unsaved work left the
+vault decrypted with nothing on screen to resolve it. `MacWindowCloseGuard`
+therefore answers `windowShouldClose(_:)` first, for the close that would leave
+no host window behind: it lets a close with nothing unsaved through, hands an
+open editor its own Save / Discard / Keep Editing prompt (only the editor can
+save the fields it holds), and asks the standard Save / Don't Save / Cancel
+itself for a dirty draft, whose save it can drive. Cancel keeps the window and
+the session; anything else closes the window once the vault has locked. It
+proxies each window's delegate rather than replacing it, so SwiftUI's own
+delegate still receives everything else.
+
+A deferred lock is the one hole in the guarantee, and it is deliberate: while a
+lock request waits on an unsaved-work prompt, the vault stays decrypted —
+session key, composite key and the whole tree — for as long as the prompt goes
+unanswered, with no time bound and no timer that will end it. The four triggers
+that mean the user walked away (sleep, screen lock, screensaver,
+fast-user-switch) can therefore leave a machine sitting on a prompt over a
+decrypted vault; only the trigger the user causes while sitting in front of the
+machine — the window close — is guaranteed to be answered then and there. The
+alternative is writing the user's data without an explicit Save, which the app
+does not do.
 
 The lock path is therefore **unconditional** once a trigger fires:
 `DatabaseViewModel.handleSceneDidEnterBackground()` locks on macOS without

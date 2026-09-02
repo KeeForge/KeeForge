@@ -231,6 +231,29 @@ final class MacSmokeUITests: MacUITestCase {
         XCTAssertFalse(titleField.exists, "Entry editor did not dismiss after Cancel")
     }
 
+    /// ⌘W closes the window when nothing is unsaved, and the vault locks
+    /// behind it without the app quitting. `MacWindowCloseGuard` proxies the
+    /// window delegate SwiftUI installs so it can hold a close open for unsaved
+    /// work; this is the check that an ordinary close still passes straight
+    /// through that proxy.
+    ///
+    /// The decision itself is unit-tested (`MacWindowCloseGuardTests`,
+    /// `DatabaseViewModelTests`'s window-close section, both headless). What no
+    /// unit test can reach is AppKit routing a real close into
+    /// `windowShouldClose(_:)` on a window this app actually put on screen.
+    func testCommandWClosesTheWindowAndLeavesTheAppRunning() {
+        unlockSuccessfully()
+
+        typeCommandShortcut("w")
+
+        let deadline = Date().addingTimeInterval(15)
+        while app.windows.count > 0, Date() < deadline {
+            RunLoop.current.run(until: Date().addingTimeInterval(0.25))
+        }
+        XCTAssertEqual(app.windows.count, 0, "⌘W did not close the window")
+        XCTAssertEqual(app.state, .runningForeground, "Closing the last window must not quit the app")
+    }
+
     func testSettingsWindowOpensViaCommandComma() {
         openFirstDatabaseFromListIfNeeded()
 
