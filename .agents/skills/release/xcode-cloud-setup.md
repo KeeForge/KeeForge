@@ -23,16 +23,21 @@ live account before setup):
   transient observations, not configuration requirements.
 
 After explicit account-level confirmation, use this safe order: add macOS to app `6759309295`
-and enable universal purchase; create a dedicated native Mac external group; add **Test - macOS**,
-**Archive - macOS**, and a Mac external-TestFlight post-action to **Tests (RC)**; verify both
-platforms, groups, archive preparation, required-to-pass settings, and environment-variable
-Secret flags; then use **Restrict and Save**. Do not send the MAS build to the existing iOS group.
+and enable universal purchase; create a dedicated native Mac external group; remove the existing
+iOS **TestFlight External Testing** post-action; add **Test - macOS** and **Archive - macOS** to
+**Tests (RC)**; verify both platforms, groups, archive preparation,
+required-to-pass settings, and environment-variable Secret flags; then use **Restrict and Save**.
+Archives and uploads may be automatic, but external TestFlight distribution is deliberately
+manual: after Xcode Cloud, both GitHub Actions workflows, both local KDBX gates, and local Mac
+smoke are accepted, obtain explicit action-time confirmation immediately before the first Beta App
+Review action (when required) and immediately before distributing each platform to its external
+group. Do not send the MAS build to the existing iOS group.
 
 ## Required workflow shape
 
 | Trigger | Workflow | Actions |
 | --- | --- | --- |
-| `rc/*` tag push | **Tests (RC)** | Test - iOS + Test - macOS (both Required to Pass), Archive - iOS + Archive - macOS (both Distribution Preparation: App Store Connect), and one external-TestFlight post-action per archive |
+| `rc/*` tag push | **Tests (RC)** | Test - iOS + Test - macOS (both Required to Pass), and Archive - iOS + Archive - macOS (both Distribution Preparation: App Store Connect). Archives/uploads may run automatically; no external-distribution post-action is configured. |
 | `v*` tag push | *(none — the `Release` workflow is deactivated)* | — |
 
 Two properties matter:
@@ -41,11 +46,11 @@ Two properties matter:
    actions are Required to Pass.** App
    Store Connect lists a workflow's actions alphabetically and offers no way to reorder them, so
    "test first" is not something you configure — all four actions run in **parallel**.
-   What Required to Pass buys is that a red test action fails the *build*, and post-actions do not
-   run on a failed build. So the gate sits on **TestFlight distribution, not on the archive**: an
-   archive whose tests failed can still finish and upload, and its `TestFlight External Testing`
-   post-action then shows *Did Not Run*. This applies independently to iOS and Mac; an uploaded
-   build may be distributed by hand only after the failure is adjudicated.
+   What Required to Pass buys is that a red test action fails the *workflow's test verdict*. The
+   archive can still finish and upload, but that uploaded build remains blocked from external
+   distribution until the failure is adjudicated and every required gate is accepted. This applies
+   independently to iOS and Mac. There is no automatic external-distribution action whose status
+   could bypass that deliberate manual decision.
 
    Leaving the archives ungated is deliberate. When a cloud test failure turns out to be a flake
    (`gate-adjudication.md`), the binary already exists and can be distributed by hand; gating the
@@ -88,16 +93,19 @@ alphanumerics only, because it is interpolated into the `db-$(DROPBOX_APP_KEY)`
 
 - Each archive action's **Distribution Preparation** must be **App Store Connect** ("Eligible for
   distribution to all testers and customers"), not *TestFlight (Internal Testing Only)*.
-- External delivery is a separate post-action per archive, not a property of the archive:
-  **Post-Actions → TestFlight External Testing**, with *Artifact* set to the corresponding iOS or
-  macOS archive and *Groups* set to that platform's external group. The existing iOS public-link
-  group is **KeeForge Test**. Create/use a dedicated Mac external group for the native build; do
-  not send the MAS build to the iOS group.
-- Saving a workflow configured for external testing forces **Restrict Editing** on; App Store
-  Connect offers only *Restrict and Save*. Afterwards only the Account Holder, Admins, and App
-  Managers can change it.
+- Do **not** configure a TestFlight External Testing post-action. Xcode Cloud may archive and
+  upload automatically, but a processed build is moved to external testing manually in App Store
+  Connect only after Xcode Cloud, both GitHub Actions workflows, both local KDBX gates, and local
+  Mac smoke are accepted. The existing iOS public-link group is **KeeForge Test**. Create/use a
+  dedicated Mac external group for the native build; do not send the MAS build to the iOS group.
+- After editing, verify that no external-testing post-action is present and save the workflow using
+  the control App Store Connect presents. If the existing account setup presents **Restrict and
+  Save**, use it only after this verification; afterwards only the Account Holder, Admins, and App
+  Managers can change the workflow.
 - The **first build of each new marketing version/platform** goes through Beta App Review before
-  external testers can install it — budget roughly a day. Later builds of the same platform/version
+  external testers can install it — budget roughly a day. Obtain explicit action-time confirmation
+  immediately before submitting that first Beta App Review action, and again immediately before
+  distributing the platform to its external group. Later builds of the same platform/version
   normally distribute without re-review. External distribution remains blocked until the Xcode
   Cloud, iOS GitHub Actions, and macOS GitHub Actions verdicts, both local KDBX gates, and local
   Mac smoke are accepted and the manifest maps both processed builds to the same RC SHA.
@@ -138,10 +146,15 @@ alphanumerics only, because it is interpolated into the `db-$(DROPBOX_APP_KEY)`
   with no iOS 18.x runtime available. `.github/workflows/ios18-rc-tests.yml` on GitHub-hosted
   `macos-15` runners covers iOS 18 and the iPad regular-width lane. The native Mac unit gate is
   covered by `.github/workflows/macos-rc-tests.yml`.
-- `ci_scripts/build_mac_direct.sh` is intentionally outside Xcode Cloud. Run it after the MAS
-  archive from the same clean RC SHA, verify its direct `CFBundleVersion` equals the repo build,
-  and stage (do not publish) its `KeeForge-{version}-b{repoBuild}.zip`, `direct-artifact.json`,
-  and appcast through `ci_scripts/release_direct_artifact.sh stage` until the final go decision.
+- `ci_scripts/build_mac_direct.sh` is intentionally outside Xcode Cloud. Obtain/export the exact
+  MAS `.app` from the accepted Xcode Cloud archive without rebuilding, then run
+  `ci_scripts/verify_mac_artifact.sh --channel mas --app <exact-mas-app> --architectures arm64,x86_64`.
+  Run the direct build from the same clean RC SHA, verify its direct `CFBundleVersion` equals the
+  repo build, and run the corresponding `--channel direct` verifier on its exact exported `.app`.
+  Both verifiers must pass with universal `arm64,x86_64` unless an explicit product decision
+  records a different architecture set. Only then stage (do not publish) its
+  `KeeForge-{version}-b{repoBuild}.zip`, `direct-artifact.json`, and appcast through
+  `ci_scripts/release_direct_artifact.sh stage` until the final go decision.
   After the post-approval `v{version}` tag exists, `handoff` safely creates or resumes the exact
   draft GitHub Release and verifies its asset through the API. A draft is not public: run
   `verify-public-url` after publishing it, then use `publish-appcast`'s atomic base-feed

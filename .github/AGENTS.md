@@ -13,7 +13,7 @@ GitHub Actions workflows, issue/PR templates, funding config, and repo assets. A
 ## Division Of Labor
 
 - GitHub Actions: PR unit-test gating for both platforms (`pr-tests.yml`, all PRs including stacked), iOS 18 minimum-OS RC coverage (`ios18-rc-tests.yml`), and macOS RC coverage (`macos-rc-tests.yml`).
-- Xcode Cloud: the **Tests (RC)** workflow on `rc/*` tags — test on the latest runtime and archive to the public TestFlight channel. **Nothing triggers on `v*`**: that tag records which soaked build shipped, and the App Store build is selected from TestFlight rather than re-archived. See `.agents/skills/release/xcode-cloud-setup.md`.
+- Xcode Cloud: the **Tests (RC)** workflow on `rc/*` tags — test on the latest runtime and archive/upload eligible TestFlight builds. External distribution is a deliberate manual App Store Connect step after all required cloud and local gates and exact Mac artifact checks; no external-testing post-action is configured. **Nothing triggers on `v*`**: that tag records which soaked build shipped, and the App Store build is selected from TestFlight rather than re-archived. See `.agents/skills/release/xcode-cloud-setup.md`.
 - `ci_scripts/run_kdbx_compatibility_gate.sh`: the required **local** gate, run once per candidate build — no CI runs it; it needs `keepassxc-cli`, which neither GitHub runners nor Xcode Cloud install. It runs per platform: the iOS scheme by default, and `KDBX_COMPAT_SCHEME=KeeForgeMac` for the Mac scheme (which switches the test target to `KeeForgeMacTests` and the destination to `platform=macOS`).
 
 ## Branch Rulesets

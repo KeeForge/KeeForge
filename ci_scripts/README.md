@@ -137,9 +137,16 @@ Two specs rather than two targets because both channels must ship an app called 
 
 `DistributionChannel` (`KeeForge/Services/AppSupport/DistributionChannel.swift`) is the single runtime read of that condition; `DistributionChannelTests` fails if the two channels ever stop being mutually exclusive, or if the unit suites' test host turns out to be a direct build.
 
-For the package-4 artifact gate, run the verifier after export/stapling and before staging
-the direct appcast. The MAS invocation must report `sparkle_present=false`, empty feed/key
-presence, and `result=pass`; the direct invocation must report Sparkle, an HTTPS feed, and a
-present public key while reporting no StoreKit and `result=pass`. The architecture argument is
-intentional: use `arm64,x86_64` for the planned universal release, and record a product decision
-before passing a different set.
+For the package-4 artifact gate and every release candidate, obtain the exact MAS `.app` by
+exporting the accepted Xcode Cloud MAS archive; do not rebuild it. Before any external distribution
+or direct-artifact staging, run the verifier against that MAS app and the exact exported direct app:
+
+```bash
+ci_scripts/verify_mac_artifact.sh --channel mas --app <exact-mas-app> --architectures arm64,x86_64
+ci_scripts/verify_mac_artifact.sh --channel direct --app <exact-direct-app> --architectures arm64,x86_64
+```
+
+Both must report `result=pass`. The MAS invocation must report `sparkle_present=false`, empty
+feed/key presence; the direct invocation must report Sparkle, an HTTPS feed, and a present public
+key while reporting no StoreKit. The architecture argument is intentional: use universal
+`arm64,x86_64` unless an explicit product decision records a different set before continuing.

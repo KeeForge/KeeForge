@@ -11,7 +11,12 @@ Drive the post-build App Store Connect workflow for KeeForge. Use browser contro
 
 Do not repeat the repository release workflow. Assume the requested version was already cut unless the user says otherwise. If no processed build exists, report that clearly or wait for the user to upload one.
 
-Treat **Submit for Review** as the final consequential action. Prepare everything first and stop immediately before it unless the user explicitly asks to submit and confirms at action time.
+Treat **Submit for Review** as the final consequential action. Prepare each platform independently,
+stage it through **Ready for Review**, and stop immediately before submission. Unless the user
+explicitly asks to submit, do not click the button. Even when they do, obtain a separate explicit
+action-time confirmation immediately before each platform's **Submit for Review** click; an iOS
+confirmation does not authorize macOS. The first Beta App Review and external TestFlight
+distribution are also deliberate actions and require confirmation immediately before they occur.
 
 ## Two App Store platforms, three release channels
 
@@ -99,8 +104,9 @@ If the requested build is absent from TestFlight, stop and report it. Do not sta
 4. Per platform: check TestFlight build uploads for the exact marketing version and platform build
    number handed over in the release manifest.
 5. Treat `Complete` as processed. Do not attach a build that is still processing or failed.
-6. Confirm each build was distributed to its external testers — those are the builds that were
-   soaked. A build that only ever reached internal testers has not been through the process.
+6. Confirm each build was manually distributed to its external testers — those are the builds that
+   were soaked. A build that only ever reached internal testers has not been through the process.
+   Xcode Cloud archive/upload automation does not count as external distribution.
 7. If the build is missing, report it and stop. Builds are produced by the Xcode Cloud **Tests (RC)** workflow on an `rc/*` tag; no workflow triggers on `v*`. Never start a build from here.
 
 ### 2. Create the App Store version when needed
@@ -174,20 +180,27 @@ Preserve the prior version's settings unless the user requests a change. For Kee
 
 Report any difference before changing it.
 
-### 8. Stage the review submission
+### 8. Stage the review submission and stop
 
-1. Save the version metadata.
-2. Choose **Add for Review**.
+Repeat this entire section separately for each platform in play:
+
+1. Save that platform's version metadata.
+2. Choose **Add for Review** for that platform.
 3. Resolve every concrete validation error App Store Connect lists.
-4. Wait for the version state to become **Ready for Review**.
-5. Open the draft submission and verify it contains the exact version and build.
+4. Wait for that platform's version state to become **Ready for Review**.
+5. Open the draft submission and verify it contains the exact version and build for that platform.
 6. Verify **Item Ready to Submit** and the presence of **Submit for Review**.
+7. Stop. This is the required handoff state; do not click **Submit for Review** in this staging
+   step.
 
 Stop here when the user asked to complete everything before final submission. Leave the draft open and report that the final button is untouched.
 
 ### 9. Submit only on explicit confirmation
 
-If the user explicitly asks for final submission, request action-time confirmation that clicking **Submit for Review** will send the version and its metadata to Apple for review. After confirmation:
+If the user explicitly asks for final submission of a platform, request confirmation immediately
+before that platform's click, stating that **Submit for Review** will send that platform's version,
+build, and metadata to Apple for review. Do not rely on an earlier or batched confirmation. After
+the user confirms:
 
 1. Click **Submit for Review** once.
 2. Verify the resulting submission state from the page.

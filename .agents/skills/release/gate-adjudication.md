@@ -37,9 +37,9 @@ the failed identifiers and assertion messages. A nonzero `Errors` count, missing
 upload, or tests-not-run result is a non-test failure and blocks the candidate.
 
 The Xcode Cloud test and archive actions run in parallel. A red test action can still leave an
-uploaded platform build, while that platform's TestFlight post-action shows *Did Not Run*. Do not
-discard or distribute it yet: first adjudicate the exact test failures, accept all other gates, and
-then use the manifest's affected-platform TestFlight build for any manual distribution.
+uploaded platform build. Do not discard or distribute it yet: first adjudicate the exact test
+failures, accept all other gates, and then use the manifest's affected-platform TestFlight build
+for its deliberate manual distribution.
 
 ### 2. iOS 18 GitHub Actions workflow
 
@@ -141,10 +141,11 @@ the unlocked login session with the same scheme/selector and retain its result b
 
 **Every failed cloud test passes locally on its exact pair** → classify those failures as CI-only
 flakes and accept that affected cloud verdict. Record the local command, result, and reason in the
-manifest. If an Xcode Cloud TestFlight post-action did not run, manual distribution may be used
-only after all three cloud verdicts, both KDBX gates, and local Mac smoke are accepted: identify the
-affected platform's TestFlight build from the manifest and match its marketing version, platform
-build number, RC tag, and commit SHA before distributing. Never use the newest build by default.
+manifest. Manual distribution may be used only after all three cloud verdicts, both KDBX gates, and
+local Mac smoke are accepted: identify the affected platform's TestFlight build from the manifest
+and match its marketing version, platform build number, RC tag, and commit SHA before distributing.
+Obtain explicit action-time confirmation immediately before the first Beta App Review action (when
+required) and immediately before distributing each platform. Never use the newest build by default.
 
 **Any failed test also fails locally** → stop. Fix it as a new commit on the shared release branch;
 never amend or force-push the existing RC. Increment the global `repoBuild` on all four product
