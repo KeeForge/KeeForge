@@ -4,6 +4,30 @@ One-time App Store Connect setup. Read this if archives or TestFlight uploads ar
 expected, or when reconfiguring Xcode Cloud. Everything here is configured in the App Store Connect
 web UI; none of it lives in this repo.
 
+## Audited current state
+
+Read-only audit on 2026-09-02 (do not treat this section as a substitute for verifying the
+live account before setup):
+
+- KeeForge is App Store Connect app Apple ID `6759309295`. The app record currently has only
+  the iOS platform and only an iOS TestFlight build surface; no native macOS platform, version,
+  build surface, or native Mac external-testing group exists.
+- The active **Tests (RC)** workflow currently has only **Test - iOS**, **Archive - iOS**, and
+  **TestFlight External Testing - iOS**. Its `rc/*` tag trigger is active. The **Release**
+  workflow exists but is deactivated.
+- `DROPBOX_APP_KEY` and `ONEDRIVE_CLIENT_ID` are present in the active workflow and their values
+  are masked in the UI; whether each variable has the Secret/redaction flag enabled was not
+  verified. Never record or expose their values.
+- The existing external group is exactly **KeeForge Test**. Its public link and 300-tester cap
+  are already documented below. Tester counts and build numbers seen during this audit are
+  transient observations, not configuration requirements.
+
+After explicit account-level confirmation, use this safe order: add macOS to app `6759309295`
+and enable universal purchase; create a dedicated native Mac external group; add **Test - macOS**,
+**Archive - macOS**, and a Mac external-TestFlight post-action to **Tests (RC)**; verify both
+platforms, groups, archive preparation, required-to-pass settings, and environment-variable
+Secret flags; then use **Restrict and Save**. Do not send the MAS build to the existing iOS group.
+
 ## Required workflow shape
 
 | Trigger | Workflow | Actions |
@@ -39,12 +63,14 @@ Two properties matter:
 
 `ci_scripts/ci_pre_xcodebuild.sh` fails an archive when `DROPBOX_APP_KEY` or `ONEDRIVE_CLIENT_ID`
 is missing or still a CI placeholder, rather than shipping a build with broken cloud sign-in. The
-Tests (RC) workflow now archives both platforms, so **it must carry the real values**. They are set per workflow,
-not per action — Xcode Cloud applies them to every action in the workflow. Add them under
-**Tests (RC) → Environment → Environment Variables → Add → New Environment Variable**:
+When the Mac archive actions are added, **Tests (RC) must carry the real values**. They are set
+per workflow, not per action — Xcode Cloud applies them to every action in the workflow. Add or
+verify them under **Tests (RC) → Environment → Environment Variables → Add → New Environment Variable**:
 
-- `DROPBOX_APP_KEY` — real key, with **Secret** ("Keep value redacted") ticked
-- `ONEDRIVE_CLIENT_ID` — real client ID, same
+- `DROPBOX_APP_KEY` — real key, with **Secret** ("Keep value redacted") ticked; current presence
+  is confirmed but the flag was not verified in the audit
+- `ONEDRIVE_CLIENT_ID` — real client ID, same; current presence is confirmed but the flag was
+  not verified in the audit
 
 Adding a variable only stages it; the workflow still has to be saved afterwards.
 
@@ -64,10 +90,9 @@ alphanumerics only, because it is interpolated into the `db-$(DROPBOX_APP_KEY)`
   distribution to all testers and customers"), not *TestFlight (Internal Testing Only)*.
 - External delivery is a separate post-action per archive, not a property of the archive:
   **Post-Actions → TestFlight External Testing**, with *Artifact* set to the corresponding iOS or
-  macOS archive and *Groups* set to that platform's external group. The iOS public-link group is
-  currently the external group named `Test` — an internal group shares the name, so check the
-  heading it sits under in TestFlight. Create/use a dedicated Mac external group for the native
-  build; do not send the MAS build to the iOS group.
+  macOS archive and *Groups* set to that platform's external group. The existing iOS public-link
+  group is **KeeForge Test**. Create/use a dedicated Mac external group for the native build; do
+  not send the MAS build to the iOS group.
 - Saving a workflow configured for external testing forces **Restrict Editing** on; App Store
   Connect offers only *Restrict and Save*. Afterwards only the Account Holder, Admins, and App
   Managers can change it.
