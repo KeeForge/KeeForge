@@ -343,7 +343,7 @@ struct RegularDatabaseWorkspaceView: View {
     /// browsing columns are native `List(selection:)`s, so arrow keys,
     /// type-select, and the focus ring come from AppKit; rows keep their
     /// `group.navlink` / `entry.navlink` identifiers, but they surface as
-    /// cells rather than buttons (`KeeForgeMacUITests/CLAUDE.md`).
+    /// cells rather than buttons (`KeeForgeMacUITests/AGENTS.md`).
     private var macSplitView: some View {
         NavigationSplitView {
             macSidebarColumn

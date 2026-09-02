@@ -72,7 +72,7 @@ KeeForge se toma muy en serio la seguridad de los datos: un gestor de contraseñ
 - **Su archivo está protegido antes de tocarlo.** KeeForge se niega a sobrescribir cambios hechos desde otro lugar mientras usted tenía el archivo abierto, escribe una copia de seguridad con marca de tiempo antes de cada guardado, y rechaza directamente las bases de datos dañadas en lugar de cargar datos parciales.
 - **Un programa independiente lo confirma.** Cada versión debe superar una prueba de control en la que KeePassXC — una app de KeePass muy usada que no comparte código con KeeForge — abre las bases de datos escritas por KeeForge, descifra las contraseñas y confirma que los archivos adjuntos coinciden bit a bit. Las bases de datos creadas por otro software de KeePass deben, a su vez, abrirse en KeeForge y seguir siendo legibles en otros programas después de que KeeForge las guarde.
 
-Para quien tenga curiosidad técnica, la batería de pruebas está descrita en [`KeeForgeTests/CLAUDE.md`](../../KeeForgeTests/CLAUDE.md) y la prueba de control previa a cada versión en [`ci_scripts/README.md`](../../ci_scripts/README.md) (ambas en inglés).
+Para quien tenga curiosidad técnica, la batería de pruebas está descrita en [`KeeForgeTests/AGENTS.md`](../../KeeForgeTests/AGENTS.md) y la prueba de control previa a cada versión en [`ci_scripts/README.md`](../../ci_scripts/README.md) (ambas en inglés).
 
 ## Mapa del proyecto
 
@@ -102,7 +102,7 @@ scripts/              # Herramientas de desarrollo local
 - [`ROADMAP.md`](../../ROADMAP.md) – trabajo de producto planificado y prioridades abiertas
 - [`AGENTS.md`](../../AGENTS.md) – contexto para agentes de codificación
 - [`KeeForge/README.md`](../../KeeForge/README.md) – mapa de la arquitectura de los targets de la app
-- [`AutoFillExtension/CLAUDE.md`](../../AutoFillExtension/CLAUDE.md) – restricciones de la extensión y notas sobre el código compartido
+- [`AutoFillExtension/AGENTS.md`](../../AutoFillExtension/AGENTS.md) – restricciones de la extensión y notas sobre el código compartido
 - [`SECURITY.md`](../../SECURITY.md) – política de divulgación de vulnerabilidades
 - [`docs/`](../../docs/) – especificaciones de implementación, auditorías y documentos de diseño más extensos
 
