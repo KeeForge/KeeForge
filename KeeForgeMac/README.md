@@ -57,6 +57,46 @@ Whichever way that goes, a user who has been running "Designed for iPad" KeeForg
 
 One release task falls out of this regardless of the decision: the direct-download and Mac listing pages on keeforge.com need the migration steps as user-facing copy. If Mac availability for the iOS app is withdrawn, that App Store Connect change should land only after the native app is live, so nobody is left without either.
 
+## Production-State Migration Probe (2026-09-02)
+
+**Blocked before production-state setup; package 5 remains unchecked.** This is an evidence record, not a claim that the native app can already migrate an installed iPad-on-Mac database.
+
+The host is Apple silicon (`arm64`), macOS `26.6.2` (build `25G83`). A read-only inventory found no `/Applications/KeeForge.app`, no KeeForge app in the user's Applications folder, no App Store receipt, and no running KeeForge process. Launch Services retains an `otpauth` handler for `com.keevault.app`, but that stale registration is not evidence of an installed app. The existing `com.keevault.app` container has no files in its `Data/Documents` directory. The shared App Group exists, but `database-list.json` and `databases/` are absent; `cloud-cache/` has one account directory containing zero files. No database, key, account, token, password, or Keychain value was read.
+
+The available native Mac build artifact (`scratch/dd-machistory/Build/Products/Debug/KeeForge.app`) is an arm64 app with bundle ID `com.keevault.app`, team `V82M9YX8BR`, App Group `group.com.keevault.shared`, shared keychain group `com.keevault.sharedkeychain`, and embedded extension ID `com.keevault.app.autofill`. The project gives the iOS and native Mac apps the same bundle ID and gives both AutoFill extensions the same extension ID. Therefore a native development install's coexistence with the App Store iPad app was not tested: doing so requires installing/signing an app and could replace or rebind the same app/container identity. `pluginkit -mAvvv -p com.apple.authentication-services-credential-provider-ui` returned `match: Connection invalid`, and no current credential-provider registration record was available to compare.
+
+### Native outcomes observed so far
+
+These are fixture-only or implementation-level outcomes, not production migration outcomes:
+
+| Probe | Observed result | Evidence |
+| --- | --- | --- |
+| Legacy shared-reference migration and idempotency | **Pass** | Prior native Mac suite, `scratch/xcode-logs/20260831-final-sweep-KeeForgeMacTests.log`, `DatabaseReferenceMigrationTests` (six cases) |
+| Scoped and plain bookmark resolution | **Pass** | Same log, `SecurityScopedBookmarkManagerTests` (seven cases) |
+| App Group cache/bookmark write guardrail | **Pass** | Same log, `AppGroupGuardrailTests` (three cases) |
+| AutoFill status state model | **Pass** | Same log, `AutoFillStatusServiceTests` (six cases) |
+| Real stored composite key or cloud-token visibility | **Unproven** | The prior full suite recorded Keychain write skips (`-25308`); no production app or secret values were accessed |
+| Focused rerun during this probe | **Not completed** | `20260902-package5-KeeForgeMac-migration-probe-tests.log` waited for the shared Xcode lock (unknown holder) for 480 seconds; it was stopped without running tests |
+
+### Production fixture compatibility matrix
+
+Every row is intentionally **not observed** because the current machine has no installed App Store “Designed for iPad” KeeForge build from which to seed the fixture. The status must not be promoted to automatic, file re-selection, reconnection, cache recovery, or manual export until a real transition is exercised.
+
+| Existing iPad-on-Mac fixture | Native outcome | What remains required |
+| --- | --- | --- |
+| Local database | **Not observed** | Install the current App Store build, create/open a local fixture, then inspect native visibility without deleting the source |
+| External file and security-scoped bookmark | **Not observed** | Seed an iOS-created bookmark and resolve it from the native sandbox; the fixture-only bookmark tests do not establish cross-container transfer |
+| Key-file database and key-file bookmark | **Not observed** | Seed a real iOS key-file reference, then test native resolution and the failed/reselection path |
+| Stored composite key | **Not observed** | Seed a real stored key, then test native unlock through the shared keychain group; no Keychain secret may be logged |
+| WebDAV database | **Not observed** | Connect the real account in the iPad build, then test native reconnect, relaunch, cache, and upload behavior |
+| Dropbox database/cache | **Not observed** | Seed a real cache and account, then verify only a local recovery copy is possible; do not imply sync survives |
+| OneDrive database/cache | **Not observed** | Seed a real cache and account, then verify only a local recovery copy is possible; do not imply sync survives |
+| Multiple databases | **Not observed** | Seed at least two iPad references and compare native list/reference identity and duplicate handling |
+| Quick-launch database | **Not observed** | Seed quick-launch metadata and verify native selection preserves it only after the database is safely re-added |
+| AutoFill enabled/disabled and registration | **Not observed** | Seed both states, inspect provider registration in System Settings/PlugInKit, then re-enable the native provider and check for a competing legacy registration |
+
+Until this matrix is populated from the real installed app, the migration rules remain the pre-implementation rules above: local/external files require export or re-selection when the bookmark does not transfer; WebDAV requires reconnecting; Dropbox/OneDrive can only be offered as local recovery when a valid encrypted cache is present; stored-key and AutoFill preservation require explicit native readback; and no source container is deleted or overwritten.
+
 ## Target Map
 
 - `KeeForgeMac` (app target in `project.yml`): requires macOS 15 and compiles the shared `KeeForge/` tree (minus `LaunchScreen.storyboard`) plus selected `AutoFillExtension/` shells (sharing rules: `KeeForge/README.md`). `MARKETING_VERSION` tracks iOS in lockstep — all four product targets carry the same version and build number, and one release bump covers them together. `PRODUCT_NAME` is `KeeForge`, so the bundle on disk is `KeeForge.app` (it was `KeeForgeMac.app` while the target was internal-only).
