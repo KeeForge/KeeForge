@@ -397,10 +397,13 @@ may be distributed by hand after adjudication. This applies independently to iOS
 5. Record each platform's distribution timestamp — the soak clocks start here, not at the branch
    cut.
 6. Run `ci_scripts/build_mac_direct.sh` from the same clean RC SHA after the MAS archive is cut.
-   Stage, do not publish, the notarized zip and appcast item. Verify that its `CFBundleVersion`
-   equals `repoBuild`; record the zip hash, Sparkle signature attributes, notarization ID, and
-   archive/symbol paths in the manifest. The direct artifact has no TestFlight metrics and is
-   tested separately in A10.
+   It stages the notarized zip as `KeeForge-{version}-b{repoBuild}.zip` and writes
+   `direct-artifact.json` with the exact SHA-256, size, Sparkle signature attributes, notarization
+   submission ID, version/build, source commit/tree SHA, and archive/symbol paths. Then run
+   `ci_scripts/release_direct_artifact.sh stage` to generate a complete unpublished appcast while
+   preserving older items and recording the base-feed hash. The direct artifact has no TestFlight
+   metrics and is tested separately in A10. Do not run `handoff` until C7's post-approval go
+   decision.
 
 ## A10. Soak
 
@@ -691,10 +694,17 @@ Continue with Mode C from C1, reporting against the 24h target in place of 48h.
   regenerates from the `project-direct.yml` overlay spec, archives, exports,
   refuses to submit anything that is unsandboxed or carries a
   `com.apple.security.cs.*` exception, notarizes, staples, and emits the appcast
-  zip. Run it **after** the App Store build is cut, from the same commit, so both
-  channels ship identical code — then sign the zip with Sparkle's `sign_update`
-  and stage the appcast item. Publish the GitHub Release asset and appcast only after both App Store
-  submissions have code approval and the final go decision.
+  zip and writes a non-secret `direct-artifact.json` handoff record. Run it **after** the App Store
+  build is cut, from the same commit, so both channels ship identical code — then use
+  `ci_scripts/release_direct_artifact.sh stage` to preserve older appcast items. After both App Store
+  submissions have code approval and the final go decision, create `v{version}` and use that
+  companion's `handoff` command: it verifies both local and origin tags resolve to the artifact SHA,
+  creates a draft GitHub Release (or safely resumes the exact expected draft), uploads only an
+  absent asset, and verifies the draft asset via the GitHub API. Manually/explicitly publish the
+  already-verified draft release in GitHub (no script invocation), then run the unauthenticated
+  `verify-public-url`; only its evidence permits the explicit `publish-appcast`
+  compare-and-swap against the staged base feed. Publication is atomic and fails on a concurrent
+  feed change.
 - `KeeForgeMacUITests` cannot run on a headless runner — it needs an unlocked, active login session
   — so the Mac smoke suite stays a **local** pre-release step. `.github/workflows/macos-rc-tests.yml`
   covers the Mac unit suite on each `rc/*` tag.
