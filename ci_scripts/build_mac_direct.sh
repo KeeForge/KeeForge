@@ -21,22 +21,235 @@
 #     the matching EdDSA private key stays in the login keychain, never in the
 #     repo and never in CI logs.
 #
-# Usage: ci_scripts/build_mac_direct.sh [output-dir]
+# Usage: ci_scripts/build_mac_direct.sh [--preflight] [output-dir]
 #
 # The build writes direct-artifact.json beside the zip. It is a non-secret
 # handoff record consumed by release_direct_artifact.sh after App Review.
 
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd -P)"
+BUILD_ROOT="${REPO_ROOT}/build"
+DEFAULT_OUT_DIR="${BUILD_ROOT}/mac-direct"
+
+PREFLIGHT=0
+if [[ "${1:-}" == "--preflight" ]]; then
+  PREFLIGHT=1
+  shift
+fi
+if (( $# > 1 )); then
+  echo "usage: ${BASH_SOURCE[0]} [--preflight] [output-dir]" >&2
+  exit 2
+fi
+
+OUT_DIR="${1:-${DEFAULT_OUT_DIR}}"
+
+reject_output_dir() {
+  local build_root="${2:-${BUILD_ROOT}}"
+  echo "error: refusing unsafe direct-build output directory: $1" >&2
+  echo "The output must be an absolute, safe-named directory directly under ${build_root}." >&2
+  return 1
+}
+
+validate_output_dir() {
+  local candidate="$1"
+  local build_root="${2:-${BUILD_ROOT}}"
+  local base
+  local build_real
+  local build_parent_real
+  local candidate_real
+
+  [[ "${candidate}" == /* ]] || { reject_output_dir "${candidate} (relative path)"; return 1; }
+  [[ "${candidate}" != "${build_root}" ]] || { reject_output_dir "${candidate} (build root itself)"; return 1; }
+  [[ "${candidate}" == "${build_root}/"* ]] || { reject_output_dir "${candidate} (unexpected parent)"; return 1; }
+
+  base="${candidate#"${build_root}/"}"
+  [[ -n "${base}" && "${base}" != */* && "${base}" != "." && "${base}" != ".." ]] \
+    || { reject_output_dir "${candidate} (not a direct child)"; return 1; }
+  [[ "${base}" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]] \
+    || { reject_output_dir "${candidate} (unsafe basename)"; return 1; }
+  [[ "${candidate}" == "${build_root}/${base}" ]] \
+    || { reject_output_dir "${candidate} (non-canonical path)"; return 1; }
+
+  [[ ! -L "${build_root}" ]] || { reject_output_dir "${candidate} (build root is a symlink)"; return 1; }
+  [[ -d "${build_root}" ]] || { reject_output_dir "${candidate} (missing build directory)"; return 1; }
+  build_real="$(cd -P -- "${build_root}" && pwd -P)" \
+    || { reject_output_dir "${candidate} (cannot resolve build directory)"; return 1; }
+  build_parent_real="$(cd -P -- "$(dirname "${build_root}")" && pwd -P)" \
+    || { reject_output_dir "${candidate} (cannot resolve build parent)"; return 1; }
+  [[ "${build_real}" == "${build_parent_real}/$(basename "${build_root}")" ]] \
+    || { reject_output_dir "${candidate} (build directory escapes the repository)"; return 1; }
+
+  if [[ -L "${candidate}" ]]; then
+    reject_output_dir "${candidate} (output directory is a symlink)"
+    return 1
+  fi
+  if [[ -e "${candidate}" && ! -d "${candidate}" ]]; then
+    reject_output_dir "${candidate} (existing output is not a directory)"
+    return 1
+  fi
+  if [[ -d "${candidate}" ]]; then
+    candidate_real="$(cd -P -- "${candidate}" && pwd -P)" \
+      || { reject_output_dir "${candidate} (cannot resolve output directory)"; return 1; }
+    [[ "${candidate_real}" == "${build_real}/${base}" ]] \
+      || { reject_output_dir "${candidate} (output directory escapes the repository)"; return 1; }
+  fi
+}
+
+require_clean_source_worktree() {
+  local repo="$1"
+  local status
+
+  status="$(git -C "${repo}" status --porcelain=v1 --untracked-files=all)" \
+    || { echo "error: could not inspect source worktree ${repo}" >&2; return 1; }
+  if [[ -n "${status}" ]]; then
+    echo "error: source worktree is not clean; refusing to remove output or regenerate the project." >&2
+    echo "Tracked changes and untracked non-ignored files could enter this globs-based release." >&2
+    echo "Ignored build/ and scratch/ outputs are intentionally omitted and remain allowed." >&2
+    printf '%s\n' "${status}" >&2
+    return 1
+  fi
+}
+
+validate_temp_dir() {
+  local temp_dir="$1"
+  local temp_real
+
+  [[ "${temp_dir}" == /* && -d "${temp_dir}" && ! -L "${temp_dir}" ]] \
+    || { echo "error: invalid temporary state directory ${temp_dir}" >&2; return 1; }
+  temp_real="$(cd -P -- "${temp_dir}" && pwd -P)" \
+    || { echo "error: cannot resolve temporary state directory ${temp_dir}" >&2; return 1; }
+  [[ "${temp_real}" == "${temp_dir}" ]] \
+    || { echo "error: temporary state directory resolves unexpectedly: ${temp_dir}" >&2; return 1; }
+  [[ "${temp_real}" != "/" && "${temp_real}" != "${HOME:-}" && "${temp_real}" != "${REPO_ROOT}" ]] \
+    || { echo "error: refusing unsafe temporary state directory ${temp_dir}" >&2; return 1; }
+}
+
+save_resolved_state() {
+  local resolved_path="$1"
+  local state_dir="$2"
+
+  if [[ -L "${resolved_path}" ]]; then
+    echo "error: refusing to save symlinked ${resolved_path}" >&2
+    return 1
+  fi
+  if [[ -e "${resolved_path}" && ! -f "${resolved_path}" ]]; then
+    echo "error: expected ${resolved_path} to be a regular file or absent" >&2
+    return 1
+  fi
+  if [[ -f "${resolved_path}" ]]; then
+    cp -p -- "${resolved_path}" "${state_dir}/Package.resolved"
+    : >"${state_dir}/present"
+  fi
+}
+
+restore_resolved_state() {
+  local resolved_path="$1"
+  local state_dir="$2"
+
+  if [[ -f "${state_dir}/present" ]]; then
+    if [[ -L "${resolved_path}" || ( -e "${resolved_path}" && ! -f "${resolved_path}" ) ]]; then
+      echo "error: cannot restore ${resolved_path}; generated path is not a regular file" >&2
+      return 1
+    fi
+    cp -p -- "${state_dir}/Package.resolved" "${resolved_path}"
+  elif [[ -e "${resolved_path}" || -L "${resolved_path}" ]]; then
+    rm -f -- "${resolved_path}"
+  fi
+}
+
+run_preflight() {
+  local test_root
+  local test_repo
+  local test_resolved
+  local state_dir
+  local original_bytes='Package.resolved\nbyte-exact\n'
+  local rejected
+
+  test_root="$(mktemp -d "${TMPDIR:-/tmp}/keeforge-direct-preflight.XXXXXX")"
+  test_root="$(cd -P -- "${test_root}" && pwd -P)"
+  validate_temp_dir "${test_root}"
+  test_repo="${test_root}/repo"
+  mkdir -p -- "${test_repo}/build"
+  git -C "${test_repo}" init -q
+  git -C "${test_repo}" config user.email preflight@example.invalid
+  git -C "${test_repo}" config user.name preflight
+  : >"${test_repo}/tracked"
+  printf 'build/\nscratch/\n' >"${test_repo}/.gitignore"
+  git -C "${test_repo}" add .
+  git -C "${test_repo}" commit -q -m preflight
+  require_clean_source_worktree "${test_repo}"
+  printf 'tracked change\n' >"${test_repo}/tracked"
+  if require_clean_source_worktree "${test_repo}" >/dev/null 2>&1; then
+    echo "error: preflight failed to reject a tracked source change" >&2
+    return 1
+  fi
+  : >"${test_repo}/tracked"
+  : >"${test_repo}/untracked-source.swift"
+  if require_clean_source_worktree "${test_repo}" >/dev/null 2>&1; then
+    echo "error: preflight failed to reject an untracked source file" >&2
+    return 1
+  fi
+  rm -f -- "${test_repo}/untracked-source.swift"
+  : >"${test_repo}/build/ignored-output"
+  mkdir -p -- "${test_repo}/scratch"
+  : >"${test_repo}/scratch/ignored-output"
+  require_clean_source_worktree "${test_repo}"
+  validate_output_dir "${test_repo}/build/mac-direct" "${test_repo}/build"
+  validate_output_dir "${test_repo}/build/allowed-output" "${test_repo}/build"
+  ln -s "${test_root}/outside" "${test_repo}/build/escaped-link"
+
+  for rejected in \
+    "build/relative" \
+    "${test_repo}/build" \
+    "${test_repo}/build/../escape" \
+    "${test_repo}/build/allowed-output/nested" \
+    "${test_repo}/outside" \
+    "/" \
+    "${HOME:-/Users}" \
+    "/Users" \
+    "${test_repo}" \
+    "${test_repo}/build/escaped-link"; do
+    if validate_output_dir "${rejected}" "${test_repo}/build" >/dev/null 2>&1; then
+      echo "error: preflight accepted rejected output path ${rejected}" >&2
+      return 1
+    fi
+  done
+
+  test_resolved="${test_repo}/Package.resolved"
+  state_dir="${test_root}/state-present"
+  mkdir -- "${state_dir}"
+  printf '%b' "${original_bytes}" >"${test_resolved}"
+  save_resolved_state "${test_resolved}" "${state_dir}"
+  printf 'changed\n' >"${test_resolved}"
+  restore_resolved_state "${test_resolved}" "${state_dir}"
+  cmp -s "${test_resolved}" "${state_dir}/Package.resolved" \
+    || { echo "error: preflight failed byte-exact Package.resolved restoration" >&2; return 1; }
+
+  state_dir="${test_root}/state-absent"
+  mkdir -- "${state_dir}"
+  rm -f -- "${test_resolved}"
+  save_resolved_state "${test_resolved}" "${state_dir}"
+  printf 'generated\n' >"${test_resolved}"
+  restore_resolved_state "${test_resolved}" "${state_dir}"
+  [[ ! -e "${test_resolved}" && ! -L "${test_resolved}" ]] \
+    || { echo "error: preflight failed to restore prior Package.resolved absence" >&2; return 1; }
+
+  rm -rf -- "${test_root}"
+  echo "preflight: output-path, clean-worktree, and Package.resolved restore checks passed"
+}
+
+if (( PREFLIGHT )); then
+  run_preflight
+  exit 0
+fi
+
 if ! command -v jq >/dev/null 2>&1; then
   echo "error: jq is required before starting the archive/notarization flow" >&2
   exit 1
 fi
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
-
-OUT_DIR="${1:-${REPO_ROOT}/build/mac-direct}"
 NOTARY_PROFILE="${KEEFORGE_NOTARY_PROFILE:-keeforge-notary}"
 SCHEME="KeeForgeMac"
 
@@ -63,28 +276,68 @@ if ! xcrun notarytool history --keychain-profile "${NOTARY_PROFILE}" >/dev/null 
 fi
 
 cd "${REPO_ROOT}"
-rm -rf "${OUT_DIR}"
-mkdir -p "${OUT_DIR}"
+
+# The project uses folder globs. A dirty checkout could therefore include an
+# untracked source file in the archive even though it is not part of a commit.
+# build/ and scratch/ are ignored output locations and are intentionally fine.
+require_clean_source_worktree "${REPO_ROOT}"
+if [[ -L "${BUILD_ROOT}" ]]; then
+  reject_output_dir "${OUT_DIR} (build root is a symlink)"
+fi
+if [[ ! -d "${BUILD_ROOT}" ]]; then
+  mkdir -p -- "${BUILD_ROOT}"
+fi
+validate_output_dir "${OUT_DIR}"
+
+# Save the exact Package.resolved bytes before either spec can cause SwiftPM to
+# rewrite them. This state directory is validated before it is ever removed.
+RESOLVED_FILE="KeeForge.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved"
+RESOLVED_PATH="${REPO_ROOT}/${RESOLVED_FILE}"
+PROJECT_STATE_DIR="$(mktemp -d "${TMPDIR:-/tmp}/keeforge-direct-project.XXXXXX")"
+PROJECT_STATE_DIR="$(cd -P -- "${PROJECT_STATE_DIR}" && pwd -P)"
+validate_temp_dir "${PROJECT_STATE_DIR}"
+save_resolved_state "${RESOLVED_PATH}" "${PROJECT_STATE_DIR}"
+
+restore_appstore_project() {
+  local original_status="$?"
+  local restore_status=0
+
+  trap - EXIT
+  echo "==> Restoring the App Store project spec"
+  if ! (cd "${REPO_ROOT}" && xcodegen generate >/dev/null); then
+    echo "error: failed to restore the App Store project spec" >&2
+    restore_status=1
+  fi
+  if ! restore_resolved_state "${RESOLVED_PATH}" "${PROJECT_STATE_DIR}"; then
+    echo "error: failed to restore the pre-run Package.resolved state" >&2
+    restore_status=1
+  fi
+  if ! require_clean_source_worktree "${REPO_ROOT}"; then
+    echo "error: App Store project restoration left the source worktree dirty" >&2
+    restore_status=1
+  fi
+  if ! rm -rf -- "${PROJECT_STATE_DIR}"; then
+    echo "error: failed to remove validated temporary state directory ${PROJECT_STATE_DIR}" >&2
+    restore_status=1
+  fi
+  if (( restore_status != 0 )); then
+    echo "error: direct-build cleanup did not fully restore the App Store project" >&2
+    if (( original_status == 0 )); then
+      original_status=1
+    fi
+  fi
+  exit "${original_status}"
+}
+trap restore_appstore_project EXIT
+
+rm -rf -- "${OUT_DIR}"
+mkdir -p -- "${OUT_DIR}"
 
 # The overlay spec is what makes this the direct-download channel: it adds
 # Sparkle and defines KEEFORGE_DIRECT_DOWNLOAD. Plain `xcodegen generate` yields
 # the App Store build, so regenerate afterwards before doing anything else.
 echo "==> Generating project from the direct-download spec"
 xcodegen generate --spec project-direct.yml
-
-# Resolving the direct spec's extra dependency rewrites the workspace's
-# Package.resolved originHash. That file belongs to the checked-in App Store
-# project, so restore it too — otherwise every release run leaves the tree dirty.
-RESOLVED_FILE="KeeForge.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved"
-
-restore_appstore_project() {
-  echo "==> Restoring the App Store project spec"
-  (cd "${REPO_ROOT}" && xcodegen generate >/dev/null)
-  if git -C "${REPO_ROOT}" ls-files --error-unmatch "${RESOLVED_FILE}" >/dev/null 2>&1; then
-    git -C "${REPO_ROOT}" checkout -- "${RESOLVED_FILE}" 2>/dev/null || true
-  fi
-}
-trap restore_appstore_project EXIT
 
 echo "==> Archiving ${SCHEME}"
 xcodebuild archive \
