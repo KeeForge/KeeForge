@@ -72,7 +72,7 @@ KeeForge 非常重视数据安全：密码管理器绝不能损坏你的保险�
 - **文件在被触碰之前已受保护。** 如果文件在你打开期间被其他地方修改过，KeeForge 会拒绝覆盖；每次保存前都会写入带时间戳的备份；对已损坏的数据库直接拒绝打开，而不是加载不完整的数据。
 - **有独立程序交叉验证。** 每个版本都必须通过一道验证关卡：由 KeePassXC——一款与 KeeForge 不共享任何代码、被广泛使用的 KeePass 应用——打开 KeeForge 写入的数据库、解密其中的密码，并确认附件逐位一致。同样，其他 KeePass 软件创建的数据库也必须能在 KeeForge 中打开，并在 KeeForge 保存后仍能被其他软件读取。
 
-对技术细节感兴趣的话，测试套件的说明见 [`KeeForgeTests/CLAUDE.md`](../../KeeForgeTests/CLAUDE.md)，发布前验证关卡的说明见 [`ci_scripts/README.md`](../../ci_scripts/README.md)（均为英文）。
+对技术细节感兴趣的话，测试套件的说明见 [`KeeForgeTests/AGENTS.md`](../../KeeForgeTests/AGENTS.md)，发布前验证关卡的说明见 [`ci_scripts/README.md`](../../ci_scripts/README.md)（均为英文）。
 
 ## 项目结构
 
@@ -102,7 +102,7 @@ scripts/              # 本地开发工具
 - [`ROADMAP.md`](../../ROADMAP.md) - 规划中的产品工作和当前优先事项
 - [`AGENTS.md`](../../AGENTS.md) - 面向编码代理的上下文
 - [`KeeForge/README.md`](../../KeeForge/README.md) - 应用 target 架构图
-- [`AutoFillExtension/CLAUDE.md`](../../AutoFillExtension/CLAUDE.md) - 扩展的限制和共享源码说明
+- [`AutoFillExtension/AGENTS.md`](../../AutoFillExtension/AGENTS.md) - 扩展的限制和共享源码说明
 - [`SECURITY.md`](../../SECURITY.md) - 漏洞披露政策
 - [`docs/`](../../docs/) - 实现规格、审计和较长篇幅的设计文档
 

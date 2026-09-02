@@ -1,11 +1,1 @@
-# SearchAndTags Views
-
-Search results and the tag browser.
-
-## Screen Map
-
-- `TagListView.swift` and `TagEntriesView.swift` own the tag browser. `TagListView.swift` also declares `TagDestination` — the `Hashable` navigation value both stack shells register (`UUID` already means "group" and `KPEntry` "entry") — and `TagAccessibility`, the shared per-tag identifier-suffix normalizer. Entry points: the root-only "Tags" row in `GroupListView.swift` (`group-list.tags-row`, in-file `TagBrowserRow`, visible even at zero tags), the macOS sidebar's Tags section in `../../App/RegularDatabaseWorkspaceView.swift` (`MacTagRow`, selection through `DatabaseViewModel.selectedTag`), and the entry-detail tag chips. Those chips are `Button`s in every shell, never `NavigationLink`s: several `NavigationLink`s in one `List` row let the row own the link, so a tap opens the wrong tag or several at once and the whole row highlights (`TagBrowserUITests` asserts which tag opens); the compact shell appends to `DatabaseViewModel.navigationPath`. `TagEntriesView` re-derives its entries from the view model on every render, never from a push-time snapshot, so a tag whose last carrier is edited away shows its empty state instead of crashing or popping; its rows carry `search.entry.navlink` in both shells (see below for which list draws them). Identifiers: `tag-list`, `tag-list.row.<normalized-tag>` (iOS list and macOS sidebar alike), `tag-entries.list`, `entry-detail.tag.<normalized-tag>`, `entry-detail.inherited-tag.<normalized-tag>`. macOS renders the tag name as a `navigationSubtitle` where iOS uses the navigation title.
-
-Both screens split their list per shell rather than per screen: iOS keeps the shared `../Entry/EntryListView.swift`, and macOS renders `MacEntriesList` (`../Entry/MacEntriesList.swift`), whose native `List(selection:)` gives the content column arrow keys and type-select. `EntryListView`'s button rows swallow the click such a list needs to move its selection, which is why the swap exists at all. The identifiers on the container (`search.results`, `tag-entries.list`) and on the rows (`search.entry.navlink`) are the same on both platforms.
-
-Shared UI shells and the folder-wide UI rules live in `../README.md`.
+AGENTS.md

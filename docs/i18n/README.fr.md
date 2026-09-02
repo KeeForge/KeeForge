@@ -72,7 +72,7 @@ KeeForge prend la sécurité des données très au sérieux : un gestionnaire d
 - **Votre fichier est protégé avant d’être touché.** KeeForge refuse d’écraser des modifications faites ailleurs pendant que le fichier était ouvert chez vous, écrit une sauvegarde horodatée avant chaque enregistrement, et rejette purement et simplement les bases de données endommagées plutôt que de charger des données partielles.
 - **Un programme indépendant confirme.** Chaque version doit franchir une étape de vérification où KeePassXC — une application KeePass largement utilisée qui ne partage aucun code avec KeeForge — ouvre les bases de données écrites par KeeForge, déchiffre les mots de passe et confirme que les pièces jointes correspondent bit à bit. Les bases de données créées par d’autres logiciels KeePass doivent de même s’ouvrir dans KeeForge et rester lisibles ailleurs après avoir été enregistrées par KeeForge.
 
-Pour les personnes curieuses sur le plan technique : la suite de tests est décrite dans [`KeeForgeTests/CLAUDE.md`](../../KeeForgeTests/CLAUDE.md), et l’étape de vérification avant chaque publication dans [`ci_scripts/README.md`](../../ci_scripts/README.md) (les deux en anglais).
+Pour les personnes curieuses sur le plan technique : la suite de tests est décrite dans [`KeeForgeTests/AGENTS.md`](../../KeeForgeTests/AGENTS.md), et l’étape de vérification avant chaque publication dans [`ci_scripts/README.md`](../../ci_scripts/README.md) (les deux en anglais).
 
 ## Plan du projet
 
@@ -102,7 +102,7 @@ scripts/              # Outils de développement locaux
 - [`ROADMAP.md`](../../ROADMAP.md) – travaux produit prévus et priorités ouvertes
 - [`AGENTS.md`](../../AGENTS.md) – contexte pour les agents de codage
 - [`KeeForge/README.md`](../../KeeForge/README.md) – plan de l’architecture des cibles de l’application
-- [`AutoFillExtension/CLAUDE.md`](../../AutoFillExtension/CLAUDE.md) – contraintes de l’extension et notes sur le code partagé
+- [`AutoFillExtension/AGENTS.md`](../../AutoFillExtension/AGENTS.md) – contraintes de l’extension et notes sur le code partagé
 - [`SECURITY.md`](../../SECURITY.md) – politique de signalement des vulnérabilités
 - [`docs/`](../../docs/) – spécifications d’implémentation, audits et documents de conception plus détaillés
 

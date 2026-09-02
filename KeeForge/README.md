@@ -22,5 +22,5 @@ Each subfolder's `CLAUDE.md` loads automatically when you work in it; `Services/
 ## Working Rules
 
 - Start from the folder that owns the behavior, then open the matching tests before changing code.
-- If a change crosses app and extension boundaries, check both `../AutoFillExtension/CLAUDE.md` and `../project.yml`.
+- If a change crosses app and extension boundaries, check both `../AutoFillExtension/AGENTS.md` and `../project.yml`.
 - Adding files: folder globs vs. the AutoFill allow-lists — see `AGENTS.md` → Workflows.

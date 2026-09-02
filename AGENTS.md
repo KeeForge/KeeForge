@@ -1,6 +1,6 @@
 # AGENTS.md
 
-Entry point for coding agents working on KeeForge. This file is intentionally brief; most useful guidance now lives in folder-local `README.md` files next to the code.
+Entry point for coding agents working on KeeForge. This file is intentionally brief; most useful guidance now lives in folder-local docs next to the code.
 
 ## High level guidance
 
@@ -21,10 +21,11 @@ Entry point for coding agents working on KeeForge. This file is intentionally br
 
 ## Open The Local Doc First
 
-Folders that own source files carry a `CLAUDE.md`, which loads on its own when you work
-in them — `KeeForge/{App,Models,ViewModels,Extensions}`, every `KeeForge/Services/*` and
-`KeeForge/Views/*` subfolder, `AutoFillExtension`, `KeeForgeTests` (and its `Support`),
-and `KeeForgeMacUITests`. The docs below are read on demand:
+Folders that own source files carry an `AGENTS.md`, with a `CLAUDE.md` symlink beside it
+so the doc loads on its own when you work in them — `KeeForge/{App,Models,ViewModels,Extensions}`,
+every `KeeForge/Services/*` and `KeeForge/Views/*` subfolder, `AutoFillExtension`,
+`KeeForgeTests` (and its `Support`), and `KeeForgeMacUITests`. Edit the `AGENTS.md`;
+never replace the symlink with a second copy. The docs below are read on demand:
 
 - `KeeForge/README.md` — app-target map and cross-cutting flows that span folders
 - `KeeForge/Services/README.md` — save-path split, App Group and Keychain boundaries, shared AutoFill allow-list rules
@@ -62,7 +63,7 @@ Use `keeforge-github-issues` for every GitHub issue mutation.
 
 - Put temporary agent artifacts such as handoff prompts, investigation notes, and scratch scripts under `scratch/`; it is gitignored and must not contain files intended to ship.
 - App and Mac targets use folder globs in `project.yml`, so `xcodegen generate` alone picks up new files. Invariant: the `KeeForgeAutoFill` and `KeeForgeMacAutoFill` allow-lists in `project.yml` must stay byte-identical — edit both together.
-- When adding new files, update the nearest folder-local `README.md` if the file changes that folder's map, ownership notes, or workflow guidance.
+- When adding new files, update the nearest folder-local doc (`AGENTS.md`, or `README.md` where the folder has one) if the file changes that folder's map, ownership notes, or workflow guidance.
 - Do not update `docs/specs` for new code changes unless explicitly asked. These specs are mostly historical artifacts, not living implementation docs.
 - When changing code shared with `AutoFillExtension`, keep extension-safe imports/APIs and target membership in sync.
 - When adding or changing database creation, edit operations, KDBX parser/writer behavior, protected fields, unknown XML handling, AutoFill save, cloud save, or local save, update `KeeForgeTests/KDBXCompatibilityTests.swift` and the compatibility artifact gate if the supported compatibility matrix changes.

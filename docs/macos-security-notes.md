@@ -253,7 +253,7 @@ The memory ceiling is a separate constraint with a security edge:
 `KDFExecutionPolicy.autoFillExtension` bounds what a hostile KDBX header can ask
 the extension to allocate. It is the **only** KDF guard on macOS, where
 `os_proc_available_memory` does not exist and the iOS pre-flight has nothing to
-read (`AutoFillExtension/CLAUDE.md`).
+read (`AutoFillExtension/AGENTS.md`).
 
 ## Sparkle update channel — direct builds only
 

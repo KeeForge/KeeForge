@@ -551,7 +551,7 @@ struct EntryEditView: View {
     ///
     /// The strip carries a container identifier but is also declared an
     /// accessibility container, so the chips keep their own identifiers instead
-    /// of inheriting the strip's (see `CLAUDE.md`).
+    /// of inheriting the strip's (see `AGENTS.md`).
     @ViewBuilder
     private var tagSuggestionStrip: some View {
         let suggestions = formViewModel.tagSuggestions

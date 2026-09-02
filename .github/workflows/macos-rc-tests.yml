@@ -6,7 +6,7 @@ name: macOS RC Tests
 # shared KeeForgeTests sources against the Mac app). KeeForgeMacUITests is
 # deliberately NOT run here: those tests drive real windows and need an
 # unlocked, active login session, which a headless GitHub runner does not have
-# (see KeeForgeMacUITests/CLAUDE.md). They stay a local pre-release step.
+# (see KeeForgeMacUITests/AGENTS.md). They stay a local pre-release step.
 #
 # Trigger mirrors the iOS RC gate: one rc/{version}-b{build} tag per candidate
 # build, pushed from a release/{major}.{minor} branch. rc tags are permanent and

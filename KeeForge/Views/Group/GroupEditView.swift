@@ -232,7 +232,7 @@ struct GroupEditView: View {
     /// field rather than an empty container.
     ///
     /// Declared an accessibility container so the pills keep their own
-    /// identifiers instead of inheriting the strip's (see `CLAUDE.md`).
+    /// identifiers instead of inheriting the strip's (see `AGENTS.md`).
     @ViewBuilder
     private var appliedTagStrip: some View {
         if formViewModel.tags.isEmpty == false {
