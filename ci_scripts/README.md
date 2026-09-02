@@ -11,6 +11,34 @@ This folder holds small scripts used by Xcode Cloud and local build setup.
 - `build_mac_direct.sh` archives, exports, notarizes and staples the **Developer ID direct-download** macOS build, then emits the zip the Sparkle appcast serves. It regenerates the project from `project-direct.yml` first (the overlay spec that adds Sparkle and defines `KEEFORGE_DIRECT_DOWNLOAD`) and restores the App Store spec on exit. It refuses to submit anything to Apple unless the exported app is sandboxed, has no `get-task-allow`, and carries no `com.apple.security.cs.*` exception. Needs a Developer ID certificate and a `notarytool` keychain profile. The Developer ID provisioning profiles for `com.keevault.app` and `com.keevault.app.autofill` are not a prerequisite — the archive and export pass `-allowProvisioningUpdates`, and Xcode creates both on demand. The Mac App Store build does **not** go through this script. It finishes by signing the zip with `sign_update` — located inside the Sparkle SPM artifact bundle in the run's own derived data, so there is no tool to install — and printing a ready-to-paste appcast `<item>`.
 - `make_appstore_screenshots.py` formats raw screenshots into App Store-ready images, for either listing: `--platform iphone` (the default) reads `build/screenshots` and writes `build/appstore` at 1320×2868; `--platform mac` reads `build/screenshots-mac` and writes `build/appstore-mac` at 2880×1800, landscape, with the window sitting whole on the canvas rather than bleeding off the bottom edge the way a phone does. It does not capture the raw screenshots itself — see its header comment for the `xcodebuild`/`xcresulttool` steps per platform, including the opt-in gates each capture class requires (`TEST_RUNNER_APPSTORE_SCREENSHOTS=1` for `AppStoreScreenshots`, `TEST_RUNNER_SCREENSHOT_AUDIT=1` for `MacScreenshotAuditUITests`; both `XCTSkip` by default, and both variables must be real environment variables on the `xcodebuild` process). It warns when an expected screen was missing from the input directory, so a listing that is short a screen is never mistaken for one that was meant to be.
 
+## Three-channel release evidence
+
+One `rc/{version}-b{repoBuild}` tag is the identity for one candidate. All four product targets
+(`KeeForge`, `KeeForgeAutoFill`, `KeeForgeMac`, and `KeeForgeMacAutoFill`) carry the same marketing
+version and globally monotonic `CURRENT_PROJECT_VERSION`; never reset the repo build for a new
+minor, major, patch, or respin. The direct Mac build's `CFBundleVersion` equals that repo build.
+Xcode Cloud may assign separate iOS and Mac App Store TestFlight build numbers, so do not force
+them to match the repo build or each other: match both processed builds back to the RC tag/SHA.
+
+The candidate manifest is working evidence at
+`scratch/release-manifests/{version}-b{repoBuild}.json`. It records `schemaVersion`, version/repo
+build/tag/SHA/source tree, iOS and Mac TestFlight build numbers and version-record identifiers,
+distribution timestamps and soak metrics, the Xcode Cloud/iOS GitHub/macOS GitHub verdict URLs,
+both KDBX gate logs, local Mac smoke result, direct zip filename/URL/SHA-256, Sparkle signature,
+notarization submission ID, archive/symbol paths, review states, release timestamps, and accepted
+exceptions. It must contain no passwords, tokens, credentials, private keys, keychain profiles, or
+cloud secret values. Preserve the completed non-secret manifest with final release evidence; the
+scratch copy is not a source of secrets or a release trigger.
+
+The RC gates are all required before external distribution: Xcode Cloud's iOS/Mac test-and-archive
+workflow, `.github/workflows/ios18-rc-tests.yml`, `.github/workflows/macos-rc-tests.yml`, both
+invocations of `run_kdbx_compatibility_gate.sh` (iOS and `KDBX_COMPAT_SCHEME=KeeForgeMac`), and the
+unlocked local `KeeForgeMacUITests/MacSmokeUITests`. After the MAS archive, build and stage the
+direct artifact from the same clean SHA; do not publish its GitHub Release asset or production
+appcast until both App Store submissions have code approval and the final go decision. The first
+coordinated launch uses manual release for both App Store records; preserve existing rating and
+make any macOS phased-release choice only when explicitly decided.
+
 ## KDBX Compatibility Gate
 
 1. Run `-only-testing:KeeForgeTests/KDBXCompatibilityTests` (or `KeeForgeMacTests/KDBXCompatibilityTests` under `KDBX_COMPAT_SCHEME=KeeForgeMac` — the Mac test target compiles the same sources). The matrix suite writes each scenario's `.kdbx` bytes as an XCTAttachment on the way past its own assertions — there is no separate artifact-only test re-running the (Argon2-expensive) scenarios.
