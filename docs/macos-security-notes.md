@@ -328,9 +328,10 @@ manual test on a disposable Mac or VM; it is not a production publication
 procedure. Never place the private key, a vault password, or a token in a
 command, appcast, screenshot, or log.
 
-1. Confirm that the recovery copy of the Sparkle EdDSA private key is already
-   stored in the KeeForge vault and an off-machine backup. Do not generate,
-   export, or print it during the rehearsal. Prepare two direct-download apps:
+1. [x] User-attested prerequisite: the recovery copy of the Sparkle EdDSA
+   private key is backed up. Do not record its contents or location, and do not
+   generate, export, or print it during the rehearsal. Prepare two
+   direct-download apps:
    an older notarized/stapled build and the newer notarized/stapled build that
    will be tested. They must use the same key pair and the same planned
    `arm64,x86_64` architecture set.
