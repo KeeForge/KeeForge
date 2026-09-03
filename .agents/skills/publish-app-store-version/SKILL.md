@@ -87,7 +87,7 @@ If the requested build is absent from TestFlight, stop and report it. Do not sta
   unresolved ASC verification placeholders; it is not a substitute for the
   live Mac version page.
 - Preserve the existing reviewer note unless it is incorrect. It should tell the reviewer that the compressed test database is attached and give the password.
-- App Store localizations: verify against the version page in App Store Connect (last known: English (U.S.), French, German, Russian, Spanish (Spain); consider adding Simplified/Traditional Chinese since the app ships them in-app as of 1.14.0).
+- App Store localizations: the existing iOS listing was last observed with English (U.S.), Simplified Chinese, Traditional Chinese, French, German, Russian, and Spanish (Spain). The native Mac version page is not yet evidence for any locale; after it exists, treat that page as the only source of truth and do not assume the iOS set transfers.
 - Release manifest: `scratch/release-manifests/{version}-b{repoBuild}.json`. Verify both processed
   platform build numbers map to the same RC tag/SHA and that `directCFBundleVersion` equals
   `repoBuild` before changing App Store Connect. The manifest may contain hashes, URLs, IDs,
@@ -117,16 +117,17 @@ Do not create a duplicate version if it already exists.
 
 ### 3. Verify export compliance
 
-`KeeForge/Info.plist` declares `ITSAppUsesNonExemptEncryption` as `false`, so App Store Connect
-normally resolves compliance from the build metadata without prompting. Verify it shows as
-resolved rather than assuming it.
+`KeeForge/Info.plist` declares `ITSAppUsesNonExemptEncryption=false`; App Store Connect
+may resolve that build declaration from metadata without prompting. Verify the actual platform
+record rather than assuming it, and do not treat that declaration as a determination about any
+separate legal questionnaire or document.
 
-If App Store Connect still asks, KeeForge implements standard encryption outside or in addition to Apple's operating-system encryption. Inspect the previous accepted build's **Build Metadata** first so the declaration stays consistent with prior submissions. The recorded declaration path is:
+If App Store Connect still asks, KeeForge implements standard encryption outside or in addition to Apple's operating-system encryption. Inspect the previous accepted build's **Build Metadata** and the exact current question text first. The historical record below is context only, not an answer to reuse:
 
 1. **Standard encryption algorithms instead of, or in addition to, using or accessing the encryption within Apple's operating system**
-2. **No** for availability in France
+2. A historical record once contained **No** for a France-related question; do not reuse or infer that answer. The live app record is publicly available in France, so leave France available by default unless the exact current question, accepted iOS declaration, and an owner/legal decision at action time require otherwise.
 
-These are legal declarations. Present the exact choices and obtain explicit user confirmation at action time before saving them. If the user's answer differs, follow the user rather than this recorded precedent.
+These are legal declarations. Present the exact choices and obtain explicit user confirmation at action time before saving them. Never infer a questionnaire answer from `ITSAppUsesNonExemptEncryption`, store availability, or this historical note.
 
 ### 4. Attach the build
 
@@ -216,7 +217,7 @@ Run this list once per platform in play.
 - The attached build is the exact soaked build number from the handoff, not merely the newest.
 - Exact build is processed and attached.
 - Export compliance is complete.
-- France availability is consistent with the compliance declaration.
+- Store availability is verified as intended (France remains on by default); any separate legal declaration is independently verified against the exact current question and accepted iOS record.
 - Release notes are saved for every localization listed on the version page.
 - Reviewer note includes the fixture password.
 - `test.kdbx.zip` is visibly attached.

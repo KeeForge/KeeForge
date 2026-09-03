@@ -1,9 +1,9 @@
 # KeeForge Mac App Store listing and reviewer metadata
 
 Package 9 local preparation record. This file is a paste-ready draft, not an
-App Store Connect write. It was prepared 2026-09-02 while the ASC UI was
-locked; do not mark package 9 complete until every field is verified and saved
-on the Mac version page.
+App Store Connect write. It was prepared 2026-09-02 from repository evidence
+and a read-only inspection of the signed-in ASC session; do not mark package 9
+complete until every field is verified and saved on the Mac version page.
 
 ## Source of truth and scope
 
@@ -14,19 +14,49 @@ on the Mac version page.
   WebDAV. Its cloud OAuth surface deliberately excludes Dropbox and OneDrive.
   Do not copy the broader iOS README's Dropbox/OneDrive claims into the Mac
   listing.
-- `KeeForgeMac/Info.plist` declares `ITSAppUsesNonExemptEncryption` as
-  `false`, `LSApplicationCategoryType` as
-  `public.app-category.utilities`, and the `otpauth` URL scheme. It has no
+- `KeeForgeMac/Info.plist` declares `ITSAppUsesNonExemptEncryption=false`,
+  `LSApplicationCategoryType=public.app-category.utilities`, and the `otpauth`
+  URL scheme. It has no
   Dropbox or OneDrive URL schemes or client-ID keys.
-- The repository-known privacy URL is
-  `https://keeforge.com/privacy`. The repository-known contact is
-  `support@keeforge.com`; no dedicated support-page URL is established here.
-  Never invent one or use the privacy URL as a support URL without confirmation.
+- The existing iOS ASC listing has copyright `© 2026 Jia Tan`, Support URL
+  `https://github.com/KeeForge/KeeForge?tab=readme-ov-file#support`, and
+  Marketing URL `https://keeforge.com/`. The repository-known privacy URL is
+  `https://keeforge.com/privacy`; verify that it is accepted and displayed on
+  the Mac version page before saving.
 - In-app shipped locales are English, German, French, Spanish, Simplified
-  Chinese, and Traditional Chinese. The last-known ASC locale set for this
-  listing is English (U.S.), French, German, Russian, and Spanish (Spain).
-  Treat the Chinese drafts below as additions pending ASC confirmation; treat
-  the ASC page as the source of truth for what must be saved.
+  Chinese, and Traditional Chinese. Read-only ASC inspection confirms the
+  existing iOS listing's locale set is English (U.S., primary), Chinese
+  (Simplified), Chinese (Traditional), French, German, Russian, and Spanish
+  (Spain). The native Mac version page does not yet exist; treat it as the
+  source of truth for what must be saved and do not assume this iOS set transfers.
+- The existing iOS listing is version `1.15.0`, build `52`, Ready for
+  Distribution. Its current release setting is automatic after approval. The
+  recommended default for the first coordinated native Mac launch is manual
+  release for both platform records; phased Mac release is optional and not
+  yet chosen.
+- The existing app record is free and public, available in 175 countries
+  including France. Apple-silicon Mac availability for the iPhone/iPad app is
+  enabled with automatic minimum macOS 15.0; compatibility is not verified and
+  version `1.15.0` is listed compatible. This is the legacy iPad-on-Mac path,
+  not evidence that a native Mac platform has been added.
+- The native Mac platform and universal purchase are not configured yet. The
+  intended product choice is one app record with universal purchase, pending
+  the explicit account-level ASC setup decision; do not describe it as current
+  availability.
+- The current categories are primary Productivity and secondary Utilities.
+  The Mac plist's Utilities category is not authorization to change ASC
+  categories.
+- The current age rating is 4+ in 172 regions, with regional variants for
+  Brazil, Korea, and Vietnam. Preserve it with **Keep Existing Rating** unless
+  the owner explicitly chooses otherwise.
+- Current ASC screenshots are iPhone/iPad assets only. They cannot satisfy the
+  native Mac listing; package 11 must produce and review Mac-sized screenshots.
+- ASC has an encryption documentation/legal section. Verify its exact
+  requirement and current state on the Mac record; the
+  `ITSAppUsesNonExemptEncryption` value of `false` is a build declaration,
+  not proof that a separate questionnaire or document is unnecessary. Check
+  the accepted iOS declaration and obtain
+  action-time confirmation before saving any legal answer or document.
 - This is listing copy for the native macOS product. It must not imply that
   Dropbox or OneDrive work on Mac, that WebDAV is required, or that a user must
   sign in.
@@ -75,8 +105,9 @@ KeePass,KDBX,password,AutoFill,WebDAV,TOTP,passkeys,security
 **Copyright / support / privacy:**
 
 ```text
-Copyright: [ASC VERIFY: existing copyright value; do not invent]
-Support URL: [ASC VERIFY: existing HTTPS support URL; repo only confirms support@keeforge.com]
+Copyright: © 2026 Jia Tan
+Support URL: https://github.com/KeeForge/KeeForge?tab=readme-ov-file#support
+Marketing URL: https://keeforge.com/
 Privacy Policy URL: https://keeforge.com/privacy
 ```
 
@@ -95,7 +126,7 @@ requires each locale. Keep product terms such as KeeForge, KeePass, KDBX,
 AutoFill, WebDAV, TOTP, and passkeys recognizable. The English copy above is
 the paste-ready source; have a human review any translation before saving.
 
-### fr — last-known ASC locale
+### fr — existing iOS ASC locale
 
 **Subtitle:** `Coffre KeePass pour Mac`
 
@@ -119,7 +150,7 @@ La première version native pour Mac ne se connecte pas à Dropbox ni à OneDriv
 
 **Keywords:** `KeePass,KDBX,mot de passe,AutoFill,WebDAV,TOTP,passkeys,sécurité`
 
-### de — last-known ASC locale
+### de — existing iOS ASC locale
 
 **Subtitle:** `KeePass-Tresor für Mac`
 
@@ -143,7 +174,7 @@ Die erste native Mac-Version verbindet sich nicht mit Dropbox oder OneDrive. Fü
 
 **Keywords:** `KeePass,KDBX,Passwort,AutoFill,WebDAV,TOTP,Passkeys,Sicherheit`
 
-### ru — last-known ASC locale
+### ru — existing iOS ASC locale
 
 **Subtitle:** `KeePass-хранилище для Mac`
 
@@ -167,7 +198,7 @@ Die erste native Mac-Version verbindet sich nicht mit Dropbox oder OneDrive. Fü
 
 **Keywords:** `KeePass,KDBX,пароль,AutoFill,WebDAV,TOTP,passkey,безопасность`
 
-### es-ES — last-known ASC locale
+### es-ES — existing iOS ASC locale
 
 **Subtitle:** `Bóveda KeePass para Mac`
 
@@ -191,7 +222,7 @@ La primera versión nativa para Mac no se conecta a Dropbox ni OneDrive. Para ac
 
 **Keywords:** `KeePass,KDBX,contraseña,AutoFill,WebDAV,TOTP,passkeys,seguridad`
 
-### zh-Hans — addition pending ASC confirmation
+### zh-Hans — existing iOS ASC locale (Chinese Simplified)
 
 **Subtitle:** `Mac 上的 KeePass 密库`
 
@@ -215,7 +246,7 @@ La primera versión nativa para Mac no se conecta a Dropbox ni OneDrive. Para ac
 
 **Keywords:** `KeePass,KDBX,密码,AutoFill,WebDAV,TOTP,passkey,安全`
 
-### zh-Hant — addition pending ASC confirmation
+### zh-Hant — existing iOS ASC locale (Chinese Traditional)
 
 **Subtitle:** `Mac 上的 KeePass 保管庫`
 
@@ -300,30 +331,37 @@ checked against the current ASC UI before saving. Keywords are a byte limit,
 not a character limit; recheck UTF-8 byte length for every translated keyword
 set. If ASC displays a different limit, its UI wins.
 
-- **Support URL:** unknown. Verify the existing Mac record or obtain an
-  approved HTTPS support page. Do not fabricate a URL; the repo only establishes
-  `support@keeforge.com`.
+- **Support URL / marketing URL / copyright:** verified on the existing iOS
+  listing as the values recorded above. Reconfirm that the Mac version page
+  inherits or accepts the same values before saving; do not silently substitute
+  another URL.
 - **Privacy URL:** repo-known `https://keeforge.com/privacy`; verify that ASC
   accepts and displays it for the Mac locale/version.
-- **Category:** the plist-derived category is Utilities
-  (`public.app-category.utilities`). Verify the ASC primary/secondary category;
-  do not infer or change it from the plist alone.
-- **Age rating:** exact ASC rating answers are not established in the repo.
-  Verify the existing rating and choose **Keep Existing Rating** unless the user
-  explicitly directs a change. Do not invent an age rating.
-- **France:** verify the current availability/compliance setting. The recorded
-  export-compliance precedent in the publish skill is “No” for availability in
-  France, but this draft is not authorization to change it.
+- **Category:** existing ASC values are primary Productivity and secondary
+  Utilities. Preserve them unless the owner explicitly chooses a Mac-specific
+  category change; do not infer a change from the plist alone.
+- **Age rating:** existing ASC value is 4+ in 172 regions, with Brazil, Korea,
+  and Vietnam regional variants. Choose **Keep Existing Rating** unless the
+  owner explicitly directs a change.
+- **Availability / France:** retain the app's public France availability by
+  default and verify the Mac version has the intended country availability.
+  A prior export-compliance record contained “No” for a France-related question,
+  but that is historical context only and conflicts with the live public France
+  availability. Inspect the exact accepted iOS declaration and current Mac
+  question text before considering it; never reuse or infer the answer. This
+  draft is not authorization to save a legal answer or change availability.
 - **Export compliance:** verify `ITSAppUsesNonExemptEncryption = false` resolves
-  on the Mac build. If ASC asks for the legal questionnaire, use the prior
-  accepted declaration only after action-time confirmation; do not silently
-  save a new answer.
-- **Release controls:** verify **Manually release this version** for the Mac
-  record (and iOS if coordinated), and preserve the existing rating. Do not
-  select automatic release.
-- **Locales:** last-known ASC locales are en-US, fr, de, ru, and es-ES. Confirm
-  the Mac page's actual list; zh-Hans and zh-Hant are additions pending that
-  confirmation.
+  on the Mac build. If ASC asks for a legal questionnaire or document, read the
+  exact current question text and accepted iOS Build Metadata; do not reuse a
+  historical answer without action-time owner confirmation immediately before
+  saving it.
+- **Release controls:** the recommended default is **Manually release this
+  version** for both platform records for the coordinated launch, preserving
+  the existing rating. Phased release for Mac is optional and not yet chosen;
+  do not select it without an explicit owner decision.
+- **Locales:** the verified existing iOS ASC locale set is en-US (primary),
+  zh-Hans, zh-Hant, fr, de, ru, and es-ES. Confirm the Mac page still exposes
+  exactly these locales before saving all seven.
 - **Screenshots/build:** not part of this local metadata draft. The final Mac
   screenshots and exact soaked RC build remain required before submission.
 
@@ -354,17 +392,20 @@ What's New in This Version (template — do not paste yet)
   locale shown on the Mac version page.
 - [ ] Support URL is verified (not invented); privacy URL is
   `https://keeforge.com/privacy` and is verified in ASC.
-- [ ] Contact information is populated; reviewer note includes the attached
-  `/Users/tan/Documents/test.kdbx.zip` and password `testpassword123`.
+- [ ] Contact information is populated; reviewer note identifies the attached
+  `test.kdbx.zip` and password `testpassword123`.
 - [ ] Attachment visibly shows `test.kdbx.zip`; upload only that exact file if
   it is absent.
 - [ ] Reviewer note says local files and optional WebDAV work, Dropbox and
   OneDrive are unavailable on native Mac, no sign-in is required, and AutoFill
   is enabled at System Settings → General → AutoFill & Passwords.
 - [ ] Export compliance resolves as `ITSAppUsesNonExemptEncryption = false`;
-  France setting is checked for consistency.
+  any separate legal/documentation request is handled only after reading the
+  exact current question and accepted iOS Build Metadata, with action-time
+  owner confirmation before saving; public France availability is preserved
+  unless an explicitly confirmed legal/product decision says otherwise.
 - [ ] **Manually release this version** and **Keep Existing Rating** are
-  verified; no automatic release is selected.
+  verified; no automatic or unchosen phased release is selected.
 - [ ] Final RC release notes are derived from the matching versioned changelog
   section only, and saved for every locale ASC lists.
 - [ ] Add for Review is staged and reaches Ready for Review. Do not click

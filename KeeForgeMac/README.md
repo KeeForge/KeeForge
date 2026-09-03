@@ -6,7 +6,7 @@ Configuration folder for the native macOS app target — only `Info.plist` and `
 
 No longer on hold — the Mac app is being brought to a shippable state, but it **has not shipped yet**. Authoritative status and the remaining pre-release checklist: `CHANGELOG.md` under `## macOS App`. Log macOS work there, not under `## Unreleased` (iOS release notes).
 
-Still open before it can ship: the credential-dependent half of slice 07 (`docs/specs/2026-07-12-macos-port/07-distribution.md`) — notarization credentials, an EdDSA key and appcast hosting — plus the manual QA matrix. The Developer ID certificate is in place, and the provisioning profiles are not a manual step: Xcode creates them on demand when the archive and export pass `-allowProvisioningUpdates`, which `ci_scripts/build_mac_direct.sh` does. The in-repo plumbing for both channels is in place (see "Distribution Channels" below).
+Still open before it can ship: the credential-dependent half of slice 07 (`docs/specs/2026-07-12-macos-port/07-distribution.md`) — notarization credentials, the live Sparkle trust-chain rehearsal, and production appcast hosting verification — plus the manual QA matrix. The Sparkle EdDSA recovery-copy backup is complete; the private key remains in the login Keychain. The Developer ID certificate is in place, and the provisioning profiles are not a manual step: Xcode creates them on demand when the archive and export pass `-allowProvisioningUpdates`, which `ci_scripts/build_mac_direct.sh` does. The in-repo plumbing for both channels is in place (see "Distribution Channels" below).
 
 ## AutoFill Provider Missing From System Settings
 
@@ -44,16 +44,16 @@ Diagnosing this on a Mac: launch with `-autofill-store-inspector` (DEBUG only) a
 
 ## Moving Off The iOS App On A Mac
 
-**Withdrawing Mac availability for the iOS app is an open product decision, not a fix.** It was recorded here as the resolution for the AutoFill bug above; that diagnosis was wrong, and the native provider now appears with the iOS app's availability untouched. What is left is the ordinary question of whether two KeeForge builds should be installable on one Mac. The arguments for withdrawing are that exactly one bundle then owns `com.keevault.app`, and that users are not left choosing between two apps with the same name and icon — neither is functional, and nothing below depends on the answer.
+**Withdrawing Mac availability for the iOS app is an open product decision, not a fix.** It was recorded here as the resolution for the AutoFill bug above; that diagnosis was wrong, and the native provider now appears with the iOS app's availability untouched. Recommended default: keep the legacy iPad-on-Mac availability through native Mac launch and a verified transition, then decide whether to withdraw it. What is left is the ordinary question of whether two KeeForge builds should be installable on one Mac. The arguments for withdrawing are that exactly one bundle then owns `com.keevault.app`, and that users are not left choosing between two apps with the same name and icon — neither is functional, and nothing below depends on the answer.
 
-Whichever way that goes, a user who has been running "Designed for iPad" KeeForge on a Mac and then installs the native app needs a migration answer: withdrawing availability stops new installs but does not remove existing ones, and Apple gives no migration path between the two containers. What actually has to move:
+Whichever way that goes, a user who has been running "Designed for iPad" KeeForge on a Mac and then installs the native app needs a migration answer: withdrawing availability stops new installs but does not remove existing ones, and Apple gives no migration path between the two containers. The behaviors below are expected design rules, not production-observed compatibility, until the recoverable sequential probe populates the matrix. What actually has to move:
 
 - **Local databases** live inside the iOS app's own container and are not visible to the Mac app's sandbox. The user exports each one (Database Details → Export) to somewhere in their own filesystem, then adds it in the native app. Nothing is converted — it is the same `.kdbx` either way.
 - **Security-scoped bookmarks do not transfer.** A database the iOS-on-Mac app could reopen silently has to be picked once in the native app; that is inherent to a different app container, not a bug.
 - **Cloud and WebDAV databases** are re-added by connecting the account again in the native app. The remote file is untouched, so no export step is involved; only the connection is new.
-- **Keychain items are shared**, so a database whose composite key was stored for Touch ID unlock keeps working once the same database is added to the native app — both bundles carry the `com.keevault.sharedkeychain` access group.
+- **Keychain sharing is expected but unproven in production.** Both bundles carry the `com.keevault.sharedkeychain` access group, so a stored composite key may remain usable once the same database is added to the native app; the real transition probe must verify this without exposing key material.
 - **AutoFill has to be re-enabled once**, in System Settings → General → AutoFill & Passwords, pointing at the native app. Both bundles claim the same extension identifier and macOS resolves an identifier to a single winner, so which one the pane offers with both installed is untested. If the native provider does not appear, check for a competing registration with the `pluginkit` command above.
-- **Nothing is deleted by the transition.** The iOS app's container survives until the user removes the app themselves, so the export step can be repeated if something was missed. Say so explicitly wherever this is written up for users — the failure mode people fear here is losing a vault.
+- **Do not promise that the legacy container survives a native install.** The iOS and native apps (and their extensions) reuse bundle identities, so installation can replace or rebind the app, container, or provider. Preserve the legacy source with a backup/snapshot or other recoverable sequential harness before installing the native build. Only promise preservation that the completed production probe and documented migration path actually establish.
 
 One release task falls out of this regardless of the decision: the direct-download and Mac listing pages on keeforge.com need the migration steps as user-facing copy. If Mac availability for the iOS app is withdrawn, that App Store Connect change should land only after the native app is live, so nobody is left without either.
 
@@ -86,11 +86,11 @@ These are fixture-only or implementation-level outcomes, not production migratio
 
 ### Production fixture compatibility matrix
 
-Every row is intentionally **not observed** because the current machine has no installed App Store “Designed for iPad” KeeForge build from which to seed the fixture. The status must not be promoted to automatic, file re-selection, reconnection, cache recovery, or manual export until a real transition is exercised.
+Every row is intentionally **not observed** because the installed App Store “Designed for iPad” KeeForge build has not been launched or seeded with these fixtures. The status must not be promoted to automatic, file re-selection, reconnection, cache recovery, or manual export until a real transition is exercised.
 
 | Existing iPad-on-Mac fixture | Native outcome | What remains required |
 | --- | --- | --- |
-| Local database | **Not observed** | Install the current App Store build, create/open a local fixture, then inspect native visibility without deleting the source |
+| Local database | **Not observed** | In a backed-up/snapshotted or sacrificial sequential harness, install the current App Store build, create/open a local fixture, preserve the source, then test the native app; do not assume same-Mac side-by-side coexistence |
 | External file and security-scoped bookmark | **Not observed** | Seed an iOS-created bookmark and resolve it from the native sandbox; the fixture-only bookmark tests do not establish cross-container transfer |
 | Key-file database and key-file bookmark | **Not observed** | Seed a real iOS key-file reference, then test native resolution and the failed/reselection path |
 | Stored composite key | **Not observed** | Seed a real stored key, then test native unlock through the shared keychain group; no Keychain secret may be logged |
@@ -159,7 +159,7 @@ Two standing constraints behind the table:
 
 One target, two channels, chosen when the project is generated rather than when it is built:
 
-- `xcodegen generate` — **Mac App Store**: no Sparkle in the binary, StoreKit tip jar, universal purchase with iOS. The default, so every ordinary workflow and every CI job builds this.
+- `xcodegen generate` — **Mac App Store**: no Sparkle in the binary and StoreKit tip jar. Universal purchase with iOS is intended once the one-time ASC setup is completed; it is not current ASC state. This is the default, so every ordinary workflow and every CI job builds this.
 - `xcodegen generate --spec project-direct.yml` — **Developer ID direct download**: links Sparkle, compiles `KEEFORGE_DIRECT_DOWNLOAD`, shows GitHub Sponsors instead of the tip jar, never calls StoreKit. `ci_scripts/build_mac_direct.sh` drives it and restores the App Store spec on exit.
 
 Two specs rather than two targets: both channels ship an app named `KeeForge.app` (the executable name is inside the signature and cannot be renamed afterwards), and two targets producing the same product path is a hard Xcode error. Separate specs also make the channels mutually exclusive by construction — an App Store build must never contain an updater.
