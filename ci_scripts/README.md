@@ -146,7 +146,7 @@ Xcode, notarization, network access, or keychain access.
 
 KeeForge for Mac ships through two channels from one target. Which one you get is decided at project-generation time, not at build time:
 
-- `xcodegen generate` — **Mac App Store**. No Sparkle in the binary at all, StoreKit tip jar, universal purchase with iOS. This is the default, so every existing workflow and every CI job produces the App Store build.
+- `xcodegen generate` — **Mac App Store**. No Sparkle in the binary at all and a StoreKit tip jar. Universal purchase with iOS is intended after the one-time App Store Connect Mac setup; it is not current ASC state. This is the default, so every existing workflow and every CI job produces the App Store build.
 - `xcodegen generate --spec project-direct.yml` — **Developer ID direct download**. Links Sparkle, compiles with `KEEFORGE_DIRECT_DOWNLOAD`, swaps the tip jar for a GitHub Sponsors link, and never calls StoreKit. Driven by `build_mac_direct.sh`; you should not need to run it by hand.
 
 Two specs rather than two targets because both channels must ship an app called `KeeForge.app` — the executable name is baked into the code signature, so it cannot be renamed afterwards — and two targets declaring the same product path is a hard Xcode error ("Multiple commands produce …/KeeForge.app"). Separate specs also make the channels mutually exclusive by construction, which is the property that matters: an App Store build must never contain an updater.

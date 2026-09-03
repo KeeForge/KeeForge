@@ -109,7 +109,7 @@ alphanumerics only, because it is interpolated into the `db-$(DROPBOX_APP_KEY)`
   normally distribute without re-review. External distribution remains blocked until the Xcode
   Cloud, iOS GitHub Actions, and macOS GitHub Actions verdicts, both local KDBX gates, and local
   Mac smoke are accepted and the manifest maps both processed builds to the same RC SHA.
-- Export compliance does not prompt (`ITSAppUsesNonExemptEncryption` in `KeeForge/Info.plist`).
+- The build declares `ITSAppUsesNonExemptEncryption=false`; verify the actual ASC record and handle any separate legal/documentation question independently with action-time owner confirmation.
 
 ## Public link settings
 

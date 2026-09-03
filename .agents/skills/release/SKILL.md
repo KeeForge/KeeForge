@@ -383,8 +383,9 @@ in App Store Connect, independently for iOS and Mac.
 1. Find both processed builds in App Store Connect under TestFlight for marketing version
    `{version}`. Their numbers may differ from `repoBuild` and from each other because Xcode Cloud
    assigns platform-specific numbers. Match each build to the `rc/{version}-b{repoBuild}` tag and
-   SHA, then record `iosTestFlightBuild` and `macTestFlightBuild` in the manifest. Export compliance
-   does not prompt (see Notes).
+   SHA, then record `iosTestFlightBuild` and `macTestFlightBuild` in the manifest. Verify export
+   compliance on each actual platform record; do not assume the plist declaration resolves every
+   legal or documentation question (see Notes).
 2. Obtain/export the exact MAS `.app` from the accepted Xcode Cloud archive without rebuilding.
    Run the artifact check on that exact exported app:
    ```bash
@@ -735,7 +736,8 @@ Continue with Mode C from C1, reporting against the 24h target in place of 48h.
 - `KeeForgeMacUITests` cannot run on a headless runner — it needs an unlocked, active login session
   — so the Mac smoke suite stays a **local** pre-release step. `.github/workflows/macos-rc-tests.yml`
   covers the Mac unit suite on each `rc/*` tag.
-- `ITSAppUsesNonExemptEncryption` is declared `false` in `KeeForge/Info.plist` and
-  `KeeForgeMac/Info.plist`, so App Store Connect
-  does not ask the export-compliance question per build. It remains a legal declaration: if the
-  app's cryptography changes materially, revisit it rather than assuming the key still applies.
+- `ITSAppUsesNonExemptEncryption=false` is declared in both `KeeForge/Info.plist` and
+  `KeeForgeMac/Info.plist`; ASC may resolve the build declaration from metadata, but the actual
+  platform record must be verified. Any separate legal/documentation question remains independent
+  and requires exact-question review plus action-time owner confirmation. If the app's cryptography
+  changes materially, revisit the declaration rather than assuming it still applies.
