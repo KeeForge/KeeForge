@@ -2,7 +2,7 @@
 
 ## macOS App (in development — preparing the first release)
 
-Not shipped yet. The native port, iOS parity work, keyboard/visual polish, security review, shared unit coverage, Developer ID notarization pipeline, and two-channel build seam are complete. Work the packages below in order; each checkbox is intended to be assignable without rediscovering the release design.
+Not shipped yet. The native port, iOS parity work, keyboard/visual polish, security review, shared unit coverage, Developer ID notarization pipeline, two-channel build seam, and safe File ▸ Close Window (⌘W) locking behavior are complete. Work the packages below in order; each checkbox is intended to be assignable without rediscovering the release design.
 
 Fixed decisions and invariants:
 
@@ -15,8 +15,6 @@ Fixed decisions and invariants:
 - The first native Mac version supports local files and WebDAV, not Dropbox or OneDrive. Recoverable Dropbox/OneDrive caches may become explicitly local, non-syncing vaults; never imply they remain connected.
 - Use GitHub Releases for process-protected direct-download zip hosting: upload the exact asset once and never overwrite it. R2 is not required for v1. The production appcast remains `https://keeforge.com/appcast.xml` and is published only after its zip is final and reachable.
 - Direct builds remain sandboxed, notarized, stapled, and zero-telemetry. MAS builds contain no Sparkle; direct builds contain no StoreKit.
-- File ▸ Close Window (⌘W) is back. Adding Save and Close Database replaced the File-menu group the standard Close item lives in, which took the item and its shortcut with it, leaving the window's own close button as the only way to close it.
-- ⌘W no longer leaves an unlocked vault behind a closed window. Closing the last window is a lock trigger, but it fires on `NSWindow.willCloseNotification` — after the close is committed — and the two states that defer a lock instead of taking it (an editor holding unsaved fields, a draft whose write already failed) prompt from views that go away with the window. So ⌘W with unsaved work dropped the user on the desktop with the session key, the composite key and the whole tree still decrypted in memory, no prompt on screen, and no timer that would ever fire. `MacWindowCloseGuard` now answers `windowShouldClose(_:)` first: nothing unsaved closes as before, an open editor gets its own Save / Discard / Keep Editing prompt, and a dirty draft gets the standard Save / Don't Save / Cancel. Cancel keeps the window and the session; anything else closes the window once the vault has locked.
 
 ### Phase 1 — Make the release machinery three-channel
 
