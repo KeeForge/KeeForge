@@ -171,6 +171,13 @@ targets:
         CURRENT_PROJECT_VERSION: "2"
         CLOUD_KEYCHAIN_ACCESS_GROUP: $(AppIdentifierPrefix)com.keevault.sharedkeychain
         GENERATE_INFOPLIST_FILE: false
+        # Sparkle authenticates the direct-download channel only. Both values
+        # are set project-wide by BuildConfig.local.xcconfig, so the App Store
+        # target blanks them here — otherwise it ships a live update feed URL
+        # and public key it has no Sparkle to use. project-direct.yml inherits
+        # the real values back.
+        SPARKLE_FEED_URL: ""
+        SPARKLE_PUBLIC_ED_KEY: ""
         SWIFT_EMIT_LOC_STRINGS: "YES"
         LOCALIZATION_PREFERS_STRING_CATALOGS: "YES"
     dependencies:
