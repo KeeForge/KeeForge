@@ -31,6 +31,12 @@ targets:
     settings:
       base:
         SWIFT_ACTIVE_COMPILATION_CONDITIONS: $(inherited) KEEFORGE_DIRECT_DOWNLOAD
+        # project.yml blanks these at target level so the App Store build never
+        # advertises an update feed. This is the only channel that links
+        # Sparkle, so it is the only one that takes the project-level values
+        # BuildConfig.local.xcconfig supplies.
+        SPARKLE_FEED_URL: $(inherited)
+        SPARKLE_PUBLIC_ED_KEY: $(inherited)
     # Appended to the dependencies project.yml already declares — XcodeGen
     # merges lists from an include rather than replacing them, so restating the
     # others here would register each one twice.

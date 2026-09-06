@@ -287,6 +287,15 @@ is declared in `project-direct.yml`, an overlay spec, so a plain
 `xcodegen generate` produces a project with no Sparkle package in it at all.
 There is no runtime flag to get this wrong.
 
+The Info.plist keys are a separate question from the code, and they did get it
+wrong. `KeeForgeMac/Info.plist` is shared by both channels and fills `SUFeedURL`
+and `SUPublicEDKey` from build settings; those settings come from
+`BuildConfig.local.xcconfig`, which applies to the whole project, so the App
+Store build shipped a live feed URL and public key it had no Sparkle to read.
+Inert, but it advertised an update channel in a Mac App Store binary. `project.yml`
+now blanks both settings on the `KeeForgeMac` target and `project-direct.yml`
+inherits them back, which puts the safe value on the default spec.
+
 The channel boundary is also checked after export by
 `ci_scripts/verify_mac_artifact.sh`. It requires the MAS artifact to have no
 Sparkle framework, updater XPC, feed, public key, or updater strings, and the
