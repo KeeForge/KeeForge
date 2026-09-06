@@ -4,34 +4,44 @@ One-time App Store Connect setup. Read this if archives or TestFlight uploads ar
 expected, or when reconfiguring Xcode Cloud. Everything here is configured in the App Store Connect
 web UI; none of it lives in this repo.
 
-## Audited current state
+## Configured state
 
-Read-only audit on 2026-09-02 (do not treat this section as a substitute for verifying the
-live account before setup):
+Configured on 2026-09-06 in the App Store Connect web UI (verify the live account before
+relying on this; Apple can change the UI and the account can drift):
 
-- KeeForge is App Store Connect app Apple ID `6759309295`. The app record currently has only
-  the iOS platform and only an iOS TestFlight build surface; no native macOS platform, version,
-  build surface, or native Mac external-testing group exists.
-- The active **Tests (RC)** workflow currently has only **Test - iOS**, **Archive - iOS**, and
-  **TestFlight External Testing - iOS**. Its `rc/*` tag trigger is active. The **Release**
-  workflow exists but is deactivated.
-- `DROPBOX_APP_KEY` and `ONEDRIVE_CLIENT_ID` are present in the active workflow and their values
-  are masked in the UI; whether each variable has the Secret/redaction flag enabled was not
-  verified. Never record or expose their values.
-- The existing external group is exactly **KeeForge Test**. Its public link and 300-tester cap
-  are already documented below. Tester counts and build numbers seen during this audit are
-  transient observations, not configuration requirements.
+- KeeForge is App Store Connect app Apple ID `6759309295`. The app record now carries **both**
+  the iOS and macOS platforms. Adding the platform *is* the universal-purchase action — Apple's
+  own dialog reads "add platforms to an app to create a universal purchase", there is no separate
+  toggle, and a platform cannot be removed afterwards. The macOS side was auto-created as
+  **macOS App Version 1.0**, which does **not** match the repo's `MARKETING_VERSION`; the
+  version record has to be corrected to the shipping version before a Mac build can attach to
+  it. TestFlight is unaffected by that mismatch — only App Store submission is.
+- The active **Tests (RC)** workflow now has four actions: **Test - macOS** (scheme
+  `KeeForgeMac`, Required to Pass, Test (Use Scheme Setting), destination Mac / same OS as the
+  selected macOS version), **Archive - macOS** (scheme `KeeForgeMac`, Build For *Any Mac* —
+  native, not Mac Catalyst — Distribution Preparation *App Store Connect*), **Archive - iOS**,
+  and **Test - iOS**. Its `rc/*` tag trigger is active and the **Release** workflow is still
+  deactivated.
+- **No post-actions.** The former **TestFlight External Testing - iOS** post-action was deleted,
+  so neither platform auto-distributes to external testers any more. This is deliberate: every
+  external distribution is now a manual decision made after the gates are accepted. Re-adding a
+  post-action would undo that.
+- `DROPBOX_APP_KEY` and `ONEDRIVE_CLIENT_ID` are present on **Tests (RC)** and both render as
+  `••••••••••`, which is how App Store Connect displays a variable with the Secret/redaction flag
+  set — a non-secret variable shows its plain value. The flag is therefore on for both. Never
+  record or expose their values.
+- **Restrict Editing is off.** The doc previously assumed a **Restrict and Save** control; this
+  account presents a plain **Save**. Turning restriction on is a separate deliberate choice, not
+  a side effect of saving.
+- External groups are **KeeForge Test** (the existing iOS public-link group, 300-tester cap,
+  documented below) and **KeeForge Mac Test** (created empty for the native Mac build: 0 testers,
+  0 builds, no public link). Do not send the MAS build to the iOS group.
 
-After explicit account-level confirmation, use this safe order: add macOS to app `6759309295`
-and enable universal purchase; create a dedicated native Mac external group; remove the existing
-iOS **TestFlight External Testing** post-action; add **Test - macOS** and **Archive - macOS** to
-**Tests (RC)**; verify both platforms, groups, archive preparation,
-required-to-pass settings, and environment-variable Secret flags; then use **Restrict and Save**.
-Archives and uploads may be automatic, but external TestFlight distribution is deliberately
-manual: after Xcode Cloud, both GitHub Actions workflows, both local KDBX gates, and local Mac
-smoke are accepted, obtain explicit action-time confirmation immediately before the first Beta App
-Review action (when required) and immediately before distributing each platform to its external
-group. Do not send the MAS build to the existing iOS group.
+Still outstanding: the non-shipping setup RC tag that proves both archives reach their TestFlight
+lists, and correcting the macOS version record. External TestFlight distribution stays manual:
+after Xcode Cloud, both GitHub Actions workflows, both local KDBX gates, and local Mac smoke are
+accepted, obtain explicit action-time confirmation immediately before the first Beta App Review
+action (when required) and immediately before distributing each platform to its external group.
 
 ## Required workflow shape
 
@@ -67,15 +77,14 @@ Two properties matter:
 ## Environment variables for the archive actions
 
 `ci_scripts/ci_pre_xcodebuild.sh` fails an archive when `DROPBOX_APP_KEY` or `ONEDRIVE_CLIENT_ID`
-is missing or still a CI placeholder, rather than shipping a build with broken cloud sign-in. The
-When the Mac archive actions are added, **Tests (RC) must carry the real values**. They are set
+is missing or still a CI placeholder, rather than shipping a build with broken cloud sign-in. Now
+that the Mac archive action lives here too, **Tests (RC) must carry the real values**. They are set
 per workflow, not per action — Xcode Cloud applies them to every action in the workflow. Add or
 verify them under **Tests (RC) → Environment → Environment Variables → Add → New Environment Variable**:
 
-- `DROPBOX_APP_KEY` — real key, with **Secret** ("Keep value redacted") ticked; current presence
-  is confirmed but the flag was not verified in the audit
-- `ONEDRIVE_CLIENT_ID` — real client ID, same; current presence is confirmed but the flag was
-  not verified in the audit
+- `DROPBOX_APP_KEY` — real key, with **Secret** ("Keep value redacted") ticked; present and
+  redacted as of 2026-09-06
+- `ONEDRIVE_CLIENT_ID` — real client ID, same; present and redacted as of 2026-09-06
 
 Adding a variable only stages it; the workflow still has to be saved afterwards.
 
@@ -96,12 +105,12 @@ alphanumerics only, because it is interpolated into the `db-$(DROPBOX_APP_KEY)`
 - Do **not** configure a TestFlight External Testing post-action. Xcode Cloud may archive and
   upload automatically, but a processed build is moved to external testing manually in App Store
   Connect only after Xcode Cloud, both GitHub Actions workflows, both local KDBX gates, and local
-  Mac smoke are accepted. The existing iOS public-link group is **KeeForge Test**. Create/use a
-  dedicated Mac external group for the native build; do not send the MAS build to the iOS group.
+  Mac smoke are accepted. The existing iOS public-link group is **KeeForge Test**; the native Mac
+  build has its own empty group, **KeeForge Mac Test**. Do not send the MAS build to the iOS group.
 - After editing, verify that no external-testing post-action is present and save the workflow using
-  the control App Store Connect presents. If the existing account setup presents **Restrict and
-  Save**, use it only after this verification; afterwards only the Account Holder, Admins, and App
-  Managers can change the workflow.
+  the control App Store Connect presents. This account presents a plain **Save**; the separate
+  **Restrict Editing** checkbox is off and turning it on is its own decision, after which only the
+  Account Holder, Admins, and App Managers can change the workflow.
 - The **first build of each new marketing version/platform** goes through Beta App Review before
   external testers can install it — budget roughly a day. Obtain explicit action-time confirmation
   immediately before submitting that first Beta App Review action, and again immediately before
