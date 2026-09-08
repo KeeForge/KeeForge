@@ -17,7 +17,7 @@ final class SharedVaultStoreTests: XCTestCase {
 
         try SharedVaultStore.saveBookmark(for: url)
         let loaded = try XCTUnwrap(SharedVaultStore.loadBookmarkedURL())
-        XCTAssertEqual(loaded.path, url.path)
+        XCTAssertEqualFilePaths(loaded, url)
 
         SharedVaultStore.clearBookmark()
         XCTAssertNil(SharedVaultStore.loadBookmarkedURL())
@@ -28,7 +28,7 @@ final class SharedVaultStoreTests: XCTestCase {
 
         try DocumentPickerService.saveBookmark(for: url)
         let loaded = try XCTUnwrap(DocumentPickerService.loadBookmarkedURL())
-        XCTAssertEqual(loaded.path, url.path)
+        XCTAssertEqualFilePaths(loaded, url)
 
         DocumentPickerService.clearBookmark()
         XCTAssertNil(DocumentPickerService.loadBookmarkedURL())
@@ -93,7 +93,7 @@ final class SharedVaultStoreTests: XCTestCase {
 
         let resolvedURL = try XCTUnwrap(SecurityScopedBookmarkManager.resolveURL(from: bookmarkData)?.url)
 
-        XCTAssertEqual(resolvedURL.path, url.path)
+        XCTAssertEqualFilePaths(resolvedURL, url)
     }
 
     func testPickerFailureAlertSuppressesUserCancelledError() {

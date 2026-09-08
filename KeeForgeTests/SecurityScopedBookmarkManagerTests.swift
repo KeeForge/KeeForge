@@ -12,7 +12,7 @@ final class SecurityScopedBookmarkManagerTests: XCTestCase {
         let bookmarkData = try SecurityScopedBookmarkManager.makeBookmarkData(for: url)
         let resolved = try XCTUnwrap(SecurityScopedBookmarkManager.resolveURL(from: bookmarkData))
 
-        XCTAssertEqual(resolved.url.path, url.path)
+        XCTAssertEqualFilePaths(resolved.url, url)
         XCTAssertFalse(resolved.isStale)
 
         // On macOS this exercises the `.withSecurityScope` resolution path;
@@ -40,7 +40,7 @@ final class SecurityScopedBookmarkManagerTests: XCTestCase {
             relativeTo: nil,
             bookmarkDataIsStale: &isStale
         )
-        XCTAssertEqual(resolved.path, url.path)
+        XCTAssertEqualFilePaths(resolved, url)
 
         let accessed = resolved.startAccessingSecurityScopedResource()
         defer {
@@ -60,7 +60,7 @@ final class SecurityScopedBookmarkManagerTests: XCTestCase {
         )
 
         let resolved = try XCTUnwrap(SecurityScopedBookmarkManager.resolveURL(from: plainBookmarkData))
-        XCTAssertEqual(resolved.url.path, url.path)
+        XCTAssertEqualFilePaths(resolved.url, url)
     }
     #endif
 

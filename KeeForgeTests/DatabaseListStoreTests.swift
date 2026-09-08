@@ -742,8 +742,8 @@ final class DatabaseListStoreTests: XCTestCase {
             XCTFail("Expected .available, got \(location)")
             return
         }
-        XCTAssertEqual(resolvedURL.path, url.path)
-        XCTAssertEqual(DatabaseListStore.resolveDatabaseURL(for: reference)?.path, url.path)
+        XCTAssertEqualFilePaths(resolvedURL, url)
+        XCTAssertEqualFilePaths(DatabaseListStore.resolveDatabaseURL(for: reference), url)
     }
 
     func testLocateDatabaseFileReportsTrashedFile() throws {
