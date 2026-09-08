@@ -26,7 +26,11 @@ concurrency:
 jobs:
   macos-rc-tests:
     if: github.event_name == 'workflow_dispatch' || github.event.deleted == false
-    runs-on: macos-15
+    # macos-26, not macos-15: macos-15 tops out at Xcode 26.3, whose actool
+    # crashes compiling the KeeForge.icon Icon Composer bundle for the macOS
+    # platform (it compiles the same .icon for iOS fine). macos-26 ships
+    # Xcode 26.6, the version Xcode Cloud builds the Mac archive with.
+    runs-on: macos-26
     timeout-minutes: 60
     env:
       SCHEME: KeeForgeMac
@@ -38,11 +42,22 @@ jobs:
 
       - name: Select Xcode
         run: |
-          # Use latest available Xcode on the runner
+          # Latest available, which on macos-26 is Xcode 26.6.
+          echo "Available Xcodes:"
+          ls -d /Applications/Xcode_*.app 2>/dev/null || true
           XCODE_PATH=$(ls -d /Applications/Xcode_*.app 2>/dev/null | sort -V | tail -1)
           echo "Using Xcode: $XCODE_PATH"
           sudo xcode-select -s "$XCODE_PATH"
           xcodebuild -version
+
+          # Fail loudly rather than crashing inside actool half an hour later.
+          # Xcode 26.3 segfaults compiling KeeForge.icon for macOS; 26.6 is the
+          # verified-good version and the one Xcode Cloud uses.
+          version=$(xcodebuild -version | awk 'NR==1{print $2}')
+          if [ "$(printf '%s\n26.4\n' "$version" | sort -V | head -1)" != "26.4" ]; then
+            echo "::error::Xcode $version is too old for the macOS asset-catalog build (26.3 crashes in actool on KeeForge.icon). Expected 26.4+ on this runner."
+            exit 1
+          fi
 
       - name: Install XcodeGen
         run: brew install xcodegen
