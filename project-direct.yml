@@ -37,6 +37,14 @@ targets:
         # BuildConfig.local.xcconfig supplies.
         SPARKLE_FEED_URL: $(inherited)
         SPARKLE_PUBLIC_ED_KEY: $(inherited)
+        # A sandboxed app cannot submit Sparkle's installer job itself; it has
+        # to go through the InstallerLauncher XPC service, which stays inside
+        # Sparkle.framework and must never be copied into the app bundle.
+        # Turning it on also requires the two mach-lookup names below.
+        SPARKLE_INSTALLER_LAUNCHER_SERVICE: "YES"
+        # The only entitlement difference between the channels. See the
+        # comments in the file itself.
+        CODE_SIGN_ENTITLEMENTS: KeeForgeMac/KeeForgeMacDirect.entitlements
     # Appended to the dependencies project.yml already declares — XcodeGen
     # merges lists from an include rather than replacing them, so restating the
     # others here would register each one twice.

@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- KeeForgeMac.entitlements, plus the two mach-lookup names Sparkle's
+	     installer needs. Selected only by project-direct.yml; the Mac App Store
+	     build keeps the base file. Everything except the final key must stay
+	     identical to KeeForgeMac.entitlements — edit both together.
+	     ci_scripts/verify_mac_artifact.sh checks the built artifacts either
+	     way, so a drift here fails the release gate rather than shipping. -->
+	<key>com.apple.developer.authentication-services.autofill-credential-provider</key>
+	<true/>
+	<key>com.apple.security.app-sandbox</key>
+	<true/>
+	<key>com.apple.security.files.user-selected.read-write</key>
+	<true/>
+	<key>com.apple.security.network.client</key>
+	<true/>
+	<key>com.apple.security.files.bookmarks.app-scope</key>
+	<true/>
+	<key>com.apple.security.application-groups</key>
+	<array>
+		<string>group.com.keevault.shared</string>
+	</array>
+	<!-- Items stored without an explicit kSecAttrAccessGroup land in the FIRST
+	     group listed, so com.keevault.sharedkeychain must stay first if a second
+	     group is ever added back.
+
+	     MSAL's macOS token cache group (com.microsoft.identity.universalstorage,
+	     unlike the iOS com.microsoft.adalcache) is deliberately NOT here: macOS
+	     ships WebDAV only, so nothing authenticates through MSAL and nothing
+	     writes to that group. Re-enabling OneDrive on macOS means adding it back
+	     AND regenerating the hand-made Developer ID profiles, which embed the
+	     entitlements — MSAL checks for it by suffix match before it will enable
+	     the cache, and silent token refresh across relaunch does not work
+	     without it. -->
+	<key>keychain-access-groups</key>
+	<array>
+		<string>$(AppIdentifierPrefix)com.keevault.sharedkeychain</string>
+	</array>
+	<!-- A sandboxed app reaches Sparkle's installer over these two mach names
+	     (Autoupdate's SPARKLE_STATUS_TAG and SPARKLE_INSTALLER_TAG). Without
+	     them the bootstrap look-up is denied, Sparkle logs "Failed to submit
+	     installer job", and the update hangs at "Updating KeeForge" forever —
+	     the download and EdDSA check pass first, so nothing earlier reveals it.
+	     These are the only entitlements the direct channel adds, and they are
+	     why it needs its own file: a temporary exception has no business in an
+	     App Store submission. -->
+	<key>com.apple.security.temporary-exception.mach-lookup.global-name</key>
+	<array>
+		<string>$(PRODUCT_BUNDLE_IDENTIFIER)-spks</string>
+		<string>$(PRODUCT_BUNDLE_IDENTIFIER)-spki</string>
+	</array>
+</dict>
+</plist>
