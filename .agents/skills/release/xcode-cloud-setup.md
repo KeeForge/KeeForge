@@ -16,12 +16,12 @@ relying on this; Apple can change the UI and the account can drift):
   **macOS App Version 1.0**, which does **not** match the repo's `MARKETING_VERSION`; the
   version record has to be corrected to the shipping version before a Mac build can attach to
   it. TestFlight is unaffected by that mismatch — only App Store submission is.
-- The active **Tests (RC)** workflow now has four actions: **Test - macOS** (scheme
-  `KeeForgeMac`, Required to Pass, Test (Use Scheme Setting), destination Mac / same OS as the
-  selected macOS version), **Archive - macOS** (scheme `KeeForgeMac`, Build For *Any Mac* —
-  native, not Mac Catalyst — Distribution Preparation *App Store Connect*), **Archive - iOS**,
-  and **Test - iOS**. Its `rc/*` tag trigger is active and the **Release** workflow is still
-  deactivated.
+- The active **Tests (RC)** workflow has three actions: **Archive - macOS** (scheme
+  `KeeForgeMac`, Build For *Any Mac* — native, not Mac Catalyst — Distribution Preparation
+  *App Store Connect*), **Archive - iOS**, and **Test - iOS** (Required to Pass). A
+  **Test - macOS** action was added and then removed once build 53 proved Xcode Cloud cannot
+  launch the Mac app to test it; the reasoning is under "Required workflow shape". Its `rc/*` tag
+  trigger is active and the **Release** workflow is still deactivated.
 - **No post-actions.** The former **TestFlight External Testing - iOS** post-action was deleted,
   so neither platform auto-distributes to external testers any more. This is deliberate: every
   external distribution is now a manual decision made after the gates are accepted. Re-adding a
@@ -47,28 +47,43 @@ action (when required) and immediately before distributing each platform to its 
 
 | Trigger | Workflow | Actions |
 | --- | --- | --- |
-| `rc/*` tag push | **Tests (RC)** | Test - iOS + Test - macOS (both Required to Pass), and Archive - iOS + Archive - macOS (both Distribution Preparation: App Store Connect). Archives/uploads may run automatically; no external-distribution post-action is configured. |
+| `rc/*` tag push | **Tests (RC)** | Test - iOS (Required to Pass), and Archive - iOS + Archive - macOS (both Distribution Preparation: App Store Connect). Archives/uploads may run automatically; no external-distribution post-action is configured. There is deliberately **no Test - macOS** — see below. |
 | `v*` tag push | *(none — the `Release` workflow is deactivated)* | — |
 
-Two properties matter:
+Three properties matter:
 
-1. **Both platform tests and both platform archives live in the same workflow, and both test
-   actions are Required to Pass.** App
+1. **Tests and both platform archives live in the same workflow, and the test action is Required
+   to Pass.** App
    Store Connect lists a workflow's actions alphabetically and offers no way to reorder them, so
-   "test first" is not something you configure — all four actions run in **parallel**.
+   "test first" is not something you configure — the actions run in **parallel**.
    What Required to Pass buys is that a red test action fails the *workflow's test verdict*. The
    archive can still finish and upload, but that uploaded build remains blocked from external
-   distribution until the failure is adjudicated and every required gate is accepted. This applies
-   independently to iOS and Mac. There is no automatic external-distribution action whose status
-   could bypass that deliberate manual decision.
+   distribution until the failure is adjudicated and every required gate is accepted. There is no
+   automatic external-distribution action whose status could bypass that deliberate manual
+   decision.
 
    Leaving the archives ungated is deliberate. When a cloud test failure turns out to be a flake
    (`gate-adjudication.md`), the binary already exists and can be distributed by hand; gating the
-   archive would force a respin to rebuild a binary that was never at fault. Switching either test
+   archive would force a respin to rebuild a binary that was never at fault. Switching the test
    action to *Not Required to Pass* would remove the real gate and let a build distribute
    over failing tests. Splitting tests and archives into workflows both triggered on `rc/*` would
    have the same effect, because neither could gate the other.
-2. **No workflow triggers on `v*`.** The `v{version}` tag is a record of what shipped. The App Store
+2. **Xcode Cloud cannot run the Mac tests, so it does not try.** A `Test - macOS` action was
+   configured and removed again on 2026-09-07 after build 53. Every test in it failed with
+   `Could not launch "KeeForge". Runningboard has returned error 5` / `Launchd job spawn failed`:
+   Xcode Cloud's macOS test VM will not spawn the sandboxed, properly-signed Mac app from
+   `/Volumes/workspace/TestProducts.xctestproducts/...`. This is not a UI-test problem —
+   `KeeForgeMacTests` sets `TEST_HOST` to the app, so the unit bundle could not launch either and
+   never ran a single test.
+
+   The knobs that make this work on GitHub Actions — `CODE_SIGN_IDENTITY=-`,
+   `CODE_SIGN_ENTITLEMENTS=` (ad-hoc, unsandboxed) and `-only-testing:KeeForgeMacTests` — are
+   `xcodebuild` build settings, and an Xcode Cloud test action accepts none of them. Nothing is
+   lost by removing it: `Test - iOS` already runs the same shared `KeeForgeTests` sources, and
+   `.github/workflows/macos-rc-tests.yml` runs them compiled against the Mac app. Re-adding the
+   action is one click if Apple ever fixes the VM, but do not re-add it speculatively — a
+   permanently red Required-to-Pass action makes every candidate need adjudication.
+3. **No workflow triggers on `v*`.** The `v{version}` tag is a record of what shipped. The App Store
    build is selected in App Store Connect from the already-uploaded TestFlight build. If a `v*`
    trigger still exists from the previous process, deactivate it (workflow `⋯` menu → **Deactivate**,
    which stops its start conditions from firing) — otherwise every ship produces a stray archive
@@ -153,8 +168,15 @@ alphanumerics only, because it is interpolated into the `db-$(DROPBOX_APP_KEY)`
   required and needs an unlocked active login session.
 - Minimum-OS coverage: Xcode Cloud's iOS test action can only pin the latest runtime or iOS 16.4,
   with no iOS 18.x runtime available. `.github/workflows/ios18-rc-tests.yml` on GitHub-hosted
-  `macos-15` runners covers iOS 18 and the iPad regular-width lane. The native Mac unit gate is
-  covered by `.github/workflows/macos-rc-tests.yml`.
+  `macos-15` runners covers iOS 18 and the iPad regular-width lane. That workflow stays on
+  `macos-15` because it needs the iOS 18 simulator runtimes that image carries.
+- **All** native Mac unit coverage: `.github/workflows/macos-rc-tests.yml` is the only automated
+  gate that runs `KeeForgeMacTests` against the Mac app, because Xcode Cloud cannot launch that app
+  at all (see "Required workflow shape"). It runs on `macos-26` for Xcode 26.6 — `macos-15`'s
+  newest Xcode is 26.3, whose `actool` crashes compiling the `KeeForge.icon` Icon Composer bundle
+  for macOS, though it compiles the same `.icon` for iOS without complaint. The workflow fails
+  early with an explicit message if the runner ever offers something older than 26.4. It signs
+  ad-hoc with entitlements stripped, which is exactly what lets the app launch there.
 - `ci_scripts/build_mac_direct.sh` is intentionally outside Xcode Cloud. Obtain/export the exact
   MAS `.app` from the accepted Xcode Cloud archive without rebuilding, then run
   `ci_scripts/verify_mac_artifact.sh --channel mas --app <exact-mas-app> --architectures arm64,x86_64`.
