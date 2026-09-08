@@ -1,6 +1,6 @@
 # KeeForgeMac Target
 
-Configuration folder for the native macOS app target — only `Info.plist` and `KeeForgeMac.entitlements`; no Mac-only sources.
+Configuration folder for the native macOS app target — only `Info.plist`, `KeeForgeMac.entitlements` (Mac App Store) and `KeeForgeMacDirect.entitlements` (direct download); no Mac-only sources.
 
 ## Status: Preparing The First Release
 
@@ -160,7 +160,7 @@ Two standing constraints behind the table:
 One target, two channels, chosen when the project is generated rather than when it is built:
 
 - `xcodegen generate` — **Mac App Store**: no Sparkle in the binary and StoreKit tip jar. Universal purchase with iOS is intended once the one-time ASC setup is completed; it is not current ASC state. This is the default, so every ordinary workflow and every CI job builds this.
-- `xcodegen generate --spec project-direct.yml` — **Developer ID direct download**: links Sparkle, compiles `KEEFORGE_DIRECT_DOWNLOAD`, shows GitHub Sponsors instead of the tip jar, never calls StoreKit. `ci_scripts/build_mac_direct.sh` drives it and restores the App Store spec on exit.
+- `xcodegen generate --spec project-direct.yml` — **Developer ID direct download**: links Sparkle, compiles `KEEFORGE_DIRECT_DOWNLOAD`, shows GitHub Sponsors instead of the tip jar, never calls StoreKit. It is also the only spec that selects `KeeForgeMacDirect.entitlements` and sets `SUEnableInstallerLauncherService`: a sandboxed app cannot submit Sparkle's installer job itself, and without the `-spks`/`-spki` mach-lookup exceptions an update downloads and verifies and then hangs forever at the progress window. Those two entitlement files must stay identical apart from that one key. `ci_scripts/build_mac_direct.sh` drives it and restores the App Store spec on exit.
 
 Two specs rather than two targets: both channels ship an app named `KeeForge.app` (the executable name is inside the signature and cannot be renamed afterwards), and two targets producing the same product path is a hard Xcode error. Separate specs also make the channels mutually exclusive by construction — an App Store build must never contain an updater.
 

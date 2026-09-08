@@ -210,7 +210,10 @@ this on the app *and* on every nested bundle it embeds, so an exception added to
 the AutoFill extension or to a Sparkle XPC service fails the release build
 rather than shipping quietly.
 
-What the **app** (`KeeForgeMac/KeeForgeMac.entitlements`) asks for, and why:
+The two channels no longer share one entitlements file. The App Store build uses
+`KeeForgeMac/KeeForgeMac.entitlements`; the direct build uses
+`KeeForgeMac/KeeForgeMacDirect.entitlements`, which is the same file plus one
+key. What the **App Store app** asks for, and why:
 
 | Entitlement | Why it is needed |
 | --- | --- |
@@ -221,7 +224,29 @@ What the **app** (`KeeForgeMac/KeeForgeMac.entitlements`) asks for, and why:
 | `application-groups` → `group.com.keevault.shared` | The only channel through which the AutoFill extension sees a database. See the container caveat above. |
 | `keychain-access-groups` → `com.keevault.sharedkeychain` | Composite keys shared with the extension. Must stay **first**: an item stored without an explicit `kSecAttrAccessGroup` lands in the first listed group. |
 
-That list is the whole of it. An earlier draft also carried
+That list is the whole of the App Store build. The direct build adds exactly one
+more key, and it is a `temporary-exception`, so it is worth being precise about:
+
+| Entitlement (direct channel only) | Why it is needed |
+| --- | --- |
+| `temporary-exception.mach-lookup.global-name` → `com.keevault.app-spks`, `com.keevault.app-spki` | A sandboxed app cannot submit Sparkle's installer job itself; it reaches the InstallerLauncher XPC service over these two mach names. Without them the bootstrap look-up is denied and an update hangs after the download. |
+
+What that actually widens: the app may look up two names in the bootstrap
+namespace, both derived from its own bundle identifier and both registered by
+Sparkle's own helpers. It grants no filesystem, network, or code-execution right
+of its own. What it does reach is the installer that replaces the app bundle —
+which is the entire point of the channel, and whose authenticity gate is the
+EdDSA appcast signature plus notarization/Gatekeeper, not the sandbox. The Mac
+App Store build carries no temporary exception at all, and
+`ci_scripts/verify_mac_artifact.sh` fails either artifact that drifts: the direct
+one must carry both names and enable `SUEnableInstallerLauncherService`, the MAS
+one must carry neither.
+
+This was found by running the rehearsal below, not by reading the code. The feed
+fetch, the download and the signature check all succeeded without it; only the
+install step was unreachable, and it failed silently at a progress window.
+
+An earlier draft also carried
 `com.microsoft.identity.universalstorage`, MSAL's macOS token cache group, which
 the shipping build never exercises: Dropbox and OneDrive are hidden from the
 macOS UI (`CloudProviderKind.isAvailableOnCurrentPlatform`), so nothing on a Mac
