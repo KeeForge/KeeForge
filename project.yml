@@ -178,6 +178,7 @@ targets:
         # the real values back.
         SPARKLE_FEED_URL: ""
         SPARKLE_PUBLIC_ED_KEY: ""
+        SPARKLE_INSTALLER_LAUNCHER_SERVICE: ""
         SWIFT_EMIT_LOC_STRINGS: "YES"
         LOCALIZATION_PREFERS_STRING_CATALOGS: "YES"
     dependencies:

@@ -177,6 +177,20 @@ STOREKIT_PATHS="$(find "${APP_PATH}/Contents" -iname '*storekit*' -print 2>/dev/
 SPARKLE_COMPONENTS="${SPARKLE_FRAMEWORK_PATHS}${SPARKLE_UPDATER_PATHS}"
 FEED_URL="$(plist_value SUFeedURL)"
 PUBLIC_KEY="$(plist_value SUPublicEDKey)"
+INSTALLER_LAUNCHER_SERVICE="$(plist_value SUEnableInstallerLauncherService)"
+
+# The sandbox exceptions Sparkle's installer needs. They are checked here
+# because nothing earlier in an update fails without them: the feed fetch,
+# download and EdDSA verification all succeed, and only the install step is
+# silently unreachable. Names are matched, never printed as a set the caller
+# could mistake for an allow-list to copy.
+mach_lookup_names() {
+  /usr/libexec/PlistBuddy -c \
+    "Print :com.apple.security.temporary-exception.mach-lookup.global-name" \
+    "$ROOT_ENTITLEMENTS" 2>/dev/null | sed -n 's/^ *\([^ ].*\)$/\1/p' | sed '/^Array {$/d;/^}$/d'
+}
+BUNDLE_IDENTIFIER="$(plist_value CFBundleIdentifier)"
+[[ -n "$BUNDLE_IDENTIFIER" ]] || die "CFBundleIdentifier is missing"
 
 case "$CHANNEL" in
   mas)
@@ -195,6 +209,10 @@ case "$CHANNEL" in
     done
     [[ -z "$FEED_URL" ]] || die "MAS artifact contains a Sparkle feed URL"
     [[ -z "$PUBLIC_KEY" ]] || die "MAS artifact contains a Sparkle public key"
+    [[ -z "$INSTALLER_LAUNCHER_SERVICE" ]] \
+      || die "MAS artifact enables the Sparkle installer launcher service"
+    ! grep -q 'com.apple.security.temporary-exception' "$ROOT_ENTITLEMENTS" \
+      || die "MAS artifact carries a temporary-exception entitlement"
     ;;
   direct)
     [[ -n "$SPARKLE_PATHS" ]] || die "direct artifact does not contain Sparkle"
@@ -203,6 +221,18 @@ case "$CHANNEL" in
     [[ "$FEED_URL" == https://* ]] || die "direct artifact feed URL is not HTTPS"
     [[ -n "$PUBLIC_KEY" ]] || die "direct artifact public update key is missing"
     [[ -z "$STOREKIT_PATHS" ]] || die "direct artifact contains a StoreKit bundle"
+    [[ "$INSTALLER_LAUNCHER_SERVICE" == "YES" ]] \
+      || die "direct artifact does not enable the Sparkle installer launcher service"
+    for required_name in "${BUNDLE_IDENTIFIER}-spks" "${BUNDLE_IDENTIFIER}-spki"; do
+      grep -Fxq "$required_name" <<<"$(mach_lookup_names)" \
+        || die "direct artifact is missing a Sparkle installer mach-lookup exception"
+    done
+    # The launcher service must resolve inside Sparkle.framework. Sparkle
+    # refuses to start when a copy also sits in the app's own XPCServices.
+    [[ -d "${APP_PATH}/Contents/Frameworks/Sparkle.framework/Versions/B/XPCServices/Installer.xpc" ]] \
+      || die "direct artifact does not embed Sparkle's Installer XPC service"
+    [[ ! -e "${APP_PATH}/Contents/XPCServices" ]] \
+      || die "direct artifact bundles XPC services outside Sparkle.framework"
     for binary in "${MACHO_BINARIES[@]}"; do
       binary_dependencies="$(otool -L "$binary" 2>/dev/null || true)"
       ! grep -Eiq 'StoreKit' <<<"$binary_dependencies" \
@@ -221,6 +251,7 @@ echo "sparkle_present=$([[ -n "$SPARKLE_COMPONENTS" ]] && echo true || echo fals
 echo "storekit_present=$([[ -n "$STOREKIT_PATHS" ]] && echo true || echo false)"
 echo "feed_url_present=$([[ -n "$FEED_URL" ]] && echo true || echo false)"
 echo "public_update_key_present=$([[ -n "$PUBLIC_KEY" ]] && echo true || echo false)"
+echo "installer_launcher_service=$([[ "$INSTALLER_LAUNCHER_SERVICE" == "YES" ]] && echo true || echo false)"
 if [[ -n "$FEED_URL" ]]; then
   echo "feed_url=${FEED_URL}"
 fi

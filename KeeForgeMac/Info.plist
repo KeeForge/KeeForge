@@ -64,6 +64,8 @@
 	<string>$(SPARKLE_FEED_URL)</string>
 	<key>SUPublicEDKey</key>
 	<string>$(SPARKLE_PUBLIC_ED_KEY)</string>
+	<key>SUEnableInstallerLauncherService</key>
+	<string>$(SPARKLE_INSTALLER_LAUNCHER_SERVICE)</string>
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
 	<key>LSApplicationCategoryType</key>
