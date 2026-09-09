@@ -417,6 +417,36 @@ sandbox entitlements change. Which legs of it are currently satisfied, and which
 are still outstanding, is tracked in `CHANGELOG.md` under `## macOS App` rather
 than here.
 
+### The downloaded zip is its own trust surface
+
+Step 6 is not a formality, and it is not weaker than the rest. It found that the
+direct zip Gatekeeper accepted on the build machine was **rejected on a clean
+Mac** with "unsealed contents present in the root directory of an embedded
+framework".
+
+The app was fine; the packaging was not. `ditto -c -k` stores each file's
+extended attributes as an inline AppleDouble `._name` entry. Apple's own
+extractor consumes those entries, so Finder, Archive Utility, `ditto -x -k` and
+Sparkle's updater all produce a correct bundle — which is why every check that
+ran on the build machine passed, and why the whole Sparkle rehearsal passed.
+Plain `unzip`, and most third-party unarchivers, instead materialize them as
+real files inside the bundle: 201 of them, one landing in the root of
+`Sparkle.framework`. All of it is unsealed content the signature does not cover,
+so the app the user actually double-clicks fails to launch.
+
+`ditto -c -k --sequesterRsrc` puts those entries in a `__MACOSX` sidecar beside
+the bundle instead, where no extractor can push them inside it. The only
+attribute this bundle carries is `com.apple.provenance`, which nothing signed
+depends on, and the stapled ticket is a regular file (`Contents/CodeResources`)
+that survives any extractor.
+
+`ci_scripts/build_mac_direct.sh` now proves this per build rather than trusting
+the flag: it extracts the finished zip with plain `unzip` and fails the build
+unless the result has no AppleDouble strays, is accepted by Gatekeeper, and
+still validates its staple. The general lesson is that verifying the exported
+`.app` says nothing about the artifact users receive — the damage exists only
+after a zip round trip, so the round trip is what has to be checked.
+
 ## Not fixable at the app level
 
 These are outside KeeForge's control on macOS and should not be represented as
