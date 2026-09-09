@@ -447,6 +447,10 @@ still validates its staple. The general lesson is that verifying the exported
 `.app` says nothing about the artifact users receive — the damage exists only
 after a zip round trip, so the round trip is what has to be checked.
 
+The corrected packaging was then re-tested the same way the failure was found —
+downloaded afresh on a clean Mac, quarantine attribute intact, launched without
+clearing it — and Gatekeeper accepted it.
+
 ## Not fixable at the app level
 
 These are outside KeeForge's control on macOS and should not be represented as
