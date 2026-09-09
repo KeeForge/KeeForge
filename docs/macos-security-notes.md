@@ -403,20 +403,19 @@ this rehearsal (successful update and altered-zip rejection) have been observed
 on the real direct artifacts. The repository verifier only proves static
 artifact properties; it cannot replace this end-to-end trust-chain test.
 
-Both halves have now been observed, against a local HTTPS test feed, on
-notarized 1.15.0 (3) → 1.16.0 (4) artifacts sharing one key pair: the update
-downloaded, verified, installed and relaunched with no hardened-runtime or
-sandbox exception; the vault was locked and required its password again
-afterwards; and a one-bit-altered zip served under the unchanged appcast
-signature and length was refused as "improperly signed", leaving the older app
-installed and running. Steps 1–5 are therefore satisfied. **Step 6 is not** —
-that run happened in a developer account rather than on a clean Mac, and the
-GitHub Releases redirect to `objects.githubusercontent.com` cannot be exercised
-by a local feed at all. Both remain open, and neither was worked around.
+Both halves have been observed, against a local HTTPS test feed, on notarized
+1.15.0 (3) → 1.16.0 (4) artifacts sharing one key pair: the update downloaded,
+verified, installed and relaunched with no hardened-runtime or sandbox
+exception; the vault was locked and required its password again afterwards; and
+a one-bit-altered zip served under the unchanged appcast signature and length
+was refused as "improperly signed", leaving the older app installed and running.
+That run is what found the sandbox entitlement gap above — every stage before
+the install had succeeded, so nothing static revealed it.
 
-Re-run this whenever the feed host, signing key, updater configuration, or the
-sandbox entitlements above change. The first run of it is what found that the
-direct build could not install an update at all.
+Re-run this whenever the feed host, signing key, updater configuration, or those
+sandbox entitlements change. Which legs of it are currently satisfied, and which
+are still outstanding, is tracked in `CHANGELOG.md` under `## macOS App` rather
+than here.
 
 ## Not fixable at the app level
 

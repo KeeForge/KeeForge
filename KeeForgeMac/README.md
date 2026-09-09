@@ -2,11 +2,15 @@
 
 Configuration folder for the native macOS app target — only `Info.plist`, `KeeForgeMac.entitlements` (Mac App Store) and `KeeForgeMacDirect.entitlements` (direct download); no Mac-only sources.
 
-## Status: Preparing The First Release
+## Status
 
-No longer on hold — the Mac app is being brought to a shippable state, but it **has not shipped yet**. Authoritative status and the remaining pre-release checklist: `CHANGELOG.md` under `## macOS App`. Log macOS work there, not under `## Unreleased` (iOS release notes).
+The Mac app has **not shipped yet**. `CHANGELOG.md` under `## macOS App` is the single
+place where pre-release work is tracked — the remaining checklist, what has been
+observed, and what is still open all live there. Do not restate any of it here, and log
+macOS work there rather than under `## Unreleased` (iOS release notes).
 
-Still open before it can ship: the credential-dependent half of slice 07 (`docs/specs/2026-07-12-macos-port/07-distribution.md`) — notarization credentials, the live Sparkle trust-chain rehearsal, and production appcast hosting verification — plus the manual QA matrix. The Sparkle EdDSA recovery-copy backup is complete; the private key remains in the login Keychain. The Developer ID certificate is in place, and the provisioning profiles are not a manual step: Xcode creates them on demand when the archive and export pass `-allowProvisioningUpdates`, which `ci_scripts/build_mac_direct.sh` does. The in-repo plumbing for both channels is in place (see "Distribution Channels" below).
+This file is reference material for working in the target: constraints, platform limits,
+gotchas, and what a given change has to test.
 
 ## AutoFill Provider Missing From System Settings
 
@@ -44,64 +48,38 @@ Diagnosing this on a Mac: launch with `-autofill-store-inspector` (DEBUG only) a
 
 ## Moving Off The iOS App On A Mac
 
-**Withdrawing Mac availability for the iOS app is an open product decision, not a fix.** It was recorded here as the resolution for the AutoFill bug above; that diagnosis was wrong, and the native provider now appears with the iOS app's availability untouched. Recommended default: keep the legacy iPad-on-Mac availability through native Mac launch and a verified transition, then decide whether to withdraw it. What is left is the ordinary question of whether two KeeForge builds should be installable on one Mac. The arguments for withdrawing are that exactly one bundle then owns `com.keevault.app`, and that users are not left choosing between two apps with the same name and icon — neither is functional, and nothing below depends on the answer.
+Whether to withdraw the iOS app's Mac availability is a product decision tracked in
+`CHANGELOG.md`, not something this file settles. What belongs here are the container
+constraints that hold either way, because they are properties of the platform rather
+than of the plan:
 
-Whichever way that goes, a user who has been running "Designed for iPad" KeeForge on a Mac and then installs the native app needs a migration answer: withdrawing availability stops new installs but does not remove existing ones, and Apple gives no migration path between the two containers. The behaviors below are expected design rules, not production-observed compatibility, until the recoverable sequential probe populates the matrix. What actually has to move:
+- **Local databases** live inside the iOS app's own container and are not visible to the
+  Mac app's sandbox. The user exports each one (Database Details → Export) somewhere in
+  their own filesystem, then adds it in the native app. Nothing is converted — it is the
+  same `.kdbx` either way.
+- **Security-scoped bookmarks do not transfer.** A database the iOS-on-Mac app could
+  reopen silently has to be picked once in the native app. That is inherent to a
+  different app container, not a bug.
+- **Cloud and WebDAV databases** are re-added by connecting the account again. The remote
+  file is untouched, so no export step is involved; only the connection is new.
+- **Keychain sharing is expected but unproven in production.** Both bundles carry the
+  `com.keevault.sharedkeychain` access group, so a stored composite key may remain usable
+  once the same database is added natively — verify it without exposing key material
+  before relying on it.
+- **AutoFill has to be re-enabled once**, in System Settings → General → AutoFill &
+  Passwords. Both bundles claim the same extension identifier and macOS resolves an
+  identifier to a single winner, so which one the pane offers with both installed is
+  untested. If the native provider does not appear, check for a competing registration
+  with the `pluginkit` command above.
+- **Never promise that the legacy container survives a native install.** The iOS and
+  native apps (and their extensions) reuse bundle identities, so installing one can
+  replace or rebind the other's app, container, or provider. Preserve the legacy source
+  with a backup, snapshot, or other recoverable harness first, and only promise
+  preservation that a completed production probe has actually established.
 
-- **Local databases** live inside the iOS app's own container and are not visible to the Mac app's sandbox. The user exports each one (Database Details → Export) to somewhere in their own filesystem, then adds it in the native app. Nothing is converted — it is the same `.kdbx` either way.
-- **Security-scoped bookmarks do not transfer.** A database the iOS-on-Mac app could reopen silently has to be picked once in the native app; that is inherent to a different app container, not a bug.
-- **Cloud and WebDAV databases** are re-added by connecting the account again in the native app. The remote file is untouched, so no export step is involved; only the connection is new.
-- **Keychain sharing is expected but unproven in production.** Both bundles carry the `com.keevault.sharedkeychain` access group, so a stored composite key may remain usable once the same database is added to the native app; the real transition probe must verify this without exposing key material.
-- **AutoFill has to be re-enabled once**, in System Settings → General → AutoFill & Passwords, pointing at the native app. Both bundles claim the same extension identifier and macOS resolves an identifier to a single winner, so which one the pane offers with both installed is untested. If the native provider does not appear, check for a competing registration with the `pluginkit` command above.
-- **Do not promise that the legacy container survives a native install.** The iOS and native apps (and their extensions) reuse bundle identities, so installation can replace or rebind the app, container, or provider. Preserve the legacy source with a backup/snapshot or other recoverable sequential harness before installing the native build. Only promise preservation that the completed production probe and documented migration path actually establish.
-
-One release task falls out of this regardless of the decision: the direct-download and Mac listing pages on keeforge.com need the migration steps as user-facing copy. If Mac availability for the iOS app is withdrawn, that App Store Connect change should land only after the native app is live, so nobody is left without either.
-
-## Production-State Migration Probe (2026-09-02)
-
-**Blocked before production-state setup; package 5 remains unchecked.** This is an evidence record, not a claim that the native app can already migrate an installed iPad-on-Mac database.
-
-The host is Apple silicon (`arm64`), macOS `26.6.2` (build `25G83`). A read-only inventory found no `/Applications/KeeForge.app`, no KeeForge app in the user's Applications folder, no App Store receipt, and no running KeeForge process. Launch Services retains an `otpauth` handler for `com.keevault.app`, but that stale registration is not evidence of an installed app. The existing `com.keevault.app` container has no files in its `Data/Documents` directory. The shared App Group exists, but `database-list.json` and `databases/` are absent; `cloud-cache/` has one account directory containing zero files. No database, key, account, token, password, or Keychain value was read.
-
-### Post-download inventory (2026-09-02)
-
-The current App Store download is now present at `/Applications/KeeForge.app`; it has not been launched or seeded. Its nested app is an Apple iPhone OS-signed arm64 binary with bundle ID `com.keevault.app`, version `1.15.0` build `52`, `DTPlatformName=iphoneos`, `DTSDKName=iphoneos26.5`, and `UIDeviceFamily=[1,2]` (the expected Designed-for-iPad packaging). The outer and nested signatures report team `V82M9YX8BR`, the AutoFill credential-provider entitlement, App Group `group.com.keevault.shared`, and keychain groups `V82M9YX8BR.com.keevault.sharedkeychain` plus `V82M9YX8BR.com.microsoft.adalcache`. The embedded iOS extension ID is `com.keevault.app.autofill`. No `_MASReceipt/receipt` file was found inside the downloaded bundle; this records the filesystem result only and does not establish App Store account state.
-
-Compared with the pre-download baseline above, the app bundle is the only newly observed production artifact. The existing container names remain `com.keevault.app` and `com.keevault.app.autofill`; the shared App Group still has no `database-list.json` or `databases/`, and `cloud-cache/` still contains zero files. Metadata-only counts are 11,493 regular files in the existing app container, 2 in the AutoFill container, and 3 in the shared App Group; these include pre-existing test/probe residue and were counted without opening any file. No cross-container read, Keychain read, AutoFill registration comparison, or fixture outcome was attempted. The production fixture matrix therefore remains entirely **not observed** until the downloaded app is deliberately launched and seeded in a controlled manual pass.
-
-The available native Mac build artifact (`scratch/dd-machistory/Build/Products/Debug/KeeForge.app`) is an arm64 app with bundle ID `com.keevault.app`, team `V82M9YX8BR`, App Group `group.com.keevault.shared`, shared keychain group `com.keevault.sharedkeychain`, and embedded extension ID `com.keevault.app.autofill`. The project gives the iOS and native Mac apps the same bundle ID and gives both AutoFill extensions the same extension ID. Therefore a native development install's coexistence with the App Store iPad app was not tested: doing so requires installing/signing an app and could replace or rebind the same app/container identity. `pluginkit -mAvvv -p com.apple.authentication-services-credential-provider-ui` returned `match: Connection invalid`, and no current credential-provider registration record was available to compare.
-
-### Native outcomes observed so far
-
-These are fixture-only or implementation-level outcomes, not production migration outcomes:
-
-| Probe | Observed result | Evidence |
-| --- | --- | --- |
-| Legacy shared-reference migration and idempotency | **Pass** | Prior native Mac suite, `scratch/xcode-logs/20260831-final-sweep-KeeForgeMacTests.log`, `DatabaseReferenceMigrationTests` (six cases) |
-| Scoped and plain bookmark resolution | **Pass** | Same log, `SecurityScopedBookmarkManagerTests` (seven cases) |
-| App Group cache/bookmark write guardrail | **Pass** | Same log, `AppGroupGuardrailTests` (three cases) |
-| AutoFill status state model | **Pass** | Same log, `AutoFillStatusServiceTests` (six cases) |
-| Real stored composite key or cloud-token visibility | **Unproven** | The prior full suite recorded Keychain write skips (`-25308`); no production app or secret values were accessed |
-| Focused rerun during this probe | **Not completed** | `20260902-package5-KeeForgeMac-migration-probe-tests.log` waited for the shared Xcode lock (unknown holder) for 480 seconds; it was stopped without running tests |
-
-### Production fixture compatibility matrix
-
-Every row is intentionally **not observed** because the installed App Store “Designed for iPad” KeeForge build has not been launched or seeded with these fixtures. The status must not be promoted to automatic, file re-selection, reconnection, cache recovery, or manual export until a real transition is exercised.
-
-| Existing iPad-on-Mac fixture | Native outcome | What remains required |
-| --- | --- | --- |
-| Local database | **Not observed** | In a backed-up/snapshotted or sacrificial sequential harness, install the current App Store build, create/open a local fixture, preserve the source, then test the native app; do not assume same-Mac side-by-side coexistence |
-| External file and security-scoped bookmark | **Not observed** | Seed an iOS-created bookmark and resolve it from the native sandbox; the fixture-only bookmark tests do not establish cross-container transfer |
-| Key-file database and key-file bookmark | **Not observed** | Seed a real iOS key-file reference, then test native resolution and the failed/reselection path |
-| Stored composite key | **Not observed** | Seed a real stored key, then test native unlock through the shared keychain group; no Keychain secret may be logged |
-| WebDAV database | **Not observed** | Connect the real account in the iPad build, then test native reconnect, relaunch, cache, and upload behavior |
-| Dropbox database/cache | **Not observed** | Seed a real cache and account, then verify only a local recovery copy is possible; do not imply sync survives |
-| OneDrive database/cache | **Not observed** | Seed a real cache and account, then verify only a local recovery copy is possible; do not imply sync survives |
-| Multiple databases | **Not observed** | Seed at least two iPad references and compare native list/reference identity and duplicate handling |
-| Quick-launch database | **Not observed** | Seed quick-launch metadata and verify native selection preserves it only after the database is safely re-added |
-| AutoFill enabled/disabled and registration | **Not observed** | Seed both states, inspect provider registration in System Settings/PlugInKit, then re-enable the native provider and check for a competing legacy registration |
-
-Until this matrix is populated from the real installed app, the migration rules remain the pre-implementation rules above: local/external files require export or re-selection when the bookmark does not transfer; WebDAV requires reconnecting; Dropbox/OneDrive can only be offered as local recovery when a valid encrypted cache is present; stored-key and AutoFill preservation require explicit native readback; and no source container is deleted or overwritten.
+These are design rules, not production-observed compatibility. The matrix that would turn
+them into observed outcomes is in `CHANGELOG.md`; until it is populated, treat every row
+as unknown.
 
 ## Target Map
 
