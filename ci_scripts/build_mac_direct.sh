@@ -435,7 +435,9 @@ echo "    appcast ${BUILT_FEED_URL}, update key present"
 
 ZIP_PATH="${OUT_DIR}/.notarization-payload.zip"
 echo "==> Zipping for notarization"
-ditto -c -k --keepParent "${APP_PATH}" "${ZIP_PATH}"
+# --sequesterRsrc keeps extended attributes in a __MACOSX sidecar instead of
+# inline AppleDouble entries. See the re-zip below for why that matters.
+ditto -c -k --sequesterRsrc --keepParent "${APP_PATH}" "${ZIP_PATH}"
 
 echo "==> Notarizing (this waits for Apple)"
 NOTARY_JSON="${OUT_DIR}/notarization.json"
@@ -460,8 +462,50 @@ spctl --assess --type execute --verbose=4 "${APP_PATH}"
 # Re-zip after stapling: the ticket is stapled into the .app, and the zip the
 # appcast serves must contain the stapled copy so a first launch offline still
 # passes Gatekeeper.
+#
+# --sequesterRsrc is not cosmetic. Without it ditto writes each file's extended
+# attributes as an inline AppleDouble "._name" entry. Apple's own extractor
+# (Finder, Archive Utility, ditto -x -k) consumes those entries, but plain
+# `unzip` and most third-party unarchivers materialize them as real files
+# *inside* the bundle -- 201 of them here, including one in the root of
+# Sparkle.framework. Every one is unsealed content the signature does not cover,
+# so Gatekeeper rejects the app the user actually downloaded with "unsealed
+# contents present in the root directory of an embedded framework" while the
+# same zip passes on the machine that built it. The only attribute in this
+# bundle is com.apple.provenance, which nothing signed depends on.
 rm -f "${ZIP_PATH}"
-ditto -c -k --keepParent "${APP_PATH}" "${ZIP_PATH}"
+ditto -c -k --sequesterRsrc --keepParent "${APP_PATH}" "${ZIP_PATH}"
+
+# Prove that claim about the downloaded app rather than trusting the flag: this
+# is the artifact a user unpacks, so unpack it the least forgiving way and let
+# Gatekeeper judge the result. spctl on the exported .app cannot catch this --
+# the damage only exists after a zip round trip.
+echo "==> Verifying the zip a user actually downloads"
+ROUNDTRIP_DIR="$(mktemp -d "${TMPDIR:-/tmp}/keeforge-direct-roundtrip.XXXXXX")"
+if ! unzip -qq "${ZIP_PATH}" -d "${ROUNDTRIP_DIR}"; then
+  rm -rf -- "${ROUNDTRIP_DIR}"
+  echo "error: the release zip could not be extracted with plain unzip" >&2
+  exit 1
+fi
+ROUNDTRIP_STRAYS="$(find "${ROUNDTRIP_DIR}/KeeForge.app" -name '._*' 2>/dev/null | wc -l | tr -d ' ')"
+ROUNDTRIP_ASSESS="$(spctl --assess --type execute --verbose=4 "${ROUNDTRIP_DIR}/KeeForge.app" 2>&1 || true)"
+ROUNDTRIP_STAPLE="$(xcrun stapler validate "${ROUNDTRIP_DIR}/KeeForge.app" 2>&1 || true)"
+rm -rf -- "${ROUNDTRIP_DIR}"
+if [[ "${ROUNDTRIP_STRAYS}" != "0" ]]; then
+  echo "error: extracting the release zip leaves ${ROUNDTRIP_STRAYS} AppleDouble file(s) inside the bundle" >&2
+  exit 1
+fi
+if ! grep -q "accepted" <<<"${ROUNDTRIP_ASSESS}"; then
+  echo "error: Gatekeeper rejects the app extracted from the release zip:" >&2
+  printf '%s\n' "${ROUNDTRIP_ASSESS}" >&2
+  exit 1
+fi
+if ! grep -q "The validate action worked" <<<"${ROUNDTRIP_STAPLE}"; then
+  echo "error: the stapled ticket did not survive the release zip round trip:" >&2
+  printf '%s\n' "${ROUNDTRIP_STAPLE}" >&2
+  exit 1
+fi
+echo "    plain unzip: no AppleDouble strays, Gatekeeper accepted, ticket stapled"
 
 # sign_update ships inside the Sparkle SPM artifact bundle, which the archive
 # above already resolved into this run's derived data. Locating it there keeps
