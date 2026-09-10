@@ -1,411 +1,527 @@
 # KeeForge Mac App Store listing and reviewer metadata
 
-Package 9 local preparation record. This file is a paste-ready draft, not an
-App Store Connect write. It was prepared 2026-09-02 from repository evidence
-and a read-only inspection of the signed-in ASC session; do not mark package 9
-complete until every field is verified and saved on the Mac version page.
+Package 9 record. As of 2026-09-09 this is **what is saved on the live macOS
+version page**, not a draft. It was written back from App Store Connect after
+saving, so the copy below matches the record byte for byte. Change it here only
+alongside a matching ASC edit.
+
+Saved state of the macOS version record (app `6759309295`, version id
+`7056fb7a-8e4a-4485-b816-5c04fbe09088`):
+
+- Version `1.16.0`, state `PREPARE_FOR_SUBMISSION`, release type `MANUAL`.
+- Copyright `© 2026 Jia Tan`; Support URL
+  `https://github.com/KeeForge/KeeForge?tab=readme-ov-file#support`; Marketing
+  URL `https://keeforge.com/` — all seven locales.
+- Reviewer contact populated, **Sign-in required** off, reviewer notes saved,
+  attachment `test.kdbx.zip` uploaded.
+- Locales exposed on the Mac page: en-US (primary), zh-Hans, zh-Hant, fr, de,
+  ru, es-ES — exactly the iOS set.
+- Still empty by design: `What's New in This Version` (package 14, from the
+  matching `## v{version}` changelog section), screenshots (package 11), and
+  the attached build (package 10).
 
 ## Source of truth and scope
 
-- The native Mac target is currently `MARKETING_VERSION: 1.15.0` and
-  `CURRENT_PROJECT_VERSION: 2` in `project.yml`. The final version/build must
-  come from the release handoff, not this draft.
-- `KeeForgeMac/README.md` says the native Mac release supports local files and
-  WebDAV. Its cloud OAuth surface deliberately excludes Dropbox and OneDrive.
-  Do not copy the broader iOS README's Dropbox/OneDrive claims into the Mac
-  listing.
+- The final version/build comes from the release handoff. `project.yml` carries
+  `MARKETING_VERSION: 1.16.0` / `CURRENT_PROJECT_VERSION: 4`; the version record
+  was corrected from the auto-created 1.15.0 because the iOS 1.15.0 train is
+  closed.
+- `KeeForgeMac/README.md` and `CloudSyncModels.isAvailableOnCurrentPlatform`
+  agree: the native Mac release supports local files and WebDAV, and hides
+  Dropbox/OneDrive. The listing must not imply otherwise.
 - `KeeForgeMac/Info.plist` declares `ITSAppUsesNonExemptEncryption=false`,
   `LSApplicationCategoryType=public.app-category.utilities`, and the `otpauth`
-  URL scheme. It has no
-  Dropbox or OneDrive URL schemes or client-ID keys.
-- The existing iOS ASC listing has copyright `© 2026 Jia Tan`, Support URL
-  `https://github.com/KeeForge/KeeForge?tab=readme-ov-file#support`, and
-  Marketing URL `https://keeforge.com/`. The repository-known privacy URL is
-  `https://keeforge.com/privacy`; verify that it is accepted and displayed on
-  the Mac version page before saving.
-- In-app shipped locales are English, German, French, Spanish, Simplified
-  Chinese, and Traditional Chinese. Read-only ASC inspection confirms the
-  existing iOS listing's locale set is English (U.S., primary), Chinese
-  (Simplified), Chinese (Traditional), French, German, Russian, and Spanish
-  (Spain). The native Mac version page does not yet exist; treat it as the
-  source of truth for what must be saved and do not assume this iOS set transfers.
-- The existing iOS listing is version `1.15.0`, build `52`, Ready for
-  Distribution. Its current release setting is automatic after approval. The
-  recommended default for the first coordinated native Mac launch is manual
-  release for both platform records; phased Mac release is optional and not
-  yet chosen.
-- The existing app record is free and public, available in 175 countries
-  including France. Apple-silicon Mac availability for the iPhone/iPad app is
-  enabled with automatic minimum macOS 15.0; compatibility is not verified and
-  version `1.15.0` is listed compatible. This is the legacy iPad-on-Mac path,
-  not evidence that a native Mac platform has been added.
-- The native Mac platform and universal purchase are not configured yet. The
-  intended product choice is one app record with universal purchase, pending
-  the explicit account-level ASC setup decision; do not describe it as current
-  availability.
-- The current categories are primary Productivity and secondary Utilities.
-  The Mac plist's Utilities category is not authorization to change ASC
-  categories.
-- The current age rating is 4+ in 172 regions, with regional variants for
-  Brazil, Korea, and Vietnam. Preserve it with **Keep Existing Rating** unless
-  the owner explicitly chooses otherwise.
-- Current ASC screenshots are iPhone/iPad assets only. They cannot satisfy the
-  native Mac listing; package 11 must produce and review Mac-sized screenshots.
-- ASC has an encryption documentation/legal section. Verify its exact
-  requirement and current state on the Mac record; the
-  `ITSAppUsesNonExemptEncryption` value of `false` is a build declaration,
-  not proof that a separate questionnaire or document is unnecessary. Check
-  the accepted iOS declaration and obtain
-  action-time confirmation before saving any legal answer or document.
-- This is listing copy for the native macOS product. It must not imply that
-  Dropbox or OneDrive work on Mac, that WebDAV is required, or that a user must
-  sign in.
+  URL scheme.
+- Name, Subtitle, Category and Age Rating are **app-level and shared with iOS**
+  (App Information, "Any changes will be released with your next app version").
+  There is no Mac-specific subtitle to write. Current values: name
+  `KeeForge: KeePass Manager`, subtitle `Native Password Vault`, categories
+  Productivity / Utilities, age rating 4+ in 172 regions with Brazil/Korea/
+  Vietnam variants. Preserve them; choose **Keep Existing Rating**.
+- Availability is 175 countries including France, base country United States.
+- The macOS platform is on the record, which *is* the universal purchase; Apple
+  offers no separate toggle and a platform cannot be removed once added.
+- The listing copy mirrors each locale's own shipped iOS description structure,
+  with every iOS-only claim corrected: Touch ID for Face ID, local files and
+  WebDAV for iCloud/Dropbox/OneDrive, the System Settings AutoFill path for the
+  QuickType bar, screen-capture blocking for screen-recording blur, and clipboard
+  clearing for Universal Clipboard. The stale `github.com/crazytan/KeeForge`
+  support URL that four iOS locales still carry was **not** copied over; every
+  Mac locale uses `github.com/KeeForge/KeeForge`.
 
-## English (U.S.) — exact copy ready to paste
+## English (U.S.) — saved
 
-Use these values only after confirming the corresponding field and locale on
-the Mac version page.
-
-**App name** (30-character limit):
+**Promotional text** (157/170):
 
 ```text
-KeeForge
+A native Mac password manager for KeePass databases. Open local .kdbx files or connect WebDAV, AutoFill with Touch ID, and keep every secret on your own Mac.
 ```
 
-**Subtitle** (30-character limit):
+**Description** (2,125/4,000):
 
 ```text
-KeePass vault for Mac
+KeeForge is a native macOS password manager for KeePass (.kdbx) databases. Open vaults from local files or a WebDAV server you choose. AutoFill passwords, passkeys, and TOTP codes with Touch ID. No accounts, no tracking, no subscription — fully open source under GPLv3.
+
+Why KeeForge:
+- Native Mac app built in Swift — not a web wrapper
+- Your vault stays encrypted on your Mac; we never see it
+- Zero accounts, zero telemetry, zero ads
+- Compatible with KeePassXC, KeePass 2.x, KeePassium, and Strongbox
+
+Vault Management
+- Open .kdbx databases from anywhere in Finder, or from a WebDAV server
+- Manage multiple databases from one window with Quick Launch
+- Create new KDBX 4.x databases locally or on WebDAV
+- Browse groups and entries with instant search
+
+Editing & Saving
+- Create, edit, and delete entries with built-in password generation
+- Autosave with timestamped backups and save-conflict detection
+- Entry history, unknown fields, and third-party extensions preserved — no data loss when round-tripping with KeePassXC or other clients
+- Read-only mode for shared databases
+
+AutoFill
+- AutoFill passwords, passkeys, and TOTP codes in Safari and other apps
+- Turn it on in System Settings > General > AutoFill & Passwords
+- Save new credentials directly from AutoFill
+
+Security
+- Touch ID unlock with an auto-lock inactivity timer
+- Key file support — all KeePass formats (.key, .keyx, binary, hex)
+- Screen capture blocking keeps your vault out of screenshots and recordings
+- Exponential lockout after failed unlock attempts
+- Argon2 KDF, AES-GCM in-memory encryption of secrets
+- Clipboard clears automatically and never leaves this Mac
+
+Open Source
+- Fully open source under GPLv3
+- Source on GitHub: github.com/KeeForge/KeeForge
+- No network calls except your own WebDAV server, optional website icon lookup, and the optional in-app feedback form
+
+This first Mac release opens local files and connects to WebDAV. Dropbox and OneDrive are not available on Mac yet — open your synced folder as a local file instead.
+
+Tip jar available if you'd like to support development. No subscription, no accounts, no upsell.
 ```
 
-**Promotional text** (170-character limit):
+**Keywords** (90/100):
 
 ```text
-A native KeePass manager for Mac: open local KDBX files, connect optional WebDAV, and use AutoFill—without a hosted password account.
+kdbx,totp,2fa,passkey,fido2,touchid,otp,offline,encrypted,sync,webdav,strongbox,keepassium
 ```
 
-**Description** (4,000-character limit):
+`keepass` is omitted deliberately — the app name already carries it, and the
+approved iOS en-US set omits it for the same reason. `faceid`, `icloud` and
+`onedrive` were dropped as untrue on Mac.
+
+### English reviewer notes — saved
 
 ```text
-Keep your KeePass vault close. KeeForge is a native macOS app for opening and editing KDBX databases stored in local files and connecting to WebDAV servers you choose.
+Reviewing KeeForge for Mac does not require an account or sign-in. The attached test.kdbx.zip is a compressed test database. Unzip it, then in KeeForge choose File > Open Database... and select test.kdbx; unlock it with the password testpassword123.
 
-Unlock with a master password, key file, or both, with Touch ID when available. Search and edit entries and groups, create strong passwords, view attachments, use TOTP codes, and fill credentials with AutoFill. Passkey entries stored in the KeePassXC-compatible format are supported.
-
-Your vault stays in the storage locations you choose. KeeForge has no analytics, background telemetry, or crash-reporting SDKs. WebDAV is optional—no account or sign-in is required to use local files.
-
-The first native Mac release does not connect to Dropbox or OneDrive. To use a database, open its local KDBX file from Finder or another file location, or optionally connect a WebDAV server. To enable AutoFill, open System Settings → General → AutoFill & Passwords and enable KeeForge.
+To test AutoFill, open System Settings > General > AutoFill & Passwords and enable KeeForge, then use Safari or another app. The Mac version supports local files and optional WebDAV connections; Dropbox and OneDrive are not available in the Mac version. WebDAV testing is optional and needs a server you provide — no server or account is required to test local files.
 ```
 
-**Keywords** (100-byte limit; commas only, no spaces around commas):
+The reviewer note is one field on the version record, shared by every locale;
+ASC does not offer a per-locale reviewer note.
 
-```text
-KeePass,KDBX,password,AutoFill,WebDAV,TOTP,passkeys,security
-```
-
-**Copyright / support / privacy:**
-
-```text
-Copyright: © 2026 Jia Tan
-Support URL: https://github.com/KeeForge/KeeForge?tab=readme-ov-file#support
-Marketing URL: https://keeforge.com/
-Privacy Policy URL: https://keeforge.com/privacy
-```
-
-### English reviewer notes — exact copy ready to paste
-
-```text
-Reviewing KeeForge for Mac does not require an account or sign-in. The attached test.kdbx.zip is a compressed test database. Unzip it, then in KeeForge choose File → Open Database… and select test.kdbx; unlock with the database password testpassword123.
-
-To test AutoFill, open System Settings → General → AutoFill & Passwords and enable KeeForge, then use Safari or another supported app. The Mac version supports local files and optional WebDAV connections. Dropbox and OneDrive are not available in the native Mac version. WebDAV testing is optional and requires a tester-provided server; no server or account is required for local-file testing.
-```
-
-## Faithful listing drafts for each locale
-
-These are translation drafts, not evidence that ASC currently offers or
-requires each locale. Keep product terms such as KeeForge, KeePass, KDBX,
-AutoFill, WebDAV, TOTP, and passkeys recognizable. The English copy above is
-the paste-ready source; have a human review any translation before saving.
-
-### fr — existing iOS ASC locale
-
-**Subtitle:** `Coffre KeePass pour Mac`
+## fr — saved
 
 **Promotional text:**
 
 ```text
-Un gestionnaire KeePass natif pour Mac : ouvrez des fichiers KDBX locaux, connectez un WebDAV facultatif et utilisez AutoFill, sans compte de mots de passe hébergé.
+Un gestionnaire KeePass natif pour Mac : ouvrez des fichiers .kdbx locaux ou connectez WebDAV, remplissez avec Touch ID, et gardez chaque secret sur votre Mac.
 ```
 
 **Description:**
 
 ```text
-Gardez votre coffre KeePass à portée de main. KeeForge est une app macOS native pour ouvrir et modifier des bases KDBX stockées dans des fichiers locaux et se connecter aux serveurs WebDAV de votre choix.
+KeeForge est un gestionnaire de mots de passe macOS natif pour les bases KeePass (.kdbx). Ouvrez des coffres depuis des fichiers locaux ou un serveur WebDAV de votre choix. Remplissez automatiquement les mots de passe, passkeys et codes TOTP avec Touch ID. Aucun compte, aucun suivi, aucun abonnement - entièrement open source sous GPLv3.
 
-Déverrouillez avec un mot de passe principal, un fichier de clé ou les deux, avec Touch ID si disponible. Recherchez et modifiez les entrées et les groupes, créez des mots de passe robustes, consultez les pièces jointes, utilisez les codes TOTP et remplissez vos identifiants avec AutoFill. Les entrées de passkey au format compatible KeePassXC sont prises en charge.
+Pourquoi KeeForge :
+- Application Mac native développée en Swift - pas un habillage web
+- Votre coffre reste chiffré sur votre Mac ; nous ne le voyons jamais
+- Aucun compte, aucune télémétrie, aucune publicité
+- Compatible avec KeePassXC, KeePass 2.x, KeePassium et Strongbox
 
-Votre coffre reste dans les emplacements de stockage que vous choisissez. KeeForge n'intègre ni analyse, ni télémétrie en arrière-plan, ni SDK de rapports de crash. WebDAV est facultatif : aucun compte ni aucune connexion n'est nécessaire pour utiliser des fichiers locaux.
+Gestion des coffres
+- Ouvrez des bases .kdbx depuis n'importe quel emplacement du Finder ou depuis un serveur WebDAV
+- Gérez plusieurs bases dans une seule fenêtre avec le lancement rapide
+- Créez de nouvelles bases KDBX 4.x en local ou sur WebDAV
+- Parcourez groupes et entrées avec une recherche instantanée
 
-La première version native pour Mac ne se connecte pas à Dropbox ni à OneDrive. Pour activer AutoFill, ouvrez Réglages Système → Général → Remplissage automatique et mots de passe, puis activez KeeForge.
+Modification et sauvegarde
+- Créez, modifiez et supprimez des entrées avec un générateur de mots de passe intégré
+- Sauvegarde automatique avec copies horodatées et détection des conflits
+- Historique des entrées, champs inconnus et extensions tierces conservés - pas de perte de données lors des allers-retours avec KeePassXC ou d'autres clients
+- Mode lecture seule pour les bases partagées
+
+AutoFill
+- Remplissez automatiquement mots de passe, passkeys et codes TOTP dans Safari et les autres apps
+- Activez-le dans Réglages Système > Général > Remplissage automatique et mots de passe
+- Enregistrez de nouveaux identifiants directement depuis AutoFill
+
+Sécurité
+- Déverrouillage Touch ID avec verrouillage automatique après inactivité
+- Prise en charge des fichiers clé - tous les formats KeePass (.key, .keyx, binaire, hex)
+- Le blocage de capture d'écran garde votre coffre hors des captures et des enregistrements
+- Verrouillage exponentiel après échecs de déverrouillage
+- KDF Argon2 et chiffrement AES-GCM des secrets en mémoire
+- Le presse-papiers s'efface automatiquement et ne quitte jamais ce Mac
+
+Open Source
+- Entièrement open source sous GPLv3
+- Code source sur GitHub : github.com/KeeForge/KeeForge
+- Aucun appel réseau sauf vers votre propre serveur WebDAV, la recherche facultative d'icônes de sites et le formulaire de commentaires optionnel dans l'app
+
+Cette première version Mac ouvre des fichiers locaux et se connecte à WebDAV. Dropbox et OneDrive ne sont pas encore disponibles sur Mac - ouvrez plutôt votre dossier synchronisé comme un fichier local.
+
+Un pourboire est disponible si vous souhaitez soutenir le développement. Aucun abonnement, aucun compte, aucune vente forcée.
 ```
 
-**Keywords:** `KeePass,KDBX,mot de passe,AutoFill,WebDAV,TOTP,passkeys,sécurité`
+**Keywords:** `kdbx,keepass,motdepasse,totp,2fa,passkey,fido2,touchid,otp,horsligne,chiffré,sync,webdav`
 
-### de — existing iOS ASC locale
-
-**Subtitle:** `KeePass-Tresor für Mac`
+## de — saved
 
 **Promotional text:**
 
 ```text
-Ein nativer KeePass-Manager für den Mac: lokale KDBX-Dateien öffnen, optional WebDAV verbinden und AutoFill nutzen – ohne gehostetes Passwortkonto.
+Ein nativer KeePass-Manager für den Mac: lokale .kdbx-Dateien öffnen, optional WebDAV verbinden, mit Touch ID ausfüllen - alle Geheimnisse bleiben auf deinem Mac.
 ```
 
 **Description:**
 
 ```text
-Ihr KeePass-Tresor bleibt griffbereit. KeeForge ist eine native macOS-App zum Öffnen und Bearbeiten von KDBX-Datenbanken in lokalen Dateien und zum Verbinden mit WebDAV-Servern Ihrer Wahl.
+KeeForge ist ein nativer macOS-Passwortmanager für KeePass-Datenbanken (.kdbx). Öffne Tresore aus lokalen Dateien oder von einem WebDAV-Server deiner Wahl. Fülle Passwörter, Passkeys und TOTP-Codes per Touch ID automatisch aus. Keine Konten, kein Tracking, kein Abo - vollständig Open Source unter GPLv3.
 
-Entsperren Sie mit einem Hauptpasswort, einer Schlüsseldatei oder beidem, mit Touch ID, sofern verfügbar. Suchen und bearbeiten Sie Einträge und Gruppen, erstellen Sie starke Passwörter, zeigen Sie Anhänge an, verwenden Sie TOTP-Codes und füllen Sie Zugangsdaten mit AutoFill aus. Passkey-Einträge im KeePassXC-kompatiblen Format werden unterstützt.
+Warum KeeForge:
+- Native Mac-App, in Swift entwickelt - kein Web-Wrapper
+- Dein Tresor bleibt verschlüsselt auf deinem Mac; wir sehen ihn nie
+- Keine Konten, keine Telemetrie, keine Werbung
+- Kompatibel mit KeePassXC, KeePass 2.x, KeePassium und Strongbox
 
-Ihr Tresor bleibt an den von Ihnen gewählten Speicherorten. KeeForge enthält keine Analyse, Telemetrie im Hintergrund oder SDKs zur Absturzberichterstattung. WebDAV ist optional – für lokale Dateien ist kein Konto und keine Anmeldung erforderlich.
+Tresorverwaltung
+- Öffne .kdbx-Datenbanken von überall im Finder oder von einem WebDAV-Server
+- Verwalte mehrere Datenbanken in einem Fenster mit Schnellstart
+- Erstelle neue KDBX-4.x-Datenbanken lokal oder auf WebDAV
+- Durchsuche Gruppen und Einträge sofort
 
-Die erste native Mac-Version verbindet sich nicht mit Dropbox oder OneDrive. Für AutoFill öffnen Sie Systemeinstellungen → Allgemein → Automatisches Ausfüllen & Passwörter und aktivieren KeeForge.
+Bearbeiten & Speichern
+- Erstelle, bearbeite und lösche Einträge mit integriertem Passwortgenerator
+- Automatisches Speichern mit zeitgestempelten Backups und Erkennung von Speicherkonflikten
+- Eintragsverlauf, unbekannte Felder und Erweiterungen von Drittanbietern bleiben erhalten - kein Datenverlust beim Roundtrip mit KeePassXC oder anderen Clients
+- Schreibgeschützter Modus für gemeinsam genutzte Datenbanken
+
+AutoFill
+- Fülle Passwörter, Passkeys und TOTP-Codes in Safari und anderen Apps automatisch aus
+- Aktiviere es in Systemeinstellungen > Allgemein > Automatisches Ausfüllen & Passwörter
+- Speichere neue Zugangsdaten direkt aus AutoFill
+
+Sicherheit
+- Entsperren mit Touch ID und automatischer Sperre bei Inaktivität
+- Schlüsseldatei-Unterstützung - alle KeePass-Formate (.key, .keyx, binär, hex)
+- Der Schutz vor Bildschirmaufnahmen hält deinen Tresor aus Screenshots und Aufzeichnungen heraus
+- Exponentielle Sperre nach fehlgeschlagenen Entsperrversuchen
+- Argon2-KDF, AES-GCM-Verschlüsselung von Geheimnissen im Arbeitsspeicher
+- Die Zwischenablage wird automatisch geleert und verlässt diesen Mac nie
+
+Open Source
+- Vollständig Open Source unter GPLv3
+- Quellcode auf GitHub: github.com/KeeForge/KeeForge
+- Keine Netzwerkaufrufe außer zu deinem eigenen WebDAV-Server, der optionalen Website-Icon-Suche und dem optionalen Feedbackformular in der App
+
+Diese erste Mac-Version öffnet lokale Dateien und verbindet sich mit WebDAV. Dropbox und OneDrive sind auf dem Mac noch nicht verfügbar - öffne stattdessen deinen synchronisierten Ordner als lokale Datei.
+
+Eine Trinkgeld-Option ist verfügbar, wenn du die Entwicklung unterstützen möchtest. Kein Abo, keine Konten, kein Upselling.
 ```
 
-**Keywords:** `KeePass,KDBX,Passwort,AutoFill,WebDAV,TOTP,Passkeys,Sicherheit`
+**Keywords:** `kdbx,keepass,passwort,totp,2fa,passkey,fido2,touchid,otp,offline,verschlüsselt,sync,webdav`
 
-### ru — existing iOS ASC locale
-
-**Subtitle:** `KeePass-хранилище для Mac`
+## ru — saved
 
 **Promotional text:**
 
 ```text
-Нативный KeePass-менеджер для Mac: открывайте локальные файлы KDBX, подключайте WebDAV по желанию и используйте AutoFill без учётной записи.
+Нативный менеджер паролей KeePass для Mac: открывайте локальные файлы .kdbx или подключайте WebDAV, заполняйте с Touch ID — все секреты остаются на вашем Mac.
 ```
 
 **Description:**
 
 ```text
-Держите хранилище KeePass под рукой. KeeForge — нативное приложение macOS для открытия и редактирования баз KDBX в локальных файлах и подключения к выбранным вами серверам WebDAV.
+KeeForge - нативный менеджер паролей для macOS для баз данных KeePass (.kdbx). Открывайте хранилища из локальных файлов или с выбранного вами сервера WebDAV. Автоматически заполняйте пароли, passkeys и TOTP-коды с Touch ID. Без аккаунтов, без отслеживания, без подписки - полностью open source под GPLv3.
 
-Разблокируйте базу мастер-паролем, файлом ключа или обоими способами; при наличии доступен Touch ID. Ищите и редактируйте записи и группы, создавайте надёжные пароли, просматривайте вложения, используйте коды TOTP и заполняйте данные через AutoFill. Поддерживаются записи passkey в формате, совместимом с KeePassXC.
+Почему KeeForge:
+- Нативное приложение для Mac, написано на Swift - не веб-обертка
+- Ваше хранилище остается зашифрованным на вашем Mac; мы его никогда не видим
+- Никаких аккаунтов, телеметрии и рекламы
+- Совместимо с KeePassXC, KeePass 2.x, KeePassium и Strongbox
 
-Ваше хранилище остаётся в выбранных вами местах хранения. В KeeForge нет аналитики, фоновой телеметрии и SDK для отчётов о сбоях. WebDAV необязателен — для локальных файлов не нужны учётная запись и вход.
+Управление хранилищами
+- Открывайте базы .kdbx из любого места в Finder или с сервера WebDAV
+- Управляйте несколькими базами в одном окне с быстрым запуском
+- Создавайте новые базы KDBX 4.x локально или на WebDAV
+- Просматривайте группы и записи с мгновенным поиском
 
-Первая нативная версия для Mac не подключается к Dropbox или OneDrive. Чтобы включить AutoFill, откройте Системные настройки → Основные → Автозаполнение и пароли и включите KeeForge.
+Редактирование и сохранение
+- Создавайте, редактируйте и удаляйте записи со встроенным генератором паролей
+- Автосохранение с резервными копиями по времени и обнаружением конфликтов
+- История записей, неизвестные поля и сторонние расширения сохраняются - без потери данных при обмене с KeePassXC и другими клиентами
+- Режим только для чтения для общих баз
+
+AutoFill
+- Автоматически заполняйте пароли, passkeys и TOTP-коды в Safari и других приложениях
+- Включите его в Системных настройках > Основные > Автозаполнение и пароли
+- Сохраняйте новые учетные данные прямо из AutoFill
+
+Безопасность
+- Разблокировка Touch ID и автоблокировка при неактивности
+- Поддержка ключевых файлов - все форматы KeePass (.key, .keyx, binary, hex)
+- Блокировка снимков экрана не дает хранилищу попасть в скриншоты и записи
+- Экспоненциальная блокировка после неудачных попыток разблокировки
+- KDF Argon2 и AES-GCM-шифрование секретов в памяти
+- Буфер обмена очищается автоматически и никогда не покидает этот Mac
+
+Open Source
+- Полностью open source под GPLv3
+- Исходный код на GitHub: github.com/KeeForge/KeeForge
+- Сетевых запросов нет, кроме вашего сервера WebDAV, необязательного поиска значков сайтов и необязательной формы обратной связи в приложении
+
+Эта первая версия для Mac открывает локальные файлы и подключается к WebDAV. Dropbox и OneDrive пока недоступны на Mac - откройте синхронизированную папку как обычный локальный файл.
+
+Есть возможность оставить чаевые, если вы хотите поддержать разработку. Без подписки, без аккаунтов, без навязанных покупок.
 ```
 
-**Keywords:** `KeePass,KDBX,пароль,AutoFill,WebDAV,TOTP,passkey,безопасность`
+**Keywords:** `kdbx,keepass,пароли,totp,2fa,passkey,fido2,touchid,otp,офлайн,sync,webdav,strongbox`
 
-### es-ES — existing iOS ASC locale
+Cyrillic keywords are byte-expensive; `шифрование` was dropped to stay clear of
+the limit while keeping `fido2` and `strongbox`.
 
-**Subtitle:** `Bóveda KeePass para Mac`
+## es-ES — saved
 
 **Promotional text:**
 
 ```text
-Un gestor KeePass nativo para Mac: abre archivos KDBX locales, conecta WebDAV opcional y usa AutoFill sin una cuenta de contraseñas alojada.
+Un gestor KeePass nativo para Mac: abre archivos .kdbx locales o conecta WebDAV, rellena con Touch ID y guarda cada secreto en tu propio Mac.
 ```
 
 **Description:**
 
 ```text
-Ten tu bóveda KeePass siempre a mano. KeeForge es una app nativa para macOS que abre y edita bases de datos KDBX guardadas en archivos locales y se conecta a servidores WebDAV que elijas.
+KeeForge es un gestor de contraseñas nativo para macOS para bases de datos KeePass (.kdbx). Abre bóvedas desde archivos locales o desde un servidor WebDAV que tú elijas. Rellena automáticamente contraseñas, passkeys y códigos TOTP con Touch ID. Sin cuentas, sin seguimiento, sin suscripción - completamente open source bajo GPLv3.
 
-Desbloquea con una contraseña maestra, un archivo de clave o ambos, y usa Touch ID cuando esté disponible. Busca y edita entradas y grupos, crea contraseñas seguras, consulta archivos adjuntos, usa códigos TOTP y completa credenciales con AutoFill. Se admiten entradas passkey en el formato compatible con KeePassXC.
+Por qué KeeForge:
+- App nativa para Mac, creada en Swift - no es un envoltorio web
+- Tu bóveda permanece cifrada en tu Mac; nunca la vemos
+- Cero cuentas, cero telemetría, cero anuncios
+- Compatible con KeePassXC, KeePass 2.x, KeePassium y Strongbox
 
-Tu bóveda permanece en las ubicaciones de almacenamiento que elijas. KeeForge no incluye analítica, telemetría en segundo plano ni SDK de informes de fallos. WebDAV es opcional: no necesitas una cuenta ni iniciar sesión para usar archivos locales.
+Gestión de bóvedas
+- Abre bases .kdbx desde cualquier lugar del Finder o desde un servidor WebDAV
+- Gestiona varias bases en una sola ventana con inicio rápido
+- Crea nuevas bases KDBX 4.x en local o en WebDAV
+- Explora grupos y entradas con búsqueda instantánea
 
-La primera versión nativa para Mac no se conecta a Dropbox ni OneDrive. Para activar AutoFill, abre Ajustes del Sistema → General → Autorrelleno y contraseñas y activa KeeForge.
+Edición y guardado
+- Crea, edita y elimina entradas con generador de contraseñas integrado
+- Autoguardado con copias de seguridad con fecha y detección de conflictos
+- Se conservan el historial de entradas, campos desconocidos y extensiones de terceros - sin pérdida de datos al intercambiar archivos con KeePassXC u otros clientes
+- Modo de solo lectura para bases compartidas
+
+AutoFill
+- Rellena contraseñas, passkeys y códigos TOTP en Safari y otras apps
+- Actívalo en Ajustes del Sistema > General > Autorrelleno y contraseñas
+- Guarda nuevas credenciales directamente desde AutoFill
+
+Seguridad
+- Desbloqueo con Touch ID y bloqueo automático por inactividad
+- Compatibilidad con archivos clave - todos los formatos KeePass (.key, .keyx, binario, hex)
+- El bloqueo de captura mantiene tu bóveda fuera de capturas y grabaciones de pantalla
+- Bloqueo exponencial tras intentos fallidos de desbloqueo
+- KDF Argon2 y cifrado AES-GCM de secretos en memoria
+- El portapapeles se borra automáticamente y nunca sale de este Mac
+
+Open Source
+- Completamente open source bajo GPLv3
+- Código fuente en GitHub: github.com/KeeForge/KeeForge
+- Sin llamadas de red salvo a tu propio servidor WebDAV, la búsqueda opcional de iconos de sitios y el formulario opcional de comentarios en la app
+
+Esta primera versión para Mac abre archivos locales y se conecta a WebDAV. Dropbox y OneDrive aún no están disponibles en Mac - abre tu carpeta sincronizada como un archivo local.
+
+Hay una opción de propina si quieres apoyar el desarrollo. Sin suscripción, sin cuentas, sin ventas forzadas.
 ```
 
-**Keywords:** `KeePass,KDBX,contraseña,AutoFill,WebDAV,TOTP,passkeys,seguridad`
+**Keywords:** `kdbx,keepass,contraseña,totp,2fa,passkey,fido2,touchid,otp,offline,cifrado,sync,webdav`
 
-### zh-Hans — existing iOS ASC locale (Chinese Simplified)
-
-**Subtitle:** `Mac 上的 KeePass 密库`
+## zh-Hans — saved
 
 **Promotional text:**
 
 ```text
-适用于 Mac 的原生 KeePass 管理器：打开本地 KDBX 文件，可选连接 WebDAV，并使用 AutoFill，无需托管密码账户。
+适用于 Mac 的原生 KeePass 管理器：打开本地 .kdbx 文件或连接 WebDAV，使用 Touch ID 自动填充，所有密码都留在您自己的 Mac 上。
 ```
 
 **Description:**
 
 ```text
-随时使用您的 KeePass 密库。KeeForge 是原生 macOS 应用，可打开和编辑保存在本地文件中的 KDBX 数据库，也可连接您选择的 WebDAV 服务器。
+KeeForge 是一款原生 macOS KeePass（.kdbx）密码管理器。可从本地文件或您选择的 WebDAV 服务器打开密码库，并通过 Touch ID 在 Safari 和各类 App 中自动填充密码、passkey 和 TOTP 验证码。无需账户、没有跟踪、没有订阅，采用 GPLv3 完全开源。
 
-您可以使用主密码、密钥文件或两者解锁；设备支持时可使用 Touch ID。搜索和编辑条目及分组，生成强密码，查看附件，使用 TOTP 验证码，并通过 AutoFill 填充凭据。支持 KeePassXC 兼容格式的 passkey 条目。
+为什么选择 KeeForge
+• 使用 Swift 为 Mac 原生打造，不是网页套壳
+• 密码库始终在您的 Mac 上保持加密；我们无法查看其中内容
+• 无账户、无遥测、无广告
+• 兼容 KeePassXC、KeePass 2.x、KeePassium 和 Strongbox
 
-密库始终保存在您选择的存储位置。KeeForge 不包含分析、后台遥测或崩溃报告 SDK。WebDAV 为可选功能：使用本地文件不需要账户或登录。
+密码库管理
+• 支持访达中任意位置的本地文件，以及 WebDAV 服务器
+• 可在单一窗口中管理多个数据库，并使用快速启动
+• 可在本地或 WebDAV 中创建 KDBX 4.x 数据库
+• 支持即时搜索、标签浏览及按文件夹整理
 
-首个原生 Mac 版本不连接 Dropbox 或 OneDrive。要启用 AutoFill，请打开系统设置 → 通用 → 自动填充与密码，然后启用 KeeForge。
+编辑与保存
+• 创建、编辑和删除条目，并使用内置密码生成器
+• 自动保存、时间戳备份和保存冲突检测
+• 保留条目历史、未知字段和第三方扩展，确保与其他 KeePass 客户端往返编辑时不丢失数据
+• 支持共享数据库的只读模式
+
+AutoFill
+• 在 Safari 和其他 App 中填充密码、passkey 与 TOTP 验证码
+• 在“系统设置”→“通用”→“自动填充与密码”中启用 KeeForge
+• 可直接从 AutoFill 新建凭据
+
+安全
+• Touch ID 解锁及闲置自动锁定
+• 支持所有 KeePass 密钥文件格式（.key、.keyx、二进制和十六进制）
+• 屏幕捕捉阻止功能让密码库不会出现在截屏和录屏中
+• 多次解锁失败后采用指数退避锁定
+• 使用 Argon2 KDF，并以 AES-GCM 在内存中加密敏感信息
+• 剪贴板会自动清除，且绝不离开这台 Mac
+
+开源
+• 采用 GPLv3 完全开源
+• 源代码：github.com/KeeForge/KeeForge
+• 除您自己的 WebDAV 服务器、可选的网站图标查询和 App 内可选的反馈表单外，没有任何网络请求
+
+首个 Mac 版本支持本地文件和 WebDAV。Mac 上暂不支持 Dropbox 和 OneDrive，请将同步文件夹中的文件作为本地文件打开。
+
+无账户、无订阅、无推销。若您愿意支持开发，可使用小费功能。
 ```
 
-**Keywords:** `KeePass,KDBX,密码,AutoFill,WebDAV,TOTP,passkey,安全`
+**Keywords:** `密码,密码库,密码管理器,自动填充,验证码,双重验证,加密,离线,密钥文件,通行密钥,WebDAV,kdbx`
 
-### zh-Hant — existing iOS ASC locale (Chinese Traditional)
+`访达` is Apple's Simplified Chinese name for Finder; Traditional Chinese keeps
+"Finder" untranslated. Do not "fix" one to match the other.
 
-**Subtitle:** `Mac 上的 KeePass 保管庫`
+## zh-Hant — saved
 
 **Promotional text:**
 
 ```text
-適用於 Mac 的原生 KeePass 管理器：開啟本機 KDBX 檔案、選擇性連接 WebDAV，並使用 AutoFill，無需託管密碼帳戶。
+適用於 Mac 的原生 KeePass 管理器：開啟本機 .kdbx 檔案或連接 WebDAV，使用 Touch ID 自動填入，所有密碼都留在您自己的 Mac 上。
 ```
 
 **Description:**
 
 ```text
-隨時使用您的 KeePass 保管庫。KeeForge 是原生 macOS App，可開啟及編輯儲存在本機檔案中的 KDBX 資料庫，也可連接您選擇的 WebDAV 伺服器。
+KeeForge 是一款原生 macOS KeePass（.kdbx）密碼管理器。可從本機檔案或您選擇的 WebDAV 伺服器開啟密碼庫，並透過 Touch ID 在 Safari 和各類 App 中自動填入密碼、passkey 和 TOTP 驗證碼。無需帳號、沒有追蹤、沒有訂閱，採用 GPLv3 完全開源。
 
-您可以使用主密碼、金鑰檔案或兩者解鎖；裝置支援時可使用 Touch ID。搜尋及編輯項目與群組、建立強密碼、檢視附件、使用 TOTP 驗證碼，並透過 AutoFill 填入憑證。支援 KeePassXC 相容格式的 passkey 項目。
+為什麼選擇 KeeForge
+• 使用 Swift 為 Mac 原生打造，不是網頁套殼
+• 密碼庫始終在您的 Mac 上保持加密；我們無法查看其中內容
+• 無帳號、無遙測、無廣告
+• 相容 KeePassXC、KeePass 2.x、KeePassium 和 Strongbox
 
-保管庫會留在您選擇的儲存位置。KeeForge 不包含分析、背景遙測或當機報告 SDK。WebDAV 是選用功能：使用本機檔案不需要帳戶或登入。
+密碼庫管理
+• 支援 Finder 中任意位置的本機檔案，以及 WebDAV 伺服器
+• 可在單一視窗中管理多個資料庫，並使用快速啟動
+• 可在本機或 WebDAV 中建立 KDBX 4.x 資料庫
+• 支援即時搜尋、標籤瀏覽及依資料夾整理
 
-首個原生 Mac 版本不連接 Dropbox 或 OneDrive。若要啟用 AutoFill，請開啟系統設定 → 一般 → 自動填寫與密碼，然後啟用 KeeForge。
+編輯與儲存
+• 建立、編輯和刪除項目，並使用內建密碼產生器
+• 自動儲存、時間戳記備份和儲存衝突偵測
+• 保留項目歷程、未知欄位和第三方擴充，確保與其他 KeePass 用戶端往返編輯時不遺失資料
+• 支援共享資料庫的唯讀模式
+
+AutoFill
+• 在 Safari 和其他 App 中填入密碼、passkey 與 TOTP 驗證碼
+• 在「系統設定」→「一般」→「自動填寫與密碼」中啟用 KeeForge
+• 可直接從 AutoFill 建立憑證
+
+安全
+• Touch ID 解鎖及閒置自動鎖定
+• 支援所有 KeePass 金鑰檔案格式（.key、.keyx、二進位和十六進位）
+• 螢幕擷取阻擋功能讓密碼庫不會出現在截圖和螢幕錄影中
+• 多次解鎖失敗後採用指數退避鎖定
+• 使用 Argon2 KDF，並以 AES-GCM 在記憶體中加密敏感資訊
+• 剪貼簿會自動清除，且絕不離開這台 Mac
+
+開源
+• 採用 GPLv3 完全開源
+• 原始碼：github.com/KeeForge/KeeForge
+• 除您自己的 WebDAV 伺服器、可選的網站圖示查詢和 App 內可選的回饋表單外，沒有任何網路請求
+
+首個 Mac 版本支援本機檔案和 WebDAV。Mac 上暫不支援 Dropbox 和 OneDrive，請將同步資料夾中的檔案作為本機檔案開啟。
+
+無帳號、無訂閱、無推銷。若您願意支持開發，可使用小費功能。
 ```
 
-**Keywords:** `KeePass,KDBX,密碼,AutoFill,WebDAV,TOTP,passkey,安全`
-
-## Reviewer-note translations (faithful drafts)
-
-The English note is the ready-to-paste operational source. These translations
-preserve the fixture path, password, platform limitation, optional WebDAV, and
-the exact AutoFill settings path; do not change those facts during translation.
-
-### fr
-
-```text
-L’examen de KeeForge pour Mac ne nécessite ni compte ni connexion. La pièce jointe test.kdbx.zip est une base de test compressée. Décompressez-la, puis dans KeeForge choisissez Fichier → Ouvrir la base de données… et sélectionnez test.kdbx ; déverrouillez-la avec le mot de passe testpassword123.
-
-Pour tester AutoFill, ouvrez Réglages Système → Général → Remplissage automatique et mots de passe et activez KeeForge, puis utilisez Safari ou une autre app prise en charge. La version Mac prend en charge les fichiers locaux et les connexions WebDAV facultatives. Dropbox et OneDrive ne sont pas disponibles dans la version native pour Mac. Le test WebDAV est facultatif et nécessite un serveur fourni par le testeur ; aucun serveur ni compte n’est nécessaire pour tester les fichiers locaux.
-```
-
-### de
-
-```text
-Für die Prüfung von KeeForge für Mac ist kein Konto und keine Anmeldung erforderlich. Der Anhang test.kdbx.zip ist eine komprimierte Testdatenbank. Entpacken Sie ihn, wählen Sie in KeeForge Datei → Datenbank öffnen… und dann test.kdbx; entsperren Sie die Datenbank mit dem Passwort testpassword123.
-
-Zum Testen von AutoFill öffnen Sie Systemeinstellungen → Allgemein → Automatisches Ausfüllen & Passwörter, aktivieren KeeForge und verwenden Sie anschließend Safari oder eine andere unterstützte App. Die Mac-Version unterstützt lokale Dateien und optionale WebDAV-Verbindungen. Dropbox und OneDrive sind in der nativen Mac-Version nicht verfügbar. Der WebDAV-Test ist optional und benötigt einen vom Tester bereitgestellten Server; für lokale Dateien sind weder Server noch Konto erforderlich.
-```
-
-### ru
-
-```text
-Для проверки KeeForge для Mac учётная запись и вход не требуются. Во вложении находится сжатая тестовая база test.kdbx.zip. Распакуйте её, затем в KeeForge выберите «Файл» → «Открыть базу данных…», укажите test.kdbx и разблокируйте базу паролем testpassword123.
-
-Чтобы проверить AutoFill, откройте Системные настройки → Основные → Автозаполнение и пароли, включите KeeForge и используйте Safari или другое поддерживаемое приложение. Версия для Mac поддерживает локальные файлы и необязательные подключения WebDAV. Dropbox и OneDrive недоступны в нативной версии для Mac. Проверка WebDAV необязательна и требует сервера тестировщика; для проверки локальных файлов сервер и учётная запись не нужны.
-```
-
-### es-ES
-
-```text
-La revisión de KeeForge para Mac no requiere cuenta ni inicio de sesión. El archivo adjunto test.kdbx.zip es una base de datos de prueba comprimida. Descomprímelo, abre KeeForge, elige Archivo → Abrir base de datos… y selecciona test.kdbx; desbloquéala con la contraseña testpassword123.
-
-Para probar AutoFill, abre Ajustes del Sistema → General → Autorrelleno y contraseñas, activa KeeForge y usa Safari u otra app compatible. La versión para Mac admite archivos locales y conexiones WebDAV opcionales. Dropbox y OneDrive no están disponibles en la versión nativa para Mac. La prueba de WebDAV es opcional y requiere un servidor proporcionado por el evaluador; para probar archivos locales no se necesitan servidor ni cuenta.
-```
-
-### zh-Hans
-
-```text
-审核 KeeForge for Mac 不需要账户或登录。附件 test.kdbx.zip 是压缩的测试数据库。请解压，在 KeeForge 中选择“文件”→“打开数据库…”，选取 test.kdbx，并使用数据库密码 testpassword123 解锁。
-
-要测试 AutoFill，请打开系统设置 → 通用 → 自动填充与密码，启用 KeeForge，然后使用 Safari 或其他支持的应用。Mac 版本支持本地文件和可选的 WebDAV 连接。原生 Mac 版本不提供 Dropbox 或 OneDrive。WebDAV 测试为可选项，需要测试人员提供服务器；测试本地文件不需要服务器或账户。
-```
-
-### zh-Hant
-
-```text
-審核 KeeForge for Mac 不需要帳戶或登入。附件 test.kdbx.zip 是壓縮的測試資料庫。請解壓縮，在 KeeForge 中選擇「檔案」→「開啟資料庫…」，選取 test.kdbx，並使用資料庫密碼 testpassword123 解鎖。
-
-若要測試 AutoFill，請開啟系統設定 → 一般 → 自動填寫與密碼，啟用 KeeForge，然後使用 Safari 或其他支援的 App。Mac 版本支援本機檔案和選用的 WebDAV 連線。原生 Mac 版本不提供 Dropbox 或 OneDrive。WebDAV 測試為選用項目，需要測試人員提供伺服器；測試本機檔案不需要伺服器或帳戶。
-```
+**Keywords:** `密碼,密碼庫,密碼管理器,自動填入,驗證碼,雙重驗證,加密,離線,金鑰檔案,通行密鑰,WebDAV,kdbx`
 
 ## Field limits, unknowns, and do-not-invent rules
 
-The limits above are the standard App Store Connect text limits and should be
-checked against the current ASC UI before saving. Keywords are a byte limit,
-not a character limit; recheck UTF-8 byte length for every translated keyword
-set. If ASC displays a different limit, its UI wins.
+ASC counts **characters**, not UTF-8 bytes, for Keywords — CJK keyword sets are
+comfortably inside 100 characters even though their byte length exceeds it.
+Verify against the live counter anyway; its UI wins.
 
-- **Support URL / marketing URL / copyright:** verified on the existing iOS
-  listing as the values recorded above. Reconfirm that the Mac version page
-  inherits or accepts the same values before saving; do not silently substitute
-  another URL.
-- **Privacy URL:** repo-known `https://keeforge.com/privacy`; verify that ASC
-  accepts and displays it for the Mac locale/version.
-- **Category:** existing ASC values are primary Productivity and secondary
-  Utilities. Preserve them unless the owner explicitly chooses a Mac-specific
-  category change; do not infer a change from the plist alone.
-- **Age rating:** existing ASC value is 4+ in 172 regions, with Brazil, Korea,
-  and Vietnam regional variants. Choose **Keep Existing Rating** unless the
-  owner explicitly directs a change.
-- **Availability / France:** retain the app's public France availability by
-  default and verify the Mac version has the intended country availability.
-  A prior export-compliance record contained “No” for a France-related question,
-  but that is historical context only and conflicts with the live public France
-  availability. Inspect the exact accepted iOS declaration and current Mac
-  question text before considering it; never reuse or infer the answer. This
-  draft is not authorization to save a legal answer or change availability.
-- **Export compliance:** verify `ITSAppUsesNonExemptEncryption = false` resolves
-  on the Mac build. If ASC asks for a legal questionnaire or document, read the
-  exact current question text and accepted iOS Build Metadata; do not reuse a
-  historical answer without action-time owner confirmation immediately before
-  saving it.
-- **Release controls:** the recommended default is **Manually release this
-  version** for both platform records for the coordinated launch, preserving
-  the existing rating. Phased release for Mac is optional and not yet chosen;
-  do not select it without an explicit owner decision.
-- **Locales:** the verified existing iOS ASC locale set is en-US (primary),
-  zh-Hans, zh-Hant, fr, de, ru, and es-ES. Confirm the Mac page still exposes
-  exactly these locales before saving all seven.
-- **Screenshots/build:** not part of this local metadata draft. The final Mac
-  screenshots and exact soaked RC build remain required before submission.
+- **Export compliance:** `ITSAppUsesNonExemptEncryption = false` is declared in
+  the Mac plist, but that is a build declaration. It resolves when the build is
+  attached (package 10), so it is **not yet observed on this record**. If ASC
+  asks a legal questionnaire or requests a document, read the exact current
+  question text and the accepted iOS Build Metadata, and obtain action-time owner
+  confirmation before saving. Never infer an answer from the plist, from store
+  availability, or from the historical France-related "No" — the live record is
+  publicly available in France and that record is context only.
+- **Age rating:** choose **Keep Existing Rating**. It is app-level and shared.
+- **Availability:** 175 countries including France; leave it alone.
+- **Release control:** `MANUAL` is saved. Phased release for macOS is optional
+  and still not chosen; do not select it without an explicit owner decision.
+- **Screenshots:** none uploaded. iOS assets cannot satisfy the Mac listing;
+  package 11 produces the seven 2880×1800 captures.
+- **Build:** none attached. Package 10 hands over the exact soaked build.
 
 ## Final RC release-notes rule (bounded template only)
 
-Do not claim final RC release notes in this package 9 draft. At submission
-time, use only the matching version heading in `CHANGELOG.md` (for example,
-`## v1.15.0`), select concise user-facing changes, and translate the same
-meaning into every locale ASC actually lists. Exclude `## Unreleased`, the
-macOS package checklist, implementation/audit details, issue numbers unless
+`What's New in This Version` is deliberately empty on all seven locales. At
+submission time use only the matching version heading in `CHANGELOG.md` (for
+example `## v1.16.0`), select concise user-facing changes, and translate the
+same meaning into every locale ASC lists. Exclude `## Unreleased`, the macOS
+package checklist, implementation/audit details, issue numbers unless
 user-facing, and any feature not present in the exact soaked RC. Keep each
-locale within ASC's current What's New limit (normally 4,000 characters).
-
-```text
-What's New in This Version (template — do not paste yet)
-[Final marketing version: verify against release manifest]
-- [User-facing change from the matching versioned CHANGELOG section]
-- [User-facing fix or improvement from that same section]
-```
+locale within ASC's current limit (normally 4,000 characters).
 
 ## Pre-submission checklist
 
-- [ ] Mac version page exists for the exact final marketing version; no
-  duplicate version was created.
-- [ ] Exact soaked Mac build is processed and attached; final RC screenshots
-  are the Mac captures for that build.
-- [ ] English listing copy is approved, then translated faithfully into every
-  locale shown on the Mac version page.
-- [ ] Support URL is verified (not invented); privacy URL is
-  `https://keeforge.com/privacy` and is verified in ASC.
-- [ ] Contact information is populated; reviewer note identifies the attached
+- [x] Mac version page exists for 1.16.0; no duplicate version was created.
+- [ ] Exact soaked Mac build is processed and attached; final RC screenshots are
+  the Mac captures for that build.
+- [x] English listing copy is saved, and translated faithfully into every locale
+  shown on the Mac version page.
+- [x] Support URL is verified (not the stale `crazytan` one the iOS fr/de/ru/es
+  locales still carry).
+- [ ] Privacy URL is verified in ASC — it lives on the App Privacy page, not the
+  version page, and was not touched by package 9.
+- [x] Contact information is populated; reviewer note identifies the attached
   `test.kdbx.zip` and password `testpassword123`.
-- [ ] Attachment visibly shows `test.kdbx.zip`; upload only that exact file if
-  it is absent.
-- [ ] Reviewer note says local files and optional WebDAV work, Dropbox and
+- [x] Attachment visibly shows `test.kdbx.zip`.
+- [x] Reviewer note says local files and optional WebDAV work, Dropbox and
   OneDrive are unavailable on native Mac, no sign-in is required, and AutoFill
   is enabled at System Settings → General → AutoFill & Passwords.
-- [ ] Export compliance resolves as `ITSAppUsesNonExemptEncryption = false`;
-  any separate legal/documentation request is handled only after reading the
-  exact current question and accepted iOS Build Metadata, with action-time
-  owner confirmation before saving; public France availability is preserved
-  unless an explicitly confirmed legal/product decision says otherwise.
-- [ ] **Manually release this version** and **Keep Existing Rating** are
-  verified; no automatic or unchosen phased release is selected.
+- [ ] Export compliance resolves as `ITSAppUsesNonExemptEncryption = false` once
+  the build is attached; any separate legal/documentation request is handled only
+  after reading the exact current question and accepted iOS Build Metadata, with
+  action-time owner confirmation before saving; public France availability is
+  preserved unless an explicitly confirmed legal/product decision says otherwise.
+- [x] **Manually release this version** is saved. **Keep Existing Rating** is
+  chosen in the submission flow, not here.
 - [ ] Final RC release notes are derived from the matching versioned changelog
   section only, and saved for every locale ASC lists.
 - [ ] Add for Review is staged and reaches Ready for Review. Do not click
