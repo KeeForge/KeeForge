@@ -27,7 +27,7 @@ final class MacTransitionNoticeServiceTests: XCTestCase {
         XCTAssertTrue(
             MacTransitionNoticeService.claimPresentation(
                 defaults: defaults,
-                hasLegacyDatabaseList: true
+                legacyState: .listPresent
             )
         )
     }
@@ -35,13 +35,13 @@ final class MacTransitionNoticeServiceTests: XCTestCase {
     func testDoesNotPresentAgainOnALaterLaunch() {
         _ = MacTransitionNoticeService.claimPresentation(
             defaults: defaults,
-            hasLegacyDatabaseList: true
+            legacyState: .listPresent
         )
 
         XCTAssertFalse(
             MacTransitionNoticeService.claimPresentation(
                 defaults: defaults,
-                hasLegacyDatabaseList: true
+                legacyState: .listPresent
             )
         )
     }
@@ -50,7 +50,7 @@ final class MacTransitionNoticeServiceTests: XCTestCase {
         XCTAssertFalse(
             MacTransitionNoticeService.claimPresentation(
                 defaults: defaults,
-                hasLegacyDatabaseList: false
+                legacyState: .freshInstall
             )
         )
     }
@@ -60,13 +60,27 @@ final class MacTransitionNoticeServiceTests: XCTestCase {
     func testFreshInstallConsumesTheClaim() {
         _ = MacTransitionNoticeService.claimPresentation(
             defaults: defaults,
-            hasLegacyDatabaseList: false
+            legacyState: .freshInstall
         )
 
         XCTAssertFalse(
             MacTransitionNoticeService.claimPresentation(
                 defaults: defaults,
-                hasLegacyDatabaseList: true
+                legacyState: .listPresent
+            )
+        )
+    }
+
+    /// The case the whole trigger exists for: two builds sharing a bundle
+    /// identifier can leave the App Group denied, and `containerURL` then
+    /// returns nil. A fresh install always gets its group, so an unavailable
+    /// container can only mean the user is looking at an empty list they
+    /// should not be — exactly when the instructions matter.
+    func testPresentsWhenTheAppGroupIsUnavailable() {
+        XCTAssertTrue(
+            MacTransitionNoticeService.claimPresentation(
+                defaults: defaults,
+                legacyState: .containerUnavailable
             )
         )
     }
