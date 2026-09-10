@@ -82,12 +82,12 @@ If the requested build is absent from TestFlight, stop and report it. Do not sta
 - Reviewer fixture: `/Users/tan/Documents/test.kdbx.zip`
 - Reviewer fixture password: `testpassword123`
 - For native Mac listing/reviewer copy, use the companion
-  [`mac-listing-metadata.md`](mac-listing-metadata.md) template. It records
-  repo-known URLs/capabilities, locale drafts, field-limit guardrails, and
-  unresolved ASC verification placeholders; it is not a substitute for the
-  live Mac version page.
+  [`mac-listing-metadata.md`](mac-listing-metadata.md). It is a record of what
+  is actually saved on the Mac version page, written back from ASC, plus the
+  field-limit guardrails and the checks that remain unresolved. Keep the two in
+  step: edit the record whenever the page changes.
 - Preserve the existing reviewer note unless it is incorrect. It should tell the reviewer that the compressed test database is attached and give the password.
-- App Store localizations: the existing iOS listing was last observed with English (U.S.), Simplified Chinese, Traditional Chinese, French, German, Russian, and Spanish (Spain). The native Mac version page is not yet evidence for any locale; after it exists, treat that page as the only source of truth and do not assume the iOS set transfers.
+- App Store localizations: both platform pages expose the same seven — English (U.S., primary), Simplified Chinese, Traditional Chinese, French, German, Russian, and Spanish (Spain). The macOS 1.16.0 page is filled in all seven (package 9). Still read the page rather than assuming: a locale can be added or removed at any time, and each platform's page is its own source of truth.
 - Release manifest: `scratch/release-manifests/{version}-b{repoBuild}.json`. Verify both processed
   platform build numbers map to the same RC tag/SHA and that `directCFBundleVersion` equals
   `repoBuild` before changing App Store Connect. The manifest may contain hashes, URLs, IDs,
