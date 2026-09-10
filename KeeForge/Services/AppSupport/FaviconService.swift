@@ -66,9 +66,7 @@ enum FaviconService: Sendable {
         }
         return FileManager.default.temporaryDirectory
         #else
-        return FileManager.default.containerURL(
-            forSecurityApplicationGroupIdentifier: SharedVaultStore.appGroupID
-        ) ?? FileManager.default.temporaryDirectory
+        return AppGroupContainer.url
         #endif
     }
 

@@ -25,9 +25,8 @@ enum AutoFillDiagnostics {
         return formatter
     }()
 
-    private static var fileURL: URL? {
-        FileManager.default
-            .containerURL(forSecurityApplicationGroupIdentifier: SharedVaultStore.appGroupID)?
+    private static var fileURL: URL {
+        AppGroupContainer.url
             .appendingPathComponent("Library", isDirectory: true)
             .appendingPathComponent("autofill-diagnostics.log")
     }
@@ -43,9 +42,9 @@ enum AutoFillDiagnostics {
     static func migrateLegacyLogLocation() {
         queue.async {
             let fileManager = FileManager.default
-            guard let container = fileManager.containerURL(forSecurityApplicationGroupIdentifier: SharedVaultStore.appGroupID) else { return }
-            let legacy = container.appendingPathComponent("autofill-diagnostics.log")
-            guard let url = fileURL, fileManager.fileExists(atPath: legacy.path) else { return }
+            let legacy = AppGroupContainer.url.appendingPathComponent("autofill-diagnostics.log")
+            guard fileManager.fileExists(atPath: legacy.path) else { return }
+            let url = fileURL
             var combined = (try? Data(contentsOf: legacy)) ?? Data()
             combined.append((try? Data(contentsOf: url)) ?? Data())
             try? combined.write(to: url, options: .atomic)
@@ -54,7 +53,8 @@ enum AutoFillDiagnostics {
     }
 
     private static func append(_ line: String) {
-        guard let url = fileURL, let data = line.data(using: .utf8) else { return }
+        let url = fileURL
+        guard let data = line.data(using: .utf8) else { return }
         guard FileManager.default.fileExists(atPath: url.path) else {
             try? data.write(to: url, options: .atomic)
             return

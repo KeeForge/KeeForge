@@ -35,12 +35,11 @@ enum DatabaseListStore {
     private static let cloudAccountsStorageKey = "KeeForge.cloudAccounts"
 
     private static var sharedDefaults: UserDefaults {
-        UserDefaults(suiteName: SharedVaultStore.appGroupID) ?? .standard
+        AppGroupContainer.defaults
     }
 
     private static var sharedContainerURL: URL {
-        FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: SharedVaultStore.appGroupID)
-            ?? FileManager.default.temporaryDirectory
+        AppGroupContainer.url
     }
 
     private static var databaseListURL: URL {

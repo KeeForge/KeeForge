@@ -12,8 +12,8 @@ import os
 ///
 /// - **A list is there.** An upgrading install whose container resolved.
 /// - **No list, container fine.** A genuinely fresh Mac install.
-/// - **No container at all.** `containerURL(forSecurityApplicationGroupIdentifier:)`
-///   returns nil when the group is denied. A fresh install always gets its
+/// - **No container at all.** `AppGroupContainer.resolvedURL` is nil when the
+///   group is denied. A fresh install always gets its
 ///   group, so this can only be the denied case — which is precisely when the
 ///   user is staring at an empty list and most needs the instructions.
 ///
@@ -53,9 +53,7 @@ enum MacTransitionNoticeService {
     }
 
     static func legacyState() -> LegacyState {
-        guard let container = FileManager.default.containerURL(
-            forSecurityApplicationGroupIdentifier: SharedVaultStore.appGroupID
-        ) else {
+        guard let container = AppGroupContainer.resolvedURL else {
             return .containerUnavailable
         }
 

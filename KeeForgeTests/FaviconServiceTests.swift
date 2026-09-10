@@ -5,7 +5,7 @@ final class FaviconServiceTests: XCTestCase {
     private let showWebsiteIconsKey = "KeeForge.showWebsiteIcons"
 
     private var sharedDefaults: UserDefaults {
-        UserDefaults(suiteName: SharedVaultStore.appGroupID) ?? .standard
+        AppGroupContainer.defaults
     }
 
     override func tearDown() {
@@ -181,19 +181,15 @@ final class FaviconServiceTests: XCTestCase {
         let dir = FaviconService.cacheDirectory
         XCTAssertTrue(dir.path.contains("favicons"))
 
-        let groupURL = FileManager.default.containerURL(
-            forSecurityApplicationGroupIdentifier: SharedVaultStore.appGroupID
-        )
+        let groupURL = AppGroupContainer.url
 
         #if os(macOS)
         // The Mac extension does not need the plaintext domain fingerprint,
         // so the cache must stay in the app's own sandbox container.
-        if let groupURL {
-            XCTAssertFalse(
-                dir.path.hasPrefix(groupURL.path),
-                "macOS favicon cache must not live inside the App Group container"
-            )
-        }
+        XCTAssertFalse(
+            dir.path.hasPrefix(groupURL.path),
+            "macOS favicon cache must not live inside the App Group container"
+        )
         XCTAssertFalse(
             dir.path.contains("Group Containers"),
             "macOS favicon cache must not live in a Group Container"
@@ -205,12 +201,10 @@ final class FaviconServiceTests: XCTestCase {
         #else
         // iOS keeps the cache in the App Group container so the AutoFill
         // extension can read it.
-        if let groupURL {
-            XCTAssertTrue(
-                dir.path.hasPrefix(groupURL.path),
-                "iOS favicon cache should live inside the App Group container"
-            )
-        }
+        XCTAssertTrue(
+            dir.path.hasPrefix(groupURL.path),
+            "iOS favicon cache should live inside the App Group container"
+        )
         #endif
     }
 

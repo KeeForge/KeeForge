@@ -63,11 +63,7 @@ enum PendingUploadQueue {
         var postDarwinNotification: @Sendable () -> Void
 
         static let live = Environment(
-            appGroupContainerURL: {
-                FileManager.default.containerURL(
-                    forSecurityApplicationGroupIdentifier: SharedVaultStore.appGroupID
-                ) ?? FileManager.default.temporaryDirectory
-            },
+            appGroupContainerURL: { AppGroupContainer.url },
             createDirectory: { url in
                 try FileManager.default.createDirectory(
                     at: url,
