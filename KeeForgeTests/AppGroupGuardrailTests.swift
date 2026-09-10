@@ -28,10 +28,7 @@ final class AppGroupGuardrailTests: XCTestCase {
             return path.hasPrefix("/private/") ? String(path.dropFirst("/private".count)) : path
         }
 
-        let containerPath = normalizedPath(
-            FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: SharedVaultStore.appGroupID)
-                ?? FileManager.default.temporaryDirectory
-        )
+        let containerPath = normalizedPath(AppGroupContainer.url)
         let databasePath = normalizedPath(SharedVaultStore.databaseCacheDirectory)
         let cloudPath = normalizedPath(SharedVaultStore.cloudCacheDirectory)
 
@@ -70,7 +67,7 @@ final class AppGroupGuardrailTests: XCTestCase {
 
         try SharedVaultStore.saveBookmark(for: sourceURL)
 
-        let sharedDefaults = try XCTUnwrap(UserDefaults(suiteName: SharedVaultStore.appGroupID))
+        let sharedDefaults = AppGroupContainer.defaults
 
         // The bookmark key must hold an opaque bookmark blob that resolves
         // back to the source URL — not a copy of the file or any secret.

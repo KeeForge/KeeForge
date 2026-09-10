@@ -19,7 +19,7 @@ final class SettingsServiceTests: XCTestCase {
     private let passwordGeneratorOptionsKey = "KeeForge.passwordGeneratorOptions"
 
     private var sharedDefaults: UserDefaults {
-        UserDefaults(suiteName: SharedVaultStore.appGroupID) ?? .standard
+        AppGroupContainer.defaults
     }
 
     override func setUp() {

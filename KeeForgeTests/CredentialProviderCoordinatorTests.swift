@@ -32,7 +32,7 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
     /// survive the process, so they are cleared on both ends of every test —
     /// otherwise a leftover value silently changes an unrelated test's meaning.
     private func resetAutoFillSettings() {
-        let sharedDefaults = UserDefaults(suiteName: SharedVaultStore.appGroupID) ?? .standard
+        let sharedDefaults = AppGroupContainer.defaults
         sharedDefaults.removeObject(forKey: "KeeForge.quickAutoFillEnabled")
         sharedDefaults.removeObject(forKey: "KeeForge.autoFillCopyTOTP")
         sharedDefaults.removeObject(forKey: "KeeForge.autoUnlockWithFaceID")

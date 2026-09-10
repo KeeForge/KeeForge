@@ -22,7 +22,7 @@ enum SettingsService {
     static let appearanceModeDefaultsKey = Key.appearanceMode
 
     private static var sharedDefaults: UserDefaults {
-        UserDefaults(suiteName: SharedVaultStore.appGroupID) ?? .standard
+        AppGroupContainer.defaults
     }
 
     // MARK: - Auto-Lock Timeout

@@ -1,20 +1,17 @@
 import Foundation
 
 enum SharedVaultStore {
-    static let appGroupID = "group.com.keevault.shared"
-
     private static let bookmarkKey = "savedDatabaseBookmark"
     private static let databaseFilenameKey = "savedDatabaseFilename"
     private static let databaseCacheDirectoryName = "databases"
     private static let cloudCacheDirectoryName = "cloud-cache"
 
     private static var sharedDefaults: UserDefaults {
-        UserDefaults(suiteName: appGroupID) ?? .standard
+        AppGroupContainer.defaults
     }
 
     private static var sharedContainerURL: URL {
-        FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: appGroupID)
-            ?? FileManager.default.temporaryDirectory
+        AppGroupContainer.url
     }
 
     /// The `UserDefaults` backing cloud-account records, chosen per platform.
@@ -37,9 +34,12 @@ enum SharedVaultStore {
     /// `CloudAccountStore.defaults` wraps this. Extension-safe: pure Foundation.
     static var cloudAccountDefaults: UserDefaults {
         #if os(macOS)
-        return .standard
+        // Unit tests are hosted by the real app, so `.standard` there is the
+        // developer's own preference domain and `CloudAccountStore.clearAll()`
+        // would wipe their real account records. Redirect with the group suite.
+        return AppGroupContainer.isRedirectedForTesting ? AppGroupContainer.defaults : .standard
         #else
-        return UserDefaults(suiteName: appGroupID) ?? .standard
+        return AppGroupContainer.defaults
         #endif
     }
 
