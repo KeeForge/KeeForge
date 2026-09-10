@@ -1760,6 +1760,40 @@
         }
       }
     },
+    "Add each database again" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Jede Datenbank erneut hinzufügen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Añadir de nuevo cada base de datos"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ajouter à nouveau chaque base de données"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重新添加每个数据库"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重新加入每個資料庫"
+          }
+        }
+      }
+    },
     "Add Entry or Group" : {
       "localizations" : {
         "de" : {
@@ -6080,6 +6114,40 @@
         }
       }
     },
+    "Connect your WebDAV account again instead of picking a file." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Verbinden Sie Ihr WebDAV-Konto erneut, anstatt eine Datei auszuwählen."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vuelva a conectar su cuenta de WebDAV en lugar de seleccionar un archivo."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Connectez à nouveau votre compte WebDAV au lieu de sélectionner un fichier."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "请重新连接您的 WebDAV 账户，而不是选取文件。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "請重新連接您的 WebDAV 帳戶，而不是選取檔案。"
+          }
+        }
+      }
+    },
     "Contact Support" : {
       "localizations" : {
         "de" : {
@@ -9452,6 +9520,40 @@
         }
       }
     },
+    "Dropbox and OneDrive" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dropbox und OneDrive"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dropbox y OneDrive"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dropbox et OneDrive"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dropbox 和 OneDrive"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dropbox 和 OneDrive"
+          }
+        }
+      }
+    },
     "Dropbox download failed." : {
       "localizations" : {
         "de" : {
@@ -9992,6 +10094,40 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "空群組"
+          }
+        }
+      }
+    },
+    "Enable KeeForge in System Settings under General > AutoFill & Passwords to fill passwords in Safari and other apps." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aktivieren Sie KeeForge in den Systemeinstellungen unter „Allgemein“ > „AutoFill & Passwörter“, um Passwörter in Safari und anderen Apps auszufüllen."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Active KeeForge en Ajustes del Sistema, en «General» > «Autorrelleno y contraseñas», para rellenar contraseñas en Safari y otras apps."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Activez KeeForge dans Réglages Système, sous « Général » > « Remplissage automatique et mots de passe », pour remplir des mots de passe dans Safari et d'autres apps."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "请在“系统设置”的“通用”>“自动填充与密码”中启用 KeeForge，以便在 Safari 和其他 App 中填充密码。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "請在「系統設定」的「一般」>「自動填寫與密碼」中啟用 KeeForge，以便在 Safari 和其他 App 中填寫密碼。"
           }
         }
       }
@@ -11556,6 +11692,40 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "後續聯絡"
+          }
+        }
+      }
+    },
+    "For every database in your list, choose Remove from List, then use Import Existing Database and pick the same .kdbx file. Removing a database from the list never deletes the file itself." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wählen Sie für jede Datenbank in Ihrer Liste „Aus der Liste entfernen“ und anschließend „Vorhandene Datenbank importieren“, und wählen Sie dieselbe .kdbx-Datei aus. Das Entfernen einer Datenbank aus der Liste löscht niemals die Datei selbst."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Para cada base de datos de su lista, elija «Quitar de la lista» y luego use «Importar base de datos existente» y seleccione el mismo archivo .kdbx. Quitar una base de datos de la lista nunca elimina el archivo en sí."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pour chaque base de données de votre liste, choisissez « Retirer de la liste », puis utilisez « Importer une base de données existante » et sélectionnez le même fichier .kdbx. Retirer une base de données de la liste ne supprime jamais le fichier lui-même."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "对列表中的每个数据库，选择“从列表中移除”，然后使用“导入现有数据库”并选取同一个 .kdbx 文件。从列表中移除数据库绝不会删除文件本身。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "對列表中的每個資料庫，選擇「從列表中移除」，然後使用「匯入現有資料庫」並選取同一個 .kdbx 檔案。從列表中移除資料庫絕不會刪除檔案本身。"
           }
         }
       }
@@ -26464,6 +26634,40 @@
         }
       }
     },
+    "This version of KeeForge for Mac doesn't connect to Dropbox or OneDrive. Open the iPad version once and let it finish syncing, then add the file from the folder Dropbox or OneDrive keeps on your Mac — it stays up to date that way." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Diese Version von KeeForge für Mac verbindet sich nicht mit Dropbox oder OneDrive. Öffnen Sie die iPad-Version einmal und lassen Sie die Synchronisierung abschließen, und fügen Sie die Datei dann aus dem Ordner hinzu, den Dropbox oder OneDrive auf Ihrem Mac bereithält – so bleibt sie aktuell."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Esta versión de KeeForge para Mac no se conecta a Dropbox ni a OneDrive. Abra una vez la versión para iPad y deje que termine de sincronizar; después, añada el archivo desde la carpeta que Dropbox o OneDrive mantiene en su Mac, y así se mantendrá actualizado."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cette version de KeeForge pour Mac ne se connecte pas à Dropbox ni à OneDrive. Ouvrez une fois la version iPad et laissez la synchronisation se terminer, puis ajoutez le fichier depuis le dossier que Dropbox ou OneDrive conserve sur votre Mac : il restera ainsi à jour."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此版本的 Mac 版 KeeForge 不连接 Dropbox 或 OneDrive。请先打开 iPad 版并让它完成同步，然后从 Dropbox 或 OneDrive 在您 Mac 上保留的文件夹中添加该文件——这样它会保持最新。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此版本的 Mac 版 KeeForge 不連接 Dropbox 或 OneDrive。請先開啟 iPad 版並讓它完成同步，然後從 Dropbox 或 OneDrive 在您 Mac 上保留的資料夾中加入該檔案——這樣它會保持最新。"
+          }
+        }
+      }
+    },
     "Tip again" : {
       "localizations" : {
         "de" : {
@@ -26732,6 +26936,40 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "再試一次"
+          }
+        }
+      }
+    },
+    "Turn AutoFill back on" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AutoFill wieder aktivieren"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Volver a activar el autorrelleno"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Réactiver le remplissage automatique"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重新开启自动填充"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重新開啟自動填寫"
           }
         }
       }
@@ -28606,6 +28844,40 @@
         }
       }
     },
+    "WebDAV databases" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "WebDAV-Datenbanken"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bases de datos WebDAV"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bases de données WebDAV"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "WebDAV 数据库"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "WebDAV 資料庫"
+          }
+        }
+      }
+    },
     "Website" : {
       "localizations" : {
         "de" : {
@@ -28636,6 +28908,74 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "網站"
+          }
+        }
+      }
+    },
+    "Welcome to KeeForge for Mac" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Willkommen bei KeeForge für Mac"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bienvenido a KeeForge para Mac"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bienvenue dans KeeForge pour Mac"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "欢迎使用 Mac 版 KeeForge"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "歡迎使用 Mac 版 KeeForge"
+          }
+        }
+      }
+    },
+    "Welcome to Mac" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Willkommen auf dem Mac"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bienvenido a Mac"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bienvenue sur Mac"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "欢迎使用 Mac 版"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "歡迎使用 Mac 版"
           }
         }
       }
@@ -29044,6 +29384,40 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "你的變更尚未儲存到此資料庫。關閉此視窗會鎖定資料庫並捨棄這些變更。"
+          }
+        }
+      }
+    },
+    "Your database files are safe and unchanged. The Mac app opens files differently from the iPad version, so it needs you to add them again." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ihre Datenbankdateien sind sicher und unverändert. Die Mac-App öffnet Dateien anders als die iPad-Version, daher müssen Sie sie erneut hinzufügen."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sus archivos de base de datos están a salvo y sin cambios. La app para Mac abre los archivos de forma distinta a la versión para iPad, por lo que debe añadirlos de nuevo."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vos fichiers de base de données sont intacts et inchangés. L'app Mac ouvre les fichiers différemment de la version iPad : vous devez donc les ajouter à nouveau."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "您的数据库文件安全且未被更改。Mac App 打开文件的方式与 iPad 版不同，因此需要您重新添加它们。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "您的資料庫檔案安全且未被更改。Mac App 開啟檔案的方式與 iPad 版不同，因此需要您重新加入它們。"
           }
         }
       }
