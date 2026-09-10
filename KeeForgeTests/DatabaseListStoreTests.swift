@@ -48,6 +48,33 @@ final class DatabaseListStoreTests: XCTestCase {
         XCTAssertEqual(DatabaseListStore.databases.count, 1)
     }
 
+    /// The iPad-on-Mac transition note tells people to do exactly this pair,
+    /// so both halves are load-bearing: removal must leave the user's file on
+    /// disk, and re-adding it must produce a usable reference. Re-adding
+    /// *without* removing first is refused — see
+    /// `testAddRejectsSameLocalFileTwice`, which is why the note says to remove.
+    func testRemoveThenAddSameFileRestoresReferenceAndKeepsFile() throws {
+        let contents = Data("fixture".utf8)
+        let url = try makeTemporaryFileURL(name: "transition.kdbx", contents: contents)
+        let original = try DatabaseListStore.add(url: url)
+        try DatabaseListStore.cacheDatabaseCopy(Data("cached".utf8), for: original.id)
+
+        DatabaseListStore.remove(id: original.id)
+
+        XCTAssertTrue(DatabaseListStore.databases.isEmpty)
+        XCTAssertTrue(
+            FileManager.default.fileExists(atPath: url.path),
+            "Removing a database from the list must never delete the file itself"
+        )
+
+        let readded = try DatabaseListStore.add(url: url)
+
+        XCTAssertEqual(DatabaseListStore.databases.count, 1)
+        XCTAssertEqual(readded.filename, "transition.kdbx")
+        XCTAssertNotEqual(readded.id, original.id)
+        XCTAssertEqual(try Data(contentsOf: url), contents)
+    }
+
     func testCacheDatabaseCopyUsesPerDatabaseUUIDPath() throws {
         let url = try makeTemporaryFileURL(name: "work.kdbx", contents: Data("fixture".utf8))
         let reference = try DatabaseListStore.add(url: url)

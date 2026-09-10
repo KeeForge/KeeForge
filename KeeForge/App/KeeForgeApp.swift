@@ -250,6 +250,9 @@ private struct AppRootView: View {
     @Environment(\.scenePhase) private var scenePhase
     @State private var didResolveInitialRoute = false
     @State private var whatsNewRelease: WhatsNewRelease?
+    #if os(macOS)
+    @State private var showsMacTransitionNotice = false
+    #endif
     @State private var pendingAutoOpenReference: DatabaseReference?
     /// SwiftUI drops a sheet or an alert raised in the same update that
     /// dismisses another presentation — the compact unlock sheet closing on
@@ -297,6 +300,18 @@ private struct AppRootView: View {
         .onOpenURL { url in
             handleOpenURL(url)
         }
+        #if os(macOS)
+        .sheet(isPresented: $showsMacTransitionNotice) {
+            MacTransitionNoticeView()
+                .frame(
+                    minWidth: 520,
+                    idealWidth: 560,
+                    maxWidth: 640,
+                    minHeight: 500,
+                    maxHeight: MacSheetMetrics.maxHeight
+                )
+        }
+        #endif
         .sheet(item: $whatsNewRelease, onDismiss: finishWhatsNewPresentation) { release in
             WhatsNewView(release: release)
                 #if os(macOS)
@@ -505,6 +520,17 @@ private struct AppRootView: View {
         defer { didResolveInitialRoute = true }
 
         guard activeDatabaseViewModel == nil else { return }
+
+        #if os(macOS)
+        if MacTransitionNoticeService.claimPresentation() {
+            // The list behind this notice is whatever the iPad build left, so
+            // Quick Launch would race an unlock sheet against a reference the
+            // user is about to replace. Release notes and Quick Launch both
+            // resume on the next launch, once the databases are re-added.
+            showsMacTransitionNotice = true
+            return
+        }
+        #endif
 
         let release = WhatsNewPresentationService.releaseToPresent()
         let databaseReference = listViewModel.databaseToAutoOpenOnLaunch()
