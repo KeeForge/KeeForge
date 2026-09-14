@@ -332,6 +332,11 @@ testers or the direct build is called a release candidate.
    RC commit.
 4. Record all three URLs, commit SHA, status, and conclusion in the manifest. The Xcode Cloud,
    iOS, and Mac runs must target the same RC commit.
+   An automatic GitHub test-gate pass requires its uploaded canonical `.xcresult` summary to report
+   `result=Passed`, zero failures, and at least one executed test; exit 65 is accepted only then.
+   Canonical XCTest failures, including ones behind a green console summary, require the exact
+   `gate-adjudication.md` path. Any other nonzero `xcodebuild` exit or a missing/malformed result
+   bundle is a failed non-test gate and cannot be adjudicated.
 5. Run `KeeForgeMacUITests/MacSmokeUITests` locally on an unlocked release Mac under the repo
    Xcode lock. The harness can touch live App Group/defaults state: back up both before the run
    and restore them in a shell `trap` before recording its result/log/result bundle as
@@ -392,7 +397,10 @@ in App Store Connect, independently for iOS and Mac.
    assigns platform-specific numbers. Match each build to the `rc/{version}-b{repoBuild}` tag and
    SHA, then record `iosTestFlightBuild` and `macTestFlightBuild` in the manifest. Verify export
    compliance on each actual platform record; do not assume the plist declaration resolves every
-   legal or documentation question (see Notes).
+   legal or documentation question (see Notes). When adding a build to an external group, choose
+   its platform explicitly: the picker can default to iOS even in the Mac group. Match the
+   platform's manifest `buildID` as well as its version and build number, which may be identical
+   across iOS and macOS.
 2. Obtain/export the exact MAS `.app` from the accepted Xcode Cloud archive without rebuilding.
    Run the artifact check on that exact exported app:
    ```bash

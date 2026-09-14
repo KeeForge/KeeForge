@@ -55,6 +55,16 @@ The `ios18-tests` job runs the full unit/UI suites on an iPhone SE (3rd generati
 iOS 18 runtime, then the regular-width iPad lane for the two iPad-only UI classes. Record the run
 URL, SHA, status, and conclusion in the manifest.
 
+### Canonical XCTest evidence
+
+Read each uploaded `.xcresult` with `xcrun xcresulttool get test-results summary --path <bundle>
+--compact`, not its trailing console summary. An automatic pass requires `result=Passed`, zero
+failures, and at least one executed test; exit 65 is tolerated only with that evidence. If the
+canonical summary reports failed XCTest identifiers, including under a green GitHub check, record
+that summary and adjudicate those exact failures through the local reproductions below. A missing or
+malformed bundle, no executed tests, or another nonzero `xcodebuild` exit is a non-test failure and
+cannot be adjudicated.
+
 ### 3. macOS GitHub Actions workflow
 
 Match the run whose `headBranch` is the active RC tag and whose `headSha` is the RC commit:
