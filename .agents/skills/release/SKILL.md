@@ -411,8 +411,9 @@ in App Store Connect, independently for iOS and Mac.
      ci_scripts/build_mac_direct.sh --archive-export --rc-tag rc/{version}-b{repoBuild}
    ci_scripts/build_mac_direct.sh --finalize --rc-tag rc/{version}-b{repoBuild}
    ```
-   The finalize phase verifies the checkpoint's tag/SHA/tree, canonical paths, and exported-app
-   digest before notarizing. Verify its direct `CFBundleVersion` equals the repo build and run the
+   The finalize phase captures the validated checkpoint's tag/SHA/tree before notarizing, so its
+   final metadata stays bound to that RC through Apple and Keychain waits. It also verifies canonical
+   paths and the exported-app digest. Verify its direct `CFBundleVersion` equals the repo build and run the
    same fail-closed check on its exact exported app:
    ```bash
    ci_scripts/verify_mac_artifact.sh --channel direct --app <exact-direct-app> \
