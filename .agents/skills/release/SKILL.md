@@ -338,49 +338,30 @@ testers or the direct build is called a release candidate.
    `gate-adjudication.md` path. Any other nonzero `xcodebuild` exit or a missing/malformed result
    bundle is a failed non-test gate and cannot be adjudicated.
 5. Run `KeeForgeMacUITests/MacSmokeUITests` locally on an unlocked release Mac under the repo
-   Xcode lock. The harness can touch live App Group/defaults state: back up both before the run
-   and restore them in a shell `trap` before recording its result/log/result bundle as
-   `gates.localMacSmoke`.
-
-   Quit KeeForge and its UI-test runner first, then make a retained pre-run backup. Do not use
-   `rm -rf` on the App Group container and do not erase the pre-run backup after restoration.
-   The guarded sequence below records presence, hashes regular files, and restores **contents**
-   only after a post-run capture; it deliberately stops for an originally absent App Group rather
-   than deleting a newly-created container automatically.
+   Xcode lock. The harness can touch live App Group/defaults state. This is an explicit before/after
+   operation, not a shell `trap`: do not restore while an app or UI-test process may still be running.
+   The helper is fixed to `group.com.keevault.shared` and `com.keevault.app`, and accepts state roots
+   only directly under `scratch/release-session`.
 
    ```bash
    osascript -e 'tell application "KeeForge" to quit' 2>/dev/null || true
    pkill -f 'KeeForgeMacUITests-Runner' 2>/dev/null || true
-   state_dir=$(mktemp -d /tmp/keeforge-mac-ui-state.XXXXXX)
-   group_dir="$HOME/Library/Group Containers/group.com.keevault.shared"
-   if [[ -d "$group_dir" ]]; then
-     printf present >"$state_dir/group-state"
-     ditto "$group_dir" "$state_dir/group-before"
-     (cd "$group_dir" && find . -type f -print0 | sort -z | xargs -0 -n1 shasum -a 256) >"$state_dir/group-before.sha256"
-   else
-     printf absent >"$state_dir/group-state"
-   fi
-   if defaults read com.keevault.app >/dev/null 2>&1; then
-     printf present >"$state_dir/defaults-state"
-     defaults export com.keevault.app "$state_dir/app-defaults-before.plist"
-   else
-     printf absent >"$state_dir/defaults-state"
-   fi
-   # Run the UI smoke here. Keep $state_dir for review.
+   STATE_ROOT="$PWD/scratch/release-session/pre-ui-state-b{repoBuild}"
+   ci_scripts/restore_pre_ui_state.sh --state-root "$STATE_ROOT" --backup
+   # Run the UI smoke here. Keep STATE_ROOT for review.
    osascript -e 'tell application "KeeForge" to quit' 2>/dev/null || true
    pkill -f 'KeeForgeMacUITests-Runner' 2>/dev/null || true
-   [[ $(cat "$state_dir/group-state") == present ]] || {
-     echo "pre-run App Group was absent; inspect post-run state before any manual cleanup" >&2; exit 1; }
-   ditto "$group_dir" "$state_dir/group-after"
-   rsync -a --delete "$state_dir/group-before/" "$group_dir/"
-   (cd "$group_dir" && find . -type f -print0 | sort -z | xargs -0 -n1 shasum -a 256) >"$state_dir/group-restored.sha256"
-   cmp "$state_dir/group-before.sha256" "$state_dir/group-restored.sha256"
-   if [[ $(cat "$state_dir/defaults-state") == present ]]; then
-     defaults import com.keevault.app "$state_dir/app-defaults-before.plist"
-   else
-     defaults delete com.keevault.app 2>/dev/null || true
-   fi
+   ci_scripts/restore_pre_ui_state.sh --state-root "$STATE_ROOT"
+   ci_scripts/restore_pre_ui_state.sh --state-root "$STATE_ROOT" \
+     --execute --confirm RESTORE_PRE_UI_STATE
    ```
+
+   `--confirm` is an accidental-invocation guard, not another owner decision. The helper verifies the
+   pre-run manifest, preserves a private post-run backup before any write, restores original contents
+   with `rsync --checksum` and no `--delete`, and restores preferences through CFPreferences. It stops
+   with both backups preserved for an absent original/live App Group or any unproven extra. The sole
+   removable extra is one database-cache `.kdbx` whose SHA-256 exactly matches `TestFixtures/test.kdbx`.
+   It finishes only after original hashes, semantic defaults equality, and the no-extra comparison pass.
 6. If any cloud gate is not green, **read `gate-adjudication.md`** and follow it. Do not distribute
    a build whose gates are unresolved; a local pass cannot override a non-test infrastructure
    failure.
