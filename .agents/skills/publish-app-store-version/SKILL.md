@@ -16,7 +16,9 @@ stage it through **Ready for Review**, and stop immediately before submission. U
 explicitly asks to submit, do not click the button. Even when they do, obtain a separate explicit
 action-time confirmation immediately before each platform's **Submit for Review** click; an iOS
 confirmation does not authorize macOS. The first Beta App Review and external TestFlight
-distribution are also deliberate actions and require confirmation immediately before they occur.
+distribution may proceed when the user has already authorized that named candidate action in the
+current task; otherwise obtain confirmation immediately before it. That beta authorization never
+authorizes production release, App Review submission, or legal declarations.
 
 ## Two App Store platforms, three release channels
 

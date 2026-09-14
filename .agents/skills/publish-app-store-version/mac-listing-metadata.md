@@ -1,6 +1,6 @@
 # KeeForge Mac App Store listing and reviewer metadata
 
-Package 9 record. As of 2026-09-09 this is **what is saved on the live macOS
+Package 9 record. As of 2026-09-13 this is **what is saved on the live macOS
 version page**, not a draft. It was written back from App Store Connect after
 saving, so the copy below matches the record byte for byte. Change it here only
 alongside a matching ASC edit.
@@ -16,16 +16,20 @@ Saved state of the macOS version record (app `6759309295`, version id
   attachment `test.kdbx.zip` uploaded.
 - Locales exposed on the Mac page: en-US (primary), zh-Hans, zh-Hant, fr, de,
   ru, es-ES — exactly the iOS set.
+- Seven final Mac screenshots are uploaded in English in listing order 01–07;
+  the Simplified Chinese locale inherits the English Mac gallery.
 - Still empty by design: `What's New in This Version` (package 14, from the
-  matching `## v{version}` changelog section), screenshots (package 11), and
-  the attached build (package 10).
+  matching `## v{version}` changelog section) and the attached build, which
+  remains pending soak.
 
 ## Source of truth and scope
 
-- The final version/build comes from the release handoff. `project.yml` carries
-  `MARKETING_VERSION: 1.16.0` / `CURRENT_PROJECT_VERSION: 4`; the version record
-  was corrected from the auto-created 1.15.0 because the iOS 1.15.0 train is
-  closed.
+- The version record was set up with `MARKETING_VERSION: 1.16.0` /
+  `CURRENT_PROJECT_VERSION: 4`; that historical setup corrected the
+  auto-created 1.15.0 because the iOS 1.15.0 train is closed. The current
+  candidate mapping is `rc/1.16.0-b48`, source `a48d6b1`, repo build `48`, and
+  Mac TestFlight build `54`. It remains pending soak, so no build is attached
+  to this version record by design.
 - `KeeForgeMac/README.md` and `CloudSyncModels.isAvailableOnCurrentPlatform`
   agree: the native Mac release supports local files and WebDAV, and hides
   Dropbox/OneDrive. The listing must not imply otherwise.
@@ -57,7 +61,7 @@ Saved state of the macOS version record (app `6759309295`, version id
 A native Mac password manager for KeePass databases. Open local .kdbx files or connect WebDAV, AutoFill with Touch ID, and keep every secret on your own Mac.
 ```
 
-**Description** (2,125/4,000):
+**Description** (2,148/4,000):
 
 ```text
 KeeForge is a native macOS password manager for KeePass (.kdbx) databases. Open vaults from local files or a WebDAV server you choose. AutoFill passwords, passkeys, and TOTP codes with Touch ID. No accounts, no tracking, no subscription — fully open source under GPLv3.
@@ -88,10 +92,10 @@ AutoFill
 Security
 - Touch ID unlock with an auto-lock inactivity timer
 - Key file support — all KeePass formats (.key, .keyx, binary, hex)
-- Screen capture blocking keeps your vault out of screenshots and recordings
+- Screen capture blocking is best-effort and may not stop every screenshot or recording
 - Exponential lockout after failed unlock attempts
 - Argon2 KDF, AES-GCM in-memory encryption of secrets
-- Clipboard clears automatically and never leaves this Mac
+- Clipboard clears automatically and is hidden from clipboard managers
 
 Open Source
 - Fully open source under GPLv3
@@ -132,7 +136,7 @@ ASC does not offer a per-locale reviewer note.
 Un gestionnaire KeePass natif pour Mac : ouvrez des fichiers .kdbx locaux ou connectez WebDAV, remplissez avec Touch ID, et gardez chaque secret sur votre Mac.
 ```
 
-**Description:**
+**Description** (2,686/4,000):
 
 ```text
 KeeForge est un gestionnaire de mots de passe macOS natif pour les bases KeePass (.kdbx). Ouvrez des coffres depuis des fichiers locaux ou un serveur WebDAV de votre choix. Remplissez automatiquement les mots de passe, passkeys et codes TOTP avec Touch ID. Aucun compte, aucun suivi, aucun abonnement - entièrement open source sous GPLv3.
@@ -163,10 +167,10 @@ AutoFill
 Sécurité
 - Déverrouillage Touch ID avec verrouillage automatique après inactivité
 - Prise en charge des fichiers clé - tous les formats KeePass (.key, .keyx, binaire, hex)
-- Le blocage de capture d'écran garde votre coffre hors des captures et des enregistrements
+- Le blocage des captures d'écran est sans garantie et peut ne pas empêcher toutes les captures ou tous les enregistrements
 - Verrouillage exponentiel après échecs de déverrouillage
 - KDF Argon2 et chiffrement AES-GCM des secrets en mémoire
-- Le presse-papiers s'efface automatiquement et ne quitte jamais ce Mac
+- Le presse-papiers s'efface automatiquement et est masqué aux gestionnaires de presse-papiers
 
 Open Source
 - Entièrement open source sous GPLv3
@@ -188,7 +192,7 @@ Un pourboire est disponible si vous souhaitez soutenir le développement. Aucun 
 Ein nativer KeePass-Manager für den Mac: lokale .kdbx-Dateien öffnen, optional WebDAV verbinden, mit Touch ID ausfüllen - alle Geheimnisse bleiben auf deinem Mac.
 ```
 
-**Description:**
+**Description** (2,572/4,000):
 
 ```text
 KeeForge ist ein nativer macOS-Passwortmanager für KeePass-Datenbanken (.kdbx). Öffne Tresore aus lokalen Dateien oder von einem WebDAV-Server deiner Wahl. Fülle Passwörter, Passkeys und TOTP-Codes per Touch ID automatisch aus. Keine Konten, kein Tracking, kein Abo - vollständig Open Source unter GPLv3.
@@ -219,10 +223,10 @@ AutoFill
 Sicherheit
 - Entsperren mit Touch ID und automatischer Sperre bei Inaktivität
 - Schlüsseldatei-Unterstützung - alle KeePass-Formate (.key, .keyx, binär, hex)
-- Der Schutz vor Bildschirmaufnahmen hält deinen Tresor aus Screenshots und Aufzeichnungen heraus
+- Der Schutz vor Bildschirmaufnahmen ist ein Best-Effort-Schutz und verhindert möglicherweise nicht alle Screenshots und Aufzeichnungen
 - Exponentielle Sperre nach fehlgeschlagenen Entsperrversuchen
 - Argon2-KDF, AES-GCM-Verschlüsselung von Geheimnissen im Arbeitsspeicher
-- Die Zwischenablage wird automatisch geleert und verlässt diesen Mac nie
+- Die Zwischenablage wird automatisch geleert und vor Zwischenablage-Managern verborgen
 
 Open Source
 - Vollständig Open Source unter GPLv3
@@ -244,7 +248,7 @@ Eine Trinkgeld-Option ist verfügbar, wenn du die Entwicklung unterstützen möc
 Нативный менеджер паролей KeePass для Mac: открывайте локальные файлы .kdbx или подключайте WebDAV, заполняйте с Touch ID — все секреты остаются на вашем Mac.
 ```
 
-**Description:**
+**Description** (2,427/4,000):
 
 ```text
 KeeForge - нативный менеджер паролей для macOS для баз данных KeePass (.kdbx). Открывайте хранилища из локальных файлов или с выбранного вами сервера WebDAV. Автоматически заполняйте пароли, passkeys и TOTP-коды с Touch ID. Без аккаунтов, без отслеживания, без подписки - полностью open source под GPLv3.
@@ -275,10 +279,10 @@ AutoFill
 Безопасность
 - Разблокировка Touch ID и автоблокировка при неактивности
 - Поддержка ключевых файлов - все форматы KeePass (.key, .keyx, binary, hex)
-- Блокировка снимков экрана не дает хранилищу попасть в скриншоты и записи
+- Блокировка снимков экрана работает в меру возможностей и может не предотвратить все скриншоты и записи
 - Экспоненциальная блокировка после неудачных попыток разблокировки
 - KDF Argon2 и AES-GCM-шифрование секретов в памяти
-- Буфер обмена очищается автоматически и никогда не покидает этот Mac
+- Буфер обмена очищается автоматически и скрывается от менеджеров буфера обмена
 
 Open Source
 - Полностью open source под GPLv3
@@ -303,7 +307,7 @@ the limit while keeping `fido2` and `strongbox`.
 Un gestor KeePass nativo para Mac: abre archivos .kdbx locales o conecta WebDAV, rellena con Touch ID y guarda cada secreto en tu propio Mac.
 ```
 
-**Description:**
+**Description** (2,469/4,000):
 
 ```text
 KeeForge es un gestor de contraseñas nativo para macOS para bases de datos KeePass (.kdbx). Abre bóvedas desde archivos locales o desde un servidor WebDAV que tú elijas. Rellena automáticamente contraseñas, passkeys y códigos TOTP con Touch ID. Sin cuentas, sin seguimiento, sin suscripción - completamente open source bajo GPLv3.
@@ -334,10 +338,10 @@ AutoFill
 Seguridad
 - Desbloqueo con Touch ID y bloqueo automático por inactividad
 - Compatibilidad con archivos clave - todos los formatos KeePass (.key, .keyx, binario, hex)
-- El bloqueo de captura mantiene tu bóveda fuera de capturas y grabaciones de pantalla
+- El bloqueo de captura es una protección sin garantía y puede no impedir todas las capturas y grabaciones de pantalla
 - Bloqueo exponencial tras intentos fallidos de desbloqueo
 - KDF Argon2 y cifrado AES-GCM de secretos en memoria
-- El portapapeles se borra automáticamente y nunca sale de este Mac
+- El portapapeles se borra automáticamente y se oculta de los gestores del portapapeles
 
 Open Source
 - Completamente open source bajo GPLv3
@@ -359,7 +363,7 @@ Hay una opción de propina si quieres apoyar el desarrollo. Sin suscripción, si
 适用于 Mac 的原生 KeePass 管理器：打开本地 .kdbx 文件或连接 WebDAV，使用 Touch ID 自动填充，所有密码都留在您自己的 Mac 上。
 ```
 
-**Description:**
+**Description** (1,031/4,000):
 
 ```text
 KeeForge 是一款原生 macOS KeePass（.kdbx）密码管理器。可从本地文件或您选择的 WebDAV 服务器打开密码库，并通过 Touch ID 在 Safari 和各类 App 中自动填充密码、passkey 和 TOTP 验证码。无需账户、没有跟踪、没有订阅，采用 GPLv3 完全开源。
@@ -390,10 +394,10 @@ AutoFill
 安全
 • Touch ID 解锁及闲置自动锁定
 • 支持所有 KeePass 密钥文件格式（.key、.keyx、二进制和十六进制）
-• 屏幕捕捉阻止功能让密码库不会出现在截屏和录屏中
+• 屏幕捕捉阻止功能尽力保护密码库，但可能无法阻止所有截屏和录屏
 • 多次解锁失败后采用指数退避锁定
 • 使用 Argon2 KDF，并以 AES-GCM 在内存中加密敏感信息
-• 剪贴板会自动清除，且绝不离开这台 Mac
+• 剪贴板会自动清除，并对剪贴板管理器隐藏
 
 开源
 • 采用 GPLv3 完全开源
@@ -418,7 +422,7 @@ AutoFill
 適用於 Mac 的原生 KeePass 管理器：開啟本機 .kdbx 檔案或連接 WebDAV，使用 Touch ID 自動填入，所有密碼都留在您自己的 Mac 上。
 ```
 
-**Description:**
+**Description** (1,043/4,000):
 
 ```text
 KeeForge 是一款原生 macOS KeePass（.kdbx）密碼管理器。可從本機檔案或您選擇的 WebDAV 伺服器開啟密碼庫，並透過 Touch ID 在 Safari 和各類 App 中自動填入密碼、passkey 和 TOTP 驗證碼。無需帳號、沒有追蹤、沒有訂閱，採用 GPLv3 完全開源。
@@ -449,10 +453,10 @@ AutoFill
 安全
 • Touch ID 解鎖及閒置自動鎖定
 • 支援所有 KeePass 金鑰檔案格式（.key、.keyx、二進位和十六進位）
-• 螢幕擷取阻擋功能讓密碼庫不會出現在截圖和螢幕錄影中
+• 螢幕擷取阻擋功能會盡力保護密碼庫，但可能無法阻止所有截圖和螢幕錄影
 • 多次解鎖失敗後採用指數退避鎖定
 • 使用 Argon2 KDF，並以 AES-GCM 在記憶體中加密敏感資訊
-• 剪貼簿會自動清除，且絕不離開這台 Mac
+• 剪貼簿會自動清除，並對剪貼簿管理工具隱藏
 
 開源
 • 採用 GPLv3 完全開源
@@ -484,9 +488,12 @@ Verify against the live counter anyway; its UI wins.
 - **Availability:** 175 countries including France; leave it alone.
 - **Release control:** `MANUAL` is saved. Phased release for macOS is optional
   and still not chosen; do not select it without an explicit owner decision.
-- **Screenshots:** none uploaded. iOS assets cannot satisfy the Mac listing;
-  package 11 produces the seven 2880×1800 captures.
-- **Build:** none attached. Package 10 hands over the exact soaked build.
+- **Screenshots:** seven 2880×1800 final Mac images are uploaded in English in
+  listing order 01–07 and verified after reload; Simplified Chinese inherits
+  that English Mac gallery. iOS assets do not satisfy the Mac listing.
+- **Build:** Mac TestFlight build `54` maps to `rc/1.16.0-b48` at `a48d6b1`
+  with repo build `48`. It remains pending soak, so no build is attached by
+  design.
 
 ## Final RC release-notes rule (bounded template only)
 
@@ -501,8 +508,9 @@ locale within ASC's current limit (normally 4,000 characters).
 ## Pre-submission checklist
 
 - [x] Mac version page exists for 1.16.0; no duplicate version was created.
-- [ ] Exact soaked Mac build is processed and attached; final RC screenshots are
-  the Mac captures for that build.
+- [ ] Exact Mac TestFlight build `54` is accepted after soak and attached.
+- [x] Seven final Mac screenshots are uploaded in English in listing order
+  01–07; Simplified Chinese inherits the English Mac gallery.
 - [x] English listing copy is saved, and translated faithfully into every locale
   shown on the Mac version page.
 - [x] Support URL is verified (not the stale `crazytan` one the iOS fr/de/ru/es

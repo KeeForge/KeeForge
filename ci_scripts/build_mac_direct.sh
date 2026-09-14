@@ -21,7 +21,7 @@
 #     the matching EdDSA private key stays in the login keychain, never in the
 #     repo and never in CI logs.
 #
-# Usage: ci_scripts/build_mac_direct.sh [--preflight] [output-dir]
+# Usage: ci_scripts/build_mac_direct.sh [--preflight] [--rc-tag TAG] [output-dir]
 #
 # The build writes direct-artifact.json beside the zip. It is a non-secret
 # handoff record consumed by release_direct_artifact.sh after App Review.
@@ -31,19 +31,47 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd -P)"
 BUILD_ROOT="${REPO_ROOT}/build"
-DEFAULT_OUT_DIR="${BUILD_ROOT}/mac-direct"
 
 PREFLIGHT=0
-if [[ "${1:-}" == "--preflight" ]]; then
-  PREFLIGHT=1
-  shift
-fi
-if (( $# > 1 )); then
-  echo "usage: ${BASH_SOURCE[0]} [--preflight] [output-dir]" >&2
-  exit 2
-fi
+RC_TAG=""
+REQUESTED_OUT_DIR=""
+while (( $# > 0 )); do
+  case "$1" in
+    --preflight) PREFLIGHT=1; shift ;;
+    --rc-tag) RC_TAG="${2:-}"; shift 2 ;;
+    -h|--help) echo "usage: ${BASH_SOURCE[0]} [--preflight] [--rc-tag TAG] [output-dir]"; exit 0 ;;
+    -*) echo "error: unknown option $1" >&2; exit 2 ;;
+    *) [[ -z "$REQUESTED_OUT_DIR" ]] || { echo "error: only one output directory is allowed" >&2; exit 2; }; REQUESTED_OUT_DIR="$1"; shift ;;
+  esac
+done
 
-OUT_DIR="${1:-${DEFAULT_OUT_DIR}}"
+candidate_identity() {
+  awk '
+    /^  (KeeForge|KeeForgeAutoFill|KeeForgeMac|KeeForgeMacAutoFill):$/ { target=$1; sub(/:$/, "", target); next }
+    /^  [^ ]/ { target="" }
+    target && /MARKETING_VERSION:/ { value=$0; sub(/^.*MARKETING_VERSION:[[:space:]]*"?/, "", value); sub(/"[[:space:]]*$/, "", value); version[target]=value }
+    target && /CURRENT_PROJECT_VERSION:/ { value=$0; sub(/^.*CURRENT_PROJECT_VERSION:[[:space:]]*"?/, "", value); sub(/"[[:space:]]*$/, "", value); build[target]=value }
+    END { for (name in build) print name ":" version[name] ":" build[name] }
+  ' "${REPO_ROOT}/project.yml"
+}
+
+resolve_candidate_identity() {
+  local rows versions builds version build expected_tag tagged_sha head_sha
+  rows="$(candidate_identity)"
+  [[ "$(printf '%s\n' "$rows" | sed '/^$/d' | wc -l | tr -d ' ')" == 4 ]] || { echo "error: project.yml must define all four release targets" >&2; return 1; }
+  versions="$(printf '%s\n' "$rows" | cut -d: -f2 | sort -u)"
+  builds="$(printf '%s\n' "$rows" | cut -d: -f3 | sort -u)"
+  [[ "$(printf '%s\n' "$versions" | wc -l | tr -d ' ')" == 1 && "$(printf '%s\n' "$builds" | wc -l | tr -d ' ')" == 1 ]] || { echo "error: release targets must share version and repo build" >&2; return 1; }
+  version="$versions"; build="$builds"
+  [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$ && "$build" =~ ^[1-9][0-9]*$ ]] || { echo "error: invalid release version/build in project.yml" >&2; return 1; }
+  expected_tag="rc/${version}-b${build}"
+  [[ -z "$RC_TAG" || "$RC_TAG" == "$expected_tag" ]] || { echo "error: --rc-tag must match project.yml identity ${expected_tag}" >&2; return 1; }
+  RC_TAG="$expected_tag"
+  tagged_sha="$(git -C "$REPO_ROOT" rev-parse "${RC_TAG}^{commit}" 2>/dev/null || true)"
+  head_sha="$(git -C "$REPO_ROOT" rev-parse HEAD)"
+  [[ -n "$tagged_sha" && "$tagged_sha" == "$head_sha" ]] || { echo "error: clean source must be checked out at ${RC_TAG}" >&2; return 1; }
+  RELEASE_VERSION="$version"; RELEASE_BUILD="$build"
+}
 
 reject_output_dir() {
   local build_root="${2:-${BUILD_ROOT}}"
@@ -95,6 +123,24 @@ validate_output_dir() {
     [[ "${candidate_real}" == "${build_real}/${base}" ]] \
       || { reject_output_dir "${candidate} (output directory escapes the repository)"; return 1; }
   fi
+}
+
+reject_completed_output() {
+  local candidate="$1"
+  local existing_zip
+  [[ ! -e "${candidate}/direct-artifact.json" ]] || {
+    echo "error: ${candidate} already contains direct-artifact.json; choose a fresh candidate output directory" >&2
+    return 1
+  }
+  [[ ! -e "${candidate}/notarization.json" ]] || {
+    echo "error: ${candidate} already contains notarization.json; preserve its accepted artifact and finalize metadata manually" >&2
+    return 1
+  }
+  existing_zip="$(find "${candidate}" -maxdepth 1 -type f -name 'KeeForge-*-b*.zip' -print -quit 2>/dev/null || true)"
+  [[ -z "${existing_zip}" ]] || {
+    echo "error: ${candidate} already contains a release ZIP; do not rearchive accepted bytes" >&2
+    return 1
+  }
 }
 
 require_clean_source_worktree() {
@@ -166,6 +212,9 @@ run_preflight() {
   local state_dir
   local original_bytes='Package.resolved\nbyte-exact\n'
   local rejected
+  local saved_repo_root saved_rc_tag
+  local stub_bin control_log
+  local synthetic_attrs synthetic_length
 
   test_root="$(mktemp -d "${TMPDIR:-/tmp}/keeforge-direct-preflight.XXXXXX")"
   test_root="$(cd -P -- "${test_root}" && pwd -P)"
@@ -176,7 +225,7 @@ run_preflight() {
   git -C "${test_repo}" config user.email preflight@example.invalid
   git -C "${test_repo}" config user.name preflight
   : >"${test_repo}/tracked"
-  printf 'build/\nscratch/\n' >"${test_repo}/.gitignore"
+  printf 'build/\nscratch/\nci_scripts/\nConfigs/\n' >"${test_repo}/.gitignore"
   git -C "${test_repo}" add .
   git -C "${test_repo}" commit -q -m preflight
   require_clean_source_worktree "${test_repo}"
@@ -198,6 +247,85 @@ run_preflight() {
   require_clean_source_worktree "${test_repo}"
   validate_output_dir "${test_repo}/build/mac-direct" "${test_repo}/build"
   validate_output_dir "${test_repo}/build/allowed-output" "${test_repo}/build"
+  mkdir -p "${test_repo}/build/completed-output"
+  : >"${test_repo}/build/completed-output/direct-artifact.json"
+  if reject_completed_output "${test_repo}/build/completed-output" >/dev/null 2>&1; then
+    echo "error: preflight accepted completed direct artifact output" >&2
+    return 1
+  fi
+  rm "${test_repo}/build/completed-output/direct-artifact.json"
+  : >"${test_repo}/build/completed-output/notarization.json"
+  if reject_completed_output "${test_repo}/build/completed-output" >/dev/null 2>&1; then
+    echo "error: preflight accepted interrupted notarization output" >&2
+    return 1
+  fi
+  rm "${test_repo}/build/completed-output/notarization.json"
+  : >"${test_repo}/build/completed-output/KeeForge-1.2.3-b9.zip"
+  if reject_completed_output "${test_repo}/build/completed-output" >/dev/null 2>&1; then
+    echo "error: preflight accepted an existing release ZIP" >&2
+    return 1
+  fi
+  cat >"${test_repo}/project.yml" <<'YAML'
+targets:
+  KeeForge:
+    settings:
+      base:
+        MARKETING_VERSION: "1.2.3"
+        CURRENT_PROJECT_VERSION: "9"
+  KeeForgeAutoFill:
+    settings:
+      base:
+        MARKETING_VERSION: "1.2.3"
+        CURRENT_PROJECT_VERSION: "9"
+  KeeForgeMac:
+    settings:
+      base:
+        MARKETING_VERSION: "1.2.3"
+        CURRENT_PROJECT_VERSION: "9"
+  KeeForgeMacAutoFill:
+    settings:
+      base:
+        MARKETING_VERSION: "1.2.3"
+        CURRENT_PROJECT_VERSION: "9"
+YAML
+  git -C "${test_repo}" add project.yml
+  git -C "${test_repo}" commit -q -m candidate
+  git -C "${test_repo}" tag rc/1.2.3-b9
+  saved_repo_root="${REPO_ROOT}"; saved_rc_tag="${RC_TAG}"
+  REPO_ROOT="${test_repo}"; RC_TAG=""
+  resolve_candidate_identity
+  [[ "${RC_TAG}" == "rc/1.2.3-b9" ]] || { echo "error: preflight did not derive the RC tag" >&2; return 1; }
+  : >"${test_repo}/after-tag"
+  git -C "${test_repo}" add after-tag
+  git -C "${test_repo}" commit -q -m after-tag
+  if resolve_candidate_identity >/dev/null 2>&1; then
+    echo "error: preflight accepted a source checkout after its RC tag" >&2
+    return 1
+  fi
+  REPO_ROOT="${saved_repo_root}"; RC_TAG="${saved_rc_tag}"
+  # Exercise the normal entry path in a clean disposable repo. xcrun is a
+  # deliberate local stub: reaching its expected credential refusal proves the
+  # candidate output was resolved before the first external preflight.
+  mkdir -p "${test_repo}/ci_scripts" "${test_repo}/Configs"
+  git -C "${test_repo}" checkout -q rc/1.2.3-b9
+  cp "${BASH_SOURCE[0]}" "${test_repo}/ci_scripts/build_mac_direct.sh"
+  : >"${test_repo}/Configs/ExportOptions-DeveloperID.plist"
+  stub_bin="${test_root}/stub-bin"; mkdir "${stub_bin}"
+  printf '%s\n' '#!/usr/bin/env bash' 'exit 1' >"${stub_bin}/xcrun"
+  chmod +x "${stub_bin}/xcrun"
+  control_log="${test_root}/normal-control-flow.log"
+  if PATH="${stub_bin}:${PATH}" "${test_repo}/ci_scripts/build_mac_direct.sh" >"${control_log}" 2>&1; then
+    echo "error: preflight control-flow fixture unexpectedly reached a build" >&2
+    return 1
+  fi
+  grep -Fq "no notarytool credential profile" "${control_log}" \
+    || { echo "error: preflight control-flow fixture did not reach the stubbed notary preflight" >&2; return 1; }
+  ! grep -Eq 'unbound variable|OUT_DIR:.*unbound' "${control_log}" \
+    || { echo "error: preflight control-flow fixture used OUT_DIR before assignment" >&2; return 1; }
+  synthetic_attrs='sparkle:edSignature="synthetic-signature" length="9791801"'
+  synthetic_length="$(sed -n 's/.*[[:space:]]\(sparkle:\)\{0,1\}length="\([^"]*\)".*/\2/p' <<<"${synthetic_attrs}")"
+  [[ "${synthetic_length}" == 9791801 ]] \
+    || { echo "error: preflight failed to parse portable Sparkle length attributes" >&2; return 1; }
   ln -s "${test_root}/outside" "${test_repo}/build/escaped-link"
 
   for rejected in \
@@ -237,7 +365,7 @@ run_preflight() {
     || { echo "error: preflight failed to restore prior Package.resolved absence" >&2; return 1; }
 
   rm -rf -- "${test_root}"
-  echo "preflight: output-path, clean-worktree, and Package.resolved restore checks passed"
+  echo "preflight: output-path, interrupted-output, RC identity, clean-worktree, and Package.resolved restore checks passed"
 }
 
 if (( PREFLIGHT )); then
@@ -249,6 +377,23 @@ if ! command -v jq >/dev/null 2>&1; then
   echo "error: jq is required before starting the archive/notarization flow" >&2
   exit 1
 fi
+
+cd "${REPO_ROOT}"
+
+# The project uses folder globs. A dirty checkout could therefore include an
+# untracked source file in the archive even though it is not part of a commit.
+# build/ and scratch/ are ignored output locations and are intentionally fine.
+require_clean_source_worktree "${REPO_ROOT}"
+resolve_candidate_identity
+OUT_DIR="${REQUESTED_OUT_DIR:-${BUILD_ROOT}/mac-direct-${RELEASE_VERSION}-b${RELEASE_BUILD}}"
+if [[ -L "${BUILD_ROOT}" ]]; then
+  reject_output_dir "${OUT_DIR} (build root is a symlink)"
+fi
+if [[ ! -d "${BUILD_ROOT}" ]]; then
+  mkdir -p -- "${BUILD_ROOT}"
+fi
+validate_output_dir "${OUT_DIR}"
+reject_completed_output "${OUT_DIR}"
 
 NOTARY_PROFILE="${KEEFORGE_NOTARY_PROFILE:-keeforge-notary}"
 SCHEME="KeeForgeMac"
@@ -274,20 +419,6 @@ if ! xcrun notarytool history --keychain-profile "${NOTARY_PROFILE}" >/dev/null 
   echo "  --apple-id <apple-id> --team-id <team-id> --password <app-specific-password>" >&2
   exit 1
 fi
-
-cd "${REPO_ROOT}"
-
-# The project uses folder globs. A dirty checkout could therefore include an
-# untracked source file in the archive even though it is not part of a commit.
-# build/ and scratch/ are ignored output locations and are intentionally fine.
-require_clean_source_worktree "${REPO_ROOT}"
-if [[ -L "${BUILD_ROOT}" ]]; then
-  reject_output_dir "${OUT_DIR} (build root is a symlink)"
-fi
-if [[ ! -d "${BUILD_ROOT}" ]]; then
-  mkdir -p -- "${BUILD_ROOT}"
-fi
-validate_output_dir "${OUT_DIR}"
 
 # Save the exact Package.resolved bytes before either spec can cause SwiftPM to
 # rewrite them. This state directory is validated before it is ever removed.
@@ -330,7 +461,6 @@ restore_appstore_project() {
 }
 trap restore_appstore_project EXIT
 
-rm -rf -- "${OUT_DIR}"
 mkdir -p -- "${OUT_DIR}"
 
 # The overlay spec is what makes this the direct-download channel: it adds
@@ -519,7 +649,9 @@ if [[ -z "${SIGN_UPDATE}" ]]; then
 fi
 
 echo "==> Signing the appcast payload"
-SIGNATURE_ATTRS="$("${SIGN_UPDATE}" "${ZIP_PATH}")"
+SIGNATURE_FILE="${OUT_DIR}/sparkle-signature.txt"
+"${SIGN_UPDATE}" "${ZIP_PATH}" >"${SIGNATURE_FILE}"
+SIGNATURE_ATTRS="$(<"${SIGNATURE_FILE}")"
 
 SHORT_VERSION="$(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" "${APP_PATH}/Contents/Info.plist")"
 BUILD_NUMBER="$(/usr/libexec/PlistBuddy -c "Print :CFBundleVersion" "${APP_PATH}/Contents/Info.plist")"
@@ -534,7 +666,7 @@ ZIP_SIZE="$(stat -f '%z' "${FINAL_ZIP_PATH}")"
 # sparkle:edSignature="..." length="...". Keep both the raw value and the
 # parsed values so a handoff never has to re-sign the final bytes.
 SPARKLE_ED_SIGNATURE="$(sed -n 's/.*sparkle:edSignature="\([^"]*\)".*/\1/p' <<<"${SIGNATURE_ATTRS}")"
-SPARKLE_LENGTH="$(sed -n 's/.* \(sparkle:\)\?length="\([^"]*\)".*/\2/p' <<<"${SIGNATURE_ATTRS}")"
+SPARKLE_LENGTH="$(sed -n 's/.*[[:space:]]\(sparkle:\)\{0,1\}length="\([^"]*\)".*/\2/p' <<<"${SIGNATURE_ATTRS}")"
 if [[ -z "${SPARKLE_ED_SIGNATURE}" || -z "${SPARKLE_LENGTH}" ]]; then
   echo "error: sign_update did not return sparkle:edSignature and length attributes" >&2
   exit 1
@@ -552,6 +684,7 @@ jq -n \
   --arg repoBuild "${BUILD_NUMBER}" \
   --arg commitSHA "${SOURCE_SHA}" \
   --arg sourceTree "${SOURCE_TREE}" \
+  --arg rcTag "${RC_TAG}" \
   --arg zipPath "${FINAL_ZIP_PATH}" \
   --arg zipFilename "${ZIP_FILENAME}" \
   --arg sha256 "${ZIP_SHA256}" \
@@ -566,7 +699,7 @@ jq -n \
   --arg feedURL "${BUILT_FEED_URL}" \
   --arg minimumSystemVersion "${MIN_SYSTEM}" \
   --argjson sizeBytes "${ZIP_SIZE}" \
-  '{schemaVersion: 1, version: $version, repoBuild: ($repoBuild | tonumber), commitSHA: $commitSHA,
+  '{schemaVersion: 1, version: $version, repoBuild: ($repoBuild | tonumber), rcTag: $rcTag, commitSHA: $commitSHA,
     sourceTree: $sourceTree, zipPath: $zipPath, zipFilename: $zipFilename,
     sha256: $sha256, sizeBytes: $sizeBytes, notarizationSubmissionID: $notarizationSubmissionID,
     notarizationStatus: $notarizationStatus,
@@ -583,6 +716,7 @@ echo "Artifact handoff JSON:        ${ARTIFACT_JSON}"
 echo "SHA-256:                      ${ZIP_SHA256}"
 echo "Size (bytes):                 ${ZIP_SIZE}"
 echo "Notarization submission ID:   ${NOTARIZATION_ID}"
+echo "Sparkle signature attributes: ${SIGNATURE_FILE}"
 echo "Version/build:                ${SHORT_VERSION}/${BUILD_NUMBER}"
 echo "Archive:                      ${ARCHIVE_PATH}"
 echo "Symbols:                      ${ARCHIVE_PATH}/dSYMs"

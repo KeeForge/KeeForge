@@ -145,8 +145,10 @@ flakes and accept that affected cloud verdict. Record the local command, result,
 manifest. Manual distribution may be used only after all three cloud verdicts, both KDBX gates, and
 local Mac smoke are accepted: identify the affected platform's TestFlight build from the manifest
 and match its marketing version, platform build number, RC tag, and commit SHA before distributing.
-Obtain explicit action-time confirmation immediately before the first Beta App Review action (when
-required) and immediately before distributing each platform. Never use the newest build by default.
+Proceed with the first Beta App Review action (when required) and each platform distribution when
+the user has already authorized that named candidate action in the current task; otherwise obtain
+action-time confirmation. That beta authorization never authorizes production release, App Review
+submission, or legal declarations. Never use the newest build by default.
 
 **Any failed test also fails locally** → stop. Fix it as a new commit on the shared release branch;
 never amend or force-push the existing RC. Increment the global `repoBuild` on all four product
