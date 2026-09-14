@@ -396,7 +396,6 @@ struct UnlockView: View {
             }
             .modifier(UnlockInputContainer())
         }
-        .accessibilityIdentifier("unlock.keyfile.row")
     }
 
     private var unavailableSection: some View {

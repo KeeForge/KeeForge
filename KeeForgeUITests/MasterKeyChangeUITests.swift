@@ -24,11 +24,21 @@ final class MasterKeyChangeUITests: DatabaseCreationUITestCase {
 
         let newPasswordField = app.secureTextFields["master-key.new-password-field"]
         XCTAssertTrue(newPasswordField.waitForExistence(timeout: 5), "New master password field was not visible")
-        replaceText(in: newPasswordField, with: newPassword)
+        let revealedNewPasswordField = revealPasswordTextField(
+            in: newPasswordField,
+            revealingWith: app.buttons["master-key.new-password-visibility-button"]
+        )
 
         let confirmPasswordField = app.secureTextFields["master-key.confirm-password-field"]
         XCTAssertTrue(confirmPasswordField.waitForExistence(timeout: 5), "Confirm master password field was not visible")
-        replaceText(in: confirmPasswordField, with: newPassword)
+        let revealedConfirmPasswordField = revealPasswordTextField(
+            in: confirmPasswordField,
+            revealingWith: app.buttons["master-key.confirm-password-visibility-button"]
+        )
+
+        replaceVisiblePasswordFixtureText(in: revealedNewPasswordField, with: newPassword)
+        dismissKeyboardAfterPasswordFixtureEntry()
+        replaceVisiblePasswordFixtureText(in: revealedConfirmPasswordField, with: newPassword)
 
         let saveButton = app.buttons["master-key.save"]
         XCTAssertTrue(saveButton.waitForExistence(timeout: 5), "Master key save button was not visible")
@@ -71,15 +81,26 @@ final class MasterKeyChangeUITests: DatabaseCreationUITestCase {
 
         let nameField = app.textFields["database-create.name-field"]
         XCTAssertTrue(nameField.waitForExistence(timeout: 5), "Database name field was not visible", file: file, line: line)
-        replaceText(in: nameField, with: databaseName)
 
         let passwordField = app.secureTextFields["database-create.password-field"]
         XCTAssertTrue(passwordField.waitForExistence(timeout: 5), "Master password field was not visible", file: file, line: line)
-        replaceText(in: passwordField, with: password)
+        let revealedPasswordField = revealPasswordTextField(
+            in: passwordField,
+            revealingWith: app.buttons["database-create.password-visibility-button"]
+        )
 
         let confirmPasswordField = app.secureTextFields["database-create.confirm-password-field"]
         XCTAssertTrue(confirmPasswordField.waitForExistence(timeout: 5), "Confirm password field was not visible", file: file, line: line)
-        replaceText(in: confirmPasswordField, with: password)
+        let revealedConfirmPasswordField = revealPasswordTextField(
+            in: confirmPasswordField,
+            revealingWith: app.buttons["database-create.confirm-password-visibility-button"]
+        )
+
+        replaceText(in: nameField, with: databaseName)
+        dismissKeyboardAfterPasswordFixtureEntry()
+        replaceVisiblePasswordFixtureText(in: revealedPasswordField, with: password)
+        dismissKeyboardAfterPasswordFixtureEntry()
+        replaceVisiblePasswordFixtureText(in: revealedConfirmPasswordField, with: password)
 
         let formCreateButton = app.buttons["database-create.create-button"]
         XCTAssertTrue(formCreateButton.waitForExistence(timeout: 5), "Create confirmation button was not visible", file: file, line: line)

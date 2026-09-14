@@ -12,14 +12,14 @@ final class KeyFileUITests: KeeForgeUITestCase {
 
     private func findKeyFileSelect() -> XCUIElement? {
         let direct = app.buttons["unlock.keyfile.select"]
-        if direct.waitForExistence(timeout: 8), direct.isHittable { return direct }
+        if direct.waitForExistence(timeout: 8) { return direct }
 
-        if revealElement(direct, direction: .up, maxSwipes: 3), direct.isHittable {
+        if revealElement(direct, direction: .up, maxSwipes: 3) {
             return direct
         }
 
         let byLabel = app.buttons.matching(NSPredicate(format: "label CONTAINS[c] 'Select'")).firstMatch
-        if byLabel.waitForExistence(timeout: 5), byLabel.isHittable { return byLabel }
+        if byLabel.waitForExistence(timeout: 5) { return byLabel }
 
         return nil
     }
@@ -34,7 +34,7 @@ final class KeyFileUITests: KeeForgeUITestCase {
             XCTFail("Key file Select button not found")
             return
         }
-        selectButton.tap()
+        tapElement(selectButton)
 
         XCTAssertTrue(
             waitForDocumentPicker(timeout: 15),

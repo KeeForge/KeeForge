@@ -344,6 +344,7 @@ final class RegularWidthWorkspaceUITests: UnlockedDatabaseUITestCase {
             "Regular-width workspace should show the Select an Entry placeholder before a detail is chosen"
         )
 
+        revealSidebarIfNeeded()
         openGroup(named: "Social")
         openEntry(named: "Twitter")
 
@@ -595,9 +596,6 @@ final class AppSettingsUITests: AppSettingsUITestCase {
 
     func testTipJarSectionShowsProductsOrFallback() {
         openAppSettings()
-
-        let tipJarHeader = app.staticTexts["Tip Jar"]
-        revealInSettings(tipJarHeader, maxSwipes: 6)
 
         let tipButton = app.buttons.matching(
             NSPredicate(format: "label CONTAINS[c] '$' OR label CONTAINS[c] 'Small' OR label CONTAINS[c] 'tip'")
