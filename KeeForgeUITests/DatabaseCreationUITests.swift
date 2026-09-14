@@ -33,15 +33,26 @@ class DatabaseCreationUITestCase: EntryEditUITestCase {
 
         let nameField = app.textFields["database-create.name-field"]
         XCTAssertTrue(nameField.waitForExistence(timeout: 5), "Database name field was not visible", file: file, line: line)
-        replaceText(in: nameField, with: databaseName)
 
         let passwordField = app.secureTextFields["database-create.password-field"]
         XCTAssertTrue(passwordField.waitForExistence(timeout: 5), "Master password field was not visible", file: file, line: line)
-        replaceText(in: passwordField, with: createdDatabasePassword)
+        let revealedPasswordField = revealPasswordTextField(
+            in: passwordField,
+            revealingWith: app.buttons["database-create.password-visibility-button"]
+        )
 
         let confirmPasswordField = app.secureTextFields["database-create.confirm-password-field"]
         XCTAssertTrue(confirmPasswordField.waitForExistence(timeout: 5), "Confirm password field was not visible", file: file, line: line)
-        replaceText(in: confirmPasswordField, with: createdDatabasePassword)
+        let revealedConfirmPasswordField = revealPasswordTextField(
+            in: confirmPasswordField,
+            revealingWith: app.buttons["database-create.confirm-password-visibility-button"]
+        )
+
+        replaceText(in: nameField, with: databaseName)
+        dismissKeyboardAfterPasswordFixtureEntry()
+        replaceVisiblePasswordFixtureText(in: revealedPasswordField, with: createdDatabasePassword)
+        dismissKeyboardAfterPasswordFixtureEntry()
+        replaceVisiblePasswordFixtureText(in: revealedConfirmPasswordField, with: createdDatabasePassword)
 
         let formCreateButton = app.buttons["database-create.create-button"]
         XCTAssertTrue(formCreateButton.waitForExistence(timeout: 5), "Create confirmation button was not visible", file: file, line: line)
@@ -113,6 +124,7 @@ final class DatabaseCreationCompactUITests: DatabaseCreationUITestCase {
 final class DatabaseCreationRegularWidthUITests: DatabaseCreationUITestCase {
     func testCreateLocalDatabaseHappyPathInRegularWidthLayout() throws {
         try requireRegularWidthLayout()
+        revealSidebarIfNeeded()
         createLocalDatabaseAndVerifyHappyPath(
             named: "Regular UI Created",
             entryTitle: "Regular Created Entry"

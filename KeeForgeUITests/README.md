@@ -128,6 +128,10 @@ xcodebuild test -project KeeForge.xcodeproj -scheme KeeForge \
 
 Run policy (one class per run, no full suite, reproduce RC failures on the iOS 18 iPhone SE (3rd generation) simulator — compact-width, where minimum-OS regressions have surfaced) is in `AGENTS.md`.
 
+### Regular-Width Sidebar Navigation
+
+iPadOS may start an adaptive `NavigationSplitView` with its sidebar collapsed even at regular width. Tests that need sidebar controls use the system `ToggleSidebar` control only when it is labeled `Show Sidebar`, then continue with the normal accessibility identifiers. Keep the product's automatic sidebar policy intact; a UI test must not force a column-visibility mode.
+
 ## AutoFill Store Device Tests
 
 The AutoFill **store-validation** tests (spec'd under
@@ -352,6 +356,7 @@ Key helpers:
 - `unlockSuccessfully()` — unlock with the default fixture password and assert success; retries the whole unlock up to three times when the vault reports a wrong-password error (a race under CI's parallel simulators where the password is typed before the field/keyboard is ready), and only surfaces the real error on the final attempt
 - `waitForVaultToUnlock()` — poll until unlock succeeds or surface the last visible error
 - `replaceText(in:with:)` — clear a field and type into it; first scrolls the field clear of the software keyboard and re-taps it until a keyboard is up, because `typeText` on an unfocused field fails the test outright ("Neither element nor any descendant has keyboard focus") and cannot be caught and retried. `XCUIElement.hasFocus` is not usable as the readiness signal — SwiftUI text fields report `false` even while focused
+- `revealPasswordTextField(in:revealingWith:)` and `replaceVisiblePasswordFixtureText(in:with:)` — use a password row's existing visibility button before fixture typing, then enter a public fixture through the returned `TextField` with exact verification. Creation and master-key fixture flows dismiss their keyboard with Return before moving to the next field; iOS 26.5's simulator XCTest injection into their `SecureField`s retains one character even though manual software-keyboard entry works. Keep secure-field coverage on the unlock path rather than using that broken injection route for fixture setup
 - `KeeForgeUITestCase.ciElementTimeout` (15s) — shared, generous element-appearance timeout for spots that are slow to settle on Xcode Cloud's slower, four-way-parallel simulators; prefer it (over per-line 5s literals) for waits on the known-flaky paths
 - `openDatabase(named:)` — open a known fixture-backed database row instead of whichever row appears first
 - `openAnyEntry()` — navigate into a non-empty group and open an entry
