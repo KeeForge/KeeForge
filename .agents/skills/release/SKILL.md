@@ -768,6 +768,9 @@ Continue with Mode C from C1, reporting against the 24h target in place of 48h.
   `verify-public-url`; only its evidence permits the explicit `publish-appcast`
   compare-and-swap against the staged base feed. Publication is atomic and fails on a concurrent
   feed change.
+  `build_mac_direct.sh` verifies the final ZIP's saved Sparkle signature against the exported app's
+  embedded `SUPublicEDKey` before it writes `direct-artifact.json`; the check is Keychain-free and
+  can be re-run with `ci_scripts/verify_sparkle_ed25519.swift APP ZIP SIGNATURE_FILE`.
   If a direct build stops after notarization or signing, preserve its candidate output, exact ZIP,
   `notarization.json`, and `sparkle-signature.txt`; inspect and complete metadata/handoff manually.
   Do not re-run the full build into that directory.

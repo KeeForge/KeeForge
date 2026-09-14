@@ -216,6 +216,7 @@ run_preflight() {
   local stub_bin control_log
   local synthetic_attrs synthetic_length
 
+  "${SCRIPT_DIR}/verify_sparkle_ed25519.swift" --self-test
   test_root="$(mktemp -d "${TMPDIR:-/tmp}/keeforge-direct-preflight.XXXXXX")"
   test_root="$(cd -P -- "${test_root}" && pwd -P)"
   validate_temp_dir "${test_root}"
@@ -651,6 +652,7 @@ fi
 echo "==> Signing the appcast payload"
 SIGNATURE_FILE="${OUT_DIR}/sparkle-signature.txt"
 "${SIGN_UPDATE}" "${ZIP_PATH}" >"${SIGNATURE_FILE}"
+"${SCRIPT_DIR}/verify_sparkle_ed25519.swift" "${APP_PATH}" "${ZIP_PATH}" "${SIGNATURE_FILE}"
 SIGNATURE_ATTRS="$(<"${SIGNATURE_FILE}")"
 
 SHORT_VERSION="$(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" "${APP_PATH}/Contents/Info.plist")"
