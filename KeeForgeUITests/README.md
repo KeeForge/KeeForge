@@ -223,6 +223,17 @@ To inspect the latest test result bundle:
 xcrun xcresulttool get test-results summary --path <path-to-latest.xcresult>
 ```
 
+For a failed UI test, export attachments from the finalized result bundle into a
+fresh directory without filters, then use its `manifest.json` to map each
+attachment name. Screenshots, accessibility hierarchies, and recordings often
+show an adaptive control that is absent from the failed assertion; a filtered
+export can omit these diagnostic artifacts.
+
+```bash
+xcrun xcresulttool export attachments --path <path-to-latest.xcresult> \
+  --output-path <fresh-attachment-directory>
+```
+
 A useful way to locate the latest result bundle:
 
 ```bash
