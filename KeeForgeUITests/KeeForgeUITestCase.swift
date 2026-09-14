@@ -210,10 +210,142 @@ class KeeForgeUITestCase: XCTestCase {
         // tapping (or coordinate-tapping) a not-yet-ready field is a common
         // source of dropped keystrokes on slower CI simulators.
         _ = element.waitForExistence(timeout: 10)
-        focusFieldForTyping(element)
-        let deleteSequence = String(repeating: XCUIKeyboardKey.delete.rawValue, count: Self.passwordDeleteCount)
-        element.typeText(deleteSequence)
+        var lastEntryDiagnostic = "keyboard focus could not be established"
+
+        for attempt in 1...3 {
+            guard focusFieldForTyping(element) else {
+                if attempt < 3 {
+                    dismissKeyboardForFocusRetry()
+                }
+                continue
+            }
+
+            element.typeText(deleteSequence(for: element))
+            element.typeText(text)
+
+            if enteredTextMatches(element, expected: text) {
+                return
+            }
+
+            lastEntryDiagnostic = entryDiagnostic(for: element, expected: text)
+            if attempt < 3 {
+                dismissKeyboardForFocusRetry()
+            }
+        }
+
+        XCTFail(
+            "Could not enter text into '\(element.identifier)' after 3 attempts: \(lastEntryDiagnostic)"
+        )
+    }
+
+    func revealPasswordTextField(
+        in secureField: XCUIElement,
+        revealingWith visibilityButton: XCUIElement
+    ) -> XCUIElement {
+        let fieldIdentifier = secureField.identifier
+        XCTAssertTrue(secureField.waitForExistence(timeout: 5), "Password field was not visible")
+        XCTAssertTrue(visibilityButton.waitForExistence(timeout: 5), "Password visibility control was not visible")
+
+        let showLabel = visibilityButton.label
+        XCTAssertTrue(showLabel.hasPrefix("Show "), "Password visibility control was not showing a masked field")
+        tapElement(visibilityButton)
+
+        let revealedField = app.textFields[fieldIdentifier]
+        XCTAssertTrue(revealedField.waitForExistence(timeout: 5), "Revealed password field was not visible")
+        XCTAssertEqual(
+            visibilityButton.label,
+            "Hide \(showLabel.dropFirst("Show ".count))",
+            "Password visibility control did not report revealed text"
+        )
+        return revealedField
+    }
+
+    /// Enters a public creation or master-key fixture after its password row
+    /// has been revealed. Keep this separate from `replaceText`: these forms
+    /// use Return only to dismiss the keyboard between fixture fields, and
+    /// direct `tap()` lets XCTest scroll the next field above that keyboard.
+    func replaceVisiblePasswordFixtureText(in element: XCUIElement, with text: String) {
+        XCTAssertTrue(element.waitForExistence(timeout: 5), "Visible password fixture field was not present")
+        let screenshot = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+        screenshot.name = "Visible password fixture field before entry"
+        screenshot.lifetime = .deleteOnSuccess
+        add(screenshot)
+        element.tap()
+
+        XCTAssertTrue(
+            app.keyboards.firstMatch.waitForExistence(timeout: 2),
+            "Visible password fixture field did not raise the keyboard"
+        )
+        XCTAssertNotEqual(
+            elementReportsKeyboardFocus(element),
+            false,
+            "Visible password fixture field did not receive keyboard focus"
+        )
+
+        element.typeText(deleteSequence(for: element))
         element.typeText(text)
+        XCTAssertTrue(
+            enteredTextMatches(element, expected: text),
+            "Visible password fixture field did not retain the expected text"
+        )
+    }
+
+    /// Creation and master-key fixture fields have no submit action. On the
+    /// SE3 simulator, Return reliably dismisses their keyboard before moving
+    /// to the next visible password field; do not use this for general text.
+    func dismissKeyboardAfterPasswordFixtureEntry() {
+        let keyboard = app.keyboards.firstMatch
+        XCTAssertTrue(keyboard.waitForExistence(timeout: 2), "Password fixture keyboard was not visible")
+        app.typeText(XCUIKeyboardKey.return.rawValue)
+        XCTAssertTrue(
+            keyboard.waitForNonExistence(timeout: 2),
+            "Return did not dismiss the password fixture keyboard"
+        )
+    }
+
+    private func deleteSequence(for element: XCUIElement) -> String {
+        let currentLength = (element.value as? String)?.count ?? 0
+        return String(
+            repeating: XCUIKeyboardKey.delete.rawValue,
+            count: max(Self.passwordDeleteCount, currentLength)
+        )
+    }
+
+    private func enteredTextMatches(_ element: XCUIElement, expected: String) -> Bool {
+        let deadline = Date().addingTimeInterval(1)
+
+        repeat {
+            guard let value = element.value as? String else { return false }
+            if element.elementType == .secureTextField {
+                if value == expected || (isMaskedSecureValue(value) && value.count == expected.count) {
+                    return true
+                }
+            } else if value == expected {
+                return true
+            }
+            RunLoop.current.run(until: Date().addingTimeInterval(0.1))
+        } while Date() < deadline
+
+        return false
+    }
+
+    private func isMaskedSecureValue(_ value: String) -> Bool {
+        value.allSatisfy { $0 == "•" }
+    }
+
+    private func entryDiagnostic(for element: XCUIElement, expected: String) -> String {
+        guard let value = element.value as? String else {
+            return "the field did not expose a value"
+        }
+
+        if element.elementType == .secureTextField {
+            if isMaskedSecureValue(value) {
+                return "the masked value had \(value.count) characters; expected \(expected.count)"
+            }
+            return "the secure field exposed an unexpected non-masked value"
+        }
+
+        return "the plaintext value did not match the expected text"
     }
 
     /// Taps `element` to give it keyboard focus before typing. On compact
@@ -229,13 +361,14 @@ class KeeForgeUITestCase: XCTestCase {
     /// unfocused is not recoverable — `typeText` fails the test outright — so
     /// re-tap until the keyboard comes up. `XCUIElement.hasFocus` is not a
     /// usable signal here: SwiftUI text fields report `false` even while
-    /// focused, so the raised keyboard is the only observable readiness cue.
-    /// When the keyboard is already up the wait returns immediately.
-    private func focusFieldForTyping(_ element: XCUIElement) {
+    /// focused. The AX keyboard-focus attribute is a fallback when the
+    /// keyboard has not yet appeared in the accessibility hierarchy.
+    private func focusFieldForTyping(_ element: XCUIElement) -> Bool {
         for _ in 0 ..< 3 {
             scrollFieldClearOfKeyboard(element)
             tapElement(element)
-            guard app.keyboards.firstMatch.waitForExistence(timeout: 2) else { continue }
+            let keyboardIsVisible = app.keyboards.firstMatch.waitForExistence(timeout: 2)
+            let focus = elementReportsKeyboardFocus(element)
             // A raised keyboard alone is not proof the tap moved focus: when a
             // previous field already had the keyboard up, a missed tap (e.g.
             // the field settling right at the keyboard's top edge on a 5.4"
@@ -243,8 +376,11 @@ class KeeForgeUITestCase: XCTestCase {
             // The AX-level keyboard-focus attribute is reliable where
             // `hasFocus` is not; when it confirms — or can't deny — focus,
             // we're done, otherwise scroll and tap again.
-            if elementReportsKeyboardFocus(element) != false {
-                return
+            if keyboardIsVisible, focus != false {
+                return true
+            }
+            if focus == true {
+                return true
             }
             // Focus is confirmed stuck on another field. On short forms the
             // scroll above can't create room, so every retap keeps landing on
@@ -253,6 +389,8 @@ class KeeForgeUITestCase: XCTestCase {
             // the next tap then reaches an unoccluded field.
             dismissKeyboardForFocusRetry()
         }
+
+        return false
     }
 
     /// Downward drag on the scroll container — Form's interactive
@@ -518,6 +656,17 @@ class KeeForgeUITestCase: XCTestCase {
         }
     }
 
+    /// iPadOS can start an adaptive split view with its sidebar collapsed even
+    /// at regular width. Use the system control only when it is offering to
+    /// show the sidebar, preserving the app's automatic layout policy.
+    func revealSidebarIfNeeded() {
+        let showSidebarButton = app.buttons.matching(
+            NSPredicate(format: "identifier == %@ AND label == %@", "ToggleSidebar", "Show Sidebar")
+        ).firstMatch
+        guard showSidebarButton.exists else { return }
+        tapElement(showSidebarButton)
+    }
+
     @discardableResult
     func openFirstDatabaseFromListIfNeeded(
         timeout: TimeInterval = 10,
@@ -531,6 +680,8 @@ class KeeForgeUITestCase: XCTestCase {
         if passwordField.waitForExistence(timeout: 1) {
             return true
         }
+
+        revealSidebarIfNeeded()
 
         let databaseRowQuery = app.buttons.matching(identifier: "database.row")
         let databaseRow = databaseRowQuery.firstMatch
