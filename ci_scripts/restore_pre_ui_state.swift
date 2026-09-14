@@ -88,7 +88,34 @@ func verifyDefaultsFile(expected: URL, actual: URL) throws {
     print("defaults-file-verify=matched")
 }
 
-func relativeRegularFiles(in root: URL) throws -> Set<String> {
+let applicationScriptsLinkPath = "Library/Application Scripts/group.com.keevault.shared"
+let applicationScriptsLinkTarget = "../../../../Application Scripts/group.com.keevault.shared"
+
+struct GroupContents {
+    let regularFiles: Set<String>
+    let symlinks: [String: String]
+}
+
+struct GroupManifest: Codable {
+    let schemaVersion: Int
+    let files: [String: String]
+    let symlinks: [String: String]
+}
+
+func validateRelativePath(_ relative: String) throws {
+    let components = relative.split(separator: "/", omittingEmptySubsequences: false)
+    guard components.isEmpty == false,
+          components.allSatisfy({ $0.isEmpty == false && $0 != "." && $0 != ".." })
+    else {
+        throw RestoreError.invalidInput
+    }
+}
+
+func isAllowedApplicationScriptsLink(path: String, target: String) -> Bool {
+    path == applicationScriptsLinkPath && target == applicationScriptsLinkTarget
+}
+
+func groupContents(in root: URL) throws -> GroupContents {
     let manager = FileManager.default
     let rootValues = try root.resourceValues(forKeys: [.isDirectoryKey, .isSymbolicLinkKey])
     guard rootValues.isDirectory == true, rootValues.isSymbolicLink != true else {
@@ -98,48 +125,56 @@ func relativeRegularFiles(in root: URL) throws -> Set<String> {
     guard let enumerator = manager.enumerator(atPath: root.path) else {
         throw RestoreError.verificationFailed
     }
-    var paths = Set<String>()
+    var regularFiles = Set<String>()
+    var symlinks = [String: String]()
     while let relative = enumerator.nextObject() as? String {
+        try validateRelativePath(relative)
         let url = root.appendingPathComponent(relative, isDirectory: false)
         let values = try url.resourceValues(forKeys: keys)
-        guard values.isSymbolicLink != true else { throw RestoreError.invalidInput }
-        guard values.isRegularFile == true else { continue }
-        guard relative.split(separator: "/", omittingEmptySubsequences: false).allSatisfy({ $0 != "." && $0 != ".." }) else {
-            throw RestoreError.verificationFailed
+        if values.isSymbolicLink == true {
+            enumerator.skipDescendants()
+            let target = try manager.destinationOfSymbolicLink(atPath: url.path)
+            guard isAllowedApplicationScriptsLink(path: relative, target: target), symlinks[relative] == nil else {
+                throw RestoreError.invalidInput
+            }
+            symlinks[relative] = target
+            continue
         }
-        paths.insert(relative)
+        guard values.isRegularFile == true else { continue }
+        regularFiles.insert(relative)
     }
-    return paths
+    return GroupContents(regularFiles: regularFiles, symlinks: symlinks)
 }
 
-func manifest(at url: URL) throws -> [String: String] {
+func manifest(at url: URL) throws -> GroupManifest {
     let data = try Data(contentsOf: url)
-    guard let records = try JSONSerialization.jsonObject(with: data) as? [String: String], records.isEmpty == false else {
+    let records = try JSONDecoder().decode(GroupManifest.self, from: data)
+    guard records.schemaVersion == 1, records.files.isEmpty == false else {
         throw RestoreError.invalidInput
     }
-    for value in records.values {
+    for (path, value) in records.files {
+        try validateRelativePath(path)
         guard value.count == 64, value.allSatisfy({ $0.isHexDigit }) else { throw RestoreError.invalidInput }
+    }
+    for (path, target) in records.symlinks {
+        guard isAllowedApplicationScriptsLink(path: path, target: target) else { throw RestoreError.invalidInput }
     }
     return records
 }
 
 func groupFileURL(for record: String, group: URL) throws -> URL {
+    try validateRelativePath(record)
     let components = record.split(separator: "/", omittingEmptySubsequences: false)
-    guard components.isEmpty == false,
-          components.allSatisfy({ $0.isEmpty == false && $0 != "." && $0 != ".." })
-    else {
-        throw RestoreError.invalidInput
-    }
     return components.reduce(group) { $0.appendingPathComponent(String($1), isDirectory: false) }
 }
 
 func verifyManifest(root: URL, group: URL, label: String) throws {
     let records = try manifest(at: root.appendingPathComponent("sha256.json"))
-    let currentFiles = try relativeRegularFiles(in: group)
+    let current = try groupContents(in: group)
     var matched = 0
     var missing = 0
     var mismatched = 0
-    for (record, expected) in records {
+    for (record, expected) in records.files {
         do {
             let file = try groupFileURL(for: record, group: group)
             if FileManager.default.fileExists(atPath: file.path) == false {
@@ -153,31 +188,48 @@ func verifyManifest(root: URL, group: URL, label: String) throws {
             mismatched += 1
         }
     }
-    let unmanifested = currentFiles.subtracting(Set(records.keys)).count
-    print("\(label) records=\(records.count) matched=\(matched) missing=\(missing) mismatched=\(mismatched) unmanifested=\(unmanifested)")
-    guard missing == 0, mismatched == 0, unmanifested == 0 else { throw RestoreError.verificationFailed }
+    let unmanifested = current.regularFiles.subtracting(Set(records.files.keys)).count
+    let linksMatched = current.symlinks == records.symlinks
+    print("\(label) records=\(records.files.count) matched=\(matched) missing=\(missing) mismatched=\(mismatched) unmanifested=\(unmanifested) links=\(current.symlinks.count) links_matched=\(linksMatched)")
+    guard missing == 0, mismatched == 0, unmanifested == 0, linksMatched else { throw RestoreError.verificationFailed }
 }
 
 func writeManifest(root: URL, output: URL) throws {
     let group = root.appendingPathComponent("app-group", isDirectory: true)
-    var records = [String: String]()
-    for relative in try relativeRegularFiles(in: group) {
-        records[relative] = try sha256(group.appendingPathComponent(relative))
+    let contents = try groupContents(in: group)
+    var files = [String: String]()
+    for relative in contents.regularFiles {
+        files[relative] = try sha256(group.appendingPathComponent(relative))
     }
-    guard records.isEmpty == false else { throw RestoreError.invalidInput }
-    let data = try JSONSerialization.data(withJSONObject: records, options: [.prettyPrinted, .sortedKeys])
+    guard files.isEmpty == false else { throw RestoreError.invalidInput }
+    let records = GroupManifest(schemaVersion: 1, files: files, symlinks: contents.symlinks)
+    let encoder = JSONEncoder()
+    encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+    let data = try encoder.encode(records)
     try data.write(to: output, options: .atomic)
-    print("group-manifest=written records=\(records.count)")
+    print("group-manifest=written records=\(files.count) links=\(contents.symlinks.count)")
+}
+
+func relativeRegularFiles(in root: URL) throws -> Set<String> {
+    try groupContents(in: root).regularFiles
+}
+
+func inventoryEntries(_ contents: GroupContents) -> Set<String> {
+    Set(contents.regularFiles.map { "file:\($0)" })
+        .union(contents.symlinks.map { "link:\($0.key)=\($0.value)" })
 }
 
 func compareGroups(backup: URL, live: URL) throws {
-    let original = try relativeRegularFiles(in: backup)
-    let current = try relativeRegularFiles(in: live)
-    print("group-compare backup_files=\(original.count) live_files=\(current.count) live_extra=\(current.subtracting(original).count) backup_missing=\(original.subtracting(current).count)")
+    let original = try groupContents(in: backup)
+    let current = try groupContents(in: live)
+    let originalEntries = inventoryEntries(original)
+    let currentEntries = inventoryEntries(current)
+    print("group-compare backup_files=\(original.regularFiles.count) live_files=\(current.regularFiles.count) backup_links=\(original.symlinks.count) live_links=\(current.symlinks.count) live_extra=\(currentEntries.subtracting(originalEntries).count) backup_missing=\(originalEntries.subtracting(currentEntries).count)")
 }
 
 func validateGroup(_ group: URL) throws {
-    print("group-validate regular_files=\(try relativeRegularFiles(in: group).count)")
+    let contents = try groupContents(in: group)
+    print("group-validate regular_files=\(contents.regularFiles.count) links=\(contents.symlinks.count)")
 }
 
 func singleDifference(backup: URL, live: URL) throws -> (extra: String, missing: String)? {

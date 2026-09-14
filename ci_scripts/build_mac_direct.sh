@@ -41,6 +41,10 @@ PREFLIGHT=0
 PHASE=""
 RC_TAG=""
 REQUESTED_OUT_DIR=""
+CANDIDATE_COMMIT_SHA=""
+CANDIDATE_SOURCE_TREE=""
+VALIDATED_CHECKPOINT_COMMIT_SHA=""
+VALIDATED_CHECKPOINT_SOURCE_TREE=""
 while (( $# > 0 )); do
   case "$1" in
     --preflight) PREFLIGHT=1; shift ;;
@@ -68,7 +72,7 @@ candidate_identity() {
 }
 
 resolve_candidate_identity() {
-  local rows versions builds version build expected_tag tagged_sha head_sha
+  local rows versions builds version build expected_tag tagged_sha tagged_tree head_sha
   rows="$(candidate_identity)"
   [[ "$(printf '%s\n' "$rows" | sed '/^$/d' | wc -l | tr -d ' ')" == 4 ]] || { echo "error: project.yml must define all four release targets" >&2; return 1; }
   versions="$(printf '%s\n' "$rows" | cut -d: -f2 | sort -u)"
@@ -80,8 +84,11 @@ resolve_candidate_identity() {
   [[ -z "$RC_TAG" || "$RC_TAG" == "$expected_tag" ]] || { echo "error: --rc-tag must match project.yml identity ${expected_tag}" >&2; return 1; }
   RC_TAG="$expected_tag"
   tagged_sha="$(git -C "$REPO_ROOT" rev-parse "${RC_TAG}^{commit}" 2>/dev/null || true)"
+  tagged_tree="$(git -C "$REPO_ROOT" rev-parse "${RC_TAG}^{tree}" 2>/dev/null || true)"
   head_sha="$(git -C "$REPO_ROOT" rev-parse HEAD)"
-  [[ -n "$tagged_sha" && "$tagged_sha" == "$head_sha" ]] || { echo "error: clean source must be checked out at ${RC_TAG}" >&2; return 1; }
+  [[ -n "$tagged_sha" && -n "$tagged_tree" && "$tagged_sha" == "$head_sha" ]] || { echo "error: clean source must be checked out at ${RC_TAG}" >&2; return 1; }
+  CANDIDATE_COMMIT_SHA="$tagged_sha"
+  CANDIDATE_SOURCE_TREE="$tagged_tree"
   RELEASE_VERSION="$version"; RELEASE_BUILD="$build"
 }
 
@@ -205,8 +212,8 @@ write_export_checkpoint() {
     --arg version "${RELEASE_VERSION}" \
     --arg repoBuild "${RELEASE_BUILD}" \
     --arg rcTag "${RC_TAG}" \
-    --arg commitSHA "$(git -C "${REPO_ROOT}" rev-parse HEAD)" \
-    --arg sourceTree "$(git -C "${REPO_ROOT}" rev-parse 'HEAD^{tree}')" \
+    --arg commitSHA "${CANDIDATE_COMMIT_SHA}" \
+    --arg sourceTree "${CANDIDATE_SOURCE_TREE}" \
     --arg archivePath "${ARCHIVE_PATH}" \
     --arg exportPath "${EXPORT_PATH}" \
     --arg appPath "${APP_PATH}" \
@@ -242,7 +249,7 @@ publish_export_checkpoint() {
 
 validate_export_checkpoint() {
   local checkpoint="$1"
-  local expected_sha expected_tree expected_digest
+  local expected_digest
   local schema version build tag commit tree archive checkpoint_export app digest
 
   [[ -f "${checkpoint}" && ! -L "${checkpoint}" ]] || {
@@ -259,9 +266,7 @@ validate_export_checkpoint() {
   checkpoint_export="$(jq -er '.exportPath' "${checkpoint}")" || return 1
   app="$(jq -er '.appPath' "${checkpoint}")" || return 1
   digest="$(jq -er '.appDigest' "${checkpoint}")" || return 1
-  expected_sha="$(git -C "${REPO_ROOT}" rev-parse HEAD)"
-  expected_tree="$(git -C "${REPO_ROOT}" rev-parse 'HEAD^{tree}')"
-  [[ "${schema}" == 1 && "${version}" == "${RELEASE_VERSION}" && "${build}" == "${RELEASE_BUILD}" && "${tag}" == "${RC_TAG}" && "${commit}" == "${expected_sha}" && "${tree}" == "${expected_tree}" && "${archive}" == "${ARCHIVE_PATH}" && "${checkpoint_export}" == "${EXPORT_PATH}" && "${app}" == "${APP_PATH}" ]] || {
+  [[ "${schema}" == 1 && "${version}" == "${RELEASE_VERSION}" && "${build}" == "${RELEASE_BUILD}" && "${tag}" == "${RC_TAG}" && "${commit}" == "${CANDIDATE_COMMIT_SHA}" && "${tree}" == "${CANDIDATE_SOURCE_TREE}" && "${archive}" == "${ARCHIVE_PATH}" && "${checkpoint_export}" == "${EXPORT_PATH}" && "${app}" == "${APP_PATH}" ]] || {
     echo "error: export checkpoint identity or paths do not match the clean RC" >&2
     return 1
   }
@@ -274,6 +279,8 @@ validate_export_checkpoint() {
     echo "error: exported app bytes changed after archive/export; refusing to notarize a different artifact" >&2
     return 1
   }
+  VALIDATED_CHECKPOINT_COMMIT_SHA="${commit}"
+  VALIDATED_CHECKPOINT_SOURCE_TREE="${tree}"
 }
 
 require_clean_source_worktree() {
@@ -345,7 +352,7 @@ run_preflight() {
   local state_dir
   local original_bytes='Package.resolved\nbyte-exact\n'
   local rejected
-  local saved_repo_root saved_rc_tag
+  local saved_repo_root saved_rc_tag captured_checkpoint_sha captured_checkpoint_tree metadata_sha metadata_tree advanced_head
   local stub_bin control_log
   local synthetic_attrs synthetic_length
   local checkpoint_output checkpoint_pending checkpoint_ready checkpoint_bad
@@ -464,6 +471,8 @@ YAML
   publish_export_checkpoint "${checkpoint_pending}" "${checkpoint_ready}"
   [[ -f "${checkpoint_ready}" && ! -e "${checkpoint_pending}" ]] || { echo "error: preflight failed to publish checkpoint" >&2; return 1; }
   validate_export_checkpoint "${checkpoint_ready}"
+  captured_checkpoint_sha="${VALIDATED_CHECKPOINT_COMMIT_SHA}"
+  captured_checkpoint_tree="${VALIDATED_CHECKPOINT_SOURCE_TREE}"
   if reject_archive_output "${OUT_DIR}" >/dev/null 2>&1; then
     echo "error: preflight accepted archive output with an export checkpoint" >&2
     return 1
@@ -487,6 +496,13 @@ YAML
     echo "error: preflight accepted a source checkout after its RC tag" >&2
     return 1
   fi
+  advanced_head="$(git -C "${test_repo}" rev-parse HEAD)"
+  metadata_sha="${VALIDATED_CHECKPOINT_COMMIT_SHA}"
+  metadata_tree="${VALIDATED_CHECKPOINT_SOURCE_TREE}"
+  [[ "${metadata_sha}" == "${captured_checkpoint_sha}" && "${metadata_tree}" == "${captured_checkpoint_tree}" && "${metadata_sha}" == "$(git -C "${test_repo}" rev-parse 'rc/1.2.3-b9^{commit}')" && "${metadata_tree}" == "$(git -C "${test_repo}" rev-parse 'rc/1.2.3-b9^{tree}')" && "${metadata_sha}" != "${advanced_head}" ]] || {
+    echo "error: preflight did not retain the validated checkpoint identity after checkout drift" >&2
+    return 1
+  }
   REPO_ROOT="${saved_repo_root}"; RC_TAG="${saved_rc_tag}"
   # Exercise the archive entry path in a clean disposable repo. The local
   # xcodegen stub fails before any archive, proving archive/export no longer
@@ -899,8 +915,12 @@ if [[ "${SPARKLE_LENGTH}" != "${ZIP_SIZE}" ]]; then
   exit 1
 fi
 ARTIFACT_JSON="${KEEFORGE_DIRECT_ARTIFACT_JSON:-${OUT_DIR}/direct-artifact.json}"
-SOURCE_SHA="$(git -C "${REPO_ROOT}" rev-parse HEAD)"
-SOURCE_TREE="$(git -C "${REPO_ROOT}" rev-parse 'HEAD^{tree}')"
+[[ -n "${VALIDATED_CHECKPOINT_COMMIT_SHA}" && -n "${VALIDATED_CHECKPOINT_SOURCE_TREE}" ]] || {
+  echo "error: missing validated export checkpoint identity" >&2
+  exit 1
+}
+SOURCE_SHA="${VALIDATED_CHECKPOINT_COMMIT_SHA}"
+SOURCE_TREE="${VALIDATED_CHECKPOINT_SOURCE_TREE}"
 mkdir -p "$(dirname "${ARTIFACT_JSON}")"
 jq -n \
   --arg version "${SHORT_VERSION}" \

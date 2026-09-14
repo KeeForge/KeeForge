@@ -358,8 +358,11 @@ testers or the direct build is called a release candidate.
 
    `--confirm` is an accidental-invocation guard, not another owner decision. The helper verifies the
    pre-run manifest, preserves a private post-run backup before any write, restores original contents
-   with `rsync --checksum` and no `--delete`, and restores preferences through CFPreferences. It stops
-   with both backups preserved for an absent original/live App Group or any unproven extra. The sole
+   with `rsync --checksum` and no `--delete`, and restores preferences through CFPreferences. It
+   records the baseline's exact OS-created Application Scripts group link by literal path and target
+   without dereferencing it when present; any other or changed link stops safely, while a missing
+   live copy is restored when recorded in that verified backup. It stops with both backups
+   preserved for an absent original/live App Group or any unproven extra. The sole
    removable extra is one database-cache `.kdbx` whose SHA-256 exactly matches `TestFixtures/test.kdbx`.
    It finishes only after original hashes, semantic defaults equality, and the no-extra comparison pass.
 6. If any cloud gate is not green, **read `gate-adjudication.md`** and follow it. Do not distribute
@@ -383,6 +386,12 @@ in App Store Connect, independently for iOS and Mac.
    platform's manifest `buildID` as well as its version and build number, which may be identical
    across iOS and macOS.
 2. Obtain/export the exact MAS `.app` from the accepted Xcode Cloud archive without rebuilding.
+   Stay in App Store Connect's built-in browser; do not use `curl` or an API download. If the
+   artifact anchor's ordinary click or download capture produces no file, open its exact DOM `href`
+   in a fresh built-in-browser tab. `net::ERR_ABORTED` can occur when navigation becomes a download;
+   it is not proof of a completed download. Before accepting it, verify the new file's name, byte
+   size, and SHA-256 on disk, then
+   close any temporary `about:blank` tabs.
    Run the artifact check on that exact exported app:
    ```bash
    ci_scripts/verify_mac_artifact.sh --channel mas --app <exact-exported-mas-app> \
@@ -402,8 +411,9 @@ in App Store Connect, independently for iOS and Mac.
      ci_scripts/build_mac_direct.sh --archive-export --rc-tag rc/{version}-b{repoBuild}
    ci_scripts/build_mac_direct.sh --finalize --rc-tag rc/{version}-b{repoBuild}
    ```
-   The finalize phase verifies the checkpoint's tag/SHA/tree, canonical paths, and exported-app
-   digest before notarizing. Verify its direct `CFBundleVersion` equals the repo build and run the
+   The finalize phase captures the validated checkpoint's tag/SHA/tree before notarizing, so its
+   final metadata stays bound to that RC through Apple and Keychain waits. It also verifies canonical
+   paths and the exported-app digest. Verify its direct `CFBundleVersion` equals the repo build and run the
    same fail-closed check on its exact exported app:
    ```bash
    ci_scripts/verify_mac_artifact.sh --channel direct --app <exact-direct-app> \
@@ -413,8 +423,11 @@ in App Store Connect, independently for iOS and Mac.
    Then run `ci_scripts/release_direct_artifact.sh stage` to generate a complete unpublished appcast
    while preserving older items and recording the base-feed hash. Do not run `handoff` until C7's
    post-approval go decision.
-   Before distributing either beta, add the two verified artifact identity records under
-   `artifacts` in the candidate manifest and validate the complete distribution evidence:
+   Before distributing either beta, add all three verified artifact identity records under
+   `artifacts` in the candidate manifest. Each accepted/adjudicated gate and artifact must carry
+   the RC commit/tree; bind iOS and MAS TestFlight build IDs to their platform records. The direct
+   record must be the generated metadata for its exact ZIP, including matching hash, size,
+   notarization, and Sparkle attributes. Then validate the complete distribution evidence:
    ```bash
    ci_scripts/candidate_manifest.py validate \
      --manifest scratch/release-manifests/{version}-b{repoBuild}.json --mode distribute
