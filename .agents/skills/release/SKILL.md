@@ -392,9 +392,19 @@ in App Store Connect, independently for iOS and Mac.
    number. The expected architecture set is the
    universal `arm64,x86_64`; a different set requires an explicit product decision recorded in the
    manifest before continuing.
-3. Run `ci_scripts/build_mac_direct.sh` from the same clean RC SHA, verify its direct
-   `CFBundleVersion` equals the repo build, and run the same fail-closed check on its exact exported
-   app:
+3. Run the direct archive/export from the same clean RC SHA under the global Xcode lock. It restores
+   the App Store project before returning success and publishes `export-ready.json` only after that
+   restoration is clean. Then finalize that exact checkpoint without the Xcode lock; finalization
+   never regenerates or rebuilds the app, so an Apple wait or Keychain signing prompt cannot block
+   other Xcode work:
+   ```bash
+   /Users/tan/src/KeeForge/scripts/with-repo-lock.sh xcode -- \
+     ci_scripts/build_mac_direct.sh --archive-export --rc-tag rc/{version}-b{repoBuild}
+   ci_scripts/build_mac_direct.sh --finalize --rc-tag rc/{version}-b{repoBuild}
+   ```
+   The finalize phase verifies the checkpoint's tag/SHA/tree, canonical paths, and exported-app
+   digest before notarizing. Verify its direct `CFBundleVersion` equals the repo build and run the
+   same fail-closed check on its exact exported app:
    ```bash
    ci_scripts/verify_mac_artifact.sh --channel direct --app <exact-direct-app> \
      --architectures arm64,x86_64 --expect-version {version} --expect-build {repoBuild}
@@ -740,7 +750,8 @@ Continue with Mode C from C1, reporting against the 24h target in place of 48h.
   (`xcodegen generate`) and is archived like the iOS app. The notarized
   Developer ID build is produced by `ci_scripts/build_mac_direct.sh`, which
   regenerates from the `project-direct.yml` overlay spec, archives, exports,
-  refuses to submit anything that is unsandboxed or carries a
+  restores the App Store project under the global Xcode lock, and then finalizes
+  the checkpoint without that lock. It refuses to submit anything that is unsandboxed or carries a
   `com.apple.security.cs.*` exception, notarizes, staples, and emits the appcast
   zip and writes a non-secret `direct-artifact.json` handoff record. Run it **after** the App Store
   build is cut, from the same commit, so both channels ship identical code. Obtain/export the exact
@@ -760,7 +771,8 @@ Continue with Mode C from C1, reporting against the 24h target in place of 48h.
   `build_mac_direct.sh` verifies the final ZIP's saved Sparkle signature against the exported app's
   embedded `SUPublicEDKey` before it writes `direct-artifact.json`; the check is Keychain-free and
   can be re-run with `ci_scripts/verify_sparkle_ed25519.swift APP ZIP SIGNATURE_FILE`.
-  If a direct build stops after notarization or signing, preserve its candidate output, exact ZIP,
+  If archive/export restoration fails, preserve its pending checkpoint and output; it is not
+  eligible for finalization or an automatic rebuild. If a direct build stops after notarization or signing, preserve its candidate output, exact ZIP,
   `notarization.json`, and `sparkle-signature.txt`; inspect and complete metadata/handoff manually.
   Do not re-run the full build into that directory.
 - `KeeForgeMacUITests` cannot run on a headless runner — it needs an unlocked, active login session

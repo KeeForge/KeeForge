@@ -522,7 +522,7 @@ locale within ASC's current limit (normally 4,000 characters).
   shown on the Mac version page.
 - [x] Support URL is verified (not the stale `crazytan` one the iOS fr/de/ru/es
   locales still carry).
-- [ ] The App Privacy record was observed read-only on 2026-09-14: policy URL
+- [x] The App Privacy record was observed read-only on 2026-09-14: policy URL
   `https://keeforge.com/privacy/`, Product Preview **Data Not Collected**, and
   Data Types **“Data is not collected from this app.”** No edit or new
   declaration was made.
