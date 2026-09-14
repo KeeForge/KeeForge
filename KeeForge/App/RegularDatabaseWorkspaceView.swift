@@ -548,8 +548,13 @@ struct RegularDatabaseWorkspaceView: View {
             // edited entry keeps a stale row label without this id. Reading
             // `contentRevision` here also re-runs the body so the id updates.
             if let selectedTag = viewModel.selectedTag {
-                TagEntriesView(tag: selectedTag, viewModel: viewModel, onSelectEntry: selectEntry)
-                    .id(viewModel.contentRevision)
+                TagEntriesView(
+                    tag: selectedTag,
+                    viewModel: viewModel,
+                    onSelectEntry: selectEntry,
+                    onRequestDeletion: { pendingDeletion = $0 }
+                )
+                .id(viewModel.contentRevision)
             } else {
                 MacEntriesColumn(
                     viewModel: viewModel,
@@ -561,7 +566,13 @@ struct RegularDatabaseWorkspaceView: View {
                 .id(viewModel.contentRevision)
             }
         } else {
-            SearchView(viewModel: viewModel, onSelectEntry: selectEntry)
+            // Rendered inline in this column, so its deletions go to the
+            // workspace's own host rather than adding a colliding one.
+            SearchView(
+                viewModel: viewModel,
+                onSelectEntry: selectEntry,
+                onRequestDeletion: { pendingDeletion = $0 }
+            )
         }
     }
 

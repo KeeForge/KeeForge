@@ -1420,6 +1420,48 @@ final class DatabaseViewModelTests: XCTestCase {
         )
     }
 
+    /// The model seam behind deleting from the search results (#118): the
+    /// deletion is keyed by entry ID, so it does not depend on which list
+    /// raised it, and the results drop the entry because the recycle bin is
+    /// excluded from the search index.
+    func testDeletingAnEntryWhileSearchingRecyclesItAndDropsItFromResults() async throws {
+        let target = KPEntry(title: "Searchable Alpha")
+        let sibling = KPEntry(title: "Searchable Beta")
+        let root = KPGroup(name: "Root", groups: [
+            KPGroup(name: "Visible", entries: [target, sibling]),
+        ])
+        let vm = try await makeInjectedViewModel(rootGroup: root)
+
+        vm.searchText = "Searchable"
+        XCTAssertEqual(Set(vm.searchResults.map(\.id)), [target.id, sibling.id])
+        let revisionBeforeDelete = vm.contentRevision
+
+        try vm.deleteEntry(target.id, sendToRecycleBin: true)
+
+        XCTAssertGreaterThan(vm.contentRevision, revisionBeforeDelete)
+        XCTAssertTrue(vm.isEntryInRecycleBin(entryID: target.id))
+        XCTAssertEqual(vm.searchResults.map(\.id), [sibling.id])
+    }
+
+    /// Search never surfaces recycled entries, so a deletion raised from the
+    /// results is always the soft one — the permanent variant stays reachable
+    /// only from inside the bin.
+    func testRecycledEntriesStayOutOfSearchResults() async throws {
+        let target = KPEntry(title: "Searchable Alpha")
+        let root = KPGroup(name: "Root", groups: [
+            KPGroup(name: "Visible", entries: [target]),
+        ])
+        let vm = try await makeInjectedViewModel(rootGroup: root)
+
+        vm.searchText = "Searchable"
+        XCTAssertEqual(vm.searchResults.map(\.id), [target.id])
+
+        try vm.deleteEntry(target.id, sendToRecycleBin: true)
+
+        XCTAssertTrue(vm.searchResults.isEmpty)
+        XCTAssertTrue(vm.isEntryInRecycleBin(entryID: target.id))
+    }
+
     func testSearchExclusionIsInheritedBySubgroups() async throws {
         let visible = KPEntry(title: "Searchable Alpha")
         let deeplyHidden = KPEntry(title: "Searchable Deep")

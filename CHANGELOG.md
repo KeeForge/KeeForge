@@ -125,6 +125,10 @@ The 2026-09-08 probe settled the design: the iPad-on-Mac app never stores a data
 
 ## Unreleased
 
+### Fixes
+
+- Deleting an entry from the search results works again. Tapping Delete in a search result's long-press menu did nothing, and swiping to delete there made the row disappear without actually deleting the entry.
+
 ## v1.16.0 (2026-09-13)
 
 ### New Features

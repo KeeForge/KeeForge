@@ -803,6 +803,176 @@ final class EntryDeleteSmokeUITests: EntryEditUITestCase {
     }
 }
 
+/// Deleting from the search results, which render inline inside the group list
+/// rather than on a screen of their own (#118). The confirmation used to be
+/// dropped there: the list hosted a second `.alert(item:)` on a presentation
+/// context whose container already had one, so the context-menu item did
+/// nothing and the swipe action made the row disappear without deleting it.
+@MainActor
+final class SearchResultsDeleteUITests: EntryEditUITestCase {
+    func testContextMenuDeleteFromSearchResultsMovesEntryToRecycleBin() {
+        unlockSuccessfully()
+        searchForEntries(matching: twitterEntryTitle)
+
+        let deleteButton = revealContextMenuButton(
+            rowNamed: twitterEntryTitle,
+            identifier: "entry-row.delete-context",
+            preferredIdentifier: "search.entry.navlink"
+        )
+        deleteButton.tap()
+
+        let alert = app.alerts["Delete Entry?"]
+        XCTAssertTrue(
+            alert.waitForExistence(timeout: Self.ciElementTimeout),
+            "Delete confirmation did not present from the search results"
+        )
+        alert.buttons["Delete"].tap()
+        waitForAutosaveAttempt()
+
+        dismissSearch()
+        openGroup(named: recycleBinGroupName)
+        XCTAssertTrue(
+            revealElement(entry(named: twitterEntryTitle)),
+            "Entry deleted from the search results was not moved into the recycle bin"
+        )
+    }
+
+    func testSwipeDeleteFromSearchResultsConfirmsBeforeDeleting() {
+        unlockSuccessfully()
+        searchForEntries(matching: discordEntryTitle)
+
+        let row = firstRowMatching(name: discordEntryTitle, preferredIdentifier: "search.entry.navlink")
+        XCTAssertTrue(revealElement(row), "Discord was not visible in the search results")
+        let deleteButton = revealSwipeDeleteButton(on: row, identifier: "entry-row.delete-swipe")
+        deleteButton.tap()
+
+        // The regression: the row animated away while the draft kept the entry,
+        // so the user was shown a delete that never happened.
+        let alert = app.alerts["Delete Entry?"]
+        XCTAssertTrue(
+            alert.waitForExistence(timeout: Self.ciElementTimeout),
+            "Swipe delete in the search results did not confirm before deleting"
+        )
+        alert.buttons["Delete"].tap()
+        waitForAutosaveAttempt()
+
+        dismissSearch()
+        openGroup(named: recycleBinGroupName)
+        XCTAssertTrue(
+            revealElement(entry(named: discordEntryTitle)),
+            "Entry swipe-deleted from the search results was not moved into the recycle bin"
+        )
+    }
+
+    func testCancellingDeleteFromSearchResultsKeepsEntry() {
+        unlockSuccessfully()
+        searchForEntries(matching: twitterEntryTitle)
+
+        let deleteButton = revealContextMenuButton(
+            rowNamed: twitterEntryTitle,
+            identifier: "entry-row.delete-context",
+            preferredIdentifier: "search.entry.navlink"
+        )
+        deleteButton.tap()
+
+        let alert = app.alerts["Delete Entry?"]
+        XCTAssertTrue(alert.waitForExistence(timeout: Self.ciElementTimeout), "Delete confirmation did not present")
+        alert.buttons["Cancel"].tap()
+        waitForAutosaveAttempt()
+
+        XCTAssertTrue(
+            firstRowMatching(name: twitterEntryTitle, preferredIdentifier: "search.entry.navlink").exists,
+            "Cancelling the confirmation removed the entry from the search results"
+        )
+
+        dismissSearch()
+        openGroup(named: socialGroupName)
+        XCTAssertTrue(
+            revealElement(entry(named: twitterEntryTitle)),
+            "Cancelling the confirmation deleted the entry anyway"
+        )
+    }
+
+    /// Deleting the only match flips the results to their empty branch, which
+    /// tears the list down in the same update that presents the confirmation.
+    func testDeletingTheOnlySearchResultLeavesTheNoResultsState() {
+        unlockSuccessfully()
+        searchForEntries(matching: discordEntryTitle)
+        XCTAssertEqual(app.staticTexts["search.results.count"].label, "results:1", "Expected exactly one match")
+
+        let deleteButton = revealContextMenuButton(
+            rowNamed: discordEntryTitle,
+            identifier: "entry-row.delete-context",
+            preferredIdentifier: "search.entry.navlink"
+        )
+        deleteButton.tap()
+
+        let alert = app.alerts["Delete Entry?"]
+        XCTAssertTrue(alert.waitForExistence(timeout: Self.ciElementTimeout), "Delete confirmation did not present")
+        alert.buttons["Delete"].tap()
+        waitForAutosaveAttempt()
+
+        XCTAssertTrue(
+            app.staticTexts["search.no-results"].waitForExistence(timeout: Self.ciElementTimeout),
+            "Deleting the only match did not land on the no-results state"
+        )
+    }
+
+    private func searchForEntries(
+        matching query: String,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        let searchField = app.searchFields["Search entries"].firstMatch
+        XCTAssertTrue(
+            searchField.waitForExistence(timeout: Self.ciElementTimeout),
+            "Search field was not visible",
+            file: file,
+            line: line
+        )
+        tapElement(searchField)
+        searchField.typeText(query)
+
+        XCTAssertTrue(
+            app.staticTexts["search.results.count"].waitForExistence(timeout: Self.ciElementTimeout),
+            "Search results did not appear for '\(query)'",
+            file: file,
+            line: line
+        )
+    }
+
+    /// Empties the query so the group list replaces the results, then waits for
+    /// a group row rather than assuming the swap has landed.
+    private func dismissSearch(file: StaticString = #filePath, line: UInt = #line) {
+        let searchField = app.searchFields["Search entries"].firstMatch
+        guard searchField.waitForExistence(timeout: Self.ciElementTimeout) else {
+            XCTFail("Search field was gone before it could be cleared", file: file, line: line)
+            return
+        }
+
+        let clearButton = searchField.buttons["Clear text"]
+        if clearButton.exists {
+            clearButton.tap()
+        } else {
+            let currentValue = (searchField.value as? String) ?? ""
+            if currentValue.isEmpty == false, currentValue != "Search entries" {
+                tapElement(searchField)
+                searchField.typeText(
+                    String(repeating: XCUIKeyboardKey.delete.rawValue, count: currentValue.count)
+                )
+            }
+        }
+
+        let anyGroupRow = app.descendants(matching: .any).matching(identifier: "group.navlink").firstMatch
+        XCTAssertTrue(
+            anyGroupRow.waitForExistence(timeout: Self.ciElementTimeout),
+            "Group list did not come back after clearing the search query",
+            file: file,
+            line: line
+        )
+    }
+}
+
 @MainActor
 final class EntryEditEdgeUITests: EntryEditUITestCase {
     func testCreateGroupDuplicateShowsErrorAndDoesNotAddSecondGroup() {
