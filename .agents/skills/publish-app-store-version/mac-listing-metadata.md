@@ -2,8 +2,9 @@
 
 Package 9 record. As of 2026-09-13 this is **what is saved on the live macOS
 version page**, not a draft. It was written back from App Store Connect after
-saving, so the copy below matches the record byte for byte. Change it here only
-alongside a matching ASC edit.
+saving, so the copy below matches the record byte for byte. Change the saved
+locale copy only alongside a matching ASC edit; the App Privacy observation
+below was read-only.
 
 Saved state of the macOS version record (app `6759309295`, version id
 `7056fb7a-8e4a-4485-b816-5c04fbe09088`):
@@ -14,22 +15,28 @@ Saved state of the macOS version record (app `6759309295`, version id
   URL `https://keeforge.com/` — all seven locales.
 - Reviewer contact populated, **Sign-in required** off, reviewer notes saved,
   attachment `test.kdbx.zip` uploaded.
+- On 2026-09-14, a read-only inspection of the existing published App Privacy
+  record found policy URL `https://keeforge.com/privacy/`, Product Preview **Data
+  Not Collected**, and Data Types **“Data is not collected from this app.”** No
+  App Privacy edit or new declaration was made.
 - Locales exposed on the Mac page: en-US (primary), zh-Hans, zh-Hant, fr, de,
   ru, es-ES — exactly the iOS set.
 - Seven final Mac screenshots are uploaded in English in listing order 01–07;
   the Simplified Chinese locale inherits the English Mac gallery.
 - Still empty by design: `What's New in This Version` (package 14, from the
-  matching `## v{version}` changelog section) and the attached build, which
-  remains pending soak.
+  matching `## v{version}` changelog section) and the attached build. The b48
+  candidate was rejected; b49 is pending and has not been cut.
 
 ## Source of truth and scope
 
 - The version record was set up with `MARKETING_VERSION: 1.16.0` /
   `CURRENT_PROJECT_VERSION: 4`; that historical setup corrected the
-  auto-created 1.15.0 because the iOS 1.15.0 train is closed. The current
-  candidate mapping is `rc/1.16.0-b48`, source `a48d6b1`, repo build `48`, and
-  Mac TestFlight build `54`. It remains pending soak, so no build is attached
-  to this version record by design.
+  auto-created 1.15.0 because the iOS 1.15.0 train is closed. Immutable
+  `rc/1.16.0-b48` at `a48d6b1` was rejected and never distributed after
+  reproduced Xcode Cloud creation failures and canonical iOS 18 XCTest UI
+  failures hidden by a green GitHub Actions verdict. A b49 replacement is
+  pending and has not been cut, so no replacement build is attached to this
+  version record.
 - `KeeForgeMac/README.md` and `CloudSyncModels.isAvailableOnCurrentPlatform`
   agree: the native Mac release supports local files and WebDAV, and hides
   Dropbox/OneDrive. The listing must not imply otherwise.
@@ -491,9 +498,9 @@ Verify against the live counter anyway; its UI wins.
 - **Screenshots:** seven 2880×1800 final Mac images are uploaded in English in
   listing order 01–07 and verified after reload; Simplified Chinese inherits
   that English Mac gallery. iOS assets do not satisfy the Mac listing.
-- **Build:** Mac TestFlight build `54` maps to `rc/1.16.0-b48` at `a48d6b1`
-  with repo build `48`. It remains pending soak, so no build is attached by
-  design.
+- **Build:** Mac TestFlight build `54` mapped to rejected `rc/1.16.0-b48` at
+  `a48d6b1` with repo build `48`; it was never distributed. A b49 replacement
+  is pending and has not been cut, so no build is attached by design.
 
 ## Final RC release-notes rule (bounded template only)
 
@@ -515,8 +522,10 @@ locale within ASC's current limit (normally 4,000 characters).
   shown on the Mac version page.
 - [x] Support URL is verified (not the stale `crazytan` one the iOS fr/de/ru/es
   locales still carry).
-- [ ] Privacy URL is verified in ASC — it lives on the App Privacy page, not the
-  version page, and was not touched by package 9.
+- [ ] The App Privacy record was observed read-only on 2026-09-14: policy URL
+  `https://keeforge.com/privacy/`, Product Preview **Data Not Collected**, and
+  Data Types **“Data is not collected from this app.”** No edit or new
+  declaration was made.
 - [x] Contact information is populated; reviewer note identifies the attached
   `test.kdbx.zip` and password `testpassword123`.
 - [x] Attachment visibly shows `test.kdbx.zip`.
