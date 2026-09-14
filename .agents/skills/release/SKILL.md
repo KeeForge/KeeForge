@@ -358,8 +358,11 @@ testers or the direct build is called a release candidate.
 
    `--confirm` is an accidental-invocation guard, not another owner decision. The helper verifies the
    pre-run manifest, preserves a private post-run backup before any write, restores original contents
-   with `rsync --checksum` and no `--delete`, and restores preferences through CFPreferences. It stops
-   with both backups preserved for an absent original/live App Group or any unproven extra. The sole
+   with `rsync --checksum` and no `--delete`, and restores preferences through CFPreferences. It
+   records the baseline's exact OS-created Application Scripts group link by literal path and target
+   without dereferencing it when present; any other or changed link stops safely, while a missing
+   live copy is restored when recorded in that verified backup. It stops with both backups
+   preserved for an absent original/live App Group or any unproven extra. The sole
    removable extra is one database-cache `.kdbx` whose SHA-256 exactly matches `TestFixtures/test.kdbx`.
    It finishes only after original hashes, semantic defaults equality, and the no-extra comparison pass.
 6. If any cloud gate is not green, **read `gate-adjudication.md`** and follow it. Do not distribute

@@ -20,9 +20,11 @@ expect_failure() {
 
 make_backup() {
   local root="$1"
-  mkdir -p "${root}/app-group/databases"
+  mkdir -p "${root}/app-group/databases" "${root}/app-group/Library/Application Scripts"
   printf 'original database bytes\n' >"${root}/app-group/databases/original.kdbx"
   printf 'original registry\n' >"${root}/app-group/database-list.json"
+  ln -s '../../../../Application Scripts/group.com.keevault.shared' \
+    "${root}/app-group/Library/Application Scripts/group.com.keevault.shared"
   /usr/bin/swift "${HELPER}" write-manifest --root "${root}" --output "${root}/sha256.json" >/dev/null
 }
 
@@ -47,6 +49,35 @@ expect_failure foreign-defaults-domain \
 
 make_backup "${TMP_ROOT}/backup"
 /usr/bin/swift "${HELPER}" verify-backup-manifest --root "${TMP_ROOT}/backup"
+/usr/bin/swift "${HELPER}" validate-group --group "${TMP_ROOT}/backup/app-group" | grep -Fq 'links=1'
+echo 'fixture=known-application-scripts-link result=passed'
+
+mkdir -p "${TMP_ROOT}/empty-link-baseline/app-group/databases"
+printf 'baseline without scripts link\n' >"${TMP_ROOT}/empty-link-baseline/app-group/databases/original.kdbx"
+/usr/bin/swift "${HELPER}" write-manifest \
+  --root "${TMP_ROOT}/empty-link-baseline" \
+  --output "${TMP_ROOT}/empty-link-baseline/sha256.json" >/dev/null
+/usr/bin/swift "${HELPER}" verify-backup-manifest --root "${TMP_ROOT}/empty-link-baseline"
+/usr/bin/swift "${HELPER}" validate-group --group "${TMP_ROOT}/empty-link-baseline/app-group" | grep -Fq 'links=0'
+echo 'fixture=empty-application-scripts-link-baseline result=passed'
+
+cp -R "${TMP_ROOT}/backup" "${TMP_ROOT}/missing-link"
+rm "${TMP_ROOT}/missing-link/app-group/Library/Application Scripts/group.com.keevault.shared"
+expect_failure missing-application-scripts-link \
+  /usr/bin/swift "${HELPER}" verify-backup-manifest --root "${TMP_ROOT}/missing-link"
+
+cp -R "${TMP_ROOT}/backup" "${TMP_ROOT}/altered-link"
+rm "${TMP_ROOT}/altered-link/app-group/Library/Application Scripts/group.com.keevault.shared"
+ln -s '../../../../Application Scripts/other-group' \
+  "${TMP_ROOT}/altered-link/app-group/Library/Application Scripts/group.com.keevault.shared"
+expect_failure altered-application-scripts-link \
+  /usr/bin/swift "${HELPER}" verify-backup-manifest --root "${TMP_ROOT}/altered-link"
+
+cp -R "${TMP_ROOT}/backup" "${TMP_ROOT}/escaping-link"
+ln -s '../../../../../outside-app-group' \
+  "${TMP_ROOT}/escaping-link/app-group/Library/Application Scripts/escaped-link"
+expect_failure escaping-application-scripts-link \
+  /usr/bin/swift "${HELPER}" verify-backup-manifest --root "${TMP_ROOT}/escaping-link"
 
 cp -R "${TMP_ROOT}/backup" "${TMP_ROOT}/missing-manifest"
 rm -f -- "${TMP_ROOT}/missing-manifest/sha256.json"
@@ -86,6 +117,7 @@ cp "${FIXTURE}" "${TMP_ROOT}/fixture-live/databases/test.kdbx"
   --backup "${TMP_ROOT}/backup/app-group" --live "${TMP_ROOT}/fixture-live" --fixture "${FIXTURE}"
 /usr/bin/swift "${HELPER}" compare-groups \
   --backup "${TMP_ROOT}/backup/app-group" --live "${TMP_ROOT}/fixture-live" | grep -Fq 'live_extra=0 backup_missing=1'
+rm "${TMP_ROOT}/fixture-live/Library/Application Scripts/group.com.keevault.shared"
 /usr/bin/rsync -a --checksum "${TMP_ROOT}/backup/app-group/" "${TMP_ROOT}/fixture-live/"
 /usr/bin/swift "${HELPER}" verify-restored-group \
   --root "${TMP_ROOT}/backup" --group "${TMP_ROOT}/fixture-live"
