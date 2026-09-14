@@ -4,8 +4,10 @@ struct SearchView: View {
     @Bindable var viewModel: DatabaseViewModel
     var onSelectEntry: ((KPEntry) -> Void)? = nil
 
-    private var isUITesting: Bool {
-        ProcessInfo.processInfo.arguments.contains("-ui-testing")
+    private var showsUITestResultsCount: Bool {
+        let processInfo = ProcessInfo.processInfo
+        return processInfo.arguments.contains("-ui-testing")
+            && processInfo.environment["UI_TEST_HIDE_SEARCH_RESULTS_COUNT"] != "1"
     }
 
     var body: some View {
@@ -30,7 +32,7 @@ struct SearchView: View {
         }
         .modifier(SearchTitle())
         .overlay(alignment: .bottomTrailing) {
-            if isUITesting {
+            if showsUITestResultsCount {
                 Text("results:\(viewModel.searchResults.count)")
                     .font(.caption2)
                     .padding(6)

@@ -309,15 +309,19 @@ machine is the only place KeeForge-written databases are cross-validated against
 implementation:
 
 ```bash
-LOG=/Users/tan/src/KeeForge/scratch/xcode-logs/$(date +%Y%m%d-%H%M%S)-kdbx-gate.log
+LOG=/Users/tan/src/KeeForge/scratch/xcode-logs/$(date +%Y%m%d-%H%M%S)-kdbx-gate-ios.log
 mkdir -p "$(dirname "$LOG")"
+KDBX_COMPAT_RESULT_BUNDLE="$PWD/build/kdbx-gate-ios.xcresult" \
+KDBX_COMPAT_ATTACHMENTS_DIR="$PWD/build/kdbx-gate-ios-attachments" \
 /Users/tan/src/KeeForge/scripts/with-repo-lock.sh xcode -- \
   ci_scripts/run_kdbx_compatibility_gate.sh > "$LOG" 2>&1
 echo "exit=$? log=$LOG"
 ```
 
-Repeat with `KDBX_COMPAT_SCHEME=KeeForgeMac` and a separate log. Record both verdicts/paths as
-`gates.kdbxIOS` and `gates.kdbxMac`.
+Repeat with `KDBX_COMPAT_SCHEME=KeeForgeMac`, a separate `-mac` log, and separate
+`kdbx-gate-mac` result bundle and attachments paths — the script deletes its result bundle and
+attachments directory before each run, so shared defaults would erase the iOS evidence. Record
+both verdicts, logs, and result bundles as `gates.kdbxIOS` and `gates.kdbxMac`.
 
 If `keepassxc-cli` is not installed, stop and ask the user to install KeePassXC (or point
 `KEEPASSXC_CLI` at the binary). Do not skip this gate or proceed past a failure.
@@ -342,8 +346,10 @@ required local Mac smoke is the only UI exception.
    git push origin rc/{version}-b{repoBuild}
    ```
 
-The tag push triggers Xcode Cloud's RC workflow (iOS and Mac tests plus MAS archives/uploads),
-`.github/workflows/ios18-rc-tests.yml`, and `.github/workflows/macos-rc-tests.yml`.
+The tag push triggers Xcode Cloud's RC workflow (iOS tests plus iOS and Mac App Store
+archives/uploads), `.github/workflows/ios18-rc-tests.yml`, and `.github/workflows/macos-rc-tests.yml`.
+Xcode Cloud has no Mac test action (see `xcode-cloud-setup.md`); the Mac unit suite runs only in
+`macos-rc-tests.yml`.
 
 ## A8. Wait for all cloud gates and local Mac smoke
 
@@ -351,8 +357,8 @@ The RC tag starts three cloud verdicts. All three, plus the two KDBX verdicts fr
 local Mac smoke suite, must be accepted before either App Store build is distributed to external
 testers or the direct build is called a release candidate.
 
-1. Monitor Xcode Cloud through GitHub — it mirrors onto the RC commit as check runs for the iOS
-   and Mac actions:
+1. Monitor Xcode Cloud through GitHub — it mirrors onto the RC commit as check runs for Test -
+   iOS and both archive actions:
    ```bash
    gh api repos/KeeForge/KeeForge/commits/{rc-sha}/check-runs \
      --jq '.check_runs[] | select(.app.name=="Xcode Cloud") | "\(.name) | \(.status) | \(.conclusion // "-")"'

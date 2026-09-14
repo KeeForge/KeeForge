@@ -43,9 +43,10 @@ Platform-specific deltas, everywhere they matter:
   verify each platform's own build number is present and `Complete`, not just the first. The Mac
   build comes from the same `rc/*` tag/SHA as the iOS one.
 - **Screenshots.** iOS screenshots do not satisfy the Mac listing and vice versa. The Mac version
-  needs its own Mac-sized captures; `ci_scripts/make_appstore_screenshots.py` produces iPhone
-  frames only, and the Mac ones come from `KeeForgeMacUITests/MacScreenshotAuditUITests` (see
-  `KeeForgeMacUITests/AGENTS.md`).
+  needs its own Mac-sized captures: export `KeeForgeMacUITests/MacScreenshotAuditUITests`
+  attachments (see `KeeForgeMacUITests/AGENTS.md`), then run
+  `ci_scripts/make_appstore_screenshots.py --platform mac --input-dir <export>` for the seven
+  2880×1800 images. It refuses a partial set or a run with skipped captures.
 - **Reviewer notes.** The same fixture database and password apply, but the note should say how to
   open it on the platform under review, and the Mac note should mention that AutoFill is enabled in
   System Settings → General → AutoFill & Passwords rather than iOS's Settings → Passwords.

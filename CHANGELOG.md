@@ -36,6 +36,7 @@ Fixed decisions and invariants:
   - Done when one `rc/*` tag has both its iOS and Mac builds reach their TestFlight lists with the three check URLs recorded. The Mac half is proven (build 53, Complete and Ready to Submit); the iOS half is not, and its tag is gone. Rather than manufacture a second throwaway candidate, this closes on the **first real release candidate** — package 10 — whose `Archive - iOS` must reach TestFlight under the universal-purchase record on a train the 1.16.0 bump has reopened. If that upload fails there, treat it as a release blocker, not a bookkeeping gap.
 
 - [x] **3. Automate the direct artifact and GitHub Release handoff.** Extend `ci_scripts/build_mac_direct.sh` or add a companion script under `ci_scripts/`; update its README in the same change.
+  - [x] Sparkle hosting is live at `https://keeforge.com/appcast.xml` (2026-09-13): a valid empty XML feed on Cloudflare Pages, five-minute caching, GET/HEAD support, and no language redirect or cookie. The first signed item stays staged until production approval and public verification of its immutable GitHub Release zip. Release notes point to that version's GitHub Release. Website commit `b42c665`; infrastructure runbook commit `e56b126`.
   - Keep the existing archive → Developer ID export → entitlement checks → notarize → staple → Gatekeeper → zip → Sparkle-sign sequence. Name the final asset `KeeForge-{version}-b{repoBuild}.zip`, compute SHA-256, and capture the notarization submission ID and Sparkle signature attributes.
   - After the accepted `v{version}` tag exists, create a draft GitHub Release for that immutable tag and upload the asset once—never overwrite an asset. Use `https://github.com/KeeForge/KeeForge/releases/download/v{version}/KeeForge-{version}-b{repoBuild}.zip` as the enclosure URL; remove the script's current R2-only message and version-only filename.
   - Generate a complete appcast item while preserving older items, verify draft and final-public zip SHA-256/signature/size separately, and make appcast publication a compare-and-swap final command requiring public-URL evidence so an incomplete release cannot be advertised.
@@ -127,10 +128,14 @@ The 2026-09-08 probe settled the design: the iPad-on-Mac app never stores a data
 - [ ] **15. Publish in a recoverable order and verify production.** When both App Store builds have code approval and the final go decision is made, create immutable `v{version}` on the accepted RC commit, create/verify the draft GitHub Release and asset, then manually release iOS and native macOS at the coordinated time. Verify the live Mac listing, universal-purchase install, launch, migration, AutoFill registration, WebDAV, tip jar, and both platform version/build numbers.
   - Publish the verified GitHub Release, then publish `https://keeforge.com/appcast.xml` last. Install the direct app from the public download page and repeat the update check against the live feed before announcing it.
   - Finish the direct-download/channel-switching/migration pages, then record final App Store states, release timestamps, release manifest, artifact hashes, symbols/archives, notarization ID, tag/SHA, soak exceptions, crashes, and feedback. Announce only after all live checks pass.
+
 ## Unreleased
+
+## v1.16.0 (2026-09-13)
 
 ### New Features
 
+- KeeForge is now a native Mac app, for macOS 15 or later. It opens local database files and WebDAV, supports AutoFill, and is available from the Mac App Store or as a direct download. Dropbox and OneDrive are not on Mac yet; open your synced folder as a local file instead.
 - Long-press an entry in a list to copy its username or password without opening it (#102). Copying the password asks for Face ID, Touch ID, or your passcode first, the same as in the entry itself.
 - Duplicate an entry (#104). Long-press an entry and choose "Duplicate" to open a New Entry form already filled in from it, including its password, tags, custom fields, and verification code. Pick a different group for the copy before saving if you want it somewhere else. The copy does not carry over attachments, entry history, passkeys, or a custom icon.
 - The password generator now remembers your settings (#97). Length, character sets, and "Exclude Ambiguous Characters" carry over the next time you open it, and the password suggested when creating an entry from AutoFill uses the same settings.
