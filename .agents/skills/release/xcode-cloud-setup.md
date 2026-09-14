@@ -180,7 +180,12 @@ alphanumerics only, because it is interpolated into the `db-$(DROPBOX_APP_KEY)`
   early with an explicit message if the runner ever offers something older than 26.4. It signs
   ad-hoc with entitlements stripped, which is exactly what lets the app launch there.
 - `ci_scripts/build_mac_direct.sh` is intentionally outside Xcode Cloud. Obtain/export the exact
-  MAS `.app` from the accepted Xcode Cloud archive without rebuilding, then run
+  MAS `.app` from the accepted Xcode Cloud archive without rebuilding. Use App Store Connect only
+  through the built-in browser, never `curl` or an API download. If an artifact anchor's usual
+  click or download capture creates no file, open its exact DOM `href` in a fresh built-in-browser
+  tab; `net::ERR_ABORTED` can occur when navigation becomes a download, but does not prove one
+  completed. Verify the new file's name, byte size, and SHA-256 on disk before accepting it, and
+  close temporary `about:blank` tabs. Then run
   `ci_scripts/verify_mac_artifact.sh --channel mas --app <exact-mas-app> --architectures arm64,x86_64`.
   Run `--archive-export` under the global Xcode lock and `--finalize` afterward from the same clean
   RC SHA, verify its direct `CFBundleVersion` equals the repo build, and run the corresponding

@@ -386,6 +386,12 @@ in App Store Connect, independently for iOS and Mac.
    platform's manifest `buildID` as well as its version and build number, which may be identical
    across iOS and macOS.
 2. Obtain/export the exact MAS `.app` from the accepted Xcode Cloud archive without rebuilding.
+   Stay in App Store Connect's built-in browser; do not use `curl` or an API download. If the
+   artifact anchor's ordinary click or download capture produces no file, open its exact DOM `href`
+   in a fresh built-in-browser tab. `net::ERR_ABORTED` can occur when navigation becomes a download;
+   it is not proof of a completed download. Before accepting it, verify the new file's name, byte
+   size, and SHA-256 on disk, then
+   close any temporary `about:blank` tabs.
    Run the artifact check on that exact exported app:
    ```bash
    ci_scripts/verify_mac_artifact.sh --channel mas --app <exact-exported-mas-app> \
