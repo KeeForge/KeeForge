@@ -12,7 +12,7 @@ usage() {
   cat >&2 <<'USAGE'
 Usage:
   verify_mac_artifact.sh --channel mas|direct --app PATH \
-    --architectures arm64,x86_64
+    --architectures arm64,x86_64 [--expect-version VERSION] [--expect-build BUILD]
 
 The architecture list is required so a single-architecture exception is an
 explicit product decision rather than an accidental release.
@@ -25,11 +25,15 @@ need_command() { command -v "$1" >/dev/null 2>&1 || die "missing required comman
 CHANNEL=""
 APP_PATH=""
 EXPECTED_ARCHITECTURES=""
+EXPECTED_VERSION=""
+EXPECTED_BUILD=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --channel) CHANNEL="${2:-}"; shift 2 ;;
     --app) APP_PATH="${2:-}"; shift 2 ;;
     --architectures) EXPECTED_ARCHITECTURES="${2:-}"; shift 2 ;;
+    --expect-version) EXPECTED_VERSION="${2:-}"; shift 2 ;;
+    --expect-build) EXPECTED_BUILD="${2:-}"; shift 2 ;;
     -h|--help) usage; exit 0 ;;
     *) die "unknown option: $1" ;;
   esac
@@ -61,6 +65,11 @@ EXECUTABLE_NAME="$(plist_value CFBundleExecutable)"
 [[ -n "$EXECUTABLE_NAME" ]] || die "CFBundleExecutable is missing"
 EXECUTABLE_PATH="${APP_PATH}/Contents/MacOS/${EXECUTABLE_NAME}"
 [[ -f "$EXECUTABLE_PATH" ]] || die "CFBundleExecutable does not exist"
+VERSION="$(plist_value CFBundleShortVersionString)"
+BUILD="$(plist_value CFBundleVersion)"
+[[ -n "$VERSION" && -n "$BUILD" ]] || die "CFBundleShortVersionString or CFBundleVersion is missing"
+[[ -z "$EXPECTED_VERSION" || "$VERSION" == "$EXPECTED_VERSION" ]] || die "artifact version does not match --expect-version"
+[[ -z "$EXPECTED_BUILD" || "$BUILD" == "$EXPECTED_BUILD" ]] || die "artifact build does not match --expect-build"
 
 plist_value_at() {
   local plist="$1" key="$2"
@@ -243,6 +252,8 @@ esac
 
 echo "channel=${CHANNEL}"
 echo "app=${APP_PATH}"
+echo "version=${VERSION}"
+echo "build=${BUILD}"
 echo "architectures=${ACTUAL_ARCHITECTURES}"
 echo "owned_executables_checked=${#OWNED_EXECUTABLES[@]}"
 echo "sandbox=true"

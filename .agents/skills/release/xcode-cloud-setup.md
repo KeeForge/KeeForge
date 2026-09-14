@@ -40,8 +40,10 @@ relying on this; Apple can change the UI and the account can drift):
 Still outstanding: the non-shipping setup RC tag that proves both archives reach their TestFlight
 lists, and correcting the macOS version record. External TestFlight distribution stays manual:
 after Xcode Cloud, both GitHub Actions workflows, both local KDBX gates, and local Mac smoke are
-accepted, obtain explicit action-time confirmation immediately before the first Beta App Review
-action (when required) and immediately before distributing each platform to its external group.
+accepted, proceed with the first Beta App Review action (when required) and each platform
+distribution when the user has already authorized that named candidate action in the current task;
+otherwise obtain action-time confirmation. Beta authorization does not authorize production release,
+App Review submission, or legal declarations.
 
 ## Required workflow shape
 
@@ -127,9 +129,9 @@ alphanumerics only, because it is interpolated into the `db-$(DROPBOX_APP_KEY)`
   **Restrict Editing** checkbox is off and turning it on is its own decision, after which only the
   Account Holder, Admins, and App Managers can change the workflow.
 - The **first build of each new marketing version/platform** goes through Beta App Review before
-  external testers can install it — budget roughly a day. Obtain explicit action-time confirmation
-  immediately before submitting that first Beta App Review action, and again immediately before
-  distributing the platform to its external group. Later builds of the same platform/version
+  external testers can install it — budget roughly a day. Proceed when the user has already
+  authorized that named candidate beta action in the current task; otherwise obtain action-time
+  confirmation. Later builds of the same platform/version
   normally distribute without re-review. External distribution remains blocked until the Xcode
   Cloud, iOS GitHub Actions, and macOS GitHub Actions verdicts, both local KDBX gates, and local
   Mac smoke are accepted and the manifest maps both processed builds to the same RC SHA.
