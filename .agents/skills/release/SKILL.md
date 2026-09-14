@@ -422,8 +422,11 @@ in App Store Connect, independently for iOS and Mac.
    Then run `ci_scripts/release_direct_artifact.sh stage` to generate a complete unpublished appcast
    while preserving older items and recording the base-feed hash. Do not run `handoff` until C7's
    post-approval go decision.
-   Before distributing either beta, add the two verified artifact identity records under
-   `artifacts` in the candidate manifest and validate the complete distribution evidence:
+   Before distributing either beta, add all three verified artifact identity records under
+   `artifacts` in the candidate manifest. Each accepted/adjudicated gate and artifact must carry
+   the RC commit/tree; bind iOS and MAS TestFlight build IDs to their platform records. The direct
+   record must be the generated metadata for its exact ZIP, including matching hash, size,
+   notarization, and Sparkle attributes. Then validate the complete distribution evidence:
    ```bash
    ci_scripts/candidate_manifest.py validate \
      --manifest scratch/release-manifests/{version}-b{repoBuild}.json --mode distribute
