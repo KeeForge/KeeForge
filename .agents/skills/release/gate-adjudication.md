@@ -55,6 +55,16 @@ The `ios18-tests` job runs the full unit/UI suites on an iPhone SE (3rd generati
 iOS 18 runtime, then the regular-width iPad lane for the two iPad-only UI classes. Record the run
 URL, SHA, status, and conclusion in the manifest.
 
+### Canonical XCTest evidence
+
+Read each uploaded `.xcresult` with `xcrun xcresulttool get test-results summary --path <bundle>
+--compact`, not its trailing console summary. An automatic pass requires `result=Passed`, zero
+failures, and at least one executed test; exit 65 is tolerated only with that evidence. If the
+canonical summary reports failed XCTest identifiers, including under a green GitHub check, record
+that summary and adjudicate those exact failures through the local reproductions below. A missing or
+malformed bundle, no executed tests, or another nonzero `xcodebuild` exit is a non-test failure and
+cannot be adjudicated.
+
 ### 3. macOS GitHub Actions workflow
 
 Match the run whose `headBranch` is the active RC tag and whose `headSha` is the RC commit:
@@ -145,8 +155,10 @@ flakes and accept that affected cloud verdict. Record the local command, result,
 manifest. Manual distribution may be used only after all three cloud verdicts, both KDBX gates, and
 local Mac smoke are accepted: identify the affected platform's TestFlight build from the manifest
 and match its marketing version, platform build number, RC tag, and commit SHA before distributing.
-Obtain explicit action-time confirmation immediately before the first Beta App Review action (when
-required) and immediately before distributing each platform. Never use the newest build by default.
+Proceed with the first Beta App Review action (when required) and each platform distribution when
+the user has already authorized that named candidate action in the current task; otherwise obtain
+action-time confirmation. That beta authorization never authorizes production release, App Review
+submission, or legal declarations. Never use the newest build by default.
 
 **Any failed test also fails locally** → stop. Fix it as a new commit on the shared release branch;
 never amend or force-push the existing RC. Increment the global `repoBuild` on all four product

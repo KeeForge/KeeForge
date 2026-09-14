@@ -78,9 +78,11 @@ jobs:
           set -uo pipefail
           mkdir -p build
           log=build/macos-rc-unit.log
+          result=build/macos-rc-unit.xcresult
+          rm -rf "$result"
 
-          # Judge success on XCTest's aggregate summary, never on xcodebuild's
-          # raw exit code — see the rationale in pr-tests.yml.
+          # The canonical xcresult summary decides the verdict. Exit 65 is
+          # tolerated only when that fresh bundle records a passing execution.
           set +e
           xcodebuild test \
             -project "$PROJECT" \
@@ -90,7 +92,7 @@ jobs:
             -skipPackagePluginValidation \
             -retry-tests-on-failure \
             -test-iterations 3 \
-            -resultBundlePath build/macos-rc-unit.xcresult \
+            -resultBundlePath "$result" \
             CODE_SIGN_STYLE=Manual \
             CODE_SIGN_IDENTITY=- \
             CODE_SIGN_ENTITLEMENTS= \
@@ -101,14 +103,8 @@ jobs:
           set -e
           echo "KeeForgeMacTests: xcodebuild exit=$status"
 
-          maxfail=$(grep -oE "[0-9]+ failures? \(" "$log" | grep -oE "^[0-9]+" | sort -rn | head -1)
-
-          if [ -z "$maxfail" ]; then
-            echo "::error::KeeForgeMacTests: no test summary produced (xcodebuild exit=$status); tests did not run — see uploaded logs."
-            exit 1
-          fi
-          if [ "$maxfail" -gt 0 ]; then
-            echo "::error::KeeForgeMacTests: $maxfail test failure(s) remained after retries."
+          if ! python3 ci_scripts/validate_xcresult_summary.py \
+            --result-bundle "$result" --suite KeeForgeMacTests --xcodebuild-exit "$status"; then
             exit 1
           fi
 
@@ -117,10 +113,6 @@ jobs:
             echo "::warning::KeeForgeMacTests: passed with retries; the following attempt(s) failed once then passed:"
             echo "$flaked"
           fi
-          if [ "$status" -ne 0 ]; then
-            echo "::warning::KeeForgeMacTests: 0 failures but xcodebuild exited $status (post-run teardown artifact); treating as success."
-          fi
-          echo "KeeForgeMacTests: PASS (0 failures)"
 
       - name: Upload test logs and result bundles
         if: always()

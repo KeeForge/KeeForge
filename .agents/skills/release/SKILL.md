@@ -53,6 +53,14 @@ keychain profiles, or cloud secret values in it or in logs. At ship time preserv
 non-secret manifest with the release evidence (for example, GitHub Release notes/asset or the
 team's secure release archive); the scratch copy is not the long-term record.
 
+A passed gate records its verdict and a log, URL, or result bundle. An adjudicated gate is only an
+XCTest result: record `failureKind: "xctest"`, the failed test names, exact local reproductions, and
+structured evidence. Infrastructure, archive, signing, and upload failures cannot be accepted by
+adjudication. Any gate `commitSHA` or `sourceTree` recorded in the manifest must match the candidate.
+Keep `platforms.*.reviewState` for beta state and add `platforms.*.appStoreReviewState` only for the
+production code-approval state. A ship record also needs an accepted soak verdict with observed
+metrics/evidence, or a documented owner-accepted exception.
+
 ## The four invariants
 
 Violating any of these invalidates the release. They outrank convenience at every step, and
@@ -221,65 +229,8 @@ fetch the refs used for release bookkeeping, then validate every present new-pro
 this in a fresh Bash shell; any failed check is a stop, not a reason to fall back to a guessed value:
 
 ```bash
-set -euo pipefail
 git fetch origin --tags 'refs/heads/release/*:refs/remotes/origin/release/*'
-refs=(HEAD)
-while read -r ref; do refs+=("$ref"); done < <(
-  git for-each-ref --format='%(refname)' refs/heads/release refs/remotes/origin/release refs/tags/rc refs/tags/v
-)
-
-target_values() {
-  awk '
-    /^  (KeeForge|KeeForgeAutoFill|KeeForgeMac|KeeForgeMacAutoFill):$/ { target=$1; sub(/:$/, "", target); next }
-    /^  [^ ]/ { target="" }
-    target && /CURRENT_PROJECT_VERSION:/ {
-      value=$0; sub(/^.*CURRENT_PROJECT_VERSION:[[:space:]]*"?/, "", value); sub(/"[[:space:]]*$/, "", value)
-      if (value ~ /^[0-9]+$/) print target ":" value
-    }
-  ' "${1:--}"
-}
-
-historical_values() {
-  target_values "${1:--}" | cut -d: -f2
-}
-
-check_current_project() {
-  local file=${1:--} rows names expected values
-  rows=$(target_values "$file")
-  test "$(printf '%s\n' "$rows" | wc -l | tr -d ' ')" -eq 4
-  names=$(printf '%s\n' "$rows" | cut -d: -f1 | sort)
-  expected=$(printf '%s\n' KeeForge KeeForgeAutoFill KeeForgeMac KeeForgeMacAutoFill | sort)
-  test "$names" = "$expected"
-  values=$(printf '%s\n' "$rows" | cut -d: -f2 | sort -u)
-  test "$(printf '%s\n' "$values" | wc -l | tr -d ' ')" -eq 1
-  printf '%s\n' "$values"
-}
-
-commits=$(for ref in "${refs[@]}"; do git rev-list "$ref" -- project.yml; done | sort -u)
-test -n "$commits"
-history_values=$(while read -r sha; do git show "$sha:project.yml" 2>/dev/null | historical_values; done <<<"$commits")
-test -n "$history_values"
-current_value=$(check_current_project project.yml)
-test -n "$current_value"
-
-manifest_values=""
-while read -r manifest; do
-  test -n "$manifest"
-  manifest_build=$(jq -er '.repoBuild | select(type == "number" and floor == .)' "$manifest")
-  expected_tag="rc/$(jq -er '.version | strings' "$manifest")-b${manifest_build}"
-  case "$(basename "$manifest")" in
-    *"-b${manifest_build}.json") ;;
-    *) echo "manifest filename does not match repoBuild: $manifest" >&2; exit 1 ;;
-  esac
-  test "$(jq -er --arg tag "$expected_tag" 'select(.rcTag == $tag) | .repoBuild' "$manifest")" = "$manifest_build"
-  manifest_values+="${manifest_build}\n"
-done < <(find scratch/release-manifests -type f -name '*.json' -print 2>/dev/null || true)
-
-all_values=$(printf '%b\n%b' "$history_values" "$manifest_values" | sed '/^$/d' | sort -n -u)
-test -n "$all_values"
-printf 'validated repo builds: %s\n' "$all_values"
-repoBuild=$(( $(printf '%s\n' "$all_values" | tail -n 1) + 1 ))
-printf 'next repoBuild: %s\n' "$repoBuild"
+ci_scripts/next_repo_build.sh --no-fetch
 ```
 
 Stop if the current `project.yml` does not contain exactly one numeric
@@ -342,9 +293,17 @@ required local Mac smoke is the only UI exception.
 4. Tag the candidate. **One tag per build**, carrying the build number so the tag identifies the
    commit each candidate was built from:
    ```bash
-   git tag -a rc/{version}-b{repoBuild} -m "RC v{version} repo build {repoBuild}"
-   git push origin rc/{version}-b{repoBuild}
-   ```
+git tag -a rc/{version}-b{repoBuild} -m "RC v{version} repo build {repoBuild}"
+git push origin rc/{version}-b{repoBuild}
+```
+
+Create the immutable candidate record now, after the RC tag exists. It records no secrets and
+refuses to overwrite an earlier candidate with the same identity. Do not validate distribution
+evidence yet: A8 and A9 are what produce it.
+
+```bash
+ci_scripts/candidate_manifest.py init --rc-tag rc/{version}-b{repoBuild}
+```
 
 The tag push triggers Xcode Cloud's RC workflow (iOS tests plus iOS and Mac App Store
 archives/uploads), `.github/workflows/ios18-rc-tests.yml`, and `.github/workflows/macos-rc-tests.yml`.
@@ -373,8 +332,36 @@ testers or the direct build is called a release candidate.
    RC commit.
 4. Record all three URLs, commit SHA, status, and conclusion in the manifest. The Xcode Cloud,
    iOS, and Mac runs must target the same RC commit.
+   An automatic GitHub test-gate pass requires its uploaded canonical `.xcresult` summary to report
+   `result=Passed`, zero failures, and at least one executed test; exit 65 is accepted only then.
+   Canonical XCTest failures, including ones behind a green console summary, require the exact
+   `gate-adjudication.md` path. Any other nonzero `xcodebuild` exit or a missing/malformed result
+   bundle is a failed non-test gate and cannot be adjudicated.
 5. Run `KeeForgeMacUITests/MacSmokeUITests` locally on an unlocked release Mac under the repo
-   Xcode lock. Record its result and log/result bundle path as `gates.localMacSmoke`.
+   Xcode lock. The harness can touch live App Group/defaults state. This is an explicit before/after
+   operation, not a shell `trap`: do not restore while an app or UI-test process may still be running.
+   The helper is fixed to `group.com.keevault.shared` and `com.keevault.app`, and accepts state roots
+   only directly under `scratch/release-session`.
+
+   ```bash
+   osascript -e 'tell application "KeeForge" to quit' 2>/dev/null || true
+   pkill -f 'KeeForgeMacUITests-Runner' 2>/dev/null || true
+   STATE_ROOT="$PWD/scratch/release-session/pre-ui-state-b{repoBuild}"
+   ci_scripts/restore_pre_ui_state.sh --state-root "$STATE_ROOT" --backup
+   # Run the UI smoke here. Keep STATE_ROOT for review.
+   osascript -e 'tell application "KeeForge" to quit' 2>/dev/null || true
+   pkill -f 'KeeForgeMacUITests-Runner' 2>/dev/null || true
+   ci_scripts/restore_pre_ui_state.sh --state-root "$STATE_ROOT"
+   ci_scripts/restore_pre_ui_state.sh --state-root "$STATE_ROOT" \
+     --execute --confirm RESTORE_PRE_UI_STATE
+   ```
+
+   `--confirm` is an accidental-invocation guard, not another owner decision. The helper verifies the
+   pre-run manifest, preserves a private post-run backup before any write, restores original contents
+   with `rsync --checksum` and no `--delete`, and restores preferences through CFPreferences. It stops
+   with both backups preserved for an absent original/live App Group or any unproven extra. The sole
+   removable extra is one database-cache `.kdbx` whose SHA-256 exactly matches `TestFixtures/test.kdbx`.
+   It finishes only after original hashes, semantic defaults equality, and the no-extra comparison pass.
 6. If any cloud gate is not green, **read `gate-adjudication.md`** and follow it. Do not distribute
    a build whose gates are unresolved; a local pass cannot override a non-test infrastructure
    failure.
@@ -391,25 +378,37 @@ in App Store Connect, independently for iOS and Mac.
    assigns platform-specific numbers. Match each build to the `rc/{version}-b{repoBuild}` tag and
    SHA, then record `iosTestFlightBuild` and `macTestFlightBuild` in the manifest. Verify export
    compliance on each actual platform record; do not assume the plist declaration resolves every
-   legal or documentation question (see Notes).
+   legal or documentation question (see Notes). When adding a build to an external group, choose
+   its platform explicitly: the picker can default to iOS even in the Mac group. Match the
+   platform's manifest `buildID` as well as its version and build number, which may be identical
+   across iOS and macOS.
 2. Obtain/export the exact MAS `.app` from the accepted Xcode Cloud archive without rebuilding.
    Run the artifact check on that exact exported app:
    ```bash
-   ci_scripts/verify_mac_artifact.sh --channel mas --app <exact-mas-app> --architectures arm64,x86_64
+   ci_scripts/verify_mac_artifact.sh --channel mas --app <exact-exported-mas-app> \
+     --architectures arm64,x86_64 --expect-version {version} --expect-build {macTestFlightBuild}
    ```
-   Do not substitute a local rebuild or a different archive. The expected architecture set is the
+   Do not substitute an embedded archive app: the exact exported package can have its own build
+   number. The expected architecture set is the
    universal `arm64,x86_64`; a different set requires an explicit product decision recorded in the
    manifest before continuing.
 3. Run `ci_scripts/build_mac_direct.sh` from the same clean RC SHA, verify its direct
    `CFBundleVersion` equals the repo build, and run the same fail-closed check on its exact exported
    app:
    ```bash
-   ci_scripts/verify_mac_artifact.sh --channel direct --app <exact-direct-app> --architectures arm64,x86_64
+   ci_scripts/verify_mac_artifact.sh --channel direct --app <exact-direct-app> \
+     --architectures arm64,x86_64 --expect-version {version} --expect-build {repoBuild}
    ```
    Both artifact checks must pass before any external distribution or direct-artifact staging.
    Then run `ci_scripts/release_direct_artifact.sh stage` to generate a complete unpublished appcast
    while preserving older items and recording the base-feed hash. Do not run `handoff` until C7's
    post-approval go decision.
+   Before distributing either beta, add the two verified artifact identity records under
+   `artifacts` in the candidate manifest and validate the complete distribution evidence:
+   ```bash
+   ci_scripts/candidate_manifest.py validate \
+     --manifest scratch/release-manifests/{version}-b{repoBuild}.json --mode distribute
+   ```
 4. Write platform-specific **What to Test** notes for each build. These are the only text each
    tester group sees, and are the steering channel for the soak. Always include:
    - What changed in this build, in user terms.
@@ -417,15 +416,17 @@ in App Store Connect, independently for iOS and Mac.
      the production bundle ID and container, so testers are running an unreviewed candidate
      against their real KDBX files.
    - Any area you specifically want exercised.
-5. If this is the **first build of this marketing version/platform**, obtain explicit action-time user
-   confirmation immediately before submitting it for Beta App Review and expect roughly a day before
-   external distribution. Later builds of the same version normally skip it. Do not announce a ship
+   The current macOS public TestFlight link is `https://testflight.apple.com/join/ZKQRwPaa`; record
+   its enabled state in the manifest instead of treating the link itself as distribution evidence.
+5. If this is the **first build of this marketing version/platform**, submit it for Beta App Review
+   when the user has already authorized that named candidate submission; otherwise obtain a
+   confirmation at this action. Later builds of the same version normally skip it. Do not announce a ship
    date until this clears. Until it does, the published public link shows
    *"This beta isn't accepting any new testers right now"* to everyone arriving from `README.md`
    or keeforge.com — expected, and another reason not to announce early.
-6. Obtain separate explicit action-time user confirmation immediately before distributing each
-   platform to its external group. This is a manual App Store Connect action; do not batch the
-   confirmation across iOS and Mac. The iOS public link is permanently enabled and published, so
+6. Distribute each platform to its external group when the user has already authorized that named
+   candidate distribution; otherwise obtain a confirmation at this action. Do not treat beta
+   authorization as production go or a legal declaration. The iOS public link is permanently enabled, so
    distribution reaches every tester accumulated from earlier releases, not just people who opted
    into this one.
 7. Record each platform's distribution timestamp — the soak clocks start here, not at the branch
@@ -451,6 +452,11 @@ For the direct Mac artifact, record install success on clean Apple-silicon and I
 launch/quarantine behavior, and the full Sparkle update cycle separately; it has no TestFlight
 metrics.
 
+For a first public direct release, local HTTPS fixtures prove only feed parsing, signature metadata,
+and the staging/publish guards. They do not prove a public update cycle. Keep that result as pending
+until a later real version can update an installed public asset; no fixed next version is required.
+Shipping with that observation still pending is owner go-decision input, never an automatic waiver.
+
 Report each App Store signal as **met** or **short**, with its actual value, and report direct Mac
 install/update results separately. State plainly what is being accepted by shipping early.
 "18h of a 48h target, 2 iOS installs, 1 Mac install, no crashes, one P2 open" is useful; "soak
@@ -475,6 +481,10 @@ the App Store rollback story is "ship another version."
 
 When the user is satisfied, go to **Mode C**. Do not create `v{version}` until both platform
 submissions have code approval and the final go decision.
+
+**Stopping endpoint:** distributing beta candidates and staging an owner direct ZIP is a valid
+handoff distinct from production ship. Leave the production tag, public GitHub release, Pages feed
+deployment, legal declarations, and final go decision untouched until explicitly requested.
 
 ---
 
@@ -565,9 +575,15 @@ Each TestFlight build number here **is** the build you will select for its platf
 Connect. If either does not match the build distributed and soaked, stop — something is out of
 sync. Do not substitute a newer build.
 
-## C2. Audit that main has every fix
+## C2. Correct the changelog date if the soak crossed a day
 
-Because backports are merges, this is an exact check rather than a judgement call:
+If `CHANGELOG.md`'s `## v{version} ({date})` no longer matches the actual ship date, fix it on the
+release branch now. This is a documentation-only change and does **not** require a new build — the
+changelog is not compiled into the binary. Merge that correction to `main` before the audit below.
+
+## C3. Audit that main has every fix
+
+Because backports and the date correction are merges, this is an exact check rather than a judgement call:
 
 ```bash
 git fetch origin --tags
@@ -578,12 +594,6 @@ git merge-base --is-ancestor origin/release/{major}.{minor} origin/main \
 
 If the check fails, the listed commits are on the release branch and not on `main`. Run Mode B5 to
 merge them before shipping. Do not ship with an unmerged fix.
-
-## C3. Correct the changelog date if the soak crossed a day
-
-If `CHANGELOG.md`'s `## v{version} ({date})` no longer matches the actual ship date, fix it on the
-release branch now. This is a documentation-only change and does **not** require a new build — the
-changelog is not compiled into the binary.
 
 ## C4. Stage both App Store submissions; do not create the shipped tag yet
 
@@ -602,8 +612,16 @@ build.
 ## C5. Create the shipped tag after review approval and final go
 
 Wait until both App Store submissions have code approval and the user gives the final coordinated
-go decision. Then create `v{version}` on the accepted RC commit; it triggers no build and records
+go decision. Record that non-secret decision/evidence and completed soak observations in the
+manifest: set each platform's `appStoreReviewState`, preserve the separate beta `reviewState`, and
+record each soak's accepted verdict/evidence, metrics, or owner-accepted exceptions. Then validate
+the ship evidence. Then create `v{version}` on the accepted RC commit; it triggers no build and records
 the code that actually shipped. Include any accepted soak exception in the tag message.
+
+```bash
+ci_scripts/candidate_manifest.py validate \
+  --manifest scratch/release-manifests/{version}-b{repoBuild}.json --mode ship
+```
 
 ```bash
 git fetch origin --tags
@@ -739,6 +757,12 @@ Continue with Mode C from C1, reporting against the 24h target in place of 48h.
   `verify-public-url`; only its evidence permits the explicit `publish-appcast`
   compare-and-swap against the staged base feed. Publication is atomic and fails on a concurrent
   feed change.
+  `build_mac_direct.sh` verifies the final ZIP's saved Sparkle signature against the exported app's
+  embedded `SUPublicEDKey` before it writes `direct-artifact.json`; the check is Keychain-free and
+  can be re-run with `ci_scripts/verify_sparkle_ed25519.swift APP ZIP SIGNATURE_FILE`.
+  If a direct build stops after notarization or signing, preserve its candidate output, exact ZIP,
+  `notarization.json`, and `sparkle-signature.txt`; inspect and complete metadata/handoff manually.
+  Do not re-run the full build into that directory.
 - `KeeForgeMacUITests` cannot run on a headless runner — it needs an unlocked, active login session
   — so the Mac smoke suite stays a **local** pre-release step. `.github/workflows/macos-rc-tests.yml`
   covers the Mac unit suite on each `rc/*` tag.
