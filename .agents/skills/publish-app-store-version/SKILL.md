@@ -135,8 +135,8 @@ These are legal declarations. Present the exact choices and obtain explicit user
 ### 4. Attach the build
 
 1. Open **Add Build**.
-2. Select the exact soaked build — match **both** the marketing version and the build number from the handoff. When several builds exist for the version, the highest build number is not automatically the right one.
-3. Verify the build number and marketing version before choosing **Done**.
+2. Select the platform explicitly before choosing the exact soaked build: the picker can default to iOS even for a Mac group. Match the platform's manifest `buildID`, marketing version, and build number from the handoff. When several builds exist for the version, the highest build number is not automatically the right one; iOS and macOS can also have the same displayed version and build number.
+3. Verify the selected platform, manifest `buildID`, build number, and marketing version before choosing **Done**.
 4. After attachment, verify the build row on the version page shows the expected build number.
 5. If the only builds offered do not include the handoff build number, stop and report the mismatch instead of substituting a different build.
 

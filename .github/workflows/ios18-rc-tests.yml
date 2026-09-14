@@ -123,18 +123,18 @@ jobs:
           set -uo pipefail
           mkdir -p build
 
-          # Run one test bundle and judge success on the aggregate test result,
-          # not xcodebuild's raw exit code or individual attempt lines:
+          # Run one test bundle and judge success on its canonical xcresult,
+          # not a trailing console summary or individual attempt lines:
           #   * GitHub runners intermittently return "** TEST EXECUTE FAILED **"
           #     (exit 65) during post-run teardown even on a fully green suite.
           #   * A flaky UI test can fail one attempt and pass on retry; that logs
           #     a "Test Case ... failed" line but is absorbed into a 0-failure
           #     total, so attempt lines must NOT fail the job.
-          # The authoritative verdict is XCTest's summary failure count. Raw
-          # output is captured verbatim (no xcpretty, which swallows the
-          # underlying error) for diagnosis via the uploaded logs.
+          # The canonical xcresult summary decides the verdict. Raw output is
+          # captured verbatim (no xcpretty) for uploaded diagnostic evidence.
           run_suite() {
-            local suite="$1" name="$2" udid="${3:-$UDID}" log="build/$2.log"
+            local suite="$1" name="$2" udid="${3:-$UDID}" log="build/$2.log" result="build/$2.xcresult"
+            rm -rf "$result"
             echo "::group::xcodebuild test — $suite"
             set +e
             xcodebuild test-without-building \
@@ -142,39 +142,26 @@ jobs:
               -scheme "$SCHEME" \
               -destination "platform=iOS Simulator,id=$udid" \
               -only-testing:"$suite" \
-              -resultBundlePath "build/$name.xcresult" \
+              -resultBundlePath "$result" \
               2>&1 | tee "$log"
             local status=${PIPESTATUS[0]}
             set -e
             echo "::endgroup::"
             echo "$suite: xcodebuild exit=$status"
 
-            # Highest failure count across all "Executed N tests, ... M failures"
-            # summary lines (empty if xcodebuild never produced a summary).
-            local maxfail
-            maxfail=$(grep -oE "[0-9]+ failures? \(" "$log" | grep -oE "^[0-9]+" | sort -rn | head -1)
-
-            if [ -z "$maxfail" ]; then
-              echo "::error::$suite: no test summary produced (xcodebuild exit=$status); tests did not run — see uploaded logs."
-              return 1
-            fi
-            if [ "$maxfail" -gt 0 ]; then
-              echo "::error::$suite: $maxfail test failure(s) remained after retries."
+            if ! python3 ci_scripts/validate_xcresult_summary.py \
+              --result-bundle "$result" --suite "$suite" --xcodebuild-exit "$status"; then
               return 1
             fi
 
-            # 0 failures overall. Surface any retried-then-passed attempts as a
-            # warning so flakes stay visible without failing the job.
+            # Attempt lines do not decide the verdict: retries can leave failed
+            # attempts in the raw log while the canonical bundle is passing.
             local flaked
             flaked=$(grep -oE "Test Case '[^']*' failed" "$log" | sort -u || true)
             if [ -n "$flaked" ]; then
               echo "::warning::$suite: passed with retries; the following attempt(s) failed once then passed:"
               echo "$flaked"
             fi
-            if [ "$status" -ne 0 ]; then
-              echo "::warning::$suite: 0 failures but xcodebuild exited $status (post-run teardown artifact); treating as success."
-            fi
-            echo "$suite: PASS (0 failures)"
             return 0
           }
 
