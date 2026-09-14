@@ -136,6 +136,7 @@ The artifact set itself is declared in `KeeForgeTests/KDBXCompatibilitySupport.s
 ## Guidance
 
 - Keep these scripts deterministic and noninteractive.
+- When delegating a long local run to a CLI in print mode, keep that CLI alive until the child exits and its full log and canonical result have been inspected. A background-task notification is not completion: print-mode exit can terminate its children. If detaching is necessary, preserve the child PID, a unique full log/result path, and an explicit exit marker, then supervise it to completion before handing back the Xcode lane. Never start a duplicate run while the original is active.
 - If CI needs new generated files or dependencies, add them here instead of assuming the checked-in `.xcodeproj` is current.
 - `Configs/BuildConfig.xcconfig` is a checked-in include file, not a generated source of truth. It lives in `Configs/` (not the repo root) so XcodeGen wraps it in a stable `Configs` group instead of one named after the checkout directory.
 - Local developers should copy `BuildConfig.local.example.xcconfig` to `BuildConfig.local.xcconfig` (both at the repo root), fill in `DROPBOX_APP_KEY`, and optionally add `ONEDRIVE_CLIENT_ID` to test OneDrive OAuth.
