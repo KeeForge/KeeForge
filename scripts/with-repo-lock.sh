@@ -30,6 +30,7 @@
 #
 # Exit codes
 #   64          usage error
+#   73          lock path cannot be created and no holder exists (EX_CANTCREAT)
 #   75          timed out waiting for the lock (EX_TEMPFAIL)
 #   otherwise   the wrapped command's own exit status
 #
@@ -45,6 +46,7 @@ readonly DEFAULT_TIMEOUT=5400
 readonly DEFAULT_MAX_HOLD=10800
 readonly POLL_INTERVAL=5
 readonly PROGRESS_INTERVAL=60
+readonly ACQUISITION_RECONCILIATION_ATTEMPTS=2
 
 usage() {
     cat <<'EOF'
@@ -139,9 +141,31 @@ write_info() {
 CLAIM_WAITED=0
 claim_dir() {
     local dir="$1" name="$2" timeout="$3"
-    local waited=0 announced=0
+    local waited=0 announced=0 missing_dir_failures=0 mkdir_status mkdir_error
     CLAIM_WAITED=0
-    while ! mkdir "$dir" 2>/dev/null; do
+    while :; do
+        if mkdir_error=$(mkdir "$dir" 2>&1); then
+            CLAIM_WAITED="$waited"
+            return 0
+        else
+            mkdir_status=$?
+        fi
+
+        if [ ! -d "$dir" ]; then
+            # A competing holder can remove its directory after mkdir reports
+            # EEXIST. Retry that race a bounded number of times, but do not turn
+            # an unusable git directory into a long wait for an unknown holder.
+            if [ "$missing_dir_failures" -lt "$ACQUISITION_RECONCILIATION_ATTEMPTS" ]; then
+                missing_dir_failures=$((missing_dir_failures + 1))
+                continue
+            fi
+            printf 'with-repo-lock: cannot create lock directory "%s" for "%s" (mkdir exited %s; no lock holder exists).\n' \
+                "$dir" "$name" "$mkdir_status" >&2
+            [ -n "$mkdir_error" ] && printf 'mkdir: %s\n' "$mkdir_error" >&2
+            return 73
+        fi
+        missing_dir_failures=0
+
         if is_stale "$dir"; then
             printf 'with-repo-lock: breaking stale lock "%s" (holder process gone)\n' \
                 "$name" >&2
@@ -163,8 +187,6 @@ claim_dir() {
         sleep "$POLL_INTERVAL"
         waited=$((waited + POLL_INTERVAL))
     done
-    CLAIM_WAITED="$waited"
-    return 0
 }
 
 validate_name() {
