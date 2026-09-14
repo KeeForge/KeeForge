@@ -29,12 +29,18 @@ Test execution model: the full unit suites and hosted UI suites run on **Xcode C
 needs an unlocked active login session. Do not run the full hosted suites locally up front. Run
 focused local XCTest reproductions only when a cloud test fails — see `gate-adjudication.md`.
 
-An unlocked desktop is not enough for that smoke. While the owner is still available, run
-`automationmodetool` with no arguments; it only reports state. If it says enabling Automation Mode
-requires user authentication, schedule the A8 smoke run for a time the owner is present, because the
-runner prompts then and times out unanswered. Never enable authentication-free Automation Mode to
-avoid this, and never treat a run that executed zero tests as a pass: it is an infrastructure
-failure. Routine authorized test runs need no separate owner approval step.
+Before starting a candidate, plan the owner-operated prerequisites while the owner is available:
+
+- Run `automationmodetool` with no arguments. If it says enabling Automation Mode requires user
+  authentication, schedule the A8 smoke while the owner is present; the runner prompts then and
+  times out unanswered.
+- Confirm whether the login Keychain access used by Sparkle `sign_update` during A9 finalization
+  needs owner authentication. Sign only the candidate's exact ZIP, and schedule finalization while
+  the owner can approve that prompt. A respin creates a new ZIP and may need fresh Keychain approval.
+
+Never disable authentication, broaden Keychain ACLs, or change security policy to bypass either
+prompt. Never treat a smoke run that executed zero tests as a pass: it is an infrastructure failure.
+Routine authorized test runs need no separate owner approval step.
 
 ## Shared release state and manifest
 
@@ -345,7 +351,7 @@ testers or the direct build is called a release candidate.
    `gate-adjudication.md` path. Any other nonzero `xcodebuild` exit or a missing/malformed result
    bundle is a failed non-test gate and cannot be adjudicated.
 5. Run `KeeForgeMacUITests/MacSmokeUITests` locally on an unlocked release Mac under the repo
-   Xcode lock, with the owner present if the Automation Mode check above requires it. The harness
+   Xcode lock, following the owner-readiness preflight above. The harness
    can touch live App Group/defaults state. This is an explicit before/after
    operation, not a shell `trap`: do not restore while an app or UI-test process may still be running.
    The helper is fixed to `group.com.keevault.shared` and `com.keevault.app`, and accepts state roots
@@ -413,7 +419,8 @@ in App Store Connect, independently for iOS and Mac.
    the App Store project before returning success and publishes `export-ready.json` only after that
    restoration is clean. Then finalize that exact checkpoint without the Xcode lock; finalization
    never regenerates or rebuilds the app, so an Apple wait or Keychain signing prompt cannot block
-   other Xcode work:
+   other Xcode work. Follow the owner-readiness preflight above if `sign_update` requests Keychain
+   authentication:
    ```bash
    /Users/tan/src/KeeForge/scripts/with-repo-lock.sh xcode -- \
      ci_scripts/build_mac_direct.sh --archive-export --rc-tag rc/{version}-b{repoBuild}
