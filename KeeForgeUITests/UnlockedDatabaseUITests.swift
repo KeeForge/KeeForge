@@ -333,7 +333,16 @@ final class UnlockedDatabaseSearchAndSortUITests: UnlockedDatabaseUITestCase {
 final class RegularWidthWorkspaceUITests: UnlockedDatabaseUITestCase {
     func testRegularWidthWorkspaceShowsPlaceholderThenSelectedEntryDetail() throws {
         try requireRegularWidthLayout()
-        unlockSuccessfully()
+        unlock(password: "testpassword123")
+
+        let passwordField = app.secureTextFields["unlock.password.field"]
+        guard passwordField.waitForNonExistence(timeout: 30) else {
+            let errorLabel = app.staticTexts["unlock.error.label"]
+            let errorMessage = errorLabel.exists ? errorLabel.label.trimmingCharacters(in: .whitespacesAndNewlines) : ""
+            let detail = errorMessage.isEmpty ? "" : " Last error: \(errorMessage)"
+            XCTFail("Fixture database did not leave the unlock screen.\(detail)")
+            return
+        }
 
         let identifiedPlaceholder = app.descendants(matching: .any).matching(
             identifier: "regular-workspace.select-entry-placeholder"
@@ -345,6 +354,7 @@ final class RegularWidthWorkspaceUITests: UnlockedDatabaseUITestCase {
         )
 
         revealSidebarIfNeeded()
+        XCTAssertTrue(currentLockButton().waitForExistence(timeout: 5), "Fixture database did not unlock into the regular-width workspace")
         openGroup(named: "Social")
         openEntry(named: "Twitter")
 

@@ -58,6 +58,15 @@ class DatabaseCreationUITestCase: EntryEditUITestCase {
         XCTAssertTrue(formCreateButton.waitForExistence(timeout: 5), "Create confirmation button was not visible", file: file, line: line)
         tapElement(formCreateButton)
 
+        let formDismissed = formCreateButton.waitForNonExistence(timeout: 30)
+        XCTAssertTrue(
+            formDismissed,
+            "Create form did not dismiss after submission",
+            file: file,
+            line: line
+        )
+        revealSidebarIfNeeded()
+
         XCTAssertTrue(
             app.buttons["lock.button"].waitForExistence(timeout: 30),
             "Created database did not open into an unlocked vault",
@@ -105,6 +114,13 @@ class DatabaseCreationUITestCase: EntryEditUITestCase {
         XCTAssertTrue(waitForLockedState(timeout: 10), "Locked state did not appear after locking", file: file, line: line)
 
         unlock(password: createdDatabasePassword)
+        XCTAssertTrue(
+            app.secureTextFields["unlock.password.field"].waitForNonExistence(timeout: 30),
+            "Created database did not leave the unlock screen after re-entering its password",
+            file: file,
+            line: line
+        )
+        revealSidebarIfNeeded()
         waitForVaultToUnlock(file: file, line: line)
     }
 }
