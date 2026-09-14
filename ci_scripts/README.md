@@ -42,8 +42,9 @@ exceptions. It must contain no passwords, tokens, credentials, private keys, key
 cloud secret values. Preserve the completed non-secret manifest with final release evidence; the
 scratch copy is not a source of secrets or a release trigger.
 
-The RC gates are all required before external distribution: Xcode Cloud's iOS/Mac test-and-archive
-workflow, `.github/workflows/ios18-rc-tests.yml`, `.github/workflows/macos-rc-tests.yml`, both
+The RC gates are all required before external distribution: Xcode Cloud's workflow (iOS tests plus
+the iOS and Mac App Store archives; the Mac unit suite runs in GitHub Actions),
+`.github/workflows/ios18-rc-tests.yml`, `.github/workflows/macos-rc-tests.yml`, both
 invocations of `run_kdbx_compatibility_gate.sh` (iOS and `KDBX_COMPAT_SCHEME=KeeForgeMac`), and the
 unlocked local `KeeForgeMacUITests/MacSmokeUITests`. After the MAS archive, build and stage the
 direct artifact from the same clean SHA; do not publish its GitHub Release asset or production
