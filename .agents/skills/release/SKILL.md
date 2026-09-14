@@ -364,6 +364,13 @@ testers or the direct build is called a release candidate.
    The helper is fixed to `group.com.keevault.shared` and `com.keevault.app`, and accepts state roots
    only directly under `scratch/release-session`.
 
+   When driving this multi-step native UI sequence through Codex tools, keep a single supervised
+   `/Users/tan/src/KeeForge/scripts/with-repo-lock.sh xcode -- bash` session open from the backup
+   through restoration. Allocate a PTY (`tty: true`) and send every command through that retained
+   execution session. Exit or interrupt it only after
+   restoration completes so the wrapper releases the lock. Do not use the detached `acquire` mode
+   here: Codex cleans up its detached holder when the acquire call finishes.
+
    ```bash
    osascript -e 'tell application "KeeForge" to quit' 2>/dev/null || true
    pkill -f 'KeeForgeMacUITests-Runner' 2>/dev/null || true
