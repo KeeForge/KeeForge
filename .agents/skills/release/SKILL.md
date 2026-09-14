@@ -37,6 +37,13 @@ Before starting a candidate, plan the owner-operated prerequisites while the own
 - Confirm whether the login Keychain access used by Sparkle `sign_update` during A9 finalization
   needs owner authentication. Sign only the candidate's exact ZIP, and schedule finalization while
   the owner can approve that prompt. A respin creates a new ZIP and may need fresh Keychain approval.
+- Check that the simulator runtime matching each hosted UI gate's exact iOS version and build is
+  installed before declaring local reproduction unavailable. Preserve the `simctl list runtimes`
+  output. A CLI `xcodebuild -downloadPlatform` catalog miss is not conclusive: use one native
+  Xcode **Settings → Components → Other Installed Platforms → Add Platforms** catalog check before
+  stopping. If that catalog offers the runtime, download and install it there, then verify the
+  exact version/build with `simctl` before creating or using a simulator. Preserve the catalog and
+  post-install diagnostics. Do not turn this into broad download or test retries.
 
 Never disable authentication, broaden Keychain ACLs, or change security policy to bypass either
 prompt. Never treat a smoke run that executed zero tests as a pass: it is an infrastructure failure.
