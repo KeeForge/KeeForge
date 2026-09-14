@@ -29,6 +29,13 @@ Test execution model: the full unit suites and hosted UI suites run on **Xcode C
 needs an unlocked active login session. Do not run the full hosted suites locally up front. Run
 focused local XCTest reproductions only when a cloud test fails — see `gate-adjudication.md`.
 
+An unlocked desktop is not enough for that smoke. While the owner is still available, run
+`automationmodetool` with no arguments; it only reports state. If it says enabling Automation Mode
+requires user authentication, schedule the A8 smoke run for a time the owner is present, because the
+runner prompts then and times out unanswered. Never enable authentication-free Automation Mode to
+avoid this, and never treat a run that executed zero tests as a pass: it is an infrastructure
+failure. Routine authorized test runs need no separate owner approval step.
+
 ## Shared release state and manifest
 
 The release handoff is one state record, not a single build number:
@@ -338,7 +345,8 @@ testers or the direct build is called a release candidate.
    `gate-adjudication.md` path. Any other nonzero `xcodebuild` exit or a missing/malformed result
    bundle is a failed non-test gate and cannot be adjudicated.
 5. Run `KeeForgeMacUITests/MacSmokeUITests` locally on an unlocked release Mac under the repo
-   Xcode lock. The harness can touch live App Group/defaults state. This is an explicit before/after
+   Xcode lock, with the owner present if the Automation Mode check above requires it. The harness
+   can touch live App Group/defaults state. This is an explicit before/after
    operation, not a shell `trap`: do not restore while an app or UI-test process may still be running.
    The helper is fixed to `group.com.keevault.shared` and `com.keevault.app`, and accepts state roots
    only directly under `scratch/release-session`.
