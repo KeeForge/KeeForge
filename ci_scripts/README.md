@@ -12,8 +12,8 @@ This folder holds small scripts used by Xcode Cloud and local build setup.
 - `validate_xcresult_summary.py` is the CI verdict parser. It reads a fresh canonical XCTest `.xcresult` summary and requires `result=Passed`, zero canonical failures, and at least one executed test. `xcodebuild` exit 65 is accepted only after that check; every other nonzero exit fails. Run `ci_scripts/test_validate_xcresult_summary.sh` for the offline fixtures, including the false-green trailing-zero restart pattern.
 - `restore_pre_ui_state.sh --state-root scratch/release-session/<name> --backup` captures the fixed KeeForge App Group and defaults before an authorized local Mac UI run. Its default mode is read-only; `--execute --confirm RESTORE_PRE_UI_STATE` makes a post-run backup first, restores only original contents without `--delete`, and verifies hashes and defaults. Unknown App Group extras stop with both backups retained; only the exact `TestFixtures/test.kdbx` screenshot-fixture cache can be removed. Run `ci_scripts/test_restore_pre_ui_state.sh` for its offline state fixtures.
 - `candidate_manifest.py` creates `scratch/release-manifests/{version}-b{repoBuild}.json` from an existing immutable RC tag without overwriting an earlier record. `init --rc-tag rc/{version}-b{repoBuild}` captures its exact commit/tree identity. `validate --mode distribute|ship` reports missing evidence; pending is never a pass. An adjudication is restricted to an evidenced XCTest reproduction, while ship additionally requires explicit production review/go and accepted soak evidence.
-- `build_mac_direct.sh` archives, exports, notarizes and staples the **Developer ID direct-download** macOS build, then emits the zip the Sparkle appcast serves. It regenerates the project from `project-direct.yml` first (the overlay spec that adds Sparkle and defines `KEEFORGE_DIRECT_DOWNLOAD`) and restores the App Store spec on exit. It requires a clean checkout exactly at `rc/{version}-b{repoBuild}`, defaults to `build/mac-direct-{version}-b{repoBuild}`, and refuses an output that already contains `direct-artifact.json`. It refuses to submit anything to Apple unless the exported app is sandboxed, has no `get-task-allow`, and carries no `com.apple.security.cs.*` exception. Needs a Developer ID certificate and a `notarytool` keychain profile. The Mac App Store build does **not** go through this script. It records the RC tag, notarization ID, and artifact facts in `direct-artifact.json`; it does not publish the asset. `--preflight` is offline and checks the Sparkle signature positive/negative fixture, output, completed-output, RC identity through the normal entry path with a stubbed `xcrun`, portable Sparkle signature parsing, clean-worktree, and `Package.resolved` restoration guards.
-- An interrupted direct build is not retried into the same candidate output: `notarization.json`, a `KeeForge-*-b*.zip`, or `direct-artifact.json` stops the script before it can rearchive accepted bytes. `sparkle-signature.txt` is saved before parsing so a parser failure preserves the exact signed ZIP attributes. Retain that output, inspect the ZIP/signature/notarization evidence, and manually finish its metadata or handoff; do not automatically rebuild it.
+- `build_mac_direct.sh` has two explicit **Developer ID direct-download** phases. Run `--archive-export` under `/Users/tan/src/KeeForge/scripts/with-repo-lock.sh xcode --`; it regenerates from `project-direct.yml`, archives and exports, restores the App Store project and exact `Package.resolved` state, then atomically publishes `export-ready.json`. Run `--finalize` only after that ready checkpoint exists; it verifies the clean RC/tag/tree, canonical paths, and a checksum of every exported app file/symlink before hardening checks, notarization, stapling, Sparkle signing, and `direct-artifact.json`. Finalization never runs XcodeGen or XcodeBuild, so do not hold the Xcode lock across Apple waiting or a Keychain signing prompt. Both phases require a clean checkout exactly at `rc/{version}-b{repoBuild}`, default to `build/mac-direct-{version}-b{repoBuild}`, and refuse unsafe reuse. The Mac App Store build does **not** go through this script. `--preflight` is offline and covers output refusal, checkpoint publication/identity/digest tampering, RC identity, archive setup without a notary credential read, clean-worktree, and `Package.resolved` restoration guards.
+- An archive phase writes only `.export-ready-pending.json` until App Store project restoration and clean-worktree verification succeed; a failed restoration leaves no checkpoint finalization can accept. `export-ready.json`, `notarization.json`, a `KeeForge-*-b*.zip`, or `direct-artifact.json` stops a new archive before it can rearchive bytes. An interrupted post-notary finalization is not retried into the same candidate output: retain its ZIP, `sparkle-signature.txt`, and notarization evidence, then manually finish metadata or handoff without rebuilding.
 - `verify_sparkle_ed25519.swift APP ZIP SIGNATURE_FILE` verifies a final direct ZIP's Sparkle `edSignature` against the exported app's embedded `SUPublicEDKey`. It reads no Keychain material and runs immediately after `sign_update` saves `sparkle-signature.txt`, before `direct-artifact.json` is written. Use `--self-test` for the offline positive and changed-archive negative fixture.
 - `build_mac_direct.sh` packages the release zip with `ditto --sequesterRsrc` and then extracts it with plain `unzip` and re-runs Gatekeeper and `stapler validate` on the result, failing closed. Without the flag, `ditto`'s inline AppleDouble entries become real `._name` files inside the bundle under any non-Apple extractor — unsealed content that makes Gatekeeper reject the app the user downloaded while the exported `.app` on the build machine still passes.
 - `verify_mac_artifact.sh` is a fail-closed, artifact-level check for an already exported `.app`; it does not build, sign, notarize, contact Apple, or read a private key. Run it against the exact exported app, never an archive payload substitute: `ci_scripts/verify_mac_artifact.sh --channel mas --app <exported-app> --architectures arm64,x86_64 --expect-version {version} --expect-build {macTestFlightBuild}`. The direct command is `ci_scripts/verify_mac_artifact.sh --channel direct --app <exported-app> --architectures arm64,x86_64 --expect-version {version} --expect-build {repoBuild}`. It prints the actual version/build plus channel evidence and checks the code signature, hardened runtime, sandbox, nested executable bundles, channel framework/linkage boundaries, feed/key presence, and exact architectures.
@@ -146,19 +146,20 @@ The artifact set itself is declared in `KeeForgeTests/KDBXCompatibilitySupport.s
 
 ### Direct-build safety contract
 
-`build_mac_direct.sh` uses `build/mac-direct` when no output argument is given. An
-explicit output must be an absolute path naming a safe basename in exactly one
-level below `${repo}/build`; relative paths, the build directory itself,
-traversal, symlinks, and paths outside that directory are refused before any
-cleanup. The source worktree must be clean, including untracked non-ignored
-files, because XcodeGen uses folder globs; ignored `build/` and `scratch/`
-outputs remain allowed. Before direct generation, the script saves the exact
-`Package.resolved` bytes (or records that it was absent), installs its EXIT
-restoration trap, runs normal XcodeGen on exit, restores that saved state, and
-only then removes its validated temporary state directory. Restoration failures
-are reported and cannot turn a failed build into a success. Use
-`ci_scripts/build_mac_direct.sh --preflight` to exercise these checks without
-Xcode, notarization, network access, or keychain access.
+Each phase defaults to `build/mac-direct-{version}-b{repoBuild}`. An explicit
+output must be an absolute path naming a safe basename exactly one level below
+`${repo}/build`; relative paths, the build directory itself, traversal,
+symlinks, and paths outside that directory are refused before cleanup. The
+source worktree must be clean, including untracked non-ignored files, because
+XcodeGen uses folder globs; ignored `build/` and `scratch/` outputs remain
+allowed. `--archive-export` saves the exact `Package.resolved` bytes (or records
+that it was absent), installs its EXIT restoration trap, runs normal XcodeGen on
+exit, restores that saved state, removes its validated temporary state directory,
+and only then publishes `export-ready.json`. Restoration failure leaves only a
+pending checkpoint, which `--finalize` refuses. `--finalize` checks the ready
+checkpoint and never generates or builds. Use `ci_scripts/build_mac_direct.sh --preflight`
+to exercise these checks without Xcode, notarization, network
+access, or keychain access.
 
 KeeForge for Mac ships through two channels from one target. Which one you get is decided at project-generation time, not at build time:
 
