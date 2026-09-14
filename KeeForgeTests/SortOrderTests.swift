@@ -3,10 +3,16 @@ import XCTest
 
 @MainActor
 final class SortOrderTests: XCTestCase {
+    private static let sortDefaultsKeys = ["KeeForge.sortOrder", "KeeForge.sortAscending"]
     private var viewModel: DatabaseViewModel!
+    private var savedSortDefaults: [String: Any] = [:]
 
     override func setUp() async throws {
         try await super.setUp()
+        // The app's UI tests share these defaults when hosted on the same simulator.
+        savedSortDefaults = Self.sortDefaultsKeys.reduce(into: [:]) { saved, key in
+            saved[key] = UserDefaults.standard.object(forKey: key)
+        }
         DatabaseListStore.clearAll()
         SharedVaultStore.clearBookmark()
         viewModel = try DatabaseViewModel(databaseReference: TestDatabaseSupport.makeReference(for: fixtureURL()))
@@ -14,6 +20,9 @@ final class SortOrderTests: XCTestCase {
     }
 
     override func tearDown() async throws {
+        for key in Self.sortDefaultsKeys {
+            UserDefaults.standard.set(savedSortDefaults[key], forKey: key)
+        }
         DatabaseListStore.clearAll()
         SharedVaultStore.clearBookmark()
         try await super.tearDown()

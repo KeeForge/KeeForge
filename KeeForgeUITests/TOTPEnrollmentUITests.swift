@@ -21,6 +21,21 @@ class TOTPEnrollmentUITestCase: UnlockedDatabaseUITestCase {
             line: line
         )
         tapElement(editButton)
+
+        // Container lookups hit-test every list on screen, and a list leaving
+        // during the push can drop to a zero frame between the frame check and
+        // the hit test. Wait until the detail is gone and the form is laid out.
+        let titleField = app.textFields["entry-edit.title-field"]
+        let deadline = Date().addingTimeInterval(10)
+        var isReady = false
+        repeat {
+            isReady = editButton.exists == false
+                && app.buttons["entry-edit.save"].exists
+                && hasUsableFrame(titleField)
+            if isReady { break }
+            RunLoop.current.run(until: Date().addingTimeInterval(0.2))
+        } while Date() < deadline
+        XCTAssertTrue(isReady, "Entry editor did not finish opening", file: file, line: line)
     }
 
     func assertDetailRendersCode(

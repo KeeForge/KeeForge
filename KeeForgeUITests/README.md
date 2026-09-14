@@ -18,7 +18,7 @@ macOS UI tests: see `../KeeForgeMacUITests/AGENTS.md`; the accessibility identif
 - `UnlockedDatabaseBrowseAndDetailUITests` — unlocked vault browse + entry-detail happy paths, the open-vault gear's complete Database Details surface, and the disabled KDBX 3.1 read-only control
 - `UnlockedDatabaseSearchAndSortUITests` — unlocked search and sort happy paths, including folder captions on search results
 - `EntryCreateSmokeUITests` — create-entry and create-group happy paths using a known fixture group
-- `EntryEditSmokeUITests` — edit-entry happy path using a known fixture entry, including immediate title/username refresh in group lists, search, and title sorting plus a screenshot-backed regression check that a long revealed password wraps without extra characters
+- `EntryEditSmokeUITests` — edit-entry happy path using a known fixture entry, including immediate title/username refresh in group lists, search, and title sorting (it picks Title + Ascending from `sort.menu` first, because the sort preference persists across tests) plus a screenshot-backed regression check that a long revealed password wraps without extra characters
 - `EntryDeleteSmokeUITests` — delete-entry happy paths using known fixture entries: row swipe/context-menu deletes, plus the entry editor's "Delete Entry" flow (`entry-edit.delete`) covering both dialog options and the already-recycled variant, asserting the editor dismisses back to a usable group list (regression cover for the permanent-delete wedge); plus group soft/permanent deletes and the Recycle Bin's no-delete guards
 - `EntryRowCopyUITests` — the Copy Username / Copy Password items a long press adds to an entry row (`entry-row.copy-username-context`, `entry-row.copy-password-context`), asserted as offered and tappable; the pasteboard itself is never read, because reading it from the runner process raises the system paste prompt
 - `EntryDuplicateUITests` — the Duplicate item on the same menu (`entry-row.duplicate-context`): it opens a New Entry form prefilled from the source, offering its destination group (`entry-edit.group`), and saving leaves both entries in the group
@@ -130,7 +130,7 @@ Run policy (one class per run, no full suite, reproduce RC failures on the iOS 1
 
 ### Regular-Width Sidebar Navigation
 
-iPadOS may start an adaptive `NavigationSplitView` with its sidebar collapsed even at regular width. Tests that need sidebar controls use the system `ToggleSidebar` control only when it is labeled `Show Sidebar`, then continue with the normal accessibility identifiers. Keep the product's automatic sidebar policy intact; a UI test must not force a column-visibility mode.
+iPadOS may start an adaptive `NavigationSplitView` with its sidebar collapsed even at regular width. Tests that need sidebar controls use the system `ToggleSidebar` control only when it is labeled `Show Sidebar` and has an on-screen frame (right after an unlock it can exist with no activation point, and hit-testing it then raises an uncatchable exception), then continue with the normal accessibility identifiers. Keep the product's automatic sidebar policy intact; a UI test must not force a column-visibility mode.
 
 ## AutoFill Store Device Tests
 
@@ -372,6 +372,7 @@ Key helpers:
 - `openDatabase(named:)` — open a known fixture-backed database row instead of whichever row appears first
 - `openAnyEntry()` — navigate into a non-empty group and open an entry
 - `revealElement(_:in:direction:maxSwipes:)` — scroll until an element is visible and hittable
+- `hasUsableFrame(_:)` / `hasOnScreenFrame(_:)` — snapshot-based frame checks to run before `isHittable` on anything that may be mid-transition. `isHittable` on a zero-frame or off-screen element can raise an Objective-C exception that ends the test, so wait for screen readiness (for example, the TOTP `openEditor()` waits for the editor form) before scanning containers
 - `waitForDocumentPicker()` — wait for the system document picker to appear
 - `menuButton(identifier:label:)` — match a menu item by accessibility identifier *or* visible label. Required for items inside a `Section` of a SwiftUI `Menu` (the toolbar add-database menu): the iOS 27 runtime drops accessibility identifiers from Section-wrapped menu buttons entirely — verified empirically, identifier on the Button, on its Label, and headerless `Section` all lose it, while direct menu children keep theirs — so identifier-only queries hang forever on iOS 27
 - `openDatabaseDetails(rowContaining:)` / `closeDatabaseDetails()` — long-press a database row, open its Database Details context action, and wait for/dismiss the details sheet

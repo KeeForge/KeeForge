@@ -32,8 +32,9 @@ jobs:
     if: github.event_name == 'workflow_dispatch' || github.event.deleted == false
     runs-on: macos-15
     # Full unit + UI suites on a single (non-parallel) runner run longer than
-    # Xcode Cloud's 4-way-parallel RC run; give them room.
-    timeout-minutes: 120
+    # Xcode Cloud's 4-way-parallel RC run and can approach two hours on a
+    # loaded runner, so keep finite headroom above that.
+    timeout-minutes: 180
     env:
       SCHEME: KeeForge
       PROJECT: KeeForge.xcodeproj
