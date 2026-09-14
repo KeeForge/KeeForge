@@ -15,7 +15,8 @@ private extension CGRect {
 ///     TEST_RUNNER_SCREENSHOT_AUDIT=1 xcodebuild test ... \
 ///         -only-testing:KeeForgeMacUITests/MacScreenshotAuditUITests
 ///
-/// Add `TEST_RUNNER_SCREENSHOT_AUDIT_DARK=1` for a dark-appearance pass. Both
+/// Captures are light unless `TEST_RUNNER_SCREENSHOT_AUDIT_DARK=1` asks for a
+/// dark-appearance pass; the host's own appearance never decides. Both
 /// must be real environment variables on the `xcodebuild` process itself
 /// (Xcode strips the `TEST_RUNNER_` prefix and forwards them into the test
 /// runner's environment) — verified empirically, a trailing bare `KEY=value`
@@ -39,6 +40,12 @@ private extension CGRect {
 @MainActor
 final class MacScreenshotAuditUITests: MacUITestCase {
 
+    // The bundled test database under a presentable name, since the database
+    // list and window titles show the injected filename in listing captures.
+    override var databaseFixtures: [DatabaseFixture] {
+        [DatabaseFixture(resourceName: "test", injectedFilename: "Personal.kdbx")]
+    }
+
     override func setUp() async throws {
         guard ProcessInfo.processInfo.environment["SCREENSHOT_AUDIT"] == "1" else {
             throw XCTSkip("Screenshot audit runs only with SCREENSHOT_AUDIT=1")
@@ -57,17 +64,15 @@ final class MacScreenshotAuditUITests: MacUITestCase {
         // base class keeps last so it is not swallowed as another key's value.
         insertLaunchArguments(["-KeeForge.blockScreenCapture", "NO"], into: app)
 
-        if ProcessInfo.processInfo.environment["SCREENSHOT_AUDIT_DARK"] == "1" {
-            // Force the process into dark appearance regardless of the host's
-            // system setting (the app follows the system when its appearance
-            // preference is "System", which is the default in tests).
-            //
-            // Seed the app's own appearance preference (`@AppStorage`) to dark;
-            // the app renders with `preferredColorScheme`, so an OS-level
-            // `-AppleInterfaceStyle` override does not reach it when the
-            // preference is "System".
-            insertLaunchArguments(["-KeeForge.appearanceMode", "dark"], into: app)
-        }
+        // Seed the app's own appearance preference (`@AppStorage`) so the host's
+        // system appearance cannot change the captures. The app renders with
+        // `preferredColorScheme`, so an OS-level `-AppleInterfaceStyle` override
+        // would not reach it.
+        let appearance = ProcessInfo.processInfo.environment["SCREENSHOT_AUDIT_DARK"] == "1" ? "dark" : "light"
+        insertLaunchArguments(["-KeeForge.appearanceMode", appearance], into: app)
+
+        // The `results:N` overlay is a UI-test hook, not app UI.
+        app.launchEnvironment["UI_TEST_HIDE_SEARCH_RESULTS_COUNT"] = "1"
     }
 
     private func insertLaunchArguments(_ arguments: [String], into app: XCUIApplication) {
@@ -340,13 +345,15 @@ final class MacScreenshotAuditUITests: MacUITestCase {
         settle()
         await snap("03-vault-root")
 
-        // 4. Entry detail — must navigate into a group first; the vault root
-        //    shows the group tree in the sidebar, and entry rows live in the
-        //    content column only after a group is selected.
-        openGroup(named: "Work")
+        // 4. A group with an entry selected, so all three columns have content.
+        openGroup(named: "Social")
+        openEntry(named: "Discord")
         settle()
         await snap("04-group-selected")
 
+        // 5. Entry detail — entry rows live in the content column only after a
+        //    group is selected.
+        openGroup(named: "Work")
         let entry = rowQuery(identifier: "entry.navlink").firstMatch
         if entry.waitForExistence(timeout: 10) {
             entry.click()
@@ -361,9 +368,12 @@ final class MacScreenshotAuditUITests: MacUITestCase {
         // the search/settings captures run while the app still holds focus from
         // the entry clicks above.
 
-        // 6. Search focused with results.
+        // 6. Search focused with results for a real fixture entry.
         if typeAppShortcut("f") {
-            app.typeText("a")
+            app.typeText("Email")
+            if rowQuery(identifier: "search.entry.navlink").firstMatch.waitForExistence(timeout: 8) == false {
+                noteSkip("06-search", reason: "no results appeared for \"Email\"")
+            }
             settle()
             await snap("06-search")
             // Clear the search so later steps see the normal browse UI.

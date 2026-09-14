@@ -114,7 +114,7 @@ def main() -> int:
     minimum = str(artifact["minimumSystemVersion"])
     if minimum:
         text(item, "minimumSystemVersion", minimum)
-    text(item, "releaseNotesLink", "https://keeforge.com/changelog")
+    text(item, "releaseNotesLink", f"https://github.com/KeeForge/KeeForge/releases/tag/v{version}")
     enclosure = ET.SubElement(
         item,
         "enclosure",

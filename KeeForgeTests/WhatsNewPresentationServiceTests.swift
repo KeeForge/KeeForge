@@ -96,6 +96,42 @@ final class WhatsNewPresentationServiceTests: XCTestCase {
         )
     }
 
+    func testVersion116CatalogShowsEachPlatformItsOwnWordingInApprovedOrder() throws {
+        let iOSRelease = try XCTUnwrap(
+            WhatsNewCatalog.release(version: "1.16.0", platform: .iOS)
+        )
+        let macOSRelease = try XCTUnwrap(
+            WhatsNewCatalog.release(version: "1.16.0", platform: .macOS)
+        )
+
+        XCTAssertEqual(
+            iOSRelease.features.map(\.id),
+            ["native-mac-app", "duplicate-entry", "copy-from-list"]
+        )
+        XCTAssertEqual(
+            macOSRelease.features.map(\.id),
+            ["native-mac-app-mac", "duplicate-entry-mac", "copy-from-list-mac"]
+        )
+
+        let iOSDetails = iOSRelease.features.map { String(localized: $0.detail) }
+        let macDetails = macOSRelease.features.map { String(localized: $0.detail) }
+        XCTAssertTrue(iOSDetails[0].contains("Mac App Store"))
+        XCTAssertFalse(macDetails.contains { $0.contains("Mac App Store") })
+        XCTAssertFalse(macDetails.contains { $0.contains("Touch and hold") })
+        XCTAssertFalse(iOSDetails.contains { $0.contains("Right-click") })
+    }
+
+    func testVersion116IsPresentedForTheShippedMarketingVersion() {
+        let release = WhatsNewPresentationService.releaseToPresent(
+            currentVersion: "1.16.0",
+            platform: .macOS,
+            defaults: defaults,
+            uiTestingPresentationOverride: nil
+        )
+
+        XCTAssertEqual(release?.version, "1.16.0")
+    }
+
     func testVersion111CatalogDoesNotClaimLaterLocalizations() throws {
         let release = try XCTUnwrap(
             WhatsNewCatalog.release(version: "1.11.0", platform: .iOS)

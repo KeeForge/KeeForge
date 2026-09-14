@@ -6556,6 +6556,40 @@
         }
       }
     },
+    "Copy without opening an entry" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kopieren, ohne den Eintrag zu öffnen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Copia sin abrir la entrada"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Copiez sans ouvrir l’entrée"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无需打开条目即可拷贝"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無需開啟項目即可拷貝"
+          }
+        }
+      }
+    },
     "Could not establish a secure connection because the server's certificate is invalid, expired, or untrusted." : {
       "localizations" : {
         "de" : {
@@ -9792,6 +9826,40 @@
         }
       }
     },
+    "Duplicate an entry" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Einträge duplizieren"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Duplica una entrada"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dupliquez une entrée"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "为条目创建副本"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "為項目建立副本"
+          }
+        }
+      }
+    },
     "Earlier Version" : {
       "localizations" : {
         "de" : {
@@ -11658,6 +11726,40 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "透過您已在使用的標籤尋找項目，包括從群組繼承的標籤。可依標籤搜尋，並在編輯時從建議中選取。"
+          }
+        }
+      }
+    },
+    "Find KeeForge on the Mac App Store. The native Mac app runs on macOS 15 or later, with AutoFill and your local and WebDAV databases." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Du findest KeeForge im Mac App Store. Die native Mac-App läuft ab macOS 15, mit AutoFill und deinen lokalen und WebDAV-Datenbanken."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Busca KeeForge en el Mac App Store. La app nativa para Mac funciona en macOS 15 o posterior, con el autorrelleno y tus bases de datos locales y WebDAV."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Retrouvez KeeForge sur le Mac App Store. L’app Mac native fonctionne sous macOS 15 ou version ultérieure, avec le remplissage automatique et vos bases de données locales et WebDAV."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "前往 Mac App Store 获取 KeeForge。原生 Mac App 支持 macOS 15 或更高版本，提供自动填充，并可使用您的本地和 WebDAV 数据库。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "前往 Mac App Store 取得 KeeForge。原生 Mac App 支援 macOS 15 或更新版本，提供自動填寫，並可使用您的本機和 WebDAV 資料庫。"
           }
         }
       }
@@ -13868,6 +13970,40 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "KeeForge 的 App 和自動填寫現已全面翻譯為簡體中文和繁體中文。"
+          }
+        }
+      }
+    },
+    "KeeForge is now on Mac" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge gibt es jetzt für den Mac"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge ya está en Mac"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge arrive sur Mac"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge 现已登陆 Mac"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge 現已登陸 Mac"
           }
         }
       }
@@ -20198,6 +20334,74 @@
         }
       }
     },
+    "Right-click an entry and choose Duplicate to start a new entry already filled in from it." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Klicke mit der rechten Maustaste auf einen Eintrag und wähle „Duplizieren“, um einen neuen Eintrag zu beginnen, der bereits mit dessen Angaben ausgefüllt ist."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Haz clic con el botón derecho en una entrada y elige «Duplicar» para empezar una nueva entrada ya rellenada con sus datos."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cliquez avec le bouton droit sur une entrée et choisissez « Dupliquer » pour commencer une nouvelle entrée déjà remplie à partir de celle-ci."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "右键点按条目并选择“创建副本”，即可开始一个已根据该条目填好内容的新条目。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "右鍵點按項目並選擇「建立副本」，即可開始一個已根據該項目填好內容的新項目。"
+          }
+        }
+      }
+    },
+    "Right-click an entry in the list to copy its username or password. Copying a password still asks you to confirm it’s you." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Klicke mit der rechten Maustaste auf einen Eintrag in der Liste, um seinen Benutzernamen oder sein Passwort zu kopieren. Beim Kopieren eines Passworts musst du dich weiterhin bestätigen."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Haz clic con el botón derecho en una entrada de la lista para copiar su nombre de usuario o su contraseña. Copiar una contraseña sigue pidiéndote que confirmes tu identidad."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cliquez avec le bouton droit sur une entrée de la liste pour copier son nom d’utilisateur ou son mot de passe. La copie d’un mot de passe vous demande toujours de confirmer votre identité."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在列表中右键点按条目，即可拷贝其用户名或密码。拷贝密码时仍需确认您的身份。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在列表中右鍵點按項目，即可拷貝其使用者名稱或密碼。拷貝密碼時仍需確認您的身分。"
+          }
+        }
+      }
+    },
     "Save" : {
       "localizations" : {
         "de" : {
@@ -26158,6 +26362,40 @@
         }
       }
     },
+    "This is the new native Mac app, with AutoFill and your local and WebDAV databases." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Das ist die neue native Mac-App, mit AutoFill und deinen lokalen und WebDAV-Datenbanken."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Esta es la nueva app nativa para Mac, con el autorrelleno y tus bases de datos locales y WebDAV."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Voici la nouvelle app Mac native, avec le remplissage automatique et vos bases de données locales et WebDAV."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这是全新的原生 Mac App，提供自动填充，并可使用您的本地和 WebDAV 数据库。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這是全新的原生 Mac App，提供自動填寫，並可使用您的本機和 WebDAV 資料庫。"
+          }
+        }
+      }
+    },
     "This isn't an otpauth:// setup link." : {
       "localizations" : {
         "de" : {
@@ -26902,6 +27140,74 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "失敗次數過多"
+          }
+        }
+      }
+    },
+    "Touch and hold an entry and choose Duplicate to start a new entry already filled in from it." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Halte einen Eintrag gedrückt und wähle „Duplizieren“, um einen neuen Eintrag zu beginnen, der bereits mit dessen Angaben ausgefüllt ist."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mantén pulsada una entrada y elige «Duplicar» para empezar una nueva entrada ya rellenada con sus datos."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Maintenez le doigt sur une entrée et choisissez « Dupliquer » pour commencer une nouvelle entrée déjà remplie à partir de celle-ci."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "按住条目并选择“创建副本”，即可开始一个已根据该条目填好内容的新条目。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "按住項目並選擇「建立副本」，即可開始一個已根據該項目填好內容的新項目。"
+          }
+        }
+      }
+    },
+    "Touch and hold an entry in the list to copy its username or password. Copying a password still asks for Face ID, Touch ID, or your passcode." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Halte einen Eintrag in der Liste gedrückt, um seinen Benutzernamen oder sein Passwort zu kopieren. Zum Kopieren eines Passworts sind weiterhin Face ID, Touch ID oder dein Code nötig."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mantén pulsada una entrada de la lista para copiar su nombre de usuario o su contraseña. Copiar una contraseña sigue pidiendo Face ID, Touch ID o tu código."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Maintenez le doigt sur une entrée de la liste pour copier son nom d’utilisateur ou son mot de passe. La copie d’un mot de passe demande toujours Face ID, Touch ID ou votre code."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在列表中按住条目，即可拷贝其用户名或密码。拷贝密码时仍需通过Face ID、Touch ID 或设备密码验证。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在列表中按住項目，即可拷貝其使用者名稱或密碼。拷貝密碼時仍需透過 Face ID、Touch ID 或裝置密碼驗證。"
           }
         }
       }

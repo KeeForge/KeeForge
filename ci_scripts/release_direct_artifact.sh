@@ -344,6 +344,14 @@ XML
   cp "$old" "$DESTINATION"
   publish_appcast >&2
   grep -Fq '9.9.8' "$DESTINATION" || die "fixture publication lost the older appcast item"
+  python3 - "$DESTINATION" <<'PY' || die "fixture releaseNotesLink does not point at the v9.9.9 release notes"
+import sys
+import xml.etree.ElementTree as ET
+ns = "{http://www.andymatuschak.org/xml-namespaces/sparkle}"
+items = ET.parse(sys.argv[1]).getroot().find("channel").findall("item")
+links = {item.findtext(f"{ns}shortVersionString"): item.findtext(f"{ns}releaseNotesLink") for item in items}
+sys.exit(links.get("9.9.9") != "https://github.com/KeeForge/KeeForge/releases/tag/v9.9.9")
+PY
   local mismatch_destination="$dir/mismatched-appcast.xml"
   printf '%s\n' 'changed after staging' >"$mismatch_destination"
   if "$0" publish-appcast --staged "$STAGED_APPCAST" --metadata "$STAGED_METADATA" \

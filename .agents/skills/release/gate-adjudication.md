@@ -19,11 +19,12 @@ cancellation, or "tests did not run" failure.
 
 ### 1. Xcode Cloud `Tests (RC)` workflow
 
-One `rc/*` tag starts the `Tests (RC)` workflow. It contains iOS and macOS test actions (both
-**Required to Pass**) and iOS and `KeeForgeMac` App Store archive/upload actions. App Store Connect
+One `rc/*` tag starts the `Tests (RC)` workflow. It contains an iOS test action
+(**Required to Pass**) and iOS and `KeeForgeMac` App Store archive/upload actions. The Mac unit
+suite runs in `macos-rc-tests.yml`; Xcode Cloud has no macOS test action. App Store Connect
 may expose these as separate Xcode Cloud check runs or as one workflow summary; inspect every
-Xcode Cloud check for the RC SHA and record the URLs/statuses in the manifest. Both platform test
-actions and both archive actions must reach a terminal, accepted state before external distribution.
+Xcode Cloud check for the RC SHA and record the URLs/statuses in the manifest. The iOS test
+action and both archive actions must reach a terminal, accepted state before external distribution.
 
 ```bash
 gh api repos/KeeForge/KeeForge/commits/{rc-sha}/check-runs \
@@ -115,7 +116,7 @@ grep -E '^Test Case .*(passed|failed)' "$LOG"
 
 ### Mac failures
 
-For a macOS GitHub Actions or Xcode Cloud failure, record the failed `KeeForgeMacTests` identifier.
+For a macOS GitHub Actions test failure, record the failed `KeeForgeMacTests` identifier.
 The exact local reproduction uses the Mac scheme and macOS destination; do not use the iOS scheme,
 an iOS simulator, or a broad test run:
 

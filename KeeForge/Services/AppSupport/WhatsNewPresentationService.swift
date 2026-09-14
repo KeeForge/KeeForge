@@ -58,6 +58,51 @@ enum WhatsNewCatalog {
         let features: [WhatsNewFeature]
 
         switch version {
+        case "1.16.0":
+            features = [
+                WhatsNewFeature(
+                    id: "native-mac-app",
+                    title: "KeeForge is now on Mac",
+                    detail: "Find KeeForge on the Mac App Store. The native Mac app runs on macOS 15 or later, with AutoFill and your local and WebDAV databases.",
+                    systemImage: "macbook",
+                    platforms: [.iOS]
+                ),
+                WhatsNewFeature(
+                    id: "native-mac-app-mac",
+                    title: "KeeForge is now on Mac",
+                    detail: "This is the new native Mac app, with AutoFill and your local and WebDAV databases.",
+                    systemImage: "macbook",
+                    platforms: [.macOS]
+                ),
+                WhatsNewFeature(
+                    id: "duplicate-entry",
+                    title: "Duplicate an entry",
+                    detail: "Touch and hold an entry and choose Duplicate to start a new entry already filled in from it.",
+                    systemImage: "plus.square.on.square",
+                    platforms: [.iOS]
+                ),
+                WhatsNewFeature(
+                    id: "duplicate-entry-mac",
+                    title: "Duplicate an entry",
+                    detail: "Right-click an entry and choose Duplicate to start a new entry already filled in from it.",
+                    systemImage: "plus.square.on.square",
+                    platforms: [.macOS]
+                ),
+                WhatsNewFeature(
+                    id: "copy-from-list",
+                    title: "Copy without opening an entry",
+                    detail: "Touch and hold an entry in the list to copy its username or password. Copying a password still asks for Face ID, Touch ID, or your passcode.",
+                    systemImage: "doc.on.doc",
+                    platforms: [.iOS]
+                ),
+                WhatsNewFeature(
+                    id: "copy-from-list-mac",
+                    title: "Copy without opening an entry",
+                    detail: "Right-click an entry in the list to copy its username or password. Copying a password still asks you to confirm it’s you.",
+                    systemImage: "doc.on.doc",
+                    platforms: [.macOS]
+                ),
+            ]
         case "1.15.0":
             features = [
                 WhatsNewFeature(

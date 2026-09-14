@@ -595,7 +595,7 @@ cat <<APPCAST_ITEM
             <sparkle:version>${BUILD_NUMBER}</sparkle:version>
             <sparkle:shortVersionString>${SHORT_VERSION}</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>${MIN_SYSTEM}</sparkle:minimumSystemVersion>
-            <sparkle:releaseNotesLink>https://keeforge.com/changelog</sparkle:releaseNotesLink>
+            <sparkle:releaseNotesLink>https://github.com/KeeForge/KeeForge/releases/tag/v${SHORT_VERSION}</sparkle:releaseNotesLink>
             <enclosure url="https://github.com/KeeForge/KeeForge/releases/download/v${SHORT_VERSION}/${ZIP_FILENAME}"
                        ${SIGNATURE_ATTRS}
                        type="application/octet-stream" />
