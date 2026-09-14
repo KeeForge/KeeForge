@@ -47,6 +47,19 @@ class EntryEditUITestCase: KeeForgeUITestCase {
         )
     }
 
+    /// Picks one option from the toolbar sort menu. Choosing an already
+    /// selected option keeps it, so this sets the preference either way.
+    func selectSortOption(_ label: String, file: StaticString = #filePath, line: UInt = #line) {
+        let sortMenu = app.buttons["sort.menu"]
+        XCTAssertTrue(sortMenu.waitForExistence(timeout: 5), "Sort menu button was not visible", file: file, line: line)
+        tapElement(sortMenu)
+
+        let option = app.buttons[label]
+        XCTAssertTrue(option.waitForExistence(timeout: 5), "Sort option '\(label)' was not visible", file: file, line: line)
+        tapElement(option)
+        XCTAssertTrue(option.waitForNonExistence(timeout: 5), "Sort menu did not close after choosing '\(label)'", file: file, line: line)
+    }
+
     func tapAddEntry(file: StaticString = #filePath, line: UInt = #line) {
         openAddMenu(file: file, line: line)
 
@@ -437,6 +450,16 @@ final class EntryEditSmokeUITests: EntryEditUITestCase {
 
         unlockSuccessfully()
 
+        // Sort preferences persist in the app's defaults, which other tests change.
+        selectSortOption("Title")
+        selectSortOption("Ascending")
+        openGroup(named: socialGroupName)
+        let discordRow = entry(named: discordEntryTitle)
+        let twitterRow = entry(named: twitterEntryTitle)
+        XCTAssertTrue(revealElement(discordRow), "Discord row was not visible")
+        XCTAssertTrue(revealElement(twitterRow), "Twitter row was not visible")
+        XCTAssertLessThan(discordRow.frame.minY, twitterRow.frame.minY, "Title ascending sort was not in effect before the edit")
+
         openEntry(named: discordEntryTitle, inGroup: socialGroupName)
         let editButton = app.buttons["entry-detail.edit"]
         XCTAssertTrue(editButton.waitForExistence(timeout: 5), "Edit button was not visible")
@@ -456,7 +479,6 @@ final class EntryEditSmokeUITests: EntryEditUITestCase {
         XCTAssertTrue(revealElement(updatedRow), "Edited entry title did not refresh in the Social group")
         XCTAssertTrue(updatedRow.label.contains(updatedUsername), "Edited username did not refresh in the Social group")
 
-        let twitterRow = entry(named: twitterEntryTitle)
         XCTAssertTrue(revealElement(twitterRow), "Twitter comparison row was not visible")
         XCTAssertLessThan(updatedRow.frame.minY, twitterRow.frame.minY, "Title sorting did not refresh after the edit")
 

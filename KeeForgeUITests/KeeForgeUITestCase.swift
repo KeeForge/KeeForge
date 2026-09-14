@@ -659,12 +659,23 @@ class KeeForgeUITestCase: XCTestCase {
     /// iPadOS can start an adaptive split view with its sidebar collapsed even
     /// at regular width. Use the system control only when it is offering to
     /// show the sidebar, preserving the app's automatic layout policy.
-    func revealSidebarIfNeeded() {
+    /// The control can exist mid-transition with no activation point, and
+    /// `isHittable` then raises an exception Swift cannot catch, so wait for an
+    /// on-screen frame before hit-testing it.
+    func revealSidebarIfNeeded(timeout: TimeInterval = 5) {
         let showSidebarButton = app.buttons.matching(
             NSPredicate(format: "identifier == %@ AND label == %@", "ToggleSidebar", "Show Sidebar")
         ).firstMatch
-        guard showSidebarButton.exists else { return }
-        tapElement(showSidebarButton)
+        let deadline = Date().addingTimeInterval(timeout)
+        repeat {
+            guard showSidebarButton.exists else { return }
+            if hasOnScreenFrame(showSidebarButton), showSidebarButton.isHittable {
+                showSidebarButton.tap()
+                _ = showSidebarButton.waitForNonExistence(timeout: 2)
+                return
+            }
+            RunLoop.current.run(until: Date().addingTimeInterval(0.25))
+        } while Date() < deadline
     }
 
     @discardableResult
@@ -861,9 +872,20 @@ class KeeForgeUITestCase: XCTestCase {
     /// index-bound element re-resolves it, and a container that goes away
     /// between the query and the access raises an Objective-C exception Swift
     /// cannot catch; `snapshot()` reports the same miss as a Swift error.
-    private func hasUsableFrame(_ element: XCUIElement) -> Bool {
+    func hasUsableFrame(_ element: XCUIElement) -> Bool {
         guard let frame = try? element.snapshot().frame else { return false }
-        return frame.minX.isFinite
+        return isUsable(frame)
+    }
+
+    func hasOnScreenFrame(_ element: XCUIElement) -> Bool {
+        guard let frame = try? element.snapshot().frame, isUsable(frame),
+              let windowFrame = try? app.windows.firstMatch.snapshot().frame
+        else { return false }
+        return windowFrame.contains(CGPoint(x: frame.midX, y: frame.midY))
+    }
+
+    private func isUsable(_ frame: CGRect) -> Bool {
+        frame.minX.isFinite
             && frame.minY.isFinite
             && frame.width.isFinite
             && frame.height.isFinite
