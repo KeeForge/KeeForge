@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 #
-# Archive, sign, notarize and staple the direct-download (Developer ID) macOS
-# build, then emit the zip that the Sparkle appcast points at.
+# Archive/export, then separately notarize and sign, the direct-download
+# (Developer ID) macOS build before emitting the Sparkle appcast zip. The
+# archive/export phase restores the App Store project before finalization can
+# reach a Keychain prompt or Apple wait.
 #
 # The Mac App Store build does not go through here — it is archived and uploaded
 # the same way the iOS app is (Xcode Cloud / Organizer). This script is only the
@@ -21,7 +23,10 @@
 #     the matching EdDSA private key stays in the login keychain, never in the
 #     repo and never in CI logs.
 #
-# Usage: ci_scripts/build_mac_direct.sh [--preflight] [--rc-tag TAG] [output-dir]
+# Usage:
+#   ci_scripts/build_mac_direct.sh --archive-export [--rc-tag TAG] [output-dir]
+#   ci_scripts/build_mac_direct.sh --finalize [--rc-tag TAG] [output-dir]
+#   ci_scripts/build_mac_direct.sh --preflight
 #
 # The build writes direct-artifact.json beside the zip. It is a non-secret
 # handoff record consumed by release_direct_artifact.sh after App Review.
@@ -33,13 +38,20 @@ REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd -P)"
 BUILD_ROOT="${REPO_ROOT}/build"
 
 PREFLIGHT=0
+PHASE=""
 RC_TAG=""
 REQUESTED_OUT_DIR=""
 while (( $# > 0 )); do
   case "$1" in
     --preflight) PREFLIGHT=1; shift ;;
+    --archive-export)
+      [[ -z "${PHASE}" ]] || { echo "error: choose only one direct-build phase" >&2; exit 2; }
+      PHASE="archive-export"; shift ;;
+    --finalize)
+      [[ -z "${PHASE}" ]] || { echo "error: choose only one direct-build phase" >&2; exit 2; }
+      PHASE="finalize"; shift ;;
     --rc-tag) RC_TAG="${2:-}"; shift 2 ;;
-    -h|--help) echo "usage: ${BASH_SOURCE[0]} [--preflight] [--rc-tag TAG] [output-dir]"; exit 0 ;;
+    -h|--help) echo "usage: ${BASH_SOURCE[0]} --archive-export|--finalize [--rc-tag TAG] [output-dir]"; exit 0 ;;
     -*) echo "error: unknown option $1" >&2; exit 2 ;;
     *) [[ -z "$REQUESTED_OUT_DIR" ]] || { echo "error: only one output directory is allowed" >&2; exit 2; }; REQUESTED_OUT_DIR="$1"; shift ;;
   esac
@@ -128,17 +140,138 @@ validate_output_dir() {
 reject_completed_output() {
   local candidate="$1"
   local existing_zip
-  [[ ! -e "${candidate}/direct-artifact.json" ]] || {
+  [[ ! -e "${candidate}/direct-artifact.json" && ! -L "${candidate}/direct-artifact.json" ]] || {
     echo "error: ${candidate} already contains direct-artifact.json; choose a fresh candidate output directory" >&2
     return 1
   }
-  [[ ! -e "${candidate}/notarization.json" ]] || {
+  [[ ! -e "${candidate}/notarization.json" && ! -L "${candidate}/notarization.json" ]] || {
     echo "error: ${candidate} already contains notarization.json; preserve its accepted artifact and finalize metadata manually" >&2
     return 1
   }
-  existing_zip="$(find "${candidate}" -maxdepth 1 -type f -name 'KeeForge-*-b*.zip' -print -quit 2>/dev/null || true)"
+  existing_zip="$(find "${candidate}" -maxdepth 1 \( -type f -o -type l \) -name 'KeeForge-*-b*.zip' -print -quit 2>/dev/null || true)"
   [[ -z "${existing_zip}" ]] || {
     echo "error: ${candidate} already contains a release ZIP; do not rearchive accepted bytes" >&2
+    return 1
+  }
+}
+
+reject_archive_output() {
+  local candidate="$1"
+  reject_completed_output "${candidate}" || return 1
+  [[ ! -e "${candidate}/export-ready.json" && ! -L "${candidate}/export-ready.json" ]] || {
+    echo "error: ${candidate} already contains export-ready.json; finalize the exact export or choose a fresh candidate output directory" >&2
+    return 1
+  }
+  [[ ! -e "${candidate}/.export-ready-pending.json" && ! -L "${candidate}/.export-ready-pending.json" ]] || {
+    echo "error: ${candidate} contains an export checkpoint pending project restoration; inspect it manually and do not rearchive" >&2
+    return 1
+  }
+}
+
+app_bundle_digest() {
+  local app_path="$1"
+  (
+    cd "${app_path}"
+    find . \( -type f -o -type l \) -print | LC_ALL=C sort | while IFS= read -r path; do
+      if [[ -L "${path}" ]]; then
+        printf 'link %s %s\n' "${path}" "$(readlink "${path}")"
+      else
+        printf 'file %s ' "${path}"
+        shasum -a 256 "${path}" | awk '{print $1}'
+      fi
+    done
+  ) | shasum -a 256 | awk '{print $1}'
+}
+
+write_export_checkpoint() {
+  local checkpoint="$1"
+  local app_digest temporary
+
+  [[ ! -e "${checkpoint}" && ! -L "${checkpoint}" ]] || {
+    echo "error: refusing to overwrite export checkpoint ${checkpoint}" >&2
+    return 1
+  }
+  [[ -d "${APP_PATH}" && ! -L "${APP_PATH}" ]] || {
+    echo "error: expected a regular exported app directory at ${APP_PATH}" >&2
+    return 1
+  }
+  app_digest="$(app_bundle_digest "${APP_PATH}")"
+  [[ "${app_digest}" =~ ^[0-9a-f]{64}$ ]] || {
+    echo "error: could not checksum exported app ${APP_PATH}" >&2
+    return 1
+  }
+  temporary="$(mktemp "${OUT_DIR}/.export-checkpoint.XXXXXX")"
+  jq -n \
+    --arg version "${RELEASE_VERSION}" \
+    --arg repoBuild "${RELEASE_BUILD}" \
+    --arg rcTag "${RC_TAG}" \
+    --arg commitSHA "$(git -C "${REPO_ROOT}" rev-parse HEAD)" \
+    --arg sourceTree "$(git -C "${REPO_ROOT}" rev-parse 'HEAD^{tree}')" \
+    --arg archivePath "${ARCHIVE_PATH}" \
+    --arg exportPath "${EXPORT_PATH}" \
+    --arg appPath "${APP_PATH}" \
+    --arg appDigest "${app_digest}" \
+    '{schemaVersion: 1, version: $version, repoBuild: ($repoBuild | tonumber), rcTag: $rcTag,
+      commitSHA: $commitSHA, sourceTree: $sourceTree, archivePath: $archivePath,
+      exportPath: $exportPath, appPath: $appPath, appDigest: $appDigest}' >"${temporary}"
+  if ! ln "${temporary}" "${checkpoint}"; then
+    rm -f -- "${temporary}"
+    echo "error: refusing to replace existing export checkpoint ${checkpoint}" >&2
+    return 1
+  fi
+  rm -f -- "${temporary}"
+}
+
+publish_export_checkpoint() {
+  local pending="$1" ready="$2"
+
+  [[ -f "${pending}" && ! -L "${pending}" ]] || {
+    echo "error: missing pending export checkpoint ${pending}" >&2
+    return 1
+  }
+  [[ ! -e "${ready}" && ! -L "${ready}" ]] || {
+    echo "error: refusing to replace existing export checkpoint ${ready}" >&2
+    return 1
+  }
+  if ! ln "${pending}" "${ready}"; then
+    echo "error: failed to publish export checkpoint ${ready}" >&2
+    return 1
+  fi
+  rm -f -- "${pending}"
+}
+
+validate_export_checkpoint() {
+  local checkpoint="$1"
+  local expected_sha expected_tree expected_digest
+  local schema version build tag commit tree archive checkpoint_export app digest
+
+  [[ -f "${checkpoint}" && ! -L "${checkpoint}" ]] || {
+    echo "error: missing export-ready checkpoint ${checkpoint}; run --archive-export first" >&2
+    return 1
+  }
+  schema="$(jq -er '.schemaVersion' "${checkpoint}")" || { echo "error: malformed export checkpoint ${checkpoint}" >&2; return 1; }
+  version="$(jq -er '.version' "${checkpoint}")" || return 1
+  build="$(jq -er '.repoBuild | tostring' "${checkpoint}")" || return 1
+  tag="$(jq -er '.rcTag' "${checkpoint}")" || return 1
+  commit="$(jq -er '.commitSHA' "${checkpoint}")" || return 1
+  tree="$(jq -er '.sourceTree' "${checkpoint}")" || return 1
+  archive="$(jq -er '.archivePath' "${checkpoint}")" || return 1
+  checkpoint_export="$(jq -er '.exportPath' "${checkpoint}")" || return 1
+  app="$(jq -er '.appPath' "${checkpoint}")" || return 1
+  digest="$(jq -er '.appDigest' "${checkpoint}")" || return 1
+  expected_sha="$(git -C "${REPO_ROOT}" rev-parse HEAD)"
+  expected_tree="$(git -C "${REPO_ROOT}" rev-parse 'HEAD^{tree}')"
+  [[ "${schema}" == 1 && "${version}" == "${RELEASE_VERSION}" && "${build}" == "${RELEASE_BUILD}" && "${tag}" == "${RC_TAG}" && "${commit}" == "${expected_sha}" && "${tree}" == "${expected_tree}" && "${archive}" == "${ARCHIVE_PATH}" && "${checkpoint_export}" == "${EXPORT_PATH}" && "${app}" == "${APP_PATH}" ]] || {
+    echo "error: export checkpoint identity or paths do not match the clean RC" >&2
+    return 1
+  }
+  [[ "${digest}" =~ ^[0-9a-f]{64}$ && -d "${APP_PATH}" && ! -L "${APP_PATH}" ]] || {
+    echo "error: export checkpoint has an invalid app identity" >&2
+    return 1
+  }
+  expected_digest="$(app_bundle_digest "${APP_PATH}")"
+  [[ "${expected_digest}" == "${digest}" ]] || {
+    echo "error: exported app bytes changed after archive/export; refusing to notarize a different artifact" >&2
     return 1
   }
 }
@@ -215,6 +348,7 @@ run_preflight() {
   local saved_repo_root saved_rc_tag
   local stub_bin control_log
   local synthetic_attrs synthetic_length
+  local checkpoint_output checkpoint_pending checkpoint_ready checkpoint_bad
 
   "${SCRIPT_DIR}/verify_sparkle_ed25519.swift" --self-test
   test_root="$(mktemp -d "${TMPDIR:-/tmp}/keeforge-direct-preflight.XXXXXX")"
@@ -255,9 +389,21 @@ run_preflight() {
     return 1
   fi
   rm "${test_repo}/build/completed-output/direct-artifact.json"
+  ln -s "${test_root}/missing-direct-artifact.json" "${test_repo}/build/completed-output/direct-artifact.json"
+  if reject_completed_output "${test_repo}/build/completed-output" >/dev/null 2>&1; then
+    echo "error: preflight accepted dangling direct artifact output" >&2
+    return 1
+  fi
+  rm "${test_repo}/build/completed-output/direct-artifact.json"
   : >"${test_repo}/build/completed-output/notarization.json"
   if reject_completed_output "${test_repo}/build/completed-output" >/dev/null 2>&1; then
     echo "error: preflight accepted interrupted notarization output" >&2
+    return 1
+  fi
+  rm "${test_repo}/build/completed-output/notarization.json"
+  ln -s "${test_root}/missing-notarization.json" "${test_repo}/build/completed-output/notarization.json"
+  if reject_completed_output "${test_repo}/build/completed-output" >/dev/null 2>&1; then
+    echo "error: preflight accepted dangling notarization output" >&2
     return 1
   fi
   rm "${test_repo}/build/completed-output/notarization.json"
@@ -266,6 +412,13 @@ run_preflight() {
     echo "error: preflight accepted an existing release ZIP" >&2
     return 1
   fi
+  rm "${test_repo}/build/completed-output/KeeForge-1.2.3-b9.zip"
+  ln -s "${test_root}/missing-release.zip" "${test_repo}/build/completed-output/KeeForge-1.2.3-b9.zip"
+  if reject_completed_output "${test_repo}/build/completed-output" >/dev/null 2>&1; then
+    echo "error: preflight accepted dangling release ZIP output" >&2
+    return 1
+  fi
+  rm "${test_repo}/build/completed-output/KeeForge-1.2.3-b9.zip"
   cat >"${test_repo}/project.yml" <<'YAML'
 targets:
   KeeForge:
@@ -296,6 +449,37 @@ YAML
   REPO_ROOT="${test_repo}"; RC_TAG=""
   resolve_candidate_identity
   [[ "${RC_TAG}" == "rc/1.2.3-b9" ]] || { echo "error: preflight did not derive the RC tag" >&2; return 1; }
+  checkpoint_output="${test_repo}/build/checkpoint-output"
+  OUT_DIR="${checkpoint_output}"
+  DERIVED_DATA="${OUT_DIR}/DerivedData"
+  ARCHIVE_PATH="${OUT_DIR}/KeeForge.xcarchive"
+  EXPORT_PATH="${OUT_DIR}/export"
+  APP_PATH="${EXPORT_PATH}/KeeForge.app"
+  checkpoint_pending="${OUT_DIR}/.export-ready-pending.json"
+  checkpoint_ready="${OUT_DIR}/export-ready.json"
+  mkdir -p "${APP_PATH}/Contents"
+  printf 'export bytes\n' >"${APP_PATH}/Contents/payload"
+  write_export_checkpoint "${checkpoint_pending}"
+  [[ ! -e "${checkpoint_ready}" ]] || { echo "error: preflight published checkpoint before restoration" >&2; return 1; }
+  publish_export_checkpoint "${checkpoint_pending}" "${checkpoint_ready}"
+  [[ -f "${checkpoint_ready}" && ! -e "${checkpoint_pending}" ]] || { echo "error: preflight failed to publish checkpoint" >&2; return 1; }
+  validate_export_checkpoint "${checkpoint_ready}"
+  if reject_archive_output "${OUT_DIR}" >/dev/null 2>&1; then
+    echo "error: preflight accepted archive output with an export checkpoint" >&2
+    return 1
+  fi
+  printf 'changed export bytes\n' >"${APP_PATH}/Contents/payload"
+  if validate_export_checkpoint "${checkpoint_ready}" >/dev/null 2>&1; then
+    echo "error: preflight accepted exported app bytes changed after checkpoint" >&2
+    return 1
+  fi
+  printf 'export bytes\n' >"${APP_PATH}/Contents/payload"
+  checkpoint_bad="${OUT_DIR}/bad-checkpoint.json"
+  jq '.sourceTree = "not-the-rc-tree"' "${checkpoint_ready}" >"${checkpoint_bad}"
+  if validate_export_checkpoint "${checkpoint_bad}" >/dev/null 2>&1; then
+    echo "error: preflight accepted a checkpoint from another source tree" >&2
+    return 1
+  fi
   : >"${test_repo}/after-tag"
   git -C "${test_repo}" add after-tag
   git -C "${test_repo}" commit -q -m after-tag
@@ -304,25 +488,35 @@ YAML
     return 1
   fi
   REPO_ROOT="${saved_repo_root}"; RC_TAG="${saved_rc_tag}"
-  # Exercise the normal entry path in a clean disposable repo. xcrun is a
-  # deliberate local stub: reaching its expected credential refusal proves the
-  # candidate output was resolved before the first external preflight.
+  # Exercise the archive entry path in a clean disposable repo. The local
+  # xcodegen stub fails before any archive, proving archive/export no longer
+  # reads the notary keychain profile.
   mkdir -p "${test_repo}/ci_scripts" "${test_repo}/Configs"
   git -C "${test_repo}" checkout -q rc/1.2.3-b9
   cp "${BASH_SOURCE[0]}" "${test_repo}/ci_scripts/build_mac_direct.sh"
   : >"${test_repo}/Configs/ExportOptions-DeveloperID.plist"
   stub_bin="${test_root}/stub-bin"; mkdir "${stub_bin}"
-  printf '%s\n' '#!/usr/bin/env bash' 'exit 1' >"${stub_bin}/xcrun"
-  chmod +x "${stub_bin}/xcrun"
+  printf '%s\n' '#!/usr/bin/env bash' 'exit 1' >"${stub_bin}/xcodegen"
+  chmod +x "${stub_bin}/xcodegen"
   control_log="${test_root}/normal-control-flow.log"
-  if PATH="${stub_bin}:${PATH}" "${test_repo}/ci_scripts/build_mac_direct.sh" >"${control_log}" 2>&1; then
+  if PATH="${stub_bin}:${PATH}" "${test_repo}/ci_scripts/build_mac_direct.sh" --archive-export >"${control_log}" 2>&1; then
     echo "error: preflight control-flow fixture unexpectedly reached a build" >&2
     return 1
   fi
-  grep -Fq "no notarytool credential profile" "${control_log}" \
-    || { echo "error: preflight control-flow fixture did not reach the stubbed notary preflight" >&2; return 1; }
+  grep -Fq "Generating project from the direct-download spec" "${control_log}" \
+    || { echo "error: preflight control-flow fixture did not reach archive/export setup" >&2; return 1; }
+  ! grep -Fq "notarytool credential profile" "${control_log}" \
+    || { echo "error: preflight archive/export fixture touched notary credentials" >&2; return 1; }
   ! grep -Eq 'unbound variable|OUT_DIR:.*unbound' "${control_log}" \
     || { echo "error: preflight control-flow fixture used OUT_DIR before assignment" >&2; return 1; }
+  if PATH="${stub_bin}:${PATH}" "${test_repo}/ci_scripts/build_mac_direct.sh" --finalize >"${control_log}" 2>&1; then
+    echo "error: preflight finalization fixture unexpectedly continued without a checkpoint" >&2
+    return 1
+  fi
+  grep -Fq "missing export-ready checkpoint" "${control_log}" \
+    || { echo "error: preflight finalization fixture did not require archive/export first" >&2; return 1; }
+  ! grep -Fq "Generating project from the direct-download spec" "${control_log}" \
+    || { echo "error: preflight finalization fixture regenerated the project" >&2; return 1; }
   synthetic_attrs='sparkle:edSignature="synthetic-signature" length="9791801"'
   synthetic_length="$(sed -n 's/.*[[:space:]]\(sparkle:\)\{0,1\}length="\([^"]*\)".*/\2/p' <<<"${synthetic_attrs}")"
   [[ "${synthetic_length}" == 9791801 ]] \
@@ -366,7 +560,7 @@ YAML
     || { echo "error: preflight failed to restore prior Package.resolved absence" >&2; return 1; }
 
   rm -rf -- "${test_root}"
-  echo "preflight: output-path, interrupted-output, RC identity, clean-worktree, and Package.resolved restore checks passed"
+  echo "preflight: output-path, interrupted-output, checkpoint, RC identity, clean-worktree, and Package.resolved restore checks passed"
 }
 
 if (( PREFLIGHT )); then
@@ -375,9 +569,14 @@ if (( PREFLIGHT )); then
 fi
 
 if ! command -v jq >/dev/null 2>&1; then
-  echo "error: jq is required before starting the archive/notarization flow" >&2
+  echo "error: jq is required before starting a direct-build phase" >&2
   exit 1
 fi
+
+[[ -n "${PHASE}" ]] || {
+  echo "error: choose --archive-export or --finalize; do not hold the Xcode lock through notarization or signing" >&2
+  exit 2
+}
 
 cd "${REPO_ROOT}"
 
@@ -414,83 +613,99 @@ if [[ ! -f "${EXPORT_OPTIONS}" ]]; then
   exit 1
 fi
 
-if ! xcrun notarytool history --keychain-profile "${NOTARY_PROFILE}" >/dev/null 2>&1; then
-  echo "error: no notarytool credential profile named '${NOTARY_PROFILE}'." >&2
-  echo "Create one with: xcrun notarytool store-credentials ${NOTARY_PROFILE} \\" >&2
-  echo "  --apple-id <apple-id> --team-id <team-id> --password <app-specific-password>" >&2
-  exit 1
-fi
-
-# Save the exact Package.resolved bytes before either spec can cause SwiftPM to
-# rewrite them. This state directory is validated before it is ever removed.
-RESOLVED_FILE="KeeForge.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved"
-RESOLVED_PATH="${REPO_ROOT}/${RESOLVED_FILE}"
-PROJECT_STATE_DIR="$(mktemp -d "${TMPDIR:-/tmp}/keeforge-direct-project.XXXXXX")"
-PROJECT_STATE_DIR="$(cd -P -- "${PROJECT_STATE_DIR}" && pwd -P)"
-validate_temp_dir "${PROJECT_STATE_DIR}"
-save_resolved_state "${RESOLVED_PATH}" "${PROJECT_STATE_DIR}"
-
-restore_appstore_project() {
-  local original_status="$?"
-  local restore_status=0
-
-  trap - EXIT
-  echo "==> Restoring the App Store project spec"
-  if ! (cd "${REPO_ROOT}" && xcodegen generate >/dev/null); then
-    echo "error: failed to restore the App Store project spec" >&2
-    restore_status=1
-  fi
-  if ! restore_resolved_state "${RESOLVED_PATH}" "${PROJECT_STATE_DIR}"; then
-    echo "error: failed to restore the pre-run Package.resolved state" >&2
-    restore_status=1
-  fi
-  if ! require_clean_source_worktree "${REPO_ROOT}"; then
-    echo "error: App Store project restoration left the source worktree dirty" >&2
-    restore_status=1
-  fi
-  if ! rm -rf -- "${PROJECT_STATE_DIR}"; then
-    echo "error: failed to remove validated temporary state directory ${PROJECT_STATE_DIR}" >&2
-    restore_status=1
-  fi
-  if (( restore_status != 0 )); then
-    echo "error: direct-build cleanup did not fully restore the App Store project" >&2
-    if (( original_status == 0 )); then
-      original_status=1
-    fi
-  fi
-  exit "${original_status}"
-}
-trap restore_appstore_project EXIT
-
-mkdir -p -- "${OUT_DIR}"
-
-# The overlay spec is what makes this the direct-download channel: it adds
-# Sparkle and defines KEEFORGE_DIRECT_DOWNLOAD. Plain `xcodegen generate` yields
-# the App Store build, so regenerate afterwards before doing anything else.
-echo "==> Generating project from the direct-download spec"
-xcodegen generate --spec project-direct.yml
-
-echo "==> Archiving ${SCHEME}"
-xcodebuild archive \
-  -project KeeForge.xcodeproj \
-  -scheme "${SCHEME}" \
-  -destination 'generic/platform=macOS' \
-  -archivePath "${ARCHIVE_PATH}" \
-  -derivedDataPath "${DERIVED_DATA}" \
-  -allowProvisioningUpdates
-
-echo "==> Exporting with Developer ID"
-xcodebuild -exportArchive \
-  -archivePath "${ARCHIVE_PATH}" \
-  -exportPath "${EXPORT_PATH}" \
-  -exportOptionsPlist "${EXPORT_OPTIONS}" \
-  -allowProvisioningUpdates
-
 APP_PATH="${EXPORT_PATH}/KeeForge.app"
-if [[ ! -d "${APP_PATH}" ]]; then
-  echo "error: expected ${APP_PATH} after export" >&2
-  exit 1
+CHECKPOINT_PENDING="${OUT_DIR}/.export-ready-pending.json"
+CHECKPOINT_READY="${OUT_DIR}/export-ready.json"
+
+if [[ "${PHASE}" == "archive-export" ]]; then
+  reject_archive_output "${OUT_DIR}"
+
+  # Save the exact Package.resolved bytes before either spec can cause SwiftPM to
+  # rewrite them. This state directory is validated before it is ever removed.
+  RESOLVED_FILE="KeeForge.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved"
+  RESOLVED_PATH="${REPO_ROOT}/${RESOLVED_FILE}"
+  PROJECT_STATE_DIR="$(mktemp -d "${TMPDIR:-/tmp}/keeforge-direct-project.XXXXXX")"
+  PROJECT_STATE_DIR="$(cd -P -- "${PROJECT_STATE_DIR}" && pwd -P)"
+  validate_temp_dir "${PROJECT_STATE_DIR}"
+  save_resolved_state "${RESOLVED_PATH}" "${PROJECT_STATE_DIR}"
+
+  # shellcheck disable=SC2329  # invoked by the EXIT trap below
+  restore_appstore_project() {
+    local original_status="$?"
+    local restore_status=0
+
+    trap - EXIT
+    echo "==> Restoring the App Store project spec"
+    if ! (cd "${REPO_ROOT}" && xcodegen generate >/dev/null); then
+      echo "error: failed to restore the App Store project spec" >&2
+      restore_status=1
+    fi
+    if ! restore_resolved_state "${RESOLVED_PATH}" "${PROJECT_STATE_DIR}"; then
+      echo "error: failed to restore the pre-run Package.resolved state" >&2
+      restore_status=1
+    fi
+    if ! require_clean_source_worktree "${REPO_ROOT}"; then
+      echo "error: App Store project restoration left the source worktree dirty" >&2
+      restore_status=1
+    fi
+    if ! rm -rf -- "${PROJECT_STATE_DIR}"; then
+      echo "error: failed to remove validated temporary state directory ${PROJECT_STATE_DIR}" >&2
+      restore_status=1
+    fi
+    if (( restore_status == 0 )) && [[ -e "${CHECKPOINT_PENDING}" || -L "${CHECKPOINT_PENDING}" ]]; then
+      if ! publish_export_checkpoint "${CHECKPOINT_PENDING}" "${CHECKPOINT_READY}"; then
+        restore_status=1
+      fi
+    fi
+    if (( restore_status != 0 )); then
+      echo "error: direct-build cleanup did not fully restore the App Store project; export checkpoint is not ready" >&2
+      if (( original_status == 0 )); then
+        original_status=1
+      fi
+    fi
+    exit "${original_status}"
+  }
+  trap restore_appstore_project EXIT
+
+  mkdir -p -- "${OUT_DIR}"
+
+  # The overlay spec is what makes this the direct-download channel: it adds
+  # Sparkle and defines KEEFORGE_DIRECT_DOWNLOAD. Plain `xcodegen generate` yields
+  # the App Store build, so regenerate afterwards before doing anything else.
+  echo "==> Generating project from the direct-download spec"
+  xcodegen generate --spec project-direct.yml
+
+  echo "==> Archiving ${SCHEME}"
+  xcodebuild archive \
+    -project KeeForge.xcodeproj \
+    -scheme "${SCHEME}" \
+    -destination 'generic/platform=macOS' \
+    -archivePath "${ARCHIVE_PATH}" \
+    -derivedDataPath "${DERIVED_DATA}" \
+    -allowProvisioningUpdates
+
+  echo "==> Exporting with Developer ID"
+  xcodebuild -exportArchive \
+    -archivePath "${ARCHIVE_PATH}" \
+    -exportPath "${EXPORT_PATH}" \
+    -exportOptionsPlist "${EXPORT_OPTIONS}" \
+    -allowProvisioningUpdates
+
+  if [[ ! -d "${APP_PATH}" ]]; then
+    echo "error: expected ${APP_PATH} after export" >&2
+    exit 1
+  fi
+  write_export_checkpoint "${CHECKPOINT_PENDING}"
+  echo "==> Export checkpoint pending App Store project restoration"
+  exit 0
 fi
+
+reject_completed_output "${OUT_DIR}"
+[[ ! -e "${CHECKPOINT_PENDING}" && ! -L "${CHECKPOINT_PENDING}" ]] || {
+  echo "error: export checkpoint is still pending project restoration; refusing to finalize" >&2
+  exit 1
+}
+validate_export_checkpoint "${CHECKPOINT_READY}"
 
 # The hardening posture is a release invariant, not a preference: no
 # get-task-allow, and no com.apple.security.cs.* exceptions. Sparkle 2 needs
@@ -565,6 +780,12 @@ fi
 echo "    appcast ${BUILT_FEED_URL}, update key present"
 
 ZIP_PATH="${OUT_DIR}/.notarization-payload.zip"
+if ! xcrun notarytool history --keychain-profile "${NOTARY_PROFILE}" >/dev/null 2>&1; then
+  echo "error: no notarytool credential profile named '${NOTARY_PROFILE}'." >&2
+  echo "Create one with: xcrun notarytool store-credentials ${NOTARY_PROFILE} \\" >&2
+  echo "  --apple-id <apple-id> --team-id <team-id> --password <app-specific-password>" >&2
+  exit 1
+fi
 echo "==> Zipping for notarization"
 # --sequesterRsrc keeps extended attributes in a __MACOSX sidecar instead of
 # inline AppleDouble entries. See the re-zip below for why that matters.

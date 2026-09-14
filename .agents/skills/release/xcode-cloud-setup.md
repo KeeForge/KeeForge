@@ -182,8 +182,9 @@ alphanumerics only, because it is interpolated into the `db-$(DROPBOX_APP_KEY)`
 - `ci_scripts/build_mac_direct.sh` is intentionally outside Xcode Cloud. Obtain/export the exact
   MAS `.app` from the accepted Xcode Cloud archive without rebuilding, then run
   `ci_scripts/verify_mac_artifact.sh --channel mas --app <exact-mas-app> --architectures arm64,x86_64`.
-  Run the direct build from the same clean RC SHA, verify its direct `CFBundleVersion` equals the
-  repo build, and run the corresponding `--channel direct` verifier on its exact exported `.app`.
+  Run `--archive-export` under the global Xcode lock and `--finalize` afterward from the same clean
+  RC SHA, verify its direct `CFBundleVersion` equals the repo build, and run the corresponding
+  `--channel direct` verifier on its exact exported `.app`.
   Both verifiers must pass with universal `arm64,x86_64` unless an explicit product decision
   records a different architecture set. Only then stage (do not publish) its
   `KeeForge-{version}-b{repoBuild}.zip`, `direct-artifact.json`, and appcast through
