@@ -192,7 +192,8 @@ ci_scripts/verify_mac_artifact.sh --channel direct --app <exact-direct-app> \
 ```
 
 Both must report `result=pass`. The MAS invocation must report `sparkle_present=false`, empty
-feed/key presence; the direct invocation must report Sparkle, an HTTPS feed, and a present public
-key while reporting no StoreKit. The direct invocation must also report
+feed/key presence, `storekit_bundle_present=false`, and `storekit_linked=true` because it uses the
+system framework. The direct invocation must report Sparkle, an HTTPS feed, a present public key,
+`storekit_bundle_present=false`, and `storekit_linked=false`. The direct invocation must also report
 `installer_launcher_service=true`; the MAS invocation must report it false. The architecture argument is intentional: use universal
 `arm64,x86_64` unless an explicit product decision records a different set before continuing.

@@ -182,11 +182,22 @@ SPARKLE_UPDATER_PATHS="$(find "${APP_PATH}/Contents" -type d \( \
   -iname 'Downloader.xpc' -o \
   -iname '*sparkle*.xpc' \
   \) -print 2>/dev/null || true)"
-STOREKIT_PATHS="$(find "${APP_PATH}/Contents" -iname '*storekit*' -print 2>/dev/null || true)"
+STOREKIT_BUNDLE_PATHS="$(find "${APP_PATH}/Contents" -iname '*storekit*' -print 2>/dev/null || true)"
 SPARKLE_COMPONENTS="${SPARKLE_FRAMEWORK_PATHS}${SPARKLE_UPDATER_PATHS}"
 FEED_URL="$(plist_value SUFeedURL)"
 PUBLIC_KEY="$(plist_value SUPublicEDKey)"
 INSTALLER_LAUNCHER_SERVICE="$(plist_value SUEnableInstallerLauncherService)"
+
+# Keep the embedded-bundle check distinct from dynamic linkage: App Store
+# artifacts link the system StoreKit framework without embedding it.
+STOREKIT_LINKED=false
+for binary in "${MACHO_BINARIES[@]}"; do
+  binary_dependencies="$(otool -L "$binary" 2>/dev/null || true)"
+  if grep -Eiq 'StoreKit' <<<"$binary_dependencies"; then
+    STOREKIT_LINKED=true
+    break
+  fi
+done
 
 # The sandbox exceptions Sparkle's installer needs. They are checked here
 # because nothing earlier in an update fails without them: the feed fetch,
@@ -229,7 +240,7 @@ case "$CHANNEL" in
       || die "direct executable does not link Sparkle"
     [[ "$FEED_URL" == https://* ]] || die "direct artifact feed URL is not HTTPS"
     [[ -n "$PUBLIC_KEY" ]] || die "direct artifact public update key is missing"
-    [[ -z "$STOREKIT_PATHS" ]] || die "direct artifact contains a StoreKit bundle"
+    [[ -z "$STOREKIT_BUNDLE_PATHS" ]] || die "direct artifact contains a StoreKit bundle"
     [[ "$INSTALLER_LAUNCHER_SERVICE" == "YES" ]] \
       || die "direct artifact does not enable the Sparkle installer launcher service"
     for required_name in "${BUNDLE_IDENTIFIER}-spks" "${BUNDLE_IDENTIFIER}-spki"; do
@@ -242,11 +253,7 @@ case "$CHANNEL" in
       || die "direct artifact does not embed Sparkle's Installer XPC service"
     [[ ! -e "${APP_PATH}/Contents/XPCServices" ]] \
       || die "direct artifact bundles XPC services outside Sparkle.framework"
-    for binary in "${MACHO_BINARIES[@]}"; do
-      binary_dependencies="$(otool -L "$binary" 2>/dev/null || true)"
-      ! grep -Eiq 'StoreKit' <<<"$binary_dependencies" \
-        || die "direct artifact links StoreKit"
-    done
+    [[ "$STOREKIT_LINKED" == false ]] || die "direct artifact links StoreKit"
     ;;
 esac
 
@@ -259,7 +266,8 @@ echo "owned_executables_checked=${#OWNED_EXECUTABLES[@]}"
 echo "sandbox=true"
 echo "hardened_runtime=true"
 echo "sparkle_present=$([[ -n "$SPARKLE_COMPONENTS" ]] && echo true || echo false)"
-echo "storekit_present=$([[ -n "$STOREKIT_PATHS" ]] && echo true || echo false)"
+echo "storekit_bundle_present=$([[ -n "$STOREKIT_BUNDLE_PATHS" ]] && echo true || echo false)"
+echo "storekit_linked=${STOREKIT_LINKED}"
 echo "feed_url_present=$([[ -n "$FEED_URL" ]] && echo true || echo false)"
 echo "public_update_key_present=$([[ -n "$PUBLIC_KEY" ]] && echo true || echo false)"
 echo "installer_launcher_service=$([[ "$INSTALLER_LAUNCHER_SERVICE" == "YES" ]] && echo true || echo false)"
