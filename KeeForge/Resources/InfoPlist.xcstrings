@@ -29,6 +29,12 @@
             "value" : "KeeForge"
           }
         },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -61,6 +67,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Base de données KeePass (kdbx)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeePass データベース (kdbx)"
           }
         },
         "zh-Hans" : {
@@ -104,6 +116,12 @@
             "value" : "KeeForge utilise la caméra pour scanner les codes QR de codes de vérification."
           }
         },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge は、確認コードの QR コードをスキャンするためにカメラを使用します。"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -145,6 +163,12 @@
             "value" : "KeeForge utilise Face ID pour déverrouiller rapidement votre base de données de mots de passe."
           }
         },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge は、パスワードデータベースをすばやくロック解除するために Face ID を使用します。"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -184,6 +208,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "KeeForge utilise votre réseau local pour se connecter aux serveurs WebDAV que vous ajoutez."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge は、追加された WebDAV サーバに接続するためにローカルネットワークを使用します。"
           }
         },
         "zh-Hans" : {
