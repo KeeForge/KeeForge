@@ -73,7 +73,7 @@
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "「%1$@」には %2$@ が含まれています。グループとその内容はごみ箱に移動されます。"
+            "value" : "「%1$@」には%2$@が含まれています。グループとその内容はごみ箱に移動されます。"
           }
         },
         "zh-Hans" : {
@@ -119,7 +119,7 @@
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "「%1$@」には %2$@ が含まれています。グループとその内容はすぐに削除され、KeeForge から復元することはできません。"
+            "value" : "「%1$@」には%2$@が含まれています。グループとその内容はすぐに削除され、KeeForge から復元することはできません。"
           }
         },
         "zh-Hans" : {
@@ -470,6 +470,52 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%1$@（約 %2$lld 位元）"
+          }
+        }
+      }
+    },
+    "%@ and %@" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ und %2$@"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ and %2$@"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ y %2$@"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ et %2$@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@と%2$@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@和 %2$@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@和 %2$@"
           }
         }
       }
@@ -2225,7 +2271,7 @@
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "タグ %@ を追加"
+            "value" : "タグ%@を追加"
           }
         },
         "zh-Hans" : {
@@ -2425,7 +2471,7 @@
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "「作成」をクリックしたら、暗号化された .kdbx データベースを保存する %@ のフォルダを選択してください。"
+            "value" : "「作成」をクリックしたら、暗号化された .kdbx データベースを保存する%@のフォルダを選択してください。"
           }
         },
         "zh-Hans" : {
@@ -2505,7 +2551,7 @@
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "「作成」をタップしたら、暗号化された .kdbx データベースを保存する %@ のフォルダを選択してください。"
+            "value" : "「作成」をタップしたら、暗号化された .kdbx データベースを保存する%@のフォルダを選択してください。"
           }
         },
         "zh-Hans" : {
@@ -7027,7 +7073,7 @@
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@ に接続"
+            "value" : "%@に接続"
           }
         },
         "zh-Hans" : {
@@ -8393,7 +8439,7 @@
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@ を開けませんでした"
+            "value" : "%@を開けませんでした"
           }
         },
         "zh-Hans" : {
@@ -10913,7 +10959,7 @@
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@ の接続を解除しますか？キャッシュされたクラウドのデータベースは、削除するまで保持されます。"
+            "value" : "%@の接続を解除しますか？キャッシュされたクラウドのデータベースは、削除するまで保持されます。"
           }
         },
         "zh-Hans" : {
@@ -14490,6 +14536,46 @@
         }
       }
     },
+    "Healthy" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "In Ordnung"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sin problemas"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aucun problème"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正常"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正常"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正常"
+          }
+        }
+      }
+    },
     "Hidden from Search & AutoFill" : {
       "localizations" : {
         "de" : {
@@ -17554,7 +17640,7 @@
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "最後に開いたのは %@"
+            "value" : "最後に開いたのは%@"
           }
         },
         "zh-Hans" : {
@@ -21315,7 +21401,7 @@
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@ を開いています"
+            "value" : "%@を開いています"
           }
         },
         "zh-Hans" : {
@@ -22875,7 +22961,7 @@
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@ に再接続"
+            "value" : "%@に再接続"
           }
         },
         "zh-Hans" : {
@@ -22915,7 +23001,7 @@
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "変更を保存するには、%@ に再接続してください。"
+            "value" : "変更を保存するには、%@に再接続してください。"
           }
         },
         "zh-Hans" : {
@@ -23395,7 +23481,7 @@
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "タグ %@ を削除"
+            "value" : "タグ%@を削除"
           }
         },
         "zh-Hans" : {
@@ -26317,7 +26403,7 @@
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "サインインすると、%@ のデータベースを参照できます。"
+            "value" : "サインインすると、%@のデータベースを参照できます。"
           }
         },
         "zh-Hans" : {
@@ -26357,7 +26443,7 @@
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "サインインすると、%@ のフォルダを参照できます。"
+            "value" : "サインインすると、%@のフォルダを参照できます。"
           }
         },
         "zh-Hans" : {
@@ -27117,7 +27203,7 @@
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@ と同期しています..."
+            "value" : "%@と同期しています..."
           }
         },
         "zh-Hans" : {
@@ -33245,7 +33331,7 @@
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@ にカスタム名を使用します。"
+            "value" : "%@にカスタム名を使用します。"
           }
         },
         "zh-Hans" : {
