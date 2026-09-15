@@ -17,6 +17,7 @@ enum SettingsService {
         static let macLockPolicy = "KeeForge.macLockPolicy"
         static let blockScreenCapture = "KeeForge.blockScreenCapture"
         static let passwordGeneratorOptions = "KeeForge.passwordGeneratorOptions"
+        static let openQuickLaunchFromCache = "KeeForge.openQuickLaunchFromCache"
     }
 
     static let appearanceModeDefaultsKey = Key.appearanceMode
@@ -273,6 +274,25 @@ enum SettingsService {
         set {
             guard let data = try? JSONEncoder().encode(newValue) else { return }
             sharedDefaults.set(data, forKey: Key.passwordGeneratorOptions)
+        }
+    }
+
+    // MARK: - Quick Launch Cached Open
+    //
+    // App-local, not the App Group: only the main app opens databases through
+    // `CloudSyncCoordinator`. The extensions always read the shared cache
+    // directly and never sync, so this setting means nothing to them.
+    //
+    // Opt-in, because it trades freshness for speed: the Quick Launch database
+    // opens from the copy already on disk, which may be behind the remote until
+    // the background sync lands.
+
+    static var openQuickLaunchFromCache: Bool {
+        get {
+            UserDefaults.standard.bool(forKey: Key.openQuickLaunchFromCache)
+        }
+        set {
+            UserDefaults.standard.set(newValue, forKey: Key.openQuickLaunchFromCache)
         }
     }
 

@@ -2309,6 +2309,261 @@ final class DatabaseViewModelTests: XCTestCase {
         XCTAssertFalse(diagnostics.details.contains("cipher=unknown"))
     }
 
+    // MARK: - Cached-first Quick Launch open (#116)
+
+    func testCachedFirstOpenUnlocksWithoutWaitingForTheCloudSync() async throws {
+        let reference = makeCloudReference(remoteRev: "rev-A", isQuickLaunch: true)
+        let cachedData = try Data(contentsOf: fixtureURL())
+        let syncCounter = CallCounter()
+        let backgroundSyncStarted = expectation(description: "Background sync started")
+
+        let vm = DatabaseViewModel(
+            databaseReference: reference,
+            cloudSyncOperation: { _, _ in
+                XCTFail("A cached-first open must not run the blocking open-time sync.")
+                throw CloudProviderError.networkUnavailable
+            },
+            cachedFirstOpenOperation: { reference in
+                CloudSyncResolution(
+                    reference: reference,
+                    localURL: DatabaseListStore.cacheLocation(for: reference),
+                    data: cachedData,
+                    status: .cachedPendingSync
+                )
+            },
+            cloudCacheSyncOperation: { reference in
+                await syncCounter.increment(signalling: backgroundSyncStarted)
+                return CloudCacheSyncOutcome(
+                    resolution: CloudSyncResolution(
+                        reference: reference,
+                        localURL: DatabaseListStore.cacheLocation(for: reference),
+                        data: cachedData,
+                        status: .current
+                    ),
+                    mergedReference: nil
+                )
+            }
+        )
+
+        await vm.unlock(password: fixturePassword)
+
+        XCTAssertState(vm.state, is: .unlocked)
+        XCTAssertNil(vm.cloudSyncBannerText, "A cached-first open is the normal path, not a degraded one.")
+
+        await fulfillment(of: [backgroundSyncStarted], timeout: 5)
+        let syncCallCount = await syncCounter.value()
+        XCTAssertEqual(syncCallCount, 1, "The open must still sync — just behind the unlock, not in front of it.")
+    }
+
+    func testOpenFallsBackToTheBlockingSyncWhenNoCachedCopyIsEligible() async throws {
+        let reference = makeCloudReference(remoteRev: "rev-A")
+        let data = try Data(contentsOf: fixtureURL())
+        let syncCounter = CallCounter()
+
+        let vm = DatabaseViewModel(
+            databaseReference: reference,
+            cloudSyncOperation: { reference, _ in
+                await syncCounter.increment()
+                return CloudSyncResolution(
+                    reference: reference,
+                    localURL: DatabaseListStore.cacheLocation(for: reference),
+                    data: data,
+                    status: .downloaded
+                )
+            },
+            cachedFirstOpenOperation: { _ in nil },
+            cloudCacheSyncOperation: { _ in
+                XCTFail("Nothing should sync in the background when the open synced itself.")
+                throw CloudProviderError.networkUnavailable
+            }
+        )
+
+        await vm.unlock(password: fixturePassword)
+
+        XCTAssertState(vm.state, is: .unlocked)
+        let syncCallCount = await syncCounter.value()
+        XCTAssertEqual(syncCallCount, 1)
+    }
+
+    func testBackgroundSyncDownloadWarnsWithoutTouchingTheOpenDatabase() async throws {
+        let reference = makeCloudReference(remoteRev: "rev-A", isQuickLaunch: true)
+        let cachedData = try Data(contentsOf: fixtureURL())
+        let bannerShown = expectation(description: "Banner updated after the background download")
+
+        let vm = DatabaseViewModel(
+            databaseReference: reference,
+            cachedFirstOpenOperation: { reference in
+                CloudSyncResolution(
+                    reference: reference,
+                    localURL: DatabaseListStore.cacheLocation(for: reference),
+                    data: cachedData,
+                    status: .cachedPendingSync
+                )
+            },
+            cloudCacheSyncOperation: { reference in
+                CloudCacheSyncOutcome(
+                    resolution: CloudSyncResolution(
+                        reference: reference,
+                        localURL: DatabaseListStore.cacheLocation(for: reference),
+                        data: Data("bytes-from-another-device".utf8),
+                        status: .downloaded
+                    ),
+                    mergedReference: nil
+                )
+            }
+        )
+
+        await vm.unlock(password: fixturePassword)
+
+        let openedRootGroupID = try XCTUnwrap(vm.rootGroup?.id)
+        let openedSHA512 = try XCTUnwrap(vm.openTimeSHA512)
+        let openedEntryCount = vm.rootGroup?.allEntries.count
+
+        await Self.poll(until: bannerShown) { vm.cloudSyncBannerText != nil }
+        await fulfillment(of: [bannerShown], timeout: 5)
+
+        XCTAssertEqual(vm.cloudSyncBannerText, DatabaseViewModel.newerVersionDownloadedBannerMessage)
+        XCTAssertState(vm.state, is: .unlocked)
+        XCTAssertEqual(vm.rootGroup?.id, openedRootGroupID, "The displayed database must never be swapped out.")
+        XCTAssertEqual(vm.rootGroup?.allEntries.count, openedEntryCount)
+        XCTAssertEqual(vm.openTimeSHA512, openedSHA512, "The save baseline stays the bytes this session opened.")
+        XCTAssertEqual(vm.openTimeSHA512, KDBXCrypto.sha512(cachedData))
+    }
+
+    func testBackgroundSyncKeepsTheSessionUsableWhenItFails() async throws {
+        let reference = makeCloudReference(remoteRev: "rev-A", isQuickLaunch: true)
+        let cachedData = try Data(contentsOf: fixtureURL())
+        let syncAttempted = expectation(description: "Background sync attempted")
+
+        let vm = DatabaseViewModel(
+            databaseReference: reference,
+            cachedFirstOpenOperation: { reference in
+                CloudSyncResolution(
+                    reference: reference,
+                    localURL: DatabaseListStore.cacheLocation(for: reference),
+                    data: cachedData,
+                    status: .cachedPendingSync
+                )
+            },
+            cloudCacheSyncOperation: { _ in
+                syncAttempted.fulfill()
+                throw CloudProviderError.networkUnavailable
+            }
+        )
+
+        await vm.unlock(password: fixturePassword)
+        await fulfillment(of: [syncAttempted], timeout: 5)
+
+        XCTAssertState(vm.state, is: .unlocked)
+        XCTAssertNotNil(vm.rootGroup)
+        XCTAssertNil(vm.saveError)
+    }
+
+    func testRepeatedCachedFirstOpensCoalesceOntoOneBackgroundSync() async throws {
+        let reference = makeCloudReference(remoteRev: "rev-A", isQuickLaunch: true)
+        let cachedData = try Data(contentsOf: fixtureURL())
+        let syncCounter = CallCounter()
+        let firstSyncStarted = expectation(description: "First background sync started")
+        let release = AsyncGate()
+
+        let vm = DatabaseViewModel(
+            databaseReference: reference,
+            cachedFirstOpenOperation: { reference in
+                CloudSyncResolution(
+                    reference: reference,
+                    localURL: DatabaseListStore.cacheLocation(for: reference),
+                    data: cachedData,
+                    status: .cachedPendingSync
+                )
+            },
+            cloudCacheSyncOperation: { reference in
+                await syncCounter.increment(signalling: firstSyncStarted)
+                await release.pause()
+                return CloudCacheSyncOutcome(
+                    resolution: CloudSyncResolution(
+                        reference: reference,
+                        localURL: DatabaseListStore.cacheLocation(for: reference),
+                        data: cachedData,
+                        status: .current
+                    ),
+                    mergedReference: nil
+                )
+            }
+        )
+
+        await vm.unlock(password: fixturePassword)
+        await fulfillment(of: [firstSyncStarted], timeout: 5)
+
+        // A second open while the first pass is still in flight.
+        await vm.unlock(password: fixturePassword)
+
+        let syncCallCount = await syncCounter.value()
+        XCTAssertEqual(syncCallCount, 1, "An overlapping open must coalesce onto the in-flight sync.")
+
+        await release.resume()
+    }
+
+    func testLockCancelsTheBackgroundSyncAndDropsItsResult() async throws {
+        let reference = makeCloudReference(remoteRev: "rev-A", isQuickLaunch: true)
+        let cachedData = try Data(contentsOf: fixtureURL())
+        let syncStarted = expectation(description: "Background sync started")
+        let release = AsyncGate()
+
+        let vm = DatabaseViewModel(
+            databaseReference: reference,
+            cachedFirstOpenOperation: { reference in
+                CloudSyncResolution(
+                    reference: reference,
+                    localURL: DatabaseListStore.cacheLocation(for: reference),
+                    data: cachedData,
+                    status: .cachedPendingSync
+                )
+            },
+            cloudCacheSyncOperation: { reference in
+                await release.pause(started: syncStarted)
+                return CloudCacheSyncOutcome(
+                    resolution: CloudSyncResolution(
+                        reference: reference,
+                        localURL: DatabaseListStore.cacheLocation(for: reference),
+                        data: cachedData,
+                        status: .downloaded
+                    ),
+                    mergedReference: nil
+                )
+            }
+        )
+
+        await vm.unlock(password: fixturePassword)
+        await fulfillment(of: [syncStarted], timeout: 5)
+        await release.waitUntilPaused()
+
+        vm.lock()
+        await release.resume()
+
+        // Give the now-cancelled pass every chance to write something it must not.
+        try await Task.sleep(nanoseconds: 200_000_000)
+
+        XCTAssertState(vm.state, is: .locked)
+        XCTAssertNil(vm.cloudSyncBannerText, "A completion arriving after a lock must not raise a banner.")
+        XCTAssertNil(vm.rootGroup)
+    }
+
+    /// Fulfills `expectation` once `condition` holds, polling on the main actor.
+    private static func poll(
+        until expectation: XCTestExpectation,
+        timeout: TimeInterval = 5,
+        condition: @escaping @MainActor () -> Bool
+    ) async {
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            if await MainActor.run(body: condition) {
+                expectation.fulfill()
+                return
+            }
+            try? await Task.sleep(nanoseconds: 10_000_000)
+        }
+    }
+
     func testCloudUnlockShowsProviderSpecificSyncMessageBeforeDecryption() async throws {
         let reference = makeCloudReference()
         let data = try Data(contentsOf: fixtureURL())
@@ -4993,7 +5248,7 @@ final class DatabaseViewModelTests: XCTestCase {
         )
     }
 
-    private func makeCloudReference(remoteRev: String? = nil) -> DatabaseReference {
+    private func makeCloudReference(remoteRev: String? = nil, isQuickLaunch: Bool = false) -> DatabaseReference {
         DatabaseReference(
             id: UUID(),
             nickname: nil,
@@ -5001,7 +5256,7 @@ final class DatabaseViewModelTests: XCTestCase {
             bookmarkData: nil,
             keyFileBookmarkData: nil,
             keyFileFilename: nil,
-            isQuickLaunch: false,
+            isQuickLaunch: isQuickLaunch,
             lastOpenedAt: nil,
             addedAt: Date(timeIntervalSince1970: 50),
             colorTag: nil,
@@ -5228,13 +5483,29 @@ final class DatabaseViewModelTests: XCTestCase {
     }
 }
 
+/// Counts calls made from a `@Sendable` test double.
+private actor CallCounter {
+    private var count = 0
+
+    func increment(signalling expectation: XCTestExpectation? = nil) {
+        count += 1
+        expectation?.fulfill()
+    }
+
+    func value() -> Int { count }
+}
+
 private actor AsyncGate {
     private var continuation: CheckedContinuation<Void, Never>?
     private var isPaused = false
 
     func pause(started: XCTestExpectation) async {
-        isPaused = true
         started.fulfill()
+        await pause()
+    }
+
+    func pause() async {
+        isPaused = true
         await withCheckedContinuation { continuation in
             self.continuation = continuation
         }

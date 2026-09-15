@@ -101,6 +101,8 @@ struct DatabaseOpenDiagnostics: Equatable, Sendable {
             return "disconnected_cached"
         case .cachedWithError:
             return "cached_with_error"
+        case .cachedPendingSync:
+            return "cached_pending_sync"
         }
     }
 

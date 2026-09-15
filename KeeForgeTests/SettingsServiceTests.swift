@@ -17,6 +17,7 @@ final class SettingsServiceTests: XCTestCase {
     private let macLockPolicyKey = "KeeForge.macLockPolicy"
     private let blockScreenCaptureKey = "KeeForge.blockScreenCapture"
     private let passwordGeneratorOptionsKey = "KeeForge.passwordGeneratorOptions"
+    private let openQuickLaunchFromCacheKey = "KeeForge.openQuickLaunchFromCache"
 
     private var sharedDefaults: UserDefaults {
         AppGroupContainer.defaults
@@ -43,12 +44,40 @@ final class SettingsServiceTests: XCTestCase {
         UserDefaults.standard.removeObject(forKey: hasTippedKey)
         UserDefaults.standard.removeObject(forKey: macLockPolicyKey)
         UserDefaults.standard.removeObject(forKey: blockScreenCaptureKey)
+        UserDefaults.standard.removeObject(forKey: openQuickLaunchFromCacheKey)
         sharedDefaults.removeObject(forKey: autoUnlockWithFaceIDKey)
         sharedDefaults.removeObject(forKey: quickAutoFillEnabledKey)
         sharedDefaults.removeObject(forKey: clipboardKey)
         sharedDefaults.removeObject(forKey: autoFillCopyTOTPKey)
         sharedDefaults.removeObject(forKey: passwordGeneratorOptionsKey)
         super.tearDown()
+    }
+
+    // MARK: - Quick Launch cached open (#116)
+
+    func testOpenQuickLaunchFromCacheDefaultsToOff() {
+        UserDefaults.standard.removeObject(forKey: openQuickLaunchFromCacheKey)
+        XCTAssertFalse(
+            SettingsService.openQuickLaunchFromCache,
+            "Opting into a possibly stale open must never happen by default."
+        )
+    }
+
+    func testOpenQuickLaunchFromCacheRoundTrips() {
+        SettingsService.openQuickLaunchFromCache = true
+        XCTAssertTrue(SettingsService.openQuickLaunchFromCache)
+        SettingsService.openQuickLaunchFromCache = false
+        XCTAssertFalse(SettingsService.openQuickLaunchFromCache)
+    }
+
+    func testOpenQuickLaunchFromCacheStaysOutOfTheAppGroup() {
+        SettingsService.openQuickLaunchFromCache = true
+
+        XCTAssertTrue(UserDefaults.standard.bool(forKey: openQuickLaunchFromCacheKey))
+        XCTAssertNil(
+            sharedDefaults.object(forKey: openQuickLaunchFromCacheKey),
+            "The extensions never sync, so this must not widen the App Group surface."
+        )
     }
 
     // MARK: - Defaults

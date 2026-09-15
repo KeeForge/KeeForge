@@ -125,6 +125,10 @@ The 2026-09-08 probe settled the design: the iPad-on-Mac app never stores a data
 
 ## Unreleased
 
+### New Features
+
+- Open your Quick Launch database instantly from the copy already on this device (#116). Turn on "Open Quick Launch from Cache" under Settings → Cloud Sync and the database opens without waiting for your cloud storage; KeeForge checks for changes in the background instead. What is on screen is never swapped out from under you — if a newer version arrives, KeeForge says so and uses it the next time you open the database. Off by default.
+
 ### Fixes
 
 - Deleting an entry from the search results works again. Tapping Delete in a search result's long-press menu did nothing, and swiping to delete there made the row disappear without actually deleting the entry.
