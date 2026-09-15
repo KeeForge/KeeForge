@@ -13,6 +13,11 @@ struct TagEntriesView: View {
     /// Set by the shells that select an entry instead of pushing it (the iPad
     /// workspace and macOS), matching `EntryListView`'s own contract.
     var onSelectEntry: ((KPEntry) -> Void)? = nil
+    /// Set by shells that render this screen inline inside a container which
+    /// already hosts a `PendingDeletion` — the macOS workspace content column.
+    /// The stack shells push this screen, so they leave it nil and the list
+    /// hosts its own. See `../Entry/PendingRowActions.swift`.
+    var onRequestDeletion: ((PendingDeletion) -> Void)? = nil
 
     var body: some View {
         let entries = viewModel.sortedEntries(viewModel.entries(withTag: tag))
@@ -26,8 +31,13 @@ struct TagEntriesView: View {
                     description: Text("No entries carry this tag anymore.")
                 )
             } else {
-                TagEntriesList(entries: entries, viewModel: viewModel, onSelectEntry: onSelectEntry)
-                    .accessibilityIdentifier("tag-entries.list")
+                TagEntriesList(
+                    entries: entries,
+                    viewModel: viewModel,
+                    onSelectEntry: onSelectEntry,
+                    onRequestDeletion: onRequestDeletion
+                )
+                .accessibilityIdentifier("tag-entries.list")
             }
         }
         .modifier(TagEntriesTitle(tag: tag))
@@ -42,15 +52,21 @@ private struct TagEntriesList: View {
     let entries: [KPEntry]
     @Bindable var viewModel: DatabaseViewModel
     let onSelectEntry: ((KPEntry) -> Void)?
+    let onRequestDeletion: ((PendingDeletion) -> Void)?
 
     var body: some View {
         #if os(macOS)
-        MacEntriesList(viewModel: viewModel, entries: entries)
+        MacEntriesList(
+            viewModel: viewModel,
+            entries: entries,
+            onRequestDeletion: onRequestDeletion
+        )
         #else
         EntryListView(
             entries: entries,
             viewModel: viewModel,
-            onSelectEntry: onSelectEntry
+            onSelectEntry: onSelectEntry,
+            onRequestDeletion: onRequestDeletion
         )
         #endif
     }

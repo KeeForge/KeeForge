@@ -3,6 +3,10 @@ import SwiftUI
 struct SearchView: View {
     @Bindable var viewModel: DatabaseViewModel
     var onSelectEntry: ((KPEntry) -> Void)? = nil
+    /// Set by the shells that render these results inline inside a container
+    /// that already hosts a `PendingDeletion` — every shell does, since search
+    /// never gets a screen of its own. See `../Entry/PendingRowActions.swift`.
+    var onRequestDeletion: ((PendingDeletion) -> Void)? = nil
 
     private var showsUITestResultsCount: Bool {
         let processInfo = ProcessInfo.processInfo
@@ -26,8 +30,12 @@ struct SearchView: View {
                 )
                 .accessibilityIdentifier("search.no-results")
             } else {
-                SearchResultsList(viewModel: viewModel, onSelectEntry: onSelectEntry)
-                    .accessibilityIdentifier("search.results")
+                SearchResultsList(
+                    viewModel: viewModel,
+                    onSelectEntry: onSelectEntry,
+                    onRequestDeletion: onRequestDeletion
+                )
+                .accessibilityIdentifier("search.results")
             }
         }
         .modifier(SearchTitle())
@@ -52,15 +60,21 @@ struct SearchView: View {
 private struct SearchResultsList: View {
     @Bindable var viewModel: DatabaseViewModel
     let onSelectEntry: ((KPEntry) -> Void)?
+    let onRequestDeletion: ((PendingDeletion) -> Void)?
 
     var body: some View {
         #if os(macOS)
-        MacEntriesList(viewModel: viewModel, entries: viewModel.searchResults)
+        MacEntriesList(
+            viewModel: viewModel,
+            entries: viewModel.searchResults,
+            onRequestDeletion: onRequestDeletion
+        )
         #else
         EntryListView(
             entries: viewModel.searchResults,
             viewModel: viewModel,
-            onSelectEntry: onSelectEntry
+            onSelectEntry: onSelectEntry,
+            onRequestDeletion: onRequestDeletion
         )
         #endif
     }

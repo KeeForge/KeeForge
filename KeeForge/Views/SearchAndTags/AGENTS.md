@@ -8,4 +8,6 @@ Search results and the tag browser.
 
 Both screens split their list per shell rather than per screen: iOS keeps the shared `../Entry/EntryListView.swift`, and macOS renders `MacEntriesList` (`../Entry/MacEntriesList.swift`), whose native `List(selection:)` gives the content column arrow keys and type-select. `EntryListView`'s button rows swallow the click such a list needs to move its selection, which is why the swap exists at all. The identifiers on the container (`search.results`, `tag-entries.list`) and on the rows (`search.entry.navlink`) are the same on both platforms.
 
+Both screens also pass an `onRequestDeletion` closure straight through to whichever list they draw. Neither gets a presentation context of its own wherever it renders inline — search is a branch of `GroupListView.swift` on iOS/iPadOS, and both are branches of the macOS workspace's content column — so their delete confirmation has to be raised to the container that already hosts one rather than added beside it (#118; the one-alert-host rule in `../Entry/AGENTS.md`). The stack shells push `TagEntriesView` as its own screen and leave the closure nil, which is why the tag browser kept working on iOS while search did not.
+
 Shared UI shells and the folder-wide UI rules live in `../README.md`.

@@ -22,6 +22,12 @@ struct MacEntriesList: View {
     /// Kept as the iOS lists' identifier so both platforms' UI tests match the
     /// same rows; the group column uses `entry.navlink`.
     var rowIdentifier: String = "search.entry.navlink"
+    /// Set by containers that already host a `PendingDeletion` on this
+    /// presentation context — the workspace content column, which renders both
+    /// the search results and the tag browser. A second `.alert(item:)` there
+    /// collides with the container's and SwiftUI silently drops one, so the row
+    /// raises its confirmation instead of hosting it.
+    var onRequestDeletion: ((PendingDeletion) -> Void)? = nil
 
     @FocusState private var isListFocused: Bool
     @State private var pendingDeletion: PendingDeletion?
@@ -42,7 +48,7 @@ struct MacEntriesList: View {
                 onOpenEntry: openEntry,
                 onRequestMove: { pendingMove = $0 },
                 onRequestDuplicate: { duplicateEditor = $0 },
-                onRequestDeletion: { pendingDeletion = $0 }
+                onRequestDeletion: requestDeletion
             )
         }
         .listStyle(.inset)
@@ -52,7 +58,13 @@ struct MacEntriesList: View {
             openEntry(entryID)
             return .handled
         }
-        .alert(item: $pendingDeletion) { $0.confirmationAlert(viewModel: viewModel) }
+        .modifier(
+            ListScopedDeletionAlert(
+                pending: $pendingDeletion,
+                viewModel: viewModel,
+                isHosted: onRequestDeletion == nil
+            )
+        )
         .sheet(item: $pendingMove) { pending in
             MoveToGroupPickerView(
                 options: pending.destinationOptions(viewModel: viewModel)
@@ -70,6 +82,16 @@ struct MacEntriesList: View {
                 }
             }
             .macSheetFrame()
+        }
+    }
+
+    /// Hands the row's confirmation to the container's host, or to this list's
+    /// own when it has none.
+    private func requestDeletion(_ deletion: PendingDeletion) {
+        if let onRequestDeletion {
+            onRequestDeletion(deletion)
+        } else {
+            pendingDeletion = deletion
         }
     }
 

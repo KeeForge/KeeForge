@@ -4,7 +4,14 @@ struct EntryListView: View {
     let entries: [KPEntry]
     @Bindable var viewModel: DatabaseViewModel
     var onSelectEntry: ((KPEntry) -> Void)? = nil
-    @State private var pendingEntryDeletion: PendingEntryDeletion?
+    /// Set by containers that already host a `PendingDeletion` on this
+    /// presentation context — the search results inside `GroupListView`. A
+    /// second `.alert(item:)` there collides with the container's and SwiftUI
+    /// silently drops one, so the row raises its confirmation instead of
+    /// hosting it. Nil where this list is its own pushed screen (the tag
+    /// browser), which keeps the host below.
+    var onRequestDeletion: ((PendingDeletion) -> Void)? = nil
+    @State private var pendingDeletion: PendingDeletion?
     /// The entry whose Move-to-Group picker is presented, or `nil` when none is.
     @State private var pendingMove: PendingMove?
     /// The prefilled New Entry form a Duplicate raised, or `nil` when none is.
@@ -26,7 +33,13 @@ struct EntryListView: View {
         }
         // Outside the branches: deleting the last entry flips to the empty
         // branch, which would tear down a branch-scoped alert host.
-        .alert(item: $pendingEntryDeletion, content: deletionAlert)
+        .modifier(
+            ListScopedDeletionAlert(
+                pending: $pendingDeletion,
+                viewModel: viewModel,
+                isHosted: onRequestDeletion == nil
+            )
+        )
         // Outside for the same reason. Destinations are resolved when the
         // picker is built, not when the menu was tapped.
         .sheet(item: $pendingMove) { pending in
@@ -49,8 +62,21 @@ struct EntryListView: View {
         }
     }
 
-    private func deletionAlert(for action: PendingEntryDeletion) -> Alert {
-        PendingDeletion.entry(action).confirmationAlert(viewModel: viewModel)
+    /// Resolves the soft/permanent choice per entry — these lists draw from
+    /// more than one group — then hands the finished action to the container's
+    /// host, or to this list's own.
+    private func requestDeletion(for entry: KPEntry) {
+        let deletion = PendingDeletion.entry(
+            PendingEntryDeletion(
+                entryID: entry.id,
+                sendToRecycleBin: sendDeletionToRecycleBin(for: entry)
+            )
+        )
+        if let onRequestDeletion {
+            onRequestDeletion(deletion)
+        } else {
+            pendingDeletion = deletion
+        }
     }
 
     @ViewBuilder
@@ -98,10 +124,7 @@ struct EntryListView: View {
 
             if viewModel.isReadOnly == false {
                 Button(deletionTitle(for: entry), role: .destructive) {
-                    pendingEntryDeletion = PendingEntryDeletion(
-                        entryID: entry.id,
-                        sendToRecycleBin: sendDeletionToRecycleBin(for: entry)
-                    )
+                    requestDeletion(for: entry)
                 }
                 .accessibilityIdentifier(
                     sendDeletionToRecycleBin(for: entry)
@@ -113,10 +136,7 @@ struct EntryListView: View {
         .swipeActions(edge: .trailing, allowsFullSwipe: false) {
             if viewModel.isReadOnly == false {
                 Button(deletionTitle(for: entry), role: .destructive) {
-                    pendingEntryDeletion = PendingEntryDeletion(
-                        entryID: entry.id,
-                        sendToRecycleBin: sendDeletionToRecycleBin(for: entry)
-                    )
+                    requestDeletion(for: entry)
                 }
                 .accessibilityIdentifier("entry-row.delete-swipe")
             }
