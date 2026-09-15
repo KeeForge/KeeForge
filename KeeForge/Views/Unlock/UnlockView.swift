@@ -63,11 +63,6 @@ struct UnlockView: View {
         }
         .onAppear {
             loadUITestKeyFileIfNeeded()
-            #if os(macOS)
-            // Only reaches the visible (plain TextField) branch —
-            // `MacUnlockPasswordField` focuses itself on appear.
-            passwordFocused = true
-            #endif
         }
         .task {
             await loadAssociatedKeyFileIfNeeded()
