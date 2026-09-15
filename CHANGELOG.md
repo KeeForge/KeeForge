@@ -133,6 +133,10 @@ The 2026-09-08 probe settled the design: the iPad-on-Mac app never stores a data
 
 - Deleting an entry from the search results works again. Tapping Delete in a search result's long-press menu did nothing, and swiping to delete there made the row disappear without actually deleting the entry.
 
+### Changes
+
+- A cloud or WebDAV database whose server doesn't answer now falls back to the local cached copy after about five seconds instead of ten (#116). The shorter wait applies to every cloud open, reload and refresh. A server that is merely slow rather than unreachable can now be cut off before it replies, which opens the cached copy with the existing "Using the cached copy offline." notice; opening or reloading again retries the server.
+
 ## v1.16.0 (2026-09-13)
 
 ### New Features

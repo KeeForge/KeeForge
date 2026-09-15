@@ -741,6 +741,13 @@ final class CloudSyncCoordinatorTests: XCTestCase {
 
     // MARK: - Open-time probe deadline (#95)
 
+    /// The deadline is the wait a user sits through whenever the connection is
+    /// broken — a product decision rather than an implementation detail, so it
+    /// is pinned here and cannot drift unnoticed.
+    func testOpenProbeDeadlineIsFiveSeconds() {
+        XCTAssertEqual(CloudSyncCoordinator.openProbeDeadline, 5)
+    }
+
     func testSyncOpensCachedCopyOfflineWhenProbeMissesDeadline() async throws {
         let reference = makeCloudReference(
             remoteContentHash: "cached-hash",

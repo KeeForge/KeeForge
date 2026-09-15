@@ -41,7 +41,11 @@ enum CloudSyncCoordinator {
     /// could stand in for it. A black-holed server (firewall, VPN, captive
     /// portal) otherwise costs the full URLSession request timeout before the
     /// cache fallback kicks in, and the unlock sheet is stuck for all of it.
-    static let openProbeDeadline: TimeInterval = 10
+    /// Short enough that a slow-but-reachable server can lose the race, which
+    /// costs a stale-copy open behind the offline banner: the fallback leaves
+    /// the recorded rev alone, so the save-time divergence check still catches
+    /// it.
+    static let openProbeDeadline: TimeInterval = 5
 
     /// The metadata probe did not answer within the open deadline. Treated as
     /// an unreachable server, so it wears the offline message.
