@@ -16,7 +16,8 @@ import SwiftUI
 /// Owning the `NSTextField` lets the unlock screen submit on Return and back
 /// out to the database list on Escape from within the focused field.
 ///
-/// The field-editor routing is covered by `MacUnlockPasswordFieldTests`.
+/// Initial focus and the field-editor routing are covered by
+/// `MacUnlockPasswordFieldTests`.
 struct MacUnlockPasswordField: NSViewRepresentable {
     @Binding var text: String
     var isSecure: Bool
@@ -27,18 +28,18 @@ struct MacUnlockPasswordField: NSViewRepresentable {
     var onEscape: () -> Void
 
     func makeNSView(context: Context) -> NSTextField {
-        let field: NSTextField = isSecure ? NSSecureTextField() : NSTextField()
-        configure(field, context: context)
-
-        if focusOnAppear {
-            // The field is not in a window yet inside makeNSView; defer until it
-            // has been mounted so `makeFirstResponder` can take effect.
-            DispatchQueue.main.async { [weak field] in
-                guard let field, let window = field.window else { return }
-                window.makeFirstResponder(field)
-            }
+        let initialFocus = context.coordinator.initialFocus
+        let field: NSTextField
+        if isSecure {
+            let secureField = MacUnlockSecureTextField()
+            secureField.onMoveToWindow = { initialFocus.fieldDidMoveToWindow($0) }
+            field = secureField
+        } else {
+            let plainField = MacUnlockPlainTextField()
+            plainField.onMoveToWindow = { initialFocus.fieldDidMoveToWindow($0) }
+            field = plainField
         }
-
+        configure(field, context: context)
         return field
     }
 
@@ -75,11 +76,14 @@ struct MacUnlockPasswordField: NSViewRepresentable {
         Coordinator(self)
     }
 
+    @MainActor
     final class Coordinator: NSObject, NSTextFieldDelegate {
         var parent: MacUnlockPasswordField
+        let initialFocus: MacInitialFocus
 
         init(_ parent: MacUnlockPasswordField) {
             self.parent = parent
+            initialFocus = MacInitialFocus(isEnabled: parent.focusOnAppear)
         }
 
         func controlTextDidChange(_ obj: Notification) {
@@ -103,6 +107,81 @@ struct MacUnlockPasswordField: NSViewRepresentable {
                 return false
             }
         }
+    }
+}
+
+/// Gives a field keyboard focus once, when it first lands in a window.
+///
+/// Clicking a sidebar row mounts the unlock field while the sidebar outline is
+/// first responder, and a single `makeFirstResponder` can lose to that hand-off.
+/// Focus is re-applied on following main-queue turns only while the responder
+/// the field displaced still holds focus, so any other focus change wins.
+@MainActor
+final class MacInitialFocus {
+    typealias Scheduler = (@escaping @MainActor @Sendable () -> Void) -> Void
+
+    /// Bounds the retries so a responder that keeps reclaiming focus is not fought.
+    static let maximumAttempts = 3
+
+    private let schedule: Scheduler
+    private(set) var isPending: Bool
+    private var attempts = 0
+    private weak var displacedResponder: NSResponder?
+
+    init(isEnabled: Bool, schedule: @escaping Scheduler = MacInitialFocus.nextMainQueueTurn) {
+        isPending = isEnabled
+        self.schedule = schedule
+    }
+
+    nonisolated static func nextMainQueueTurn(_ work: @escaping @MainActor @Sendable () -> Void) {
+        DispatchQueue.main.async {
+            MainActor.assumeIsolated { work() }
+        }
+    }
+
+    func fieldDidMoveToWindow(_ field: NSTextField) {
+        guard isPending, let window = field.window else { return }
+        displacedResponder = window.firstResponder
+        focus(field)
+    }
+
+    private func focus(_ field: NSTextField) {
+        guard isPending, let window = field.window else { return }
+        guard !Self.hasFocus(field),
+              attempts < Self.maximumAttempts,
+              window.firstResponder === displacedResponder else {
+            isPending = false
+            return
+        }
+        attempts += 1
+        window.makeFirstResponder(field)
+        schedule { [weak self, weak field] in
+            guard let self, let field else { return }
+            focus(field)
+        }
+    }
+
+    static func hasFocus(_ field: NSTextField) -> Bool {
+        guard let responder = field.window?.firstResponder else { return false }
+        return responder === field || (field.currentEditor().map { $0 === responder } ?? false)
+    }
+}
+
+final class MacUnlockSecureTextField: NSSecureTextField {
+    var onMoveToWindow: ((NSTextField) -> Void)?
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        onMoveToWindow?(self)
+    }
+}
+
+final class MacUnlockPlainTextField: NSTextField {
+    var onMoveToWindow: ((NSTextField) -> Void)?
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        onMoveToWindow?(self)
     }
 }
 #endif
