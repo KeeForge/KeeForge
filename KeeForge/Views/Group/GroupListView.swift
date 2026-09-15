@@ -243,7 +243,13 @@ struct GroupListView: View {
                     )
                 }
             } else {
-                SearchView(viewModel: viewModel, onSelectEntry: onSelectEntry)
+                // The results render inline here, so their deletions go to the
+                // host below rather than adding a second, colliding one.
+                SearchView(
+                    viewModel: viewModel,
+                    onSelectEntry: onSelectEntry,
+                    onRequestDeletion: { pendingDeletion = $0 }
+                )
             }
         }
         .modifier(GroupListSearchModifier(view: self))

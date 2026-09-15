@@ -151,6 +151,30 @@ extension PendingDeletion {
     }
 }
 
+/// Hosts a list's own delete confirmation, and nothing when the list raises it
+/// to a host that already owns one.
+///
+/// Two sibling `.alert(item:)` on one presentation context collide and SwiftUI
+/// silently drops one, so the second host never presents. An embedded entry
+/// list hits that whenever its container already hosts a `PendingDeletion`:
+/// the search results render inside `GroupListView`, and on macOS the search
+/// results and the tag browser render inside the workspace's content column.
+/// Those lists hand their confirmation to the container instead of adding a
+/// host; a list that is its own pushed screen keeps hosting it here.
+struct ListScopedDeletionAlert: ViewModifier {
+    @Binding var pending: PendingDeletion?
+    let viewModel: DatabaseViewModel
+    let isHosted: Bool
+
+    func body(content: Content) -> some View {
+        if isHosted {
+            content.alert(item: $pending) { $0.confirmationAlert(viewModel: viewModel) }
+        } else {
+            content
+        }
+    }
+}
+
 /// Identifies the item whose Move-to-Group picker is showing, so
 /// `sheet(item:)` has an `Identifiable` to key on.
 enum PendingMove: Identifiable {
