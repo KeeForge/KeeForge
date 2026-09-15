@@ -5,7 +5,7 @@
 <h1 align="center">KeeForge</h1>
 
 <p align="center">
-  English | <a href="docs/i18n/README.de.md">Deutsch</a> | <a href="docs/i18n/README.fr.md">Français</a> | <a href="docs/i18n/README.es.md">Español</a> | <a href="docs/i18n/README.zh-Hans.md">简体中文</a> | <a href="docs/i18n/README.zh-Hant.md">繁體中文</a>
+  English | <a href="docs/i18n/README.de.md">Deutsch</a> | <a href="docs/i18n/README.fr.md">Français</a> | <a href="docs/i18n/README.es.md">Español</a> | <a href="docs/i18n/README.zh-Hans.md">简体中文</a> | <a href="docs/i18n/README.zh-Hant.md">繁體中文</a> | <a href="docs/i18n/README.ja.md">日本語</a>
 </p>
 
 <p align="center">
