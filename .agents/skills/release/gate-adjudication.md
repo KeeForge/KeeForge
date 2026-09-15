@@ -25,6 +25,9 @@ suite runs in `macos-rc-tests.yml`; Xcode Cloud has no macOS test action. App St
 may expose these as separate Xcode Cloud check runs or as one workflow summary; inspect every
 Xcode Cloud check for the RC SHA and record the URLs/statuses in the manifest. The iOS test
 action and both archive actions must reach a terminal, accepted state before external distribution.
+If the tag push produced no run, a manual branch run is acceptable only through the conditional
+recovery in `xcode-cloud-setup.md` ("Recovering a missing tag-triggered run"), with its full SHA
+verified in the run Overview and recorded in the manifest. Reject any run whose SHA differs.
 
 ```bash
 gh api repos/KeeForge/KeeForge/commits/{rc-sha}/check-runs \
