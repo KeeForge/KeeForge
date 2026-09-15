@@ -7,6 +7,9 @@ struct CloudSyncResolution: Sendable {
         case offlineCached
         case disconnectedCached
         case cachedWithError(String)
+        /// Opened straight from the cache without contacting the provider;
+        /// a background sync decides what the next open reads.
+        case cachedPendingSync
     }
 
     let reference: DatabaseReference
@@ -21,7 +24,7 @@ struct CloudSyncResolution: Sendable {
 
     var bannerMessage: String? {
         switch status {
-        case .current, .downloaded:
+        case .current, .downloaded, .cachedPendingSync:
             nil
         case .offlineCached:
             Self.offlineCachedBannerMessage
@@ -38,7 +41,11 @@ enum CloudSyncCoordinator {
     /// could stand in for it. A black-holed server (firewall, VPN, captive
     /// portal) otherwise costs the full URLSession request timeout before the
     /// cache fallback kicks in, and the unlock sheet is stuck for all of it.
-    static let openProbeDeadline: TimeInterval = 10
+    /// Short enough that a slow-but-reachable server can lose the race, which
+    /// costs a stale-copy open behind the offline banner: the fallback leaves
+    /// the recorded rev alone, so the save-time divergence check still catches
+    /// it.
+    static let openProbeDeadline: TimeInterval = 5
 
     /// The metadata probe did not answer within the open deadline. Treated as
     /// an unreachable server, so it wears the offline message.
@@ -46,6 +53,49 @@ enum CloudSyncCoordinator {
         var errorDescription: String? {
             CloudProviderError.networkUnavailable.errorDescription
         }
+    }
+
+    /// The cached copy to open right now, skipping the network entirely, or
+    /// nil when this open must go through `syncIfNeededForOpen` as usual.
+    ///
+    /// Eligibility is capability-shaped rather than provider-named: any
+    /// cloud-backed reference keeps a cache at `DatabaseListStore
+    /// .cacheLocation(for:)` and saves through the same SHA-512 cache gate, so
+    /// every provider that resolves at all can be opened this way. A local
+    /// reference has no cache to stand in for its file, and is never eligible.
+    ///
+    /// The caller owns the follow-up: this returns without touching the
+    /// network, so it must start the background sync itself.
+    static func cachedFirstResolutionForOpen(
+        for reference: DatabaseReference,
+        isEnabled: Bool = SettingsService.openQuickLaunchFromCache
+    ) -> CloudSyncResolution? {
+        guard isEnabled, reference.isQuickLaunch, reference.isCloudBacked else { return nil }
+
+        let cacheURL = DatabaseListStore.cacheLocation(for: reference)
+        guard let data = try? CoordinatedFileReader.readData(from: cacheURL),
+              isUsableCachedDatabase(data) else { return nil }
+
+        // Deliberately returns the reference unchanged: nothing was learned
+        // about the remote here, so stamping `lastSyncedAt` would claim a sync
+        // that never happened and clearing `lastSyncError` would hide a real
+        // one the list is still showing.
+        return CloudSyncResolution(
+            reference: reference,
+            localURL: cacheURL,
+            data: data,
+            status: .cachedPendingSync
+        )
+    }
+
+    /// Whether these cached bytes are a database rather than a truncated or
+    /// half-written file. Reads the plaintext outer header only — no key
+    /// material is involved, and nothing is decrypted. A cache that fails this
+    /// falls through to the network open instead of surfacing later as a bogus
+    /// wrong-password failure.
+    private static func isUsableCachedDatabase(_ data: Data) -> Bool {
+        guard data.isEmpty == false else { return false }
+        return (try? KDBXParser.parseFileVersion(from: data)) != nil
     }
 
     static func syncIfNeededForOpen(

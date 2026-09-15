@@ -157,6 +157,15 @@ enum BiometricAutoUnlockPolicy {
     }
 }
 
+/// One pass of the shared cloud cache sync: what the provider resolved, and
+/// the reference as persisted afterwards. `mergedReference` is nil when the
+/// metadata merge was skipped or not written — callers then keep the reference
+/// they already hold rather than trusting an unsaved revision.
+struct CloudCacheSyncOutcome: Sendable {
+    let resolution: CloudSyncResolution
+    let mergedReference: DatabaseReference?
+}
+
 @MainActor @Observable
 final class DatabaseViewModel {
     struct LocalDatabaseReadResult: Sendable {
@@ -265,6 +274,13 @@ final class DatabaseViewModel {
         _ reference: DatabaseReference,
         _ progress: @escaping @Sendable (Double) -> Void
     ) async throws -> CloudSyncResolution
+    /// The cached copy to open without touching the network, or nil when this
+    /// open must sync first. Injected so tests can drive both branches without
+    /// reaching into user defaults.
+    typealias CachedFirstOpenOperation = @Sendable (_ reference: DatabaseReference) async -> CloudSyncResolution?
+    /// One pass of the cloud cache sync plus the metadata it was able to
+    /// commit. Injected so tests can drive the background pass deterministically.
+    typealias CloudCacheSyncOperation = @Sendable (_ reference: DatabaseReference) async throws -> CloudCacheSyncOutcome
     typealias LocalDatabaseReadOperation = @Sendable (DatabaseReference) async throws -> LocalDatabaseReadResult
     typealias LocalSaveOperation = @Sendable (
         _ draft: DatabaseDraft,
@@ -319,6 +335,10 @@ final class DatabaseViewModel {
     private static let sortAscendingKey = "KeeForge.sortAscending"
     /// Shared with tests so status-message assertions stay locale-agnostic.
     static let decryptingStatusMessage = String(localized: "Decrypting your database securely...")
+    /// Shared with tests so banner assertions stay locale-agnostic.
+    static let newerVersionDownloadedBannerMessage = String(
+        localized: "A newer version was downloaded. It will be used the next time you open this database."
+    )
     private static let sharedCloudRefreshMinimumInterval: TimeInterval = 30
     private static let localDatabaseReadTimeout: Duration = .seconds(10)
 
@@ -479,6 +499,11 @@ final class DatabaseViewModel {
     /// Cleared on lock; attachments are resolved against it lazily.
     private(set) var binaryPool: BinaryPool?
     private let cloudSyncOperation: CloudSyncOperation
+    private let cachedFirstOpenOperation: CachedFirstOpenOperation
+    private let cloudCacheSyncOperation: CloudCacheSyncOperation
+    /// The one background sync a cached-first open is allowed to have running.
+    /// Held so a repeated open coalesces onto it and a lock cancels it.
+    @ObservationIgnored private var backgroundOpenSyncTask: Task<Void, Never>?
     private let localDatabaseReadOperation: LocalDatabaseReadOperation
     private let localSaveOperation: LocalSaveOperation
     private let cloudSaveOperation: CloudSaveOperation
@@ -503,6 +528,12 @@ final class DatabaseViewModel {
                 reference: reference,
                 progress: progress
             )
+        },
+        cachedFirstOpenOperation: @escaping CachedFirstOpenOperation = { reference in
+            await DatabaseViewModel.cachedFirstResolution(for: reference)
+        },
+        cloudCacheSyncOperation: @escaping CloudCacheSyncOperation = { reference in
+            try await DatabaseViewModel.syncCloudCache(for: reference)
         },
         localDatabaseReadOperation: @escaping LocalDatabaseReadOperation = { reference in
             try await DatabaseViewModel.readLocalDatabase(reference: reference)
@@ -586,6 +617,8 @@ final class DatabaseViewModel {
             ? DatabaseViewModel.syncStatusMessage(for: databaseReference)
             : Self.decryptingStatusMessage
         self.cloudSyncOperation = cloudSyncOperation
+        self.cachedFirstOpenOperation = cachedFirstOpenOperation
+        self.cloudCacheSyncOperation = cloudCacheSyncOperation
         self.localDatabaseReadOperation = localDatabaseReadOperation
         self.localSaveOperation = localSaveOperation
         self.cloudSaveOperation = cloudSaveOperation
@@ -1597,6 +1630,8 @@ final class DatabaseViewModel {
         unsavedEditorIDs.removeAll()
         cloudSyncProgress = nil
         cloudSyncBannerText = nil
+        backgroundOpenSyncTask?.cancel()
+        backgroundOpenSyncTask = nil
         unlockStatusMessage = databaseReference.isCloudBacked
             ? Self.syncStatusMessage(for: databaseReference)
             : Self.decryptingStatusMessage
@@ -2443,6 +2478,89 @@ final class DatabaseViewModel {
         }
     }
 
+    /// Runs the open-time sync for a cloud reference and commits only the
+    /// fields it actually learned.
+    ///
+    /// Storing `resolution.reference` wholesale would revert a save or drain
+    /// that landed during the round-trip, and the next save would then conflict
+    /// against the app's own upload. The merge is therefore field-scoped and
+    /// conditional on the stored state being unchanged (see
+    /// `DatabaseListStore.updateCloudSyncMetadata`). A nil `mergedReference`
+    /// means the merge was skipped or not persisted: keep the current reference
+    /// so the next sync redoes the work rather than trusting an unsaved rev.
+    nonisolated static func syncCloudCache(
+        for reference: DatabaseReference
+    ) async throws -> CloudCacheSyncOutcome {
+        let observedCloudMetadata = reference.cloudSyncMetadata
+        let resolution = try await CloudSyncCoordinator.syncIfNeededForOpen(reference: reference)
+
+        let mergedReference = observedCloudMetadata.flatMap { observed in
+            DatabaseListStore.updateCloudSyncMetadata(
+                for: resolution.reference.id,
+                ifUnchangedFrom: observed
+            ) { storedMetadata in
+                guard let learned = resolution.reference.cloudSyncMetadata else { return }
+                storedMetadata.remoteContentHash = learned.remoteContentHash
+                storedMetadata.remoteModifiedAt = learned.remoteModifiedAt
+                storedMetadata.remoteRev = learned.remoteRev
+                storedMetadata.lastSyncedAt = learned.lastSyncedAt
+                storedMetadata.lastSyncError = learned.lastSyncError
+            }
+        }
+        return CloudCacheSyncOutcome(resolution: resolution, mergedReference: mergedReference)
+    }
+
+    /// The single background sync a cached-first open owes the user. The cached
+    /// copy is already on screen, so this only decides what the *next* open
+    /// reads: it never touches `rootGroup`, `draft`, or `openTimeSHA512`.
+    /// Swapping the open database out from under an edit is precisely the data
+    /// loss this must not cause. A newer remote lands in the shared cache
+    /// instead, where `CloudDatabaseSaver`'s SHA-512 gate turns the next save
+    /// into the ordinary "changed outside KeeForge" conflict rather than an
+    /// overwrite of either side.
+    ///
+    /// A second open coalesces onto the in-flight pass instead of starting its
+    /// own, and `lock()` cancels it.
+    private func startBackgroundOpenSync() {
+        guard backgroundOpenSyncTask == nil else { return }
+
+        let reference = databaseReference
+        let expectedLockCycleID = lockCycleID
+        let syncOperation = cloudCacheSyncOperation
+
+        backgroundOpenSyncTask = Task.detached(priority: .utility) {
+            defer {
+                Task { @MainActor in
+                    // A lock already cleared the slot and started a new cycle;
+                    // clearing again would drop a newer pass's handle.
+                    guard expectedLockCycleID == self.lockCycleID else { return }
+                    self.backgroundOpenSyncTask = nil
+                }
+            }
+
+            guard let synced = try? await syncOperation(reference),
+                  Task.isCancelled == false else { return }
+
+            await MainActor.run {
+                guard expectedLockCycleID == self.lockCycleID,
+                      self.databaseReference.id == synced.resolution.reference.id else { return }
+                self.cloudSyncBannerText = Self.backgroundSyncBannerText(for: synced.resolution)
+                if let mergedReference = synced.mergedReference {
+                    self.databaseReference = mergedReference
+                }
+            }
+        }
+    }
+
+    /// What the banner says once a cached-first open's background sync lands.
+    /// A download is the one outcome the user has to be told about: the copy on
+    /// screen is now behind the cache, so an edit saved from here meets the
+    /// conflict prompt. Everything else reuses the resolution's own message.
+    private static func backgroundSyncBannerText(for resolution: CloudSyncResolution) -> String? {
+        guard resolution.status == .downloaded else { return resolution.bannerMessage }
+        return newerVersionDownloadedBannerMessage
+    }
+
     func refreshSharedDatabaseCacheIfPossible() {
         let expectedLockCycleID = lockCycleID
         let databaseReference = self.databaseReference
@@ -2483,37 +2601,13 @@ final class DatabaseViewModel {
                 let data: Data
 
                 if databaseReference.isCloudBacked {
-                    let observedCloudMetadata = databaseReference.cloudSyncMetadata
-                    let resolution = try await CloudSyncCoordinator.syncIfNeededForOpen(reference: databaseReference)
-                    data = resolution.data
-
-                    // Storing `resolution.reference` wholesale would revert a
-                    // save or drain that landed during the round-trip, and the
-                    // next save would conflict against the app's own upload.
-                    // Merge only the sync fields learned here, and only while
-                    // the stored state is unchanged (see
-                    // `DatabaseListStore.updateCloudSyncMetadata`).
-                    let mergedReference = observedCloudMetadata.flatMap { observed in
-                        DatabaseListStore.updateCloudSyncMetadata(
-                            for: resolution.reference.id,
-                            ifUnchangedFrom: observed
-                        ) { storedMetadata in
-                            guard let learned = resolution.reference.cloudSyncMetadata else { return }
-                            storedMetadata.remoteContentHash = learned.remoteContentHash
-                            storedMetadata.remoteModifiedAt = learned.remoteModifiedAt
-                            storedMetadata.remoteRev = learned.remoteRev
-                            storedMetadata.lastSyncedAt = learned.lastSyncedAt
-                            storedMetadata.lastSyncError = learned.lastSyncError
-                        }
-                    }
+                    let synced = try await self.cloudCacheSyncOperation(databaseReference)
+                    data = synced.resolution.data
 
                     await MainActor.run {
-                        guard self.databaseReference.id == resolution.reference.id else { return }
-                        self.cloudSyncBannerText = resolution.bannerMessage
-                        // Nil means skipped or unpersisted: keep the current
-                        // reference so the next sync redoes the work rather
-                        // than trusting an unsaved rev.
-                        if let mergedReference {
+                        guard self.databaseReference.id == synced.resolution.reference.id else { return }
+                        self.cloudSyncBannerText = synced.resolution.bannerMessage
+                        if let mergedReference = synced.mergedReference {
                             self.databaseReference = mergedReference
                         }
                     }
@@ -3072,6 +3166,18 @@ final class DatabaseViewModel {
 
     private func readDatabaseData() async throws -> (url: URL, data: Data, cloudSyncStatus: CloudSyncResolution.Status?) {
         if databaseReference.isCloudBacked {
+            // Cached-first: hand back the copy already on disk and let the
+            // sync run behind the unlock. Nothing about the remote was learned
+            // here, so the stored reference is deliberately left alone rather
+            // than stamped with a sync that never happened.
+            if let cachedResolution = await cachedFirstOpenOperation(databaseReference) {
+                cloudSyncProgress = nil
+                cloudSyncBannerText = nil
+                unlockStatusMessage = Self.decryptingStatusMessage
+                startBackgroundOpenSync()
+                return (cachedResolution.localURL, cachedResolution.data, cachedResolution.status)
+            }
+
             let resolution = try await cloudSyncOperation(databaseReference) { progress in
                 Task { @MainActor in
                     self.cloudSyncProgress = progress
@@ -3090,6 +3196,19 @@ final class DatabaseViewModel {
 
         let result = try await localDatabaseReadOperation(databaseReference)
         return (result.url, result.data, nil)
+    }
+
+    /// The cached-first resolution, read off the main actor. The coordinated
+    /// read can block on a file provider, and the whole point of this path is
+    /// that the unlock does not stall — so it gets the same bounded, detached
+    /// treatment as a local database read.
+    nonisolated private static func cachedFirstResolution(
+        for reference: DatabaseReference
+    ) async -> CloudSyncResolution? {
+        let resolution = try? await CoordinatedFileReader.performBlocking(timeout: localDatabaseReadTimeout) {
+            CloudSyncCoordinator.cachedFirstResolutionForOpen(for: reference)
+        }
+        return resolution ?? nil
     }
 
     nonisolated private static func readLocalDatabase(

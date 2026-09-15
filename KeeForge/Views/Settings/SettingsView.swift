@@ -19,6 +19,7 @@ struct SettingsView: View {
     @State private var autoFillCopyTOTP = SettingsService.autoFillCopyTOTP
     @State private var sortOrder = DatabaseViewModel.savedSortOrder()
     @State private var sortAscending = DatabaseViewModel.savedSortAscending()
+    @State private var openQuickLaunchFromCache = SettingsService.openQuickLaunchFromCache
     @State private var cloudAccounts = CloudAccountStore.accounts
     @State private var pendingCloudAccountSignOut: CloudAccount?
     @State private var feedbackContext: FeedbackComposerContext?
@@ -95,6 +96,7 @@ struct SettingsView: View {
             .tag(MacSettingsTab.display)
 
             Form {
+                cloudSyncSection
                 cloudAccountsSection
             }
             .formStyle(.grouped)
@@ -127,6 +129,7 @@ struct SettingsView: View {
             applyingChangeHandlers(
                 Form {
                     settingsNavigationSection
+                    cloudSyncSection
                     cloudAccountsSection
                     feedbackSection
                     SupportKeeForgeSection()
@@ -176,6 +179,9 @@ struct SettingsView: View {
             }
             .onChange(of: autoFillCopyTOTP) { _, newValue in
                 SettingsService.autoFillCopyTOTP = newValue
+            }
+            .onChange(of: openQuickLaunchFromCache) { _, newValue in
+                SettingsService.openQuickLaunchFromCache = newValue
             }
             .onChange(of: showWebsiteIcons) { _, newValue in
                 SettingsService.showWebsiteIcons = newValue
@@ -270,6 +276,17 @@ struct SettingsView: View {
                 Label("About", systemImage: "info.circle")
             }
             .accessibilityIdentifier("settings.about.link")
+        }
+    }
+
+    private var cloudSyncSection: some View {
+        Section {
+            Toggle("Open Quick Launch from Cache", isOn: $openQuickLaunchFromCache)
+                .accessibilityIdentifier("settings.cloud.cached-first.toggle")
+        } header: {
+            Text("Cloud Sync")
+        } footer: {
+            Text("Your Quick Launch database opens straight from the copy on this device, and KeeForge checks your cloud storage in the background. The open database is never swapped out — a newer version is used the next time you open it, and KeeForge tells you when one arrives.")
         }
     }
 

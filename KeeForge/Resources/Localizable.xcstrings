@@ -1420,6 +1420,40 @@
         }
       }
     },
+    "A newer version was downloaded. It will be used the next time you open this database." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Eine neuere Version wurde heruntergeladen. Sie wird beim nächsten Öffnen dieser Datenbank verwendet."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Se ha descargado una versión más reciente. Se utilizará la próxima vez que abra esta base de datos."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Une version plus récente a été téléchargée. Elle sera utilisée à la prochaine ouverture de cette base de données."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已下载更新的版本。下次打开此数据库时将使用该版本。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已下載較新的版本。下次開啟此資料庫時將使用該版本。"
+          }
+        }
+      }
+    },
     "A parent group is hidden from Search & AutoFill. Turn this off to show this group anyway." : {
       "localizations" : {
         "de" : {
@@ -18056,6 +18090,40 @@
         }
       }
     },
+    "Open Quick Launch from Cache" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Schnellstart aus der Cache-Kopie öffnen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Abrir Inicio rápido desde la copia en caché"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ouvrir le démarrage rapide depuis la copie en cache"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "从缓存副本打开快速启动"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "從快取副本開啟快速啟動"
+          }
+        }
+      }
+    },
     "Open Settings" : {
       "localizations" : {
         "de" : {
@@ -29894,6 +29962,40 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "你的群組更動尚未儲存到此資料庫。"
+          }
+        }
+      }
+    },
+    "Your Quick Launch database opens straight from the copy on this device, and KeeForge checks your cloud storage in the background. The open database is never swapped out — a newer version is used the next time you open it, and KeeForge tells you when one arrives." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ihre Schnellstart-Datenbank wird direkt aus der Kopie auf diesem Gerät geöffnet, während KeeForge im Hintergrund Ihren Cloud-Speicher prüft. Die geöffnete Datenbank wird dabei nie ausgetauscht – eine neuere Version wird beim nächsten Öffnen verwendet, und KeeForge weist Sie darauf hin, sobald eine eintrifft."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Su base de datos de Inicio rápido se abre directamente desde la copia en este dispositivo, y KeeForge comprueba su almacenamiento en la nube en segundo plano. La base de datos abierta nunca se sustituye: una versión más reciente se utilizará la próxima vez que la abra, y KeeForge se lo indicará cuando llegue una."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Votre base de données de démarrage rapide s'ouvre directement depuis la copie présente sur cet appareil, pendant que KeeForge vérifie votre stockage cloud en arrière-plan. La base de données ouverte n'est jamais remplacée : une version plus récente sera utilisée à la prochaine ouverture, et KeeForge vous prévient dès qu'elle arrive."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "你的快速启动数据库会直接从本机上的副本打开，同时 KeeForge 会在后台检查你的云存储。已打开的数据库绝不会被替换——更新的版本将在你下次打开时使用，收到时 KeeForge 会告知你。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "你的快速啟動資料庫會直接從本機上的副本開啟，同時 KeeForge 會在背景檢查你的雲端儲存空間。已開啟的資料庫絕不會被替換——較新的版本將在你下次開啟時使用，收到時 KeeForge 會告知你。"
           }
         }
       }

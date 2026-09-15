@@ -1231,6 +1231,156 @@ final class CloudDatabaseSaverTests: XCTestCase {
         )
     }
 
+    // MARK: - Cached-first open, then a background download (#116)
+
+    /// The race a cached-first Quick Launch open introduces: a stale cache is
+    /// opened and edited, the background sync lands a newer remote in that same
+    /// cache and advances the recorded revision, and only then does the user
+    /// save.
+    ///
+    /// The revision gate cannot catch this — the background sync already
+    /// rebased the recorded rev onto the head, so `remoteHasDiverged` is false
+    /// and the upload would go straight out. The SHA-512 cache gate is the only
+    /// thing standing between the user's edit and a silent overwrite of the
+    /// downloaded version, and it has to fail the save before any upload.
+    func testSaveConflictsWhenABackgroundSyncReplacedTheCacheAfterACachedFirstOpen() async throws {
+        let reference = try makeCloudReference(remoteRev: "rev-B", remoteContentHash: "remote-hash-B")
+        let cacheURL = DatabaseListStore.cacheLocation(for: reference)
+        let context = try makeDirtySaveContext(cacheURL: cacheURL, entryTitle: "Edited On The Stale Copy")
+
+        // What the background sync downloaded: a real, openable database that
+        // differs from the bytes this session opened.
+        let downloadedRemoteData = try makeAlternativeDatabaseBytes(
+            from: context.currentData,
+            entryTitle: "Added On Another Device"
+        )
+        XCTAssertNotEqual(downloadedRemoteData, context.currentData)
+        try downloadedRemoteData.write(to: cacheURL, options: .atomic)
+
+        let recorder = UploadRecorder()
+        let environment = makeEnvironment(
+            getMetadata: { _ in
+                CloudFileMetadata(
+                    modifiedDate: Date(timeIntervalSince1970: 200),
+                    contentHash: "remote-hash-B",
+                    size: Int64(downloadedRemoteData.count),
+                    rev: "rev-B"
+                )
+            },
+            upload: { _, data, expectedRev, progress in
+                await recorder.record(data: data, expectedRev: expectedRev)
+                progress(1)
+                return CloudFileMetadata(
+                    modifiedDate: Date(timeIntervalSince1970: 300),
+                    contentHash: "remote-hash-C",
+                    size: Int64(data.count),
+                    rev: "rev-C"
+                )
+            }
+        )
+
+        let result = try await CloudDatabaseSaver.save(
+            draft: context.draft,
+            reference: reference,
+            compositeKey: context.compositeKey,
+            openTimeSHA512: context.openTimeSHA512,
+            expectedRev: "rev-B",
+            environment: environment
+        )
+
+        guard case .conflict(let remoteSHA512, let conflictData) = result else {
+            XCTFail("A cache replaced by a background download must conflict, not overwrite.")
+            return
+        }
+
+        let uploadCallCount = await recorder.callCount()
+
+        XCTAssertEqual(uploadCallCount, 0, "Neither side may be overwritten before the user resolves this.")
+        XCTAssertEqual(remoteSHA512, KDBXCrypto.sha512(downloadedRemoteData))
+        XCTAssertEqual(
+            conflictData,
+            downloadedRemoteData,
+            "The conflict must carry the downloaded version so the merge flow can reconcile it."
+        )
+        XCTAssertEqual(try Data(contentsOf: cacheURL), downloadedRemoteData, "The cache is left exactly as the sync left it.")
+        XCTAssertTrue(DatabaseListStore.recentBackups(for: reference).isEmpty)
+    }
+
+    /// A background sync that found nothing new leaves the cache alone, so the
+    /// same session saves exactly as it would have without the feature.
+    func testSaveProceedsWhenTheBackgroundSyncFoundNoRemoteChange() async throws {
+        let reference = try makeCloudReference(remoteRev: "rev-A")
+        let cacheURL = DatabaseListStore.cacheLocation(for: reference)
+        let context = try makeDirtySaveContext(cacheURL: cacheURL, entryTitle: "Edited After A Quiet Sync")
+        let recorder = UploadRecorder()
+        let environment = makeEnvironment(
+            getMetadata: { _ in
+                CloudFileMetadata(
+                    modifiedDate: Date(timeIntervalSince1970: 150),
+                    contentHash: "remote-hash-A",
+                    size: Int64(context.currentData.count),
+                    rev: "rev-A"
+                )
+            },
+            upload: { _, data, expectedRev, progress in
+                await recorder.record(data: data, expectedRev: expectedRev)
+                progress(1)
+                return CloudFileMetadata(
+                    modifiedDate: Date(timeIntervalSince1970: 200),
+                    contentHash: "remote-hash-B",
+                    size: Int64(data.count),
+                    rev: "rev-B"
+                )
+            }
+        )
+
+        let result = try await CloudDatabaseSaver.save(
+            draft: context.draft,
+            reference: reference,
+            compositeKey: context.compositeKey,
+            openTimeSHA512: context.openTimeSHA512,
+            expectedRev: "rev-A",
+            environment: environment
+        )
+
+        guard case .saved = result else {
+            XCTFail("An untouched cache must save normally.")
+            return
+        }
+        let uploadCallCount = await recorder.callCount()
+        XCTAssertEqual(uploadCallCount, 1)
+    }
+
+    /// Re-encrypts `sourceData` with one extra entry, standing in for the copy
+    /// another device uploaded. Real KDBX bytes rather than a marker string, so
+    /// the conflict payload is something the merge flow could actually open.
+    private func makeAlternativeDatabaseBytes(from sourceData: Data, entryTitle: String) throws -> Data {
+        let sessionKey = SymmetricKey(size: .bits256)
+        let parsed = try KDBXParser.parseWithMetaAndHeader(
+            data: sourceData,
+            compositeKey: KDBXCrypto.compositeKey(password: fixturePassword),
+            sessionKey: sessionKey
+        )
+        let draft = try DatabaseDraft(
+            rootGroup: parsed.rootGroup,
+            meta: parsed.meta,
+            sessionKey: sessionKey
+        ).apply(
+            .createEntry(
+                parentGroupID: TestDatabaseSupport.visibleRootGroupID(in: parsed.rootGroup),
+                draft: EntryDraftPayload(title: entryTitle, password: "secret-\(entryTitle)")
+            )
+        )
+
+        return try KDBXWriter.write(
+            rootGroup: draft.rootGroup,
+            meta: draft.meta,
+            compositeKey: KDBXCrypto.compositeKey(password: fixturePassword),
+            header: parsed.header,
+            sessionKey: draft.writerSessionKey
+        )
+    }
+
     private func makeEnvironment(
         getMetadata: @escaping @Sendable (DatabaseReference) async throws -> CloudFileMetadata,
         upload: @escaping @Sendable (DatabaseReference, Data, String?, CloudDatabaseSaver.ProgressHandler) async throws -> CloudFileMetadata,

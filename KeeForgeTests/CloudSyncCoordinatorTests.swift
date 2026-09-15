@@ -741,6 +741,13 @@ final class CloudSyncCoordinatorTests: XCTestCase {
 
     // MARK: - Open-time probe deadline (#95)
 
+    /// The deadline is the wait a user sits through whenever the connection is
+    /// broken — a product decision rather than an implementation detail, so it
+    /// is pinned here and cannot drift unnoticed.
+    func testOpenProbeDeadlineIsFiveSeconds() {
+        XCTAssertEqual(CloudSyncCoordinator.openProbeDeadline, 5)
+    }
+
     func testSyncOpensCachedCopyOfflineWhenProbeMissesDeadline() async throws {
         let reference = makeCloudReference(
             remoteContentHash: "cached-hash",
@@ -854,9 +861,162 @@ final class CloudSyncCoordinatorTests: XCTestCase {
         XCTAssertNil(resolution.reference.cloudSyncMetadata?.lastSyncError)
     }
 
+    // MARK: - Cached-first Quick Launch open (#116)
+
+    func testQuickLaunchCloudOpenUsesCachedCopyWithoutContactingTheProviderWhenCachedFirstIsEnabled() async throws {
+        let reference = makeCloudReference(
+            remoteContentHash: "cached-hash",
+            remoteModifiedAt: Date(timeIntervalSince1970: 100),
+            isQuickLaunch: true
+        )
+        let cachedBytes = Self.syntheticCachedDatabase("cached-quick-launch-copy")
+        try DatabaseListStore.cacheDatabaseCopy(cachedBytes, for: reference)
+
+        let provider = MockCloudProvider()
+        provider.metadataResult = .success(
+            CloudFileMetadata(modifiedDate: Date(timeIntervalSince1970: 900), contentHash: "newer-hash", size: 128)
+        )
+
+        let resolution = try XCTUnwrap(
+            CloudSyncCoordinator.cachedFirstResolutionForOpen(for: reference, isEnabled: true)
+        )
+
+        XCTAssertEqual(resolution.status, .cachedPendingSync)
+        XCTAssertEqual(resolution.data, cachedBytes)
+        XCTAssertEqual(resolution.localURL, DatabaseListStore.cacheLocation(for: reference))
+        XCTAssertNil(resolution.bannerMessage, "A cached-first open is the normal path, not a degraded one.")
+        XCTAssertEqual(provider.metadataCallCount, 0, "The open itself must not touch the network.")
+        XCTAssertEqual(provider.downloadCallCount, 0)
+    }
+
+    func testCachedFirstOpenLeavesRecordedSyncStateUntouched() throws {
+        var reference = makeCloudReference(
+            remoteContentHash: "cached-hash",
+            remoteModifiedAt: Date(timeIntervalSince1970: 100),
+            isQuickLaunch: true
+        )
+        reference.updateCloudSyncMetadata { metadata in
+            metadata.lastSyncError = "an earlier failure the list is still showing"
+            metadata.lastSyncedAt = Date(timeIntervalSince1970: 10)
+        }
+        try DatabaseListStore.cacheDatabaseCopy(Self.syntheticCachedDatabase("copy"), for: reference)
+
+        let resolution = try XCTUnwrap(
+            CloudSyncCoordinator.cachedFirstResolutionForOpen(for: reference, isEnabled: true)
+        )
+
+        XCTAssertEqual(
+            resolution.reference.cloudSyncMetadata?.lastSyncError,
+            "an earlier failure the list is still showing",
+            "Nothing was learned about the remote, so a standing error must not be cleared."
+        )
+        XCTAssertEqual(
+            resolution.reference.cloudSyncMetadata?.lastSyncedAt,
+            Date(timeIntervalSince1970: 10),
+            "A sync that never happened must not be stamped."
+        )
+    }
+
+    func testCachedFirstOpenIsSkippedWhenTheSettingIsOff() throws {
+        let reference = makeCloudReference(
+            remoteContentHash: "cached-hash",
+            remoteModifiedAt: Date(timeIntervalSince1970: 100),
+            isQuickLaunch: true
+        )
+        try DatabaseListStore.cacheDatabaseCopy(Self.syntheticCachedDatabase("copy"), for: reference)
+
+        XCTAssertNil(CloudSyncCoordinator.cachedFirstResolutionForOpen(for: reference, isEnabled: false))
+    }
+
+    func testCachedFirstOpenIsSkippedWhenTheDatabaseIsNotQuickLaunch() throws {
+        let reference = makeCloudReference(
+            remoteContentHash: "cached-hash",
+            remoteModifiedAt: Date(timeIntervalSince1970: 100),
+            isQuickLaunch: false
+        )
+        try DatabaseListStore.cacheDatabaseCopy(Self.syntheticCachedDatabase("copy"), for: reference)
+
+        XCTAssertNil(CloudSyncCoordinator.cachedFirstResolutionForOpen(for: reference, isEnabled: true))
+    }
+
+    func testCachedFirstOpenIsSkippedForALocalDatabase() throws {
+        var reference = makeCloudReference(
+            remoteContentHash: nil,
+            remoteModifiedAt: nil,
+            isQuickLaunch: true
+        )
+        reference.source = .local
+
+        XCTAssertNil(
+            CloudSyncCoordinator.cachedFirstResolutionForOpen(for: reference, isEnabled: true),
+            "A local file has no cache to stand in for it."
+        )
+    }
+
+    func testCachedFirstOpenIsSkippedWhenNoCacheExists() throws {
+        let reference = makeCloudReference(
+            remoteContentHash: nil,
+            remoteModifiedAt: nil,
+            isQuickLaunch: true
+        )
+        try? FileManager.default.removeItem(at: DatabaseListStore.cacheLocation(for: reference))
+
+        XCTAssertNil(CloudSyncCoordinator.cachedFirstResolutionForOpen(for: reference, isEnabled: true))
+    }
+
+    func testCachedFirstOpenIsSkippedWhenTheCacheIsEmpty() throws {
+        let reference = makeCloudReference(
+            remoteContentHash: nil,
+            remoteModifiedAt: nil,
+            isQuickLaunch: true
+        )
+        try DatabaseListStore.cacheDatabaseCopy(Data(), for: reference)
+
+        XCTAssertNil(CloudSyncCoordinator.cachedFirstResolutionForOpen(for: reference, isEnabled: true))
+    }
+
+    func testCachedFirstOpenIsSkippedWhenTheCacheIsTruncated() throws {
+        let reference = makeCloudReference(
+            remoteContentHash: nil,
+            remoteModifiedAt: nil,
+            isQuickLaunch: true
+        )
+        // The signature is intact but the version fields never arrived, which
+        // is what a half-written cache looks like on disk.
+        let truncated = Self.syntheticCachedDatabase("ignored").prefix(6)
+        try DatabaseListStore.cacheDatabaseCopy(Data(truncated), for: reference)
+
+        XCTAssertNil(CloudSyncCoordinator.cachedFirstResolutionForOpen(for: reference, isEnabled: true))
+    }
+
+    func testCachedFirstOpenIsSkippedWhenTheCacheIsNotAKDBXFile() throws {
+        let reference = makeCloudReference(
+            remoteContentHash: nil,
+            remoteModifiedAt: nil,
+            isQuickLaunch: true
+        )
+        try DatabaseListStore.cacheDatabaseCopy(Data("not a database at all".utf8), for: reference)
+
+        XCTAssertNil(CloudSyncCoordinator.cachedFirstResolutionForOpen(for: reference, isEnabled: true))
+    }
+
+    /// A KDBX 4.0 outer-header prefix plus arbitrary trailing bytes. Enough for
+    /// `KDBXParser.parseFileVersion`, which is all the cache-validity gate
+    /// reads; nothing here is decryptable, and nothing needs to be.
+    private static func syntheticCachedDatabase(_ marker: String) -> Data {
+        var data = Data()
+        data.append(contentsOf: [0x03, 0xD9, 0xA2, 0x9A]) // signature 1, little-endian
+        data.append(contentsOf: [0x67, 0xFB, 0x4B, 0xB5]) // signature 2, little-endian
+        data.append(contentsOf: [0x00, 0x00])             // version minor 0
+        data.append(contentsOf: [0x04, 0x00])             // version major 4
+        data.append(Data(marker.utf8))
+        return data
+    }
+
     private func makeCloudReference(
         remoteContentHash: String?,
-        remoteModifiedAt: Date?
+        remoteModifiedAt: Date?,
+        isQuickLaunch: Bool = false
     ) -> DatabaseReference {
         DatabaseReference(
             id: UUID(),
@@ -865,7 +1025,7 @@ final class CloudSyncCoordinatorTests: XCTestCase {
             bookmarkData: nil,
             keyFileBookmarkData: nil,
             keyFileFilename: nil,
-            isQuickLaunch: false,
+            isQuickLaunch: isQuickLaunch,
             lastOpenedAt: nil,
             addedAt: Date(timeIntervalSince1970: 50),
             colorTag: nil,
