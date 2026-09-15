@@ -973,16 +973,16 @@ final class SearchResultsDeleteUITests: EntryEditUITestCase {
         }
 
         let clearButton = searchField.buttons["Clear text"]
-        if clearButton.exists {
+        if clearButton.exists, hasOnScreenFrame(clearButton), clearButton.isHittable {
             clearButton.tap()
-        } else {
-            let currentValue = (searchField.value as? String) ?? ""
-            if currentValue.isEmpty == false, currentValue != "Search entries" {
-                tapElement(searchField)
-                searchField.typeText(
-                    String(repeating: XCUIKeyboardKey.delete.rawValue, count: currentValue.count)
-                )
-            }
+        }
+
+        let currentValue = (searchField.value as? String) ?? ""
+        if currentValue.isEmpty == false, currentValue != "Search entries" {
+            tapElement(searchField)
+            searchField.typeText(
+                String(repeating: XCUIKeyboardKey.delete.rawValue, count: currentValue.count)
+            )
         }
 
         let anyGroupRow = app.descendants(matching: .any).matching(identifier: "group.navlink").firstMatch
