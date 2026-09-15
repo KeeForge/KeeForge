@@ -52,6 +52,13 @@ appcast until both App Store submissions have code approval and the final go dec
 coordinated launch uses manual release for both App Store records; preserve existing rating and
 make any macOS phased-release choice only when explicitly decided.
 
+When delegating these runs to a noninteractive CLI such as `claude -p`, keep the CLI alive
+until every child process is terminal and its evidence is collected. Use synchronous tool calls
+with a sufficient timeout, or explicitly wait for a background tool task before returning the
+final response. Ending the CLI with “still running; I will be notified” can terminate its children;
+a successful CLI exit is not a successful Xcode run. Preserve interrupted logs and use fresh
+result paths for recovery. The absolute Xcode lock wrapper remains required.
+
 ## Direct artifact handoff
 
 After the MAS archive and direct build are accepted, the direct build directory contains
