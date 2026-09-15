@@ -12,16 +12,19 @@ relying on this; Apple can change the UI and the account can drift):
 - KeeForge is App Store Connect app Apple ID `6759309295`. The app record now carries **both**
   the iOS and macOS platforms. Adding the platform *is* the universal-purchase action — Apple's
   own dialog reads "add platforms to an app to create a universal purchase", there is no separate
-  toggle, and a platform cannot be removed afterwards. The macOS side was auto-created as
-  **macOS App Version 1.0**, which does **not** match the repo's `MARKETING_VERSION`; the
-  version record has to be corrected to the shipping version before a Mac build can attach to
-  it. TestFlight is unaffected by that mismatch — only App Store submission is.
+  toggle, and a platform cannot be removed afterwards. The macOS version record, auto-created as
+  1.0, has since been corrected to **1.16.0** (verified 2026-09-14).
 - The active **Tests (RC)** workflow has three actions: **Archive - macOS** (scheme
   `KeeForgeMac`, Build For *Any Mac* — native, not Mac Catalyst — Distribution Preparation
   *App Store Connect*), **Archive - iOS**, and **Test - iOS** (Required to Pass). A
   **Test - macOS** action was added and then removed once build 53 proved Xcode Cloud cannot
   launch the Mac app to test it; the reasoning is under "Required workflow shape". Its `rc/*` tag
-  trigger is active and the **Release** workflow is still deactivated.
+  trigger is active and the **Release** workflow is still deactivated. Xcode Cloud build 56
+  proved both archive actions upload to their platform TestFlight lists.
+- On 2026-09-14 a **Manual Start** condition restricted to the exact branch `release/1.16` (not
+  any branch or prefix) was added to **Tests (RC)** to recover a missed tag trigger; see
+  "Recovering a missing tag-triggered run". The `rc/*` tag condition, actions, Required to Pass
+  setting, post-actions, and environment variables were left unchanged.
 - **No post-actions.** The former **TestFlight External Testing - iOS** post-action was deleted,
   so neither platform auto-distributes to external testers any more. This is deliberate: every
   external distribution is now a manual decision made after the gates are accepted. Re-adding a
@@ -33,12 +36,13 @@ relying on this; Apple can change the UI and the account can drift):
 - **Restrict Editing is off.** The doc previously assumed a **Restrict and Save** control; this
   account presents a plain **Save**. Turning restriction on is a separate deliberate choice, not
   a side effect of saving.
-- External groups are **KeeForge Test** (the existing iOS public-link group, 300-tester cap,
-  documented below) and **KeeForge Mac Test** (created empty for the native Mac build: 0 testers,
-  0 builds, no public link). Do not send the MAS build to the iOS group.
+- External groups are **KeeForge Test** (the iOS public-link group, documented below) and
+  **KeeForge Mac Test** (the native Mac group, public link
+  `https://testflight.apple.com/join/ZKQRwPaa`, 300-tester cap). Do not send the MAS build to the
+  iOS group. As of 2026-09-14, iOS TestFlight build 56 is in Testing and Mac TestFlight build 56 is
+  in Beta App Review; check live state rather than relying on this snapshot.
 
-Still outstanding: the non-shipping setup RC tag that proves both archives reach their TestFlight
-lists, and correcting the macOS version record. External TestFlight distribution stays manual:
+External TestFlight distribution stays manual:
 after Xcode Cloud, both GitHub Actions workflows, both local KDBX gates, and local Mac smoke are
 accepted, proceed with the first Beta App Review action (when required) and each platform
 distribution when the user has already authorized that named candidate action in the current task;
@@ -50,6 +54,7 @@ App Review submission, or legal declarations.
 | Trigger | Workflow | Actions |
 | --- | --- | --- |
 | `rc/*` tag push | **Tests (RC)** | Test - iOS (Required to Pass), and Archive - iOS + Archive - macOS (both Distribution Preparation: App Store Connect). Archives/uploads may run automatically; no external-distribution post-action is configured. There is deliberately **no Test - macOS** — see below. |
+| Manual Start, exact branch `release/1.16` | **Tests (RC)** | Same actions. Recovery only, when the `rc/*` tag push produced no run; see "Recovering a missing tag-triggered run". |
 | `v*` tag push | *(none — the `Release` workflow is deactivated)* | — |
 
 Three properties matter:
@@ -122,8 +127,8 @@ alphanumerics only, because it is interpolated into the `db-$(DROPBOX_APP_KEY)`
 - Do **not** configure a TestFlight External Testing post-action. Xcode Cloud may archive and
   upload automatically, but a processed build is moved to external testing manually in App Store
   Connect only after Xcode Cloud, both GitHub Actions workflows, both local KDBX gates, and local
-  Mac smoke are accepted. The existing iOS public-link group is **KeeForge Test**; the native Mac
-  build has its own empty group, **KeeForge Mac Test**. Do not send the MAS build to the iOS group.
+  Mac smoke are accepted. The iOS public-link group is **KeeForge Test**; the native Mac build has
+  its own public-link group, **KeeForge Mac Test**. Do not send the MAS build to the iOS group.
 - After editing, verify that no external-testing post-action is present and save the workflow using
   the control App Store Connect presents. This account presents a plain **Save**; the separate
   **Restrict Editing** checkbox is off and turning it on is its own decision, after which only the
@@ -136,6 +141,31 @@ alphanumerics only, because it is interpolated into the `db-$(DROPBOX_APP_KEY)`
   Cloud, iOS GitHub Actions, and macOS GitHub Actions verdicts, both local KDBX gates, and local
   Mac smoke are accepted and the manifest maps both processed builds to the same RC SHA.
 - The build declares `ITSAppUsesNonExemptEncryption=false`; verify the actual ASC record and handle any separate legal/documentation question independently with action-time owner confirmation.
+
+## Recovering a missing tag-triggered run
+
+The `rc/*` tag trigger is the normal start. Use this only when the RC tag and branch are pushed,
+GitHub Actions started for the tag, and **Tests (RC)** still shows no run for it after searching all
+builds (with **Mine** unchecked) and the manual tag picker. On 2026-09-14 `rc/1.16.0-b51` did not
+appear for over 20 minutes although the Xcode Cloud GitHub app had access to all repositories and
+was not suspended. The cause is unknown: do not assume permissions, and do not expect a no-op push,
+a reconnect, or permission changes to fix it.
+
+1. Check for active or queued **Tests (RC)** runs on the RC SHA first, so recovery never duplicates
+   a run that is merely slow to appear.
+2. Verify the source before starting: `git ls-remote origin refs/heads/release/{major}.{minor}
+   'refs/tags/rc/{version}-b{repoBuild}^{}'` must show the branch head equal to the peeled RC tag
+   SHA. Nothing may be pushed to the release branch from then until step 4 verifies the run.
+3. Start **Tests (RC)** manually on that exact release branch. If the workflow has no Manual Start
+   condition for it, add one restricted to that exact branch name (never any branch or a prefix)
+   and change nothing else in the workflow. All three actions must start.
+4. Open the run's Overview and confirm its full commit SHA equals the RC SHA. If it differs, stop or
+   cancel that run and do not accept any of its results or uploads.
+
+A run verified this way is source-equivalent to the tag-triggered run: record its build number,
+URL, and verified full SHA in the manifest and adjudicate it as the Xcode Cloud verdict. Do not
+move, delete, or re-create the RC tag, create a new tag or rebuild for this, disable or weaken any
+gate, or change the direct Mac artifact procedure.
 
 ## Public link settings
 
@@ -201,7 +231,7 @@ alphanumerics only, because it is interpolated into the `db-$(DROPBOX_APP_KEY)`
 
 ## Candidate identity and evidence
 
-One `rc/{version}-b{repoBuild}` tag starts the workflow. The iOS and Mac archive actions build the
+One `rc/{version}-b{repoBuild}` tag starts the workflow (or a verified manual recovery run, above). The iOS and Mac archive actions build the
 four product targets from that SHA and may receive different App Store Connect TestFlight build
 numbers. Match each processed build to the RC tag/SHA and record the pair in
 `scratch/release-manifests/{version}-b{repoBuild}.json` along with the direct build's

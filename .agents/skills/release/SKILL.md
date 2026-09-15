@@ -328,7 +328,8 @@ ci_scripts/candidate_manifest.py init --rc-tag rc/{version}-b{repoBuild}
 The tag push triggers Xcode Cloud's RC workflow (iOS tests plus iOS and Mac App Store
 archives/uploads), `.github/workflows/ios18-rc-tests.yml`, and `.github/workflows/macos-rc-tests.yml`.
 Xcode Cloud has no Mac test action (see `xcode-cloud-setup.md`); the Mac unit suite runs only in
-`macos-rc-tests.yml`.
+`macos-rc-tests.yml`. If Xcode Cloud shows no run for the tag, follow "Recovering a missing
+tag-triggered run" in `xcode-cloud-setup.md`; never move or re-create the RC tag to retrigger it.
 
 ## A8. Wait for all cloud gates and local Mac smoke
 
