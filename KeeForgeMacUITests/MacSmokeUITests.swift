@@ -274,11 +274,34 @@ final class MacSmokeUITests: MacUITestCase {
 
     // MARK: - Unlock keyboard handling
 
+    // `MacUnlockPasswordFieldTests` covers the focus lifecycle headlessly; only a
+    // real sidebar click and real key events prove the hand-off users hit.
+    // Neither test clicks the field: that would hide a focus failure.
+
+    func testOpeningDatabaseFocusesPasswordField() {
+        openFirstDatabaseFromListIfNeeded()
+
+        let passwordField = app.secureTextFields["unlock.password.field"]
+        XCTAssertTrue(passwordField.waitForExistence(timeout: 15))
+        XCTAssertTrue(waitForKeyboardFocus(passwordField), "Password field was not focused after opening the database")
+
+        let unlockButton = app.buttons["unlock.button"]
+        XCTAssertTrue(unlockButton.waitForExistence(timeout: 5))
+        XCTAssertFalse(unlockButton.isEnabled, "Unlock button must start disabled with an empty password")
+
+        app.typeText("x")
+
+        let enabled = NSPredicate(format: "isEnabled == true")
+        expectation(for: enabled, evaluatedWith: unlockButton)
+        waitForExpectations(timeout: 5)
+    }
+
     func testEscapeInUnlockReturnsToDatabaseList() {
         openFirstDatabaseFromListIfNeeded()
 
         let passwordField = app.secureTextFields["unlock.password.field"]
         XCTAssertTrue(passwordField.waitForExistence(timeout: 15))
+        XCTAssertTrue(waitForKeyboardFocus(passwordField), "Password field was not focused after opening the database")
 
         app.typeKey(.escape, modifierFlags: [])
 
@@ -289,6 +312,15 @@ final class MacSmokeUITests: MacUITestCase {
         }
         XCTAssertFalse(passwordField.exists, "Escape did not leave the unlock screen")
         XCTAssertTrue(placeholder.waitForExistence(timeout: 10), "Database-list placeholder did not appear after Escape")
+    }
+
+    private func waitForKeyboardFocus(_ element: XCUIElement, timeout: TimeInterval = 5) -> Bool {
+        let deadline = Date().addingTimeInterval(timeout)
+        while element.value(forKey: "hasKeyboardFocus") as? Bool != true {
+            guard Date() < deadline else { return false }
+            RunLoop.current.run(until: Date().addingTimeInterval(0.2))
+        }
+        return true
     }
 }
 

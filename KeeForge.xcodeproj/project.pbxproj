@@ -53,6 +53,7 @@
 		0EEE9DF85014DFA4D3137969 /* demo-keyfile.kdbx in Resources */ = {isa = PBXBuildFile; fileRef = 4CC3CF24A57A3BB531DA56C2 /* demo-keyfile.kdbx */; };
 		0F9F0E23DADEEE7527C6BAE0 /* DatabaseCreationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2FFC8C91D571F07AF7531393 /* DatabaseCreationService.swift */; };
 		0FBB0AC6B194AAD84C91F828 /* CloudFolderBrowserViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0676B657B099FF8BFA0A92B9 /* CloudFolderBrowserViewModel.swift */; };
+		0FE939FDF19314158677C7F3 /* MacUnlockPasswordFieldTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9ED688DE3842ACE0808D88BD /* MacUnlockPasswordFieldTests.swift */; };
 		101FE00A9F3480ABB883BD76 /* argon2 in Frameworks */ = {isa = PBXBuildFile; productRef = 187FDC4CDDE01C2DE056AC3F /* argon2 */; };
 		1021E0C32EFBB25CE0DF4172 /* SecureWipe.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1FEA60D513A06248ED78E7E9 /* SecureWipe.swift */; };
 		10694A4F1786B1EFD8563FD9 /* DocumentsVaultScannerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C4F5FB08EE2BFA9321FF6C45 /* DocumentsVaultScannerTests.swift */; };
@@ -326,6 +327,7 @@
 		775F9BA8EFAEF1F361AFF6BB /* Entry.swift in Sources */ = {isa = PBXBuildFile; fileRef = AEF7A2480DF3853AFF0AF02B /* Entry.swift */; };
 		776466A679F17BCB1E7E3762 /* TwofishTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0D923EB4B018FB500295E74 /* TwofishTests.swift */; };
 		7773C42734CD4B651C8EF7B7 /* CredentialMatcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB8B2C6F3F5C2509AC462D87 /* CredentialMatcher.swift */; };
+		77AE28D0724601CC7CA7E860 /* MacUnlockPasswordFieldTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9ED688DE3842ACE0808D88BD /* MacUnlockPasswordFieldTests.swift */; };
 		7991355F2A9BA147B460445B /* GroupEditViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3ECEDBFE3791A3AF8121C4DD /* GroupEditViewModelTests.swift */; };
 		7AA65543BE3ED502FF8BEA55 /* EntryDuplicateUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A225E7C96451506F1DE532D2 /* EntryDuplicateUITests.swift */; };
 		7AF427B2C82399DFAFDA2068 /* StoreKitManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = C303F1BB7603F55869127E7A /* StoreKitManager.swift */; };
@@ -1003,6 +1005,7 @@
 		9B46BE14C31F8101CBCFB9A5 /* KDBXUUIDEncoding.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KDBXUUIDEncoding.swift; sourceTree = "<group>"; };
 		9B8F8B108FB789996AD3C0BD /* PasskeyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PasskeyTests.swift; sourceTree = "<group>"; };
 		9BF0F834B82C15D0578505A6 /* FieldReferenceResolverTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FieldReferenceResolverTests.swift; sourceTree = "<group>"; };
+		9ED688DE3842ACE0808D88BD /* MacUnlockPasswordFieldTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacUnlockPasswordFieldTests.swift; sourceTree = "<group>"; };
 		A01A49238AD6DEF29C56B328 /* EntryEditCompletionGateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EntryEditCompletionGateTests.swift; sourceTree = "<group>"; };
 		A04A6F5E71D63FC88AC15D59 /* TagNormalizerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TagNormalizerTests.swift; sourceTree = "<group>"; };
 		A0987977B0D41FBB5C1456C5 /* CredentialProviderSaveTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CredentialProviderSaveTests.swift; sourceTree = "<group>"; };
@@ -1690,6 +1693,7 @@
 				B531885B533C74F391440B2B /* LocalizationTests.swift */,
 				266DACD09B3263F9CCEDE2A6 /* MacLockMonitorTests.swift */,
 				7D98A5017BAC07F0E89FDAB7 /* MacTransitionNoticeServiceTests.swift */,
+				9ED688DE3842ACE0808D88BD /* MacUnlockPasswordFieldTests.swift */,
 				3E00D0D53A542542B165F15C /* MacWindowCloseGuardTests.swift */,
 				5A0F40D4E33161DBEEAB3C6C /* MasterKeyChangeViewModelTests.swift */,
 				0330F701821BF808278069A3 /* ModelLogicTests.swift */,
@@ -2350,6 +2354,7 @@
 				4D30FCB68BBE9018CEF25F42 /* LocalizationTests.swift in Sources */,
 				96B55711C527B55CE836FDF0 /* MacLockMonitorTests.swift in Sources */,
 				3F0FE3F365B25CE5870620D8 /* MacTransitionNoticeServiceTests.swift in Sources */,
+				77AE28D0724601CC7CA7E860 /* MacUnlockPasswordFieldTests.swift in Sources */,
 				2E7F32B617110C16EF4E5B66 /* MacWindowCloseGuardTests.swift in Sources */,
 				977CB3125AB050A4ABB58750 /* MasterKeyChangeViewModelTests.swift in Sources */,
 				DAD9626B04202BC16C04CF1A /* ModelLogicTests.swift in Sources */,
@@ -2802,6 +2807,7 @@
 				D8E93E95B6B7E206F55F993E /* LocalizationTests.swift in Sources */,
 				7144C6048A793ACF7AD5E2B5 /* MacLockMonitorTests.swift in Sources */,
 				5F7AC216028E5CA91AAB3651 /* MacTransitionNoticeServiceTests.swift in Sources */,
+				0FE939FDF19314158677C7F3 /* MacUnlockPasswordFieldTests.swift in Sources */,
 				EBD709D81118B4E176ED37FF /* MacWindowCloseGuardTests.swift in Sources */,
 				75E02750D94DC6A0080903CF /* MasterKeyChangeViewModelTests.swift in Sources */,
 				397AE855030AD882CF3B5A65 /* ModelLogicTests.swift in Sources */,
@@ -2992,7 +2998,7 @@
 				CODE_SIGN_ENTITLEMENTS = KeeForgeMac/KeeForgeMac.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 50;
+				CURRENT_PROJECT_VERSION = 51;
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = KeeForgeMac/Info.plist;
@@ -3019,7 +3025,7 @@
 				CODE_SIGN_ENTITLEMENTS = AutoFillExtension/AutoFillExtensionMac.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 50;
+				CURRENT_PROJECT_VERSION = 51;
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = AutoFillExtension/InfoMac.plist;
@@ -3173,7 +3179,7 @@
 				CODE_SIGN_ENTITLEMENTS = AutoFillExtension/AutoFillExtensionMac.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 50;
+				CURRENT_PROJECT_VERSION = 51;
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = AutoFillExtension/InfoMac.plist;
@@ -3199,7 +3205,7 @@
 				CODE_SIGN_ENTITLEMENTS = KeeForgeMac/KeeForgeMac.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 50;
+				CURRENT_PROJECT_VERSION = 51;
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = KeeForgeMac/Info.plist;
@@ -3225,7 +3231,7 @@
 			buildSettings = {
 				CODE_SIGN_ENTITLEMENTS = AutoFillExtension/AutoFillExtension.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 50;
+				CURRENT_PROJECT_VERSION = 51;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = AutoFillExtension/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -3285,7 +3291,7 @@
 				CODE_SIGN_ENTITLEMENTS = KeeForge/KeeForge.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 50;
+				CURRENT_PROJECT_VERSION = 51;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = KeeForge/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -3375,7 +3381,7 @@
 			buildSettings = {
 				CODE_SIGN_ENTITLEMENTS = AutoFillExtension/AutoFillExtension.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 50;
+				CURRENT_PROJECT_VERSION = 51;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = AutoFillExtension/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -3400,7 +3406,7 @@
 				CODE_SIGN_ENTITLEMENTS = KeeForge/KeeForge.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 50;
+				CURRENT_PROJECT_VERSION = 51;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = KeeForge/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
