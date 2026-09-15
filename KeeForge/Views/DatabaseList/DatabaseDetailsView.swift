@@ -335,7 +335,7 @@ struct DatabaseDetailsView: View {
                     LabeledContent("Last Sync", value: dateText(lastSyncedAt))
                 }
 
-                LabeledContent("Status", value: cloudState.warningText ?? "Healthy")
+                LabeledContent("Status", value: cloudState.warningText ?? String(localized: "Healthy"))
             } header: {
                 Text("Cloud Sync")
             } footer: {

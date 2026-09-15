@@ -131,7 +131,7 @@ extension PendingDeletion {
     }
 
     private static func groupDeletionMessage(for action: PendingGroupDeletion) -> String {
-        let contents = "\(entryCountText(action.entryCount)) and \(nestedGroupCountText(action.nestedGroupCount))"
+        let contents = String(localized: "\(entryCountText(action.entryCount)) and \(nestedGroupCountText(action.nestedGroupCount))")
         if action.sendToRecycleBin {
             return String(localized: "\"\(action.groupName)\" contains \(contents). The group and its contents will be moved to the recycle bin.")
         }
