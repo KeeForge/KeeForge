@@ -364,7 +364,7 @@ final class CloudSyncCoordinatorTests: XCTestCase {
         XCTAssertEqual(provider.metadataCallCount, 1)
         XCTAssertEqual(provider.downloadCallCount, 1)
         XCTAssertEqual(progressRecorder.values, [1])
-        XCTAssertNil(resolution.reference.cloudSyncMetadata?.lastSyncError)
+        XCTAssertNil(resolution.reference.cloudSyncMetadata?.lastSyncIssue)
         XCTAssertEqual(resolution.reference.cloudSyncMetadata?.remoteContentHash, "new-hash")
         XCTAssertNotNil(resolution.reference.cloudSyncMetadata?.lastSyncedAt)
         XCTAssertEqual(
@@ -514,7 +514,7 @@ final class CloudSyncCoordinatorTests: XCTestCase {
             makeMarker(
                 databaseId: reference.id,
                 openTimeSHA512: KDBXCrypto.sha512(strandedBytes),
-                lastSyncError: "conflict"
+                isConflicted: true
             )
         )
         let healthyMarker = try PendingUploadQueue.enqueue(
@@ -543,7 +543,7 @@ final class CloudSyncCoordinatorTests: XCTestCase {
             makeMarker(
                 databaseId: reference.id,
                 openTimeSHA512: Data("vanished-payload-sha".utf8),
-                lastSyncError: "conflict"
+                isConflicted: true
             )
         )
 
@@ -557,7 +557,7 @@ final class CloudSyncCoordinatorTests: XCTestCase {
     private func makeMarker(
         databaseId: UUID,
         openTimeSHA512: Data,
-        lastSyncError: String? = nil
+        isConflicted: Bool = false
     ) -> PendingUploadQueue.Marker {
         PendingUploadQueue.Marker(
             databaseId: databaseId,
@@ -565,7 +565,7 @@ final class CloudSyncCoordinatorTests: XCTestCase {
             openTimeSHA512: openTimeSHA512,
             expectedRev: "rev-1",
             createdAt: Date(timeIntervalSince1970: 1_000),
-            lastSyncError: lastSyncError,
+            isConflicted: isConflicted,
             baseRev: "rev-1"
         )
     }
@@ -608,7 +608,7 @@ final class CloudSyncCoordinatorTests: XCTestCase {
         XCTAssertEqual(resolution.data, Data("cached-current-copy".utf8))
         XCTAssertEqual(provider.metadataCallCount, 1)
         XCTAssertEqual(provider.downloadCallCount, 0)
-        XCTAssertNil(resolution.reference.cloudSyncMetadata?.lastSyncError)
+        XCTAssertNil(resolution.reference.cloudSyncMetadata?.lastSyncIssue)
         XCTAssertNotNil(resolution.reference.cloudSyncMetadata?.lastSyncedAt)
     }
 
@@ -633,8 +633,8 @@ final class CloudSyncCoordinatorTests: XCTestCase {
         XCTAssertEqual(provider.metadataCallCount, 1)
         XCTAssertEqual(provider.downloadCallCount, 0)
         XCTAssertEqual(
-            resolution.reference.cloudSyncMetadata?.lastSyncError,
-            CloudProviderError.networkUnavailable.errorDescription
+            resolution.reference.cloudSyncMetadata?.lastSyncIssue,
+            .networkUnavailable
         )
     }
 
@@ -654,8 +654,8 @@ final class CloudSyncCoordinatorTests: XCTestCase {
         XCTAssertEqual(resolution.data, Data("cached-disconnected-copy".utf8))
         XCTAssertEqual(resolution.bannerMessage, CloudSyncResolution.disconnectedCachedBannerMessage)
         XCTAssertEqual(
-            resolution.reference.cloudSyncMetadata?.lastSyncError,
-            CloudProviderError.notAuthenticated.errorDescription
+            resolution.reference.cloudSyncMetadata?.lastSyncIssue,
+            .notAuthenticated
         )
     }
 
@@ -679,8 +679,8 @@ final class CloudSyncCoordinatorTests: XCTestCase {
         XCTAssertEqual(provider.metadataCallCount, 0)
         XCTAssertEqual(provider.downloadCallCount, 0)
         XCTAssertEqual(
-            resolution.reference.cloudSyncMetadata?.lastSyncError,
-            CloudProviderError.notAuthenticated.errorDescription
+            resolution.reference.cloudSyncMetadata?.lastSyncIssue,
+            .notAuthenticated
         )
     }
 
@@ -711,8 +711,8 @@ final class CloudSyncCoordinatorTests: XCTestCase {
         XCTAssertEqual(provider.metadataCallCount, 1)
         XCTAssertEqual(provider.downloadCallCount, 0)
         XCTAssertEqual(
-            resolution.reference.cloudSyncMetadata?.lastSyncError,
-            CloudProviderError.fileNotFound.localizedDescription
+            resolution.reference.cloudSyncMetadata?.lastSyncIssue,
+            .fileNotFound
         )
     }
 
@@ -769,8 +769,8 @@ final class CloudSyncCoordinatorTests: XCTestCase {
         XCTAssertTrue(provider.metadataProbeCancelled)
         XCTAssertEqual(provider.downloadCallCount, 0)
         XCTAssertEqual(
-            resolution.reference.cloudSyncMetadata?.lastSyncError,
-            CloudProviderError.networkUnavailable.errorDescription
+            resolution.reference.cloudSyncMetadata?.lastSyncIssue,
+            .networkUnavailable
         )
     }
 
@@ -851,7 +851,7 @@ final class CloudSyncCoordinatorTests: XCTestCase {
         XCTAssertEqual(resolution.data, Data("fresh-copy".utf8))
         XCTAssertEqual(provider.metadataCallCount, 1)
         XCTAssertEqual(provider.downloadCallCount, 1)
-        XCTAssertNil(resolution.reference.cloudSyncMetadata?.lastSyncError)
+        XCTAssertNil(resolution.reference.cloudSyncMetadata?.lastSyncIssue)
     }
 
     private func makeCloudReference(
@@ -879,7 +879,7 @@ final class CloudSyncCoordinatorTests: XCTestCase {
                     remoteContentHash: remoteContentHash,
                     remoteModifiedAt: remoteModifiedAt,
                     lastSyncedAt: nil,
-                    lastSyncError: nil
+                    lastSyncIssue: nil
                 )
             )
         )

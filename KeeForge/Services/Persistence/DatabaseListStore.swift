@@ -254,7 +254,7 @@ enum DatabaseListStore {
                         remoteContentHash: nil,
                         remoteModifiedAt: file.modifiedDate,
                         lastSyncedAt: nil,
-                        lastSyncError: nil
+                        lastSyncIssue: nil
                     )
                 )
             )
@@ -1127,7 +1127,7 @@ enum DatabaseListStore {
                     remoteContentHash: nil,
                     remoteModifiedAt: payload.file.modifiedDate,
                     lastSyncedAt: nil,
-                    lastSyncError: nil
+                    lastSyncIssue: nil
                 )
             )
         )

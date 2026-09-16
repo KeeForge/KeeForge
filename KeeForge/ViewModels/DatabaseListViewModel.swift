@@ -291,7 +291,7 @@ final class DatabaseListViewModel {
         )
         let pendingConflictCounts = Dictionary(
             pendingMarkers.compactMap { storedMarker in
-                storedMarker.marker.lastSyncError == nil ? nil : (storedMarker.marker.databaseId, 1)
+                storedMarker.marker.isConflicted ? (storedMarker.marker.databaseId, 1) : nil
             },
             uniquingKeysWith: +
         )

@@ -2503,7 +2503,7 @@ final class DatabaseViewModel {
                             storedMetadata.remoteModifiedAt = learned.remoteModifiedAt
                             storedMetadata.remoteRev = learned.remoteRev
                             storedMetadata.lastSyncedAt = learned.lastSyncedAt
-                            storedMetadata.lastSyncError = learned.lastSyncError
+                            storedMetadata.lastSyncIssue = learned.lastSyncIssue
                         }
                     }
 

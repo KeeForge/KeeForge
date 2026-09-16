@@ -75,7 +75,7 @@ final class CloudDatabaseSaverTests: XCTestCase {
         XCTAssertEqual(updatedReference.cloudSyncMetadata?.remoteContentHash, "remote-hash-B")
         XCTAssertEqual(updatedReference.cloudSyncMetadata?.remoteModifiedAt, uploadedMetadata.modifiedDate)
         XCTAssertNotNil(updatedReference.cloudSyncMetadata?.lastSyncedAt)
-        XCTAssertNil(updatedReference.cloudSyncMetadata?.lastSyncError)
+        XCTAssertNil(updatedReference.cloudSyncMetadata?.lastSyncIssue)
         XCTAssertEqual(try Data(contentsOf: backupURL), context.currentData)
     }
 
@@ -1227,7 +1227,7 @@ final class CloudDatabaseSaverTests: XCTestCase {
             remoteModifiedAt: Date(timeIntervalSince1970: 100),
             remoteRev: rev,
             lastSyncedAt: nil,
-            lastSyncError: nil
+            lastSyncIssue: nil
         )
     }
 

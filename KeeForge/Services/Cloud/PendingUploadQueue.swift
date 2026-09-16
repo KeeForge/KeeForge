@@ -19,7 +19,12 @@ enum PendingUploadQueue {
         var openTimeSHA512: Data
         var expectedRev: String?
         let createdAt: Date
-        var lastSyncError: String?
+        /// Whether the last drain attempt was blocked by a conflict. A cached
+        /// verdict only: every drain re-derives it from the rekey, payload-SHA
+        /// and provider-revision gates, so a marker that decodes as `false`
+        /// (any marker written before this field existed) is re-checked rather
+        /// than pushed blind.
+        var isConflicted: Bool = false
         /// Remote revision the payload was derived from (the reference's rev
         /// when the saving process opened the database). The drainer only
         /// auto-rebases a conflicted marker when this equals the remote head.
@@ -32,7 +37,7 @@ enum PendingUploadQueue {
             openTimeSHA512: Data,
             expectedRev: String?,
             createdAt: Date,
-            lastSyncError: String?,
+            isConflicted: Bool = false,
             baseRev: String? = nil
         ) {
             self.databaseId = databaseId
@@ -40,8 +45,25 @@ enum PendingUploadQueue {
             self.openTimeSHA512 = openTimeSHA512
             self.expectedRev = expectedRev
             self.createdAt = createdAt
-            self.lastSyncError = lastSyncError
+            self.isConflicted = isConflicted
             self.baseRev = baseRev
+        }
+
+        /// Hand-written so markers persisted before `isConflicted` existed keep
+        /// decoding. A synthesized decoder demands every non-optional key and
+        /// ignores the property default, and `listMarkers` drops a marker it
+        /// cannot decode — which would strand an AutoFill save's bytes in the
+        /// shared cache with no marker covering them, the one thing the queue
+        /// exists to prevent.
+        init(from decoder: any Decoder) throws {
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            databaseId = try container.decode(UUID.self, forKey: .databaseId)
+            encryptedBytesCacheURL = try container.decode(String.self, forKey: .encryptedBytesCacheURL)
+            openTimeSHA512 = try container.decode(Data.self, forKey: .openTimeSHA512)
+            expectedRev = try container.decodeIfPresent(String.self, forKey: .expectedRev)
+            createdAt = try container.decode(Date.self, forKey: .createdAt)
+            isConflicted = try container.decodeIfPresent(Bool.self, forKey: .isConflicted) ?? false
+            baseRev = try container.decodeIfPresent(String.self, forKey: .baseRev)
         }
     }
 
@@ -200,15 +222,9 @@ enum PendingUploadQueue {
         return storedMarker
     }
 
-    static func markConflicted(_ storedMarker: StoredMarker, message: String) throws -> StoredMarker {
+    static func markConflicted(_ storedMarker: StoredMarker, environment: Environment = .live) throws -> StoredMarker {
         var updated = storedMarker
-        updated.marker.lastSyncError = message
-        return try update(updated, environment: .live)
-    }
-
-    static func markConflicted(_ storedMarker: StoredMarker, message: String, environment: Environment) throws -> StoredMarker {
-        var updated = storedMarker
-        updated.marker.lastSyncError = message
+        updated.marker.isConflicted = true
         return try update(updated, environment: environment)
     }
 

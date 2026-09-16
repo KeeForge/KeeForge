@@ -5016,7 +5016,7 @@ final class DatabaseViewModelTests: XCTestCase {
                     remoteModifiedAt: nil,
                     remoteRev: remoteRev,
                     lastSyncedAt: nil,
-                    lastSyncError: nil
+                    lastSyncIssue: nil
                 )
             )
         )

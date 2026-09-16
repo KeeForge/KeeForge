@@ -199,7 +199,7 @@ final class DatabaseListStoreTests: XCTestCase {
         ) { metadata in
             metadata.remoteRev = "rev-B"
             metadata.remoteContentHash = "hash-B"
-            metadata.lastSyncError = nil
+            metadata.lastSyncIssue = nil
         }
 
         let stored = try XCTUnwrap(DatabaseListStore.databases.first(where: { $0.id == reference.id }))

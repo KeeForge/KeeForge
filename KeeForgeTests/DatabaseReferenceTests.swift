@@ -52,7 +52,7 @@ final class DatabaseReferenceTests: XCTestCase {
                     remoteModifiedAt: Date(timeIntervalSince1970: 40),
                     remoteRev: "rev-123",
                     lastSyncedAt: Date(timeIntervalSince1970: 50),
-                    lastSyncError: nil
+                    lastSyncIssue: nil
                 )
             )
         )

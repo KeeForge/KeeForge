@@ -42,9 +42,11 @@ enum CloudSyncCoordinator {
 
     /// The metadata probe did not answer within the open deadline. Treated as
     /// an unreachable server, so it wears the offline message.
-    struct ProbeTimeout: LocalizedError {
+    struct ProbeTimeout: LocalizedError, CloudSyncIssueConvertible {
+        var syncIssue: CloudSyncIssue { .networkUnavailable }
+
         var errorDescription: String? {
-            CloudProviderError.networkUnavailable.errorDescription
+            syncIssue.localizedDescription
         }
     }
 
@@ -119,7 +121,7 @@ enum CloudSyncCoordinator {
                 cloudMetadata.remoteModifiedAt = syncedMetadata.modifiedDate
                 cloudMetadata.remoteRev = syncedMetadata.rev
                 cloudMetadata.lastSyncedAt = .now
-                cloudMetadata.lastSyncError = nil
+                cloudMetadata.lastSyncIssue = nil
             }
 
             let data = try CoordinatedFileReader.readData(from: cacheURL)
@@ -181,7 +183,7 @@ enum CloudSyncCoordinator {
     ) throws -> CloudSyncResolution {
         var updatedReference = reference
         updatedReference.updateCloudSyncMetadata { cloudMetadata in
-            cloudMetadata.lastSyncError = CloudProviderError.message(for: error)
+            cloudMetadata.lastSyncIssue = CloudProviderError.issue(for: error)
         }
 
         guard allowCachedFallback, cacheExists else {
@@ -430,7 +432,7 @@ enum CloudSyncCoordinator {
     static func discardConflictedPendingUploads(for reference: DatabaseReference) async -> Int {
         await Task.detached(priority: .utility) {
             let conflictedMarkers = PendingUploadQueue.listMarkers(for: reference.id)
-                .filter { $0.marker.lastSyncError != nil }
+                .filter(\.marker.isConflicted)
             guard conflictedMarkers.isEmpty == false else { return 0 }
 
             let cacheURL = DatabaseListStore.cacheLocation(for: reference)
@@ -519,7 +521,7 @@ enum CloudSyncCoordinator {
                 cloudMetadata.remoteRev = rev
             }
             cloudMetadata.lastSyncedAt = .now
-            cloudMetadata.lastSyncError = nil
+            cloudMetadata.lastSyncIssue = nil
         }
         DatabaseListStore.update(updatedReference)
         return updatedReference

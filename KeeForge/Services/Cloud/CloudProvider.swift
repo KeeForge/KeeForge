@@ -64,7 +64,7 @@ extension CloudProvider {
     }
 }
 
-enum CloudProviderError: LocalizedError, Equatable {
+enum CloudProviderError: LocalizedError, Equatable, CloudSyncIssueConvertible {
     case invalidConfiguration
     case authenticationCancelled
     case notAuthenticated
@@ -79,45 +79,44 @@ enum CloudProviderError: LocalizedError, Equatable {
     case invalidName
     case unknown(String)
 
-    var errorDescription: String? {
+    /// The persistable form of this error. The user-facing wording lives on
+    /// `CloudSyncIssue`, so a message shown live and one replayed out of the
+    /// database list cannot drift apart.
+    var syncIssue: CloudSyncIssue {
         switch self {
-        case .invalidConfiguration:
-            String(localized: "Cloud sync is not configured for this build.")
-        case .authenticationCancelled:
-            String(localized: "Authentication was cancelled.")
-        case .notAuthenticated:
-            String(localized: "Please reconnect this cloud account.")
-        case .networkUnavailable:
-            String(localized: "No network connection. Using the cached copy if available.")
-        case .fileNotFound:
-            String(localized: "The remote database could not be found.")
-        case .conflict:
-            String(localized: "This database changed in the cloud. Reload before saving again.")
-        case .writeScopeRequired:
-            String(localized: "Reconnect this cloud account to save changes.")
-        case .rateLimited:
-            String(localized: "The cloud service is busy right now. Try again in a moment.")
-        case .serviceUnavailable:
-            String(localized: "The cloud service is temporarily unavailable. Try again later.")
-        case .insufficientSpace:
-            String(localized: "There isn't enough storage space in this cloud account.")
-        case .permissionDenied:
-            String(localized: "You don't have permission to change this file.")
-        case .invalidName:
-            String(localized: "The cloud service rejected this file name.")
-        case .unknown(let message):
-            message
+        case .invalidConfiguration: .invalidConfiguration
+        case .authenticationCancelled: .authenticationCancelled
+        case .notAuthenticated: .notAuthenticated
+        case .networkUnavailable: .networkUnavailable
+        case .fileNotFound: .fileNotFound
+        case .conflict: .conflict
+        case .writeScopeRequired: .writeScopeRequired
+        case .rateLimited: .rateLimited
+        case .serviceUnavailable: .serviceUnavailable
+        case .insufficientSpace: .insufficientSpace
+        case .permissionDenied: .permissionDenied
+        case .invalidName: .invalidName
+        case .unknown(let message): .unknown(message)
         }
     }
 
-    static func message(for error: Error) -> String {
-        if let cloudError = error as? CloudProviderError,
-           let description = cloudError.errorDescription {
-            return description
-        }
+    var errorDescription: String? {
+        syncIssue.localizedDescription
+    }
 
-        let nsError = error as NSError
-        return nsError.localizedDescription
+    static func message(for error: Error) -> String {
+        issue(for: error).localizedDescription
+    }
+
+    /// Maps any sync failure onto the code that gets persisted. An error the
+    /// app did not define keeps its own description — that text is the best
+    /// available for it, and is the one case that cannot be re-localized
+    /// later.
+    static func issue(for error: Error) -> CloudSyncIssue {
+        if let convertible = error as? CloudSyncIssueConvertible {
+            return convertible.syncIssue
+        }
+        return .unknown((error as NSError).localizedDescription)
     }
 
     /// Whether `error` means "no working server on the other end" — the

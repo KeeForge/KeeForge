@@ -616,6 +616,46 @@
         }
       }
     },
+    "Authentication was cancelled." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Authentifizierung wurde abgebrochen."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Se canceló la autenticación."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "L'authentification a été annulée."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "認証がキャンセルされました。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "验证已取消。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "驗證已取消。"
+          }
+        }
+      }
+    },
     "AutoFill with KeeForge" : {
       "localizations" : {
         "de" : {
@@ -812,6 +852,46 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "選擇憑證"
+          }
+        }
+      }
+    },
+    "Cloud sync is not configured for this build." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die Cloud-Synchronisierung ist für diesen Build nicht konfiguriert."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La sincronización en la nube no está configurada para este build."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La synchronisation cloud n'est pas configurée pour ce build."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このビルドではクラウド同期が構成されていません。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此构建版本未配置云同步。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此建置版本未設定雲端同步。"
           }
         }
       }
@@ -3102,6 +3182,46 @@
         }
       }
     },
+    "No network connection. Using the cached copy if available." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Keine Netzwerkverbindung. Die Cache-Kopie wird verwendet, falls verfügbar."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sin conexión de red. Se utilizará la copia almacenada en caché si está disponible."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aucune connexion réseau. Utilisation de la copie en cache si disponible."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ネットワークに接続していません。利用できる場合はキャッシュされたコピーを使用します。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无网络连接。如有可用的缓存副本，将使用该副本。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "沒有網路連線。如有可用的快取副本，將使用該副本。"
+          }
+        }
+      }
+    },
     "None" : {
       "localizations" : {
         "de" : {
@@ -3462,6 +3582,46 @@
         }
       }
     },
+    "Please reconnect this cloud account." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bitte verbinden Sie dieses Cloud-Konto erneut."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vuelva a conectar esta cuenta en la nube."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Veuillez reconnecter ce compte cloud."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このクラウドアカウントに再接続してください。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "请重新连接此云账户。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "請重新連接此雲端帳號。"
+          }
+        }
+      }
+    },
     "Please select a KeePass .kdbx database." : {
       "localizations" : {
         "de" : {
@@ -3578,6 +3738,46 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "唯讀資料庫"
+          }
+        }
+      }
+    },
+    "Reconnect this cloud account to save changes." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Verbinden Sie dieses Cloud-Konto erneut, um Änderungen zu sichern."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vuelva a conectar esta cuenta en la nube para guardar los cambios."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reconnectez ce compte cloud pour enregistrer les modifications."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "変更を保存するには、このクラウドアカウントに再接続してください。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重新连接此云账户以保存更改。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重新連接此雲端帳號以儲存變更。"
           }
         }
       }
@@ -4102,6 +4302,126 @@
         }
       }
     },
+    "The cloud service is busy right now. Try again in a moment." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Der Cloud-Dienst ist gerade ausgelastet. Versuchen Sie es gleich noch einmal."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "El servicio en la nube está ocupado en este momento. Inténtelo de nuevo en un momento."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Le service cloud est occupé actuellement. Réessayez dans un instant."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "クラウドサービスが混み合っています。しばらくしてからもう一度お試しください。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "云服务当前正忙。请稍后再试。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "雲端服務目前忙碌。請稍後再試。"
+          }
+        }
+      }
+    },
+    "The cloud service is temporarily unavailable. Try again later." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Der Cloud-Dienst ist vorübergehend nicht verfügbar. Versuchen Sie es später erneut."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "El servicio en la nube no está disponible temporalmente. Inténtelo de nuevo más tarde."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Le service cloud est temporairement indisponible. Réessayez plus tard."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "クラウドサービスを一時的に利用できません。しばらくしてからもう一度お試しください。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "云服务暂时不可用。请稍后再试。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "雲端服務暫時無法使用。請稍後再試。"
+          }
+        }
+      }
+    },
+    "The cloud service rejected this file name." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Der Cloud-Dienst hat diesen Dateinamen abgelehnt."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "El servicio en la nube rechazó este nombre de archivo."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Le service cloud a rejeté ce nom de fichier."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "クラウドサービスがこのファイル名を受け付けませんでした。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "云服务拒绝了此文件名。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "雲端服務拒絕了此檔案名稱。"
+          }
+        }
+      }
+    },
     "The database appears corrupted or incomplete." : {
       "localizations" : {
         "de" : {
@@ -4464,6 +4784,46 @@
         }
       }
     },
+    "The remote database could not be found." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die Remote-Datenbank konnte nicht gefunden werden."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No se pudo encontrar la base de datos remota."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La base de données distante est introuvable."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "リモートのデータベースが見つかりませんでした。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "找不到远程数据库。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "找不到遠端資料庫。"
+          }
+        }
+      }
+    },
     "The request is no longer available." : {
       "localizations" : {
         "de" : {
@@ -4504,6 +4864,46 @@
         }
       }
     },
+    "There isn't enough storage space in this cloud account." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "In diesem Cloud-Konto ist nicht genügend Speicherplatz vorhanden."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No hay suficiente espacio de almacenamiento en esta cuenta en la nube."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Il n'y a pas assez d'espace de stockage disponible dans ce compte cloud."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このクラウドアカウントの保存容量が足りません。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此云账户的存储空间不足。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此雲端帳號的儲存空間不足。"
+          }
+        }
+      }
+    },
     "This adds the original request URL to the selected credential. The database will be changed only if you confirm." : {
       "localizations" : {
         "de" : {
@@ -4540,6 +4940,46 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "這會將原始請求 URL 加入所選的憑證。只有在你確認後，資料庫才會變更。"
+          }
+        }
+      }
+    },
+    "This database changed in the cloud. Reload before saving again." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Diese Datenbank wurde in der Cloud geändert. Laden Sie sie vor dem erneuten Sichern neu."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Esta base de datos cambió en la nube. Vuelva a cargarla antes de guardar de nuevo."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cette base de données a été modifiée dans le cloud. Rechargez-la avant de l'enregistrer à nouveau."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このデータベースはクラウド上で変更されています。もう一度保存する前に再読み込みしてください。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此数据库已在云端发生变化。请重新加载后再保存。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此資料庫已在雲端變更。請重新載入後再儲存。"
           }
         }
       }
@@ -5906,6 +6346,46 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "當螢幕鎖定或進入睡眠時"
+          }
+        }
+      }
+    },
+    "You don't have permission to change this file." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sie haben keine Berechtigung, diese Datei zu ändern."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No tiene permiso para cambiar este archivo."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vous n'avez pas l'autorisation de modifier ce fichier."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このファイルを変更する権限がありません。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "你没有权限更改此文件。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "你沒有權限變更此檔案。"
           }
         }
       }

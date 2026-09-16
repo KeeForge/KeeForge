@@ -150,7 +150,6 @@ enum AutoFillSaveCoordinator {
                         openTimeSHA512: openTimeSHA512,
                         expectedRev: reference.expectedCloudRevision,
                         createdAt: environment.now(),
-                        lastSyncError: nil,
                         baseRev: reference.expectedCloudRevision
                     )
                 )
@@ -246,7 +245,7 @@ enum AutoFillSaveCoordinator {
 
             var replacementMarker = storedMarker.marker
             replacementMarker.baseRev = nil
-            replacementMarker.lastSyncError = nil
+            replacementMarker.isConflicted = false
             if (try? environment.enqueuePendingUpload(replacementMarker)) != nil {
                 environment.notifyPendingUploadEnqueued()
             }

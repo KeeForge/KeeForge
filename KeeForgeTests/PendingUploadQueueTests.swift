@@ -67,13 +67,13 @@ final class PendingUploadQueueTests: XCTestCase {
         XCTAssertFalse(FileManager.default.fileExists(atPath: storedMarker.fileURL.path))
 
         var stale = storedMarker
-        stale.marker.lastSyncError = "late conflict"
+        stale.marker.isConflicted = true
 
         XCTAssertThrowsError(try PendingUploadQueue.update(stale, environment: environment)) { error in
             XCTAssertEqual(error as? PendingUploadQueue.UpdateError, .markerNoLongerExists)
         }
         XCTAssertThrowsError(
-            try PendingUploadQueue.markConflicted(stale, message: "late", environment: environment)
+            try PendingUploadQueue.markConflicted(stale, environment: environment)
         )
 
         XCTAssertFalse(FileManager.default.fileExists(atPath: storedMarker.fileURL.path))
@@ -86,21 +86,17 @@ final class PendingUploadQueueTests: XCTestCase {
         let environment = makeEnvironment()
         let storedMarker = try PendingUploadQueue.enqueue(makeMarker(), environment: environment)
 
-        _ = try PendingUploadQueue.markConflicted(
-            storedMarker,
-            message: "Dropbox conflict",
-            environment: environment
-        )
+        _ = try PendingUploadQueue.markConflicted(storedMarker, environment: environment)
 
         let reloadedMarker = try XCTUnwrap(
             PendingUploadQueue.listMarkers(for: storedMarker.marker.databaseId, environment: environment).first
         )
-        XCTAssertEqual(reloadedMarker.marker.lastSyncError, "Dropbox conflict")
+        XCTAssertTrue(reloadedMarker.marker.isConflicted)
     }
 
     func test_markerCodableRoundTrip() throws {
         let environment = makeEnvironment()
-        let marker = makeMarker(lastSyncError: "Needs attention", baseRev: "rev-1")
+        let marker = makeMarker(isConflicted: true, baseRev: "rev-1")
 
         let encoded = try environment.encodeMarker(marker)
         let decoded = try environment.decodeMarker(encoded)
@@ -109,10 +105,12 @@ final class PendingUploadQueueTests: XCTestCase {
         XCTAssertEqual(decoded.baseRev, "rev-1")
     }
 
-    func test_markerDecodesLegacyJSONWithoutBaseRev() throws {
-        // Markers persisted before the `baseRev` field existed must keep
-        // decoding, and the missing field must decode as nil — which the
-        // drainer treats as "never auto-rebase".
+    func test_markerDecodesLegacyJSONWithoutBaseRevOrIsConflicted() throws {
+        // Markers persisted before `baseRev` and `isConflicted` existed must
+        // keep decoding. `baseRev` decodes as nil (the drainer never
+        // auto-rebases those), and the retired `lastSyncError` string is
+        // ignored, leaving `isConflicted` false so the next drain re-derives
+        // the verdict from its own gates.
         let databaseId = UUID()
         let legacyJSON = """
         {
@@ -133,7 +131,7 @@ final class PendingUploadQueueTests: XCTestCase {
         XCTAssertEqual(decoded.databaseId, databaseId)
         XCTAssertEqual(decoded.openTimeSHA512, Data("open-sha".utf8))
         XCTAssertEqual(decoded.expectedRev, "rev-1")
-        XCTAssertEqual(decoded.lastSyncError, "Needs attention")
+        XCTAssertFalse(decoded.isConflicted)
         XCTAssertNil(decoded.baseRev)
     }
 
@@ -166,7 +164,7 @@ final class PendingUploadQueueTests: XCTestCase {
             makeMarker(
                 databaseId: databaseId,
                 createdAt: Date(timeIntervalSince1970: 20),
-                lastSyncError: "conflict",
+                isConflicted: true,
                 openTimeSHA512: supersededSHA
             ),
             environment: environment
@@ -245,7 +243,7 @@ final class PendingUploadQueueTests: XCTestCase {
         databaseId: UUID = UUID(),
         createdAt: Date = Date(timeIntervalSince1970: 1_000),
         expectedRev: String? = "rev-1",
-        lastSyncError: String? = nil,
+        isConflicted: Bool = false,
         openTimeSHA512: Data = Data("open-sha".utf8),
         baseRev: String? = nil
     ) -> PendingUploadQueue.Marker {
@@ -255,7 +253,7 @@ final class PendingUploadQueueTests: XCTestCase {
             openTimeSHA512: openTimeSHA512,
             expectedRev: expectedRev,
             createdAt: createdAt,
-            lastSyncError: lastSyncError,
+            isConflicted: isConflicted,
             baseRev: baseRev
         )
     }
