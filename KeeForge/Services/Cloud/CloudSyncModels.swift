@@ -170,7 +170,7 @@ struct CloudSyncMetadata: Codable, Hashable, Sendable {
 
     func warningText(now: Date = .now, isAuthenticated: Bool) -> String? {
         if isAuthenticated == false {
-            return "Disconnected"
+            return String(localized: "Disconnected")
         }
 
         if let lastSyncError, !lastSyncError.isEmpty {
@@ -178,7 +178,7 @@ struct CloudSyncMetadata: Codable, Hashable, Sendable {
         }
 
         if let lastSyncedAt, now.timeIntervalSince(lastSyncedAt) > 86_400 {
-            return "Sync older than 24h"
+            return String(localized: "Sync older than 24h")
         }
 
         return nil

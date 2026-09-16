@@ -131,7 +131,7 @@ The 2026-09-08 probe settled the design: the iPad-on-Mac app never stores a data
 
 ### Fixes
 
-- Two pieces of text stayed English in every language: the group delete confirmation joined its entry and group counts with an English "and", and the cloud Status row in Database Details always read "Healthy". Both are translated now.
+- Some text stayed English in every language: the group delete confirmation joined its entry and group counts with an English "and", and the cloud sync status read "Healthy", "Disconnected", or "Sync older than 24h" in Database Details and the database list. All of it is translated now.
 - Deleting an entry from the search results works again. Tapping Delete in a search result's long-press menu did nothing, and swiping to delete there made the row disappear without actually deleting the entry.
 
 ## v1.16.0 (2026-09-13)
