@@ -2011,6 +2011,7 @@
 				en,
 				es,
 				fr,
+				ja,
 				"zh-Hans",
 				"zh-Hant",
 			);

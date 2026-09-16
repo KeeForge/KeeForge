@@ -24,6 +24,12 @@
             "value" : "« %@ » existe déjà dans ce groupe."
           }
         },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "「%@」はこのグループにすでに存在します。"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -56,6 +62,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "« %@ » est déjà présent dans votre liste de bases de données."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "「%@」はすでにデータベース一覧にあります。"
           }
         },
         "zh-Hans" : {
@@ -92,6 +104,12 @@
             "value" : "« %@ » est déjà utilisé par une base de données disponible uniquement dans KeeForge."
           }
         },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "「%@」は KeeForge 専用のデータベースですでに使用されています。"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -124,6 +142,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "(sans titre)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "（名称未設定）"
           }
         },
         "zh-Hans" : {
@@ -166,6 +190,12 @@
             "value" : "%1$@ · %2$@ itérations · %3$@ threads"
           }
         },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ · %2$@ 回の反復 · %3$@ スレッド"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -206,6 +236,12 @@
             "value" : "%1$@ (~%2$lld bits)"
           }
         },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@（約 %2$lld ビット）"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -238,6 +274,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%@ tours"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ ラウンド"
           }
         },
         "zh-Hans" : {
@@ -274,6 +316,12 @@
             "value" : "1 minute"
           }
         },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "1 分"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -306,6 +354,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "5 minutes"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "5 分"
           }
         },
         "zh-Hans" : {
@@ -342,6 +396,12 @@
             "value" : "10 secondes"
           }
         },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "10 秒"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -374,6 +434,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "30 secondes"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "30 秒"
           }
         },
         "zh-Hans" : {
@@ -410,6 +476,12 @@
             "value" : "Un groupe ne peut pas être déplacé dans lui-même ni dans l'un de ses sous-groupes."
           }
         },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "グループを自分自身やそのサブグループの中へ移動することはできません。"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -442,6 +514,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Ajouter l’URL d’origine à cette entrée"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このエントリに元の URL を追加"
           }
         },
         "zh-Hans" : {
@@ -478,6 +556,12 @@
             "value" : "Ajouter l’URL d’origine ?"
           }
         },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "元の URL を追加しますか？"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -510,6 +594,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Ajouter l’URL"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "URL を追加"
           }
         },
         "zh-Hans" : {
@@ -546,6 +636,12 @@
             "value" : "Remplissage automatique avec KeeForge"
           }
         },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge で自動入力"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -578,6 +674,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Généralités"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "基本情報"
           }
         },
         "zh-Hans" : {
@@ -614,6 +716,12 @@
             "value" : "HMAC de bloc invalide — mot de passe incorrect ou fichier corrompu"
           }
         },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ブロックの HMAC が無効です。パスワードが違うか、ファイルが破損しています"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -646,6 +754,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Annuler"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "キャンセル"
           }
         },
         "zh-Hans" : {
@@ -682,6 +796,12 @@
             "value" : "Choisir les identifiants"
           }
         },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "認証情報を選択"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -716,6 +836,12 @@
             "value" : "Échec de la compression"
           }
         },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "圧縮に失敗しました"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -748,6 +874,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Impossible d'extraire les données de la clé EC P-256"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "EC P-256 のキーデータを取り出せませんでした"
           }
         },
         "zh-Hans" : {
@@ -790,6 +922,12 @@
             "value" : "Impossible de créer la clé d’accès"
           }
         },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "パスキーを作成できませんでした"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -822,6 +960,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Impossible d'ouvrir le fichier"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ファイルを開けませんでした"
           }
         },
         "zh-Hans" : {
@@ -858,6 +1002,12 @@
             "value" : "Impossible d’enregistrer"
           }
         },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "保存できませんでした"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -890,6 +1040,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Impossible d'enregistrer la clé d'accès"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "パスキーを保存できませんでした"
           }
         },
         "zh-Hans" : {
@@ -926,6 +1082,12 @@
             "value" : "Créer un identifiant"
           }
         },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新規認証情報を作成"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -958,6 +1120,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Sombre"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ダーク"
           }
         },
         "zh-Hans" : {
@@ -994,6 +1162,12 @@
             "value" : "Base de données"
           }
         },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "データベース"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1026,6 +1200,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Base de données modifiée"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "データベースが変更されました"
           }
         },
         "zh-Hans" : {
@@ -1062,6 +1242,12 @@
             "value" : "Base de données modifiée — ouvrez KeeForge pour enregistrer"
           }
         },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "データベースが変更されました。保存するには KeeForge を開いてください"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1094,6 +1280,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Échec de la décompression"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "展開に失敗しました"
           }
         },
         "zh-Hans" : {
@@ -1130,6 +1322,12 @@
             "value" : "Échec du déchiffrement — mot de passe incorrect ?"
           }
         },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "復号に失敗しました。パスワードが違う可能性があります"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1162,6 +1360,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Échec du chiffrement"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "暗号化に失敗しました"
           }
         },
         "zh-Hans" : {
@@ -1198,6 +1402,12 @@
             "value" : "Saisissez un mot de passe pour cet identifiant."
           }
         },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "この認証情報のパスワードを入力してください。"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1230,6 +1440,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Saisissez un titre ou un nom d’utilisateur pour cet identifiant."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "この認証情報のタイトルまたはユーザ名を入力してください。"
           }
         },
         "zh-Hans" : {
@@ -1266,6 +1482,12 @@
             "value" : "Saisissez votre mot de passe principal ou utilisez le déverrouillage biométrique."
           }
         },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "マスターパスワードを入力するか、生体認証をご利用ください。"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1298,6 +1520,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Entrée introuvable : %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "エントリが見つかりません：%@"
           }
         },
         "zh-Hans" : {
@@ -1334,6 +1562,12 @@
             "value" : "Expiré"
           }
         },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "有効期限切れ"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1366,6 +1600,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Échec de la création du contrôle d'accès biométrique"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "生体認証のアクセス制御を作成できませんでした"
           }
         },
         "zh-Hans" : {
@@ -1402,6 +1642,12 @@
             "value" : "Échec de la création de la clé de signature"
           }
         },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "署名キーを作成できませんでした"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1434,6 +1680,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Échec de l'analyse du XML de la base de données"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "データベースの XML を解析できませんでした"
           }
         },
         "zh-Hans" : {
@@ -1470,6 +1722,12 @@
             "value" : "Échec de la signature de l'assertion"
           }
         },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "アサーションに署名できませんでした"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1502,6 +1760,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Le fichier est tronqué"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ファイルが途中で切れています"
           }
         },
         "zh-Hans" : {
@@ -1538,6 +1802,12 @@
             "value" : "Générer un mot de passe"
           }
         },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "パスワードを生成"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1570,6 +1840,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Générer un mot de passe"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "パスワードを生成"
           }
         },
         "zh-Hans" : {
@@ -1606,6 +1882,12 @@
             "value" : "Bon"
           }
         },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "良好"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1638,6 +1920,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Le nom du groupe ne peut pas être vide."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "グループ名を空にすることはできません。"
           }
         },
         "zh-Hans" : {
@@ -1674,6 +1962,12 @@
             "value" : "Groupe introuvable : %@"
           }
         },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "グループが見つかりません：%@"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1706,6 +2000,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Mot de passe masqué"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "非表示のパスワード"
           }
         },
         "zh-Hans" : {
@@ -1742,6 +2042,12 @@
             "value" : "Masquer %@"
           }
         },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@を非表示"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1774,6 +2080,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Échec de la vérification HMAC — fichier corrompu ou mot de passe incorrect"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "HMAC の検証に失敗しました。ファイルが破損しているか、パスワードが違います"
           }
         },
         "zh-Hans" : {
@@ -1810,6 +2122,12 @@
             "value" : "Immédiatement"
           }
         },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "すぐに"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1842,6 +2160,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Fichier invalide"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無効なファイル"
           }
         },
         "zh-Hans" : {
@@ -1878,6 +2202,12 @@
             "value" : "En-tête interne invalide"
           }
         },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "内部ヘッダが無効です"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1910,6 +2240,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Clé principale invalide"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "マスターキーが無効です"
           }
         },
         "zh-Hans" : {
@@ -1946,6 +2282,12 @@
             "value" : "Clé privée encodée en PEM invalide"
           }
         },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "PEM 形式の秘密鍵が無効です"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1978,6 +2320,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Paramètre KDF hors limites : %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KDF のパラメータが範囲外です：%@"
           }
         },
         "zh-Hans" : {
@@ -2014,6 +2362,12 @@
             "value" : "Échec de la vérification du hachage du fichier de clé — le fichier est peut-être corrompu"
           }
         },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "キーファイルのハッシュ検証に失敗しました。ファイルが破損している可能性があります"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2046,6 +2400,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Le fichier de clé est vide"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "キーファイルが空です"
           }
         },
         "zh-Hans" : {
@@ -2082,6 +2442,12 @@
             "value" : "Le XML du fichier de clé contient des données de clé invalides"
           }
         },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "キーファイルの XML に無効なキーデータが含まれています"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2114,6 +2480,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Échec de la récupération dans le trousseau (statut %d)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "キーチェーンからの読み出しに失敗しました（ステータス %d）"
           }
         },
         "zh-Hans" : {
@@ -2150,6 +2522,12 @@
             "value" : "Échec de l'enregistrement dans le trousseau (statut %d)"
           }
         },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "キーチェーンへの保存に失敗しました（ステータス %d）"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2182,6 +2560,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Les anciennes bases de données KDBX 3.1 peuvent être ouvertes, mais KeeForge ne les autorise qu'en mode lecture seule."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "従来の KDBX 3.1 データベースも開けますが、KeeForge では読み取り専用でのみ利用できます。"
           }
         },
         "zh-Hans" : {
@@ -2218,6 +2602,12 @@
             "value" : "Clair"
           }
         },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ライト"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2250,6 +2640,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Table de variantes mal formée dans l'en-tête"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ヘッダ内のバリアントマップの形式が正しくありません"
           }
         },
         "zh-Hans" : {
@@ -2286,6 +2682,12 @@
             "value" : "Mot de passe principal"
           }
         },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "マスターパスワード"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2318,6 +2720,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Correspondances"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "一致する項目"
           }
         },
         "zh-Hans" : {
@@ -2354,6 +2762,12 @@
             "value" : "Champ d'en-tête manquant : %@"
           }
         },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ヘッダフィールドがありません：%@"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2386,6 +2800,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Jamais"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "しない"
           }
         },
         "zh-Hans" : {
@@ -2422,6 +2842,12 @@
             "value" : "Nouvel identifiant"
           }
         },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新規認証情報"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2454,6 +2880,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Nouvelle clé d'accès"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新規パスキー"
           }
         },
         "zh-Hans" : {
@@ -2490,6 +2922,12 @@
             "value" : "Aucun identifiant trouvé"
           }
         },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "認証情報が見つかりません"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2522,6 +2960,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Aucun identifiant ne correspond à cette recherche."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "この検索に一致する認証情報はありません。"
           }
         },
         "zh-Hans" : {
@@ -2558,6 +3002,12 @@
             "value" : "Aucune base de données pour le remplissage automatique"
           }
         },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "自動入力に使えるデータベースがありません"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2590,6 +3040,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Aucune correspondance exacte trouvée. Ces identifiants ne sont que des correspondances possibles."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "完全に一致する項目は見つかりませんでした。これらは一致する可能性のある認証情報です。"
           }
         },
         "zh-Hans" : {
@@ -2626,6 +3082,12 @@
             "value" : "Aucun"
           }
         },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "なし"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2658,6 +3120,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Fichier KDBX invalide"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "有効な KDBX ファイルではありません"
           }
         },
         "zh-Hans" : {
@@ -2694,6 +3162,12 @@
             "value" : "Notes"
           }
         },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "メモ"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2723,6 +3197,12 @@
           }
         },
         "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "OK"
+          }
+        },
+        "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "OK"
@@ -2762,6 +3242,12 @@
             "value" : "Identifiants de la clé d'accès introuvables"
           }
         },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "パスキーの認証情報が見つかりません"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2794,6 +3280,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Il manque la clé privée à l'entrée de la clé d'accès"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "パスキーのエントリに秘密鍵がありません"
           }
         },
         "zh-Hans" : {
@@ -2830,6 +3322,12 @@
             "value" : "Connexion par clé d'accès avec KeeForge"
           }
         },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge でパスキーサインイン"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2862,6 +3360,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Mot de passe"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "パスワード"
           }
         },
         "zh-Hans" : {
@@ -2898,6 +3402,12 @@
             "value" : "Force du mot de passe : %@"
           }
         },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "パスワードの強度：%@"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2930,6 +3440,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Veuillez sélectionner une base de données KeePass au format .kdbx."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeePass の .kdbx データベースを選択してください。"
           }
         },
         "zh-Hans" : {
@@ -2966,6 +3482,12 @@
             "value" : "Correspondances possibles"
           }
         },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "一致する可能性のある項目"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2998,6 +3520,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Base de données en lecture seule"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "読み取り専用データベース"
           }
         },
         "zh-Hans" : {
@@ -3034,6 +3562,12 @@
             "value" : "Corbeille"
           }
         },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ごみ箱"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -3066,6 +3600,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Régénérer"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "再生成"
           }
         },
         "zh-Hans" : {
@@ -3102,6 +3642,12 @@
             "value" : "Enregistrer et remplir"
           }
         },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "保存して入力"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -3134,6 +3680,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Enregistrer la clé d'accès"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "パスキーを保存"
           }
         },
         "zh-Hans" : {
@@ -3170,6 +3722,12 @@
             "value" : "L'enregistrement des anciennes bases de données KDBX 3.1 n'est pas encore pris en charge."
           }
         },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "従来の KDBX 3.1 データベースへの保存には、まだ対応していません。"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -3202,6 +3760,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Rechercher des entrées"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "エントリを検索"
           }
         },
         "zh-Hans" : {
@@ -3238,6 +3802,12 @@
             "value" : "Impossible de générer des données aléatoires sécurisées."
           }
         },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "安全な乱数を生成できませんでした。"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -3270,6 +3840,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Afficher %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@を表示"
           }
         },
         "zh-Hans" : {
@@ -3306,6 +3882,12 @@
             "value" : "Afficher tous les identifiants"
           }
         },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "すべての認証情報を表示"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -3338,6 +3920,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Changer de base de données"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "データベースを切り替える"
           }
         },
         "zh-Hans" : {
@@ -3374,6 +3962,12 @@
             "value" : "Système par défaut"
           }
         },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "システム設定に従う"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -3406,6 +4000,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Cette version précédente n'est plus disponible."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "そのバージョンはすでに利用できません。"
           }
         },
         "zh-Hans" : {
@@ -3442,6 +4042,12 @@
             "value" : "La base de données semble corrompue ou incomplète."
           }
         },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "データベースが破損しているか、内容が不完全なようです。"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -3474,6 +4080,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Le fichier de base de données est introuvable."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "データベースファイルの場所を特定できませんでした。"
           }
         },
         "zh-Hans" : {
@@ -3510,6 +4122,12 @@
             "value" : "Le fichier de base de données n'a pas répondu à temps. Vérifiez que son serveur ou sa connexion réseau est disponible."
           }
         },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "データベースファイルから時間内に応答がありませんでした。サーバやネットワーク接続が利用できるか確認してください。"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -3542,6 +4160,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Le fichier de base de données se trouve dans « Supprimés récemment » dans l'app Fichiers. Restaurez-le dans Fichiers, ou retirez cette base de données et ajoutez à nouveau le fichier actuel."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "データベースファイルは「ファイル」App の「最近削除した項目」にあります。「ファイル」で復元するか、このデータベースを削除して現在のファイルを追加し直してください。"
           }
         },
         "zh-Hans" : {
@@ -3578,6 +4202,12 @@
             "value" : "Il manque à la base de données des métadonnées de dérivation de clé."
           }
         },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "データベースに鍵導出のメタデータがありません。"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -3612,6 +4242,12 @@
             "value" : "Il manque à la base de données des données de sel pour la dérivation de clé."
           }
         },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "データベースに鍵導出のソルトデータがありません。"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -3644,6 +4280,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "La base de données n'est pas prête à être enregistrée."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "データベースを保存できる状態ではありません。"
           }
         },
         "zh-Hans" : {
@@ -3681,6 +4323,12 @@
             "value" : "La nouvelle base de données n'a pas pu être vérifiée après le chiffrement."
           }
         },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新しいデータベースを暗号化後に検証できませんでした。"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -3714,6 +4362,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "La nouvelle clé principale a été téléversée, mais la copie locale n'a pas pu être mise à jour. Le fichier cloud requiert désormais la nouvelle clé principale."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新しいマスターキーはアップロードされましたが、ローカルコピーを更新できませんでした。クラウド上のファイルを開くには、新しいマスターキーが必要です。"
           }
         },
         "zh-Hans" : {
@@ -3750,6 +4404,12 @@
             "value" : "La demande n'est plus disponible."
           }
         },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このリクエストは利用できなくなりました。"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -3782,6 +4442,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Ceci ajoute l’URL de la requête d’origine à l’identifiant sélectionné. La base de données ne sera modifiée qu’après votre confirmation."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "選択した認証情報に、元のリクエスト URL を追加します。データベースが変更されるのは、確認した場合のみです。"
           }
         },
         "zh-Hans" : {
@@ -3818,6 +4484,12 @@
             "value" : "Cette base de données est en lecture seule."
           }
         },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このデータベースは読み取り専用です。"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -3850,6 +4522,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Cette base de données est en lecture seule. Ouvrez KeeForge pour activer la modification."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このデータベースは読み取り専用です。編集するには KeeForge を開いてください。"
           }
         },
         "zh-Hans" : {
@@ -3892,6 +4570,12 @@
             "value" : "Cette base de données a besoin d’environ %1$@ de mémoire pour être déverrouillée, soit plus que les %2$@ autorisés pour AutoFill. Ouvrez l’entrée dans l’app KeeForge, ou réduisez le réglage de mémoire Argon2 de la base de données dans une app KeePass pour ordinateur."
           }
         },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このデータベースのロック解除には約 %1$@ のメモリが必要で、自動入力に許可された %2$@ を超えています。KeeForge App でエントリを開くか、デスクトップ版の KeePass App でデータベースの Argon2 のメモリ設定を下げてください。"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -3924,6 +4608,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Cette base de données utilise un ancien format KeePass que KeeForge ne prend pas encore en charge."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このデータベースは、KeeForge がまだ対応していない古い KeePass 形式を使用しています。"
           }
         },
         "zh-Hans" : {
@@ -3960,6 +4650,12 @@
             "value" : "Cette base de données utilise un flux de champs protégés non pris en charge."
           }
         },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このデータベースは、サポートされていない保護フィールドのストリームを使用しています。"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -3992,6 +4688,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Les icônes de cette base de données sont enregistrées sous une forme à laquelle KeeForge ne peut rien ajouter sans risquer celles qui s’y trouvent déjà."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このデータベースのアイコンは、既存のアイコンを損なわずに新しいアイコンを追加できない形式で保存されています。"
           }
         },
         "zh-Hans" : {
@@ -4028,6 +4730,12 @@
             "value" : "Les paramètres de dérivation de clé de cette base de données (%@ de mémoire × %@ itérations, %@ threads) dépassent ce que cette app peut exécuter en toute sécurité. Réduisez les paramètres Argon2 de la base de données dans une app KeePass de bureau, enregistrez-la, puis réessayez."
           }
         },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このデータベースの鍵導出の設定（メモリ %1$@ × 反復 %2$@ 回、%3$@ スレッド）は、この App が安全に実行できる範囲を超えています。デスクトップ版の KeePass App でデータベースの Argon2 の設定を下げて保存してから、もう一度お試しください。"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -4060,6 +4768,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Ce groupe ne peut pas être supprimé."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このグループは削除できません。"
           }
         },
         "zh-Hans" : {
@@ -4096,6 +4810,12 @@
             "value" : "Cette demande de clé d'accès n'est pas prise en charge."
           }
         },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このパスキーリクエストはサポートされていません。"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -4128,6 +4848,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Titre"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "タイトル"
           }
         },
         "zh-Hans" : {
@@ -4164,6 +4890,12 @@
             "value" : "Réessayer"
           }
         },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "再試行"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -4196,6 +4928,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Activez le remplissage automatique pour une base de données dans les réglages de KeeForge pour l’utiliser ici."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge の設定でデータベースの自動入力をオンにすると、ここで使用できます。"
           }
         },
         "zh-Hans" : {
@@ -4232,6 +4970,12 @@
             "value" : "Inconnu"
           }
         },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "不明"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -4264,6 +5008,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Déverrouiller"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ロック解除"
           }
         },
         "zh-Hans" : {
@@ -4300,6 +5050,12 @@
             "value" : "Échec du déverrouillage"
           }
         },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ロック解除に失敗しました"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -4332,6 +5088,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Déverrouiller KeeForge"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge のロックを解除"
           }
         },
         "zh-Hans" : {
@@ -4368,6 +5130,12 @@
             "value" : "Déverrouiller KeeForge pour le remplissage automatique"
           }
         },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "自動入力のために KeeForge のロックを解除"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -4400,6 +5168,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Chiffrement non pris en charge : %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "サポートされていない暗号方式です：%@"
           }
         },
         "zh-Hans" : {
@@ -4436,6 +5210,12 @@
             "value" : "Mode de compression non pris en charge : %u"
           }
         },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "サポートされていない圧縮モードです：%u"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -4468,6 +5248,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Flux aléatoire interne non pris en charge : %u"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "サポートされていない内部乱数ストリームです：%u"
           }
         },
         "zh-Hans" : {
@@ -4504,6 +5290,12 @@
             "value" : "Fonction de dérivation de clé non prise en charge : %@"
           }
         },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "サポートされていない鍵導出関数です：%@"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -4538,6 +5330,12 @@
             "value" : "Valeur de mappage de variante non prise en charge pour la clé : %@"
           }
         },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "バリアントマップの値がサポートされていません。キー：%@"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -4567,6 +5365,12 @@
           }
         },
         "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "URL"
+          }
+        },
+        "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "URL"
@@ -4606,6 +5410,12 @@
             "value" : "Utiliser la biométrie"
           }
         },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "生体認証を使用"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -4638,6 +5448,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Utiliser Face ID"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Face ID を使用"
           }
         },
         "zh-Hans" : {
@@ -4674,6 +5490,12 @@
             "value" : "Utiliser le mot de passe"
           }
         },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "パスワードを使用"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -4706,6 +5528,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Utiliser Touch ID"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Touch ID を使用"
           }
         },
         "zh-Hans" : {
@@ -4742,6 +5570,12 @@
             "value" : "Nom d'utilisateur"
           }
         },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ユーザ名"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -4774,6 +5608,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Très bon"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "非常に良好"
           }
         },
         "zh-Hans" : {
@@ -4810,6 +5650,12 @@
             "value" : "Très faible"
           }
         },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "非常に弱い"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -4842,6 +5688,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Faible"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "弱い"
           }
         },
         "zh-Hans" : {
@@ -4878,6 +5730,12 @@
             "value" : "Site web"
           }
         },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Web サイト"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -4912,6 +5770,12 @@
             "value" : "Lorsque KeeForge n'est pas l'app active"
           }
         },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge が使用中でないとき"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -4944,6 +5808,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Lorsque l'écran se verrouille ou se met en veille"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "画面がロックまたはスリープしたとき"
           }
         },
         "zh-Hans" : {
