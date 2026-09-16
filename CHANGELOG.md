@@ -134,6 +134,7 @@ The 2026-09-08 probe settled the design: the iPad-on-Mac app never stores a data
 - Some text stayed English in every language: the group delete confirmation joined its entry and group counts with an English "and", and the cloud sync status read "Healthy", "Disconnected", or "Sync older than 24h" in Database Details and the database list. All of it is translated now.
 - Cloud sync warnings now follow the language you read the app in. A warning recorded before you switched languages kept showing up in the old one.
 - Deleting an entry from the search results works again. Tapping Delete in a search result's long-press menu did nothing, and swiping to delete there made the row disappear without actually deleting the entry.
+- The key icon in the AutoFill bar above the keyboard now opens KeeForge so you can search for and pick a credential (#129). It used to fill the suggested one straight away, which left no way to reach another entry. Tapping the suggestion itself still fills it directly.
 
 ## v1.16.0 (2026-09-13)
 

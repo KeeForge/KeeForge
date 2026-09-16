@@ -1411,12 +1411,9 @@ final class CredentialProviderCoordinator {
 
         AutoFillDiagnostics.log("passwordMatches all=\(allPasswordEntries.count) strict=\(strictMatches.count) matches=\(matches.count) possible=\(possibleMatches.count)")
 
-        // Auto-complete without a picker only when the single candidate matched
-        // on host, not on a weaker URL/title substring signal.
-        if matches.count == 1, strictMatches.count == 1, let entry = strictMatches.first {
-            completeRequest(with: entry)
-            return
-        }
+        // Everything below the identity branch is an interactive list request:
+        // the user asked to choose, so even a lone strict match is presented
+        // rather than filled. By-identity and no-UI paths still fill directly.
 
         let searchDomain = serviceIdentifiers.first.flatMap { CredentialMatcher.searchTerm(for: $0) } ?? ""
 
