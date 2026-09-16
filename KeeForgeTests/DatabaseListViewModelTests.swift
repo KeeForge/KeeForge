@@ -611,7 +611,6 @@ final class DatabaseListViewModelTests: XCTestCase {
                 openTimeSHA512: Data("open-sha".utf8),
                 expectedRev: expectedRev,
                 createdAt: Date(timeIntervalSince1970: 1_000),
-                lastSyncError: nil,
                 baseRev: expectedRev
             )
         )
@@ -633,7 +632,6 @@ final class DatabaseListViewModelTests: XCTestCase {
                 readBytes: { _ in Data("encrypted-bytes".utf8) },
                 sha512: { _ in Data("open-sha".utf8) },
                 pushPendingUpload: pushPendingUpload,
-                conflictMessage: { CloudProviderError.conflict(remoteRev: $0).localizedDescription }
             )
         )
     }

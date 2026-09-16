@@ -41,7 +41,6 @@ final class PendingUploadDrainer {
         var readBytes: @Sendable (String) throws -> Data
         var sha512: @Sendable (Data) -> Data
         var pushPendingUpload: @Sendable (DatabaseReference, Data, String?) async throws -> CloudDatabaseSaver.PendingUploadPushResult
-        var conflictMessage: @Sendable (String?) -> String
 
         static let live = Environment(
             beginBackgroundTask: LocalDatabaseSaver.Environment.live.beginBackgroundTask,
@@ -70,9 +69,6 @@ final class PendingUploadDrainer {
                     encryptedBytes: data,
                     expectedRev: expectedRev
                 )
-            },
-            conflictMessage: { remoteRev in
-                CloudProviderError.conflict(remoteRev: remoteRev).localizedDescription
             }
         )
     }
@@ -202,7 +198,7 @@ final class PendingUploadDrainer {
             // payload (rev-tracking ones). Surface it as a conflict instead.
             if let rekeyedAt = reference.lastMasterKeyChangeAt,
                storedMarker.marker.createdAt < rekeyedAt {
-                storedMarker.marker.lastSyncError = environment.conflictMessage(nil)
+                storedMarker.marker.isConflicted = true
                 _ = try? environment.updateMarker(storedMarker)
                 outcome.conflictDatabaseIDs.insert(reference.id)
                 continue
@@ -233,7 +229,7 @@ final class PendingUploadDrainer {
             let payloadMatchesRecordedContent =
                 environment.sha512(encryptedBytes) == storedMarker.marker.openTimeSHA512
             guard payloadMatchesRecordedContent else {
-                storedMarker.marker.lastSyncError = environment.conflictMessage(nil)
+                storedMarker.marker.isConflicted = true
                 _ = try? environment.updateMarker(storedMarker)
                 outcome.conflictDatabaseIDs.insert(reference.id)
                 continue
@@ -265,13 +261,13 @@ final class PendingUploadDrainer {
                                payloadMatchesRecordedContent: payloadMatchesRecordedContent
                            ) {
                             storedMarker.marker.expectedRev = remoteRev
-                            storedMarker.marker.lastSyncError = nil
+                            storedMarker.marker.isConflicted = false
                             storedMarker = try environment.updateMarker(storedMarker)
                             reference = environment.resolveReference(reference.id) ?? reference
                             continue
                         }
 
-                        storedMarker.marker.lastSyncError = environment.conflictMessage(remoteRev)
+                        storedMarker.marker.isConflicted = true
                         _ = try? environment.updateMarker(storedMarker)
                         outcome.conflictDatabaseIDs.insert(reference.id)
                         didCompleteMarker = true

@@ -756,7 +756,7 @@ final class LocalDatabaseSaverTests: XCTestCase {
                     remoteModifiedAt: nil,
                     remoteRev: "rev-1",
                     lastSyncedAt: nil,
-                    lastSyncError: nil
+                    lastSyncIssue: nil
                 )
             )
         )

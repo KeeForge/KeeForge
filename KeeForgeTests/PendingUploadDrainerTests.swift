@@ -65,7 +65,7 @@ final class PendingUploadDrainerTests: XCTestCase {
         XCTAssertEqual(outcome.conflictDatabaseIDs, [reference.id])
         XCTAssertTrue(recorder.droppedMarkerIDs.isEmpty)
         XCTAssertEqual(recorder.updatedMarkers.count, 1)
-        XCTAssertEqual(recorder.updatedMarkers.first?.marker.lastSyncError, CloudProviderError.conflict(remoteRev: "rev-2").localizedDescription)
+        XCTAssertEqual(recorder.updatedMarkers.first?.marker.isConflicted, true)
     }
 
     func test_drain_payloadShaMismatch_marksConflicted_doesNotPush() async {
@@ -95,10 +95,7 @@ final class PendingUploadDrainerTests: XCTestCase {
         XCTAssertEqual(outcome.conflictDatabaseIDs, [reference.id])
         XCTAssertTrue(recorder.droppedMarkerIDs.isEmpty)
         XCTAssertEqual(recorder.updatedMarkers.count, 1)
-        XCTAssertEqual(
-            recorder.updatedMarkers.first?.marker.lastSyncError,
-            CloudProviderError.conflict(remoteRev: nil).localizedDescription
-        )
+        XCTAssertEqual(recorder.updatedMarkers.first?.marker.isConflicted, true)
     }
 
     func test_drain_markerOlderThanMasterKeyChange_marksConflicted_doesNotPush() async {
@@ -128,10 +125,7 @@ final class PendingUploadDrainerTests: XCTestCase {
         XCTAssertEqual(outcome.conflictDatabaseIDs, [reference.id])
         XCTAssertTrue(recorder.droppedMarkerIDs.isEmpty)
         XCTAssertEqual(recorder.updatedMarkers.count, 1)
-        XCTAssertEqual(
-            recorder.updatedMarkers.first?.marker.lastSyncError,
-            CloudProviderError.conflict(remoteRev: nil).localizedDescription
-        )
+        XCTAssertEqual(recorder.updatedMarkers.first?.marker.isConflicted, true)
     }
 
     func test_drain_crossDeviceConflict_isNotAutoRebased() async {
@@ -321,10 +315,7 @@ final class PendingUploadDrainerTests: XCTestCase {
         XCTAssertTrue(outcome.drainedDatabaseIDs.isEmpty)
         XCTAssertEqual(outcome.conflictDatabaseIDs, [reference.id])
         XCTAssertTrue(recorder.droppedMarkerIDs.isEmpty)
-        XCTAssertEqual(
-            recorder.updatedMarkers.first?.marker.lastSyncError,
-            CloudProviderError.conflict(remoteRev: "rev-B").localizedDescription
-        )
+        XCTAssertEqual(recorder.updatedMarkers.first?.marker.isConflicted, true)
     }
 
     func test_drain_legacyMarkerWithoutBaseRev_isNeverAutoRebased() async {
@@ -499,9 +490,6 @@ final class PendingUploadDrainerTests: XCTestCase {
             // payload-integrity guard treats the cached bytes as unchanged.
             sha512: sha512 ?? { _ in Data("open-sha".utf8) },
             pushPendingUpload: pushPendingUpload,
-            conflictMessage: { remoteRev in
-                CloudProviderError.conflict(remoteRev: remoteRev).localizedDescription
-            }
         )
     }
 
@@ -522,7 +510,6 @@ final class PendingUploadDrainerTests: XCTestCase {
                 openTimeSHA512: Data("open-sha".utf8),
                 expectedRev: expectedRev,
                 createdAt: Date(timeIntervalSince1970: 1_000),
-                lastSyncError: nil,
                 baseRev: baseRev ?? expectedRev
             )
         )
@@ -556,7 +543,7 @@ final class PendingUploadDrainerTests: XCTestCase {
                     remoteModifiedAt: nil,
                     remoteRev: rev,
                     lastSyncedAt: nil,
-                    lastSyncError: nil
+                    lastSyncIssue: nil
                 )
             )
         )

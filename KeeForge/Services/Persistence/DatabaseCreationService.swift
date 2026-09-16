@@ -532,7 +532,7 @@ enum DatabaseCreationService {
                     remoteModifiedAt: metadata.modifiedDate,
                     remoteRev: metadata.rev,
                     lastSyncedAt: prepared.addedAt,
-                    lastSyncError: nil
+                    lastSyncIssue: nil
                 )
             )
         )

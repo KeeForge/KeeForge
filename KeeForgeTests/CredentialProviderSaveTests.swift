@@ -198,7 +198,7 @@ final class CredentialProviderSaveTests: XCTestCase {
         XCTAssertEqual(provisionalMarker.openTimeSHA512, Data("open-sha".utf8), "Provisional marker must cover the base bytes still in the cache")
         XCTAssertEqual(provisionalMarker.expectedRev, "rev-9")
         XCTAssertEqual(provisionalMarker.baseRev, "rev-9")
-        XCTAssertNil(provisionalMarker.lastSyncError)
+        XCTAssertFalse(provisionalMarker.isConflicted)
 
         let finalizedMarker = try XCTUnwrap(recorder.finalizedMarkers.first)
         XCTAssertEqual(recorder.finalizedMarkers.count, 1)
@@ -304,7 +304,7 @@ final class CredentialProviderSaveTests: XCTestCase {
         XCTAssertEqual(replacementMarker.openTimeSHA512, Data("new-sha".utf8))
         XCTAssertEqual(replacementMarker.expectedRev, "rev-9")
         XCTAssertNil(replacementMarker.baseRev)
-        XCTAssertNil(replacementMarker.lastSyncError)
+        XCTAssertFalse(replacementMarker.isConflicted)
         XCTAssertEqual(recorder.notifyCount, 1)
     }
 
@@ -600,7 +600,7 @@ final class CredentialProviderSaveTests: XCTestCase {
                     remoteModifiedAt: nil,
                     remoteRev: rev,
                     lastSyncedAt: nil,
-                    lastSyncError: nil
+                    lastSyncIssue: nil
                 )
             )
         )

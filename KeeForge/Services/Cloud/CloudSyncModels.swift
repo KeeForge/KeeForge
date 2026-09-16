@@ -127,6 +127,133 @@ struct CloudCreatedFile: Equatable, Sendable {
     let metadata: CloudFileMetadata
 }
 
+/// An error that knows which `CloudSyncIssue` it represents, so recording it
+/// keeps the code rather than falling back to a frozen sentence.
+protocol CloudSyncIssueConvertible {
+    var syncIssue: CloudSyncIssue { get }
+}
+
+/// Why a cloud sync last failed, recorded as a code rather than a rendered
+/// sentence.
+///
+/// This outlives the failure: it is persisted in the database list and shown
+/// again whenever the row is drawn, so a message localized at failure time
+/// comes back in that language forever — including after the user switches
+/// the device language. Storing the code and rendering it at display time
+/// keeps the warning in the reader's language. Only `unknown` carries text,
+/// because it wraps an error whose description the app did not write.
+enum CloudSyncIssue: Hashable, Sendable {
+    case invalidConfiguration
+    case authenticationCancelled
+    case notAuthenticated
+    case networkUnavailable
+    case fileNotFound
+    case conflict
+    case writeScopeRequired
+    case rateLimited
+    case serviceUnavailable
+    case insufficientSpace
+    case permissionDenied
+    case invalidName
+    case unknown(String)
+
+    var localizedDescription: String {
+        switch self {
+        case .invalidConfiguration:
+            String(localized: "Cloud sync is not configured for this build.")
+        case .authenticationCancelled:
+            String(localized: "Authentication was cancelled.")
+        case .notAuthenticated:
+            String(localized: "Please reconnect this cloud account.")
+        case .networkUnavailable:
+            String(localized: "No network connection. Using the cached copy if available.")
+        case .fileNotFound:
+            String(localized: "The remote database could not be found.")
+        case .conflict:
+            String(localized: "This database changed in the cloud. Reload before saving again.")
+        case .writeScopeRequired:
+            String(localized: "Reconnect this cloud account to save changes.")
+        case .rateLimited:
+            String(localized: "The cloud service is busy right now. Try again in a moment.")
+        case .serviceUnavailable:
+            String(localized: "The cloud service is temporarily unavailable. Try again later.")
+        case .insufficientSpace:
+            String(localized: "There isn't enough storage space in this cloud account.")
+        case .permissionDenied:
+            String(localized: "You don't have permission to change this file.")
+        case .invalidName:
+            String(localized: "The cloud service rejected this file name.")
+        case .unknown(let message):
+            message
+        }
+    }
+}
+
+extension CloudSyncIssue: Codable {
+    private enum CodingKeys: String, CodingKey {
+        case code
+        case message
+    }
+
+    /// Persisted discriminator. These strings are on disk in every user's
+    /// database list — renaming one silently downgrades that issue to
+    /// `unknown` on the next launch.
+    private var code: String {
+        switch self {
+        case .invalidConfiguration: "invalidConfiguration"
+        case .authenticationCancelled: "authenticationCancelled"
+        case .notAuthenticated: "notAuthenticated"
+        case .networkUnavailable: "networkUnavailable"
+        case .fileNotFound: "fileNotFound"
+        case .conflict: "conflict"
+        case .writeScopeRequired: "writeScopeRequired"
+        case .rateLimited: "rateLimited"
+        case .serviceUnavailable: "serviceUnavailable"
+        case .insufficientSpace: "insufficientSpace"
+        case .permissionDenied: "permissionDenied"
+        case .invalidName: "invalidName"
+        case .unknown: "unknown"
+        }
+    }
+
+    private init?(code: String) {
+        switch code {
+        case "invalidConfiguration": self = .invalidConfiguration
+        case "authenticationCancelled": self = .authenticationCancelled
+        case "notAuthenticated": self = .notAuthenticated
+        case "networkUnavailable": self = .networkUnavailable
+        case "fileNotFound": self = .fileNotFound
+        case "conflict": self = .conflict
+        case "writeScopeRequired": self = .writeScopeRequired
+        case "rateLimited": self = .rateLimited
+        case "serviceUnavailable": self = .serviceUnavailable
+        case "insufficientSpace": self = .insufficientSpace
+        case "permissionDenied": self = .permissionDenied
+        case "invalidName": self = .invalidName
+        default: return nil
+        }
+    }
+
+    /// An unrecognized code decodes as `unknown` rather than throwing. This
+    /// value sits inside `DatabaseReference`, and `DatabaseListStore` decodes
+    /// the stored list all-or-nothing — one throw here would empty the user's
+    /// database list.
+    init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let code = try container.decode(String.self, forKey: .code)
+        let message = try container.decodeIfPresent(String.self, forKey: .message)
+        self = Self(code: code) ?? .unknown(message ?? code)
+    }
+
+    func encode(to encoder: any Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(code, forKey: .code)
+        if case .unknown(let message) = self {
+            try container.encode(message, forKey: .message)
+        }
+    }
+}
+
 struct CloudSyncMetadata: Codable, Hashable, Sendable {
     let provider: String
     let accountId: String
@@ -136,7 +263,7 @@ struct CloudSyncMetadata: Codable, Hashable, Sendable {
     var remoteModifiedAt: Date?
     var remoteRev: String?
     var lastSyncedAt: Date?
-    var lastSyncError: String?
+    var lastSyncIssue: CloudSyncIssue?
 
     init(
         provider: String,
@@ -147,7 +274,7 @@ struct CloudSyncMetadata: Codable, Hashable, Sendable {
         remoteModifiedAt: Date?,
         remoteRev: String? = nil,
         lastSyncedAt: Date?,
-        lastSyncError: String?
+        lastSyncIssue: CloudSyncIssue?
     ) {
         self.provider = provider
         self.accountId = accountId
@@ -157,11 +284,11 @@ struct CloudSyncMetadata: Codable, Hashable, Sendable {
         self.remoteModifiedAt = remoteModifiedAt
         self.remoteRev = remoteRev
         self.lastSyncedAt = lastSyncedAt
-        self.lastSyncError = lastSyncError
+        self.lastSyncIssue = lastSyncIssue
     }
 
     var isStale: Bool {
-        lastSyncError != nil
+        lastSyncIssue != nil
     }
 
     var providerKind: CloudProviderKind? {
@@ -173,8 +300,11 @@ struct CloudSyncMetadata: Codable, Hashable, Sendable {
             return String(localized: "Disconnected")
         }
 
-        if let lastSyncError, !lastSyncError.isEmpty {
-            return lastSyncError
+        if let lastSyncIssue {
+            let message = lastSyncIssue.localizedDescription
+            if message.isEmpty == false {
+                return message
+            }
         }
 
         if let lastSyncedAt, now.timeIntervalSince(lastSyncedAt) > 86_400 {

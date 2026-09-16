@@ -112,17 +112,20 @@ final class CloudSyncModelsTests: XCTestCase {
 
     func testWarningTextPrefersDisconnectedState() {
         var metadata = makeCloudSyncMetadata(remoteContentHash: "hash", remoteModifiedAt: Date())
-        metadata.lastSyncError = "Offline"
+        metadata.lastSyncIssue = .unknown("Offline")
         metadata.lastSyncedAt = Date(timeIntervalSinceNow: -100_000)
 
         XCTAssertEqual(metadata.warningText(isAuthenticated: false), "Disconnected")
     }
 
-    func testWarningTextReturnsLastSyncErrorWhenConnected() {
+    func testWarningTextReturnsLastSyncIssueWhenConnected() {
         var metadata = makeCloudSyncMetadata(remoteContentHash: "hash", remoteModifiedAt: Date())
-        metadata.lastSyncError = "Remote file missing"
+        metadata.lastSyncIssue = .fileNotFound
 
-        XCTAssertEqual(metadata.warningText(isAuthenticated: true), "Remote file missing")
+        XCTAssertEqual(
+            metadata.warningText(isAuthenticated: true),
+            CloudSyncIssue.fileNotFound.localizedDescription
+        )
         XCTAssertTrue(metadata.isStale)
     }
 
@@ -141,6 +144,98 @@ final class CloudSyncModelsTests: XCTestCase {
         XCTAssertFalse(metadata.isStale)
     }
 
+    // MARK: - CloudSyncIssue
+
+    func testCloudSyncIssueRendersEveryCaseFromTheCatalog() {
+        let cases: [CloudSyncIssue] = [
+            .invalidConfiguration, .authenticationCancelled, .notAuthenticated,
+            .networkUnavailable, .fileNotFound, .conflict, .writeScopeRequired,
+            .rateLimited, .serviceUnavailable, .insufficientSpace,
+            .permissionDenied, .invalidName,
+        ]
+
+        for issue in cases {
+            XCTAssertFalse(
+                issue.localizedDescription.isEmpty,
+                "\(issue) renders an empty string"
+            )
+        }
+        XCTAssertEqual(CloudSyncIssue.unknown("boom").localizedDescription, "boom")
+    }
+
+    func testCloudSyncIssueRoundTripsThroughCoding() throws {
+        let cases: [CloudSyncIssue] = [
+            .invalidConfiguration, .authenticationCancelled, .notAuthenticated,
+            .networkUnavailable, .fileNotFound, .conflict, .writeScopeRequired,
+            .rateLimited, .serviceUnavailable, .insufficientSpace,
+            .permissionDenied, .invalidName, .unknown("server said no"),
+        ]
+
+        for issue in cases {
+            let encoded = try JSONEncoder().encode(issue)
+            let decoded = try JSONDecoder().decode(CloudSyncIssue.self, from: encoded)
+            XCTAssertEqual(decoded, issue)
+        }
+    }
+
+    /// The discriminators are on disk in every user's database list. Pinning
+    /// them here makes a rename fail as a test, not as a silent downgrade to
+    /// `unknown` on the next launch.
+    func testCloudSyncIssueEncodesStableCodes() throws {
+        let encoded = try JSONEncoder().encode(CloudSyncIssue.conflict)
+        let json = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: encoded) as? [String: Any]
+        )
+
+        XCTAssertEqual(json["code"] as? String, "conflict")
+        XCTAssertNil(json["message"])
+    }
+
+    func testCloudSyncIssueDecodesUnrecognizedCodeAsUnknownRatherThanThrowing() throws {
+        // DatabaseListStore decodes the stored list all-or-nothing, so a throw
+        // here would empty the user's database list.
+        let json = Data(#"{"code":"somethingNewer","message":"from a later build"}"#.utf8)
+
+        let decoded = try JSONDecoder().decode(CloudSyncIssue.self, from: json)
+
+        XCTAssertEqual(decoded, .unknown("from a later build"))
+    }
+
+    /// Metadata written before the issue code existed carried a
+    /// `lastSyncError` sentence. It must decode — dropping the stale warning
+    /// is fine, emptying the database list is not — and the next sync
+    /// re-derives the issue.
+    func testCloudSyncMetadataDecodesLegacyLastSyncErrorAsNoIssue() throws {
+        let json = Data("""
+        {
+          "provider" : "dropbox",
+          "accountId" : "acct-1",
+          "fileId" : "/Vaults/test.kdbx",
+          "displayPath" : "/Vaults/test.kdbx",
+          "lastSyncError" : "This database changed in the cloud. Reload before saving again."
+        }
+        """.utf8)
+
+        let decoded = try JSONDecoder().decode(CloudSyncMetadata.self, from: json)
+
+        XCTAssertEqual(decoded.fileId, "/Vaults/test.kdbx")
+        XCTAssertNil(decoded.lastSyncIssue)
+        XCTAssertFalse(decoded.isStale)
+    }
+
+    /// The point of storing a code: the warning is rendered when it is read,
+    /// so it follows the reader's language instead of the one in force when
+    /// the sync failed.
+    func testWarningTextRendersTheIssueRatherThanAStoredSentence() {
+        var metadata = makeCloudSyncMetadata(remoteContentHash: "hash", remoteModifiedAt: Date())
+        metadata.lastSyncIssue = .conflict
+
+        XCTAssertEqual(
+            metadata.warningText(isAuthenticated: true),
+            CloudSyncIssue.conflict.localizedDescription
+        )
+    }
+
     private func makeRemoteMetadata(contentHash: String?, modifiedDate: Date) -> CloudFileMetadata {
         CloudFileMetadata(modifiedDate: modifiedDate, contentHash: contentHash, size: 128)
     }
@@ -154,7 +249,7 @@ final class CloudSyncModelsTests: XCTestCase {
             remoteContentHash: remoteContentHash,
             remoteModifiedAt: remoteModifiedAt,
             lastSyncedAt: nil,
-            lastSyncError: nil
+            lastSyncIssue: nil
         )
     }
 }
