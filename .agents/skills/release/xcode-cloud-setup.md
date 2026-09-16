@@ -202,13 +202,15 @@ gate, or change the direct Mac artifact procedure.
   with no iOS 18.x runtime available. `.github/workflows/ios18-rc-tests.yml` on GitHub-hosted
   `macos-15` runners covers iOS 18 and the iPad regular-width lane. That workflow stays on
   `macos-15` because it needs the iOS 18 simulator runtimes that image carries.
-- **All** native Mac unit coverage: `.github/workflows/macos-rc-tests.yml` is the only automated
-  gate that runs `KeeForgeMacTests` against the Mac app, because Xcode Cloud cannot launch that app
-  at all (see "Required workflow shape"). It runs on `macos-26` for Xcode 26.6 — `macos-15`'s
-  newest Xcode is 26.3, whose `actool` crashes compiling the `KeeForge.icon` Icon Composer bundle
-  for macOS, though it compiles the same `.icon` for iOS without complaint. The workflow fails
-  early with an explicit message if the runner ever offers something older than 26.4. It signs
-  ad-hoc with entitlements stripped, which is exactly what lets the app launch there.
+- **All** native Mac unit coverage: GitHub Actions carries it, because Xcode Cloud cannot launch
+  the Mac app at all (see "Required workflow shape"). `pr-tests.yml`'s `macos-unit-tests` runs
+  `KeeForgeMacTests` per pull request, and `.github/workflows/macos-rc-tests.yml` runs the full
+  suite per candidate — those are the only automated gates that exercise it. Both run on
+  `macos-26` for Xcode 26.6: `macos-15`'s newest Xcode is 26.3, whose `actool` crashes compiling
+  the `KeeForge.icon` Icon Composer bundle for macOS, though it compiles the same `.icon` for iOS
+  without complaint. Both fail early with an explicit message if the runner ever offers something
+  older than 26.4. Both sign ad-hoc with entitlements stripped, which is exactly what lets the app
+  launch there.
 - `ci_scripts/build_mac_direct.sh` is intentionally outside Xcode Cloud. Obtain/export the exact
   MAS `.app` from the accepted Xcode Cloud archive without rebuilding. Use App Store Connect only
   through the built-in browser, never `curl` or an API download. If an artifact anchor's usual
