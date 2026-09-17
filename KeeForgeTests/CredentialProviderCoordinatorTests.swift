@@ -1504,6 +1504,66 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
         searchView.onCancel()
     }
 
+    // The key icon's list request is not the only caller that reaches the
+    // matching code below the by-identity branch, so the two others are pinned
+    // in the shape that changed: exactly one strict match, which used to be
+    // filled outright. Both already had multi-match coverage, which never
+    // reached the shortcut.
+
+    /// A suggestion whose entry is gone falls through the by-identity branch.
+    /// With one entry left for the site, that lone match used to be filled —
+    /// silently substituting a credential for the one the user tapped. It is
+    /// offered in the picker now.
+    func test_staleSuggestion_singleRemainingMatch_presentsPickerInsteadOfFilling() async throws {
+        let (coordinator, presenter) = makeCoordinator()
+        let sessionKey = SymmetricKey(size: .bits256)
+        let entries = try makeGitHubEntryAndUnrelatedEntry(sessionKey: sessionKey)
+
+        coordinator.serviceIdentifiers = [githubServiceIdentifier()]
+        seedUnlockedVaultState(coordinator, entries: entries, sessionKey: sessionKey)
+        let missingIdentifier = CredentialRecordIdentifier(databaseID: UUID(), entryID: UUID()).encoded
+        coordinator.targetRecordIdentifier = missingIdentifier
+
+        let identityRemoved = expectation(description: "the stale identity is removed")
+        CredentialIdentityStoreManager.removeIdentityObserver = { recordIdentifier in
+            XCTAssertEqual(recordIdentifier, missingIdentifier)
+            identityRemoved.fulfill()
+        }
+
+        coordinator.presentPasswordMatchesOrFinish()
+
+        await fulfillment(of: [identityRemoved], timeout: 1)
+        XCTAssertNil(
+            presenter.completedCredential,
+            "A stale suggestion must not be answered with whichever entry happens to be left"
+        )
+        let searchView = try XCTUnwrap(presenter.searchView, "The lone remaining match is offered instead")
+        XCTAssertEqual(searchView.entries.map(\.title), ["GitHub"])
+        searchView.onCancel()
+    }
+
+    /// `presentPasskeyList` hands a site with no matching passkey to the
+    /// password flow. A single password match there used to fill on its own,
+    /// so a passkey-capable site could answer a key-icon tap without a picker.
+    func test_passkeyListFallback_singlePasswordMatch_presentsPickerInsteadOfFilling() throws {
+        let (coordinator, presenter) = makeCoordinator()
+        try seedResolvableDefaultDatabase()
+        let sessionKey = SymmetricKey(size: .bits256)
+        let entries = try makeGitHubEntryAndUnrelatedEntry(sessionKey: sessionKey)
+
+        coordinator.serviceIdentifiers = [githubServiceIdentifier()]
+        seedUnlockedVaultState(coordinator, entries: entries, sessionKey: sessionKey)
+
+        coordinator.presentPasskeyList(matches: [], expiredMatches: []) { _ in
+            XCTFail("Nothing to select: there are no passkey matches")
+        }
+
+        XCTAssertNil(presenter.completedCredential, "The fallback must not fill the lone password match")
+        let searchView = try XCTUnwrap(presenter.searchView, "The password picker must present instead")
+        XCTAssertEqual(searchView.entries.map(\.title), ["GitHub"])
+        searchView.onCancel()
+    }
+
     private func makeGitHubEntryAndUnrelatedEntry(sessionKey: SymmetricKey) throws -> [KPEntry] {
         [
             KPEntry(

@@ -1411,9 +1411,13 @@ final class CredentialProviderCoordinator {
 
         AutoFillDiagnostics.log("passwordMatches all=\(allPasswordEntries.count) strict=\(strictMatches.count) matches=\(matches.count) possible=\(possibleMatches.count)")
 
-        // Everything below the identity branch is an interactive list request:
-        // the user asked to choose, so even a lone strict match is presented
-        // rather than filled. By-identity and no-UI paths still fill directly.
+        // Nothing that reaches this point names a credential the user chose,
+        // so nothing is filled on its own — not even a lone strict match.
+        // Three callers arrive here: the key icon's `prepareCredentialList`,
+        // a suggestion whose entry or database turned out to be stale (the
+        // fall-through above, and `resolveInteractiveRequestDatabase`'s
+        // `.stale` case, which clears the target), and `presentPasskeyList`'s
+        // no-passkey fallback. The by-identity branch above still fills.
 
         let searchDomain = serviceIdentifiers.first.flatMap { CredentialMatcher.searchTerm(for: $0) } ?? ""
 
