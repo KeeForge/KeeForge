@@ -1,0 +1,3 @@
+# The `main` ruleset requires code-owner review, so PRs touching CI or build scripts need owner approval.
+/.github/ @crazytan
+/ci_scripts/ @crazytan
