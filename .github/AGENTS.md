@@ -18,13 +18,14 @@ GitHub Actions workflows, issue/PR templates, funding config, and repo assets. A
 
 ## Branch Rulesets
 
-Two repository rulesets, both with admin bypass:
+Three repository rulesets, all with admin bypass. Collaborators with the Write role merge PRs on green checks but cannot push `main`, touch `release/**`, or create tags:
 
-- `main` (`~DEFAULT_BRANCH`): deletion protection, no force-push, required `unit-tests` + `macos-unit-tests` + `DCO` status checks. Linear history is deliberately **not** required — release-branch backports land as real merge commits, which makes "does `main` have every release fix?" answerable with `git merge-base --is-ancestor` instead of patch-id guesswork. Contributor PRs still squash-merge.
-- `release branches` (`refs/heads/release/**`): the same rules plus required linear history, since nothing is ever merged *into* a release branch.
+- `main` (`~DEFAULT_BRANCH`): deletion protection, no force-push, required `unit-tests` + `macos-unit-tests` + `DCO` status checks, and a PR rule with zero required approvals but required code-owner review. `CODEOWNERS` owns `.github/` and `ci_scripts/`, so a PR cannot rewrite its own required gate (a skipped job counts as passing) or the Xcode Cloud scripts without owner approval. Linear history is deliberately **not** required — release-branch backports land as real merge commits, which makes "does `main` have every release fix?" answerable with `git merge-base --is-ancestor` instead of patch-id guesswork. Contributor PRs still squash-merge.
+- `release branches` (`refs/heads/release/**`): the same status checks, deletion and force-push protection, plus required linear history (nothing is ever merged *into* a release branch) and restricted creation and updates.
+- `tags` (`~ALL`): restricted creation, updates, and deletion, so only admins push `rc/*` and `v*`.
 
 ## Gotchas
 
 - All workflows bootstrap `BuildConfig.local.xcconfig` via `BOOTSTRAP_LOCAL_CONFIG_FROM_ENV=1 ./ci_scripts/prepare_build_config.sh` with placeholder `DROPBOX_APP_KEY=ciplaceholderdropboxappkey` (alphanumerics only — it lands in a `CFBundleURLScheme`; see `ci_scripts/README.md`). The app treats the placeholder as cloud sign-in disabled.
 - Workflows select the newest `Xcode_*.app` on the runner and regenerate the project with XcodeGen; the checked-in `.xcodeproj` is never assumed current. Every `KeeForgeMac` job additionally floors that selection at Xcode 26.4 and fails with an `::error::` below it — 26.3's `actool` segfaults on the `KeeForge.icon` Icon Composer bundle for macOS, which is why those jobs run on `macos-26`.
-- Issue templates: `ISSUE_TEMPLATE/` (bug report, feature request, config). PR template: `PULL_REQUEST_TEMPLATE.md`. `assets/` holds the app icon used in repo pages.
+- Issue templates: `ISSUE_TEMPLATE/` (bug report, feature request, config). PR template: `PULL_REQUEST_TEMPLATE.md`. `CODEOWNERS` backs the code-owner rule on `main`. `assets/` holds the app icon used in repo pages.
