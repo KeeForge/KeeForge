@@ -470,27 +470,18 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
 
     // MARK: - One-time-code list requests (issue #20)
 
-    func test_otcList_singleMatch_completesWithCode() throws {
+    /// A verification-code field's key icon is a request to choose. A lone
+    /// host match used to be turned into a code straight away, so a second
+    /// account on the same site was unreachable (#132).
+    func test_otcList_singleMatch_presentsPickerInsteadOfFilling() throws {
         guard #available(iOS 18.0, macOS 15.0, *) else {
             throw XCTSkip("One-time-code requests require iOS 18 / macOS 15")
         }
 
         let (coordinator, presenter) = makeCoordinator()
         let sessionKey = SymmetricKey(size: .bits256)
-        let matching = KPEntry(
-            title: "GitHub",
-            url: "https://github.com/login",
-            totpConfig: TOTPConfig(
-                secret: try EncryptedValue.encrypt("JBSWY3DPEHPK3PXP", using: sessionKey)
-            )
-        )
-        let other = KPEntry(
-            title: "Example",
-            url: "https://example.com",
-            totpConfig: TOTPConfig(
-                secret: try EncryptedValue.encrypt("JBSWY3DPEHPK3PXP", using: sessionKey)
-            )
-        )
+        let matching = try makeTOTPEntry(title: "GitHub", sessionKey: sessionKey)
+        let other = try makeTOTPEntry(title: "Example", url: "https://example.com", sessionKey: sessionKey)
 
         coordinator.prepareOneTimeCodeCredentialList(for: [githubServiceIdentifier()])
         XCTAssertTrue(coordinator.hasPendingOTCListRequest, "List request must be recorded for post-unlock handling")
@@ -498,29 +489,58 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
 
         coordinator.presentOTCMatchesOrFinish()
 
-        let code = try XCTUnwrap(presenter.completedOneTimeCode, "A single service match should complete without a picker")
+        XCTAssertNil(presenter.completedOneTimeCode, "A list request must not answer itself with a code")
+        let searchView = try XCTUnwrap(presenter.searchView, "The lone host match is offered, not filled")
+        XCTAssertEqual(searchView.entries.map(\.title), ["GitHub"])
+        XCTAssertEqual(
+            searchView.searchEntries.map(\.title).sorted(),
+            ["Example", "GitHub"],
+            "The rest of the TOTP corpus stays reachable through search"
+        )
+
+        searchView.onSelect(matching)
+
+        let code = try XCTUnwrap(presenter.completedOneTimeCode, "Picking the entry produces its code")
         XCTAssertEqual(code.count, 6)
         XCTAssertNotEqual(code, "------")
         assertCleanedUp(coordinator)
     }
 
-    func test_otcList_prefersMostSpecificOrderedServiceIdentifier() throws {
+    func test_otcList_singleMatch_cancellingThePickerCompletesNoCode() throws {
         guard #available(iOS 18.0, macOS 15.0, *) else {
             throw XCTSkip("One-time-code requests require iOS 18 / macOS 15")
         }
 
         let (coordinator, presenter) = makeCoordinator()
         let sessionKey = SymmetricKey(size: .bits256)
-        let specific = KPEntry(
-            title: "Specific",
-            url: "https://vt.example.com/login",
-            totpConfig: TOTPConfig(secret: try EncryptedValue.encrypt("JBSWY3DPEHPK3PXP", using: sessionKey))
-        )
-        let root = KPEntry(
-            title: "Root",
-            url: "https://example.com/login",
-            totpConfig: TOTPConfig(secret: try EncryptedValue.encrypt("JBSWY3DPEHPK3PXP", using: sessionKey))
-        )
+        let matching = try makeTOTPEntry(title: "GitHub", sessionKey: sessionKey)
+
+        coordinator.prepareOneTimeCodeCredentialList(for: [githubServiceIdentifier()])
+        seedUnlockedVaultState(coordinator, entries: [matching], sessionKey: sessionKey)
+
+        coordinator.presentOTCMatchesOrFinish()
+
+        let searchView = try XCTUnwrap(presenter.searchView)
+        searchView.onCancel()
+
+        XCTAssertNil(presenter.completedOneTimeCode, "Cancelling must complete no code")
+        XCTAssertEqual(presenter.cancelledError?.code, .userCanceled)
+        assertCleanedUp(coordinator)
+    }
+
+    /// Nested-subdomain identifiers used to decide an automatic fill: the most
+    /// specific one won and its lone host match was completed outright. A list
+    /// request offers every host match under the requested domain instead, and
+    /// the choice between them is the user's (#132).
+    func test_otcList_nestedSubdomainIdentifiers_offerBothHostMatchesWithoutFilling() throws {
+        guard #available(iOS 18.0, macOS 15.0, *) else {
+            throw XCTSkip("One-time-code requests require iOS 18 / macOS 15")
+        }
+
+        let (coordinator, presenter) = makeCoordinator()
+        let sessionKey = SymmetricKey(size: .bits256)
+        let specific = try makeTOTPEntry(title: "Specific", url: "https://vt.example.com/login", sessionKey: sessionKey)
+        let root = try makeTOTPEntry(title: "Root", url: "https://example.com/login", sessionKey: sessionKey)
 
         coordinator.prepareOneTimeCodeCredentialList(for: [
             ASCredentialServiceIdentifier(identifier: "vt.example.com", type: .domain),
@@ -530,8 +550,17 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
 
         coordinator.presentOTCMatchesOrFinish()
 
-        XCTAssertNotNil(presenter.completedOneTimeCode, "The more specific ordered host should win")
-        XCTAssertNil(presenter.searchView)
+        XCTAssertNil(presenter.completedOneTimeCode, "A list request must not answer itself with a code")
+        let searchView = try XCTUnwrap(presenter.searchView)
+        XCTAssertEqual(
+            searchView.entries.map(\.title).sorted(),
+            ["Root", "Specific"],
+            "Both hosts under the requested domain are offered"
+        )
+
+        searchView.onSelect(specific)
+
+        XCTAssertNotNil(presenter.completedOneTimeCode)
         assertCleanedUp(coordinator)
     }
 
@@ -1802,6 +1831,35 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
         XCTAssertEqual(coordinator.activeDatabaseReference?.id, databaseA.id)
     }
 
+    /// The by-identity one-time-code route falls back to the list when its
+    /// identity is stale. With one TOTP entry left for the site, that entry
+    /// used to be turned into a code — answering a tapped suggestion with a
+    /// credential the user did not choose (#132).
+    func test_otcStaleFallback_singleRemainingMatch_presentsPickerInsteadOfFilling() throws {
+        guard #available(iOS 18.0, macOS 15.0, *) else {
+            throw XCTSkip("One-time-code requests require iOS 18 / macOS 15")
+        }
+
+        let (coordinator, presenter) = makeCoordinator()
+        let sessionKey = SymmetricKey(size: .bits256)
+        let remaining = try makeTOTPEntry(title: "GitHub", sessionKey: sessionKey)
+
+        coordinator.serviceIdentifiers = [githubServiceIdentifier()]
+        seedUnlockedVaultState(coordinator, entries: [remaining], sessionKey: sessionKey)
+        coordinator.hasPendingOTCRequest = true
+        coordinator.targetRecordIdentifier = CredentialRecordIdentifier(databaseID: UUID(), entryID: UUID()).encoded
+
+        coordinator.completeOTCRequestFromPending()
+
+        XCTAssertNil(
+            presenter.completedOneTimeCode,
+            "A stale suggestion must not be answered with whichever entry happens to be left"
+        )
+        let searchView = try XCTUnwrap(presenter.searchView, "The lone remaining match is offered instead")
+        XCTAssertEqual(searchView.entries.map(\.title), ["GitHub"])
+        searchView.onCancel()
+    }
+
     func test_otcStaleFallback_reArmsListFlag() throws {
         guard #available(iOS 18.0, macOS 15.0, *) else {
             throw XCTSkip("One-time-code requests require iOS 18 / macOS 15")
@@ -1887,7 +1945,10 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
         XCTAssertEqual(searchView.initialSearchText, "github.com")
     }
 
-    func test_passkeyList_singleMatch_completesDirectly() throws {
+    /// A site with exactly one saved passkey had its assertion completed the
+    /// moment the list request arrived, so the key icon answered a request to
+    /// choose without ever showing a choice (#132).
+    func test_passkeyList_singleMatch_presentsPickerInsteadOfAsserting() throws {
         let (coordinator, presenter) = makeCoordinator()
         let sessionKey = SymmetricKey(size: .bits256)
         let entry = try makePasskeyEntry(privateKey: P256.Signing.PrivateKey(), sessionKey: sessionKey)
@@ -1896,8 +1957,49 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
         var selected: KPEntry?
         coordinator.presentPasskeyList(matches: [entry], expiredMatches: []) { selected = $0 }
 
-        XCTAssertEqual(selected?.id, entry.id, "A single passkey match completes without a picker")
-        XCTAssertNil(presenter.searchView)
+        XCTAssertNil(selected, "A list request must not assert a passkey the user never picked")
+        let searchView = try XCTUnwrap(presenter.searchView, "The lone passkey is offered instead")
+        XCTAssertEqual(searchView.entries.map(\.id), [entry.id])
+
+        searchView.onSelect(entry)
+
+        XCTAssertEqual(selected?.id, entry.id, "Picking it still asserts that passkey")
+    }
+
+    func test_passkeyList_singleMatch_cancellingThePickerAssertsNothing() throws {
+        let (coordinator, presenter) = makeCoordinator()
+        let sessionKey = SymmetricKey(size: .bits256)
+        let entry = try makePasskeyEntry(privateKey: P256.Signing.PrivateKey(), sessionKey: sessionKey)
+        seedUnlockedVaultState(coordinator, entries: [entry], sessionKey: sessionKey)
+
+        var selected: KPEntry?
+        coordinator.presentPasskeyList(matches: [entry], expiredMatches: []) { selected = $0 }
+
+        let searchView = try XCTUnwrap(presenter.searchView)
+        searchView.onCancel()
+
+        XCTAssertNil(selected)
+        XCTAssertNil(presenter.completedAssertion, "Cancelling must assert nothing")
+        XCTAssertEqual(presenter.cancelledError?.code, .userCanceled)
+        assertCleanedUp(coordinator)
+    }
+
+    /// What presenting a one-passkey list buys the user: the picker carries the
+    /// database switcher, so a passkey for the same site in another database is
+    /// reachable. Completing outright ended the request before it could be.
+    func test_passkeyList_singleMatch_pickerOffersTheOtherEnabledDatabase() throws {
+        let (coordinator, presenter) = makeCoordinator()
+        let databaseA = try makeRegisteredDatabase(named: "passkey-a.kdbx")
+        let databaseB = try makeRegisteredDatabase(named: "passkey-b.kdbx")
+        let sessionKey = SymmetricKey(size: .bits256)
+        let entry = try makePasskeyEntry(privateKey: P256.Signing.PrivateKey(), sessionKey: sessionKey)
+        seedUnlockedVaultState(coordinator, entries: [entry], sessionKey: sessionKey)
+        coordinator.activeDatabaseReference = databaseA
+
+        coordinator.presentPasskeyList(matches: [entry], expiredMatches: []) { _ in }
+
+        let switcher = try XCTUnwrap(presenter.searchView?.databaseSwitcher, "The list picker carries the switcher")
+        XCTAssertEqual(Set(switcher.databases.map(\.id)), [databaseA.id, databaseB.id])
     }
 
     func test_passkeyList_expiredMatchesOnly_presentsExpiredPickerNotPasswordFallback() throws {
