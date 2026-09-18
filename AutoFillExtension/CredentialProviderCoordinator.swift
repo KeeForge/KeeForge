@@ -1641,11 +1641,9 @@ final class CredentialProviderCoordinator {
         expiredMatches: [KPEntry],
         onSelect complete: @escaping (KPEntry) -> Void
     ) {
-        if matches.count == 1, let entry = matches.first {
-            complete(entry)
-            return
-        }
-
+        // A parameters-driven list request names no credential, so a lone
+        // match is offered rather than asserted. The by-identity passkey
+        // route (`completeInteractivePasskeyRequest`) still asserts directly.
         if !matches.isEmpty {
             presentSearchView(entries: matches, includesDatabaseSwitcher: true) { entry in
                 complete(entry)
@@ -2183,9 +2181,12 @@ final class CredentialProviderCoordinator {
         }
     }
 
-    /// Interactive one-time-code selection: complete immediately on a single
-    /// service match, otherwise present the picker (matches, or all TOTP
-    /// entries with the domain pre-filled). Mirrors `presentPasswordMatchesOrFinish`.
+    /// Interactive one-time-code selection: present the picker over the service
+    /// matches, or over every TOTP entry with the domain pre-filled when
+    /// nothing matched. Nothing completes without an explicit choice, as in
+    /// `presentPasswordMatchesOrFinish` — both callers that reach here are
+    /// requests the user still has to answer: the OTC list request itself, and
+    /// the by-identity route whose identity turned out to be stale.
     ///
     /// `hasPendingOTCListRequest` is deliberately NOT consumed here: it stays
     /// set until a completion path runs `cleanup()`, so `afterUnlock()` after
@@ -2202,16 +2203,6 @@ final class CredentialProviderCoordinator {
         }
 
         let matches = CredentialMatcher.matchedEntries(from: totpEntries, for: serviceIdentifiers)
-        let strictMatches = CredentialMatcher.orderedStrictMatchedEntries(from: totpEntries, for: serviceIdentifiers)
-
-        // Auto-complete without a picker only when the most specific requested
-        // service identifier resolves to exactly one host match. The picker
-        // still offers the broader set, including weaker URL/title substring
-        // signals, which are never safe to fill without an explicit choice.
-        if strictMatches.count == 1, let entry = strictMatches.first {
-            completeOTCRequest(with: entry)
-            return
-        }
 
         let searchDomain = serviceIdentifiers.first.flatMap { CredentialMatcher.searchTerm(for: $0) } ?? ""
 

@@ -10,32 +10,6 @@ enum CredentialMatcher {
         matchedEntries(from: entries, for: identifiers, strict: true)
     }
 
-    /// Uses Apple's service-identifier order: the first identifier is the most
-    /// specific one, so a match there wins over broader identifiers.
-    static func orderedStrictMatchedEntries(
-        from entries: [KPEntry],
-        for identifiers: [ASCredentialServiceIdentifier]
-    ) -> [KPEntry] {
-        let candidates = entries
-            .filter { !$0.isExpired() }
-            .map { (entry: $0, hosts: ([$0.url] + $0.additionalURLs).compactMap(hostFromURLString)) }
-
-        for identifier in identifiers {
-            guard let term = searchTerm(for: identifier).map(normalizeHost) else { continue }
-
-            let exactMatches = candidates.filter { $0.hosts.contains(term) }
-            let exactMatchIDs = Set(exactMatches.map(\.entry.id))
-            let childMatches = candidates.filter { candidate in
-                guard !exactMatchIDs.contains(candidate.entry.id) else { return false }
-                return candidate.hosts.contains { $0 != term && $0.hasSuffix(".\(term)") }
-            }
-
-            let matches = (exactMatches + childMatches).map(\.entry)
-            if !matches.isEmpty { return matches }
-        }
-        return []
-    }
-
     /// Broad matches for interactive pickers: host matches plus URL and
     /// title substring matches. Substring matches can surface wrong-origin
     /// entries (`mybank.com` for a `bank.com` request), so results must
