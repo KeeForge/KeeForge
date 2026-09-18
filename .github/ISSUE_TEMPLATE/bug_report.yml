@@ -22,7 +22,7 @@ body:
       label: Steps to reproduce
       placeholder: |
         1. Open a database from …
-        2. Tap …
+        2. Click or tap …
         3. See error
     validations:
       required: true
@@ -35,10 +35,10 @@ body:
     validations:
       required: true
   - type: input
-    id: ios-version
+    id: os-version
     attributes:
-      label: iOS version and device
-      placeholder: e.g. iOS 18.5, iPhone 15 Pro
+      label: OS version and device or Mac
+      placeholder: e.g. iOS 18.5, iPhone 15 Pro; or macOS 15.6, MacBook Pro
     validations:
       required: true
   - type: dropdown
@@ -47,9 +47,11 @@ body:
       label: Where does the bug occur?
       multiple: true
       options:
-        - Main app (browsing / unlocking)
+        - iPhone / iPad app (browsing / unlocking)
+        - Mac app (browsing / unlocking)
         - Editing / saving
-        - AutoFill extension
+        - iOS AutoFill extension
+        - macOS AutoFill extension
         - Passkeys
         - TOTP
         - Cloud / file sync

@@ -4,10 +4,11 @@ Configuration folder for the native macOS app target — only `Info.plist`, `Kee
 
 ## Status
 
-The Mac app has **not shipped yet**. `CHANGELOG.md` under `## macOS App` is the single
-place where pre-release work is tracked — the remaining checklist, what has been
-observed, and what is still open all live there. Do not restate any of it here, and log
-macOS work there rather than under `## Unreleased` (iOS release notes).
+The Mac implementation is complete, but the app has **not officially shipped yet**.
+`CHANGELOG.md` under `## macOS App` is the single place where release and distribution
+work is tracked — the remaining checklist, what has been observed, and what is still
+open all live there. Do not restate any of it here, and log macOS work there rather
+than under `## Unreleased` (iOS release notes).
 
 This file is reference material for working in the target: constraints, platform limits,
 gotchas, and what a given change has to test.
@@ -48,20 +49,19 @@ Diagnosing this on a Mac: launch with `-autofill-store-inspector` (DEBUG only) a
 
 ## Moving Off The iOS App On A Mac
 
-Whether to withdraw the iOS app's Mac availability is a product decision tracked in
-`CHANGELOG.md`, not something this file settles. What belongs here are the container
-constraints that hold either way, because they are properties of the platform rather
-than of the plan:
+Apple automatically withdraws the iPad-on-Mac version once the native macOS version is
+approved; there is no separate product decision. The transition notice must therefore
+reach users before approval. The platform constraints are:
 
-- **Local databases** live inside the iOS app's own container and are not visible to the
-  Mac app's sandbox. The user exports each one (Database Details → Export) somewhere in
-  their own filesystem, then adds it in the native app. Nothing is converted — it is the
-  same `.kdbx` either way.
+- **Local databases** already live at a user-chosen filesystem location and are reached
+  through a security-scoped bookmark. The native app asks the user to add that same
+  `.kdbx` file again; nothing is migrated or converted.
 - **Security-scoped bookmarks do not transfer.** A database the iOS-on-Mac app could
   reopen silently has to be picked once in the native app. That is inherent to a
   different app container, not a bug.
-- **Cloud and WebDAV databases** are re-added by connecting the account again. The remote
-  file is untouched, so no export step is involved; only the connection is new.
+- **WebDAV databases** are re-added by reconnecting the account. Dropbox and OneDrive are
+  not in Mac v1: let the iPhone or iPad app finish syncing first, then open the provider's
+  synced folder as a local file. Never present a cached AutoFill copy as the live vault.
 - **Keychain sharing is expected but unproven in production.** Both bundles carry the
   `com.keevault.sharedkeychain` access group, so a stored composite key may remain usable
   once the same database is added natively — verify it without exposing key material
@@ -118,12 +118,12 @@ The rule of thumb from `../AGENTS.md` ("macOS Test Strategy") in the form a chan
 | What you changed | What must exist when you are done |
 | --- | --- |
 | Behavior in a view model, service, or model reachable on macOS | A `KeeForgeTests/` test. It compiles into `KeeForgeMacTests` for free, so this is the cheapest coverage there is and the default answer. |
-| Behavior that only exists on macOS (`#if os(macOS)` in a view model or service) | A `#if os(macOS)` test in `KeeForgeTests/`, guarded the way `MacLockMonitorTests` and `CloudProviderDesktopAuthTests` are. It runs in `KeeForgeMacTests` only, and CI runs it on every PR. |
+| Behavior that only exists on macOS (`#if os(macOS)` in a view model or service) | A `#if os(macOS)` test in `KeeForgeTests/`, guarded the way `MacLockMonitorTests` and `CredentialProviderShellMacTests` are. It runs in `KeeForgeMacTests` only, and CI runs it on every PR. |
 | A Mac-only interaction with no view-model seam (keyboard routing, first-responder handling, window lifecycle) | First try to give it a seam and test the seam. If it genuinely cannot have one, add the smallest possible case to `../KeeForgeMacUITests/MacSmokeUITests.swift` — and say in the test why a unit test could not reach it. The unlock password field is the worked example: `MacUnlockPasswordFieldTests` covers its focus lifecycle and field-editor routing headlessly, and only the real sidebar-click hand-off stays in `MacSmokeUITests`. |
 | Layout or visual polish (sizing, spacing, hover, empty states) | No new assertions. Re-run `MacScreenshotAuditUITests` and look at the captures; add a screen to that walk if the change introduced one. |
 | A SwiftUI view the macOS AutoFill shell hosts (`AutoFillExtension/`) | A manual pass in a real AutoFill panel — nothing automated reaches these views. Check first that every action is drawn *inside* the view: `.toolbar` and `.searchable` go to the window's `NSToolbar` on macOS, and the system credential-provider window has none, so a toolbar-only Cancel compiles, tests green, and ships a panel with no exit. See `../AutoFillExtension/AGENTS.md`. |
 | An accessibility identifier | Update every suite that names it, in the same change — `../KeeForgeUITests/` and `../KeeForgeMacUITests/` share identifiers by convention. |
-| User-facing text | Translations for all five shipped locales plus a `LocalizationTests` run; the Mac targets use the same four catalogs the iOS ones do. |
+| User-facing text | Translations for all six translated locales plus a `LocalizationTests` run; the Mac targets use the same four catalogs the iOS ones do. |
 | Parser, writer, protected fields, unknown XML, or any save path | `../KeeForgeTests/KDBXCompatibilityTests.swift`, plus the compatibility gate per platform: `KDBX_COMPAT_SCHEME=KeeForgeMac ci_scripts/run_kdbx_compatibility_gate.sh`. |
 | Anything writing to the system credential identity store | A `KeeForgeTests/CredentialIdentityStoreManagerTests.swift` case against `FakeCredentialIdentityStore` with `supportsIncrementalUpdatesValue = false`, alongside the incremental one. macOS takes that branch for every write. |
 | Entitlements, the App Group container, the AutoFill extension boundary, or Sparkle | `docs/macos-security-notes.md` refreshed against what actually shipped, and `AppGroupGuardrailTests` re-run if the container's write surface moved. |
@@ -137,7 +137,7 @@ Two standing constraints behind the table:
 
 One target, two channels, chosen when the project is generated rather than when it is built:
 
-- `xcodegen generate` — **Mac App Store**: no Sparkle in the binary and StoreKit tip jar. Universal purchase with iOS is intended once the one-time ASC setup is completed; it is not current ASC state. This is the default, so every ordinary workflow and every CI job builds this.
+- `xcodegen generate` — **Mac App Store**: no Sparkle in the binary and StoreKit tip jar. Adding macOS to the existing App Store Connect app record established universal purchase with iOS; there is no separate toggle. This is the default, so every ordinary workflow and every CI job builds this.
 - `xcodegen generate --spec project-direct.yml` — **Developer ID direct download**: links Sparkle, compiles `KEEFORGE_DIRECT_DOWNLOAD`, shows GitHub Sponsors instead of the tip jar, never calls StoreKit. It is also the only spec that selects `KeeForgeMacDirect.entitlements` and sets `SUEnableInstallerLauncherService`: a sandboxed app cannot submit Sparkle's installer job itself, and without the `-spks`/`-spki` mach-lookup exceptions an update downloads and verifies and then hangs forever at the progress window. Those two entitlement files must stay identical apart from that one key. `ci_scripts/build_mac_direct.sh` drives it and restores the App Store spec on exit.
 
 Two specs rather than two targets: both channels ship an app named `KeeForge.app` (the executable name is inside the signature and cannot be renamed afterwards), and two targets producing the same product path is a hard Xcode error. Separate specs also make the channels mutually exclusive by construction — an App Store build must never contain an updater.

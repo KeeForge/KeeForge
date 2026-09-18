@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  Ein kostenloser, quelloffener KeePass-Manager für iPhone und iPad.
+  Ein kostenloser, quelloffener KeePass-Manager für iPhone, iPad und Mac.
   <br />
   Natives SwiftUI, lokale Datenhaltung, AutoFill, Passkeys, TOTP, Cloud-Sync, KDBX-Bearbeitung und Anhang-Anzeige.
 </p>
@@ -31,7 +31,7 @@
 
 ## Warum KeeForge?
 
-KeeForge ist ein nativer iOS-KeePass-Client für alle, die die Kontrolle über ihren Tresor behalten wollen. Öffne `.kdbx`-Datenbanken aus der Dateien-App, iCloud Drive, lokalen Ordnern, Dropbox, OneDrive oder von WebDAV-Servern wie Nextcloud und Synology; entsperre mit Master-Passwort, Schlüsseldatei oder Biometrie; und durchsuche, bearbeite, speichere und fülle Zugangsdaten automatisch aus — ohne deinen Tresor einem gehosteten Passwortdienst anzuvertrauen.
+KeeForge ist ein nativer KeePass-Client für iPhone, iPad und Mac. Lokale Dateien und WebDAV funktionieren auf allen Plattformen; iCloud Drive, Dropbox, OneDrive und andere Dateien-Anbieter sind auf iPhone und iPad verfügbar. Entsperre mit Master-Passwort, Schlüsseldatei oder Biometrie und verwalte deinen Tresor, ohne ihn einem gehosteten Passwortdienst anzuvertrauen.
 
 ## Öffentliche Beta
 
@@ -46,21 +46,21 @@ KeeForge ist ein nativer iOS-KeePass-Client für alle, die die Kontrolle über i
 | --- | --- |
 | **KeePass-Kompatibilität** | Liest und schreibt KDBX-4.x-Datenbanken mit AES-256-, ChaCha20- oder Twofish-Verschlüsselung und AES-KDF, Argon2d oder Argon2id. Öffnet außerdem KDBX-3.1-Datenbanken im Nur-Lese-Modus. |
 | **Lokale Bearbeitung** | Einträge und Gruppen erstellen, bearbeiten, verschieben und löschen; Speichern mit Konfliktprüfung, zeitgestempelten Backups sowie Erhalt des Eintragsverlaufs und unbekannter XML-Elemente. |
-| **Neue Datenbanken** | Neue KDBX-4.x-Datenbanken lokal oder direkt in Dropbox-, OneDrive- und WebDAV-Ordnern anlegen. |
+| **Neue Datenbanken** | Neue KDBX-4.x-Datenbanken lokal oder über WebDAV auf allen Plattformen anlegen; Dropbox und OneDrive sind auf iPhone und iPad verfügbar. |
 | **Zusammengesetzte Schlüssel** | Entsperren mit Passwort, Schlüsseldatei oder beidem — einschließlich binärer, Hex-, XML-v1/v2- (`.key`/`.keyx`) und beliebiger Schlüsseldateien. |
-| **AutoFill** | AutoFill in Safari und Apps, QuickType-Vorschläge, Anlegen von Zugangsdaten direkt aus der Extension und per Face ID geschütztes Entsperren. |
+| **AutoFill** | Natives Passwort-AutoFill in Apps und Browsern mit biometrischer Entsperrung sowie Passkey-Registrierung auf allen Plattformen; QuickType und das Anlegen von Passworteinträgen aus der Extension sind zusätzlich auf iPhone und iPad verfügbar. |
 | **Passkeys** | Erkennen und Authentifizieren von FIDO2/WebAuthn-Passkeys, die in KeePassXC-kompatiblen benutzerdefinierten Feldern gespeichert sind. |
-| **TOTP** | Live-Anzeige von Einmalpasswörtern, Kopierfunktion, Countdown und Bestätigungscode-AutoFill ab iOS 18. |
-| **Cloud-Sync** | Natives Durchsuchen und Lese-/Schreib-Sync für Dropbox, OneDrive und WebDAV, zwischengespeicherte geteilte Kopien für AutoFill, Upload-Warteschlange in der Extension und Konfliktprüfungen. |
+| **TOTP** | Live-Anzeige, Kopierfunktion und Countdown auf allen Plattformen sowie Bestätigungscode-AutoFill ab iOS 18 und auf dem Mac. |
+| **Cloud-Sync** | WebDAV auf allen Plattformen. Dropbox und OneDrive sind derzeit auf iPhone und iPad verfügbar; auf dem Mac lassen sich synchronisierte Ordner als lokale Dateien öffnen. |
 | **Anhänge** | KeePass-Eintragsanhänge anzeigen, unterstützte Dateien per QuickLook in der Vorschau öffnen und aus kurzlebigen geschützten temporären Dateien teilen. Das Bearbeiten von Anhängen wird noch nicht unterstützt. |
-| **Bereit fürs iPad** | Die adaptive Navigation nutzt auf breiteren Layouts eine Split-View-Tresoransicht und hält den kompakten iPhone-Ablauf fokussiert und nativ. |
+| **Nativ auf jedem Bildschirm** | Fokussierte iPhone-Navigation, ein Split-View-Arbeitsbereich auf dem iPad und eine für den Desktop optimierte native Mac-App mit Menüs, Befehlen und Touch ID. |
 | **Sicherheit** | AES-GCM-Verschlüsselung von Geheimnissen im Arbeitsspeicher, Backoff nach fehlgeschlagenen Entsperrversuchen, Limits gegen Dekompressionsbomben und HMAC-Vergleich in konstanter Zeit. |
 
 ## Datenschutz
 
-KeeForge enthält keine Analytik, keine Hintergrund-Telemetrie und keine Crash-Reporting-SDKs. Tresordaten bleiben auf dem Gerät und an den von dir gewählten Speicherorten. Netzwerkzugriffe beschränken sich auf verbundene Cloud-Anbieter, das optionale Laden von Favicons über DuckDuckGo, optionale App-Store-Käufe für das Trinkgeld und das In-App-Feedback-Formular, wenn du explizit eine Nachricht absendest.
+KeeForge enthält keine Analytik, keine Hintergrund-Telemetrie und keine Crash-Reporting-SDKs. Tresordaten bleiben auf dem Gerät und an den von dir gewählten Speicherorten. Netzwerkzugriffe beschränken sich auf verbundene Cloud-Anbieter, das optionale Laden von Favicons über DuckDuckGo, optionale App-Store-Käufe für das Trinkgeld, Update-Prüfungen der direkt geladenen Mac-App und das In-App-Feedback-Formular, wenn du explizit eine Nachricht absendest.
 
-Kopierte Inhalte bleiben auf dem Gerät, auf dem du sie kopiert hast, werden nie mit deinen anderen Geräten synchronisiert und löschen sich nach kurzer Zeit oder beim Sperren der Datenbank von selbst. Außerdem blendet KeeForge den Bildschirminhalt aus, während dein Bildschirm aufgezeichnet oder gespiegelt wird.
+Auf iPhone und iPad werden kopierte Geheimnisse als lokal markiert und nicht über die universelle Zwischenablage übertragen. macOS bietet diesen Ausschluss nicht; dort können Kopien deiner Systemeinstellung folgen. KeeForge markiert sie als verborgen und löscht seinen Eintrag nach kurzer Zeit oder beim Sperren. Außerdem schützt KeeForge App-Vorschauen auf iPhone und iPad. Der Bildschirmaufnahme-Schutz auf dem Mac arbeitet nach bestem Bemühen und kann nicht jeden Screenshot oder jede Aufnahme verhindern.
 
 Lies die [Datenschutzerklärung](https://keeforge.com/de/privacy) ([englisches Original](https://keeforge.com/privacy)).
 

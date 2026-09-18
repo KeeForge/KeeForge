@@ -12,7 +12,7 @@
 
 ## 环境要求
 
-- iOS 18+
+- iOS 18+ 和 macOS 15+
 - Xcode 26+
 - [XcodeGen](https://github.com/yonaskolb/XcodeGen)
 - Swift 6，启用严格并发检查
@@ -27,7 +27,7 @@ xcodegen generate
 open KeeForge.xcodeproj
 ```
 
-选择一台 iOS 18+ 的模拟器或设备，然后构建并运行 `KeeForge` scheme。
+在 iPhone 和 iPad 上，选择 iOS 18+ 模拟器或设备并运行 `KeeForge` scheme；在 Mac 上，于 macOS 15 或更高版本运行 `KeeForgeMac` scheme。
 
 在命令行验证时，优先运行最小的相关测试切片：
 
@@ -35,6 +35,10 @@ open KeeForge.xcodeproj
 xcodebuild test -project KeeForge.xcodeproj -scheme KeeForge \
   -destination 'platform=iOS Simulator,name=iPhone 17 Pro' \
   -only-testing:KeeForgeTests/DatabaseViewModelTests -quiet
+
+xcodebuild test -project KeeForge.xcodeproj -scheme KeeForgeMac \
+  -destination 'platform=macOS' \
+  -only-testing:KeeForgeMacTests/DatabaseViewModelTests -quiet
 ```
 
 ## 开发流程
@@ -42,7 +46,7 @@ xcodebuild test -project KeeForge.xcodeproj -scheme KeeForge \
 1. Fork 本仓库，并从 `main` 创建一个主题分支。
 2. 做出能解决问题的最小的连贯改动。
 3. 添加或更新测试，使用最小的相关测试 target 并配合 `-only-testing:`。
-4. 在 [`CHANGELOG.md`](../../CHANGELOG.md) 的 `## Unreleased` 下添加功能和 bug 修复说明。
+4. 在 [`CHANGELOG.md`](../../CHANGELOG.md) 的 `## Unreleased` 下添加功能和 bug 修复说明。在首个 Mac 版本发布前，仅限 macOS 的更改应写在 `## macOS App` 下。
 5. 开一个 pull request，描述行为上的变化以及如何验证。
 
 每个 pull request 在合并前都会由维护者审阅。KeeForge 使用 squash 合并，因此请保持 pull request 聚焦，并起一个清晰的标题。
@@ -53,9 +57,10 @@ xcodebuild test -project KeeForge.xcodeproj -scheme KeeForge \
 
 在准备发布期间，还会有一个正在 TestFlight 上进行浸泡测试的 `release/{major}.{minor}` 分支。只有在维护者要求时才以该分支为目标——它专门用于修复在候选版本中发现的 bug，而且每个落到该分支的提交都会强制产生新的构建并重新开始测试窗口。维护者会另行把这些修复移植到 `main`；请不要向两个分支提交同一份改动。
 
-Pull request 合并前必须通过两项状态检查：
+Pull request 合并前必须通过三项状态检查：
 
 - **unit-tests** —— 通过 GitHub Actions 在 iOS 模拟器上运行 `KeeForgeTests` 单元测试套件。
+- **macos-unit-tests** —— 在 macOS 上以 `KeeForgeMacTests` 运行共享单元测试。
 - **DCO** —— 验证每个提交都已签署（见下文）。
 
 ## Developer Certificate of Origin

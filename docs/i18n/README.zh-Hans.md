@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  一款免费开源的 iPhone 和 iPad KeePass 管理器。
+  一款适用于 iPhone、iPad 和 Mac 的免费开源 KeePass 管理器。
   <br />
   原生 SwiftUI、本地优先存储、自动填充、通行密钥、TOTP、云同步、KDBX 编辑和附件查看。
 </p>
@@ -31,7 +31,7 @@
 
 ## 为什么选择 KeeForge？
 
-KeeForge 是一款原生 iOS KeePass 客户端，专为希望保险库始终掌握在自己手中的用户而设计。你可以从“文件”App、iCloud 云盘、本地文件夹、Dropbox、OneDrive，或 Nextcloud、Synology 等 WebDAV 服务器打开 `.kdbx` 数据库；用主密码、密钥文件或生物识别解锁；然后浏览、搜索、编辑、保存和自动填充——无需把保险库交给任何托管密码服务。
+KeeForge 是一款适用于 iPhone、iPad 和 Mac 的原生 KeePass 客户端。本地文件和 WebDAV 在所有平台上均可使用；iCloud 云盘、Dropbox、OneDrive 和其他“文件”提供方可在 iPhone 和 iPad 上使用。你可以用主密码、密钥文件或生物识别管理保险库，无需交给托管密码服务。
 
 ## 公开测试版
 
@@ -46,21 +46,21 @@ KeeForge 是一款原生 iOS KeePass 客户端，专为希望保险库始终掌�
 | --- | --- |
 | **KeePass 兼容性** | 读写采用 AES-256、ChaCha20 或 Twofish 加密及 AES-KDF、Argon2d 或 Argon2id 的 KDBX 4.x 数据库。也能以只读模式打开 KDBX 3.1 数据库。 |
 | **本地优先编辑** | 创建、编辑、移动和删除条目与群组；保存时进行冲突检查、生成带时间戳的备份，并保留条目历史记录和未知 XML。 |
-| **新建数据库** | 在本地或直接在 Dropbox、OneDrive 和 WebDAV 文件夹中创建新的 KDBX 4.x 数据库。 |
+| **新建数据库** | 在所有平台上于本地或通过 WebDAV 创建 KDBX 4.x 数据库；Dropbox 和 OneDrive 可在 iPhone 和 iPad 上使用。 |
 | **组合密钥** | 使用密码、密钥文件或两者组合解锁，支持二进制、十六进制、XML v1/v2（`.key`/`.keyx`）及任意密钥文件。 |
-| **自动填充** | Safari 和 App 内自动填充、QuickType 建议、直接在扩展中创建凭据，以及由 Face ID 保护的解锁。 |
+| **自动填充** | 在 App 和浏览器中原生自动填充，并支持生物识别解锁及全平台通行密钥注册；iPhone 和 iPad 还支持 QuickType 和从扩展创建密码条目。 |
 | **通行密钥** | 检测并验证存储在 KeePassXC 兼容自定义字段中的 FIDO2/WebAuthn 通行密钥。 |
-| **TOTP** | 实时显示一次性密码，支持拷贝、倒计时，以及 iOS 18+ 的验证码自动填充。 |
-| **云同步** | 原生浏览 Dropbox、OneDrive 和 WebDAV 并进行读写同步，为自动填充缓存共享副本、扩展上传队列和冲突检查。 |
+| **TOTP** | 在所有平台上实时显示、拷贝和倒计时，并在 iOS 18+ 和 Mac 上自动填充验证码。 |
+| **云同步** | 所有平台均支持 WebDAV。Dropbox 和 OneDrive 目前可在 iPhone 和 iPad 上使用；Mac 可将其同步文件夹作为本地文件打开。 |
 | **附件** | 查看 KeePass 条目附件，通过 QuickLook 预览支持的文件，并从短暂存在的受保护临时文件分享。暂不支持编辑附件。 |
-| **适配 iPad** | 自适应导航在较宽的布局上使用分栏式保险库工作区，同时保持 iPhone 上紧凑流程的专注与原生体验。 |
+| **每块屏幕都原生** | iPhone 上专注的导航、iPad 上分栏式工作区，以及带有菜单、命令和 Touch ID、为桌面优化的原生 Mac App。 |
 | **安全** | AES-GCM 内存中机密加密、解锁失败退避、解压炸弹限制，以及恒定时间的 HMAC 比较。 |
 
 ## 隐私
 
-KeeForge 没有分析统计、没有后台遥测、也没有崩溃报告 SDK。保险库数据只保留在设备上和你选择的存储位置。网络访问仅限于已连接的云服务商、可选启用的通过 DuckDuckGo 获取网站图标、可选的 App Store“打赏”内购，以及你主动提交消息时使用的应用内反馈表单。
+KeeForge 没有分析统计、没有后台遥测、也没有崩溃报告 SDK。保险库数据只保留在设备上和你选择的存储位置。网络访问仅限于已连接的云服务商、可选启用的通过 DuckDuckGo 获取网站图标、可选的 App Store“打赏”内购、直接下载版 Mac App 的更新检查，以及你主动提交消息时使用的应用内反馈表单。
 
-你拷贝的任何内容都只保留在拷贝它的设备上，绝不会同步到你的其他设备，并会在短时间后或当你锁定数据库时自动清除。当屏幕正在被录制或镜像时，KeeForge 还会隐藏屏幕上的内容。
+在 iPhone 和 iPad 上，拷贝的机密会标记为仅限本机，不会通过通用剪贴板传输。macOS 不提供这项排除能力，因此在 Mac 上可能会遵循你的系统设置；KeeForge 会将内容标记为机密，并在短时间后或锁定时清除。KeeForge 还会保护 iPhone 和 iPad 的 App 切换器预览。Mac 上的屏幕捕获阻止功能属于尽力保护，可能无法阻止所有截屏或录屏。
 
 请阅读[隐私政策](https://keeforge.com/zh-hans/privacy)（[英文原文](https://keeforge.com/privacy)）。
 

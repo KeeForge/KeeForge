@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  Un gestionnaire KeePass gratuit et open source pour iPhone et iPad.
+  Un gestionnaire KeePass gratuit et open source pour iPhone, iPad et Mac.
   <br />
   SwiftUI natif, stockage local, remplissage automatique, clés d’accès, TOTP, synchronisation cloud, édition KDBX et visualisation des pièces jointes.
 </p>
@@ -31,7 +31,7 @@
 
 ## Pourquoi KeeForge ?
 
-KeeForge est un client KeePass natif pour iOS, destiné à celles et ceux qui veulent garder le contrôle de leur coffre-fort. Ouvrez des bases de données `.kdbx` depuis Fichiers, iCloud Drive, des dossiers locaux, Dropbox, OneDrive ou des serveurs WebDAV comme Nextcloud et Synology ; déverrouillez avec un mot de passe principal, un fichier de clé ou la biométrie ; puis parcourez, recherchez, modifiez, enregistrez et utilisez le remplissage automatique sans confier votre coffre-fort à un service de mots de passe hébergé.
+KeeForge est un client KeePass natif pour iPhone, iPad et Mac. Les fichiers locaux et WebDAV fonctionnent sur toutes les plateformes ; iCloud Drive, Dropbox, OneDrive et les autres fournisseurs Fichiers sont disponibles sur iPhone et iPad. Déverrouillez avec un mot de passe principal, un fichier de clé ou la biométrie, sans confier votre coffre-fort à un service hébergé.
 
 ## Bêta publique
 
@@ -46,21 +46,21 @@ KeeForge est un client KeePass natif pour iOS, destiné à celles et ceux qui ve
 | --- | --- |
 | **Compatibilité KeePass** | Lit et écrit des bases de données KDBX 4.x avec chiffrement AES-256, ChaCha20 ou Twofish, et AES-KDF, Argon2d ou Argon2id. Ouvre aussi les bases de données KDBX 3.1 en lecture seule. |
 | **Édition locale** | Créez, modifiez, déplacez et supprimez des entrées et des groupes ; enregistrez avec vérification des conflits, sauvegardes horodatées, et conservation de l’historique des entrées et du XML inconnu. |
-| **Nouvelles bases de données** | Créez de nouvelles bases de données KDBX 4.x en local ou directement dans des dossiers Dropbox, OneDrive et WebDAV. |
+| **Nouvelles bases de données** | Créez des bases KDBX 4.x localement ou via WebDAV sur toutes les plateformes ; Dropbox et OneDrive sont disponibles sur iPhone et iPad. |
 | **Clés composites** | Déverrouillez avec un mot de passe, un fichier de clé, ou les deux — y compris des fichiers de clé binaires, hexadécimaux, XML v1/v2 (`.key`/`.keyx`) et arbitraires. |
-| **Remplissage automatique** | Remplissage automatique dans Safari et dans les applications, suggestions QuickType, création d’identifiants depuis l’extension, et déverrouillage protégé par Face ID. |
+| **Remplissage automatique** | Remplissage natif dans les apps et navigateurs avec déverrouillage biométrique, plus l’enregistrement de passkeys sur toutes les plateformes ; QuickType et la création d’entrées de mot de passe depuis l’extension sont aussi disponibles sur iPhone et iPad. |
 | **Clés d’accès** | Détecte et authentifie les clés d’accès FIDO2/WebAuthn stockées dans des champs personnalisés compatibles KeePassXC. |
-| **TOTP** | Affichage en direct des mots de passe à usage unique, copie, comptes à rebours, et remplissage automatique des codes de vérification à partir d’iOS 18. |
-| **Synchronisation cloud** | Navigation native et synchronisation en lecture/écriture pour Dropbox, OneDrive et WebDAV, copies partagées mises en cache pour le remplissage automatique, envois différés depuis l’extension, et vérification des conflits. |
+| **TOTP** | Affichage, copie et compte à rebours sur toutes les plateformes, plus le remplissage automatique des codes à partir d’iOS 18 et sur Mac. |
+| **Synchronisation cloud** | WebDAV sur toutes les plateformes. Dropbox et OneDrive sont actuellement disponibles sur iPhone et iPad ; sur Mac, ouvrez leurs dossiers synchronisés comme fichiers locaux. |
 | **Pièces jointes** | Affichez les pièces jointes des entrées KeePass, prévisualisez les fichiers pris en charge avec QuickLook, et partagez-les depuis des fichiers temporaires protégés et de courte durée. La modification des pièces jointes n’est pas encore prise en charge. |
-| **Compatible iPad** | La navigation adaptative utilise un espace de travail en vue scindée sur les écrans larges, tout en gardant le parcours iPhone compact, ciblé et natif. |
+| **Natif sur chaque écran** | Navigation ciblée sur iPhone, espace de travail scindé sur iPad et app Mac native optimisée pour le bureau, avec menus, commandes et Touch ID. |
 | **Sécurité** | Chiffrement AES-GCM des secrets en mémoire, ralentissement après échec de déverrouillage, limites contre les bombes de décompression, et comparaison HMAC à temps constant. |
 
 ## Confidentialité
 
-KeeForge n’intègre aucun outil d’analyse, aucune télémétrie en arrière-plan et aucun SDK de rapport de plantage. Les données du coffre-fort restent sur l’appareil et aux emplacements de stockage que vous choisissez. L’accès réseau se limite aux fournisseurs cloud connectés, à la récupération optionnelle des favicônes via DuckDuckGo, aux achats optionnels sur l’App Store pour le pourboire, et au formulaire de retour intégré à l’application lorsque vous envoyez explicitement un message.
+KeeForge n’intègre aucun outil d’analyse, aucune télémétrie en arrière-plan et aucun SDK de rapport de plantage. Les données du coffre-fort restent sur l’appareil et aux emplacements de stockage que vous choisissez. L’accès réseau se limite aux fournisseurs cloud connectés, à la récupération optionnelle des favicônes via DuckDuckGo, aux achats optionnels sur l’App Store pour le pourboire, aux vérifications de mise à jour de l’app Mac téléchargée directement et au formulaire de retour intégré à l’application lorsque vous envoyez explicitement un message.
 
-Tout ce que vous copiez reste sur l’appareil où vous l’avez copié, ne se synchronise jamais avec vos autres appareils, et s’efface de lui-même après un court instant ou lors du verrouillage de la base de données. KeeForge masque également le contenu de l’écran pendant qu’il est enregistré ou dupliqué (mirroring).
+Sur iPhone et iPad, les secrets copiés sont marqués comme locaux et ne passent pas par le Presse-papiers universel. macOS ne permet pas cette exclusion : sur Mac, ils peuvent suivre votre réglage système. KeeForge les marque comme confidentiels et efface son entrée après un court délai ou au verrouillage. KeeForge protège aussi les aperçus du sélecteur d’apps sur iPhone et iPad. Le blocage des captures d’écran sur Mac est sans garantie et peut ne pas empêcher toutes les captures ou tous les enregistrements.
 
 Lisez la [politique de confidentialité](https://keeforge.com/fr/privacy) ([version originale en anglais](https://keeforge.com/privacy)).
 

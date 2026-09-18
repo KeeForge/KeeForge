@@ -17,6 +17,20 @@ body:
       description: What would you like to see happen?
     validations:
       required: true
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Which platform is this for?
+      multiple: true
+      options:
+        - iPhone
+        - iPad
+        - Mac
+        - AutoFill extension
+        - All platforms
+        - Not platform-specific
+    validations:
+      required: true
   - type: textarea
     id: alternatives
     attributes:

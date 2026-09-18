@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  A free, open-source KeePass manager for iPhone and iPad.
+  A free, open-source KeePass manager for iPhone, iPad, and Mac.
   <br />
   Native SwiftUI, local-first storage, AutoFill, passkeys, TOTP, cloud sync, KDBX editing, and attachment viewing.
 </p>
@@ -31,11 +31,14 @@
 
 ## Why KeeForge?
 
-KeeForge is a native iOS KeePass client for people who want their vault to stay theirs. Open `.kdbx` databases from Files, iCloud Drive, local folders, Dropbox, OneDrive, or WebDAV servers such as Nextcloud and Synology; unlock with a master password, key file, or biometrics; then browse, search, edit, save, and AutoFill without handing your vault to a hosted password service.
+KeeForge is a native KeePass client for iPhone, iPad, and Mac, built for people who want their vault to stay theirs. Open `.kdbx` databases from local files or WebDAV on every platform, with iCloud Drive, Dropbox, OneDrive, and other Files providers on iPhone and iPad; unlock with a master password, key file, or biometrics; then browse, search, edit, save, and AutoFill without handing your vault to a hosted password service.
 
 ## Public Beta
 
 **[Join the KeeForge beta on TestFlight](https://testflight.apple.com/join/mPAT4f1a)**
+
+Beta availability can differ between iPhone, iPad, and Mac while Apple reviews
+each platform build.
 
 > [!WARNING]
 > **Test with a copy of your database, not your primary vault.** Beta builds are unreviewed, and they share the App Store app's bundle identifier and container — so they open your real `.kdbx` files.
@@ -46,21 +49,21 @@ KeeForge is a native iOS KeePass client for people who want their vault to stay 
 | --- | --- |
 | **KeePass compatibility** | Reads and writes KDBX 4.x databases with AES-256, ChaCha20, or Twofish encryption and AES-KDF, Argon2d, or Argon2id. Also opens KDBX 3.1 databases in read-only mode. |
 | **Local-first editing** | Create, edit, move, and delete entries and groups; and save with conflict checks, timestamped backups, and preservation of entry history and unknown XML. |
-| **New databases** | Create new KDBX 4.x databases locally or directly inside Dropbox, OneDrive, and WebDAV folders. |
+| **New databases** | Create new KDBX 4.x databases locally or through WebDAV on every platform, and directly inside Dropbox or OneDrive on iPhone and iPad. |
 | **Composite keys** | Unlock with password, key file, or both, including binary, hex, XML v1/v2 (`.key`/`.keyx`), and arbitrary key files. |
-| **AutoFill** | Safari and app AutoFill, QuickType suggestions, credential creation from the extension, and Face ID gated unlock. |
+| **AutoFill** | Native password AutoFill in apps and browsers, with biometric unlock, plus passkey registration on every platform; iPhone and iPad additionally provide QuickType suggestions and password-entry creation from the extension. |
 | **Passkeys** | Detect and authenticate FIDO2/WebAuthn passkeys stored in KeePassXC-compatible custom fields. |
-| **TOTP** | Live one-time password display, copy support, countdowns, and iOS 18+ verification-code AutoFill. |
-| **Cloud sync** | Native Dropbox, OneDrive, and WebDAV browsing and read/write sync, cached shared copies for AutoFill, queued extension uploads, and conflict checks. |
+| **TOTP** | Live one-time password display, copy support, and countdowns on every platform, plus verification-code AutoFill on iOS 18+ and Mac. |
+| **Cloud sync** | WebDAV browsing and read/write sync on every platform. Dropbox and OneDrive integration is currently available on iPhone and iPad; Mac users can open their synced folders as local files. |
 | **Attachments** | View KeePass entry attachments, preview supported files with QuickLook, and share them from short-lived protected temporary files. Attachment editing is not yet supported. |
-| **iPad ready** | Adaptive navigation uses a split-view vault workspace on wider layouts while keeping the compact iPhone flow focused and native. |
+| **Native on every screen** | Focused iPhone navigation, a split-view iPad workspace, and a desktop-optimized native Mac app with menus, commands, and Touch ID. |
 | **Security** | AES-GCM in-memory secret encryption, failed-unlock backoff, decompression bomb limits, and constant-time HMAC comparison. |
 
 ## Privacy
 
-KeeForge has no analytics, no background telemetry, and no crash-reporting SDKs. Vault data stays on device and in the storage locations you choose. Network access is limited to connected cloud providers, opt-in favicon fetching through DuckDuckGo, optional App Store purchases for the tip jar, and the in-app feedback form when you explicitly submit a message.
+KeeForge has no analytics, no background telemetry, and no crash-reporting SDKs. Vault data stays on device and in the storage locations you choose. Network access is limited to connected cloud providers, opt-in favicon fetching through DuckDuckGo, optional App Store purchases for the tip jar, update checks for the direct-download Mac app, and the in-app feedback form when you explicitly submit a message.
 
-Anything you copy stays on the device you copied it on, never syncing to your other devices, and it clears itself after a short while or when you lock the database. KeeForge also hides what is on screen while your screen is being recorded or mirrored.
+On iPhone and iPad, copied secrets are marked local-only so they do not travel through Universal Clipboard. macOS does not offer that exclusion, so copied secrets can follow your system's Universal Clipboard setting; KeeForge marks them as concealed and clears its clipboard entry after a short while or when you lock the database. KeeForge also protects app-switcher previews on iPhone and iPad. Screen-capture blocking on Mac is best-effort and may not stop every screenshot or recording.
 
 Read the [privacy policy](https://keeforge.com/privacy).
 
@@ -104,11 +107,13 @@ scripts/              # Local dev tooling
 - [`KeeForge/README.md`](KeeForge/README.md) - app-target architecture map
 - [`AutoFillExtension/AGENTS.md`](AutoFillExtension/AGENTS.md) - extension constraints and shared-source notes
 - [`SECURITY.md`](SECURITY.md) - vulnerability disclosure policy
+- [`docs/macos-security-notes.md`](docs/macos-security-notes.md) - macOS security model, platform limits, and mitigations
 - [`docs/`](docs/) - implementation specs, audits, and longer-form design docs
 
 ## Support
 
 - App Store: [KeeForge on the App Store](https://apps.apple.com/us/app/keeforge/id6759309295)
+- Mac distribution: the Mac App Store and direct-download links will be published with the first official macOS release
 - Email: [support@keeforge.com](mailto:support@keeforge.com)
 - Issues: [GitHub Issues](https://github.com/KeeForge/KeeForge/issues)
 

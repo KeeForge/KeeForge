@@ -12,6 +12,14 @@ Each subfolder's `CLAUDE.md` loads automatically when you work in it.
 - `AutoFill/AutoFillSaveCoordinator.swift` owns the extension-safe save path for new credentials.
 - `Security/KeychainService.swift` owns composite-key storage with biometric access control.
 
+Platform scope: the first Mac release supports local files and WebDAV, not the
+iOS app's Dropbox or OneDrive connections. Mac AutoFill fills passwords,
+passkeys, and one-time codes and can save a passkey registration, but
+AuthenticationServices does not expose the iOS extension's password-save,
+password-generation, or picker-created password-entry flows. Shared source
+membership means code must compile on both platforms; it does not imply
+identical runtime capabilities.
+
 ## Change Carefully
 
 - Several service files are compiled into both the app and the AutoFill extension; see `../../AutoFillExtension/AGENTS.md`. If you add dependencies, keep them extension-safe and update `../../project.yml`. The AutoFill shared source list is duplicated as two byte-identical allow-lists in `../../project.yml`, delimited by the `>>> SHARED AUTOFILL ALLOW-LIST` / `<<< SHARED AUTOFILL ALLOW-LIST` marker comments under the `KeeForgeAutoFill` and `KeeForgeMacAutoFill` targets; keep them literally identical (same paths, same order) and always edit both together. Separately, the `KeeForgeMac` app target compiles the *entire* `KeeForge/Services` tree (only `AppSupport/MacLockMonitor.swift` is excluded from the iOS app target), so every new service must compile on macOS.

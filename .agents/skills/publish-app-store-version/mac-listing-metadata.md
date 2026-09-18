@@ -1,10 +1,10 @@
 # KeeForge Mac App Store listing and reviewer metadata
 
-Package 9 record. As of 2026-09-13 this is **what is saved on the live macOS
-version page**, not a draft. It was written back from App Store Connect after
-saving, so the copy below matches the record byte for byte. Change the saved
-locale copy only alongside a matching ASC edit; the App Privacy observation
-below was read-only.
+Package 9 record. The copy was originally written back from App Store Connect
+after saving. The 2026-09-17 documentation sweep corrected the AutoFill wording
+below; apply those locale changes in ASC before submission, then read them back
+and remove this note. Change saved locale copy only alongside a matching ASC
+edit; the App Privacy observation below was read-only.
 
 Saved state of the macOS version record (app `6759309295`, version id
 `7056fb7a-8e4a-4485-b816-5c04fbe09088`):
@@ -24,19 +24,19 @@ Saved state of the macOS version record (app `6759309295`, version id
 - Seven final Mac screenshots are uploaded in English in listing order 01–07;
   the Simplified Chinese locale inherits the English Mac gallery.
 - Still empty by design: `What's New in This Version` (package 14, from the
-  matching `## v{version}` changelog section) and the attached build. The b48
-  candidate was rejected; b49 is pending and has not been cut.
+  matching `## v{version}` changelog section) and the attached build. Accepted
+  RC51 produced processed iOS and macOS App Store build 57; attach the soaked
+  Mac build only when staging review.
 
 ## Source of truth and scope
 
-- The version record was set up with `MARKETING_VERSION: 1.16.0` /
+- The version record was initially set up with `MARKETING_VERSION: 1.16.0` /
   `CURRENT_PROJECT_VERSION: 4`; that historical setup corrected the
-  auto-created 1.15.0 because the iOS 1.15.0 train is closed. Immutable
-  `rc/1.16.0-b48` at `a48d6b1` was rejected and never distributed after
-  reproduced Xcode Cloud creation failures and canonical iOS 18 XCTest UI
-  failures hidden by a green GitHub Actions verdict. A b49 replacement is
-  pending and has not been cut, so no replacement build is attached to this
-  version record.
+  auto-created 1.15.0 because the iOS 1.15.0 train is closed. The repository is
+  now at RC51 (`CURRENT_PROJECT_VERSION: 51`), and Xcode Cloud produced
+  processed iOS and macOS App Store build 57. No build is attached to the
+  version record until the accepted candidate finishes owner acceptance and is
+  staged for review.
 - `KeeForgeMac/README.md` and `CloudSyncModels.isAvailableOnCurrentPlatform`
   agree: the native Mac release supports local files and WebDAV, and hides
   Dropbox/OneDrive. The listing must not imply otherwise.
@@ -94,7 +94,8 @@ Editing & Saving
 AutoFill
 - AutoFill passwords, passkeys, and TOTP codes in Safari and other apps
 - Turn it on in System Settings > General > AutoFill & Passwords
-- Save new credentials directly from AutoFill
+- Create and edit password entries in the main KeeForge app
+- Save a new passkey when a site or app offers registration
 
 Security
 - Touch ID unlock with an auto-lock inactivity timer
@@ -169,7 +170,8 @@ Modification et sauvegarde
 AutoFill
 - Remplissez automatiquement mots de passe, passkeys et codes TOTP dans Safari et les autres apps
 - Activez-le dans Réglages Système > Général > Remplissage automatique et mots de passe
-- Enregistrez de nouveaux identifiants directement depuis AutoFill
+- Créez et modifiez les entrées de mot de passe dans l’app KeeForge principale
+- Enregistrez un nouveau passkey lorsqu’un site ou une app propose son inscription
 
 Sécurité
 - Déverrouillage Touch ID avec verrouillage automatique après inactivité
@@ -225,7 +227,8 @@ Bearbeiten & Speichern
 AutoFill
 - Fülle Passwörter, Passkeys und TOTP-Codes in Safari und anderen Apps automatisch aus
 - Aktiviere es in Systemeinstellungen > Allgemein > Automatisches Ausfüllen & Passwörter
-- Speichere neue Zugangsdaten direkt aus AutoFill
+- Erstelle und bearbeite Passworteinträge in der KeeForge-Haupt-App
+- Speichere einen neuen Passkey, wenn eine Website oder App die Registrierung anbietet
 
 Sicherheit
 - Entsperren mit Touch ID und automatischer Sperre bei Inaktivität
@@ -281,7 +284,8 @@ KeeForge - нативный менеджер паролей для macOS для 
 AutoFill
 - Автоматически заполняйте пароли, passkeys и TOTP-коды в Safari и других приложениях
 - Включите его в Системных настройках > Основные > Автозаполнение и пароли
-- Сохраняйте новые учетные данные прямо из AutoFill
+- Создавайте и редактируйте записи с паролями в основном приложении KeeForge
+- Сохраняйте новый passkey, когда сайт или приложение предлагает регистрацию
 
 Безопасность
 - Разблокировка Touch ID и автоблокировка при неактивности
@@ -340,7 +344,8 @@ Edición y guardado
 AutoFill
 - Rellena contraseñas, passkeys y códigos TOTP en Safari y otras apps
 - Actívalo en Ajustes del Sistema > General > Autorrelleno y contraseñas
-- Guarda nuevas credenciales directamente desde AutoFill
+- Crea y edita entradas de contraseña en la app principal de KeeForge
+- Guarda un passkey nuevo cuando un sitio o una app ofrezca registrarlo
 
 Seguridad
 - Desbloqueo con Touch ID y bloqueo automático por inactividad
@@ -396,7 +401,8 @@ KeeForge 是一款原生 macOS KeePass（.kdbx）密码管理器。可从本地�
 AutoFill
 • 在 Safari 和其他 App 中填充密码、passkey 与 TOTP 验证码
 • 在“系统设置”→“通用”→“自动填充与密码”中启用 KeeForge
-• 可直接从 AutoFill 新建凭据
+• 在 KeeForge 主 App 中创建和编辑密码条目
+• 当网站或 App 提供注册时保存新的 passkey
 
 安全
 • Touch ID 解锁及闲置自动锁定
@@ -455,7 +461,8 @@ KeeForge 是一款原生 macOS KeePass（.kdbx）密碼管理器。可從本機�
 AutoFill
 • 在 Safari 和其他 App 中填入密碼、passkey 與 TOTP 驗證碼
 • 在「系統設定」→「一般」→「自動填寫與密碼」中啟用 KeeForge
-• 可直接從 AutoFill 建立憑證
+• 在 KeeForge 主 App 中建立與編輯密碼項目
+• 當網站或 App 提供註冊時儲存新的 passkey
 
 安全
 • Touch ID 解鎖及閒置自動鎖定

@@ -82,7 +82,7 @@ The 2026-09-08 probe settled the design: the iPad-on-Mac app never stores a data
 
 ### Phase 3 — Prepare the Mac App Store submission
 
-- [ ] **8. Create the one-time App Store Connect Mac setup.** The account-level setup is done — adding macOS to app `6759309295` established universal purchase; there is no separate app record or bundle identity. The **KeeForge Mac Test** external group exists, and the current processed candidate is `1.16.0 (56)`.
+- [ ] **8. Create the one-time App Store Connect Mac setup.** The account-level setup is done — adding macOS to app `6759309295` established universal purchase; there is no separate app record or bundle identity. The **KeeForge Mac Test** external group exists, and the current processed candidate is `1.16.0 (57)`.
   - [x] Manual release is configured on the macOS version record (verified 2026-09-09: `releaseType` was `AFTER_APPROVAL`, now `MANUAL`). The iOS side has no open version record to set — 1.15.0 is Ready for Distribution — so it gets set when 1.16.0's iOS record is created in package 14. Phased release for macOS remains optional and unchosen.
   - Keep the iPad app available on Mac. Note the invariant above: approval of the macOS version, not its release, is what ends that availability.
   - Pending: install the processed candidate through TestFlight by an account that owns KeeForge on iOS. That install also supplies package 7's shared-identity check (a); do not call it complete from archive processing alone.
@@ -134,7 +134,7 @@ The 2026-09-08 probe settled the design: the iPad-on-Mac app never stores a data
 - Some text stayed English in every language: the group delete confirmation joined its entry and group counts with an English "and", and the cloud sync status read "Healthy", "Disconnected", or "Sync older than 24h" in Database Details and the database list. All of it is translated now.
 - Cloud sync warnings now follow the language you read the app in. A warning recorded before you switched languages kept showing up in the old one.
 - Deleting an entry from the search results works again. Tapping Delete in a search result's long-press menu did nothing, and swiping to delete there made the row disappear without actually deleting the entry.
-- The key icon in the AutoFill bar above the keyboard now opens KeeForge so you can search for and pick a credential (#129, #132). It used to fill the suggested one straight away, which left no way to reach another entry — for passwords, passkeys and verification codes alike. Tapping the suggestion itself still fills it directly.
+- On iPhone and iPad, the key icon in the AutoFill bar above the keyboard now opens KeeForge so you can search for and pick a credential (#129, #132). It used to fill the suggested one straight away, which left no way to reach another entry — for passwords, passkeys and verification codes alike. Tapping the suggestion itself still fills it directly.
 
 ## v1.16.0 (2026-09-13)
 
@@ -143,7 +143,7 @@ The 2026-09-08 probe settled the design: the iPad-on-Mac app never stores a data
 - KeeForge is now a native Mac app, for macOS 15 or later. It opens local database files and WebDAV, supports AutoFill, and is available from the Mac App Store or as a direct download. Dropbox and OneDrive are not on Mac yet; open your synced folder as a local file instead.
 - Long-press an entry in a list to copy its username or password without opening it (#102). Copying the password asks for Face ID, Touch ID, or your passcode first, the same as in the entry itself.
 - Duplicate an entry (#104). Long-press an entry and choose "Duplicate" to open a New Entry form already filled in from it, including its password, tags, custom fields, and verification code. Pick a different group for the copy before saving if you want it somewhere else. The copy does not carry over attachments, entry history, passkeys, or a custom icon.
-- The password generator now remembers your settings (#97). Length, character sets, and "Exclude Ambiguous Characters" carry over the next time you open it, and the password suggested when creating an entry from AutoFill uses the same settings.
+- The password generator now remembers your settings (#97). Length, character sets, and "Exclude Ambiguous Characters" carry over the next time you open it. On iPhone and iPad, the password suggested when creating an entry from AutoFill uses the same settings.
 
 ### Fixes
 
@@ -244,7 +244,7 @@ The 2026-09-08 probe settled the design: the iPad-on-Mac app never stores a data
 
 ### New Features
 
-- Edit a group: long-press a group and choose "Edit Group" to rename it, give it tags, pick an icon, write notes, and hide or show it in Search & AutoFill — all in one form, saved together (#73). Tags on a group carry down to the entries inside it, so tagging a folder makes everything in it findable by that tag. The Recycle Bin and its contents stay uneditable, as does a read-only database; the existing "Change Icon" and "Hide from Search & AutoFill" shortcuts are still on the same menu. Note that giving a group its first tag upgrades the database file from KDBX 4.0 to 4.1 the next time it is saved, because group tags are a 4.1 feature: current KeePass, KeePassXC, KeePassium and Strongbox versions all read 4.1, but very old KeePass releases may not, and KeeForge never puts a database back to 4.0.
+- Edit a group from its context menu — long-press on iPhone or iPad, or right-click on Mac — to rename it, give it tags, pick an icon, write notes, and hide or show it in Search & AutoFill, all in one form and saved together (#73). Tags on a group carry down to the entries inside it, so tagging a folder makes everything in it findable by that tag. The Recycle Bin and its contents stay uneditable, as does a read-only database; the existing "Change Icon" and "Hide from Search & AutoFill" shortcuts are still on the same menu. Note that giving a group its first tag upgrades the database file from KDBX 4.0 to 4.1 the next time it is saved, because group tags are a 4.1 feature: current KeePass, KeePassXC, KeePassium and Strongbox versions all read 4.1, but very old KeePass releases may not, and KeeForge never puts a database back to 4.0.
 - Save new passkeys: choosing KeeForge when an app or website offers "Add Passkey" now creates a passkey entry in the default AutoFill database, stored in the KeePassXC-compatible format so other KeePass apps can sign in with it too. Previously that request showed a blank screen (#52).
 - Search results and the tag browser now show which folder an entry lives in, as a small caption under the entry (#24).
 - Groups hidden from AutoFill are now also hidden from in-app search, matching how KeePass treats the underlying "enable searching" flag (#24). Browsing and the tag browser still show the group and its entries, and the context-menu wording now says "Hide from Search & AutoFill".

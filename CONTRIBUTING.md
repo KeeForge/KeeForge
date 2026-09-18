@@ -12,7 +12,7 @@ Thanks for helping improve KeeForge.
 
 ## Requirements
 
-- iOS 18+
+- iOS 18+ and macOS 15+
 - Xcode 26+
 - [XcodeGen](https://github.com/yonaskolb/XcodeGen)
 - Swift 6 with strict concurrency
@@ -27,7 +27,8 @@ xcodegen generate
 open KeeForge.xcodeproj
 ```
 
-Select an iOS 18+ simulator or device, then build and run the `KeeForge` scheme.
+For iPhone and iPad, select an iOS 18+ simulator or device and run the
+`KeeForge` scheme. For Mac, run the `KeeForgeMac` scheme on macOS 15 or later.
 
 For command-line verification, prefer the smallest relevant test slice:
 
@@ -35,6 +36,10 @@ For command-line verification, prefer the smallest relevant test slice:
 xcodebuild test -project KeeForge.xcodeproj -scheme KeeForge \
   -destination 'platform=iOS Simulator,name=iPhone 17 Pro' \
   -only-testing:KeeForgeTests/DatabaseViewModelTests -quiet
+
+xcodebuild test -project KeeForge.xcodeproj -scheme KeeForgeMac \
+  -destination 'platform=macOS' \
+  -only-testing:KeeForgeMacTests/DatabaseViewModelTests -quiet
 ```
 
 ## Development Workflow
@@ -42,7 +47,7 @@ xcodebuild test -project KeeForge.xcodeproj -scheme KeeForge \
 1. Fork the repository and create a topic branch from `main`.
 2. Make the smallest coherent change that addresses the issue.
 3. Add or update tests, using the smallest relevant test target and `-only-testing:`.
-4. Add feature and bug-fix notes under `## Unreleased` in [`CHANGELOG.md`](CHANGELOG.md).
+4. Add feature and bug-fix notes under `## Unreleased` in [`CHANGELOG.md`](CHANGELOG.md). Until the first native Mac release ships, macOS-only work belongs under `## macOS App` instead.
 5. Open a pull request describing the behavior change and how it was verified.
 
 A maintainer reviews every pull request before it is merged. KeeForge uses squash merges, so please keep the pull request focused and give it a clear title.
@@ -57,9 +62,10 @@ found in the release candidate, and every commit landing there forces a new buil
 testing window. Maintainers port those fixes to `main` separately; do not open the same change
 against both branches.
 
-Two status checks must pass before a pull request can merge:
+Three status checks must pass before a pull request can merge:
 
-- **unit-tests** — runs the `KeeForgeTests` unit suite on an iOS simulator via GitHub Actions.
+- **unit-tests** — runs the `KeeForgeTests` unit suite on an iOS simulator.
+- **macos-unit-tests** — compiles the shared unit sources against the native Mac app and runs `KeeForgeMacTests` on macOS.
 - **DCO** — verifies every commit is signed off (see below).
 
 ## Developer Certificate of Origin

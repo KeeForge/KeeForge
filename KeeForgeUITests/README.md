@@ -1,5 +1,9 @@
 # KeeForge UI Tests
 
+This folder owns the iPhone and iPad UI suites. Native Mac UI coverage lives in
+`../KeeForgeMacUITests/`; both suites intentionally share accessibility
+identifiers where the product behavior is shared.
+
 Detailed guidance for adding, running, and fixing XCUITests in `KeeForgeUITests/`.
 
 Use this document for UI test methodology. Repo-wide build and test policy stays in `AGENTS.md`, and fixture details live in `../TestFixtures/README.md`.

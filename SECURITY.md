@@ -4,11 +4,13 @@ KeeForge is a password manager, so we take security reports seriously. Thank you
 
 ## Supported Versions
 
-Only the latest released version of KeeForge is supported with security updates.
+Only the latest released version on each supported platform receives security
+updates. Pre-release Mac builds remain in scope for reports while the first
+official macOS release is being prepared.
 
 | Version | Supported |
 | ------- | --------- |
-| Latest App Store release | ✅ |
+| Latest release for each supported platform | ✅ |
 | Older versions | ❌ |
 
 ## Reporting a Vulnerability
@@ -39,11 +41,12 @@ Please give us a reasonable amount of time to address the issue before any publi
 
 In scope:
 
-- The KeeForge iOS app and its AutoFill extension
-- The macOS app and its AutoFill extension (unreleased; in scope for source-level reports)
+- The KeeForge apps for iPhone, iPad, and macOS
+- The iOS and macOS AutoFill extensions
 - KDBX parsing, writing, and cryptography
 - Keychain, App Group, and local storage handling
 - Cloud sync and network features
+- macOS-specific security boundaries documented in [`docs/macos-security-notes.md`](docs/macos-security-notes.md)
 
 Out of scope:
 

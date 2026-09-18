@@ -12,7 +12,7 @@
 
 ## 需求
 
-- iOS 18+
+- iOS 18+ 與 macOS 15+
 - Xcode 26+
 - [XcodeGen](https://github.com/yonaskolb/XcodeGen)
 - Swift 6 與嚴格並行檢查（strict concurrency）
@@ -27,7 +27,7 @@ xcodegen generate
 open KeeForge.xcodeproj
 ```
 
-選擇 iOS 18 以上的模擬器或裝置，然後建置並執行 `KeeForge` scheme。
+在 iPhone 與 iPad 上，選擇 iOS 18 以上的模擬器或裝置並執行 `KeeForge` scheme；在 Mac 上，於 macOS 15 或以上版本執行 `KeeForgeMac` scheme。
 
 若要透過指令列驗證，請優先執行最小的相關測試片段：
 
@@ -35,6 +35,10 @@ open KeeForge.xcodeproj
 xcodebuild test -project KeeForge.xcodeproj -scheme KeeForge \
   -destination 'platform=iOS Simulator,name=iPhone 17 Pro' \
   -only-testing:KeeForgeTests/DatabaseViewModelTests -quiet
+
+xcodebuild test -project KeeForge.xcodeproj -scheme KeeForgeMac \
+  -destination 'platform=macOS' \
+  -only-testing:KeeForgeMacTests/DatabaseViewModelTests -quiet
 ```
 
 ## 開發工作流程
@@ -42,7 +46,7 @@ xcodebuild test -project KeeForge.xcodeproj -scheme KeeForge \
 1. Fork 這個儲存庫，並從 `main` 建立一個主題分支。
 2. 進行能解決問題的最小、連貫的變更。
 3. 新增或更新測試，並使用最小的相關測試目標搭配 `-only-testing:`。
-4. 在 [`CHANGELOG.md`](../../CHANGELOG.md) 的 `## Unreleased` 之下加入功能與錯誤修正的說明。
+4. 在 [`CHANGELOG.md`](../../CHANGELOG.md) 的 `## Unreleased` 之下加入功能與錯誤修正的說明。在首個 Mac 版本發佈前，僅限 macOS 的變更應寫在 `## macOS App` 之下。
 5. 開一個 Pull Request，描述行為上的變更以及驗證方式。
 
 每個 Pull Request 在合併前都會由維護者審查。KeeForge 使用 squash 合併，因此請讓 Pull Request 保持聚焦，並給它一個清楚的標題。
@@ -56,9 +60,10 @@ xcodebuild test -project KeeForge.xcodeproj -scheme KeeForge \
 進入該分支的 commit 都會強制產生新的建置並重新開始測試期。維護者會另行將這些修正
 移植回 `main`；請勿對兩個分支提交相同的變更。
 
-Pull Request 合併前必須通過兩項狀態檢查：
+Pull Request 合併前必須通過三項狀態檢查：
 
 - **unit-tests** —— 透過 GitHub Actions 在 iOS 模擬器上執行 `KeeForgeTests` 單元測試套件。
+- **macos-unit-tests** —— 在 macOS 上以 `KeeForgeMacTests` 執行共用單元測試。
 - **DCO** —— 驗證每個 commit 都已簽署（見下文）。
 
 ## Developer Certificate of Origin

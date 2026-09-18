@@ -12,7 +12,7 @@ Danke, dass du KeeForge besser machst.
 
 ## Voraussetzungen
 
-- iOS 18+
+- iOS 18+ und macOS 15+
 - Xcode 26+
 - [XcodeGen](https://github.com/yonaskolb/XcodeGen)
 - Swift 6 mit Strict Concurrency
@@ -27,7 +27,7 @@ xcodegen generate
 open KeeForge.xcodeproj
 ```
 
-Wähle einen Simulator oder ein Gerät mit iOS 18+ und baue und starte das Schema `KeeForge`.
+Für iPhone und iPad wähle einen Simulator oder ein Gerät mit iOS 18+ und starte das Schema `KeeForge`. Für Mac starte das Schema `KeeForgeMac` auf macOS 15 oder neuer.
 
 Für die Verifikation über die Kommandozeile bevorzuge den kleinsten relevanten Test-Ausschnitt:
 
@@ -35,6 +35,10 @@ Für die Verifikation über die Kommandozeile bevorzuge den kleinsten relevanten
 xcodebuild test -project KeeForge.xcodeproj -scheme KeeForge \
   -destination 'platform=iOS Simulator,name=iPhone 17 Pro' \
   -only-testing:KeeForgeTests/DatabaseViewModelTests -quiet
+
+xcodebuild test -project KeeForge.xcodeproj -scheme KeeForgeMac \
+  -destination 'platform=macOS' \
+  -only-testing:KeeForgeMacTests/DatabaseViewModelTests -quiet
 ```
 
 ## Entwicklungs-Workflow
@@ -42,7 +46,7 @@ xcodebuild test -project KeeForge.xcodeproj -scheme KeeForge \
 1. Forke das Repository und erstelle einen Topic-Branch von `main`.
 2. Mache die kleinste zusammenhängende Änderung, die das Problem löst.
 3. Ergänze oder aktualisiere Tests und nutze dabei das kleinste relevante Test-Target sowie `-only-testing:`.
-4. Trage Notizen zu Features und Bugfixes unter `## Unreleased` in [`CHANGELOG.md`](../../CHANGELOG.md) ein.
+4. Trage Notizen zu Features und Bugfixes unter `## Unreleased` in [`CHANGELOG.md`](../../CHANGELOG.md) ein. Bis zum ersten Mac-Release gehört reine macOS-Arbeit stattdessen unter `## macOS App`.
 5. Öffne einen Pull Request, der die Verhaltensänderung beschreibt und erklärt, wie sie verifiziert wurde.
 
 Ein Maintainer reviewt jeden Pull Request, bevor er gemergt wird. KeeForge nutzt Squash-Merges — halte den Pull Request also fokussiert und gib ihm einen klaren Titel.
@@ -57,9 +61,10 @@ Fixes für Bugs vorbehalten, die im Release-Kandidaten gefunden wurden, und jede
 neuen Build und startet das Testfenster neu. Maintainer portieren diese Fixes separat nach `main`; reiche
 dieselbe Änderung nicht gegen beide Branches ein.
 
-Zwei Status-Checks müssen bestehen, bevor ein Pull Request gemergt werden kann:
+Drei Status-Checks müssen bestehen, bevor ein Pull Request gemergt werden kann:
 
 - **unit-tests** — führt die Unit-Suite `KeeForgeTests` über GitHub Actions auf einem iOS-Simulator aus.
+- **macos-unit-tests** — führt die geteilten Unit-Tests als `KeeForgeMacTests` unter macOS aus.
 - **DCO** — prüft, ob jeder Commit signiert (Sign-off) ist (siehe unten).
 
 ## Developer Certificate of Origin

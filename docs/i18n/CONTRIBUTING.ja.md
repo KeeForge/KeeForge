@@ -12,7 +12,7 @@ KeeForge の改善にご協力いただきありがとうございます。
 
 ## 必要な環境
 
-- iOS 18 以降
+- iOS 18 以降と macOS 15 以降
 - Xcode 26 以降
 - [XcodeGen](https://github.com/yonaskolb/XcodeGen)
 - Swift 6（strict concurrency 有効）
@@ -27,7 +27,7 @@ xcodegen generate
 open KeeForge.xcodeproj
 ```
 
-iOS 18 以降のシミュレータまたはデバイスを選び、`KeeForge` スキームをビルドして実行してください。
+iPhone と iPad では iOS 18 以降のシミュレータまたはデバイスで `KeeForge` スキームを実行します。Mac では macOS 15 以降で `KeeForgeMac` スキームを実行します。
 
 コマンドラインで確認する場合は、関連する最小のテストスライスを選んでください。
 
@@ -35,6 +35,10 @@ iOS 18 以降のシミュレータまたはデバイスを選び、`KeeForge` �
 xcodebuild test -project KeeForge.xcodeproj -scheme KeeForge \
   -destination 'platform=iOS Simulator,name=iPhone 17 Pro' \
   -only-testing:KeeForgeTests/DatabaseViewModelTests -quiet
+
+xcodebuild test -project KeeForge.xcodeproj -scheme KeeForgeMac \
+  -destination 'platform=macOS' \
+  -only-testing:KeeForgeMacTests/DatabaseViewModelTests -quiet
 ```
 
 ## 開発の進め方
@@ -42,7 +46,7 @@ xcodebuild test -project KeeForge.xcodeproj -scheme KeeForge \
 1. リポジトリをフォークし、`main` からトピックブランチを作成します。
 2. 課題を解決する、まとまりのある最小限の変更を行います。
 3. テストを追加または更新します。関連する最小のテストターゲットと `-only-testing:` を使ってください。
-4. 機能とバグ修正の内容を [`CHANGELOG.md`](../../CHANGELOG.md) の `## Unreleased` に追記します。
+4. 機能とバグ修正の内容を [`CHANGELOG.md`](../../CHANGELOG.md) の `## Unreleased` に追記します。最初の Mac リリースまでは、macOS のみの変更を `## macOS App` に記載します。
 5. 動作の変更点と、それをどのように検証したかを説明するプルリクエストを作成します。
 
 すべてのプルリクエストは、マージ前にメンテナがレビューします。KeeForge は squash マージを使用しているため、プルリクエストは目的を絞り、わかりやすいタイトルを付けてください。
@@ -53,9 +57,10 @@ xcodebuild test -project KeeForge.xcodeproj -scheme KeeForge \
 
 リリースの準備中は、TestFlight で検証中の `release/{major}.{minor}` ブランチも存在します。このブランチを対象にするのは、メンテナから依頼があった場合のみです。リリース候補で見つかった不具合の修正のために用意されたブランチであり、コミットが入るたびに新しいビルドが作成され、テスト期間がやり直しになります。メンテナはそれらの修正を別途 `main` に取り込むため、同じ変更を両方のブランチに対して作成しないでください。
 
-プルリクエストをマージするには、2 つのステータスチェックに合格する必要があります。
+プルリクエストをマージするには、3 つのステータスチェックに合格する必要があります。
 
 - **unit-tests** — GitHub Actions で、iOS シミュレータ上の `KeeForgeTests` ユニットスイートを実行します。
+- **macos-unit-tests** — 共有ユニットテストを macOS 上の `KeeForgeMacTests` として実行します。
 - **DCO** — すべてのコミットに署名（sign-off）があることを検証します（下記参照）。
 
 ## Developer Certificate of Origin

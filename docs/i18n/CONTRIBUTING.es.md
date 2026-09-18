@@ -12,7 +12,7 @@ Gracias por ayudar a mejorar KeeForge.
 
 ## Requisitos
 
-- iOS 18+
+- iOS 18+ y macOS 15+
 - Xcode 26+
 - [XcodeGen](https://github.com/yonaskolb/XcodeGen)
 - Swift 6 con concurrencia estricta
@@ -27,7 +27,7 @@ xcodegen generate
 open KeeForge.xcodeproj
 ```
 
-Seleccione un simulador o dispositivo con iOS 18+, y luego compile y ejecute el esquema `KeeForge`.
+Para iPhone y iPad, seleccione un simulador o dispositivo con iOS 18+ y ejecute el esquema `KeeForge`. Para Mac, ejecute `KeeForgeMac` en macOS 15 o posterior.
 
 Para la verificación desde la línea de comandos, prefiera el subconjunto de pruebas más pequeño y relevante:
 
@@ -35,6 +35,10 @@ Para la verificación desde la línea de comandos, prefiera el subconjunto de pr
 xcodebuild test -project KeeForge.xcodeproj -scheme KeeForge \
   -destination 'platform=iOS Simulator,name=iPhone 17 Pro' \
   -only-testing:KeeForgeTests/DatabaseViewModelTests -quiet
+
+xcodebuild test -project KeeForge.xcodeproj -scheme KeeForgeMac \
+  -destination 'platform=macOS' \
+  -only-testing:KeeForgeMacTests/DatabaseViewModelTests -quiet
 ```
 
 ## Flujo de trabajo de desarrollo
@@ -42,7 +46,7 @@ xcodebuild test -project KeeForge.xcodeproj -scheme KeeForge \
 1. Haga un fork del repositorio y cree una rama temática a partir de `main`.
 2. Haga el cambio coherente más pequeño que resuelva el problema.
 3. Añada o actualice pruebas, usando el target de pruebas más pequeño relevante y `-only-testing:`.
-4. Añada notas de funciones y correcciones bajo `## Unreleased` en [`CHANGELOG.md`](../../CHANGELOG.md).
+4. Añada notas de funciones y correcciones bajo `## Unreleased` en [`CHANGELOG.md`](../../CHANGELOG.md). Hasta la primera versión para Mac, los cambios exclusivos de macOS van bajo `## macOS App`.
 5. Abra una pull request describiendo el cambio de comportamiento y cómo se verificó.
 
 Un mantenedor revisa cada pull request antes de fusionarla. KeeForge usa squash merges, así que mantenga la pull request acotada y déle un título claro.
@@ -57,9 +61,10 @@ para correcciones de errores encontrados en el candidato de versión, y cada com
 obliga a una nueva compilación y reinicia la ventana de pruebas. Los mantenedores trasladan esas
 correcciones a `main` por separado; no abra el mismo cambio contra ambas ramas.
 
-Dos comprobaciones de estado deben pasar antes de que una pull request pueda fusionarse:
+Tres comprobaciones de estado deben pasar antes de que una pull request pueda fusionarse:
 
 - **unit-tests** — ejecuta la batería de pruebas unitarias `KeeForgeTests` en un simulador de iOS mediante GitHub Actions.
+- **macos-unit-tests** — ejecuta las pruebas unitarias compartidas como `KeeForgeMacTests` en macOS.
 - **DCO** — verifica que cada commit esté firmado (vea más abajo).
 
 ## Developer Certificate of Origin
