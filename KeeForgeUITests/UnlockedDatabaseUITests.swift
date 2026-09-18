@@ -50,36 +50,6 @@ class UnlockedDatabaseUITestCase: KeeForgeUITestCase {
         firstRowMatching(name: name, preferredIdentifier: "entry.navlink")
     }
 
-    func activateSearchField(file: StaticString = #filePath, line: UInt = #line) -> XCUIElement {
-        let searchField = app.searchFields["Search entries"].firstMatch
-        if searchField.waitForExistence(timeout: 1) == false, let container = scrollableContainer() {
-            container.swipeDown()
-        }
-
-        XCTAssertTrue(searchField.waitForExistence(timeout: 5), "Search field was not visible", file: file, line: line)
-        if searchField.isHittable == false {
-            _ = revealElement(searchField, in: scrollableContainer(), direction: .down, maxSwipes: 2)
-        }
-        tapElement(searchField)
-        return searchField
-    }
-
-    func clearSearchField(_ searchField: XCUIElement) {
-        let clearButton = searchField.buttons["Clear text"]
-        if clearButton.exists {
-            clearButton.tap()
-            return
-        }
-
-        let currentValue = (searchField.value as? String) ?? ""
-        guard currentValue.isEmpty == false, currentValue != "Search entries" else {
-            return
-        }
-
-        let deleteSequence = String(repeating: XCUIKeyboardKey.delete.rawValue, count: currentValue.count)
-        searchField.typeText(deleteSequence)
-    }
-
     func searchResult(named name: String) -> XCUIElement {
         app.descendants(matching: .any).matching(
             NSPredicate(

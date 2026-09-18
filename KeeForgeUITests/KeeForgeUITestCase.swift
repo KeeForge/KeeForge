@@ -868,6 +868,88 @@ class KeeForgeUITestCase: XCTestCase {
         return element.exists
     }
 
+    /// Brings the group list's search field on screen, focuses it, and returns
+    /// it. The field sits above the first row, so a list that has already been
+    /// scrolled needs a swipe back down before the field exists at all.
+    func activateSearchField(file: StaticString = #filePath, line: UInt = #line) -> XCUIElement {
+        let searchField = app.searchFields["Search entries"].firstMatch
+        if searchField.waitForExistence(timeout: 1) == false, let container = scrollableContainer() {
+            container.swipeDown()
+        }
+
+        XCTAssertTrue(
+            searchField.waitForExistence(timeout: Self.ciElementTimeout),
+            "Search field was not visible",
+            file: file,
+            line: line
+        )
+        if searchField.isHittable == false {
+            _ = revealElement(searchField, in: scrollableContainer(), direction: .down, maxSwipes: 2)
+        }
+        tapElement(searchField)
+        return searchField
+    }
+
+    /// Empties the query. The clear button is preferred, but it can be reported
+    /// as existing while parked off screen, and its tap can be swallowed while
+    /// the list settles — so the value is re-read and deleted key by key when
+    /// anything is left behind.
+    func clearSearchField(_ searchField: XCUIElement) {
+        let clearButton = searchField.buttons["Clear text"]
+        if clearButton.exists, hasOnScreenFrame(clearButton), clearButton.isHittable {
+            clearButton.tap()
+        }
+
+        let currentValue = (searchField.value as? String) ?? ""
+        guard currentValue.isEmpty == false, currentValue != "Search entries" else {
+            return
+        }
+
+        tapElement(searchField)
+        searchField.typeText(
+            String(repeating: XCUIKeyboardKey.delete.rawValue, count: currentValue.count)
+        )
+    }
+
+    /// Types a query into the group list's search field and waits for the
+    /// results to render. They replace the group list in place rather than
+    /// pushing a screen of their own.
+    func searchForEntries(
+        matching query: String,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        let searchField = activateSearchField(file: file, line: line)
+        searchField.typeText(query)
+
+        XCTAssertTrue(
+            app.staticTexts["search.results.count"].waitForExistence(timeout: Self.ciElementTimeout),
+            "Search results did not appear for '\(query)'",
+            file: file,
+            line: line
+        )
+    }
+
+    /// Empties the query so the group list replaces the results, then waits for
+    /// a group row rather than assuming the swap has landed.
+    func dismissSearch(file: StaticString = #filePath, line: UInt = #line) {
+        let searchField = app.searchFields["Search entries"].firstMatch
+        guard searchField.waitForExistence(timeout: Self.ciElementTimeout) else {
+            XCTFail("Search field was gone before it could be cleared", file: file, line: line)
+            return
+        }
+
+        clearSearchField(searchField)
+
+        let anyGroupRow = app.descendants(matching: .any).matching(identifier: "group.navlink").firstMatch
+        XCTAssertTrue(
+            anyGroupRow.waitForExistence(timeout: Self.ciElementTimeout),
+            "Group list did not come back after clearing the search query",
+            file: file,
+            line: line
+        )
+    }
+
     /// Reads the frame from a snapshot rather than `element.frame`. Querying an
     /// index-bound element re-resolves it, and a container that goes away
     /// between the query and the access raises an Objective-C exception Swift
