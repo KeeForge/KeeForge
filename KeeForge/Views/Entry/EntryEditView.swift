@@ -19,6 +19,7 @@ struct EntryEditView: View {
     @State private var completionGate = EntryEditCompletionGate()
 
     @State private var isTOTPSecretVisible: Bool
+    @State private var revealedCustomFieldIDs: Set<UUID> = []
     @State private var isManualTOTPEntryActive = false
     @State private var showTOTPScanner = false
     @State private var showTOTPSetupLink = false
@@ -136,6 +137,19 @@ struct EntryEditView: View {
                 TextEditor(text: $formViewModel.notes)
                     .frame(minHeight: 180)
                     .accessibilityIdentifier("entry-edit.notes-field")
+            }
+
+            Section("Custom Fields") {
+                ForEach($formViewModel.customFields) { $field in
+                    customFieldRow($field)
+                }
+
+                Button {
+                    formViewModel.addCustomField()
+                } label: {
+                    Label("Add Field", systemImage: "plus")
+                }
+                .accessibilityIdentifier("entry-edit.custom-field.add")
             }
 
             if formViewModel.passkeyCredential != nil || formViewModel.unknownXMLNodeCount > 0 {
@@ -315,6 +329,7 @@ struct EntryEditView: View {
                 guard let request = pendingEditorLockRequest else { return }
                 saveTapped(resuming: request)
             }
+            .disabled(formViewModel.canSave == false)
             Button("Discard and Lock", role: .destructive) {
                 guard let request = pendingEditorLockRequest else { return }
                 databaseViewModel.setEditorHasUnsavedChanges(false, editorID: editorID)
@@ -396,6 +411,85 @@ struct EntryEditView: View {
                 isAuthenticatingReveal = false
             }
         }
+    }
+
+    private func customFieldRow(_ field: Binding<EntryEditViewModel.CustomField>) -> some View {
+        let id = field.wrappedValue.id
+        let index = formViewModel.customFields.firstIndex { $0.id == id } ?? 0
+        // Every row draws the same two captions, so VoiceOver needs the field's
+        // own name to tell one row's value and Remove button from the next.
+        let name = field.wrappedValue.key.trimmingCharacters(in: .whitespacesAndNewlines)
+        let valueLabel = name.isEmpty ? String(localized: "Field Value") : name
+
+        return VStack(alignment: .leading, spacing: 10) {
+            basicFieldRow(String(localized: "Field Name")) {
+                TextField(String(localized: "Field Name"), text: field.key)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+                    .accessibilityIdentifier("entry-edit.custom-field.name-field.\(index)")
+            }
+
+            basicFieldRow(String(localized: "Field Value")) {
+                if field.wrappedValue.isProtected {
+                    PasswordInputRow(
+                        title: valueLabel,
+                        text: field.value,
+                        isVisible: customFieldVisibility(id),
+                        fieldAccessibilityIdentifier: "entry-edit.custom-field.value-field.\(index)",
+                        visibilityAccessibilityIdentifier: "entry-edit.custom-field.value-visibility-button.\(index)",
+                        onVisibilityToggle: { toggleCustomFieldVisibility(id) },
+                        usesPasswordAutoFill: false
+                    )
+                } else {
+                    TextField(String(localized: "Field Value"), text: field.value, axis: .vertical)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                        .accessibilityLabel(valueLabel)
+                        .accessibilityIdentifier("entry-edit.custom-field.value-field.\(index)")
+                }
+            }
+
+            if let message = formViewModel.customFieldValidationMessage(for: field.wrappedValue) {
+                Text(message)
+                    .font(.subheadline)
+                    .foregroundStyle(.red)
+                    .accessibilityIdentifier("entry-edit.custom-field.error.\(index)")
+            }
+
+            // Borderless so a tap elsewhere in the row does not trigger it.
+            Button("Remove Field", role: .destructive) {
+                revealedCustomFieldIDs.remove(id)
+                formViewModel.removeCustomField(id: id)
+            }
+            .buttonStyle(.borderless)
+            .font(.footnote)
+            .accessibilityLabel(name.isEmpty ? Text("Remove Field") : Text("Remove field \(name)"))
+            .accessibilityIdentifier("entry-edit.custom-field.remove.\(index)")
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier(
+            formViewModel.customFieldAccessibilityIdentifier(for: field.wrappedValue, fallbackIndex: index)
+        )
+    }
+
+    private func customFieldVisibility(_ id: UUID) -> Binding<Bool> {
+        Binding(
+            get: { revealedCustomFieldIDs.contains(id) },
+            set: { isVisible in
+                if isVisible {
+                    revealedCustomFieldIDs.insert(id)
+                } else {
+                    revealedCustomFieldIDs.remove(id)
+                }
+            }
+        )
+    }
+
+    private func toggleCustomFieldVisibility(_ id: UUID) {
+        toggleProtectedFieldVisibility(
+            customFieldVisibility(id),
+            reason: String(localized: "View protected field")
+        )
     }
 
     private var hasTOTPConfiguration: Bool {

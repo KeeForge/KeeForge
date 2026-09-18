@@ -10,13 +10,24 @@ final class EntryEditViewModel {
         let id: UUID
         var key: String
         var value: String
+        /// Carried per field rather than per key so a renamed field stays
+        /// protected under its new name.
+        let isProtected: Bool
 
-        init(id: UUID = UUID(), key: String = "", value: String = "") {
+        init(id: UUID = UUID(), key: String = "", value: String = "", isProtected: Bool = false) {
             self.id = id
             self.key = key
             self.value = value
+            self.isProtected = isProtected
         }
     }
+
+    /// Keys a custom field must not take: the standard fields, and the ones
+    /// KeeForge writes itself for TOTP and passkeys. Reusing one would write a
+    /// second `<String>` under the same key, or be dropped on save.
+    private static let reservedCustomFieldKeys = Set([
+        "Title", "UserName", "Password", "URL", "Notes", "otp", "TOTP Seed", "TOTP Settings",
+    ]).union(PasskeyCredential.allFieldKeys)
 
     enum Mode: Sendable, Equatable {
         case create(parentGroupID: UUID)
@@ -72,11 +83,6 @@ final class EntryEditViewModel {
     private var enrolledOTPAuthURI: String?
 
     private let preservedCustomFields: [String: String]
-    /// Custom-field keys the form has to ask for `Protected=True` on, because
-    /// nothing behind it will. An edit inherits protection from the entry it
-    /// is rewriting; a create has no such original, so a duplicate would write
-    /// the source's protected fields out in the clear without this.
-    private let seededProtectedCustomFieldKeys: Set<String>
     private let originalSnapshot: Snapshot
     private let decodedTOTPSecret: Data?
     private let keeOTPSource: KeeOTPSource?
@@ -104,7 +110,6 @@ final class EntryEditViewModel {
         inheritedTags: [String] = [],
         editableCustomFields: [CustomField] = [],
         preservedCustomFields: [String: String] = [:],
-        seededProtectedCustomFieldKeys: Set<String> = [],
         totpSecret: String = "",
         totpDecodedSecret: Data? = nil,
         keeOTPSource: KeeOTPSource? = nil,
@@ -126,7 +131,6 @@ final class EntryEditViewModel {
         self.inheritedTags = Set(inheritedTags)
         self.customFields = editableCustomFields
         self.preservedCustomFields = preservedCustomFields
-        self.seededProtectedCustomFieldKeys = seededProtectedCustomFieldKeys
         self.totpSecret = totpSecret
         self.decodedTOTPSecret = totpDecodedSecret
         self.keeOTPSource = keeOTPSource
@@ -192,9 +196,7 @@ final class EntryEditViewModel {
         knownTags: [String] = [],
         inheritedTags: [String] = []
     ) {
-        let editableCustomFields = entry.displayCustomFields
-            .sorted(by: { $0.key.localizedCaseInsensitiveCompare($1.key) == .orderedAscending })
-            .map { CustomField(key: $0.key, value: $0.value) }
+        let editableCustomFields = Self.editableCustomFields(of: entry)
         let preservedCustomFields = entry.customFields.filter {
             PasskeyCredential.allFieldKeys.contains($0.key) || $0.key == entry.totpConfig?.keeOTPSource?.fieldName
         }
@@ -245,9 +247,7 @@ final class EntryEditViewModel {
         knownTags: [String] = [],
         inheritedTags: [String] = []
     ) {
-        let editableCustomFields = entry.displayCustomFields
-            .sorted(by: { $0.key.localizedCaseInsensitiveCompare($1.key) == .orderedAscending })
-            .map { CustomField(key: $0.key, value: $0.value) }
+        let editableCustomFields = Self.editableCustomFields(of: entry)
         let password = (try? entry.password.decrypt(using: sessionKey)) ?? ""
         let totpSecret = (try? entry.totpConfig?.secret.decrypt(using: sessionKey)) ?? ""
 
@@ -262,15 +262,20 @@ final class EntryEditViewModel {
             knownTags: knownTags,
             inheritedTags: inheritedTags,
             editableCustomFields: editableCustomFields,
-            seededProtectedCustomFieldKeys: entry.protectedStringKeys.intersection(
-                editableCustomFields.map(\.key)
-            ),
             totpSecret: totpSecret,
             totpPeriod: entry.totpConfig?.period ?? 30,
             totpDigits: entry.totpConfig?.digits ?? 6,
             totpAlgorithm: entry.totpConfig?.algorithm ?? .sha1,
             isSeededFromExistingEntry: true
         )
+    }
+
+    private static func editableCustomFields(of entry: KPEntry) -> [CustomField] {
+        entry.displayCustomFields
+            .sorted(by: { $0.key.localizedCaseInsensitiveCompare($1.key) == .orderedAscending })
+            .map {
+                CustomField(key: $0.key, value: $0.value, isProtected: entry.protectedStringKeys.contains($0.key))
+            }
     }
 
     /// Marks the copy apart from its source in the list it lands in. An
@@ -302,6 +307,7 @@ final class EntryEditViewModel {
 
     var canSave: Bool {
         guard unsupportedTOTPDigitsMessage == nil else { return false }
+        guard customFields.allSatisfy({ customFieldValidationMessage(for: $0) == nil }) else { return false }
         switch mode {
         case .create:
             return isDirty
@@ -345,7 +351,7 @@ final class EntryEditViewModel {
             url: url,
             notes: notes,
             customFields: mergedCustomFields(),
-            protectedCustomFieldKeys: seededProtectedCustomFieldKeys,
+            protectedCustomFieldKeys: protectedCustomFieldKeys(),
             tags: normalizedTags(),
             totpConfig: normalizedTOTPConfiguration()
         )
@@ -455,6 +461,22 @@ final class EntryEditViewModel {
         customFields.removeAll(where: { $0.id == id })
     }
 
+    /// Why `field` cannot be saved as it stands, or nil when it can. A row
+    /// left entirely blank is not an error: it is simply not written.
+    func customFieldValidationMessage(for field: CustomField) -> String? {
+        let key = field.key.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard key.isEmpty == false else {
+            return field.value.isEmpty ? nil : String(localized: "Enter a name for this field.")
+        }
+        if isReservedCustomFieldKey(key) {
+            return String(localized: "This name is reserved for a built-in field.")
+        }
+        let isDuplicate = customFields.contains {
+            $0.id != field.id && $0.key.trimmingCharacters(in: .whitespacesAndNewlines) == key
+        }
+        return isDuplicate ? String(localized: "Another field already uses this name.") : nil
+    }
+
     func customFieldAccessibilityIdentifier(for field: CustomField, fallbackIndex: Int) -> String {
         let trimmedKey = field.key.trimmingCharacters(in: .whitespacesAndNewlines)
         if trimmedKey.isEmpty {
@@ -477,7 +499,10 @@ final class EntryEditViewModel {
             // The pending token counts: typing a tag and saving without
             // committing it must read as a change, and must save the tag.
             tags: normalizedTags(),
-            customFields: customFields,
+            // A row the user added but left untouched is not an edit: it
+            // writes nothing, so it must not arm Cancel's discard prompt or
+            // let Save append a history version that changes nothing.
+            customFields: customFields.filter { $0.key.isEmpty == false || $0.value.isEmpty == false },
             totpSecret: totpSecret,
             totpPeriod: totpPeriod,
             totpDigits: totpDigits,
@@ -486,14 +511,31 @@ final class EntryEditViewModel {
         )
     }
 
+    private func isReservedCustomFieldKey(_ key: String) -> Bool {
+        Self.reservedCustomFieldKeys.contains(key)
+            || key.hasPrefix("TimeOtp-")
+            || key == keeOTPSource?.fieldName
+            || preservedCustomFields[key] != nil
+    }
+
+    /// Reserved keys are skipped here as well as refused by `canSave`: one that
+    /// slipped through would serialize a second `<String>` under the same key.
     private func mergedCustomFields() -> [String: String] {
         var merged = preservedCustomFields
         for field in customFields {
             let key = field.key.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard key.isEmpty == false else { continue }
+            guard key.isEmpty == false, isReservedCustomFieldKey(key) == false else { continue }
             merged[key] = field.value
         }
         return merged
+    }
+
+    private func protectedCustomFieldKeys() -> Set<String> {
+        let merged = mergedCustomFields()
+        return Set(customFields.filter(\.isProtected).compactMap {
+            let key = $0.key.trimmingCharacters(in: .whitespacesAndNewlines)
+            return merged[key] == nil ? nil : key
+        })
     }
 
     /// The committed pills plus whatever is still being typed, so an

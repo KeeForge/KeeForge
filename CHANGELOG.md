@@ -8,6 +8,7 @@
 - Open, save, and create databases directly on an FTP server (#115). Add Database → FTP asks for the server address, username, and password. FTP is unencrypted, so connecting requires turning on "Allow Unencrypted FTP"; use it only on a network you trust. Encrypted FTPS and SFTP are not supported yet.
 - Change a database's encryption settings (#98). With the database unlocked, open Database Details and choose "Change Encryption Settings…" to pick the cipher (AES-256 or ChaCha20), a key derivation strength (Argon2id Balanced, Strong, or Maximum), and whether the file is compressed. The master key stays the same. The same choices are offered as when creating a database; a database using Twofish, Argon2d, or AES-KDF keeps that setting unless you pick another one.
 - Choose the group AutoFill saves new passwords and passkeys into, per database (#114). Unlock the database, open Database Details, and pick a group under AutoFill → "Save New Entries To". Until you choose one, new entries go into the database's top-level group as before; if the chosen group is deleted or moved to the Recycle Bin, they go there again. The AutoFill screens for saving a password or passkey now show which group the entry goes into.
+- Add, rename, edit, and remove an entry's custom fields in the entry editor (#107). Protected fields stay protected, including after a rename, and show hidden until revealed. Fields you add are not protected.
 
 ### Fixes
 

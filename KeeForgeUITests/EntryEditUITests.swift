@@ -534,6 +534,44 @@ final class EntryEditSmokeUITests: EntryEditUITestCase {
         attachment.lifetime = .keepAlways
         add(attachment)
     }
+
+    func testAddedCustomFieldIsSavedAndShownOnTheEntry() {
+        unlockSuccessfully()
+        openEntry(named: discordEntryTitle, inGroup: socialGroupName)
+
+        let editButton = app.buttons["entry-detail.edit"]
+        XCTAssertTrue(editButton.waitForExistence(timeout: 5))
+        tapElement(editButton)
+
+        let addFieldButton = app.buttons["entry-edit.custom-field.add"]
+        XCTAssertTrue(revealElement(addFieldButton), "Add Field was not reachable")
+        tapElement(addFieldButton)
+
+        let saveButton = app.buttons["entry-edit.save"]
+        // A multi-line TextField surfaces as a text view, not a text field.
+        let valueField = app.descendants(matching: .any)["entry-edit.custom-field.value-field.0"].firstMatch
+        XCTAssertTrue(revealElement(valueField), "The new field's value field was not reachable")
+        replaceText(in: valueField, with: "42")
+        XCTAssertTrue(
+            app.staticTexts["entry-edit.custom-field.error.0"].waitForExistence(timeout: 5),
+            "A value without a name should explain why it cannot be saved"
+        )
+        XCTAssertFalse(saveButton.isEnabled)
+
+        replaceText(in: app.textFields["entry-edit.custom-field.name-field.0"], with: "Account Number")
+        XCTAssertTrue(app.staticTexts["entry-edit.custom-field.error.0"].waitForNonExistence(timeout: 5))
+
+        let attachment = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+        attachment.name = "custom-field-editor"
+        attachment.lifetime = .keepAlways
+        add(attachment)
+
+        tapElement(saveButton)
+        XCTAssertTrue(waitForSaveCompletion(saveButton: saveButton, timeout: 10))
+
+        let copyButton = app.buttons["entry.copy.account_number"]
+        XCTAssertTrue(revealElement(copyButton), "The saved custom field was not shown on the entry")
+    }
 }
 
 @MainActor
