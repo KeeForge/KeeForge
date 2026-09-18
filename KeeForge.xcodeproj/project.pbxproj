@@ -60,6 +60,7 @@
 		10B07DE22CE227F1471551FE /* DatabaseCreationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 55A816F201ACBFFF092A5731 /* DatabaseCreationView.swift */; };
 		111B6AE6CDEBB6946C6F2BE7 /* CredentialMatcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB8B2C6F3F5C2509AC462D87 /* CredentialMatcher.swift */; };
 		115B1CF896D4326495169AF4 /* demo.kdbx in Resources */ = {isa = PBXBuildFile; fileRef = F3D5CCD3DC2893DC1A65D6DC /* demo.kdbx */; };
+		11A289FF690728A45523DB2E /* EntryRowMoveAction.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3C71D4D96F2A13F178F7A8B2 /* EntryRowMoveAction.swift */; };
 		1234F78AEFCA52EB6669050A /* AppGroupContainer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 937C9B16043303DE08327973 /* AppGroupContainer.swift */; };
 		12710339D152AA543FFD4509 /* autofill-union.kdbx in Resources */ = {isa = PBXBuildFile; fileRef = 23437920ECEA26AFAA2F531F /* autofill-union.kdbx */; };
 		12913C3CA41B6BD49A7E60B9 /* PasswordGenerator.swift in Sources */ = {isa = PBXBuildFile; fileRef = FD42E436B84E873D08B91ACA /* PasswordGenerator.swift */; };
@@ -303,6 +304,7 @@
 		6D2B797B6DCCBF43EAF6606A /* CredentialProviderSaveTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0987977B0D41FBB5C1456C5 /* CredentialProviderSaveTests.swift */; };
 		6D4482B31E02010875FAE807 /* Attachment.swift in Sources */ = {isa = PBXBuildFile; fileRef = 17350EF5DF6C5C2E97B61A34 /* Attachment.swift */; };
 		6D7B0F0F5E4A1157EE41A4F3 /* EntryEditViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 42780494357246F25C55F3FD /* EntryEditViewModelTests.swift */; };
+		6F6C9C0529AD4D0154E1E799 /* EntryRowMoveAction.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3C71D4D96F2A13F178F7A8B2 /* EntryRowMoveAction.swift */; };
 		7088E67D3FBF351954CD70F2 /* AutoFillPasskeyCreatorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C412174AA21900D65A646A54 /* AutoFillPasskeyCreatorView.swift */; };
 		70B5DFF94CC20D6BD049C9AB /* ChaCha20Tests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 15B37308F603CF890C96ED80 /* ChaCha20Tests.swift */; };
 		711E28602252C35A2481E769 /* WebDAVClientTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B16B7DC25FE8C1CEE117E7FD /* WebDAVClientTests.swift */; };
@@ -883,6 +885,7 @@
 		3AD4237706B18C568583C16A /* PasswordDisplay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PasswordDisplay.swift; sourceTree = "<group>"; };
 		3BD42819A2CA0A2C67A7B6C2 /* KDBXMergerOracleTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KDBXMergerOracleTests.swift; sourceTree = "<group>"; };
 		3C6C9AB2C5B891BC5B236E08 /* DatabaseDraftTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DatabaseDraftTests.swift; sourceTree = "<group>"; };
+		3C71D4D96F2A13F178F7A8B2 /* EntryRowMoveAction.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EntryRowMoveAction.swift; sourceTree = "<group>"; };
 		3D07D803277E1C8581E2FB51 /* FaviconView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FaviconView.swift; sourceTree = "<group>"; };
 		3E00D0D53A542542B165F15C /* MacWindowCloseGuardTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacWindowCloseGuardTests.swift; sourceTree = "<group>"; };
 		3ECEDBFE3791A3AF8121C4DD /* GroupEditViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GroupEditViewModelTests.swift; sourceTree = "<group>"; };
@@ -1338,6 +1341,7 @@
 				C8F125AC304D7385EF54E7A8 /* EntryListView.swift */,
 				DE329B5193927500F922C84C /* EntryRowCopyActions.swift */,
 				64D2970205BB303CDA5A78A0 /* EntryRowDuplicateAction.swift */,
+				3C71D4D96F2A13F178F7A8B2 /* EntryRowMoveAction.swift */,
 				596A02F7CDB9320B4B325A37 /* MacEntriesList.swift */,
 				A27CD1F92E039BFE26CEBD31 /* PendingRowActions.swift */,
 			);
@@ -2457,6 +2461,7 @@
 				B283218F7F6FB2F72076119C /* EntryListView.swift in Sources */,
 				AEC5F5CE3289124448F27CC3 /* EntryRowCopyActions.swift in Sources */,
 				AA8AB683250C1761356F5580 /* EntryRowDuplicateAction.swift in Sources */,
+				11A289FF690728A45523DB2E /* EntryRowMoveAction.swift in Sources */,
 				A41B683E166EFC655E37B44E /* FaviconIconEncoder.swift in Sources */,
 				4D396A9321B96E0F08BAAAE3 /* FaviconService.swift in Sources */,
 				65150CEF897121752B259164 /* FaviconView.swift in Sources */,
@@ -2615,6 +2620,7 @@
 				C4C8E7DC122BD0F87C49FAB6 /* EntryListView.swift in Sources */,
 				EBD80723C6978E5DAB7C41F9 /* EntryRowCopyActions.swift in Sources */,
 				2631C138D8751076163C1501 /* EntryRowDuplicateAction.swift in Sources */,
+				6F6C9C0529AD4D0154E1E799 /* EntryRowMoveAction.swift in Sources */,
 				0DB261D955659EE3DFF1505A /* FaviconIconEncoder.swift in Sources */,
 				81AF01EE09EF23EEDE28DB5F /* FaviconService.swift in Sources */,
 				57449CE2BB90C9576529E881 /* FaviconView.swift in Sources */,
