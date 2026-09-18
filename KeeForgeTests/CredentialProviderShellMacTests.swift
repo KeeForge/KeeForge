@@ -52,9 +52,18 @@ final class CredentialProviderShellMacTests: XCTestCase {
         )
         shell.coordinator.serviceIdentifiers = [serviceIdentifier()]
         seedUnlockedVaultState(shell.coordinator, entries: [entry], sessionKey: sessionKey)
+        // A request that names its credential — the tapped suggestion — is the
+        // one that still fills without a picker; an interactive list request
+        // would present one and complete nothing (#129). Built in the tagged
+        // format the app publishes today, so this takes the same parse branch
+        // a real suggestion does.
+        shell.coordinator.targetRecordIdentifier = CredentialRecordIdentifier(
+            databaseID: UUID(),
+            entryID: entry.id
+        ).encoded
 
         shell.coordinator.presentPasswordMatchesOrFinish()
-        XCTAssertNotNil(spy.completedCredential, "single match should complete directly")
+        XCTAssertNotNil(spy.completedCredential, "a request naming its credential completes directly")
 
         // Window closes after the credential was already handed back.
         shell.cancelActiveRequestIfNeeded()

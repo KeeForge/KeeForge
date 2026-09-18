@@ -1411,12 +1411,13 @@ final class CredentialProviderCoordinator {
 
         AutoFillDiagnostics.log("passwordMatches all=\(allPasswordEntries.count) strict=\(strictMatches.count) matches=\(matches.count) possible=\(possibleMatches.count)")
 
-        // Auto-complete without a picker only when the single candidate matched
-        // on host, not on a weaker URL/title substring signal.
-        if matches.count == 1, strictMatches.count == 1, let entry = strictMatches.first {
-            completeRequest(with: entry)
-            return
-        }
+        // Nothing that reaches this point names a credential the user chose,
+        // so nothing is filled on its own — not even a lone strict match.
+        // Three callers arrive here: the key icon's `prepareCredentialList`,
+        // a suggestion whose entry or database turned out to be stale (the
+        // fall-through above, and `resolveInteractiveRequestDatabase`'s
+        // `.stale` case, which clears the target), and `presentPasskeyList`'s
+        // no-passkey fallback. The by-identity branch above still fills.
 
         let searchDomain = serviceIdentifiers.first.flatMap { CredentialMatcher.searchTerm(for: $0) } ?? ""
 

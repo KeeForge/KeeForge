@@ -220,7 +220,7 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
             sessionKeyWasNilAtCompletion = coordinator.sessionKey == nil
         }
 
-        coordinator.presentPasswordMatchesOrFinish()
+        try fillBySelectingFromPicker(coordinator, presenter, entry: entry)
 
         let credential = try XCTUnwrap(presenter.completedCredential)
         XCTAssertEqual(credential.user, "octocat")
@@ -1339,14 +1339,11 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
         XCTAssertNil(searchView.databaseSwitcher, "A lone enabled database has nothing to switch to")
     }
 
-    /// The single-strict-match auto-complete is scoped to the ONE database the
-    /// request resolved: with two enabled databases that each hold a single
-    /// github.com entry, the open vault sees one match and fills it outright,
-    /// so no picker — and therefore no switcher — is ever presented and the
-    /// other database's entry is unreachable for that request. Pins the
-    /// current behavior; changing it (e.g. always presenting the picker when
-    /// another enabled database exists) should fail here first.
-    func test_singleStrictMatch_autoCompletesWithoutOfferingTheOtherEnabledDatabase() throws {
+    /// A lone host match is presented, not filled (#129): an interactive list
+    /// request is the user asking to choose. The picker carries the switcher,
+    /// so the second enabled database's entry is reachable too — which it was
+    /// not while a single match completed the request outright.
+    func test_singleStrictMatch_presentsPickerOfferingTheOtherEnabledDatabase() throws {
         let (coordinator, presenter) = makeCoordinator()
         let databaseA = try makeRegisteredDatabase(named: "single-match-a.kdbx")
         try makeRegisteredDatabase(named: "single-match-b.kdbx")
@@ -1364,16 +1361,22 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
 
         coordinator.presentPasswordMatchesOrFinish()
 
-        let credential = try XCTUnwrap(
+        XCTAssertNil(
             presenter.completedCredential,
-            "A lone host-level match in the resolved database fills without a picker"
+            "A lone host-level match must not be filled before the user selects it"
         )
+        let searchView = try XCTUnwrap(presenter.searchView, "The lone match is offered in the picker")
+        XCTAssertEqual(searchView.entries.map(\.title), ["GitHub"])
+        XCTAssertNotNil(
+            searchView.databaseSwitcher,
+            "The picker carries the switcher, so the other enabled database stays reachable"
+        )
+
+        searchView.onSelect(onlyMatchInVaultA)
+
+        let credential = try XCTUnwrap(presenter.completedCredential, "Selecting the match fills it")
         XCTAssertEqual(credential.user, "octocat")
         XCTAssertEqual(credential.password, "hunter2")
-        XCTAssertNil(
-            presenter.searchView,
-            "No picker is presented, so the second enabled database is unreachable for this request"
-        )
         assertCleanedUp(coordinator)
     }
 
@@ -1405,6 +1408,177 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
         XCTAssertEqual(searchView.entries.map(\.title), ["GitHub"])
         searchView.onCancel()
         assertCleanedUp(coordinator)
+    }
+
+    // MARK: - Interactive list requests never fill on their own (issue #129)
+
+    // The key icon in the iOS AutoFill bar arrives as `prepareCredentialList`,
+    // with no credential identity: the user is asking to choose. These pin the
+    // ways that request has to stay a choice. The suggestion tap keeps its
+    // direct fill through the by-identity path above.
+
+    /// The lone match is offered, and the rest of the vault stays searchable,
+    /// so a user whose wanted entry does not match the site can still find it.
+    func test_interactiveList_singleMatch_presentsPickerAndKeepsTheVaultSearchable() throws {
+        let (coordinator, presenter) = makeCoordinator()
+        let sessionKey = SymmetricKey(size: .bits256)
+        let entries = try makeGitHubEntryAndUnrelatedEntry(sessionKey: sessionKey)
+
+        coordinator.serviceIdentifiers = [githubServiceIdentifier()]
+        seedUnlockedVaultState(coordinator, entries: entries, sessionKey: sessionKey)
+
+        coordinator.presentPasswordMatchesOrFinish()
+
+        XCTAssertNil(presenter.completedCredential, "The key icon must not fill anything on its own")
+        let searchView = try XCTUnwrap(presenter.searchView)
+        XCTAssertEqual(searchView.entries.map(\.title), ["GitHub"], "The host match is listed")
+        XCTAssertEqual(
+            searchView.searchEntries.map(\.title).sorted(),
+            ["GitHub", "Unrelated"],
+            "The whole fillable corpus stays reachable through search"
+        )
+        XCTAssertEqual(searchView.initialSearchText, "", "A match must not pre-filter the search field")
+        searchView.onCancel()
+    }
+
+    /// Selecting an entry the site never matched fills that entry — the point
+    /// of opening the picker instead of filling the suggestion.
+    func test_interactiveList_selectingANonMatchingEntryFillsThatEntry() throws {
+        let (coordinator, presenter) = makeCoordinator()
+        let sessionKey = SymmetricKey(size: .bits256)
+        let entries = try makeGitHubEntryAndUnrelatedEntry(sessionKey: sessionKey)
+
+        coordinator.serviceIdentifiers = [githubServiceIdentifier()]
+        seedUnlockedVaultState(coordinator, entries: entries, sessionKey: sessionKey)
+
+        coordinator.presentPasswordMatchesOrFinish()
+        let searchView = try XCTUnwrap(presenter.searchView)
+        let unrelated = try XCTUnwrap(searchView.searchEntries.first { $0.title == "Unrelated" })
+        searchView.onSelect(unrelated)
+
+        let credential = try XCTUnwrap(presenter.completedCredential)
+        XCTAssertEqual(credential.user, "someone")
+        XCTAssertEqual(credential.password, "hunter4")
+        assertCleanedUp(coordinator)
+    }
+
+    /// Cancelling the picker leaves the form untouched: the request ends with
+    /// no credential at all, not with the match that would have been filled.
+    func test_interactiveList_singleMatch_cancelCompletesNoCredential() throws {
+        let (coordinator, presenter) = makeCoordinator()
+        let sessionKey = SymmetricKey(size: .bits256)
+        let entries = try makeGitHubEntryAndUnrelatedEntry(sessionKey: sessionKey)
+
+        coordinator.serviceIdentifiers = [githubServiceIdentifier()]
+        seedUnlockedVaultState(coordinator, entries: entries, sessionKey: sessionKey)
+
+        coordinator.presentPasswordMatchesOrFinish()
+        let searchView = try XCTUnwrap(presenter.searchView)
+        searchView.onCancel()
+
+        XCTAssertNil(presenter.completedCredential, "Cancelling must fill nothing")
+        assertCleanedUp(coordinator)
+    }
+
+    /// No match at all: the picker still opens on the full corpus with the
+    /// requested domain pre-filled, and fills nothing until something is picked.
+    func test_interactiveList_noMatches_presentsFullCorpusWithoutFilling() throws {
+        let (coordinator, presenter) = makeCoordinator()
+        let sessionKey = SymmetricKey(size: .bits256)
+        let unrelated = KPEntry(
+            title: "Unrelated",
+            username: "someone",
+            password: try EncryptedValue.encrypt("hunter4", using: sessionKey),
+            url: "https://unrelated.example"
+        )
+
+        coordinator.serviceIdentifiers = [githubServiceIdentifier()]
+        seedUnlockedVaultState(coordinator, entries: [unrelated], sessionKey: sessionKey)
+
+        coordinator.presentPasswordMatchesOrFinish()
+
+        XCTAssertNil(presenter.completedCredential)
+        let searchView = try XCTUnwrap(presenter.searchView)
+        XCTAssertEqual(searchView.entries.map(\.title), ["Unrelated"])
+        XCTAssertEqual(searchView.initialSearchText, "github.com")
+        searchView.onCancel()
+    }
+
+    // The key icon's list request is not the only caller that reaches the
+    // matching code below the by-identity branch, so the two others are pinned
+    // in the shape that changed: exactly one strict match, which used to be
+    // filled outright. Both already had multi-match coverage, which never
+    // reached the shortcut.
+
+    /// A suggestion whose entry is gone falls through the by-identity branch.
+    /// With one entry left for the site, that lone match used to be filled —
+    /// silently substituting a credential for the one the user tapped. It is
+    /// offered in the picker now.
+    func test_staleSuggestion_singleRemainingMatch_presentsPickerInsteadOfFilling() async throws {
+        let (coordinator, presenter) = makeCoordinator()
+        let sessionKey = SymmetricKey(size: .bits256)
+        let entries = try makeGitHubEntryAndUnrelatedEntry(sessionKey: sessionKey)
+
+        coordinator.serviceIdentifiers = [githubServiceIdentifier()]
+        seedUnlockedVaultState(coordinator, entries: entries, sessionKey: sessionKey)
+        let missingIdentifier = CredentialRecordIdentifier(databaseID: UUID(), entryID: UUID()).encoded
+        coordinator.targetRecordIdentifier = missingIdentifier
+
+        let identityRemoved = expectation(description: "the stale identity is removed")
+        CredentialIdentityStoreManager.removeIdentityObserver = { recordIdentifier in
+            XCTAssertEqual(recordIdentifier, missingIdentifier)
+            identityRemoved.fulfill()
+        }
+
+        coordinator.presentPasswordMatchesOrFinish()
+
+        await fulfillment(of: [identityRemoved], timeout: 1)
+        XCTAssertNil(
+            presenter.completedCredential,
+            "A stale suggestion must not be answered with whichever entry happens to be left"
+        )
+        let searchView = try XCTUnwrap(presenter.searchView, "The lone remaining match is offered instead")
+        XCTAssertEqual(searchView.entries.map(\.title), ["GitHub"])
+        searchView.onCancel()
+    }
+
+    /// `presentPasskeyList` hands a site with no matching passkey to the
+    /// password flow. A single password match there used to fill on its own,
+    /// so a passkey-capable site could answer a key-icon tap without a picker.
+    func test_passkeyListFallback_singlePasswordMatch_presentsPickerInsteadOfFilling() throws {
+        let (coordinator, presenter) = makeCoordinator()
+        try seedResolvableDefaultDatabase()
+        let sessionKey = SymmetricKey(size: .bits256)
+        let entries = try makeGitHubEntryAndUnrelatedEntry(sessionKey: sessionKey)
+
+        coordinator.serviceIdentifiers = [githubServiceIdentifier()]
+        seedUnlockedVaultState(coordinator, entries: entries, sessionKey: sessionKey)
+
+        coordinator.presentPasskeyList(matches: [], expiredMatches: []) { _ in
+            XCTFail("Nothing to select: there are no passkey matches")
+        }
+
+        XCTAssertNil(presenter.completedCredential, "The fallback must not fill the lone password match")
+        let searchView = try XCTUnwrap(presenter.searchView, "The password picker must present instead")
+        XCTAssertEqual(searchView.entries.map(\.title), ["GitHub"])
+        searchView.onCancel()
+    }
+
+    private func makeGitHubEntryAndUnrelatedEntry(sessionKey: SymmetricKey) throws -> [KPEntry] {
+        [
+            KPEntry(
+                title: "GitHub",
+                username: "octocat",
+                password: try EncryptedValue.encrypt("hunter2", using: sessionKey),
+                url: "https://github.com/login"
+            ),
+            KPEntry(
+                title: "Unrelated",
+                username: "someone",
+                password: try EncryptedValue.encrypt("hunter4", using: sessionKey),
+                url: "https://unrelated.example"
+            ),
+        ]
     }
 
     func test_searchView_switcherNeverListsDisabledDatabases() throws {
@@ -1539,8 +1713,7 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
 
     func test_switchUnlockSuccess_retargetsSessionAndDefault() async throws {
         // A service identifier matching nothing in either vault keeps both
-        // databases' flows on the search view (no single-match auto-complete
-        // against the fixture's real entries).
+        // databases' flows on the search view.
         let scenario = try makePresentedTwoDatabaseSearch(
             serviceIdentifier: ASCredentialServiceIdentifier(identifier: "no-such-service.example", type: .domain)
         )
@@ -1921,7 +2094,7 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
         // either side of it; a period rollover mid-test then still matches.
         let totpConfig = try XCTUnwrap(entry.totpConfig)
         let codeBefore = TOTPGenerator.generateCode(config: totpConfig, sessionKey: sessionKey)
-        coordinator.presentPasswordMatchesOrFinish()
+        try fillBySelectingFromPicker(coordinator, presenter, entry: entry)
         let codeAfter = TOTPGenerator.generateCode(config: totpConfig, sessionKey: sessionKey)
 
         let credential = try XCTUnwrap(presenter.completedCredential, "The password fill must still complete")
@@ -1952,7 +2125,7 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
         coordinator.serviceIdentifiers = [githubServiceIdentifier()]
         seedUnlockedVaultState(coordinator, entries: [entry], sessionKey: sessionKey)
 
-        coordinator.presentPasswordMatchesOrFinish()
+        try fillBySelectingFromPicker(coordinator, presenter, entry: entry)
 
         XCTAssertNotNil(presenter.completedCredential)
         XCTAssertTrue(copiedValues.isEmpty, "An opted-out fill must never touch the clipboard")
@@ -1975,7 +2148,7 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
         coordinator.serviceIdentifiers = [githubServiceIdentifier()]
         seedUnlockedVaultState(coordinator, entries: [entry], sessionKey: sessionKey)
 
-        coordinator.presentPasswordMatchesOrFinish()
+        try fillBySelectingFromPicker(coordinator, presenter, entry: entry)
 
         let credential = try XCTUnwrap(presenter.completedCredential, "A code-less entry must still fill")
         XCTAssertEqual(credential.password, "hunter2")
@@ -1999,7 +2172,7 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
         coordinator.serviceIdentifiers = [githubServiceIdentifier()]
         seedUnlockedVaultState(coordinator, entries: [entry], sessionKey: sessionKey)
 
-        coordinator.presentPasswordMatchesOrFinish()
+        try fillBySelectingFromPicker(coordinator, presenter, entry: entry)
 
         let credential = try XCTUnwrap(presenter.completedCredential, "A failed code generation must not fail the fill")
         XCTAssertEqual(credential.password, "hunter2")
@@ -2076,6 +2249,27 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
     #endif
 
     // MARK: - Helpers
+
+    /// Drives an interactive list request through to a fill. The picker is
+    /// always presented now, so tests whose subject is what `completeRequest`
+    /// does reach it by selecting the entry rather than by relying on a
+    /// single-match shortcut that no longer exists.
+    private func fillBySelectingFromPicker(
+        _ coordinator: CredentialProviderCoordinator,
+        _ presenter: CredentialProviderPresentingSpy,
+        entry: KPEntry,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) throws {
+        coordinator.presentPasswordMatchesOrFinish()
+        let searchView = try XCTUnwrap(
+            presenter.searchView,
+            "An interactive list request must present the picker",
+            file: file,
+            line: line
+        )
+        searchView.onSelect(entry)
+    }
 
     private func makeCoordinator() -> (CredentialProviderCoordinator, CredentialProviderPresentingSpy) {
         let presenter = CredentialProviderPresentingSpy()
