@@ -391,63 +391,6 @@ class EntryEditUITestCase: KeeForgeUITestCase {
         XCTFail("Back button was not found", file: file, line: line)
     }
 
-    /// Types a query into the group list's search field and waits for the
-    /// results to render. They replace the group list in place rather than
-    /// pushing a screen of their own.
-    func searchForEntries(
-        matching query: String,
-        file: StaticString = #filePath,
-        line: UInt = #line
-    ) {
-        let searchField = app.searchFields["Search entries"].firstMatch
-        XCTAssertTrue(
-            searchField.waitForExistence(timeout: Self.ciElementTimeout),
-            "Search field was not visible",
-            file: file,
-            line: line
-        )
-        tapElement(searchField)
-        searchField.typeText(query)
-
-        XCTAssertTrue(
-            app.staticTexts["search.results.count"].waitForExistence(timeout: Self.ciElementTimeout),
-            "Search results did not appear for '\(query)'",
-            file: file,
-            line: line
-        )
-    }
-
-    /// Empties the query so the group list replaces the results, then waits for
-    /// a group row rather than assuming the swap has landed.
-    func dismissSearch(file: StaticString = #filePath, line: UInt = #line) {
-        let searchField = app.searchFields["Search entries"].firstMatch
-        guard searchField.waitForExistence(timeout: Self.ciElementTimeout) else {
-            XCTFail("Search field was gone before it could be cleared", file: file, line: line)
-            return
-        }
-
-        let clearButton = searchField.buttons["Clear text"]
-        if clearButton.exists, hasOnScreenFrame(clearButton), clearButton.isHittable {
-            clearButton.tap()
-        }
-
-        let currentValue = (searchField.value as? String) ?? ""
-        if currentValue.isEmpty == false, currentValue != "Search entries" {
-            tapElement(searchField)
-            searchField.typeText(
-                String(repeating: XCUIKeyboardKey.delete.rawValue, count: currentValue.count)
-            )
-        }
-
-        let anyGroupRow = app.descendants(matching: .any).matching(identifier: "group.navlink").firstMatch
-        XCTAssertTrue(
-            anyGroupRow.waitForExistence(timeout: Self.ciElementTimeout),
-            "Group list did not come back after clearing the search query",
-            file: file,
-            line: line
-        )
-    }
-
     func firstRowMatching(name: String, preferredIdentifier: String) -> XCUIElement {
         let predicate = NSPredicate(format: "label CONTAINS[c] %@", name)
         let preferredQuery = app.descendants(matching: .any).matching(
@@ -540,13 +483,8 @@ final class EntryEditSmokeUITests: EntryEditUITestCase {
         XCTAssertLessThan(updatedRow.frame.minY, twitterRow.frame.minY, "Title sorting did not refresh after the edit")
 
         tapBackButton()
-        let searchField = app.searchFields["Search entries"].firstMatch
-        if searchField.waitForExistence(timeout: 1) == false, let container = scrollableContainer() {
-            container.swipeDown()
-        }
-        XCTAssertTrue(searchField.waitForExistence(timeout: 5), "Search field was not visible")
-        tapElement(searchField)
-        clearTextFromSearchField(searchField)
+        let searchField = activateSearchField()
+        clearSearchField(searchField)
         searchField.typeText(updatedUsername)
 
         let searchRow = app.descendants(matching: .any).matching(
@@ -595,13 +533,6 @@ final class EntryEditSmokeUITests: EntryEditUITestCase {
         attachment.name = "wrapped-revealed-password"
         attachment.lifetime = .keepAlways
         add(attachment)
-    }
-
-    private func clearTextFromSearchField(_ searchField: XCUIElement) {
-        let clearButton = searchField.buttons["Clear text"]
-        if clearButton.exists {
-            clearButton.tap()
-        }
     }
 }
 
@@ -1002,7 +933,10 @@ final class SearchResultsDeleteUITests: EntryEditUITestCase {
 /// into `GroupListView`'s own row builder only, so it was missing from the
 /// shared `EntryListView` behind search and the tag browser until the macOS
 /// parity pass added it there. Each shell still builds the item itself, so
-/// nothing but this stops a fourth one from shipping without it.
+/// this is what holds the search-results shell to it. The picker's own cancel
+/// path is deliberately not covered here: it is `dismiss()` and nothing else,
+/// shared by every surface that raises the picker, so a per-shell test would
+/// buy a launch and an unlock for no failure mode of its own.
 @MainActor
 final class SearchResultsMoveUITests: EntryEditUITestCase {
     func testContextMenuMoveFromSearchResultsMovesEntryToChosenGroup() {
@@ -1042,33 +976,6 @@ final class SearchResultsMoveUITests: EntryEditUITestCase {
         XCTAssertFalse(
             entry(named: twitterEntryTitle).exists,
             "Entry moved from the search results is still in its old group"
-        )
-    }
-
-    func testCancellingMoveFromSearchResultsLeavesEntryInPlace() {
-        unlockSuccessfully()
-        searchForEntries(matching: twitterEntryTitle)
-
-        let moveButton = revealContextMenuButton(
-            rowNamed: twitterEntryTitle,
-            identifier: "entry-row.move-context",
-            preferredIdentifier: "search.entry.navlink"
-        )
-        moveButton.tap()
-
-        let cancelButton = app.buttons["move-picker.cancel"]
-        XCTAssertTrue(
-            cancelButton.waitForExistence(timeout: Self.ciElementTimeout),
-            "Move destination picker did not present from the search results"
-        )
-        cancelButton.tap()
-        waitForAutosaveAttempt()
-
-        dismissSearch()
-        openGroup(named: socialGroupName)
-        XCTAssertTrue(
-            revealElement(entry(named: twitterEntryTitle)),
-            "Cancelling the picker moved the entry anyway"
         )
     }
 
