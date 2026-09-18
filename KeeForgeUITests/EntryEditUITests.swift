@@ -391,6 +391,63 @@ class EntryEditUITestCase: KeeForgeUITestCase {
         XCTFail("Back button was not found", file: file, line: line)
     }
 
+    /// Types a query into the group list's search field and waits for the
+    /// results to render. They replace the group list in place rather than
+    /// pushing a screen of their own.
+    func searchForEntries(
+        matching query: String,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        let searchField = app.searchFields["Search entries"].firstMatch
+        XCTAssertTrue(
+            searchField.waitForExistence(timeout: Self.ciElementTimeout),
+            "Search field was not visible",
+            file: file,
+            line: line
+        )
+        tapElement(searchField)
+        searchField.typeText(query)
+
+        XCTAssertTrue(
+            app.staticTexts["search.results.count"].waitForExistence(timeout: Self.ciElementTimeout),
+            "Search results did not appear for '\(query)'",
+            file: file,
+            line: line
+        )
+    }
+
+    /// Empties the query so the group list replaces the results, then waits for
+    /// a group row rather than assuming the swap has landed.
+    func dismissSearch(file: StaticString = #filePath, line: UInt = #line) {
+        let searchField = app.searchFields["Search entries"].firstMatch
+        guard searchField.waitForExistence(timeout: Self.ciElementTimeout) else {
+            XCTFail("Search field was gone before it could be cleared", file: file, line: line)
+            return
+        }
+
+        let clearButton = searchField.buttons["Clear text"]
+        if clearButton.exists, hasOnScreenFrame(clearButton), clearButton.isHittable {
+            clearButton.tap()
+        }
+
+        let currentValue = (searchField.value as? String) ?? ""
+        if currentValue.isEmpty == false, currentValue != "Search entries" {
+            tapElement(searchField)
+            searchField.typeText(
+                String(repeating: XCUIKeyboardKey.delete.rawValue, count: currentValue.count)
+            )
+        }
+
+        let anyGroupRow = app.descendants(matching: .any).matching(identifier: "group.navlink").firstMatch
+        XCTAssertTrue(
+            anyGroupRow.waitForExistence(timeout: Self.ciElementTimeout),
+            "Group list did not come back after clearing the search query",
+            file: file,
+            line: line
+        )
+    }
+
     func firstRowMatching(name: String, preferredIdentifier: String) -> XCUIElement {
         let predicate = NSPredicate(format: "label CONTAINS[c] %@", name)
         let preferredQuery = app.descendants(matching: .any).matching(
@@ -939,59 +996,91 @@ final class SearchResultsDeleteUITests: EntryEditUITestCase {
             "Deleting the only match did not land on the no-results state"
         )
     }
+}
 
-    private func searchForEntries(
-        matching query: String,
-        file: StaticString = #filePath,
-        line: UInt = #line
-    ) {
-        let searchField = app.searchFields["Search entries"].firstMatch
-        XCTAssertTrue(
-            searchField.waitForExistence(timeout: Self.ciElementTimeout),
-            "Search field was not visible",
-            file: file,
-            line: line
+/// Moving an entry out of the search results (#124). Move to Group was wired
+/// into `GroupListView`'s own row builder only, so it was missing from the
+/// shared `EntryListView` behind search and the tag browser until the macOS
+/// parity pass added it there. Each shell still builds the item itself, so
+/// nothing but this stops a fourth one from shipping without it.
+@MainActor
+final class SearchResultsMoveUITests: EntryEditUITestCase {
+    func testContextMenuMoveFromSearchResultsMovesEntryToChosenGroup() {
+        unlockSuccessfully()
+        searchForEntries(matching: twitterEntryTitle)
+
+        let moveButton = revealContextMenuButton(
+            rowNamed: twitterEntryTitle,
+            identifier: "entry-row.move-context",
+            preferredIdentifier: "search.entry.navlink"
         )
-        tapElement(searchField)
-        searchField.typeText(query)
+        moveButton.tap()
 
+        let destination = moveDestination(named: workGroupName)
         XCTAssertTrue(
-            app.staticTexts["search.results.count"].waitForExistence(timeout: Self.ciElementTimeout),
-            "Search results did not appear for '\(query)'",
-            file: file,
-            line: line
+            destination.waitForExistence(timeout: Self.ciElementTimeout),
+            "Move destination picker did not present from the search results"
+        )
+        destination.tap()
+        waitForAutosaveAttempt()
+
+        dismissSearch()
+        openGroup(named: workGroupName)
+        XCTAssertTrue(
+            revealElement(entry(named: twitterEntryTitle)),
+            "Entry moved from the search results did not land in the chosen group"
+        )
+
+        tapBackButton()
+        openGroup(named: socialGroupName)
+        // Anchored on a sibling that stays put, so an old group that simply
+        // has not rendered yet cannot read as a successful move.
+        XCTAssertTrue(
+            revealElement(entry(named: discordEntryTitle)),
+            "Old group did not render, so its contents could not be checked"
+        )
+        XCTAssertFalse(
+            entry(named: twitterEntryTitle).exists,
+            "Entry moved from the search results is still in its old group"
         )
     }
 
-    /// Empties the query so the group list replaces the results, then waits for
-    /// a group row rather than assuming the swap has landed.
-    private func dismissSearch(file: StaticString = #filePath, line: UInt = #line) {
-        let searchField = app.searchFields["Search entries"].firstMatch
-        guard searchField.waitForExistence(timeout: Self.ciElementTimeout) else {
-            XCTFail("Search field was gone before it could be cleared", file: file, line: line)
-            return
-        }
+    func testCancellingMoveFromSearchResultsLeavesEntryInPlace() {
+        unlockSuccessfully()
+        searchForEntries(matching: twitterEntryTitle)
 
-        let clearButton = searchField.buttons["Clear text"]
-        if clearButton.exists, hasOnScreenFrame(clearButton), clearButton.isHittable {
-            clearButton.tap()
-        }
-
-        let currentValue = (searchField.value as? String) ?? ""
-        if currentValue.isEmpty == false, currentValue != "Search entries" {
-            tapElement(searchField)
-            searchField.typeText(
-                String(repeating: XCUIKeyboardKey.delete.rawValue, count: currentValue.count)
-            )
-        }
-
-        let anyGroupRow = app.descendants(matching: .any).matching(identifier: "group.navlink").firstMatch
-        XCTAssertTrue(
-            anyGroupRow.waitForExistence(timeout: Self.ciElementTimeout),
-            "Group list did not come back after clearing the search query",
-            file: file,
-            line: line
+        let moveButton = revealContextMenuButton(
+            rowNamed: twitterEntryTitle,
+            identifier: "entry-row.move-context",
+            preferredIdentifier: "search.entry.navlink"
         )
+        moveButton.tap()
+
+        let cancelButton = app.buttons["move-picker.cancel"]
+        XCTAssertTrue(
+            cancelButton.waitForExistence(timeout: Self.ciElementTimeout),
+            "Move destination picker did not present from the search results"
+        )
+        cancelButton.tap()
+        waitForAutosaveAttempt()
+
+        dismissSearch()
+        openGroup(named: socialGroupName)
+        XCTAssertTrue(
+            revealElement(entry(named: twitterEntryTitle)),
+            "Cancelling the picker moved the entry anyway"
+        )
+    }
+
+    /// The picker's rows carry a UUID-keyed identifier, so they are matched by
+    /// that prefix plus the group's name rather than by identifier alone.
+    private func moveDestination(named name: String) -> XCUIElement {
+        app.descendants(matching: .any).matching(
+            NSPredicate(
+                format: "identifier BEGINSWITH 'move-picker.group.' AND label CONTAINS[c] %@",
+                name
+            )
+        ).firstMatch
     }
 }
 
