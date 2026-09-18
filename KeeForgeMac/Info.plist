@@ -73,7 +73,7 @@
 	<key>LSMinimumSystemVersion</key>
 	<string>$(MACOSX_DEPLOYMENT_TARGET)</string>
 	<key>NSLocalNetworkUsageDescription</key>
-	<string>KeeForge uses your local network to connect to WebDAV servers you add.</string>
+	<string>KeeForge uses your local network to connect to WebDAV and FTP servers you add.</string>
 	<key>NSAppTransportSecurity</key>
 	<dict>
 		<!--

@@ -13,7 +13,7 @@ struct CloudFileBrowserView: View {
 
     @Environment(\.dismiss) private var dismiss
     @State private var session: CloudFileBrowserSession
-    @State private var isWebDAVConnectPresented = false
+    @State private var isManualConnectPresented = false
 
     init(
         providerID: String,
@@ -112,25 +112,23 @@ struct CloudFileBrowserView: View {
         .task {
             session.refreshAccounts()
         }
-        .sheet(isPresented: $isWebDAVConnectPresented) {
-            if let connector = session.provider as? WebDAVConnecting {
-                WebDAVConnectView(
-                    connector: connector,
-                    onConnected: { account in
-                        session.adoptManualAccount(account)
-                        isWebDAVConnectPresented = false
-                    },
-                    onCancel: {
-                        isWebDAVConnectPresented = false
-                    }
-                )
-            }
+        .sheet(isPresented: $isManualConnectPresented) {
+            ManualConnectSheet(
+                provider: session.provider,
+                onConnected: { account in
+                    session.adoptManualAccount(account)
+                    isManualConnectPresented = false
+                },
+                onCancel: {
+                    isManualConnectPresented = false
+                }
+            )
         }
     }
 
     private func beginAuthentication() {
         if session.usesManualConnectionForm {
-            isWebDAVConnectPresented = true
+            isManualConnectPresented = true
             return
         }
 
@@ -191,7 +189,7 @@ struct CloudFolderPickerView: View {
 
     @Environment(\.dismiss) private var dismiss
     @State private var session: CloudFileBrowserSession
-    @State private var isWebDAVConnectPresented = false
+    @State private var isManualConnectPresented = false
 
     init(
         providerID: String,
@@ -292,25 +290,23 @@ struct CloudFolderPickerView: View {
         .task {
             session.refreshAccounts()
         }
-        .sheet(isPresented: $isWebDAVConnectPresented) {
-            if let connector = session.provider as? WebDAVConnecting {
-                WebDAVConnectView(
-                    connector: connector,
-                    onConnected: { account in
-                        session.adoptManualAccount(account)
-                        isWebDAVConnectPresented = false
-                    },
-                    onCancel: {
-                        isWebDAVConnectPresented = false
-                    }
-                )
-            }
+        .sheet(isPresented: $isManualConnectPresented) {
+            ManualConnectSheet(
+                provider: session.provider,
+                onConnected: { account in
+                    session.adoptManualAccount(account)
+                    isManualConnectPresented = false
+                },
+                onCancel: {
+                    isManualConnectPresented = false
+                }
+            )
         }
     }
 
     private func beginAuthentication() {
         if session.usesManualConnectionForm {
-            isWebDAVConnectPresented = true
+            isManualConnectPresented = true
             return
         }
 
@@ -358,6 +354,22 @@ struct CloudFolderPickerView: View {
     }
 }
 
+/// The server/username/password form for providers that connect without a
+/// hosted sign-in.
+private struct ManualConnectSheet: View {
+    let provider: CloudProvider?
+    let onConnected: (CloudAccount) -> Void
+    let onCancel: () -> Void
+
+    var body: some View {
+        if let connector = provider as? WebDAVConnecting {
+            WebDAVConnectView(connector: connector, onConnected: onConnected, onCancel: onCancel)
+        } else if let connector = provider as? FTPConnecting {
+            FTPConnectView(connector: connector, onConnected: onConnected, onCancel: onCancel)
+        }
+    }
+}
+
 private struct DropboxLowUserWarningNote: View {
     let provider: CloudProvider
 
@@ -373,7 +385,7 @@ private struct DropboxLowUserWarningNote: View {
 /// Renders a cloud provider glyph as a symbol image so it inherits font,
 /// weight, tint, and dark/light appearance from its context exactly like a
 /// built-in SF Symbol. Dropbox and OneDrive are custom template symbols in
-/// the asset catalog; WebDAV uses a system symbol.
+/// the asset catalog; WebDAV and FTP use system symbols.
 struct CloudProviderIcon: View {
     let provider: CloudProviderKind?
     var fallbackSystemName = "icloud"
@@ -386,6 +398,8 @@ struct CloudProviderIcon: View {
             Image("OneDriveGlyph")
         case .webDAV:
             Image(systemName: CloudProviderKind.webDAV.iconName)
+        case .ftp:
+            Image(systemName: CloudProviderKind.ftp.iconName)
         case .none:
             Image(systemName: fallbackSystemName)
         }

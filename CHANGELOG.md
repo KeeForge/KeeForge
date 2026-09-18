@@ -128,6 +128,7 @@ The 2026-09-08 probe settled the design: the iPad-on-Mac app never stores a data
 ### New Features
 
 - KeeForge now speaks Japanese: a full Japanese (日本語) localization across the app and the AutoFill extension, plus translated README and contributor docs.
+- Open, save, and create databases directly on an FTP server (#115). Add Database → FTP asks for the server address, username, and password. FTP is unencrypted, so connecting requires turning on "Allow Unencrypted FTP"; use it only on a network you trust. Encrypted FTPS and SFTP are not supported yet.
 
 ### Fixes
 
