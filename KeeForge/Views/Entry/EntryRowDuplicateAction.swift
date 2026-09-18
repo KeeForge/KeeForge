@@ -22,13 +22,12 @@ struct EntryRowDuplicateAction: View {
         }
     }
 
-    /// Same eligibility as Move to Group — copying is an edit, and an entry in
-    /// the recycle bin comes back through the restore flow rather than being
-    /// copied out of it — plus the session key the copy's secrets need.
+    /// Move to Group's gate — copying is an edit, and an entry in the recycle
+    /// bin comes back through the restore flow rather than being copied out of
+    /// it — plus the session key the copy's secrets need.
     private var isAvailable: Bool {
-        viewModel.isReadOnly == false
+        EntryRowMoveAction.isAvailable(entryID: entryID, viewModel: viewModel)
             && viewModel.sessionKey != nil
-            && viewModel.isEntryInRecycleBin(entryID: entryID) == false
     }
 
     /// Built when the item is tapped rather than per render, so the copy is

@@ -501,11 +501,8 @@ struct GroupListView: View {
                 }
             }
 
-            if canMoveEntry(entry) {
-                Button("Move to Group") {
-                    pendingMove = .entry(entry.id)
-                }
-                .accessibilityIdentifier("entry-row.move-context")
+            EntryRowMoveAction(entryID: entry.id, viewModel: viewModel) { move in
+                pendingMove = move
             }
 
             if viewModel.isReadOnly == false {
@@ -564,13 +561,6 @@ struct GroupListView: View {
             isExclusionInherited: viewModel.isGroupExclusionInherited(groupID: groupID),
             knownTags: viewModel.tagsInDisplayOrder
         )
-    }
-
-    /// Entries can move when the database accepts edits and the entry is not
-    /// recycled — restoring from the bin is the restore flow, not a move.
-    private func canMoveEntry(_ entry: KPEntry) -> Bool {
-        viewModel.isReadOnly == false
-            && viewModel.isEntryInRecycleBin(entryID: entry.id) == false
     }
 
     /// `canEditGroup` plus the deletion-protection screen, which also covers

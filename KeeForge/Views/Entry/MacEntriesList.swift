@@ -155,11 +155,8 @@ struct MacEntryRow: View {
                 onRequestDuplicate(editor)
             }
 
-            if canMove {
-                Button("Move to Group") {
-                    onRequestMove(.entry(entry.id))
-                }
-                .accessibilityIdentifier("entry-row.move-context")
+            EntryRowMoveAction(entryID: entry.id, viewModel: viewModel) { move in
+                onRequestMove(move)
             }
 
             if viewModel.isReadOnly == false {
@@ -182,12 +179,6 @@ struct MacEntryRow: View {
 
     private var sendToRecycleBin: Bool {
         viewModel.isEntryInRecycleBin(entryID: entry.id) == false
-    }
-
-    /// Same predicate as the iOS row's `canMoveEntry`: a recycled entry comes
-    /// back through the restore flow, not through a move.
-    private var canMove: Bool {
-        viewModel.isReadOnly == false && sendToRecycleBin
     }
 }
 #endif

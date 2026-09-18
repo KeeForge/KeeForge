@@ -1462,6 +1462,48 @@ final class DatabaseViewModelTests: XCTestCase {
         XCTAssertTrue(vm.isEntryInRecycleBin(entryID: target.id))
     }
 
+    // MARK: - Entry row Move to Group gate (#134)
+
+    /// `EntryRowMoveAction.isAvailable` is the one gate every entry row's Move
+    /// to Group item — and, through it, Duplicate — reads, so each condition
+    /// is pinned here rather than per shell.
+    func testEntryRowMoveIsOfferedForAWritableEntryOutsideTheRecycleBin() async throws {
+        let target = KPEntry(title: "Movable")
+        let root = KPGroup(name: "Root", groups: [
+            KPGroup(name: "Visible", entries: [target]),
+        ])
+        let vm = try await makeInjectedViewModel(rootGroup: root)
+
+        XCTAssertTrue(EntryRowMoveAction.isAvailable(entryID: target.id, viewModel: vm))
+    }
+
+    func testEntryRowMoveIsWithheldForARecycledEntry() async throws {
+        let target = KPEntry(title: "Recycled")
+        let root = KPGroup(name: "Root", groups: [
+            KPGroup(name: "Visible", entries: [target]),
+        ])
+        let vm = try await makeInjectedViewModel(rootGroup: root)
+
+        try vm.deleteEntry(target.id, sendToRecycleBin: true)
+
+        XCTAssertTrue(vm.isEntryInRecycleBin(entryID: target.id))
+        XCTAssertFalse(EntryRowMoveAction.isAvailable(entryID: target.id, viewModel: vm))
+    }
+
+    func testEntryRowMoveIsWithheldInAReadOnlyDatabase() async throws {
+        let target = KPEntry(title: "Frozen")
+        let root = KPGroup(name: "Root", groups: [
+            KPGroup(name: "Visible", entries: [target]),
+        ])
+        let vm = try await makeInjectedViewModel(rootGroup: root)
+        DatabaseListStore.update(vm.databaseReference)
+
+        vm.setReadOnly(true)
+
+        XCTAssertTrue(vm.isReadOnly)
+        XCTAssertFalse(EntryRowMoveAction.isAvailable(entryID: target.id, viewModel: vm))
+    }
+
     func testSearchExclusionIsInheritedBySubgroups() async throws {
         let visible = KPEntry(title: "Searchable Alpha")
         let deeplyHidden = KPEntry(title: "Searchable Deep")

@@ -115,11 +115,8 @@ struct EntryListView: View {
                 duplicateEditor = editor
             }
 
-            if canMove(entry) {
-                Button("Move to Group") {
-                    pendingMove = .entry(entry.id)
-                }
-                .accessibilityIdentifier("entry-row.move-context")
+            EntryRowMoveAction(entryID: entry.id, viewModel: viewModel) { move in
+                pendingMove = move
             }
 
             if viewModel.isReadOnly == false {
@@ -149,12 +146,5 @@ struct EntryListView: View {
 
     private func sendDeletionToRecycleBin(for entry: KPEntry) -> Bool {
         viewModel.isEntryInRecycleBin(entryID: entry.id) == false
-    }
-
-    /// Matches the group list: entries move while the database accepts edits
-    /// and the entry is not recycled — restoring from the bin is its own flow.
-    private func canMove(_ entry: KPEntry) -> Bool {
-        viewModel.isReadOnly == false
-            && viewModel.isEntryInRecycleBin(entryID: entry.id) == false
     }
 }
