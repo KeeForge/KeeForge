@@ -30,6 +30,11 @@ struct FTPReply: Equatable, Sendable {
 /// answering.
 enum FTPClientError: Error, Equatable {
     case unexpectedReply(FTPReply)
+    /// RNTO refused: the server will not create or replace the destination.
+    case renameRefused(FTPReply)
+    /// The server refused to show a path it may hold, so neither its absence
+    /// nor its contents can be established.
+    case accessDenied(FTPReply)
     case malformedReply(String)
     case connectionClosed
     case timedOut
@@ -128,15 +133,19 @@ final class FTPSession {
     /// Lists the current directory, preferring MLSD and falling back to LIST
     /// on servers that do not implement it (vsftpd, for one).
     func listCurrentDirectory() async throws -> [FTPListEntry] {
-        if let lines = try await readListing(verb: "MLSD", treatMissingAsEmpty: false) {
-            return lines.compactMap(FTPListingParser.parseMachineEntry)
-        }
-        let lines = try await readListing(verb: "LIST", treatMissingAsEmpty: true) ?? []
-        return lines.compactMap(FTPListingParser.parseListLine)
+        try await list(nil, strict: false).entries
     }
 
-    /// Size and modification time of a file, or nil if the server reports it
-    /// missing.
+    /// Lists `path` (the login directory when empty), for sweeping scratch
+    /// files. Some LIST implementations leave hidden names out.
+    func listDirectory(_ path: String) async throws -> [FTPListEntry] {
+        try await list(path, strict: true).entries
+    }
+
+    /// Size and modification time of a file, or nil only once the server has
+    /// shown it is not there. RFC 3659 and RFC 959 both allow 550 for "not
+    /// found" and "not allowed to look", so a 550 is checked against SIZE and
+    /// then a listing of the parent; if neither settles it, `accessDenied`.
     func stat(_ path: String) async throws -> FTPListEntry? {
         let mlst = try await command("MLST", path)
         if mlst.code == 250 {
@@ -146,36 +155,56 @@ final class FTPSession {
             }
             return entry
         }
-        if mlst.code == 550 {
-            return nil
-        }
-        guard Self.isNotImplemented(mlst) else { throw FTPClientError.unexpectedReply(mlst) }
+        guard mlst.code == 550 || Self.isNotImplemented(mlst) else { throw FTPClientError.unexpectedReply(mlst) }
 
         let size = try await command("SIZE", path)
-        if size.code == 550 {
-            return nil
+        if size.code == 213 {
+            guard let byteCount = Int64(size.message.trimmingCharacters(in: .whitespaces)) else {
+                throw FTPClientError.unexpectedReply(size)
+            }
+            return FTPListEntry(
+                name: FTPListingParser.lastComponent(of: path),
+                isFolder: false,
+                size: byteCount,
+                modifiedStamp: try await modificationStamp(of: path)
+            )
         }
-        guard size.code == 213, let byteCount = Int64(size.message.trimmingCharacters(in: .whitespaces)) else {
-            throw FTPClientError.unexpectedReply(size)
-        }
+        guard size.code == 550 || Self.isNotImplemented(size) else { throw FTPClientError.unexpectedReply(size) }
 
+        return try await entryInParentListing(of: path, refusal: size.code == 550 ? size : mlst)
+    }
+
+    private func modificationStamp(of path: String) async throws -> String? {
         let mdtm = try await command("MDTM", path)
-        var stamp: String?
         if mdtm.code == 213 {
             let value = mdtm.message.trimmingCharacters(in: .whitespaces)
-            stamp = FTPListingParser.isTimeVal(value) ? value : nil
-        } else if mdtm.code == 550 {
-            return nil
-        } else if !Self.isNotImplemented(mdtm) {
-            throw FTPClientError.unexpectedReply(mdtm)
+            return FTPListingParser.isTimeVal(value) ? value : nil
+        }
+        guard mdtm.code == 550 || Self.isNotImplemented(mdtm) else { throw FTPClientError.unexpectedReply(mdtm) }
+        return nil
+    }
+
+    private func entryInParentListing(of path: String, refusal: FTPReply) async throws -> FTPListEntry? {
+        let name = FTPListingParser.lastComponent(of: path)
+        let listing: (entries: [FTPListEntry], isMachineListing: Bool)
+        do {
+            listing = try await list(FTPListingParser.parentPath(of: path), strict: true)
+        } catch FTPClientError.unexpectedReply {
+            throw FTPClientError.accessDenied(refusal)
         }
 
-        return FTPListEntry(
-            name: FTPListingParser.lastComponent(of: path),
-            isFolder: false,
-            size: byteCount,
-            modifiedStamp: stamp
-        )
+        // A case-only match counts: on a case-insensitive server that name is
+        // the same file.
+        if let entry = listing.entries.first(where: { $0.name == name })
+            ?? listing.entries.first(where: { $0.name.caseInsensitiveCompare(name) == .orderedSame }) {
+            return entry
+        }
+        // vsftpd's LIST leaves dotfiles out by default, so it cannot prove a
+        // hidden name absent.
+        guard listing.isMachineListing || !name.hasPrefix(".") else {
+            throw FTPClientError.accessDenied(refusal)
+        }
+        return nil
     }
 
     func retrieve(_ path: String) async throws -> Data {
@@ -229,7 +258,7 @@ final class FTPSession {
         let from = try await command("RNFR", source)
         guard from.code == 350 else { throw FTPClientError.unexpectedReply(from) }
         let to = try await command("RNTO", destination)
-        guard to.isPositiveCompletion else { throw FTPClientError.unexpectedReply(to) }
+        guard to.isPositiveCompletion else { throw FTPClientError.renameRefused(to) }
     }
 
     func delete(_ path: String) async throws {
@@ -239,11 +268,26 @@ final class FTPSession {
 
     // MARK: - Data connections
 
-    private func readListing(verb: String, treatMissingAsEmpty: Bool) async throws -> [String]? {
+    /// MLSD, or LIST where MLSD is not implemented. `strict` refuses the
+    /// 450/550 some servers send for an empty directory, because the same
+    /// reply also means the listing was denied.
+    private func list(
+        _ path: String?,
+        strict: Bool
+    ) async throws -> (entries: [FTPListEntry], isMachineListing: Bool) {
+        let path = path?.isEmpty == true ? nil : path
+        if let lines = try await readListing(verb: "MLSD", path: path, treatMissingAsEmpty: false) {
+            return (lines.compactMap(FTPListingParser.parseMachineEntry), true)
+        }
+        let lines = try await readListing(verb: "LIST", path: path, treatMissingAsEmpty: !strict) ?? []
+        return (lines.compactMap(FTPListingParser.parseListLine), false)
+    }
+
+    private func readListing(verb: String, path: String?, treatMissingAsEmpty: Bool) async throws -> [String]? {
         let dataConnection = try await openDataConnection()
         defer { dataConnection.close() }
 
-        let start = try await command(verb)
+        let start = try await command(verb, path)
         if Self.isNotImplemented(start) {
             return nil
         }

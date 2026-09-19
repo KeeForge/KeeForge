@@ -6,8 +6,8 @@ import Foundation
 /// session.
 ///
 /// `fileId` is the decoded path relative to the account's base folder (e.g.
-/// `/Vaults/personal.kdbx`). FTP has no ETag, so `rev` is derived from the
-/// server's modification stamp and size; see `rev(for:)`.
+/// `/Vaults/personal.kdbx`). FTP has no ETag, so `rev` is a SHA-256 of the
+/// bytes the server returns; see `rev(of:)`.
 final class FTPCloudProvider: CloudProvider, FTPConnecting, Sendable {
     static let shared = FTPCloudProvider()
 
@@ -16,14 +16,17 @@ final class FTPCloudProvider: CloudProvider, FTPConnecting, Sendable {
     let iconName = CloudProviderKind.ftp.iconName
 
     private let client: FTPClient
-    private let makeTemporaryName: @Sendable (String) -> String
+    private let now: @Sendable () -> Date
+    private let makeScratchToken: @Sendable () -> String
 
     init(
         client: FTPClient = FTPClient(),
-        makeTemporaryName: @escaping @Sendable (String) -> String = FTPCloudProvider.temporaryName(for:)
+        now: @escaping @Sendable () -> Date = { Date() },
+        makeScratchToken: @escaping @Sendable () -> String = { String(UUID().uuidString.prefix(8)) }
     ) {
         self.client = client
-        self.makeTemporaryName = makeTemporaryName
+        self.now = now
+        self.makeScratchToken = makeScratchToken
     }
 
     // MARK: - Authentication
@@ -120,9 +123,6 @@ final class FTPCloudProvider: CloudProvider, FTPConnecting, Sendable {
 
     // MARK: - Download
 
-    /// Returns nil metadata: FTP cannot tie a modification stamp to the bytes
-    /// of one transfer, and a stamp read afterwards may already describe a
-    /// newer file than the one written here.
     @discardableResult
     func download(
         accountId: String,
@@ -133,8 +133,9 @@ final class FTPCloudProvider: CloudProvider, FTPConnecting, Sendable {
         let (location, credential) = try resolveContext(accountId: accountId)
         let path = Self.remotePath(base: location.basePath, fileId: fileId)
 
-        let data = try await perform(context: .read, location: location, credential: credential) { session in
-            try await session.retrieve(path)
+        let (data, metadata) = try await perform(context: .read, location: location, credential: credential) { session in
+            let data = try await session.retrieve(path)
+            return (data, await Self.metadata(of: data, at: path, in: session))
         }
 
         try FileManager.default.createDirectory(
@@ -143,7 +144,7 @@ final class FTPCloudProvider: CloudProvider, FTPConnecting, Sendable {
         )
         try data.write(to: localURL, options: .atomic)
         progress(1)
-        return nil
+        return metadata
     }
 
     // MARK: - Metadata
@@ -153,17 +154,26 @@ final class FTPCloudProvider: CloudProvider, FTPConnecting, Sendable {
         let path = Self.remotePath(base: location.basePath, fileId: fileId)
 
         return try await perform(context: .read, location: location, credential: credential) { session in
-            try await Self.metadata(of: path, in: session)
+            guard let entry = try await session.stat(path), !entry.isFolder else {
+                throw CloudProviderError.fileNotFound
+            }
+            let data = try await Self.retrieveExisting(path, in: session)
+            return CloudFileMetadata(
+                modifiedDate: entry.modifiedDate ?? .now,
+                contentHash: nil,
+                size: Int64(data.count),
+                rev: Self.rev(of: data)
+            )
         }
     }
 
     // MARK: - Upload
 
-    /// Uploads to a temporary name beside the target and renames it into
-    /// place, so an interrupted transfer never leaves a truncated database.
-    /// FTP has no conditional write; `expectedRev` is re-checked after the
-    /// transfer, immediately before the rename, which is as close to the
-    /// write as the protocol allows.
+    /// Uploads to a temporary name beside the target and moves it into place
+    /// (see `install`), so the database is never written in place. FTP has no
+    /// conditional write: `expectedRev` is checked against a fresh download
+    /// after the transfer, immediately before the move, which is as close to
+    /// the write as the protocol allows.
     func upload(
         accountId: String,
         fileId: String,
@@ -173,22 +183,38 @@ final class FTPCloudProvider: CloudProvider, FTPConnecting, Sendable {
     ) async throws -> CloudFileMetadata {
         let (location, credential) = try resolveContext(accountId: accountId)
         let path = Self.remotePath(base: location.basePath, fileId: fileId)
-        let temporaryPath = Self.sibling(of: path, named: makeTemporaryName(FTPListingParser.lastComponent(of: path)))
+        let temporaryPath = scratchPath(beside: path, kind: .upload)
+        let backupPath = scratchPath(beside: path, kind: .backup)
 
         let metadata = try await perform(context: .write, location: location, credential: credential) { session in
-            try await session.store(temporaryPath, data: data)
-
-            if let expectedRev {
-                let current = try await session.stat(path)
-                let currentRev = current.flatMap(Self.rev(for:))
-                guard currentRev == expectedRev else {
-                    try? await session.delete(temporaryPath)
-                    throw CloudProviderError.conflict(remoteRev: currentRev)
+            do {
+                // Inside the cleanup: an interrupted transfer can leave a
+                // partial file behind.
+                try await session.store(temporaryPath, data: data)
+                if let expectedRev {
+                    guard let current = try await session.stat(path), !current.isFolder else {
+                        throw CloudProviderError.conflict(remoteRev: nil)
+                    }
+                    let currentRev = Self.rev(of: try await Self.retrieveExisting(path, in: session))
+                    guard currentRev == expectedRev else {
+                        throw CloudProviderError.conflict(remoteRev: currentRev)
+                    }
                 }
+                try await install(
+                    temporaryPath,
+                    at: path,
+                    backupPath: backupPath,
+                    expectedRev: expectedRev,
+                    in: session,
+                    location: location,
+                    credential: credential
+                )
+            } catch {
+                try? await session.delete(temporaryPath)
+                throw error
             }
-
-            try await Self.replace(path, with: temporaryPath, data: data, in: session)
-            return try await Self.metadata(of: path, in: session)
+            await sweepStaleUploads(beside: path, in: session)
+            return await Self.metadata(of: data, at: path, in: session)
         }
         progress(1)
         return metadata
@@ -209,19 +235,24 @@ final class FTPCloudProvider: CloudProvider, FTPConnecting, Sendable {
         let (location, credential) = try resolveContext(accountId: accountId)
         let normalizedId = Self.serverRelativePath(from: fileId)
         let path = Self.remotePath(base: location.basePath, fileId: normalizedId)
-        let temporaryPath = Self.sibling(of: path, named: makeTemporaryName(FTPListingParser.lastComponent(of: path)))
+        let temporaryPath = scratchPath(beside: path, kind: .upload)
 
         let metadata = try await perform(context: .write, location: location, credential: credential) { session in
             guard try await session.stat(path) == nil else {
                 throw CloudProviderError.conflict(remoteRev: nil)
             }
-            try await session.store(temporaryPath, data: data)
-            guard try await session.stat(path) == nil else {
+            do {
+                try await session.store(temporaryPath, data: data)
+                guard try await session.stat(path) == nil else {
+                    throw CloudProviderError.conflict(remoteRev: nil)
+                }
+                try await session.rename(temporaryPath, to: path)
+            } catch {
                 try? await session.delete(temporaryPath)
-                throw CloudProviderError.conflict(remoteRev: nil)
+                throw error
             }
-            try await session.rename(temporaryPath, to: path)
-            return try await Self.metadata(of: path, in: session)
+            await sweepStaleUploads(beside: path, in: session)
+            return await Self.metadata(of: data, at: path, in: session)
         }
         progress(1)
 
@@ -238,32 +269,123 @@ final class FTPCloudProvider: CloudProvider, FTPConnecting, Sendable {
 
     // MARK: - Session helpers
 
-    /// Moves the uploaded temporary file over `path`. Servers that refuse to
-    /// rename onto an existing file (IIS) get the bytes written in place
-    /// instead: less atomic, but it never deletes the database first.
-    private static func replace(
-        _ path: String,
-        with temporaryPath: String,
-        data: Data,
-        in session: FTPSession
+    /// Moves the completed upload over `path`. Where the server will not
+    /// rename onto an existing file (IIS), the database is first renamed to a
+    /// backup beside it and renamed back if the upload cannot take its place.
+    /// It is never written in place or deleted; the backup goes only once the
+    /// upload is installed.
+    private func install(
+        _ temporaryPath: String,
+        at path: String,
+        backupPath: String,
+        expectedRev: String?,
+        in session: FTPSession,
+        location: FTPServerLocation,
+        credential: FTPCredential
     ) async throws {
         do {
             try await session.rename(temporaryPath, to: path)
-        } catch FTPClientError.unexpectedReply(let reply) where reply.code == 550 || reply.code == 553 {
-            try await session.store(path, data: data)
-            try? await session.delete(temporaryPath)
+            return
+        } catch FTPClientError.renameRefused {}
+
+        try await session.rename(path, to: backupPath)
+        do {
+            // Setting the file aside took it from every other client, so a
+            // write since the caller's check shows up here, not as a lost
+            // update.
+            if let expectedRev {
+                let setAsideRev = Self.rev(of: try await Self.retrieveExisting(backupPath, in: session))
+                guard setAsideRev == expectedRev else {
+                    throw CloudProviderError.conflict(remoteRev: setAsideRev)
+                }
+            }
+            try await session.rename(temporaryPath, to: path)
+        } catch {
+            await restore(
+                backupPath,
+                to: path,
+                discarding: temporaryPath,
+                in: session,
+                location: location,
+                credential: credential
+            )
+            throw error
+        }
+        try? await session.delete(backupPath)
+    }
+
+    /// Puts the backup back, on a fresh session if this one is gone: a
+    /// timeout or cancellation closes the control connection. The fresh
+    /// session runs detached so the caller's cancellation cannot stop it, and
+    /// also removes the upload, which the dead session no longer can.
+    private func restore(
+        _ backupPath: String,
+        to path: String,
+        discarding temporaryPath: String,
+        in session: FTPSession,
+        location: FTPServerLocation,
+        credential: FTPCredential
+    ) async {
+        if (try? await Self.moveBack(backupPath, to: path, in: session)) != nil {
+            return
+        }
+        let client = client
+        await Task.detached {
+            _ = try? await client.withSession(
+                host: location.host,
+                port: location.port,
+                username: credential.username,
+                password: credential.password
+            ) { fresh in
+                try await Self.moveBack(backupPath, to: path, in: fresh)
+                try? await fresh.delete(temporaryPath)
+            }
+        }.value
+    }
+
+    /// Leaves the backup where it is if anything already stands at `path`:
+    /// that may be the upload, installed by a rename whose reply was lost.
+    private static func moveBack(_ backupPath: String, to path: String, in session: FTPSession) async throws {
+        guard try await session.stat(path) == nil else { return }
+        try await session.rename(backupPath, to: path)
+    }
+
+    /// Deletes this app's upload leftovers in `path`'s folder that are old
+    /// enough not to belong to a transfer still running. Best effort: a
+    /// failure here never fails the save that just succeeded.
+    private func sweepStaleUploads(beside path: String, in session: FTPSession) async {
+        guard let entries = try? await session.listDirectory(FTPListingParser.parentPath(of: path)) else {
+            return
+        }
+        let cutoff = now().addingTimeInterval(-Self.staleUploadAge)
+        for entry in entries where !entry.isFolder {
+            guard let created = Self.creationDate(ofUploadScratchNamed: entry.name), created < cutoff else {
+                continue
+            }
+            try? await session.delete(Self.sibling(of: path, named: entry.name))
         }
     }
 
-    private static func metadata(of path: String, in session: FTPSession) async throws -> CloudFileMetadata {
-        guard let entry = try await session.stat(path), !entry.isFolder else {
-            throw CloudProviderError.fileNotFound
+    /// A 550 on RETR of a path known to exist is a refusal, not absence.
+    private static func retrieveExisting(_ path: String, in session: FTPSession) async throws -> Data {
+        do {
+            return try await session.retrieve(path)
+        } catch FTPClientError.unexpectedReply(let reply) where reply.code == 550 {
+            throw FTPClientError.accessDenied(reply)
         }
+    }
+
+    /// The rev is the hash of the bytes this session transferred, not a
+    /// re-read: a re-read could record another client's write as this one's.
+    /// The stamp is only for display, so failing to read it never fails the
+    /// transfer.
+    private static func metadata(of data: Data, at path: String, in session: FTPSession) async -> CloudFileMetadata {
+        let entry = try? await session.stat(path)
         return CloudFileMetadata(
-            modifiedDate: entry.modifiedDate ?? .now,
+            modifiedDate: entry?.modifiedDate ?? .now,
             contentHash: nil,
-            size: entry.size ?? 0,
-            rev: rev(for: entry)
+            size: Int64(data.count),
+            rev: rev(of: data)
         )
     }
 
@@ -315,8 +437,10 @@ final class FTPCloudProvider: CloudProvider, FTPConnecting, Sendable {
         switch error {
         case is CancellationError, is CloudProviderError, is FTPURLError:
             return error
-        case FTPClientError.unexpectedReply(let reply):
+        case FTPClientError.unexpectedReply(let reply), FTPClientError.renameRefused(let reply):
             return mapReply(reply, context: context)
+        case FTPClientError.accessDenied:
+            return CloudProviderError.permissionDenied
         case FTPClientError.illegalArgument:
             return CloudProviderError.invalidName
         case FTPClientError.malformedReply(let text):
@@ -348,12 +472,11 @@ final class FTPCloudProvider: CloudProvider, FTPConnecting, Sendable {
 
     // MARK: - Rev
 
-    /// `mtime:<stamp>;size:<bytes>`, or nil when the server reports no
-    /// modification stamp. Stamps are usually whole seconds, so two writes of
-    /// the same size inside one second are indistinguishable.
-    static func rev(for entry: FTPListEntry) -> String? {
-        guard let stamp = entry.modifiedStamp else { return nil }
-        return "mtime:\(stamp);size:\(entry.size.map(String.init) ?? "?")"
+    /// `sha256:<hex>` of the file's bytes. Modification stamps are usually
+    /// whole seconds, so a stamp-and-size rev misses a same-size write inside
+    /// one second; a KDBX re-encryption keeps its length.
+    static func rev(of data: Data) -> String {
+        "sha256:" + KDBXCrypto.sha256(data).map { String(format: "%02x", $0) }.joined()
     }
 
     // MARK: - Paths
@@ -384,9 +507,54 @@ final class FTPCloudProvider: CloudProvider, FTPConnecting, Sendable {
         return String(path[...slash]) + name
     }
 
-    /// A hidden name without the `.kdbx` extension, so an upload in flight
-    /// never shows up in a database listing.
-    static func temporaryName(for name: String) -> String {
-        ".\(name).\(UUID().uuidString.prefix(8)).keeforge-upload"
+    // MARK: - Scratch files
+
+    enum ScratchKind: String {
+        case upload = "keeforge-upload"
+        case backup = "keeforge-backup"
+    }
+
+    /// Uploads older than this are leftovers of a failed save, not a transfer
+    /// still running on another device.
+    static let staleUploadAge: TimeInterval = 24 * 60 * 60
+
+    private func scratchPath(beside path: String, kind: ScratchKind) -> String {
+        let name = Self.scratchName(for: FTPListingParser.lastComponent(of: path), kind: kind, createdAt: now(), token: makeScratchToken())
+        return Self.sibling(of: path, named: name)
+    }
+
+    /// `.<name>.<UTC time-val>-<token>.<kind>`: hidden and without the
+    /// `.kdbx` extension, so it never shows up in a database listing. The
+    /// time lets a later save tell a leftover from a transfer in flight.
+    static func scratchName(for name: String, kind: ScratchKind, createdAt: Date, token: String) -> String {
+        ".\(name).\(timeVal(for: createdAt))-\(token).\(kind.rawValue)"
+    }
+
+    /// The creation time of an upload scratch file, or nil for any name that
+    /// does not match `scratchName` exactly. Backups never match.
+    static func creationDate(ofUploadScratchNamed fileName: String) -> Date? {
+        let suffix = "." + ScratchKind.upload.rawValue
+        guard fileName.hasPrefix("."), fileName.hasSuffix(suffix) else { return nil }
+        let stem = fileName.dropFirst().dropLast(suffix.count)
+        guard let dot = stem.lastIndex(of: "."), dot > stem.startIndex else { return nil }
+        let marker = stem[stem.index(after: dot)...]
+        let parts = marker.split(separator: "-", omittingEmptySubsequences: false)
+        guard parts.count == 2,
+              parts[0].count == 14,
+              parts[1].count == 8,
+              parts[1].allSatisfy({ $0.isASCII && $0.isHexDigit }) else {
+            return nil
+        }
+        return FTPListingParser.date(fromTimeVal: String(parts[0]))
+    }
+
+    private static func timeVal(for date: Date) -> String {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "UTC") ?? .gmt
+        let parts = calendar.dateComponents([.year, .month, .day, .hour, .minute, .second], from: date)
+        return String(
+            format: "%04d%02d%02d%02d%02d%02d",
+            parts.year ?? 0, parts.month ?? 0, parts.day ?? 0, parts.hour ?? 0, parts.minute ?? 0, parts.second ?? 0
+        )
     }
 }

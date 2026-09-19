@@ -36,6 +36,7 @@ final class FakeFTPServer: @unchecked Sendable {
     private var files: [String: File] = [:]
     private var replyOverrides: [String: [String]] = [:]
     private var commandHooks: [String: [@Sendable () -> Void]] = [:]
+    private var connectionDrops: [String: [Bool]] = [:]
     private var log: [String] = []
     private var connectedEndpoints: [String] = []
     private var pendingData: [UInt16: FakeFTPStream] = [:]
@@ -48,9 +49,15 @@ final class FakeFTPServer: @unchecked Sendable {
         lock.withLock { directories.insert(Self.normalize(path)) }
     }
 
+    /// Stores `path`, creating its parent folders.
     func setFile(_ path: String, data: Data, modified: String? = nil) {
         lock.withLock {
             let key = Self.normalize(path)
+            var parent = key.split(separator: "/").dropLast()
+            while !parent.isEmpty {
+                directories.insert(parent.joined(separator: "/"))
+                parent = parent.dropLast()
+            }
             files[key] = File(data: data, modified: modified ?? nextStampLocked())
         }
     }
@@ -72,15 +79,27 @@ final class FakeFTPServer: @unchecked Sendable {
         lock.withLock { connectedEndpoints }
     }
 
-    /// Answers the next `verb` with `reply` instead of handling it.
-    func overrideNextReply(to verb: String, with reply: String) {
-        lock.withLock { replyOverrides[verb, default: []].append(reply) }
+    /// Answers the next `verb` with `reply` instead of handling it. With an
+    /// `argument` (exactly as the client sends it), only a command carrying
+    /// that argument is answered; argument-specific overrides go first.
+    func overrideNextReply(to verb: String, argument: String? = nil, with reply: String) {
+        let key = [verb, argument].compactMap { $0 }.joined(separator: " ")
+        lock.withLock { replyOverrides[key, default: []].append(reply) }
+    }
+
+    /// Closes the control connection when the next `verb` arrives: before
+    /// handling it, or after handling it without sending the reply (a reply
+    /// lost with the connection).
+    func dropConnection(onNext verb: String, afterHandling: Bool = false) {
+        lock.withLock { connectionDrops[verb, default: []].append(afterHandling) }
     }
 
     /// Runs `hook` just before the next `verb` is handled — the moment another
-    /// client could have changed the server.
-    func beforeNext(_ verb: String, _ hook: @escaping @Sendable () -> Void) {
-        lock.withLock { commandHooks[verb, default: []].append(hook) }
+    /// client could have changed the server. `argument` narrows it the same
+    /// way as for `overrideNextReply`.
+    func beforeNext(_ verb: String, argument: String? = nil, _ hook: @escaping @Sendable () -> Void) {
+        let key = [verb, argument].compactMap { $0 }.joined(separator: " ")
+        lock.withLock { commandHooks[key, default: []].append(hook) }
     }
 
     func makeClient(timeout: Duration = .seconds(5)) -> FTPClient {
@@ -119,9 +138,12 @@ final class FakeFTPServer: @unchecked Sendable {
         var cwd = ""
         var renameFrom: String?
         var dataStream: FakeFTPStream?
+        var closed = false
+        var muted = false
     }
 
     private func receiveControl(_ data: Data, session: ControlSession) {
+        guard !session.closed else { return }
         session.buffer.append(data)
         while let newline = session.buffer.firstIndex(of: UInt8(ascii: "\n")) {
             var lineData = session.buffer[session.buffer.startIndex..<newline]
@@ -139,6 +161,7 @@ final class FakeFTPServer: @unchecked Sendable {
                 argument = nil
             }
             handle(verb: verb, argument: argument, session: session)
+            if session.closed { return }
         }
     }
 
@@ -147,16 +170,39 @@ final class FakeFTPServer: @unchecked Sendable {
     private func handle(verb: String, argument: String?, session: ControlSession) {
         let hooks: [@Sendable () -> Void] = lock.withLock {
             log.append(verb == "PASS" ? "PASS ***" : [verb, argument].compactMap { $0 }.joined(separator: " "))
-            return commandHooks.removeValue(forKey: verb) ?? []
+            let specific = argument.flatMap { commandHooks.removeValue(forKey: "\(verb) \($0)") } ?? []
+            return specific + (commandHooks.removeValue(forKey: verb) ?? [])
         }
         hooks.forEach { $0() }
 
+        let drop: Bool? = lock.withLock {
+            guard var queue = connectionDrops[verb], !queue.isEmpty else { return nil }
+            let afterHandling = queue.removeFirst()
+            connectionDrops[verb] = queue
+            return afterHandling
+        }
+        if let drop {
+            if drop {
+                session.muted = true
+                respond(verb: verb, argument: argument, session: session)
+            }
+            session.closed = true
+            session.stream?.deliverEnd()
+            return
+        }
+        respond(verb: verb, argument: argument, session: session)
+    }
+
+    private func respond(verb: String, argument: String?, session: ControlSession) {
         let (silent, override) = lock.withLock { () -> (Bool, String?) in
             if silentVerbs.contains(verb) { return (true, nil) }
-            guard var queue = replyOverrides[verb], !queue.isEmpty else { return (false, nil) }
-            let reply = queue.removeFirst()
-            replyOverrides[verb] = queue
-            return (false, reply)
+            for key in [argument.map { "\(verb) \($0)" }, verb].compactMap({ $0 }) {
+                guard var queue = replyOverrides[key], !queue.isEmpty else { continue }
+                let reply = queue.removeFirst()
+                replyOverrides[key] = queue
+                return (false, reply)
+            }
+            return (false, nil)
         }
         if silent { return }
         if let override {
@@ -206,7 +252,11 @@ final class FakeFTPServer: @unchecked Sendable {
             reply("227 Entering Passive Mode (\(passiveAddress),\(port / 256),\(port % 256)).", session)
         case "MLSD":
             guard supportsMachineListing else { return reply("500 Unknown command", session) }
-            let lines = ["type=cdir;modify=20260101000000; ."] + listing(of: session.cwd).map { entry in
+            let directory = resolve(argument ?? "", in: session)
+            guard lock.withLock({ directories.contains(directory) }) else {
+                return reply("550 No such directory", session)
+            }
+            let lines = ["type=cdir;modify=20260101000000; ."] + listing(of: directory).map { entry in
                 if entry.isFolder {
                     return "type=dir;modify=20260101000000; \(entry.name)"
                 }
@@ -214,7 +264,11 @@ final class FakeFTPServer: @unchecked Sendable {
             }
             sendListing(lines, session: session)
         case "LIST":
-            let lines = ["total 8"] + listing(of: session.cwd).map { entry in
+            let directory = resolve(argument ?? "", in: session)
+            guard lock.withLock({ directories.contains(directory) }) else {
+                return reply("550 No such directory", session)
+            }
+            let lines = ["total 8"] + listing(of: directory).map { entry in
                 if entry.isFolder {
                     return "drwxr-xr-x    2 alex     staff        4096 Jan 01 12:00 \(entry.name)"
                 }
@@ -324,6 +378,7 @@ final class FakeFTPServer: @unchecked Sendable {
     }
 
     private func reply(_ text: String, _ session: ControlSession) {
+        guard !session.muted else { return }
         session.stream?.deliver(text + "\r\n")
     }
 

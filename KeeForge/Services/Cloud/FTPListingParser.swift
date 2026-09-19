@@ -222,6 +222,17 @@ enum FTPListingParser {
     static func lastComponent(of path: String) -> String {
         path.split(separator: "/", omittingEmptySubsequences: true).last.map(String.init) ?? path
     }
+
+    /// Everything before the last component: `""` for a bare name (the login
+    /// directory) and `"/"` for a name at the root.
+    static func parentPath(of path: String) -> String {
+        var trimmed = Substring(path)
+        while trimmed.count > 1, trimmed.hasSuffix("/") {
+            trimmed = trimmed.dropLast()
+        }
+        guard let slash = trimmed.lastIndex(of: "/") else { return "" }
+        return slash == trimmed.startIndex ? "/" : String(trimmed[..<slash])
+    }
 }
 
 private extension Character {
