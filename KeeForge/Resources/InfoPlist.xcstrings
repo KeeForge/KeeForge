@@ -189,43 +189,43 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "KeeForge verwendet Ihr lokales Netzwerk, um eine Verbindung zu den von Ihnen hinzugefügten WebDAV-Servern herzustellen."
+            "value" : "KeeForge verwendet Ihr lokales Netzwerk, um eine Verbindung zu den von Ihnen hinzugefügten WebDAV- und FTP-Servern herzustellen."
           }
         },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "KeeForge uses your local network to connect to WebDAV servers you add."
+            "value" : "KeeForge uses your local network to connect to WebDAV and FTP servers you add."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "KeeForge usa su red local para conectarse a los servidores WebDAV que ha añadido."
+            "value" : "KeeForge usa su red local para conectarse a los servidores WebDAV y FTP que ha añadido."
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "KeeForge utilise votre réseau local pour se connecter aux serveurs WebDAV que vous ajoutez."
+            "value" : "KeeForge utilise votre réseau local pour se connecter aux serveurs WebDAV et FTP que vous ajoutez."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "KeeForge は、追加された WebDAV サーバに接続するためにローカルネットワークを使用します。"
+            "value" : "KeeForge は、追加された WebDAV サーバと FTP サーバに接続するためにローカルネットワークを使用します。"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "KeeForge 使用本地网络连接你添加的 WebDAV 服务器。"
+            "value" : "KeeForge 使用本地网络连接你添加的 WebDAV 和 FTP 服务器。"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "KeeForge 使用區域網路連接你加入的 WebDAV 伺服器。"
+            "value" : "KeeForge 使用區域網路連接你加入的 WebDAV 和 FTP 伺服器。"
           }
         }
       }

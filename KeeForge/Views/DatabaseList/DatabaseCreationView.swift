@@ -59,7 +59,7 @@ struct DatabaseCreationView: View {
                                     }
                                 }
                             }
-                        case .dropbox, .oneDrive, .webDAV:
+                        case .dropbox, .oneDrive, .webDAV, .ftp:
                             if viewModel.validateForDestinationSelection() {
                                 isCloudFolderPickerPresented = true
                             }
@@ -128,7 +128,9 @@ struct DatabaseCreationView: View {
                             Text(destination.title).tag(destination)
                         }
                     }
-                    .pickerStyle(.segmented)
+                    // A menu, not segments: five destinations truncate as segments on iPhone.
+                    .pickerStyle(.menu)
+                    .labelsHidden()
                     .accessibilityIdentifier("database-create.destination-picker")
                 }
             }
@@ -254,7 +256,7 @@ struct DatabaseCreationView: View {
             #else
             return String(localized: "After you tap Create, Files will ask where to save the encrypted .kdbx database.")
             #endif
-        case .dropbox, .oneDrive, .webDAV:
+        case .dropbox, .oneDrive, .webDAV, .ftp:
             let providerName = selectedCloudProvider?.displayName ?? String(localized: "cloud")
             #if os(macOS)
             return String(localized: "After you click Create, choose the \(providerName) folder for the encrypted .kdbx database.")

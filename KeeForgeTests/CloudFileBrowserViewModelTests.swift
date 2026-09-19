@@ -205,11 +205,13 @@ final class CloudFileBrowserViewModelTests: XCTestCase {
         XCTAssertFalse(session.isAuthenticating)
     }
 
-    func testBrowserSessionUsesManualConnectionFormForWebDAVProvider() {
+    func testBrowserSessionUsesManualConnectionFormForWebDAVAndFTPProviders() {
         let webDAVSession = CloudFileBrowserSession(providerID: CloudProviderKind.webDAV.rawValue) { _ in nil }
+        let ftpSession = CloudFileBrowserSession(providerID: CloudProviderKind.ftp.rawValue) { _ in nil }
         let dropboxSession = CloudFileBrowserSession(providerID: CloudProviderKind.dropbox.rawValue) { _ in nil }
 
         XCTAssertTrue(webDAVSession.usesManualConnectionForm)
+        XCTAssertTrue(ftpSession.usesManualConnectionForm)
         XCTAssertFalse(dropboxSession.usesManualConnectionForm)
     }
 
