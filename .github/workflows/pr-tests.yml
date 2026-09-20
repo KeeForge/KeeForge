@@ -24,7 +24,9 @@ concurrency:
 jobs:
   unit-tests:
     runs-on: macos-15
-    timeout-minutes: 45
+    # The suite itself takes about half this; the rest is headroom for slow
+    # runners, which have taken the same commit from 28 to over 41 minutes.
+    timeout-minutes: 75
     env:
       SCHEME: KeeForge
       PROJECT: KeeForge.xcodeproj
@@ -126,7 +128,7 @@ jobs:
     # version Xcode Cloud builds the Mac archive with, and the one the
     # macos-rc-tests gate already runs on.
     runs-on: macos-26
-    timeout-minutes: 45
+    timeout-minutes: 75
     env:
       SCHEME: KeeForgeMac
       PROJECT: KeeForge.xcodeproj
