@@ -46,7 +46,7 @@ final class FakeFTPServer: @unchecked Sendable {
     // MARK: Test surface
 
     func addDirectory(_ path: String) {
-        lock.withLock { directories.insert(Self.normalize(path)) }
+        lock.withLock { _ = directories.insert(Self.normalize(path)) }
     }
 
     /// Stores `path`, creating its parent folders.
