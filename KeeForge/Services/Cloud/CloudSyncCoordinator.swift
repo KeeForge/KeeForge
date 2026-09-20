@@ -38,6 +38,9 @@ enum CloudSyncCoordinator {
     /// could stand in for it. A black-holed server (firewall, VPN, captive
     /// portal) otherwise costs the full URLSession request timeout before the
     /// cache fallback kicks in, and the unlock sheet is stuck for all of it.
+    ///
+    /// It applies only to probes whose cost is independent of file size; see
+    /// `CloudProvider.metadataProbeTransfersContent`.
     static let openProbeDeadline: TimeInterval = 10
 
     /// The metadata probe did not answer within the open deadline. Treated as
@@ -90,11 +93,18 @@ enum CloudSyncCoordinator {
         do {
             // Only race the probe when a cache can absorb a miss; with nothing
             // to fall back to, waiting out the transport is the right call.
+            // A probe that transfers the file scales with its size, so the
+            // fixed deadline would report every database slower than it as
+            // offline and open the stale cache forever; those providers are
+            // bounded by their own transport timeouts instead.
+            let boundProbe = allowCachedFallback
+                && cacheExists
+                && !provider.metadataProbeTransfersContent
             let remoteMetadata = try await probeMetadata(
                 provider: provider,
                 accountId: metadata.accountId,
                 fileId: metadata.fileId,
-                deadline: allowCachedFallback && cacheExists ? probeDeadline : nil
+                deadline: boundProbe ? probeDeadline : nil
             )
             let needsDownload = remoteMetadata.requiresDownload(comparedTo: metadata, cacheExists: cacheExists)
 
