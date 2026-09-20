@@ -747,24 +747,16 @@ final class FTPCloudProviderTests: XCTestCase {
         XCTAssertEqual(server.file("personal.kdbx")?.data, Data("other".utf8))
     }
 
-    func testSaveSweepsOnlyStaleScratchLeftovers() async throws {
+    func testSaveSweepsOnlyStaleUploadLeftovers() async throws {
         let server = FakeFTPServer()
         server.setFile("personal.kdbx", data: Data("old".utf8))
-        server.setFile("work.kdbx", data: Data("work".utf8))
         let stale = [
             ".personal.kdbx.20260916120000-DEADBEEF.keeforge-upload",
             ".work.kdbx.20260901000000-0badf00d.keeforge-upload",
-            // Backups of databases that are back in place: the copy they
-            // guarded is no longer the only one.
-            ".personal.kdbx.20260901000000-DEADBEEF.keeforge-backup",
-            ".work.kdbx.20260901000000-DEADBEEF.keeforge-backup",
         ]
         let kept = [
             ".personal.kdbx.20260918115000-12345678.keeforge-upload",
-            // No `missing.kdbx` beside it, so this backup is that database's
-            // only remaining copy.
-            ".missing.kdbx.20260901000000-DEADBEEF.keeforge-backup",
-            ".personal.kdbx.20260918115000-12345678.keeforge-backup",
+            ".personal.kdbx.20260901000000-DEADBEEF.keeforge-backup",
             ".personal.kdbx.DEADBEEF.keeforge-upload",
             ".personal.kdbx.20260901000000-NOTAHEX0.keeforge-upload",
             ".personal.kdbx.20270101000000-DEADBEEF.keeforge-upload",
@@ -786,7 +778,7 @@ final class FTPCloudProviderTests: XCTestCase {
             expectedRev: before.rev
         ) { _ in }
 
-        XCTAssertEqual(server.filePaths, (kept + ["personal.kdbx", "work.kdbx"]).sorted())
+        XCTAssertEqual(server.filePaths, (kept + ["personal.kdbx"]).sorted())
         XCTAssertEqual(server.file("personal.kdbx")?.data, Data("new".utf8))
     }
 
@@ -818,24 +810,67 @@ final class FTPCloudProviderTests: XCTestCase {
         XCTAssertEqual(server.file("personal.kdbx")?.data, Data("newer".utf8))
     }
 
-    func testScratchNamesRoundTripAndCarryTheirKind() throws {
+    /// An install that could not be undone leaves the database only under its
+    /// backup name (`testUnrestorableOriginalSurvivesUnderItsBackupName`).
+    /// Some later database taking the freed name does not make that copy
+    /// redundant, so occupancy must never license deleting it.
+    func testStaleBackupSurvivesADifferentDatabaseTakingItsName() async throws {
+        let server = FakeFTPServer()
+        let orphaned = ".personal.kdbx.20260901000000-DEADBEEF.keeforge-backup"
+        server.setFile(orphaned, data: Data("the only copy".utf8))
+        server.setFile("personal.kdbx", data: Data("a different database".utf8))
+        let (provider, accountId) = try makeProvider(server: server)
+        let before = try await provider.getMetadata(accountId: accountId, fileId: "/personal.kdbx")
+
+        _ = try await provider.upload(
+            accountId: accountId,
+            fileId: "/personal.kdbx",
+            data: Data("new".utf8),
+            expectedRev: before.rev
+        ) { _ in }
+
+        XCTAssertEqual(server.file(orphaned)?.data, Data("the only copy".utf8))
+        XCTAssertEqual(server.file("personal.kdbx")?.data, Data("new".utf8))
+    }
+
+    /// The delete right after a successful install is the only moment the
+    /// backup is known to be redundant, so a refusal is retried there rather
+    /// than left to a later sweep that could not tell it apart from the copy
+    /// above.
+    func testRefusedBackupDeletionIsRetriedOverAFreshConnection() async throws {
+        let server = FakeFTPServer()
+        server.renameReplacesExisting = false
+        server.setFile("personal.kdbx", data: Data("old".utf8))
+        let (provider, accountId) = try makeProvider(server: server)
+        let before = try await provider.getMetadata(accountId: accountId, fileId: "/personal.kdbx")
+        server.overrideNextReply(to: "DELE", argument: backupName, with: "450 Busy")
+        let controlConnectionsBefore = server.connectionLog.filter { $0 == "nas.local:21" }.count
+
+        _ = try await provider.upload(
+            accountId: accountId,
+            fileId: "/personal.kdbx",
+            data: Data("new".utf8),
+            expectedRev: before.rev
+        ) { _ in }
+
+        XCTAssertEqual(server.file("personal.kdbx")?.data, Data("new".utf8))
+        XCTAssertEqual(server.filePaths, ["personal.kdbx"], "the backup is gone after the retry")
+        XCTAssertEqual(
+            server.connectionLog.filter { $0 == "nas.local:21" }.count,
+            controlConnectionsBefore + 2,
+            "the save's own session plus one fresh session for the retry"
+        )
+    }
+
+    func testScratchNamesRoundTripAndOnlyUploadsAreRecognized() throws {
         let created = try XCTUnwrap(FTPListingParser.date(fromTimeVal: "20260918120000"))
         let upload = FTPCloudProvider.scratchName(for: "a.b.kdbx", kind: .upload, createdAt: created, token: "0A1B2C3D")
         let backup = FTPCloudProvider.scratchName(for: "a.b.kdbx", kind: .backup, createdAt: created, token: "0A1B2C3D")
 
         XCTAssertEqual(upload, ".a.b.kdbx.20260918120000-0A1B2C3D.keeforge-upload")
-        XCTAssertEqual(FTPCloudProvider.scratch(named: upload, kind: .upload)?.createdAt, created)
-        XCTAssertNil(FTPCloudProvider.scratch(named: backup, kind: .upload))
-        XCTAssertNil(FTPCloudProvider.scratch(named: "a.b.kdbx", kind: .upload))
-
-        // The database a scratch file belongs to, dots in its name included:
-        // the sweep needs it to tell whose backup it is holding.
-        XCTAssertEqual(FTPCloudProvider.scratch(named: upload)?.base, "a.b.kdbx")
-        XCTAssertEqual(FTPCloudProvider.scratch(named: upload)?.kind, .upload)
-        XCTAssertEqual(FTPCloudProvider.scratch(named: upload)?.createdAt, created)
-        XCTAssertEqual(FTPCloudProvider.scratch(named: backup)?.base, "a.b.kdbx")
-        XCTAssertEqual(FTPCloudProvider.scratch(named: backup)?.kind, .backup)
-        XCTAssertNil(FTPCloudProvider.scratch(named: "a.b.kdbx"))
+        XCTAssertEqual(FTPCloudProvider.creationDate(ofUploadScratchNamed: upload), created)
+        XCTAssertNil(FTPCloudProvider.creationDate(ofUploadScratchNamed: backup))
+        XCTAssertNil(FTPCloudProvider.creationDate(ofUploadScratchNamed: "a.b.kdbx"))
     }
 
     // MARK: - Create

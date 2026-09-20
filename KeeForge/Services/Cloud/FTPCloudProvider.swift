@@ -216,7 +216,7 @@ final class FTPCloudProvider: CloudProvider, FTPConnecting, Sendable {
                 try? await session.delete(temporaryPath)
                 throw error
             }
-            await sweepStaleScratchFiles(beside: path, in: session)
+            await sweepStaleUploads(beside: path, in: session)
             return await Self.metadata(of: data, at: path, in: session)
         }
         progress(1)
@@ -254,7 +254,7 @@ final class FTPCloudProvider: CloudProvider, FTPConnecting, Sendable {
                 try? await session.delete(temporaryPath)
                 throw error
             }
-            await sweepStaleScratchFiles(beside: path, in: session)
+            await sweepStaleUploads(beside: path, in: session)
             return await Self.metadata(of: data, at: path, in: session)
         }
         progress(1)
@@ -318,7 +318,38 @@ final class FTPCloudProvider: CloudProvider, FTPConnecting, Sendable {
             )
             throw error
         }
-        try? await session.delete(backupPath)
+        await discardBackup(backupPath, in: session, location: location, credential: credential)
+    }
+
+    /// Removes the backup now that the upload is installed, retrying over a
+    /// fresh session because the install may have been the last thing this
+    /// connection carried.
+    ///
+    /// This is the only point at which the backup is known to be redundant.
+    /// Nothing later can establish that: a backup left behind is
+    /// indistinguishable from the one an unrestorable install left as the
+    /// database's only copy, and the name it belongs to may by then hold a
+    /// different database entirely.
+    private func discardBackup(
+        _ backupPath: String,
+        in session: FTPSession,
+        location: FTPServerLocation,
+        credential: FTPCredential
+    ) async {
+        if (try? await session.delete(backupPath)) != nil {
+            return
+        }
+        let client = client
+        await Task.detached {
+            _ = try? await client.withSession(
+                host: location.host,
+                port: location.port,
+                username: credential.username,
+                password: credential.password
+            ) { fresh in
+                try await fresh.delete(backupPath)
+            }
+        }.value
     }
 
     /// Puts the backup back, on a fresh session if this one is gone: a
@@ -357,32 +388,23 @@ final class FTPCloudProvider: CloudProvider, FTPConnecting, Sendable {
         try await session.rename(backupPath, to: path)
     }
 
-    /// Deletes this app's scratch leftovers in `path`'s folder that are old
-    /// enough not to belong to a transfer still running: uploads whose save
-    /// died, and backups whose deletion after a successful install failed.
+    /// Deletes this app's upload leftovers in `path`'s folder that are old
+    /// enough not to belong to a transfer still running. Best effort: a
+    /// failure here never fails the save that just succeeded.
     ///
-    /// A backup is a complete copy of its database, so it goes only once that
-    /// database is confirmed present — the folder holds backups of every
-    /// database beside this one, and an install that died left its original
-    /// under a backup name as the only remaining copy. Best effort: a failure
-    /// here never fails the save that just succeeded.
-    private func sweepStaleScratchFiles(beside path: String, in session: FTPSession) async {
+    /// Only uploads. An upload holds bytes the client still has, but a
+    /// backup holds the only remaining copy of a database whose install
+    /// could not be undone, and by then nothing on the server distinguishes
+    /// that from a backup whose deletion merely failed — least of all the
+    /// name being occupied again, which any later database takes.
+    private func sweepStaleUploads(beside path: String, in session: FTPSession) async {
         guard let entries = try? await session.listDirectory(FTPListingParser.parentPath(of: path)) else {
             return
         }
-        let cutoff = now().addingTimeInterval(-Self.staleScratchAge)
-        var databaseExists: [String: Bool] = [:]
+        let cutoff = now().addingTimeInterval(-Self.staleUploadAge)
         for entry in entries where !entry.isFolder {
-            guard let scratch = Self.scratch(named: entry.name), scratch.createdAt < cutoff else {
+            guard let created = Self.creationDate(ofUploadScratchNamed: entry.name), created < cutoff else {
                 continue
-            }
-            if scratch.kind == .backup {
-                let base = scratch.base
-                if databaseExists[base] == nil {
-                    let live = Self.sibling(of: path, named: base)
-                    databaseExists[base] = ((try? await session.stat(live)) ?? nil) != nil
-                }
-                guard databaseExists[base] == true else { continue }
             }
             try? await session.delete(Self.sibling(of: path, named: entry.name))
         }
@@ -536,9 +558,9 @@ final class FTPCloudProvider: CloudProvider, FTPConnecting, Sendable {
         case backup = "keeforge-backup"
     }
 
-    /// Scratch files older than this are leftovers of a failed save, not a
-    /// transfer still running on another device.
-    static let staleScratchAge: TimeInterval = 24 * 60 * 60
+    /// Uploads older than this are leftovers of a failed save, not a transfer
+    /// still running on another device.
+    static let staleUploadAge: TimeInterval = 24 * 60 * 60
 
     private func scratchPath(beside path: String, kind: ScratchKind) -> String {
         let name = Self.scratchName(for: FTPListingParser.lastComponent(of: path), kind: kind, createdAt: now(), token: makeScratchToken())
@@ -552,20 +574,11 @@ final class FTPCloudProvider: CloudProvider, FTPConnecting, Sendable {
         ".\(name).\(timeVal(for: createdAt))-\(token).\(kind.rawValue)"
     }
 
-    /// The database it belongs to, its kind, and its creation time, or nil
-    /// for any name that does not match `scratchName` exactly.
-    static func scratch(named fileName: String) -> (base: String, kind: ScratchKind, createdAt: Date)? {
-        for kind in [ScratchKind.upload, .backup] {
-            if let parsed = scratch(named: fileName, kind: kind) {
-                return (parsed.base, kind, parsed.createdAt)
-            }
-        }
-        return nil
-    }
-
-    /// The same for a known kind. A name of another kind never matches.
-    static func scratch(named fileName: String, kind: ScratchKind) -> (base: String, createdAt: Date)? {
-        let suffix = "." + kind.rawValue
+    /// The creation time of an upload scratch file, or nil for any name that
+    /// does not match `scratchName` exactly. Backups never match: they are
+    /// not swept, because nothing proves one is redundant.
+    static func creationDate(ofUploadScratchNamed fileName: String) -> Date? {
+        let suffix = "." + ScratchKind.upload.rawValue
         guard fileName.hasPrefix("."), fileName.hasSuffix(suffix) else { return nil }
         let stem = fileName.dropFirst().dropLast(suffix.count)
         guard let dot = stem.lastIndex(of: "."), dot > stem.startIndex else { return nil }
@@ -574,11 +587,10 @@ final class FTPCloudProvider: CloudProvider, FTPConnecting, Sendable {
         guard parts.count == 2,
               parts[0].count == 14,
               parts[1].count == 8,
-              parts[1].allSatisfy({ $0.isASCII && $0.isHexDigit }),
-              let createdAt = FTPListingParser.date(fromTimeVal: String(parts[0])) else {
+              parts[1].allSatisfy({ $0.isASCII && $0.isHexDigit }) else {
             return nil
         }
-        return (String(stem[..<dot]), createdAt)
+        return FTPListingParser.date(fromTimeVal: String(parts[0]))
     }
 
     private static func timeVal(for date: Date) -> String {
