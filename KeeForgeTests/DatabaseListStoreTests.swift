@@ -1040,6 +1040,104 @@ final class DatabaseListStoreTests: XCTestCase {
 
     private static let kdbxMagic = Data([0x03, 0xD9, 0xA2, 0x9A, 0x67, 0xFB, 0x4B, 0xB5])
 
+    // MARK: - Relink (#53)
+
+    func testRelinkLocalDatabaseKeepsIdentityAndReseedsCache() throws {
+        // A File Provider that replaced the item leaves a bookmark that no
+        // longer resolves; the user picks the current copy of the file.
+        let keyFileURL = try makeTemporaryFileURL(name: "vault.key")
+        var reference = try TestDatabaseSupport.makeReference(
+            for: makeTemporaryFileURL(name: "vault.kdbx"),
+            nickname: "Family",
+            keyFileURL: keyFileURL,
+            autoFillEnabled: false
+        )
+        reference.bookmarkData = Data("unresolvable-bookmark".utf8)
+        DatabaseListStore.update(reference)
+        try DatabaseListStore.cacheDatabaseCopy(Data("stale cache".utf8), for: reference.id)
+        XCTAssertNil(DatabaseListStore.locateDatabaseFile(for: reference))
+
+        let currentBytes = Data("current provider copy".utf8)
+        let currentURL = try makeTemporaryFileURL(name: "vault (synced).kdbx", contents: currentBytes)
+
+        let relinked = try XCTUnwrap(DatabaseListStore.relinkLocalDatabase(id: reference.id, to: currentURL))
+
+        let stored = try XCTUnwrap(DatabaseListStore.databases.first)
+        XCTAssertEqual(DatabaseListStore.databases.count, 1)
+        XCTAssertEqual(stored, relinked)
+        XCTAssertEqual(stored.id, reference.id)
+        XCTAssertEqual(stored.nickname, "Family")
+        XCTAssertEqual(stored.keyFileBookmarkData, reference.keyFileBookmarkData)
+        XCTAssertFalse(stored.autoFillEnabled)
+        XCTAssertEqual(stored.filename, "vault (synced).kdbx")
+        XCTAssertEqualFilePaths(DatabaseListStore.resolveDatabaseURL(for: stored), currentURL)
+        let cacheURL = try XCTUnwrap(DatabaseListStore.cachedDatabaseURL(for: reference.id))
+        XCTAssertEqual(try Data(contentsOf: cacheURL), currentBytes)
+    }
+
+    func testRelinkLocalDatabaseRefusesFileInRecentlyDeleted() throws {
+        var reference = try TestDatabaseSupport.makeReference(for: makeTemporaryFileURL(name: "vault.kdbx"))
+        reference.bookmarkData = Data("unresolvable-bookmark".utf8)
+        DatabaseListStore.update(reference)
+        let trashedURL = try makeTemporaryFileURL(name: ".Trash/vault.kdbx")
+
+        XCTAssertThrowsError(try DatabaseListStore.relinkLocalDatabase(id: reference.id, to: trashedURL)) { error in
+            XCTAssertEqual(error as? DatabaseListStore.LocalDatabaseFileError, .databaseInTrash)
+        }
+        XCTAssertEqual(DatabaseListStore.databases.first?.bookmarkData, reference.bookmarkData)
+    }
+
+    func testRelinkLocalDatabaseRefusesFileAnotherReferenceAlreadyUses() throws {
+        let otherURL = try makeTemporaryFileURL(name: "other.kdbx")
+        let other = try DatabaseListStore.add(url: otherURL)
+        let reference = try DatabaseListStore.add(url: makeTemporaryFileURL(name: "vault.kdbx"))
+
+        XCTAssertThrowsError(try DatabaseListStore.relinkLocalDatabase(id: reference.id, to: otherURL)) { error in
+            guard case DatabaseListStore.AddDatabaseError.duplicateFile(let existingReferenceID, _) = error else {
+                XCTFail("Expected duplicateFile, got \(error)")
+                return
+            }
+            XCTAssertEqual(existingReferenceID, other.id)
+        }
+        let stored = try XCTUnwrap(DatabaseListStore.databases.first { $0.id == reference.id })
+        XCTAssertEqual(stored.bookmarkData, reference.bookmarkData)
+    }
+
+    func testRelinkLocalDatabaseToItsOwnFileIsAllowed() throws {
+        let url = try makeTemporaryFileURL(name: "vault.kdbx")
+        let reference = try DatabaseListStore.add(url: url)
+
+        let relinked = try XCTUnwrap(DatabaseListStore.relinkLocalDatabase(id: reference.id, to: url))
+
+        XCTAssertEqual(relinked.id, reference.id)
+        XCTAssertEqualFilePaths(DatabaseListStore.resolveDatabaseURL(for: relinked), url)
+    }
+
+    func testRelinkLocalDatabaseLeavesKeeForgeOnlyDatabaseAndItsCacheAlone() throws {
+        // A KeeForge-only database has no bookmark: its cache IS the
+        // database, so relinking must never reseed it from another file.
+        let appOnlyBytes = Data("app-only database".utf8)
+        var reference = try TestDatabaseSupport.makeReference(for: makeTemporaryFileURL(name: "app-only.kdbx"))
+        reference.bookmarkData = nil
+        try DatabaseListStore.addAppOnlyCreatedLocal(reference, encryptedBytes: appOnlyBytes)
+        let pickedURL = try makeTemporaryFileURL(name: "picked.kdbx", contents: Data("picked".utf8))
+
+        XCTAssertNil(try DatabaseListStore.relinkLocalDatabase(id: reference.id, to: pickedURL))
+
+        let stored = try XCTUnwrap(DatabaseListStore.databases.first)
+        XCTAssertNil(stored.bookmarkData)
+        XCTAssertEqual(stored.filename, reference.filename)
+        let cacheURL = try XCTUnwrap(DatabaseListStore.cachedDatabaseURL(for: reference))
+        XCTAssertEqual(try Data(contentsOf: cacheURL), appOnlyBytes)
+    }
+
+    func testRelinkLocalDatabaseIgnoresUnlistedID() throws {
+        let pickedURL = try makeTemporaryFileURL(name: "picked.kdbx")
+
+        XCTAssertNil(try DatabaseListStore.relinkLocalDatabase(id: UUID(), to: pickedURL))
+        XCTAssertTrue(DatabaseListStore.databases.isEmpty)
+    }
+
     private func makeTemporaryFileURL(name: String, contents: Data = Data("fixture".utf8)) throws -> URL {
         let url = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString)
