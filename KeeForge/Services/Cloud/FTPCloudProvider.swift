@@ -579,26 +579,34 @@ final class FTPCloudProvider: CloudProvider, FTPConnecting, Sendable {
     /// Scratch files are this provider's own bookkeeping; one opened as a
     /// database could be deleted by the stale-upload sweep.
     static func isScratchName(_ fileName: String) -> Bool {
-        fileName.hasPrefix(".") && ScratchKind.allCases.contains { fileName.hasSuffix("." + $0.rawValue) }
+        parseScratchName(fileName) != nil
     }
 
     /// The creation time of an upload scratch file, or nil for any name that
     /// does not match `scratchName` exactly. Backups never match: they are
     /// not swept, because nothing proves one is redundant.
     static func creationDate(ofUploadScratchNamed fileName: String) -> Date? {
-        let suffix = "." + ScratchKind.upload.rawValue
-        guard fileName.hasPrefix("."), fileName.hasSuffix(suffix) else { return nil }
-        let stem = fileName.dropFirst().dropLast(suffix.count)
+        guard let scratch = parseScratchName(fileName), scratch.kind == .upload else { return nil }
+        return scratch.createdAt
+    }
+
+    private static func parseScratchName(_ fileName: String) -> (kind: ScratchKind, createdAt: Date)? {
+        guard fileName.hasPrefix("."),
+              let kind = ScratchKind.allCases.first(where: { fileName.hasSuffix("." + $0.rawValue) }) else {
+            return nil
+        }
+        let stem = fileName.dropFirst().dropLast(kind.rawValue.count + 1)
         guard let dot = stem.lastIndex(of: "."), dot > stem.startIndex else { return nil }
         let marker = stem[stem.index(after: dot)...]
         let parts = marker.split(separator: "-", omittingEmptySubsequences: false)
         guard parts.count == 2,
               parts[0].count == 14,
               parts[1].count == 8,
-              parts[1].allSatisfy({ $0.isASCII && $0.isHexDigit }) else {
+              parts[1].allSatisfy({ $0.isASCII && $0.isHexDigit }),
+              let createdAt = FTPListingParser.date(fromTimeVal: String(parts[0])) else {
             return nil
         }
-        return FTPListingParser.date(fromTimeVal: String(parts[0]))
+        return (kind, createdAt)
     }
 
     private static func timeVal(for date: Date) -> String {

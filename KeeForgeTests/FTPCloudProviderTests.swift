@@ -138,11 +138,17 @@ final class FTPCloudProviderTests: XCTestCase {
         server.setFile(upload, data: Data("u".utf8))
         server.setFile(backup, data: Data("b".utf8))
         server.setFile(".hidden-vault", data: Data("h".utf8))
+        server.setFile(".vault.keeforge-backup", data: Data("m".utf8))
+        server.addDirectory(".old.keeforge-upload")
         let (provider, accountId) = try makeProvider(server: server)
 
         let files = try await provider.listFiles(accountId: accountId, path: "/", query: nil, includesAllFiles: true)
 
-        XCTAssertEqual(files.map(\.name), [".hidden-vault", "vault.kdbx"])
+        XCTAssertEqual(
+            Set(files.map(\.name)),
+            [".hidden-vault", ".old.keeforge-upload", ".vault.keeforge-backup", "vault.kdbx"],
+            "only names in the exact scratch shape are the provider's own"
+        )
     }
 
     func testListFilesFiltersByQuery() async throws {
@@ -902,6 +908,18 @@ final class FTPCloudProviderTests: XCTestCase {
         XCTAssertEqual(FTPCloudProvider.creationDate(ofUploadScratchNamed: upload), created)
         XCTAssertNil(FTPCloudProvider.creationDate(ofUploadScratchNamed: backup))
         XCTAssertNil(FTPCloudProvider.creationDate(ofUploadScratchNamed: "a.b.kdbx"))
+
+        XCTAssertTrue(FTPCloudProvider.isScratchName(upload))
+        XCTAssertTrue(FTPCloudProvider.isScratchName(backup))
+        for userName in [
+            ".vault.keeforge-backup",
+            ".vault.kdbx.DEADBEEF.keeforge-upload",
+            ".vault.kdbx.20260918120000-NOTAHEX0.keeforge-backup",
+            ".vault.kdbx.20261399000000-DEADBEEF.keeforge-backup",
+            "vault.kdbx.20260918120000-DEADBEEF.keeforge-backup",
+        ] {
+            XCTAssertFalse(FTPCloudProvider.isScratchName(userName), userName)
+        }
     }
 
     // MARK: - Create
