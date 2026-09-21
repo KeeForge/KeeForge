@@ -1075,6 +1075,20 @@ final class DatabaseListStoreTests: XCTestCase {
         XCTAssertEqual(try Data(contentsOf: cacheURL), currentBytes)
     }
 
+    func testRelinkStaysUnverifiedUntilTheDatabaseOpens() throws {
+        let reference = try DatabaseListStore.add(url: makeTemporaryFileURL(name: "vault.kdbx"))
+        XCTAssertFalse(reference.hasUnverifiedRelink)
+
+        try DatabaseListStore.relinkLocalDatabase(
+            id: reference.id,
+            to: makeTemporaryFileURL(name: "picked.kdbx")
+        )
+        XCTAssertEqual(DatabaseListStore.databases.first?.hasUnverifiedRelink, true)
+
+        DatabaseListStore.markDatabaseOpened(id: reference.id)
+        XCTAssertEqual(DatabaseListStore.databases.first?.hasUnverifiedRelink, false)
+    }
+
     func testRelinkLocalDatabaseRefusesFileInRecentlyDeleted() throws {
         var reference = try TestDatabaseSupport.makeReference(for: makeTemporaryFileURL(name: "vault.kdbx"))
         reference.bookmarkData = Data("unresolvable-bookmark".utf8)

@@ -476,6 +476,7 @@ enum DatabaseListStore {
         withStateLock {
             guard var reference = loadDatabases().first(where: { $0.id == id }) else { return }
             reference.lastOpenedAt = date
+            reference.hasUnverifiedRelink = false
             update(reference)
             // Opening a database with AutoFill disabled must not make it the
             // active AutoFill database; the previous pointer stays in place.
@@ -556,7 +557,7 @@ enum DatabaseListStore {
         case databaseInTrash
 
         var errorDescription: String? {
-            String(localized: "The database file is in Recently Deleted in the Files app. Restore it in Files, or remove this database and add the current file again.")
+            String(localized: "The database file is in Recently Deleted in the Files app. Restore it in Files, or choose the current file with Locate Database File in KeeForge.")
         }
     }
 
@@ -649,6 +650,7 @@ enum DatabaseListStore {
             currentDatabases[index].bookmarkData = bookmarkData
             currentDatabases[index].filename = filename(for: url)
             currentDatabases[index].isDocumentsResident = isTopLevelDocumentsFile(url)
+            currentDatabases[index].hasUnverifiedRelink = true
             guard saveDatabases(currentDatabases) else { return nil }
             return currentDatabases[index]
         }

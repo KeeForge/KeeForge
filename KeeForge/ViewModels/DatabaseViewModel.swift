@@ -704,14 +704,18 @@ final class DatabaseViewModel {
 
     /// Whether the failure screen may offer to relink this database to a file
     /// the user picks. Read timeouts are left out: the server is unreachable,
-    /// and a different file would not bring it back.
+    /// and a different file would not bring it back. After a relink that has
+    /// not unlocked yet, every other failure qualifies, since a wrong pick
+    /// reads as a wrong password or a format error.
     var canRelinkDatabaseFile: Bool {
         guard let failure = openFailure,
               databaseReference.isCloudBacked == false,
-              databaseReference.bookmarkData != nil else {
+              databaseReference.bookmarkData != nil,
+              failure.errorCode != "file.read_timeout" else {
             return false
         }
-        return Self.relinkableFailureCodes.contains(failure.errorCode)
+        return databaseReference.hasUnverifiedRelink
+            || Self.relinkableFailureCodes.contains(failure.errorCode)
     }
 
     private static let relinkableFailureCodes: Set<String> = [
