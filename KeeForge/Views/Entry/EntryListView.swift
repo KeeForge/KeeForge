@@ -26,7 +26,10 @@ struct EntryListView: View {
                 ContentUnavailableView.search
             } else {
                 List(entries) { entry in
-                    entryRow(for: entry)
+                    // `KPEntry` equality is by ID, so after an edit that keeps
+                    // the same matches (adding a TOTP code) Observation treats
+                    // the caller's array as unchanged and `entries` is stale.
+                    entryRow(for: viewModel.entry(withID: entry.id) ?? entry)
                 }
                 .id(viewModel.contentRevision)
             }

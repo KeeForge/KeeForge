@@ -136,6 +136,7 @@ The 2026-09-08 probe settled the design: the iPad-on-Mac app never stores a data
 - Cloud sync warnings now follow the language you read the app in. A warning recorded before you switched languages kept showing up in the old one.
 - Deleting an entry from the search results works again. Tapping Delete in a search result's long-press menu did nothing, and swiping to delete there made the row disappear without actually deleting the entry.
 - On iPhone and iPad, the key icon in the AutoFill bar above the keyboard now opens KeeForge so you can search for and pick a credential (#129, #132). It used to fill the suggested one straight away, which left no way to reach another entry — for passwords, passkeys and verification codes alike. Tapping the suggestion itself still fills it directly.
+- The verification code icon on a search result now appears or disappears as soon as you add or remove the entry's code (#111). Before, it kept its old state until you cleared the search and searched again.
 
 ## v1.16.0 (2026-09-13)
 

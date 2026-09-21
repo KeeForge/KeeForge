@@ -261,6 +261,113 @@ final class TOTPEnrollmentUITests: TOTPEnrollmentUITestCase {
             "TOTP code still rendered in entry detail after removal"
         )
     }
+
+    // #111: the search results stay up underneath the entry, so going back
+    // must show the edited entry's code indicator without re-running the query.
+    func testAddingCodeFromSearchResultShowsIndicatorAfterGoingBack() {
+        unlockSuccessfully()
+        searchForEntries(matching: "Union Bank")
+        XCTAssertFalse(
+            searchResultShowsCodeIndicator(named: "Union Bank"),
+            "Union Bank showed a code indicator before one was added"
+        )
+        tapElement(searchResult(named: "Union Bank"))
+        openEditor()
+
+        let enterKeyButton = app.buttons["entry-edit.totp.enter-key"]
+        XCTAssertTrue(
+            revealElement(enterKeyButton, in: scrollableContainer()),
+            "Enter Setup Key button was not visible"
+        )
+        tapElement(enterKeyButton)
+        let visibilityButton = app.buttons["entry-edit.totp.secret-visibility-button"]
+        XCTAssertTrue(
+            revealElement(visibilityButton, in: scrollableContainer()),
+            "TOTP secret visibility toggle was not visible"
+        )
+        tapElement(visibilityButton)
+        let secretField = app.textFields["entry-edit.totp.secret-field"]
+        XCTAssertTrue(
+            revealElement(secretField, in: scrollableContainer()),
+            "TOTP secret field was not visible"
+        )
+        replaceText(in: secretField, with: "JBSWY3DPEHPK3PXP")
+        saveEditorAndWaitForDismissal()
+
+        goBackToSearchResults()
+        XCTAssertTrue(
+            searchResultShowsCodeIndicator(named: "Union Bank"),
+            "The search result did not show the code indicator after a code was added"
+        )
+    }
+
+    func testRemovingCodeFromSearchResultHidesIndicatorAfterGoingBack() {
+        unlockSuccessfully()
+        searchForEntries(matching: "Union News")
+        XCTAssertTrue(
+            searchResultShowsCodeIndicator(named: "Union News"),
+            "Union News did not show its code indicator before the removal"
+        )
+        tapElement(searchResult(named: "Union News"))
+        openEditor()
+
+        let removeButton = app.buttons["entry-edit.totp.remove"]
+        XCTAssertTrue(
+            revealElement(removeButton, in: scrollableContainer()),
+            "Remove Verification Code button was not visible"
+        )
+        tapElement(removeButton)
+        let removeConfirm = app.buttons["entry-edit.totp.remove-confirm"].firstMatch
+        XCTAssertTrue(
+            removeConfirm.waitForExistence(timeout: 5),
+            "Remove confirmation was not presented"
+        )
+        tapElement(removeConfirm)
+        saveEditorAndWaitForDismissal()
+
+        goBackToSearchResults()
+        XCTAssertFalse(
+            searchResultShowsCodeIndicator(named: "Union News"),
+            "The search result still showed the code indicator after the code was removed"
+        )
+    }
+
+    private func goBackToSearchResults(file: StaticString = #filePath, line: UInt = #line) {
+        let editButton = app.buttons["entry-detail.edit"]
+        XCTAssertTrue(editButton.waitForExistence(timeout: 5), "Entry detail was not visible", file: file, line: line)
+        guard let backButton = app.navigationBars.buttons.allElementsBoundByIndex.first(where: {
+            $0.exists && $0.isHittable && $0.identifier != "lock.button" && $0.identifier != "entry-detail.edit"
+        }) else {
+            return XCTFail("Entry detail had no back button", file: file, line: line)
+        }
+        backButton.tap()
+        XCTAssertTrue(
+            waitForDisappearance(of: editButton),
+            "Going back did not leave the entry detail",
+            file: file,
+            line: line
+        )
+        XCTAssertTrue(
+            app.staticTexts["search.results.count"].waitForExistence(timeout: Self.ciElementTimeout),
+            "Going back did not return to the search results",
+            file: file,
+            line: line
+        )
+    }
+
+    private func searchResultShowsCodeIndicator(
+        named name: String,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) -> Bool {
+        let row = searchResult(named: name)
+        guard row.waitForExistence(timeout: Self.ciElementTimeout) else {
+            XCTFail("'\(name)' was not in the search results", file: file, line: line)
+            return false
+        }
+        return row.descendants(matching: .any)["entry-row.totp"].exists
+            || row.label.localizedCaseInsensitiveContains("Has a verification code")
+    }
 }
 
 // Incoming `otpauth://` deep links: the destination sheet KeeForge presents
