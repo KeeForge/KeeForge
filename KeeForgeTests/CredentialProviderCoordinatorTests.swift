@@ -317,6 +317,28 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
         XCTAssertNotNil(presenter.unlockPrompt, "A new request must present its unlock prompt")
     }
 
+    func test_hardwareKeyDatabase_refusesPasswordUnlockWithExplanation() async throws {
+        let (coordinator, presenter) = makeCoordinator()
+        var reference = try seedResolvableDefaultDatabase()
+        reference.hardwareKey = HardwareKeyConfiguration(transport: .nfc, slot: .two)
+        DatabaseListStore.update(reference)
+        presenter.isPresentationActive = true
+
+        coordinator.prepareCredentialList(for: [githubServiceIdentifier()])
+        coordinator.presentUnlockPromptIfNeeded()
+        let prompt = try XCTUnwrap(presenter.unlockPrompt)
+        XCTAssertNil(prompt.biometricOptionTitle, "The stored key is only a pre-key; biometrics alone cannot open it")
+
+        let errorPresented = expectation(description: "unlock error presented")
+        presenter.onUnlockErrorPresented = { errorPresented.fulfill() }
+        prompt.onSubmitPassword("testpassword123")
+        await fulfillment(of: [errorPresented], timeout: 10)
+
+        let message = try XCTUnwrap(presenter.unlockError?.message)
+        XCTAssertTrue(message.contains("YubiKey"), message)
+        XCTAssertNil(coordinator.sessionKey)
+    }
+
     // MARK: - Additional cleanup paths the pre-existing suite did not cover
 
     func test_cleanup_runsOnSearchViewCancel() throws {

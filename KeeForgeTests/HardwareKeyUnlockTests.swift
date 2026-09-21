@@ -1,0 +1,263 @@
+import CryptoKit
+import XCTest
+@testable import KeeForge
+
+/// Unlocking a database whose composite key includes a YubiKey
+/// challenge-response, driven through `DatabaseViewModel` with an emulated key
+/// in place of YubiKit.
+@MainActor
+final class HardwareKeyUnlockTests: XCTestCase {
+    private let slotTwoOverNFC = HardwareKeyConfiguration(transport: .nfc, slot: .two)
+
+    override func setUp() async throws {
+        try await super.setUp()
+        DatabaseListStore.clearAll()
+    }
+
+    override func tearDown() async throws {
+        DatabaseListStore.clearAll()
+        try await super.tearDown()
+    }
+
+    func testUnlockWithYubiKeyOpensDatabaseReadOnly() async throws {
+        var requests: [(challenge: Data, configuration: HardwareKeyConfiguration)] = []
+        let vm = try makeViewModel(hardwareKey: slotTwoOverNFC) { challenge, configuration in
+            requests.append((challenge, configuration))
+            return YubiKeyEmulator.response(to: challenge)
+        }
+
+        await vm.unlock(password: fixture.password)
+
+        guard case .unlocked = vm.state else {
+            return XCTFail("Expected unlocked, got \(vm.state) \(String(describing: vm.openFailure))")
+        }
+        XCTAssertEqual(requests.count, 1)
+        XCTAssertEqual(requests.first?.configuration, slotTwoOverNFC)
+        XCTAssertEqual(
+            requests.first?.challenge,
+            try ChallengeResponseKey.challenge(forDatabase: fixture.data(in: bundle))
+        )
+        XCTAssertTrue(vm.sessionUsesHardwareKey)
+        XCTAssertTrue(vm.isReadOnly)
+        XCTAssertFalse(vm.isFormatReadOnly)
+        XCTAssertFalse(vm.isAwaitingHardwareKey)
+        XCTAssertTrue(vm.rootGroup?.allEntries.contains { $0.title == "YubiKey Entry" } == true)
+    }
+
+    func testSaveIsRefusedAfterYubiKeyUnlock() async throws {
+        let vm = try makeViewModel(hardwareKey: slotTwoOverNFC) { challenge, _ in
+            YubiKeyEmulator.response(to: challenge)
+        }
+        await vm.unlock(password: fixture.password)
+
+        do {
+            try await vm.save()
+            XCTFail("A YubiKey session must not save")
+        } catch SaveError.databaseIsReadOnly {
+        } catch {
+            XCTFail("Expected databaseIsReadOnly, got \(error)")
+        }
+    }
+
+    func testLockEndsTheHardwareKeySession() async throws {
+        let vm = try makeViewModel(hardwareKey: slotTwoOverNFC) { challenge, _ in
+            YubiKeyEmulator.response(to: challenge)
+        }
+        await vm.unlock(password: fixture.password)
+
+        vm.lock()
+
+        XCTAssertFalse(vm.sessionUsesHardwareKey)
+        XCTAssertFalse(vm.isReadOnly)
+    }
+
+    func testWrongYubiKeyIsReportedAsCredentialsIncludingTheYubiKey() async throws {
+        let vm = try makeViewModel(hardwareKey: slotTwoOverNFC) { challenge, _ in
+            YubiKeyEmulator.response(to: challenge, secret: Data("another-yubikey-secr".utf8))
+        }
+
+        await vm.unlock(password: fixture.password)
+
+        let failure = try XCTUnwrap(vm.openFailure)
+        XCTAssertEqual(failure.errorCode, "auth.invalid_credentials")
+        XCTAssertTrue(failure.summary.contains("YubiKey"), failure.summary)
+        XCTAssertEqual(vm.failedAttempts, 1)
+    }
+
+    /// The case from the issue: the database needs a YubiKey nobody chose.
+    func testMissingYubiKeySuggestsHardwareKeyWhereTheDeviceHasOne() async throws {
+        var calledResponder = false
+        let vm = try makeViewModel(hardwareKey: nil, transports: [.nfc]) { _, _ in
+            calledResponder = true
+            return Data()
+        }
+
+        await vm.unlock(password: fixture.password)
+
+        let failure = try XCTUnwrap(vm.openFailure)
+        XCTAssertEqual(failure.errorCode, "auth.invalid_credentials")
+        XCTAssertTrue(failure.summary.contains("Hardware Key"), failure.summary)
+        XCTAssertFalse(calledResponder)
+    }
+
+    func testMissingYubiKeyKeepsThePlainSummaryWithoutAnyTransport() async throws {
+        let vm = try makeViewModel(hardwareKey: nil, transports: []) { _, _ in Data() }
+
+        await vm.unlock(password: fixture.password)
+
+        let failure = try XCTUnwrap(vm.openFailure)
+        XCTAssertEqual(failure.errorCode, "auth.invalid_credentials")
+        XCTAssertFalse(failure.summary.contains("YubiKey"), failure.summary)
+    }
+
+    func testCancellingTheYubiKeyRequestLeavesARetryableFailure() async throws {
+        let vm = try makeViewModel(hardwareKey: slotTwoOverNFC) { _, _ in
+            do {
+                try await Task.sleep(for: .seconds(30))
+            } catch {
+                throw HardwareKeyError.cancelled
+            }
+            XCTFail("The request should have been cancelled")
+            return Data()
+        }
+
+        let unlock = Task { await vm.unlock(password: fixture.password) }
+        try await waitUntil { vm.isAwaitingHardwareKey }
+        vm.cancelHardwareKeyRequest()
+        await unlock.value
+
+        let failure = try XCTUnwrap(vm.openFailure)
+        XCTAssertEqual(failure.errorCode, "hardware_key.cancelled")
+        XCTAssertTrue(failure.canRetryUnlock)
+        XCTAssertFalse(failure.countsTowardFailedAttempts)
+        XCTAssertEqual(vm.failedAttempts, 0)
+        XCTAssertFalse(vm.isAwaitingHardwareKey)
+    }
+
+    func testLockWhileWaitingForTheYubiKeyCancelsTheRequest() async throws {
+        let vm = try makeViewModel(hardwareKey: HardwareKeyConfiguration(transport: .lightning, slot: .two)) { challenge, _ in
+            do {
+                try await Task.sleep(for: .seconds(30))
+            } catch {
+                throw HardwareKeyError.cancelled
+            }
+            return YubiKeyEmulator.response(to: challenge)
+        }
+
+        let unlock = Task { await vm.unlock(password: fixture.password) }
+        try await waitUntil { vm.isAwaitingHardwareKey }
+        vm.lock()
+        await unlock.value
+
+        XCTAssertNil(vm.rootGroup, "The request finishing after the lock must not unlock")
+        XCTAssertEqual(vm.openFailure?.errorCode, "hardware_key.cancelled")
+    }
+
+    func testRemovedYubiKeyIsReportedAsDisconnected() async throws {
+        let vm = try makeViewModel(hardwareKey: slotTwoOverNFC) { _, _ in
+            throw HardwareKeyError.disconnected
+        }
+
+        await vm.unlock(password: fixture.password)
+
+        XCTAssertEqual(vm.openFailure?.errorCode, "hardware_key.disconnected")
+        XCTAssertEqual(vm.openFailure?.category, .hardwareKey)
+        XCTAssertEqual(vm.failedAttempts, 0)
+    }
+
+    func testKDBX31IsRefusedBeforeTheYubiKeyIsAsked() async throws {
+        var calledResponder = false
+        let vm = try makeViewModel(
+            fixture: .legacyKDBX31,
+            hardwareKey: slotTwoOverNFC
+        ) { _, _ in
+            calledResponder = true
+            return Data()
+        }
+
+        await vm.unlock(password: KDBXTestFixture.legacyKDBX31.password)
+
+        XCTAssertEqual(vm.openFailure?.errorCode, "hardware_key.unsupported_database")
+        XCTAssertFalse(calledResponder)
+    }
+
+    /// Quick Launch stores the pre-key for a hardware-key database, so the
+    /// biometric path must still ask the YubiKey.
+    func testBiometricUnlockAnswersTheChallengeWithTheStoredPreKey() async throws {
+        let preKey = try KDBXCrypto.preKey(password: fixture.password, keyFileData: nil)
+        var responderCalls = 0
+        let vm = try makeViewModel(
+            hardwareKey: slotTwoOverNFC,
+            biometricKey: preKey
+        ) { challenge, _ in
+            responderCalls += 1
+            return YubiKeyEmulator.response(to: challenge)
+        }
+
+        let outcome = await vm.unlockWithBiometrics()
+
+        XCTAssertEqual(outcome, .unlocked)
+        XCTAssertEqual(responderCalls, 1)
+        XCTAssertTrue(vm.isReadOnly)
+    }
+
+    func testChangingOnlyTheSlotKeepsTheStoredQuickLaunchKey() throws {
+        let reference = try TestDatabaseSupport.makeReference(for: fixture.url(in: bundle))
+        DatabaseListStore.update(reference)
+        defer { KeychainService.deleteCompositeKey(for: reference.id) }
+        try requireStoredKey(for: reference.id)
+
+        DatabaseListStore.setHardwareKey(slotTwoOverNFC, for: reference)
+        XCTAssertFalse(KeychainService.hasStoredKey(for: reference.id), "Turning the YubiKey on changes what the item means")
+
+        try requireStoredKey(for: reference.id)
+        DatabaseListStore.setHardwareKey(HardwareKeyConfiguration(transport: .nfc, slot: .one), for: reference)
+        XCTAssertTrue(KeychainService.hasStoredKey(for: reference.id), "A slot change keeps the pre-key")
+
+        DatabaseListStore.setHardwareKey(nil, for: reference)
+        XCTAssertFalse(KeychainService.hasStoredKey(for: reference.id), "Turning the YubiKey off changes what the item means")
+        XCTAssertNil(DatabaseListStore.databases.first { $0.id == reference.id }?.hardwareKey)
+    }
+
+    // MARK: - Helpers
+
+    private var fixture: KDBXTestFixture { .challengeResponse }
+
+    private var bundle: Bundle { Bundle(for: Self.self) }
+
+    private func makeViewModel(
+        fixture: KDBXTestFixture = .challengeResponse,
+        hardwareKey: HardwareKeyConfiguration?,
+        transports: [HardwareKeyConfiguration.Transport] = [.nfc],
+        biometricKey: SymmetricKey? = nil,
+        respond: @escaping DatabaseViewModel.HardwareKeyResponseOperation
+    ) throws -> DatabaseViewModel {
+        var reference = try TestDatabaseSupport.makeReference(for: fixture.url(in: bundle))
+        reference.hardwareKey = hardwareKey
+        return DatabaseViewModel(
+            databaseReference: reference,
+            biometricCompositeKeyOperation: { _, _ in
+                guard let biometricKey else { throw KeychainService.KeychainError.retrieveFailed(errSecItemNotFound) }
+                return biometricKey
+            },
+            hardwareKeyResponseOperation: respond,
+            hardwareKeyTransportsProvider: { transports }
+        )
+    }
+
+    private func requireStoredKey(for databaseID: UUID) throws {
+        do {
+            try KeychainService.storeCompositeKey(SymmetricKey(size: .bits256), for: databaseID)
+        } catch {
+            throw XCTSkip("Keychain writes are unavailable in the current test host: \(error)")
+        }
+    }
+
+    private func waitUntil(_ condition: () -> Bool) async throws {
+        for _ in 0..<1_000 {
+            if condition() { return }
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        XCTFail("Condition never became true")
+    }
+}

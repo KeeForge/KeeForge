@@ -35,6 +35,7 @@ struct DatabaseOpenDiagnostics: Equatable, Sendable {
             "Failed Attempts Before Attempt: \(failedAttemptsBeforeAttempt)",
             "Database Source: \(reference.isCloudBacked ? "cloud" : "local")",
             "Database Read Only: \(yesNo(reference.isReadOnly))",
+            "Hardware Key: \(hardwareKeyDescription(reference.hardwareKey))",
         ]
 
         if let metadata = reference.cloudSyncMetadata {
@@ -76,6 +77,11 @@ struct DatabaseOpenDiagnostics: Equatable, Sendable {
 
     private static func yesNo(_ value: Bool) -> String {
         value ? "yes" : "no"
+    }
+
+    private static func hardwareKeyDescription(_ hardwareKey: HardwareKeyConfiguration?) -> String {
+        guard let hardwareKey else { return "none" }
+        return "\(hardwareKey.transport.rawValue) slot \(hardwareKey.slot.rawValue)"
     }
 
     private static func prefix(_ value: String?) -> String {
@@ -226,7 +232,18 @@ struct DatabaseOpenFailure: Equatable, Sendable {
         case fileAccess = "file_access"
         case cloud
         case unsupportedFormat = "unsupported_format"
+        case hardwareKey = "hardware_key"
         case unexpected
+    }
+
+    /// Whether a YubiKey could explain a credentials failure, which decides
+    /// what the invalid-credentials summary suggests.
+    enum HardwareKeyContext: Sendable {
+        /// This platform cannot use one, so suggesting it would mislead.
+        case unavailable
+        /// The database has none configured, but this device could use one.
+        case available
+        case configured
     }
 
     let title: String
@@ -243,7 +260,7 @@ struct DatabaseOpenFailure: Equatable, Sendable {
     }
 
     var canRetryUnlock: Bool {
-        isAuthenticationFailure || errorCode.hasPrefix("key_file.")
+        isAuthenticationFailure || category == .hardwareKey || errorCode.hasPrefix("key_file.")
     }
 
     var privacyNote: String {
@@ -289,6 +306,7 @@ struct DatabaseOpenFailure: Equatable, Sendable {
     static func classify(
         _ error: Error,
         isCloudBacked: Bool,
+        hardwareKeyContext: HardwareKeyContext = .unavailable,
         diagnostics: DatabaseOpenDiagnostics? = nil
     ) -> DatabaseOpenFailure {
         if case DatabaseListStore.LocalDatabaseFileError.databaseInTrash = error {
@@ -325,12 +343,16 @@ struct DatabaseOpenFailure: Equatable, Sendable {
             return fromKeyFileError(keyFileError).attaching(diagnostics)
         }
 
+        if let hardwareKeyError = error as? HardwareKeyError {
+            return fromHardwareKeyError(hardwareKeyError).attaching(diagnostics)
+        }
+
         if let cryptoError = error as? KDBXCrypto.CryptoError {
-            return fromCryptoError(cryptoError).attaching(diagnostics)
+            return fromCryptoError(cryptoError, hardwareKeyContext: hardwareKeyContext).attaching(diagnostics)
         }
 
         if let parseError = error as? KDBXParser.ParseError {
-            return fromParseError(parseError).attaching(diagnostics)
+            return fromParseError(parseError, hardwareKeyContext: hardwareKeyContext).attaching(diagnostics)
         }
 
         if let biometricFailure = fromBiometricError(error) {
@@ -381,18 +403,81 @@ struct DatabaseOpenFailure: Equatable, Sendable {
         )
     }
 
-    private static func fromCryptoError(_ error: KDBXCrypto.CryptoError) -> DatabaseOpenFailure {
+    private static func invalidCredentials(
+        _ error: Error,
+        hardwareKeyContext: HardwareKeyContext
+    ) -> DatabaseOpenFailure {
+        let summary = switch hardwareKeyContext {
+        case .unavailable:
+            String(localized: "The password or key file didn't unlock this database. If you're sure they are correct, the file may be corrupted.")
+        case .available:
+            String(localized: "The password or key file didn't unlock this database. If it also needs a YubiKey, choose it under Hardware Key and try again. Otherwise the file may be corrupted.")
+        case .configured:
+            String(localized: "The password, key file, or YubiKey didn't unlock this database. Check that the YubiKey and its slot are the ones this database uses.")
+        }
+        return DatabaseOpenFailure(
+            title: String(localized: "Couldn't Unlock Database"),
+            summary: summary,
+            technicalDetails: technicalDetails(for: error),
+            errorCode: "auth.invalid_credentials",
+            category: .authentication,
+            countsTowardFailedAttempts: true,
+            canChooseDifferentFile: false
+        )
+    }
+
+    private static func fromHardwareKeyError(_ error: HardwareKeyError) -> DatabaseOpenFailure {
+        let title: String
+        let summary: String
+        let code: String
+        switch error {
+        case .cancelled:
+            title = String(localized: "YubiKey Not Read")
+            summary = String(localized: "The YubiKey request was cancelled. Try again when your YubiKey is ready.")
+            code = "cancelled"
+        case .unavailable:
+            title = String(localized: "YubiKey Unavailable")
+            summary = String(localized: "This device can't reach a YubiKey the way this database is set up. Choose a different connection under Hardware Key.")
+            code = "unavailable"
+        case .unsupportedDatabase:
+            title = String(localized: "YubiKey Not Supported for This Database")
+            summary = String(localized: "KeeForge supports YubiKeys only for KDBX 4 databases that use Argon2. Turn off Hardware Key to open this database.")
+            code = "unsupported_database"
+        case .slotNotConfigured:
+            title = String(localized: "YubiKey Slot Not Set Up")
+            summary = String(localized: "The selected YubiKey slot isn't set up for challenge-response. Choose the other slot under Hardware Key.")
+            code = "slot_not_configured"
+        case .timedOut:
+            title = String(localized: "YubiKey Timed Out")
+            summary = String(localized: "The YubiKey didn't respond in time. Try again, and touch the key when it flashes.")
+            code = "timed_out"
+        case .disconnected:
+            title = String(localized: "YubiKey Disconnected")
+            summary = String(localized: "The YubiKey was removed before it answered. Keep it in place until the database opens.")
+            code = "disconnected"
+        case .communicationFailed:
+            title = String(localized: "YubiKey Not Read")
+            summary = String(localized: "KeeForge couldn't talk to the YubiKey. Try again.")
+            code = "communication_failed"
+        }
+        return DatabaseOpenFailure(
+            title: title,
+            summary: summary,
+            technicalDetails: technicalDetails(for: error),
+            errorCode: "hardware_key.\(code)",
+            category: .hardwareKey,
+            countsTowardFailedAttempts: false,
+            canChooseDifferentFile: false
+        )
+    }
+
+    private static func fromCryptoError(
+        _ error: KDBXCrypto.CryptoError,
+        hardwareKeyContext: HardwareKeyContext
+    ) -> DatabaseOpenFailure {
         switch error {
         case .invalidKey, .decryptionFailed, .hmacMismatch:
-            return DatabaseOpenFailure(
-                title: String(localized: "Couldn't Unlock Database"),
-                summary: String(localized: "The password or key file didn't unlock this database. If you're sure they are correct, the file may be corrupted."),
-                technicalDetails: technicalDetails(for: error),
-                errorCode: "auth.invalid_credentials",
-                category: .authentication,
-                countsTowardFailedAttempts: true,
-                canChooseDifferentFile: false
-            )
+            return invalidCredentials(error, hardwareKeyContext: hardwareKeyContext)
         case .unsupportedCipher:
             return DatabaseOpenFailure(
                 title: String(localized: "Unsupported Database Format"),
@@ -426,18 +511,13 @@ struct DatabaseOpenFailure: Equatable, Sendable {
         }
     }
 
-    private static func fromParseError(_ error: KDBXParser.ParseError) -> DatabaseOpenFailure {
+    private static func fromParseError(
+        _ error: KDBXParser.ParseError,
+        hardwareKeyContext: HardwareKeyContext
+    ) -> DatabaseOpenFailure {
         switch error {
         case .invalidBlockHMAC, .invalidStreamStartBytes:
-            return DatabaseOpenFailure(
-                title: String(localized: "Couldn't Unlock Database"),
-                summary: String(localized: "The password or key file didn't unlock this database. If you're sure they are correct, the file may be corrupted."),
-                technicalDetails: technicalDetails(for: error),
-                errorCode: "auth.invalid_credentials",
-                category: .authentication,
-                countsTowardFailedAttempts: true,
-                canChooseDifferentFile: false
-            )
+            return invalidCredentials(error, hardwareKeyContext: hardwareKeyContext)
         case .unsupportedVersion:
             return DatabaseOpenFailure(
                 title: String(localized: "Unsupported Database Format"),

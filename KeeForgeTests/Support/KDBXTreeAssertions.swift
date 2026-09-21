@@ -116,6 +116,18 @@ struct KDBXTestFixture {
         keyFileName: nil,
         keyFileExtension: nil
     )
+    /// Foreign-authored (pykeepass) KDBX4 Argon2d fixture whose composite key
+    /// includes a YubiKey HMAC-SHA1 challenge-response the KeePassXC way, so
+    /// `compositeKey(in:)` alone does not open it: answer the challenge with
+    /// `YubiKeyEmulator`. One `Hardware Key` group holding `YubiKey Entry`
+    /// (`yubikey-user`). See `TestFixtures/generators/challenge_response.py`.
+    static let challengeResponse = KDBXTestFixture(
+        name: "challenge-response",
+        subdirectory: nil,
+        password: "challenge-response",
+        keyFileName: nil,
+        keyFileExtension: nil
+    )
 }
 
 /// The single loading path for bundled fixtures: resolve, read, derive the

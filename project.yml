@@ -32,6 +32,9 @@ packages:
   swift-psl:
     url: https://github.com/ameshkov/swift-psl.git
     from: 1.1.161
+  YubiKit:
+    url: https://github.com/Yubico/yubikit-ios.git
+    from: 4.7.0
 targetTemplates:
   # Fixture bundles shared by more than one test target. Templates merge their
   # `sources` into the target's own, so a target adds only its extras.
@@ -56,6 +59,8 @@ targetTemplates:
       - path: TestFixtures/compatibility/unknown-inner-header.kdbx
         buildPhase: resources
       - path: TestFixtures/compatibility/argon2-high-iterations.kdbx
+        buildPhase: resources
+      - path: TestFixtures/challenge-response.kdbx
         buildPhase: resources
       - path: TestFixtures/test-hex.key
         buildPhase: resources
@@ -118,6 +123,7 @@ targets:
       - package: MSAL
       - package: swift-psl
         product: PublicSuffixList
+      - package: YubiKit
     sources:
       # KeeForgeCommands.swift (menu bar), MacLockMonitor.swift (lock
       # lifecycle) and MacWindowCloseGuard.swift (window close) are macOS-only:
