@@ -118,6 +118,9 @@ struct MacEntryRow: View {
     let onRequestDeletion: (PendingDeletion) -> Void
 
     var body: some View {
+        // `KPEntry` equality is by ID, so a list handed the same matches after
+        // an edit (adding a TOTP code) keeps passing the pre-edit entry.
+        let entry = viewModel.entry(withID: self.entry.id) ?? self.entry
         EntryRow(
             entry: entry,
             username: viewModel.resolvingFieldReferences(entry.username),
