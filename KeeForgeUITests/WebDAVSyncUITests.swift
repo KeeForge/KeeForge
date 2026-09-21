@@ -12,6 +12,7 @@ class WebDAVSyncBaseUITests: KeeForgeUITestCase {
 
     private static let accountID = "webdav-acct-1"
     private static let fileID = "/Vaults/personal.kdbx"
+    private static let extensionlessFileID = "/Vaults/vault.bin"
 
     override var databaseFixtures: [KeeForgeUITestCase.DatabaseFixture] {
         []
@@ -20,6 +21,10 @@ class WebDAVSyncBaseUITests: KeeForgeUITestCase {
     /// Seed a connected account + cloud database reference so the app launches
     /// straight into the seeded-unlock path (Test 3).
     var seedsCloudDatabaseOnLaunch: Bool { false }
+
+    /// Seed only the connected account, so the browser lists files without the
+    /// connect form (and without iOS offering to save the typed password).
+    var seedsCloudAccountOnLaunch: Bool { seedsCloudDatabaseOnLaunch }
 
     /// When true, the payload's `connect(_:)` is configured to fail (Test 2).
     var simulatesConnectFailure: Bool { false }
@@ -31,10 +36,12 @@ class WebDAVSyncBaseUITests: KeeForgeUITestCase {
         let data = try encoder.encode(payload)
         app.launchEnvironment[Self.webDAVPayloadEnv] = String(decoding: data, as: UTF8.self)
 
-        guard seedsCloudDatabaseOnLaunch else { return }
+        guard seedsCloudAccountOnLaunch else { return }
 
         let cloudAccountsData = try encoder.encode(payload.accounts)
         app.launchEnvironment[Self.cloudAccountsEnv] = String(decoding: cloudAccountsData, as: UTF8.self)
+
+        guard seedsCloudDatabaseOnLaunch else { return }
 
         let cloudDatabasesData = try encoder.encode([
             MockCloudDatabase(
@@ -121,15 +128,27 @@ class WebDAVSyncBaseUITests: KeeForgeUITestCase {
                             isFolder: false,
                             modifiedDate: modifiedDate,
                             size: Int64(databaseData.count)
+                        ),
+                        .init(
+                            id: Self.extensionlessFileID,
+                            name: "vault.bin",
+                            path: Self.extensionlessFileID,
+                            isFolder: false,
+                            modifiedDate: modifiedDate,
+                            size: Int64(databaseData.count)
                         )
                     ]
                 )
             ],
             fileContentsByID: [
-                Self.fileID: databaseData.base64EncodedString()
+                Self.fileID: databaseData.base64EncodedString(),
+                Self.extensionlessFileID: databaseData.base64EncodedString()
             ],
             contentHashByFileID: [:],
-            revByFileID: [Self.fileID: "\"etag-personal\""],
+            revByFileID: [
+                Self.fileID: "\"etag-personal\"",
+                Self.extensionlessFileID: "\"etag-vault\""
+            ],
             connectError: simulatesConnectFailure ? "notAuthenticated" : nil,
             authenticateError: nil,
             listError: nil,
@@ -151,6 +170,42 @@ final class WebDAVAddFlowUITests: WebDAVSyncBaseUITests {
             NSPredicate(format: "identifier == 'cloud.browser.file.row' AND label CONTAINS[c] %@", "personal.kdbx")
         ).firstMatch
         XCTAssertTrue(fileRow.waitForExistence(timeout: 15), "Mock kdbx file row did not appear after connecting")
+    }
+}
+
+@MainActor
+final class WebDAVShowAllFilesUITests: WebDAVSyncBaseUITests {
+    override var seedsCloudAccountOnLaunch: Bool { true }
+
+    func testDatabaseWithoutKDBXExtensionIsSelectableAfterShowingAllFiles() {
+        addWebDAVFromEmptyState()
+
+        let databaseRow = fileRow(named: "personal.kdbx")
+        let extensionlessRow = fileRow(named: "vault.bin")
+        XCTAssertTrue(databaseRow.waitForExistence(timeout: 15), "Mock kdbx file row did not appear")
+        XCTAssertFalse(extensionlessRow.exists, "Files without the .kdbx extension should stay hidden by default")
+
+        let showAllFiles = app.switches["cloud.browser.show-all-files.toggle"]
+        XCTAssertTrue(showAllFiles.waitForExistence(timeout: 5), "Show All Files toggle did not appear")
+        // A zero-length synthesized tap does not flip an iOS 26 switch; a finger-length press does.
+        showAllFiles.coordinate(withNormalizedOffset: CGVector(dx: 0.85, dy: 0.5)).press(forDuration: 0.15)
+
+        XCTAssertTrue(extensionlessRow.waitForExistence(timeout: 15), "vault.bin did not appear after showing all files")
+        // The row's plain-style button only takes taps on its text, not the empty row center.
+        extensionlessRow.staticTexts["vault.bin"].firstMatch.tap()
+        XCTAssertTrue(
+            app.secureTextFields["unlock.password.field"].waitForExistence(timeout: 15),
+            "Selecting vault.bin did not open its unlock screen"
+        )
+
+        unlockSuccessfully()
+        XCTAssertTrue(app.buttons["lock.button"].waitForExistence(timeout: 15), "vault.bin did not unlock as a database")
+    }
+
+    private func fileRow(named name: String) -> XCUIElement {
+        app.buttons.matching(
+            NSPredicate(format: "identifier == 'cloud.browser.file.row' AND label CONTAINS[c] %@", name)
+        ).firstMatch
     }
 }
 

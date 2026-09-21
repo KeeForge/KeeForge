@@ -85,7 +85,7 @@ final class FTPCloudProviderTests: XCTestCase {
         server.setFile("vaults/notes.txt", data: Data("n".utf8))
         let (provider, accountId) = try makeProvider(server: server, baseURL: "ftp://nas.local/vaults/")
 
-        let files = try await provider.listFiles(accountId: accountId, path: nil, query: nil)
+        let files = try await provider.listFiles(accountId: accountId, path: nil, query: nil, includesAllFiles: false)
 
         XCTAssertEqual(files.map(\.id), ["/Archive", "/Alpha.KDBX", "/zeta.kdbx"])
         XCTAssertEqual(files.map(\.isFolder), [true, false, false])
@@ -102,7 +102,7 @@ final class FTPCloudProviderTests: XCTestCase {
         server.setFile("Team Vaults/shared vault.kdbx", data: Data(count: 3072))
         let (provider, accountId) = try makeProvider(server: server)
 
-        let files = try await provider.listFiles(accountId: accountId, path: "/Team Vaults", query: nil)
+        let files = try await provider.listFiles(accountId: accountId, path: "/Team Vaults", query: nil, includesAllFiles: false)
 
         XCTAssertEqual(files.map(\.id), ["/Team Vaults/shared vault.kdbx"])
         XCTAssertEqual(files.first?.size, 3072)
@@ -114,13 +114,28 @@ final class FTPCloudProviderTests: XCTestCase {
         )
     }
 
+    func testListFilesShowsDatabasesStoredWithoutTheKDBXExtensionOnlyWhenAllFilesAreRequested() async throws {
+        let server = FakeFTPServer()
+        server.addDirectory("vaults")
+        server.addDirectory("vaults/Archive")
+        server.setFile("vaults/personal.kdbx", data: Data("p".utf8))
+        server.setFile("vaults/vault.bin", data: Data("v".utf8))
+        let (provider, accountId) = try makeProvider(server: server, baseURL: "ftp://nas.local/vaults/")
+
+        let databasesOnly = try await provider.listFiles(accountId: accountId, path: nil, query: nil, includesAllFiles: false)
+        XCTAssertEqual(databasesOnly.map(\.id), ["/Archive", "/personal.kdbx"])
+
+        let allFiles = try await provider.listFiles(accountId: accountId, path: nil, query: nil, includesAllFiles: true)
+        XCTAssertEqual(allFiles.map(\.id), ["/Archive", "/personal.kdbx", "/vault.bin"])
+    }
+
     func testListFilesFiltersByQuery() async throws {
         let server = FakeFTPServer()
         server.setFile("personal.kdbx", data: Data("p".utf8))
         server.setFile("work.kdbx", data: Data("w".utf8))
         let (provider, accountId) = try makeProvider(server: server)
 
-        let files = try await provider.listFiles(accountId: accountId, path: "/", query: " WORK ")
+        let files = try await provider.listFiles(accountId: accountId, path: "/", query: " WORK ", includesAllFiles: false)
 
         XCTAssertEqual(files.map(\.name), ["work.kdbx"])
     }
@@ -941,7 +956,7 @@ final class FTPCloudProviderTests: XCTestCase {
         let (provider, accountId) = try makeProvider(server: server)
 
         await assertThrows(CloudProviderError.networkUnavailable) {
-            _ = try await provider.listFiles(accountId: accountId, path: nil, query: nil)
+            _ = try await provider.listFiles(accountId: accountId, path: nil, query: nil, includesAllFiles: false)
         }
     }
 
@@ -977,7 +992,7 @@ final class FTPCloudProviderTests: XCTestCase {
         let provider = FTPCloudProvider(client: FakeFTPServer().makeClient())
 
         await assertThrows(CloudProviderError.notAuthenticated) {
-            _ = try await provider.listFiles(accountId: "ftp-missing", path: nil, query: nil)
+            _ = try await provider.listFiles(accountId: "ftp-missing", path: nil, query: nil, includesAllFiles: false)
         }
     }
 

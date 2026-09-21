@@ -87,7 +87,7 @@ final class FTPCloudProvider: CloudProvider, FTPConnecting, Sendable {
 
     // MARK: - Listing
 
-    func listFiles(accountId: String, path: String?, query: String?) async throws -> [CloudFile] {
+    func listFiles(accountId: String, path: String?, query: String?, includesAllFiles: Bool) async throws -> [CloudFile] {
         let (location, credential) = try resolveContext(accountId: accountId)
         let folderId = Self.serverRelativePath(from: path ?? "/")
         let folder = Self.remotePath(base: location.basePath, fileId: folderId)
@@ -98,7 +98,11 @@ final class FTPCloudProvider: CloudProvider, FTPConnecting, Sendable {
         }
 
         let files = entries.compactMap { entry -> CloudFile? in
-            guard entry.isFolder || entry.name.lowercased().hasSuffix(".kdbx") else { return nil }
+            guard CloudFile.isListed(
+                name: entry.name,
+                isFolder: entry.isFolder,
+                includesAllFiles: includesAllFiles
+            ) else { return nil }
             let fileId = folderId == "/" ? "/" + entry.name : folderId + "/" + entry.name
             return CloudFile(
                 id: fileId,

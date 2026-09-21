@@ -125,7 +125,7 @@ final class OneDriveCloudProvider: CloudProvider, @unchecked Sendable {
         CloudAccountStore.remove(provider: id, accountId: accountId)
     }
 
-    func listFiles(accountId: String, path: String?, query: String?) async throws -> [CloudFile] {
+    func listFiles(accountId: String, path: String?, query: String?, includesAllFiles: Bool) async throws -> [CloudFile] {
         let token = try await accessToken(accountId: accountId)
         var files: [CloudFile] = []
         var nextURL: URL? = try Self.graphURL(
@@ -141,7 +141,9 @@ final class OneDriveCloudProvider: CloudProvider, @unchecked Sendable {
                 OneDriveCollectionResponse.self,
                 request: authorizedRequest(url: currentURL, token: token)
             )
-            files.append(contentsOf: response.value.compactMap(Self.makeCloudFile(from:)))
+            files.append(contentsOf: response.value.compactMap {
+                Self.makeCloudFile(from: $0, includesAllFiles: includesAllFiles)
+            })
             nextURL = response.nextLink.flatMap(URL.init(string:))
         }
 
@@ -261,7 +263,7 @@ final class OneDriveCloudProvider: CloudProvider, @unchecked Sendable {
             progress: progress
         )
 
-        guard let file = Self.makeCloudFile(from: item) else {
+        guard let file = Self.makeCloudFile(from: item, includesAllFiles: true) else {
             throw CloudProviderError.unknown(String(localized: "OneDrive upload did not return a file."))
         }
 
@@ -1120,10 +1122,11 @@ final class OneDriveCloudProvider: CloudProvider, @unchecked Sendable {
         return CloudProviderError.unknown((error as NSError).localizedDescription)
     }
 
-    private static func makeCloudFile(from item: OneDriveDriveItem) -> CloudFile? {
+    /// Internal for testing.
+    static func makeCloudFile(from item: OneDriveDriveItem, includesAllFiles: Bool) -> CloudFile? {
         let isFolder = item.folder != nil
-        if !isFolder {
-            guard item.name.lowercased().hasSuffix(".kdbx") else { return nil }
+        guard CloudFile.isListed(name: item.name, isFolder: isFolder, includesAllFiles: includesAllFiles) else {
+            return nil
         }
 
         let path = displayPath(for: item)
@@ -1237,7 +1240,7 @@ private struct OneDriveCollectionResponse: Decodable {
     }
 }
 
-private struct OneDriveDriveItem: Decodable {
+struct OneDriveDriveItem: Decodable {
     let id: String
     let name: String
     let size: Int64?
@@ -1249,18 +1252,18 @@ private struct OneDriveDriveItem: Decodable {
     let parentReference: OneDriveParentReference?
 }
 
-private struct OneDriveFolderFacet: Decodable {}
+struct OneDriveFolderFacet: Decodable {}
 
-private struct OneDriveFileFacet: Decodable {
+struct OneDriveFileFacet: Decodable {
     let hashes: OneDriveHashes?
 }
 
-private struct OneDriveHashes: Decodable {
+struct OneDriveHashes: Decodable {
     let sha1Hash: String?
     let quickXorHash: String?
 }
 
-private struct OneDriveParentReference: Decodable {
+struct OneDriveParentReference: Decodable {
     let path: String?
 }
 

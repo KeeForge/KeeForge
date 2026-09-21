@@ -185,15 +185,20 @@ final class DropboxCloudProvider: CloudProvider, @unchecked Sendable {
         DropboxClientsManager.resetClients()
     }
 
-    func listFiles(accountId: String, path: String?, query: String?) async throws -> [CloudFile] {
+    func listFiles(accountId: String, path: String?, query: String?, includesAllFiles: Bool) async throws -> [CloudFile] {
         let client = try client(for: accountId)
 
         return try await withRetry {
             if let query, !query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                return try await self.searchFiles(client: client, path: path, query: query)
+                return try await self.searchFiles(
+                    client: client,
+                    path: path,
+                    query: query,
+                    includesAllFiles: includesAllFiles
+                )
             }
 
-            return try await self.listFolder(client: client, path: path)
+            return try await self.listFolder(client: client, path: path, includesAllFiles: includesAllFiles)
         }
     }
 
@@ -402,7 +407,7 @@ final class DropboxCloudProvider: CloudProvider, @unchecked Sendable {
             }
             .response { response, error in
                 if let file = response,
-                   let cloudFile = Self.makeCloudFile(from: file) {
+                   let cloudFile = Self.makeCloudFile(from: file, includesAllFiles: true) {
                     continuation.resume(
                         returning: CloudCreatedFile(
                             file: cloudFile,
@@ -423,7 +428,7 @@ final class DropboxCloudProvider: CloudProvider, @unchecked Sendable {
         }
     }
 
-    private func listFolder(client: DropboxClient, path: String?) async throws -> [CloudFile] {
+    private func listFolder(client: DropboxClient, path: String?, includesAllFiles: Bool) async throws -> [CloudFile] {
         var aggregatedEntries: [Files.Metadata] = []
         let rootPath = path ?? ""
 
@@ -459,18 +464,18 @@ final class DropboxCloudProvider: CloudProvider, @unchecked Sendable {
             hasMore = nextResult.hasMore
         }
 
-        return aggregatedEntries.compactMap(Self.makeCloudFile(from:))
+        return aggregatedEntries.compactMap { Self.makeCloudFile(from: $0, includesAllFiles: includesAllFiles) }
             .sorted(by: Self.sortCloudFiles)
     }
 
-    private func searchFiles(client: DropboxClient, path: String?, query: String) async throws -> [CloudFile] {
+    private func searchFiles(
+        client: DropboxClient,
+        path: String?,
+        query: String,
+        includesAllFiles: Bool
+    ) async throws -> [CloudFile] {
         var matches: [Files.SearchMatchV2] = []
-        let options = Files.SearchOptions(
-            path: path,
-            maxResults: 100,
-            filenameOnly: false,
-            fileExtensions: ["kdbx"]
-        )
+        let options = Self.searchOptions(path: path, includesAllFiles: includesAllFiles)
 
         let firstResult: Files.SearchV2Result = try await withCheckedThrowingContinuation { continuation in
             client.files.searchV2(query: query, options: options)
@@ -504,7 +509,7 @@ final class DropboxCloudProvider: CloudProvider, @unchecked Sendable {
             hasMore = nextResult.hasMore
         }
 
-        let files = matches.compactMap(Self.makeCloudFile(from:))
+        let files = matches.compactMap { Self.makeCloudFile(from: $0, includesAllFiles: includesAllFiles) }
         return Array(Set(files)).sorted(by: Self.sortCloudFiles)
     }
 
@@ -745,9 +750,23 @@ final class DropboxCloudProvider: CloudProvider, @unchecked Sendable {
         return CloudAccount(id: tokenUID, displayName: displayName, provider: id)
     }
 
-    private static func makeCloudFile(from metadata: Files.Metadata) -> CloudFile? {
+    /// The extension filter runs server-side too, so listing every file has to
+    /// drop it from the search request as well. Internal for testing.
+    static func searchOptions(path: String?, includesAllFiles: Bool) -> Files.SearchOptions {
+        Files.SearchOptions(
+            path: path,
+            maxResults: 100,
+            filenameOnly: false,
+            fileExtensions: includesAllFiles ? nil : ["kdbx"]
+        )
+    }
+
+    /// Internal for testing.
+    static func makeCloudFile(from metadata: Files.Metadata, includesAllFiles: Bool) -> CloudFile? {
         if let file = metadata as? Files.FileMetadata {
-            guard file.name.lowercased().hasSuffix(".kdbx") else { return nil }
+            guard CloudFile.isListed(name: file.name, isFolder: false, includesAllFiles: includesAllFiles) else {
+                return nil
+            }
             let fileID = file.pathDisplay ?? file.pathLower ?? "/\(file.name)"
             let displayPath = file.pathDisplay ?? file.pathLower ?? file.name
             return CloudFile(
@@ -785,9 +804,9 @@ final class DropboxCloudProvider: CloudProvider, @unchecked Sendable {
         )
     }
 
-    private static func makeCloudFile(from match: Files.SearchMatchV2) -> CloudFile? {
+    private static func makeCloudFile(from match: Files.SearchMatchV2, includesAllFiles: Bool) -> CloudFile? {
         guard case .metadata(let metadata) = match.metadata else { return nil }
-        return makeCloudFile(from: metadata)
+        return makeCloudFile(from: metadata, includesAllFiles: includesAllFiles)
     }
 
     private static func sortCloudFiles(_ lhs: CloudFile, _ rhs: CloudFile) -> Bool {
