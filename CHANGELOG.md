@@ -136,7 +136,7 @@ The 2026-09-08 probe settled the design: the iPad-on-Mac app never stores a data
 - Cloud sync warnings now follow the language you read the app in. A warning recorded before you switched languages kept showing up in the old one.
 - Deleting an entry from the search results works again. Tapping Delete in a search result's long-press menu did nothing, and swiping to delete there made the row disappear without actually deleting the entry.
 - On iPhone and iPad, the key icon in the AutoFill bar above the keyboard now opens KeeForge so you can search for and pick a credential (#129, #132). It used to fill the suggested one straight away, which left no way to reach another entry — for passwords, passkeys and verification codes alike. Tapping the suggestion itself still fills it directly.
-- Databases whose file name doesn't end in `.kdbx` can now be opened from Dropbox, OneDrive, WebDAV, and FTP (#113). Turn on "Show All Files" at the top of the file browser to see every file, not just `.kdbx` ones. A file that isn't a KeePass database is reported as such when you unlock it.
+- Databases whose file name doesn't end in `.kdbx` can now be opened from Dropbox, OneDrive, WebDAV, and FTP (#113). Turn on "Show All Files" at the top of the file browser to see every file, not just `.kdbx` ones. Picking a file that isn't a KeePass database shows an error when you unlock it.
 
 ## v1.16.0 (2026-09-13)
 

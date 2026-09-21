@@ -129,6 +129,22 @@ final class FTPCloudProviderTests: XCTestCase {
         XCTAssertEqual(allFiles.map(\.id), ["/Archive", "/personal.kdbx", "/vault.bin"])
     }
 
+    func testShowingAllFilesStillHidesTheProvidersOwnScratchFiles() async throws {
+        let server = FakeFTPServer()
+        let created = FTPListingParser.date(fromTimeVal: "20260918120000") ?? .distantPast
+        let upload = FTPCloudProvider.scratchName(for: "vault.kdbx", kind: .upload, createdAt: created, token: "0A1B2C3D")
+        let backup = FTPCloudProvider.scratchName(for: "vault.kdbx", kind: .backup, createdAt: created, token: "0A1B2C3D")
+        server.setFile("vault.kdbx", data: Data("v".utf8))
+        server.setFile(upload, data: Data("u".utf8))
+        server.setFile(backup, data: Data("b".utf8))
+        server.setFile(".hidden-vault", data: Data("h".utf8))
+        let (provider, accountId) = try makeProvider(server: server)
+
+        let files = try await provider.listFiles(accountId: accountId, path: "/", query: nil, includesAllFiles: true)
+
+        XCTAssertEqual(files.map(\.name), [".hidden-vault", "vault.kdbx"])
+    }
+
     func testListFilesFiltersByQuery() async throws {
         let server = FakeFTPServer()
         server.setFile("personal.kdbx", data: Data("p".utf8))

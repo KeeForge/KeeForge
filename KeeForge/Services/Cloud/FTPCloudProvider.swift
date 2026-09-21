@@ -98,11 +98,9 @@ final class FTPCloudProvider: CloudProvider, FTPConnecting, Sendable {
         }
 
         let files = entries.compactMap { entry -> CloudFile? in
-            guard CloudFile.isListed(
-                name: entry.name,
-                isFolder: entry.isFolder,
-                includesAllFiles: includesAllFiles
-            ) else { return nil }
+            guard !Self.isScratchName(entry.name),
+                  CloudFile.isListed(name: entry.name, isFolder: entry.isFolder, includesAllFiles: includesAllFiles)
+            else { return nil }
             let fileId = folderId == "/" ? "/" + entry.name : folderId + "/" + entry.name
             return CloudFile(
                 id: fileId,
@@ -557,7 +555,7 @@ final class FTPCloudProvider: CloudProvider, FTPConnecting, Sendable {
 
     // MARK: - Scratch files
 
-    enum ScratchKind: String {
+    enum ScratchKind: String, CaseIterable {
         case upload = "keeforge-upload"
         case backup = "keeforge-backup"
     }
@@ -571,11 +569,17 @@ final class FTPCloudProvider: CloudProvider, FTPConnecting, Sendable {
         return Self.sibling(of: path, named: name)
     }
 
-    /// `.<name>.<UTC time-val>-<token>.<kind>`: hidden and without the
-    /// `.kdbx` extension, so it never shows up in a database listing. The
-    /// time lets a later save tell a leftover from a transfer in flight.
+    /// `.<name>.<UTC time-val>-<token>.<kind>`: hidden, and dropped from every
+    /// listing (`isScratchName`), even one showing all files. The time lets a
+    /// later save tell a leftover from a transfer in flight.
     static func scratchName(for name: String, kind: ScratchKind, createdAt: Date, token: String) -> String {
         ".\(name).\(timeVal(for: createdAt))-\(token).\(kind.rawValue)"
+    }
+
+    /// Scratch files are this provider's own bookkeeping; one opened as a
+    /// database could be deleted by the stale-upload sweep.
+    static func isScratchName(_ fileName: String) -> Bool {
+        fileName.hasPrefix(".") && ScratchKind.allCases.contains { fileName.hasSuffix("." + $0.rawValue) }
     }
 
     /// The creation time of an upload scratch file, or nil for any name that

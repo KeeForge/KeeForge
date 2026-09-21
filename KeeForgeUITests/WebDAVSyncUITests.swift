@@ -187,7 +187,7 @@ final class WebDAVShowAllFilesUITests: WebDAVSyncBaseUITests {
 
         let showAllFiles = app.switches["cloud.browser.show-all-files.toggle"]
         XCTAssertTrue(showAllFiles.waitForExistence(timeout: 5), "Show All Files toggle did not appear")
-        // A zero-length synthesized tap does not flip an iOS 26 switch; a finger-length press does.
+        // On iOS 26 a plain synthesized tap did not reliably flip this switch; a finger-length press does.
         showAllFiles.coordinate(withNormalizedOffset: CGVector(dx: 0.85, dy: 0.5)).press(forDuration: 0.15)
 
         XCTAssertTrue(extensionlessRow.waitForExistence(timeout: 15), "vault.bin did not appear after showing all files")

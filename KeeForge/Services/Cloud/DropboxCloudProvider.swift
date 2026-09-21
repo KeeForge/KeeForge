@@ -493,6 +493,9 @@ final class DropboxCloudProvider: CloudProvider, @unchecked Sendable {
         var hasMore = firstResult.hasMore
 
         while hasMore, let currentCursor = cursor {
+            // Every keystroke restarts the search, and one without the
+            // extension filter can run to many pages.
+            try Task.checkCancellation()
             let nextResult: Files.SearchV2Result = try await withCheckedThrowingContinuation { continuation in
                 client.files.searchContinueV2(cursor: currentCursor)
                     .response { response, error in
