@@ -5,12 +5,12 @@ import XCTest
 final class CloudProviderRegistryTests: XCTestCase {
     func testAvailableProvidersContainsCloudProviders() {
         #if os(macOS)
-        // macOS ships WebDAV only: the Dropbox and OneDrive OAuth paths are
+        // macOS ships without Dropbox and OneDrive: their OAuth paths are
         // implemented but have never been validated end-to-end on a Mac, so
         // they stay out of the UI. Unhiding them is a later release's call.
-        XCTAssertEqual(CloudProviderRegistry.availableProviders, [.webDAV])
+        XCTAssertEqual(CloudProviderRegistry.availableProviders, [.webDAV, .ftp])
         #else
-        XCTAssertEqual(CloudProviderRegistry.availableProviders, [.dropbox, .oneDrive, .webDAV])
+        XCTAssertEqual(CloudProviderRegistry.availableProviders, [.dropbox, .oneDrive, .webDAV, .ftp])
         #endif
     }
 
@@ -19,10 +19,12 @@ final class CloudProviderRegistryTests: XCTestCase {
         XCTAssertFalse(CloudProviderKind.dropbox.isAvailableOnCurrentPlatform)
         XCTAssertFalse(CloudProviderKind.oneDrive.isAvailableOnCurrentPlatform)
         XCTAssertTrue(CloudProviderKind.webDAV.isAvailableOnCurrentPlatform)
+        XCTAssertTrue(CloudProviderKind.ftp.isAvailableOnCurrentPlatform)
         #else
         XCTAssertTrue(CloudProviderKind.dropbox.isAvailableOnCurrentPlatform)
         XCTAssertTrue(CloudProviderKind.oneDrive.isAvailableOnCurrentPlatform)
         XCTAssertTrue(CloudProviderKind.webDAV.isAvailableOnCurrentPlatform)
+        XCTAssertTrue(CloudProviderKind.ftp.isAvailableOnCurrentPlatform)
         #endif
     }
 
@@ -62,6 +64,12 @@ final class CloudProviderRegistryTests: XCTestCase {
         let provider = CloudProviderRegistry.provider(for: CloudProviderKind.webDAV.rawValue)
 
         XCTAssertTrue(provider === WebDAVCloudProvider.shared)
+    }
+
+    func testProviderReturnsFTPSharedInstance() {
+        let provider = CloudProviderRegistry.provider(for: CloudProviderKind.ftp.rawValue)
+
+        XCTAssertTrue(provider === FTPCloudProvider.shared)
     }
 
     func testProviderReturnsNilForUnknownProvider() {

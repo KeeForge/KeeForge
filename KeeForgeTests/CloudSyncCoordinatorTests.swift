@@ -741,6 +741,37 @@ final class CloudSyncCoordinatorTests: XCTestCase {
 
     // MARK: - Open-time probe deadline (#95)
 
+    /// A probe that transfers the file takes as long as the file is big. The
+    /// fixed deadline would report every database slower than it as offline
+    /// and keep opening the stale cache, so it does not apply there.
+    func testProbeThatTransfersContentIsNotCutOffByTheDeadline() async throws {
+        let reference = makeCloudReference(
+            remoteContentHash: "cached-hash",
+            remoteModifiedAt: Date(timeIntervalSince1970: 100)
+        )
+        try DatabaseListStore.cacheDatabaseCopy(Data("cached-copy".utf8), for: reference)
+
+        let provider = MockCloudProvider()
+        provider.metadataProbeTransfersContent = true
+        provider.metadataDelay = .milliseconds(400)
+        provider.metadataResult = .success(
+            CloudFileMetadata(modifiedDate: Date(timeIntervalSince1970: 200), contentHash: "newer-hash", size: 128)
+        )
+        provider.downloadedData = Data("freshly-downloaded".utf8)
+
+        let resolution = try await CloudSyncCoordinator.syncIfNeededForOpen(
+            reference: reference,
+            probeDeadline: 0.2,
+            providerResolver: { _ in provider }
+        )
+
+        XCTAssertFalse(provider.metadataProbeCancelled)
+        XCTAssertEqual(resolution.status, .downloaded)
+        XCTAssertEqual(resolution.data, Data("freshly-downloaded".utf8))
+        XCTAssertEqual(provider.downloadCallCount, 1)
+        XCTAssertNil(resolution.reference.cloudSyncMetadata?.lastSyncIssue)
+    }
+
     func testSyncOpensCachedCopyOfflineWhenProbeMissesDeadline() async throws {
         let reference = makeCloudReference(
             remoteContentHash: "cached-hash",
@@ -896,6 +927,9 @@ private final class MockCloudProvider: CloudProvider, @unchecked Sendable {
     /// How long `getMetadata` sleeps before answering; models a slow or
     /// black-holed server. Cancellation cuts the sleep short.
     var metadataDelay: Duration = .zero
+    /// Models a provider whose probe is a transfer (FTP), which the open
+    /// deadline must not cut off.
+    var metadataProbeTransfersContent = false
     var downloadDelay: Duration = .zero
     var downloadedData = Data()
     /// What `download` reports about the bytes it wrote. Nil models a

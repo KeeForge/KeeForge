@@ -15,4 +15,5 @@ Shared test infrastructure: fixtures, fakes, spies, and assertion helpers. Nothi
   directly: a resolved bookmark reports `/private/var/...` while the temporary directory reports
   the `/var` symlink, so a raw comparison passes on a sandboxed local build and fails on the
   unsandboxed one CI signs, which is how the macOS RC gate first went red.
+- `FakeFTPServer.swift` is an in-memory FTP server behind `FTPClient`'s connector seam (`makeClient(timeout:)`): real command/reply parsing, EPSV/PASV data channels, a virtual file tree with per-write modification stamps, switches for servers without MLSD/MLST, EPSV, or MDTM and for IIS-style rename, `overrideNextReply(to:argument:with:)` for failure replies, `beforeNext(_:argument:_:)` to change the tree the moment another client could, `dropConnection(onNext:afterHandling:)` for a connection lost before a command or with its reply, `silentVerbs` for timeouts, and `commandLog`/`connectionLog` (PASS redacted) for assertions.
 - Shared databases and key files are documented in `../../TestFixtures/README.md`.

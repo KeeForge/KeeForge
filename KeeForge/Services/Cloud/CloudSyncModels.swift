@@ -4,6 +4,7 @@ enum CloudProviderKind: String, Codable, CaseIterable, Hashable, Identifiable, S
     case dropbox = "dropbox"
     case oneDrive = "onedrive"
     case webDAV = "webdav"
+    case ftp = "ftp"
 
     var id: String { rawValue }
 
@@ -15,6 +16,8 @@ enum CloudProviderKind: String, Codable, CaseIterable, Hashable, Identifiable, S
             "OneDrive"
         case .webDAV:
             "WebDAV"
+        case .ftp:
+            "FTP"
         }
     }
 
@@ -26,14 +29,16 @@ enum CloudProviderKind: String, Codable, CaseIterable, Hashable, Identifiable, S
             "cloud.fill"
         case .webDAV:
             "server.rack"
+        case .ftp:
+            "externaldrive.connected.to.line.below"
         }
     }
 
     /// Providers that are connected through an in-app server/username/password
-    /// form rather than a hosted OAuth flow. Only WebDAV uses this path today.
+    /// form rather than a hosted OAuth flow.
     var usesManualConnectionForm: Bool {
         switch self {
-        case .webDAV:
+        case .webDAV, .ftp:
             true
         case .dropbox, .oneDrive:
             false
@@ -46,16 +51,16 @@ enum CloudProviderKind: String, Codable, CaseIterable, Hashable, Identifiable, S
     /// destination picker. It does not touch `provider(for:)` resolution, so
     /// already-connected databases continue to open and sync.
     ///
-    /// macOS ships WebDAV only for its first release. The Dropbox and OneDrive
-    /// macOS OAuth paths (slice 03) are implemented and unit-tested but have
-    /// never been validated end-to-end on a Mac, so they stay out of the macOS
-    /// UI rather than shipping unproven; re-enabling them is a decision for a
-    /// later release, not an oversight. iOS is unaffected — all providers
+    /// macOS ships without Dropbox and OneDrive. Their macOS OAuth paths
+    /// (slice 03) are implemented and unit-tested but have never been
+    /// validated end-to-end on a Mac, so they stay out of the macOS UI rather
+    /// than shipping unproven; re-enabling them is a decision for a later
+    /// release, not an oversight. iOS is unaffected — all providers
     /// remain visible there.
     var isAvailableOnCurrentPlatform: Bool {
         #if os(macOS)
         switch self {
-        case .webDAV:
+        case .webDAV, .ftp:
             return true
         case .dropbox, .oneDrive:
             return false

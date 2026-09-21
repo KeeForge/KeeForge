@@ -34,7 +34,7 @@ final class CloudFileBrowserSession {
     }
 
     /// True when this provider is connected through an in-app server/username/
-    /// password form (WebDAV) rather than a hosted OAuth flow.
+    /// password form (WebDAV, FTP) rather than a hosted OAuth flow.
     var usesManualConnectionForm: Bool {
         CloudProviderKind(rawValue: providerID)?.usesManualConnectionForm ?? false
     }
@@ -72,7 +72,7 @@ final class CloudFileBrowserSession {
         }
     }
 
-    /// Adopts an account produced by the manual WebDAV connect form. Mirrors the
+    /// Adopts an account produced by a manual connect form. Mirrors the
     /// state mutations of a successful `authenticate()`: refresh the account list
     /// and select the newly connected account.
     func adoptManualAccount(_ account: CloudAccount) {

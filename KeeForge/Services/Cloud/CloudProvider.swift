@@ -35,6 +35,12 @@ protocol CloudProvider: AnyObject, Sendable {
         progress: @escaping @Sendable (Double) -> Void
     ) async throws -> CloudFileMetadata?
     func getMetadata(accountId: String, fileId: String) async throws -> CloudFileMetadata
+    /// Whether `getMetadata` has to transfer the file to answer. True only
+    /// where the protocol offers no validator the server computes itself, so
+    /// the provider hashes the bytes (FTP). A probe that scales with file
+    /// size cannot be held to a fixed deadline; see
+    /// `CloudSyncCoordinator.openProbeDeadline`.
+    var metadataProbeTransfersContent: Bool { get }
     func upload(
         accountId: String,
         fileId: String,
@@ -53,6 +59,8 @@ protocol CloudProvider: AnyObject, Sendable {
 extension CloudProvider {
     @MainActor
     func cancelPendingAuthentication() {}
+
+    var metadataProbeTransfersContent: Bool { false }
 
     func createFile(
         accountId: String,

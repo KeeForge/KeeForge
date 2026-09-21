@@ -2728,6 +2728,46 @@
         }
       }
     },
+    "Allow Unencrypted FTP" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Unverschlüsseltes FTP erlauben"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Permitir FTP sin cifrar"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Autoriser le FTP non chiffré"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "暗号化されていない FTP を許可"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "允许未加密的 FTP"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "允許未加密的 FTP"
+          }
+        }
+      }
+    },
     "Allow Unencrypted HTTP" : {
       "localizations" : {
         "de" : {
@@ -7130,6 +7170,46 @@
         }
       }
     },
+    "Connect FTP" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mit FTP verbinden"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Conectar con FTP"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Se connecter à FTP"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "FTP に接続"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "连接 FTP"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "連接 FTP"
+          }
+        }
+      }
+    },
     "Connect to local WebDAV servers" : {
       "localizations" : {
         "de" : {
@@ -7966,6 +8046,46 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "無法擷取 EC P-256 金鑰資料"
+          }
+        }
+      }
+    },
+    "Could not securely store the FTP credentials." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die FTP-Zugangsdaten konnten nicht sicher gespeichert werden."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No se pudieron almacenar de forma segura las credenciales de FTP."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Impossible de stocker les identifiants FTP en toute sécurité."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "FTP の認証情報を安全に保存できませんでした。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无法安全地存储 FTP 凭据。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法安全地儲存 FTP 憑證。"
           }
         }
       }
@@ -12456,6 +12576,46 @@
         }
       }
     },
+    "Enter the FTP server address." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Geben Sie die Adresse des FTP-Servers ein."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Introduzca la dirección del servidor FTP."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Saisissez l'adresse du serveur FTP."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "FTP サーバのアドレスを入力してください。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "请输入 FTP 服务器地址。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "請輸入 FTP 伺服器位址。"
+          }
+        }
+      }
+    },
     "Enter the WebDAV server address." : {
       "localizations" : {
         "de" : {
@@ -14012,6 +14172,86 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "格式"
+          }
+        }
+      }
+    },
+    "FTP is not encrypted. Turn on Allow Unencrypted FTP to connect." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "FTP ist unverschlüsselt. Aktivieren Sie „Unverschlüsseltes FTP erlauben“, um eine Verbindung herzustellen."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "FTP no está cifrado. Active «Permitir FTP sin cifrar» para conectarse."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "FTP n'est pas chiffré. Activez « Autoriser le FTP non chiffré » pour vous connecter."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "FTP は暗号化されていません。接続するには「暗号化されていない FTP を許可」をオンにしてください。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "FTP 未加密。请开启“允许未加密的 FTP”以进行连接。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "FTP 未加密。請開啟「允許未加密的 FTP」以進行連接。"
+          }
+        }
+      }
+    },
+    "FTP sends your username, password, and database file without encryption. Only use it on a local network you trust." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "FTP überträgt Ihren Benutzernamen, Ihr Passwort und die Datenbankdatei unverschlüsselt. Verwenden Sie es nur in einem lokalen Netzwerk, dem Sie vertrauen."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "FTP envía su nombre de usuario, contraseña y archivo de la base de datos sin cifrar. Utilícelo solo en una red local de confianza."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "FTP transmet votre nom d'utilisateur, votre mot de passe et le fichier de la base de données sans chiffrement. Utilisez-le uniquement sur un réseau local de confiance."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "FTP では、ユーザ名、パスワード、データベースファイルが暗号化されずに送信されます。信頼できるローカルネットワークでのみ使用してください。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "FTP 会以未加密方式传输您的用户名、密码和数据库文件。请仅在您信任的本地网络中使用。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "FTP 會以未加密方式傳輸您的使用者名稱、密碼和資料庫檔案。請僅在您信任的本機網路中使用。"
           }
         }
       }
@@ -23058,6 +23298,46 @@
         }
       }
     },
+    "Reconnect by adding the FTP server again with its address, username, and password." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Stellen Sie die Verbindung wieder her, indem Sie den FTP-Server erneut mit Adresse, Benutzername und Passwort hinzufügen."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vuelva a conectarse añadiendo de nuevo el servidor FTP con su dirección, nombre de usuario y contraseña."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reconnectez-vous en ajoutant de nouveau le serveur FTP avec son adresse, votre nom d'utilisateur et votre mot de passe."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "再接続するには、アドレス、ユーザ名、パスワードを指定して FTP サーバをもう一度追加してください。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "请使用服务器地址、用户名和密码重新添加 FTP 服务器以重新连接。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "請使用伺服器位址、使用者名稱和密碼重新加入 FTP 伺服器以重新連線。"
+          }
+        }
+      }
+    },
     "Reconnect Cloud Account" : {
       "localizations" : {
         "de" : {
@@ -28701,6 +28981,86 @@
         }
       }
     },
+    "The FTP server has no folder at this path." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Auf dem FTP-Server gibt es unter diesem Pfad keinen Ordner."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "El servidor FTP no tiene ninguna carpeta en esta ruta."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Le serveur FTP n'a aucun dossier à cet emplacement."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "FTP サーバのこのパスにフォルダがありません。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "FTP 服务器上此路径下没有文件夹。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "FTP 伺服器上此路徑下沒有資料夾。"
+          }
+        }
+      }
+    },
+    "The FTP username or password was rejected." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Der FTP-Benutzername oder das Passwort wurde abgelehnt."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Se rechazó el nombre de usuario o la contraseña de FTP."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Le nom d'utilisateur ou le mot de passe FTP a été rejeté."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "FTP のユーザ名またはパスワードが拒否されました。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "FTP 用户名或密码被拒绝。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "FTP 使用者名稱或密碼遭拒。"
+          }
+        }
+      }
+    },
     "The last attempt did not turn it on. Open iOS AutoFill Settings and enable KeeForge there." : {
       "localizations" : {
         "de" : {
@@ -28982,6 +29342,46 @@
         }
       }
     },
+    "The path starts in the folder your FTP account opens in." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Der Pfad beginnt in dem Ordner, in dem Ihr FTP-Konto startet."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La ruta empieza en la carpeta en la que se abre su cuenta FTP."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Le chemin part du dossier dans lequel votre compte FTP s'ouvre."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "パスは FTP アカウントのログイン直後のフォルダを起点とします。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "路径从您的 FTP 账户登录后所在的文件夹开始。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "路徑從您的 FTP 帳號登入後所在的資料夾開始。"
+          }
+        }
+      }
+    },
     "The pending change for “%@” could not be uploaded because the copy in the cloud changed. KeeForge keeps a timestamped backup on this device before discarding it." : {
       "localizations" : {
         "de" : {
@@ -29178,6 +29578,46 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "伺服器位址不是有效的 URL。"
+          }
+        }
+      }
+    },
+    "The server address must start with ftp://." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die Serveradresse muss mit ftp:// beginnen."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La dirección del servidor debe empezar por ftp://."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "L'adresse du serveur doit commencer par ftp://."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "サーバアドレスは ftp:// で始まる必要があります。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "服务器地址必须以 ftp:// 开头。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "伺服器位址必須以 ftp:// 開頭。"
           }
         }
       }

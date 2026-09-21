@@ -12,7 +12,7 @@ enum CloudProviderRegistry {
     /// them there. Nothing can have connected one, because neither has ever
     /// been reachable from the Mac UI.
     static var availableProviders: [CloudProviderKind] {
-        [.dropbox, .oneDrive, .webDAV].filter(\.isAvailableOnCurrentPlatform)
+        [.dropbox, .oneDrive, .webDAV, .ftp].filter(\.isAvailableOnCurrentPlatform)
     }
 
     static func provider(for id: String) -> CloudProvider? {
@@ -43,6 +43,8 @@ enum CloudProviderRegistry {
             }
             #endif
             return WebDAVCloudProvider.shared
+        case .ftp:
+            return FTPCloudProvider.shared
         }
     }
 
@@ -54,7 +56,7 @@ enum CloudProviderRegistry {
         }
         #endif
         #if os(macOS)
-        // WebDAV is the only macOS provider and it has no OAuth redirect.
+        // The macOS providers (WebDAV, FTP) have no OAuth redirect.
         return false
         #else
         return DropboxCloudProvider.shared.handleRedirectURL(url)
