@@ -314,6 +314,11 @@ final class DatabaseViewModel {
     typealias StoredKeyDeleteOperation = @Sendable (_ reference: DatabaseReference) -> Void
     /// Injected so tests can drive the no-authentication-available branch.
     typealias DeviceOwnerAuthAvailabilityCheck = @MainActor () -> Bool
+    typealias HardwareKeyResponseOperation = @MainActor (
+        _ challenge: Data,
+        _ configuration: HardwareKeyConfiguration
+    ) async throws -> Data
+    typealias HardwareKeyTransportsProvider = @MainActor () -> [HardwareKeyConfiguration.Transport]
 
     private static let sortOrderKey = "KeeForge.sortOrder"
     private static let sortAscendingKey = "KeeForge.sortAscending"
@@ -420,6 +425,13 @@ final class DatabaseViewModel {
     /// composite key — losing the fact that the master key includes a key
     /// file, which "keep current key file" in the rekey flow must preserve.
     private(set) var sessionKeyFileData: Data?
+    /// The session's composite key includes a YubiKey response. Saving would
+    /// rotate the KDF salt and need a fresh response, which is not supported
+    /// yet, so such a session is read-only.
+    private(set) var sessionUsesHardwareKey = false
+    /// A YubiKey challenge is outstanding; the opening screen offers Cancel.
+    private(set) var isAwaitingHardwareKey = false
+    @ObservationIgnored private var hardwareKeyTask: Task<Data, Error>?
     var draft: DatabaseDraft? {
         didSet { rebuildDerivedState() }
     }
@@ -492,6 +504,8 @@ final class DatabaseViewModel {
     private let storedKeyStoreOperation: StoredKeyStoreOperation
     private let storedKeyDeleteOperation: StoredKeyDeleteOperation
     private let deviceOwnerAuthAvailabilityCheck: DeviceOwnerAuthAvailabilityCheck
+    private let hardwareKeyResponseOperation: HardwareKeyResponseOperation
+    private let hardwareKeyTransportsProvider: HardwareKeyTransportsProvider
     private let conflictCopyDateProvider: @Sendable () -> Date
     private let nowProvider: @Sendable () -> Date
     private var backgroundEnteredAt: Date?
@@ -576,6 +590,12 @@ final class DatabaseViewModel {
         deviceOwnerAuthAvailabilityCheck: @escaping DeviceOwnerAuthAvailabilityCheck = {
             BiometricService.canAuthenticateDeviceOwner
         },
+        hardwareKeyResponseOperation: @escaping HardwareKeyResponseOperation = { challenge, configuration in
+            try await HardwareKeyService.response(to: challenge, using: configuration)
+        },
+        hardwareKeyTransportsProvider: @escaping HardwareKeyTransportsProvider = {
+            HardwareKeyService.availableTransports
+        },
         conflictCopyDateProvider: @escaping @Sendable () -> Date = { .now },
         nowProvider: @escaping @Sendable () -> Date = { .now }
     ) {
@@ -599,6 +619,8 @@ final class DatabaseViewModel {
         self.storedKeyStoreOperation = storedKeyStoreOperation
         self.storedKeyDeleteOperation = storedKeyDeleteOperation
         self.deviceOwnerAuthAvailabilityCheck = deviceOwnerAuthAvailabilityCheck
+        self.hardwareKeyResponseOperation = hardwareKeyResponseOperation
+        self.hardwareKeyTransportsProvider = hardwareKeyTransportsProvider
         self.conflictCopyDateProvider = conflictCopyDateProvider
         self.nowProvider = nowProvider
     }
@@ -614,6 +636,8 @@ final class DatabaseViewModel {
                 binaryPool: BinaryPool(rawFields: [])
             ),
             compositeKey: createdDatabase.compositeKey,
+            quickLaunchKey: createdDatabase.compositeKey,
+            usesHardwareKey: false,
             sessionKey: createdDatabase.sessionKey
         )
     }
@@ -627,11 +651,41 @@ final class DatabaseViewModel {
     }
 
     var isReadOnly: Bool {
-        databaseReference.isReadOnly || openedFormatVersion?.requiresReadOnlyMode == true
+        databaseReference.isReadOnly || openedFormatVersion?.requiresReadOnlyMode == true || sessionUsesHardwareKey
     }
 
     var isFormatReadOnly: Bool {
         openedFormatVersion?.requiresReadOnlyMode == true
+    }
+
+    /// Why editing is off, for the toolbar's read-only explanation.
+    var readOnlyExplanation: String {
+        if isFormatReadOnly {
+            return String(localized: "Legacy KDBX 3.1 databases can be opened, but KeeForge intentionally keeps them read-only.")
+        }
+        if sessionUsesHardwareKey {
+            return String(localized: "Databases unlocked with a YubiKey open read-only for now. Saving them is not supported yet.")
+        }
+        return String(localized: "You can still open this database, but create, edit, and delete actions stay blocked until you turn editing back on.")
+    }
+
+    var hardwareKey: HardwareKeyConfiguration? {
+        databaseReference.hardwareKey
+    }
+
+    /// Ways this device can reach a YubiKey. Empty on the Mac, where the
+    /// hardware-key option is not offered at all.
+    var availableHardwareKeyTransports: [HardwareKeyConfiguration.Transport] {
+        hardwareKeyTransportsProvider()
+    }
+
+    func setHardwareKey(_ hardwareKey: HardwareKeyConfiguration?) {
+        DatabaseListStore.setHardwareKey(hardwareKey, for: databaseReference)
+        refreshDatabaseReference()
+    }
+
+    func cancelHardwareKeyRequest() {
+        hardwareKeyTask?.cancel()
     }
 
     var isDirty: Bool {
@@ -788,7 +842,21 @@ final class DatabaseViewModel {
             cloudSyncStatus = readResult.cloudSyncStatus
             try cacheDatabaseCopyForLocalDatabase(data)
 
-            let compositeKey = try KDBXCrypto.compositeKey(password: password, keyFileData: keyFileData)
+            let hardwareKey = databaseReference.hardwareKey
+            let compositeKey: SymmetricKey
+            let quickLaunchKey: SymmetricKey
+            if let hardwareKey {
+                let preKey = try KDBXCrypto.preKey(password: password, keyFileData: keyFileData)
+                compositeKey = try await hardwareKeyCompositeKey(
+                    preKey: preKey,
+                    databaseData: data,
+                    configuration: hardwareKey
+                )
+                quickLaunchKey = preKey
+            } else {
+                compositeKey = try KDBXCrypto.compositeKey(password: password, keyFileData: keyFileData)
+                quickLaunchKey = compositeKey
+            }
             let sessionKey = SymmetricKey(size: .bits256)
 
             let unlockPayload = try await Task.detached(priority: .userInitiated) {
@@ -810,6 +878,8 @@ final class DatabaseViewModel {
             finalizeSuccessfulUnlock(
                 payload: unlockPayload,
                 compositeKey: compositeKey,
+                quickLaunchKey: quickLaunchKey,
+                usesHardwareKey: hardwareKey != nil,
                 sessionKey: sessionKey
             )
             sessionKeyFileData = keyFileData
@@ -835,7 +905,8 @@ final class DatabaseViewModel {
         var cloudSyncStatus: CloudSyncResolution.Status?
 
         do {
-            let compositeKey = try await biometricCompositeKeyOperation(
+            let hardwareKey = databaseReference.hardwareKey
+            let storedKey = try await biometricCompositeKeyOperation(
                 databaseReference,
                 String(localized: "Unlock your password database")
             )
@@ -844,6 +915,15 @@ final class DatabaseViewModel {
             encryptedData = data
             cloudSyncStatus = readResult.cloudSyncStatus
             try cacheDatabaseCopyForLocalDatabase(data)
+            let compositeKey = if let hardwareKey {
+                try await hardwareKeyCompositeKey(
+                    preKey: storedKey,
+                    databaseData: data,
+                    configuration: hardwareKey
+                )
+            } else {
+                storedKey
+            }
             let sessionKey = SymmetricKey(size: .bits256)
 
             let unlockPayload = try await Task.detached(priority: .userInitiated) {
@@ -865,6 +945,8 @@ final class DatabaseViewModel {
             finalizeSuccessfulUnlock(
                 payload: unlockPayload,
                 compositeKey: compositeKey,
+                quickLaunchKey: storedKey,
+                usesHardwareKey: hardwareKey != nil,
                 sessionKey: sessionKey
             )
             return .unlocked
@@ -1563,6 +1645,9 @@ final class DatabaseViewModel {
 
     func lock(manuallyTriggered: Bool = false, preservingClipboard: Bool = false) {
         cancelInactivityTimer()
+        // A Lightning key never times out on its own; don't let a pending one
+        // finish unlocking behind this lock.
+        hardwareKeyTask?.cancel()
         backgroundEnteredAt = nil
         if manuallyTriggered {
             didManuallyLock = true
@@ -1584,6 +1669,7 @@ final class DatabaseViewModel {
         compositeKey = nil
         sessionKey = nil
         sessionKeyFileData = nil
+        sessionUsesHardwareKey = false
         unlockedMeta = nil
         binaryPool = nil
         draft = nil
@@ -2881,13 +2967,19 @@ final class DatabaseViewModel {
         lastSharedCacheRefreshAt = nil
     }
 
+    /// `quickLaunchKey` is what Quick Launch stores: the composite key, or for
+    /// a hardware-key database the pre-key, so the YubiKey response itself is
+    /// never persisted.
     private func finalizeSuccessfulUnlock(
         payload: UnlockPayload,
         compositeKey: SymmetricKey,
+        quickLaunchKey: SymmetricKey,
+        usesHardwareKey: Bool,
         sessionKey: SymmetricKey
     ) {
         self.rootGroup = payload.rootGroup
         self.compositeKey = compositeKey
+        self.sessionUsesHardwareKey = usesHardwareKey
         self.sessionKey = sessionKey
         self.unlockedMeta = payload.meta
         self.openedFormatVersion = payload.formatVersion
@@ -2903,17 +2995,51 @@ final class DatabaseViewModel {
         synchronizeSelections()
         startInactivityTimer()
 
-        persistCompositeKeyForBiometricUnlock(compositeKey)
+        persistCompositeKeyForBiometricUnlock(quickLaunchKey)
         DatabaseListStore.markDatabaseOpened(id: databaseReference.id)
         refreshDatabaseReference()
         populateCredentialStoreIfNeeded(root: payload.rootGroup)
         ReviewPromptService.requestReviewIfAppropriate()
     }
 
+    private func hardwareKeyCompositeKey(
+        preKey: SymmetricKey,
+        databaseData: Data,
+        configuration: HardwareKeyConfiguration
+    ) async throws -> SymmetricKey {
+        let challenge = try await Task.detached(priority: .userInitiated) {
+            try ChallengeResponseKey.challenge(forDatabase: databaseData)
+        }.value
+
+        unlockStatusMessage = switch configuration.transport {
+        case .nfc: String(localized: "Hold your YubiKey near the top of your device.")
+        case .lightning: String(localized: "Connect your YubiKey, then touch it when it flashes.")
+        }
+        isAwaitingHardwareKey = true
+        let operation = hardwareKeyResponseOperation
+        let task = Task { @MainActor in try await operation(challenge, configuration) }
+        hardwareKeyTask = task
+        defer {
+            hardwareKeyTask = nil
+            isAwaitingHardwareKey = false
+            unlockStatusMessage = Self.decryptingStatusMessage
+        }
+
+        var response = try await task.value
+        defer { SecureWipe.wipe(&response) }
+        return ChallengeResponseKey.compositeKey(preKey: preKey, response: response)
+    }
+
+    private var hardwareKeyFailureContext: DatabaseOpenFailure.HardwareKeyContext {
+        if databaseReference.hardwareKey != nil { return .configured }
+        return availableHardwareKeyTransports.isEmpty ? .unavailable : .available
+    }
+
     private func handleUnlockFailure(_ error: Error, diagnostics: DatabaseOpenDiagnostics?) {
         let failure = DatabaseOpenFailure.classify(
             error,
             isCloudBacked: databaseReference.isCloudBacked,
+            hardwareKeyContext: hardwareKeyFailureContext,
             diagnostics: diagnostics
         )
 

@@ -1,5 +1,5 @@
 {
-  "originHash" : "6164db63f47be591d16cb337176d0356d858ac832cddd18d5ac0c16a0965ed9f",
+  "originHash" : "e721c79138e5cb38ded78f7a000f5a089f488a55385f74c36b899e182a3ff928",
   "pins" : [
     {
       "identity" : "microsoft-authentication-library-for-objc",
@@ -43,6 +43,15 @@
       "state" : {
         "revision" : "e315e0b14edb83f022134aef389deb4e8bee6bbf",
         "version" : "10.2.4"
+      }
+    },
+    {
+      "identity" : "yubikit-ios",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/Yubico/yubikit-ios.git",
+      "state" : {
+        "revision" : "2c4206263763743a2f1ca3309b87432588be637f",
+        "version" : "4.7.0"
       }
     }
   ],

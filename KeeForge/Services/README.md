@@ -10,7 +10,7 @@ Each subfolder's `CLAUDE.md` loads automatically when you work in it.
 - `Persistence/LocalDatabaseSaver.swift` and `Cloud/CloudDatabaseSaver.swift` are the main save-path entry points.
 - `Cloud/CloudSyncCoordinator.swift` owns cloud download-before-open and post-save cache/reference refresh behavior.
 - `AutoFill/AutoFillSaveCoordinator.swift` owns the extension-safe save path for new credentials.
-- `Security/KeychainService.swift` owns composite-key storage with biometric access control.
+- `Security/KeychainService.swift` owns composite-key storage with biometric access control (a pre-key instead for YubiKey databases; see `Security/AGENTS.md`).
 
 Platform scope: the first Mac release supports local files and WebDAV, not the
 iOS app's Dropbox or OneDrive connections. Mac AutoFill fills passwords,

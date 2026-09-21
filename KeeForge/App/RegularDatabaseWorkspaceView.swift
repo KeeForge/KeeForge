@@ -601,7 +601,7 @@ struct RegularDatabaseWorkspaceView: View {
             }
 
             if viewModel.isReadOnly {
-                ReadOnlyIndicator(isFormatReadOnly: viewModel.isFormatReadOnly)
+                ReadOnlyIndicator(explanation: viewModel.readOnlyExplanation)
             } else {
                 Menu {
                     Button("New Entry", systemImage: "doc.badge.plus") {

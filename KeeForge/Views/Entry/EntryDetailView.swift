@@ -305,7 +305,7 @@ struct EntryDetailView: View {
                                 }
                                 .accessibilityIdentifier("entry-detail.edit")
                             } else if showsReadOnlyIndicator {
-                                ReadOnlyIndicator(isFormatReadOnly: viewModel.isFormatReadOnly)
+                                ReadOnlyIndicator(explanation: viewModel.readOnlyExplanation)
                             }
                         }
                     }

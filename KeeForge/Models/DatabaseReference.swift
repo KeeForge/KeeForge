@@ -24,6 +24,12 @@ struct DatabaseReference: Identifiable, Codable, Hashable, Sendable {
     /// surfaces them as conflicts instead of pushing them over the rekeyed
     /// remote.
     var lastMasterKeyChangeAt: Date?
+    /// Set when the composite key includes a YubiKey challenge-response. The
+    /// Keychain item for this database then holds the pre-key
+    /// (`KDBXCrypto.preKey`), never the full composite key, so Quick Launch
+    /// still has to ask the hardware key; `DatabaseListStore.setHardwareKey`
+    /// owns that invariant.
+    var hardwareKey: HardwareKeyConfiguration?
 
     var displayName: String {
         let trimmedNickname = nickname?.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -92,6 +98,7 @@ extension DatabaseReference {
         case isDocumentsResident
         case source
         case lastMasterKeyChangeAt
+        case hardwareKey
     }
 
     init(from decoder: Decoder) throws {
@@ -112,6 +119,7 @@ extension DatabaseReference {
         isDocumentsResident = try container.decodeIfPresent(Bool.self, forKey: .isDocumentsResident) ?? false
         source = try container.decodeIfPresent(DatabaseSource.self, forKey: .source) ?? .local
         lastMasterKeyChangeAt = try container.decodeIfPresent(Date.self, forKey: .lastMasterKeyChangeAt)
+        hardwareKey = try container.decodeIfPresent(HardwareKeyConfiguration.self, forKey: .hardwareKey)
     }
 
     func encode(to encoder: Encoder) throws {
@@ -132,5 +140,6 @@ extension DatabaseReference {
         try container.encode(isDocumentsResident, forKey: .isDocumentsResident)
         try container.encode(source, forKey: .source)
         try container.encodeIfPresent(lastMasterKeyChangeAt, forKey: .lastMasterKeyChangeAt)
+        try container.encodeIfPresent(hardwareKey, forKey: .hardwareKey)
     }
 }
