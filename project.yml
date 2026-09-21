@@ -62,6 +62,8 @@ targetTemplates:
         buildPhase: resources
       - path: TestFixtures/challenge-response.kdbx
         buildPhase: resources
+      - path: TestFixtures/challenge-response-aeskdf.kdbx
+        buildPhase: resources
       - path: TestFixtures/test-hex.key
         buildPhase: resources
       - path: TestFixtures/test-v1.key

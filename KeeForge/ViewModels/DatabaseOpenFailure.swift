@@ -441,7 +441,7 @@ struct DatabaseOpenFailure: Equatable, Sendable {
             code = "unavailable"
         case .unsupportedDatabase:
             title = String(localized: "YubiKey Not Supported for This Database")
-            summary = String(localized: "KeeForge supports YubiKeys only for KDBX 4 databases that use Argon2. Turn off Hardware Key to open this database.")
+            summary = String(localized: "KeeForge supports YubiKeys only for KDBX 4 databases. Turn off Hardware Key to open this database.")
             code = "unsupported_database"
         case .slotNotConfigured:
             title = String(localized: "YubiKey Slot Not Set Up")

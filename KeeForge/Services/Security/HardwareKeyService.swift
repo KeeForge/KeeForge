@@ -66,7 +66,7 @@ private final class YubiKeyConnection: NSObject {
         guard Task.isCancelled == false else { throw HardwareKeyError.cancelled }
 
         let id = UUID()
-        return try await withTaskCancellationHandler {
+        var response = try await withTaskCancellationHandler {
             try await withCheckedThrowingContinuation { continuation in
                 request = Request(
                     id: id,
@@ -90,6 +90,14 @@ private final class YubiKeyConnection: NSObject {
                 self.finish(id, with: .failure(HardwareKeyError.cancelled))
             }
         }
+        // The key's answer and the cancellation reach `finish` as separate
+        // main-actor tasks, so the answer can win the race; cancelling still
+        // has to.
+        guard Task.isCancelled == false else {
+            SecureWipe.wipe(&response)
+            throw HardwareKeyError.cancelled
+        }
+        return response
     }
 
     private func sendChallenge(over connection: YKFConnectionProtocol, transport: HardwareKeyConfiguration.Transport) {

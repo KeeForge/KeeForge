@@ -432,6 +432,11 @@ final class DatabaseViewModel {
     /// A YubiKey challenge is outstanding; the opening screen offers Cancel.
     private(set) var isAwaitingHardwareKey = false
     @ObservationIgnored private var hardwareKeyTask: Task<Data, Error>?
+    /// The unlock attempt still running, if any. A lock (including one on
+    /// backgrounding) or a newer attempt replaces it, and the superseded
+    /// attempt then leaves the state alone (`finishUnlockAttempt`). Separate
+    /// from `lockCycleID`, which paces biometric auto-unlock per lock.
+    @ObservationIgnored private var activeUnlockAttempt: UUID?
     var draft: DatabaseDraft? {
         didSet { rebuildDerivedState() }
     }
@@ -830,7 +835,7 @@ final class DatabaseViewModel {
             return
         }
 
-        prepareForUnlock()
+        let attempt = prepareForUnlock()
 
         var encryptedData: Data?
         var cloudSyncStatus: CloudSyncResolution.Status?
@@ -850,7 +855,8 @@ final class DatabaseViewModel {
                 compositeKey = try await hardwareKeyCompositeKey(
                     preKey: preKey,
                     databaseData: data,
-                    configuration: hardwareKey
+                    configuration: hardwareKey,
+                    attempt: attempt
                 )
                 quickLaunchKey = preKey
             } else {
@@ -875,6 +881,7 @@ final class DatabaseViewModel {
                 )
             }.value
 
+            guard finishUnlockAttempt(attempt) else { return }
             finalizeSuccessfulUnlock(
                 payload: unlockPayload,
                 compositeKey: compositeKey,
@@ -884,6 +891,7 @@ final class DatabaseViewModel {
             )
             sessionKeyFileData = keyFileData
         } catch {
+            guard finishUnlockAttempt(attempt) else { return }
             let diagnostics = makeUnlockDiagnostics(
                 unlockMethod: .password,
                 passwordSupplied: password.isEmpty == false,
@@ -899,7 +907,7 @@ final class DatabaseViewModel {
     @discardableResult
     func unlockWithBiometrics() async -> BiometricUnlockOutcome {
         let failedAttemptsBeforeAttempt = failedAttempts
-        prepareForUnlock()
+        let attempt = prepareForUnlock()
 
         var encryptedData: Data?
         var cloudSyncStatus: CloudSyncResolution.Status?
@@ -919,7 +927,8 @@ final class DatabaseViewModel {
                 try await hardwareKeyCompositeKey(
                     preKey: storedKey,
                     databaseData: data,
-                    configuration: hardwareKey
+                    configuration: hardwareKey,
+                    attempt: attempt
                 )
             } else {
                 storedKey
@@ -942,6 +951,9 @@ final class DatabaseViewModel {
                 )
             }.value
 
+            // A superseded attempt unlocked nothing; the lock that ended it
+            // owns the screen.
+            guard finishUnlockAttempt(attempt) else { return .failed }
             finalizeSuccessfulUnlock(
                 payload: unlockPayload,
                 compositeKey: compositeKey,
@@ -951,6 +963,7 @@ final class DatabaseViewModel {
             )
             return .unlocked
         } catch {
+            guard finishUnlockAttempt(attempt) else { return .failed }
             if let outcome = Self.biometricOutcomeLeavingDatabaseLocked(for: error) {
                 canRemoveMissingDocumentsFile = false
                 state = .locked
@@ -1648,6 +1661,7 @@ final class DatabaseViewModel {
         // A Lightning key never times out on its own; don't let a pending one
         // finish unlocking behind this lock.
         hardwareKeyTask?.cancel()
+        activeUnlockAttempt = nil
         backgroundEnteredAt = nil
         if manuallyTriggered {
             didManuallyLock = true
@@ -2460,6 +2474,18 @@ final class DatabaseViewModel {
     }
 
     func handleSceneDidEnterBackground() {
+        if activeUnlockAttempt != nil {
+            // An unlock still running (a YubiKey that has not answered, a slow
+            // KDF) would otherwise finish behind the lock asked for here.
+            #if os(iOS)
+            if SettingsService.lockOnBackground {
+                lock(preservingClipboard: true)
+            }
+            #else
+            lock()
+            #endif
+            return
+        }
         guard case .unlocked = state else { return }
 
         #if os(iOS)
@@ -2942,7 +2968,10 @@ final class DatabaseViewModel {
         }
     }
 
-    private func prepareForUnlock() {
+    /// Starts an unlock attempt and returns its token for `finishUnlockAttempt`.
+    private func prepareForUnlock() -> UUID {
+        let attempt = UUID()
+        activeUnlockAttempt = attempt
         // Adopt any heal the store performed since this session's reference
         // snapshot was taken (Documents-vault rebind, bookmark refresh,
         // filename re-derivation), so Try Again resolves the current stored
@@ -2965,6 +2994,16 @@ final class DatabaseViewModel {
         lastSharedCacheRefreshFingerprint = nil
         isRefreshingSharedCache = false
         lastSharedCacheRefreshAt = nil
+        return attempt
+    }
+
+    /// Whether `attempt` may still set the unlock outcome, ending it if so.
+    /// False once a lock or a locking background has ended it, or a newer
+    /// attempt replaced it; the caller must then leave the state alone.
+    private func finishUnlockAttempt(_ attempt: UUID) -> Bool {
+        guard activeUnlockAttempt == attempt else { return false }
+        activeUnlockAttempt = nil
+        return true
     }
 
     /// `quickLaunchKey` is what Quick Launch stores: the composite key, or for
@@ -3005,11 +3044,13 @@ final class DatabaseViewModel {
     private func hardwareKeyCompositeKey(
         preKey: SymmetricKey,
         databaseData: Data,
-        configuration: HardwareKeyConfiguration
+        configuration: HardwareKeyConfiguration,
+        attempt: UUID
     ) async throws -> SymmetricKey {
         let challenge = try await Task.detached(priority: .userInitiated) {
             try ChallengeResponseKey.challenge(forDatabase: databaseData)
         }.value
+        guard activeUnlockAttempt == attempt else { throw HardwareKeyError.cancelled }
 
         unlockStatusMessage = switch configuration.transport {
         case .nfc: String(localized: "Hold your YubiKey near the top of your device.")
@@ -3022,11 +3063,15 @@ final class DatabaseViewModel {
         defer {
             hardwareKeyTask = nil
             isAwaitingHardwareKey = false
-            unlockStatusMessage = Self.decryptingStatusMessage
+            if activeUnlockAttempt == attempt {
+                unlockStatusMessage = Self.decryptingStatusMessage
+            }
         }
 
         var response = try await task.value
         defer { SecureWipe.wipe(&response) }
+        // A success already queued when Cancel was tapped must not unlock.
+        guard task.isCancelled == false else { throw HardwareKeyError.cancelled }
         return ChallengeResponseKey.compositeKey(preKey: preKey, response: response)
     }
 

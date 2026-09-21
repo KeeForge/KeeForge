@@ -28,29 +28,34 @@ final class ChallengeResponseKeyTests: XCTestCase {
         }
     }
 
-    // KeePassXC never folds a response into a KDBX 4 file keyed with the
-    // legacy AES-KDF UUID, so issuing a challenge for one would be wrong.
-    func testChallengeIsRefusedForAESKDF() throws {
-        let sessionKey = SymmetricKey(size: .bits256)
-        let parsed = try KDBXTestFixture.test.parse(in: bundle, sessionKey: sessionKey)
-        let data = try KDBXWriter.write(
-            rootGroup: parsed.rootGroup,
-            meta: parsed.meta,
-            compositeKey: parsed.compositeKey,
-            freshHeader: KDBXWriter.FreshHeaderConfiguration(
-                cipherID: parsed.header.cipherID,
-                kdfParameters: [
-                    "$UUID": KDBXParser.aesKDFUUID,
-                    "S": Data(repeating: 0x42, count: 32),
-                    "R": UInt64(10),
-                ]
-            ),
-            sessionKey: sessionKey
+    // KeePassXC writes KDBX 4 AES-KDF under the legacy UUID and folds the
+    // response in before it, with the AES-KDF seed as the challenge.
+    func testFixtureWithAESKDFOpensWithPasswordAndYubiKeyResponse() throws {
+        let fixture = KDBXTestFixture.challengeResponseAESKDF
+        let data = try fixture.data(in: bundle)
+        var reader = DataReader(data: data)
+        _ = try KDBXParser.parseVersion(from: &reader)
+        let kdfParameters = try KDBXParser.parseHeader(&reader).kdfParameters
+        XCTAssertEqual(kdfParameters["$UUID"] as? Data, KDBXParser.aesKDFUUID)
+        let seed = try XCTUnwrap(kdfParameters["S"] as? Data)
+
+        let challenge = try ChallengeResponseKey.challenge(forDatabase: data)
+        XCTAssertEqual(challenge.prefix(32), seed)
+        XCTAssertEqual(Array(challenge.suffix(32)), Array(repeating: 0x20, count: 32))
+
+        let compositeKey = ChallengeResponseKey.compositeKey(
+            preKey: try KDBXCrypto.preKey(password: fixture.password, keyFileData: nil),
+            response: YubiKeyEmulator.response(to: challenge)
+        )
+        let parsed = try KDBXParser.parseWithMetaAndHeader(
+            data: data,
+            compositeKey: compositeKey,
+            sessionKey: SymmetricKey(size: .bits256)
         )
 
-        XCTAssertThrowsError(try ChallengeResponseKey.challenge(forDatabase: data)) { error in
-            XCTAssertEqual(error as? HardwareKeyError, .unsupportedDatabase)
-        }
+        let entry = try XCTUnwrap(parsed.rootGroup.allEntries.first { $0.title == "YubiKey Entry" })
+        XCTAssertEqual(entry.username, "yubikey-user")
+        XCTAssertThrowsError(try fixture.parse(in: bundle, sessionKey: SymmetricKey(size: .bits256)))
     }
 
     func testCompositeKeyMatchesKeePassXCForPassword() throws {

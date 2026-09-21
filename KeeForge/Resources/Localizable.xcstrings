@@ -17536,42 +17536,42 @@
         }
       }
     },
-    "KeeForge supports YubiKeys only for KDBX 4 databases that use Argon2. Turn off Hardware Key to open this database." : {
+    "KeeForge supports YubiKeys only for KDBX 4 databases. Turn off Hardware Key to open this database." : {
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "KeeForge unterstützt YubiKeys nur für KDBX-4-Datenbanken mit Argon2. Schalte „Hardwareschlüssel“ aus, um diese Datenbank zu öffnen."
+            "value" : "KeeForge unterstützt YubiKeys nur für KDBX-4-Datenbanken. Schalte „Hardwareschlüssel“ aus, um diese Datenbank zu öffnen."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "KeeForge solo admite YubiKey en bases de datos KDBX 4 que usan Argon2. Desactiva «Llave de hardware» para abrir esta base de datos."
+            "value" : "KeeForge solo admite YubiKey en bases de datos KDBX 4. Desactiva «Llave de hardware» para abrir esta base de datos."
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "KeeForge ne prend en charge les YubiKey que pour les bases de données KDBX 4 utilisant Argon2. Désactivez « Clé matérielle » pour ouvrir cette base de données."
+            "value" : "KeeForge ne prend en charge les YubiKey que pour les bases de données KDBX 4. Désactivez « Clé matérielle » pour ouvrir cette base de données."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "KeeForge は、Argon2 を使用する KDBX 4 データベースでのみ YubiKey に対応しています。このデータベースを開くには「ハードウェアキー」をオフにしてください。"
+            "value" : "KeeForge は KDBX 4 データベースでのみ YubiKey に対応しています。このデータベースを開くには「ハードウェアキー」をオフにしてください。"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "KeeForge 仅支持在使用 Argon2 的 KDBX 4 数据库中使用 YubiKey。请关闭“硬件密钥”以打开此数据库。"
+            "value" : "KeeForge 仅支持在 KDBX 4 数据库中使用 YubiKey。请关闭“硬件密钥”以打开此数据库。"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "KeeForge 僅支援在使用 Argon2 的 KDBX 4 資料庫中使用 YubiKey。請關閉「硬體金鑰」以開啟此資料庫。"
+            "value" : "KeeForge 僅支援在 KDBX 4 資料庫中使用 YubiKey。請關閉「硬體金鑰」以開啟此資料庫。"
           }
         }
       }

@@ -22,8 +22,8 @@ enum HardwareKeyError: Error, Equatable, Sendable {
     case cancelled
     /// This device, target, or platform cannot reach the configured key.
     case unavailable
-    /// The file is not a KDBX 4 database with an Argon2 KDF, the only shape
-    /// whose challenge-response KeePassXC defines.
+    /// The file is not a KDBX 4 database, the only format whose
+    /// challenge-response KeePassXC folds in before the KDF.
     case unsupportedDatabase
     case slotNotConfigured
     case timedOut
@@ -36,8 +36,9 @@ enum HardwareKeyError: Error, Equatable, Sendable {
 enum ChallengeResponseKey {
     private static let challengeLength = 64
 
-    /// The challenge KeePassXC issues for `data`: the KDF salt, PKCS#7-padded
-    /// to 64 bytes so fixed-length and variable-length slots agree.
+    /// The challenge KeePassXC issues for `data`: the KDF salt (the AES-KDF
+    /// seed), PKCS#7-padded to 64 bytes so fixed-length and variable-length
+    /// slots agree.
     static func challenge(forDatabase data: Data) throws -> Data {
         guard case .kdbx4 = try KDBXParser.parseFileVersion(from: data) else {
             throw HardwareKeyError.unsupportedDatabase
@@ -46,10 +47,10 @@ enum ChallengeResponseKey {
         _ = try KDBXParser.parseVersion(from: &reader)
         let header = try KDBXParser.parseHeader(&reader)
 
-        // KeePassXC folds the response in before the KDF only for these; a
-        // KDBX 4 file with the legacy AES-KDF UUID never carries one.
+        // KeePassXC writes KDBX 4 AES-KDF under the legacy UUID and reads it
+        // back as its KDBX 4 AES-KDF, which takes the response like Argon2.
         guard let kdfUUID = header.kdfParameters["$UUID"] as? Data,
-              kdfUUID == KDBXParser.argon2dUUID || kdfUUID == KDBXParser.argon2idUUID,
+              [KDBXParser.argon2dUUID, KDBXParser.argon2idUUID, KDBXParser.aesKDFUUID].contains(kdfUUID),
               let salt = header.kdfParameters["S"] as? Data,
               salt.isEmpty == false,
               salt.count <= challengeLength

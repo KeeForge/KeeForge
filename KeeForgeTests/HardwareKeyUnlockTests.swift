@@ -150,7 +150,78 @@ final class HardwareKeyUnlockTests: XCTestCase {
         await unlock.value
 
         XCTAssertNil(vm.rootGroup, "The request finishing after the lock must not unlock")
+        assertLocked(vm, "the late failure must not replace the lock")
+    }
+
+    // A key that answers after the lock anyway: YubiKit can hand back a
+    // response it had already read when the cancellation arrived.
+    func testLateAnswerAfterLockDoesNotUnlock() async throws {
+        let key = HeldYubiKey()
+        let vm = try makeViewModel(hardwareKey: slotTwoOverNFC, respond: key.respond)
+
+        let unlock = Task { await vm.unlock(password: fixture.password) }
+        try await waitUntil { key.isHolding }
+        vm.lock()
+        key.answer()
+        await unlock.value
+
+        assertLocked(vm)
+        XCTAssertNil(vm.rootGroup)
+        XCTAssertFalse(vm.sessionUsesHardwareKey)
+    }
+
+    func testBackgroundingWhileWaitingForTheYubiKeyLocksWhenLockOnBackgroundIsOn() async throws {
+        #if os(iOS)
+        let savedLockOnBackground = SettingsService.lockOnBackground
+        defer { SettingsService.lockOnBackground = savedLockOnBackground }
+        SettingsService.lockOnBackground = true
+        #endif
+        let key = HeldYubiKey()
+        let vm = try makeViewModel(hardwareKey: slotTwoOverNFC, respond: key.respond)
+
+        let unlock = Task { await vm.unlock(password: fixture.password) }
+        try await waitUntil { key.isHolding }
+        vm.handleSceneDidEnterBackground()
+        key.answer()
+        await unlock.value
+
+        assertLocked(vm)
+        XCTAssertNil(vm.rootGroup, "A valid answer after backgrounding must not unlock behind the lock")
+    }
+
+    #if os(iOS)
+    func testBackgroundingWhileWaitingLeavesTheUnlockRunningWhenLockOnBackgroundIsOff() async throws {
+        let savedLockOnBackground = SettingsService.lockOnBackground
+        defer { SettingsService.lockOnBackground = savedLockOnBackground }
+        SettingsService.lockOnBackground = false
+        let key = HeldYubiKey()
+        let vm = try makeViewModel(hardwareKey: slotTwoOverNFC, respond: key.respond)
+
+        let unlock = Task { await vm.unlock(password: fixture.password) }
+        try await waitUntil { key.isHolding }
+        vm.handleSceneDidEnterBackground()
+        key.answer()
+        await unlock.value
+
+        guard case .unlocked = vm.state else {
+            return XCTFail("Expected unlocked, got \(vm.state)")
+        }
+    }
+    #endif
+
+    func testCancelWinsOverAnAnswerThatArrivesAfterIt() async throws {
+        let key = HeldYubiKey()
+        let vm = try makeViewModel(hardwareKey: slotTwoOverNFC, respond: key.respond)
+
+        let unlock = Task { await vm.unlock(password: fixture.password) }
+        try await waitUntil { key.isHolding }
+        vm.cancelHardwareKeyRequest()
+        key.answer()
+        await unlock.value
+
+        XCTAssertNil(vm.rootGroup)
         XCTAssertEqual(vm.openFailure?.errorCode, "hardware_key.cancelled")
+        XCTAssertEqual(vm.failedAttempts, 0)
     }
 
     func testRemovedYubiKeyIsReportedAsDisconnected() async throws {
@@ -250,6 +321,40 @@ final class HardwareKeyUnlockTests: XCTestCase {
             try KeychainService.storeCompositeKey(SymmetricKey(size: .bits256), for: databaseID)
         } catch {
             throw XCTSkip("Keychain writes are unavailable in the current test host: \(error)")
+        }
+    }
+
+    /// A YubiKey that holds its (correct) answer until told to give it, and
+    /// ignores cancellation meanwhile.
+    @MainActor
+    private final class HeldYubiKey {
+        private var continuation: CheckedContinuation<Void, Never>?
+        private(set) var isHolding = false
+
+        var respond: DatabaseViewModel.HardwareKeyResponseOperation {
+            { [self] challenge, _ in
+                await withCheckedContinuation { continuation in
+                    self.continuation = continuation
+                    isHolding = true
+                }
+                return YubiKeyEmulator.response(to: challenge)
+            }
+        }
+
+        func answer() {
+            continuation?.resume()
+            continuation = nil
+        }
+    }
+
+    private func assertLocked(
+        _ vm: DatabaseViewModel,
+        _ message: String = "",
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        guard case .locked = vm.state else {
+            return XCTFail("Expected locked, got \(vm.state) \(message)", file: file, line: line)
         }
     }
 

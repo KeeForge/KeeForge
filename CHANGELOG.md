@@ -129,7 +129,7 @@ The 2026-09-08 probe settled the design: the iPad-on-Mac app never stores a data
 
 - KeeForge now speaks Japanese: a full Japanese (日本語) localization across the app and the AutoFill extension, plus translated README and contributor docs.
 - Open, save, and create databases directly on an FTP server (#115). Add Database → FTP asks for the server address, username, and password. FTP is unencrypted, so connecting requires turning on "Allow Unencrypted FTP"; use it only on a network you trust. Encrypted FTPS and SFTP are not supported yet.
-- Open databases that also need a YubiKey (#62). On iPhone, and on iPad models with a Lightning port, choose your YubiKey and its slot under Hardware Key on the unlock screen, then hold the key to the iPhone (NFC) or plug it into the Lightning port. This works with KDBX 4 databases that use Argon2 (the KeePassXC default) and HMAC-SHA1 challenge-response. On those devices, a database that won't open with its password alone now suggests adding the YubiKey. For now these databases open read-only, and USB-C connections, AutoFill, and the Mac app can't use a YubiKey yet.
+- Open databases that also need a YubiKey (#62). On iPhone, and on iPad models with a Lightning port, choose your YubiKey and its slot under Hardware Key on the unlock screen, then hold the key to the iPhone (NFC) or plug it into the Lightning port. This works with KDBX 4 databases and HMAC-SHA1 challenge-response. On those devices, a database that won't open with its password alone now suggests adding the YubiKey. For now these databases open read-only, and USB-C connections, AutoFill, and the Mac app can't use a YubiKey yet.
 
 ### Fixes
 

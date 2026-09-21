@@ -31,6 +31,7 @@
 		08B549D8F82A9A9B45DC777E /* TOTPEnrollmentViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 016320C1DF20F5AFC5FF089E /* TOTPEnrollmentViewModel.swift */; };
 		08EF4A0C5D93B93ADEF4D5A5 /* PasswordDisplay.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3AD4237706B18C568583C16A /* PasswordDisplay.swift */; };
 		09362745917126AC3B21F167 /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = FC41BE38D387242D08AB7810 /* Localizable.xcstrings */; };
+		094A3DC100BC052CEF125938 /* challenge-response-aeskdf.kdbx in Resources */ = {isa = PBXBuildFile; fileRef = A1FDDC988393283520343838 /* challenge-response-aeskdf.kdbx */; };
 		09658A032410676784DD191B /* DistributionChannel.swift in Sources */ = {isa = PBXBuildFile; fileRef = E7BDDC833C91950F7F121A37 /* DistributionChannel.swift */; };
 		09B8CCD61A1FB2A184586C21 /* KDBXUUIDEncoding.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B46BE14C31F8101CBCFB9A5 /* KDBXUUIDEncoding.swift */; };
 		09BE7260C7359FD93CE4F554 /* TOTPEnrollmentViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8EABC573B9DDDD74E1987F94 /* TOTPEnrollmentViewModelTests.swift */; };
@@ -215,6 +216,7 @@
 		4994CC6E9C1FB4ABBDC4F0B0 /* AppGroupGuardrailTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 784030A42906B5F3F8E2076B /* AppGroupGuardrailTests.swift */; };
 		499FB1A86178CDFBDC46124D /* AppSettingsCommands.swift in Sources */ = {isa = PBXBuildFile; fileRef = 761192478C291FBAE7135E0A /* AppSettingsCommands.swift */; };
 		4A0383F5EBA35EEC0148526A /* TOTPEnrollmentDestinationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F47964905A8FBC661633D39 /* TOTPEnrollmentDestinationView.swift */; };
+		4C4EDBE16F8DD7B5062FB5B6 /* challenge-response-aeskdf.kdbx in Resources */ = {isa = PBXBuildFile; fileRef = A1FDDC988393283520343838 /* challenge-response-aeskdf.kdbx */; };
 		4C6D06A5403B81089C4798A1 /* KDBXCrypto.swift in Sources */ = {isa = PBXBuildFile; fileRef = F984480E73A82B5043100065 /* KDBXCrypto.swift */; };
 		4CCAE450D559610ADB561271 /* YubiKeyEmulator.swift in Sources */ = {isa = PBXBuildFile; fileRef = CBD4DF577BC732FABCDA248F /* YubiKeyEmulator.swift */; };
 		4D30FCB68BBE9018CEF25F42 /* LocalizationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B531885B533C74F391440B2B /* LocalizationTests.swift */; };
@@ -1054,6 +1056,7 @@
 		A01A49238AD6DEF29C56B328 /* EntryEditCompletionGateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EntryEditCompletionGateTests.swift; sourceTree = "<group>"; };
 		A04A6F5E71D63FC88AC15D59 /* TagNormalizerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TagNormalizerTests.swift; sourceTree = "<group>"; };
 		A0987977B0D41FBB5C1456C5 /* CredentialProviderSaveTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CredentialProviderSaveTests.swift; sourceTree = "<group>"; };
+		A1FDDC988393283520343838 /* challenge-response-aeskdf.kdbx */ = {isa = PBXFileReference; path = "challenge-response-aeskdf.kdbx"; sourceTree = "<group>"; };
 		A225E7C96451506F1DE532D2 /* EntryDuplicateUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EntryDuplicateUITests.swift; sourceTree = "<group>"; };
 		A27CD1F92E039BFE26CEBD31 /* PendingRowActions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PendingRowActions.swift; sourceTree = "<group>"; };
 		A3660A7394A4B715ECCC64FF /* TOTPViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TOTPViewModelTests.swift; sourceTree = "<group>"; };
@@ -1455,6 +1458,7 @@
 			isa = PBXGroup;
 			children = (
 				23437920ECEA26AFAA2F531F /* autofill-union.kdbx */,
+				A1FDDC988393283520343838 /* challenge-response-aeskdf.kdbx */,
 				5B94BD2DA2BDBE0CCE743B57 /* challenge-response.kdbx */,
 				4CC3CF24A57A3BB531DA56C2 /* demo-keyfile.kdbx */,
 				7AB5EEF311A401337289C014 /* demo-keyfile.key */,
@@ -2166,6 +2170,7 @@
 			files = (
 				D0C861C6FA0E339224FC58AC /* Merge in Resources */,
 				B9865C12BB8821738A639AB7 /* argon2-high-iterations.kdbx in Resources */,
+				094A3DC100BC052CEF125938 /* challenge-response-aeskdf.kdbx in Resources */,
 				317242F5E4FD2BD477ED8823 /* challenge-response.kdbx in Resources */,
 				0EEE9DF85014DFA4D3137969 /* demo-keyfile.kdbx in Resources */,
 				FC7437F9D800FF2C36294730 /* demo-keyfile.key in Resources */,
@@ -2202,6 +2207,7 @@
 			files = (
 				93F4D3DC3EF4AA4412781861 /* Merge in Resources */,
 				D796B1C719D272FB6F70FA1A /* argon2-high-iterations.kdbx in Resources */,
+				4C4EDBE16F8DD7B5062FB5B6 /* challenge-response-aeskdf.kdbx in Resources */,
 				90459990A8CF0E9950E94AA6 /* challenge-response.kdbx in Resources */,
 				5DE36201A042172BCE6FA97B /* demo-keyfile.kdbx in Resources */,
 				6BF3E31D1B624C7399E6A518 /* demo-keyfile.key in Resources */,

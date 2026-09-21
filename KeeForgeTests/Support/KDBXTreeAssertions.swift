@@ -128,6 +128,15 @@ struct KDBXTestFixture {
         keyFileName: nil,
         keyFileExtension: nil
     )
+    /// `challengeResponse` keyed with the KDBX 4 AES-KDF (1000 rounds) under
+    /// the UUID KeePassXC writes for it; the seed is the challenge.
+    static let challengeResponseAESKDF = KDBXTestFixture(
+        name: "challenge-response-aeskdf",
+        subdirectory: nil,
+        password: "challenge-response",
+        keyFileName: nil,
+        keyFileExtension: nil
+    )
 }
 
 /// The single loading path for bundled fixtures: resolve, read, derive the
