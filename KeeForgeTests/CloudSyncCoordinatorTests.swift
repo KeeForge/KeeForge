@@ -953,8 +953,8 @@ private final class MockCloudProvider: CloudProvider, @unchecked Sendable {
 
     func signOut(accountId: String) {}
 
-    func listFiles(accountId: String, path: String?, query: String?) async throws -> [CloudFile] {
-        XCTFail("listFiles(accountId:path:query:) should not be called in CloudSyncCoordinatorTests")
+    func listFiles(accountId: String, path: String?, query: String?, includesAllFiles: Bool) async throws -> [CloudFile] {
+        XCTFail("listFiles(accountId:path:query:includesAllFiles:) should not be called in CloudSyncCoordinatorTests")
         return []
     }
 
@@ -1073,7 +1073,7 @@ final class ConflictCopyCloudProvider: CloudProvider, @unchecked Sendable {
 
     func signOut(accountId: String) {}
 
-    func listFiles(accountId: String, path: String?, query: String?) async throws -> [CloudFile] { [] }
+    func listFiles(accountId: String, path: String?, query: String?, includesAllFiles: Bool) async throws -> [CloudFile] { [] }
 
     @discardableResult
     func download(

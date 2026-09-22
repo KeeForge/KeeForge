@@ -21,7 +21,9 @@ protocol CloudProvider: AnyObject, Sendable {
     func isAuthenticated(accountId: String) -> Bool
     func signOut(accountId: String)
 
-    func listFiles(accountId: String, path: String?, query: String?) async throws -> [CloudFile]
+    /// Folders and `.kdbx` files, or every file when `includesAllFiles` is
+    /// set (see `CloudFile.isListed`).
+    func listFiles(accountId: String, path: String?, query: String?, includesAllFiles: Bool) async throws -> [CloudFile]
     /// Writes the remote file to `localURL` and reports the metadata of the
     /// bytes actually written — the pre-download rev goes stale the moment
     /// someone else writes mid-transfer. `nil` where the transport cannot say:

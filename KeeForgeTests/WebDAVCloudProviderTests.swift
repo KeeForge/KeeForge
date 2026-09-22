@@ -443,13 +443,64 @@ final class WebDAVCloudProviderTests: XCTestCase {
         let provider = WebDAVCloudProvider(client: WebDAVClient(transport: responder.transport))
 
         // No query: folders first (case-insensitive), .txt filtered out.
-        let all = try await provider.listFiles(accountId: accountId, path: nil, query: nil)
+        let all = try await provider.listFiles(accountId: accountId, path: nil, query: nil, includesAllFiles: false)
         XCTAssertEqual(all.map(\.name), ["Backups", "alpha.kdbx", "zeta.kdbx"])
         XCTAssertFalse(all.contains(where: { $0.name == "notes.txt" }))
 
         // Query: filters by name substring.
-        let filtered = try await provider.listFiles(accountId: accountId, path: nil, query: "alpha")
+        let filtered = try await provider.listFiles(accountId: accountId, path: nil, query: "alpha", includesAllFiles: false)
         XCTAssertEqual(filtered.map(\.name), ["alpha.kdbx"])
+    }
+
+    func testListFilesShowsDatabasesStoredWithoutTheKDBXExtensionOnlyWhenAllFilesAreRequested() async throws {
+        let accountId = try seedCredential(username: "alice")
+        let multistatus = """
+        <?xml version="1.0"?>
+        <d:multistatus xmlns:d="DAV:">
+          <d:response>
+            <d:href>/dav/</d:href>
+            <d:propstat>
+              <d:prop><d:resourcetype><d:collection/></d:resourcetype></d:prop>
+              <d:status>HTTP/1.1 200 OK</d:status>
+            </d:propstat>
+          </d:response>
+          <d:response>
+            <d:href>/dav/vault.bin</d:href>
+            <d:propstat>
+              <d:prop><d:resourcetype/></d:prop>
+              <d:status>HTTP/1.1 200 OK</d:status>
+            </d:propstat>
+          </d:response>
+          <d:response>
+            <d:href>/dav/personal.kdbx</d:href>
+            <d:propstat>
+              <d:prop><d:resourcetype/></d:prop>
+              <d:status>HTTP/1.1 200 OK</d:status>
+            </d:propstat>
+          </d:response>
+          <d:response>
+            <d:href>/dav/Archive/</d:href>
+            <d:propstat>
+              <d:prop><d:resourcetype><d:collection/></d:resourcetype></d:prop>
+              <d:status>HTTP/1.1 200 OK</d:status>
+            </d:propstat>
+          </d:response>
+        </d:multistatus>
+        """
+        let responder = TransportResponder { _ in
+            StubResponse(status: 207, headers: [:], body: Data(multistatus.utf8))
+        }
+        let provider = WebDAVCloudProvider(client: WebDAVClient(transport: responder.transport))
+
+        let databasesOnly = try await provider.listFiles(accountId: accountId, path: nil, query: nil, includesAllFiles: false)
+        XCTAssertEqual(databasesOnly.map(\.name), ["Archive", "personal.kdbx"])
+
+        let allFiles = try await provider.listFiles(accountId: accountId, path: nil, query: nil, includesAllFiles: true)
+        XCTAssertEqual(allFiles.map(\.name), ["Archive", "personal.kdbx", "vault.bin"])
+        XCTAssertEqual(allFiles.last?.id, "/vault.bin")
+
+        let searched = try await provider.listFiles(accountId: accountId, path: nil, query: "vault", includesAllFiles: true)
+        XCTAssertEqual(searched.map(\.name), ["vault.bin"])
     }
 
     // MARK: - Provider: not authenticated

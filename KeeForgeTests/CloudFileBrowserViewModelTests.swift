@@ -18,7 +18,34 @@ final class CloudFileBrowserViewModelTests: XCTestCase {
         let viewModel = CloudFolderBrowserViewModel(path: "/Vaults")
         viewModel.searchText = "vault"
 
-        XCTAssertEqual(viewModel.requestKey(accountID: "acct-1"), "acct-1|/Vaults|vault")
+        XCTAssertEqual(
+            viewModel.requestKey(accountID: "acct-1", includesAllFiles: false),
+            "acct-1|/Vaults|vault|false"
+        )
+    }
+
+    func testRequestKeyChangesWhenAllFilesAreShownSoTheListingReloads() {
+        let viewModel = CloudFolderBrowserViewModel(path: "/Vaults")
+
+        XCTAssertNotEqual(
+            viewModel.requestKey(accountID: "acct-1", includesAllFiles: false),
+            viewModel.requestKey(accountID: "acct-1", includesAllFiles: true)
+        )
+    }
+
+    func testLoadForwardsShowAllFilesToTheProviderAndPublishesNonKDBXFiles() async {
+        let provider = MockBrowserCloudProvider()
+        let viewModel = CloudFolderBrowserViewModel(path: "/Vaults")
+        provider.filesToReturn = [
+            CloudFile(id: "/Vaults/vault.bin", name: "vault.bin", path: "/Vaults/vault.bin", isFolder: false, modifiedDate: nil, size: nil)
+        ]
+
+        await viewModel.load(provider: provider, accountID: "acct-1", includesAllFiles: false)
+        XCTAssertEqual(provider.lastListIncludesAllFiles, false)
+
+        await viewModel.load(provider: provider, accountID: "acct-1", includesAllFiles: true)
+        XCTAssertEqual(provider.lastListIncludesAllFiles, true)
+        XCTAssertEqual(viewModel.files.map(\.name), ["vault.bin"])
     }
 
     func testLoadUsesTrimmedQueryAndClearsPreviousErrorOnSuccess() async {
@@ -26,7 +53,7 @@ final class CloudFileBrowserViewModelTests: XCTestCase {
         let viewModel = CloudFolderBrowserViewModel(path: "/Vaults")
         provider.listError = CloudProviderError.fileNotFound
 
-        await viewModel.load(provider: provider, accountID: "acct-1")
+        await viewModel.load(provider: provider, accountID: "acct-1", includesAllFiles: false)
 
         viewModel.searchText = "  personal  "
         provider.listError = nil
@@ -41,7 +68,7 @@ final class CloudFileBrowserViewModelTests: XCTestCase {
             )
         ]
 
-        await viewModel.load(provider: provider, accountID: "acct-1")
+        await viewModel.load(provider: provider, accountID: "acct-1", includesAllFiles: false)
 
         XCTAssertEqual(provider.lastListAccountID, "acct-1")
         XCTAssertEqual(provider.lastListPath, "/Vaults")
@@ -65,10 +92,10 @@ final class CloudFileBrowserViewModelTests: XCTestCase {
             )
         ]
 
-        await viewModel.load(provider: provider, accountID: "acct-1")
+        await viewModel.load(provider: provider, accountID: "acct-1", includesAllFiles: false)
 
         provider.listError = CloudProviderError.fileNotFound
-        await viewModel.load(provider: provider, accountID: "acct-1")
+        await viewModel.load(provider: provider, accountID: "acct-1", includesAllFiles: false)
 
         XCTAssertEqual(viewModel.errorMessage, CloudProviderError.fileNotFound.localizedDescription)
         XCTAssertTrue(viewModel.files.isEmpty)
@@ -80,7 +107,7 @@ final class CloudFileBrowserViewModelTests: XCTestCase {
         let viewModel = CloudFolderBrowserViewModel(path: "/Vaults")
         viewModel.searchText = "   "
 
-        await viewModel.load(provider: provider, accountID: "acct-1")
+        await viewModel.load(provider: provider, accountID: "acct-1", includesAllFiles: false)
 
         XCTAssertNil(provider.lastListQuery)
     }
@@ -101,12 +128,12 @@ final class CloudFileBrowserViewModelTests: XCTestCase {
         ]
         let viewModel = CloudFolderBrowserViewModel(path: "/Vaults")
 
-        let slowLoad = Task { await viewModel.load(provider: provider, accountID: "acct-1") }
+        let slowLoad = Task { await viewModel.load(provider: provider, accountID: "acct-1", includesAllFiles: false) }
         // The slow load has reached listFiles (generation 1) and is parked.
         await startedGate.wait()
 
         // A newer request completes first and owns the published state.
-        await viewModel.load(provider: provider, accountID: "acct-1")
+        await viewModel.load(provider: provider, accountID: "acct-1", includesAllFiles: false)
         XCTAssertEqual(viewModel.files, freshFiles)
 
         // Releasing the stale request must not clobber the newer results.
@@ -133,7 +160,7 @@ final class CloudFileBrowserViewModelTests: XCTestCase {
         ]
         let viewModel = CloudFolderBrowserViewModel(path: "/Vaults")
 
-        let load = Task { await viewModel.load(provider: provider, accountID: "acct-1") }
+        let load = Task { await viewModel.load(provider: provider, accountID: "acct-1", includesAllFiles: false) }
         await startedGate.wait()
         load.cancel()
         releaseGate.open()
@@ -151,11 +178,11 @@ final class CloudFileBrowserViewModelTests: XCTestCase {
             CloudFile(id: "seed", name: "seed.kdbx", path: "/seed.kdbx", isFolder: false, modifiedDate: nil, size: nil)
         ]
         provider.filesToReturn = seededFiles
-        await viewModel.load(provider: provider, accountID: "acct-1")
+        await viewModel.load(provider: provider, accountID: "acct-1", includesAllFiles: false)
         XCTAssertEqual(viewModel.files, seededFiles)
 
         provider.listError = CancellationError()
-        await viewModel.load(provider: provider, accountID: "acct-1")
+        await viewModel.load(provider: provider, accountID: "acct-1", includesAllFiles: false)
 
         XCTAssertNil(viewModel.errorMessage)
         XCTAssertEqual(viewModel.files, seededFiles)
@@ -253,6 +280,7 @@ private final class MockBrowserCloudProvider: CloudProvider, @unchecked Sendable
     private(set) var lastListAccountID: String?
     private(set) var lastListPath: String?
     private(set) var lastListQuery: String?
+    private(set) var lastListIncludesAllFiles: Bool?
     private(set) var cancelPendingAuthenticationCallCount = 0
 
     func authenticate(from anchor: ASPresentationAnchor) async throws -> CloudAccount {
@@ -271,10 +299,11 @@ private final class MockBrowserCloudProvider: CloudProvider, @unchecked Sendable
 
     func signOut(accountId: String) {}
 
-    func listFiles(accountId: String, path: String?, query: String?) async throws -> [CloudFile] {
+    func listFiles(accountId: String, path: String?, query: String?, includesAllFiles: Bool) async throws -> [CloudFile] {
         lastListAccountID = accountId
         lastListPath = path
         lastListQuery = query
+        lastListIncludesAllFiles = includesAllFiles
 
         if let listError {
             throw listError
@@ -363,7 +392,7 @@ private final class GatedBrowserCloudProvider: CloudProvider, @unchecked Sendabl
 
     func signOut(accountId: String) {}
 
-    func listFiles(accountId: String, path: String?, query: String?) async throws -> [CloudFile] {
+    func listFiles(accountId: String, path: String?, query: String?, includesAllFiles: Bool) async throws -> [CloudFile] {
         // The lock guards only the synchronous cursor advance (no await inside
         // the critical section). Swift 6 forbids calling NSLock.lock() directly
         // from an async context, so take/advance in a synchronous helper.

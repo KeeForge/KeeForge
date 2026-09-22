@@ -52,7 +52,7 @@ final class UITestDropboxCloudProvider: CloudProvider, @unchecked Sendable {
         CloudAccountStore.remove(provider: id, accountId: accountId)
     }
 
-    func listFiles(accountId: String, path: String?, query: String?) async throws -> [CloudFile] {
+    func listFiles(accountId: String, path: String?, query: String?, includesAllFiles: Bool) async throws -> [CloudFile] {
         guard isAuthenticated(accountId: accountId) else {
             throw CloudProviderError.notAuthenticated
         }
@@ -62,7 +62,9 @@ final class UITestDropboxCloudProvider: CloudProvider, @unchecked Sendable {
             throw error
         }
 
-        let files = payload.files(at: path)
+        let files = payload.files(at: path).filter {
+            CloudFile.isListed(name: $0.name, isFolder: $0.isFolder, includesAllFiles: includesAllFiles)
+        }
         guard let query, !query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             return sort(files)
         }

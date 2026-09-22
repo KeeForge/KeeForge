@@ -77,7 +77,7 @@ final class WebDAVCloudProvider: CloudProvider, WebDAVConnecting, Sendable {
 
     // MARK: - Listing
 
-    func listFiles(accountId: String, path: String?, query: String?) async throws -> [CloudFile] {
+    func listFiles(accountId: String, path: String?, query: String?, includesAllFiles: Bool) async throws -> [CloudFile] {
         let context = try resolveContext(accountId: accountId)
         let listURL = Self.url(forFolderPath: path, base: context.baseURL)
 
@@ -87,7 +87,9 @@ final class WebDAVCloudProvider: CloudProvider, WebDAVConnecting, Sendable {
         }
 
         let resources = try WebDAVPropfindParser.parse(data: response.data, requestURL: listURL)
-        let files = resources.compactMap { Self.makeCloudFile(from: $0, folderPath: path) }
+        let files = resources.compactMap {
+            Self.makeCloudFile(from: $0, folderPath: path, includesAllFiles: includesAllFiles)
+        }
         let filtered = Self.filter(files: files, query: query)
         return filtered.sorted(by: Self.sortCloudFiles)
     }
@@ -413,10 +415,16 @@ final class WebDAVCloudProvider: CloudProvider, WebDAVConnecting, Sendable {
 
     // MARK: - CloudFile mapping / filtering / sorting
 
-    private static func makeCloudFile(from resource: WebDAVResource, folderPath: String?) -> CloudFile? {
-        if !resource.isFolder {
-            guard resource.name.lowercased().hasSuffix(".kdbx") else { return nil }
-        }
+    private static func makeCloudFile(
+        from resource: WebDAVResource,
+        folderPath: String?,
+        includesAllFiles: Bool
+    ) -> CloudFile? {
+        guard CloudFile.isListed(
+            name: resource.name,
+            isFolder: resource.isFolder,
+            includesAllFiles: includesAllFiles
+        ) else { return nil }
 
         let fullPath = joinedPath(folder: folderPath, name: resource.name)
         return CloudFile(

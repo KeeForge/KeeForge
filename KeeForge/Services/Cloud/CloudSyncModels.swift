@@ -88,6 +88,12 @@ struct CloudFile: Identifiable, Hashable, Sendable {
     let isFolder: Bool
     let modifiedDate: Date?
     let size: Int64?
+
+    /// KDBX does not require the `.kdbx` extension, so a browser listing all
+    /// files is the only way to reach a database stored under another name.
+    static func isListed(name: String, isFolder: Bool, includesAllFiles: Bool) -> Bool {
+        isFolder || includesAllFiles || name.lowercased().hasSuffix(".kdbx")
+    }
 }
 
 struct CloudFileMetadata: Equatable, Sendable {

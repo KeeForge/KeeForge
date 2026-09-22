@@ -14,6 +14,7 @@ struct CloudFileBrowserView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var session: CloudFileBrowserSession
     @State private var isManualConnectPresented = false
+    @State private var showsAllFiles = false
 
     init(
         providerID: String,
@@ -39,6 +40,7 @@ struct CloudFileBrowserView: View {
                             provider: provider,
                             account: selectedAccount,
                             initialPath: nil,
+                            showsAllFiles: $showsAllFiles,
                             onSelect: handleFileSelection
                         )
                     } else {
@@ -410,6 +412,7 @@ private struct CloudFolderBrowserView: View {
     let provider: CloudProvider
     let account: CloudAccount
     let initialPath: String?
+    @Binding var showsAllFiles: Bool
     let onSelect: (CloudFile) -> Void
 
     @State private var viewModel: CloudFolderBrowserViewModel
@@ -418,11 +421,13 @@ private struct CloudFolderBrowserView: View {
         provider: CloudProvider,
         account: CloudAccount,
         initialPath: String?,
+        showsAllFiles: Binding<Bool>,
         onSelect: @escaping (CloudFile) -> Void
     ) {
         self.provider = provider
         self.account = account
         self.initialPath = initialPath
+        _showsAllFiles = showsAllFiles
         self.onSelect = onSelect
         _viewModel = State(initialValue: CloudFolderBrowserViewModel(path: initialPath))
     }
@@ -439,40 +444,29 @@ private struct CloudFolderBrowserView: View {
                     description: Text(errorMessage)
                 )
             } else if viewModel.files.isEmpty {
-                ContentUnavailableView(
-                    "No Databases",
-                    systemImage: "doc",
-                    description: Text("No KeePass databases were found in this location.")
-                )
+                ContentUnavailableView {
+                    Label("No Databases", systemImage: "doc")
+                } description: {
+                    Text("No KeePass databases were found in this location.")
+                } actions: {
+                    if !showsAllFiles {
+                        Button("Show All Files") {
+                            showsAllFiles = true
+                        }
+                        .accessibilityIdentifier("cloud.browser.show-all-files.button")
+                    }
+                }
             } else {
-                List(viewModel.files) { file in
-                    if file.isFolder {
-                        NavigationLink {
-                            CloudFolderBrowserView(
-                                provider: provider,
-                                account: account,
-                                initialPath: file.id,
-                                onSelect: onSelect
-                            )
-                        } label: {
-                            Label(file.name, systemImage: "folder")
+                List {
+                    Section {
+                        Toggle("Show All Files", isOn: $showsAllFiles)
+                            .accessibilityIdentifier("cloud.browser.show-all-files.toggle")
+                    }
+
+                    Section {
+                        ForEach(viewModel.files) { file in
+                            fileRow(file)
                         }
-                        .accessibilityIdentifier("cloud.browser.file.row")
-                    } else {
-                        Button {
-                            onSelect(file)
-                        } label: {
-                            VStack(alignment: .leading, spacing: 4) {
-                                Label(file.name, systemImage: "doc.text")
-                                Text(file.path)
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                                    .lineLimit(1)
-                                    .truncationMode(.middle)
-                            }
-                        }
-                        .buttonStyle(.plain)
-                        .accessibilityIdentifier("cloud.browser.file.row")
                     }
                 }
                 .listStyle(.insetGrouped)
@@ -481,8 +475,41 @@ private struct CloudFolderBrowserView: View {
         .navigationTitle(navigationTitle)
         .navigationBarTitleDisplayMode(.inline)
         .searchable(text: $viewModel.searchText, placement: .navigationBarDrawer(displayMode: .automatic))
-        .task(id: viewModel.requestKey(accountID: account.id)) {
-            await viewModel.load(provider: provider, accountID: account.id)
+        .task(id: viewModel.requestKey(accountID: account.id, includesAllFiles: showsAllFiles)) {
+            await viewModel.load(provider: provider, accountID: account.id, includesAllFiles: showsAllFiles)
+        }
+    }
+
+    @ViewBuilder
+    private func fileRow(_ file: CloudFile) -> some View {
+        if file.isFolder {
+            NavigationLink {
+                CloudFolderBrowserView(
+                    provider: provider,
+                    account: account,
+                    initialPath: file.id,
+                    showsAllFiles: $showsAllFiles,
+                    onSelect: onSelect
+                )
+            } label: {
+                Label(file.name, systemImage: "folder")
+            }
+            .accessibilityIdentifier("cloud.browser.file.row")
+        } else {
+            Button {
+                onSelect(file)
+            } label: {
+                VStack(alignment: .leading, spacing: 4) {
+                    Label(file.name, systemImage: "doc.text")
+                    Text(file.path)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                }
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("cloud.browser.file.row")
         }
     }
 
@@ -566,8 +593,8 @@ private struct CloudDestinationFolderBrowserView: View {
                 .accessibilityIdentifier("cloud.folder.create-here")
             }
         }
-        .task(id: viewModel.requestKey(accountID: account.id)) {
-            await viewModel.load(provider: provider, accountID: account.id)
+        .task(id: viewModel.requestKey(accountID: account.id, includesAllFiles: false)) {
+            await viewModel.load(provider: provider, accountID: account.id, includesAllFiles: false)
         }
     }
 
