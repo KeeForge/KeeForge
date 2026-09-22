@@ -721,6 +721,24 @@ boundaries, and both App Store version/build numbers; preserve the completed non
 
 Keep the release branch. It is where `{version}.1` will come from.
 
+## C8. Reconcile the GitHub project
+
+After production verification succeeds, audit
+[KeeForge project 1](https://github.com/orgs/KeeForge/projects/1/views/2) for issues whose Status is
+**Pending Release**. Establish the shipped boundary from the dereferenced `v{version}` tag, then
+identify the implementation commit or merged pull request for each pending issue. Move an issue to
+**Released** only when its implementation is reachable from that tag and the promised behavior
+actually shipped on its intended platform. A changelog entry is useful corroboration but is not
+required for internal tasks or refactors.
+
+Do not infer release from the issue being closed, from its milestone, or from the implementation
+being present on current `main`: work merged after the shipped tag stays **Pending Release**. Present
+the exact move/leave list with the tag-containment evidence and obtain confirmation immediately
+before changing project fields unless the user already explicitly authorized this reconciliation.
+For the write, invoke `keeforge-github-issues`, follow its live-project preflight, change only the
+Status field, and read every changed project item back to verify it now says **Released**. Do not
+close or otherwise edit the issues as part of this step.
+
 ---
 
 # Mode D — Patch a shipped version
