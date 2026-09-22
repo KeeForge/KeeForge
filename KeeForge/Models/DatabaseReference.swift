@@ -30,6 +30,10 @@ struct DatabaseReference: Identifiable, Codable, Hashable, Sendable {
     /// still has to ask the hardware key; `DatabaseListStore.setHardwareKey`
     /// owns that invariant.
     var hardwareKey: HardwareKeyConfiguration?
+    /// Set by a relink and cleared by the next successful unlock: until then
+    /// the picked file is unproven, and a wrong pick can fail as a wrong
+    /// password, so any open failure keeps offering to relink.
+    var hasUnverifiedRelink: Bool = false
 
     var displayName: String {
         let trimmedNickname = nickname?.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -99,6 +103,7 @@ extension DatabaseReference {
         case source
         case lastMasterKeyChangeAt
         case hardwareKey
+        case hasUnverifiedRelink
     }
 
     init(from decoder: Decoder) throws {
@@ -120,6 +125,7 @@ extension DatabaseReference {
         source = try container.decodeIfPresent(DatabaseSource.self, forKey: .source) ?? .local
         lastMasterKeyChangeAt = try container.decodeIfPresent(Date.self, forKey: .lastMasterKeyChangeAt)
         hardwareKey = try container.decodeIfPresent(HardwareKeyConfiguration.self, forKey: .hardwareKey)
+        hasUnverifiedRelink = try container.decodeIfPresent(Bool.self, forKey: .hasUnverifiedRelink) ?? false
     }
 
     func encode(to encoder: Encoder) throws {
@@ -141,5 +147,6 @@ extension DatabaseReference {
         try container.encode(source, forKey: .source)
         try container.encodeIfPresent(lastMasterKeyChangeAt, forKey: .lastMasterKeyChangeAt)
         try container.encodeIfPresent(hardwareKey, forKey: .hardwareKey)
+        try container.encode(hasUnverifiedRelink, forKey: .hasUnverifiedRelink)
     }
 }

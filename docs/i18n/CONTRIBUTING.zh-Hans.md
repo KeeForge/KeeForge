@@ -46,7 +46,7 @@ xcodebuild test -project KeeForge.xcodeproj -scheme KeeForgeMac \
 1. Fork 本仓库，并从 `main` 创建一个主题分支。
 2. 做出能解决问题的最小的连贯改动。
 3. 添加或更新测试，使用最小的相关测试 target 并配合 `-only-testing:`。
-4. 在 [`CHANGELOG.md`](../../CHANGELOG.md) 的 `## Unreleased` 下添加功能和 bug 修复说明。在首个 Mac 版本发布前，仅限 macOS 的更改应写在 `## macOS App` 下。
+4. 在 [`CHANGELOG.md`](../../CHANGELOG.md) 的 `## Unreleased` 下添加所有平台面向用户的功能和 bug 修复说明。
 5. 开一个 pull request，描述行为上的变化以及如何验证。
 
 每个 pull request 在合并前都会由维护者审阅。KeeForge 使用 squash 合并，因此请保持 pull request 聚焦，并起一个清晰的标题。

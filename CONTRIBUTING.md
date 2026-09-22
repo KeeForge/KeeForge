@@ -47,7 +47,7 @@ xcodebuild test -project KeeForge.xcodeproj -scheme KeeForgeMac \
 1. Fork the repository and create a topic branch from `main`.
 2. Make the smallest coherent change that addresses the issue.
 3. Add or update tests, using the smallest relevant test target and `-only-testing:`.
-4. Add feature and bug-fix notes under `## Unreleased` in [`CHANGELOG.md`](CHANGELOG.md). Until the first native Mac release ships, macOS-only work belongs under `## macOS App` instead.
+4. Add user-facing feature and bug-fix notes for every platform under `## Unreleased` in [`CHANGELOG.md`](CHANGELOG.md).
 5. Open a pull request describing the behavior change and how it was verified.
 
 A maintainer reviews every pull request before it is merged. KeeForge uses squash merges, so please keep the pull request focused and give it a clear title.

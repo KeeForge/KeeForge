@@ -46,7 +46,7 @@ xcodebuild test -project KeeForge.xcodeproj -scheme KeeForgeMac \
 1. リポジトリをフォークし、`main` からトピックブランチを作成します。
 2. 課題を解決する、まとまりのある最小限の変更を行います。
 3. テストを追加または更新します。関連する最小のテストターゲットと `-only-testing:` を使ってください。
-4. 機能とバグ修正の内容を [`CHANGELOG.md`](../../CHANGELOG.md) の `## Unreleased` に追記します。最初の Mac リリースまでは、macOS のみの変更を `## macOS App` に記載します。
+4. すべてのプラットフォームについて、ユーザー向けの機能とバグ修正の内容を [`CHANGELOG.md`](../../CHANGELOG.md) の `## Unreleased` に追記します。
 5. 動作の変更点と、それをどのように検証したかを説明するプルリクエストを作成します。
 
 すべてのプルリクエストは、マージ前にメンテナがレビューします。KeeForge は squash マージを使用しているため、プルリクエストは目的を絞り、わかりやすいタイトルを付けてください。

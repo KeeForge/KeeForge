@@ -496,6 +496,7 @@ enum DatabaseListStore {
         withStateLock {
             guard var reference = loadDatabases().first(where: { $0.id == id }) else { return }
             reference.lastOpenedAt = date
+            reference.hasUnverifiedRelink = false
             update(reference)
             // Opening a database with AutoFill disabled must not make it the
             // active AutoFill database; the previous pointer stays in place.
@@ -576,7 +577,7 @@ enum DatabaseListStore {
         case databaseInTrash
 
         var errorDescription: String? {
-            String(localized: "The database file is in Recently Deleted in the Files app. Restore it in Files, or remove this database and add the current file again.")
+            String(localized: "The database file is in Recently Deleted in the Files app. Restore it in Files, or choose the current file with Locate Database File in KeeForge.")
         }
     }
 
@@ -628,6 +629,56 @@ enum DatabaseListStore {
             return nil
         }
         return url
+    }
+
+    /// Points a bookmarked local reference at the file the user picked after
+    /// its bookmark stopped reaching the current copy — a File Provider that
+    /// replaced the item during sync, or a Files-app Replace. Only the file
+    /// identity changes, so the id, nickname, key file, Keychain key, AutoFill
+    /// settings, and backups survive, unlike remove-and-add. The shared cache
+    /// is reseeded from the picked file, which is the source of truth for a
+    /// bookmarked reference. Nil when the id is no longer listed, is
+    /// cloud-backed, or has no bookmark (a KeeForge-only database lives in
+    /// that cache, so reseeding it would overwrite the database itself).
+    @discardableResult
+    static func relinkLocalDatabase(id: UUID, to url: URL) throws -> DatabaseReference? {
+        let accessed = url.startAccessingSecurityScopedResource()
+        defer {
+            if accessed {
+                url.stopAccessingSecurityScopedResource()
+            }
+        }
+
+        if SecurityScopedBookmarkManager.isInTrashDirectory(url) {
+            throw LocalDatabaseFileError.databaseInTrash
+        }
+        let bookmarkData = try SecurityScopedBookmarkManager.makeBookmarkData(for: url)
+
+        let relinked = try withStateLock { () throws -> DatabaseReference? in
+            var currentDatabases = loadDatabases()
+            guard let index = currentDatabases.firstIndex(where: { $0.id == id }),
+                  currentDatabases[index].cloudSyncMetadata == nil,
+                  currentDatabases[index].bookmarkData != nil else {
+                return nil
+            }
+            if let duplicate = existingLocalReference(matching: url, in: currentDatabases.filter { $0.id != id }) {
+                throw AddDatabaseError.duplicateFile(
+                    existingReferenceID: duplicate.id,
+                    filename: duplicate.displayName
+                )
+            }
+            currentDatabases[index].bookmarkData = bookmarkData
+            currentDatabases[index].filename = filename(for: url)
+            currentDatabases[index].isDocumentsResident = isTopLevelDocumentsFile(url)
+            currentDatabases[index].hasUnverifiedRelink = true
+            guard saveDatabases(currentDatabases) else { return nil }
+            return currentDatabases[index]
+        }
+
+        if relinked != nil {
+            cacheInitialCopyIfPossible(from: url, for: id)
+        }
+        return relinked
     }
 
     static func resolveKeyFileURL(for reference: DatabaseReference) -> URL? {
