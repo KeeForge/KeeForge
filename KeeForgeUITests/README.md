@@ -44,6 +44,7 @@ macOS UI tests: see `../KeeForgeMacUITests/AGENTS.md`; the accessibility identif
 - `CloudBrowserSmokeUITests` — add Dropbox and browse the mock cloud picker
 - `CloudUnlockSmokeUITests` — unlock a seeded cloud-backed database through the mock provider
 - `WebDAVAddFlowUITests` — add WebDAV, fill the connect form, and browse the mock cloud picker (driven by `UITestWebDAVCloudProvider` via `UI_TEST_WEBDAV_PAYLOAD_JSON`)
+- `WebDAVShowAllFilesUITests` — a database stored without the `.kdbx` extension stays hidden in the cloud browser until the Show All Files switch at the top of the list (`cloud.browser.show-all-files.toggle`) is on, then opens and unlocks
 - `WebDAVConnectErrorUITests` — WebDAV connect failure surfaces `webdav.connect.error` and keeps the form up
 - `WebDAVSeededUnlockUITests` — unlock a seeded WebDAV cloud-backed database through the mock provider
 - `DatabaseCreationRegularWidthUITests` — new local database happy path on regular-width / iPad layout
@@ -93,7 +94,7 @@ xcodebuild test -project KeeForge.xcodeproj -scheme KeeForge \
 - `EntryEditUITests.swift` — `EntryEditUITestCase` (base), `EntryCreateSmokeUITests`, `EntryEditSmokeUITests`, `EntryDeleteSmokeUITests`, `EntryEditEdgeUITests`
 - `EntryDuplicateUITests.swift` — `EntryDuplicateUITests`
 - `CloudSyncUITests.swift` — `CloudSyncBaseUITests` (base), `CloudBrowserSmokeUITests`, `CloudUnlockSmokeUITests`, `CloudAccountEdgeUITests`
-- `WebDAVSyncUITests.swift` — `WebDAVSyncBaseUITests` (base), `WebDAVAddFlowUITests`, `WebDAVConnectErrorUITests`, `WebDAVSeededUnlockUITests`
+- `WebDAVSyncUITests.swift` — `WebDAVSyncBaseUITests` (base), `WebDAVAddFlowUITests`, `WebDAVShowAllFilesUITests`, `WebDAVConnectErrorUITests`, `WebDAVSeededUnlockUITests`
 - `DatabaseCreationUITests.swift` — `DatabaseCreationUITestCase` (base), `DatabaseCreationCompactUITests`, `DatabaseCreationRegularWidthUITests`
 - `TOTPEnrollmentUITests.swift` — `TOTPEnrollmentUITestCase` (base), `TOTPEnrollmentUITests`, `TOTPEnrollmentDeepLinkUITests`
 - `SaveConflictMergeUITests.swift` — `SaveConflictMergeUITestCase` (base, extends `EntryEditUITestCase`), `SaveConflictMergeUITests`, `SaveConflictMergeDeclineUITests`

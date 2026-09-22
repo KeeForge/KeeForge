@@ -15,11 +15,11 @@ final class CloudFolderBrowserViewModel {
         self.path = path
     }
 
-    func requestKey(accountID: String) -> String {
-        "\(accountID)|\(path ?? "")|\(searchText)"
+    func requestKey(accountID: String, includesAllFiles: Bool) -> String {
+        "\(accountID)|\(path ?? "")|\(searchText)|\(includesAllFiles)"
     }
 
-    func load(provider: CloudProvider, accountID: String) async {
+    func load(provider: CloudProvider, accountID: String, includesAllFiles: Bool) async {
         loadGeneration &+= 1
         let generation = loadGeneration
         isLoading = true
@@ -29,7 +29,8 @@ final class CloudFolderBrowserViewModel {
             let loadedFiles = try await provider.listFiles(
                 accountId: accountID,
                 path: path,
-                query: trimmedSearchText
+                query: trimmedSearchText,
+                includesAllFiles: includesAllFiles
             )
             result = .success(loadedFiles)
         } catch {

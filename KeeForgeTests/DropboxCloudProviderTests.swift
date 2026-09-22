@@ -201,6 +201,41 @@ final class DropboxCloudProviderTests: XCTestCase {
         DropboxCloudProvider.mapGenericDropboxError(error) as? CloudProviderError
     }
 
+    // MARK: - Listing filter
+
+    func testNonKDBXFileIsListedOnlyWhenAllFilesAreRequested() {
+        let file = dropboxFile(name: "vault.bin")
+
+        XCTAssertNil(DropboxCloudProvider.makeCloudFile(from: file, includesAllFiles: false))
+        XCTAssertEqual(DropboxCloudProvider.makeCloudFile(from: file, includesAllFiles: true)?.id, "/Vaults/vault.bin")
+        XCTAssertNotNil(DropboxCloudProvider.makeCloudFile(from: dropboxFile(name: "Personal.KDBX"), includesAllFiles: false))
+    }
+
+    func testFoldersAreListedEitherWay() {
+        let folder = Files.FolderMetadata(name: "Vaults", id: "id:folder", pathDisplay: "/Vaults")
+
+        XCTAssertEqual(DropboxCloudProvider.makeCloudFile(from: folder, includesAllFiles: false)?.isFolder, true)
+        XCTAssertEqual(DropboxCloudProvider.makeCloudFile(from: folder, includesAllFiles: true)?.isFolder, true)
+    }
+
+    func testSearchDropsTheServerSideExtensionFilterOnlyWhenAllFilesAreRequested() {
+        XCTAssertEqual(DropboxCloudProvider.searchOptions(path: "/Vaults", includesAllFiles: false).fileExtensions, ["kdbx"])
+        XCTAssertNil(DropboxCloudProvider.searchOptions(path: "/Vaults", includesAllFiles: true).fileExtensions)
+        XCTAssertEqual(DropboxCloudProvider.searchOptions(path: "/Vaults", includesAllFiles: true).path, "/Vaults")
+    }
+
+    private func dropboxFile(name: String) -> Files.FileMetadata {
+        Files.FileMetadata(
+            name: name,
+            id: "id:file",
+            clientModified: Date(timeIntervalSince1970: 1_700_000_000),
+            serverModified: Date(timeIntervalSince1970: 1_700_000_000),
+            rev: "0123456789abcdef",
+            size: 1,
+            pathDisplay: "/Vaults/\(name)"
+        )
+    }
+
     private func writeError(_ error: Files.WriteError) -> CloudProviderError? {
         DropboxCloudProvider.mapWriteError(error) as? CloudProviderError
     }

@@ -641,3 +641,24 @@ final class OneDriveCloudProviderTests: XCTestCase {
         )
     }
 }
+
+extension OneDriveCloudProviderTests {
+    func testNonKDBXFileIsListedOnlyWhenAllFilesAreRequested() throws {
+        let item = try driveItem(#"{"id":"1","name":"vault.bin","file":{},"parentReference":{"path":"/drive/root:/Vaults"}}"#)
+
+        XCTAssertNil(OneDriveCloudProvider.makeCloudFile(from: item, includesAllFiles: false))
+        XCTAssertEqual(OneDriveCloudProvider.makeCloudFile(from: item, includesAllFiles: true)?.id, "/Vaults/vault.bin")
+    }
+
+    func testKDBXFilesAndFoldersAreListedEitherWay() throws {
+        let database = try driveItem(#"{"id":"2","name":"Personal.KDBX","file":{}}"#)
+        let folder = try driveItem(#"{"id":"3","name":"Vaults","folder":{}}"#)
+
+        XCTAssertNotNil(OneDriveCloudProvider.makeCloudFile(from: database, includesAllFiles: false))
+        XCTAssertEqual(OneDriveCloudProvider.makeCloudFile(from: folder, includesAllFiles: false)?.isFolder, true)
+    }
+
+    private func driveItem(_ json: String) throws -> OneDriveDriveItem {
+        try JSONDecoder().decode(OneDriveDriveItem.self, from: Data(json.utf8))
+    }
+}
