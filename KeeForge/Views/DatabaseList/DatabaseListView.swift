@@ -619,7 +619,7 @@ struct DatabaseListView: View {
     private func handleDatabaseSelection(_ result: Result<URL, Error>) {
         switch result {
         case .success(let url):
-            guard isSupportedDatabaseSelection(url) else {
+            guard DocumentPickerService.isSupportedDatabaseSelection(url) else {
                 selectionAlert = DocumentPickerService.invalidDatabaseSelectionAlert()
                 return
             }
@@ -661,21 +661,6 @@ struct DatabaseListView: View {
         if detailsReference?.id == id {
             detailsReference = viewModel.databases.first(where: { $0.id == id })
         }
-    }
-
-    private func isSupportedDatabaseSelection(_ url: URL) -> Bool {
-        if DocumentPickerService.isLikelyDatabaseFile(url) {
-            return true
-        }
-
-        let hasSecurityScope = url.startAccessingSecurityScopedResource()
-        defer {
-            if hasSecurityScope {
-                url.stopAccessingSecurityScopedResource()
-            }
-        }
-
-        return DocumentPickerService.isSupportedDatabaseFile(at: url)
     }
 
     private func makeCloudSelectionAlert(

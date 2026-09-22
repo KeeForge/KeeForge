@@ -13,6 +13,7 @@
 - Cloud sync warnings now follow the language you read the app in. A warning recorded before you switched languages kept showing up in the old one.
 - Deleting an entry from the search results works again. Tapping Delete in a search result's long-press menu did nothing, and swiping to delete there made the row disappear without actually deleting the entry.
 - On iPhone and iPad, the key icon in the AutoFill bar above the keyboard now opens KeeForge so you can search for and pick a credential (#129, #132). It used to fill the suggested one straight away, which left no way to reach another entry — for passwords, passkeys and verification codes alike. Tapping the suggestion itself still fills it directly.
+- A database opened through the Files app can be reconnected when it becomes unavailable after a cloud app such as Nextcloud or iCloud Drive replaces the file during sync (#53). Tap Locate Database File on the error screen and pick the current file. The database keeps its name, key file, Face ID or Touch ID unlock, AutoFill setting, and backups, so you no longer have to remove and re-add it. Databases on a server that can't be reached still need the connection back; KeeForge doesn't open an offline copy of them.
 
 ## v1.16.0 (2026-09-21)
 

@@ -1,4 +1,5 @@
 import SwiftUI
+import UniformTypeIdentifiers
 
 struct UnlockView: View {
     @Bindable var viewModel: DatabaseViewModel
@@ -6,7 +7,7 @@ struct UnlockView: View {
     var showsChooseDifferentFileAction = true
 
     @State private var password = ""
-    @State private var showKeyFilePicker = false
+    @State private var filePickerState = PickerPresentationState<FilePickerTarget>()
     @State private var selectionAlert: DocumentPickerService.SelectionAlert?
     @State private var keyFileData: Data?
     @State private var keyFileName: String?
@@ -45,10 +46,18 @@ struct UnlockView: View {
         }
         .background(UnlockViewBackground())
         .scrollIndicators(.hidden)
+        // One importer for both targets: SwiftUI does not reliably present a
+        // second `.fileImporter` attached to the same view.
         .fileImporter(
-            isPresented: $showKeyFilePicker,
-            allowedContentTypes: DocumentPickerService.keyFilePickerContentTypes,
-            onCompletion: handleKeyFileSelection
+            isPresented: Binding(
+                get: { filePickerState.isPresented },
+                set: { isPresented in
+                    filePickerState.updatePresentation(isPresented)
+                }
+            ),
+            allowedContentTypes: filePickerState.activeTarget?.allowedContentTypes
+                ?? DocumentPickerService.keyFilePickerContentTypes,
+            onCompletion: handleFilePickerSelection
         )
         .sheet(item: $feedbackContext) { context in
             FeedbackComposerView(context: context)
@@ -277,6 +286,18 @@ struct UnlockView: View {
                 .buttonStyle(.borderedProminent)
                 .accessibilityIdentifier("unlock.retry.button")
 
+                if viewModel.canRelinkDatabaseFile {
+                    Button {
+                        selectionAlert = nil
+                        filePickerState.present(.databaseFile)
+                    } label: {
+                        Label("Locate Database File", systemImage: "doc.text.magnifyingglass")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.bordered)
+                    .accessibilityIdentifier("unlock.relink")
+                }
+
                 if failure.isAuthenticationFailure == false, showsChooseDifferentFileAction {
                     Button(failure.canChooseDifferentFile ? "Choose Different File" : "Back to Database List") {
                         onBackToDatabaseList()
@@ -384,7 +405,7 @@ struct UnlockView: View {
 
                 Button("Select") {
                     selectionAlert = nil
-                    showKeyFilePicker = true
+                    filePickerState.present(.keyFile)
                 }
                 .font(.subheadline)
                 .accessibilityIdentifier("unlock.keyfile.select")
@@ -481,6 +502,34 @@ struct UnlockView: View {
         keyFileName = env["UI_TEST_KEYFILE_FILENAME"] ?? "test.key"
     }
 
+    private func handleFilePickerSelection(_ result: Result<URL, Error>) {
+        switch filePickerState.consumeActiveTarget() {
+        case .keyFile:
+            handleKeyFileSelection(result)
+        case .databaseFile:
+            handleDatabaseFileSelection(result)
+        case nil:
+            break
+        }
+    }
+
+    private func handleDatabaseFileSelection(_ result: Result<URL, Error>) {
+        switch result {
+        case .success(let url):
+            guard DocumentPickerService.isSupportedDatabaseSelection(url) else {
+                selectionAlert = DocumentPickerService.invalidDatabaseSelectionAlert()
+                return
+            }
+            do {
+                try viewModel.relinkDatabaseFile(to: url)
+            } catch {
+                selectionAlert = DocumentPickerService.pickerFailureAlert(for: error)
+            }
+        case .failure(let error):
+            selectionAlert = DocumentPickerService.pickerFailureAlert(for: error)
+        }
+    }
+
     private func handleKeyFileSelection(_ result: Result<URL, Error>) {
         switch result {
         case .success(let url):
@@ -499,6 +548,20 @@ struct UnlockView: View {
             }
         case .failure(let error):
             selectionAlert = DocumentPickerService.pickerFailureAlert(for: error)
+        }
+    }
+}
+
+private enum FilePickerTarget {
+    case keyFile
+    case databaseFile
+
+    var allowedContentTypes: [UTType] {
+        switch self {
+        case .keyFile:
+            DocumentPickerService.keyFilePickerContentTypes
+        case .databaseFile:
+            DocumentPickerService.databasePickerContentTypes
         }
     }
 }
