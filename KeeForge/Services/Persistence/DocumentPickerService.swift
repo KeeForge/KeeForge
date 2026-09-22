@@ -46,6 +46,23 @@ enum DocumentPickerService {
         return hasKDBXHeader(header)
     }
 
+    /// `isSupportedDatabaseFile(at:)` for a URL fresh from a file picker,
+    /// whose header can only be read inside its security scope.
+    static func isSupportedDatabaseSelection(_ url: URL) -> Bool {
+        if isLikelyDatabaseFile(url) {
+            return true
+        }
+
+        let hasSecurityScope = url.startAccessingSecurityScopedResource()
+        defer {
+            if hasSecurityScope {
+                url.stopAccessingSecurityScopedResource()
+            }
+        }
+
+        return isSupportedDatabaseFile(at: url)
+    }
+
     static func hasKDBXHeader(_ data: Data) -> Bool {
         data.starts(with: kdbxMagic)
     }

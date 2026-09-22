@@ -4542,42 +4542,42 @@
         }
       }
     },
-    "The database file is in Recently Deleted in the Files app. Restore it in Files, or remove this database and add the current file again." : {
+    "The database file is in Recently Deleted in the Files app. Restore it in Files, or choose the current file with Locate Database File in KeeForge." : {
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Die Datenbankdatei befindet sich in „Zuletzt gelöscht“ in der Dateien-App. Stellen Sie sie in der Dateien-App wieder her, oder entfernen Sie diese Datenbank und fügen Sie die aktuelle Datei erneut hinzu."
+            "value" : "Die Datenbankdatei befindet sich in „Zuletzt gelöscht“ in der Dateien-App. Stellen Sie sie in der Dateien-App wieder her, oder wählen Sie in KeeForge mit „Datenbankdatei suchen“ die aktuelle Datei aus."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "El archivo de la base de datos está en «Eliminados recientemente» en la app Archivos. Restáurelo en Archivos o quite esta base de datos y añada de nuevo el archivo actual."
+            "value" : "El archivo de la base de datos está en «Eliminados recientemente» en la app Archivos. Restáurelo en Archivos o elija el archivo actual con «Localizar archivo de base de datos» en KeeForge."
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Le fichier de base de données se trouve dans « Supprimés récemment » dans l'app Fichiers. Restaurez-le dans Fichiers, ou retirez cette base de données et ajoutez à nouveau le fichier actuel."
+            "value" : "Le fichier de base de données se trouve dans « Supprimés récemment » dans l'app Fichiers. Restaurez-le dans Fichiers, ou choisissez le fichier actuel avec « Localiser le fichier de base de données » dans KeeForge."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "データベースファイルは「ファイル」App の「最近削除した項目」にあります。「ファイル」で復元するか、このデータベースを削除して現在のファイルを追加し直してください。"
+            "value" : "データベースファイルは「ファイル」App の「最近削除した項目」にあります。「ファイル」で復元するか、KeeForge の「データベースファイルを探す」で現在のファイルを選択してください。"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "数据库文件位于“文件”App 的“最近删除”中。请在“文件”中恢复它，或移除此数据库并重新添加当前文件。"
+            "value" : "数据库文件位于“文件”App 的“最近删除”中。请在“文件”中恢复它，或在 KeeForge 中使用“查找数据库文件”选择当前文件。"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "資料庫檔案位於「檔案」App 的「最近刪除」中。請在「檔案」中回復它，或移除此資料庫並重新加入目前的檔案。"
+            "value" : "資料庫檔案位於「檔案」App 的「最近刪除」中。請在「檔案」中回復它，或在 KeeForge 中使用「尋找資料庫檔案」選擇目前的檔案。"
           }
         }
       }

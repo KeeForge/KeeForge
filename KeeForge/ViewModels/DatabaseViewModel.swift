@@ -702,6 +702,44 @@ final class DatabaseViewModel {
         DatabaseListStore.remove(id: databaseReference.id)
     }
 
+    /// Whether the failure screen may offer to relink this database to a file
+    /// the user picks. Read timeouts are left out: the server is unreachable,
+    /// and a different file would not bring it back. After a relink that has
+    /// not unlocked yet, every other failure qualifies, since a wrong pick
+    /// reads as a wrong password or a format error.
+    var canRelinkDatabaseFile: Bool {
+        guard let failure = openFailure,
+              databaseReference.isCloudBacked == false,
+              databaseReference.bookmarkData != nil,
+              failure.errorCode != "file.read_timeout" else {
+            return false
+        }
+        return databaseReference.hasUnverifiedRelink
+            || Self.relinkableFailureCodes.contains(failure.errorCode)
+    }
+
+    private static let relinkableFailureCodes: Set<String> = [
+        "file.not_found",
+        "file.in_recently_deleted",
+        "file.permission_denied",
+        "file.read_failed",
+    ]
+
+    /// Relinks this database to `url` and returns to the unlock form, so the
+    /// next unlock reads the picked file under the same reference.
+    func relinkDatabaseFile(to url: URL) throws {
+        guard canRelinkDatabaseFile,
+              let relinkedReference = try DatabaseListStore.relinkLocalDatabase(
+                id: databaseReference.id,
+                to: url
+              ) else {
+            return
+        }
+        databaseReference = relinkedReference
+        canRemoveMissingDocumentsFile = false
+        state = .locked
+    }
+
     private func evaluateMissingDocumentsFileRemoval(for failure: DatabaseOpenFailure) -> Bool {
         guard failure.errorCode == "file.not_found" || failure.errorCode == "file.in_recently_deleted",
               databaseReference.isDocumentsResident else {

@@ -74,9 +74,9 @@ ci_scripts/release_direct_artifact.sh stage \
 ```
 
 Use `--new-feed` only when the production endpoint is actually absent. KeeForge's production
-`https://keeforge.com/appcast.xml` already exists as a valid empty feed, so its first public direct
-item also stages from the current live feed. Never use a prior candidate's staged file. The stage
-output is immutable: choose a fresh directory for a respin.
+`https://keeforge.com/appcast.xml` already exists and must be downloaded as the input so each new
+item preserves every published release. Never use a prior candidate's staged file. The stage output
+is immutable: choose a fresh directory for a respin.
 
 Only after both App Store submissions have code approval and the final go decision, create the
 post-approval `v{version}` tag and run `handoff` with the same artifact JSON. The handoff checks

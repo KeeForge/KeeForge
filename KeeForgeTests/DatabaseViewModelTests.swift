@@ -535,6 +535,136 @@ final class DatabaseViewModelTests: XCTestCase {
         XCTAssertNil(DatabaseListStore.cachedDatabaseURL(for: reference.id))
     }
 
+    func testRelinkAfterProviderReplacedFileUnlocksSameReference() async throws {
+        // #53: a File Provider replaced the synced item, so the saved bookmark
+        // no longer resolves and unlock fails with file.not_found. Relinking
+        // to the current file must recover the same reference — no remove and
+        // re-add, which would drop the cached copy, backups, and saved key.
+        let fixtureData = try Data(contentsOf: fixtureURL())
+        var reference = try TestDatabaseSupport.makeReference(for: fixtureURL(), nickname: "Synced")
+        reference.bookmarkData = Data("unresolvable-bookmark".utf8)
+        DatabaseListStore.update(reference)
+        try DatabaseListStore.cacheDatabaseCopy(fixtureData, for: reference.id)
+        let vm = DatabaseViewModel(databaseReference: reference)
+
+        await vm.unlock(password: fixturePassword)
+
+        XCTAssertEqual(vm.openFailure?.errorCode, "file.not_found")
+        XCTAssertTrue(vm.canRelinkDatabaseFile)
+        XCTAssertNotNil(DatabaseListStore.cachedDatabaseURL(for: reference.id))
+
+        let currentURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+            .appendingPathComponent("test.kdbx")
+        try FileManager.default.createDirectory(
+            at: currentURL.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        try fixtureData.write(to: currentURL)
+
+        try vm.relinkDatabaseFile(to: currentURL)
+
+        XCTAssertState(vm.state, is: .locked)
+        XCTAssertFalse(vm.canRelinkDatabaseFile)
+        XCTAssertEqual(vm.databaseReference.id, reference.id)
+        XCTAssertEqual(vm.databaseReference.nickname, "Synced")
+        XCTAssertEqual(DatabaseListStore.databases.map(\.id), [reference.id])
+
+        await vm.unlock(password: fixturePassword)
+
+        XCTAssertState(vm.state, is: .unlocked)
+        XCTAssertEqualFilePaths(DatabaseListStore.resolveDatabaseURL(for: vm.databaseReference), currentURL)
+    }
+
+    func testRelinkStaysOfferedAfterAWrongPickUntilAnUnlockSucceeds() async throws {
+        // Picking another valid KDBX fails as a wrong password, which alone
+        // never offers a relink; the unproven relink must keep it offered,
+        // across a fresh view model too, until the right file unlocks.
+        let fixtureData = try Data(contentsOf: fixtureURL())
+        var reference = try TestDatabaseSupport.makeReference(for: fixtureURL())
+        reference.bookmarkData = Data("unresolvable-bookmark".utf8)
+        DatabaseListStore.update(reference)
+        let vm = DatabaseViewModel(databaseReference: reference)
+        await vm.unlock(password: fixturePassword)
+        XCTAssertEqual(vm.openFailure?.errorCode, "file.not_found")
+
+        let wrongURL = try makeRelinkTarget(
+            copying: TestDatabaseSupport.fixtureURL(named: "demo", bundle: Bundle(for: DatabaseViewModelTests.self))
+        )
+        try vm.relinkDatabaseFile(to: wrongURL)
+        await vm.unlock(password: fixturePassword)
+
+        XCTAssertEqual(vm.openFailure?.errorCode, "auth.invalid_credentials")
+        XCTAssertTrue(vm.canRelinkDatabaseFile)
+
+        let reopened = DatabaseViewModel(databaseReference: try XCTUnwrap(DatabaseListStore.databases.first))
+        await reopened.unlock(password: fixturePassword)
+
+        XCTAssertEqual(reopened.openFailure?.errorCode, "auth.invalid_credentials")
+        XCTAssertTrue(reopened.canRelinkDatabaseFile)
+
+        let currentURL = try makeRelinkTarget(copying: fixtureURL())
+        XCTAssertEqual(try Data(contentsOf: currentURL), fixtureData)
+        try reopened.relinkDatabaseFile(to: currentURL)
+        await reopened.unlock(password: fixturePassword)
+
+        XCTAssertState(reopened.state, is: .unlocked)
+        XCTAssertEqual(DatabaseListStore.databases.first?.hasUnverifiedRelink, false)
+
+        reopened.lock()
+        await reopened.unlock(password: "wrong password")
+
+        XCTAssertEqual(reopened.openFailure?.errorCode, "auth.invalid_credentials")
+        XCTAssertFalse(reopened.canRelinkDatabaseFile)
+    }
+
+    private func makeRelinkTarget(copying sourceURL: URL) throws -> URL {
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+            .appendingPathComponent(sourceURL.lastPathComponent)
+        try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try FileManager.default.copyItem(at: sourceURL, to: url)
+        return url
+    }
+
+    func testRelinkIsOfferedForRecentlyDeletedButNotForServerTimeouts() async throws {
+        let fileManager = FileManager.default
+        let trashDirectoryURL = fileManager.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+            .appendingPathComponent(".Trash", isDirectory: true)
+        try fileManager.createDirectory(at: trashDirectoryURL, withIntermediateDirectories: true)
+        let trashedURL = trashDirectoryURL.appendingPathComponent("test.kdbx")
+        try fileManager.copyItem(at: fixtureURL(), to: trashedURL)
+        let trashedReference = try TestDatabaseSupport.makeReference(for: trashedURL)
+        let trashedVM = DatabaseViewModel(databaseReference: trashedReference)
+
+        await trashedVM.unlock(password: fixturePassword)
+
+        XCTAssertEqual(trashedVM.openFailure?.errorCode, "file.in_recently_deleted")
+        XCTAssertTrue(trashedVM.canRelinkDatabaseFile)
+
+        let timeoutVM = DatabaseViewModel(
+            databaseReference: try makeReference(),
+            localDatabaseReadOperation: { _ in
+                throw CoordinatedFileReader.TimeoutError.timedOut
+            }
+        )
+
+        await timeoutVM.unlock(password: fixturePassword)
+
+        XCTAssertEqual(timeoutVM.openFailure?.errorCode, "file.read_timeout")
+        XCTAssertFalse(timeoutVM.canRelinkDatabaseFile)
+    }
+
+    func testRelinkIsNotOfferedForWrongPassword() async throws {
+        let vm = try makeViewModel()
+
+        await vm.unlock(password: "wrong password")
+
+        XCTAssertEqual(vm.openFailure?.category, .authentication)
+        XCTAssertFalse(vm.canRelinkDatabaseFile)
+    }
+
     func testBlockingFileAccessTimesOutWithoutBlockingCallerActor() async {
         do {
             let _: Data = try await CoordinatedFileReader.performBlocking(timeout: .milliseconds(20)) {

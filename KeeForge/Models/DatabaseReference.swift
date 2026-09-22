@@ -24,6 +24,10 @@ struct DatabaseReference: Identifiable, Codable, Hashable, Sendable {
     /// surfaces them as conflicts instead of pushing them over the rekeyed
     /// remote.
     var lastMasterKeyChangeAt: Date?
+    /// Set by a relink and cleared by the next successful unlock: until then
+    /// the picked file is unproven, and a wrong pick can fail as a wrong
+    /// password, so any open failure keeps offering to relink.
+    var hasUnverifiedRelink: Bool = false
 
     var displayName: String {
         let trimmedNickname = nickname?.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -92,6 +96,7 @@ extension DatabaseReference {
         case isDocumentsResident
         case source
         case lastMasterKeyChangeAt
+        case hasUnverifiedRelink
     }
 
     init(from decoder: Decoder) throws {
@@ -112,6 +117,7 @@ extension DatabaseReference {
         isDocumentsResident = try container.decodeIfPresent(Bool.self, forKey: .isDocumentsResident) ?? false
         source = try container.decodeIfPresent(DatabaseSource.self, forKey: .source) ?? .local
         lastMasterKeyChangeAt = try container.decodeIfPresent(Date.self, forKey: .lastMasterKeyChangeAt)
+        hasUnverifiedRelink = try container.decodeIfPresent(Bool.self, forKey: .hasUnverifiedRelink) ?? false
     }
 
     func encode(to encoder: Encoder) throws {
@@ -132,5 +138,6 @@ extension DatabaseReference {
         try container.encode(isDocumentsResident, forKey: .isDocumentsResident)
         try container.encode(source, forKey: .source)
         try container.encodeIfPresent(lastMasterKeyChangeAt, forKey: .lastMasterKeyChangeAt)
+        try container.encode(hasUnverifiedRelink, forKey: .hasUnverifiedRelink)
     }
 }
