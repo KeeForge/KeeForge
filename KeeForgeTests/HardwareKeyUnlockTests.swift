@@ -209,6 +209,86 @@ final class HardwareKeyUnlockTests: XCTestCase {
     }
     #endif
 
+    #if os(iOS)
+    // With lock-on-background off, a session the key opens while the app is
+    // away is a backgrounded session: the return applies the auto-lock timeout.
+    func testUnlockFinishingInTheBackgroundAppliesTheAutoLockTimeoutOnReturn() async throws {
+        let savedLockOnBackground = SettingsService.lockOnBackground
+        let savedAutoLockTimeout = SettingsService.autoLockTimeout
+        defer {
+            SettingsService.lockOnBackground = savedLockOnBackground
+            SettingsService.autoLockTimeout = savedAutoLockTimeout
+        }
+        SettingsService.lockOnBackground = false
+        SettingsService.autoLockTimeout = .immediately
+        let key = HeldYubiKey()
+        let vm = try makeViewModel(hardwareKey: slotTwoOverNFC, respond: key.respond)
+
+        let unlock = Task { await vm.unlock(password: fixture.password) }
+        try await waitUntil { key.isHolding }
+        vm.handleSceneDidEnterBackground()
+        key.answer()
+        await unlock.value
+        guard case .unlocked = vm.state else {
+            return XCTFail("Expected unlocked while still in the background, got \(vm.state)")
+        }
+        XCTAssertNil(vm.inactivityTimer, "The timer waits for the return, as for any backgrounded session")
+
+        vm.handleSceneDidBecomeActive()
+
+        assertLocked(vm, "an immediate auto-lock must apply to a session opened in the background")
+    }
+
+    func testUnlockFinishingAfterTheReturnIsNotTreatedAsBackgrounded() async throws {
+        let savedLockOnBackground = SettingsService.lockOnBackground
+        let savedAutoLockTimeout = SettingsService.autoLockTimeout
+        defer {
+            SettingsService.lockOnBackground = savedLockOnBackground
+            SettingsService.autoLockTimeout = savedAutoLockTimeout
+        }
+        SettingsService.lockOnBackground = false
+        SettingsService.autoLockTimeout = .immediately
+        let key = HeldYubiKey()
+        let vm = try makeViewModel(hardwareKey: slotTwoOverNFC, respond: key.respond)
+
+        let unlock = Task { await vm.unlock(password: fixture.password) }
+        try await waitUntil { key.isHolding }
+        vm.handleSceneDidEnterBackground()
+        vm.handleSceneDidBecomeActive()
+        key.answer()
+        await unlock.value
+        vm.handleSceneDidBecomeActive()
+
+        guard case .unlocked = vm.state else {
+            return XCTFail("Expected unlocked, got \(vm.state)")
+        }
+    }
+    #endif
+
+    // lock() cancels the request, but a key can still hold its answer; the
+    // superseded attempt ending later must not take the next one's Cancel away.
+    func testSupersededAttemptLeavesTheNextAttemptsRequestCancellable() async throws {
+        let key = HeldYubiKey()
+        let vm = try makeViewModel(hardwareKey: slotTwoOverNFC, respond: key.respond)
+
+        let first = Task { await vm.unlock(password: fixture.password) }
+        try await waitUntil { key.requestCount == 1 }
+        vm.lock()
+        XCTAssertFalse(vm.isAwaitingHardwareKey, "The lock ends the wait")
+        let second = Task { await vm.unlock(password: fixture.password) }
+        try await waitUntil { key.requestCount == 2 }
+        key.answer()
+        await first.value
+
+        XCTAssertTrue(vm.isAwaitingHardwareKey, "The second request is still waiting for the key")
+        vm.cancelHardwareKeyRequest()
+        key.answer()
+        await second.value
+
+        XCTAssertNil(vm.rootGroup, "Cancel must still reach the second request")
+        XCTAssertEqual(vm.openFailure?.errorCode, "hardware_key.cancelled")
+    }
+
     func testCancelWinsOverAnAnswerThatArrivesAfterIt() async throws {
         let key = HeldYubiKey()
         let vm = try makeViewModel(hardwareKey: slotTwoOverNFC, respond: key.respond)
@@ -324,26 +404,28 @@ final class HardwareKeyUnlockTests: XCTestCase {
         }
     }
 
-    /// A YubiKey that holds its (correct) answer until told to give it, and
-    /// ignores cancellation meanwhile.
+    /// A YubiKey that holds its (correct) answers until told to give them,
+    /// oldest request first, and ignores cancellation meanwhile.
     @MainActor
     private final class HeldYubiKey {
-        private var continuation: CheckedContinuation<Void, Never>?
-        private(set) var isHolding = false
+        private var continuations: [CheckedContinuation<Void, Never>] = []
+        private(set) var requestCount = 0
+
+        var isHolding: Bool { continuations.isEmpty == false }
 
         var respond: DatabaseViewModel.HardwareKeyResponseOperation {
             { [self] challenge, _ in
                 await withCheckedContinuation { continuation in
-                    self.continuation = continuation
-                    isHolding = true
+                    continuations.append(continuation)
+                    requestCount += 1
                 }
                 return YubiKeyEmulator.response(to: challenge)
             }
         }
 
         func answer() {
-            continuation?.resume()
-            continuation = nil
+            guard continuations.isEmpty == false else { return }
+            continuations.removeFirst().resume()
         }
     }
 
