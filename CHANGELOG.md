@@ -127,7 +127,7 @@ The 2026-09-08 probe settled the design: the iPad-on-Mac app never stores a data
 
 ## Unreleased
 
-## v1.16.0 (2026-09-13)
+## v1.16.0 (2026-09-21)
 
 ### New Features
 
