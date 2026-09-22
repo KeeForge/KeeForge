@@ -220,7 +220,7 @@ key. What the **App Store app** asks for, and why:
 | `app-sandbox` | Required for the Mac App Store, kept for the direct channel too. |
 | `files.user-selected.read-write` | The user picks a `.kdbx` themselves; there is no other way to reach it. Grants access to what they chose, nothing else. |
 | `files.bookmarks.app-scope` | Re-opening that same file after relaunch without asking again. The alternative is a file picker on every launch. |
-| `network.client` | Cloud sync (WebDAV for the first release), opt-in favicon fetching, and the user-initiated feedback form. Outbound only; there is no `network.server`. |
+| `network.client` | Cloud sync (currently WebDAV on macOS), opt-in favicon fetching, and the user-initiated feedback form. Outbound only; there is no `network.server`. |
 | `application-groups` → `group.com.keevault.shared` | The only channel through which the AutoFill extension sees a database. See the container caveat above. |
 | `keychain-access-groups` → `com.keevault.sharedkeychain` | Composite keys shared with the extension. Must stay **first**: an item stored without an explicit `kSecAttrAccessGroup` lands in the first listed group. |
 
@@ -356,9 +356,9 @@ property, which is one reason it is the default build.
 
 ### Manual Sparkle rehearsal (test feed only)
 
-Run this once before the first direct release, and again after changing the
-feed host, signing key, updater configuration, or release handoff. This is a
-manual test on a disposable Mac or VM; it is not a production publication
+The initial rehearsal was completed before v1.16.0. Run it again after changing
+the feed host, signing key, updater configuration, or release handoff. This is
+a manual test on a disposable Mac or VM; it is not a production publication
 procedure. Never place the private key, a vault password, or a token in a
 command, appcast, screenshot, or log.
 
@@ -413,9 +413,8 @@ That run is what found the sandbox entitlement gap above — every stage before
 the install had succeeded, so nothing static revealed it.
 
 Re-run this whenever the feed host, signing key, updater configuration, or those
-sandbox entitlements change. Which legs of it are currently satisfied, and which
-are still outstanding, is tracked in `CHANGELOG.md` under `## macOS App` rather
-than here.
+sandbox entitlements change. Record current release evidence in the candidate
+manifest and keep durable security conclusions in this document.
 
 ### The downloaded zip is its own trust surface
 

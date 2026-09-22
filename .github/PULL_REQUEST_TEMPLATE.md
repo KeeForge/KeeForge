@@ -15,7 +15,7 @@
 
 # Checklist
 
-- [ ] Updated `CHANGELOG.md` under `## Unreleased`, or `## macOS App` for pre-release Mac-only changes
+- [ ] Updated `CHANGELOG.md` under `## Unreleased` when the change is user-facing
 - [ ] Ran `xcodegen generate` after adding/removing/moving source files
 - [ ] Updated the nearest folder-local `README.md` if the folder's map changed
 - [ ] Localized new UI strings in all shipped locales listed in AGENTS.md and ran `LocalizationTests`

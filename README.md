@@ -89,7 +89,7 @@ KeeForge/
 ├── ViewModels/       # Database list, unlock, save, search, sort, TOTP state
 ├── Views/            # SwiftUI screens, editor, settings, tip jar, reusable controls
 AutoFillExtension/    # AutoFill credential provider, passkey auth, credential creation
-KeeForgeMac/          # Native macOS app (preparing its first release)
+KeeForgeMac/          # Native macOS app configuration and entitlements
 KeeForgeMacUITests/   # XCUITest coverage for the macOS app
 KeeForgeTests/        # Unit tests
 KeeForgeUITests/      # XCUITest coverage
@@ -113,7 +113,7 @@ scripts/              # Local dev tooling
 ## Support
 
 - App Store: [KeeForge on the App Store](https://apps.apple.com/us/app/keeforge/id6759309295)
-- Mac distribution: the Mac App Store and direct-download links will be published with the first official macOS release
+- Direct Mac download: [latest GitHub release](https://github.com/KeeForge/KeeForge/releases/latest)
 - Email: [support@keeforge.com](mailto:support@keeforge.com)
 - Issues: [GitHub Issues](https://github.com/KeeForge/KeeForge/issues)
 
