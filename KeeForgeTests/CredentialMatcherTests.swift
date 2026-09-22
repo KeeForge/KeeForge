@@ -43,6 +43,46 @@ final class CredentialMatcherTests: XCTestCase {
         XCTAssertEqual(CredentialMatcher.searchTerm(for: id), "github.com")
     }
 
+    // MARK: - App identifiers (iOS 26.2+)
+
+    func testSearchTermAppTypeHasNoHost() throws {
+        let id = try makeAppIdentifier()
+        XCTAssertTrue(CredentialMatcher.isAppIdentifier(id))
+        XCTAssertNil(CredentialMatcher.searchTerm(for: id))
+    }
+
+    func testAppIdentifierIsNotMatchedAsHost() throws {
+        let id = try makeAppIdentifier()
+        let entries = [
+            makeEntry(title: "Website", url: "https://mybank.app", username: "u", password: "p"),
+            makeEntry(title: "Sibling", url: "https://login.mybank.app", username: "u", password: "p"),
+            makeEntry(title: "Saved App ID", url: "A1B2C3D4E5.com.mybank.app", username: "u", password: "p"),
+        ]
+
+        XCTAssertTrue(CredentialMatcher.strictMatchedEntries(from: entries, for: [id]).isEmpty)
+        XCTAssertTrue(CredentialMatcher.matchedEntries(from: entries, for: [id]).isEmpty)
+        XCTAssertTrue(CredentialMatcher.possibleMatchedEntries(from: entries, for: [id]).isEmpty)
+    }
+
+    func testAppSaveDraftDoesNotStrictlyMatchWebsiteOfSameSuffix() throws {
+        let draft = AutoFillSaveCoordinator.initialDraft(
+            for: try makeAppIdentifier(),
+            username: "alex",
+            password: "secret"
+        )
+        let saved = makeEntry(title: draft.title, url: draft.url, username: draft.username, password: draft.password)
+        let website = [ASCredentialServiceIdentifier(identifier: "mybank.app", type: .domain)]
+
+        XCTAssertTrue(CredentialMatcher.strictMatchedEntries(from: [saved], for: website).isEmpty)
+        XCTAssertTrue(CredentialMatcher.possibleMatchedEntries(from: [saved], for: website).isEmpty)
+    }
+
+    func testAppIdentifierDoesNotHideDomainIdentifierInSameRequest() throws {
+        let entries = [makeEntry(title: "GitHub", url: "https://github.com", username: "u", password: "p")]
+        let ids = [try makeAppIdentifier(), ASCredentialServiceIdentifier(identifier: "github.com", type: .domain)]
+        XCTAssertEqual(CredentialMatcher.strictMatchedEntries(from: entries, for: ids).count, 1)
+    }
+
     // MARK: - matchedEntries
 
     func testExactDomainMatch() {
@@ -304,6 +344,13 @@ final class CredentialMatcherTests: XCTestCase {
     }
 
     // MARK: - Helpers
+
+    private func makeAppIdentifier() throws -> ASCredentialServiceIdentifier {
+        guard #available(iOS 26.2, macOS 26.2, *) else {
+            throw XCTSkip("App service identifiers require iOS 26.2 / macOS 26.2")
+        }
+        return ASCredentialServiceIdentifier(identifier: "A1B2C3D4E5.com.mybank.app", type: .app, displayName: "MyBank")
+    }
 
     private func makeEntry(title: String, url: String, username: String, password: String, customFields: [String: String] = [:]) -> KPEntry {
         // Use a non-empty sentinel for hasPassword checks; actual decryption is not tested here

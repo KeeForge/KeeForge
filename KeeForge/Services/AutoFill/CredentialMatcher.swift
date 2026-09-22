@@ -69,11 +69,23 @@ enum CredentialMatcher {
     }
 
     static func searchTerm(for identifier: ASCredentialServiceIdentifier) -> String? {
+        if isAppIdentifier(identifier) {
+            return nil
+        }
         if identifier.type == .domain {
             return normalizeHost(identifier.identifier)
         }
 
         return hostFromURLString(identifier.identifier) ?? identifier.identifier
+    }
+
+    /// An App ID (`TEAMID.com.example.app`) is reverse-DNS, so parsing it as
+    /// a host would match the unrelated website `example.app`.
+    static func isAppIdentifier(_ identifier: ASCredentialServiceIdentifier) -> Bool {
+        if #available(iOS 26.2, macOS 26.2, *) {
+            return identifier.type == .app
+        }
+        return false
     }
 
     static func hostFromURLString(_ value: String) -> String? {
