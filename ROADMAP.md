@@ -202,11 +202,11 @@ Roadmap items are grouped first by intent and then by product area, without an i
 
 ### Apple platforms
 
-- [ ] Ship the first official native macOS release through the Mac App Store and direct download.
-- [ ] Publish a GitHub release for the macOS app.
+- [x] Ship the first official native macOS release through the Mac App Store and direct download.
+- [x] Publish a GitHub release for the macOS app.
 - [ ] Deliver a full keyboard-first macOS experience rather than only feature parity with iOS.
 - [ ] Document an enterprise/MDM distribution decision and its impact on the consumer app.
-- [ ] Add native Dropbox and OneDrive connections on Mac; Mac v1 uses local files and WebDAV.
+- [ ] Add native Dropbox and OneDrive connections on Mac; macOS currently uses local files and WebDAV.
 - [ ] Add AutoFill save, generate, and create-entry flows on Mac if AuthenticationServices exposes the required APIs.
 - [x] Complete the native macOS app implementation for its first release.
 - [x] Ship an iPad-native layout.

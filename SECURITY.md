@@ -5,8 +5,8 @@ KeeForge is a password manager, so we take security reports seriously. Thank you
 ## Supported Versions
 
 Only the latest released version on each supported platform receives security
-updates. Pre-release Mac builds remain in scope for reports while the first
-official macOS release is being prepared.
+updates. Security issues in current TestFlight or other release-candidate builds
+are also welcome when they could affect the next public release.
 
 | Version | Supported |
 | ------- | --------- |

@@ -4,11 +4,10 @@ Configuration folder for the native macOS app target — only `Info.plist`, `Kee
 
 ## Status
 
-The Mac implementation is complete, but the app has **not officially shipped yet**.
-`CHANGELOG.md` under `## macOS App` is the single place where release and distribution
-work is tracked — the remaining checklist, what has been observed, and what is still
-open all live there. Do not restate any of it here, and log macOS work there rather
-than under `## Unreleased` (iOS release notes).
+The native Mac app shipped in v1.16.0 through the Mac App Store and as a notarized
+direct download. macOS work now follows the ordinary changelog flow under
+`## Unreleased` alongside iOS work. Release mechanics and evidence belong in the
+release skill and candidate manifest rather than in `CHANGELOG.md`.
 
 This file is reference material for working in the target: constraints, platform limits,
 gotchas, and what a given change has to test.
@@ -49,9 +48,9 @@ Diagnosing this on a Mac: launch with `-autofill-store-inspector` (DEBUG only) a
 
 ## Moving Off The iOS App On A Mac
 
-Apple automatically withdraws the iPad-on-Mac version once the native macOS version is
-approved; there is no separate product decision. The transition notice must therefore
-reach users before approval. The platform constraints are:
+Apple's documented behavior is to withdraw the iPad-on-Mac version once the native
+macOS version is approved; there is no separate product decision. v1.16.0 shipped the
+transition notice before approval. The remaining platform constraints are:
 
 - **Local databases** already live at a user-chosen filesystem location and are reached
   through a security-scoped bookmark. The native app asks the user to add that same
@@ -77,9 +76,9 @@ reach users before approval. The platform constraints are:
   with a backup, snapshot, or other recoverable harness first, and only promise
   preservation that a completed production probe has actually established.
 
-These are design rules, not production-observed compatibility. The matrix that would turn
-them into observed outcomes is in `CHANGELOG.md`; until it is populated, treat every row
-as unknown.
+These are conservative design rules for transition edge cases. Record new verified
+behavior here or in focused tests rather than rebuilding a release checklist in
+`CHANGELOG.md`.
 
 ## Target Map
 

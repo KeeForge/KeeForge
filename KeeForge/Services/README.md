@@ -12,7 +12,7 @@ Each subfolder's `CLAUDE.md` loads automatically when you work in it.
 - `AutoFill/AutoFillSaveCoordinator.swift` owns the extension-safe save path for new credentials.
 - `Security/KeychainService.swift` owns composite-key storage with biometric access control.
 
-Platform scope: the first Mac release supports local files and WebDAV, not the
+Platform scope: macOS supports local files and WebDAV, not the
 iOS app's Dropbox or OneDrive connections. Mac AutoFill fills passwords,
 passkeys, and one-time codes and can save a passkey registration, but
 AuthenticationServices does not expose the iOS extension's password-save,

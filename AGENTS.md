@@ -17,7 +17,7 @@ Entry point for coding agents working on KeeForge. This file is intentionally br
 - Native iPhone, iPad, and Mac KeePass manager for KDBX 4.x databases; also reads KDBX 3.1 (read-only)
 - Swift 6, SwiftUI, iOS 18+ / macOS 15+, `@Observable`, strict concurrency
 - XcodeGen build graph: edit `project.yml`, then regenerate `KeeForge.xcodeproj`
-- Main targets: `KeeForge`, `KeeForgeMac`, `KeeForgeAutoFill`, `KeeForgeMacAutoFill`, `KeeForgeTests`, `KeeForgeMacTests`, `KeeForgeUITests`, `KeeForgeMacUITests`. The macOS targets are being prepared for their first release and have not shipped yet; the remaining checklist is CHANGELOG.md's "## macOS App" section, and macOS work is logged there rather than under `## Unreleased`.
+- Main targets: `KeeForge`, `KeeForgeMac`, `KeeForgeAutoFill`, `KeeForgeMacAutoFill`, `KeeForgeTests`, `KeeForgeMacTests`, `KeeForgeUITests`, `KeeForgeMacUITests`. The native macOS app shipped in v1.16.0; macOS work now follows the ordinary changelog flow under `## Unreleased`.
 
 ## Open The Local Doc First
 
@@ -68,7 +68,7 @@ Use `keeforge-github-issues` for every GitHub issue mutation.
 - When changing code shared with `AutoFillExtension`, keep extension-safe imports/APIs and target membership in sync.
 - When adding or changing database creation, edit operations, KDBX parser/writer behavior, protected fields, unknown XML handling, AutoFill save, cloud save, or local save, update `KeeForgeTests/KDBXCompatibilityTests.swift` and the compatibility artifact gate if the supported compatibility matrix changes.
 - Preserve accessibility identifiers or update the relevant UI tests in the same change.
-- Update `CHANGELOG.md` for feature or bug-fix commits, only under `## Unreleased` — except macOS-only work. It's okay to skip if the bug fix is for an unreleased feature. Keep changelog updates concise, simple and user facing, don't include implementation details unless necessary.
+- Update `CHANGELOG.md` for user-facing feature or bug-fix commits under `## Unreleased` on every platform. It's okay to skip if the bug fix is for an unreleased feature. Keep changelog updates concise, simple and user facing; don't include implementation details unless necessary.
 
 ### Localization
 

@@ -294,7 +294,7 @@ struct DatabaseOpenFailure: Equatable, Sendable {
         if case DatabaseListStore.LocalDatabaseFileError.databaseInTrash = error {
             return DatabaseOpenFailure(
                 title: String(localized: "Database Is in Recently Deleted"),
-                summary: String(localized: "The database file was moved to Recently Deleted in the Files app — it may have been deleted, or replaced by a newer copy. Restore it in Files, or remove this database in KeeForge and add the current file again."),
+                summary: String(localized: "The database file was moved to Recently Deleted in the Files app — it may have been deleted, or replaced by a newer copy. Restore it in Files, or choose the current file with Locate Database File."),
                 technicalDetails: technicalDetails(for: error),
                 errorCode: "file.in_recently_deleted",
                 category: .fileAccess,

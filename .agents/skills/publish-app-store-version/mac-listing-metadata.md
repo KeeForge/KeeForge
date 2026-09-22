@@ -1,15 +1,16 @@
 # KeeForge Mac App Store listing and reviewer metadata
 
-Package 9 record. The copy was originally written back from App Store Connect
-after saving. The 2026-09-17 documentation sweep corrected the AutoFill wording
-below; apply those locale changes in ASC before submission, then read them back
-and remove this note. Change saved locale copy only alongside a matching ASC
-edit; the App Privacy observation below was read-only.
+This records the saved Mac App Store listing and reviewer metadata. The copy was
+written back from App Store Connect after saving. The 2026-09-17 documentation
+sweep corrected the AutoFill wording below, and
+that saved copy was used for the final submission. Change saved locale copy only
+alongside a matching ASC edit; the App Privacy observation below was read-only.
 
 Saved state of the macOS version record (app `6759309295`, version id
 `7056fb7a-8e4a-4485-b816-5c04fbe09088`):
 
-- Version `1.16.0`, state `PREPARE_FOR_SUBMISSION`, release type `MANUAL`.
+- Version `1.16.0`, released 2026-09-21 after manual approval; owner-confirmed
+  final state **Ready for Distribution**.
 - Copyright `© 2026 Jia Tan`; Support URL
   `https://github.com/KeeForge/KeeForge?tab=readme-ov-file#support`; Marketing
   URL `https://keeforge.com/` — all seven locales.
@@ -23,20 +24,16 @@ Saved state of the macOS version record (app `6759309295`, version id
   ru, es-ES — exactly the iOS set.
 - Seven final Mac screenshots are uploaded in English in listing order 01–07;
   the Simplified Chinese locale inherits the English Mac gallery.
-- Still empty by design: `What's New in This Version` (package 14, from the
-  matching `## v{version}` changelog section) and the attached build. Accepted
-  RC51 produced processed iOS and macOS App Store build 57; attach the soaked
-  Mac build only when staging review.
+- App Store build 57 and the final `What's New in This Version` copy were
+  attached for review and released.
 
 ## Source of truth and scope
 
 - The version record was initially set up with `MARKETING_VERSION: 1.16.0` /
   `CURRENT_PROJECT_VERSION: 4`; that historical setup corrected the
-  auto-created 1.15.0 because the iOS 1.15.0 train is closed. The repository is
-  now at RC51 (`CURRENT_PROJECT_VERSION: 51`), and Xcode Cloud produced
-  processed iOS and macOS App Store build 57. No build is attached to the
-  version record until the accepted candidate finishes owner acceptance and is
-  staged for review.
+  auto-created 1.15.0 because the iOS 1.15.0 train was closed. Accepted RC51
+  (`CURRENT_PROJECT_VERSION: 51`) shipped as `v1.16.0`; Xcode Cloud App Store
+  build 57 is the released macOS build.
 - `KeeForgeMac/README.md` and `CloudSyncModels.isAvailableOnCurrentPlatform`
   agree: the native Mac release supports local files and WebDAV, and hides
   Dropbox/OneDrive. The listing must not imply otherwise.
@@ -484,20 +481,17 @@ AutoFill
 
 **Keywords:** `密碼,密碼庫,密碼管理器,自動填入,驗證碼,雙重驗證,加密,離線,金鑰檔案,通行密鑰,WebDAV,kdbx`
 
-## Field limits, unknowns, and do-not-invent rules
+## Field limits and preserved release record
 
 ASC counts **characters**, not UTF-8 bytes, for Keywords — CJK keyword sets are
 comfortably inside 100 characters even though their byte length exceeds it.
 Verify against the live counter anyway; its UI wins.
 
 - **Export compliance:** `ITSAppUsesNonExemptEncryption = false` is declared in
-  the Mac plist, but that is a build declaration. It resolves when the build is
-  attached (package 10), so it is **not yet observed on this record**. If ASC
-  asks a legal questionnaire or requests a document, read the exact current
-  question text and the accepted iOS Build Metadata, and obtain action-time owner
-  confirmation before saving. Never infer an answer from the plist, from store
-  availability, or from the historical France-related "No" — the live record is
-  publicly available in France and that record is context only.
+  the Mac plist and resolved **No** on the released build 57 metadata. If ASC
+  asks a new legal questionnaire or requests a document for a later build, read
+  the exact current question and obtain action-time owner confirmation before
+  saving; do not infer a new answer from this historical result.
 - **Age rating:** choose **Keep Existing Rating**. It is app-level and shared.
 - **Availability:** 175 countries including France; leave it alone.
 - **Release control:** `MANUAL` is saved. Phased release for macOS is optional
@@ -505,24 +499,22 @@ Verify against the live counter anyway; its UI wins.
 - **Screenshots:** seven 2880×1800 final Mac images are uploaded in English in
   listing order 01–07 and verified after reload; Simplified Chinese inherits
   that English Mac gallery. iOS assets do not satisfy the Mac listing.
-- **Build:** Mac TestFlight build `54` mapped to rejected `rc/1.16.0-b48` at
-  `a48d6b1` with repo build `48`; it was never distributed. A b49 replacement
-  is pending and has not been cut, so no build is attached by design.
+- **Build:** Mac App Store build `57` (`09f120b7-ba89-4e85-9b70-3586558f533c`)
+  came from accepted `rc/1.16.0-b51`, was attached to the version record, and
+  was released as v1.16.0.
 
-## Final RC release-notes rule (bounded template only)
+## Release-notes rule for later versions
 
-`What's New in This Version` is deliberately empty on all seven locales. At
-submission time use only the matching version heading in `CHANGELOG.md` (for
-example `## v1.16.0`), select concise user-facing changes, and translate the
-same meaning into every locale ASC lists. Exclude `## Unreleased`, the macOS
-package checklist, implementation/audit details, issue numbers unless
-user-facing, and any feature not present in the exact soaked RC. Keep each
-locale within ASC's current limit (normally 4,000 characters).
+At submission time use only the matching version heading in `CHANGELOG.md`,
+select concise user-facing changes, and translate the same meaning into every
+locale ASC lists. Exclude `## Unreleased`, implementation/audit details, issue
+numbers unless user-facing, and any feature not present in the exact soaked RC.
+Keep each locale within ASC's current limit (normally 4,000 characters).
 
-## Pre-submission checklist
+## v1.16.0 submission record
 
 - [x] Mac version page exists for 1.16.0; no duplicate version was created.
-- [ ] Exact Mac TestFlight build `54` is accepted after soak and attached.
+- [x] Exact Mac App Store build `57` is accepted and attached.
 - [x] Seven final Mac screenshots are uploaded in English in listing order
   01–07; Simplified Chinese inherits the English Mac gallery.
 - [x] English listing copy is saved, and translated faithfully into every locale
@@ -539,14 +531,11 @@ locale within ASC's current limit (normally 4,000 characters).
 - [x] Reviewer note says local files and optional WebDAV work, Dropbox and
   OneDrive are unavailable on native Mac, no sign-in is required, and AutoFill
   is enabled at System Settings → General → AutoFill & Passwords.
-- [ ] Export compliance resolves as `ITSAppUsesNonExemptEncryption = false` once
-  the build is attached; any separate legal/documentation request is handled only
-  after reading the exact current question and accepted iOS Build Metadata, with
-  action-time owner confirmation before saving; public France availability is
-  preserved unless an explicitly confirmed legal/product decision says otherwise.
+- [x] Export compliance resolved **No** for the attached build; public France
+  availability was preserved.
 - [x] **Manually release this version** is saved. **Keep Existing Rating** is
   chosen in the submission flow, not here.
-- [ ] Final RC release notes are derived from the matching versioned changelog
+- [x] Final RC release notes are derived from the matching versioned changelog
   section only, and saved for every locale ASC lists.
-- [ ] Add for Review is staged and reaches Ready for Review. Do not click
-  Submit for Review without explicit action-time confirmation.
+- [x] Review was staged, submitted with explicit action-time confirmation,
+  approved, manually released, and owner-confirmed **Ready for Distribution**.
