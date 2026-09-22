@@ -437,6 +437,11 @@ final class DatabaseViewModel {
     /// attempt then leaves the state alone (`finishUnlockAttempt`). Separate
     /// from `lockCycleID`, which paces biometric auto-unlock per lock.
     @ObservationIgnored private var activeUnlockAttempt: UUID?
+    /// When the app went to the background, on iOS with lock-on-background
+    /// off, while `activeUnlockAttempt` was still running. A session that
+    /// attempt opens starts out backgrounded, so the return to the foreground
+    /// applies the auto-lock timeout as it does for one already unlocked.
+    @ObservationIgnored private var unlockAttemptBackgroundedAt: Date?
     var draft: DatabaseDraft? {
         didSet { rebuildDerivedState() }
     }
@@ -1661,7 +1666,10 @@ final class DatabaseViewModel {
         // A Lightning key never times out on its own; don't let a pending one
         // finish unlocking behind this lock.
         hardwareKeyTask?.cancel()
+        hardwareKeyTask = nil
+        isAwaitingHardwareKey = false
         activeUnlockAttempt = nil
+        unlockAttemptBackgroundedAt = nil
         backgroundEnteredAt = nil
         if manuallyTriggered {
             didManuallyLock = true
@@ -2480,6 +2488,8 @@ final class DatabaseViewModel {
             #if os(iOS)
             if SettingsService.lockOnBackground {
                 lock(preservingClipboard: true)
+            } else {
+                unlockAttemptBackgroundedAt = nowProvider()
             }
             #else
             lock()
@@ -2512,7 +2522,11 @@ final class DatabaseViewModel {
     }
 
     func handleSceneDidBecomeActive() {
-        guard case .unlocked = state else { return }
+        guard case .unlocked = state else {
+            // An attempt still running now finishes in the foreground.
+            unlockAttemptBackgroundedAt = nil
+            return
+        }
 
         guard backgroundEnteredAt != nil else {
             resetInactivityTimer()
@@ -2972,6 +2986,7 @@ final class DatabaseViewModel {
     private func prepareForUnlock() -> UUID {
         let attempt = UUID()
         activeUnlockAttempt = attempt
+        unlockAttemptBackgroundedAt = nil
         // Adopt any heal the store performed since this session's reference
         // snapshot was taken (Documents-vault rebind, bookmark refresh,
         // filename re-derivation), so Try Again resolves the current stored
@@ -3033,6 +3048,13 @@ final class DatabaseViewModel {
         self.state = .unlocked
         synchronizeSelections()
         startInactivityTimer()
+        if let backgroundedAt = unlockAttemptBackgroundedAt {
+            // Opened while the app was in the background: hold the timer
+            // until the return, as `handleSceneDidEnterBackground` does.
+            unlockAttemptBackgroundedAt = nil
+            backgroundEnteredAt = backgroundedAt
+            cancelInactivityTimer(clearDeadline: false)
+        }
 
         persistCompositeKeyForBiometricUnlock(quickLaunchKey)
         DatabaseListStore.markDatabaseOpened(id: databaseReference.id)
@@ -3061,8 +3083,12 @@ final class DatabaseViewModel {
         let task = Task { @MainActor in try await operation(challenge, configuration) }
         hardwareKeyTask = task
         defer {
-            hardwareKeyTask = nil
-            isAwaitingHardwareKey = false
+            // A lock can end this attempt while the key still holds its
+            // answer; a newer attempt's request is not this one's to clear.
+            if hardwareKeyTask == task {
+                hardwareKeyTask = nil
+                isAwaitingHardwareKey = false
+            }
             if activeUnlockAttempt == attempt {
                 unlockStatusMessage = Self.decryptingStatusMessage
             }
