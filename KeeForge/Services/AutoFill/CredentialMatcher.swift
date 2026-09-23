@@ -29,7 +29,7 @@ enum CredentialMatcher {
 
         return entries.filter { entry in
             guard !entry.isExpired() else { return false }
-            let storedHosts = ([entry.url] + entry.additionalURLs).compactMap(hostFromURLString)
+            let storedHosts = webURLs(of: entry).compactMap(hostFromURLString)
             return storedHosts.contains { storedHost in
                 guard let storedDomain = registrableDomain(for: storedHost),
                       requestedDomains.contains(storedDomain) else { return false }
@@ -51,7 +51,8 @@ enum CredentialMatcher {
 
         return entries.filter { entry in
             guard !entry.isExpired() else { return false }
-            let allURLs = [entry.url] + entry.additionalURLs
+            let allURLs = webURLs(of: entry)
+            let matchesTitle = !strict && !hasStoredAppIDTitle(entry)
 
             return searchTerms.contains { term in
                 for urlString in allURLs {
@@ -63,7 +64,7 @@ enum CredentialMatcher {
                         return true
                     }
                 }
-                return !strict && entry.title.lowercased().contains(term)
+                return matchesTitle && entry.title.lowercased().contains(term)
             }
         }
     }
@@ -86,6 +87,27 @@ enum CredentialMatcher {
             return identifier.type == .app
         }
         return false
+    }
+
+    /// The entry's URL fields minus any that hold a raw App ID, which saves
+    /// from `.app` requests stored before #137.
+    static func webURLs(of entry: KPEntry) -> [String] {
+        ([entry.url] + entry.additionalURLs).filter { !isStoredAppIdentifier($0) }
+    }
+
+    /// Those saves also titled the entry with the App ID parsed as a host.
+    private static func hasStoredAppIDTitle(_ entry: KPEntry) -> Bool {
+        let title = entry.title.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        return ([entry.url] + entry.additionalURLs).contains { url in
+            isStoredAppIdentifier(url) && url.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == title
+        }
+    }
+
+    /// `TEAMID.bundle.id` with no scheme or path. Matching on the uppercase
+    /// ten-character Team ID keeps ordinary lowercase hosts out.
+    static func isStoredAppIdentifier(_ value: String) -> Bool {
+        value.trimmingCharacters(in: .whitespacesAndNewlines)
+            .wholeMatch(of: /[A-Z0-9]{10}(\.[A-Za-z0-9-]+)+/) != nil
     }
 
     static func hostFromURLString(_ value: String) -> String? {

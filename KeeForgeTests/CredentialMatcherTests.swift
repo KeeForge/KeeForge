@@ -83,6 +83,71 @@ final class CredentialMatcherTests: XCTestCase {
         XCTAssertEqual(CredentialMatcher.strictMatchedEntries(from: entries, for: ids).count, 1)
     }
 
+    // MARK: - App IDs stored as URLs before #137
+
+    /// Before #137 a save from an `.app` request stored the raw App ID as the
+    /// entry's URL; such an entry must not count as the website it resembles.
+    func testStoredAppIDURLDoesNotMatchWebsiteOfSameSuffix() {
+        // The shape those saves left behind: App ID URL, title parsed as a host.
+        let entries = [makeEntry(title: "a1b2c3d4e5.com.mybank.app", url: "A1B2C3D4E5.com.mybank.app", username: "u", password: "p")]
+        let requests = [
+            [ASCredentialServiceIdentifier(identifier: "mybank.app", type: .domain)],
+            [ASCredentialServiceIdentifier(identifier: "https://mybank.app/login", type: .URL)],
+            [ASCredentialServiceIdentifier(identifier: "login.mybank.app", type: .domain)],
+        ]
+
+        for request in requests {
+            let label = request[0].identifier
+            XCTAssertTrue(CredentialMatcher.strictMatchedEntries(from: entries, for: request).isEmpty, label)
+            XCTAssertTrue(CredentialMatcher.matchedEntries(from: entries, for: request).isEmpty, label)
+            XCTAssertTrue(CredentialMatcher.possibleMatchedEntries(from: entries, for: request).isEmpty, label)
+        }
+    }
+
+    func testStoredAppIDURLDoesNotHideTheEntrysOtherWebsiteURLs() {
+        let entry = makeEntry(
+            title: "MyBank",
+            url: "A1B2C3D4E5.com.mybank.app",
+            username: "u",
+            password: "p",
+            customFields: ["KP2A_URL_1": "https://mybank.app"]
+        )
+        let request = [ASCredentialServiceIdentifier(identifier: "mybank.app", type: .domain)]
+
+        XCTAssertEqual(CredentialMatcher.strictMatchedEntries(from: [entry], for: request).count, 1)
+    }
+
+    func testTitleTheUserChoseStillMatchesBroadlyNextToAStoredAppID() {
+        let entry = makeEntry(title: "mybank.app login", url: "A1B2C3D4E5.com.mybank.app", username: "u", password: "p")
+        let request = [ASCredentialServiceIdentifier(identifier: "mybank.app", type: .domain)]
+
+        XCTAssertTrue(CredentialMatcher.strictMatchedEntries(from: [entry], for: request).isEmpty)
+        XCTAssertEqual(CredentialMatcher.matchedEntries(from: [entry], for: request).count, 1)
+    }
+
+    func testHostsThatOnlyResembleAnAppIDStillMatch() {
+        let entries = [
+            makeEntry(title: "Lowercase", url: "a1b2c3d4e5.mybank.app", username: "u", password: "p"),
+            makeEntry(title: "Scheme", url: "https://A1B2C3D4E5.mybank.app", username: "u", password: "p"),
+            makeEntry(title: "Path", url: "A1B2C3D4E5.mybank.app/login", username: "u", password: "p"),
+        ]
+        let request = [ASCredentialServiceIdentifier(identifier: "mybank.app", type: .domain)]
+
+        XCTAssertEqual(CredentialMatcher.strictMatchedEntries(from: entries, for: request).count, 3)
+    }
+
+    func testIsStoredAppIdentifier() {
+        XCTAssertTrue(CredentialMatcher.isStoredAppIdentifier("A1B2C3D4E5.com.mybank.app"))
+        XCTAssertTrue(CredentialMatcher.isStoredAppIdentifier(" ABCDE12345.com.example.my-app "))
+        XCTAssertFalse(CredentialMatcher.isStoredAppIdentifier("a1b2c3d4e5.com.mybank.app"))
+        XCTAssertFalse(CredentialMatcher.isStoredAppIdentifier("https://A1B2C3D4E5.com.mybank.app"))
+        XCTAssertFalse(CredentialMatcher.isStoredAppIdentifier("A1B2C3D4E5.com.mybank.app/login"))
+        XCTAssertFalse(CredentialMatcher.isStoredAppIdentifier("A1B2C3D4E.com.mybank.app"))
+        XCTAssertFalse(CredentialMatcher.isStoredAppIdentifier("A1B2C3D4E5"))
+        XCTAssertFalse(CredentialMatcher.isStoredAppIdentifier("mybank.app"))
+        XCTAssertFalse(CredentialMatcher.isStoredAppIdentifier(""))
+    }
+
     // MARK: - matchedEntries
 
     func testExactDomainMatch() {

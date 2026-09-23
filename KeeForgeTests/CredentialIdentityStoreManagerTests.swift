@@ -135,6 +135,25 @@ final class CredentialIdentityStoreManagerTests: XCTestCase {
         XCTAssertTrue(CredentialIdentityStoreManager.passwordIdentities(for: entry, in: someDatabaseID).isEmpty)
     }
 
+    /// An App ID stored as the URL before #137 is not a website to publish.
+    func testIdentityEmptyWhenURLIsAStoredAppID() {
+        let entry = makeEntry(title: "MyBank", url: "A1B2C3D4E5.com.mybank.app", username: "user", hasPassword: true)
+        XCTAssertTrue(CredentialIdentityStoreManager.passwordIdentities(for: entry, in: someDatabaseID).isEmpty)
+    }
+
+    func testStoredAppIDURLDoesNotSuppressAdditionalWebsiteIdentities() {
+        let entry = makeEntry(
+            title: "MyBank",
+            url: "A1B2C3D4E5.com.mybank.app",
+            username: "user",
+            hasPassword: true,
+            customFields: ["KP2A_URL_1": "https://login.mybank.com"]
+        )
+        let identities = CredentialIdentityStoreManager.passwordIdentities(for: entry, in: someDatabaseID)
+
+        XCTAssertEqual(identities.map(\.serviceIdentifier.identifier), ["mybank.com"])
+    }
+
     // MARK: - passwordIdentities: multiple URLs (additionalURLs via KP2A_URL_*)
 
     func testMultipleIdentitiesForMultipleURLs() {
@@ -305,6 +324,22 @@ final class CredentialIdentityStoreManagerTests: XCTestCase {
             identity?.recordIdentifier,
             CredentialRecordIdentifier(databaseID: someDatabaseID, entryID: id).encoded
         )
+    }
+
+    func testOTCIdentityEmptyWhenURLIsAStoredAppID() throws {
+        guard #available(iOS 18.0, macOS 15.0, *) else {
+            throw XCTSkip("One-time code identities require iOS 18 / macOS 15")
+        }
+
+        let entry = makeEntry(
+            title: "MyBank",
+            url: "A1B2C3D4E5.com.mybank.app",
+            username: "user",
+            hasPassword: false,
+            hasTOTP: true
+        )
+
+        XCTAssertTrue(CredentialIdentityStoreManager.oneTimeCodeIdentities(for: entry, in: someDatabaseID).isEmpty)
     }
 
     func testOTCIdentityUsesUsernameFallbackWhenTitleEmpty() throws {
