@@ -21,6 +21,52 @@ class DatabaseCreationUITestCase: EntryEditUITestCase {
         }
     }
 
+    /// Creates and opens a local database through the New Database form.
+    func createLocalDatabase(
+        named databaseName: String,
+        password: String,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        let createButton = app.buttons["database.empty.create"]
+        XCTAssertTrue(createButton.waitForExistence(timeout: 10), "Empty-state create button was not visible", file: file, line: line)
+        tapElement(createButton)
+
+        let nameField = app.textFields["database-create.name-field"]
+        XCTAssertTrue(nameField.waitForExistence(timeout: 5), "Database name field was not visible", file: file, line: line)
+
+        let passwordField = app.secureTextFields["database-create.password-field"]
+        XCTAssertTrue(passwordField.waitForExistence(timeout: 5), "Master password field was not visible", file: file, line: line)
+        let revealedPasswordField = revealPasswordTextField(
+            in: passwordField,
+            revealingWith: app.buttons["database-create.password-visibility-button"]
+        )
+
+        let confirmPasswordField = app.secureTextFields["database-create.confirm-password-field"]
+        XCTAssertTrue(confirmPasswordField.waitForExistence(timeout: 5), "Confirm password field was not visible", file: file, line: line)
+        let revealedConfirmPasswordField = revealPasswordTextField(
+            in: confirmPasswordField,
+            revealingWith: app.buttons["database-create.confirm-password-visibility-button"]
+        )
+
+        replaceText(in: nameField, with: databaseName)
+        dismissKeyboardAfterPasswordFixtureEntry()
+        replaceVisiblePasswordFixtureText(in: revealedPasswordField, with: password)
+        dismissKeyboardAfterPasswordFixtureEntry()
+        replaceVisiblePasswordFixtureText(in: revealedConfirmPasswordField, with: password)
+
+        let formCreateButton = app.buttons["database-create.create-button"]
+        XCTAssertTrue(formCreateButton.waitForExistence(timeout: 5), "Create confirmation button was not visible", file: file, line: line)
+        tapElement(formCreateButton)
+
+        XCTAssertTrue(
+            app.buttons["lock.button"].waitForExistence(timeout: 30),
+            "Created database did not open into an unlocked vault",
+            file: file,
+            line: line
+        )
+    }
+
     func createLocalDatabaseAndVerifyHappyPath(
         named databaseName: String,
         entryTitle: String,

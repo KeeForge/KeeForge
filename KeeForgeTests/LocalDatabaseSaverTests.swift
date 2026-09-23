@@ -663,7 +663,126 @@ final class LocalDatabaseSaverTests: XCTestCase {
             )
             XCTFail("Expected the rekey save to fail verification.")
         } catch let error as SaveError {
-            XCTAssertEqual(error, .rekeyVerificationFailed)
+            XCTAssertEqual(error, .reencryptionVerificationFailed)
+        }
+
+        XCTAssertEqual(try Data(contentsOf: databaseURL), originalData)
+        XCTAssertTrue(DatabaseListStore.recentBackups(for: reference).isEmpty)
+    }
+
+    // MARK: - Encryption settings (#98)
+
+    func testEncryptionSettingsSaveRewritesHeaderUnderTheSameKey() async throws {
+        let databaseURL = try makeScratchDatabaseCopy()
+        let reference = try TestDatabaseSupport.makeReference(for: databaseURL)
+        let originalData = try Data(contentsOf: databaseURL)
+        let original = try KDBXFileSummary.inspect(data: originalData)
+        XCTAssertEqual(original.cipher, .aes256CBC, "Fixture precondition")
+        let context = try makeCleanSaveContext(databaseURL: databaseURL)
+        let kdfParameters = try DatabaseCreationDefaults.argon2idKDFParameters(preset: .strong)
+
+        let result = try await LocalDatabaseSaver.save(
+            draft: context.draft,
+            reference: reference,
+            compositeKey: context.compositeKey,
+            openTimeSHA512: context.openTimeSHA512,
+            kdfPolicy: .mainApp,
+            encryptionSettings: EncryptionSettingsChange(
+                cipherID: KDBXParser.chachaCipherUUID,
+                kdfParameters: kdfParameters,
+                compressionFlags: original.isCompressed ? 0 : 1
+            )
+        )
+
+        guard case .saved(let newSHA512) = result else {
+            XCTFail("Expected the encryption settings save to succeed.")
+            return
+        }
+        let savedData = try Data(contentsOf: databaseURL)
+        XCTAssertEqual(newSHA512, KDBXCrypto.sha512(savedData))
+
+        let saved = try KDBXFileSummary.inspect(data: savedData)
+        XCTAssertEqual(saved.cipher, .chacha20)
+        XCTAssertEqual(saved.isCompressed, !original.isCompressed)
+        XCTAssertEqual(
+            saved.keyDerivation,
+            .argon2id(
+                iterations: DatabaseCreationKDFPreset.strong.iterations,
+                memoryBytes: DatabaseCreationKDFPreset.strong.memoryBytes,
+                parallelism: DatabaseCreationDefaults.argon2idParallelism
+            )
+        )
+        XCTAssertEqual(saved.formatVersion, original.formatVersion)
+
+        let reparsed = try KDBXParser.parseWithMetaAndHeader(
+            data: savedData,
+            compositeKey: context.compositeKey,
+            sessionKey: SymmetricKey(size: .bits256),
+            kdfPolicy: .mainApp
+        )
+        XCTAssertEqual(
+            reparsed.rootGroup.allEntries.map(\.title).sorted(),
+            context.originalRootGroup.allEntries.map(\.title).sorted()
+        )
+        XCTAssertNotEqual(
+            reparsed.header.kdfParameters["S"] as? Data,
+            kdfParameters["S"] as? Data,
+            "The writer still rotates the KDF salt it was handed."
+        )
+
+        let backupURL = try XCTUnwrap(DatabaseListStore.recentBackups(for: reference).first)
+        XCTAssertEqual(try Data(contentsOf: backupURL), originalData)
+    }
+
+    func testEncryptionSettingsSaveKeepsUnchangedFields() async throws {
+        let databaseURL = try makeScratchDatabaseCopy()
+        let reference = try TestDatabaseSupport.makeReference(for: databaseURL)
+        let original = try KDBXFileSummary.inspect(data: Data(contentsOf: databaseURL))
+        let context = try makeCleanSaveContext(databaseURL: databaseURL)
+
+        _ = try await LocalDatabaseSaver.save(
+            draft: context.draft,
+            reference: reference,
+            compositeKey: context.compositeKey,
+            openTimeSHA512: context.openTimeSHA512,
+            kdfPolicy: .mainApp,
+            encryptionSettings: EncryptionSettingsChange(compressionFlags: original.isCompressed ? 0 : 1)
+        )
+
+        let saved = try KDBXFileSummary.inspect(data: Data(contentsOf: databaseURL))
+        XCTAssertEqual(saved.cipher, original.cipher)
+        XCTAssertEqual(saved.keyDerivation, original.keyDerivation)
+        XCTAssertEqual(saved.isCompressed, !original.isCompressed)
+    }
+
+    func testEncryptionSettingsSaveVerificationFailureLeavesFileUntouched() async throws {
+        let databaseURL = try makeScratchDatabaseCopy()
+        let reference = try TestDatabaseSupport.makeReference(for: databaseURL)
+        let originalData = try Data(contentsOf: databaseURL)
+        let context = try makeCleanSaveContext(databaseURL: databaseURL)
+        let originalSHA512 = KDBXCrypto.sha512(originalData)
+        var environment = LocalDatabaseSaver.Environment.live
+        let liveExtractHeader = environment.extractHeader
+        environment.extractHeader = { data, key, kdfPolicy in
+            guard KDBXCrypto.sha512(data) == originalSHA512 else {
+                throw CocoaError(.fileReadCorruptFile)
+            }
+            return try liveExtractHeader(data, key, kdfPolicy)
+        }
+
+        do {
+            _ = try await LocalDatabaseSaver.save(
+                draft: context.draft,
+                reference: reference,
+                compositeKey: context.compositeKey,
+                openTimeSHA512: context.openTimeSHA512,
+                kdfPolicy: .mainApp,
+                encryptionSettings: EncryptionSettingsChange(cipherID: KDBXParser.chachaCipherUUID),
+                environment: environment
+            )
+            XCTFail("Expected the encryption settings save to fail verification.")
+        } catch let error as SaveError {
+            XCTAssertEqual(error, .reencryptionVerificationFailed)
         }
 
         XCTAssertEqual(try Data(contentsOf: databaseURL), originalData)
@@ -725,6 +844,23 @@ final class LocalDatabaseSaverTests: XCTestCase {
 
         return SaveContext(
             draft: dirtyDraft,
+            compositeKey: KDBXCrypto.compositeKey(password: fixturePassword),
+            openTimeSHA512: KDBXCrypto.sha512(originalData),
+            originalRootGroup: parsed.rootGroup
+        )
+    }
+
+    private func makeCleanSaveContext(databaseURL: URL) throws -> SaveContext {
+        let originalData = try Data(contentsOf: databaseURL)
+        let sessionKey = SymmetricKey(size: .bits256)
+        let parsed = try KDBXParser.parseWithMeta(
+            data: originalData,
+            password: fixturePassword,
+            sessionKey: sessionKey
+        )
+
+        return SaveContext(
+            draft: DatabaseDraft(rootGroup: parsed.rootGroup, meta: parsed.meta, sessionKey: sessionKey),
             compositeKey: KDBXCrypto.compositeKey(password: fixturePassword),
             openTimeSHA512: KDBXCrypto.sha512(originalData),
             originalRootGroup: parsed.rootGroup

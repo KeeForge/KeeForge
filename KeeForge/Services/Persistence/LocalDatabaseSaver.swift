@@ -33,11 +33,35 @@ struct SaveBaseline: Sendable, Equatable {
     }
 }
 
+/// Outer-header settings a save rewrites; a nil field keeps the file's value.
+///
+/// `@unchecked Sendable` for the same reason as `KDBXParser.Header`: the KDF
+/// variant map only ever holds value types.
+struct EncryptionSettingsChange: @unchecked Sendable {
+    var cipherID: Data?
+    var kdfParameters: [String: Any]?
+    var compressionFlags: UInt32?
+
+    func applied(to header: KDBXParser.Header) -> KDBXParser.Header {
+        var header = header
+        if let cipherID {
+            header.cipherID = cipherID
+        }
+        if let kdfParameters {
+            header.kdfParameters = kdfParameters
+        }
+        if let compressionFlags {
+            header.compressionFlags = compressionFlags
+        }
+        return header
+    }
+}
+
 enum SaveError: Error, LocalizedError, Equatable {
     case databaseIsReadOnly
     case databaseLocationUnavailable
     case saveContextUnavailable
-    case rekeyVerificationFailed
+    case reencryptionVerificationFailed
     case rekeyAppliedRemotely
 
     var errorDescription: String? {
@@ -48,7 +72,7 @@ enum SaveError: Error, LocalizedError, Equatable {
             String(localized: "The database file could not be located.")
         case .saveContextUnavailable:
             String(localized: "The database is not ready to save.")
-        case .rekeyVerificationFailed:
+        case .reencryptionVerificationFailed:
             String(localized: "The new database could not be verified after encryption.")
         case .rekeyAppliedRemotely:
             String(localized: "The new master key was uploaded, but the local copy could not be updated. The cloud file now requires the new master key.")
@@ -150,6 +174,9 @@ enum LocalDatabaseSaver {
     /// on-disk file, `newCompositeKey` encrypts the saved bytes, and the result
     /// is verified to reopen with the new key before the file is replaced.
     ///
+    /// `encryptionSettings` rewrites the header's cipher, KDF, or compression
+    /// before encrypting, under the same reopen check.
+    ///
     /// `reconciledRemoteSHA512` widens the overwrite gate by exactly one state
     /// — see `SaveBaseline`.
     ///
@@ -162,7 +189,8 @@ enum LocalDatabaseSaver {
         openTimeSHA512: Data,
         reconciledRemoteSHA512: Data? = nil,
         kdfPolicy: KDFExecutionPolicy,
-        newCompositeKey: SymmetricKey? = nil
+        newCompositeKey: SymmetricKey? = nil,
+        encryptionSettings: EncryptionSettingsChange? = nil
     ) async throws -> SaveResult {
         try await save(
             draft: draft,
@@ -172,6 +200,7 @@ enum LocalDatabaseSaver {
             reconciledRemoteSHA512: reconciledRemoteSHA512,
             kdfPolicy: kdfPolicy,
             newCompositeKey: newCompositeKey,
+            encryptionSettings: encryptionSettings,
             environment: .live
         )
     }
@@ -184,6 +213,7 @@ enum LocalDatabaseSaver {
         reconciledRemoteSHA512: Data? = nil,
         kdfPolicy: KDFExecutionPolicy,
         newCompositeKey: SymmetricKey? = nil,
+        encryptionSettings: EncryptionSettingsChange? = nil,
         environment: Environment
     ) async throws -> SaveResult {
         if reference.isReadOnly {
@@ -208,6 +238,7 @@ enum LocalDatabaseSaver {
                 ),
                 kdfPolicy: kdfPolicy,
                 newCompositeKey: newCompositeKey,
+                encryptionSettings: encryptionSettings,
                 environment: environment
             )
         }.value
@@ -220,6 +251,7 @@ enum LocalDatabaseSaver {
         baseline: SaveBaseline,
         kdfPolicy: KDFExecutionPolicy,
         newCompositeKey: SymmetricKey?,
+        encryptionSettings: EncryptionSettingsChange?,
         environment: Environment
     ) throws -> SaveResult {
         guard let location = environment.resolveLocation(reference) else {
@@ -250,16 +282,20 @@ enum LocalDatabaseSaver {
             return .conflict(remoteSHA512: currentSHA512, remoteData: currentData)
         }
 
-        let header = try environment.extractHeader(currentData, compositeKey, kdfPolicy)
+        var header = try environment.extractHeader(currentData, compositeKey, kdfPolicy)
         guard header.formatVersion.requiresReadOnlyMode == false else {
             throw SaveError.databaseIsReadOnly
         }
-        let newData = try environment.encryptDraft(draft, newCompositeKey ?? compositeKey, header, kdfPolicy)
-        if let newCompositeKey {
+        if let encryptionSettings {
+            header = encryptionSettings.applied(to: header)
+        }
+        let writeKey = newCompositeKey ?? compositeKey
+        let newData = try environment.encryptDraft(draft, writeKey, header, kdfPolicy)
+        if newCompositeKey != nil || encryptionSettings != nil {
             do {
-                _ = try environment.extractHeader(newData, newCompositeKey, kdfPolicy)
+                _ = try environment.extractHeader(newData, writeKey, kdfPolicy)
             } catch {
-                throw SaveError.rekeyVerificationFailed
+                throw SaveError.reencryptionVerificationFailed
             }
         }
 

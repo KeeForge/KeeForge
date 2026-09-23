@@ -474,6 +474,46 @@
         }
       }
     },
+    "%@ (Current)" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ (aktuell)"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ (actual)"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ (actuel)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@（現在）"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@（当前）"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@（目前）"
+          }
+        }
+      }
+    },
     "%@ and %@" : {
       "localizations" : {
         "de" : {
@@ -556,6 +596,46 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%@ 副本"
+          }
+        }
+      }
+    },
+    "%@ key derivation (%@)." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@-Schlüsselableitung (%2$@)."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Derivación de claves %1$@ (%2$@)."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dérivation de clé %1$@ (%2$@)."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ による鍵導出（%2$@）。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ 密钥派生（%2$@）。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ 金鑰衍生（%2$@）。"
           }
         }
       }
@@ -3088,6 +3168,46 @@
         }
       }
     },
+    "Argon2id key derivation (%@)." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Argon2id-Schlüsselableitung (%@)."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Derivación de claves Argon2id (%@)."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dérivation de clé Argon2id (%@)."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Argon2id による鍵導出（%@）。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Argon2id 密钥派生（%@）。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Argon2id 金鑰衍生（%@）。"
+          }
+        }
+      }
+    },
     "Ascending" : {
       "localizations" : {
         "de" : {
@@ -4689,6 +4809,46 @@
         }
       }
     },
+    "Change Encryption Settings…" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Verschlüsselungseinstellungen ändern…"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cambiar ajustes de cifrado…"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Modifier les réglages de chiffrement…"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "暗号化設定を変更…"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "更改加密设置…"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "更改加密設定…"
+          }
+        }
+      }
+    },
     "Change Icon" : {
       "localizations" : {
         "de" : {
@@ -5806,6 +5966,46 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "選擇上方的「新增項目」以儲存此驗證碼。"
+          }
+        }
+      }
+    },
+    "Choose the cipher, key derivation, and compression this database file is saved with." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wählen Sie die Verschlüsselung, die Schlüsselableitung und die Komprimierung, mit denen diese Datenbankdatei gespeichert wird."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Elija el cifrado, la derivación de claves y la compresión con que se guarda este archivo de base de datos."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choisissez le chiffrement, la dérivation de clé et la compression avec lesquels ce fichier de base de données est enregistré."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このデータベースファイルの保存に使う暗号化、鍵導出、圧縮を選択します。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "选择保存此数据库文件时使用的加密、密钥派生和压缩方式。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "選擇儲存此資料庫檔案時使用的加密、金鑰衍生和壓縮方式。"
           }
         }
       }
@@ -12252,6 +12452,46 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "加密失敗"
+          }
+        }
+      }
+    },
+    "Encryption Settings" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Verschlüsselungseinstellungen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ajustes de cifrado"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Réglages de chiffrement"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "暗号化設定"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "加密设置"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "加密設定"
           }
         }
       }
@@ -22978,6 +23218,46 @@
         }
       }
     },
+    "Re-encrypting Database" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Datenbank wird neu verschlüsselt"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Volviendo a cifrar la base de datos"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rechiffrement de la base de données"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "データベースを暗号化し直しています"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在重新加密数据库"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在重新加密資料庫"
+          }
+        }
+      }
+    },
     "Reach your on-device backups" : {
       "localizations" : {
         "de" : {
@@ -24618,6 +24898,46 @@
         }
       }
     },
+    "Save or discard your changes before changing encryption settings." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Speichern oder verwerfen Sie Ihre Änderungen, bevor Sie die Verschlüsselungseinstellungen ändern."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Guarde o descarte sus cambios antes de cambiar los ajustes de cifrado."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Enregistrez ou annulez vos modifications avant de modifier les réglages de chiffrement."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "暗号化設定を変更する前に、変更内容を保存するか破棄してください。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "请先保存或放弃你的更改，再更改加密设置。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "請先儲存或捨棄你的變更，再更改加密設定。"
+          }
+        }
+      }
+    },
     "Save or discard your changes before changing the master key." : {
       "localizations" : {
         "de" : {
@@ -25096,6 +25416,46 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "尚不支援儲存舊版 KDBX 3.1 資料庫。"
+          }
+        }
+      }
+    },
+    "Saving re-encrypts this database file. It still opens with the same master key, and backups made before the change keep the previous settings." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Beim Speichern wird diese Datenbankdatei neu verschlüsselt. Sie lässt sich weiterhin mit demselben Master-Schlüssel öffnen, und vor der Änderung erstellte Sicherungen behalten die bisherigen Einstellungen."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Al guardar, este archivo de base de datos se vuelve a cifrar. Sigue abriéndose con la misma clave maestra, y las copias de seguridad hechas antes del cambio conservan los ajustes anteriores."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "L'enregistrement rechiffre ce fichier de base de données. Il s'ouvre toujours avec la même clé principale, et les sauvegardes effectuées avant la modification conservent les réglages précédents."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "保存すると、このデータベースファイルは暗号化し直されます。引き続き同じマスターキーで開くことができ、変更前に作成したバックアップは以前の設定のままです。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "保存时会重新加密此数据库文件。它仍可用相同的主密钥打开，更改前创建的备份会保留之前的设置。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "儲存時會重新加密此資料庫檔案。它仍可用相同的主金鑰開啟，更改前建立的備份會保留先前的設定。"
           }
         }
       }
@@ -27336,6 +27696,86 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "強"
+          }
+        }
+      }
+    },
+    "Stronger settings take longer to unlock and may exceed AutoFill's memory limit on some devices." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Stärkere Einstellungen verlängern das Entsperren und können auf manchen Geräten das Speicherlimit von AutoFill überschreiten."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Los ajustes más fuertes tardan más en desbloquear y pueden superar el límite de memoria del autorrelleno en algunos dispositivos."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Des réglages plus forts allongent le déverrouillage et peuvent dépasser la limite de mémoire du remplissage automatique sur certains appareils."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "設定を強くするほどロック解除に時間がかかり、デバイスによっては自動入力のメモリ上限を超えることがあります。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "更强的设置会延长解锁时间，并可能在部分设备上超出自动填充的内存限制。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "更強的設定會延長解鎖時間，並可能在部分裝置上超出自動填寫的記憶體限制。"
+          }
+        }
+      }
+    },
+    "Stronger settings take longer to unlock." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Stärkere Einstellungen verlängern das Entsperren."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Los ajustes más fuertes tardan más en desbloquear."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Des réglages plus forts allongent le déverrouillage."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "設定を強くするほどロック解除に時間がかかります。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "更强的设置会延长解锁时间。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "更強的設定會延長解鎖時間。"
           }
         }
       }

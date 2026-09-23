@@ -69,7 +69,7 @@ enum DatabaseSaveError: Error, LocalizedError, Identifiable, Equatable, Sendable
                 self = .databaseLocationUnavailable
             case .saveContextUnavailable:
                 self = .saveContextUnavailable
-            case .rekeyVerificationFailed, .rekeyAppliedRemotely:
+            case .reencryptionVerificationFailed, .rekeyAppliedRemotely:
                 self = .unknown(saveError.localizedDescription)
             }
         case let cloudError as CloudProviderError:
@@ -242,6 +242,17 @@ final class DatabaseViewModel {
         case conflict
     }
 
+    /// Typed rejection reasons for `changeEncryptionSettings`. Presentation
+    /// strings are the caller's responsibility.
+    enum EncryptionSettingsError: Error, Equatable, Sendable {
+        case sessionUnavailable
+        case databaseIsReadOnly
+        case saveInProgress
+        case unsavedChanges
+        case pendingUploadsExist
+        case conflict
+    }
+
     enum SortOrder: String, CaseIterable, Sendable {
         case title = "Title"
         case createdDate = "Date Created"
@@ -272,7 +283,8 @@ final class DatabaseViewModel {
         _ compositeKey: SymmetricKey,
         _ openTimeSHA512: Data,
         _ reconciledRemoteSHA512: Data?,
-        _ newCompositeKey: SymmetricKey?
+        _ newCompositeKey: SymmetricKey?,
+        _ encryptionSettings: EncryptionSettingsChange?
     ) async throws -> SaveResult
     typealias CloudSaveOperation = @Sendable (
         _ draft: DatabaseDraft,
@@ -281,7 +293,8 @@ final class DatabaseViewModel {
         _ openTimeSHA512: Data,
         _ reconciledRemoteSHA512: Data?,
         _ expectedRev: String?,
-        _ newCompositeKey: SymmetricKey?
+        _ newCompositeKey: SymmetricKey?,
+        _ encryptionSettings: EncryptionSettingsChange?
     ) async throws -> SaveResult
     typealias ConflictCopyEncryptionOperation = @Sendable (
         _ draft: DatabaseDraft,
@@ -507,7 +520,7 @@ final class DatabaseViewModel {
         localDatabaseReadOperation: @escaping LocalDatabaseReadOperation = { reference in
             try await DatabaseViewModel.readLocalDatabase(reference: reference)
         },
-        localSaveOperation: @escaping LocalSaveOperation = { draft, reference, compositeKey, openTimeSHA512, reconciledRemoteSHA512, newCompositeKey in
+        localSaveOperation: @escaping LocalSaveOperation = { draft, reference, compositeKey, openTimeSHA512, reconciledRemoteSHA512, newCompositeKey, encryptionSettings in
             try await LocalDatabaseSaver.save(
                 draft: draft,
                 reference: reference,
@@ -515,10 +528,11 @@ final class DatabaseViewModel {
                 openTimeSHA512: openTimeSHA512,
                 reconciledRemoteSHA512: reconciledRemoteSHA512,
                 kdfPolicy: .mainApp,
-                newCompositeKey: newCompositeKey
+                newCompositeKey: newCompositeKey,
+                encryptionSettings: encryptionSettings
             )
         },
-        cloudSaveOperation: @escaping CloudSaveOperation = { draft, reference, compositeKey, openTimeSHA512, reconciledRemoteSHA512, expectedRev, newCompositeKey in
+        cloudSaveOperation: @escaping CloudSaveOperation = { draft, reference, compositeKey, openTimeSHA512, reconciledRemoteSHA512, expectedRev, newCompositeKey, encryptionSettings in
             try await CloudDatabaseSaver.save(
                 draft: draft,
                 reference: reference,
@@ -527,7 +541,8 @@ final class DatabaseViewModel {
                 reconciledRemoteSHA512: reconciledRemoteSHA512,
                 expectedRev: expectedRev,
                 kdfPolicy: .mainApp,
-                newCompositeKey: newCompositeKey
+                newCompositeKey: newCompositeKey,
+                encryptionSettings: encryptionSettings
             )
         },
         conflictCopyEncryptionOperation: @escaping ConflictCopyEncryptionOperation = { draft, compositeKey, sourceData in
@@ -1874,6 +1889,7 @@ final class DatabaseViewModel {
                     compositeKey,
                     openTimeSHA512,
                     nil,
+                    nil,
                     nil
                 )
             case .cloud:
@@ -1884,6 +1900,7 @@ final class DatabaseViewModel {
                     openTimeSHA512,
                     nil,
                     databaseReference.expectedCloudRevision,
+                    nil,
                     nil
                 )
             }
@@ -1981,7 +1998,8 @@ final class DatabaseViewModel {
                     compositeKey,
                     openTimeSHA512,
                     nil,
-                    newCompositeKey
+                    newCompositeKey,
+                    nil
                 )
             case .cloud:
                 saveResult = try await cloudSaveOperation(
@@ -1991,7 +2009,8 @@ final class DatabaseViewModel {
                     openTimeSHA512,
                     nil,
                     databaseReference.expectedCloudRevision,
-                    newCompositeKey
+                    newCompositeKey,
+                    nil
                 )
             }
         } catch SaveError.rekeyAppliedRemotely {
@@ -2064,6 +2083,95 @@ final class DatabaseViewModel {
         updated.lastMasterKeyChangeAt = nowProvider()
         DatabaseListStore.update(updated)
         refreshDatabaseReference()
+    }
+
+    /// Re-encrypts the unlocked database with a different cipher, Argon2id
+    /// preset, or compression setting under the same master key. A nil
+    /// argument keeps the file's current value.
+    ///
+    /// A conflict with concurrent changes aborts cleanly
+    /// (`EncryptionSettingsError.conflict`) with the file and the session
+    /// untouched.
+    func changeEncryptionSettings(
+        cipher: DatabaseCreationCipher?,
+        kdfPreset: DatabaseCreationKDFPreset?,
+        isCompressed: Bool?
+    ) async throws {
+        guard case .unlocked = state, let compositeKey, let openTimeSHA512 else {
+            throw EncryptionSettingsError.sessionUnavailable
+        }
+        guard isReadOnly == false else {
+            throw EncryptionSettingsError.databaseIsReadOnly
+        }
+        guard isSaving == false else {
+            throw EncryptionSettingsError.saveInProgress
+        }
+        guard draft == nil || draft?.isDirty == false else {
+            throw EncryptionSettingsError.unsavedChanges
+        }
+        // Pending AutoFill upload markers hold bytes written under the old
+        // settings; draining them afterwards would silently revert the remote.
+        if databaseReference.isCloudBacked, pendingUploadMarkerCheck(databaseReference) {
+            throw EncryptionSettingsError.pendingUploadsExist
+        }
+        guard cipher != nil || kdfPreset != nil || isCompressed != nil else { return }
+
+        let change = EncryptionSettingsChange(
+            cipherID: cipher?.cipherID,
+            kdfParameters: try kdfPreset.map { try DatabaseCreationDefaults.argon2idKDFParameters(preset: $0) },
+            compressionFlags: isCompressed.map { $0 ? 1 : 0 }
+        )
+        let workingDraft = try makeWorkingDraft()
+
+        let expectedLockCycleID = lockCycleID
+
+        isSaving = true
+        saveError = nil
+        defer {
+            isSaving = false
+        }
+
+        let saveResult: SaveResult
+        switch databaseReference.source {
+        case .local:
+            saveResult = try await localSaveOperation(
+                workingDraft,
+                databaseReference,
+                compositeKey,
+                openTimeSHA512,
+                nil,
+                nil,
+                change
+            )
+        case .cloud:
+            saveResult = try await cloudSaveOperation(
+                workingDraft,
+                databaseReference,
+                compositeKey,
+                openTimeSHA512,
+                nil,
+                databaseReference.expectedCloudRevision,
+                nil,
+                change
+            )
+        }
+
+        switch saveResult {
+        case .saved(let newSHA512):
+            // The reference carries the new cloud revision, so it updates even
+            // if the session locked mid-flight.
+            refreshDatabaseReference()
+            if expectedLockCycleID == lockCycleID {
+                self.openTimeSHA512 = newSHA512
+                // Same as `changeMasterKey`: edits that landed behind this
+                // save no-oped on `isSaving`, so flush them once it resets.
+                if draft?.isDirty == true {
+                    Task { await self.saveHandlingError() }
+                }
+            }
+        case .conflict:
+            throw EncryptionSettingsError.conflict
+        }
     }
 
     func saveAsConflictCopy() async throws {
@@ -2175,6 +2283,7 @@ final class DatabaseViewModel {
                 compositeKey,
                 openTimeSHA512,
                 conflict.remoteSHA512,
+                nil,
                 nil
             )
         case .cloud:
@@ -2185,6 +2294,7 @@ final class DatabaseViewModel {
                 openTimeSHA512,
                 conflict.remoteSHA512,
                 databaseReference.expectedCloudRevision,
+                nil,
                 nil
             )
         }
