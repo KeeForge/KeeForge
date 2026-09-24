@@ -6,6 +6,7 @@
 
 - KeeForge now speaks Japanese: a full Japanese (日本語) localization across the app and the AutoFill extension, plus translated README and contributor docs.
 - Open, save, and create databases directly on an FTP server (#115). Add Database → FTP asks for the server address, username, and password. FTP is unencrypted, so connecting requires turning on "Allow Unencrypted FTP"; use it only on a network you trust. Encrypted FTPS and SFTP are not supported yet.
+- A password or passkey saved through AutoFill no longer gets stuck when the cloud copy of the database changed in the meantime (#149). Open the database and tap "Merge Changes" in the notice at the top: KeeForge combines the change with the cloud copy the way KeePass merges databases and uploads the result. If the merge can't be done safely, nothing changes and Export Copy and Discard Pending Upload in the database list still work as before.
 
 ### Fixes
 

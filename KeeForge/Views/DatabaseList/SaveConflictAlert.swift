@@ -84,6 +84,22 @@ struct SaveConflictAlertModifier: ViewModifier {
             } message: {
                 Text(viewModel.mergeFailure?.message ?? "")
             }
+            // `PendingUploadConflictBanner` starts this merge; its result
+            // reuses the "Changes Merged" alert above.
+            .alert(
+                "Couldn't Merge Changes",
+                isPresented: Binding(
+                    get: { viewModel.pendingUploadMergeFailure != nil },
+                    set: { _ in }
+                )
+            ) {
+                Button("OK") {
+                    viewModel.dismissPendingUploadMergeFailure()
+                }
+                .accessibilityIdentifier("pending-upload-merge.failure-ok")
+            } message: {
+                Text(viewModel.pendingUploadMergeFailure?.message ?? "")
+            }
     }
 }
 

@@ -945,6 +945,10 @@ struct DatabaseNavigationView: View {
                     if viewModel.isDirty && viewModel.isSaving == false {
                         UnsavedChangesBanner(viewModel: viewModel)
                     }
+
+                    if viewModel.hasPendingUploadConflict && viewModel.isSaving == false {
+                        PendingUploadConflictBanner(viewModel: viewModel)
+                    }
                 }
             }
         }
@@ -1094,6 +1098,45 @@ struct UnsavedChangesBanner: View {
         .background(Color.orange.opacity(0.12))
         .accessibilityElement(children: .combine)
         .accessibilityIdentifier("database.unsaved-indicator")
+    }
+}
+
+/// Stays up while an AutoFill save for this database is stuck behind a newer
+/// cloud copy. A banner rather than an alert: the notice is due right at
+/// unlock, while the compact unlock sheet is still dismissing, and a
+/// presentation started then is dropped.
+struct PendingUploadConflictBanner: View {
+    @Bindable var viewModel: DatabaseViewModel
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("A change saved through AutoFill couldn’t be uploaded because the cloud copy changed. Merge it into this database to upload it.")
+                .font(.subheadline.weight(.semibold))
+                .fixedSize(horizontal: false, vertical: true)
+            Button("Merge Changes") {
+                Task {
+                    do {
+                        try await viewModel.mergePendingUploads()
+                    } catch {
+                        viewModel.presentSaveError(error)
+                    }
+                }
+            }
+            .buttonStyle(.borderedProminent)
+            .accessibilityIdentifier("pending-upload-banner.merge")
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(16)
+        .background(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .fill(Color(.secondarySystemBackground))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .stroke(Color(.separator), lineWidth: 0.5)
+        )
+        .padding(.horizontal, 12)
+        .accessibilityIdentifier("pending-upload-banner")
     }
 }
 

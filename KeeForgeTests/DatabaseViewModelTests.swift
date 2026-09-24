@@ -3629,6 +3629,246 @@ final class DatabaseViewModelTests: XCTestCase {
         XCTAssertEqual(vm.openTimeSHA512, mergedHash)
     }
 
+    // MARK: - Merging a conflicted AutoFill upload (#149)
+
+    func testMergePendingUploadsAddsTheAutoFillChangeUploadsAndOnlyThenDropsTheMarker() async throws {
+        let fixtureData = try Data(contentsOf: fixtureURL())
+        let pendingData = try makeRemoteVariantData { visibleRoot in
+            visibleRoot.entries.append(KPEntry(title: "AutoFill Entry"))
+        }
+        let savedHash = KDBXCrypto.sha512(Data("merged-upload".utf8))
+        let recorder = MergeSaveRecorder(results: [.saved(newSHA512: savedHash)])
+        let reference = makeCloudReference(remoteRev: "rev-A")
+        let pending = PendingUploadFake(reference: reference, payload: pendingData)
+        let vm = try makePendingUploadViewModel(reference: reference, fixtureData: fixtureData, pending: pending, recorder: recorder)
+
+        await vm.unlock(password: fixturePassword)
+        let openedTitles = Set(allEntryTitles(in: try XCTUnwrap(vm.rootGroup)))
+        XCTAssertTrue(vm.hasPendingUploadConflict)
+
+        try await vm.mergePendingUploads()
+
+        let call = try XCTUnwrap(recorder.recordedCalls.first)
+        XCTAssertEqual(recorder.recordedCalls.count, 1)
+        XCTAssertEqual(call.openTimeSHA512, KDBXCrypto.sha512(fixtureData))
+        XCTAssertNil(call.reconciledRemoteSHA512)
+        XCTAssertEqual(call.expectedRev, "rev-A", "The upload must be conditional on the revision the merge was based on")
+        let savedTitles = Set(allEntryTitles(in: call.rootGroup))
+        XCTAssertTrue(savedTitles.contains("AutoFill Entry"))
+        XCTAssertTrue(savedTitles.isSuperset(of: openedTitles), "Nothing from the cloud copy may be lost")
+
+        XCTAssertEqual(pending.droppedMarkerIDs, [pending.storedMarker.id])
+        XCTAssertFalse(vm.hasPendingUploadConflict)
+        XCTAssertNil(vm.pendingUploadMergeFailure)
+        XCTAssertNotNil(vm.mergeSummaryMessage)
+        XCTAssertEqual(vm.openTimeSHA512, savedHash)
+        XCTAssertTrue(allEntryTitles(in: try XCTUnwrap(vm.rootGroup)).contains("AutoFill Entry"))
+    }
+
+    func testMergePendingUploadsKeepsUnsavedEditsInTheUpload() async throws {
+        let fixtureData = try Data(contentsOf: fixtureURL())
+        let pendingData = try makeRemoteVariantData { visibleRoot in
+            visibleRoot.entries.append(KPEntry(title: "AutoFill Entry"))
+        }
+        let recorder = MergeSaveRecorder(results: [.saved(newSHA512: Data("merged".utf8))])
+        let reference = makeCloudReference(remoteRev: "rev-A")
+        let pending = PendingUploadFake(reference: reference, payload: pendingData)
+        let vm = try makePendingUploadViewModel(reference: reference, fixtureData: fixtureData, pending: pending, recorder: recorder)
+
+        await vm.unlock(password: fixturePassword)
+        vm.draft = try makeDirtyDraft(from: vm, entryTitle: "Unsaved Local Entry")
+        try await vm.mergePendingUploads()
+
+        let savedTitles = allEntryTitles(in: try XCTUnwrap(recorder.recordedCalls.first).rootGroup)
+        XCTAssertTrue(savedTitles.contains("AutoFill Entry"))
+        XCTAssertTrue(savedTitles.contains("Unsaved Local Entry"))
+        XCTAssertFalse(vm.isDirty)
+    }
+
+    func testMergePendingUploadsWhenTheCloudCopyChangedAgainKeepsTheMarker() async throws {
+        let fixtureData = try Data(contentsOf: fixtureURL())
+        let pendingData = try makeRemoteVariantData { visibleRoot in
+            visibleRoot.entries.append(KPEntry(title: "AutoFill Entry"))
+        }
+        let newerCloudData = Data("newer-cloud-copy".utf8)
+        let recorder = MergeSaveRecorder(results: [
+            .conflict(remoteSHA512: KDBXCrypto.sha512(newerCloudData), remoteData: newerCloudData),
+        ])
+        let reference = makeCloudReference(remoteRev: "rev-A")
+        let pending = PendingUploadFake(reference: reference, payload: pendingData)
+        let vm = try makePendingUploadViewModel(reference: reference, fixtureData: fixtureData, pending: pending, recorder: recorder)
+
+        await vm.unlock(password: fixturePassword)
+        try await vm.mergePendingUploads()
+
+        XCTAssertEqual(vm.pendingUploadMergeFailure, .cloudChanged)
+        XCTAssertTrue(pending.droppedMarkerIDs.isEmpty)
+        XCTAssertTrue(vm.hasPendingUploadConflict)
+        XCTAssertNil(vm.saveConflict)
+        XCTAssertFalse(allEntryTitles(in: try XCTUnwrap(vm.rootGroup)).contains("AutoFill Entry"))
+        XCTAssertEqual(vm.openTimeSHA512, KDBXCrypto.sha512(fixtureData))
+    }
+
+    func testMergePendingUploadsWhoseUploadFailsKeepsTheMarker() async throws {
+        let fixtureData = try Data(contentsOf: fixtureURL())
+        let pendingData = try makeRemoteVariantData { visibleRoot in
+            visibleRoot.entries.append(KPEntry(title: "AutoFill Entry"))
+        }
+        let reference = makeCloudReference(remoteRev: "rev-A")
+        let pending = PendingUploadFake(reference: reference, payload: pendingData)
+        let vm = try makeViewModel(
+            reference: reference,
+            cloudSyncOperation: { reference, _ in
+                CloudSyncResolution(
+                    reference: reference,
+                    localURL: DatabaseListStore.cacheLocation(for: reference),
+                    data: fixtureData,
+                    status: .current
+                )
+            },
+            cloudSaveOperation: { _, _, _, _, _, _, _ in
+                throw URLError(.notConnectedToInternet)
+            },
+            pendingUploadRecovery: pending.environment
+        )
+
+        await vm.unlock(password: fixturePassword)
+        do {
+            try await vm.mergePendingUploads()
+            XCTFail("An upload that failed must be reported")
+        } catch {}
+
+        XCTAssertTrue(pending.droppedMarkerIDs.isEmpty)
+        XCTAssertTrue(vm.hasPendingUploadConflict)
+        XCTAssertFalse(vm.isSaving)
+    }
+
+    func testMergePendingUploadsWithTheChangeGoneFromTheDeviceWritesNothing() async throws {
+        let fixtureData = try Data(contentsOf: fixtureURL())
+        let recorder = MergeSaveRecorder(results: [.saved(newSHA512: Data("merged".utf8))])
+        let reference = makeCloudReference(remoteRev: "rev-A")
+        let pending = PendingUploadFake(reference: reference, payload: Data("autofill-payload".utf8), storesPayload: false)
+        let vm = try makePendingUploadViewModel(reference: reference, fixtureData: fixtureData, pending: pending, recorder: recorder)
+
+        await vm.unlock(password: fixturePassword)
+        try await vm.mergePendingUploads()
+
+        XCTAssertEqual(vm.pendingUploadMergeFailure, .changeUnavailable)
+        XCTAssertTrue(recorder.recordedCalls.isEmpty)
+        XCTAssertTrue(pending.droppedMarkerIDs.isEmpty)
+    }
+
+    func testMergePendingUploadsWithAnUnreadableChangeWritesNothing() async throws {
+        let fixtureData = try Data(contentsOf: fixtureURL())
+        let recorder = MergeSaveRecorder(results: [.saved(newSHA512: Data("merged".utf8))])
+        let reference = makeCloudReference(remoteRev: "rev-A")
+        let pending = PendingUploadFake(reference: reference, payload: Data("not-a-kdbx-file".utf8))
+        let vm = try makePendingUploadViewModel(reference: reference, fixtureData: fixtureData, pending: pending, recorder: recorder)
+
+        await vm.unlock(password: fixturePassword)
+        try await vm.mergePendingUploads()
+
+        XCTAssertEqual(vm.pendingUploadMergeFailure, .changeUnreadable)
+        XCTAssertTrue(recorder.recordedCalls.isEmpty)
+        XCTAssertTrue(pending.droppedMarkerIDs.isEmpty)
+    }
+
+    func testMergePendingUploadsWithDivergedAttachmentsWritesNothing() async throws {
+        let fixtureData = try Data(contentsOf: fixtureURL())
+        let pendingData = try makeRemoteVariantData(
+            binaryPoolFields: [Data([0x00]) + Data("attachment-bytes".utf8)]
+        ) { visibleRoot in
+            var entry = KPEntry(title: "AutoFill Entry With Attachment")
+            entry.attachments = [KPAttachment(name: "note.txt", ref: 0)]
+            visibleRoot.entries.append(entry)
+        }
+        let recorder = MergeSaveRecorder(results: [.saved(newSHA512: Data("merged".utf8))])
+        let reference = makeCloudReference(remoteRev: "rev-A")
+        let pending = PendingUploadFake(reference: reference, payload: pendingData)
+        let vm = try makePendingUploadViewModel(reference: reference, fixtureData: fixtureData, pending: pending, recorder: recorder)
+
+        await vm.unlock(password: fixturePassword)
+        try await vm.mergePendingUploads()
+
+        XCTAssertEqual(vm.pendingUploadMergeFailure, .attachmentsDiverged)
+        XCTAssertTrue(recorder.recordedCalls.isEmpty)
+        XCTAssertTrue(pending.droppedMarkerIDs.isEmpty)
+    }
+
+    func testPendingUploadConflictIsNotOfferedForAReadOnlyDatabase() async throws {
+        let fixtureData = try Data(contentsOf: fixtureURL())
+        let recorder = MergeSaveRecorder(results: [.saved(newSHA512: Data("merged".utf8))])
+        var reference = makeCloudReference(remoteRev: "rev-A")
+        reference.isReadOnly = true
+        let pending = PendingUploadFake(reference: reference, payload: Data("autofill-payload".utf8))
+        let vm = try makePendingUploadViewModel(reference: reference, fixtureData: fixtureData, pending: pending, recorder: recorder)
+
+        await vm.unlock(password: fixturePassword)
+        XCTAssertFalse(vm.hasPendingUploadConflict)
+
+        try await vm.mergePendingUploads()
+
+        XCTAssertEqual(vm.pendingUploadMergeFailure, .sessionUnavailable)
+        XCTAssertTrue(recorder.recordedCalls.isEmpty)
+    }
+
+    func testPendingUploadConflictIsNotReportedWithoutAConflict() async throws {
+        let fixtureData = try Data(contentsOf: fixtureURL())
+        let recorder = MergeSaveRecorder(results: [.saved(newSHA512: Data("merged".utf8))])
+        let reference = makeCloudReference(remoteRev: "rev-A")
+        let pending = PendingUploadFake(reference: reference, payload: Data("autofill-payload".utf8), isConflicted: false)
+        let vm = try makePendingUploadViewModel(reference: reference, fixtureData: fixtureData, pending: pending, recorder: recorder)
+
+        await vm.unlock(password: fixturePassword)
+
+        XCTAssertFalse(vm.hasPendingUploadConflict)
+    }
+
+    func testLockingClearsThePendingUploadState() async throws {
+        let fixtureData = try Data(contentsOf: fixtureURL())
+        let recorder = MergeSaveRecorder(results: [.saved(newSHA512: Data("merged".utf8))])
+        let reference = makeCloudReference(remoteRev: "rev-A")
+        let pending = PendingUploadFake(reference: reference, payload: Data("not-a-kdbx-file".utf8))
+        let vm = try makePendingUploadViewModel(reference: reference, fixtureData: fixtureData, pending: pending, recorder: recorder)
+
+        await vm.unlock(password: fixturePassword)
+        try await vm.mergePendingUploads()
+        XCTAssertNotNil(vm.pendingUploadMergeFailure)
+
+        vm.lock()
+
+        XCTAssertFalse(vm.hasPendingUploadConflict)
+        XCTAssertNil(vm.pendingUploadMergeFailure)
+    }
+
+    private func makePendingUploadViewModel(
+        reference: DatabaseReference,
+        fixtureData: Data,
+        pending: PendingUploadFake,
+        recorder: MergeSaveRecorder
+    ) throws -> DatabaseViewModel {
+        try makeViewModel(
+            reference: reference,
+            cloudSyncOperation: { reference, _ in
+                CloudSyncResolution(
+                    reference: reference,
+                    localURL: DatabaseListStore.cacheLocation(for: reference),
+                    data: fixtureData,
+                    status: .current
+                )
+            },
+            cloudSaveOperation: { draft, _, _, openTimeSHA512, reconciledRemoteSHA512, expectedRev, _ in
+                recorder.record(
+                    openTimeSHA512: openTimeSHA512,
+                    reconciledRemoteSHA512: reconciledRemoteSHA512,
+                    expectedRev: expectedRev,
+                    rootGroup: draft.rootGroup
+                )
+            },
+            pendingUploadRecovery: pending.environment
+        )
+    }
+
     func testMergeAndSaveDeclinedOnDivergedAttachmentPoolKeepsConflictOptions() async throws {
         let remoteData = try makeRemoteVariantData(
             binaryPoolFields: [Data([0x00]) + Data("attachment-bytes".utf8)]
@@ -5121,6 +5361,7 @@ final class DatabaseViewModelTests: XCTestCase {
             let context = try await BiometricService.authenticate(reason: reason)
             return try DatabaseViewModel.retrieveStoredCompositeKey(for: reference, context: context)
         },
+        pendingUploadRecovery: PendingUploadRecovery.Environment = .live,
         pendingUploadMarkerCheck: @escaping DatabaseViewModel.PendingUploadMarkerCheck = { reference in
             PendingUploadQueue.listMarkers(for: reference.id).isEmpty == false
         },
@@ -5156,6 +5397,7 @@ final class DatabaseViewModelTests: XCTestCase {
             reloadOperation: reloadOperation,
             biometricCompositeKeyOperation: biometricCompositeKeyOperation,
             pendingUploadMarkerCheck: pendingUploadMarkerCheck,
+            pendingUploadRecovery: pendingUploadRecovery,
             storedKeyPresenceCheck: storedKeyPresenceCheck,
             storedKeyStoreOperation: storedKeyStoreOperation,
             storedKeyDeleteOperation: storedKeyDeleteOperation,
@@ -5497,6 +5739,60 @@ private final class RekeyedKeyCapture: @unchecked Sendable {
 /// Scripts a sequence of save outcomes and records what each save was gated
 /// on, so a merge save's baseline can be asserted from the seam the view model
 /// actually calls.
+/// A conflicted pending upload whose payload sits in the one candidate file.
+private final class PendingUploadFake: @unchecked Sendable {
+    let storedMarker: PendingUploadQueue.StoredMarker
+    private let payload: Data
+    private let storesPayload: Bool
+    private let lock = NSLock()
+    private var markers: [PendingUploadQueue.StoredMarker]
+    private var dropped: [UUID] = []
+    private static let payloadURL = URL(fileURLWithPath: "/pending-upload-fake/payload.kdbx")
+
+    init(reference: DatabaseReference, payload: Data, isConflicted: Bool = true, storesPayload: Bool = true) {
+        let id = UUID()
+        storedMarker = PendingUploadQueue.StoredMarker(
+            id: id,
+            fileURL: URL(fileURLWithPath: "/pending-upload-fake/\(id.uuidString).json"),
+            marker: PendingUploadQueue.Marker(
+                databaseId: reference.id,
+                encryptedBytesCacheURL: "cache.kdbx",
+                openTimeSHA512: KDBXCrypto.sha512(payload),
+                expectedRev: "rev-0",
+                createdAt: Date(timeIntervalSince1970: 1_000),
+                isConflicted: isConflicted,
+                baseRev: "rev-0"
+            )
+        )
+        self.payload = payload
+        self.storesPayload = storesPayload
+        markers = [storedMarker]
+    }
+
+    var droppedMarkerIDs: [UUID] {
+        lock.withLock { dropped }
+    }
+
+    var environment: PendingUploadRecovery.Environment {
+        PendingUploadRecovery.Environment(
+            listMarkers: { databaseId in
+                self.lock.withLock { self.markers.filter { $0.marker.databaseId == databaseId } }
+            },
+            candidateURLs: { _, _ in [Self.payloadURL] },
+            readData: { url in
+                guard self.storesPayload, url == Self.payloadURL else { throw CocoaError(.fileReadNoSuchFile) }
+                return self.payload
+            },
+            dropMarker: { storedMarker in
+                self.lock.withLock {
+                    self.dropped.append(storedMarker.id)
+                    self.markers.removeAll { $0.id == storedMarker.id }
+                }
+            }
+        )
+    }
+}
+
 private final class MergeSaveRecorder: @unchecked Sendable {
     struct Call {
         let openTimeSHA512: Data

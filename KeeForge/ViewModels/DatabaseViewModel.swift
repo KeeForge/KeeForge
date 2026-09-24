@@ -121,6 +121,39 @@ enum DatabaseMergeFailure: String, Error, Identifiable, Equatable, Sendable {
     }
 }
 
+/// Why merging a conflicted AutoFill upload wrote nothing. Every case leaves
+/// the pending upload and its bytes in place.
+enum PendingUploadMergeFailure: String, Error, Identifiable, Equatable, Sendable {
+    /// The change's bytes are gone from this device, or were saved under a
+    /// master key the database no longer uses.
+    case changeUnavailable
+    /// The change would not open with this database's master key.
+    case changeUnreadable
+    /// See `DatabaseMergeFailure.attachmentsDiverged`.
+    case attachmentsDiverged
+    /// The cloud copy changed again between opening and uploading the merge.
+    case cloudChanged
+    /// No unlocked, writable session, or a save already in flight.
+    case sessionUnavailable
+
+    var id: String { rawValue }
+
+    var message: String {
+        switch self {
+        case .changeUnavailable:
+            String(localized: "The change saved through AutoFill is no longer stored on this device, or it was saved before the master key changed. Use Discard Pending Upload in the database list to clear the conflict.")
+        case .changeUnreadable:
+            String(localized: "The change saved through AutoFill could not be opened with this database's master key. Use Export Copy or Discard Pending Upload in the database list instead.")
+        case .attachmentsDiverged:
+            String(localized: "The change saved through AutoFill and the cloud copy store their attachments differently, so merging them could point an attachment at the wrong file. Use Export Copy or Discard Pending Upload in the database list instead.")
+        case .cloudChanged:
+            String(localized: "The cloud copy changed again while merging. Nothing was lost. Lock the database, open it again, and merge once more.")
+        case .sessionUnavailable:
+            String(localized: "This database is not ready to merge right now. Try again in a moment.")
+        }
+    }
+}
+
 /// Whether lifecycle-triggered biometric auto-unlock is allowed on this
 /// platform. Only iOS on its own hardware qualifies: everywhere else
 /// `scenePhase == .active` fails to prove the window is frontmost when a lock
@@ -435,6 +468,10 @@ final class DatabaseViewModel {
     private(set) var mergeFailure: DatabaseMergeFailure?
     /// Confirmation text for a merge that did write, awaiting acknowledgement.
     private(set) var mergeSummaryMessage: String?
+    /// An AutoFill save for this database could not be uploaded because the
+    /// cloud copy moved on. Checked at unlock and after a pending merge.
+    private(set) var hasPendingUploadConflict = false
+    private(set) var pendingUploadMergeFailure: PendingUploadMergeFailure?
     private(set) var isSaving = false
     private(set) var pendingLockRequest: PendingLockRequest?
     /// Open editors holding fields the draft has not seen. Without this a lock
@@ -488,6 +525,7 @@ final class DatabaseViewModel {
     private let reloadOperation: ReloadOperation
     private let biometricCompositeKeyOperation: BiometricCompositeKeyOperation
     private let pendingUploadMarkerCheck: PendingUploadMarkerCheck
+    private let pendingUploadRecovery: PendingUploadRecovery.Environment
     private let storedKeyPresenceCheck: StoredKeyPresenceCheck
     private let storedKeyStoreOperation: StoredKeyStoreOperation
     private let storedKeyDeleteOperation: StoredKeyDeleteOperation
@@ -564,6 +602,7 @@ final class DatabaseViewModel {
         pendingUploadMarkerCheck: @escaping PendingUploadMarkerCheck = { reference in
             PendingUploadQueue.listMarkers(for: reference.id).isEmpty == false
         },
+        pendingUploadRecovery: PendingUploadRecovery.Environment = .live,
         storedKeyPresenceCheck: @escaping StoredKeyPresenceCheck = { reference in
             KeychainService.hasStoredKey(for: reference.id, legacyFilename: reference.legacyKeychainFilename)
         },
@@ -595,6 +634,7 @@ final class DatabaseViewModel {
         self.reloadOperation = reloadOperation
         self.biometricCompositeKeyOperation = biometricCompositeKeyOperation
         self.pendingUploadMarkerCheck = pendingUploadMarkerCheck
+        self.pendingUploadRecovery = pendingUploadRecovery
         self.storedKeyPresenceCheck = storedKeyPresenceCheck
         self.storedKeyStoreOperation = storedKeyStoreOperation
         self.storedKeyDeleteOperation = storedKeyDeleteOperation
@@ -1631,6 +1671,8 @@ final class DatabaseViewModel {
         saveConflict = nil
         mergeFailure = nil
         mergeSummaryMessage = nil
+        hasPendingUploadConflict = false
+        pendingUploadMergeFailure = nil
         pendingLockRequest = nil
         unsavedEditorIDs.removeAll()
         cloudSyncProgress = nil
@@ -2211,6 +2253,134 @@ final class DatabaseViewModel {
 
     func dismissMergeFailure() {
         mergeFailure = nil
+    }
+
+    /// Merges every conflicted AutoFill save for this database into the
+    /// session's tree and uploads the result. The pending uploads are dropped
+    /// only once that upload has succeeded; any other outcome leaves them, and
+    /// their bytes, exactly where they were.
+    func mergePendingUploads() async throws {
+        guard case .unlocked = state,
+              databaseReference.isCloudBacked,
+              isReadOnly == false,
+              isSaving == false,
+              saveConflict == nil,
+              let compositeKey,
+              let sessionKey,
+              let openTimeSHA512
+        else {
+            pendingUploadMergeFailure = .sessionUnavailable
+            return
+        }
+
+        let reference = databaseReference
+        let recovery = pendingUploadRecovery
+        let expectedLockCycleID = lockCycleID
+
+        isSaving = true
+        saveError = nil
+        pendingUploadMergeFailure = nil
+        mergeSummaryMessage = nil
+        defer {
+            isSaving = false
+        }
+
+        let lookup = await Task.detached(priority: .userInitiated) {
+            PendingUploadRecovery.lookUpPayloads(for: reference, environment: recovery)
+        }.value
+        guard expectedLockCycleID == lockCycleID else { return }
+
+        let payloads: [PendingUploadRecovery.Payload]
+        switch lookup {
+        case .noConflicts:
+            hasPendingUploadConflict = false
+            return
+        case .unavailable:
+            pendingUploadMergeFailure = .changeUnavailable
+            return
+        case .recovered(let recovered):
+            payloads = recovered
+        }
+
+        // Unsaved edits take part, as in `mergeAndSave`: the upload below
+        // writes the whole tree, so leaving them out would drop them.
+        let localDraft = try makeWorkingDraft()
+        let localBinaryPoolFields = binaryPool?.rawFields ?? []
+        var mergedRootGroup = localDraft.rootGroup
+        var mergedMeta = localDraft.meta
+        do {
+            for payload in payloads {
+                let merged = try await Self.mergeRemoteOffMain(
+                    remoteData: payload.data,
+                    compositeKey: compositeKey,
+                    sessionKey: sessionKey,
+                    localRootGroup: mergedRootGroup,
+                    localMeta: mergedMeta,
+                    localBinaryPoolFields: localBinaryPoolFields
+                )
+                mergedRootGroup = merged.rootGroup
+                mergedMeta = merged.meta
+            }
+        } catch let failure as DatabaseMergeFailure {
+            switch failure {
+            case .remoteUnreadable:
+                pendingUploadMergeFailure = .changeUnreadable
+            case .attachmentsDiverged:
+                pendingUploadMergeFailure = .attachmentsDiverged
+            case .sessionUnavailable:
+                pendingUploadMergeFailure = .sessionUnavailable
+            }
+            return
+        }
+
+        guard expectedLockCycleID == lockCycleID else { return }
+
+        let mergedDraft = DatabaseDraft(rootGroup: mergedRootGroup, meta: mergedMeta, sessionKey: sessionKey)
+        // Written even when the merge added nothing: only a completed upload
+        // proves the cloud copy holds the change, and that proof is what
+        // allows dropping the pending uploads.
+        let saveResult = try await cloudSaveOperation(
+            mergedDraft,
+            reference,
+            compositeKey,
+            openTimeSHA512,
+            nil,
+            reference.expectedCloudRevision,
+            nil
+        )
+
+        switch saveResult {
+        case .saved(let newSHA512):
+            let resolvedMarkers = payloads.map(\.storedMarker)
+            // Not gated on the lock cycle: the upload already happened, and
+            // leaving the markers would only offer the same merge again.
+            await Task.detached(priority: .userInitiated) {
+                PendingUploadRecovery.dropMarkers(resolvedMarkers, environment: recovery)
+            }.value
+            guard expectedLockCycleID == lockCycleID else { return }
+
+            rootGroup = mergedDraft.rootGroup
+            unlockedMeta = mergedDraft.meta
+            self.openTimeSHA512 = newSHA512
+            draft = draftReplayingEditsArriving(after: localDraft, onto: mergedDraft)
+            refreshDatabaseReference()
+            populateCredentialStoreIfNeeded(root: mergedDraft.rootGroup)
+            refreshPendingUploadConflict()
+            mergeSummaryMessage = String(localized: "The change saved through AutoFill was merged with the cloud copy and uploaded.")
+        case .conflict:
+            guard expectedLockCycleID == lockCycleID else { return }
+            pendingUploadMergeFailure = .cloudChanged
+        }
+    }
+
+    func dismissPendingUploadMergeFailure() {
+        pendingUploadMergeFailure = nil
+    }
+
+    private func refreshPendingUploadConflict() {
+        hasPendingUploadConflict = databaseReference.isCloudBacked
+            && isReadOnly == false
+            && PendingUploadRecovery.hasConflicts(for: databaseReference, environment: pendingUploadRecovery)
     }
 
     func acknowledgeMergeSummary() {
@@ -2945,6 +3115,7 @@ final class DatabaseViewModel {
         DatabaseListStore.markDatabaseOpened(id: databaseReference.id)
         refreshDatabaseReference()
         populateCredentialStoreIfNeeded(root: payload.rootGroup)
+        refreshPendingUploadConflict()
         ReviewPromptService.requestReviewIfAppropriate()
     }
 
