@@ -45,6 +45,7 @@ final class PendingUploadRecoveryTests: XCTestCase {
 
         XCTAssertEqual(payloads.map(\.data), [payload])
         XCTAssertEqual(payloads.map(\.storedMarker.id), [storedMarker.id])
+        XCTAssertEqual(payloads.map(\.location), [.cache])
     }
 
     func test_lookUp_cacheReplacedByTheCloudCopy_findsTheBackupWithTheRecordedHash() throws {
@@ -62,6 +63,7 @@ final class PendingUploadRecoveryTests: XCTestCase {
         let payloads = try recoveredPayloads(PendingUploadRecovery.lookUpPayloads(for: reference, environment: fake.environment))
 
         XCTAssertEqual(payloads.map(\.data), [payload])
+        XCTAssertEqual(payloads.map(\.location), [.backup(olderBackupURL)], "A refusal must be able to name the backup that holds the change")
     }
 
     func test_lookUp_payloadNowhereOnDevice_isUnavailable() {
@@ -150,6 +152,7 @@ final class PendingUploadRecoveryTests: XCTestCase {
         XCTAssertTrue(PendingUploadRecovery.hasConflicts(for: reference))
         let payloads = try recoveredPayloads(PendingUploadRecovery.lookUpPayloads(for: reference))
         XCTAssertEqual(payloads.map(\.data), [payload])
+        XCTAssertEqual(payloads.map(\.location), [.backup(backupDirectory.appendingPathComponent("20260924-100000-000000.kdbx"))])
 
         PendingUploadRecovery.dropMarkers([storedMarker])
 
@@ -224,16 +227,10 @@ final class PendingUploadRecoveryTests: XCTestCase {
         private let lock = NSLock()
         private var markers: [PendingUploadQueue.StoredMarker]
         private let files: [URL: Data]
-        private let candidates: [URL]
 
         init(markers: [PendingUploadQueue.StoredMarker], files: [URL: Data]) {
             self.markers = markers
             self.files = files
-            self.candidates = [
-                URL(fileURLWithPath: "/recovery-test/cache.kdbx"),
-                URL(fileURLWithPath: "/recovery-test/backups/20260924-100000-000000.kdbx"),
-                URL(fileURLWithPath: "/recovery-test/backups/20260923-100000-000000.kdbx"),
-            ]
         }
 
         var environment: PendingUploadRecovery.Environment {
@@ -241,7 +238,13 @@ final class PendingUploadRecoveryTests: XCTestCase {
                 listMarkers: { databaseId in
                     self.lock.withLock { self.markers.filter { $0.marker.databaseId == databaseId } }
                 },
-                candidateURLs: { _, _ in self.candidates },
+                cacheURL: { _ in URL(fileURLWithPath: "/recovery-test/cache.kdbx") },
+                backupURLs: { _ in
+                    [
+                        URL(fileURLWithPath: "/recovery-test/backups/20260924-100000-000000.kdbx"),
+                        URL(fileURLWithPath: "/recovery-test/backups/20260923-100000-000000.kdbx"),
+                    ]
+                },
                 readData: { url in
                     guard let data = self.files[url] else { throw CocoaError(.fileReadNoSuchFile) }
                     return data

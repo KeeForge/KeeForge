@@ -1104,7 +1104,10 @@ struct UnsavedChangesBanner: View {
 /// Stays up while an AutoFill save for this database is stuck behind a newer
 /// cloud copy. A banner rather than an alert: the notice is due right at
 /// unlock, while the compact unlock sheet is still dismissing, and a
-/// presentation started then is dropped.
+/// presentation started then can be dropped.
+///
+/// `.contain` keeps the button's own identifier; a bare container identifier
+/// would be copied onto it (see `AutoFillTipBanner`).
 struct PendingUploadConflictBanner: View {
     @Bindable var viewModel: DatabaseViewModel
 
@@ -1136,6 +1139,7 @@ struct PendingUploadConflictBanner: View {
                 .stroke(Color(.separator), lineWidth: 0.5)
         )
         .padding(.horizontal, 12)
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("pending-upload-banner")
     }
 }

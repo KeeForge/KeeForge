@@ -3768,7 +3768,7 @@ final class DatabaseViewModelTests: XCTestCase {
         await vm.unlock(password: fixturePassword)
         try await vm.mergePendingUploads()
 
-        XCTAssertEqual(vm.pendingUploadMergeFailure, .changeUnreadable)
+        XCTAssertEqual(vm.pendingUploadMergeFailure, .changeUnreadable(.backup(PendingUploadFake.payloadURL)))
         XCTAssertTrue(recorder.recordedCalls.isEmpty)
         XCTAssertTrue(pending.droppedMarkerIDs.isEmpty)
     }
@@ -3790,9 +3790,57 @@ final class DatabaseViewModelTests: XCTestCase {
         await vm.unlock(password: fixturePassword)
         try await vm.mergePendingUploads()
 
-        XCTAssertEqual(vm.pendingUploadMergeFailure, .attachmentsDiverged)
+        XCTAssertEqual(vm.pendingUploadMergeFailure, .attachmentsDiverged(.backup(PendingUploadFake.payloadURL)))
         XCTAssertTrue(recorder.recordedCalls.isEmpty)
         XCTAssertTrue(pending.droppedMarkerIDs.isEmpty)
+    }
+
+    func testARefusedPendingMergeNamesTheBackupInsteadOfExportCopy() throws {
+        let backupURL = URL(fileURLWithPath: "/backups/20260924-080000-000000.kdbx")
+        let backupDate = try XCTUnwrap(DatabaseExportService.backupDate(fromFilename: backupURL.lastPathComponent))
+
+        for failure in [
+            PendingUploadMergeFailure.changeUnreadable(.backup(backupURL)),
+            .attachmentsDiverged(.backup(backupURL)),
+        ] {
+            // Once the database has been opened the cache is the cloud copy,
+            // so exporting it would hand over the version without the change.
+            XCTAssertFalse(failure.message.contains("Export Copy"), "\(failure)")
+            XCTAssertTrue(failure.message.contains(backupDate.formatted(.dateTime)), "\(failure)")
+        }
+        XCTAssertTrue(PendingUploadMergeFailure.changeUnreadable(.cache).message.contains("Export Copy"))
+    }
+
+    func testAnOrdinarySaveThatAbsorbsThePendingUploadHidesTheBanner() async throws {
+        let fixtureData = try Data(contentsOf: fixtureURL())
+        let reference = makeCloudReference(remoteRev: "rev-A")
+        let pending = PendingUploadFake(reference: reference, payload: Data("autofill-payload".utf8))
+        let vm = try makeViewModel(
+            reference: reference,
+            cloudSyncOperation: { reference, _ in
+                CloudSyncResolution(
+                    reference: reference,
+                    localURL: DatabaseListStore.cacheLocation(for: reference),
+                    data: fixtureData,
+                    status: .current
+                )
+            },
+            cloudSaveOperation: { _, _, _, _, _, _, _ in
+                // `CloudDatabaseSaver.finishSave` drops the pending uploads
+                // whose payload the saved base already contained.
+                pending.dropAll()
+                return .saved(newSHA512: Data("saved".utf8))
+            },
+            pendingUploadRecovery: pending.environment
+        )
+
+        await vm.unlock(password: fixturePassword)
+        XCTAssertTrue(vm.hasPendingUploadConflict)
+
+        vm.draft = try makeDirtyDraft(from: vm, entryTitle: "Ordinary Edit")
+        try await vm.save()
+
+        XCTAssertFalse(vm.hasPendingUploadConflict)
     }
 
     func testPendingUploadConflictIsNotOfferedForAReadOnlyDatabase() async throws {
@@ -5747,7 +5795,7 @@ private final class PendingUploadFake: @unchecked Sendable {
     private let lock = NSLock()
     private var markers: [PendingUploadQueue.StoredMarker]
     private var dropped: [UUID] = []
-    private static let payloadURL = URL(fileURLWithPath: "/pending-upload-fake/payload.kdbx")
+    static let payloadURL = URL(fileURLWithPath: "/pending-upload-fake/20260924-080000-000000.kdbx")
 
     init(reference: DatabaseReference, payload: Data, isConflicted: Bool = true, storesPayload: Bool = true) {
         let id = UUID()
@@ -5773,12 +5821,17 @@ private final class PendingUploadFake: @unchecked Sendable {
         lock.withLock { dropped }
     }
 
+    func dropAll() {
+        lock.withLock { markers.removeAll() }
+    }
+
     var environment: PendingUploadRecovery.Environment {
         PendingUploadRecovery.Environment(
             listMarkers: { databaseId in
                 self.lock.withLock { self.markers.filter { $0.marker.databaseId == databaseId } }
             },
-            candidateURLs: { _, _ in [Self.payloadURL] },
+            cacheURL: { _ in URL(fileURLWithPath: "/pending-upload-fake/cloud-copy.kdbx") },
+            backupURLs: { _ in [Self.payloadURL] },
             readData: { url in
                 guard self.storesPayload, url == Self.payloadURL else { throw CocoaError(.fileReadNoSuchFile) }
                 return self.payload

@@ -12,6 +12,14 @@ enum PendingUploadRecovery {
     struct Payload: Sendable {
         let storedMarker: PendingUploadQueue.StoredMarker
         let data: Data
+        /// Where the bytes were found, so a refused merge can point the user
+        /// at the file that actually holds the change.
+        let location: Location
+    }
+
+    enum Location: Sendable, Equatable {
+        case cache
+        case backup(URL)
     }
 
     enum Lookup: Sendable {
@@ -26,8 +34,9 @@ enum PendingUploadRecovery {
 
     struct Environment: Sendable {
         var listMarkers: @Sendable (UUID) -> [PendingUploadQueue.StoredMarker]
-        /// Files that may hold a marker's payload, most likely first.
-        var candidateURLs: @Sendable (DatabaseReference, PendingUploadQueue.Marker) -> [URL]
+        var cacheURL: @Sendable (PendingUploadQueue.Marker) -> URL
+        /// Newest first, like the Backups list in Database Details.
+        var backupURLs: @Sendable (DatabaseReference) -> [URL]
         var readData: @Sendable (URL) throws -> Data
         var dropMarker: @Sendable (PendingUploadQueue.StoredMarker) throws -> Void
 
@@ -35,9 +44,11 @@ enum PendingUploadRecovery {
             listMarkers: { databaseId in
                 PendingUploadQueue.listMarkers(for: databaseId)
             },
-            candidateURLs: { reference, marker in
-                [PendingUploadQueue.resolveAppGroupURL(for: marker.encryptedBytesCacheURL)]
-                    + DatabaseListStore.recentBackups(for: reference)
+            cacheURL: { marker in
+                PendingUploadQueue.resolveAppGroupURL(for: marker.encryptedBytesCacheURL)
+            },
+            backupURLs: { reference in
+                DatabaseListStore.recentBackups(for: reference)
             },
             readData: { url in
                 try CoordinatedFileReader.readData(from: url)
@@ -64,11 +75,16 @@ enum PendingUploadRecovery {
                storedMarker.marker.createdAt < rekeyedAt {
                 return .unavailable
             }
-            let payloadData = environment.candidateURLs(reference, storedMarker.marker).lazy
-                .compactMap { try? environment.readData($0) }
-                .first { KDBXCrypto.sha512($0) == storedMarker.marker.openTimeSHA512 }
-            guard let payloadData else { return .unavailable }
-            payloads.append(Payload(storedMarker: storedMarker, data: payloadData))
+            let candidates: [(url: URL, location: Location)] =
+                [(environment.cacheURL(storedMarker.marker), .cache)]
+                + environment.backupURLs(reference).map { ($0, .backup($0)) }
+            let match = candidates.lazy
+                .compactMap { candidate in
+                    (try? environment.readData(candidate.url)).map { (data: $0, location: candidate.location) }
+                }
+                .first { KDBXCrypto.sha512($0.data) == storedMarker.marker.openTimeSHA512 }
+            guard let match else { return .unavailable }
+            payloads.append(Payload(storedMarker: storedMarker, data: match.data, location: match.location))
         }
         return .recovered(payloads)
     }

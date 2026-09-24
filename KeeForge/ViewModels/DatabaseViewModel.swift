@@ -123,34 +123,46 @@ enum DatabaseMergeFailure: String, Error, Identifiable, Equatable, Sendable {
 
 /// Why merging a conflicted AutoFill upload wrote nothing. Every case leaves
 /// the pending upload and its bytes in place.
-enum PendingUploadMergeFailure: String, Error, Identifiable, Equatable, Sendable {
+enum PendingUploadMergeFailure: Error, Equatable, Sendable {
     /// The change's bytes are gone from this device, or were saved under a
     /// master key the database no longer uses.
     case changeUnavailable
     /// The change would not open with this database's master key.
-    case changeUnreadable
+    case changeUnreadable(PendingUploadRecovery.Location)
     /// See `DatabaseMergeFailure.attachmentsDiverged`.
-    case attachmentsDiverged
+    case attachmentsDiverged(PendingUploadRecovery.Location)
     /// The cloud copy changed again between opening and uploading the merge.
     case cloudChanged
-    /// No unlocked, writable session, or a save already in flight.
+    /// No unlocked, writable session, a save conflict still standing, or a
+    /// save already in flight.
     case sessionUnavailable
 
-    var id: String { rawValue }
-
+    /// Only names Export Copy while the cache still is the change: once the
+    /// database has been opened, the cache is the cloud copy and exporting it
+    /// would hand the user the version without their change.
     var message: String {
         switch self {
         case .changeUnavailable:
             String(localized: "The change saved through AutoFill is no longer stored on this device, or it was saved before the master key changed. Use Discard Pending Upload in the database list to clear the conflict.")
-        case .changeUnreadable:
-            String(localized: "The change saved through AutoFill could not be opened with this database's master key. Use Export Copy or Discard Pending Upload in the database list instead.")
-        case .attachmentsDiverged:
-            String(localized: "The change saved through AutoFill and the cloud copy store their attachments differently, so merging them could point an attachment at the wrong file. Use Export Copy or Discard Pending Upload in the database list instead.")
+        case .changeUnreadable(.cache):
+            String(localized: "The change saved through AutoFill could not be opened with this database's master key. To merge it in another KeePass app, use Export Copy in the database list.")
+        case .changeUnreadable(.backup(let url)):
+            String(localized: "The change saved through AutoFill could not be opened with this database's master key. It is kept in the backup from \(Self.backupLabel(for: url)) in Database Details. Export that backup to merge it in another KeePass app.")
+        case .attachmentsDiverged(.cache):
+            String(localized: "The change saved through AutoFill and the cloud copy store their attachments differently, so merging them could point an attachment at the wrong file. To merge it in another KeePass app, use Export Copy in the database list.")
+        case .attachmentsDiverged(.backup(let url)):
+            String(localized: "The change saved through AutoFill and the cloud copy store their attachments differently, so merging them could point an attachment at the wrong file. It is kept in the backup from \(Self.backupLabel(for: url)) in Database Details. Export that backup to merge it in another KeePass app.")
         case .cloudChanged:
             String(localized: "The cloud copy changed again while merging. Nothing was lost. Lock the database, open it again, and merge once more.")
         case .sessionUnavailable:
-            String(localized: "This database is not ready to merge right now. Try again in a moment.")
+            String(localized: "The change can't be merged right now. Make sure the database is editable and has no unresolved save conflict, then try again.")
         }
+    }
+
+    /// The label Database Details shows for the same backup row.
+    private static func backupLabel(for url: URL) -> String {
+        DatabaseExportService.backupDate(fromFilename: url.lastPathComponent)?.formatted(.dateTime)
+            ?? url.lastPathComponent
     }
 }
 
@@ -1944,6 +1956,8 @@ final class DatabaseViewModel {
                 saveError = nil
                 refreshDatabaseReference()
                 populateCredentialStoreIfNeeded(root: snapshot.rootGroup)
+                // The saver drops pending uploads this save already contains.
+                refreshPendingUploadConflict()
 
                 guard let grown = self.draft, grown.pendingEdits != snapshot.pendingEdits else {
                     self.draft = nil
@@ -2243,6 +2257,7 @@ final class DatabaseViewModel {
             draft = draftReplayingEditsArriving(after: localDraft, onto: mergedDraft)
             refreshDatabaseReference()
             populateCredentialStoreIfNeeded(root: mergedDraft.rootGroup)
+            refreshPendingUploadConflict()
             mergeSummaryMessage = Self.mergeSummaryMessage(for: merged.summary)
         case .conflict(let remoteSHA512, let remoteData):
             // Strictly different bytes from the conflict just merged — the gate
@@ -2308,8 +2323,10 @@ final class DatabaseViewModel {
         let localBinaryPoolFields = binaryPool?.rawFields ?? []
         var mergedRootGroup = localDraft.rootGroup
         var mergedMeta = localDraft.meta
+        var failedLocation = PendingUploadRecovery.Location.cache
         do {
             for payload in payloads {
+                failedLocation = payload.location
                 let merged = try await Self.mergeRemoteOffMain(
                     remoteData: payload.data,
                     compositeKey: compositeKey,
@@ -2324,9 +2341,9 @@ final class DatabaseViewModel {
         } catch let failure as DatabaseMergeFailure {
             switch failure {
             case .remoteUnreadable:
-                pendingUploadMergeFailure = .changeUnreadable
+                pendingUploadMergeFailure = .changeUnreadable(failedLocation)
             case .attachmentsDiverged:
-                pendingUploadMergeFailure = .attachmentsDiverged
+                pendingUploadMergeFailure = .attachmentsDiverged(failedLocation)
             case .sessionUnavailable:
                 pendingUploadMergeFailure = .sessionUnavailable
             }
