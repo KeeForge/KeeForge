@@ -23,6 +23,7 @@ final class DatabaseReferenceTests: XCTestCase {
 
         XCTAssertFalse(decoded.isReadOnly)
         XCTAssertTrue(decoded.autoFillEnabled)
+        XCTAssertNil(decoded.autoFillDestinationGroupID)
         XCTAssertFalse(decoded.isDocumentsResident)
     }
 
@@ -41,6 +42,7 @@ final class DatabaseReferenceTests: XCTestCase {
             legacyKeychainFilename: "legacy",
             isReadOnly: true,
             autoFillEnabled: false,
+            autoFillDestinationGroupID: UUID(),
             isDocumentsResident: true,
             source: .cloud(
                 CloudSyncMetadata(

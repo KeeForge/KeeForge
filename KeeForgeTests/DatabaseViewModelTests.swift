@@ -880,6 +880,26 @@ final class DatabaseViewModelTests: XCTestCase {
         XCTAssertTrue(vm.groupDestinationOptions(currentGroupID: nil).allSatisfy { $0.isCurrentParent == false })
     }
 
+    func testAutoFillDestinationGroupFollowsTheSettingAndFallsBackWithoutRepointingIt() async throws {
+        let reference = try makeReference()
+        DatabaseListStore.update(reference)
+        let vm = try makeViewModel(reference: reference)
+        await vm.unlock(password: fixturePassword)
+        XCTAssertEqual(vm.autoFillDestinationGroup?.id, vm.visibleRootGroupID)
+
+        let socialGroup = try XCTUnwrap(vm.visibleRootGroup?.groups.first(where: { $0.name == "Social" }))
+        vm.setAutoFillDestinationGroupID(socialGroup.id)
+
+        XCTAssertEqual(vm.autoFillDestinationGroup?.id, socialGroup.id)
+        XCTAssertEqual(vm.databaseReference.autoFillDestinationGroupID, socialGroup.id)
+
+        try vm.deleteGroup(socialGroup.id, sendToRecycleBin: true)
+
+        XCTAssertEqual(vm.autoFillDestinationGroup?.id, vm.visibleRootGroupID)
+        let stored = try XCTUnwrap(DatabaseListStore.databases.first(where: { $0.id == reference.id }))
+        XCTAssertEqual(stored.autoFillDestinationGroupID, socialGroup.id)
+    }
+
     func testMoveDestinationOptionsExcludeTheMovedGroupsOwnSubtree() async throws {
         let vm = try makeViewModel()
         await vm.unlock(password: fixturePassword)
