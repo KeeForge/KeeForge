@@ -108,6 +108,8 @@ struct AutoFillPasskeyCreatorView: View {
                     .accessibilityIdentifier("autofill-passkey-creator.username")
                 LabeledContent("Database", value: context.databaseName)
                     .accessibilityIdentifier("autofill-passkey-creator.database")
+                LabeledContent("Group", value: context.destinationGroupName)
+                    .accessibilityIdentifier("autofill-passkey-creator.group")
             }
 
             Section {

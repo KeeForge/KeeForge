@@ -206,6 +206,7 @@ extension CredentialProviderViewController: CredentialProviderPresenting {
 
     func presentEntryCreator(
         initialDraft: EntryDraftPayload,
+        destinationGroupName: String,
         allowsPasswordEditing: Bool,
         onSave: @escaping @Sendable (EntryDraftPayload) async -> CredentialProviderEntrySaveOutcome,
         onCancel: @escaping () -> Void

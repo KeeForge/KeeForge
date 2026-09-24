@@ -230,6 +230,23 @@ final class CredentialProviderRegistrationTests: XCTestCase {
         XCTAssertEqual(creator.context.initialTitle, "example.com")
     }
 
+    func test_afterUnlock_creatorShowsTheConfiguredDestinationGroup() throws {
+        let (coordinator, presenter) = makeCoordinator()
+        var reference = try TestDatabaseSupport.makeReference(
+            for: makeTemporaryFileURL(name: "target.kdbx")
+        )
+        let passkeys = KPGroup(name: "Passkeys")
+        reference.autoFillDestinationGroupID = passkeys.id
+        seedUnlockedVaultState(coordinator)
+        coordinator.parsedRootGroup = KPGroup(name: "Root", groups: [KPGroup(name: "MyDatabase", groups: [passkeys])])
+        coordinator.activeDatabaseReference = reference
+        coordinator.pendingPasskeyRegistrationRequest = makeRegistrationRequest()
+
+        XCTAssertTrue(coordinator.handlePendingPasskeyRegistrationIfNeeded())
+
+        XCTAssertEqual(try XCTUnwrap(presenter.passkeyCreator).context.destinationGroupName, "Passkeys")
+    }
+
     func test_creatorCancel_cancelsUserCanceled() throws {
         let (coordinator, presenter) = makeCoordinator()
         seedUnlockedVaultState(coordinator)

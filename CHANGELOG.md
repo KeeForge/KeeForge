@@ -6,7 +6,7 @@
 
 - KeeForge now speaks Japanese: a full Japanese (日本語) localization across the app and the AutoFill extension, plus translated README and contributor docs.
 - Open, save, and create databases directly on an FTP server (#115). Add Database → FTP asks for the server address, username, and password. FTP is unencrypted, so connecting requires turning on "Allow Unencrypted FTP"; use it only on a network you trust. Encrypted FTPS and SFTP are not supported yet.
-- Choose the group AutoFill saves new passwords and passkeys into, per database (#114). Unlock the database, open Database Details, and pick a group under AutoFill → "Save New Entries To". Until you choose one, new entries go into the database's top-level group as before; if the chosen group is deleted or moved to the Recycle Bin, they go there again.
+- Choose the group AutoFill saves new passwords and passkeys into, per database (#114). Unlock the database, open Database Details, and pick a group under AutoFill → "Save New Entries To". Until you choose one, new entries go into the database's top-level group as before; if the chosen group is deleted or moved to the Recycle Bin, they go there again. The AutoFill screens for saving a password or passkey now show which group the entry goes into.
 
 ### Fixes
 

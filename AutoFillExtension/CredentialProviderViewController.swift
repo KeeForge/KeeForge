@@ -199,12 +199,14 @@ extension CredentialProviderViewController: CredentialProviderPresenting {
 
     func presentEntryCreator(
         initialDraft: EntryDraftPayload,
+        destinationGroupName: String,
         allowsPasswordEditing: Bool,
         onSave: @escaping @Sendable (EntryDraftPayload) async -> CredentialProviderEntrySaveOutcome,
         onCancel: @escaping () -> Void
     ) {
         let creatorView = AutoFillEntryCreatorView(
             initialDraft: initialDraft,
+            destinationGroupName: destinationGroupName,
             allowsPasswordEditing: allowsPasswordEditing,
             onSave: { draftPayload in
                 switch await onSave(draftPayload) {
