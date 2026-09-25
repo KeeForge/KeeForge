@@ -2,6 +2,10 @@ import CryptoKit
 import XCTest
 @testable import KeeForge
 
+#if os(iOS)
+import CoreNFC
+#endif
+
 /// Unlocking a database whose composite key includes a YubiKey
 /// challenge-response, driven through `DatabaseViewModel` with an emulated key
 /// in place of YubiKit.
@@ -18,6 +22,23 @@ final class HardwareKeyUnlockTests: XCTestCase {
         DatabaseListStore.clearAll()
         try await super.tearDown()
     }
+
+    #if os(iOS)
+    func testDisconnectMapsNFCUserCancellationAndTimeoutForTheUnlockUI() {
+        let cancellation = NSError(
+            domain: NFCReaderError.errorDomain,
+            code: NFCReaderError.Code.readerSessionInvalidationErrorUserCanceled.rawValue
+        )
+        let timeout = NSError(
+            domain: NFCReaderError.errorDomain,
+            code: NFCReaderError.Code.readerSessionInvalidationErrorSessionTimeout.rawValue
+        )
+
+        XCTAssertEqual(HardwareKeyErrorMapper.disconnectError(cancellation), .cancelled)
+        XCTAssertEqual(HardwareKeyErrorMapper.disconnectError(timeout), .timedOut)
+        XCTAssertEqual(HardwareKeyErrorMapper.disconnectError(nil), .disconnected)
+    }
+    #endif
 
     func testUnlockWithYubiKeyOpensDatabaseReadOnly() async throws {
         var requests: [(challenge: Data, configuration: HardwareKeyConfiguration)] = []
