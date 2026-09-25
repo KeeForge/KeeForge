@@ -150,7 +150,8 @@ enum AutoFillSaveCoordinator {
                         openTimeSHA512: openTimeSHA512,
                         expectedRev: reference.expectedCloudRevision,
                         createdAt: environment.now(),
-                        baseRev: reference.expectedCloudRevision
+                        baseRev: reference.expectedCloudRevision,
+                        isPayloadFinalized: false
                     )
                 )
                 // An older marker whose payload hashes to this save's base
@@ -185,6 +186,7 @@ enum AutoFillSaveCoordinator {
         case .saved(let outcome):
             if var storedMarker = provisionalMarker {
                 storedMarker.marker.openTimeSHA512 = outcome.newSHA512
+                storedMarker.marker.isPayloadFinalized = true
                 await Task.detached(priority: .utility) {
                     finalizeOrReplacePendingUpload(
                         storedMarker,

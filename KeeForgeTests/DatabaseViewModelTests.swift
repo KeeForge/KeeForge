@@ -3860,6 +3860,29 @@ final class DatabaseViewModelTests: XCTestCase {
         XCTAssertTrue(recorder.recordedCalls.isEmpty)
     }
 
+    func testPendingUploadConflictAvailabilityTracksReadOnlyChanges() async throws {
+        let fixtureData = try Data(contentsOf: fixtureURL())
+        let recorder = MergeSaveRecorder(results: [.saved(newSHA512: Data("merged".utf8))])
+        var reference = makeCloudReference(remoteRev: "rev-A")
+        reference.isReadOnly = true
+        let pending = PendingUploadFake(reference: reference, payload: Data("autofill-payload".utf8))
+        let vm = try makePendingUploadViewModel(
+            reference: reference,
+            fixtureData: fixtureData,
+            pending: pending,
+            recorder: recorder
+        )
+
+        await vm.unlock(password: fixturePassword)
+        XCTAssertFalse(vm.hasPendingUploadConflict)
+
+        vm.setReadOnly(false)
+        XCTAssertTrue(vm.hasPendingUploadConflict)
+
+        vm.setReadOnly(true)
+        XCTAssertFalse(vm.hasPendingUploadConflict)
+    }
+
     func testPendingUploadConflictIsNotReportedWithoutAConflict() async throws {
         let fixtureData = try Data(contentsOf: fixtureURL())
         let recorder = MergeSaveRecorder(results: [.saved(newSHA512: Data("merged".utf8))])

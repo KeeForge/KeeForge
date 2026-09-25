@@ -2557,6 +2557,7 @@ final class DatabaseViewModel {
     func setReadOnly(_ isReadOnly: Bool) {
         DatabaseListStore.setReadOnly(isReadOnly, for: databaseReference)
         refreshDatabaseReference()
+        refreshPendingUploadConflict()
     }
 
     func setNickname(_ nickname: String?) {

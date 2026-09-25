@@ -54,7 +54,7 @@ enum PendingUploadRecovery {
                 try CoordinatedFileReader.readData(from: url)
             },
             dropMarker: { storedMarker in
-                try PendingUploadQueue.drop(storedMarker)
+                _ = try PendingUploadQueue.dropIfUnchanged(storedMarker)
             }
         )
     }
@@ -75,6 +75,10 @@ enum PendingUploadRecovery {
                storedMarker.marker.createdAt < rekeyedAt {
                 return .unavailable
             }
+            // A provisional marker hashes the pre-save base, not the AutoFill
+            // result. Recovering a matching backup would merge no change and
+            // strand the real payload while falsely reporting success.
+            guard storedMarker.marker.isPayloadFinalized else { return .unavailable }
             let candidates: [(url: URL, location: Location)] =
                 [(environment.cacheURL(storedMarker.marker), .cache)]
                 + environment.backupURLs(reference).map { ($0, .backup($0)) }

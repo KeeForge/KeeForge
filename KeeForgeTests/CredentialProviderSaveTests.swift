@@ -199,12 +199,14 @@ final class CredentialProviderSaveTests: XCTestCase {
         XCTAssertEqual(provisionalMarker.expectedRev, "rev-9")
         XCTAssertEqual(provisionalMarker.baseRev, "rev-9")
         XCTAssertFalse(provisionalMarker.isConflicted)
+        XCTAssertFalse(provisionalMarker.isPayloadFinalized)
 
         let finalizedMarker = try XCTUnwrap(recorder.finalizedMarkers.first)
         XCTAssertEqual(recorder.finalizedMarkers.count, 1)
         XCTAssertEqual(finalizedMarker.marker.openTimeSHA512, Data("new-sha".utf8))
         XCTAssertEqual(finalizedMarker.marker.expectedRev, "rev-9")
         XCTAssertEqual(finalizedMarker.marker.baseRev, "rev-9")
+        XCTAssertTrue(finalizedMarker.marker.isPayloadFinalized)
 
         // The just-enqueued marker itself must be excluded from supersession.
         XCTAssertEqual(recorder.supersededDrops.count, 1)
@@ -305,6 +307,7 @@ final class CredentialProviderSaveTests: XCTestCase {
         XCTAssertEqual(replacementMarker.expectedRev, "rev-9")
         XCTAssertNil(replacementMarker.baseRev)
         XCTAssertFalse(replacementMarker.isConflicted)
+        XCTAssertTrue(replacementMarker.isPayloadFinalized)
         XCTAssertEqual(recorder.notifyCount, 1)
     }
 

@@ -78,6 +78,18 @@ final class PendingUploadRecoveryTests: XCTestCase {
         }
     }
 
+    func test_lookUp_provisionalMarker_doesNotTreatTheBaseBackupAsTheAutoFillPayload() {
+        let reference = makeReference()
+        let base = Data("pre-autofill-base".utf8)
+        var provisional = makeStoredMarker(for: reference, payload: base)
+        provisional.marker.isPayloadFinalized = false
+        let fake = FakeStore(markers: [provisional], files: [olderBackupURL: base])
+
+        guard case .unavailable = PendingUploadRecovery.lookUpPayloads(for: reference, environment: fake.environment) else {
+            return XCTFail("A provisional base hash must never be recovered as the saved AutoFill payload")
+        }
+    }
+
     func test_lookUp_changeSavedBeforeAMasterKeyChange_isUnavailableEvenWithItsBytes() {
         var reference = makeReference()
         reference.lastMasterKeyChangeAt = Date(timeIntervalSince1970: 2_000)
@@ -117,6 +129,20 @@ final class PendingUploadRecoveryTests: XCTestCase {
         PendingUploadRecovery.dropMarkers([resolved], environment: fake.environment)
 
         XCTAssertEqual(fake.environment.listMarkers(reference.id).map(\.id), [untouched.id])
+    }
+
+    func test_dropMarkers_keepsAMarkerThatChangedAfterLookup() {
+        let reference = makeReference()
+        let snapshot = makeStoredMarker(for: reference, payload: Data("base".utf8))
+        let fake = FakeStore(markers: [snapshot], files: [:])
+        var finalized = snapshot
+        finalized.marker.openTimeSHA512 = KDBXCrypto.sha512(Data("saved-payload".utf8))
+        finalized.marker.isPayloadFinalized = true
+        fake.replaceMarker(finalized)
+
+        PendingUploadRecovery.dropMarkers([snapshot], environment: fake.environment)
+
+        XCTAssertEqual(fake.environment.listMarkers(reference.id).map(\.marker), [finalized.marker])
     }
 
     // MARK: - Live wiring
@@ -240,6 +266,13 @@ final class PendingUploadRecoveryTests: XCTestCase {
             self.files = files
         }
 
+        func replaceMarker(_ marker: PendingUploadQueue.StoredMarker) {
+            lock.withLock {
+                markers.removeAll { $0.id == marker.id }
+                markers.append(marker)
+            }
+        }
+
         var environment: PendingUploadRecovery.Environment {
             PendingUploadRecovery.Environment(
                 listMarkers: { databaseId in
@@ -257,7 +290,11 @@ final class PendingUploadRecoveryTests: XCTestCase {
                     return data
                 },
                 dropMarker: { storedMarker in
-                    self.lock.withLock { self.markers.removeAll { $0.id == storedMarker.id } }
+                    self.lock.withLock {
+                        self.markers.removeAll { current in
+                            current.id == storedMarker.id && current.marker == storedMarker.marker
+                        }
+                    }
                 }
             )
         }
