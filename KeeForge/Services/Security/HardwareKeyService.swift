@@ -29,6 +29,41 @@ enum HardwareKeyService {
 import CoreNFC
 @preconcurrency import YubiKit
 
+enum HardwareKeyErrorMapper {
+    nonisolated static func disconnectError(_ error: Error?) -> HardwareKeyError {
+        guard let error else { return .disconnected }
+        return Self.error(from: error)
+    }
+
+    nonisolated static func error(from error: Error?) -> HardwareKeyError {
+        guard let error else { return .communicationFailed }
+        let nsError = error as NSError
+
+        if nsError.domain == NFCReaderError.errorDomain {
+            switch NFCReaderError.Code(rawValue: nsError.code) {
+            case .readerSessionInvalidationErrorUserCanceled:
+                return .cancelled
+            case .readerSessionInvalidationErrorSessionTimeout:
+                return .timedOut
+            default:
+                return .communicationFailed
+            }
+        }
+
+        guard nsError.domain == YKFSessionErrorDomain else { return .communicationFailed }
+        switch nsError.code {
+        case Int(YKFChallengeResponseErrorCode.emptyResponse.rawValue):
+            return .slotNotConfigured
+        case Int(YKFSessionErrorCode.readTimeoutCode.rawValue),
+             Int(YKFSessionErrorCode.touchTimeoutCode.rawValue),
+             Int(YKFAPDUErrorCode.conditionNotSatisfied.rawValue):
+            return .timedOut
+        default:
+            return .communicationFailed
+        }
+    }
+}
+
 /// One challenge at a time: YubiKit reports connections through a single
 /// shared delegate, so a second request would steal the first one's key.
 @MainActor
@@ -112,7 +147,7 @@ private final class YubiKeyConnection: NSObject {
         let slot: YKFSlot = request.configuration.slot == .one ? .one : .two
         connection.challengeResponseSession { session, error in
             guard let session else {
-                let failure = Self.mapped(error)
+                let failure = HardwareKeyErrorMapper.error(from: error)
                 Task { @MainActor in self.finish(id, with: .failure(failure)) }
                 return
             }
@@ -121,7 +156,11 @@ private final class YubiKeyConnection: NSObject {
                 if let response, response.count == Self.responseLength {
                     result = .success(response)
                 } else {
-                    result = .failure(response == nil ? Self.mapped(error) : HardwareKeyError.communicationFailed)
+                    result = .failure(
+                        response == nil
+                            ? HardwareKeyErrorMapper.error(from: error)
+                            : HardwareKeyError.communicationFailed
+                    )
                 }
                 Task { @MainActor in self.finish(id, with: result) }
             }
@@ -153,33 +192,6 @@ private final class YubiKeyConnection: NSObject {
         finish(request.id, with: .failure(error))
     }
 
-    nonisolated private static func mapped(_ error: Error?) -> HardwareKeyError {
-        guard let error else { return .communicationFailed }
-        let nsError = error as NSError
-
-        if nsError.domain == NFCReaderError.errorDomain {
-            switch NFCReaderError.Code(rawValue: nsError.code) {
-            case .readerSessionInvalidationErrorUserCanceled:
-                return .cancelled
-            case .readerSessionInvalidationErrorSessionTimeout:
-                return .timedOut
-            default:
-                return .communicationFailed
-            }
-        }
-
-        guard nsError.domain == YKFSessionErrorDomain else { return .communicationFailed }
-        switch nsError.code {
-        case Int(YKFChallengeResponseErrorCode.emptyResponse.rawValue):
-            return .slotNotConfigured
-        case Int(YKFSessionErrorCode.readTimeoutCode.rawValue),
-             Int(YKFSessionErrorCode.touchTimeoutCode.rawValue),
-             Int(YKFAPDUErrorCode.conditionNotSatisfied.rawValue):
-            return .timedOut
-        default:
-            return .communicationFailed
-        }
-    }
 }
 
 extension YubiKeyConnection: YKFManagerDelegate {
@@ -189,11 +201,12 @@ extension YubiKeyConnection: YKFManagerDelegate {
     }
 
     nonisolated func didDisconnectNFC(_ connection: YKFNFCConnection, error: Error?) {
-        Task { @MainActor in self.finishActiveRequest(transport: .nfc, with: .disconnected) }
+        let failure = HardwareKeyErrorMapper.disconnectError(error)
+        Task { @MainActor in self.finishActiveRequest(transport: .nfc, with: failure) }
     }
 
     nonisolated func didFailConnectingNFC(_ error: Error) {
-        let failure = Self.mapped(error)
+        let failure = HardwareKeyErrorMapper.error(from: error)
         Task { @MainActor in self.finishActiveRequest(transport: .nfc, with: failure) }
     }
 
@@ -203,7 +216,8 @@ extension YubiKeyConnection: YKFManagerDelegate {
     }
 
     nonisolated func didDisconnectAccessory(_ connection: YKFAccessoryConnection, error: Error?) {
-        Task { @MainActor in self.finishActiveRequest(transport: .lightning, with: .disconnected) }
+        let failure = HardwareKeyErrorMapper.disconnectError(error)
+        Task { @MainActor in self.finishActiveRequest(transport: .lightning, with: failure) }
     }
 }
 #endif
