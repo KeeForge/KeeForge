@@ -49,7 +49,7 @@ final class PendingUploadDrainer {
                 PendingUploadQueue.listMarkers(for: databaseId)
             },
             dropMarker: { marker in
-                try PendingUploadQueue.drop(marker)
+                _ = try PendingUploadQueue.dropIfUnchanged(marker)
             },
             updateMarker: { marker in
                 try PendingUploadQueue.update(marker)

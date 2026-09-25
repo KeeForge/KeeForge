@@ -461,7 +461,7 @@ enum CloudSyncCoordinator {
                         continue
                     }
                 }
-                if (try? PendingUploadQueue.drop(storedMarker)) != nil {
+                if (try? PendingUploadQueue.dropIfUnchanged(storedMarker)) == true {
                     discardedCount += 1
                 }
             }

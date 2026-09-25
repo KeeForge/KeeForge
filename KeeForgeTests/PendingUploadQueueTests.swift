@@ -56,6 +56,44 @@ final class PendingUploadQueueTests: XCTestCase {
         XCTAssertTrue(PendingUploadQueue.listMarkers(for: storedMarker.marker.databaseId, environment: environment).isEmpty)
     }
 
+    func test_dropIfUnchanged_preservesAMarkerFinalizedAfterTheSnapshot() throws {
+        let environment = makeEnvironment()
+        var provisional = makeMarker()
+        provisional.isPayloadFinalized = false
+        let snapshot = try PendingUploadQueue.enqueue(provisional, environment: environment)
+
+        var finalized = snapshot
+        finalized.marker.openTimeSHA512 = Data("saved-payload-sha".utf8)
+        finalized.marker.isPayloadFinalized = true
+        finalized = try PendingUploadQueue.update(finalized, environment: environment)
+
+        XCTAssertFalse(try PendingUploadQueue.dropIfUnchanged(snapshot, environment: environment))
+        XCTAssertEqual(
+            PendingUploadQueue.listMarkers(for: snapshot.marker.databaseId, environment: environment).first?.marker,
+            finalized.marker
+        )
+        XCTAssertTrue(try PendingUploadQueue.dropIfUnchanged(finalized, environment: environment))
+        XCTAssertTrue(PendingUploadQueue.listMarkers(for: snapshot.marker.databaseId, environment: environment).isEmpty)
+    }
+
+    func test_update_rejectsAStaleGenerationInsteadOfOverwritingNewerMarkerData() throws {
+        let environment = makeEnvironment()
+        let original = try PendingUploadQueue.enqueue(makeMarker(), environment: environment)
+        var firstUpdate = original
+        firstUpdate.marker.isConflicted = true
+        let current = try PendingUploadQueue.update(firstUpdate, environment: environment)
+
+        var staleUpdate = original
+        staleUpdate.marker.openTimeSHA512 = Data("different-payload".utf8)
+        XCTAssertThrowsError(try PendingUploadQueue.update(staleUpdate, environment: environment)) { error in
+            XCTAssertEqual(error as? PendingUploadQueue.UpdateError, .markerChanged)
+        }
+        XCTAssertEqual(
+            PendingUploadQueue.listMarkers(for: original.marker.databaseId, environment: environment).first?.marker,
+            current.marker
+        )
+    }
+
     func test_update_afterDrop_doesNotResurrectMarker() throws {
         // Models a concurrent drain that already dropped the marker: a late
         // `update`/`markConflicted` must fail rather than recreate the file and
@@ -133,6 +171,8 @@ final class PendingUploadQueueTests: XCTestCase {
         XCTAssertEqual(decoded.expectedRev, "rev-1")
         XCTAssertFalse(decoded.isConflicted)
         XCTAssertNil(decoded.baseRev)
+        XCTAssertTrue(decoded.isPayloadFinalized)
+        XCTAssertEqual(decoded.generation, 0)
     }
 
     func test_enqueue_withoutNotifying_postsNoDarwinNotification_untilExplicitPost() throws {

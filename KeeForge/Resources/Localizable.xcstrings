@@ -1488,42 +1488,82 @@
         }
       }
     },
-    "A change saved through AutoFill couldn’t be uploaded because the copy of this database in the cloud changed since. Export a copy of this database to merge it with the cloud version in another KeePass app, or discard the pending upload. KeeForge keeps a backup of the discarded change on this device." : {
+    "A change saved through AutoFill couldn’t be uploaded because the cloud copy changed. Merge it into this database to upload it." : {
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Eine über AutoFill gespeicherte Änderung konnte nicht hochgeladen werden, weil die Kopie dieser Datenbank in der Cloud seitdem geändert wurde. Exportieren Sie eine Kopie dieser Datenbank, um sie in einer anderen KeePass-App mit der Cloud-Version zusammenzuführen, oder verwerfen Sie den ausstehenden Upload. KeeForge behält eine Sicherungskopie der verworfenen Änderung auf diesem Gerät."
+            "value" : "Eine über AutoFill gespeicherte Änderung konnte nicht hochgeladen werden, weil sich die Cloud-Kopie geändert hat. Führen Sie sie in diese Datenbank zusammen, um sie hochzuladen."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Un cambio guardado mediante el autorrelleno no se pudo cargar porque la copia de esta base de datos en la nube cambió desde entonces. Exporte una copia de esta base de datos para combinarla con la versión de la nube en otra app de KeePass, o descarte la carga pendiente. KeeForge conserva una copia de seguridad del cambio descartado en este dispositivo."
+            "value" : "Un cambio guardado mediante el autorrelleno no se pudo cargar porque la copia de la nube cambió. Combínelo con esta base de datos para cargarlo."
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Une modification enregistrée via le remplissage automatique n'a pas pu être envoyée, car la copie de cette base de données dans le cloud a changé depuis. Exportez une copie de cette base de données pour la fusionner avec la version du cloud dans une autre app KeePass, ou ignorez l'envoi en attente. KeeForge conserve une sauvegarde de la modification ignorée sur cet appareil."
+            "value" : "Une modification enregistrée via le remplissage automatique n'a pas pu être envoyée, car la copie du cloud a changé. Fusionnez-la dans cette base de données pour l'envoyer."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "自動入力で保存された変更をアップロードできませんでした。その後にクラウド上のこのデータベースのコピーが変更されたためです。このデータベースのコピーを書き出して他の KeePass App でクラウド版とマージするか、保留中のアップロードを破棄してください。破棄した変更のバックアップは、このデバイスに保持されます。"
+            "value" : "クラウドのコピーが変更されたため、自動入力で保存された変更をアップロードできませんでした。このデータベースにマージしてアップロードしてください。"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "通过自动填充保存的更改无法上传，因为此数据库在云端的副本此后已发生变化。请导出此数据库的副本，在其他 KeePass App 中将其与云端版本合并，或放弃待处理的上传。KeeForge 会在此设备上保留已放弃更改的备份。"
+            "value" : "由于云端副本已更改，通过自动填充保存的更改无法上传。请将其合并到此数据库中以上传。"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "透過自動填寫儲存的變更無法上傳，因為此資料庫在雲端的副本此後已變更。請匯出此資料庫的副本，在其他 KeePass App 中將其與雲端版本合併，或捨棄待處理的上傳。KeeForge 會在此裝置上保留已捨棄變更的備份。"
+            "value" : "由於雲端副本已變更，透過自動填寫儲存的變更無法上傳。請將其合併到此資料庫中以上傳。"
+          }
+        }
+      }
+    },
+    "A change saved through AutoFill couldn’t be uploaded because the copy of this database in the cloud changed since. Open the database to merge the change into it. You can also export a copy to merge it in another KeePass app, or discard the pending upload. KeeForge keeps a backup of the discarded change on this device." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Eine über AutoFill gespeicherte Änderung konnte nicht hochgeladen werden, weil die Kopie dieser Datenbank in der Cloud seitdem geändert wurde. Öffnen Sie die Datenbank, um die Änderung darin zusammenzuführen. Sie können auch eine Kopie exportieren, um sie in einer anderen KeePass-App zusammenzuführen, oder den ausstehenden Upload verwerfen. KeeForge behält eine Sicherungskopie der verworfenen Änderung auf diesem Gerät."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Un cambio guardado mediante el autorrelleno no se pudo cargar porque la copia de esta base de datos en la nube cambió desde entonces. Abra la base de datos para combinar el cambio con ella. También puede exportar una copia para combinarla en otra app de KeePass, o descartar la carga pendiente. KeeForge conserva una copia de seguridad del cambio descartado en este dispositivo."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Une modification enregistrée via le remplissage automatique n'a pas pu être envoyée, car la copie de cette base de données dans le cloud a changé depuis. Ouvrez la base de données pour y fusionner la modification. Vous pouvez aussi exporter une copie pour la fusionner dans une autre app KeePass, ou ignorer l'envoi en attente. KeeForge conserve une sauvegarde de la modification ignorée sur cet appareil."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "自動入力で保存された変更をアップロードできませんでした。その後にクラウド上のこのデータベースのコピーが変更されたためです。データベースを開いて、変更をマージしてください。コピーを書き出して他の KeePass App でマージするか、保留中のアップロードを破棄することもできます。破棄した変更のバックアップは、このデバイスに保持されます。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "通过自动填充保存的更改无法上传，因为此数据库在云端的副本此后已发生变化。请打开数据库以将更改合并进去。你也可以导出副本并在其他 KeePass App 中合并，或放弃待处理的上传。KeeForge 会在此设备上保留已放弃更改的备份。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "透過自動填寫儲存的變更無法上傳，因為此資料庫在雲端的副本此後已變更。請開啟資料庫以將變更合併進去。你也可以匯出副本並在其他 KeePass App 中合併，或捨棄待處理的上傳。KeeForge 會在此裝置上保留已捨棄變更的備份。"
           }
         }
       }
@@ -28056,6 +28096,326 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "附加的照片過大。請選擇較小的照片。"
+          }
+        }
+      }
+    },
+    "The change can't be merged right now. Make sure the database is editable and has no unresolved save conflict, then try again." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die Änderung kann gerade nicht zusammengeführt werden. Stellen Sie sicher, dass die Datenbank bearbeitbar ist und kein Speicherkonflikt offen ist, und versuchen Sie es dann erneut."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "El cambio no se puede combinar en este momento. Asegúrese de que la base de datos se pueda editar y de que no haya ningún conflicto de guardado pendiente, y vuelva a intentarlo."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La modification ne peut pas être fusionnée pour le moment. Vérifiez que la base de données est modifiable et qu'aucun conflit d'enregistrement n'est en suspens, puis réessayez."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "現在この変更はマージできません。データベースが編集可能で、未解決の保存競合がないことを確認してから、もう一度お試しください。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "目前无法合并此更改。请确认数据库可编辑且没有未解决的保存冲突，然后重试。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "目前無法合併此變更。請確認資料庫可編輯且沒有未解決的儲存衝突，然後重試。"
+          }
+        }
+      }
+    },
+    "The change saved through AutoFill and the cloud copy store their attachments differently, so merging them could point an attachment at the wrong file. It is kept in the backup from %@ in Database Details. Export that backup to merge it in another KeePass app." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die über AutoFill gespeicherte Änderung und die Cloud-Kopie speichern ihre Anhänge unterschiedlich. Beim Zusammenführen könnte ein Anhang daher auf die falsche Datei verweisen. Sie ist in der Sicherungskopie vom %@ in den Datenbankdetails gespeichert. Exportieren Sie diese Sicherungskopie, um sie in einer anderen KeePass-App zusammenzuführen."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "El cambio guardado mediante el autorrelleno y la copia de la nube almacenan sus archivos adjuntos de forma distinta, así que combinarlos podría hacer que un adjunto apunte al archivo equivocado. Se conserva en la copia de seguridad del %@ en los detalles de la base de datos. Exporte esa copia de seguridad para combinarlo en otra app de KeePass."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La modification enregistrée via le remplissage automatique et la copie du cloud stockent leurs pièces jointes différemment : les fusionner pourrait faire pointer une pièce jointe vers le mauvais fichier. Elle est conservée dans la sauvegarde du %@ dans les détails de la base de données. Exportez cette sauvegarde pour la fusionner dans une autre app KeePass."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "自動入力で保存された変更とクラウドのコピーでは添付ファイルの保存方法が異なるため、マージすると添付ファイルが誤ったファイルを参照する可能性があります。この変更は、データベースの詳細にある %@ のバックアップに保持されています。そのバックアップを書き出して、他の KeePass App でマージしてください。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "通过自动填充保存的更改与云端副本存储附件的方式不同，合并后可能导致附件指向错误的文件。该更改保存在数据库详细信息中 %@ 的备份里。请导出该备份，并在其他 KeePass App 中合并。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "透過自動填寫儲存的變更與雲端副本儲存附件的方式不同，合併後可能導致附件指向錯誤的檔案。該變更保存在資料庫詳細資訊中 %@ 的備份裡。請匯出該備份，並在其他 KeePass App 中合併。"
+          }
+        }
+      }
+    },
+    "The change saved through AutoFill and the cloud copy store their attachments differently, so merging them could point an attachment at the wrong file. To merge it in another KeePass app, use Export Copy in the database list." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die über AutoFill gespeicherte Änderung und die Cloud-Kopie speichern ihre Anhänge unterschiedlich. Beim Zusammenführen könnte ein Anhang daher auf die falsche Datei verweisen. Um sie in einer anderen KeePass-App zusammenzuführen, verwenden Sie „Kopie exportieren“ in der Datenbankliste."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "El cambio guardado mediante el autorrelleno y la copia de la nube almacenan sus archivos adjuntos de forma distinta, así que combinarlos podría hacer que un adjunto apunte al archivo equivocado. Para combinarlo en otra app de KeePass, use «Exportar copia» en la lista de bases de datos."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La modification enregistrée via le remplissage automatique et la copie du cloud stockent leurs pièces jointes différemment : les fusionner pourrait faire pointer une pièce jointe vers le mauvais fichier. Pour la fusionner dans une autre app KeePass, utilisez « Exporter une copie » dans la liste des bases de données."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "自動入力で保存された変更とクラウドのコピーでは添付ファイルの保存方法が異なるため、マージすると添付ファイルが誤ったファイルを参照する可能性があります。他の KeePass App でマージするには、データベース一覧の「コピーを書き出す」を使用してください。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "通过自动填充保存的更改与云端副本存储附件的方式不同，合并后可能导致附件指向错误的文件。如需在其他 KeePass App 中合并，请在数据库列表中使用“导出副本”。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "透過自動填寫儲存的變更與雲端副本儲存附件的方式不同，合併後可能導致附件指向錯誤的檔案。如需在其他 KeePass App 中合併，請在資料庫列表中使用「匯出副本」。"
+          }
+        }
+      }
+    },
+    "The change saved through AutoFill could not be opened with this database's master key. It is kept in the backup from %@ in Database Details. Export that backup to merge it in another KeePass app." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die über AutoFill gespeicherte Änderung konnte mit dem Master-Schlüssel dieser Datenbank nicht geöffnet werden. Sie ist in der Sicherungskopie vom %@ in den Datenbankdetails gespeichert. Exportieren Sie diese Sicherungskopie, um sie in einer anderen KeePass-App zusammenzuführen."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "El cambio guardado mediante el autorrelleno no se pudo abrir con la clave maestra de esta base de datos. Se conserva en la copia de seguridad del %@ en los detalles de la base de datos. Exporte esa copia de seguridad para combinarlo en otra app de KeePass."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La modification enregistrée via le remplissage automatique n'a pas pu être ouverte avec la clé principale de cette base de données. Elle est conservée dans la sauvegarde du %@ dans les détails de la base de données. Exportez cette sauvegarde pour la fusionner dans une autre app KeePass."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "自動入力で保存された変更を、このデータベースのマスターキーで開けませんでした。この変更は、データベースの詳細にある %@ のバックアップに保持されています。そのバックアップを書き出して、他の KeePass App でマージしてください。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无法使用此数据库的主密钥打开通过自动填充保存的更改。该更改保存在数据库详细信息中 %@ 的备份里。请导出该备份，并在其他 KeePass App 中合并。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法使用此資料庫的主金鑰開啟透過自動填寫儲存的變更。該變更保存在資料庫詳細資訊中 %@ 的備份裡。請匯出該備份，並在其他 KeePass App 中合併。"
+          }
+        }
+      }
+    },
+    "The change saved through AutoFill could not be opened with this database's master key. To merge it in another KeePass app, use Export Copy in the database list." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die über AutoFill gespeicherte Änderung konnte mit dem Master-Schlüssel dieser Datenbank nicht geöffnet werden. Um sie in einer anderen KeePass-App zusammenzuführen, verwenden Sie „Kopie exportieren“ in der Datenbankliste."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "El cambio guardado mediante el autorrelleno no se pudo abrir con la clave maestra de esta base de datos. Para combinarlo en otra app de KeePass, use «Exportar copia» en la lista de bases de datos."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La modification enregistrée via le remplissage automatique n'a pas pu être ouverte avec la clé principale de cette base de données. Pour la fusionner dans une autre app KeePass, utilisez « Exporter une copie » dans la liste des bases de données."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "自動入力で保存された変更を、このデータベースのマスターキーで開けませんでした。他の KeePass App でマージするには、データベース一覧の「コピーを書き出す」を使用してください。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无法使用此数据库的主密钥打开通过自动填充保存的更改。如需在其他 KeePass App 中合并，请在数据库列表中使用“导出副本”。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法使用此資料庫的主金鑰開啟透過自動填寫儲存的變更。如需在其他 KeePass App 中合併，請在資料庫列表中使用「匯出副本」。"
+          }
+        }
+      }
+    },
+    "The change saved through AutoFill is no longer stored on this device, or it was saved before the master key changed. Use Discard Pending Upload in the database list to clear the conflict." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die über AutoFill gespeicherte Änderung ist nicht mehr auf diesem Gerät gespeichert oder wurde vor der Änderung des Master-Schlüssels gespeichert. Verwenden Sie „Ausstehenden Upload verwerfen“ in der Datenbankliste, um den Konflikt aufzulösen."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "El cambio guardado mediante el autorrelleno ya no está almacenado en este dispositivo, o se guardó antes de que cambiara la clave maestra. Use «Descartar carga pendiente» en la lista de bases de datos para resolver el conflicto."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La modification enregistrée via le remplissage automatique n'est plus stockée sur cet appareil, ou elle a été enregistrée avant le changement de la clé principale. Utilisez « Ignorer l'envoi en attente » dans la liste des bases de données pour résoudre le conflit."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "自動入力で保存された変更はこのデバイスに残っていないか、マスターキーの変更前に保存されたものです。データベース一覧の「保留中のアップロードを破棄」を使って競合を解消してください。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "通过自动填充保存的更改已不在此设备上，或是在主密钥更改之前保存的。请在数据库列表中使用“放弃待处理的上传”来解决冲突。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "透過自動填寫儲存的變更已不在此裝置上，或是在主金鑰變更之前儲存的。請在資料庫列表中使用「捨棄待處理的上傳」來解決衝突。"
+          }
+        }
+      }
+    },
+    "The change saved through AutoFill was merged with the cloud copy and uploaded." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die über AutoFill gespeicherte Änderung wurde mit der Cloud-Kopie zusammengeführt und hochgeladen."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "El cambio guardado mediante el autorrelleno se combinó con la copia de la nube y se cargó."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La modification enregistrée via le remplissage automatique a été fusionnée avec la copie du cloud et envoyée."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "自動入力で保存された変更をクラウドのコピーとマージし、アップロードしました。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "通过自动填充保存的更改已与云端副本合并并上传。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "透過自動填寫儲存的變更已與雲端副本合併並上傳。"
+          }
+        }
+      }
+    },
+    "The cloud copy changed again while merging. Nothing was lost. Lock the database, open it again, and merge once more." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die Cloud-Kopie wurde während des Zusammenführens erneut geändert. Es ist nichts verloren gegangen. Sperren Sie die Datenbank, öffnen Sie sie erneut und führen Sie die Änderungen noch einmal zusammen."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La copia de la nube volvió a cambiar durante la combinación. No se perdió nada. Bloquee la base de datos, vuelva a abrirla y combine de nuevo."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La copie du cloud a de nouveau changé pendant la fusion. Rien n'a été perdu. Verrouillez la base de données, rouvrez-la et fusionnez à nouveau."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "マージ中にクラウドのコピーが再び変更されました。何も失われていません。データベースをロックしてから再度開き、もう一度マージしてください。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "合并期间云端副本再次发生了变化。没有丢失任何内容。请锁定数据库，重新打开后再合并一次。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "合併期間雲端副本再次變更。沒有遺失任何內容。請鎖定資料庫，重新開啟後再合併一次。"
           }
         }
       }

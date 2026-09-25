@@ -119,6 +119,10 @@ struct RegularDatabaseWorkspaceView: View {
                     if viewModel.isDirty && viewModel.isSaving == false {
                         UnsavedChangesBanner(viewModel: viewModel)
                     }
+
+                    if viewModel.hasPendingUploadConflict && viewModel.isSaving == false {
+                        PendingUploadConflictBanner(viewModel: viewModel)
+                    }
                 }
             }
             .disabled(viewModel.isSaving)
