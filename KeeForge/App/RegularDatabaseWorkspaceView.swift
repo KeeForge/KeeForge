@@ -463,7 +463,8 @@ struct RegularDatabaseWorkspaceView: View {
         return MacGroupNode(
             id: groupID,
             name: group.name,
-            icon: isRecycleBin ? "trash" : group.systemIconName,
+            iconID: isRecycleBin ? 43 : group.iconID,
+            isRecycleBin: isRecycleBin,
             children: childNodes.isEmpty ? nil : childNodes
         )
     }
@@ -904,7 +905,8 @@ private struct MacTagRow: View {
 struct MacGroupNode: Identifiable {
     let id: UUID
     let name: String
-    let icon: String
+    let iconID: Int
+    let isRecycleBin: Bool
     let children: [MacGroupNode]?
 }
 
@@ -971,7 +973,11 @@ private struct MacGroupTreeRow: View {
             Text(node.name)
                 .lineLimit(1)
         } icon: {
-            Image(systemName: node.icon)
+            StandardIconView(
+                iconID: node.iconID,
+                fallbackSystemName: node.isRecycleBin ? "trash" : "folder.fill",
+                fallbackPalette: node.isRecycleBin ? .green : .blue
+            )
         }
         .font(.body)
         .frame(maxWidth: .infinity, alignment: .leading)

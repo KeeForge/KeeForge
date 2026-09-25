@@ -722,8 +722,11 @@ struct GroupRow: View {
                             .frame(width: 22, height: 22)
                             .frame(width: 28)
                     } else {
-                        Image(systemName: isRecycleBin ? "trash" : group.systemIconName)
-                            .foregroundStyle(.tint)
+                        StandardIconView(
+                            iconID: isRecycleBin ? 43 : group.iconID,
+                            fallbackSystemName: isRecycleBin ? "trash" : "folder.fill",
+                            fallbackPalette: isRecycleBin ? .green : .blue
+                        )
                             .frame(width: 28)
                     }
 

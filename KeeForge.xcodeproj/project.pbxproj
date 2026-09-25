@@ -100,6 +100,7 @@
 		1FC2BE613C35E9359707D14E /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = FC41BE38D387242D08AB7810 /* Localizable.xcstrings */; };
 		1FCBB8C3824701B8F88FD9B1 /* AttachmentQuickLookPreview.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30D3E9B8959F15FD248A61FE /* AttachmentQuickLookPreview.swift */; };
 		207C6503A89DD512BBA1D567 /* AutoFillSearchView.swift in Sources */ = {isa = PBXBuildFile; fileRef = ADAA5D103A016B02FDB65F56 /* AutoFillSearchView.swift */; };
+		209E8BFECB9092DA877DF0A1 /* StandardIconView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C6C4374097541AB7852E249 /* StandardIconView.swift */; };
 		20E7BE575B6C6448AA324DCB /* WhatsNewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9375E87713DD1DFA65000AA1 /* WhatsNewView.swift */; };
 		21223E493E3BBDB67FB211F9 /* OpaqueXMLNodes.swift in Sources */ = {isa = PBXBuildFile; fileRef = E83812EEBF6C270EDFBA5E90 /* OpaqueXMLNodes.swift */; };
 		2134BB330E59C281CF96FDAF /* SharedVaultStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 255524A0026746268CB46642 /* SharedVaultStoreTests.swift */; };
@@ -143,6 +144,7 @@
 		2E8C1464E89E7DF540940F2F /* EntryEditCompletionGateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A01A49238AD6DEF29C56B328 /* EntryEditCompletionGateTests.swift */; };
 		2EF4A37C8512D76CCACA08C5 /* CredentialProviderCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 268A6ED5FD7C908116437C5E /* CredentialProviderCoordinator.swift */; };
 		2FB690AA87853493C7E13651 /* LocalDatabaseSaver.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7B6F08C62E668E72877D297 /* LocalDatabaseSaver.swift */; };
+		30654F910DE3D6AD103BC613 /* StandardIconView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C6C4374097541AB7852E249 /* StandardIconView.swift */; };
 		306FB3EBBC61ED1F83716A39 /* TOTPQRScannerSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F715792780CA7205B5924EE /* TOTPQRScannerSheet.swift */; };
 		30BE98BCBB2C8D6352147FFF /* PublicSuffixList in Frameworks */ = {isa = PBXBuildFile; productRef = 2ED91D82079164C87B68A814 /* PublicSuffixList */; };
 		310F8939E17928B0959017BC /* ClipboardService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB106882B5AF908E0B1ED82C /* ClipboardService.swift */; };
@@ -233,6 +235,7 @@
 		53380A2489BCAB04412160B3 /* SearchView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 94BB534FB7CE421342A621AC /* SearchView.swift */; };
 		533B163B3E29E293187B55B0 /* KeyFileProcessorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8C0418ADF1FDFF66CD471789 /* KeyFileProcessorTests.swift */; };
 		536ADD0DD0C940ADCF89A37F /* SecureRandom.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6F135327240ED1387C8003A4 /* SecureRandom.swift */; };
+		5395107ED61ABBF85E45B9D9 /* StandardIconView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C6C4374097541AB7852E249 /* StandardIconView.swift */; };
 		53BA585CA35B31BACF5563A6 /* BiometricService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1C17D7E75C6066F4A179AB5F /* BiometricService.swift */; };
 		546946CF03D4BA3759BDA5F1 /* demo-keyfile.kdbx in Resources */ = {isa = PBXBuildFile; fileRef = 4CC3CF24A57A3BB531DA56C2 /* demo-keyfile.kdbx */; };
 		54BB20CF78BEF18B76E556B7 /* demo-keyfile.key in Resources */ = {isa = PBXBuildFile; fileRef = 7AB5EEF311A401337289C014 /* demo-keyfile.key */; };
@@ -310,9 +313,9 @@
 		6D2B797B6DCCBF43EAF6606A /* CredentialProviderSaveTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0987977B0D41FBB5C1456C5 /* CredentialProviderSaveTests.swift */; };
 		6D4482B31E02010875FAE807 /* Attachment.swift in Sources */ = {isa = PBXBuildFile; fileRef = 17350EF5DF6C5C2E97B61A34 /* Attachment.swift */; };
 		6D7B0F0F5E4A1157EE41A4F3 /* EntryEditViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 42780494357246F25C55F3FD /* EntryEditViewModelTests.swift */; };
-		6F6C9C0529AD4D0154E1E799 /* EntryRowMoveAction.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3C71D4D96F2A13F178F7A8B2 /* EntryRowMoveAction.swift */; };
 		6DC8F7919FA17DEAC31B5B2F /* FTPListingParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF514DB674DAD987C03929D4 /* FTPListingParser.swift */; };
 		6DE387340081F5DE5068B4CD /* FTPModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0C84F58EE09F0725331BDBA /* FTPModels.swift */; };
+		6F6C9C0529AD4D0154E1E799 /* EntryRowMoveAction.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3C71D4D96F2A13F178F7A8B2 /* EntryRowMoveAction.swift */; };
 		7088E67D3FBF351954CD70F2 /* AutoFillPasskeyCreatorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C412174AA21900D65A646A54 /* AutoFillPasskeyCreatorView.swift */; };
 		70B5DFF94CC20D6BD049C9AB /* ChaCha20Tests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 15B37308F603CF890C96ED80 /* ChaCha20Tests.swift */; };
 		711E28602252C35A2481E769 /* WebDAVClientTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B16B7DC25FE8C1CEE117E7FD /* WebDAVClientTests.swift */; };
@@ -385,6 +388,7 @@
 		88511AE7115CDEAFB5D7613E /* EntryHistoryTrimmer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6B23EE0FFF365E0E5F1E571E /* EntryHistoryTrimmer.swift */; };
 		8896685A7AD0595926312D61 /* DatabaseRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 111C97CB5E5C656BD1970277 /* DatabaseRowView.swift */; };
 		897048166743B87F85CACA6E /* DatabaseListViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = F178F4027D7DB837D823C54C /* DatabaseListViewModel.swift */; };
+		8A0291FBC03B237CA4878218 /* StandardIconView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C6C4374097541AB7852E249 /* StandardIconView.swift */; };
 		8A337E187B2D7B4382CB465A /* PasskeyCrypto.swift in Sources */ = {isa = PBXBuildFile; fileRef = DDEA3048149FA6E823621EA0 /* PasskeyCrypto.swift */; };
 		8A3A063200458F5296146348 /* EntryAttachmentsSmokeUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1C09B67C6FBD95B95F6E4107 /* EntryAttachmentsSmokeUITests.swift */; };
 		8ADDCABC35612B07C32F31CD /* KDBXUUIDEncoding.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B46BE14C31F8101CBCFB9A5 /* KDBXUUIDEncoding.swift */; };
@@ -944,6 +948,7 @@
 		594A322ED2C5D7B490AC53FF /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		596A02F7CDB9320B4B325A37 /* MacEntriesList.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacEntriesList.swift; sourceTree = "<group>"; };
 		5A0F40D4E33161DBEEAB3C6C /* MasterKeyChangeViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MasterKeyChangeViewModelTests.swift; sourceTree = "<group>"; };
+		5C6C4374097541AB7852E249 /* StandardIconView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StandardIconView.swift; sourceTree = "<group>"; };
 		5CF73F233BAC9141F9575CEC /* WebDAVConnectViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebDAVConnectViewModelTests.swift; sourceTree = "<group>"; };
 		5DDEBC96D0673E928CD9681C /* WhatsNewPresentationServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WhatsNewPresentationServiceTests.swift; sourceTree = "<group>"; };
 		5DFD74CE6911EB771A4B7FBD /* CredentialProviderViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CredentialProviderViewController.swift; sourceTree = "<group>"; };
@@ -1323,6 +1328,7 @@
 				60F6233A5A7173BAA633FF6A /* PasswordGeneratorSheet.swift */,
 				3A81C906DE4BC0FFCA1CC754 /* PasswordInputRow.swift */,
 				85B5D788DA54A0CEC1A03E7E /* ReadOnlyIndicator.swift */,
+				5C6C4374097541AB7852E249 /* StandardIconView.swift */,
 			);
 			path = Components;
 			sourceTree = "<group>";
@@ -2074,13 +2080,13 @@
 			projectRoot = "";
 			targets = (
 				F9D5D329EB517FC26DCCD00F /* KeeForge */,
-				7D53BCAE20990F6856D21F58 /* KeeForgeMac */,
 				FFA6C4212640756D8D70C1F6 /* KeeForgeAutoFill */,
+				7D53BCAE20990F6856D21F58 /* KeeForgeMac */,
 				0AA0ADCC3C0CE0E65850552E /* KeeForgeMacAutoFill */,
-				142FE9D12173DF25C61DE561 /* KeeForgeUITests */,
-				F371729A79BBD757456723E9 /* KeeForgeTests */,
-				759B10925CD3A1BCA516F0CD /* KeeForgeMacUITests */,
 				647734196C81AB568100DEF0 /* KeeForgeMacTests */,
+				759B10925CD3A1BCA516F0CD /* KeeForgeMacUITests */,
+				F371729A79BBD757456723E9 /* KeeForgeTests */,
+				142FE9D12173DF25C61DE561 /* KeeForgeUITests */,
 			);
 		};
 /* End PBXProject section */
@@ -2324,6 +2330,7 @@
 				D35163EA0AB065790419CDA6 /* SecurityScopedBookmarkManager.swift in Sources */,
 				26C6C8F1FBF4C3CFBD4165AD /* SettingsService.swift in Sources */,
 				F0A7DCEC02627C2AD1CF202D /* SharedVaultStore.swift in Sources */,
+				30654F910DE3D6AD103BC613 /* StandardIconView.swift in Sources */,
 				A445682890689C1BF6B4346F /* TOTPGenerator.swift in Sources */,
 				DF0C9569347108D7C0B893AE /* TagNormalizer.swift in Sources */,
 			);
@@ -2576,6 +2583,7 @@
 				32CB3BAD3281B7D0708212D6 /* SettingsView.swift in Sources */,
 				BE530A92ACB876BE4D859DE7 /* SharedVaultStore.swift in Sources */,
 				653F8DDF8ABAA18262605EFC /* SoftwareUpdateService.swift in Sources */,
+				209E8BFECB9092DA877DF0A1 /* StandardIconView.swift in Sources */,
 				7AF427B2C82399DFAFDA2068 /* StoreKitManager.swift in Sources */,
 				0E72683BDF037AF2C6C9D108 /* SupportKeeForgeSection.swift in Sources */,
 				B93BB3F9C8C02B422ABD5770 /* TOTPEnrollmentDestinationView.swift in Sources */,
@@ -2739,6 +2747,7 @@
 				D1F496D2E0859A9310C28826 /* SettingsView.swift in Sources */,
 				80BA02FE7DC050DB81A69012 /* SharedVaultStore.swift in Sources */,
 				F04202BC30E376DD93B6A7BB /* SoftwareUpdateService.swift in Sources */,
+				8A0291FBC03B237CA4878218 /* StandardIconView.swift in Sources */,
 				348E47AD07B0862B131209C0 /* StoreKitManager.swift in Sources */,
 				24F38614FBE96F4936428E42 /* SupportKeeForgeSection.swift in Sources */,
 				4A0383F5EBA35EEC0148526A /* TOTPEnrollmentDestinationView.swift in Sources */,
@@ -2981,6 +2990,7 @@
 				E71096533AC4FD4261EE3626 /* SecurityScopedBookmarkManager.swift in Sources */,
 				C80BFFE4DF5EF867A57FBE67 /* SettingsService.swift in Sources */,
 				0D59ABCEF906DC0410B0D4A7 /* SharedVaultStore.swift in Sources */,
+				5395107ED61ABBF85E45B9D9 /* StandardIconView.swift in Sources */,
 				54CD35087BDA9681E771259B /* TOTPGenerator.swift in Sources */,
 				40269CADC8C8314AA32BB1D6 /* TagNormalizer.swift in Sources */,
 			);

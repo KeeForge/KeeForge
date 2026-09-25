@@ -75,10 +75,13 @@ struct GroupIconPickerView: View {
             onSelect(iconID)
             dismiss()
         } label: {
-            Image(systemName: KPEntry.systemIconName(for: iconID, fallback: "folder.fill"))
+            StandardIconView(
+                iconID: iconID,
+                fallbackSystemName: "folder.fill",
+                fallbackPalette: .blue
+            )
                 .font(.title3)
                 .frame(width: 52, height: 52)
-                .foregroundStyle(isSelected ? Color.accentColor : Color.primary)
                 .background(
                     RoundedRectangle(cornerRadius: 10)
                         .fill(isSelected ? Color.accentColor.opacity(0.15) : Color.secondary.opacity(0.08))

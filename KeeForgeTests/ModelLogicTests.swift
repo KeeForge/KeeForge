@@ -38,6 +38,22 @@ final class ModelLogicTests: XCTestCase {
         }
     }
 
+    @MainActor
+    func testStandardIconPalettesCoverAllKDBXStandardIcons() {
+        let palettes = StandardIconView.palettes
+        let keyPalette = StandardIconView.palette(for: 0)
+        let warningPalette = StandardIconView.palette(for: 2)
+        let checkedPalette = StandardIconView.palette(for: 53)
+        let fallbackPalette = StandardIconView.palette(for: 999, fallback: .blue)
+
+        XCTAssertEqual(Set(palettes.keys), Set(0...68))
+        XCTAssertGreaterThan(Set(palettes.values).count, 1)
+        XCTAssertEqual(keyPalette, .gold)
+        XCTAssertEqual(warningPalette, .red)
+        XCTAssertEqual(checkedPalette, .green)
+        XCTAssertEqual(fallbackPalette, .blue)
+    }
+
     func testKPEntryIsExpiredRequiresEnabledPastExpiryTime() {
         let now = Date(timeIntervalSince1970: 1_700_000_000)
         let past = now.addingTimeInterval(-1)
