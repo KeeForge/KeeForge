@@ -733,9 +733,8 @@ enum CredentialIdentityStoreManager: Sendable {
     static func oneTimeCodeIdentities(for entry: KPEntry, in databaseID: UUID) -> [ASOneTimeCodeCredentialIdentity] {
         guard entry.hasTOTP else { return [] }
 
-        let allURLs = [entry.url] + entry.additionalURLs
         var seenHosts = Set<String>()
-        let hosts = allURLs.compactMap(otpHostFromURLString).filter { seenHosts.insert($0).inserted }
+        let hosts = CredentialMatcher.webURLs(of: entry).compactMap(otpHostFromURLString).filter { seenHosts.insert($0).inserted }
 
         let label = entry.title.isEmpty ? entry.username : entry.title
         guard !label.isEmpty else { return [] }
@@ -791,8 +790,7 @@ enum CredentialIdentityStoreManager: Sendable {
         guard !username.isEmpty else { return [] }
         guard entry.hasPassword else { return [] }
 
-        let allURLs = [entry.url] + entry.additionalURLs
-        let domains = Set(allURLs.compactMap(domainFromURLString))
+        let domains = Set(CredentialMatcher.webURLs(of: entry).compactMap(domainFromURLString))
         guard !domains.isEmpty else { return [] }
 
         return domains.sorted().map { domain in

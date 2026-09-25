@@ -398,6 +398,40 @@ final class CredentialProviderCoordinatorTests: XCTestCase {
         XCTAssertEqual(searchView.initialSearchText, "")
     }
 
+    func test_appIdentifier_isNotOfferedWebsitesSharingItsReverseDNSSuffix() throws {
+        guard #available(iOS 26.2, macOS 26.2, *) else {
+            throw XCTSkip("App service identifiers require iOS 26.2 / macOS 26.2")
+        }
+        let (coordinator, presenter) = makeCoordinator()
+        let sessionKey = SymmetricKey(size: .bits256)
+        let entries = [
+            KPEntry(
+                title: "Website",
+                username: "web",
+                password: try EncryptedValue.encrypt("secret", using: sessionKey),
+                url: "https://mybank.app"
+            ),
+            KPEntry(
+                title: "Login",
+                username: "login",
+                password: try EncryptedValue.encrypt("secret", using: sessionKey),
+                url: "https://login.mybank.app"
+            )
+        ]
+
+        coordinator.serviceIdentifiers = [
+            ASCredentialServiceIdentifier(identifier: "A1B2C3D4E5.com.mybank.app", type: .app, displayName: "MyBank")
+        ]
+        seedUnlockedVaultState(coordinator, entries: entries, sessionKey: sessionKey)
+
+        coordinator.presentPasswordMatchesOrFinish()
+
+        let searchView = try XCTUnwrap(presenter.searchView)
+        XCTAssertTrue(searchView.possibleEntries.isEmpty)
+        XCTAssertEqual(searchView.entries.count, 2, "No match narrows the list, so every entry stays listed")
+        XCTAssertEqual(searchView.initialSearchText, "")
+    }
+
     func test_fuzzyCandidatesArePossibleAndMultipleCandidatesRemainAvailable() throws {
         let (coordinator, presenter) = makeCoordinator()
         let sessionKey = SymmetricKey(size: .bits256)
