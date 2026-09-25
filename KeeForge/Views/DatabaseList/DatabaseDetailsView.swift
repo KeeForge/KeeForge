@@ -117,7 +117,7 @@ struct DatabaseDetailsView: View {
                 if let sessionViewModel {
                     MoveToGroupPickerView(
                         options: sessionViewModel.groupDestinationOptions(
-                            currentGroupID: sessionViewModel.autoFillDestinationGroup?.id
+                            currentGroupID: sessionViewModel.databaseReference.autoFillDestinationGroupID
                         ),
                         navigationTitle: "Select Group"
                     ) { groupID in
