@@ -503,6 +503,71 @@ final class CloudSyncCoordinatorTests: XCTestCase {
         XCTAssertEqual(updated.cloudSyncMetadata?.remoteContentHash, "hash-A")
     }
 
+    func testApplyUploadedBytesPreservesAutoFillDestinationSelectedDuringUpload() throws {
+        let oldGroup = KPGroup(name: "Old destination")
+        let selectedGroup = KPGroup(name: "Selected during upload")
+        let root = KPGroup(name: "Root", groups: [
+            KPGroup(name: "Vault", groups: [oldGroup, selectedGroup])
+        ])
+        var reference = makeCloudReference(remoteContentHash: "hash-before", remoteModifiedAt: nil)
+        reference.autoFillDestinationGroupID = oldGroup.id
+        reference.updateCloudSyncMetadata { $0.remoteRev = "rev-before" }
+        DatabaseListStore.update(reference)
+        try DatabaseListStore.cacheDatabaseCopy(Data("before-upload".utf8), for: reference)
+
+        // The cloud saver captures this value before awaiting its upload.
+        let uploadReference = try XCTUnwrap(DatabaseListStore.databases.first { $0.id == reference.id })
+        DatabaseListStore.setAutoFillDestinationGroupID(selectedGroup.id, for: reference)
+
+        let uploadedBytes = Data("uploaded-ciphertext".utf8)
+        let appliedReference = try CloudSyncCoordinator.applyUploadedBytesAfterSave(
+            reference: uploadReference,
+            bytes: uploadedBytes,
+            remoteMetadata: CloudFileMetadata(
+                modifiedDate: Date(timeIntervalSince1970: 500),
+                contentHash: "hash-after",
+                size: Int64(uploadedBytes.count),
+                rev: "rev-after"
+            )
+        )
+
+        let storedReference = try XCTUnwrap(DatabaseListStore.databases.first { $0.id == reference.id })
+        XCTAssertEqual(try Data(contentsOf: DatabaseListStore.cacheLocation(for: reference)), uploadedBytes)
+        XCTAssertEqual(storedReference.cloudSyncMetadata?.remoteRev, "rev-after")
+        XCTAssertEqual(storedReference.cloudSyncMetadata?.remoteContentHash, "hash-after")
+        XCTAssertEqual(storedReference.autoFillDestinationGroupID, selectedGroup.id)
+        XCTAssertEqual(appliedReference.autoFillDestinationGroupID, selectedGroup.id)
+        XCTAssertEqual(
+            AutoFillSaveCoordinator.destinationGroup(
+                in: root,
+                preferredGroupID: storedReference.autoFillDestinationGroupID
+            ).id,
+            selectedGroup.id
+        )
+    }
+
+    func testApplyUploadedBytesDoesNotRestoreRemovedDatabase() throws {
+        var reference = makeCloudReference(remoteContentHash: "hash-before", remoteModifiedAt: nil)
+        reference.updateCloudSyncMetadata { $0.remoteRev = "rev-before" }
+        DatabaseListStore.update(reference)
+        DatabaseListStore.remove(id: reference.id)
+
+        let completed = try CloudSyncCoordinator.applyUploadedBytesAfterSave(
+            reference: reference,
+            bytes: Data("uploaded-ciphertext".utf8),
+            remoteMetadata: CloudFileMetadata(
+                modifiedDate: Date(timeIntervalSince1970: 500),
+                contentHash: "hash-after",
+                size: 19,
+                rev: "rev-after"
+            )
+        )
+
+        XCTAssertFalse(DatabaseListStore.databases.contains { $0.id == reference.id })
+        XCTAssertEqual(completed.cloudSyncMetadata?.remoteRev, "rev-after")
+        XCTAssertEqual(completed.cloudSyncMetadata?.remoteContentHash, "hash-after")
+    }
+
     func testDiscardConflictedPendingUploadsBacksUpLivePayloadAndDropsOnlyConflictedMarkers() async throws {
         // M3 resolution affordance: discarding backs up the marker's payload
         // bytes when they are still the live cache, drops conflicted markers,
@@ -1145,4 +1210,3 @@ private final class ProgressRecorder: @unchecked Sendable {
         lock.unlock()
     }
 }
-
