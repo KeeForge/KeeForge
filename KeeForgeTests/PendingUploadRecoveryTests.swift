@@ -152,7 +152,14 @@ final class PendingUploadRecoveryTests: XCTestCase {
         XCTAssertTrue(PendingUploadRecovery.hasConflicts(for: reference))
         let payloads = try recoveredPayloads(PendingUploadRecovery.lookUpPayloads(for: reference))
         XCTAssertEqual(payloads.map(\.data), [payload])
-        XCTAssertEqual(payloads.map(\.location), [.backup(backupDirectory.appendingPathComponent("20260924-100000-000000.kdbx"))])
+        guard payloads.count == 1,
+              case .backup(let recoveredBackupURL) = payloads[0].location else {
+            return XCTFail("Expected the AutoFill save to be recovered from its backup")
+        }
+        XCTAssertEqualFilePaths(
+            recoveredBackupURL,
+            backupDirectory.appendingPathComponent("20260924-100000-000000.kdbx")
+        )
 
         PendingUploadRecovery.dropMarkers([storedMarker])
 
