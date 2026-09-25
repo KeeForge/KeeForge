@@ -16,7 +16,7 @@ KeeForge の改善にご協力いただきありがとうございます。
 - Xcode 26 以降
 - [XcodeGen](https://github.com/yonaskolb/XcodeGen)
 - Swift 6（strict concurrency 有効）
-- Swift Package の依存関係: [argon2](https://github.com/P-H-C/phc-winner-argon2)、[SwiftyDropbox](https://github.com/dropbox/SwiftyDropbox)、[Microsoft Authentication Library](https://github.com/AzureAD/microsoft-authentication-library-for-objc)、[swift-psl](https://github.com/ameshkov/swift-psl)、および同梱の [KeeForgeTwofish](../../Vendor/KeeForgeTwofish) パッケージ
+- Swift Package の依存関係: [argon2](https://github.com/P-H-C/phc-winner-argon2)、[SwiftyDropbox](https://github.com/dropbox/SwiftyDropbox)、[Microsoft Authentication Library](https://github.com/AzureAD/microsoft-authentication-library-for-objc)、[swift-psl](https://github.com/ameshkov/swift-psl)、[YubiKit](https://github.com/Yubico/yubikit-ios)、および同梱の [KeeForgeTwofish](../../Vendor/KeeForgeTwofish) パッケージ
 
 ## ソースからのビルド
 

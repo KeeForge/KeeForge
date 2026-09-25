@@ -413,6 +413,26 @@ enum DatabaseListStore {
         }
     }
 
+    /// Adding or removing the hardware key changes what the stored Quick
+    /// Launch key means (composite key vs. pre-key), so that key is dropped
+    /// and the next successful unlock stores the right one.
+    static func setHardwareKey(_ hardwareKey: HardwareKeyConfiguration?, for reference: DatabaseReference) {
+        withStateLock {
+            guard var updatedReference = loadDatabases().first(where: { $0.id == reference.id }) else { return }
+            guard updatedReference.hardwareKey != hardwareKey else { return }
+
+            if (updatedReference.hardwareKey == nil) != (hardwareKey == nil) {
+                KeychainService.deleteCompositeKey(for: updatedReference.id)
+                if let legacyFilename = updatedReference.legacyKeychainFilename {
+                    KeychainService.deleteLegacyCompositeKey(forFilename: legacyFilename)
+                    updatedReference.legacyKeychainFilename = nil
+                }
+            }
+            updatedReference.hardwareKey = hardwareKey
+            update(updatedReference)
+        }
+    }
+
     /// Owns the consequences of toggling a database's AutoFill participation
     /// (mirroring how `remove(id:)` owns removal consequences): disabling
     /// removes exactly that database's published identities — targeted, needs

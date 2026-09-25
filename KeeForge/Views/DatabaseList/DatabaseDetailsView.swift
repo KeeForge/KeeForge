@@ -156,17 +156,13 @@ struct DatabaseDetailsView: View {
                     set: { setReadOnly($0) }
                 )
             )
-            .disabled(isFormatReadOnly)
+            .disabled(isFormatReadOnly || isHardwareKeyReadOnly)
             .accessibilityIdentifier("database-row.read-only-toggle")
         } header: {
             Text("Editing")
         } footer: {
-            Text(
-                isFormatReadOnly
-                    ? "Legacy KDBX 3.1 databases can be opened, but KeeForge intentionally keeps them read-only."
-                    : "You can still open this database, but create, edit, and delete actions stay blocked until you turn editing back on."
-            )
-            .accessibilityIdentifier("database-details.read-only-footer")
+            Text(readOnlyFooter)
+                .accessibilityIdentifier("database-details.read-only-footer")
         }
     }
 
@@ -428,8 +424,24 @@ struct DatabaseDetailsView: View {
         return fileInfo?.summary?.formatVersion.requiresReadOnlyMode ?? false
     }
 
+    /// Saving a YubiKey-protected database is not supported yet, so it is
+    /// read-only while the hardware key is configured, like KDBX 3.1.
+    private var isHardwareKeyReadOnly: Bool {
+        sessionViewModel?.sessionUsesHardwareKey == true || currentReference.hardwareKey != nil
+    }
+
     private var isReadOnly: Bool {
-        currentReference.isReadOnly || isFormatReadOnly
+        currentReference.isReadOnly || isFormatReadOnly || isHardwareKeyReadOnly
+    }
+
+    private var readOnlyFooter: String {
+        if isFormatReadOnly {
+            return String(localized: "Legacy KDBX 3.1 databases can be opened, but KeeForge intentionally keeps them read-only.")
+        }
+        if isHardwareKeyReadOnly {
+            return String(localized: "Databases unlocked with a YubiKey open read-only for now. Saving them is not supported yet.")
+        }
+        return String(localized: "You can still open this database, but create, edit, and delete actions stay blocked until you turn editing back on.")
     }
 
     private func setReadOnly(_ newValue: Bool) {

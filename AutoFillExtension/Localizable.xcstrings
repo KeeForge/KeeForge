@@ -5064,6 +5064,46 @@
         }
       }
     },
+    "This database needs a YubiKey, which AutoFill can't use yet. Open it in the KeeForge app instead." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Diese Datenbank benötigt einen YubiKey, den das automatische Ausfüllen noch nicht verwenden kann. Öffne sie stattdessen in der KeeForge-App."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Esta base de datos necesita una YubiKey, que Autorrelleno aún no puede usar. Ábrela en la app KeeForge."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cette base de données nécessite une YubiKey, que le remplissage automatique ne peut pas encore utiliser. Ouvrez-la plutôt dans l’app KeeForge."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このデータベースには YubiKey が必要ですが、自動入力ではまだ使用できません。代わりに KeeForge App で開いてください。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此数据库需要 YubiKey，而自动填充暂不支持。请改为在 KeeForge App 中打开。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此資料庫需要 YubiKey，而自動填寫暫不支援。請改在 KeeForge App 中開啟。"
+          }
+        }
+      }
+    },
     "This database needs about %@ of memory to unlock, more than the %@ AutoFill is allowed to use. Open the entry in the KeeForge app, or lower the database's Argon2 memory setting in a desktop KeePass app." : {
       "localizations" : {
         "de" : {

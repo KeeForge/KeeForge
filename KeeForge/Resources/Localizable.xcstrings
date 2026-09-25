@@ -2928,6 +2928,46 @@
         }
       }
     },
+    "Apache License 2.0" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apache-Lizenz 2.0"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Licencia Apache 2.0"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Licence Apache 2.0"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apache ライセンス 2.0"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apache 许可证 2.0"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apache 授權條款 2.0"
+          }
+        }
+      }
+    },
     "App" : {
       "localizations" : {
         "de" : {
@@ -7330,6 +7370,46 @@
         }
       }
     },
+    "Connect your YubiKey, then touch it when it flashes." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Schließe deinen YubiKey an und berühre ihn, wenn er blinkt."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Conecta tu YubiKey y tócala cuando parpadee."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Branchez votre YubiKey, puis touchez-la lorsqu’elle clignote."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "YubiKey を接続し、点滅したらタッチしてください。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "连接 YubiKey，并在其闪烁时轻触。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "連接 YubiKey，並在其閃爍時輕觸。"
+          }
+        }
+      }
+    },
     "Contact Support" : {
       "localizations" : {
         "de" : {
@@ -10092,6 +10172,46 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "資料庫現在提供「匯出副本…」——在資料庫列表和「資料庫詳細資訊」中——可以帶時間戳記的名稱儲存副本。當雲端上傳卡住時，可用它在其他 KeePass App 中合併變更。"
+          }
+        }
+      }
+    },
+    "Databases unlocked with a YubiKey open read-only for now. Saving them is not supported yet." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mit einem YubiKey entsperrte Datenbanken werden vorerst schreibgeschützt geöffnet. Speichern wird noch nicht unterstützt."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Por ahora, las bases de datos desbloqueadas con una YubiKey se abren en modo de solo lectura. Todavía no se pueden guardar."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Les bases de données déverrouillées avec une YubiKey s’ouvrent pour l’instant en lecture seule. Leur enregistrement n’est pas encore pris en charge."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "YubiKey でロック解除したデータベースは、現在は読み取り専用で開きます。保存にはまだ対応していません。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "使用 YubiKey 解锁的数据库目前以只读方式打开，暂不支持保存。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "使用 YubiKey 解鎖的資料庫目前以唯讀方式開啟，暫不支援儲存。"
           }
         }
       }
@@ -14736,6 +14856,46 @@
         }
       }
     },
+    "Hardware Key" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hardwareschlüssel"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Llave de hardware"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Clé matérielle"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ハードウェアキー"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "硬件密钥"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "硬體金鑰"
+          }
+        }
+      }
+    },
     "Has a passkey" : {
       "localizations" : {
         "de" : {
@@ -15252,6 +15412,46 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "HMAC 驗證失敗——檔案已損毀或密碼錯誤"
+          }
+        }
+      }
+    },
+    "Hold your YubiKey near the top of your device." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Halte deinen YubiKey an die Oberseite deines Geräts."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Acerca tu YubiKey a la parte superior del dispositivo."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Approchez votre YubiKey du haut de votre appareil."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "YubiKey をデバイスの上部に近づけてください。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "将 YubiKey 靠近设备顶部。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "將 YubiKey 靠近裝置頂部。"
           }
         }
       }
@@ -16252,6 +16452,46 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "KeeForge 目前無法送出意見回饋。請稍後再試。"
+          }
+        }
+      }
+    },
+    "KeeForge couldn't talk to the YubiKey. Try again." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge konnte nicht mit dem YubiKey kommunizieren. Versuche es erneut."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge no pudo comunicarse con la YubiKey. Vuelve a intentarlo."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge n’a pas pu communiquer avec la YubiKey. Réessayez."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge は YubiKey と通信できませんでした。もう一度お試しください。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge 无法与 YubiKey 通信。请重试。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge 無法與 YubiKey 通訊。請再試一次。"
           }
         }
       }
@@ -17292,6 +17532,46 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "當 macOS 提示填寫密碼時，KeeForge 會根據下方所選的資料庫提供憑證建議。選擇建議時需要進行驗證。"
+          }
+        }
+      }
+    },
+    "KeeForge supports YubiKeys only for KDBX 4 databases. Turn off Hardware Key to open this database." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge unterstützt YubiKeys nur für KDBX-4-Datenbanken. Schalte „Hardwareschlüssel“ aus, um diese Datenbank zu öffnen."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge solo admite YubiKey en bases de datos KDBX 4. Desactiva «Llave de hardware» para abrir esta base de datos."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge ne prend en charge les YubiKey que pour les bases de données KDBX 4. Désactivez « Clé matérielle » pour ouvrir cette base de données."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge は KDBX 4 データベースでのみ YubiKey に対応しています。このデータベースを開くには「ハードウェアキー」をオフにしてください。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge 仅支持在 KDBX 4 数据库中使用 YubiKey。请关闭“硬件密钥”以打开此数据库。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge 僅支援在 KDBX 4 資料庫中使用 YubiKey。請關閉「硬體金鑰」以開啟此資料庫。"
           }
         }
       }
@@ -29382,6 +29662,46 @@
         }
       }
     },
+    "The password or key file didn't unlock this database. If it also needs a YubiKey, choose it under Hardware Key and try again. Otherwise the file may be corrupted." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Das Passwort oder die Schlüsseldatei hat diese Datenbank nicht entsperrt. Falls sie zusätzlich einen YubiKey benötigt, wähle ihn unter „Hardwareschlüssel“ aus und versuche es erneut. Andernfalls ist die Datei möglicherweise beschädigt."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La contraseña o el archivo de clave no han desbloqueado esta base de datos. Si también necesita una YubiKey, elígela en «Llave de hardware» y vuelve a intentarlo. De lo contrario, es posible que el archivo esté dañado."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Le mot de passe ou le fichier clé n’a pas déverrouillé cette base de données. Si elle nécessite aussi une YubiKey, choisissez-la sous « Clé matérielle » et réessayez. Sinon, le fichier est peut-être corrompu."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "パスワードまたはキーファイルでこのデータベースのロックを解除できませんでした。YubiKey も必要な場合は、「ハードウェアキー」で選択してもう一度お試しください。それ以外の場合は、ファイルが破損している可能性があります。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "密码或密钥文件未能解锁此数据库。如果它还需要 YubiKey，请在“硬件密钥”中选择后重试。否则文件可能已损坏。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "密碼或金鑰檔案未能解鎖此資料庫。若它還需要 YubiKey，請在「硬體金鑰」中選擇後再試一次。否則檔案可能已損毀。"
+          }
+        }
+      }
+    },
     "The password or key file didn't unlock this database. If you're sure they are correct, the file may be corrupted." : {
       "localizations" : {
         "de" : {
@@ -29418,6 +29738,46 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "密碼或金鑰檔案無法解鎖此資料庫。如果你確定它們正確無誤，檔案可能已損毀。"
+          }
+        }
+      }
+    },
+    "The password, key file, or YubiKey didn't unlock this database. Check that the YubiKey and its slot are the ones this database uses." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Das Passwort, die Schlüsseldatei oder der YubiKey hat diese Datenbank nicht entsperrt. Prüfe, ob YubiKey und Slot zu dieser Datenbank gehören."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La contraseña, el archivo de clave o la YubiKey no han desbloqueado esta base de datos. Comprueba que la YubiKey y su ranura sean las que usa esta base de datos."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Le mot de passe, le fichier clé ou la YubiKey n’a pas déverrouillé cette base de données. Vérifiez que la YubiKey et son emplacement sont bien ceux qu’utilise cette base de données."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "パスワード、キーファイル、または YubiKey でこのデータベースのロックを解除できませんでした。YubiKey とそのスロットがこのデータベースで使われているものか確認してください。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "密码、密钥文件或 YubiKey 未能解锁此数据库。请确认 YubiKey 及其插槽是此数据库所使用的。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "密碼、金鑰檔案或 YubiKey 未能解鎖此資料庫。請確認 YubiKey 及其插槽是此資料庫所使用的。"
           }
         }
       }
@@ -29618,6 +29978,46 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "此要求已無法使用。"
+          }
+        }
+      }
+    },
+    "The selected YubiKey slot isn't set up for challenge-response. Choose the other slot under Hardware Key." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Der ausgewählte YubiKey-Slot ist nicht für Challenge-Response eingerichtet. Wähle unter „Hardwareschlüssel“ den anderen Slot."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La ranura de YubiKey seleccionada no está configurada para desafío-respuesta. Elige la otra ranura en «Llave de hardware»."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "L’emplacement de YubiKey sélectionné n’est pas configuré pour le défi-réponse. Choisissez l’autre emplacement sous « Clé matérielle »."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "選択した YubiKey のスロットはチャレンジレスポンス用に設定されていません。「ハードウェアキー」でもう一方のスロットを選択してください。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "所选 YubiKey 插槽未设置为质询-响应。请在“硬件密钥”中选择另一个插槽。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "所選 YubiKey 插槽未設定為挑戰-回應。請在「硬體金鑰」中選擇另一個插槽。"
           }
         }
       }
@@ -30178,6 +30578,166 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "WebDAV 使用者名稱或密碼遭拒。"
+          }
+        }
+      }
+    },
+    "The YubiKey couldn't be read." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Der YubiKey konnte nicht gelesen werden."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No se pudo leer la YubiKey."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Impossible de lire la YubiKey."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "YubiKey を読み取れませんでした。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无法读取 YubiKey。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法讀取 YubiKey。"
+          }
+        }
+      }
+    },
+    "The YubiKey didn't respond in time. Try again, and touch the key when it flashes." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Der YubiKey hat nicht rechtzeitig geantwortet. Versuche es erneut und berühre den Schlüssel, wenn er blinkt."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La YubiKey no respondió a tiempo. Vuelve a intentarlo y toca la llave cuando parpadee."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La YubiKey n’a pas répondu à temps. Réessayez et touchez la clé lorsqu’elle clignote."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "YubiKey が時間内に応答しませんでした。もう一度試し、キーが点滅したらタッチしてください。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "YubiKey 未及时响应。请重试，并在其闪烁时轻触。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "YubiKey 未及時回應。請再試一次，並在其閃爍時輕觸。"
+          }
+        }
+      }
+    },
+    "The YubiKey request was cancelled. Try again when your YubiKey is ready." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die YubiKey-Anfrage wurde abgebrochen. Versuche es erneut, sobald dein YubiKey bereit ist."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Se canceló la solicitud a la YubiKey. Vuelve a intentarlo cuando tu YubiKey esté lista."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La demande à la YubiKey a été annulée. Réessayez lorsque votre YubiKey est prête."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "YubiKey のリクエストはキャンセルされました。YubiKey の準備ができたら、もう一度お試しください。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "YubiKey 请求已取消。准备好 YubiKey 后请重试。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "YubiKey 請求已取消。準備好 YubiKey 後請再試一次。"
+          }
+        }
+      }
+    },
+    "The YubiKey was removed before it answered. Keep it in place until the database opens." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Der YubiKey wurde entfernt, bevor er geantwortet hat. Lass ihn an Ort und Stelle, bis die Datenbank geöffnet ist."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Se retiró la YubiKey antes de que respondiera. Mantenla en su sitio hasta que se abra la base de datos."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La YubiKey a été retirée avant de répondre. Laissez-la en place jusqu’à l’ouverture de la base de données."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "YubiKey が応答する前に取り外されました。データベースが開くまでそのままにしてください。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "YubiKey 在响应前被移开。请保持不动，直到数据库打开。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "YubiKey 在回應前被移開。請保持不動，直到資料庫開啟。"
           }
         }
       }
@@ -30822,6 +31382,46 @@
         }
       }
     },
+    "This database needs a YubiKey, which AutoFill can't use yet. Open it in the KeeForge app instead." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Diese Datenbank benötigt einen YubiKey, den das automatische Ausfüllen noch nicht verwenden kann. Öffne sie stattdessen in der KeeForge-App."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Esta base de datos necesita una YubiKey, que Autorrelleno aún no puede usar. Ábrela en la app KeeForge."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cette base de données nécessite une YubiKey, que le remplissage automatique ne peut pas encore utiliser. Ouvrez-la plutôt dans l’app KeeForge."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このデータベースには YubiKey が必要ですが、自動入力ではまだ使用できません。代わりに KeeForge App で開いてください。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此数据库需要 YubiKey，而自动填充暂不支持。请改为在 KeeForge App 中打开。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此資料庫需要 YubiKey，而自動填寫暫不支援。請改在 KeeForge App 中開啟。"
+          }
+        }
+      }
+    },
     "This database needs about %@ of memory to unlock, more than the %@ AutoFill is allowed to use. Open the entry in the KeeForge app, or lower the database's Argon2 memory setting in a desktop KeePass app." : {
       "localizations" : {
         "de" : {
@@ -31224,6 +31824,46 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "此資料庫的金鑰衍生設定（%@ 記憶體 × %@ 次迭代、%@ 個執行緒）超出了此 App 可安全執行的範圍。請在桌面版 KeePass App 中調低資料庫的 Argon2 設定並儲存，然後再試一次。"
+          }
+        }
+      }
+    },
+    "This device can't reach a YubiKey the way this database is set up. Choose a different connection under Hardware Key." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dieses Gerät kann einen YubiKey nicht so erreichen, wie es für diese Datenbank eingestellt ist. Wähle unter „Hardwareschlüssel“ eine andere Verbindung."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Este dispositivo no puede conectar con una YubiKey de la forma configurada para esta base de datos. Elige otra conexión en «Llave de hardware»."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cet appareil ne peut pas joindre de YubiKey de la façon configurée pour cette base de données. Choisissez une autre connexion sous « Clé matérielle »."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このデバイスでは、このデータベースに設定された方法で YubiKey に接続できません。「ハードウェアキー」で別の接続方法を選択してください。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此设备无法按此数据库的设置连接 YubiKey。请在“硬件密钥”中选择其他连接方式。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此裝置無法依此資料庫的設定連接 YubiKey。請在「硬體金鑰」中選擇其他連接方式。"
           }
         }
       }
@@ -35944,6 +36584,526 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "你未儲存的項目更動將會遺失。"
+          }
+        }
+      }
+    },
+    "YubiKey" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "YubiKey"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "YubiKey"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "YubiKey"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "YubiKey"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "YubiKey"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "YubiKey"
+          }
+        }
+      }
+    },
+    "YubiKey Disconnected" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "YubiKey getrennt"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "YubiKey desconectada"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "YubiKey déconnectée"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "YubiKey の接続が切れました"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "YubiKey 已断开连接"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "YubiKey 已中斷連線"
+          }
+        }
+      }
+    },
+    "YubiKey Not Read" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "YubiKey nicht gelesen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "YubiKey no leída"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "YubiKey non lue"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "YubiKey を読み取れませんでした"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未读取 YubiKey"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未讀取 YubiKey"
+          }
+        }
+      }
+    },
+    "YubiKey Not Supported for This Database" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "YubiKey für diese Datenbank nicht unterstützt"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "YubiKey no compatible con esta base de datos"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "YubiKey non prise en charge pour cette base de données"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このデータベースでは YubiKey に対応していません"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此数据库不支持 YubiKey"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此資料庫不支援 YubiKey"
+          }
+        }
+      }
+    },
+    "YubiKey read." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "YubiKey gelesen."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "YubiKey leída."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "YubiKey lue."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "YubiKey を読み取りました。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已读取 YubiKey。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已讀取 YubiKey。"
+          }
+        }
+      }
+    },
+    "YubiKey Slot Not Set Up" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "YubiKey-Slot nicht eingerichtet"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ranura de la YubiKey no configurada"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Emplacement de la YubiKey non configuré"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "YubiKey のスロットが設定されていません"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "YubiKey 插槽未设置"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "YubiKey 插槽未設定"
+          }
+        }
+      }
+    },
+    "YubiKey Timed Out" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zeitüberschreitung beim YubiKey"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Se agotó el tiempo de la YubiKey"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Délai de la YubiKey dépassé"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "YubiKey がタイムアウトしました"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "YubiKey 超时"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "YubiKey 逾時"
+          }
+        }
+      }
+    },
+    "YubiKey Unavailable" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "YubiKey nicht verfügbar"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "YubiKey no disponible"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "YubiKey indisponible"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "YubiKey を使用できません"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "YubiKey 不可用"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "YubiKey 無法使用"
+          }
+        }
+      }
+    },
+    "YubiKey via Lightning, Slot 1" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "YubiKey per Lightning, Slot 1"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "YubiKey por Lightning, ranura 1"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "YubiKey via Lightning, emplacement 1"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lightning 経由の YubiKey、スロット 1"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "通过 Lightning 的 YubiKey，插槽 1"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "透過 Lightning 的 YubiKey，插槽 1"
+          }
+        }
+      }
+    },
+    "YubiKey via Lightning, Slot 2" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "YubiKey per Lightning, Slot 2"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "YubiKey por Lightning, ranura 2"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "YubiKey via Lightning, emplacement 2"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lightning 経由の YubiKey、スロット 2"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "通过 Lightning 的 YubiKey，插槽 2"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "透過 Lightning 的 YubiKey，插槽 2"
+          }
+        }
+      }
+    },
+    "YubiKey via NFC, Slot 1" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "YubiKey per NFC, Slot 1"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "YubiKey por NFC, ranura 1"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "YubiKey via NFC, emplacement 1"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "NFC 経由の YubiKey、スロット 1"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "通过 NFC 的 YubiKey，插槽 1"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "透過 NFC 的 YubiKey，插槽 1"
+          }
+        }
+      }
+    },
+    "YubiKey via NFC, Slot 2" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "YubiKey per NFC, Slot 2"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "YubiKey por NFC, ranura 2"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "YubiKey via NFC, emplacement 2"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "NFC 経由の YubiKey、スロット 2"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "通过 NFC 的 YubiKey，插槽 2"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "透過 NFC 的 YubiKey，插槽 2"
+          }
+        }
+      }
+    },
+    "YubiKit" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "YubiKit"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "YubiKit"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "YubiKit"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "YubiKit"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "YubiKit"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "YubiKit"
           }
         }
       }
