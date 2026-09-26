@@ -340,7 +340,7 @@ struct EntryEditView: View {
                 Task { await databaseViewModel.continueEditingAfterLockRequest() }
             }
         } message: {
-            Text("Your entry changes haven't been saved to this database yet.")
+            Text(verbatim: formViewModel.saveBeforeLockMessage)
         }
         .alert("Discard changes?", isPresented: $showDiscardConfirmation) {
             Button("Discard Changes", role: .destructive) {
@@ -430,7 +430,7 @@ struct EntryEditView: View {
             }
 
             basicFieldRow(String(localized: "Field Value")) {
-                if field.wrappedValue.isProtected {
+                if formViewModel.isCustomFieldProtected(field.wrappedValue) {
                     PasswordInputRow(
                         title: valueLabel,
                         text: field.value,

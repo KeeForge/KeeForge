@@ -33388,6 +33388,46 @@
         }
       }
     },
+    "To save them, first fix this: %@" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Um sie zu sichern, beheben Sie zuerst Folgendes: %@"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Para guardarlos, primero corrija esto: %@"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pour les enregistrer, corrigez d'abord ceci : %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "保存するには、まず次の問題を修正してください：%@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "要保存，请先修正以下问题：%@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "若要儲存，請先修正以下問題：%@"
+          }
+        }
+      }
+    },
     "Too Many Failed Attempts" : {
       "localizations" : {
         "de" : {

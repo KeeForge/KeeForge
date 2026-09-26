@@ -1019,4 +1019,55 @@ final class ProtectedCustomFieldUITests: UnlockedDatabaseUITestCase {
             "Protected history value did not appear after reveal"
         )
     }
+
+    func testProtectedCustomFieldStartsMaskedAndRevealsInTheEditor() {
+        unlockSuccessfully()
+        openFixtureEntry(groupName: "Secrets", entryName: "Protected Custom")
+        openProtectedCustomFieldInEditor()
+
+        tapElement(app.buttons["entry-edit.custom-field.value-visibility-button.0"])
+        let revealed = app.textFields["entry-edit.custom-field.value-field.0"]
+        XCTAssertTrue(revealed.waitForExistence(timeout: 5), "Protected value did not appear after reveal")
+        XCTAssertEqual(revealed.value as? String, "custom-secret")
+    }
+}
+
+/// The editor's reveal of a protected custom field goes through the same
+/// device-owner gate as the password; the stub keeps that authentication
+/// pending forever, so nothing may be disclosed.
+@MainActor
+final class ProtectedCustomFieldEditorAuthUITests: UnlockedDatabaseUITestCase {
+    override var databaseFixtureName: String { "kitchen-sink" }
+
+    override func configureLaunch(app: XCUIApplication) throws {
+        app.launchEnvironment["UI_TEST_DEVICE_OWNER_AUTH_PENDING"] = "1"
+    }
+
+    func testRevealingAProtectedCustomFieldInTheEditorWaitsForAuthentication() {
+        unlockSuccessfully()
+        openFixtureEntry(groupName: "Secrets", entryName: "Protected Custom")
+        openProtectedCustomFieldInEditor()
+
+        tapElement(app.buttons["entry-edit.custom-field.value-visibility-button.0"])
+        XCTAssertFalse(
+            app.textFields["entry-edit.custom-field.value-field.0"].waitForExistence(timeout: 3),
+            "Protected value was revealed without device-owner authentication"
+        )
+        XCTAssertTrue(app.secureTextFields["entry-edit.custom-field.value-field.0"].exists)
+    }
+}
+
+extension UnlockedDatabaseUITestCase {
+    /// Opens the editor on the kitchen-sink `Protected Custom` entry, whose
+    /// only custom field is the protected `API Token`, and asserts it is masked.
+    func openProtectedCustomFieldInEditor(file: StaticString = #filePath, line: UInt = #line) {
+        let editButton = app.buttons["entry-detail.edit"]
+        XCTAssertTrue(editButton.waitForExistence(timeout: 5), "Edit button was not visible", file: file, line: line)
+        tapElement(editButton)
+
+        let masked = app.secureTextFields["entry-edit.custom-field.value-field.0"]
+        XCTAssertTrue(revealElement(masked), "Protected custom field was not masked in the editor", file: file, line: line)
+        XCTAssertFalse(app.textFields["entry-edit.custom-field.value-field.0"].exists, file: file, line: line)
+        XCTAssertFalse(app.staticTexts["custom-secret"].exists, file: file, line: line)
+    }
 }

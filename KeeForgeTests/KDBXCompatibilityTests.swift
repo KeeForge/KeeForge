@@ -917,6 +917,28 @@ final class KDBXCompatibilityTests: XCTestCase {
         )
     }
 
+    /// `OTP` is one of the names the parser reads as KeeOTP storage, but only
+    /// for a `key=` value; an entry that already uses it for something else
+    /// must keep it through an edit.
+    @MainActor
+    func test_anExistingNonKeeOTPOTPField_survivesAnEditInTheEditor() throws {
+        let entry = KPEntry(
+            title: "Backup Codes",
+            password: try EncryptedValue.encrypt("password", using: entrySessionKey),
+            customFields: ["OTP": "1111 2222"]
+        )
+        let viewModel = EntryEditViewModel(editing: entry, sessionKey: entrySessionKey)
+        viewModel.customFields[0].value = "3333 4444"
+        XCTAssertTrue(viewModel.canSave)
+
+        let updated = try DatabaseDraft(rootGroup: KPGroup(name: "Root", entries: [entry]), meta: KPMeta(), sessionKey: entrySessionKey)
+            .apply(.updateEntry(entryID: entry.id, draft: viewModel.entryDraftPayload))
+        let reloaded = try writeAndReload(updated)
+
+        XCTAssertEqual(reloaded.displayCustomFields, ["OTP": "3333 4444"])
+        XCTAssertNil(reloaded.totpConfig)
+    }
+
     func test_passkeyPrivateKey_divertedOnParse_andPreservedThroughEditSaveReload() throws {
         let loaded = try KDBXCompatibilitySupport.load(.syntheticRich, bundle: bundle, sessionKey: entrySessionKey)
         let entry = try XCTUnwrap(firstEntry(titled: "Compat Update Target", in: loaded.rootGroup))
