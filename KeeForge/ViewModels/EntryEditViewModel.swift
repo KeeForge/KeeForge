@@ -28,6 +28,8 @@ final class EntryEditViewModel {
     private static let reservedCustomFieldKeys = Set([
         "Title", "UserName", "Password", "URL", "Notes", "otp", "TOTP Seed", "TOTP Settings",
     ]).union(PasskeyCredential.allFieldKeys)
+    /// The parser reads a `key=` value under these names as KeeOTP storage.
+    private static let keeOTPCandidateKeys: Set<String> = ["OTP", "Otp"]
 
     enum Mode: Sendable, Equatable {
         case create(parentGroupID: UUID)
@@ -83,6 +85,11 @@ final class EntryEditViewModel {
     private var enrolledOTPAuthURI: String?
 
     private let preservedCustomFields: [String: String]
+    private let seededCustomFieldKeys: Set<String>
+    /// `DatabaseDraft` keeps an edited entry's protection by key name, so a
+    /// field saved under one of these names comes out protected whatever its
+    /// own flag says.
+    private let protectedKeysKeptOnSave: Set<String>
     private let originalSnapshot: Snapshot
     private let decodedTOTPSecret: Data?
     private let keeOTPSource: KeeOTPSource?
@@ -110,6 +117,7 @@ final class EntryEditViewModel {
         inheritedTags: [String] = [],
         editableCustomFields: [CustomField] = [],
         preservedCustomFields: [String: String] = [:],
+        protectedKeysKeptOnSave: Set<String> = [],
         totpSecret: String = "",
         totpDecodedSecret: Data? = nil,
         keeOTPSource: KeeOTPSource? = nil,
@@ -131,6 +139,8 @@ final class EntryEditViewModel {
         self.inheritedTags = Set(inheritedTags)
         self.customFields = editableCustomFields
         self.preservedCustomFields = preservedCustomFields
+        self.seededCustomFieldKeys = Set(editableCustomFields.map(\.key))
+        self.protectedKeysKeptOnSave = protectedKeysKeptOnSave
         self.totpSecret = totpSecret
         self.decodedTOTPSecret = totpDecodedSecret
         self.keeOTPSource = keeOTPSource
@@ -221,6 +231,7 @@ final class EntryEditViewModel {
             inheritedTags: inheritedTags,
             editableCustomFields: editableCustomFields,
             preservedCustomFields: preservedCustomFields,
+            protectedKeysKeptOnSave: entry.protectedStringKeys,
             totpSecret: totpSecret,
             totpDecodedSecret: decodedTOTPSecret,
             keeOTPSource: entry.totpConfig?.keeOTPSource,
@@ -306,8 +317,7 @@ final class EntryEditViewModel {
     }
 
     var canSave: Bool {
-        guard unsupportedTOTPDigitsMessage == nil else { return false }
-        guard customFields.allSatisfy({ customFieldValidationMessage(for: $0) == nil }) else { return false }
+        guard saveBlockedMessage == nil else { return false }
         switch mode {
         case .create:
             return isDirty
@@ -461,6 +471,26 @@ final class EntryEditViewModel {
         customFields.removeAll(where: { $0.id == id })
     }
 
+    /// Why the form cannot be saved as it stands, or nil when nothing blocks
+    /// it. Whether there is anything to save is `isDirty`'s question.
+    var saveBlockedMessage: String? {
+        unsupportedTOTPDigitsMessage ?? customFields.lazy.compactMap(customFieldValidationMessage(for:)).first
+    }
+
+    /// The lock prompt's message. Its Save and Lock is disabled while the
+    /// form is blocked, so the message has to say why.
+    var saveBeforeLockMessage: String {
+        let unsaved = String(localized: "Your entry changes haven't been saved to this database yet.")
+        guard let reason = saveBlockedMessage else { return unsaved }
+        return unsaved + "\n\n" + String(localized: "To save them, first fix this: \(reason)")
+    }
+
+    /// Whether `field` will be written protected, and so must be edited concealed.
+    func isCustomFieldProtected(_ field: CustomField) -> Bool {
+        field.isProtected
+            || protectedKeysKeptOnSave.contains(field.key.trimmingCharacters(in: .whitespacesAndNewlines))
+    }
+
     /// Why `field` cannot be saved as it stands, or nil when it can. A row
     /// left entirely blank is not an error: it is simply not written.
     func customFieldValidationMessage(for field: CustomField) -> String? {
@@ -502,7 +532,9 @@ final class EntryEditViewModel {
             // A row the user added but left untouched is not an edit: it
             // writes nothing, so it must not arm Cancel's discard prompt or
             // let Save append a history version that changes nothing.
-            customFields: customFields.filter { $0.key.isEmpty == false || $0.value.isEmpty == false },
+            customFields: customFields.filter {
+                $0.key.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false || $0.value.isEmpty == false
+            },
             totpSecret: totpSecret,
             totpPeriod: totpPeriod,
             totpDigits: totpDigits,
@@ -516,6 +548,7 @@ final class EntryEditViewModel {
             || key.hasPrefix("TimeOtp-")
             || key == keeOTPSource?.fieldName
             || preservedCustomFields[key] != nil
+            || (Self.keeOTPCandidateKeys.contains(key) && seededCustomFieldKeys.contains(key) == false)
     }
 
     /// Reserved keys are skipped here as well as refused by `canSave`: one that
@@ -532,7 +565,7 @@ final class EntryEditViewModel {
 
     private func protectedCustomFieldKeys() -> Set<String> {
         let merged = mergedCustomFields()
-        return Set(customFields.filter(\.isProtected).compactMap {
+        return Set(customFields.filter(isCustomFieldProtected).compactMap {
             let key = $0.key.trimmingCharacters(in: .whitespacesAndNewlines)
             return merged[key] == nil ? nil : key
         })

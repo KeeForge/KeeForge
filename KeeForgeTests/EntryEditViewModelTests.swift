@@ -542,6 +542,107 @@ final class EntryEditViewModelTests: XCTestCase {
         XCTAssertFalse(viewModel.isDirty, "Emptying the row again puts the form back where it started")
     }
 
+    func testARowNamedOnlyWithSpacesWritesNothingAndIsNotAnEdit() {
+        let entry = KPEntry(title: "Entry", customFields: ["A": "1"])
+        let viewModel = EntryEditViewModel(editing: entry, sessionKey: sessionKey)
+        viewModel.addCustomField()
+        viewModel.customFields[1].key = "  "
+
+        XCTAssertEqual(viewModel.entryDraftPayload.customFields, ["A": "1"])
+        XCTAssertFalse(viewModel.isDirty)
+        XCTAssertFalse(viewModel.canSave)
+    }
+
+    func testAFieldTakingANameTheEntryProtectsIsEditedAndSavedProtected() throws {
+        let entry = KPEntry(
+            title: "Bank",
+            customFields: ["PIN": "1234", "Branch": "Main Street"],
+            protectedStringKeys: ["PIN"]
+        )
+        let viewModel = EntryEditViewModel(editing: entry, sessionKey: sessionKey)
+        let pinIndex = try XCTUnwrap(viewModel.customFields.firstIndex { $0.key == "PIN" })
+        viewModel.customFields[pinIndex].key = "Card PIN"
+        viewModel.addCustomField()
+        viewModel.customFields[2].key = "PIN"
+        viewModel.customFields[2].value = "not a secret"
+        viewModel.addCustomField()
+        viewModel.customFields[3].key = "Region"
+
+        XCTAssertEqual(
+            viewModel.customFields.map { viewModel.isCustomFieldProtected($0) },
+            [false, true, true, false],
+            "Branch, Card PIN, the reused PIN, Region"
+        )
+        XCTAssertEqual(viewModel.entryDraftPayload.protectedCustomFieldKeys, ["Card PIN", "PIN"])
+    }
+
+    func testANewEntryInheritsNoProtectionByName() {
+        let viewModel = EntryEditViewModel(createIn: UUID())
+        viewModel.addCustomField()
+        viewModel.customFields[0].key = "PIN"
+
+        XCTAssertFalse(viewModel.isCustomFieldProtected(viewModel.customFields[0]))
+    }
+
+    func testTheLockPromptSaysWhatBlocksSaving() {
+        let entry = KPEntry(title: "Entry", customFields: ["Region": "EU"])
+        let viewModel = EntryEditViewModel(editing: entry, sessionKey: sessionKey)
+        let unsaved = String(localized: "Your entry changes haven't been saved to this database yet.")
+        viewModel.customFields[0].value = "US"
+
+        XCTAssertNil(viewModel.saveBlockedMessage)
+        XCTAssertEqual(viewModel.saveBeforeLockMessage, unsaved)
+
+        viewModel.addCustomField()
+        viewModel.customFields[1].key = "Region"
+        let reason = viewModel.customFieldValidationMessage(for: viewModel.customFields[1])
+
+        XCTAssertNotNil(reason)
+        XCTAssertEqual(viewModel.saveBlockedMessage, reason)
+        XCTAssertFalse(viewModel.canSave)
+        XCTAssertTrue(viewModel.saveBeforeLockMessage.hasPrefix(unsaved))
+        XCTAssertTrue(viewModel.saveBeforeLockMessage.contains(reason ?? "-"))
+    }
+
+    func testTheLockPromptNamesAnUnsupportedTOTPDigitCount() throws {
+        let entry = KPEntry(
+            title: "Legacy",
+            totpConfig: TOTPConfig(
+                secret: try EncryptedValue.encrypt("JBSWY3DPEHPK3PXP", using: sessionKey),
+                keeOTPSource: KeeOTPSource(fieldName: "OTP", rawQuery: "key=JBSWY3DPEHPK3PXP")
+            )
+        )
+        let viewModel = EntryEditViewModel(editing: entry, sessionKey: sessionKey)
+        viewModel.totpDigits = 7
+
+        let reason = try XCTUnwrap(viewModel.unsupportedTOTPDigitsMessage)
+        XCTAssertEqual(viewModel.saveBlockedMessage, reason)
+        XCTAssertTrue(viewModel.saveBeforeLockMessage.contains(reason))
+    }
+
+    func testANewFieldCannotTakeANameTheParserReadsAsKeeOTP() {
+        for key in ["OTP", "Otp"] {
+            let viewModel = EntryEditViewModel(editing: KPEntry(title: "Codes"), sessionKey: sessionKey)
+            viewModel.addCustomField()
+            viewModel.customFields[0].key = key
+            viewModel.customFields[0].value = "key=JBSWY3DPEHPK3PXP"
+
+            XCTAssertNotNil(viewModel.customFieldValidationMessage(for: viewModel.customFields[0]), key)
+            XCTAssertFalse(viewModel.canSave, key)
+            XCTAssertNil(viewModel.entryDraftPayload.customFields[key], key)
+        }
+    }
+
+    func testAnOTPFieldTheEntryAlreadyHasStaysEditable() {
+        let entry = KPEntry(title: "Codes", customFields: ["OTP": "backup codes: 1111 2222"])
+        let viewModel = EntryEditViewModel(editing: entry, sessionKey: sessionKey)
+        viewModel.customFields[0].value = "backup codes: 3333 4444"
+
+        XCTAssertNil(viewModel.customFieldValidationMessage(for: viewModel.customFields[0]))
+        XCTAssertTrue(viewModel.canSave)
+        XCTAssertEqual(viewModel.entryDraftPayload.customFields["OTP"], "backup codes: 3333 4444")
+    }
+
     // MARK: - customFieldAccessibilityIdentifier
 
     func testCustomFieldAccessibilityIdentifierNormalizesKeyOrFallsBackToIndex() {
