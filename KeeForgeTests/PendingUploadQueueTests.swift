@@ -94,6 +94,72 @@ final class PendingUploadQueueTests: XCTestCase {
         )
     }
 
+    /// The drainer can run between the AutoFill cache write and finalization:
+    /// it sees the new cache against the provisional base hash and flags the
+    /// marker conflicted, bumping its generation. Finalization must still land
+    /// on that marker — a generation-checked `update` failed here and left the
+    /// provisional marker behind, which blocks every later recovery lookup.
+    func test_finalize_afterADrainerFlaggedTheProvisionalMarker_finalizesThatMarker() throws {
+        let environment = makeEnvironment()
+        var provisional = makeMarker(openTimeSHA512: Data("base-sha".utf8))
+        provisional.isPayloadFinalized = false
+        let extensionSnapshot = try PendingUploadQueue.enqueue(provisional, environment: environment)
+
+        var drainerSnapshot = extensionSnapshot
+        drainerSnapshot.marker.isConflicted = true
+        drainerSnapshot.marker.expectedRev = "rev-2"
+        _ = try PendingUploadQueue.update(drainerSnapshot, environment: environment)
+
+        var saved = extensionSnapshot
+        saved.marker.openTimeSHA512 = Data("payload-sha".utf8)
+        saved.marker.isPayloadFinalized = true
+        XCTAssertThrowsError(try PendingUploadQueue.update(saved, environment: environment)) { error in
+            XCTAssertEqual(error as? PendingUploadQueue.UpdateError, .markerChanged)
+        }
+        let finalized = try PendingUploadQueue.finalize(saved, environment: environment)
+
+        let markers = PendingUploadQueue.listMarkers(for: provisional.databaseId, environment: environment)
+        XCTAssertEqual(markers.map(\.id), [extensionSnapshot.id])
+        XCTAssertEqual(markers.first?.marker, finalized.marker)
+        XCTAssertEqual(finalized.marker.openTimeSHA512, Data("payload-sha".utf8))
+        XCTAssertTrue(finalized.marker.isPayloadFinalized)
+        XCTAssertFalse(finalized.marker.isConflicted)
+        XCTAssertEqual(finalized.marker.expectedRev, "rev-2", "The drainer's rebase must survive finalization")
+        XCTAssertEqual(finalized.marker.generation, 2)
+    }
+
+    func test_finalize_afterDrop_throwsInsteadOfRecreatingTheMarker() throws {
+        let environment = makeEnvironment()
+        var provisional = makeMarker()
+        provisional.isPayloadFinalized = false
+        let storedMarker = try PendingUploadQueue.enqueue(provisional, environment: environment)
+        XCTAssertTrue(try PendingUploadQueue.dropIfUnchanged(storedMarker, environment: environment))
+
+        XCTAssertThrowsError(try PendingUploadQueue.finalize(storedMarker, environment: environment)) { error in
+            XCTAssertEqual(error as? PendingUploadQueue.UpdateError, .markerNoLongerExists)
+        }
+        XCTAssertTrue(PendingUploadQueue.listMarkers(for: provisional.databaseId, environment: environment).isEmpty)
+    }
+
+    func test_markerLocks_leaveOneLockFilePerDatabaseAfterMarkersAreDropped() throws {
+        let environment = makeEnvironment()
+        let databaseId = UUID()
+        var storedMarkers = try (0..<3).map { _ in
+            try PendingUploadQueue.enqueue(makeMarker(databaseId: databaseId), environment: environment)
+        }
+        storedMarkers[0] = try PendingUploadQueue.markConflicted(storedMarkers[0], environment: environment)
+
+        for storedMarker in storedMarkers {
+            XCTAssertTrue(try PendingUploadQueue.dropIfUnchanged(storedMarker, environment: environment))
+        }
+
+        let directoryURL = storedMarkers[0].fileURL.deletingLastPathComponent()
+        XCTAssertEqual(
+            try FileManager.default.contentsOfDirectory(atPath: directoryURL.path),
+            [PendingUploadQueue.markerLockFileName]
+        )
+    }
+
     func test_update_afterDrop_doesNotResurrectMarker() throws {
         // Models a concurrent drain that already dropped the marker: a late
         // `update`/`markConflicted` must fail rather than recreate the file and

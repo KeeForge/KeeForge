@@ -71,7 +71,7 @@ enum AutoFillSaveCoordinator {
                 try PendingUploadQueue.enqueue(marker, notifying: false)
             },
             finalizePendingUpload: { storedMarker in
-                _ = try PendingUploadQueue.update(storedMarker)
+                _ = try PendingUploadQueue.finalize(storedMarker)
             },
             dropPendingUpload: { storedMarker in
                 try? PendingUploadQueue.drop(storedMarker)
@@ -134,7 +134,8 @@ enum AutoFillSaveCoordinator {
         // durable marker. Order is load-bearing:
         //   1. enqueue provisional marker recording the BASE bytes' SHA-512
         //   2. saveDraft: SHA-check, backup, atomic cache replace
-        //   3. finalize: CAS marker to the payload SHA, then wake the drainer
+        //   3. finalize: write the payload SHA onto the marker as it is on
+        //      disk (a drain may have touched it meanwhile), then wake the drainer
         // A crash before the replace leaves cache == marker SHA, so a drain
         // re-pushes identical bytes; after it, the mismatch surfaces as a
         // conflict rather than a silent wrong push.
@@ -224,7 +225,7 @@ enum AutoFillSaveCoordinator {
         }
     }
 
-    /// Phase 3 of the two-phase marker. A failed CAS means something else
+    /// Phase 3 of the two-phase marker. A failed finalize means something else
     /// dropped the provisional marker while the saved bytes are still
     /// unuploaded, so a replacement is enqueued unless the database is gone.
     /// The replacement keeps the ORIGINAL `expectedRev` and a nil `baseRev`:

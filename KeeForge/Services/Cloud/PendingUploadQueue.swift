@@ -151,6 +151,7 @@ enum PendingUploadQueue {
     }
 
     static let notificationName = "com.keevault.app.pending-upload-enqueued"
+    static let markerLockFileName = ".markers.lock"
 
     static func enqueue(_ marker: Marker, notifying: Bool = true) throws -> StoredMarker {
         try enqueue(marker, notifying: notifying, environment: .live)
@@ -265,6 +266,39 @@ enum PendingUploadQueue {
         }
     }
 
+    /// Phase 3 of the AutoFill two-phase marker: records the saved payload's
+    /// hash on the marker as it is on disk now, not as the extension read it.
+    /// A drainer that ran between the cache write and this call has already
+    /// bumped the generation and flagged the marker conflicted, because the
+    /// cache no longer matched the provisional base hash. A generation-checked
+    /// `update` would then fail and leave that provisional marker behind for
+    /// good, which makes every later recovery lookup `.unavailable`. The
+    /// conflict flag is cleared because the hash it was raised against is
+    /// gone; the drainer re-checks the finalized marker on its next pass.
+    /// The drainer's own changes (`expectedRev`, `baseRev`) are kept.
+    static func finalize(_ storedMarker: StoredMarker) throws -> StoredMarker {
+        try finalize(storedMarker, environment: .live)
+    }
+
+    static func finalize(_ storedMarker: StoredMarker, environment: Environment) throws -> StoredMarker {
+        try withExclusiveMarkerLock(for: storedMarker.fileURL) {
+            guard let data = try? environment.readData(storedMarker.fileURL),
+                  var current = try? environment.decodeMarker(data) else {
+                throw UpdateError.markerNoLongerExists
+            }
+            guard current.isPayloadFinalized == false else {
+                throw UpdateError.markerChanged
+            }
+            current.openTimeSHA512 = storedMarker.marker.openTimeSHA512
+            current.isPayloadFinalized = true
+            current.isConflicted = false
+            current.generation += 1
+            let finalized = StoredMarker(id: storedMarker.id, fileURL: storedMarker.fileURL, marker: current)
+            try persist(finalized, environment: environment)
+            return finalized
+        }
+    }
+
     static func markConflicted(_ storedMarker: StoredMarker, environment: Environment = .live) throws -> StoredMarker {
         var updated = storedMarker
         updated.marker.isConflicted = true
@@ -369,11 +403,14 @@ enum PendingUploadQueue {
     }
 
     /// Serializes an in-place marker update with a conditional delete across
-    /// the app and AutoFill extension. The sidecar remains beside the marker:
-    /// removing a lock file after unlock can split later callers across two
-    /// inodes. Queue enumeration ignores it because it is not JSON.
+    /// the app and AutoFill extension. One lock file per database directory,
+    /// never removed while the directory exists: removing a lock file after
+    /// unlock can split later callers across two inodes, and a per-marker
+    /// sidecar that must stay would pile up one file per AutoFill save.
+    /// Queue enumeration ignores it because it is hidden and not JSON.
     private static func withExclusiveMarkerLock<T>(for markerURL: URL, _ operation: () throws -> T) throws -> T {
-        let lockURL = markerURL.appendingPathExtension("lock")
+        let lockURL = markerURL.deletingLastPathComponent()
+            .appendingPathComponent(markerLockFileName, isDirectory: false)
         let descriptor = Darwin.open(lockURL.path, O_CREAT | O_RDWR, S_IRUSR | S_IWUSR)
         guard descriptor >= 0 else {
             throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO)
