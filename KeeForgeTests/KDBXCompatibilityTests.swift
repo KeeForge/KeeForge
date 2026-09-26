@@ -827,6 +827,118 @@ final class KDBXCompatibilityTests: XCTestCase {
         XCTAssertEqual(resolvedSecret(config), TOTPGenerator.base32Decode("JBSWY3DPEHPK3PXP"))
     }
 
+    @MainActor
+    func test_customFieldEditsInTheEditor_surviveWriteAndReloadWithProtectionIntact() throws {
+        let entry = KPEntry(
+            title: "Custom Fields",
+            password: try EncryptedValue.encrypt("password", using: entrySessionKey),
+            customFields: ["PIN": "1234", "Environment": "Staging", "Obsolete": "old"],
+            protectedStringKeys: ["PIN"]
+        )
+        let viewModel = EntryEditViewModel(editing: entry, sessionKey: entrySessionKey)
+        let pinIndex = try XCTUnwrap(viewModel.customFields.firstIndex { $0.key == "PIN" })
+        viewModel.customFields[pinIndex].key = "Card PIN"
+        let environmentIndex = try XCTUnwrap(viewModel.customFields.firstIndex { $0.key == "Environment" })
+        viewModel.customFields[environmentIndex].value = "Production"
+        let obsolete = try XCTUnwrap(viewModel.customFields.first { $0.key == "Obsolete" })
+        viewModel.removeCustomField(id: obsolete.id)
+        viewModel.addCustomField()
+        viewModel.customFields[viewModel.customFields.count - 1].key = "Account Number"
+        viewModel.customFields[viewModel.customFields.count - 1].value = "42"
+        XCTAssertTrue(viewModel.canSave)
+
+        let updated = try DatabaseDraft(rootGroup: KPGroup(name: "Root", entries: [entry]), meta: KPMeta(), sessionKey: entrySessionKey)
+            .apply(.updateEntry(entryID: entry.id, draft: viewModel.entryDraftPayload))
+        let reloaded = try writeAndReload(updated)
+
+        XCTAssertEqual(
+            reloaded.customFields,
+            ["Card PIN": "1234", "Environment": "Production", "Account Number": "42"]
+        )
+        XCTAssertEqual(
+            reloaded.protectedStringKeys.intersection(reloaded.customFields.keys),
+            ["Card PIN"],
+            "A renamed protected field stays protected; added fields are plain"
+        )
+        XCTAssertEqual(reloaded.history.first?.customFields["PIN"], "1234")
+    }
+
+    /// The issue's stated use case (#107): a second website for one entry.
+    /// KeePass2Android stores those as `KP2A_URL_*` custom fields, which
+    /// KeeForge already reads for AutoFill matching, so authoring one in the
+    /// editor has to reach `additionalURLs` after a write and reload.
+    @MainActor
+    func test_customFieldAddedForASecondWebsiteBecomesAnAdditionalURL() throws {
+        let entry = KPEntry(
+            title: "Two Sites",
+            password: try EncryptedValue.encrypt("password", using: entrySessionKey),
+            url: "https://first.example"
+        )
+        let viewModel = EntryEditViewModel(editing: entry, sessionKey: entrySessionKey)
+        viewModel.addCustomField()
+        viewModel.customFields[0].key = "KP2A_URL_1"
+        viewModel.customFields[0].value = "https://second.example"
+
+        let updated = try DatabaseDraft(rootGroup: KPGroup(name: "Root", entries: [entry]), meta: KPMeta(), sessionKey: entrySessionKey)
+            .apply(.updateEntry(entryID: entry.id, draft: viewModel.entryDraftPayload))
+        let reloaded = try writeAndReload(updated)
+
+        XCTAssertEqual(reloaded.additionalURLs, ["https://second.example"])
+        XCTAssertEqual(reloaded.url, "https://first.example")
+    }
+
+    /// Protection is preserved by key name in `DatabaseDraft`, because callers
+    /// like the AutoFill save path do not restate it. So a name freed by a
+    /// rename and immediately reused keeps the old field's protection — the
+    /// safe direction, and the one behavior the editor cannot override.
+    @MainActor
+    func test_reusingARenamedProtectedFieldsNameKeepsThatNameProtected() throws {
+        let entry = KPEntry(
+            title: "Audit",
+            password: try EncryptedValue.encrypt("password", using: entrySessionKey),
+            customFields: ["PIN": "1234"],
+            protectedStringKeys: ["PIN"]
+        )
+        let viewModel = EntryEditViewModel(editing: entry, sessionKey: entrySessionKey)
+        viewModel.customFields[0].key = "Card PIN"
+        viewModel.addCustomField()
+        viewModel.customFields[1].key = "PIN"
+        viewModel.customFields[1].value = "not a secret"
+
+        let updated = try DatabaseDraft(rootGroup: KPGroup(name: "Root", entries: [entry]), meta: KPMeta(), sessionKey: entrySessionKey)
+            .apply(.updateEntry(entryID: entry.id, draft: viewModel.entryDraftPayload))
+        let reloaded = try writeAndReload(updated)
+
+        XCTAssertEqual(reloaded.customFields, ["Card PIN": "1234", "PIN": "not a secret"])
+        XCTAssertEqual(
+            reloaded.protectedStringKeys.intersection(reloaded.customFields.keys),
+            ["Card PIN", "PIN"],
+            "The renamed field keeps its protection, and the reused name inherits it"
+        )
+    }
+
+    /// `OTP` is one of the names the parser reads as KeeOTP storage, but only
+    /// for a `key=` value; an entry that already uses it for something else
+    /// must keep it through an edit.
+    @MainActor
+    func test_anExistingNonKeeOTPOTPField_survivesAnEditInTheEditor() throws {
+        let entry = KPEntry(
+            title: "Backup Codes",
+            password: try EncryptedValue.encrypt("password", using: entrySessionKey),
+            customFields: ["OTP": "1111 2222"]
+        )
+        let viewModel = EntryEditViewModel(editing: entry, sessionKey: entrySessionKey)
+        viewModel.customFields[0].value = "3333 4444"
+        XCTAssertTrue(viewModel.canSave)
+
+        let updated = try DatabaseDraft(rootGroup: KPGroup(name: "Root", entries: [entry]), meta: KPMeta(), sessionKey: entrySessionKey)
+            .apply(.updateEntry(entryID: entry.id, draft: viewModel.entryDraftPayload))
+        let reloaded = try writeAndReload(updated)
+
+        XCTAssertEqual(reloaded.displayCustomFields, ["OTP": "3333 4444"])
+        XCTAssertNil(reloaded.totpConfig)
+    }
+
     func test_passkeyPrivateKey_divertedOnParse_andPreservedThroughEditSaveReload() throws {
         let loaded = try KDBXCompatibilitySupport.load(.syntheticRich, bundle: bundle, sessionKey: entrySessionKey)
         let entry = try XCTUnwrap(firstEntry(titled: "Compat Update Target", in: loaded.rootGroup))
