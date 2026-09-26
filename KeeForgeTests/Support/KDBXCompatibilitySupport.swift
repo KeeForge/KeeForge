@@ -246,6 +246,9 @@ enum KDBXCompatibilitySupport {
         /// fixture's, `apply` pins that the old key no longer opens the
         /// output, and the artifact manifest carries the new credentials.
         var rekey: ((LoadedFixture) throws -> RekeyTarget)?
+        /// When set, the write applies this change to the fixture's header —
+        /// the same `EncryptionSettingsChange` the savers apply.
+        var encryptionSettings: ((LoadedFixture) throws -> EncryptionSettingsChange)?
         let assertChange: (CompatibilitySnapshot, CompatibilitySnapshot, LoadedFixture) throws -> Void
 
         func apply(to loaded: LoadedFixture) throws -> ScenarioResult {
@@ -270,11 +273,12 @@ enum KDBXCompatibilitySupport {
             }
             let rekeyTarget = try rekey?(loaded)
             let writeKey = rekeyTarget?.compositeKey ?? loaded.compositeKey
+            let writeHeader = try encryptionSettings?(loaded).applied(to: loaded.header) ?? loaded.header
             let written = try KDBXWriter.write(
                 rootGroup: updatedDraft.rootGroup,
                 meta: updatedDraft.meta,
                 compositeKey: writeKey,
-                header: loaded.header,
+                header: writeHeader,
                 sessionKey: updatedDraft.writerSessionKey
             )
             if rekeyTarget != nil {
@@ -467,6 +471,8 @@ enum KDBXCompatibilitySupport {
         "rekey-password-only",
         "rekey-add-keyfile",
         "rekey-remove-keyfile",
+        "encryption-settings-chacha20-argon2id",
+        "encryption-settings-aes256-keep-kdf",
     ]
 
     /// An entry that already exists in each fixture, with the password that
@@ -548,6 +554,10 @@ enum KDBXCompatibilitySupport {
         table["rekey-password-only"] = [fixtureEntryPasswords[Fixture.aesBaseline.id]!]
         table["rekey-add-keyfile"] = [fixtureEntryPasswords[Fixture.aesBaseline.id]!]
         table["rekey-remove-keyfile"] = [fixtureEntryPasswords[Fixture.passwordKeyfile.id]!]
+        // Re-encrypted under a new cipher and KDF, a pre-existing protected
+        // value read back externally proves the payload survived intact.
+        table["encryption-settings-chacha20-argon2id"] = [fixtureEntryPasswords[Fixture.aesBaseline.id]!]
+        table["encryption-settings-aes256-keep-kdf"] = [fixtureEntryPasswords[Fixture.foreignTwofish.id]!]
         return table
     }()
 
@@ -650,6 +660,8 @@ enum KDBXCompatibilitySupport {
             "rekey-password-only",
             "rekey-add-keyfile",
             "rekey-remove-keyfile",
+            "encryption-settings-chacha20-argon2id",
+            "encryption-settings-aes256-keep-kdf",
         ]
         for fixture in smokeFixtures {
             ids.insert("fixture-smoke-\(fixture.id)")
@@ -1468,11 +1480,11 @@ enum KDBXCompatibilitySupport {
     /// `RekeyTarget.password` so the external gate opens the artifacts with it.
     static let rekeyNewPassword = "rekeyed-master-password-1"
 
-    /// Shared assertion body for every rekey scenario: a master-key change is
-    /// not a content edit, so the tree, groups, and meta must all survive the
-    /// save unchanged. The old-key rejection and header rotation checks live
+    /// Shared assertion body for every rekey and encryption-settings scenario:
+    /// neither is a content edit, so the tree, groups, and meta must all
+    /// survive the save unchanged. The old-key rejection and header rotation checks live
     /// in `Scenario.apply` and the running test method respectively.
-    private static func assertRekeyLeavesTreeUnchanged(
+    private static func assertWholeTreeUnchanged(
         before: CompatibilitySnapshot,
         after: CompatibilitySnapshot
     ) throws {
@@ -1500,7 +1512,7 @@ enum KDBXCompatibilitySupport {
                 )
             },
             assertChange: { before, after, _ in
-                try assertRekeyLeavesTreeUnchanged(before: before, after: after)
+                try assertWholeTreeUnchanged(before: before, after: after)
             }
         )
     }
@@ -1528,7 +1540,7 @@ enum KDBXCompatibilitySupport {
                 )
             },
             assertChange: { before, after, _ in
-                try assertRekeyLeavesTreeUnchanged(before: before, after: after)
+                try assertWholeTreeUnchanged(before: before, after: after)
             }
         )
     }
@@ -1557,7 +1569,52 @@ enum KDBXCompatibilitySupport {
                 )
             },
             assertChange: { before, after, _ in
-                try assertRekeyLeavesTreeUnchanged(before: before, after: after)
+                try assertWholeTreeUnchanged(before: before, after: after)
+            }
+        )
+    }
+
+    // MARK: - Encryption settings scenarios
+
+    /// `.aesBaseline` moved to ChaCha20 and the Balanced Argon2id preset, with
+    /// compression flipped — every field an encryption-settings change sets.
+    static func encryptionSettingsChaCha20Scenario() -> Scenario {
+        Scenario(
+            id: "encryption-settings-chacha20-argon2id",
+            title: "Change cipher, key derivation, and compression",
+            artifactFileName: "aes-baseline-encryption-settings-chacha20-argon2id.kdbx",
+            expectedSearchTerms: ["Twitter"],
+            expectedGroupPaths: ["Social"],
+            encryptionSettings: { loaded in
+                EncryptionSettingsChange(
+                    cipherID: DatabaseCreationCipher.chacha20.cipherID,
+                    kdfParameters: try DatabaseCreationDefaults.argon2idKDFParameters(preset: .balanced),
+                    compressionFlags: loaded.header.compressionFlags == 1 ? 0 : 1
+                )
+            },
+            assertChange: { before, after, _ in
+                try assertWholeTreeUnchanged(before: before, after: after)
+            }
+        )
+    }
+
+    /// A pykeepass-authored Twofish database moved to AES-256 with its own KDF
+    /// kept, so the external opener reads a foreign KDF under a new cipher.
+    static func encryptionSettingsAES256Scenario() -> Scenario {
+        Scenario(
+            id: "encryption-settings-aes256-keep-kdf",
+            title: "Change cipher and compression, keep key derivation",
+            artifactFileName: "foreign-twofish-encryption-settings-aes256-keep-kdf.kdbx",
+            expectedSearchTerms: ["Foreign Entry Alpha"],
+            expectedGroupPaths: ["Foreign"],
+            encryptionSettings: { loaded in
+                EncryptionSettingsChange(
+                    cipherID: DatabaseCreationCipher.aes256.cipherID,
+                    compressionFlags: loaded.header.compressionFlags == 1 ? 0 : 1
+                )
+            },
+            assertChange: { before, after, _ in
+                try assertWholeTreeUnchanged(before: before, after: after)
             }
         )
     }
@@ -1618,6 +1675,12 @@ enum KDBXCompatibilitySupport {
         )
         descriptors.append(
             ArtifactDescriptor(fixture: .passwordKeyfile, scenario: rekeyRemoveKeyfileScenario())
+        )
+        descriptors.append(
+            ArtifactDescriptor(fixture: .aesBaseline, scenario: encryptionSettingsChaCha20Scenario())
+        )
+        descriptors.append(
+            ArtifactDescriptor(fixture: .foreignTwofish, scenario: encryptionSettingsAES256Scenario())
         )
         return descriptors
     }

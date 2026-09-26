@@ -490,8 +490,8 @@ final class MasterKeyChangeViewModelTests: XCTestCase {
 
     func testMessageFallsBackToLocalizedDescriptionForOtherErrors() throws {
         XCTAssertEqual(
-            MasterKeyChangeViewModel.message(for: SaveError.rekeyVerificationFailed),
-            SaveError.rekeyVerificationFailed.localizedDescription
+            MasterKeyChangeViewModel.message(for: SaveError.reencryptionVerificationFailed),
+            SaveError.reencryptionVerificationFailed.localizedDescription
         )
     }
 

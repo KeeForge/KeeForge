@@ -102,16 +102,26 @@ enum AutoFillSaveCoordinator {
         password: String? = nil,
         environment: Environment = .live
     ) -> EntryDraftPayload {
-        let title = CredentialMatcher.searchTerm(for: serviceIdentifier) ?? serviceIdentifier.identifier
+        let isApp = CredentialMatcher.isAppIdentifier(serviceIdentifier)
+        let title = isApp
+            ? appDisplayName(for: serviceIdentifier)
+            : CredentialMatcher.searchTerm(for: serviceIdentifier) ?? serviceIdentifier.identifier
         return EntryDraftPayload(
             title: title,
             username: username ?? "",
             password: password?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
                 ? password ?? ""
                 : environment.generatePassword(),
-            url: serviceIdentifier.identifier,
+            url: isApp ? "" : serviceIdentifier.identifier,
             notes: ""
         )
+    }
+
+    private static func appDisplayName(for serviceIdentifier: ASCredentialServiceIdentifier) -> String {
+        if #available(iOS 26.2, macOS 26.2, *) {
+            return serviceIdentifier.displayName ?? ""
+        }
+        return ""
     }
 
     static func saveNewEntry(

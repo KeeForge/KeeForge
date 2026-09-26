@@ -926,6 +926,71 @@ final class CloudDatabaseSaverTests: XCTestCase {
         XCTAssertTrue(DatabaseListStore.recentBackups(for: reference).isEmpty)
     }
 
+    // MARK: - Encryption settings (#98)
+
+    func testEncryptionSettingsSaveUploadsRewrittenHeaderUnderTheSameKey() async throws {
+        let reference = try makeCloudReference(remoteRev: "rev-A")
+        let cacheURL = DatabaseListStore.cacheLocation(for: reference)
+        let context = try makeDirtySaveContext(cacheURL: cacheURL, entryTitle: "Cloud Settings Entry")
+        let original = try KDBXFileSummary.inspect(data: context.currentData)
+        XCTAssertNotEqual(original.cipher, .chacha20, "Fixture precondition")
+        let recorder = UploadRecorder()
+        let environment = makeEnvironment(
+            getMetadata: { _ in
+                CloudFileMetadata(
+                    modifiedDate: Date(timeIntervalSince1970: 150),
+                    contentHash: "remote-hash-A",
+                    size: Int64(context.currentData.count),
+                    rev: "rev-A"
+                )
+            },
+            upload: { _, data, expectedRev, progress in
+                await recorder.record(data: data, expectedRev: expectedRev)
+                progress(1)
+                return CloudFileMetadata(
+                    modifiedDate: Date(timeIntervalSince1970: 200),
+                    contentHash: "remote-hash-B",
+                    size: Int64(data.count),
+                    rev: "rev-B"
+                )
+            }
+        )
+
+        let result = try await CloudDatabaseSaver.save(
+            draft: context.draft,
+            reference: reference,
+            compositeKey: context.compositeKey,
+            openTimeSHA512: context.openTimeSHA512,
+            expectedRev: "rev-A",
+            kdfPolicy: .mainApp,
+            encryptionSettings: EncryptionSettingsChange(
+                cipherID: KDBXParser.chachaCipherUUID,
+                compressionFlags: original.isCompressed ? 0 : 1
+            ),
+            environment: environment
+        )
+
+        guard case .saved = result else {
+            XCTFail("Expected the encryption settings save to succeed.")
+            return
+        }
+
+        let uploadCall = await recorder.firstCall()
+        let uploaded = try XCTUnwrap(uploadCall?.data)
+        XCTAssertEqual(uploadCall?.expectedRev, "rev-A")
+        let saved = try KDBXFileSummary.inspect(data: uploaded)
+        XCTAssertEqual(saved.cipher, .chacha20)
+        XCTAssertEqual(saved.isCompressed, !original.isCompressed)
+        XCTAssertEqual(saved.keyDerivation, original.keyDerivation)
+        let reparsed = try KDBXParser.parseWithMeta(
+            data: uploaded,
+            password: fixturePassword,
+            sessionKey: SymmetricKey(size: .bits256)
+        )
+        XCTAssertTrue(reparsed.rootGroup.allEntries.contains { $0.title == "Cloud Settings Entry" })
+        XCTAssertEqual(try Data(contentsOf: cacheURL), uploaded)
+    }
+
     // MARK: - Saves with no recorded revision (M4)
 
     func testSaveWithoutRecordedRevConflictsWhenRemoteContentHashMoved() async throws {

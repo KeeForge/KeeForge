@@ -37,6 +37,28 @@ final class CredentialProviderSaveTests: XCTestCase {
         XCTAssertEqual(draft.url, "https://accounts.example.com/sign-in")
     }
 
+    func test_prepareDraft_appIdentifier_usesDisplayNameAndNoURL() throws {
+        guard #available(iOS 26.2, macOS 26.2, *) else {
+            throw XCTSkip("App service identifiers require iOS 26.2 / macOS 26.2")
+        }
+        let serviceIdentifier = ASCredentialServiceIdentifier(
+            identifier: "A1B2C3D4E5.com.mybank.app",
+            type: .app,
+            displayName: "MyBank"
+        )
+
+        let draft = AutoFillSaveCoordinator.initialDraft(
+            for: serviceIdentifier,
+            username: "alex",
+            password: "supplied-secret"
+        )
+
+        XCTAssertEqual(draft.title, "MyBank")
+        XCTAssertEqual(draft.username, "alex")
+        XCTAssertEqual(draft.password, "supplied-secret")
+        XCTAssertEqual(draft.url, "")
+    }
+
     func test_saveNewEntry_localSource_writesCacheAndCallsCompleteRequest_doesNotEnqueue() async throws {
         let reference = makeLocalReference()
         let sessionKey = SymmetricKey(size: .bits256)

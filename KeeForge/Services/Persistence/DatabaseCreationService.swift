@@ -25,8 +25,9 @@ struct DatabasePreparationRequest: Sendable {
     var kdfPreset: DatabaseCreationKDFPreset = .balanced
 }
 
-/// Outer ciphers offered when creating a database. Creation-scoped on purpose:
-/// the full `KDBXOuterCipher` set (Twofish included) stays read/compat-only.
+/// Outer ciphers offered when creating a database or changing its encryption
+/// settings. Deliberately narrower than `KDBXOuterCipher`: Twofish is read and
+/// kept, never offered.
 enum DatabaseCreationCipher: String, CaseIterable, Identifiable, Sendable {
     case aes256
     case chacha20
@@ -48,8 +49,9 @@ enum DatabaseCreationCipher: String, CaseIterable, Identifiable, Sendable {
     }
 }
 
-/// Argon2id tuning presets offered when creating a database. Every preset
-/// derives within the AutoFill extension's KDF policy budget.
+/// Argon2id tuning presets offered when creating a database or changing its
+/// encryption settings. Every preset derives within the AutoFill extension's
+/// KDF policy budget.
 enum DatabaseCreationKDFPreset: String, CaseIterable, Identifiable, Sendable {
     case balanced
     case strong

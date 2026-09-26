@@ -49,6 +49,7 @@ macOS UI tests: see `../KeeForgeMacUITests/AGENTS.md`; the accessibility identif
 - `WebDAVSeededUnlockUITests` — unlock a seeded WebDAV cloud-backed database through the mock provider
 - `DatabaseCreationRegularWidthUITests` — new local database happy path on regular-width / iPad layout
 - `MasterKeyChangeUITests` — change-master-key happy path: create a local database, rotate its master password from Database Details (`database-details.change-master-key` → the `master-key.*` form, through the `master-key.confirm-change` confirmation dialog), lock, and unlock with the new password; the device-owner confirmation is a no-op under `-ui-testing`. Extends `DatabaseCreationUITestCase`
+- `EncryptionSettingsUITests` — encryption-settings happy path: create a local database, open `database-details.change-encryption-settings`, pick ChaCha20 from `encryption-settings.cipher-picker` and turn off `encryption-settings.compression-toggle`, save, check that Database Details now reads ChaCha20 and no compression from the rewritten file header, then lock and unlock with the unchanged password. Extends `DatabaseCreationUITestCase`, whose `createLocalDatabase(named:password:)` it shares with `MasterKeyChangeUITests`.
 - `RegularWidthWorkspaceUITests` — regular-width / iPad workspace smoke coverage
 
 ### Secondary / Edge Coverage

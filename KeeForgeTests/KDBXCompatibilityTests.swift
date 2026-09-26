@@ -249,6 +249,58 @@ final class KDBXCompatibilityTests: XCTestCase {
         try collector.emit()
     }
 
+    /// The two encryption-settings scenarios: every field changed on a
+    /// KeeForge-authored AES database, and a cipher change that keeps a
+    /// foreign-authored KDF. Changed header fields carry the new values,
+    /// untouched ones carry over, and the credentials stay the same.
+    func test_encryptionSettingsScenarios_rewriteHeaderUnderTheSameKey() throws {
+        let collector = try KDBXCompatibilitySupport.ArtifactCollector(testCase: self)
+
+        let aesBaseline = try KDBXCompatibilitySupport.load(.aesBaseline, bundle: bundle)
+        let chacha = try collector.run(
+            KDBXCompatibilitySupport.encryptionSettingsChaCha20Scenario(),
+            on: aesBaseline
+        )
+        XCTAssertNil(chacha.rekey)
+        XCTAssertEqual(chacha.afterHeader.cipherID, KDBXParser.chachaCipherUUID)
+        XCTAssertEqual(chacha.afterHeader.compressionFlags, aesBaseline.header.compressionFlags == 1 ? 0 : 1)
+        XCTAssertEqual(chacha.afterHeader.kdfParameters["$UUID"] as? Data, KDBXParser.argon2idUUID)
+        XCTAssertEqual(
+            chacha.afterHeader.kdfParameters["I"] as? UInt64,
+            DatabaseCreationKDFPreset.balanced.iterations
+        )
+        XCTAssertEqual(
+            chacha.afterHeader.kdfParameters["M"] as? UInt64,
+            DatabaseCreationKDFPreset.balanced.memoryBytes
+        )
+        XCTAssertEqual(chacha.afterHeader.formatVersion, aesBaseline.header.formatVersion)
+        XCTAssertEqual(chacha.afterHeader.encryptionIV.count, 12, "ChaCha20 takes a 96-bit nonce")
+
+        let twofish = try KDBXCompatibilitySupport.load(.foreignTwofish, bundle: bundle)
+        let aes = try collector.run(
+            KDBXCompatibilitySupport.encryptionSettingsAES256Scenario(),
+            on: twofish
+        )
+        XCTAssertNil(aes.rekey)
+        XCTAssertEqual(aes.afterHeader.cipherID, KDBXParser.aesCipherUUID)
+        XCTAssertEqual(aes.afterHeader.encryptionIV.count, 16)
+        XCTAssertEqual(aes.afterHeader.compressionFlags, twofish.header.compressionFlags == 1 ? 0 : 1)
+        for key in ["$UUID", "I", "M", "P", "V"] {
+            XCTAssertEqual(
+                String(describing: aes.afterHeader.kdfParameters[key]),
+                String(describing: twofish.header.kdfParameters[key]),
+                "KDF parameter \(key) must carry over"
+            )
+        }
+        XCTAssertNotEqual(
+            aes.afterHeader.kdfParameters["S"] as? Data,
+            twofish.header.kdfParameters["S"] as? Data,
+            "The KDF salt still rotates"
+        )
+
+        try collector.emit()
+    }
+
     /// Rekey reuses the source header, so identity and cost settings carry
     /// over while every per-write random value must rotate.
     private func assertRekeyHeaderHygiene(
@@ -627,13 +679,15 @@ final class KDBXCompatibilityTests: XCTestCase {
             "aes-baseline-rekey-password-only",
             "aes-baseline-rekey-add-keyfile",
             "password-keyfile-rekey-remove-keyfile",
+            "aes-baseline-encryption-settings-chacha20-argon2id",
+            "foreign-twofish-encryption-settings-aes256-keep-kdf",
         ] {
             XCTAssertTrue(ids.contains(required), "missing artifact \(required)")
         }
 
         // The artifact set never shrinks silently: the gate's merged manifest
         // is compared against exactly this count.
-        XCTAssertEqual(descriptors.count, 33)
+        XCTAssertEqual(descriptors.count, 35)
     }
 
     func test_externalExpectationTables_areExhaustiveOverEveryArtifactScenario() throws {
