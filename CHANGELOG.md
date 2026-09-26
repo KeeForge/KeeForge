@@ -6,6 +6,7 @@
 
 - KeeForge now speaks Japanese: a full Japanese (日本語) localization across the app and the AutoFill extension, plus translated README and contributor docs.
 - Open, save, and create databases directly on an FTP server (#115). Add Database → FTP asks for the server address, username, and password. FTP is unencrypted, so connecting requires turning on "Allow Unencrypted FTP"; use it only on a network you trust. Encrypted FTPS and SFTP are not supported yet.
+- Change a database's encryption settings (#98). With the database unlocked, open Database Details and choose "Change Encryption Settings…" to pick the cipher (AES-256 or ChaCha20), a key derivation strength (Argon2id Balanced, Strong, or Maximum), and whether the file is compressed. The master key stays the same. The same choices are offered as when creating a database; a database using Twofish, Argon2d, or AES-KDF keeps that setting unless you pick another one.
 - Choose the group AutoFill saves new passwords and passkeys into, per database (#114). Unlock the database, open Database Details, and pick a group under AutoFill → "Save New Entries To". Until you choose one, new entries go into the database's top-level group as before; if the chosen group is deleted or moved to the Recycle Bin, they go there again. The AutoFill screens for saving a password or passkey now show which group the entry goes into.
 
 ### Fixes
@@ -17,6 +18,7 @@
 - The verification code icon on a search result now appears or disappears as soon as you add or remove the entry's code (#111). Before, it kept its old state until you cleared the search and searched again.
 - Databases whose file name doesn't end in `.kdbx` can now be opened from Dropbox, OneDrive, WebDAV, and FTP (#113). Turn on "Show All Files" at the top of the file browser to see every file, not just `.kdbx` ones. Picking a file that isn't a KeePass database shows an error when you unlock it.
 - A database opened through the Files app can be reconnected when it becomes unavailable after a cloud app such as Nextcloud or iCloud Drive replaces the file during sync (#53). Tap Locate Database File on the error screen and pick the current file. The database keeps its name, key file, Face ID or Touch ID unlock, AutoFill setting, and backups, so you no longer have to remove and re-add it. Databases on a server that can't be reached still need the connection back; KeeForge doesn't open an offline copy of them.
+- On iOS 26.2 or later, saving a password from an app that isn't linked to a website now names the new entry after the app (#137). KeeForge used to store the app's internal ID as the entry's web address, which could make AutoFill treat the entry as a match for an unrelated website — for example, a bank app's password could be offered on `mybank.app`. Entries saved that way before this fix keep the app ID in their address field, but AutoFill no longer offers them for that website.
 
 ## v1.16.0 (2026-09-21)
 

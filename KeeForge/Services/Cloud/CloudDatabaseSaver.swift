@@ -82,6 +82,9 @@ enum CloudDatabaseSaver {
     /// cached file, `newCompositeKey` encrypts the uploaded bytes, and the
     /// result is verified to reopen with the new key before the upload.
     ///
+    /// `encryptionSettings` rewrites the header's cipher, KDF, or compression
+    /// before encrypting, under the same reopen check.
+    ///
     /// `reconciledRemoteSHA512` widens the overwrite gate by exactly one state
     /// — see `SaveBaseline`. On this path it is what lets a merge save proceed
     /// while the local cache still holds the open-time bytes: the remote it
@@ -95,7 +98,8 @@ enum CloudDatabaseSaver {
         reconciledRemoteSHA512: Data? = nil,
         expectedRev: String?,
         kdfPolicy: KDFExecutionPolicy,
-        newCompositeKey: SymmetricKey? = nil
+        newCompositeKey: SymmetricKey? = nil,
+        encryptionSettings: EncryptionSettingsChange? = nil
     ) async throws -> SaveResult {
         try await save(
             draft: draft,
@@ -106,6 +110,7 @@ enum CloudDatabaseSaver {
             expectedRev: expectedRev,
             kdfPolicy: kdfPolicy,
             newCompositeKey: newCompositeKey,
+            encryptionSettings: encryptionSettings,
             environment: .live
         )
     }
@@ -119,6 +124,7 @@ enum CloudDatabaseSaver {
         expectedRev: String?,
         kdfPolicy: KDFExecutionPolicy,
         newCompositeKey: SymmetricKey? = nil,
+        encryptionSettings: EncryptionSettingsChange? = nil,
         environment: Environment
     ) async throws -> SaveResult {
         if reference.isReadOnly {
@@ -148,6 +154,7 @@ enum CloudDatabaseSaver {
                 expectedRev: expectedRev,
                 kdfPolicy: kdfPolicy,
                 newCompositeKey: newCompositeKey,
+                encryptionSettings: encryptionSettings,
                 environment: environment
             )
         }.value
@@ -161,6 +168,7 @@ enum CloudDatabaseSaver {
         expectedRev: String?,
         kdfPolicy: KDFExecutionPolicy,
         newCompositeKey: SymmetricKey?,
+        encryptionSettings: EncryptionSettingsChange?,
         environment: Environment
     ) async throws -> SaveResult {
         let cacheURL = environment.cacheURL(reference)
@@ -190,16 +198,20 @@ enum CloudDatabaseSaver {
             effectiveExpectedRev = remoteMetadata.rev
         }
 
-        let header = try environment.extractHeader(currentData, compositeKey, kdfPolicy)
+        var header = try environment.extractHeader(currentData, compositeKey, kdfPolicy)
         guard header.formatVersion.requiresReadOnlyMode == false else {
             throw SaveError.databaseIsReadOnly
         }
-        let newData = try environment.encryptDraft(draft, newCompositeKey ?? compositeKey, header, kdfPolicy)
-        if let newCompositeKey {
+        if let encryptionSettings {
+            header = encryptionSettings.applied(to: header)
+        }
+        let writeKey = newCompositeKey ?? compositeKey
+        let newData = try environment.encryptDraft(draft, writeKey, header, kdfPolicy)
+        if newCompositeKey != nil || encryptionSettings != nil {
             do {
-                _ = try environment.extractHeader(newData, newCompositeKey, kdfPolicy)
+                _ = try environment.extractHeader(newData, writeKey, kdfPolicy)
             } catch {
-                throw SaveError.rekeyVerificationFailed
+                throw SaveError.reencryptionVerificationFailed
             }
         }
 

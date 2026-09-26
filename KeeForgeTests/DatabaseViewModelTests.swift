@@ -1295,7 +1295,7 @@ final class DatabaseViewModelTests: XCTestCase {
 
         let vm = DatabaseViewModel(
             databaseReference: try makeReference(),
-            localSaveOperation: { draft, _, _, _, _, _ in
+            localSaveOperation: { draft, _, _, _, _, _, _ in
                 await recorder.record(editCount: draft.pendingEdits.count)
                 await gate.parkFirstCall()
                 return .saved(newSHA512: Data("saved-\(draft.pendingEdits.count)".utf8))
@@ -1494,7 +1494,7 @@ final class DatabaseViewModelTests: XCTestCase {
         let localSaverCalls = CallTracker()
         let vm = DatabaseViewModel(
             databaseReference: reference,
-            localSaveOperation: { _, _, _, _, _, _ in
+            localSaveOperation: { _, _, _, _, _, _, _ in
                 localSaverCalls.recordCall()
                 return .saved(newSHA512: Data("saved".utf8))
             }
@@ -2061,7 +2061,7 @@ final class DatabaseViewModelTests: XCTestCase {
         DatabaseListStore.update(reference)
         let vm = try makeViewModel(
             reference: reference,
-            localSaveOperation: { _, _, _, _, _, _ in
+            localSaveOperation: { _, _, _, _, _, _, _ in
                 .saved(newSHA512: Data("saved-hash".utf8))
             }
         )
@@ -3471,7 +3471,7 @@ final class DatabaseViewModelTests: XCTestCase {
     func testSaveOnCleanDraftIsNoOp() async throws {
         let localSaverCalls = CallTracker()
         let vm = try makeViewModel(
-            localSaveOperation: { _, _, _, _, _, _ in
+            localSaveOperation: { _, _, _, _, _, _, _ in
                 localSaverCalls.recordCall()
                 return .saved(newSHA512: Data("saved".utf8))
             }
@@ -3491,7 +3491,7 @@ final class DatabaseViewModelTests: XCTestCase {
     func testSaveOnDirtyDraftReplacesRootClearsDraft() async throws {
         let savedHash = Data("saved-hash".utf8)
         let vm = try makeViewModel(
-            localSaveOperation: { _, _, _, _, _, _ in
+            localSaveOperation: { _, _, _, _, _, _, _ in
                 .saved(newSHA512: savedHash)
             }
         )
@@ -3510,7 +3510,7 @@ final class DatabaseViewModelTests: XCTestCase {
 
     func testSaveRepopulatesCredentialStoreAfterSuccessfulSave() async throws {
         let vm = try makeViewModel(
-            localSaveOperation: { _, _, _, _, _, _ in
+            localSaveOperation: { _, _, _, _, _, _, _ in
                 .saved(newSHA512: Data("saved-hash".utf8))
             }
         )
@@ -3536,7 +3536,7 @@ final class DatabaseViewModelTests: XCTestCase {
         let remoteData = Data("remote".utf8)
         let remoteHash = KDBXCrypto.sha512(remoteData)
         let vm = try makeViewModel(
-            localSaveOperation: { _, _, _, _, _, _ in
+            localSaveOperation: { _, _, _, _, _, _, _ in
                 .conflict(remoteSHA512: remoteHash, remoteData: remoteData)
             }
         )
@@ -3567,7 +3567,7 @@ final class DatabaseViewModelTests: XCTestCase {
             .saved(newSHA512: mergedHash),
         ])
         let vm = try makeViewModel(
-            localSaveOperation: { draft, _, _, openTimeSHA512, reconciledRemoteSHA512, _ in
+            localSaveOperation: { draft, _, _, openTimeSHA512, reconciledRemoteSHA512, _, _ in
                 recorder.record(
                     openTimeSHA512: openTimeSHA512,
                     reconciledRemoteSHA512: reconciledRemoteSHA512,
@@ -3629,7 +3629,7 @@ final class DatabaseViewModelTests: XCTestCase {
                     status: .current
                 )
             },
-            cloudSaveOperation: { draft, _, _, openTimeSHA512, reconciledRemoteSHA512, expectedRev, _ in
+            cloudSaveOperation: { draft, _, _, openTimeSHA512, reconciledRemoteSHA512, expectedRev, _, _ in
                 recorder.record(
                     openTimeSHA512: openTimeSHA512,
                     reconciledRemoteSHA512: reconciledRemoteSHA512,
@@ -3674,7 +3674,7 @@ final class DatabaseViewModelTests: XCTestCase {
             .conflict(remoteSHA512: remoteHash, remoteData: remoteData),
         ])
         let vm = try makeViewModel(
-            localSaveOperation: { draft, _, _, openTimeSHA512, reconciledRemoteSHA512, _ in
+            localSaveOperation: { draft, _, _, openTimeSHA512, reconciledRemoteSHA512, _, _ in
                 recorder.record(
                     openTimeSHA512: openTimeSHA512,
                     reconciledRemoteSHA512: reconciledRemoteSHA512,
@@ -3704,7 +3704,7 @@ final class DatabaseViewModelTests: XCTestCase {
             .conflict(remoteSHA512: remoteHash, remoteData: remoteData),
         ])
         let vm = try makeViewModel(
-            localSaveOperation: { draft, _, _, openTimeSHA512, reconciledRemoteSHA512, _ in
+            localSaveOperation: { draft, _, _, openTimeSHA512, reconciledRemoteSHA512, _, _ in
                 recorder.record(
                     openTimeSHA512: openTimeSHA512,
                     reconciledRemoteSHA512: reconciledRemoteSHA512,
@@ -3738,7 +3738,7 @@ final class DatabaseViewModelTests: XCTestCase {
             .saved(newSHA512: mergedHash),
         ])
         let vm = try makeViewModel(
-            localSaveOperation: { draft, _, _, openTimeSHA512, reconciledRemoteSHA512, _ in
+            localSaveOperation: { draft, _, _, openTimeSHA512, reconciledRemoteSHA512, _, _ in
                 recorder.record(
                     openTimeSHA512: openTimeSHA512,
                     reconciledRemoteSHA512: reconciledRemoteSHA512,
@@ -3778,7 +3778,7 @@ final class DatabaseViewModelTests: XCTestCase {
             .conflict(remoteSHA512: fresherHash, remoteData: fresherData),
         ])
         let vm = try makeViewModel(
-            localSaveOperation: { draft, _, _, openTimeSHA512, reconciledRemoteSHA512, _ in
+            localSaveOperation: { draft, _, _, openTimeSHA512, reconciledRemoteSHA512, _, _ in
                 recorder.record(
                     openTimeSHA512: openTimeSHA512,
                     reconciledRemoteSHA512: reconciledRemoteSHA512,
@@ -3811,7 +3811,7 @@ final class DatabaseViewModelTests: XCTestCase {
     func testMergeAndSaveWithoutConflictReportsUnavailableAndWritesNothing() async throws {
         let saverCalls = CallTracker()
         let vm = try makeViewModel(
-            localSaveOperation: { _, _, _, _, _, _ in
+            localSaveOperation: { _, _, _, _, _, _, _ in
                 saverCalls.recordCall()
                 return .saved(newSHA512: Data("unexpected".utf8))
             }
@@ -3832,7 +3832,7 @@ final class DatabaseViewModelTests: XCTestCase {
         let localSaverCalls = CallTracker()
         let vm = DatabaseViewModel(
             databaseReference: reference,
-            localSaveOperation: { _, _, _, _, _, _ in
+            localSaveOperation: { _, _, _, _, _, _, _ in
                 localSaverCalls.recordCall()
                 return .saved(newSHA512: Data("saved".utf8))
             }
@@ -3858,7 +3858,7 @@ final class DatabaseViewModelTests: XCTestCase {
         let reference = try TestDatabaseSupport.makeReference(for: legacyFixtureURL())
         let vm = try makeViewModel(
             reference: reference,
-            localSaveOperation: { _, _, _, _, _, _ in
+            localSaveOperation: { _, _, _, _, _, _, _ in
                 localSaverCalls.recordCall()
                 return .saved(newSHA512: Data("saved".utf8))
             }
@@ -3892,7 +3892,7 @@ final class DatabaseViewModelTests: XCTestCase {
                     status: .current
                 )
             },
-            cloudSaveOperation: { _, _, _, _, _, _, _ in
+            cloudSaveOperation: { _, _, _, _, _, _, _, _ in
                 throw CloudProviderError.writeScopeRequired
             }
         )
@@ -3917,7 +3917,7 @@ final class DatabaseViewModelTests: XCTestCase {
         let fixedDate = Date(timeIntervalSince1970: 1_775_603_700)
         let recorder = ConflictCopyRecorder()
         let vm = try makeViewModel(
-            localSaveOperation: { _, _, _, _, _, _ in
+            localSaveOperation: { _, _, _, _, _, _, _ in
                 .conflict(remoteSHA512: Data("remote".utf8), remoteData: Data("remote-data".utf8))
             },
             conflictCopyEncryptionOperation: { _, _, _ in
@@ -3962,7 +3962,7 @@ final class DatabaseViewModelTests: XCTestCase {
                     status: .current
                 )
             },
-            cloudSaveOperation: { _, _, _, _, _, _, _ in
+            cloudSaveOperation: { _, _, _, _, _, _, _, _ in
                 .conflict(remoteSHA512: Data("remote".utf8), remoteData: Data("remote-data".utf8))
             },
             conflictCopyEncryptionOperation: { _, _, _ in
@@ -4081,7 +4081,7 @@ final class DatabaseViewModelTests: XCTestCase {
         let gate = SaveGate()
         let saveCalls = SaveCallCounter()
         let vm = try makeViewModel(
-            localSaveOperation: { _, _, _, openTimeSHA512, _, _ in
+            localSaveOperation: { _, _, _, openTimeSHA512, _, _, _ in
                 // Only the first save parks on the gate. A reentrant one must
                 // never get here at all, and if it does the test has to fail
                 // rather than deadlock waiting for a gate nobody will open.
@@ -4120,7 +4120,7 @@ final class DatabaseViewModelTests: XCTestCase {
     func testSaveCompletingAfterLockDoesNotResurrectUnlockedState() async throws {
         let gate = SaveGate()
         let vm = try makeViewModel(
-            localSaveOperation: { _, _, _, openTimeSHA512, _, _ in
+            localSaveOperation: { _, _, _, openTimeSHA512, _, _, _ in
                 await gate.signalStarted()
                 await gate.waitUntilOpen()
                 return .saved(newSHA512: openTimeSHA512)
@@ -4149,7 +4149,7 @@ final class DatabaseViewModelTests: XCTestCase {
     func testConflictingSaveCompletingAfterLockDoesNotRaiseAConflictPrompt() async throws {
         let gate = SaveGate()
         let vm = try makeViewModel(
-            localSaveOperation: { _, _, _, _, _, _ in
+            localSaveOperation: { _, _, _, _, _, _, _ in
                 await gate.signalStarted()
                 await gate.waitUntilOpen()
                 return .conflict(remoteSHA512: Data("remote".utf8), remoteData: Data("remote-data".utf8))
@@ -4171,7 +4171,7 @@ final class DatabaseViewModelTests: XCTestCase {
 
     func testReloadDiscardingDraftReplacesRootWithFreshTreeFromDiskClearsDraft() async throws {
         let vm = try makeViewModel(
-            localSaveOperation: { _, _, _, _, _, _ in
+            localSaveOperation: { _, _, _, _, _, _, _ in
                 .conflict(remoteSHA512: Data("remote".utf8), remoteData: Data("remote-data".utf8))
             },
             reloadOperation: { reference, _ in
@@ -4331,7 +4331,7 @@ final class DatabaseViewModelTests: XCTestCase {
 
     func testSaveAndLockAfterLockRequestLocksWhenTheRetrySucceeds() async throws {
         let vm = try makeViewModel(
-            localSaveOperation: { _, _, _, _, _, _ in
+            localSaveOperation: { _, _, _, _, _, _, _ in
                 .saved(newSHA512: Data("retried-save".utf8))
             }
         )
@@ -4349,7 +4349,7 @@ final class DatabaseViewModelTests: XCTestCase {
 
     func testSaveAndLockAfterLockRequestKeepsThePromptWhenTheRetryFails() async throws {
         let vm = try makeViewModel(
-            localSaveOperation: { _, _, _, _, _, _ in
+            localSaveOperation: { _, _, _, _, _, _, _ in
                 throw SaveError.saveContextUnavailable
             }
         )
@@ -4475,7 +4475,7 @@ final class DatabaseViewModelTests: XCTestCase {
 
     func testSaveAndCloseWindowGrantsTheCloseWhenTheRetrySucceeds() async throws {
         let vm = try makeViewModel(
-            localSaveOperation: { _, _, _, _, _, _ in
+            localSaveOperation: { _, _, _, _, _, _, _ in
                 .saved(newSHA512: Data("closed-after-save".utf8))
             }
         )
@@ -4496,7 +4496,7 @@ final class DatabaseViewModelTests: XCTestCase {
     /// with the close still waiting for an answer.
     func testSaveAndCloseWindowKeepsTheWindowWhenTheRetryFails() async throws {
         let vm = try makeViewModel(
-            localSaveOperation: { _, _, _, _, _, _ in
+            localSaveOperation: { _, _, _, _, _, _, _ in
                 throw SaveError.saveContextUnavailable
             }
         )
@@ -4594,7 +4594,7 @@ final class DatabaseViewModelTests: XCTestCase {
         let savedHash = Data("rekeyed-hash".utf8)
         let capturedKeys = RekeyedKeyCapture()
         let vm = try makeViewModel(
-            localSaveOperation: { _, _, compositeKey, _, _, newCompositeKey in
+            localSaveOperation: { _, _, compositeKey, _, _, newCompositeKey, _ in
                 capturedKeys.record(oldKey: compositeKey, newKey: newCompositeKey)
                 return .saved(newSHA512: savedHash)
             }
@@ -4624,7 +4624,7 @@ final class DatabaseViewModelTests: XCTestCase {
         let keyFileData = Data("rekey key file bytes".utf8)
         let bookmarkData = Data("rekey-bookmark".utf8)
         let vm = try makeViewModel(
-            localSaveOperation: { _, _, _, _, _, _ in
+            localSaveOperation: { _, _, _, _, _, _, _ in
                 .saved(newSHA512: Data("rekeyed-hash".utf8))
             }
         )
@@ -4656,7 +4656,7 @@ final class DatabaseViewModelTests: XCTestCase {
         DatabaseListStore.update(reference)
         let vm = try makeViewModel(
             reference: reference,
-            localSaveOperation: { _, _, _, _, _, _ in
+            localSaveOperation: { _, _, _, _, _, _, _ in
                 .saved(newSHA512: Data("rekeyed-hash".utf8))
             }
         )
@@ -4691,7 +4691,7 @@ final class DatabaseViewModelTests: XCTestCase {
                     status: .current
                 )
             },
-            cloudSaveOperation: { _, _, compositeKey, _, _, expectedRev, newCompositeKey in
+            cloudSaveOperation: { _, _, compositeKey, _, _, expectedRev, newCompositeKey, _ in
                 capturedKeys.record(oldKey: compositeKey, newKey: newCompositeKey, expectedRev: expectedRev)
                 return .saved(newSHA512: Data("cloud-rekeyed-hash".utf8))
             },
@@ -4722,7 +4722,7 @@ final class DatabaseViewModelTests: XCTestCase {
         let localSaverCalls = CallTracker()
         let vm = try makeViewModel(
             reference: reference,
-            localSaveOperation: { _, _, _, _, _, _ in
+            localSaveOperation: { _, _, _, _, _, _, _ in
                 localSaverCalls.recordCall()
                 return .saved(newSHA512: Data("saved".utf8))
             }
@@ -4738,7 +4738,7 @@ final class DatabaseViewModelTests: XCTestCase {
         let localSaverCalls = CallTracker()
         let vm = try makeViewModel(
             reference: try TestDatabaseSupport.makeReference(for: legacyFixtureURL()),
-            localSaveOperation: { _, _, _, _, _, _ in
+            localSaveOperation: { _, _, _, _, _, _, _ in
                 localSaverCalls.recordCall()
                 return .saved(newSHA512: Data("saved".utf8))
             }
@@ -4759,7 +4759,7 @@ final class DatabaseViewModelTests: XCTestCase {
     func testChangeMasterKeyWithDirtyDraftThrowsUnsavedChanges() async throws {
         let localSaverCalls = CallTracker()
         let vm = try makeViewModel(
-            localSaveOperation: { _, _, _, _, _, _ in
+            localSaveOperation: { _, _, _, _, _, _, _ in
                 localSaverCalls.recordCall()
                 return .saved(newSHA512: Data("saved".utf8))
             }
@@ -4776,7 +4776,7 @@ final class DatabaseViewModelTests: XCTestCase {
     func testChangeMasterKeyWhileSaveInFlightThrowsSaveInProgress() async throws {
         let gate = SaveGate()
         let vm = try makeViewModel(
-            localSaveOperation: { _, _, _, openTimeSHA512, _, _ in
+            localSaveOperation: { _, _, _, openTimeSHA512, _, _, _ in
                 await gate.signalStarted()
                 await gate.waitUntilOpen()
                 return .saved(newSHA512: openTimeSHA512)
@@ -4798,7 +4798,7 @@ final class DatabaseViewModelTests: XCTestCase {
     func testChangeMasterKeyWithEmptyCredentialsThrowsMissingKeyComponent() async throws {
         let localSaverCalls = CallTracker()
         let vm = try makeViewModel(
-            localSaveOperation: { _, _, _, _, _, _ in
+            localSaveOperation: { _, _, _, _, _, _, _ in
                 localSaverCalls.recordCall()
                 return .saved(newSHA512: Data("saved".utf8))
             }
@@ -4825,7 +4825,7 @@ final class DatabaseViewModelTests: XCTestCase {
                     status: .current
                 )
             },
-            cloudSaveOperation: { _, _, _, _, _, _, _ in
+            cloudSaveOperation: { _, _, _, _, _, _, _, _ in
                 cloudSaverCalls.recordCall()
                 return .saved(newSHA512: Data("saved".utf8))
             },
@@ -4841,7 +4841,7 @@ final class DatabaseViewModelTests: XCTestCase {
     func testChangeMasterKeyConflictThrowsAndLeavesSessionUnchanged() async throws {
         let storedKeyStores = CallTracker()
         let vm = try makeViewModel(
-            localSaveOperation: { _, _, _, _, _, _ in
+            localSaveOperation: { _, _, _, _, _, _, _ in
                 .conflict(remoteSHA512: Data("remote".utf8), remoteData: Data("remote-data".utf8))
             },
             storedKeyPresenceCheck: { _ in true },
@@ -4865,7 +4865,7 @@ final class DatabaseViewModelTests: XCTestCase {
         let storedKeys = RekeyedKeyCapture()
         let deletions = CallTracker()
         let vm = try makeViewModel(
-            localSaveOperation: { _, _, _, _, _, _ in
+            localSaveOperation: { _, _, _, _, _, _, _ in
                 .saved(newSHA512: Data("rekeyed-hash".utf8))
             },
             storedKeyPresenceCheck: { _ in true },
@@ -4891,7 +4891,7 @@ final class DatabaseViewModelTests: XCTestCase {
     func testChangeMasterKeyWithoutStoredKeyDoesNotStoreOne() async throws {
         let storedKeyStores = CallTracker()
         let vm = try makeViewModel(
-            localSaveOperation: { _, _, _, _, _, _ in
+            localSaveOperation: { _, _, _, _, _, _, _ in
                 .saved(newSHA512: Data("rekeyed-hash".utf8))
             },
             storedKeyPresenceCheck: { _ in false },
@@ -4912,7 +4912,7 @@ final class DatabaseViewModelTests: XCTestCase {
     func testChangeMasterKeyDeletesStoredKeyWhenRefreshFails() async throws {
         let deletions = CallTracker()
         let vm = try makeViewModel(
-            localSaveOperation: { _, _, _, _, _, _ in
+            localSaveOperation: { _, _, _, _, _, _, _ in
                 .saved(newSHA512: Data("rekeyed-hash".utf8))
             },
             storedKeyPresenceCheck: { _ in true },
@@ -4947,7 +4947,7 @@ final class DatabaseViewModelTests: XCTestCase {
                     status: .current
                 )
             },
-            cloudSaveOperation: { _, _, _, _, _, _, _ in
+            cloudSaveOperation: { _, _, _, _, _, _, _, _ in
                 throw SaveError.rekeyAppliedRemotely
             },
             pendingUploadMarkerCheck: { _ in false },
@@ -4989,7 +4989,7 @@ final class DatabaseViewModelTests: XCTestCase {
         }
         let box = Box()
         let vm = try makeViewModel(
-            localSaveOperation: { _, _, _, _, _, newCompositeKey in
+            localSaveOperation: { _, _, _, _, _, newCompositeKey, _ in
                 if newCompositeKey != nil {
                     // An edit lands while the rekey save is in flight.
                     await MainActor.run { box.growDraft?() }
@@ -5018,6 +5018,267 @@ final class DatabaseViewModelTests: XCTestCase {
         }
         XCTAssertTrue(box.followUpDidRun, "An edit applied during the rekey must be saved afterwards")
         XCTAssertNil(vm.draft)
+    }
+
+    // MARK: - Change encryption settings (#98)
+
+    func testChangeEncryptionSettingsRoutesChangeThroughLocalSaveUnderTheSameKey() async throws {
+        let capture = EncryptionSettingsCapture()
+        let savedHash = Data("re-encrypted-hash".utf8)
+        let vm = try makeViewModel(
+            localSaveOperation: { _, _, compositeKey, _, _, newCompositeKey, encryptionSettings in
+                capture.record(compositeKey: compositeKey, newCompositeKey: newCompositeKey, change: encryptionSettings)
+                return .saved(newSHA512: savedHash)
+            }
+        )
+
+        await vm.unlock(password: fixturePassword)
+        let compositeKey = try XCTUnwrap(vm.compositeKey)
+
+        try await vm.changeEncryptionSettings(cipher: .chacha20, kdfPreset: .maximum, isCompressed: false)
+
+        let change = try XCTUnwrap(capture.change)
+        XCTAssertEqual(change.cipherID, KDBXParser.chachaCipherUUID)
+        XCTAssertEqual(change.compressionFlags, 0)
+        XCTAssertEqual(change.kdfParameters?["$UUID"] as? Data, KDBXParser.argon2idUUID)
+        XCTAssertEqual(change.kdfParameters?["I"] as? UInt64, DatabaseCreationKDFPreset.maximum.iterations)
+        XCTAssertEqual(change.kdfParameters?["M"] as? UInt64, DatabaseCreationKDFPreset.maximum.memoryBytes)
+        XCTAssertEqual(capture.compositeKey, compositeKey)
+        XCTAssertNil(capture.newCompositeKey, "A settings change must not rekey.")
+        XCTAssertEqual(vm.compositeKey, compositeKey)
+        XCTAssertEqual(vm.openTimeSHA512, savedHash)
+        XCTAssertFalse(vm.isSaving)
+        XCTAssertState(vm.state, is: .unlocked)
+    }
+
+    func testChangeEncryptionSettingsLeavesUnchosenFieldsNil() async throws {
+        let capture = EncryptionSettingsCapture()
+        let vm = try makeViewModel(
+            localSaveOperation: { _, _, compositeKey, _, _, newCompositeKey, encryptionSettings in
+                capture.record(compositeKey: compositeKey, newCompositeKey: newCompositeKey, change: encryptionSettings)
+                return .saved(newSHA512: Data("saved".utf8))
+            }
+        )
+
+        await vm.unlock(password: fixturePassword)
+        try await vm.changeEncryptionSettings(cipher: nil, kdfPreset: nil, isCompressed: true)
+
+        let change = try XCTUnwrap(capture.change)
+        XCTAssertNil(change.cipherID)
+        XCTAssertNil(change.kdfParameters)
+        XCTAssertEqual(change.compressionFlags, 1)
+    }
+
+    func testChangeEncryptionSettingsWithNothingToChangeDoesNotSave() async throws {
+        let localSaverCalls = CallTracker()
+        let vm = try makeViewModel(
+            localSaveOperation: { _, _, _, _, _, _, _ in
+                localSaverCalls.recordCall()
+                return .saved(newSHA512: Data("saved".utf8))
+            }
+        )
+
+        await vm.unlock(password: fixturePassword)
+        try await vm.changeEncryptionSettings(cipher: nil, kdfPreset: nil, isCompressed: nil)
+
+        XCTAssertFalse(localSaverCalls.didCall)
+    }
+
+    func testChangeEncryptionSettingsCloudAdoptsTheUploadedRevision() async throws {
+        let reference = makeCloudReference(remoteRev: "rev-A")
+        DatabaseListStore.update(reference)
+        let fixtureData = try Data(contentsOf: fixtureURL())
+        let capture = EncryptionSettingsCapture()
+        let vm = try makeViewModel(
+            reference: reference,
+            cloudSyncOperation: { reference, _ in
+                CloudSyncResolution(
+                    reference: reference,
+                    localURL: DatabaseListStore.cacheLocation(for: reference),
+                    data: fixtureData,
+                    status: .current
+                )
+            },
+            cloudSaveOperation: { _, reference, compositeKey, _, _, expectedRev, newCompositeKey, encryptionSettings in
+                capture.record(
+                    compositeKey: compositeKey,
+                    newCompositeKey: newCompositeKey,
+                    change: encryptionSettings,
+                    expectedRev: expectedRev
+                )
+                var uploaded = reference
+                uploaded.updateCloudSyncMetadata { $0.remoteRev = "rev-B" }
+                DatabaseListStore.update(uploaded)
+                return .saved(newSHA512: Data("cloud-re-encrypted-hash".utf8))
+            },
+            pendingUploadMarkerCheck: { _ in false }
+        )
+
+        await vm.unlock(password: fixturePassword)
+        try await vm.changeEncryptionSettings(cipher: .chacha20, kdfPreset: nil, isCompressed: nil)
+
+        XCTAssertEqual(capture.expectedRev, "rev-A")
+        XCTAssertEqual(capture.change?.cipherID, KDBXParser.chachaCipherUUID)
+        XCTAssertEqual(vm.openTimeSHA512, Data("cloud-re-encrypted-hash".utf8))
+        XCTAssertEqual(
+            vm.databaseReference.expectedCloudRevision,
+            "rev-B",
+            "The next save must not reuse the revision this change replaced."
+        )
+    }
+
+    func testChangeEncryptionSettingsWhenReadOnlyThrowsWithoutSaving() async throws {
+        var reference = try makeReference()
+        reference.isReadOnly = true
+        let localSaverCalls = CallTracker()
+        let vm = try makeViewModel(
+            reference: reference,
+            localSaveOperation: { _, _, _, _, _, _, _ in
+                localSaverCalls.recordCall()
+                return .saved(newSHA512: Data("saved".utf8))
+            }
+        )
+
+        await vm.unlock(password: fixturePassword)
+
+        await assertChangeEncryptionSettingsThrows(.databaseIsReadOnly, on: vm)
+        XCTAssertFalse(localSaverCalls.didCall)
+    }
+
+    func testChangeEncryptionSettingsWhileLockedThrowsSessionUnavailable() async throws {
+        let vm = try makeViewModel()
+
+        await assertChangeEncryptionSettingsThrows(.sessionUnavailable, on: vm)
+    }
+
+    func testChangeEncryptionSettingsWithDirtyDraftThrowsUnsavedChanges() async throws {
+        let localSaverCalls = CallTracker()
+        let vm = try makeViewModel(
+            localSaveOperation: { _, _, _, _, _, _, _ in
+                localSaverCalls.recordCall()
+                return .saved(newSHA512: Data("saved".utf8))
+            }
+        )
+
+        await vm.unlock(password: fixturePassword)
+        vm.draft = try makeDirtyDraft(from: vm, entryTitle: "Unsaved Before Settings Change")
+
+        await assertChangeEncryptionSettingsThrows(.unsavedChanges, on: vm)
+        XCTAssertFalse(localSaverCalls.didCall)
+        XCTAssertNotNil(vm.draft)
+    }
+
+    func testChangeEncryptionSettingsWhileSaveInFlightThrowsSaveInProgress() async throws {
+        let gate = SaveGate()
+        let vm = try makeViewModel(
+            localSaveOperation: { _, _, _, openTimeSHA512, _, _, _ in
+                await gate.signalStarted()
+                await gate.waitUntilOpen()
+                return .saved(newSHA512: openTimeSHA512)
+            }
+        )
+
+        await vm.unlock(password: fixturePassword)
+        vm.draft = try makeDirtyDraft(from: vm, entryTitle: "In Flight Entry")
+
+        let save = Task { try await vm.save() }
+        await gate.waitUntilStarted()
+
+        await assertChangeEncryptionSettingsThrows(.saveInProgress, on: vm)
+
+        await gate.open()
+        try await save.value
+    }
+
+    func testChangeEncryptionSettingsCloudWithPendingUploadMarkersThrows() async throws {
+        let reference = makeCloudReference(remoteRev: "rev-A")
+        let fixtureData = try Data(contentsOf: fixtureURL())
+        let cloudSaverCalls = CallTracker()
+        let vm = try makeViewModel(
+            reference: reference,
+            cloudSyncOperation: { reference, _ in
+                CloudSyncResolution(
+                    reference: reference,
+                    localURL: DatabaseListStore.cacheLocation(for: reference),
+                    data: fixtureData,
+                    status: .current
+                )
+            },
+            cloudSaveOperation: { _, _, _, _, _, _, _, _ in
+                cloudSaverCalls.recordCall()
+                return .saved(newSHA512: Data("saved".utf8))
+            },
+            pendingUploadMarkerCheck: { _ in true }
+        )
+
+        await vm.unlock(password: fixturePassword)
+
+        await assertChangeEncryptionSettingsThrows(.pendingUploadsExist, on: vm)
+        XCTAssertFalse(cloudSaverCalls.didCall)
+    }
+
+    func testChangeEncryptionSettingsConflictThrowsAndLeavesSessionUnchanged() async throws {
+        let vm = try makeViewModel(
+            localSaveOperation: { _, _, _, _, _, _, _ in
+                .conflict(remoteSHA512: Data("remote".utf8), remoteData: Data("remote-data".utf8))
+            }
+        )
+
+        await vm.unlock(password: fixturePassword)
+        let oldHash = vm.openTimeSHA512
+
+        await assertChangeEncryptionSettingsThrows(.conflict, on: vm)
+
+        XCTAssertEqual(vm.openTimeSHA512, oldHash)
+        XCTAssertNil(vm.saveConflict, "A settings conflict must not enter the conflict-copy machinery.")
+        XCTAssertFalse(vm.isSaving)
+    }
+
+    func testChangeEncryptionSettingsSavesDraftThatGrewDuringTheChange() async throws {
+        final class Box: @unchecked Sendable {
+            var growDraft: (@MainActor () -> Void)?
+            var followUpDidRun = false
+        }
+        let box = Box()
+        let vm = try makeViewModel(
+            localSaveOperation: { _, _, _, _, _, _, encryptionSettings in
+                if encryptionSettings != nil {
+                    await MainActor.run { box.growDraft?() }
+                } else {
+                    box.followUpDidRun = true
+                }
+                return .saved(newSHA512: Data("re-encrypted-hash".utf8))
+            }
+        )
+        box.growDraft = { [weak vm, weak self] in
+            guard let vm, let self else { return }
+            vm.draft = try? self.makeDirtyDraft(from: vm, entryTitle: "Mid-Change Entry")
+        }
+
+        await vm.unlock(password: fixturePassword)
+        try await vm.changeEncryptionSettings(cipher: .chacha20, kdfPreset: nil, isCompressed: nil)
+
+        for _ in 0..<200 where box.followUpDidRun == false {
+            try await Task.sleep(nanoseconds: 10_000_000)
+        }
+        XCTAssertTrue(box.followUpDidRun, "An edit applied during the settings change must be saved afterwards")
+        XCTAssertNil(vm.draft)
+    }
+
+    private func assertChangeEncryptionSettingsThrows(
+        _ expected: DatabaseViewModel.EncryptionSettingsError,
+        on viewModel: DatabaseViewModel,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) async {
+        do {
+            try await viewModel.changeEncryptionSettings(cipher: .chacha20, kdfPreset: nil, isCompressed: nil)
+            XCTFail("Expected \(expected)", file: file, line: line)
+        } catch let error as DatabaseViewModel.EncryptionSettingsError {
+            XCTAssertEqual(error, expected, file: file, line: line)
+        } catch {
+            XCTFail("Unexpected error: \(error)", file: file, line: line)
+        }
     }
 
     private func assertChangeMasterKeyThrows(
@@ -5050,7 +5311,7 @@ final class DatabaseViewModelTests: XCTestCase {
                 progress: progress
             )
         },
-        localSaveOperation: @escaping DatabaseViewModel.LocalSaveOperation = { draft, reference, compositeKey, openTimeSHA512, reconciledRemoteSHA512, newCompositeKey in
+        localSaveOperation: @escaping DatabaseViewModel.LocalSaveOperation = { draft, reference, compositeKey, openTimeSHA512, reconciledRemoteSHA512, newCompositeKey, encryptionSettings in
             try await LocalDatabaseSaver.save(
                 draft: draft,
                 reference: reference,
@@ -5058,10 +5319,11 @@ final class DatabaseViewModelTests: XCTestCase {
                 openTimeSHA512: openTimeSHA512,
                 reconciledRemoteSHA512: reconciledRemoteSHA512,
                 kdfPolicy: .mainApp,
-                newCompositeKey: newCompositeKey
+                newCompositeKey: newCompositeKey,
+                encryptionSettings: encryptionSettings
             )
         },
-        cloudSaveOperation: @escaping DatabaseViewModel.CloudSaveOperation = { draft, reference, compositeKey, openTimeSHA512, reconciledRemoteSHA512, expectedRev, newCompositeKey in
+        cloudSaveOperation: @escaping DatabaseViewModel.CloudSaveOperation = { draft, reference, compositeKey, openTimeSHA512, reconciledRemoteSHA512, expectedRev, newCompositeKey, encryptionSettings in
             try await CloudDatabaseSaver.save(
                 draft: draft,
                 reference: reference,
@@ -5070,7 +5332,8 @@ final class DatabaseViewModelTests: XCTestCase {
                 reconciledRemoteSHA512: reconciledRemoteSHA512,
                 expectedRev: expectedRev,
                 kdfPolicy: .mainApp,
-                newCompositeKey: newCompositeKey
+                newCompositeKey: newCompositeKey,
+                encryptionSettings: encryptionSettings
             )
         },
         conflictCopyEncryptionOperation: @escaping DatabaseViewModel.ConflictCopyEncryptionOperation = { draft, compositeKey, sourceData in
@@ -5570,6 +5833,52 @@ private final class MergeSaveRecorder: @unchecked Sendable {
         // The last scripted outcome repeats, so an unexpected extra save is
         // visible in the call count rather than trapping.
         return results.count > 1 ? results.removeFirst() : results[0]
+    }
+}
+
+private final class EncryptionSettingsCapture: @unchecked Sendable {
+    private let lock = NSLock()
+    private var storedCompositeKey: SymmetricKey?
+    private var storedNewCompositeKey: SymmetricKey?
+    private var storedChange: EncryptionSettingsChange?
+    private var storedExpectedRev: String?
+
+    func record(
+        compositeKey: SymmetricKey,
+        newCompositeKey: SymmetricKey?,
+        change: EncryptionSettingsChange?,
+        expectedRev: String? = nil
+    ) {
+        lock.lock()
+        storedCompositeKey = compositeKey
+        storedNewCompositeKey = newCompositeKey
+        storedChange = change
+        storedExpectedRev = expectedRev
+        lock.unlock()
+    }
+
+    var compositeKey: SymmetricKey? {
+        lock.lock()
+        defer { lock.unlock() }
+        return storedCompositeKey
+    }
+
+    var newCompositeKey: SymmetricKey? {
+        lock.lock()
+        defer { lock.unlock() }
+        return storedNewCompositeKey
+    }
+
+    var change: EncryptionSettingsChange? {
+        lock.lock()
+        defer { lock.unlock() }
+        return storedChange
+    }
+
+    var expectedRev: String? {
+        lock.lock()
+        defer { lock.unlock() }
+        return storedExpectedRev
     }
 }
 

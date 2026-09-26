@@ -33,6 +33,7 @@ struct DatabaseDetailsView: View {
     @State private var showAutoFillDestinationPicker = false
     @State private var backups: [DatabaseExportService.Backup] = []
     @State private var exportRequest: DatabaseExportRequest?
+    @State private var fileInfoLoadID = 0
 
     /// True when this view created its own `DatabaseListViewModel` because the
     /// caller could not reach the app's, and therefore has to install the
@@ -64,6 +65,7 @@ struct DatabaseDetailsView: View {
                 autoFillSection
                 keyFileSection
                 masterKeySection
+                encryptionSection
                 metadataSection
                 databaseFileSection
                 exportSection
@@ -74,7 +76,7 @@ struct DatabaseDetailsView: View {
             .macGroupedForm()
             .navigationTitle(currentReference.displayName)
             .navigationBarTitleDisplayMode(.inline)
-            .task {
+            .task(id: fileInfoLoadID) {
                 backups = DatabaseExportService.backups(for: currentReference)
                 fileInfo = await DatabaseFileInfoLoader.load(for: currentReference)
                 isLoadingFileInfo = false
@@ -279,6 +281,29 @@ struct DatabaseDetailsView: View {
                 Text("Master Key")
             } footer: {
                 Text("Changing the master key re-encrypts this database file with a new master password and/or key file.")
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var encryptionSection: some View {
+        if let sessionViewModel {
+            Section {
+                NavigationLink {
+                    if let summary = fileInfo?.summary {
+                        EncryptionSettingsView(sessionViewModel: sessionViewModel, current: summary)
+                            // The save rewrote the header and added a backup.
+                            .onDisappear { fileInfoLoadID += 1 }
+                    }
+                } label: {
+                    Text("Change Encryption Settings…")
+                }
+                .disabled(isReadOnly || fileInfo?.summary == nil)
+                .accessibilityIdentifier("database-details.change-encryption-settings")
+            } header: {
+                Text("Encryption")
+            } footer: {
+                Text("Choose the cipher, key derivation, and compression this database file is saved with.")
             }
         }
     }

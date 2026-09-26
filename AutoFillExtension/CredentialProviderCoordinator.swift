@@ -1463,7 +1463,7 @@ final class CredentialProviderCoordinator {
               let compositeKey,
               let openTimeSHA512,
               let reference = activeDatabaseReference,
-              let requestURL = serviceIdentifiers.first?.identifier else {
+              let requestURL = serviceIdentifiers.first(where: { !CredentialMatcher.isAppIdentifier($0) })?.identifier else {
             cancelRequest(code: .failed)
             return
         }
