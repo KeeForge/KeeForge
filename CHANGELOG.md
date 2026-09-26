@@ -6,6 +6,7 @@
 
 - KeeForge now speaks Japanese: a full Japanese (日本語) localization across the app and the AutoFill extension, plus translated README and contributor docs.
 - Open, save, and create databases directly on an FTP server (#115). Add Database → FTP asks for the server address, username, and password. FTP is unencrypted, so connecting requires turning on "Allow Unencrypted FTP"; use it only on a network you trust. Encrypted FTPS and SFTP are not supported yet.
+- Change a database's encryption settings (#98). With the database unlocked, open Database Details and choose "Change Encryption Settings…" to pick the cipher (AES-256 or ChaCha20), a key derivation strength (Argon2id Balanced, Strong, or Maximum), and whether the file is compressed. The master key stays the same. The same choices are offered as when creating a database; a database using Twofish, Argon2d, or AES-KDF keeps that setting unless you pick another one.
 
 ### Fixes
 
