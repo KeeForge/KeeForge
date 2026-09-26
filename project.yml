@@ -293,6 +293,7 @@ targets:
       - path: KeeForge/Services/AutoFill/PasswordStrengthEstimator.swift
       - path: KeeForge/Views/Components/PasswordDisplay.swift
       - path: KeeForge/Views/Components/PasswordInputRow.swift
+      - path: KeeForge/Views/Components/StandardIconView.swift
       - path: KeeForge/Services/Persistence/SecurityScopedBookmarkManager.swift
       - path: KeeForge/Extensions/PlatformCompat.swift
       # <<< SHARED AUTOFILL ALLOW-LIST (maintenance invariant) <<<
@@ -359,6 +360,7 @@ targets:
       - path: KeeForge/Services/AutoFill/PasswordStrengthEstimator.swift
       - path: KeeForge/Views/Components/PasswordDisplay.swift
       - path: KeeForge/Views/Components/PasswordInputRow.swift
+      - path: KeeForge/Views/Components/StandardIconView.swift
       - path: KeeForge/Services/Persistence/SecurityScopedBookmarkManager.swift
       - path: KeeForge/Extensions/PlatformCompat.swift
       # <<< SHARED AUTOFILL ALLOW-LIST (maintenance invariant) <<<

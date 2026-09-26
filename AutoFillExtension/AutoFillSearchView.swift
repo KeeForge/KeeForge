@@ -233,30 +233,29 @@ struct AutoFillSearchView: View {
     @ViewBuilder
     private func entryRow(_ entry: KPEntry) -> some View {
         HStack {
-                        Image(systemName: entry.systemIconName)
-                            .foregroundStyle(.tint)
-                            .font(.system(size: 16))
-                            .frame(width: 28)
+            StandardIconView(iconID: entry.iconID)
+                .font(.system(size: 16))
+                .frame(width: 28)
 
-                        VStack(alignment: .leading) {
-                            Text(entry.title.isEmpty ? String(localized: "(untitled)") : entry.title)
-                                .font(.body)
-                                .foregroundStyle(.primary)
-                            if !entry.username.isEmpty {
-                                Text(entry.username)
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                            }
-                        }
+            VStack(alignment: .leading) {
+                Text(entry.title.isEmpty ? String(localized: "(untitled)") : entry.title)
+                    .font(.body)
+                    .foregroundStyle(.primary)
+                if !entry.username.isEmpty {
+                    Text(entry.username)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
 
-                        Spacer()
+            Spacer()
 
-                        if entry.isExpired() {
-                            Label("Expired", systemImage: "exclamationmark.triangle.fill")
-                                .font(.caption.weight(.semibold))
-                                .foregroundStyle(.red)
-                                .accessibilityIdentifier("autofill.entry.expired")
-                        }
+            if entry.isExpired() {
+                Label("Expired", systemImage: "exclamationmark.triangle.fill")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.red)
+                    .accessibilityIdentifier("autofill.entry.expired")
+            }
         }
     }
 

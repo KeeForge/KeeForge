@@ -407,12 +407,20 @@ final class AppSettingsUITests: AppSettingsUITestCase {
         tapElement(backButton)
     }
 
-    func testDisplaySettingsPageShowsUsageStatsToggle() {
+    func testDisplaySettingsPageShowsAppearanceAndUsageControls() {
         openAppSettings()
 
         let displayLink = app.descendants(matching: .any).matching(identifier: "settings.display.link").firstMatch
         revealInSettings(displayLink, maxSwipes: 2)
         tapElement(displayLink)
+
+        let themePicker = app.descendants(matching: .any)
+            .matching(identifier: "settings.display.theme-picker").firstMatch
+        XCTAssertTrue(themePicker.waitForExistence(timeout: 5), "Display settings should expose the theme picker")
+
+        let accentColorPicker = app.descendants(matching: .any)
+            .matching(identifier: "settings.display.accent-color-picker").firstMatch
+        XCTAssertTrue(accentColorPicker.waitForExistence(timeout: 5), "Display settings should expose the accent color picker")
 
         let usageStatsToggle = app.switches["settings.display.usage-stats-toggle"]
         XCTAssertTrue(usageStatsToggle.waitForExistence(timeout: 5), "Display settings should expose the database list usage-stats toggle")

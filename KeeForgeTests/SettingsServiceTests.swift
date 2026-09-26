@@ -13,6 +13,7 @@ final class SettingsServiceTests: XCTestCase {
     private let quickAutoFillEnabledKey = "KeeForge.quickAutoFillEnabled"
     private let autoFillCopyTOTPKey = "KeeForge.autoFillCopyTOTP"
     private let appearanceModeKey = "KeeForge.appearanceMode"
+    private let appAccentColorKey = "KeeForge.appAccentColor"
     private let hasTippedKey = "KeeForge.hasTipped"
     private let macLockPolicyKey = "KeeForge.macLockPolicy"
     private let blockScreenCaptureKey = "KeeForge.blockScreenCapture"
@@ -28,6 +29,7 @@ final class SettingsServiceTests: XCTestCase {
         // migrates the legacy standard-defaults value into it, so both stores
         // have to start clean or an earlier test's value decides this one.
         UserDefaults.standard.removeObject(forKey: clipboardKey)
+        UserDefaults.standard.removeObject(forKey: appAccentColorKey)
         sharedDefaults.removeObject(forKey: clipboardKey)
         sharedDefaults.removeObject(forKey: autoFillCopyTOTPKey)
         sharedDefaults.removeObject(forKey: passwordGeneratorOptionsKey)
@@ -40,6 +42,7 @@ final class SettingsServiceTests: XCTestCase {
         UserDefaults.standard.removeObject(forKey: autoUnlockWithFaceIDKey)
         UserDefaults.standard.removeObject(forKey: showDatabaseUsageStatsKey)
         UserDefaults.standard.removeObject(forKey: appearanceModeKey)
+        UserDefaults.standard.removeObject(forKey: appAccentColorKey)
         UserDefaults.standard.removeObject(forKey: hasTippedKey)
         UserDefaults.standard.removeObject(forKey: macLockPolicyKey)
         UserDefaults.standard.removeObject(forKey: blockScreenCaptureKey)
@@ -81,6 +84,11 @@ final class SettingsServiceTests: XCTestCase {
     func testAppearanceModeDefaultsToSystem() {
         UserDefaults.standard.removeObject(forKey: appearanceModeKey)
         XCTAssertEqual(SettingsService.appearanceMode, .system)
+    }
+
+    func testAppAccentColorDefaultsToAssetColor() {
+        UserDefaults.standard.removeObject(forKey: appAccentColorKey)
+        XCTAssertNil(SettingsService.appAccentColor)
     }
 
     func testHasTippedDefaultsToFalse() {
@@ -135,6 +143,18 @@ final class SettingsServiceTests: XCTestCase {
         }
     }
 
+    func testAppAccentColorPersistsAndClears() {
+        let color = SettingsService.AppAccentColor(red: 0.2, green: 0.4, blue: 0.6)
+
+        SettingsService.appAccentColor = color
+        XCTAssertEqual(SettingsService.appAccentColor, color)
+        XCTAssertEqual(UserDefaults.standard.string(forKey: appAccentColorKey), "336699")
+
+        SettingsService.appAccentColor = nil
+        XCTAssertNil(SettingsService.appAccentColor)
+        XCTAssertNil(UserDefaults.standard.object(forKey: appAccentColorKey))
+    }
+
     func testHasTippedPersists() {
         SettingsService.hasTipped = true
         XCTAssertTrue(SettingsService.hasTipped)
@@ -174,6 +194,18 @@ final class SettingsServiceTests: XCTestCase {
     func testAppearanceModeFallsBackOnInvalidValue() {
         UserDefaults.standard.set("bogus", forKey: appearanceModeKey)
         XCTAssertEqual(SettingsService.appearanceMode, .system)
+    }
+
+    func testAppAccentColorFallsBackOnInvalidValue() {
+        UserDefaults.standard.set("not-a-color", forKey: appAccentColorKey)
+        XCTAssertNil(SettingsService.appAccentColor)
+    }
+
+    func testAppAccentColorClampsAndRoundTripsRGBComponents() {
+        let color = SettingsService.AppAccentColor(red: -1, green: 0.5, blue: 2)
+
+        XCTAssertEqual(color.rawValue, "0080FF")
+        XCTAssertEqual(SettingsService.AppAccentColor(rawValue: color.rawValue), color)
     }
 
     // MARK: - macOS Lock Policy

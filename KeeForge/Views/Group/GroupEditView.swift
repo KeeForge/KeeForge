@@ -214,8 +214,11 @@ struct GroupEditView: View {
             HStack {
                 Text("Icon")
                 Spacer(minLength: 8)
-                Image(systemName: KPEntry.systemIconName(for: formViewModel.iconID, fallback: "folder.fill"))
-                    .foregroundStyle(.tint)
+                StandardIconView(
+                    iconID: formViewModel.iconID,
+                    fallbackSystemName: "folder.fill",
+                    fallbackPalette: .blue
+                )
                 Image(systemName: "chevron.forward")
                     .font(.caption)
                     .foregroundStyle(.secondary)
