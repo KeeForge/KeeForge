@@ -488,6 +488,18 @@ final class DatabaseListStoreTests: XCTestCase {
         XCTAssertEqual(DatabaseListStore.autoFillEnabledDatabases.map(\.id), [enabled.id])
     }
 
+    func testSetAutoFillDestinationGroupIDPersistsForThatDatabaseOnly() throws {
+        let configured = try DatabaseListStore.add(url: makeTemporaryFileURL(name: "configured.kdbx"))
+        let other = try DatabaseListStore.add(url: makeTemporaryFileURL(name: "other.kdbx"))
+        let groupID = UUID()
+
+        DatabaseListStore.setAutoFillDestinationGroupID(groupID, for: configured)
+
+        let storedReferences = DatabaseListStore.databases
+        XCTAssertEqual(storedReferences.first(where: { $0.id == configured.id })?.autoFillDestinationGroupID, groupID)
+        XCTAssertNil(storedReferences.first(where: { $0.id == other.id })?.autoFillDestinationGroupID)
+    }
+
     func testActiveAutoFillDatabaseIDSetterRefusesDisabledDatabase() throws {
         let enabled = try DatabaseListStore.add(url: makeTemporaryFileURL(name: "enabled.kdbx"))
         let disabled = try TestDatabaseSupport.makeReference(

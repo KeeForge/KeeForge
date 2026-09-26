@@ -22418,6 +22418,46 @@
         }
       }
     },
+    "Passwords and passkeys saved from AutoFill go into this group." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Passwörter und Passkeys, die über AutoFill gespeichert werden, landen in dieser Gruppe."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Las contraseñas y llaves de acceso guardadas desde el autorrelleno se añaden a este grupo."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Les mots de passe et clés d'accès enregistrés depuis le remplissage automatique sont ajoutés à ce groupe."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "自動入力から保存したパスワードとパスキーは、このグループに追加されます。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "从自动填充保存的密码和通行密钥会存入此群组。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "從自動填寫儲存的密碼和通行金鑰會存入此群組。"
+          }
+        }
+      }
+    },
     "Paste a setup link or type a key to add a verification code while editing an entry. Codes are saved in your database, so they work in other KeePass apps too." : {
       "localizations" : {
         "de" : {
@@ -24854,6 +24894,46 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "儲存衝突"
+          }
+        }
+      }
+    },
+    "Save New Entries To" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Neue Einträge speichern in"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Guardar nuevas entradas en"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Enregistrer les nouvelles entrées dans"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新規エントリの保存先"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新条目保存到"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新項目儲存至"
           }
         }
       }

@@ -105,6 +105,23 @@ final class CredentialProviderPickerCreationTests: XCTestCase {
         )
     }
 
+    func test_createEntryAction_showsTheGroupTheEntryWillBeSavedTo() throws {
+        let (coordinator, presenter) = makeCoordinator()
+        seedPickerState(coordinator, reference: makeLocalReference())
+        let signups = KPGroup(name: "Signups")
+        coordinator.parsedRootGroup = KPGroup(name: "Root", groups: [KPGroup(name: "MyDatabase", groups: [signups])])
+
+        coordinator.presentPasswordMatchesOrFinish()
+        try XCTUnwrap(presenter.searchView?.onCreateEntry)()
+        XCTAssertEqual(try XCTUnwrap(presenter.entryCreator).destinationGroupName, "MyDatabase")
+
+        presenter.entryCreator = nil
+        coordinator.activeDatabaseReference?.autoFillDestinationGroupID = signups.id
+        coordinator.presentPasswordMatchesOrFinish()
+        try XCTUnwrap(presenter.searchView?.onCreateEntry)()
+        XCTAssertEqual(try XCTUnwrap(presenter.entryCreator).destinationGroupName, "Signups")
+    }
+
     func test_createEntryAction_cancel_cancelsRequestAndCleansUp() throws {
         let (coordinator, presenter) = makeCoordinator()
         seedPickerState(coordinator, reference: makeLocalReference())

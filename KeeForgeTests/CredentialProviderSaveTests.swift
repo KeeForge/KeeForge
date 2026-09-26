@@ -425,6 +425,125 @@ final class CredentialProviderSaveTests: XCTestCase {
         XCTAssertNil(DatabaseListStore.activeAutoFillDatabaseID)
     }
 
+    // MARK: - Destination group
+
+    func test_destinationGroup_unconfigured_isTheTopLevelGroup() {
+        let topLevelGroup = KPGroup(name: "MyDatabase", groups: [KPGroup(name: "General")])
+        let root = KPGroup(name: "Root", groups: [topLevelGroup])
+
+        let destination = AutoFillSaveCoordinator.destinationGroup(in: root, preferredGroupID: nil)
+
+        XCTAssertEqual(destination.id, topLevelGroup.id)
+    }
+
+    func test_destinationGroup_configuredNestedGroup_isUsed() {
+        let nested = KPGroup(name: "Signups")
+        let topLevelGroup = KPGroup(name: "MyDatabase", groups: [KPGroup(name: "General"), KPGroup(name: "Web", groups: [nested])])
+        let root = KPGroup(name: "Root", groups: [topLevelGroup])
+
+        let destination = AutoFillSaveCoordinator.destinationGroup(in: root, preferredGroupID: nested.id)
+
+        XCTAssertEqual(destination.id, nested.id)
+    }
+
+    func test_destinationGroup_deletedGroup_fallsBackToTheTopLevelGroup() {
+        let topLevelGroup = KPGroup(name: "MyDatabase", groups: [KPGroup(name: "General")])
+        let root = KPGroup(name: "Root", groups: [topLevelGroup])
+
+        let destination = AutoFillSaveCoordinator.destinationGroup(in: root, preferredGroupID: UUID())
+
+        XCTAssertEqual(destination.id, topLevelGroup.id)
+    }
+
+    func test_destinationGroup_recycleBinOrGroupInsideIt_fallsBackToTheTopLevelGroup() {
+        let recycled = KPGroup(name: "Signups")
+        let recycleBin = KPGroup(name: "Recycle Bin", groups: [recycled])
+        let topLevelGroup = KPGroup(name: "MyDatabase", groups: [recycleBin])
+        let root = KPGroup(name: "Root", groups: [topLevelGroup], recycleBinUUID: recycleBin.id)
+
+        XCTAssertEqual(
+            AutoFillSaveCoordinator.destinationGroup(in: root, preferredGroupID: recycled.id).id,
+            topLevelGroup.id
+        )
+        XCTAssertEqual(
+            AutoFillSaveCoordinator.destinationGroup(in: root, preferredGroupID: recycleBin.id).id,
+            topLevelGroup.id
+        )
+    }
+
+    func test_destinationGroup_neverTheSyntheticRoot() {
+        let topLevelGroup = KPGroup(name: "MyDatabase")
+        let root = KPGroup(name: "Root", groups: [topLevelGroup])
+
+        let destination = AutoFillSaveCoordinator.destinationGroup(in: root, preferredGroupID: root.id)
+
+        XCTAssertEqual(destination.id, topLevelGroup.id)
+    }
+
+    func test_saveNewEntry_configuredDestination_createsTheEntryInThatGroup() async throws {
+        let autoFillGroup = KPGroup(name: "AutoFill")
+        let topLevelGroup = KPGroup(name: "MyDatabase", groups: [KPGroup(name: "General"), autoFillGroup])
+        let root = KPGroup(name: "Root", groups: [topLevelGroup])
+        var reference = makeLocalReference()
+        reference.autoFillDestinationGroupID = autoFillGroup.id
+
+        let result = try await AutoFillSaveCoordinator.saveNewEntry(
+            draftPayload: EntryDraftPayload(
+                title: "Example",
+                username: "alex",
+                password: "secret",
+                url: "https://example.com"
+            ),
+            reference: reference,
+            rootGroup: root,
+            meta: KPMeta(),
+            sessionKey: SymmetricKey(size: .bits256),
+            compositeKey: SymmetricKey(data: Data("composite-key".utf8)),
+            openTimeSHA512: Data("open-sha".utf8),
+            environment: makeEnvironment(recorder: SaveRecorder())
+        )
+
+        guard case .saved(let outcome) = result else {
+            return XCTFail("Expected save to succeed")
+        }
+        let savedTopLevelGroup = try XCTUnwrap(outcome.savedRootGroup.groups.first)
+        let savedAutoFillGroup = try XCTUnwrap(savedTopLevelGroup.groups.first(where: { $0.id == autoFillGroup.id }))
+        XCTAssertEqual(savedAutoFillGroup.entries.map(\.title), ["Example"])
+        XCTAssertTrue(savedTopLevelGroup.entries.isEmpty)
+        XCTAssertEqual(outcome.savedRootGroup.allEntries.count, 1)
+    }
+
+    func test_saveNewEntry_destinationMovedToRecycleBin_savesToTheTopLevelGroup() async throws {
+        let recycled = KPGroup(name: "AutoFill")
+        let recycleBin = KPGroup(name: "Recycle Bin", groups: [recycled])
+        let topLevelGroup = KPGroup(name: "MyDatabase", groups: [recycleBin])
+        let root = KPGroup(name: "Root", groups: [topLevelGroup], recycleBinUUID: recycleBin.id)
+        var reference = makeLocalReference()
+        reference.autoFillDestinationGroupID = recycled.id
+
+        let result = try await AutoFillSaveCoordinator.saveNewEntry(
+            draftPayload: EntryDraftPayload(
+                title: "Example",
+                username: "alex",
+                password: "secret",
+                url: "https://example.com"
+            ),
+            reference: reference,
+            rootGroup: root,
+            meta: KPMeta(),
+            sessionKey: SymmetricKey(size: .bits256),
+            compositeKey: SymmetricKey(data: Data("composite-key".utf8)),
+            openTimeSHA512: Data("open-sha".utf8),
+            environment: makeEnvironment(recorder: SaveRecorder())
+        )
+
+        guard case .saved(let outcome) = result else {
+            return XCTFail("Expected save to succeed")
+        }
+        XCTAssertEqual(outcome.savedRootGroup.groups.first?.entries.map(\.title), ["Example"])
+        XCTAssertEqual(outcome.savedRootGroup.allEntries.count, 1)
+    }
+
     // MARK: - Save-prepare default database selection (slice 03)
 
     // `ASSavePasswordRequest` is unavailable on macOS, not merely gated by an

@@ -14,6 +14,10 @@ struct DatabaseReference: Identifiable, Codable, Hashable, Sendable {
     var legacyKeychainFilename: String?
     var isReadOnly: Bool = false
     var autoFillEnabled: Bool = true
+    /// Where AutoFill creates new entries. Left as is when the group
+    /// disappears; `AutoFillSaveCoordinator.destinationGroup` falls back
+    /// instead, so the choice returns if the group does.
+    var autoFillDestinationGroupID: UUID?
     /// The file lives in the app-sandbox Documents directory (Finder/iTunes
     /// file sharing). Finder replace is delete+recopy, so these references may
     /// be rebound to `Documents/<filename>` when their bookmark goes stale.
@@ -93,6 +97,7 @@ extension DatabaseReference {
         case legacyKeychainFilename
         case isReadOnly
         case autoFillEnabled
+        case autoFillDestinationGroupID
         case isDocumentsResident
         case source
         case lastMasterKeyChangeAt
@@ -114,6 +119,7 @@ extension DatabaseReference {
         legacyKeychainFilename = try container.decodeIfPresent(String.self, forKey: .legacyKeychainFilename)
         isReadOnly = try container.decodeIfPresent(Bool.self, forKey: .isReadOnly) ?? false
         autoFillEnabled = try container.decodeIfPresent(Bool.self, forKey: .autoFillEnabled) ?? true
+        autoFillDestinationGroupID = try container.decodeIfPresent(UUID.self, forKey: .autoFillDestinationGroupID)
         isDocumentsResident = try container.decodeIfPresent(Bool.self, forKey: .isDocumentsResident) ?? false
         source = try container.decodeIfPresent(DatabaseSource.self, forKey: .source) ?? .local
         lastMasterKeyChangeAt = try container.decodeIfPresent(Date.self, forKey: .lastMasterKeyChangeAt)
@@ -135,6 +141,7 @@ extension DatabaseReference {
         try container.encodeIfPresent(legacyKeychainFilename, forKey: .legacyKeychainFilename)
         try container.encode(isReadOnly, forKey: .isReadOnly)
         try container.encode(autoFillEnabled, forKey: .autoFillEnabled)
+        try container.encodeIfPresent(autoFillDestinationGroupID, forKey: .autoFillDestinationGroupID)
         try container.encode(isDocumentsResident, forKey: .isDocumentsResident)
         try container.encode(source, forKey: .source)
         try container.encodeIfPresent(lastMasterKeyChangeAt, forKey: .lastMasterKeyChangeAt)

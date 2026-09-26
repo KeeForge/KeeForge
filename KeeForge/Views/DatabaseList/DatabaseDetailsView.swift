@@ -14,7 +14,8 @@ struct DatabaseDetailsView: View {
     let reference: DatabaseReference
     /// Non-nil only when opened from an unlocked database. Nickname and
     /// read-only changes route through it so the open session refreshes its
-    /// own copy of the reference, and its presence adds the App Settings link.
+    /// own copy of the reference, and its presence adds the App Settings link
+    /// and the AutoFill save-group row.
     var sessionViewModel: DatabaseViewModel?
     /// Supplied by the database list, which owns the key-file importer so the
     /// picker is not presented from inside this sheet. When nil this view
@@ -29,6 +30,7 @@ struct DatabaseDetailsView: View {
     @State private var isLoadingFileInfo = true
     @State private var showKeyFilePicker = false
     @State private var showAppSettings = false
+    @State private var showAutoFillDestinationPicker = false
     @State private var backups: [DatabaseExportService.Backup] = []
     @State private var exportRequest: DatabaseExportRequest?
     @State private var fileInfoLoadID = 0
@@ -113,6 +115,19 @@ struct DatabaseDetailsView: View {
             .sheet(isPresented: $showAppSettings) {
                 SettingsView(viewModel: sessionViewModel, listViewModel: listViewModel)
             }
+            .sheet(isPresented: $showAutoFillDestinationPicker) {
+                if let sessionViewModel {
+                    MoveToGroupPickerView(
+                        options: sessionViewModel.groupDestinationOptions(
+                            currentGroupID: sessionViewModel.databaseReference.autoFillDestinationGroupID
+                        ),
+                        navigationTitle: "Select Group"
+                    ) { groupID in
+                        sessionViewModel.setAutoFillDestinationGroupID(groupID)
+                        listViewModel.reload()
+                    }
+                }
+            }
             .databaseExporter(request: $exportRequest)
         }
     }
@@ -182,11 +197,45 @@ struct DatabaseDetailsView: View {
                 )
             )
             .accessibilityIdentifier("database-details.autofill-toggle")
+
+            // Groups live inside the encrypted file, so this needs the unlocked session.
+            if let destinationGroup = sessionViewModel?.autoFillDestinationGroup {
+                autoFillDestinationRow(destinationGroup)
+            }
         } header: {
             Text("AutoFill")
         } footer: {
-            Text("When off, passwords, passkeys, and verification codes from this database are neither suggested nor available in AutoFill. After you turn it back on, suggestions return the next time you unlock this database.")
+            VStack(alignment: .leading, spacing: 6) {
+                Text("When off, passwords, passkeys, and verification codes from this database are neither suggested nor available in AutoFill. After you turn it back on, suggestions return the next time you unlock this database.")
+                if sessionViewModel?.autoFillDestinationGroup != nil {
+                    Text("Passwords and passkeys saved from AutoFill go into this group.")
+                }
+            }
         }
+    }
+
+    private func autoFillDestinationRow(_ destinationGroup: KPGroup) -> some View {
+        Button {
+            showAutoFillDestinationPicker = true
+        } label: {
+            HStack {
+                Text("Save New Entries To")
+
+                Spacer()
+
+                Label(destinationGroup.name, systemImage: "folder")
+                    .foregroundStyle(.secondary)
+
+                Image(systemName: "chevron.right")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .accessibilityHidden(true)
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier("database-details.autofill-destination")
+        .macHoverHighlight()
     }
 
     private var keyFileSection: some View {

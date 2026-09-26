@@ -47,6 +47,7 @@ final class CredentialProviderPresentingSpy: CredentialProviderPresenting {
 
     struct EntryCreator {
         let initialDraft: EntryDraftPayload
+        let destinationGroupName: String
         let allowsPasswordEditing: Bool
         let onSave: @Sendable (EntryDraftPayload) async -> CredentialProviderEntrySaveOutcome
         let onCancel: () -> Void
@@ -139,12 +140,14 @@ final class CredentialProviderPresentingSpy: CredentialProviderPresenting {
 
     func presentEntryCreator(
         initialDraft: EntryDraftPayload,
+        destinationGroupName: String,
         allowsPasswordEditing: Bool,
         onSave: @escaping @Sendable (EntryDraftPayload) async -> CredentialProviderEntrySaveOutcome,
         onCancel: @escaping () -> Void
     ) {
         entryCreator = EntryCreator(
             initialDraft: initialDraft,
+            destinationGroupName: destinationGroupName,
             allowsPasswordEditing: allowsPasswordEditing,
             onSave: onSave,
             onCancel: onCancel

@@ -413,6 +413,14 @@ enum DatabaseListStore {
         }
     }
 
+    static func setAutoFillDestinationGroupID(_ groupID: UUID, for reference: DatabaseReference) {
+        withStateLock {
+            guard var updatedReference = loadDatabases().first(where: { $0.id == reference.id }) else { return }
+            updatedReference.autoFillDestinationGroupID = groupID
+            update(updatedReference)
+        }
+    }
+
     /// Owns the consequences of toggling a database's AutoFill participation
     /// (mirroring how `remove(id:)` owns removal consequences): disabling
     /// removes exactly that database's published identities — targeted, needs

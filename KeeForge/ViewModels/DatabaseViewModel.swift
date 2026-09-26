@@ -2482,6 +2482,22 @@ final class DatabaseViewModel {
         refreshDatabaseReference()
     }
 
+    /// Where AutoFill will create new entries in this database as it stands
+    /// now, so the setting shows the fallback when the chosen group is gone.
+    var autoFillDestinationGroup: KPGroup? {
+        _ = contentRevision
+        guard let currentRootGroup else { return nil }
+        return AutoFillSaveCoordinator.destinationGroup(
+            in: currentRootGroup,
+            preferredGroupID: databaseReference.autoFillDestinationGroupID
+        )
+    }
+
+    func setAutoFillDestinationGroupID(_ groupID: UUID) {
+        DatabaseListStore.setAutoFillDestinationGroupID(groupID, for: databaseReference)
+        refreshDatabaseReference()
+    }
+
     func setNickname(_ nickname: String?) {
         var updatedReference = DatabaseListStore.databases.first(where: { $0.id == databaseReference.id }) ?? databaseReference
         updatedReference.nickname = nickname

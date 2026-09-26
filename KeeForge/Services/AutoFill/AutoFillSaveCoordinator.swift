@@ -137,7 +137,13 @@ enum AutoFillSaveCoordinator {
     ) async throws -> SaveResult {
         let cleanDraft = DatabaseDraft(rootGroup: rootGroup, meta: meta, sessionKey: sessionKey)
         let workingDraft = try cleanDraft.apply(
-            edit ?? .createEntry(parentGroupID: rootGroup.groups.first?.id ?? rootGroup.id, draft: draftPayload)
+            edit ?? .createEntry(
+                parentGroupID: destinationGroup(
+                    in: rootGroup,
+                    preferredGroupID: reference.autoFillDestinationGroupID
+                ).id,
+                draft: draftPayload
+            )
         )
 
         // Two-phase marker so unuploaded cache bytes always have a covering
@@ -260,6 +266,22 @@ enum AutoFillSaveCoordinator {
                 environment.notifyPendingUploadEnqueued()
             }
         }
+    }
+
+    /// The group new AutoFill entries go into: the configured one while it
+    /// still exists outside the recycle bin, otherwise the database's
+    /// top-level group. Never the synthetic Root, whose entries other KeePass
+    /// apps cannot read.
+    static func destinationGroup(in rootGroup: KPGroup, preferredGroupID: UUID?) -> KPGroup {
+        let topLevelGroup = rootGroup.groups.first ?? rootGroup
+        guard let preferredGroupID else { return topLevelGroup }
+
+        func find(in group: KPGroup) -> KPGroup? {
+            guard group.id != rootGroup.recycleBinUUID else { return nil }
+            if group.id == preferredGroupID { return group }
+            return group.groups.lazy.compactMap(find(in:)).first
+        }
+        return rootGroup.groups.lazy.compactMap(find(in:)).first ?? topLevelGroup
     }
 
     static func credentialStoreEntries(from root: KPGroup) -> [KPEntry] {
