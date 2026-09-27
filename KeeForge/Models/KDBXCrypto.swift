@@ -153,6 +153,13 @@ enum KDBXCrypto {
     /// compositeKey = SHA256(preKey)
     /// ```
     static func compositeKey(password: String?, keyFileData: Data?) throws -> SymmetricKey {
+        let preKey = try preKey(password: password, keyFileData: keyFileData)
+        return preKey.withUnsafeBytes { SymmetricKey(data: CryptoKit.SHA256.hash(data: $0)) }
+    }
+
+    /// The concatenated key components `compositeKey` hashes, kept apart so a
+    /// challenge-response can be appended first (`ChallengeResponseKey`).
+    static func preKey(password: String?, keyFileData: Data?) throws -> SymmetricKey {
         var preKey = Data(capacity: 64)
         defer { SecureWipe.wipe(&preKey) }
 
@@ -170,7 +177,7 @@ enum KDBXCrypto {
             preKey.append(keyFileKey)
         }
 
-        return SymmetricKey(data: CryptoKit.SHA256.hash(data: preKey))
+        return SymmetricKey(data: preKey)
     }
 
     // MARK: - AES-KDF
