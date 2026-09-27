@@ -89,6 +89,53 @@
         }
       }
     },
+    "NFCReaderUsageDescription" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge verwendet NFC, um den YubiKey zu lesen, der deine Passwortdatenbank entsperrt."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge uses NFC to read the YubiKey that unlocks your password database."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge usa NFC para leer la YubiKey que desbloquea tu base de datos de contraseñas."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge utilise le NFC pour lire la YubiKey qui déverrouille votre base de données de mots de passe."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge は、パスワードデータベースのロックを解除する YubiKey を NFC で読み取ります。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge 使用 NFC 读取用于解锁密码数据库的 YubiKey。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge 使用 NFC 讀取用於解鎖密碼資料庫的 YubiKey。"
+          }
+        }
+      }
+    },
     "NSCameraUsageDescription" : {
       "extractionState" : "manual",
       "localizations" : {

@@ -11,6 +11,7 @@ from pathlib import Path
 
 from . import (
     argon2_high_iterations,
+    challenge_response,
     foreign_ciphers,
     kitchen_sink,
     unknown_inner_header,
@@ -20,6 +21,7 @@ from ._common import Generator, banner, build_parser
 MODULES = (
     kitchen_sink,
     argon2_high_iterations,
+    challenge_response,
     foreign_ciphers,
     unknown_inner_header,
 )
