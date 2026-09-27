@@ -119,6 +119,10 @@ struct RegularDatabaseWorkspaceView: View {
                     if viewModel.isDirty && viewModel.isSaving == false {
                         UnsavedChangesBanner(viewModel: viewModel)
                     }
+
+                    if CloudSyncStatusBanner.isVisible(for: viewModel) {
+                        CloudSyncStatusBanner(viewModel: viewModel)
+                    }
                 }
             }
             .disabled(viewModel.isSaving)

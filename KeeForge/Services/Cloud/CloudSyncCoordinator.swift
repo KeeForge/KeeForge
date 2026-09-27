@@ -4,6 +4,10 @@ struct CloudSyncResolution: Sendable {
     enum Status: Equatable, Sendable {
         case current
         case downloaded
+        /// The reference uses the manual sync policy, so the open used the
+        /// cached copy without contacting the provider. Not a failure: it
+        /// has no warning banner, and the recorded sync state is untouched.
+        case refreshSkipped
         case offlineCached
         case disconnectedCached
         case cachedWithError(String)
@@ -21,7 +25,7 @@ struct CloudSyncResolution: Sendable {
 
     var bannerMessage: String? {
         switch status {
-        case .current, .downloaded:
+        case .current, .downloaded, .refreshSkipped:
             nil
         case .offlineCached:
             Self.offlineCachedBannerMessage
@@ -53,8 +57,12 @@ enum CloudSyncCoordinator {
         }
     }
 
+    /// `honorsManualSyncPolicy` is false for requests the user made
+    /// explicitly (Sync Now, Reload after a conflict), which always check the
+    /// remote copy whatever the reference's `cloudSyncPolicy` says.
     static func syncIfNeededForOpen(
         reference: DatabaseReference,
+        honorsManualSyncPolicy: Bool = true,
         allowCachedFallback: Bool = true,
         probeDeadline: TimeInterval = openProbeDeadline,
         providerResolver: (String) -> CloudProvider? = CloudProviderRegistry.provider(for:),
@@ -67,6 +75,13 @@ enum CloudSyncCoordinator {
         let cacheURL = DatabaseListStore.cacheLocation(for: reference)
         let cacheExists = FileManager.default.fileExists(atPath: cacheURL.path)
         var updatedReference = reference
+
+        // Without a cache there is nothing to open, so a manual database's
+        // first open still downloads.
+        if honorsManualSyncPolicy, reference.cloudSyncPolicy == .manual, cacheExists {
+            let data = try CoordinatedFileReader.readData(from: cacheURL)
+            return CloudSyncResolution(reference: reference, localURL: cacheURL, data: data, status: .refreshSkipped)
+        }
 
         guard let provider = providerResolver(metadata.provider) else {
             return try fallbackResolutionIfPossible(

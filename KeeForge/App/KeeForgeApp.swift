@@ -952,6 +952,10 @@ struct DatabaseNavigationView: View {
                     if viewModel.isDirty && viewModel.isSaving == false {
                         UnsavedChangesBanner(viewModel: viewModel)
                     }
+
+                    if CloudSyncStatusBanner.isVisible(for: viewModel) {
+                        CloudSyncStatusBanner(viewModel: viewModel)
+                    }
                 }
             }
         }
@@ -1101,6 +1105,112 @@ struct UnsavedChangesBanner: View {
         .background(Color.orange.opacity(0.12))
         .accessibilityElement(children: .combine)
         .accessibilityIdentifier("database.unsaved-indicator")
+    }
+}
+
+/// The cloud copy's state when it is not simply "just synced": opened without
+/// a check (manual sync policy), a Sync Now in progress, or what the last one
+/// found. Deliberately not the yellow `CloudSyncWarningButton`: a skipped
+/// refresh is the user's choice, not a failure.
+struct CloudSyncStatusBanner: View {
+    @Bindable var viewModel: DatabaseViewModel
+
+    static func isVisible(for viewModel: DatabaseViewModel) -> Bool {
+        viewModel.isCloudRefreshPending || viewModel.isSyncingCloud || viewModel.cloudSyncOutcome != nil
+    }
+
+    private var providerName: String {
+        viewModel.databaseReference.cloudProviderKind?.displayName ?? String(localized: "cloud")
+    }
+
+    private var title: String {
+        if viewModel.isSyncingCloud {
+            return String(localized: "Checking \(providerName) for changes…")
+        }
+        if let outcome = viewModel.cloudSyncOutcome {
+            return outcome.message
+        }
+        return String(localized: "Opened without checking \(providerName) for changes.")
+    }
+
+    private var lastSyncedAt: Date? {
+        guard viewModel.isCloudRefreshPending, viewModel.isSyncingCloud == false else { return nil }
+        return viewModel.databaseReference.cloudSyncMetadata?.lastSyncedAt
+    }
+
+    private var isFailure: Bool {
+        if case .failed = viewModel.cloudSyncOutcome { return true }
+        return false
+    }
+
+    private var showsSyncButton: Bool {
+        viewModel.isSyncingCloud == false && (viewModel.isCloudRefreshPending || isFailure)
+    }
+
+    var body: some View {
+        HStack(spacing: 8) {
+            if viewModel.isSyncingCloud {
+                ProgressView()
+                    .controlSize(.small)
+            } else {
+                Image(systemName: isFailure ? "exclamationmark.icloud" : "arrow.triangle.2.circlepath.icloud")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                    .accessibilityHidden(true)
+            }
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.caption.weight(.medium))
+                    .accessibilityIdentifier("database.cloud-sync-status.title")
+
+                if let lastSyncedAt {
+                    Text("Last synced \(lastSyncedAt, format: .relative(presentation: .named))")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+
+                if viewModel.hasPendingCloudUploads {
+                    Text("Changes saved through AutoFill are still waiting to upload.")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .fixedSize(horizontal: false, vertical: true)
+
+            Spacer(minLength: 12)
+
+            if showsSyncButton {
+                Button("Sync Now") {
+                    Task {
+                        await viewModel.syncCloudNow()
+                    }
+                }
+                .font(.caption.weight(.semibold))
+                .disabled(viewModel.canSyncCloudNow == false)
+                .accessibilityIdentifier("database.cloud-sync-now")
+            }
+
+            if viewModel.cloudSyncOutcome != nil {
+                Button {
+                    viewModel.dismissCloudSyncOutcome()
+                } label: {
+                    Image(systemName: "xmark")
+                        .font(.caption.weight(.semibold))
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(.secondary)
+                .accessibilityLabel("Dismiss")
+                .macHelp(String(localized: "Dismiss"))
+                .accessibilityIdentifier("database.cloud-sync-status.dismiss")
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 8)
+        .background(.tint.opacity(0.12))
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("database.cloud-sync-status")
     }
 }
 

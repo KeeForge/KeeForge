@@ -677,6 +677,119 @@ final class CloudSyncCoordinatorTests: XCTestCase {
         XCTAssertNotNil(resolution.reference.cloudSyncMetadata?.lastSyncedAt)
     }
 
+    // MARK: - Manual sync policy (#67)
+
+    func testManualPolicyOpensCachedCopyWithoutContactingTheProvider() async throws {
+        let lastSyncedAt = Date(timeIntervalSince1970: 300)
+        var reference = makeCloudReference(
+            remoteContentHash: "cached-hash",
+            remoteModifiedAt: Date(timeIntervalSince1970: 100)
+        )
+        reference.cloudSyncPolicy = .manual
+        reference.updateCloudSyncMetadata { metadata in
+            metadata.lastSyncedAt = lastSyncedAt
+            metadata.lastSyncIssue = .networkUnavailable
+        }
+        try DatabaseListStore.cacheDatabaseCopy(Data("cached-manual-copy".utf8), for: reference)
+
+        let provider = MockCloudProvider()
+        provider.metadataResult = .success(
+            CloudFileMetadata(modifiedDate: Date(timeIntervalSince1970: 200), contentHash: "new-hash", size: 128)
+        )
+        var resolvedProvider = false
+
+        let resolution = try await CloudSyncCoordinator.syncIfNeededForOpen(
+            reference: reference,
+            providerResolver: { _ in
+                resolvedProvider = true
+                return provider
+            }
+        )
+
+        XCTAssertEqual(resolution.status, .refreshSkipped)
+        XCTAssertNil(resolution.bannerMessage, "A deliberate skip is not a warning")
+        XCTAssertEqual(resolution.data, Data("cached-manual-copy".utf8))
+        XCTAssertFalse(resolvedProvider)
+        XCTAssertEqual(provider.metadataCallCount, 0)
+        XCTAssertEqual(provider.downloadCallCount, 0)
+        // Nothing was learned, so the recorded sync state (and its staleness)
+        // stays exactly as it was.
+        XCTAssertEqual(resolution.reference, reference)
+    }
+
+    func testManualPolicyStillDownloadsWhenNoCachedCopyExists() async throws {
+        var reference = makeCloudReference(remoteContentHash: nil, remoteModifiedAt: nil)
+        reference.cloudSyncPolicy = .manual
+        // Cloud caches are keyed by remote path, not reference id, so an
+        // earlier test's copy would otherwise stand in.
+        try? FileManager.default.removeItem(at: DatabaseListStore.cacheLocation(for: reference))
+
+        let provider = MockCloudProvider()
+        provider.metadataResult = .success(
+            CloudFileMetadata(modifiedDate: Date(timeIntervalSince1970: 200), contentHash: "first-hash", size: 128)
+        )
+        provider.downloadedData = Data("first-download".utf8)
+
+        let resolution = try await CloudSyncCoordinator.syncIfNeededForOpen(
+            reference: reference,
+            providerResolver: { _ in provider }
+        )
+
+        XCTAssertEqual(resolution.status, .downloaded)
+        XCTAssertEqual(resolution.data, Data("first-download".utf8))
+        XCTAssertEqual(provider.downloadCallCount, 1)
+        XCTAssertEqual(resolution.reference.cloudSyncMetadata?.remoteContentHash, "first-hash")
+    }
+
+    func testManualPolicyIsIgnoredForAnExplicitSync() async throws {
+        var reference = makeCloudReference(
+            remoteContentHash: "cached-hash",
+            remoteModifiedAt: Date(timeIntervalSince1970: 100)
+        )
+        reference.cloudSyncPolicy = .manual
+        try DatabaseListStore.cacheDatabaseCopy(Data("cached-manual-copy".utf8), for: reference)
+
+        let provider = MockCloudProvider()
+        provider.metadataResult = .success(
+            CloudFileMetadata(modifiedDate: Date(timeIntervalSince1970: 200), contentHash: "new-hash", size: 128)
+        )
+        provider.downloadedData = Data("newer-remote-copy".utf8)
+
+        let resolution = try await CloudSyncCoordinator.syncIfNeededForOpen(
+            reference: reference,
+            honorsManualSyncPolicy: false,
+            providerResolver: { _ in provider }
+        )
+
+        XCTAssertEqual(resolution.status, .downloaded)
+        XCTAssertEqual(resolution.data, Data("newer-remote-copy".utf8))
+        XCTAssertEqual(provider.metadataCallCount, 1)
+        XCTAssertEqual(resolution.reference.cloudSyncMetadata?.remoteContentHash, "new-hash")
+        XCTAssertEqual(resolution.reference.cloudSyncPolicy, .manual)
+    }
+
+    func testExplicitSyncOfManualDatabaseStillFallsBackToCacheOffline() async throws {
+        var reference = makeCloudReference(
+            remoteContentHash: "cached-hash",
+            remoteModifiedAt: Date(timeIntervalSince1970: 100)
+        )
+        reference.cloudSyncPolicy = .manual
+        try DatabaseListStore.cacheDatabaseCopy(Data("cached-manual-copy".utf8), for: reference)
+
+        let provider = MockCloudProvider()
+        provider.metadataResult = .failure(CloudProviderError.networkUnavailable)
+
+        let resolution = try await CloudSyncCoordinator.syncIfNeededForOpen(
+            reference: reference,
+            honorsManualSyncPolicy: false,
+            providerResolver: { _ in provider }
+        )
+
+        XCTAssertEqual(resolution.status, .offlineCached)
+        XCTAssertEqual(resolution.data, Data("cached-manual-copy".utf8))
+        XCTAssertEqual(resolution.reference.cloudSyncMetadata?.lastSyncIssue, .networkUnavailable)
+    }
+
     func testSyncFallsBackToCachedCopyWhenOffline() async throws {
         let reference = makeCloudReference(
             remoteContentHash: "cached-hash",

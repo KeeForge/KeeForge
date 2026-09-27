@@ -172,6 +172,33 @@ final class DatabaseViewModel {
         let sessionKey: SymmetricKey
         let openTimeSHA512: Data
         let binaryPool: BinaryPool
+        /// Nil for local databases and for reloads that did not go through
+        /// the cloud coordinator.
+        var cloudSyncStatus: CloudSyncResolution.Status? = nil
+    }
+
+    /// What the last Sync Now found, shown until dismissed or superseded.
+    enum CloudSyncOutcome: Equatable, Sendable {
+        case upToDate
+        case updated
+        /// A newer copy reached the cache, but editing started before it
+        /// could replace the open database; the next save meets it as a
+        /// conflict and offers to merge.
+        case updateWaitsForSave
+        case failed(String)
+
+        var message: String {
+            switch self {
+            case .upToDate:
+                String(localized: "This database is up to date.")
+            case .updated:
+                String(localized: "Updated with the latest changes from the cloud.")
+            case .updateWaitsForSave:
+                String(localized: "A newer copy was downloaded. When you save, KeeForge will ask how to combine it with your changes.")
+            case .failed(let message):
+                message
+            }
+        }
     }
 
     struct PendingLockRequest: Identifiable, Equatable, Sendable {
@@ -455,6 +482,14 @@ final class DatabaseViewModel {
     private var unsavedEditorIDs: Set<UUID> = []
     private(set) var cloudSyncProgress: Double?
     private(set) var cloudSyncBannerText: String?
+    /// The open used the cached copy without checking the cloud (manual sync
+    /// policy), and no Sync Now has reached the provider since.
+    private(set) var isCloudRefreshPending = false
+    private(set) var isSyncingCloud = false
+    private(set) var cloudSyncOutcome: CloudSyncOutcome?
+    /// Changes saved through AutoFill that have not reached the cloud yet, as
+    /// of the last open or Sync Now.
+    private(set) var hasPendingCloudUploads = false
     private(set) var unlockStatusMessage: String
     private var entryIndex: [UUID: KPEntry] = [:]
     /// Built on first use over `currentRootGroup` + `sessionKey`; dropped with
@@ -492,6 +527,7 @@ final class DatabaseViewModel {
     /// Cleared on lock; attachments are resolved against it lazily.
     private(set) var binaryPool: BinaryPool?
     private let cloudSyncOperation: CloudSyncOperation
+    private let cloudRefreshOperation: CloudSyncOperation
     private let localDatabaseReadOperation: LocalDatabaseReadOperation
     private let localSaveOperation: LocalSaveOperation
     private let cloudSaveOperation: CloudSaveOperation
@@ -514,6 +550,13 @@ final class DatabaseViewModel {
         cloudSyncOperation: @escaping CloudSyncOperation = { reference, progress in
             try await CloudSyncCoordinator.syncIfNeededForOpen(
                 reference: reference,
+                progress: progress
+            )
+        },
+        cloudRefreshOperation: @escaping CloudSyncOperation = { reference, progress in
+            try await CloudSyncCoordinator.syncIfNeededForOpen(
+                reference: reference,
+                honorsManualSyncPolicy: false,
                 progress: progress
             )
         },
@@ -601,6 +644,7 @@ final class DatabaseViewModel {
             ? DatabaseViewModel.syncStatusMessage(for: databaseReference)
             : Self.decryptingStatusMessage
         self.cloudSyncOperation = cloudSyncOperation
+        self.cloudRefreshOperation = cloudRefreshOperation
         self.localDatabaseReadOperation = localDatabaseReadOperation
         self.localSaveOperation = localSaveOperation
         self.cloudSaveOperation = cloudSaveOperation
@@ -1650,6 +1694,7 @@ final class DatabaseViewModel {
         unsavedEditorIDs.removeAll()
         cloudSyncProgress = nil
         cloudSyncBannerText = nil
+        resetCloudSyncStatus()
         unlockStatusMessage = databaseReference.isCloudBacked
             ? Self.syncStatusMessage(for: databaseReference)
             : Self.decryptingStatusMessage
@@ -2451,6 +2496,27 @@ final class DatabaseViewModel {
             : Self.decryptingStatusMessage
 
         let reloaded = try await reloadOperation(databaseReference, compositeKey)
+        applyReloadedDatabase(reloaded)
+        saveConflict = nil
+        cloudSyncBannerText = nil
+        if reloaded.cloudSyncStatus.map(Self.reachedCloud) == true {
+            isCloudRefreshPending = false
+        }
+        failedAttempts = 0
+        lockoutUntil = nil
+        state = .unlocked
+        synchronizeSelections()
+        startInactivityTimer()
+    }
+
+    /// Swaps the open database for a freshly parsed copy. Navigation and
+    /// selection go back to the root: the new tree may no longer hold what
+    /// they pointed at.
+    private func applyReloadedDatabase(_ reloaded: ReloadedDatabase) {
+        navigationPath = NavigationPath()
+        selectedGroupID = nil
+        selectedTag = nil
+        selectedEntryID = nil
         rootGroup = reloaded.rootGroup
         databaseReference = reloaded.reference
         openedFormatVersion = reloaded.formatVersion
@@ -2460,13 +2526,127 @@ final class DatabaseViewModel {
         binaryPool = reloaded.binaryPool
         AttachmentPreviewFileStore.clearAll()
         draft = nil
-        saveConflict = nil
-        cloudSyncBannerText = nil
-        failedAttempts = 0
-        lockoutUntil = nil
+    }
+
+    private static func reachedCloud(_ status: CloudSyncResolution.Status) -> Bool {
+        switch status {
+        case .current, .downloaded:
+            true
+        case .refreshSkipped, .offlineCached, .disconnectedCached, .cachedWithError:
+            false
+        }
+    }
+
+    private func resetCloudSyncStatus() {
+        isCloudRefreshPending = false
+        isSyncingCloud = false
+        cloudSyncOutcome = nil
+        hasPendingCloudUploads = false
+    }
+
+    var canSyncCloudNow: Bool {
+        guard case .unlocked = state else { return false }
+        return databaseReference.isCloudBacked
+            && isSyncingCloud == false
+            && isSaving == false
+            && isDirty == false
+            && hasUnsavedEditor == false
+    }
+
+    /// Checks the cloud for a newer copy whatever the sync policy says, and
+    /// replaces the open database with it when it differs from what was
+    /// opened. Refuses while edits are unsaved, so a sync never discards
+    /// them. Uploads are left to the pending-upload drainer; this only
+    /// reports whether any are still waiting.
+    func syncCloudNow() async {
+        guard canSyncCloudNow, let compositeKey else { return }
+
+        let expectedLockCycleID = lockCycleID
+        let observedCloudMetadata = databaseReference.cloudSyncMetadata
+        isSyncingCloud = true
+        cloudSyncOutcome = nil
+        defer {
+            if lockCycleID == expectedLockCycleID {
+                isSyncingCloud = false
+            }
+        }
+
+        let resolution: CloudSyncResolution
+        do {
+            resolution = try await cloudRefreshOperation(databaseReference) { _ in }
+        } catch {
+            guard lockCycleID == expectedLockCycleID else { return }
+            cloudSyncOutcome = .failed(CloudProviderError.message(for: error))
+            return
+        }
+        guard lockCycleID == expectedLockCycleID else { return }
+
+        // Same metadata-only merge as the foreground refresh: a save that
+        // landed during the round-trip must not be rolled back.
+        if let observedCloudMetadata,
+           let learned = resolution.reference.cloudSyncMetadata,
+           let mergedReference = DatabaseListStore.updateCloudSyncMetadata(
+               for: resolution.reference.id,
+               ifUnchangedFrom: observedCloudMetadata,
+               mutate: { storedMetadata in
+                   storedMetadata.remoteContentHash = learned.remoteContentHash
+                   storedMetadata.remoteModifiedAt = learned.remoteModifiedAt
+                   storedMetadata.remoteRev = learned.remoteRev
+                   storedMetadata.lastSyncedAt = learned.lastSyncedAt
+                   storedMetadata.lastSyncIssue = learned.lastSyncIssue
+               }
+           ) {
+            databaseReference = mergedReference
+        }
+        cloudSyncBannerText = resolution.bannerMessage
+        hasPendingCloudUploads = pendingUploadMarkerCheck(databaseReference)
+
+        guard Self.reachedCloud(resolution.status) else {
+            cloudSyncOutcome = .failed(resolution.bannerMessage ?? CloudSyncIssue.networkUnavailable.localizedDescription)
+            return
+        }
+        isCloudRefreshPending = false
+
+        guard KDBXCrypto.sha512(resolution.data) != openTimeSHA512 else {
+            cloudSyncOutcome = .upToDate
+            return
+        }
+
+        guard isDirty == false, hasUnsavedEditor == false, isSaving == false else {
+            cloudSyncOutcome = .updateWaitsForSave
+            return
+        }
+
+        // Replaced the way the conflict reload does it: `.unlocking` tears
+        // the workspace down, so no open editor outlives the tree and session
+        // key it took its snapshot from.
+        state = .unlocking
+        unlockStatusMessage = Self.decryptingStatusMessage
+        let reloaded: ReloadedDatabase
+        do {
+            reloaded = try await Self.parseReloadedDatabase(
+                data: resolution.data,
+                reference: databaseReference,
+                compositeKey: compositeKey,
+                cloudSyncStatus: resolution.status
+            )
+        } catch {
+            guard lockCycleID == expectedLockCycleID else { return }
+            state = .unlocked
+            cloudSyncOutcome = .failed(error.localizedDescription)
+            return
+        }
+        guard lockCycleID == expectedLockCycleID else { return }
+
+        applyReloadedDatabase(reloaded)
         state = .unlocked
         synchronizeSelections()
-        startInactivityTimer()
+        refreshCredentialStoreForCurrentTreeIfNeeded()
+        cloudSyncOutcome = .updated
+    }
+
+    func dismissCloudSyncOutcome() {
+        cloudSyncOutcome = nil
     }
 
     func selectGroup(_ groupID: UUID?) {
@@ -2479,6 +2659,11 @@ final class DatabaseViewModel {
 
     func setReadOnly(_ isReadOnly: Bool) {
         DatabaseListStore.setReadOnly(isReadOnly, for: databaseReference)
+        refreshDatabaseReference()
+    }
+
+    func setCloudSyncPolicy(_ policy: CloudSyncPolicy) {
+        DatabaseListStore.setCloudSyncPolicy(policy, for: databaseReference)
         refreshDatabaseReference()
     }
 
@@ -2610,6 +2795,9 @@ final class DatabaseViewModel {
     func refreshSharedDatabaseCacheIfPossible() {
         let expectedLockCycleID = lockCycleID
         let databaseReference = self.databaseReference
+        if databaseReference.isCloudBacked, databaseReference.cloudSyncPolicy == .manual {
+            return
+        }
         let compositeKeyForStoreRefresh: SymmetricKey?
 
         if case .unlocked = state,
@@ -3243,6 +3431,9 @@ final class DatabaseViewModel {
             }
             cloudSyncProgress = nil
             cloudSyncBannerText = resolution.bannerMessage
+            resetCloudSyncStatus()
+            isCloudRefreshPending = resolution.status == .refreshSkipped
+            hasPendingCloudUploads = pendingUploadMarkerCheck(resolution.reference)
             unlockStatusMessage = Self.decryptingStatusMessage
             DatabaseListStore.update(resolution.reference)
             databaseReference = resolution.reference
@@ -3516,11 +3707,19 @@ final class DatabaseViewModel {
     ) async throws -> ReloadedDatabase {
         let data: Data
         let updatedReference: DatabaseReference
+        var cloudSyncStatus: CloudSyncResolution.Status?
 
         if reference.isCloudBacked {
-            let resolution = try await CloudSyncCoordinator.syncIfNeededForOpen(reference: reference)
+            // An explicit reload (after a save conflict) has to see the
+            // remote copy, or a manual-policy database reloads its stale
+            // cache and conflicts again.
+            let resolution = try await CloudSyncCoordinator.syncIfNeededForOpen(
+                reference: reference,
+                honorsManualSyncPolicy: false
+            )
             data = resolution.data
             updatedReference = resolution.reference
+            cloudSyncStatus = resolution.status
         } else {
             guard let location = DatabaseListStore.locateDatabaseFile(for: reference) else {
                 throw SaveError.databaseLocationUnavailable
@@ -3532,6 +3731,20 @@ final class DatabaseViewModel {
             updatedReference = reference
         }
 
+        return try await parseReloadedDatabase(
+            data: data,
+            reference: updatedReference,
+            compositeKey: compositeKey,
+            cloudSyncStatus: cloudSyncStatus
+        )
+    }
+
+    nonisolated private static func parseReloadedDatabase(
+        data: Data,
+        reference: DatabaseReference,
+        compositeKey: SymmetricKey,
+        cloudSyncStatus: CloudSyncResolution.Status?
+    ) async throws -> ReloadedDatabase {
         let sessionKey = SymmetricKey(size: .bits256)
         let parsed = try await Task.detached(priority: .utility) {
             try KDBXParser.parseWithMetaAndHeader(
@@ -3543,13 +3756,14 @@ final class DatabaseViewModel {
         }.value
 
         return ReloadedDatabase(
-            reference: updatedReference,
+            reference: reference,
             rootGroup: parsed.rootGroup,
             meta: parsed.meta,
             formatVersion: parsed.header.formatVersion,
             sessionKey: sessionKey,
             openTimeSHA512: KDBXCrypto.sha512(data),
-            binaryPool: BinaryPool(rawFields: parsed.header.innerHeaderBinaryFields)
+            binaryPool: BinaryPool(rawFields: parsed.header.innerHeaderBinaryFields),
+            cloudSyncStatus: cloudSyncStatus
         )
     }
 

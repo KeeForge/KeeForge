@@ -136,6 +136,11 @@ final class DatabaseListViewModel {
         }
     }
 
+    func setCloudSyncPolicy(_ policy: CloudSyncPolicy, for reference: DatabaseReference) {
+        DatabaseListStore.setCloudSyncPolicy(policy, for: reference)
+        reload()
+    }
+
     /// Installed by the app root (`AppRootView` in `KeeForgeApp.swift`, which
     /// is the one place that knows the active `DatabaseViewModel`): called
     /// with the id of a database whose AutoFill participation was just turned

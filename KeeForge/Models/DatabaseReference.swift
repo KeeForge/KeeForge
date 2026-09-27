@@ -32,6 +32,8 @@ struct DatabaseReference: Identifiable, Codable, Hashable, Sendable {
     /// the picked file is unproven, and a wrong pick can fail as a wrong
     /// password, so any open failure keeps offering to relink.
     var hasUnverifiedRelink: Bool = false
+    /// Only meaningful for cloud-backed references.
+    var cloudSyncPolicy: CloudSyncPolicy = .onOpen
 
     var displayName: String {
         let trimmedNickname = nickname?.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -102,6 +104,7 @@ extension DatabaseReference {
         case source
         case lastMasterKeyChangeAt
         case hasUnverifiedRelink
+        case cloudSyncPolicy
     }
 
     init(from decoder: Decoder) throws {
@@ -124,6 +127,7 @@ extension DatabaseReference {
         source = try container.decodeIfPresent(DatabaseSource.self, forKey: .source) ?? .local
         lastMasterKeyChangeAt = try container.decodeIfPresent(Date.self, forKey: .lastMasterKeyChangeAt)
         hasUnverifiedRelink = try container.decodeIfPresent(Bool.self, forKey: .hasUnverifiedRelink) ?? false
+        cloudSyncPolicy = try container.decodeIfPresent(CloudSyncPolicy.self, forKey: .cloudSyncPolicy) ?? .onOpen
     }
 
     func encode(to encoder: Encoder) throws {
@@ -146,5 +150,6 @@ extension DatabaseReference {
         try container.encode(source, forKey: .source)
         try container.encodeIfPresent(lastMasterKeyChangeAt, forKey: .lastMasterKeyChangeAt)
         try container.encode(hasUnverifiedRelink, forKey: .hasUnverifiedRelink)
+        try container.encode(cloudSyncPolicy, forKey: .cloudSyncPolicy)
     }
 }
