@@ -185,6 +185,9 @@ final class DatabaseViewModel {
         /// could replace the open database; the next save meets it as a
         /// conflict and offers to merge.
         case updateWaitsForSave
+        /// A newer copy reached the cache, but the YubiKey answered the old
+        /// copy's challenge; only a fresh unlock can open the new one.
+        case updateWaitsForUnlock
         case failed(String)
 
         var message: String {
@@ -195,6 +198,8 @@ final class DatabaseViewModel {
                 String(localized: "Updated with the latest changes from the cloud.")
             case .updateWaitsForSave:
                 String(localized: "A newer copy was downloaded. When you save, KeeForge will ask how to combine it with your changes.")
+            case .updateWaitsForUnlock:
+                String(localized: "A newer copy was downloaded. Lock the database and unlock it again with your YubiKey to open it.")
             case .failed(let message):
                 message
             }
@@ -2677,7 +2682,7 @@ final class DatabaseViewModel {
     /// them. Uploads are left to the pending-upload drainer; this only
     /// reports whether any are still waiting.
     func syncCloudNow() async {
-        guard canSyncCloudNow, let compositeKey else { return }
+        guard canSyncCloudNow, compositeKey != nil else { return }
 
         let expectedLockCycleID = lockCycleID
         isSyncingCloud = true
@@ -2741,6 +2746,14 @@ final class DatabaseViewModel {
             cloudSyncOutcome = .updateWaitsForSave
             return
         }
+
+        guard sessionUsesHardwareKey == false else {
+            cloudSyncOutcome = .updateWaitsForUnlock
+            return
+        }
+        // Read now, not before the round trip: a master-key change can have
+        // finished during it.
+        guard let compositeKey else { return }
 
         // Replaced the way the conflict reload does it: `.unlocking` tears
         // the workspace down, so no open editor outlives the tree and session

@@ -1768,6 +1768,46 @@
         }
       }
     },
+    "A newer copy was downloaded. Lock the database and unlock it again with your YubiKey to open it." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Eine neuere Kopie wurde heruntergeladen. Sperren Sie die Datenbank und entsperren Sie sie erneut mit Ihrem YubiKey, um sie zu öffnen."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Se descargó una copia más reciente. Bloquee la base de datos y desbloquéela de nuevo con su YubiKey para abrirla."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Une copie plus récente a été téléchargée. Verrouillez la base de données, puis déverrouillez-la de nouveau avec votre YubiKey pour l'ouvrir."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新しいコピーをダウンロードしました。開くには、データベースをロックしてから YubiKey で再度ロック解除してください。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已下载较新的副本。要打开它，请锁定数据库，然后使用 YubiKey 重新解锁。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已下載較新的副本。若要開啟，請鎖定資料庫，然後使用 YubiKey 重新解鎖。"
+          }
+        }
+      }
+    },
     "A newer copy was downloaded. When you save, KeeForge will ask how to combine it with your changes." : {
       "localizations" : {
         "de" : {

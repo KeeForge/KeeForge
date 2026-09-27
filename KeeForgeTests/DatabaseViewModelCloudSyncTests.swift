@@ -330,6 +330,46 @@ final class DatabaseViewModelCloudSyncTests: XCTestCase {
         assertLockedAfterSync(vm)
     }
 
+    /// A YubiKey session's composite key holds the response to the opened
+    /// copy's challenge. A newer copy carries a new challenge, so Sync Now
+    /// leaves it in the cache for the next unlock instead of failing to parse.
+    func testSyncNowLeavesANewerYubiKeyCopyForTheNextUnlock() async throws {
+        let bundle = Bundle(for: Self.self)
+        let openedData = try KDBXTestFixture.challengeResponse.data(in: bundle)
+        let newerData = try KDBXTestFixture.challengeResponseAESKDF.data(in: bundle)
+        XCTAssertNotEqual(
+            try ChallengeResponseKey.challenge(forDatabase: openedData),
+            try ChallengeResponseKey.challenge(forDatabase: newerData)
+        )
+        var reference = try makeStoredManualReference()
+        reference.hardwareKey = HardwareKeyConfiguration(transport: .nfc, slot: .two)
+        DatabaseListStore.update(reference)
+        let vm = DatabaseViewModel(
+            databaseReference: reference,
+            cloudSyncOperation: { reference, _ in
+                Self.resolution(reference, data: openedData, status: .refreshSkipped)
+            },
+            cloudRefreshOperation: { reference, _ in
+                Self.resolution(reference, data: newerData, status: .downloaded)
+            },
+            hardwareKeyResponseOperation: { challenge, _ in
+                YubiKeyEmulator.response(to: challenge)
+            },
+            hardwareKeyTransportsProvider: { [.nfc] }
+        )
+        await vm.unlock(password: KDBXTestFixture.challengeResponse.password)
+        XCTAssertTrue(vm.sessionUsesHardwareKey)
+        let rootBefore = try XCTUnwrap(vm.rootGroup)
+
+        await vm.syncCloudNow()
+
+        XCTAssertEqual(vm.cloudSyncOutcome, .updateWaitsForUnlock)
+        XCTAssertTrue(vm.rootGroup === rootBefore)
+        XCTAssertEqual(vm.openTimeSHA512, KDBXCrypto.sha512(openedData))
+        XCTAssertEqual(vm.state, .unlocked)
+        XCTAssertFalse(vm.isCloudRefreshPending)
+    }
+
     func testOpenAndSyncNowReportPendingAutoFillUploads() async throws {
         let openedData = try fixtureData()
         let pending = PendingFlag(true)
