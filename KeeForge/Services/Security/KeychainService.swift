@@ -6,6 +6,10 @@ import Security
 enum KeychainService {
     private static let service = "com.keevault.app"
     private static let compositeKeyAccount = "compositeKey"
+    private static let companionCompositeKeyAccount = "companionCompositeKey"
+
+    static let biometricAccessControlFlags: SecAccessControlCreateFlags = .biometryCurrentSet
+    static let companionAccessControlFlags: SecAccessControlCreateFlags = .companion
 
     private static func accountKey(for databaseID: UUID) -> String {
         "\(compositeKeyAccount):\(databaseID.uuidString)"
@@ -15,9 +19,21 @@ enum KeychainService {
         "\(compositeKeyAccount):\(filename)"
     }
 
+    private static func companionAccountKey(for databaseID: UUID) -> String {
+        "\(companionCompositeKeyAccount):\(databaseID.uuidString)"
+    }
+
     static func storeCompositeKey(_ key: SymmetricKey, for databaseID: UUID) throws {
         let account = accountKey(for: databaseID)
-        try storeCompositeKey(key, account: account)
+        try storeCompositeKey(key, account: account, accessControlFlags: biometricAccessControlFlags)
+    }
+
+    static func storeCompanionCompositeKey(_ key: SymmetricKey, for databaseID: UUID) throws {
+        try storeCompositeKey(
+            key,
+            account: companionAccountKey(for: databaseID),
+            accessControlFlags: companionAccessControlFlags
+        )
     }
 
     static func retrieveCompositeKey(for databaseID: UUID, context: LAContext) throws -> SymmetricKey {
@@ -25,9 +41,17 @@ enum KeychainService {
         return try retrieveCompositeKey(account: account, context: context)
     }
 
+    static func retrieveCompanionCompositeKey(for databaseID: UUID, context: LAContext) throws -> SymmetricKey {
+        try retrieveCompositeKey(account: companionAccountKey(for: databaseID), context: context)
+    }
+
     static func deleteCompositeKey(for databaseID: UUID) {
         let account = accountKey(for: databaseID)
         deleteCompositeKey(account: account)
+    }
+
+    static func deleteCompanionCompositeKey(for databaseID: UUID) {
+        deleteCompositeKey(account: companionAccountKey(for: databaseID))
     }
 
     static func hasStoredKey(for databaseID: UUID, legacyFilename: String? = nil) -> Bool {
@@ -37,6 +61,51 @@ enum KeychainService {
 
         guard let legacyFilename else { return false }
         return hasStoredKey(account: legacyAccountKey(forFilename: legacyFilename))
+    }
+
+    static func hasStoredCompanionKey(for databaseID: UUID) -> Bool {
+        hasStoredKey(account: companionAccountKey(for: databaseID))
+    }
+
+    static func hasAnyStoredKey(for databaseID: UUID, legacyFilename: String? = nil) -> Bool {
+        hasStoredCompanionKey(for: databaseID)
+            || hasStoredKey(for: databaseID, legacyFilename: legacyFilename)
+    }
+
+    /// Stores each quick-unlock item independently so one unavailable system
+    /// mechanism cannot remove or invalidate the other.
+    static func storeAvailableQuickUnlockKeys(_ key: SymmetricKey, for databaseID: UUID) throws {
+        var firstError: Error?
+        var didStoreKey = false
+
+        if BiometricService.isAvailable {
+            do {
+                try storeCompositeKey(key, for: databaseID)
+                didStoreKey = true
+            } catch {
+                firstError = error
+            }
+        }
+
+        if BiometricService.supportsCompanionUnlock {
+            do {
+                try storeCompanionCompositeKey(key, for: databaseID)
+                didStoreKey = true
+            } catch {
+                if firstError == nil {
+                    firstError = error
+                }
+            }
+        }
+
+        if !didStoreKey, let firstError {
+            throw firstError
+        }
+    }
+
+    static func deleteQuickUnlockKeys(for databaseID: UUID) {
+        deleteCompositeKey(for: databaseID)
+        deleteCompanionCompositeKey(for: databaseID)
     }
 
     static func retrieveLegacyCompositeKey(forFilename filename: String, context: LAContext) throws -> SymmetricKey {
@@ -59,14 +128,18 @@ enum KeychainService {
         return true
     }
 
-    private static func storeCompositeKey(_ key: SymmetricKey, account: String) throws {
+    private static func storeCompositeKey(
+        _ key: SymmetricKey,
+        account: String,
+        accessControlFlags: SecAccessControlCreateFlags
+    ) throws {
         deleteCompositeKey(account: account)
 
         var error: Unmanaged<CFError>?
         guard let accessControl = SecAccessControlCreateWithFlags(
             nil,
             kSecAttrAccessibleWhenUnlockedThisDeviceOnly,
-            .biometryCurrentSet,
+            accessControlFlags,
             &error
         ) else {
             throw KeychainError.accessControlFailed

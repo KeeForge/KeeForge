@@ -128,6 +128,47 @@ final class DatabaseViewModelTests: XCTestCase {
         XCTAssertEqual(failure.category, DatabaseOpenFailure.Category.biometric)
     }
 
+    func testCompanionUnlockOpensDatabaseWithTheStoredCompositeKey() async throws {
+        let vm = try makeViewModel(
+            companionCompositeKeyOperation: { [fixturePassword] _, _ in
+                try KDBXCrypto.compositeKey(password: fixturePassword, keyFileData: nil)
+            }
+        )
+
+        let outcome = await vm.unlockWithCompanion()
+
+        XCTAssertEqual(outcome, .unlocked)
+        XCTAssertState(vm.state, is: .unlocked)
+    }
+
+    func testCompanionUnlockCancellationLeavesDatabaseLockedWithoutAnError() async throws {
+        let vm = try makeViewModel(
+            companionCompositeKeyOperation: { _, _ in throw LAError(.userCancel) }
+        )
+
+        let outcome = await vm.unlockWithCompanion()
+
+        XCTAssertEqual(outcome, .cancelled)
+        XCTAssertState(vm.state, is: .locked)
+        XCTAssertNil(vm.openFailure)
+    }
+
+    func testCompanionUnlockUnavailableShowsActionableFallbackWithoutCountingAFailure() async throws {
+        let vm = try makeViewModel(
+            companionCompositeKeyOperation: { _, _ in throw LAError(.companionNotAvailable) }
+        )
+
+        let outcome = await vm.unlockWithCompanion()
+
+        XCTAssertEqual(outcome, .failed)
+        let failure = try XCTUnwrap(vm.openFailure)
+        XCTAssertEqual(failure.errorCode, "apple_watch.unavailable")
+        XCTAssertEqual(failure.category, DatabaseOpenFailure.Category.biometric)
+        XCTAssertTrue(failure.summary.contains("master password"))
+        XCTAssertEqual(vm.failedAttempts, 0)
+        XCTAssertTrue(failure.diagnostics?.details.contains("Unlock Method: apple_watch") == true)
+    }
+
     func testUnlockCloudDatabaseDoesNotRewriteSharedCache() async throws {
         // A cloud unlock reads its bytes FROM the shared cache, so rewriting
         // them used to silently revert an AutoFill save that landed in the
@@ -5416,17 +5457,21 @@ final class DatabaseViewModelTests: XCTestCase {
             let context = try await BiometricService.authenticate(reason: reason)
             return try DatabaseViewModel.retrieveStoredCompositeKey(for: reference, context: context)
         },
+        companionCompositeKeyOperation: @escaping DatabaseViewModel.BiometricCompositeKeyOperation = { reference, reason in
+            let context = try await BiometricService.authenticateWithCompanion(reason: reason)
+            return try KeychainService.retrieveCompanionCompositeKey(for: reference.id, context: context)
+        },
         pendingUploadMarkerCheck: @escaping DatabaseViewModel.PendingUploadMarkerCheck = { reference in
             PendingUploadQueue.listMarkers(for: reference.id).isEmpty == false
         },
         storedKeyPresenceCheck: @escaping DatabaseViewModel.StoredKeyPresenceCheck = { reference in
-            KeychainService.hasStoredKey(for: reference.id, legacyFilename: reference.legacyKeychainFilename)
+            KeychainService.hasAnyStoredKey(for: reference.id, legacyFilename: reference.legacyKeychainFilename)
         },
         storedKeyStoreOperation: @escaping DatabaseViewModel.StoredKeyStoreOperation = { compositeKey, reference in
-            try KeychainService.storeCompositeKey(compositeKey, for: reference.id)
+            try KeychainService.storeAvailableQuickUnlockKeys(compositeKey, for: reference.id)
         },
         storedKeyDeleteOperation: @escaping DatabaseViewModel.StoredKeyDeleteOperation = { reference in
-            KeychainService.deleteCompositeKey(for: reference.id)
+            KeychainService.deleteQuickUnlockKeys(for: reference.id)
         },
         deviceOwnerAuthAvailabilityCheck: @escaping DatabaseViewModel.DeviceOwnerAuthAvailabilityCheck = {
             BiometricService.canAuthenticateDeviceOwner
@@ -5450,6 +5495,7 @@ final class DatabaseViewModelTests: XCTestCase {
             cloudConflictCopyOperation: cloudConflictCopyOperation,
             reloadOperation: reloadOperation,
             biometricCompositeKeyOperation: biometricCompositeKeyOperation,
+            companionCompositeKeyOperation: companionCompositeKeyOperation,
             pendingUploadMarkerCheck: pendingUploadMarkerCheck,
             storedKeyPresenceCheck: storedKeyPresenceCheck,
             storedKeyStoreOperation: storedKeyStoreOperation,

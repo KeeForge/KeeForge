@@ -4,8 +4,8 @@ This folder holds device-security integrations and secret-handling helpers outsi
 
 ## Main Files
 
-- `BiometricService.swift` wraps LocalAuthentication flows used by the app and AutoFill.
-- `KeychainService.swift` stores composite keys with biometric access control, shared with the extension via the keychain access group (see the invariant below).
+- `BiometricService.swift` wraps LocalAuthentication flows used by the app and AutoFill. Database unlock stays biometric-only except in the iOS app running on a Mac, where an explicit companion-only policy enables Apple Watch without allowing the Mac login password.
+- `KeychainService.swift` stores composite keys with biometric access control, shared with the extension via the keychain access group (see the invariant below). iPad-on-Mac also stores a separate device-only companion-gated item; keeping it separate preserves existing biometric items and makes the authorized mechanism explicit.
 - `PasskeyCrypto.swift` handles passkey-related crypto helpers used by the extension flow: PEM key handling and assertion signing, plus registration support — ES256 key/credential-ID generation, attested authenticator data (COSE key, `aaguid` = KeeForge's stable product AAGUID `FF55D8C0-F4FB-4016-9FDD-56DBBD251802`), and the "none"-format WebAuthn attestation object via a minimal private CBOR encoder.
 - `ScreenProtectionService.swift` holds both platform implementations behind `#if os(iOS)`/`#else`: iOS shields the app switcher and reacts to screen capture; macOS layers a resign-active cover with best-effort `NSWindow.sharingType` capture blocking through a single choke point (see `../../../docs/macos-security-notes.md`).
 - `SecureRandom.swift` wraps `SecRandomCopyBytes` for throwing secure-random `Data` generation; on both AutoFill allow-lists in `../../../project.yml` (dual-list rule in `../README.md`).

@@ -28,6 +28,26 @@ enum BiometricService {
         availableType != .none
     }
 
+    /// Apple Watch quick unlock is deliberately limited to the iOS app while
+    /// it runs on a Mac. The native Mac app and iPhone/iPad hardware keep their
+    /// existing biometric-only database unlock behavior.
+    static var supportsCompanionUnlock: Bool {
+        #if os(iOS)
+        ProcessInfo.processInfo.isiOSAppOnMac
+        #else
+        false
+        #endif
+    }
+
+    static var isCompanionAvailable: Bool {
+        guard supportsCompanionUnlock else { return false }
+        var error: NSError?
+        return LAContext().canEvaluatePolicy(
+            .deviceOwnerAuthenticationWithCompanion,
+            error: &error
+        )
+    }
+
     static func authenticate(reason: String) async throws -> LAContext {
         let context = LAContext()
         context.localizedFallbackTitle = String(localized: "Use Password")
@@ -35,6 +55,25 @@ enum BiometricService {
         do {
             try await context.evaluatePolicy(
                 .deviceOwnerAuthenticationWithBiometrics,
+                localizedReason: reason
+            )
+            await MainActor.run { isBiometricAuthInProgress = false }
+            return context
+        } catch {
+            await MainActor.run { isBiometricAuthInProgress = false }
+            throw error
+        }
+    }
+
+    /// Authenticates with a paired companion only. Unlike
+    /// `.deviceOwnerAuthentication`, this policy cannot fall back to the Mac
+    /// login password.
+    static func authenticateWithCompanion(reason: String) async throws -> LAContext {
+        let context = LAContext()
+        await MainActor.run { isBiometricAuthInProgress = true }
+        do {
+            try await context.evaluatePolicy(
+                .deviceOwnerAuthenticationWithCompanion,
                 localizedReason: reason
             )
             await MainActor.run { isBiometricAuthInProgress = false }

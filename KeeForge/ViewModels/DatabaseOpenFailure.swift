@@ -8,6 +8,7 @@ struct DatabaseOpenDiagnostics: Equatable, Sendable {
     enum UnlockMethod: String, Sendable {
         case password
         case biometrics
+        case appleWatch = "apple_watch"
     }
 
     let lines: [String]
@@ -349,6 +350,32 @@ struct DatabaseOpenFailure: Equatable, Sendable {
             category: isCloudBacked ? .cloud : .unexpected,
             countsTowardFailedAttempts: false,
             canChooseDifferentFile: !isCloudBacked,
+            diagnostics: diagnostics
+        )
+    }
+
+    static func appleWatchUnlockFailure(
+        _ error: Error,
+        diagnostics: DatabaseOpenDiagnostics?
+    ) -> DatabaseOpenFailure {
+        let nsError = error as NSError
+        let code = nsError.domain == LAError.errorDomain
+            ? LAError.Code(rawValue: nsError.code)
+            : nil
+        let isUnavailable = code == .companionNotAvailable
+
+        return DatabaseOpenFailure(
+            title: isUnavailable
+                ? String(localized: "Apple Watch Unlock Unavailable")
+                : String(localized: "Apple Watch Unlock Failed"),
+            summary: isUnavailable
+                ? String(localized: "Apple Watch isn't available right now. Bring your unlocked watch nearby and try again, or use your master password and key file.")
+                : String(localized: "Apple Watch couldn't unlock this database. You can still use your master password and key file."),
+            technicalDetails: technicalDetails(for: error),
+            errorCode: isUnavailable ? "apple_watch.unavailable" : "apple_watch.failed",
+            category: .biometric,
+            countsTowardFailedAttempts: false,
+            canChooseDifferentFile: false,
             diagnostics: diagnostics
         )
     }

@@ -5,8 +5,8 @@ import Security
 import XCTest
 @testable import KeeForge
 
-/// `KeychainService` stores composite keys behind a `.biometryCurrentSet`
-/// access control (see `storeCompositeKey(_:account:)`), so `SecItemAdd`
+/// `KeychainService` stores biometric composite keys behind a
+/// `.biometryCurrentSet` access control, so `SecItemAdd`
 /// never needs authentication, but `SecItemCopyMatching` for the actual bytes
 /// does. A headless XCTest run has no way to satisfy a Face ID/Touch ID
 /// prompt, so tests that retrieve a *stored* key pass an `LAContext` with
@@ -21,7 +21,7 @@ final class KeychainServiceTests: XCTestCase {
 
     override func tearDown() {
         for databaseID in databaseIDsToClean {
-            KeychainService.deleteCompositeKey(for: databaseID)
+            KeychainService.deleteQuickUnlockKeys(for: databaseID)
         }
         for filename in legacyFilenamesToClean {
             KeychainService.deleteLegacyCompositeKey(forFilename: filename)
@@ -32,6 +32,47 @@ final class KeychainServiceTests: XCTestCase {
     }
 
     // MARK: - isItemNotFound
+
+    func testCompanionAccessControlCannotFallBackToPasscodeOrLoginPassword() {
+        let flags = KeychainService.companionAccessControlFlags
+
+        XCTAssertTrue(flags.contains(.companion))
+        XCTAssertFalse(flags.contains(.userPresence))
+        XCTAssertFalse(flags.contains(.devicePasscode))
+        XCTAssertFalse(flags.contains(.biometryCurrentSet))
+    }
+
+    func testSignedIPadOnMacCompanionRoundTrip() async throws {
+        #if os(iOS)
+        guard ProcessInfo.processInfo.isiOSAppOnMac else {
+            throw XCTSkip("Requires a signed Designed for iPad test host on a Mac.")
+        }
+        guard BiometricService.isCompanionAvailable else {
+            XCTFail("The signed iPad-on-Mac runtime did not advertise companion authentication.")
+            return
+        }
+        XCTAssertFalse(BiometricAutoUnlockPolicy.allowsAutomaticUnlock)
+
+        let databaseID = trackedDatabaseID()
+        let keyData = Data("companion-round-trip".utf8)
+        try KeychainService.storeAvailableQuickUnlockKeys(
+            SymmetricKey(data: keyData),
+            for: databaseID
+        )
+        XCTAssertTrue(KeychainService.hasStoredCompanionKey(for: databaseID))
+
+        let context = try await BiometricService.authenticateWithCompanion(
+            reason: "Verify KeeForge Apple Watch unlock"
+        )
+        let retrieved = try KeychainService.retrieveCompanionCompositeKey(
+            for: databaseID,
+            context: context
+        )
+        XCTAssertEqual(retrieved, SymmetricKey(data: keyData))
+        #else
+        throw XCTSkip("Requires the iOS app running on a Mac.")
+        #endif
+    }
 
     func testIsItemNotFoundIsTrueOnlyForRetrieveFailedItemNotFoundStatus() {
         XCTAssertTrue(KeychainService.isItemNotFound(KeychainService.KeychainError.retrieveFailed(errSecItemNotFound)))

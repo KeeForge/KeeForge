@@ -325,7 +325,7 @@ enum DatabaseListStore {
             // `setAutoFillEnabled`).
             let wasActiveAutoFillDatabase = activeAutoFillDatabase?.id == id
 
-            KeychainService.deleteCompositeKey(for: removedReference.id)
+            KeychainService.deleteQuickUnlockKeys(for: removedReference.id)
             if let legacyFilename = removedReference.legacyKeychainFilename {
                 KeychainService.deleteLegacyCompositeKey(forFilename: legacyFilename)
             }
