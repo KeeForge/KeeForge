@@ -255,6 +255,81 @@ final class DatabaseViewModelCloudSyncTests: XCTestCase {
         XCTAssertFalse(vm.isCloudRefreshPending)
     }
 
+    /// A save can finish while Sync Now is out on the network. The copy that
+    /// comes back predates it, so it must not replace the saved tree; Sync
+    /// Now asks again and meets the saved copy.
+    func testSyncNowDoesNotRollBackASaveThatFinishedMidSync() async throws {
+        let openedData = try fixtureData()
+        let savedData = try fixtureData(named: "kitchen-sink")
+        let savedSHA512 = KDBXCrypto.sha512(savedData)
+        let gate = SaveGate()
+        let refreshRecorder = RefreshRecorder()
+        let vm = makeViewModel(
+            reference: try makeStoredManualReference(),
+            openedData: openedData,
+            cloudRefreshOperation: { reference, _ in
+                refreshRecorder.record(reference)
+                guard refreshRecorder.references.count == 1 else {
+                    return Self.resolution(reference, data: savedData, status: .current)
+                }
+                await gate.signalStarted()
+                await gate.waitUntilOpen()
+                return Self.resolution(reference, data: openedData, status: .current)
+            },
+            cloudSaveOperation: { _, _, _, _, _, _, _, _ in
+                .saved(newSHA512: savedSHA512)
+            }
+        )
+        await vm.unlock(password: fixturePassword)
+
+        let syncTask = Task { await vm.syncCloudNow() }
+        await gate.waitUntilStarted()
+        let parentGroupID = try XCTUnwrap(vm.visibleRootGroup?.id)
+        try vm.applyEntryEdit(
+            .createEntry(parentGroupID: parentGroupID, draft: EntryDraftPayload(title: "Saved Mid-Sync", password: "p"))
+        )
+        try await vm.save()
+        XCTAssertFalse(vm.isDirty)
+        await gate.open()
+        await syncTask.value
+
+        XCTAssertEqual(refreshRecorder.references.count, 2, "The superseded response must be fetched again")
+        XCTAssertEqual(vm.cloudSyncOutcome, .upToDate)
+        XCTAssertTrue(entryTitles(in: vm).contains("Saved Mid-Sync"))
+        XCTAssertEqual(vm.openTimeSHA512, savedSHA512)
+        XCTAssertEqual(vm.state, .unlocked)
+        XCTAssertFalse(vm.isSyncingCloud)
+    }
+
+    /// Backgrounding while the fetched copy is parsed must still lock. The
+    /// swap reads `.unlocking`, which the lifecycle handlers used to ignore.
+    func testBackgroundingWhileSyncNowParsesLocksTheSession() async throws {
+        let savedLockOnBackground = SettingsService.lockOnBackground
+        SettingsService.lockOnBackground = true
+        defer { SettingsService.lockOnBackground = savedLockOnBackground }
+
+        let vm = try await makeViewModelParsingANewerCopy()
+        let lockTrigger = triggerWhenParsing(vm) { vm.handleSceneDidEnterBackground() }
+
+        await vm.syncCloudNow()
+        let didTrigger = await lockTrigger.value
+
+        XCTAssertTrue(didTrigger, "The background event must land while the copy is parsed")
+        assertLockedAfterSync(vm)
+    }
+
+    /// The inactivity timer and the Lock command go through `lockRequest()`.
+    func testLockRequestWhileSyncNowParsesLocksTheSession() async throws {
+        let vm = try await makeViewModelParsingANewerCopy()
+        let lockTrigger = triggerWhenParsing(vm) { vm.lockRequest() }
+
+        await vm.syncCloudNow()
+        let didTrigger = await lockTrigger.value
+
+        XCTAssertTrue(didTrigger, "The lock request must land while the copy is parsed")
+        assertLockedAfterSync(vm)
+    }
+
     func testOpenAndSyncNowReportPendingAutoFillUploads() async throws {
         let openedData = try fixtureData()
         let pending = PendingFlag(true)
@@ -347,6 +422,9 @@ final class DatabaseViewModelCloudSyncTests: XCTestCase {
         cloudRefreshOperation: @escaping DatabaseViewModel.CloudSyncOperation = { _, _ in
             throw CloudProviderError.networkUnavailable
         },
+        cloudSaveOperation: @escaping DatabaseViewModel.CloudSaveOperation = { _, _, _, _, _, _, _, _ in
+            throw CloudProviderError.networkUnavailable
+        },
         pendingUploadMarkerCheck: @escaping DatabaseViewModel.PendingUploadMarkerCheck = { _ in false }
     ) -> DatabaseViewModel {
         DatabaseViewModel(
@@ -355,8 +433,57 @@ final class DatabaseViewModelCloudSyncTests: XCTestCase {
                 Self.resolution(reference, data: openedData, status: .refreshSkipped)
             },
             cloudRefreshOperation: cloudRefreshOperation,
+            cloudSaveOperation: cloudSaveOperation,
             pendingUploadMarkerCheck: pendingUploadMarkerCheck
         )
+    }
+
+    private func makeViewModelParsingANewerCopy() async throws -> DatabaseViewModel {
+        let newerData = try fixtureData(named: "kitchen-sink")
+        let vm = makeViewModel(
+            reference: try makeStoredManualReference(),
+            openedData: try fixtureData(),
+            cloudRefreshOperation: { reference, _ in
+                Self.resolution(reference, data: newerData, status: .downloaded)
+            }
+        )
+        await vm.unlock(password: fixturePassword)
+        XCTAssertEqual(vm.state, .unlocked)
+        return vm
+    }
+
+    /// Runs `trigger` on the main actor as soon as Sync Now has moved to
+    /// `.unlocking`, i.e. while the fetched copy is parsed off the main actor.
+    private func triggerWhenParsing(
+        _ vm: DatabaseViewModel,
+        _ trigger: @escaping @MainActor () -> Void
+    ) -> Task<Bool, Never> {
+        Task { @MainActor in
+            while Task.isCancelled == false {
+                if vm.state == .unlocking {
+                    trigger()
+                    return true
+                }
+                if vm.cloudSyncOutcome != nil {
+                    return false
+                }
+                await Task.yield()
+            }
+            return false
+        }
+    }
+
+    private func assertLockedAfterSync(
+        _ vm: DatabaseViewModel,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        XCTAssertEqual(vm.state, .locked, file: file, line: line)
+        XCTAssertNil(vm.rootGroup, file: file, line: line)
+        XCTAssertNil(vm.sessionKey, file: file, line: line)
+        XCTAssertNil(vm.openTimeSHA512, file: file, line: line)
+        XCTAssertNil(vm.cloudSyncOutcome, file: file, line: line)
+        XCTAssertFalse(vm.isSyncingCloud, file: file, line: line)
     }
 
     nonisolated private static func resolution(

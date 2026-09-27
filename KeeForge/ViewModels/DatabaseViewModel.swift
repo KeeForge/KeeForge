@@ -486,6 +486,10 @@ final class DatabaseViewModel {
     /// policy), and no Sync Now has reached the provider since.
     private(set) var isCloudRefreshPending = false
     private(set) var isSyncingCloud = false
+    /// Sync Now is parsing the copy it fetched. `state` reads `.unlocking` so
+    /// the workspace is torn down, but the session is still open and lock
+    /// triggers must still reach it.
+    private var isReplacingWithSyncedCopy = false
     private(set) var cloudSyncOutcome: CloudSyncOutcome?
     /// Changes saved through AutoFill that have not reached the cloud yet, as
     /// of the last open or Sync Now.
@@ -1674,6 +1678,7 @@ final class DatabaseViewModel {
             ClipboardService.clearOwnedContents()
         }
         beginNewLockCycle()
+        isReplacingWithSyncedCopy = false
         canRemoveMissingDocumentsFile = false
         state = .locked
         rootGroup = nil
@@ -1713,7 +1718,7 @@ final class DatabaseViewModel {
         manuallyTriggered: Bool = false,
         preservingClipboard: Bool = false
     ) {
-        guard case .unlocked = state else {
+        guard isSessionOpen else {
             if force {
                 lock(manuallyTriggered: manuallyTriggered, preservingClipboard: preservingClipboard)
             }
@@ -1746,6 +1751,11 @@ final class DatabaseViewModel {
 
     var hasUnsavedEditor: Bool {
         unsavedEditorIDs.isEmpty == false
+    }
+
+    private var isSessionOpen: Bool {
+        if case .unlocked = state { return true }
+        return isReplacingWithSyncedCopy
     }
 
     /// Called by editors as their form dirties and again as they go away.
@@ -2562,7 +2572,6 @@ final class DatabaseViewModel {
         guard canSyncCloudNow, let compositeKey else { return }
 
         let expectedLockCycleID = lockCycleID
-        let observedCloudMetadata = databaseReference.cloudSyncMetadata
         isSyncingCloud = true
         cloudSyncOutcome = nil
         defer {
@@ -2571,15 +2580,23 @@ final class DatabaseViewModel {
             }
         }
 
-        let resolution: CloudSyncResolution
-        do {
-            resolution = try await cloudRefreshOperation(databaseReference) { _ in }
-        } catch {
+        // A save that finishes during the round trip is newer than what was
+        // fetched, and applying the fetch would roll it back, so ask again.
+        var observedOpenTimeSHA512: Data?
+        var observedCloudMetadata: CloudSyncMetadata?
+        var resolution: CloudSyncResolution
+        repeat {
+            observedOpenTimeSHA512 = openTimeSHA512
+            observedCloudMetadata = databaseReference.cloudSyncMetadata
+            do {
+                resolution = try await cloudRefreshOperation(databaseReference) { _ in }
+            } catch {
+                guard lockCycleID == expectedLockCycleID else { return }
+                cloudSyncOutcome = .failed(CloudProviderError.message(for: error))
+                return
+            }
             guard lockCycleID == expectedLockCycleID else { return }
-            cloudSyncOutcome = .failed(CloudProviderError.message(for: error))
-            return
-        }
-        guard lockCycleID == expectedLockCycleID else { return }
+        } while openTimeSHA512 != observedOpenTimeSHA512
 
         // Same metadata-only merge as the foreground refresh: a save that
         // landed during the round-trip must not be rolled back.
@@ -2621,6 +2638,7 @@ final class DatabaseViewModel {
         // the workspace down, so no open editor outlives the tree and session
         // key it took its snapshot from.
         state = .unlocking
+        isReplacingWithSyncedCopy = true
         unlockStatusMessage = Self.decryptingStatusMessage
         let reloaded: ReloadedDatabase
         do {
@@ -2632,12 +2650,14 @@ final class DatabaseViewModel {
             )
         } catch {
             guard lockCycleID == expectedLockCycleID else { return }
+            isReplacingWithSyncedCopy = false
             state = .unlocked
             cloudSyncOutcome = .failed(error.localizedDescription)
             return
         }
         guard lockCycleID == expectedLockCycleID else { return }
 
+        isReplacingWithSyncedCopy = false
         applyReloadedDatabase(reloaded)
         state = .unlocked
         synchronizeSelections()
@@ -2723,7 +2743,7 @@ final class DatabaseViewModel {
     }
 
     func handleSceneDidEnterBackground() {
-        guard case .unlocked = state else { return }
+        guard isSessionOpen else { return }
 
         #if os(iOS)
         if SettingsService.lockOnBackground {
@@ -2749,7 +2769,7 @@ final class DatabaseViewModel {
     }
 
     func handleSceneDidBecomeActive() {
-        guard case .unlocked = state else { return }
+        guard isSessionOpen else { return }
 
         guard backgroundEnteredAt != nil else {
             resetInactivityTimer()
