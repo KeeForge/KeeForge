@@ -31,6 +31,7 @@ struct AutoFillEntryCreatorView: View {
     /// received. Only the picker-initiated flow, where no password exists yet,
     /// unlocks the field and its generate button.
     let allowsPasswordEditing: Bool
+    let destinationGroupName: String
     let onSave: @Sendable (EntryDraftPayload) async -> AutoFillEntryCreatorActionResult
     let onCancel: () -> Void
 
@@ -42,11 +43,13 @@ struct AutoFillEntryCreatorView: View {
 
     init(
         initialDraft: EntryDraftPayload,
+        destinationGroupName: String,
         allowsPasswordEditing: Bool = false,
         onSave: @escaping @Sendable (EntryDraftPayload) async -> AutoFillEntryCreatorActionResult,
         onCancel: @escaping () -> Void
     ) {
         self.allowsPasswordEditing = allowsPasswordEditing
+        self.destinationGroupName = destinationGroupName
         self.onSave = onSave
         self.onCancel = onCancel
         _draft = State(initialValue: initialDraft)
@@ -120,6 +123,11 @@ struct AutoFillEntryCreatorView: View {
                             .textContentType(.URL)
                             .accessibilityIdentifier("autofill-entry-creator.url-field")
                     }
+                }
+
+                Section {
+                    LabeledContent("Group", value: destinationGroupName)
+                        .accessibilityIdentifier("autofill-entry-creator.group")
                 }
 
                 Section("Notes") {

@@ -13,6 +13,7 @@ enum SettingsService {
         static let quickAutoFillEnabled = "KeeForge.quickAutoFillEnabled"
         static let autoFillCopyTOTP = "KeeForge.autoFillCopyTOTP"
         static let appearanceMode = "KeeForge.appearanceMode"
+        static let appAccentColor = "KeeForge.appAccentColor"
         static let hasTipped = "KeeForge.hasTipped"
         static let macLockPolicy = "KeeForge.macLockPolicy"
         static let blockScreenCapture = "KeeForge.blockScreenCapture"
@@ -20,6 +21,7 @@ enum SettingsService {
     }
 
     static let appearanceModeDefaultsKey = Key.appearanceMode
+    static let appAccentColorDefaultsKey = Key.appAccentColor
 
     private static var sharedDefaults: UserDefaults {
         AppGroupContainer.defaults
@@ -132,6 +134,39 @@ enum SettingsService {
         }
     }
 
+    struct AppAccentColor: RawRepresentable, Equatable, Sendable {
+        let red: UInt8
+        let green: UInt8
+        let blue: UInt8
+
+        init(red: Double, green: Double, blue: Double) {
+            self.red = Self.byte(from: red)
+            self.green = Self.byte(from: green)
+            self.blue = Self.byte(from: blue)
+        }
+
+        init?(rawValue: String) {
+            guard rawValue.count == 6, let value = UInt32(rawValue, radix: 16) else {
+                return nil
+            }
+            red = UInt8((value >> 16) & 0xFF)
+            green = UInt8((value >> 8) & 0xFF)
+            blue = UInt8(value & 0xFF)
+        }
+
+        var rawValue: String {
+            String(format: "%02X%02X%02X", Int(red), Int(green), Int(blue))
+        }
+
+        var redComponent: Double { Double(red) / 255 }
+        var greenComponent: Double { Double(green) / 255 }
+        var blueComponent: Double { Double(blue) / 255 }
+
+        private static func byte(from component: Double) -> UInt8 {
+            UInt8((min(max(component, 0), 1) * 255).rounded())
+        }
+    }
+
     // MARK: - Accessors
 
     static var appearanceMode: AppearanceMode {
@@ -143,6 +178,22 @@ enum SettingsService {
         }
         set {
             UserDefaults.standard.set(newValue.rawValue, forKey: Key.appearanceMode)
+        }
+    }
+
+    static var appAccentColor: AppAccentColor? {
+        get {
+            guard let raw = UserDefaults.standard.string(forKey: Key.appAccentColor) else {
+                return nil
+            }
+            return AppAccentColor(rawValue: raw)
+        }
+        set {
+            if let newValue {
+                UserDefaults.standard.set(newValue.rawValue, forKey: Key.appAccentColor)
+            } else {
+                UserDefaults.standard.removeObject(forKey: Key.appAccentColor)
+            }
         }
     }
 

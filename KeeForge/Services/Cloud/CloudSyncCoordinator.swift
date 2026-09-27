@@ -518,8 +518,7 @@ enum CloudSyncCoordinator {
 
         try DatabaseListStore.cacheDatabaseCopy(bytes, for: reference)
 
-        var updatedReference = reference
-        updatedReference.updateCloudSyncMetadata { cloudMetadata in
+        let applyRemoteMetadata: (inout CloudSyncMetadata) -> Void = { cloudMetadata in
             // An upload response can omit rev/hash (OneDrive session
             // completions). Nilling a good recorded value would send every
             // later save into the nil-rev conflict fallback.
@@ -533,7 +532,21 @@ enum CloudSyncCoordinator {
             cloudMetadata.lastSyncedAt = .now
             cloudMetadata.lastSyncIssue = nil
         }
-        DatabaseListStore.update(updatedReference)
-        return updatedReference
+
+        if let observedMetadata = reference.cloudSyncMetadata,
+           let updatedReference = DatabaseListStore.updateCloudSyncMetadata(
+               for: reference.id,
+               ifUnchangedFrom: observedMetadata,
+               mutate: applyRemoteMetadata
+           ) {
+            return updatedReference
+        }
+
+        // The database can be removed from the list while its upload is in
+        // flight. Return the completed upload state to the caller without
+        // silently adding the removed database again.
+        var uploadedReference = reference
+        uploadedReference.updateCloudSyncMetadata(applyRemoteMetadata)
+        return uploadedReference
     }
 }

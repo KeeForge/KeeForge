@@ -39,6 +39,7 @@ struct CredentialProviderPasskeyCreatorContext {
     let relyingPartyIdentifier: String
     let userName: String
     let databaseName: String
+    let destinationGroupName: String
     let initialTitle: String
 }
 
@@ -92,6 +93,7 @@ protocol CredentialProviderPresenting: AnyObject {
     /// flow, where the user still has to pick one.
     func presentEntryCreator(
         initialDraft: EntryDraftPayload,
+        destinationGroupName: String,
         allowsPasswordEditing: Bool,
         onSave: @escaping @Sendable (EntryDraftPayload) async -> CredentialProviderEntrySaveOutcome,
         onCancel: @escaping () -> Void
@@ -1706,6 +1708,16 @@ final class CredentialProviderCoordinator {
         }
     }
 
+    /// Shown on the creators so the user sees where the entry will land;
+    /// `AutoFillSaveCoordinator.saveNewEntry` resolves the same group.
+    private var saveDestinationGroupName: String {
+        guard let parsedRootGroup else { return "" }
+        return AutoFillSaveCoordinator.destinationGroup(
+            in: parsedRootGroup,
+            preferredGroupID: activeDatabaseReference?.autoFillDestinationGroupID
+        ).name
+    }
+
     /// The picker's "create a new credential" action, or nil when this request
     /// cannot produce one: creation writes to the database, so it needs iOS, a
     /// writable database, a KDBX 4 file, and a service identifier to derive the
@@ -1743,6 +1755,7 @@ final class CredentialProviderCoordinator {
             guard let self else { return }
             presenter?.presentEntryCreator(
                 initialDraft: initialDraft,
+                destinationGroupName: saveDestinationGroupName,
                 allowsPasswordEditing: true,
                 onSave: { [weak self] draftPayload in
                     guard let self else {
@@ -1825,6 +1838,7 @@ final class CredentialProviderCoordinator {
             guard let self else { return }
             presenter?.presentEntryCreator(
                 initialDraft: initialDraft,
+                destinationGroupName: saveDestinationGroupName,
                 allowsPasswordEditing: false,
                 onSave: { [weak self] draftPayload in
                     guard let self else {
@@ -1920,6 +1934,7 @@ final class CredentialProviderCoordinator {
                     relyingPartyIdentifier: relyingPartyID,
                     userName: userName,
                     databaseName: activeDatabaseReference?.displayName ?? "",
+                    destinationGroupName: saveDestinationGroupName,
                     initialTitle: relyingPartyID
                 ),
                 onSave: { [weak self] title in

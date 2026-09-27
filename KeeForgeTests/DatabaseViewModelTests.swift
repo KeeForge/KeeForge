@@ -880,6 +880,38 @@ final class DatabaseViewModelTests: XCTestCase {
         XCTAssertTrue(vm.groupDestinationOptions(currentGroupID: nil).allSatisfy { $0.isCurrentParent == false })
     }
 
+    func testAutoFillDestinationGroupFollowsTheSettingAndFallsBackWithoutRepointingIt() async throws {
+        let reference = try makeReference()
+        DatabaseListStore.update(reference)
+        let vm = try makeViewModel(reference: reference)
+        await vm.unlock(password: fixturePassword)
+        XCTAssertEqual(vm.autoFillDestinationGroup?.id, vm.visibleRootGroupID)
+
+        let socialGroup = try XCTUnwrap(vm.visibleRootGroup?.groups.first(where: { $0.name == "Social" }))
+        vm.setAutoFillDestinationGroupID(socialGroup.id)
+
+        XCTAssertEqual(vm.autoFillDestinationGroup?.id, socialGroup.id)
+        XCTAssertEqual(vm.databaseReference.autoFillDestinationGroupID, socialGroup.id)
+
+        try vm.deleteGroup(socialGroup.id, sendToRecycleBin: true)
+
+        XCTAssertEqual(vm.autoFillDestinationGroup?.id, vm.visibleRootGroupID)
+        var stored = try XCTUnwrap(DatabaseListStore.databases.first(where: { $0.id == reference.id }))
+        XCTAssertEqual(stored.autoFillDestinationGroupID, socialGroup.id)
+
+        // The picker displays the resolved root fallback, but must compare its
+        // disabled row with the persisted preference. Otherwise root looks
+        // selected and cannot replace the stale UUID.
+        let options = vm.groupDestinationOptions(currentGroupID: vm.databaseReference.autoFillDestinationGroupID)
+        XCTAssertTrue(options.allSatisfy { $0.isCurrentParent == false })
+        let rootGroupID = try XCTUnwrap(vm.visibleRootGroupID)
+        vm.setAutoFillDestinationGroupID(rootGroupID)
+
+        stored = try XCTUnwrap(DatabaseListStore.databases.first(where: { $0.id == reference.id }))
+        XCTAssertEqual(stored.autoFillDestinationGroupID, rootGroupID)
+        XCTAssertEqual(vm.autoFillDestinationGroup?.id, rootGroupID)
+    }
+
     func testMoveDestinationOptionsExcludeTheMovedGroupsOwnSubtree() async throws {
         let vm = try makeViewModel()
         await vm.unlock(password: fixturePassword)
