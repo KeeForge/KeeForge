@@ -731,6 +731,13 @@ private struct CompactDatabaseHost: View {
     }
 }
 
+/// Offered by the opening screen only while a YubiKey challenge is outstanding.
+@MainActor
+private func hardwareKeyCancelAction(for viewModel: DatabaseViewModel) -> (() -> Void)? {
+    guard viewModel.isAwaitingHardwareKey else { return nil }
+    return { viewModel.cancelHardwareKeyRequest() }
+}
+
 private struct CompactUnlockScene: View {
     @Bindable var viewModel: DatabaseViewModel
     let onReturnToList: () -> Void
@@ -763,7 +770,8 @@ private struct CompactUnlockScene: View {
                 DatabaseOpeningView(
                     databaseName: viewModel.databaseDisplayName,
                     statusMessage: viewModel.unlockStatusMessage,
-                    progress: viewModel.cloudSyncProgress
+                    progress: viewModel.cloudSyncProgress,
+                    onCancel: hardwareKeyCancelAction(for: viewModel)
                 )
                     .transition(.opacity)
             case .unlocked:
@@ -811,7 +819,8 @@ private struct RegularDatabaseScene: View {
                 DatabaseOpeningView(
                     databaseName: viewModel.databaseDisplayName,
                     statusMessage: viewModel.unlockStatusMessage,
-                    progress: viewModel.cloudSyncProgress
+                    progress: viewModel.cloudSyncProgress,
+                    onCancel: hardwareKeyCancelAction(for: viewModel)
                 )
                 .transition(.opacity)
             case .unlocked:

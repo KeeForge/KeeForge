@@ -124,3 +124,7 @@ See [`CONTRIBUTING.md`](CONTRIBUTING.md) for build requirements, how to build fr
 ## License
 
 KeeForge is GPLv3 licensed. See [`LICENSE`](LICENSE) for details.
+
+## Star History
+
+[![Star History Chart](https://api.star-history.com/svg?repos=KeeForge/KeeForge&type=Date)](https://www.star-history.com/#KeeForge/KeeForge&Date)
