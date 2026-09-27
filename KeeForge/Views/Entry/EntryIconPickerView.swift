@@ -186,9 +186,8 @@ struct EntryIconPickerView: View {
         return iconCell(isSelected: isSelected) {
             onSelect(.standard(iconID: iconID))
         } content: {
-            Image(systemName: KPEntry.systemIconName(for: iconID))
+            StandardIconView(iconID: iconID)
                 .font(.title3)
-                .foregroundStyle(isSelected ? Color.accentColor : Color.primary)
         }
         .id(Self.cellID(standard: iconID))
         .accessibilityIdentifier("entry-icon-picker.standard.\(iconID)")

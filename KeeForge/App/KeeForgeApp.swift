@@ -19,6 +19,7 @@ struct KeeForgeApp: App {
     @State private var isShowingAppSettings = false
     #endif
     @AppStorage(SettingsService.appearanceModeDefaultsKey) private var appearanceModeRaw = SettingsService.AppearanceMode.system.rawValue
+    @AppStorage(SettingsService.appAccentColorDefaultsKey) private var appAccentColorRaw = ""
     @Environment(\.scenePhase) private var scenePhase
 
     init() {
@@ -31,6 +32,7 @@ struct KeeForgeApp: App {
         #if os(macOS)
         Settings {
             SettingsView(viewModel: activeDatabaseViewModel, listViewModel: listViewModel)
+                .tint(appAccentColor)
                 .preferredColorScheme(appearanceMode.preferredColorScheme)
         }
         #endif
@@ -53,6 +55,7 @@ struct KeeForgeApp: App {
                 SettingsView(viewModel: activeDatabaseViewModel, listViewModel: listViewModel)
             }
             #endif
+            .tint(appAccentColor)
             .preferredColorScheme(appearanceMode.preferredColorScheme)
             .onChange(of: scenePhase) { _, newPhase in
                 switch newPhase {
@@ -196,6 +199,10 @@ struct KeeForgeApp: App {
 
     private var appearanceMode: SettingsService.AppearanceMode {
         SettingsService.AppearanceMode(rawValue: appearanceModeRaw) ?? .system
+    }
+
+    private var appAccentColor: Color {
+        SettingsService.AppAccentColor(rawValue: appAccentColorRaw)?.color ?? Color("AccentColor")
     }
 }
 

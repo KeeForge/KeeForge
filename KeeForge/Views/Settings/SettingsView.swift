@@ -15,6 +15,7 @@ struct SettingsView: View {
     @State private var showWebsiteIcons = SettingsService.showWebsiteIcons
     @State private var showDatabaseUsageStats = SettingsService.showDatabaseUsageStats
     @State private var appearanceMode = SettingsService.appearanceMode
+    @State private var appAccentColor = SettingsService.appAccentColor
     @State private var quickAutoFillEnabled = SettingsService.quickAutoFillEnabled
     @State private var autoFillCopyTOTP = SettingsService.autoFillCopyTOTP
     @State private var sortOrder = DatabaseViewModel.savedSortOrder()
@@ -36,6 +37,7 @@ struct SettingsView: View {
             iosSettingsLayout
             #endif
         }
+        .tint(resolvedAppAccentColor)
         .preferredColorScheme(preferredColorScheme)
         .sheet(item: $feedbackContext) { context in
             FeedbackComposerView(context: context)
@@ -84,6 +86,7 @@ struct SettingsView: View {
                 showWebsiteIcons: $showWebsiteIcons,
                 showDatabaseUsageStats: $showDatabaseUsageStats,
                 appearanceMode: $appearanceMode,
+                appAccentColor: $appAccentColor,
                 sortOrder: $sortOrder,
                 sortAscending: $sortAscending
             )
@@ -186,6 +189,9 @@ struct SettingsView: View {
             .onChange(of: appearanceMode) { _, newValue in
                 SettingsService.appearanceMode = newValue
             }
+            .onChange(of: appAccentColor) { _, newValue in
+                SettingsService.appAccentColor = newValue
+            }
             .onChange(of: quickAutoFillEnabled) { _, newValue in
                 SettingsService.quickAutoFillEnabled = newValue
                 if newValue {
@@ -222,6 +228,10 @@ struct SettingsView: View {
         }
     }
 
+    private var resolvedAppAccentColor: Color {
+        appAccentColor?.color ?? Color("AccentColor")
+    }
+
     private var settingsNavigationSection: some View {
         Section {
             NavigationLink {
@@ -252,6 +262,7 @@ struct SettingsView: View {
                     showWebsiteIcons: $showWebsiteIcons,
                     showDatabaseUsageStats: $showDatabaseUsageStats,
                     appearanceMode: $appearanceMode,
+                    appAccentColor: $appAccentColor,
                     sortOrder: $sortOrder,
                     sortAscending: $sortAscending
                 )
@@ -589,6 +600,7 @@ private struct DisplaySettingsView: View {
     @Binding var showWebsiteIcons: Bool
     @Binding var showDatabaseUsageStats: Bool
     @Binding var appearanceMode: SettingsService.AppearanceMode
+    @Binding var appAccentColor: SettingsService.AppAccentColor?
     @Binding var sortOrder: DatabaseViewModel.SortOrder
     @Binding var sortAscending: Bool
 
@@ -620,6 +632,23 @@ private struct DisplaySettingsView: View {
                 }
             }
             .accessibilityIdentifier("settings.display.theme-picker")
+
+            ColorPicker(
+                "Accent Color",
+                selection: Binding(
+                    get: { appAccentColor?.color ?? Color("AccentColor") },
+                    set: { appAccentColor = SettingsService.AppAccentColor(color: $0) }
+                ),
+                supportsOpacity: false
+            )
+            .accessibilityIdentifier("settings.display.accent-color-picker")
+
+            if appAccentColor != nil {
+                Button("Use Default Accent Color") {
+                    appAccentColor = nil
+                }
+                .accessibilityIdentifier("settings.display.accent-color-reset")
+            }
         }
     }
 
@@ -806,6 +835,7 @@ private struct MacDisplaySettingsTab: View {
     @Binding var showWebsiteIcons: Bool
     @Binding var showDatabaseUsageStats: Bool
     @Binding var appearanceMode: SettingsService.AppearanceMode
+    @Binding var appAccentColor: SettingsService.AppAccentColor?
     @Binding var sortOrder: DatabaseViewModel.SortOrder
     @Binding var sortAscending: Bool
 
@@ -818,6 +848,23 @@ private struct MacDisplaySettingsTab: View {
                     }
                 }
                 .accessibilityIdentifier("settings.display.theme-picker")
+
+                ColorPicker(
+                    "Accent Color",
+                    selection: Binding(
+                        get: { appAccentColor?.color ?? Color("AccentColor") },
+                        set: { appAccentColor = SettingsService.AppAccentColor(color: $0) }
+                    ),
+                    supportsOpacity: false
+                )
+                .accessibilityIdentifier("settings.display.accent-color-picker")
+
+                if appAccentColor != nil {
+                    Button("Use Default Accent Color") {
+                        appAccentColor = nil
+                    }
+                    .accessibilityIdentifier("settings.display.accent-color-reset")
+                }
             }
 
             Section {
@@ -859,3 +906,19 @@ private struct MacDisplaySettingsTab: View {
 }
 
 #endif
+
+extension SettingsService.AppAccentColor {
+    var color: Color {
+        Color(.sRGB, red: redComponent, green: greenComponent, blue: blueComponent, opacity: 1)
+    }
+
+    @MainActor
+    init(color: Color) {
+        let resolved = color.resolve(in: EnvironmentValues())
+        self.init(
+            red: Double(resolved.red),
+            green: Double(resolved.green),
+            blue: Double(resolved.blue)
+        )
+    }
+}
