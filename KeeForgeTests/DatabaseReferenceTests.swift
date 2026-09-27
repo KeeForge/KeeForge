@@ -26,6 +26,7 @@ final class DatabaseReferenceTests: XCTestCase {
         XCTAssertNil(decoded.autoFillDestinationGroupID)
         XCTAssertFalse(decoded.isDocumentsResident)
         XCTAssertEqual(decoded.cloudSyncPolicy, .onOpen)
+        XCTAssertNil(decoded.hardwareKey)
     }
 
     func testEncodeDecodeWithNewFieldsRoundTrips() throws {
@@ -57,7 +58,8 @@ final class DatabaseReferenceTests: XCTestCase {
                     lastSyncedAt: Date(timeIntervalSince1970: 50),
                     lastSyncIssue: nil
                 )
-            )
+            ),
+            hardwareKey: HardwareKeyConfiguration(transport: .lightning, slot: .two)
         )
 
         let data = try JSONEncoder().encode(reference)

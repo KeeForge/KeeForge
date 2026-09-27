@@ -32,6 +32,12 @@ struct DatabaseReference: Identifiable, Codable, Hashable, Sendable {
     /// the picked file is unproven, and a wrong pick can fail as a wrong
     /// password, so any open failure keeps offering to relink.
     var hasUnverifiedRelink: Bool = false
+    /// Set when the composite key includes a YubiKey challenge-response. The
+    /// Keychain item for this database then holds the pre-key
+    /// (`KDBXCrypto.preKey`), never the full composite key, so Quick Launch
+    /// still has to ask the hardware key; `DatabaseListStore.setHardwareKey`
+    /// owns that invariant.
+    var hardwareKey: HardwareKeyConfiguration?
     /// Only meaningful for cloud-backed references.
     var cloudSyncPolicy: CloudSyncPolicy = .onOpen
 
@@ -104,6 +110,7 @@ extension DatabaseReference {
         case source
         case lastMasterKeyChangeAt
         case hasUnverifiedRelink
+        case hardwareKey
         case cloudSyncPolicy
     }
 
@@ -127,6 +134,7 @@ extension DatabaseReference {
         source = try container.decodeIfPresent(DatabaseSource.self, forKey: .source) ?? .local
         lastMasterKeyChangeAt = try container.decodeIfPresent(Date.self, forKey: .lastMasterKeyChangeAt)
         hasUnverifiedRelink = try container.decodeIfPresent(Bool.self, forKey: .hasUnverifiedRelink) ?? false
+        hardwareKey = try container.decodeIfPresent(HardwareKeyConfiguration.self, forKey: .hardwareKey)
         cloudSyncPolicy = try container.decodeIfPresent(CloudSyncPolicy.self, forKey: .cloudSyncPolicy) ?? .onOpen
     }
 
@@ -150,6 +158,7 @@ extension DatabaseReference {
         try container.encode(source, forKey: .source)
         try container.encodeIfPresent(lastMasterKeyChangeAt, forKey: .lastMasterKeyChangeAt)
         try container.encode(hasUnverifiedRelink, forKey: .hasUnverifiedRelink)
+        try container.encodeIfPresent(hardwareKey, forKey: .hardwareKey)
         try container.encode(cloudSyncPolicy, forKey: .cloudSyncPolicy)
     }
 }

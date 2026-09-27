@@ -840,6 +840,8 @@ final class CredentialProviderCoordinator {
     /// against that database's own keychain composite key, never the active
     /// database's (a QuickType tap may target any enabled database).
     private func canUseBiometrics(for databaseReference: DatabaseReference) -> Bool {
+        // Its stored key is a pre-key that still needs the YubiKey.
+        guard databaseReference.hardwareKey == nil else { return false }
         guard BiometricService.isAvailable else { return false }
         return KeychainService.hasStoredKey(
             for: databaseReference.id,
@@ -1129,6 +1131,7 @@ final class CredentialProviderCoordinator {
         databaseReference: DatabaseReference,
         generation: Int
     ) async throws {
+        guard databaseReference.hardwareKey == nil else { throw HardwareKeyUnavailableError() }
         let keyFileData = try loadAssociatedKeyFileData(for: databaseReference)
         let compositeKey = try KDBXCrypto.compositeKey(password: password, keyFileData: keyFileData)
         try await loadEntries(
@@ -2495,5 +2498,13 @@ final class CredentialProviderCoordinator {
                 }
             )
         }
+    }
+}
+
+/// YubiKit is linked into the iOS app alone, so a hardware-key database
+/// opens only there.
+private struct HardwareKeyUnavailableError: LocalizedError {
+    var errorDescription: String? {
+        String(localized: "This database needs a YubiKey, which AutoFill can't use yet. Open it in the KeeForge app instead.")
     }
 }
