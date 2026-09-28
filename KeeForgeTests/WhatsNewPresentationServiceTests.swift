@@ -164,7 +164,6 @@ final class WhatsNewPresentationServiceTests: XCTestCase {
             iOSRelease.features.first { $0.id == "yubikey-unlock" }
         )
         XCTAssertTrue(String(localized: yubiKeyFeature.title).contains("experimental"))
-        XCTAssertTrue(String(localized: yubiKeyFeature.detail).contains("read-only"))
     }
 
     func testVersion111CatalogDoesNotClaimLaterLocalizations() throws {

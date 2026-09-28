@@ -2528,42 +2528,42 @@
         }
       }
     },
-    "Add, rename, edit, and remove custom fields while editing an entry. Protected fields stay hidden until revealed and remain protected after renaming." : {
+    "Add, rename, edit, and remove custom fields. Protected fields stay hidden and remain protected after renaming." : {
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Füge beim Bearbeiten eines Eintrags benutzerdefinierte Felder hinzu, benenne sie um, bearbeite oder entferne sie. Geschützte Felder bleiben bis zur Anzeige verborgen und auch nach dem Umbenennen geschützt."
+            "value" : "Füge benutzerdefinierte Felder hinzu, benenne sie um, bearbeite oder entferne sie. Geschützte Felder bleiben verborgen und auch nach dem Umbenennen geschützt."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Añade, cambia el nombre, edita y elimina campos personalizados al editar una entrada. Los campos protegidos permanecen ocultos hasta que se muestran y siguen protegidos después de cambiarles el nombre."
+            "value" : "Añade, cambia el nombre, edita y elimina campos personalizados. Los campos protegidos permanecen ocultos y siguen protegidos después de cambiarles el nombre."
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Ajoutez, renommez, modifiez et supprimez des champs personnalisés lorsque vous modifiez une entrée. Les champs protégés restent masqués jusqu’à leur affichage et restent protégés après avoir été renommés."
+            "value" : "Ajoutez, renommez, modifiez et supprimez des champs personnalisés. Les champs protégés restent masqués et protégés après avoir été renommés."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "エントリーの編集中にカスタムフィールドを追加、名前変更、編集、削除できます。保護されたフィールドは表示するまで隠され、名前を変更した後も保護されます。"
+            "value" : "カスタムフィールドを追加、名前変更、編集、削除できます。保護されたフィールドは隠されたままで、名前を変更した後も保護されます。"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "编辑条目时，可以添加、重命名、编辑和移除自定义字段。受保护的字段在显示前保持隐藏，重命名后仍受保护。"
+            "value" : "可以添加、重命名、编辑和移除自定义字段。受保护的字段保持隐藏，重命名后仍受保护。"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "編輯項目時，可以新增、重新命名、編輯和移除自訂欄位。受保護的欄位在顯示前保持隱藏，重新命名後仍受保護。"
+            "value" : "可以新增、重新命名、編輯和移除自訂欄位。受保護的欄位保持隱藏，重新命名後仍受保護。"
           }
         }
       }
@@ -6206,6 +6206,46 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "選擇儲存此資料庫檔案時使用的加密、金鑰衍生和壓縮方式。"
+          }
+        }
+      }
+    },
+    "Choose the group where each database saves new AutoFill passwords and passkeys. The save screen shows which group will be used." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wähle die Gruppe, in der jede Datenbank neue AutoFill-Passwörter und Passkeys speichert. Der Speicherbildschirm zeigt an, welche Gruppe verwendet wird."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Elige el grupo donde cada base de datos guarda las contraseñas y llaves de acceso nuevas de Autorrelleno. La pantalla de guardado muestra qué grupo se usará."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choisissez le groupe dans lequel chaque base de données enregistre les nouveaux mots de passe et clés d’accès d’AutoFill. L’écran d’enregistrement indique le groupe utilisé."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "データベースごとに、AutoFill の新しいパスワードとパスキーを保存するグループを選べます。保存画面には使用されるグループが表示されます。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "为每个数据库选择保存 AutoFill 新密码和通行密钥的群组。保存屏幕会显示将使用的群组。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "為每個資料庫選擇儲存 AutoFill 新密碼和通行密鑰的群組。儲存畫面會顯示將使用的群組。"
           }
         }
       }
@@ -16736,6 +16776,46 @@
         }
       }
     },
+    "KeeForge and AutoFill are now fully translated into Japanese." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge und AutoFill sind jetzt vollständig ins Japanische übersetzt."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge y Autorrelleno ahora están completamente traducidos al japonés."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge et AutoFill sont désormais entièrement traduits en japonais."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge と AutoFill がすべて日本語で利用できるようになりました。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge 和 AutoFill 现已全面提供日语翻译。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge 和 AutoFill 現已全面提供日文翻譯。"
+          }
+        }
+      }
+    },
     "KeeForge can now open older KeePass 3.1 vaults and databases protected with Twofish — and keeps their original encryption when you save." : {
       "localizations" : {
         "de" : {
@@ -17692,46 +17772,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "KeeForge 的 App 和自動填寫現已全面翻譯為德文。"
-          }
-        }
-      }
-    },
-    "KeeForge is now fully translated into Japanese throughout the app and AutoFill." : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "KeeForge ist jetzt in der gesamten App und in AutoFill vollständig ins Japanische übersetzt."
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "KeeForge ahora está completamente traducido al japonés en toda la app y en Autorrelleno."
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "KeeForge est désormais entièrement traduit en japonais dans l’app et dans AutoFill."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "KeeForge のアプリと AutoFill がすべて日本語で利用できるようになりました。"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "KeeForge 的应用和 AutoFill 现已全面提供日语翻译。"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "KeeForge 的 App 和 AutoFill 現已全面提供日文翻譯。"
           }
         }
       }
@@ -21977,46 +22017,6 @@
         }
       }
     },
-    "On any iPhone, use NFC to open a YubiKey-protected KDBX 4 database. On iPhones and iPads with a Lightning port, you can also connect a Lightning YubiKey. These databases open read-only for now; USB-C, AutoFill, and Mac aren’t supported." : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Verwende auf jedem iPhone NFC, um eine mit YubiKey geschützte KDBX-4-Datenbank zu öffnen. Auf iPhones und iPads mit Lightning-Anschluss kannst du auch einen Lightning-YubiKey anschließen. Diese Datenbanken werden vorerst schreibgeschützt geöffnet; USB-C, AutoFill und Mac werden nicht unterstützt."
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "En cualquier iPhone, usa NFC para abrir una base de datos KDBX 4 protegida con una YubiKey. En los iPhone y iPad con un puerto Lightning, también puedes conectar una YubiKey Lightning. Por ahora, estas bases de datos se abren en modo de solo lectura; USB-C, Autorrelleno y Mac no son compatibles."
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Sur n’importe quel iPhone, utilisez le NFC pour ouvrir une base de données KDBX 4 protégée par une YubiKey. Sur les iPhone et iPad dotés d’un port Lightning, vous pouvez également connecter une YubiKey Lightning. Ces bases de données s’ouvrent en lecture seule pour le moment ; l’USB-C, AutoFill et le Mac ne sont pas pris en charge."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "どの iPhone でも、NFC を使って YubiKey で保護された KDBX 4 データベースを開けます。Lightning ポートを搭載した iPhone と iPad では、Lightning 対応 YubiKey を接続することもできます。現時点ではこれらのデータベースは読み取り専用で開きます。USB-C、AutoFill、Mac には対応していません。"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "在任何 iPhone 上，都可以通过 NFC 打开受 YubiKey 保护的 KDBX 4 数据库。在配备 Lightning 端口的 iPhone 和 iPad 上，还可以连接 Lightning YubiKey。这些数据库目前以只读方式打开；尚不支持 USB-C、AutoFill 和 Mac。"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "在任何 iPhone 上，都可以透過 NFC 開啟受 YubiKey 保護的 KDBX 4 資料庫。在配備 Lightning 連接埠的 iPhone 和 iPad 上，還可以連接 Lightning YubiKey。這些資料庫目前以唯讀方式開啟；尚不支援 USB-C、AutoFill 和 Mac。"
-          }
-        }
-      }
-    },
     "One-Time Password" : {
       "localizations" : {
         "de" : {
@@ -22778,42 +22778,42 @@
         }
       }
     },
-    "Open, save, and create databases directly on an FTP server. FTP is unencrypted, so KeeForge requires you to enable it explicitly and it should only be used on a network you trust." : {
+    "Open, save, and create databases on an FTP server. FTP is unencrypted, so use it only on a network you trust." : {
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Öffne, speichere und erstelle Datenbanken direkt auf einem FTP-Server. FTP ist unverschlüsselt. KeeForge verlangt daher eine ausdrückliche Aktivierung und sollte nur in einem vertrauenswürdigen Netzwerk verwendet werden."
+            "value" : "Öffne, speichere und erstelle Datenbanken auf einem FTP-Server. FTP ist unverschlüsselt, also verwende es nur in einem vertrauenswürdigen Netzwerk."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Abre, guarda y crea bases de datos directamente en un servidor FTP. FTP no está cifrado, por lo que KeeForge requiere que lo actives explícitamente y solo debe usarse en una red de confianza."
+            "value" : "Abre, guarda y crea bases de datos en un servidor FTP. FTP no está cifrado, así que úsalo solo en una red de confianza."
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Ouvrez, enregistrez et créez des bases de données directement sur un serveur FTP. Le protocole FTP n’est pas chiffré : KeeForge vous demande donc de l’activer explicitement et il ne doit être utilisé que sur un réseau de confiance."
+            "value" : "Ouvrez, enregistrez et créez des bases de données sur un serveur FTP. Le protocole FTP n’est pas chiffré, alors utilisez-le uniquement sur un réseau de confiance."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "FTP サーバー上のデータベースを直接開いたり、保存したり、作成したりできます。FTP は暗号化されていないため、KeeForge では明示的に有効にする必要があります。信頼できるネットワークでのみ使用してください。"
+            "value" : "FTP サーバー上のデータベースを開いたり、保存したり、作成したりできます。FTP は暗号化されていないため、信頼できるネットワークでのみ使用してください。"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "直接在 FTP 服务器上打开、保存和创建数据库。FTP 未加密，因此 KeeForge 要求你明确启用它，并且只能在受信任的网络上使用。"
+            "value" : "在 FTP 服务器上打开、保存和创建数据库。FTP 未加密，因此只能在受信任的网络上使用。"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "直接在 FTP 伺服器上開啟、儲存和建立資料庫。FTP 未加密，因此 KeeForge 要求你明確啟用它，且只能在受信任的網路上使用。"
+            "value" : "在 FTP 伺服器上開啟、儲存和建立資料庫。FTP 未加密，因此只能在受信任的網路上使用。"
           }
         }
       }
@@ -23614,46 +23614,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "照片"
-          }
-        }
-      }
-    },
-    "Pick a destination group for each database in Database Details. New passwords and passkeys saved from AutoFill go there, and the save screen shows which group will be used." : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Wähle in den Datenbankdetails für jede Datenbank eine Zielgruppe aus. Neue Passwörter und Passkeys, die mit AutoFill gespeichert werden, landen dort. Der Speicherbildschirm zeigt an, welche Gruppe verwendet wird."
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Elige un grupo de destino para cada base de datos en Detalles de la base de datos. Las contraseñas y llaves de acceso nuevas guardadas desde Autorrelleno se almacenan allí, y la pantalla de guardado muestra qué grupo se usará."
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Choisissez un groupe de destination pour chaque base de données dans Détails de la base de données. Les nouveaux mots de passe et clés d’accès enregistrés depuis AutoFill y sont placés, et l’écran d’enregistrement indique le groupe utilisé."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "「データベースの詳細」でデータベースごとに保存先グループを選べます。AutoFill から保存した新しいパスワードとパスキーはそこに保存され、保存画面には使用されるグループが表示されます。"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "在“数据库详细信息”中为每个数据库选择目标群组。通过 AutoFill 保存的新密码和通行密钥将存入该群组，保存屏幕也会显示将使用的群组。"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "在「資料庫詳細資訊」中為每個資料庫選擇目標群組。透過 AutoFill 儲存的新密碼和通行密鑰將存入該群組，儲存畫面也會顯示將使用的群組。"
           }
         }
       }
@@ -36424,6 +36384,46 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "使用 KeeOTP 驗證碼"
+          }
+        }
+      }
+    },
+    "Use NFC on any iPhone, or a Lightning YubiKey on iPhones and iPads with a Lightning port, to open protected KDBX 4 databases." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Öffne geschützte KDBX-4-Datenbanken per NFC auf jedem iPhone oder mit einem Lightning-YubiKey auf iPhones und iPads mit Lightning-Anschluss."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Usa NFC en cualquier iPhone, o una YubiKey Lightning en iPhone y iPad con puerto Lightning, para abrir bases de datos KDBX 4 protegidas."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Utilisez le NFC sur n’importe quel iPhone, ou une YubiKey Lightning sur les iPhone et iPad dotés d’un port Lightning, pour ouvrir des bases de données KDBX 4 protégées."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "どの iPhone でも NFC を、Lightning ポートを搭載した iPhone と iPad では Lightning 対応 YubiKey を使って、保護された KDBX 4 データベースを開けます。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在任何 iPhone 上使用 NFC，或在配备 Lightning 端口的 iPhone 和 iPad 上使用 Lightning YubiKey，打开受保护的 KDBX 4 数据库。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在任何 iPhone 上使用 NFC，或在配備 Lightning 連接埠的 iPhone 和 iPad 上使用 Lightning YubiKey，開啟受保護的 KDBX 4 資料庫。"
           }
         }
       }
