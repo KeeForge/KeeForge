@@ -45,6 +45,10 @@ struct EntryDraftPayload: Codable, Sendable, Equatable {
     var protectedCustomFieldKeys: Set<String>
     var tags: [String]
     var totpConfig: TOTPConfiguration?
+    /// `nil` leaves the entry's stored expiration exactly as it is, so a
+    /// payload rebuilt from an entry without the editor (the AutoFill URL
+    /// addition) cannot clear or rewrite it.
+    var expiry: EntryExpiry?
     var lastModificationTime: Date?
 
     init(
@@ -57,6 +61,7 @@ struct EntryDraftPayload: Codable, Sendable, Equatable {
         protectedCustomFieldKeys: Set<String> = [],
         tags: [String] = [],
         totpConfig: TOTPConfiguration? = nil,
+        expiry: EntryExpiry? = nil,
         lastModificationTime: Date? = nil
     ) {
         self.title = title
@@ -68,8 +73,15 @@ struct EntryDraftPayload: Codable, Sendable, Equatable {
         self.protectedCustomFieldKeys = protectedCustomFieldKeys
         self.tags = tags
         self.totpConfig = totpConfig
+        self.expiry = expiry
         self.lastModificationTime = lastModificationTime
     }
+}
+
+/// When an entry expires, as the entry editor sets it.
+enum EntryExpiry: Codable, Sendable, Equatable {
+    case never
+    case at(Date)
 }
 
 /// Codable mirror of `KPInheritableBool`, kept separate so the KDBX model type

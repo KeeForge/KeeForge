@@ -58,6 +58,7 @@ import sys
 import tempfile
 import time
 import xml.etree.ElementTree as ET
+from datetime import datetime, timedelta, timezone
 
 attachment_dir = sys.argv[1]
 keepassxc_cli = sys.argv[2]
@@ -171,6 +172,7 @@ attachment_checks_verified = 0
 password_checks_verified = 0
 totp_checks_verified = 0
 custom_field_checks_verified = 0
+expiry_checks_verified = 0
 entry_path_cache = {}
 
 TOTP_HASHES = {"SHA1": hashlib.sha1, "SHA256": hashlib.sha256, "SHA512": hashlib.sha512}
@@ -242,24 +244,58 @@ def verify_field_set(entry, expected, label):
             raise ValueError(f"{label}: deleted field {name!r} is still present")
 
 
+def find_live_entry(root, title):
+    matches = [
+        entry for entry in root.findall(".//Group/Entry")
+        if any(item.findtext("Key") == "Title" and item.findtext("Value") == title
+               for item in entry.findall("String"))
+    ]
+    if len(matches) != 1:
+        raise ValueError(f"expected exactly one live entry titled {title!r}, found {len(matches)}")
+    return matches[0]
+
+
 def verify_custom_fields(xml, expectations):
     root = ET.fromstring(xml)
     for expected in expectations:
         title = expected["entryTitle"]
-        matches = [
-            entry for entry in root.findall(".//Group/Entry")
-            if any(item.findtext("Key") == "Title" and item.findtext("Value") == title
-                   for item in entry.findall("String"))
-        ]
-        if len(matches) != 1:
-            raise ValueError(f"expected exactly one live entry titled {title!r}, found {len(matches)}")
-        entry = matches[0]
+        entry = find_live_entry(root, title)
         verify_field_set(entry, expected["current"], title)
         history = entry.findall("History/Entry")
         if len(history) != len(expected["history"]):
             raise ValueError(f"{title}: incorrect history count")
         for index, (version, fields) in enumerate(zip(history, expected["history"])):
             verify_field_set(version, fields, f"{title} history {index}")
+
+
+KDBX_EPOCH = datetime(1, 1, 1, tzinfo=timezone.utc)
+
+def parse_kdbx_datetime(text):
+    # KDBX 4 stores base64 little-endian seconds since 0001-01-01 UTC; older
+    # writers and XML exports may use ISO 8601 instead. Accept both.
+    text = (text or "").strip()
+    try:
+        raw = base64.b64decode(text, validate=True)
+    except ValueError:
+        raw = b""
+    if len(text) == 12 and len(raw) == 8:
+        return KDBX_EPOCH + timedelta(seconds=struct.unpack("<q", raw)[0])
+    return datetime.fromisoformat(text.replace("Z", "+00:00"))
+
+
+def verify_expiries(xml, expectations):
+    root = ET.fromstring(xml)
+    for expected in expectations:
+        title = expected["entryTitle"]
+        times = find_live_entry(root, title).find("Times")
+        if times is None:
+            raise ValueError(f"{title}: no Times element")
+        expires = (times.findtext("Expires") or "").strip().lower() == "true"
+        if expires != expected["expires"]:
+            raise ValueError(f"{title}: Expires is {expires}, expected {expected['expires']}")
+        actual = parse_kdbx_datetime(times.findtext("ExpiryTime"))
+        if actual != parse_kdbx_datetime(expected["expiryTime"]):
+            raise ValueError(f"{title}: ExpiryTime is {actual.isoformat()}, expected {expected['expiryTime']}")
 
 
 for artifact in artifacts:
@@ -347,6 +383,20 @@ for artifact in artifacts:
                 failures.append(f"{artifact_id}: {error}")
             else:
                 custom_field_checks_verified += len(custom_fields)
+
+    expiries = artifact.get("expectedExpiries", [])
+    if expiries:
+        command = [keepassxc_cli, "export", *base_options, "-f", "xml", db_path]
+        result = run_keepassxc(command, artifact["password"])
+        if result.returncode != 0:
+            failures.append(f"{artifact_id}: XML export failed\nstderr: {result.stderr}")
+        else:
+            try:
+                verify_expiries(result.stdout, expiries)
+            except (ET.ParseError, ValueError) as error:
+                failures.append(f"{artifact_id}: {error}")
+            else:
+                expiry_checks_verified += len(expiries)
 
     # Protected values: prove an external opener can decrypt what KeeForge
     # wrote into the inner random stream. Searching by title and listing groups
@@ -443,12 +493,17 @@ if totp_checks_verified == 0:
     print("error: no TOTP checks ran — the enrollment artifacts lost their expectations", file=sys.stderr)
     sys.exit(1)
 
+if expiry_checks_verified == 0:
+    print("error: no expiry checks ran — the expiration artifacts lost their expectations", file=sys.stderr)
+    sys.exit(1)
+
 print(
     f"KDBX compatibility gate passed for {len(artifacts)} artifacts "
     f"({attachment_checks_verified} attachment checks, "
     f"{password_checks_verified} protected-password checks, "
     f"{totp_checks_verified} TOTP checks, "
-    f"{custom_field_checks_verified} custom-field/history checks verified)."
+    f"{custom_field_checks_verified} custom-field/history checks, "
+    f"{expiry_checks_verified} expiry checks verified)."
 )
 
 PY

@@ -466,6 +466,11 @@ final class KDBXCompatibilityTests: XCTestCase {
             "A 4.1 source stays 4.1; the version floor never downgrades"
         )
 
+        // change-entry-expiry: the expiration elements a foreign writer put in
+        // `<Times>` are rewritten where they stand.
+        let expiryLoaded = try KDBXCompatibilitySupport.load(.kitchenSink, bundle: bundle)
+        try collector.run(KDBXCompatibilitySupport.changeEntryExpiryScenario(), on: expiryLoaded)
+
         try collector.emit()
     }
 
@@ -680,6 +685,8 @@ final class KDBXCompatibilityTests: XCTestCase {
             "aes-baseline-rekey-add-keyfile",
             "password-keyfile-rekey-remove-keyfile",
             "\(richID)-custom-field-edits",
+            "\(richID)-set-entry-expiry",
+            "kitchen-sink-change-entry-expiry",
             "aes-baseline-encryption-settings-chacha20-argon2id",
             "foreign-twofish-encryption-settings-aes256-keep-kdf",
         ] {
@@ -692,9 +699,12 @@ final class KDBXCompatibilityTests: XCTestCase {
         XCTAssertEqual(customFields.scenario.expectedCustomFields.first?.current.absentFields.count, 2)
         XCTAssertEqual(customFields.scenario.expectedCustomFields.first?.history.count, 1)
 
+        let expiryScenarioIDs = descriptors.filter { $0.scenario.expectedExpiries.isEmpty == false }.map(\.scenario.id)
+        XCTAssertEqual(Set(expiryScenarioIDs), ["set-entry-expiry", "change-entry-expiry"])
+
         // The artifact set never shrinks silently: the gate's merged manifest
         // is compared against exactly this count.
-        XCTAssertEqual(descriptors.count, 36)
+        XCTAssertEqual(descriptors.count, 38)
     }
 
     func test_externalExpectationTables_areExhaustiveOverEveryArtifactScenario() throws {
