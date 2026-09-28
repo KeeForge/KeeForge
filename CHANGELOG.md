@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### New Features
+
+- Set, change, or remove an entry's expiration date in the entry editor (#120). Under Expiration, turn on Expires and pick a date and time, or choose a preset: in 1, 3, or 6 months, or in 1 year. Moving an expired entry's date into the future, or turning Expires off, clears its expired status. Restoring an earlier version from the entry's history now brings back that version's expiration date too.
+
 ## v1.17.0 (2026-09-27)
 
 ### New Features
