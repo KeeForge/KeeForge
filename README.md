@@ -16,7 +16,10 @@
 
 <p align="center">
   <a href="https://apps.apple.com/us/app/keeforge/id6759309295">
-    <img alt="Download on the App Store" src="https://img.shields.io/badge/App%20Store-Download-0D96F6?style=for-the-badge&logo=appstore&logoColor=white" />
+    <img alt="Download for iPhone, iPad, or Mac on the App Store" src="https://img.shields.io/badge/App%20Store-iPhone%2C%20iPad%20%26%20Mac-0D96F6?style=for-the-badge&logo=appstore&logoColor=white" />
+  </a>
+  <a href="https://github.com/KeeForge/KeeForge/releases/latest">
+    <img alt="Download KeeForge directly for Mac" src="https://img.shields.io/badge/Mac-Direct%20Download-24292F?style=for-the-badge&logo=apple&logoColor=white" />
   </a>
   <a href="https://testflight.apple.com/join/mPAT4f1a">
     <img alt="Join the public beta on TestFlight" src="https://img.shields.io/badge/TestFlight-Public%20Beta-1F8AF0?style=for-the-badge&logo=apple&logoColor=white" />
@@ -111,7 +114,7 @@ scripts/              # Local dev tooling
 
 ## Support
 
-- App Store: [KeeForge on the App Store](https://apps.apple.com/us/app/keeforge/id6759309295)
+- App Store (iPhone, iPad, and Mac): [KeeForge on the App Store](https://apps.apple.com/us/app/keeforge/id6759309295)
 - Direct Mac download: [latest GitHub release](https://github.com/KeeForge/KeeForge/releases/latest)
 - Email: [support@keeforge.com](mailto:support@keeforge.com)
 - Issues: [GitHub Issues](https://github.com/KeeForge/KeeForge/issues)
