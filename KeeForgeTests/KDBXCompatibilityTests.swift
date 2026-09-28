@@ -679,15 +679,22 @@ final class KDBXCompatibilityTests: XCTestCase {
             "aes-baseline-rekey-password-only",
             "aes-baseline-rekey-add-keyfile",
             "password-keyfile-rekey-remove-keyfile",
+            "\(richID)-custom-field-edits",
             "aes-baseline-encryption-settings-chacha20-argon2id",
             "foreign-twofish-encryption-settings-aes256-keep-kdf",
         ] {
             XCTAssertTrue(ids.contains(required), "missing artifact \(required)")
         }
 
+        let customFields = try XCTUnwrap(descriptors.first { $0.scenario.id == "custom-field-edits" })
+        XCTAssertEqual(customFields.scenario.expectedCustomFields.count, 1)
+        XCTAssertEqual(customFields.scenario.expectedCustomFields.first?.current.fields.count, 5)
+        XCTAssertEqual(customFields.scenario.expectedCustomFields.first?.current.absentFields.count, 2)
+        XCTAssertEqual(customFields.scenario.expectedCustomFields.first?.history.count, 1)
+
         // The artifact set never shrinks silently: the gate's merged manifest
         // is compared against exactly this count.
-        XCTAssertEqual(descriptors.count, 35)
+        XCTAssertEqual(descriptors.count, 36)
     }
 
     func test_externalExpectationTables_areExhaustiveOverEveryArtifactScenario() throws {
