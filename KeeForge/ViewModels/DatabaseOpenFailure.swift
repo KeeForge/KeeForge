@@ -310,9 +310,16 @@ struct DatabaseOpenFailure: Equatable, Sendable {
         diagnostics: DatabaseOpenDiagnostics? = nil
     ) -> DatabaseOpenFailure {
         if case DatabaseListStore.LocalDatabaseFileError.databaseInTrash = error {
+            #if os(macOS)
+            let title = String(localized: "Database Is in the Trash")
+            let summary = String(localized: "The database file is in the Trash — it may have been deleted or replaced by a newer copy. Restore it from the Trash in Finder, or choose the current file with Locate Database File.")
+            #else
+            let title = String(localized: "Database Is in Recently Deleted")
+            let summary = String(localized: "The database file was moved to Recently Deleted in the Files app — it may have been deleted, or replaced by a newer copy. Restore it in Files, or choose the current file with Locate Database File.")
+            #endif
             return DatabaseOpenFailure(
-                title: String(localized: "Database Is in Recently Deleted"),
-                summary: String(localized: "The database file was moved to Recently Deleted in the Files app — it may have been deleted, or replaced by a newer copy. Restore it in Files, or choose the current file with Locate Database File."),
+                title: title,
+                summary: summary,
                 technicalDetails: technicalDetails(for: error),
                 errorCode: "file.in_recently_deleted",
                 category: .fileAccess,

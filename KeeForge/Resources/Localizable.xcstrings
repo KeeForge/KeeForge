@@ -10296,6 +10296,46 @@
         }
       }
     },
+    "Database Is in the Trash" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Datenbank befindet sich im Papierkorb"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La base de datos está en la Papelera"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La base de données se trouve dans la Corbeille"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "データベースはゴミ箱にあります"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "数据库位于废纸篓中"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "資料庫位於垃圾桶中"
+          }
+        }
+      }
+    },
     "Database name" : {
       "localizations" : {
         "de" : {
@@ -29776,6 +29816,86 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "資料庫檔案位於「檔案」App 的「最近刪除」中。請在「檔案」中回復它，或在 KeeForge 中使用「尋找資料庫檔案」選擇目前的檔案。"
+          }
+        }
+      }
+    },
+    "The database file is in the Trash — it may have been deleted or replaced by a newer copy. Restore it from the Trash in Finder, or choose the current file with Locate Database File." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die Datenbankdatei befindet sich im Papierkorb – sie wurde möglicherweise gelöscht oder durch eine neuere Kopie ersetzt. Stellen Sie sie im Finder aus dem Papierkorb wieder her, oder wählen Sie mit „Datenbankdatei suchen“ die aktuelle Datei aus."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "El archivo de la base de datos está en la Papelera; es posible que se haya eliminado o que se haya sustituido por una copia más reciente. Restáurelo desde la Papelera en el Finder o elija el archivo actual con «Localizar archivo de base de datos»."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Le fichier de base de données se trouve dans la Corbeille — il a peut-être été supprimé ou remplacé par une copie plus récente. Restaurez-le depuis la Corbeille dans le Finder, ou choisissez le fichier actuel avec « Localiser le fichier de base de données »."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "データベースファイルはゴミ箱にあります。削除されたか、新しいコピーに置き換えられた可能性があります。Finder のゴミ箱から復元するか、「データベースファイルを探す」で現在のファイルを選択してください。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "数据库文件位于废纸篓中——它可能已被删除，或被更新的副本替换。请在 Finder 中从废纸篓恢复它，或使用“查找数据库文件”选择当前文件。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "資料庫檔案位於垃圾桶中——它可能已被刪除，或被較新的副本取代。請在 Finder 中從垃圾桶回復它，或使用「尋找資料庫檔案」選擇目前的檔案。"
+          }
+        }
+      }
+    },
+    "The database file is in the Trash. Restore it from the Trash in Finder, or choose the current file with Locate Database File in KeeForge." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die Datenbankdatei befindet sich im Papierkorb. Stellen Sie sie im Finder aus dem Papierkorb wieder her, oder wählen Sie in KeeForge mit „Datenbankdatei suchen“ die aktuelle Datei aus."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "El archivo de la base de datos está en la Papelera. Restáurelo desde la Papelera en el Finder o elija el archivo actual con «Localizar archivo de base de datos» en KeeForge."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Le fichier de base de données se trouve dans la Corbeille. Restaurez-le depuis la Corbeille dans le Finder, ou choisissez le fichier actuel avec « Localiser le fichier de base de données » dans KeeForge."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "データベースファイルはゴミ箱にあります。Finder のゴミ箱から復元するか、KeeForge の「データベースファイルを探す」で現在のファイルを選択してください。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "数据库文件位于废纸篓中。请在 Finder 中从废纸篓恢复它，或在 KeeForge 中使用“查找数据库文件”选择当前文件。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "資料庫檔案位於垃圾桶中。請在 Finder 中從垃圾桶回復它，或在 KeeForge 中使用「尋找資料庫檔案」選擇目前的檔案。"
           }
         }
       }
