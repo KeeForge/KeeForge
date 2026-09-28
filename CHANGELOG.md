@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### New Features
+
+- The entry editor now shows the current verification code as soon as you add one, before you save the entry (#123). After scanning a QR code (iPhone and iPad), pasting a setup link, or typing a setup key, enter or copy the code shown under One-Time Password to finish turning on two-factor authentication for that account. The code follows your changes to the digits, period, and algorithm; while the secret key can't produce a code, the editor asks for a valid one instead.
+
 ## v1.17.0 (2026-09-27)
 
 ### New Features

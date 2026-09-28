@@ -920,6 +920,144 @@ final class EntryEditViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.totpSecret, "JBSWY3DPEHPK3PXP")
         XCTAssertEqual(viewModel.totpPeriod, 45)
     }
+
+    // MARK: - Code preview before saving
+
+    /// RFC 6238 Appendix B's SHA-1 seed, "12345678901234567890", in Base32.
+    private static let rfc6238SHA1Seed = "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ"
+    private static let rfc6238Time59 = Date(timeIntervalSince1970: 59)
+
+    func testTOTPPreviewShowsTheCodeForAJustAppliedSetupLinkBeforeSaving() throws {
+        let viewModel = EntryEditViewModel(createIn: UUID())
+        XCTAssertNil(viewModel.totpPreview)
+
+        XCTAssertNil(viewModel.applySetupLink(
+            "otpauth://totp/Example:alice?secret=\(Self.rfc6238SHA1Seed)&digits=8&period=30"
+        ))
+
+        let preview = try XCTUnwrap(viewModel.totpPreview)
+        XCTAssertEqual(preview.code(at: Self.rfc6238Time59), "94287082")
+        XCTAssertEqual(preview.secondsRemaining(at: Self.rfc6238Time59), 1)
+        XCTAssertEqual(preview.period, 30)
+    }
+
+    func testTOTPPreviewFollowsDigitsAlgorithmAndPeriodEdits() throws {
+        let viewModel = EntryEditViewModel(createIn: UUID())
+        viewModel.totpSecret = Self.rfc6238SHA1Seed
+
+        XCTAssertEqual(try XCTUnwrap(viewModel.totpPreview).code(at: Self.rfc6238Time59), "287082")
+
+        viewModel.totpDigits = 8
+        XCTAssertEqual(try XCTUnwrap(viewModel.totpPreview).code(at: Self.rfc6238Time59), "94287082")
+
+        // Same counter (1) as T=59 at a 30-second period, so the RFC value holds.
+        viewModel.totpPeriod = 60
+        XCTAssertEqual(try XCTUnwrap(viewModel.totpPreview).code(at: Date(timeIntervalSince1970: 119)), "94287082")
+        XCTAssertEqual(try XCTUnwrap(viewModel.totpPreview).secondsRemaining(at: Date(timeIntervalSince1970: 119)), 1)
+
+        viewModel.totpPeriod = 30
+        viewModel.totpAlgorithm = .sha256
+        XCTAssertNotEqual(try XCTUnwrap(viewModel.totpPreview).code(at: Self.rfc6238Time59), "94287082")
+    }
+
+    func testTOTPPreviewIsUnavailableUntilTheSecretDecodes() {
+        let viewModel = EntryEditViewModel(createIn: UUID())
+
+        viewModel.totpSecret = "   "
+        XCTAssertNil(viewModel.totpPreview, "A blank secret saves no TOTP at all")
+
+        viewModel.totpSecret = "1NVALID1"
+        XCTAssertNil(viewModel.totpPreview, "'1' is outside the Base32 alphabet")
+
+        viewModel.totpSecret = "J"
+        XCTAssertNil(viewModel.totpPreview, "Five bits do not make a single key byte")
+
+        viewModel.totpSecret = "jbsw y3dp ehpk 3pxp"
+        XCTAssertNotNil(viewModel.totpPreview, "Lowercase and spacing decode like the saved entry does")
+
+        viewModel.removeTOTP()
+        XCTAssertNil(viewModel.totpPreview)
+    }
+
+    func testTOTPPreviewMatchesTheCodeOfTheSavedEntry() throws {
+        let entry = KPEntry(title: "Bank")
+        let groupID = UUID()
+        let root = KPGroup(id: groupID, name: "Root", entries: [entry])
+        let viewModel = EntryEditViewModel(editing: entry, sessionKey: sessionKey)
+        viewModel.applyOTPAuthURI(try OTPAuthURI(
+            string: "otpauth://totp/Bank:alice?secret=JBSWY3DPEHPK3PXP&digits=7&period=45&algorithm=SHA512"
+        ))
+        let preview = try XCTUnwrap(viewModel.totpPreview)
+
+        let saved = try DatabaseDraft(rootGroup: root, meta: KPMeta(), sessionKey: sessionKey)
+            .apply(.updateEntry(entryID: entry.id, draft: viewModel.entryDraftPayload))
+        let savedConfig = try XCTUnwrap(saved.rootGroup.entries.first?.totpConfig)
+
+        for seconds in [0.0, 59, 1_111_111_109, 1_234_567_890] {
+            let date = Date(timeIntervalSince1970: seconds)
+            XCTAssertEqual(
+                preview.code(at: date),
+                TOTPGenerator.generateCode(config: savedConfig, sessionKey: sessionKey, date: date)
+            )
+        }
+    }
+
+    func testTOTPPreviewUsesThePredecodedSecretOfAnUnchangedNonBase32Entry() throws {
+        let secretBytes = Data("12345678901234567890".utf8)
+        let entry = KPEntry(
+            title: "Hex TOTP",
+            totpConfig: TOTPConfig(
+                secret: try EncryptedValue.encrypt("3132333435363738393031323334353637383930", using: sessionKey),
+                decodedSecret: try EncryptedValue.encrypt(secretBytes, using: sessionKey),
+                period: 30,
+                digits: 8,
+                algorithm: .sha1
+            )
+        )
+        let viewModel = EntryEditViewModel(editing: entry, sessionKey: sessionKey)
+
+        XCTAssertEqual(try XCTUnwrap(viewModel.totpPreview).code(at: Self.rfc6238Time59), "94287082")
+    }
+
+    func testTOTPPreviewOfAKeeOTPEntryShowsTheCodeSaveKeepsWhenItRevertsAnEdit() throws {
+        let entry = KPEntry(
+            title: "Legacy TOTP",
+            totpConfig: TOTPConfig(
+                secret: try EncryptedValue.encrypt(Self.rfc6238SHA1Seed, using: sessionKey),
+                keeOTPSource: KeeOTPSource(fieldName: "otp", rawQuery: "key=\(Self.rfc6238SHA1Seed)&size=8"),
+                period: 30,
+                digits: 8,
+                algorithm: .sha1
+            )
+        )
+        let viewModel = EntryEditViewModel(editing: entry, sessionKey: sessionKey)
+        // Padding is not canonical for a KeeOTP query, so Save keeps the
+        // original secret, and the preview has to say so.
+        viewModel.totpSecret = "JBSWY3DPEHPK3PXP===="
+
+        XCTAssertEqual(viewModel.entryDraftPayload.totpConfig?.secret, Self.rfc6238SHA1Seed)
+        XCTAssertEqual(try XCTUnwrap(viewModel.totpPreview).code(at: Self.rfc6238Time59), "94287082")
+    }
+
+    func testTOTPPreviewIsHiddenWhileTheDigitCountBlocksTheSave() throws {
+        let entry = KPEntry(
+            title: "Legacy TOTP",
+            totpConfig: TOTPConfig(
+                secret: try EncryptedValue.encrypt(Self.rfc6238SHA1Seed, using: sessionKey),
+                keeOTPSource: KeeOTPSource(fieldName: "otp", rawQuery: "key=\(Self.rfc6238SHA1Seed)&size=6"),
+                period: 30,
+                digits: 6,
+                algorithm: .sha1
+            )
+        )
+        let viewModel = EntryEditViewModel(editing: entry, sessionKey: sessionKey)
+        XCTAssertNotNil(viewModel.totpPreview)
+
+        viewModel.totpDigits = 7
+
+        XCTAssertNotNil(viewModel.unsupportedTOTPDigitsMessage)
+        XCTAssertNil(viewModel.totpPreview)
+    }
     // MARK: - Duplicating an entry
 
     func testDuplicatingEntryCopiesTheEditableFieldsAndMarksTheTitleAsACopy() throws {
