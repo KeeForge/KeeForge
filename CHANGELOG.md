@@ -4,16 +4,25 @@
 
 ### New Features
 
+- Open a cloud database without syncing it first (#67). In Database Details, turn off Cloud Sync → "Sync When Opening" and KeeForge opens the copy saved on your device right away, without contacting Dropbox, OneDrive, WebDAV, or FTP. A banner in the unlocked database says the cloud wasn't checked and when it last synced; tap Sync Now there, or in Database Details, to get newer changes. Saving still checks the cloud copy first and stops with the usual conflict choices if it changed in the meantime. The first open still downloads the database, and changes saved through AutoFill still upload as before.
+
+## v1.17.0 (2026-09-27)
+
+### New Features
+
 - Standard KeePass icons now use distinct semantic colors throughout entry and group lists, icon pickers, entry details, and AutoFill. Settings → Display also offers an app-wide accent color picker. Custom icons and website icons continue to display in their original colors (#110).
 - KeeForge now speaks Japanese: a full Japanese (日本語) localization across the app and the AutoFill extension, plus translated README and contributor docs.
-- Open, save, and create databases directly on an FTP server (#115). Add Database → FTP asks for the server address, username, and password. FTP is unencrypted, so connecting requires turning on "Allow Unencrypted FTP"; use it only on a network you trust. Encrypted FTPS and SFTP are not supported yet.
+- Open, save, and create databases directly on an FTP server (#115). Add Database → FTP asks for the server address, username, and password. FTP is unencrypted, so connecting requires turning on "Allow Unencrypted FTP"; use it only on a network you trust. Avoid editing the same FTP database from multiple apps or devices at once: simultaneous saves can overwrite each other. Encrypted FTPS and SFTP are not supported yet.
 - Change a database's encryption settings (#98). With the database unlocked, open Database Details and choose "Change Encryption Settings…" to pick the cipher (AES-256 or ChaCha20), a key derivation strength (Argon2id Balanced, Strong, or Maximum), and whether the file is compressed. The master key stays the same. The same choices are offered as when creating a database; a database using Twofish, Argon2d, or AES-KDF keeps that setting unless you pick another one.
 - Choose the group AutoFill saves new passwords and passkeys into, per database (#114). Unlock the database, open Database Details, and pick a group under AutoFill → "Save New Entries To". Until you choose one, new entries go into the database's top-level group as before; if the chosen group is deleted or moved to the Recycle Bin, they go there again. The AutoFill screens for saving a password or passkey now show which group the entry goes into.
-- Open a cloud database without syncing it first (#67). In Database Details, turn off Cloud Sync → "Sync When Opening" and KeeForge opens the copy saved on your device right away, without contacting Dropbox, OneDrive, WebDAV, or FTP. A banner in the unlocked database says the cloud wasn't checked and when it last synced; tap Sync Now there, or in Database Details, to get newer changes. Saving still checks the cloud copy first and stops with the usual conflict choices if it changed in the meantime. The first open still downloads the database, and changes saved through AutoFill still upload as before.
 - Open databases that also need a YubiKey (#62). On iPhone, and on iPad models with a Lightning port, choose your YubiKey and its slot under Hardware Key on the unlock screen, then hold the key to the iPhone (NFC) or plug it into the Lightning port. This works with KDBX 4 databases and HMAC-SHA1 challenge-response. On those devices, a database that won't open with its password alone now suggests adding the YubiKey. For now these databases open read-only, and USB-C connections, AutoFill, and the Mac app can't use a YubiKey yet.
+- Add, rename, edit, and remove an entry's custom fields in the entry editor (#107). Protected fields stay protected, including after a rename, and show hidden until revealed. Fields you add are not protected, unless one takes the name of a field this entry already protects; it is then shown hidden too.
 
 ### Fixes
 
+- On Mac, arrow-key navigation in the group sidebar works reliably after selecting a group.
+- On Mac, a database moved to the Trash now shows Finder recovery steps instead of directing you to the iPhone and iPad Files app.
+- The Hardware Key control on the unlock screen now fills the row, making it easier to tap.
 - Some text stayed English in every language: the group delete confirmation joined its entry and group counts with an English "and", and the cloud sync status read "Healthy", "Disconnected", or "Sync older than 24h" in Database Details and the database list. All of it is translated now.
 - Cloud sync warnings now follow the language you read the app in. A warning recorded before you switched languages kept showing up in the old one.
 - Deleting an entry from the search results works again. Tapping Delete in a search result's long-press menu did nothing, and swiping to delete there made the row disappear without actually deleting the entry.

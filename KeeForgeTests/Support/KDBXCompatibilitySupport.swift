@@ -249,6 +249,7 @@ enum KDBXCompatibilitySupport {
         /// When set, the write applies this change to the fixture's header —
         /// the same `EncryptionSettingsChange` the savers apply.
         var encryptionSettings: ((LoadedFixture) throws -> EncryptionSettingsChange)?
+        var expectedCustomFields: [ArtifactManifest.ExpectedCustomFields] = []
         let assertChange: (CompatibilitySnapshot, CompatibilitySnapshot, LoadedFixture) throws -> Void
 
         func apply(to loaded: LoadedFixture) throws -> ScenarioResult {
@@ -369,6 +370,23 @@ enum KDBXCompatibilitySupport {
             let algorithm: String
         }
 
+        struct ExpectedField: Codable {
+            let name: String
+            let value: String
+            let isProtected: Bool
+        }
+
+        struct ExpectedFieldSet: Codable {
+            let fields: [ExpectedField]
+            let absentFields: [String]
+        }
+
+        struct ExpectedCustomFields: Codable {
+            let entryTitle: String
+            let current: ExpectedFieldSet
+            let history: [ExpectedFieldSet]
+        }
+
         struct Artifact: Codable {
             let id: String
             let fileName: String
@@ -379,6 +397,7 @@ enum KDBXCompatibilitySupport {
             var expectedAttachments: [ExpectedAttachment] = []
             var expectedPasswords: [ExpectedPassword] = []
             var expectedTOTPs: [ExpectedTOTP] = []
+            var expectedCustomFields: [ExpectedCustomFields] = []
         }
 
         /// Every artifact id the suite is expected to emit, repeated in every
@@ -444,6 +463,7 @@ enum KDBXCompatibilitySupport {
     static let scenarioIDsWithoutAttachmentExpectations: Set<String> = [
         "create-entry",
         "update-entry",
+        "custom-field-edits",
         "create-group",
         "hide-group-from-autofill",
         "change-group-icon",
@@ -514,6 +534,10 @@ enum KDBXCompatibilitySupport {
         }
         table["create-entry"] = [
             .init(entryTitle: "Compat Created Entry", password: "created-secret"),
+            .init(entryTitle: "Compat Untouched Entry", password: "untouched-password"),
+        ]
+        table["custom-field-edits"] = [
+            .init(entryTitle: "Compat Update Target", password: "original-password"),
             .init(entryTitle: "Compat Untouched Entry", password: "untouched-password"),
         ]
         table["update-entry"] = [
@@ -638,6 +662,7 @@ enum KDBXCompatibilitySupport {
     /// everything else simply writes no TOTP.
     static let scenarioIDsWithoutTOTPExpectations: Set<String> = {
         var ids: Set<String> = [
+            "custom-field-edits",
             "create-group",
             "hide-group-from-autofill",
             "change-group-icon",
@@ -725,6 +750,7 @@ enum KDBXCompatibilitySupport {
         [
             createEntryScenario(),
             updateEntryScenario(),
+            customFieldEditsScenario(),
             createGroupScenario(),
             hideGroupFromAutoFillScenario(),
             changeGroupIconScenario(),
@@ -1868,7 +1894,8 @@ enum KDBXCompatibilitySupport {
                     expectedGroupPaths: scenario.expectedGroupPaths,
                     expectedAttachments: try KDBXCompatibilitySupport.expectedAttachments(forScenarioID: scenario.id),
                     expectedPasswords: try KDBXCompatibilitySupport.expectedPasswords(forScenarioID: scenario.id),
-                    expectedTOTPs: try KDBXCompatibilitySupport.expectedTOTPs(forScenarioID: scenario.id)
+                    expectedTOTPs: try KDBXCompatibilitySupport.expectedTOTPs(forScenarioID: scenario.id),
+                    expectedCustomFields: scenario.expectedCustomFields
                 )
             )
         }
@@ -2346,6 +2373,77 @@ private extension KDBXCompatibilitySupport {
         )
     }
 
+    static func customFieldEditsScenario() -> Scenario {
+        let current = ArtifactManifest.ExpectedFieldSet(
+            fields: [
+                .init(name: "Renamed Secret", value: "new secret 🔑 & <value>\n第二行", isProtected: true),
+                .init(name: "Secret Custom", value: "reused protected name", isProtected: true),
+                .init(name: "Environment", value: "Production", isProtected: false),
+                .init(name: "Account Number", value: "42", isProtected: false),
+                .init(name: "Empty", value: "", isProtected: false),
+            ],
+            absentFields: ["Obsolete", "Deleted Secret"]
+        )
+        let history = ArtifactManifest.ExpectedFieldSet(
+            fields: [
+                .init(name: "Secret Custom", value: "custom-secret", isProtected: true),
+                .init(name: "Environment", value: "Staging", isProtected: false),
+                .init(name: "Obsolete", value: "old", isProtected: false),
+                .init(name: "Deleted Secret", value: "remove-me", isProtected: true),
+            ],
+            absentFields: ["Renamed Secret", "Account Number", "Empty"]
+        )
+        return Scenario(
+            id: "custom-field-edits",
+            title: "Edit custom fields and preserve protection and history",
+            artifactFileName: "synthetic-rich-custom-field-edits.kdbx",
+            expectedSearchTerms: ["Compat Update Target"],
+            expectedGroupPaths: [],
+            makeEdit: { loaded in
+                let entry = try XCTUnwrap(findEntry(titled: "Compat Update Target", in: loaded.rootGroup))
+                var fields = entry.customFields
+                for name in current.absentFields { fields.removeValue(forKey: name) }
+                for field in current.fields { fields[field.name] = field.value }
+                return .updateEntry(
+                    entryID: entry.id,
+                    draft: EntryDraftPayload(
+                        title: entry.title,
+                        username: entry.username,
+                        password: try entry.password.decrypt(using: loaded.sessionKey),
+                        url: entry.url,
+                        notes: entry.notes,
+                        customFields: fields,
+                        protectedCustomFieldKeys: ["Renamed Secret"],
+                        tags: entry.tags,
+                        totpConfig: .init(secret: "JBSWY3DPEHPK3PXP"),
+                        lastModificationTime: entry.lastModificationTime
+                    )
+                )
+            },
+            expectedCustomFields: [.init(entryTitle: "Compat Update Target", current: current, history: [history])],
+            assertChange: { before, after, _ in
+                let entryID = try XCTUnwrap(before.entryID(titled: "Compat Update Target"))
+                try assertUnchangedEntries(before: before, after: after, excluding: [entryID])
+                try assertSurvivingGroupsPreserveScalars(before: before, after: after)
+                assertMetaUnchanged(before: before, after: after)
+                let original = try XCTUnwrap(before.entries[entryID])
+                let updated = try XCTUnwrap(after.entries[entryID])
+                for field in current.fields {
+                    XCTAssertEqual(updated.customFields[field.name], field.value)
+                    XCTAssertEqual(updated.protectedStringKeys.contains(field.name), field.isProtected)
+                }
+                for name in current.absentFields { XCTAssertNil(updated.customFields[name]) }
+                XCTAssertEqual(updated.password, original.password)
+                XCTAssertEqual(updated.totp, original.totp)
+                XCTAssertEqual(updated.passkeyPrivateKeyPEM, original.passkeyPrivateKeyPEM)
+                XCTAssertEqual(updated.unknownXML, original.unknownXML)
+                var expectedHistory = original
+                expectedHistory.history = []
+                XCTAssertEqual(updated.history, [expectedHistory])
+            }
+        )
+    }
+
     static func createGroupScenario() -> Scenario {
         Scenario(
             id: "create-group",
@@ -2623,6 +2721,9 @@ private extension KDBXCompatibilitySupport {
             tags: ["compat"],
             customFields: [
                 "Secret Custom": "custom-secret",
+                "Environment": "Staging",
+                "Obsolete": "old",
+                "Deleted Secret": "remove-me",
                 PasskeyCredential.credentialIDKey: "credential-id",
                 PasskeyCredential.relyingPartyKey: "example.com",
                 PasskeyCredential.usernameKey: "passkey-user",
@@ -2640,7 +2741,7 @@ private extension KDBXCompatibilitySupport {
                     xml: "<CustomData><Item><Key>CompatUnknown</Key><Value>PreserveMe</Value></Item></CustomData>"
                 ),
             ]),
-            protectedStringKeys: ["Secret Custom", PasskeyCredential.privateKeyPEMKey]
+            protectedStringKeys: ["Secret Custom", "Deleted Secret", PasskeyCredential.privateKeyPEMKey]
         )
 
         let softDeleteTarget = KPEntry(

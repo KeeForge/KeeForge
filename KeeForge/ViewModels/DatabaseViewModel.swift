@@ -1794,7 +1794,7 @@ final class DatabaseViewModel {
         // empty (#34). iOS bounds the secret anyway via the expiration date and
         // `.localOnly` that `ClipboardService.copy` stamps on. Every other lock
         // means the user walked away, so those still scrub — which matters most
-        // on macOS, where neither flag exists (`docs/macos-security-notes.md`).
+        // on macOS, where neither flag exists (`KeeForgeMac/SECURITY.md`).
         if preservingClipboard == false {
             ClipboardService.clearOwnedContents()
         }
@@ -2919,7 +2919,7 @@ final class DatabaseViewModel {
         // (`KeeForgeMac/README.md`), so it must never depend on
         // `lockOnBackground` — an iOS-only setting the Mac never renders and
         // cannot repair. The clipboard is scrubbed too: macOS has no expiring,
-        // device-local copy (`docs/macos-security-notes.md`).
+        // device-local copy (`KeeForgeMac/SECURITY.md`).
         lockRequest()
         #endif
     }

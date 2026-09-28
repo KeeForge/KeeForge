@@ -32,21 +32,14 @@ never replace the symlink with a second copy. The docs below are read on demand:
 - `KeeForge/Views/README.md` — UI rules every shell shares: the macOS grouped-form requirement, the `ForEach`/`.onMove` single-row-type rule, and the identifier surface
 - `KeeForge/Resources/README.md` — string catalogs, assets, and resource conventions
 - `KeeForgeMac/README.md` — macOS target constraints and "What Mac Work Has To Test"
+- `KeeForgeMac/SECURITY.md` — maintained Mac security boundaries and platform limitations
 - `KeeForgeUITests/README.md` — XCUITest workflow and flake-avoidance guidance
 - `TestFixtures/README.md` — bundled databases, passwords, and key files
 - `Vendor/KeeForgeTwofish/README.md` — vendored Twofish cipher package
 - `ci_scripts/README.md` — Xcode Cloud bootstrap and `run_kdbx_compatibility_gate.sh`, the required local release gate
 - `scripts/README.md` — local dev tooling
 - `.github/AGENTS.md` — CI workflow gating map (named `AGENTS.md` because GitHub renders a `.github/README.md` as the repo front-page README)
-- `docs/README.md` — historical archive of past design specs, audits, and notes (may not match current code), except `docs/macos-security-notes.md`, a living doc kept truthful with the code
-
-## Agent Orchestration
-
-If you are a very powerful model like Fable/Opus/GPT 5.6 Sol, feel free to delegate implementation and test to sub-agents with appropriate models.
-
-Repo skills live in `.agents/skills/` (`release`, `spec-creator`, `publish-app-store-version`, `keeforge-github-issues`), symlinked under `.claude/skills/`; `release` defines the release-branch → TestFlight soak → App Store flow (`release/{major}.{minor}` branches, `rc/{version}-b{build}` candidate tags, `v{version}` as a record of the shipped build).
-
-Use `keeforge-github-issues` for every GitHub issue mutation.
+- `docs/README.md` — historical archive of past design specs, audits, and notes (may not match current code)
 
 ## Repo-Wide Rules
 
@@ -62,6 +55,7 @@ Use `keeforge-github-issues` for every GitHub issue mutation.
 ### Workflows
 
 - Put temporary agent artifacts such as handoff prompts, investigation notes, and scratch scripts under `scratch/`; it is gitignored and must not contain files intended to ship.
+- Use `.agents/skills/pre-release-review/SKILL.md` for standalone reviews before candidate preparation. Reports use the primary checkout's shared `scratch/pre-release/<UTC>__since-<baseline>__head-<SHA12>/report.md`; the report format lives in that skill's `references/report-format.md`.
 - App and Mac targets use folder globs in `project.yml`, so `xcodegen generate` alone picks up new files. Invariant: the `KeeForgeAutoFill` and `KeeForgeMacAutoFill` allow-lists in `project.yml` must stay byte-identical — edit both together.
 - When adding new files, update the nearest folder-local doc (`AGENTS.md`, or `README.md` where the folder has one) if the file changes that folder's map, ownership notes, or workflow guidance.
 - Do not update `docs/specs` for new code changes unless explicitly asked. These specs are mostly historical artifacts, not living implementation docs.

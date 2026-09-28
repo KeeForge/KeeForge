@@ -2368,6 +2368,46 @@
         }
       }
     },
+    "Add Field" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Feld hinzufügen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Añadir campo"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ajouter un champ"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "フィールドを追加"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "添加字段"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新增欄位"
+          }
+        }
+      }
+    },
     "Add original URL to this entry" : {
       "localizations" : {
         "de" : {
@@ -2564,6 +2604,46 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "新增驗證碼"
+          }
+        }
+      }
+    },
+    "Add, rename, edit, and remove custom fields. Protected fields stay hidden and remain protected after renaming." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Füge benutzerdefinierte Felder hinzu, benenne sie um, bearbeite oder entferne sie. Geschützte Felder bleiben verborgen und auch nach dem Umbenennen geschützt."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Añade, cambia el nombre, edita y elimina campos personalizados. Los campos protegidos permanecen ocultos y siguen protegidos después de cambiarles el nombre."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ajoutez, renommez, modifiez et supprimez des champs personnalisés. Les champs protégés restent masqués et protégés après avoir été renommés."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "カスタムフィールドを追加、名前変更、編集、削除できます。保護されたフィールドは隠されたままで、名前を変更した後も保護されます。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "可以添加、重命名、编辑和移除自定义字段。受保护的字段保持隐藏，重命名后仍受保护。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "可以新增、重新命名、編輯和移除自訂欄位。受保護的欄位保持隱藏，重新命名後仍受保護。"
           }
         }
       }
@@ -3044,6 +3124,46 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "另一個 Dropbox 登入正在進行中。"
+          }
+        }
+      }
+    },
+    "Another field already uses this name." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ein anderes Feld verwendet diesen Namen bereits."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Otro campo ya usa este nombre."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Un autre champ utilise déjà ce nom."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "この名前はすでに別のフィールドで使われています。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "另一个字段已使用此名称。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "另一個欄位已使用此名稱。"
           }
         }
       }
@@ -6250,6 +6370,86 @@
         }
       }
     },
+    "Choose the group where each database saves new AutoFill passwords and passkeys. The save screen shows which group will be used." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wähle die Gruppe, in der jede Datenbank neue AutoFill-Passwörter und Passkeys speichert. Der Speicherbildschirm zeigt an, welche Gruppe verwendet wird."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Elige el grupo donde cada base de datos guarda las contraseñas y llaves de acceso nuevas de Autorrelleno. La pantalla de guardado muestra qué grupo se usará."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choisissez le groupe dans lequel chaque base de données enregistre les nouveaux mots de passe et clés d’accès d’AutoFill. L’écran d’enregistrement indique le groupe utilisé."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "データベースごとに、AutoFill の新しいパスワードとパスキーを保存するグループを選べます。保存画面には使用されるグループが表示されます。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "为每个数据库选择保存 AutoFill 新密码和通行密钥的群组。保存屏幕会显示将使用的群组。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "為每個資料庫選擇儲存 AutoFill 新密碼和通行密鑰的群組。儲存畫面會顯示將使用的群組。"
+          }
+        }
+      }
+    },
+    "Choose where AutoFill saves new entries" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Speicherort für neue AutoFill-Einträge wählen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Elige dónde guarda Autorrelleno las entradas nuevas"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choisir où AutoFill enregistre les nouvelles entrées"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AutoFill の新規エントリーの保存先を選択"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "选择 AutoFill 保存新条目的位置"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "選擇 AutoFill 儲存新項目的位置"
+          }
+        }
+      }
+    },
     "Choose where to save this verification code." : {
       "localizations" : {
         "de" : {
@@ -7646,6 +7846,46 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "連接 FTP"
+          }
+        }
+      }
+    },
+    "Connect to databases over FTP" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Datenbanken über FTP verbinden"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Conecta bases de datos mediante FTP"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Se connecter aux bases de données par FTP"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "FTP でデータベースに接続"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "通过 FTP 连接数据库"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "透過 FTP 連線資料庫"
           }
         }
       }
@@ -10376,6 +10616,46 @@
         }
       }
     },
+    "Database Is in the Trash" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Datenbank befindet sich im Papierkorb"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La base de datos está en la Papelera"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La base de données se trouve dans la Corbeille"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "データベースはゴミ箱にあります"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "数据库位于废纸篓中"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "資料庫位於垃圾桶中"
+          }
+        }
+      }
+    },
     "Database name" : {
       "localizations" : {
         "de" : {
@@ -12416,6 +12696,46 @@
         }
       }
     },
+    "Edit custom fields" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Benutzerdefinierte Felder bearbeiten"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Edita campos personalizados"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Modifier les champs personnalisés"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "カスタムフィールドを編集"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "编辑自定义字段"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "編輯自訂欄位"
+          }
+        }
+      }
+    },
     "Edit Entry" : {
       "localizations" : {
         "de" : {
@@ -12812,6 +13132,46 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "加密設定"
+          }
+        }
+      }
+    },
+    "Enter a name for this field." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Geben Sie einen Namen für dieses Feld ein."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Introduzca un nombre para este campo."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Saisissez un nom pour ce champ."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このフィールドの名前を入力してください。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "请输入此字段的名称。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "請輸入此欄位的名稱。"
           }
         }
       }
@@ -14256,6 +14616,86 @@
         }
       }
     },
+    "Field Name" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Feldname"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nombre del campo"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nom du champ"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "フィールド名"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "字段名称"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "欄位名稱"
+          }
+        }
+      }
+    },
+    "Field Value" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Feldwert"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Valor del campo"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Valeur du champ"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "フィールドの値"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "字段值"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "欄位值"
+          }
+        }
+      }
+    },
     "File details are unavailable." : {
       "localizations" : {
         "de" : {
@@ -14732,6 +15172,46 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "格式"
+          }
+        }
+      }
+    },
+    "FTP cannot prevent every simultaneous save. Avoid editing this database from another app or device at the same time; a concurrent change may be overwritten." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "FTP kann nicht jede gleichzeitige Speicherung absichern. Bearbeiten Sie diese Datenbank nicht gleichzeitig in einer anderen App oder auf einem anderen Gerät; eine gleichzeitige Änderung kann überschrieben werden."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "FTP no puede impedir todas las sobrescrituras durante guardados simultáneos. Evite editar esta base de datos al mismo tiempo desde otra app u otro dispositivo; un cambio simultáneo podría sobrescribirse."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "FTP ne peut pas empêcher tous les écrasements lors d’enregistrements simultanés. Évitez de modifier cette base de données en même temps depuis une autre application ou un autre appareil ; une modification simultanée pourrait être écrasée."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "FTP では、同時保存による上書きを完全には防げません。このデータベースを別のアプリや端末で同時に編集しないでください。同時に加えられた変更が上書きされる可能性があります。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "FTP 无法防止所有同时保存造成的覆盖。请勿同时在其他应用或设备上编辑此数据库；同时进行的更改可能被覆盖。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "FTP 無法防止所有同時儲存造成的覆寫。請勿同時在其他 App 或裝置上編輯此資料庫；同時進行的變更可能被覆寫。"
           }
         }
       }
@@ -16452,6 +16932,46 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "螢幕鎖定、螢幕保護程式啟動、系統睡眠和切換使用者時，KeeForge 一律會鎖定。較嚴格的選項還會在其他 App 變為使用中時鎖定。"
+          }
+        }
+      }
+    },
+    "KeeForge and AutoFill are now fully translated into Japanese." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge und AutoFill sind jetzt vollständig ins Japanische übersetzt."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge y Autorrelleno ahora están completamente traducidos al japonés."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge et AutoFill sont désormais entièrement traduits en japonais."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge と AutoFill がすべて日本語で利用できるようになりました。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge 和 AutoFill 现已全面提供日语翻译。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge 和 AutoFill 現已全面提供日文翻譯。"
           }
         }
       }
@@ -22498,6 +23018,46 @@
         }
       }
     },
+    "Open, save, and create databases on an FTP server. FTP is unencrypted, so use it only on a network you trust." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Öffne, speichere und erstelle Datenbanken auf einem FTP-Server. FTP ist unverschlüsselt, also verwende es nur in einem vertrauenswürdigen Netzwerk."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Abre, guarda y crea bases de datos en un servidor FTP. FTP no está cifrado, así que úsalo solo en una red de confianza."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ouvrez, enregistrez et créez des bases de données sur un serveur FTP. Le protocole FTP n’est pas chiffré, alors utilisez-le uniquement sur un réseau de confiance."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "FTP サーバー上のデータベースを開いたり、保存したり、作成したりできます。FTP は暗号化されていないため、信頼できるネットワークでのみ使用してください。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在 FTP 服务器上打开、保存和创建数据库。FTP 未加密，因此只能在受信任的网络上使用。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在 FTP 伺服器上開啟、儲存和建立資料庫。FTP 未加密，因此只能在受信任的網路上使用。"
+          }
+        }
+      }
+    },
     "Opened without checking %@ for changes." : {
       "localizations" : {
         "de" : {
@@ -24654,6 +25214,86 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "要移除資料庫嗎？"
+          }
+        }
+      }
+    },
+    "Remove Field" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Feld entfernen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Quitar campo"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Retirer le champ"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "フィールドを削除"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "移除字段"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "移除欄位"
+          }
+        }
+      }
+    },
+    "Remove field %@" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Feld %@ entfernen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Quitar el campo %@"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Retirer le champ %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "フィールド%@を削除"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "移除字段 %@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "移除欄位 %@"
           }
         }
       }
@@ -29900,6 +30540,86 @@
         }
       }
     },
+    "The database file is in the Trash — it may have been deleted or replaced by a newer copy. Restore it from the Trash in Finder, or choose the current file with Locate Database File." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die Datenbankdatei befindet sich im Papierkorb – sie wurde möglicherweise gelöscht oder durch eine neuere Kopie ersetzt. Stellen Sie sie im Finder aus dem Papierkorb wieder her, oder wählen Sie mit „Datenbankdatei suchen“ die aktuelle Datei aus."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "El archivo de la base de datos está en la Papelera; es posible que se haya eliminado o que se haya sustituido por una copia más reciente. Restáurelo desde la Papelera en el Finder o elija el archivo actual con «Localizar archivo de base de datos»."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Le fichier de base de données se trouve dans la Corbeille — il a peut-être été supprimé ou remplacé par une copie plus récente. Restaurez-le depuis la Corbeille dans le Finder, ou choisissez le fichier actuel avec « Localiser le fichier de base de données »."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "データベースファイルはゴミ箱にあります。削除されたか、新しいコピーに置き換えられた可能性があります。Finder のゴミ箱から復元するか、「データベースファイルを探す」で現在のファイルを選択してください。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "数据库文件位于废纸篓中——它可能已被删除，或被更新的副本替换。请在 Finder 中从废纸篓恢复它，或使用“查找数据库文件”选择当前文件。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "資料庫檔案位於垃圾桶中——它可能已被刪除，或被較新的副本取代。請在 Finder 中從垃圾桶回復它，或使用「尋找資料庫檔案」選擇目前的檔案。"
+          }
+        }
+      }
+    },
+    "The database file is in the Trash. Restore it from the Trash in Finder, or choose the current file with Locate Database File in KeeForge." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die Datenbankdatei befindet sich im Papierkorb. Stellen Sie sie im Finder aus dem Papierkorb wieder her, oder wählen Sie in KeeForge mit „Datenbankdatei suchen“ die aktuelle Datei aus."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "El archivo de la base de datos está en la Papelera. Restáurelo desde la Papelera en el Finder o elija el archivo actual con «Localizar archivo de base de datos» en KeeForge."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Le fichier de base de données se trouve dans la Corbeille. Restaurez-le depuis la Corbeille dans le Finder, ou choisissez le fichier actuel avec « Localiser le fichier de base de données » dans KeeForge."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "データベースファイルはゴミ箱にあります。Finder のゴミ箱から復元するか、KeeForge の「データベースファイルを探す」で現在のファイルを選択してください。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "数据库文件位于废纸篓中。请在 Finder 中从废纸篓恢复它，或在 KeeForge 中使用“查找数据库文件”选择当前文件。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "資料庫檔案位於垃圾桶中。請在 Finder 中從垃圾桶回復它，或在 KeeForge 中使用「尋找資料庫檔案」選擇目前的檔案。"
+          }
+        }
+      }
+    },
     "The database file was moved to Recently Deleted in the Files app — it may have been deleted, or replaced by a newer copy. Restore it in Files, or choose the current file with Locate Database File." : {
       "localizations" : {
         "de" : {
@@ -33428,6 +34148,46 @@
         }
       }
     },
+    "This name is reserved for a built-in field." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dieser Name ist für ein integriertes Feld reserviert."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Este nombre está reservado para un campo integrado."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ce nom est réservé à un champ intégré."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "この名前は組み込みフィールド用に予約されています。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此名称已保留给内置字段。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此名稱已保留給內建欄位。"
+          }
+        }
+      }
+    },
     "This passkey request isn't supported." : {
       "localizations" : {
         "de" : {
@@ -34184,6 +34944,46 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "若要在 Safari 和其他 App 中填寫 KeeForge 的密碼，請在「系統設定」的「一般」>「自動填寫與密碼」中啟用 KeeForge。"
+          }
+        }
+      }
+    },
+    "To save them, first fix this: %@" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Um sie zu sichern, beheben Sie zuerst Folgendes: %@"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Para guardarlos, primero corrija esto: %@"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pour les enregistrer, corrigez d'abord ceci : %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "保存するには、まず次の問題を修正してください：%@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "要保存，请先修正以下问题：%@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "若要儲存，請先修正以下問題：%@"
           }
         }
       }
@@ -35108,6 +35908,46 @@
         }
       }
     },
+    "Unlock with a YubiKey — experimental" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mit einem YubiKey entsperren – experimentell"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Desbloquea con una YubiKey: experimental"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Déverrouiller avec une YubiKey — expérimental"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "YubiKey でロック解除 — 試験的機能"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "使用 YubiKey 解锁 — 实验性功能"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "使用 YubiKey 解鎖 — 實驗性功能"
+          }
+        }
+      }
+    },
     "Unlock your password database" : {
       "localizations" : {
         "de" : {
@@ -35908,6 +36748,46 @@
         }
       }
     },
+    "Use KeeForge in Japanese" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge auf Japanisch verwenden"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Usa KeeForge en japonés"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Utilisez KeeForge en japonais"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge を日本語で使う"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "以日语使用 KeeForge"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "以日文使用 KeeForge"
+          }
+        }
+      }
+    },
     "Use KeeForge with a trusted local WebDAV server even when it doesn't support HTTPS. The option lives under Advanced and includes a clear security warning." : {
       "localizations" : {
         "de" : {
@@ -35984,6 +36864,46 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "使用 KeeOTP 驗證碼"
+          }
+        }
+      }
+    },
+    "Use NFC on any iPhone, or a Lightning YubiKey on iPhones and iPads with a Lightning port, to open protected KDBX 4 databases." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Öffne geschützte KDBX-4-Datenbanken per NFC auf jedem iPhone oder mit einem Lightning-YubiKey auf iPhones und iPads mit Lightning-Anschluss."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Usa NFC en cualquier iPhone, o una YubiKey Lightning en iPhone y iPad con puerto Lightning, para abrir bases de datos KDBX 4 protegidas."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Utilisez le NFC sur n’importe quel iPhone, ou une YubiKey Lightning sur les iPhone et iPad dotés d’un port Lightning, pour ouvrir des bases de données KDBX 4 protégées."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "どの iPhone でも NFC を、Lightning ポートを搭載した iPhone と iPad では Lightning 対応 YubiKey を使って、保護された KDBX 4 データベースを開けます。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在任何 iPhone 上使用 NFC，或在配备 Lightning 端口的 iPhone 和 iPad 上使用 Lightning YubiKey，打开受保护的 KDBX 4 数据库。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在任何 iPhone 上使用 NFC，或在配備 Lightning 連接埠的 iPhone 和 iPad 上使用 Lightning YubiKey，開啟受保護的 KDBX 4 資料庫。"
           }
         }
       }

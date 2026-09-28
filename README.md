@@ -16,10 +16,16 @@
 
 <p align="center">
   <a href="https://apps.apple.com/us/app/keeforge/id6759309295">
-    <img alt="Download on the App Store" src="https://img.shields.io/badge/App%20Store-Download-0D96F6?style=for-the-badge&logo=appstore&logoColor=white" />
+    <img alt="Download for iPhone, iPad, or Mac on the App Store" src="https://img.shields.io/badge/App%20Store-iPhone%2C%20iPad%20%26%20Mac-0D96F6?style=for-the-badge&logo=appstore&logoColor=white" />
+  </a>
+  <a href="https://github.com/KeeForge/KeeForge/releases/latest">
+    <img alt="Download KeeForge directly for Mac" src="https://img.shields.io/badge/Mac-Direct%20Download-24292F?style=for-the-badge&logo=apple&logoColor=white" />
   </a>
   <a href="https://testflight.apple.com/join/mPAT4f1a">
-    <img alt="Join the public beta on TestFlight" src="https://img.shields.io/badge/TestFlight-Public%20Beta-1F8AF0?style=for-the-badge&logo=apple&logoColor=white" />
+    <img alt="Join the iPhone and iPad beta on TestFlight" src="https://img.shields.io/badge/TestFlight-iPhone%20%26%20iPad-1F8AF0?style=for-the-badge&logo=apple&logoColor=white" />
+  </a>
+  <a href="https://testflight.apple.com/join/ZKQRwPaa">
+    <img alt="Join the Mac beta on TestFlight" src="https://img.shields.io/badge/TestFlight-Mac-1F8AF0?style=for-the-badge&logo=apple&logoColor=white" />
   </a>
   <img alt="Requires iOS 18.0 or later" src="https://img.shields.io/badge/iOS-18.0%2B-000000?style=for-the-badge&logo=apple&logoColor=white" />
   <img alt="Requires macOS 15.0 or later" src="https://img.shields.io/badge/macOS-15.0%2B-000000?style=for-the-badge&logo=apple&logoColor=white" />
@@ -35,13 +41,11 @@ KeeForge is a native KeePass client for iPhone, iPad, and Mac, built for people 
 
 ## Public Beta
 
-**[Join the KeeForge beta on TestFlight](https://testflight.apple.com/join/mPAT4f1a)**
+- iPhone and iPad: [Join the KeeForge beta on TestFlight](https://testflight.apple.com/join/mPAT4f1a)
+- Mac: [Join the KeeForge beta on TestFlight](https://testflight.apple.com/join/ZKQRwPaa)
 
 Beta availability can differ between iPhone, iPad, and Mac while Apple reviews
 each platform build.
-
-> [!WARNING]
-> **Test with a copy of your database, not your primary vault.** Beta builds are unreviewed, and they share the App Store app's bundle identifier and container — so they open your real `.kdbx` files.
 
 ## Highlights
 
@@ -72,8 +76,10 @@ Read the [privacy policy](https://keeforge.com/privacy).
 KeeForge takes data safety very seriously: a password manager must never corrupt your vault or silently lose any part of it. Before any change ships, automated tests verify that:
 
 - **Nothing gets lost when you save.** Every kind of edit is saved and read back piece by piece — passwords, notes, attachments, entry history, and even data from other KeePass apps that KeeForge doesn't recognize must all come back exactly as they went in.
-- **Your file is protected before it's touched.** KeeForge refuses to overwrite changes made from elsewhere while you had the file open, writes a timestamped backup before every save, and rejects damaged databases outright instead of loading partial data.
+- **Your file is protected before it's touched.** KeeForge checks for changes made elsewhere while you had the file open and refuses saves when it detects a conflict, writes a timestamped backup before every save, and rejects damaged databases outright instead of loading partial data.
 - **An independent program agrees.** Every release must pass a gate where KeePassXC — a widely used KeePass app that shares no code with KeeForge — opens KeeForge-written databases, decrypts the passwords, and confirms attachments match bit for bit. Databases created by other KeePass software must likewise open in KeeForge and stay readable elsewhere after KeeForge saves them.
+
+With FTP, the final conflict check and file replacement cannot happen as one operation. A simultaneous save from another app or device may still be overwritten, so avoid editing an FTP database in two places at once.
 
 For the technically curious, the test suite is mapped in [`KeeForgeTests/AGENTS.md`](KeeForgeTests/AGENTS.md) and the pre-release verification gate in [`ci_scripts/README.md`](ci_scripts/README.md).
 
@@ -107,12 +113,11 @@ scripts/              # Local dev tooling
 - [`KeeForge/README.md`](KeeForge/README.md) - app-target architecture map
 - [`AutoFillExtension/AGENTS.md`](AutoFillExtension/AGENTS.md) - extension constraints and shared-source notes
 - [`SECURITY.md`](SECURITY.md) - vulnerability disclosure policy
-- [`docs/macos-security-notes.md`](docs/macos-security-notes.md) - macOS security model, platform limits, and mitigations
 - [`docs/`](docs/) - implementation specs, audits, and longer-form design docs
 
 ## Support
 
-- App Store: [KeeForge on the App Store](https://apps.apple.com/us/app/keeforge/id6759309295)
+- App Store (iPhone, iPad, and Mac): [KeeForge on the App Store](https://apps.apple.com/us/app/keeforge/id6759309295)
 - Direct Mac download: [latest GitHub release](https://github.com/KeeForge/KeeForge/releases/latest)
 - Email: [support@keeforge.com](mailto:support@keeforge.com)
 - Issues: [GitHub Issues](https://github.com/KeeForge/KeeForge/issues)

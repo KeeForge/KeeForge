@@ -41,6 +41,7 @@ struct RegularDatabaseWorkspaceView: View {
     /// Subgroup" to target a specific row; otherwise the current selection.
     @State private var newGroupParentID: UUID?
     @State private var isShowingDatabaseDetails = false
+    @FocusState private var isMacSidebarFocused: Bool
     @FocusState private var isSearchFieldFocused: Bool
     #endif
 
@@ -488,8 +489,10 @@ struct RegularDatabaseWorkspaceView: View {
                 switch newValue {
                 case .group(let groupID):
                     viewModel.selectedGroupID = groupID
+                    isMacSidebarFocused = true
                 case .tag(let tag):
                     viewModel.selectedTag = tag
+                    isMacSidebarFocused = true
                 case nil:
                     break
                 }
@@ -525,6 +528,7 @@ struct RegularDatabaseWorkspaceView: View {
                 }
             }
             .listStyle(.sidebar)
+            .focused($isMacSidebarFocused)
             // Rebuild the tree when the draft changes (group create/delete/
             // rename). Like the content column, the split view can otherwise
             // keep a stale sidebar; `macCollapsedGroupIDs` and the selection are

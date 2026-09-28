@@ -17,6 +17,9 @@ settings:
     SWIFT_STRICT_CONCURRENCY: complete
     CODE_SIGN_STYLE: Automatic
     ENABLE_USER_SCRIPT_SANDBOXING: "YES"
+    DEAD_CODE_STRIPPING: "YES"
+    CLANG_ANALYZER_LOCALIZABILITY_NONLOCALIZED: "YES"
+    STRING_CATALOG_GENERATE_SYMBOLS: "YES"
 packages:
   KeeForgeTwofish:
     path: Vendor/KeeForgeTwofish
@@ -109,8 +112,8 @@ targets:
         CODE_SIGN_ENTITLEMENTS: KeeForge/KeeForge.entitlements
         PRODUCT_NAME: KeeForge
         PRODUCT_MODULE_NAME: KeeForge
-        MARKETING_VERSION: "1.16.0"
-        CURRENT_PROJECT_VERSION: "51"
+        MARKETING_VERSION: "1.17.0"
+        CURRENT_PROJECT_VERSION: "60"
         CLOUD_KEYCHAIN_ACCESS_GROUP: $(AppIdentifierPrefix)com.keevault.sharedkeychain
         GENERATE_INFOPLIST_FILE: false
         SWIFT_EMIT_LOC_STRINGS: "YES"
@@ -164,6 +167,8 @@ targets:
     productName: KeeForge
     settings:
       base:
+        DEAD_CODE_STRIPPING: "YES"
+        REGISTER_APP_GROUPS: "YES"
         INFOPLIST_FILE: KeeForgeMac/Info.plist
         PRODUCT_BUNDLE_IDENTIFIER: com.keevault.app
         # Reuse the shared Icon Composer bundle (KeeForge.icon) so the Mac app
@@ -175,8 +180,8 @@ targets:
         CODE_SIGN_ENTITLEMENTS: KeeForgeMac/KeeForgeMac.entitlements
         PRODUCT_NAME: KeeForge
         PRODUCT_MODULE_NAME: KeeForge
-        MARKETING_VERSION: "1.16.0"
-        CURRENT_PROJECT_VERSION: "51"
+        MARKETING_VERSION: "1.17.0"
+        CURRENT_PROJECT_VERSION: "60"
         CLOUD_KEYCHAIN_ACCESS_GROUP: $(AppIdentifierPrefix)com.keevault.sharedkeychain
         GENERATE_INFOPLIST_FILE: false
         # Sparkle authenticates the direct-download channel only. Both values
@@ -250,8 +255,8 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: com.keevault.app.autofill
         CODE_SIGN_STYLE: Automatic
         CODE_SIGN_ENTITLEMENTS: AutoFillExtension/AutoFillExtension.entitlements
-        MARKETING_VERSION: "1.16.0"
-        CURRENT_PROJECT_VERSION: "51"
+        MARKETING_VERSION: "1.17.0"
+        CURRENT_PROJECT_VERSION: "60"
         GENERATE_INFOPLIST_FILE: false
         SWIFT_EMIT_LOC_STRINGS: "YES"
         LOCALIZATION_PREFERS_STRING_CATALOGS: "YES"
@@ -312,13 +317,15 @@ targets:
     deploymentTarget: "15.0"
     settings:
       base:
+        DEAD_CODE_STRIPPING: "YES"
+        REGISTER_APP_GROUPS: "YES"
         INFOPLIST_FILE: AutoFillExtension/InfoMac.plist
         PRODUCT_BUNDLE_IDENTIFIER: com.keevault.app.autofill
         ENABLE_HARDENED_RUNTIME: "YES"
         CODE_SIGN_STYLE: Automatic
         CODE_SIGN_ENTITLEMENTS: AutoFillExtension/AutoFillExtensionMac.entitlements
-        MARKETING_VERSION: "1.16.0"
-        CURRENT_PROJECT_VERSION: "51"
+        MARKETING_VERSION: "1.17.0"
+        CURRENT_PROJECT_VERSION: "60"
         GENERATE_INFOPLIST_FILE: false
         SWIFT_EMIT_LOC_STRINGS: "YES"
         LOCALIZATION_PREFERS_STRING_CATALOGS: "YES"
@@ -468,6 +475,7 @@ targets:
       - UITestFixtures
     settings:
       base:
+        DEAD_CODE_STRIPPING: "YES"
         PRODUCT_BUNDLE_IDENTIFIER: com.keevault.app.uitests
         GENERATE_INFOPLIST_FILE: true
         TEST_TARGET_NAME: KeeForgeMac
@@ -484,6 +492,7 @@ targets:
       - UnitTestFixtures
     settings:
       base:
+        DEAD_CODE_STRIPPING: "YES"
         PRODUCT_BUNDLE_IDENTIFIER: com.keevault.app.tests
         GENERATE_INFOPLIST_FILE: true
         TEST_TARGET_NAME: KeeForgeMac
