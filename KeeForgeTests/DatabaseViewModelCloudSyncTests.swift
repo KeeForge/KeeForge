@@ -1,3 +1,4 @@
+import AuthenticationServices
 import CryptoKit
 import XCTest
 @testable import KeeForge
@@ -301,6 +302,119 @@ final class DatabaseViewModelCloudSyncTests: XCTestCase {
         XCTAssertFalse(vm.isSyncingCloud)
     }
 
+    /// The same race through the production coordinator and saver, where the
+    /// cache is shared: the held download predates the save, and the save
+    /// rewrites the cache and the recorded revision while it is out. Only the
+    /// provider transport is faked. Letting the stale download land in the
+    /// cache would make the re-fetch trust it (its revision is the save's),
+    /// replace the saved tree, and let the next save drop the entry remotely.
+    func testSyncNowKeepsASaveThatLandedDuringItsDownloadThroughTheRealCache() async throws {
+        let openedData = try fixtureData()
+        let reference = try makeStoredManualReference()
+        try DatabaseListStore.cacheDatabaseCopy(openedData, for: reference)
+        let cacheURL = DatabaseListStore.cacheLocation(for: reference)
+        // Same bytes, new revision: the metadata-only change the saver rebases over.
+        let remote = InMemoryRemoteProvider(bytes: openedData, rev: "rev-B")
+        let vm = makeViewModelOnTheRealCache(reference: reference, remote: remote)
+        await vm.unlock(password: fixturePassword)
+        XCTAssertEqual(vm.state, .unlocked)
+
+        let gate = SaveGate()
+        remote.holdNextDownload(on: gate)
+        let syncTask = Task { await vm.syncCloudNow() }
+        await gate.waitUntilStarted()
+        let parentGroupID = try XCTUnwrap(vm.visibleRootGroup?.id)
+        try vm.applyEntryEdit(
+            .createEntry(parentGroupID: parentGroupID, draft: EntryDraftPayload(title: "Saved Mid-Sync", password: "p"))
+        )
+        try await vm.save()
+        XCTAssertNil(vm.saveConflict)
+        let savedData = remote.currentBytes
+        XCTAssertEqual(vm.openTimeSHA512, KDBXCrypto.sha512(savedData))
+        await gate.open()
+        await syncTask.value
+
+        XCTAssertEqual(vm.cloudSyncOutcome, .upToDate)
+        XCTAssertTrue(entryTitles(in: vm).contains("Saved Mid-Sync"))
+        XCTAssertEqual(vm.openTimeSHA512, KDBXCrypto.sha512(savedData))
+        XCTAssertEqual(try Data(contentsOf: cacheURL), savedData, "The stale download must not replace the saved cache")
+        XCTAssertEqual(vm.state, .unlocked)
+
+        try vm.applyEntryEdit(
+            .createEntry(parentGroupID: parentGroupID, draft: EntryDraftPayload(title: "Saved After Sync", password: "p"))
+        )
+        try await vm.save()
+        XCTAssertNil(vm.saveConflict)
+        let remoteTitles = try Self.entryTitles(in: remote.currentBytes, password: fixturePassword)
+        XCTAssertTrue(remoteTitles.isSuperset(of: ["Saved Mid-Sync", "Saved After Sync"]))
+    }
+
+    /// The response can also arrive while a save is still uploading. Nothing
+    /// shows the save yet, so Sync Now must wait it out and ask again rather
+    /// than merge the older revision ahead of the save's own, which would
+    /// keep the save's revision from being recorded.
+    func testSyncNowWaitsOutASaveStillInFlightWhenItsResponseArrives() async throws {
+        let openedData = try fixtureData()
+        let savedData = try fixtureData(named: "kitchen-sink")
+        let savedSHA512 = KDBXCrypto.sha512(savedData)
+        let refreshGate = SaveGate()
+        let saveGate = SaveGate()
+        let refreshRecorder = RefreshRecorder()
+        let vm = makeViewModel(
+            reference: try makeStoredManualReference(),
+            openedData: openedData,
+            cloudRefreshOperation: { reference, _ in
+                refreshRecorder.record(reference)
+                guard refreshRecorder.references.count == 1 else {
+                    return Self.resolution(reference, data: savedData, status: .current)
+                }
+                await refreshGate.signalStarted()
+                await refreshGate.waitUntilOpen()
+                var learned = reference
+                learned.updateCloudSyncMetadata { metadata in
+                    metadata.remoteRev = "rev-B"
+                    metadata.lastSyncedAt = .now
+                }
+                return Self.resolution(learned, data: openedData, status: .current)
+            },
+            cloudSaveOperation: { _, reference, _, _, _, _, _, _ in
+                await saveGate.signalStarted()
+                await saveGate.waitUntilOpen()
+                // What `applyUploadedBytesAfterSave` records once the upload lands.
+                let observed = try XCTUnwrap(reference.cloudSyncMetadata)
+                _ = DatabaseListStore.updateCloudSyncMetadata(for: reference.id, ifUnchangedFrom: observed) { metadata in
+                    metadata.remoteRev = "rev-C"
+                }
+                return .saved(newSHA512: savedSHA512)
+            }
+        )
+        await vm.unlock(password: fixturePassword)
+
+        let syncTask = Task { await vm.syncCloudNow() }
+        await refreshGate.waitUntilStarted()
+        let parentGroupID = try XCTUnwrap(vm.visibleRootGroup?.id)
+        try vm.applyEntryEdit(
+            .createEntry(parentGroupID: parentGroupID, draft: EntryDraftPayload(title: "Saved Mid-Sync", password: "p"))
+        )
+        let saveTask = Task { try await vm.save() }
+        await saveGate.waitUntilStarted()
+        await refreshGate.open()
+        // Let Sync Now take the response while the save is still uploading.
+        try await Task.sleep(for: .milliseconds(200))
+        XCTAssertNil(vm.cloudSyncOutcome, "Sync Now must not settle while a save is in flight")
+        await saveGate.open()
+        try await saveTask.value
+        await syncTask.value
+
+        XCTAssertEqual(refreshRecorder.references.count, 2, "The response that predates the save must be fetched again")
+        XCTAssertEqual(vm.cloudSyncOutcome, .upToDate)
+        XCTAssertEqual(vm.openTimeSHA512, savedSHA512)
+        let stored = try XCTUnwrap(DatabaseListStore.databases.first(where: { $0.id == vm.databaseReference.id }))
+        XCTAssertEqual(stored.cloudSyncMetadata?.remoteRev, "rev-C", "The save's revision must be the one recorded")
+        XCTAssertEqual(vm.databaseReference.cloudSyncMetadata?.remoteRev, "rev-C")
+        XCTAssertFalse(vm.isSyncingCloud)
+    }
+
     /// Backgrounding while the fetched copy is parsed must still lock. The
     /// swap reads `.unlocking`, which the lifecycle handlers used to ignore.
     func testBackgroundingWhileSyncNowParsesLocksTheSession() async throws {
@@ -478,6 +592,53 @@ final class DatabaseViewModelCloudSyncTests: XCTestCase {
         )
     }
 
+    /// The production coordinator and saver on the shared cache, with only
+    /// the provider transport replaced by `remote`.
+    private func makeViewModelOnTheRealCache(
+        reference: DatabaseReference,
+        remote: InMemoryRemoteProvider
+    ) -> DatabaseViewModel {
+        var environment = CloudDatabaseSaver.Environment.live
+        environment.beginBackgroundTask = { _ in .invalid }
+        environment.endBackgroundTask = { _ in }
+        environment.getMetadata = { _ in remote.currentMetadata }
+        environment.upload = { _, data, expectedRev, _ in try remote.store(data, expectedRev: expectedRev) }
+        environment.downloadRemoteData = { _ in remote.currentBytes }
+        let saverEnvironment = environment
+        return DatabaseViewModel(
+            databaseReference: reference,
+            cloudSyncOperation: { reference, progress in
+                try await CloudSyncCoordinator.syncIfNeededForOpen(
+                    reference: reference,
+                    providerResolver: { _ in remote },
+                    progress: progress
+                )
+            },
+            cloudRefreshOperation: { reference, progress in
+                try await CloudSyncCoordinator.syncIfNeededForOpen(
+                    reference: reference,
+                    honorsManualSyncPolicy: false,
+                    providerResolver: { _ in remote },
+                    progress: progress
+                )
+            },
+            cloudSaveOperation: { draft, reference, compositeKey, openTimeSHA512, reconciledRemoteSHA512, expectedRev, newCompositeKey, encryptionSettings in
+                try await CloudDatabaseSaver.save(
+                    draft: draft,
+                    reference: reference,
+                    compositeKey: compositeKey,
+                    openTimeSHA512: openTimeSHA512,
+                    reconciledRemoteSHA512: reconciledRemoteSHA512,
+                    expectedRev: expectedRev,
+                    kdfPolicy: .mainApp,
+                    newCompositeKey: newCompositeKey,
+                    encryptionSettings: encryptionSettings,
+                    environment: saverEnvironment
+                )
+            }
+        )
+    }
+
     private func makeViewModelParsingANewerCopy() async throws -> DatabaseViewModel {
         let newerData = try fixtureData(named: "kitchen-sink")
         let vm = makeViewModel(
@@ -589,6 +750,107 @@ private final class RefreshRecorder: @unchecked Sendable {
 
     func record(_ reference: DatabaseReference) {
         lock.withLock { recorded.append(reference) }
+    }
+}
+
+/// A remote file with real revision semantics: uploads check `expectedRev`
+/// and mint a new revision. `holdNextDownload` parks one download after it
+/// has read the remote bytes, the way a slow transfer delivers what was there
+/// when it started.
+private final class InMemoryRemoteProvider: CloudProvider, @unchecked Sendable {
+    let id = CloudProviderKind.dropbox.rawValue
+    let displayName = CloudProviderKind.dropbox.displayName
+    let iconName = CloudProviderKind.dropbox.iconName
+
+    private let lock = NSLock()
+    private var bytes: Data
+    private var rev: String
+    private var uploadCount = 0
+    private var downloadGate: SaveGate?
+
+    init(bytes: Data, rev: String) {
+        self.bytes = bytes
+        self.rev = rev
+    }
+
+    var currentBytes: Data {
+        lock.withLock { bytes }
+    }
+
+    var currentMetadata: CloudFileMetadata {
+        lock.withLock { Self.metadata(bytes: bytes, rev: rev) }
+    }
+
+    func holdNextDownload(on gate: SaveGate) {
+        lock.withLock { downloadGate = gate }
+    }
+
+    func store(_ data: Data, expectedRev: String?) throws -> CloudFileMetadata {
+        try lock.withLock {
+            if let expectedRev, expectedRev != rev {
+                throw CloudProviderError.conflict(remoteRev: rev)
+            }
+            uploadCount += 1
+            bytes = data
+            rev = "rev-upload-\(uploadCount)"
+            return Self.metadata(bytes: bytes, rev: rev)
+        }
+    }
+
+    @MainActor
+    func authenticate(from anchor: ASPresentationAnchor) async throws -> CloudAccount {
+        XCTFail("authenticate(from:) should not be called")
+        throw CloudProviderError.authenticationCancelled
+    }
+
+    func isAuthenticated(accountId: String) -> Bool { true }
+
+    func signOut(accountId: String) {}
+
+    func listFiles(accountId: String, path: String?, query: String?, includesAllFiles: Bool) async throws -> [CloudFile] { [] }
+
+    @discardableResult
+    func download(
+        accountId: String,
+        fileId: String,
+        to localURL: URL,
+        progress: @escaping @Sendable (Double) -> Void
+    ) async throws -> CloudFileMetadata? {
+        let (snapshot, gate) = lock.withLock { () -> ((Data, String), SaveGate?) in
+            let gate = downloadGate
+            downloadGate = nil
+            return ((bytes, rev), gate)
+        }
+        if let gate {
+            await gate.signalStarted()
+            await gate.waitUntilOpen()
+        }
+        try snapshot.0.write(to: localURL)
+        progress(1)
+        return Self.metadata(bytes: snapshot.0, rev: snapshot.1)
+    }
+
+    func getMetadata(accountId: String, fileId: String) async throws -> CloudFileMetadata {
+        currentMetadata
+    }
+
+    func upload(
+        accountId: String,
+        fileId: String,
+        data: Data,
+        expectedRev: String?,
+        progress: @escaping @Sendable (Double) -> Void
+    ) async throws -> CloudFileMetadata {
+        try store(data, expectedRev: expectedRev)
+    }
+
+    private static func metadata(bytes: Data, rev: String) -> CloudFileMetadata {
+        CloudFileMetadata(
+            modifiedDate: Date(timeIntervalSince1970: 100),
+            contentHash: nil,
+            size: Int64(bytes.count),
+            rev: rev
+        )
     }
 }
 

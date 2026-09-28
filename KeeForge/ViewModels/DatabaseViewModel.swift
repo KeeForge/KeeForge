@@ -502,7 +502,16 @@ final class DatabaseViewModel {
     private(set) var mergeFailure: DatabaseMergeFailure?
     /// Confirmation text for a merge that did write, awaiting acknowledgement.
     private(set) var mergeSummaryMessage: String?
-    private(set) var isSaving = false
+    private(set) var isSaving = false {
+        didSet {
+            guard isSaving == false else { return }
+            let waiters = saveCompletionWaiters
+            saveCompletionWaiters.removeAll()
+            waiters.forEach { $0.resume() }
+        }
+    }
+    /// Sync Now waiting out a save that is still in flight (`waitForInFlightSave`).
+    @ObservationIgnored private var saveCompletionWaiters: [CheckedContinuation<Void, Never>] = []
     private(set) var pendingLockRequest: PendingLockRequest?
     /// Open editors holding fields the draft has not seen. Without this a lock
     /// trigger tears the editor down and drops the typing with no prompt.
@@ -2695,6 +2704,10 @@ final class DatabaseViewModel {
 
         // A save that finishes during the round trip is newer than what was
         // fetched, and applying the fetch would roll it back, so ask again.
+        // A save still in flight when the response arrives is waited out
+        // first: until it lands, neither `openTimeSHA512` nor the stored
+        // revision shows it, and merging the response's metadata ahead of
+        // the save's own would keep the save's revision from being recorded.
         var observedOpenTimeSHA512: Data?
         var observedCloudMetadata: CloudSyncMetadata?
         var resolution: CloudSyncResolution
@@ -2708,6 +2721,8 @@ final class DatabaseViewModel {
                 cloudSyncOutcome = .failed(CloudProviderError.message(for: error))
                 return
             }
+            guard lockCycleID == expectedLockCycleID else { return }
+            await waitForInFlightSave()
             guard lockCycleID == expectedLockCycleID else { return }
         } while openTimeSHA512 != observedOpenTimeSHA512
 
@@ -2784,6 +2799,12 @@ final class DatabaseViewModel {
         synchronizeSelections()
         refreshCredentialStoreForCurrentTreeIfNeeded()
         cloudSyncOutcome = .updated
+    }
+
+    private func waitForInFlightSave() async {
+        while isSaving {
+            await withCheckedContinuation { saveCompletionWaiters.append($0) }
+        }
     }
 
     func dismissCloudSyncOutcome() {

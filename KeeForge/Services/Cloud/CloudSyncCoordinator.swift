@@ -236,6 +236,27 @@ enum CloudSyncCoordinator {
             try? fileManager.removeItem(at: tempURL)
         }
 
+        // Pin the cache BEFORE the transfer starts. A save that lands while
+        // the download is in flight (an app save's `applyUploadedBytesAfterSave`,
+        // an AutoFill save) writes bytes newer than the ones arriving, and the
+        // pin is what makes the publish below refuse to revert them. Pinning
+        // after the download would pin the save's bytes and replace them.
+        // Hard link rather than rename — a rename leaves the cache path empty
+        // for the whole transfer and backup write.
+        let pinnedURL: URL?
+        if fileManager.fileExists(atPath: destinationURL.path) {
+            let pin = directory.appendingPathComponent(UUID().uuidString, isDirectory: false)
+            try fileManager.linkItem(at: destinationURL, to: pin)
+            pinnedURL = pin
+        } else {
+            pinnedURL = nil
+        }
+        defer {
+            if let pinnedURL {
+                try? fileManager.removeItem(at: pinnedURL)
+            }
+        }
+
         let downloadedMetadata = try await provider.download(
             accountId: metadata.accountId,
             fileId: metadata.fileId,
@@ -247,7 +268,10 @@ enum CloudSyncCoordinator {
         // briefly unprotected once they land.
         try applyCacheFileProtection(at: tempURL)
 
-        guard fileManager.fileExists(atPath: destinationURL.path) else {
+        guard let pinnedURL else {
+            // Nothing was cached when the download started; a cache that
+            // appeared since is a concurrent write, and the nil pin makes the
+            // publish refuse it.
             try replaceCacheItem(at: destinationURL, withItemAt: tempURL, pinnedFileID: nil)
             try applyCacheFileProtection(at: destinationURL)
             return downloadedMetadata
@@ -257,14 +281,7 @@ enum CloudSyncCoordinator {
         // pending upload drains, so back the bytes up before the remote copy
         // replaces them. Pin FIRST, then list markers: the AutoFill save writes
         // its marker before the cache, so list-then-pin can supersede fresh
-        // bytes marker-unseen. Hard link rather than rename — a rename leaves
-        // the cache path empty for the whole backup write.
-        let pinnedURL = directory.appendingPathComponent(UUID().uuidString, isDirectory: false)
-        try fileManager.linkItem(at: destinationURL, to: pinnedURL)
-        defer {
-            try? fileManager.removeItem(at: pinnedURL)
-        }
-
+        // bytes marker-unseen.
         if !PendingUploadQueue.listMarkers(for: reference.id).isEmpty {
             // Deliberately not caught: a failed backup must never cost the
             // local bytes, and throwing here leaves the cache exactly as it
@@ -272,10 +289,11 @@ enum CloudSyncCoordinator {
             try backUpCacheBeforePendingOverwrite(at: pinnedURL, reference: reference)
         }
 
-        // Publish only if the cache is still the pinned file: a concurrent
-        // AutoFill save between the pin and here holds bytes whose marker this
-        // pass never examined, so the sync-down fails rather than clobbering
-        // them (see `replaceCacheItem`).
+        // Publish only if the cache is still the pinned file: a save between
+        // the pin and here (during the transfer or the backup) holds bytes
+        // newer than the download, or whose marker this pass never examined,
+        // so the sync-down fails rather than clobbering them (see
+        // `replaceCacheItem`).
         try replaceCacheItem(
             at: destinationURL,
             withItemAt: tempURL,

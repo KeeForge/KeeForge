@@ -123,6 +123,75 @@ final class CloudSyncCoordinatorTests: XCTestCase {
         XCTAssertEqual(strays, [cacheURL.lastPathComponent], "The pin and the staged download must both be cleaned up.")
     }
 
+    /// A save can land in the cache while the download is in flight (an app
+    /// save's `applyUploadedBytesAfterSave`, an AutoFill save). Its bytes are
+    /// newer than the ones arriving, so the download must not replace them:
+    /// the next sync would then see the save's revision, trust the cache, and
+    /// hand back the pre-save bytes.
+    func testSyncDownloadDoesNotRevertACacheWrittenDuringTheTransfer() async throws {
+        let reference = makeCloudReference(
+            remoteContentHash: "old-hash",
+            remoteModifiedAt: Date(timeIntervalSince1970: 100)
+        )
+        try DatabaseListStore.cacheDatabaseCopy(Data("opened-bytes".utf8), for: reference)
+        let cacheURL = DatabaseListStore.cacheLocation(for: reference)
+        let savedBytes = Data("saved-during-download".utf8)
+
+        let provider = MockCloudProvider()
+        provider.metadataResult = .success(
+            CloudFileMetadata(modifiedDate: Date(timeIntervalSince1970: 200), contentHash: "new-hash", size: 128)
+        )
+        provider.downloadedData = Data("pre-save-remote-bytes".utf8)
+        provider.duringDownload = {
+            try DatabaseListStore.cacheDatabaseCopy(savedBytes, for: reference)
+        }
+
+        let resolution = try await CloudSyncCoordinator.syncIfNeededForOpen(
+            reference: reference,
+            providerResolver: { _ in provider }
+        )
+
+        XCTAssertEqual(try Data(contentsOf: cacheURL), savedBytes, "The saved bytes must survive the download.")
+        XCTAssertEqual(resolution.data, savedBytes)
+        guard case .cachedWithError = resolution.status else {
+            XCTFail("A superseded download must not report the cache as synced; got \(resolution.status)")
+            return
+        }
+        XCTAssertEqual(resolution.reference.cloudSyncMetadata?.remoteContentHash, "old-hash")
+        let strays = try FileManager.default.contentsOfDirectory(
+            atPath: cacheURL.deletingLastPathComponent().path
+        )
+        XCTAssertEqual(strays, [cacheURL.lastPathComponent], "The pin and the staged download must both be cleaned up.")
+    }
+
+    /// Same window on a first download: a cache that appears while the
+    /// transfer runs was written by someone else and is kept. With no cache
+    /// at the start there was nothing to fall back to, so the sync fails.
+    func testFirstDownloadDoesNotReplaceACacheCreatedDuringTheTransfer() async throws {
+        let reference = makeCloudReference(remoteContentHash: nil, remoteModifiedAt: nil)
+        let cacheURL = DatabaseListStore.cacheLocation(for: reference)
+        let savedBytes = Data("saved-during-download".utf8)
+
+        let provider = MockCloudProvider()
+        provider.metadataResult = .success(
+            CloudFileMetadata(modifiedDate: Date(timeIntervalSince1970: 200), contentHash: "new-hash", size: 128)
+        )
+        provider.downloadedData = Data("pre-save-remote-bytes".utf8)
+        provider.duringDownload = {
+            try DatabaseListStore.cacheDatabaseCopy(savedBytes, for: reference)
+        }
+
+        do {
+            _ = try await CloudSyncCoordinator.syncIfNeededForOpen(
+                reference: reference,
+                providerResolver: { _ in provider }
+            )
+            XCTFail("A superseded first download must not report success")
+        } catch {}
+
+        XCTAssertEqual(try Data(contentsOf: cacheURL), savedBytes)
+    }
+
     // MARK: - Coordinated cache replace (M12, direct)
 
     // `replaceCacheItem` is the conditional swap the whole M12 race defense
@@ -1109,6 +1178,9 @@ private final class MockCloudProvider: CloudProvider, @unchecked Sendable {
     /// deadline must not cut off.
     var metadataProbeTransfersContent = false
     var downloadDelay: Duration = .zero
+    /// Runs while the transfer is in flight, before its bytes are written:
+    /// the window a concurrent save can land in.
+    var duringDownload: (() throws -> Void)?
     var downloadedData = Data()
     /// What `download` reports about the bytes it wrote. Nil models a
     /// transport that cannot say (OneDrive), where the caller must keep the
@@ -1147,6 +1219,7 @@ private final class MockCloudProvider: CloudProvider, @unchecked Sendable {
         if downloadDelay > .zero {
             try await Task.sleep(for: downloadDelay)
         }
+        try duringDownload?()
         try downloadedData.write(to: localURL)
         progress(1)
         return downloadedMetadata
