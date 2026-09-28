@@ -170,6 +170,9 @@ final class CloudSyncCoordinatorTests: XCTestCase {
     func testFirstDownloadDoesNotReplaceACacheCreatedDuringTheTransfer() async throws {
         let reference = makeCloudReference(remoteContentHash: nil, remoteModifiedAt: nil)
         let cacheURL = DatabaseListStore.cacheLocation(for: reference)
+        // Cloud caches are keyed by remote path, not reference id, so an
+        // earlier test's copy would otherwise stand in.
+        try? FileManager.default.removeItem(at: cacheURL)
         let savedBytes = Data("saved-during-download".utf8)
 
         let provider = MockCloudProvider()
