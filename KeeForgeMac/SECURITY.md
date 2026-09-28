@@ -120,6 +120,34 @@ in-process clear timer cannot survive termination. Mac locks do not use the iOS
 backgrounding exemption that keeps a copy available for pasting. A deferred lock
 has not yet performed that clear.
 
+## Menu bar quick search
+
+The optional menu bar item and its global shortcut
+([MacQuickAccessController](../KeeForge/Services/AppSupport/MacQuickAccessController.swift))
+are off by default and add no lock rule, network access, or storage. Both
+settings live in the app's own defaults. The shortcut is registered through
+Carbon's `RegisterEventHotKey`, which needs no Accessibility permission and fails
+rather than taking over a combination another app holds.
+
+The panel reads the one active session on every render and holds no entry data
+itself. It shows entry titles, user names, and folder paths only while that
+session is unlocked; a locked or missing session sends the user to the main
+window. Every existing lock trigger therefore empties it. Closing the last main
+window still locks, so quick search needs that window open or minimized.
+
+Copying follows the main window's rules: the password waits on the same
+device-owner prompt as ⇧⌘C and is re-checked against the session after it,
+while the user name and verification code copy without a prompt. Copies go
+through `ClipboardService`, with its concealed marker, clear timer, and
+clear-on-lock.
+
+The panel is a non-activating, borderless `NSPanel`. It cannot become a main
+window, so it never counts as a UI-hosting window for the lock monitor. It is
+not titled, so the resign-active blur cover skips it. Because a search usually
+starts while another app is active, the panel closes when it loses key status
+and does not rely on that cover. It applies the Block Screen Capture setting to
+itself when shown, with the same best-effort limits as the other windows.
+
 ## Plaintext attachment files and disk encryption
 
 [AttachmentPreviewFileStore](../KeeForge/Services/AppSupport/AttachmentPreviewFileStore.swift)

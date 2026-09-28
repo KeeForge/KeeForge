@@ -504,17 +504,20 @@ final class MacScreenshotAuditUITests: MacUITestCase {
 
     private func captureSettingsTabs() async {
         // SwiftUI exposes only the selected Settings tab to XCUITest on macOS
-        // 26, even though all five controls are visible and reachable through
+        // 26, even though all six controls are visible and reachable through
         // AppKit accessibility. The pane has a fixed 540pt width, and the
-        // system lays the five controls out at stable positions in its toolbar,
-        // so address them through window-relative coordinates. Each click is
-        // still verified through the identifier on the content it reveals.
+        // system lays the six controls out at stable, evenly spaced positions
+        // (0.104 of the width apart, centered) in its toolbar, so address them
+        // through window-relative coordinates. Each click is still verified
+        // through the identifier on the content it reveals. Capture names keep
+        // their letters, which `ci_scripts/make_appstore_screenshots.py` reads.
         let tabs: [(String, CGFloat, String, String)] = [
-            ("Security", 0.292, "settings.tab.security", "07a-settings-security"),
-            ("AutoFill", 0.396, "settings.tab.autofill", "07b-settings-autofill"),
-            ("Display", 0.500, "settings.tab.display", "07c-settings-display"),
-            ("Cloud", 0.604, "settings.tab.cloud", "07d-settings-cloud"),
-            ("About", 0.708, "settings.tab.about", "07e-settings-about"),
+            ("Security", 0.240, "settings.tab.security", "07a-settings-security"),
+            ("AutoFill", 0.344, "settings.tab.autofill", "07b-settings-autofill"),
+            ("Menu Bar", 0.448, "settings.tab.menu-bar", "07f-settings-menu-bar"),
+            ("Display", 0.552, "settings.tab.display", "07c-settings-display"),
+            ("Cloud", 0.656, "settings.tab.cloud", "07d-settings-cloud"),
+            ("About", 0.760, "settings.tab.about", "07e-settings-about"),
         ]
 
         let settingsWindow = app.windows["com_apple_SwiftUI_Settings_window"].firstMatch

@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### New Features
+
+- On Mac, search your open database from the menu bar (#156). Turn on Settings → Menu Bar → "Show KeeForge in the Menu Bar", then click the key icon, or record a quick search shortcut there that works from any app. Pick an entry to copy its user name, password, or verification code, or open it in the main window. Entries show only while the database is unlocked, and copying a password asks for Touch ID or your login password, as in the main window. The menu bar item and the shortcut are off until you turn them on. Quick search covers the database open in the main window, and closing that window still locks it.
+
 ## v1.17.0 (2026-09-27)
 
 ### New Features
