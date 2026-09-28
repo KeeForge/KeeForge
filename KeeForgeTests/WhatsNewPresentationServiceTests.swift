@@ -132,6 +132,41 @@ final class WhatsNewPresentationServiceTests: XCTestCase {
         XCTAssertEqual(release?.version, "1.16.0")
     }
 
+    func testVersion117CatalogKeepsExperimentalYubiKeyUnlockIOSOnly() throws {
+        let iOSRelease = try XCTUnwrap(
+            WhatsNewCatalog.release(version: "1.17.0", platform: .iOS)
+        )
+        let macOSRelease = try XCTUnwrap(
+            WhatsNewCatalog.release(version: "1.17.0", platform: .macOS)
+        )
+
+        XCTAssertEqual(
+            iOSRelease.features.map(\.id),
+            [
+                "ftp-databases",
+                "yubikey-unlock",
+                "edit-custom-fields",
+                "autofill-save-group",
+                "japanese-localization",
+            ]
+        )
+        XCTAssertEqual(
+            macOSRelease.features.map(\.id),
+            [
+                "ftp-databases",
+                "edit-custom-fields",
+                "autofill-save-group",
+                "japanese-localization",
+            ]
+        )
+
+        let yubiKeyFeature = try XCTUnwrap(
+            iOSRelease.features.first { $0.id == "yubikey-unlock" }
+        )
+        XCTAssertTrue(String(localized: yubiKeyFeature.title).contains("experimental"))
+        XCTAssertTrue(String(localized: yubiKeyFeature.detail).contains("read-only"))
+    }
+
     func testVersion111CatalogDoesNotClaimLaterLocalizations() throws {
         let release = try XCTUnwrap(
             WhatsNewCatalog.release(version: "1.11.0", platform: .iOS)

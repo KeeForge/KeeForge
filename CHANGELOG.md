@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## v1.17.0 (2026-09-27)
+
 ### New Features
 
 - Standard KeePass icons now use distinct semantic colors throughout entry and group lists, icon pickers, entry details, and AutoFill. Settings → Display also offers an app-wide accent color picker. Custom icons and website icons continue to display in their original colors (#110).
