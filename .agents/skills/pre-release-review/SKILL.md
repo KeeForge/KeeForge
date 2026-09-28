@@ -47,6 +47,28 @@ static review and identify the actual source state of any tests. Do not discard 
 changes or switch their checkout to manufacture a clean result. If testing the exact
 target needs another checkout, follow the environment's worktree guidance.
 
+## Parallel review
+
+Use sub-agents where independent work can make the review faster or more thorough.
+After establishing one baseline and target, fan out bounded areas such as ecosystem
+documentation/translations, test coverage, or platform-specific risks and manual checks.
+Keep small or tightly coupled reviews in one agent rather than forcing delegation.
+
+Give each sub-agent the exact app and website revisions, assigned scope, relevant local
+guidance, and the audit-only boundary. Ask for actionable findings with evidence and
+material limitations, not a narrative of everything inspected. Assign separate evidence
+files if needed; only the coordinating agent edits `report.md`.
+
+Coordinate test execution centrally to avoid duplicate runs and shared-resource races.
+Sub-agents may run independent checks, but Xcode, simulator, device, and UI operations
+must follow the repository's locking and destination rules. Parallel review does not
+authorize concurrent project regeneration or competing control of the same UI/device.
+
+The coordinating agent checks delegated findings, resolves contradictions, deduplicates
+overlap, and reviews contracts spanning assigned areas. Wait for delegated work or record
+unfinished coverage explicitly before finalizing. Produce one concise report using the
+same inclusion rules as a single-agent review; do not concatenate sub-agent reports.
+
 ## Review lanes
 
 ### Ecosystem consistency
