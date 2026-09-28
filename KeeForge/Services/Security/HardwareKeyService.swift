@@ -103,7 +103,7 @@ enum HardwareKeyErrorMapper {
 private final class YubiKeyConnection: NSObject {
     static let shared = YubiKeyConnection()
 
-    private static let responseLength = 20
+    private nonisolated static let responseLength = 20
 
     private struct Request {
         let id: UUID

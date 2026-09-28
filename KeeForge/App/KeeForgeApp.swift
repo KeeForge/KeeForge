@@ -16,7 +16,7 @@ struct KeeForgeApp: App {
     @State private var macLockMonitor = MacLockMonitor()
     @State private var macWindowCloseGuard = MacWindowCloseGuard()
     #else
-    @State private var isShowingAppSettings = false
+    @State private var appSettingsPresentation = AppSettingsPresentation()
     #endif
     @AppStorage(SettingsService.appearanceModeDefaultsKey) private var appearanceModeRaw = SettingsService.AppearanceMode.system.rawValue
     @AppStorage(SettingsService.appAccentColorDefaultsKey) private var appAccentColorRaw = ""
@@ -50,8 +50,8 @@ struct KeeForgeApp: App {
             #else
             // App-owned Settings sheet (⌘, / the Mac-compat toolbar gear),
             // above the root so it survives the lock/unlock root swap.
-            .environment(\.presentAppSettings, { isShowingAppSettings = true })
-            .sheet(isPresented: $isShowingAppSettings) {
+            .environment(appSettingsPresentation)
+            .sheet(isPresented: $appSettingsPresentation.isPresented) {
                 SettingsView(viewModel: activeDatabaseViewModel, listViewModel: listViewModel)
             }
             #endif
@@ -120,7 +120,7 @@ struct KeeForgeApp: App {
         #else
         return windowGroup
             .commands {
-                AppSettingsCommands(isPresented: $isShowingAppSettings)
+                AppSettingsCommands(presentation: appSettingsPresentation)
             }
         #endif
     }
