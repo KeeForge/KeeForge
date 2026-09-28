@@ -17,6 +17,9 @@ settings:
     SWIFT_STRICT_CONCURRENCY: complete
     CODE_SIGN_STYLE: Automatic
     ENABLE_USER_SCRIPT_SANDBOXING: "YES"
+    DEAD_CODE_STRIPPING: "YES"
+    CLANG_ANALYZER_LOCALIZABILITY_NONLOCALIZED: "YES"
+    STRING_CATALOG_GENERATE_SYMBOLS: "YES"
 packages:
   KeeForgeTwofish:
     path: Vendor/KeeForgeTwofish
@@ -164,6 +167,8 @@ targets:
     productName: KeeForge
     settings:
       base:
+        DEAD_CODE_STRIPPING: "YES"
+        REGISTER_APP_GROUPS: "YES"
         INFOPLIST_FILE: KeeForgeMac/Info.plist
         PRODUCT_BUNDLE_IDENTIFIER: com.keevault.app
         # Reuse the shared Icon Composer bundle (KeeForge.icon) so the Mac app
@@ -312,6 +317,8 @@ targets:
     deploymentTarget: "15.0"
     settings:
       base:
+        DEAD_CODE_STRIPPING: "YES"
+        REGISTER_APP_GROUPS: "YES"
         INFOPLIST_FILE: AutoFillExtension/InfoMac.plist
         PRODUCT_BUNDLE_IDENTIFIER: com.keevault.app.autofill
         ENABLE_HARDENED_RUNTIME: "YES"
@@ -468,6 +475,7 @@ targets:
       - UITestFixtures
     settings:
       base:
+        DEAD_CODE_STRIPPING: "YES"
         PRODUCT_BUNDLE_IDENTIFIER: com.keevault.app.uitests
         GENERATE_INFOPLIST_FILE: true
         TEST_TARGET_NAME: KeeForgeMac
@@ -484,6 +492,7 @@ targets:
       - UnitTestFixtures
     settings:
       base:
+        DEAD_CODE_STRIPPING: "YES"
         PRODUCT_BUNDLE_IDENTIFIER: com.keevault.app.tests
         GENERATE_INFOPLIST_FILE: true
         TEST_TARGET_NAME: KeeForgeMac
