@@ -1058,6 +1058,7 @@ final class EntryEditViewModelTests: XCTestCase {
         XCTAssertNotNil(viewModel.unsupportedTOTPDigitsMessage)
         XCTAssertNil(viewModel.totpPreview)
     }
+
     // MARK: - Duplicating an entry
 
     func testDuplicatingEntryCopiesTheEditableFieldsAndMarksTheTitleAsACopy() throws {
