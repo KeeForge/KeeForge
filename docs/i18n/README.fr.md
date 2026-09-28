@@ -37,9 +37,6 @@ KeeForge est un client KeePass natif pour iPhone, iPad et Mac. Les fichiers loca
 
 **[Rejoignez la bêta KeeForge sur TestFlight](https://testflight.apple.com/join/mPAT4f1a)**
 
-> [!WARNING]
-> **Testez avec une copie de votre base de données, pas avec votre coffre-fort principal.** Les versions bêta ne sont pas revues et partagent l’identifiant de bundle et le conteneur de l’application de l’App Store — elles ouvrent donc vos vrais fichiers `.kdbx`.
-
 ## Points forts
 
 | Domaine | Ce que fait KeeForge |

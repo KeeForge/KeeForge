@@ -37,9 +37,6 @@ KeeForge は iPhone、iPad、Mac のためのネイティブ KeePass クライ�
 
 **[TestFlight で KeeForge のベータに参加する](https://testflight.apple.com/join/mPAT4f1a)**
 
-> [!WARNING]
-> **普段お使いの保管庫ではなく、データベースのコピーでお試しください。** ベータ版は App Review を通っておらず、App Store 版と同じバンドル ID とコンテナを共有します。そのため、実際の `.kdbx` ファイルが開かれます。
-
 ## 主な特長
 
 | 分野 | KeeForge でできること |

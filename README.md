@@ -47,9 +47,6 @@ KeeForge is a native KeePass client for iPhone, iPad, and Mac, built for people 
 Beta availability can differ between iPhone, iPad, and Mac while Apple reviews
 each platform build.
 
-> [!WARNING]
-> **Test with a copy of your database, not your primary vault.** Beta builds are unreviewed, and they share the App Store app's bundle identifier and container — so they open your real `.kdbx` files.
-
 ## Highlights
 
 | Area | What KeeForge Does |

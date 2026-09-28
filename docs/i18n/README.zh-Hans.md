@@ -37,9 +37,6 @@ KeeForge 是一款适用于 iPhone、iPad 和 Mac 的原生 KeePass 客户端。
 
 **[通过 TestFlight 加入 KeeForge 测试版](https://testflight.apple.com/join/mPAT4f1a)**
 
-> [!WARNING]
-> **请使用数据库的副本进行测试，不要使用你的主保险库。** 测试版构建未经审核，并且与 App Store 版本共用同一 bundle 标识符和容器——因此它们会打开你真实的 `.kdbx` 文件。
-
 ## 亮点
 
 | 领域 | KeeForge 能做什么 |

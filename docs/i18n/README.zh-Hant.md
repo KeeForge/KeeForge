@@ -37,9 +37,6 @@ KeeForge 是適用於 iPhone、iPad 與 Mac 的原生 KeePass 用戶端。本機
 
 **[透過 TestFlight 加入 KeeForge 測試版](https://testflight.apple.com/join/mPAT4f1a)**
 
-> [!WARNING]
-> **請用資料庫的副本測試，不要使用你的主要保險庫。** 測試版建置未經審查，且與 App Store 版 App 共用相同的 bundle identifier 與容器——因此會開啟你真正的 `.kdbx` 檔案。
-
 ## 功能亮點
 
 | 領域 | KeeForge 能做什麼 |
