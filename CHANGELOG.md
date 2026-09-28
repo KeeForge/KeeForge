@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### New Features
+
+- Import passwords exported from Apple's Passwords app on iPhone, iPad, and Mac (#157). Unlock a database, open Database Details, choose "Import Passwords…", and pick the CSV file the Passwords app exported. Before anything is added, KeeForge shows how many entries it will import, which rows it can't read and why, and which rows look like logins the database already has; those are skipped unless you turn that off. Choose the group the entries go into, then import. Titles, websites, user names, passwords, notes, and verification codes come along. A verification code setup KeeForge can't generate codes from is kept in a protected field named OTPAuth. The export file isn't encrypted, so delete it once you've checked the imported entries. Files from other password managers aren't supported yet.
+
 ## v1.17.0 (2026-09-27)
 
 ### New Features

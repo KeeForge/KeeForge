@@ -1296,6 +1296,73 @@ final class DatabaseViewModel {
         resetInactivityTimer()
     }
 
+    enum PasswordImportFailure: Error, Equatable {
+        case sessionUnavailable
+        case destinationUnavailable
+        case saveInProgress
+    }
+
+    enum PasswordImportOutcome: Equatable {
+        case saved
+        /// The entries are in the draft, but the file changed elsewhere; the
+        /// save-conflict alert decides what happens to them.
+        case awaitingConflictResolution
+        /// The entries are in the draft but the write failed; the workspace's
+        /// unsaved-changes banner offers the retry.
+        case saveFailed(message: String)
+    }
+
+    /// Title, user name, and website of every entry outside the recycle bin,
+    /// for the import screen's duplicate check. Recycled entries do not count,
+    /// so importing again brings back what was thrown away.
+    var importDuplicateCandidates: [PasswordImport.LoginIdentity] {
+        _ = contentRevision
+        return entryIndex.values
+            .filter { recycleBinEntryIDs.contains($0.id) == false }
+            .map { PasswordImport.LoginIdentity(title: $0.title, username: $0.username, url: $0.url) }
+    }
+
+    /// Adds imported entries to `groupID` and saves them through the normal
+    /// save path. The entries go into the draft as one change, so the tree
+    /// and search index are rebuilt once rather than once per entry.
+    func importEntries(_ drafts: [EntryDraftPayload], into groupID: UUID) async throws -> PasswordImportOutcome {
+        guard case .unlocked = state, sessionKey != nil else {
+            throw PasswordImportFailure.sessionUnavailable
+        }
+        if isReadOnly {
+            throw SaveError.databaseIsReadOnly
+        }
+        // `save()` no-ops behind an in-flight save, which would report an
+        // import as saved before it was written.
+        guard isSaving == false else {
+            throw PasswordImportFailure.saveInProgress
+        }
+        // `recycleBinGroupIDs` holds the groups inside the bin, not the bin itself.
+        guard groupIndex[groupID] != nil,
+              groupID != currentRootGroup?.recycleBinUUID,
+              recycleBinGroupIDs.contains(groupID) == false else {
+            throw PasswordImportFailure.destinationUnavailable
+        }
+
+        var working = try makeWorkingDraft()
+        for draft in drafts {
+            working = try working.apply(.createEntry(parentGroupID: groupID, draft: draft))
+        }
+        draft = working
+        saveConflict = nil
+        refreshCredentialStoreForCurrentTreeIfNeeded()
+        resetInactivityTimer()
+
+        // Once the entries are staged, a failed write must not read as a
+        // failed import: retrying would stage them a second time.
+        do {
+            try await save()
+        } catch {
+            return .saveFailed(message: DatabaseSaveError(error).localizedDescription)
+        }
+        return saveConflict == nil ? .saved : .awaitingConflictResolution
+    }
+
     func deleteEntry(_ entryID: UUID, sendToRecycleBin: Bool) throws {
         try applyEntryEdit(.deleteEntry(entryID: entryID, sendToRecycleBin: sendToRecycleBin))
 
