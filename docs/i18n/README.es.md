@@ -66,8 +66,10 @@ Lea la [política de privacidad](https://keeforge.com/es/privacy) ([original en 
 KeeForge se toma muy en serio la seguridad de los datos: un gestor de contraseñas nunca debe corromper su bóveda ni perder silenciosamente ninguna parte de ella. Antes de publicar cualquier cambio, pruebas automatizadas verifican que:
 
 - **No se pierde nada al guardar.** Cada tipo de edición se guarda y se vuelve a leer pieza por pieza — contraseñas, notas, archivos adjuntos, historial de entradas e incluso datos de otras apps de KeePass que KeeForge no reconoce deben volver exactamente como se introdujeron.
-- **Su archivo está protegido antes de tocarlo.** KeeForge se niega a sobrescribir cambios hechos desde otro lugar mientras usted tenía el archivo abierto, escribe una copia de seguridad con marca de tiempo antes de cada guardado, y rechaza directamente las bases de datos dañadas en lugar de cargar datos parciales.
+- **Su archivo está protegido antes de tocarlo.** KeeForge comprueba si el archivo cambió en otro lugar mientras estaba abierto y rechaza el guardado cuando detecta un conflicto, escribe una copia de seguridad con marca de tiempo antes de cada guardado, y rechaza directamente las bases de datos dañadas en lugar de cargar datos parciales.
 - **Un programa independiente lo confirma.** Cada versión debe superar una prueba de control en la que KeePassXC — una app de KeePass muy usada que no comparte código con KeeForge — abre las bases de datos escritas por KeeForge, descifra las contraseñas y confirma que los archivos adjuntos coinciden bit a bit. Las bases de datos creadas por otro software de KeePass deben, a su vez, abrirse en KeeForge y seguir siendo legibles en otros programas después de que KeeForge las guarde.
+
+Con FTP, la última comprobación de conflictos y la sustitución del archivo no pueden realizarse como una sola operación. Un guardado simultáneo desde otra app u otro dispositivo puede sobrescribirse; evite editar una base de datos FTP en dos lugares a la vez.
 
 Para quien tenga curiosidad técnica, la batería de pruebas está descrita en [`KeeForgeTests/AGENTS.md`](../../KeeForgeTests/AGENTS.md) y la prueba de control previa a cada versión en [`ci_scripts/README.md`](../../ci_scripts/README.md) (ambas en inglés).
 

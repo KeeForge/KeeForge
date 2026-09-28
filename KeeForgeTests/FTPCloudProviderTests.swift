@@ -492,6 +492,28 @@ final class FTPCloudProviderTests: XCTestCase {
         XCTAssertFalse(server.commandLog.contains { $0.hasPrefix("RNTO") })
     }
 
+    func testUploadCanOverwriteAWriteAfterItsFinalConflictCheck() async throws {
+        let server = FakeFTPServer()
+        server.setFile("personal.kdbx", data: Data("old".utf8))
+        let (provider, accountId) = try makeProvider(server: server)
+        let before = try await provider.getMetadata(accountId: accountId, fileId: "/personal.kdbx")
+        server.beforeNext("RNTO", argument: "personal.kdbx") {
+            server.setFile("personal.kdbx", data: Data("other device".utf8))
+        }
+
+        let after = try await provider.upload(
+            accountId: accountId,
+            fileId: "/personal.kdbx",
+            data: Data("mine".utf8),
+            expectedRev: before.rev
+        ) { _ in }
+
+        XCTAssertEqual(server.file("personal.kdbx")?.data, Data("mine".utf8))
+        XCTAssertEqual(server.filePaths, ["personal.kdbx"])
+        XCTAssertEqual(after.rev, rev("mine"))
+        XCTAssertTrue(server.commandLog.contains("RNTO personal.kdbx"))
+    }
+
     func testFailedTransferLeavesTheDatabaseUntouched() async throws {
         let server = FakeFTPServer()
         server.setFile("personal.kdbx", data: Data("old".utf8))
@@ -965,6 +987,25 @@ final class FTPCloudProviderTests: XCTestCase {
         }
         XCTAssertEqual(server.file("race.kdbx")?.data, Data("other device".utf8))
         XCTAssertEqual(server.filePaths, ["race.kdbx"], "the temporary upload must be cleaned up")
+    }
+
+    func testCreateFileCanOverwriteAFileAppearingAfterItsFinalAbsenceCheck() async throws {
+        let server = FakeFTPServer()
+        let (provider, accountId) = try makeProvider(server: server)
+        server.beforeNext("RNTO", argument: "race.kdbx") {
+            server.setFile("race.kdbx", data: Data("other device".utf8))
+        }
+
+        let created = try await provider.createFile(
+            accountId: accountId,
+            path: "/race.kdbx",
+            data: Data("mine".utf8)
+        ) { _ in }
+
+        XCTAssertEqual(server.file("race.kdbx")?.data, Data("mine".utf8))
+        XCTAssertEqual(server.filePaths, ["race.kdbx"])
+        XCTAssertEqual(created.metadata.rev, rev("mine"))
+        XCTAssertTrue(server.commandLog.contains("RNTO race.kdbx"))
     }
 
     // MARK: - Transport and safety

@@ -14816,6 +14816,46 @@
         }
       }
     },
+    "FTP cannot prevent every simultaneous save. Avoid editing this database from another app or device at the same time; a concurrent change may be overwritten." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "FTP kann nicht jede gleichzeitige Speicherung absichern. Bearbeiten Sie diese Datenbank nicht gleichzeitig in einer anderen App oder auf einem anderen Gerät; eine gleichzeitige Änderung kann überschrieben werden."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "FTP no puede impedir todas las sobrescrituras durante guardados simultáneos. Evite editar esta base de datos al mismo tiempo desde otra app u otro dispositivo; un cambio simultáneo podría sobrescribirse."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "FTP ne peut pas empêcher tous les écrasements lors d’enregistrements simultanés. Évitez de modifier cette base de données en même temps depuis une autre application ou un autre appareil ; une modification simultanée pourrait être écrasée."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "FTP では、同時保存による上書きを完全には防げません。このデータベースを別のアプリや端末で同時に編集しないでください。同時に加えられた変更が上書きされる可能性があります。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "FTP 无法防止所有同时保存造成的覆盖。请勿同时在其他应用或设备上编辑此数据库；同时进行的更改可能被覆盖。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "FTP 無法防止所有同時儲存造成的覆寫。請勿同時在其他 App 或裝置上編輯此資料庫；同時進行的變更可能被覆寫。"
+          }
+        }
+      }
+    },
     "FTP is not encrypted. Turn on Allow Unencrypted FTP to connect." : {
       "localizations" : {
         "de" : {
