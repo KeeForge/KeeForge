@@ -111,6 +111,27 @@ Map changed behavior to actual test assertions and execution destinations. Asses
 Recommend concrete tests or consolidation with the smallest useful scope. Do not use
 test counts or an arbitrary coverage percentage as the readiness criterion.
 
+### Compatibility test additions
+
+Explicitly assess whether changes since the baseline require new or expanded compatibility
+tests. Include database creation, edit operations, parsing/writing, protected fields,
+unknown XML, and AutoFill, cloud, or local saves, even when the parser/writer itself did
+not change. Passing existing tests does not prove a new behavior has compatibility coverage.
+
+Read the compatibility guidance in `KeeForgeTests/AGENTS.md` and `ci_scripts/README.md`.
+Map affected behavior to `KeeForgeTests/KDBXCompatibilityTests.swift`, fixtures, and
+`KeeForgeTests/KDBXCompatibilitySupport.swift`. Check both foreign-authored input and
+KeeForge-written output where relevant, including preservation after edit/save/reopen.
+Distinguish in-process assertions from what an independent reader actually verifies.
+
+For each meaningful gap, recommend the exact fixture/scenario and assertions needed,
+including platform/save-path coverage. Check whether artifact descriptors, emission,
+external expectations, and `ci_scripts/run_kdbx_compatibility_gate.sh` need corresponding
+updates, especially when the supported compatibility matrix changes. Follow the existing
+one-run-per-scenario design rather than duplicating expensive tests. Surface actionable
+gaps in the concise report; omit a routine all-clear. Recommend additions during the
+audit; implement them only when fixes are also requested.
+
 ### Change-driven risk checks
 
 Review these when affected by the change or its dependencies, not as an exhaustive
