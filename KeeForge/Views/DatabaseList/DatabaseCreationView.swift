@@ -122,7 +122,14 @@ struct DatabaseCreationView: View {
             }
 
             Section {
-                labeledField(String(localized: "Save To")) {
+                HStack(spacing: 12) {
+                    Text("Save To")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+
+                    Spacer(minLength: 0)
+
                     Picker("Save To", selection: $viewModel.destinationChoice) {
                         ForEach(DatabaseCreationDestinationChoice.availableChoices) { destination in
                             Text(destination.title).tag(destination)
@@ -131,8 +138,10 @@ struct DatabaseCreationView: View {
                     // A menu, not segments: five destinations truncate as segments on iPhone.
                     .pickerStyle(.menu)
                     .labelsHidden()
+                    .lineLimit(1)
                     .accessibilityIdentifier("database-create.destination-picker")
                 }
+                .padding(.vertical, 2)
             }
 
             Section {
