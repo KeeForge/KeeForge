@@ -73,24 +73,30 @@ enum KeychainService {
     }
 
     /// Stores each quick-unlock item independently so one unavailable system
-    /// mechanism cannot remove or invalidate the other.
-    static func storeAvailableQuickUnlockKeys(_ key: SymmetricKey, for databaseID: UUID) throws {
+    /// mechanism cannot remove or invalidate the other. An existing Apple Watch
+    /// item is rewritten even while no watch is available — its usual state —
+    /// because the master key may have changed on another device since.
+    /// Returns whether the Touch ID / Face ID item was written: only that
+    /// item replaces a legacy filename-keyed one.
+    @discardableResult
+    static func storeAvailableQuickUnlockKeys(_ key: SymmetricKey, for databaseID: UUID) throws -> Bool {
         var firstError: Error?
-        var didStoreKey = false
+        var didStoreBiometricKey = false
+        var didStoreCompanionKey = false
 
         if BiometricService.isAvailable {
             do {
                 try storeCompositeKey(key, for: databaseID)
-                didStoreKey = true
+                didStoreBiometricKey = true
             } catch {
                 firstError = error
             }
         }
 
-        if BiometricService.isCompanionAvailable {
+        if BiometricService.isCompanionAvailable || hasStoredCompanionKey(for: databaseID) {
             do {
                 try storeCompanionCompositeKey(key, for: databaseID)
-                didStoreKey = true
+                didStoreCompanionKey = true
             } catch {
                 if firstError == nil {
                     firstError = error
@@ -98,9 +104,10 @@ enum KeychainService {
             }
         }
 
-        if !didStoreKey, let firstError {
+        if !didStoreBiometricKey, !didStoreCompanionKey, let firstError {
             throw firstError
         }
+        return didStoreBiometricKey
     }
 
     /// Rekey path: rewrites every item that already exists, even while its

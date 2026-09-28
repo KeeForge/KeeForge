@@ -98,9 +98,10 @@ Apple Watch unlock (#66) is a separate explicit action on the unlock screen,
 never raised by a lock cycle. Its composite-key copy is a device-only Keychain
 item protected by the `.companion` access-control flag, and LocalAuthentication
 evaluates `.deviceOwnerAuthenticationWithCompanion`; neither accepts the Mac
-login password. The copy is written only while a paired watch is available and
-is stored independently of the Touch ID item, so it cannot weaken or migrate the
-Touch ID policy. A master-key change rewrites both items even when Touch ID or
+login password. The copy is created only while a paired watch is available; once it exists,
+every unlock rewrites it, because the master key may have changed on another
+device. It is stored independently of the Touch ID item, so it cannot weaken or
+migrate the Touch ID policy. A master-key change rewrites both items even when Touch ID or
 the watch cannot authenticate at that moment. AutoFill's own prompt stays
 biometric-only.
 

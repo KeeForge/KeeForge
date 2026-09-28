@@ -3376,12 +3376,13 @@ final class DatabaseViewModel {
     private func persistCompositeKeyForQuickUnlock(_ compositeKey: SymmetricKey) {
         // A Mac without enrolled Touch ID or a paired Apple Watch stores
         // nothing and surfaces no error; password unlock stays primary.
-        guard BiometricService.isAvailable || BiometricService.isCompanionAvailable else { return }
-
         do {
-            try KeychainService.storeAvailableQuickUnlockKeys(compositeKey, for: databaseReference.id)
+            let didStoreBiometricKey = try KeychainService.storeAvailableQuickUnlockKeys(
+                compositeKey,
+                for: databaseReference.id
+            )
 
-            if let legacyFilename = databaseReference.legacyKeychainFilename {
+            if didStoreBiometricKey, let legacyFilename = databaseReference.legacyKeychainFilename {
                 KeychainService.deleteLegacyCompositeKey(forFilename: legacyFilename)
                 DatabaseListStore.clearLegacyKeychainFilename(for: databaseReference.id)
             }
