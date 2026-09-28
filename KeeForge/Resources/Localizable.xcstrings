@@ -16176,6 +16176,46 @@
         }
       }
     },
+    "KeeForge can't tell which copy on this device holds the change saved through AutoFill, so nothing was merged. The change may already be in this database; otherwise look for it in the backups in Database Details and export that backup to merge it in another KeePass app. Once the change is merged, use Discard Pending Upload in the database list to clear the conflict." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge kann nicht feststellen, welche Kopie auf diesem Gerät die über AutoFill gespeicherte Änderung enthält, daher wurde nichts zusammengeführt. Die Änderung ist möglicherweise bereits in dieser Datenbank enthalten; andernfalls suchen Sie sie in den Sicherungskopien in den Datenbankdetails und exportieren Sie diese Sicherungskopie, um sie in einer anderen KeePass-App zusammenzuführen. Sobald die Änderung zusammengeführt ist, verwenden Sie „Ausstehenden Upload verwerfen“ in der Datenbankliste, um den Konflikt aufzulösen."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge no puede determinar qué copia de este dispositivo contiene el cambio guardado mediante el autorrelleno, así que no se combinó nada. Es posible que el cambio ya esté en esta base de datos; si no, búsquelo en las copias de seguridad de los detalles de la base de datos y exporte esa copia de seguridad para combinarlo en otra app de KeePass. Una vez combinado el cambio, use «Descartar carga pendiente» en la lista de bases de datos para resolver el conflicto."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge ne peut pas déterminer quelle copie sur cet appareil contient la modification enregistrée via le remplissage automatique, aucune fusion n'a donc été effectuée. La modification figure peut-être déjà dans cette base de données ; sinon, cherchez-la dans les sauvegardes des détails de la base de données et exportez cette sauvegarde pour la fusionner dans une autre app KeePass. Une fois la modification fusionnée, utilisez « Ignorer l'envoi en attente » dans la liste des bases de données pour résoudre le conflit."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "自動入力で保存された変更がこのデバイス上のどのコピーに含まれているかを KeeForge で判別できないため、何もマージされませんでした。変更はすでにこのデータベースに含まれている可能性があります。含まれていない場合は、データベースの詳細にあるバックアップから探し、そのバックアップを書き出して、他の KeePass App でマージしてください。変更をマージしたら、データベース一覧の「保留中のアップロードを破棄」を使って競合を解消してください。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge 无法确定此设备上的哪个副本包含通过自动填充保存的更改，因此未进行任何合并。该更改可能已在此数据库中；否则，请在数据库详细信息的备份中查找，导出该备份，并在其他 KeePass App 中合并。合并更改后，请在数据库列表中使用“放弃待处理的上传”来解决冲突。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge 無法判斷此裝置上的哪個副本包含透過自動填寫儲存的變更，因此未進行任何合併。該變更可能已在此資料庫中；否則，請在資料庫詳細資訊的備份中尋找，匯出該備份，並在其他 KeePass App 中合併。合併變更後，請在資料庫列表中使用「捨棄待處理的上傳」來解決衝突。"
+          }
+        }
+      }
+    },
     "KeeForge couldn't access the selected database file." : {
       "localizations" : {
         "de" : {

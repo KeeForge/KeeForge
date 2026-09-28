@@ -237,8 +237,10 @@ final class PendingUploadQueueTests: XCTestCase {
         XCTAssertEqual(decoded.expectedRev, "rev-1")
         XCTAssertFalse(decoded.isConflicted)
         XCTAssertNil(decoded.baseRev)
-        XCTAssertTrue(decoded.isPayloadFinalized)
+        XCTAssertNil(decoded.isPayloadFinalized, "v1.16.0 wrote provisional markers in this shape too")
         XCTAssertEqual(decoded.generation, 0)
+        let reencoded = try JSONSerialization.jsonObject(with: makeEnvironment().encodeMarker(decoded)) as? [String: Any]
+        XCTAssertNil(reencoded?["isPayloadFinalized"], "Re-persisting must not turn an unproven marker into a finalized one")
     }
 
     func test_enqueue_withoutNotifying_postsNoDarwinNotification_untilExplicitPost() throws {

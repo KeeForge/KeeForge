@@ -85,8 +85,19 @@ final class PendingUploadRecoveryTests: XCTestCase {
         provisional.marker.isPayloadFinalized = false
         let fake = FakeStore(markers: [provisional], files: [olderBackupURL: base])
 
-        guard case .unavailable = PendingUploadRecovery.lookUpPayloads(for: reference, environment: fake.environment) else {
+        guard case .unidentified = PendingUploadRecovery.lookUpPayloads(for: reference, environment: fake.environment) else {
             return XCTFail("A provisional base hash must never be recovered as the saved AutoFill payload")
+        }
+    }
+
+    func test_lookUp_markerWithoutFinalizationState_doesNotTreatAMatchingBackupAsThePayload() {
+        let reference = makeReference()
+        let base = Data("pre-autofill-base".utf8)
+        let legacy = makeStoredMarker(for: reference, payload: base, isPayloadFinalized: nil)
+        let fake = FakeStore(markers: [legacy], files: [olderBackupURL: base])
+
+        guard case .unidentified = PendingUploadRecovery.lookUpPayloads(for: reference, environment: fake.environment) else {
+            return XCTFail("A marker from before the field existed may still hold its provisional base hash")
         }
     }
 
@@ -193,6 +204,58 @@ final class PendingUploadRecoveryTests: XCTestCase {
         XCTAssertFalse(PendingUploadRecovery.hasConflicts(for: reference))
     }
 
+    /// v1.16.0 already enqueued the base hash before the cache write, without
+    /// recording the phase. An extension interrupted after the write leaves
+    /// the AutoFill save in the cache and the base in a backup; the drainer
+    /// then flags the mismatch. The merge must refuse rather than recover
+    /// the base backup, and the marker must survive for the user to act on.
+    func test_live_interruptedV1_16TwoPhaseSave_isRefusedAndTheMarkerKept() throws {
+        let reference = makeReference()
+        DatabaseListStore.update(reference)
+        let base = Data("pre-autofill-base".utf8)
+        let autoFillSave = Data("autofill-payload".utf8)
+
+        let liveCacheURL = DatabaseListStore.cacheLocation(for: reference)
+        try FileManager.default.createDirectory(at: liveCacheURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try autoFillSave.write(to: liveCacheURL)
+        let backupDirectory = DatabaseListStore.databaseBackupDirectoryURL(for: reference)
+        try FileManager.default.createDirectory(at: backupDirectory, withIntermediateDirectories: true)
+        try base.write(to: backupDirectory.appendingPathComponent("20260924-100000-000000.kdbx"))
+
+        let relativeCachePath = try PendingUploadQueue.makeRelativeAppGroupPath(for: liveCacheURL)
+        let placeholder = try PendingUploadQueue.enqueue(
+            PendingUploadQueue.Marker(
+                databaseId: reference.id,
+                encryptedBytesCacheURL: relativeCachePath,
+                openTimeSHA512: Data(),
+                expectedRev: nil,
+                createdAt: Date(timeIntervalSince1970: 0)
+            ),
+            notifying: false
+        )
+        let v1_16JSON = """
+        {
+          "databaseId" : "\(reference.id.uuidString)",
+          "encryptedBytesCacheURL" : "\(relativeCachePath)",
+          "openTimeSHA512" : "\(KDBXCrypto.sha512(base).base64EncodedString())",
+          "expectedRev" : "rev-A",
+          "baseRev" : "rev-A",
+          "createdAt" : 1000
+        }
+        """
+        try Data(v1_16JSON.utf8).write(to: placeholder.fileURL)
+        let upgraded = try XCTUnwrap(PendingUploadQueue.listMarkers(for: reference.id).first)
+        XCTAssertNil(upgraded.marker.isPayloadFinalized)
+        _ = try PendingUploadQueue.markConflicted(upgraded)
+
+        guard case .unidentified = PendingUploadRecovery.lookUpPayloads(for: reference) else {
+            return XCTFail("The base backup must not be merged as the AutoFill save")
+        }
+        let kept = try XCTUnwrap(PendingUploadQueue.listMarkers(for: reference.id).first)
+        XCTAssertTrue(kept.marker.isConflicted)
+        XCTAssertNil(kept.marker.isPayloadFinalized, "A drainer update must not promote the marker to finalized")
+    }
+
     // MARK: - Helpers
 
     private func recoveredPayloads(_ lookup: PendingUploadRecovery.Lookup) throws -> [PendingUploadRecovery.Payload] {
@@ -238,7 +301,8 @@ final class PendingUploadRecoveryTests: XCTestCase {
         for reference: DatabaseReference,
         payload: Data,
         isConflicted: Bool = true,
-        createdAt: Date = Date(timeIntervalSince1970: 3_000)
+        createdAt: Date = Date(timeIntervalSince1970: 3_000),
+        isPayloadFinalized: Bool? = true
     ) -> PendingUploadQueue.StoredMarker {
         let id = UUID()
         return PendingUploadQueue.StoredMarker(
@@ -251,7 +315,8 @@ final class PendingUploadRecoveryTests: XCTestCase {
                 expectedRev: "rev-A",
                 createdAt: createdAt,
                 isConflicted: isConflicted,
-                baseRev: "rev-A"
+                baseRev: "rev-A",
+                isPayloadFinalized: isPayloadFinalized
             )
         )
     }

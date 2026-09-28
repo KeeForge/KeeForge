@@ -3790,6 +3790,26 @@ final class DatabaseViewModelTests: XCTestCase {
         XCTAssertTrue(pending.droppedMarkerIDs.isEmpty)
     }
 
+    func testMergePendingUploadsWithAnUnprovenMarkerWritesNothingAndKeepsIt() async throws {
+        let fixtureData = try Data(contentsOf: fixtureURL())
+        let recorder = MergeSaveRecorder(results: [.saved(newSHA512: Data("merged".utf8))])
+        let reference = makeCloudReference(remoteRev: "rev-A")
+        let baseData = try makeRemoteVariantData { visibleRoot in
+            visibleRoot.entries.append(KPEntry(title: "Base Only"))
+        }
+        let pending = PendingUploadFake(reference: reference, payload: baseData, isPayloadFinalized: nil)
+        let vm = try makePendingUploadViewModel(reference: reference, fixtureData: fixtureData, pending: pending, recorder: recorder)
+
+        await vm.unlock(password: fixturePassword)
+        try await vm.mergePendingUploads()
+
+        XCTAssertEqual(vm.pendingUploadMergeFailure, .changeUnidentified)
+        XCTAssertTrue(recorder.recordedCalls.isEmpty)
+        XCTAssertTrue(pending.droppedMarkerIDs.isEmpty)
+        XCTAssertTrue(vm.hasPendingUploadConflict)
+        XCTAssertNil(vm.mergeSummaryMessage)
+    }
+
     func testMergePendingUploadsWithAnUnreadableChangeWritesNothing() async throws {
         let fixtureData = try Data(contentsOf: fixtureURL())
         let recorder = MergeSaveRecorder(results: [.saved(newSHA512: Data("merged".utf8))])
@@ -6115,7 +6135,13 @@ private final class PendingUploadFake: @unchecked Sendable {
     private var dropped: [UUID] = []
     static let payloadURL = URL(fileURLWithPath: "/pending-upload-fake/20260924-080000-000000.kdbx")
 
-    init(reference: DatabaseReference, payload: Data, isConflicted: Bool = true, storesPayload: Bool = true) {
+    init(
+        reference: DatabaseReference,
+        payload: Data,
+        isConflicted: Bool = true,
+        storesPayload: Bool = true,
+        isPayloadFinalized: Bool? = true
+    ) {
         let id = UUID()
         storedMarker = PendingUploadQueue.StoredMarker(
             id: id,
@@ -6127,7 +6153,8 @@ private final class PendingUploadFake: @unchecked Sendable {
                 expectedRev: "rev-0",
                 createdAt: Date(timeIntervalSince1970: 1_000),
                 isConflicted: isConflicted,
-                baseRev: "rev-0"
+                baseRev: "rev-0",
+                isPayloadFinalized: isPayloadFinalized
             )
         )
         self.payload = payload

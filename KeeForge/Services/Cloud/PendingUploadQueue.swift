@@ -23,7 +23,10 @@ enum PendingUploadQueue {
         /// False only during the durable pre-save phase. Until finalization,
         /// `openTimeSHA512` identifies the base bytes rather than the saved
         /// AutoFill payload and must never be used as merge input.
-        var isPayloadFinalized: Bool
+        /// `nil` on markers written before this field existed: v1.16.0 already
+        /// wrote the provisional base hash first without recording the phase,
+        /// so such a marker is never proven to describe its payload.
+        var isPayloadFinalized: Bool?
         /// Monotonic compare-and-swap generation for in-place updates.
         /// Legacy markers start at zero.
         var generation: UInt64
@@ -49,7 +52,7 @@ enum PendingUploadQueue {
             createdAt: Date,
             isConflicted: Bool = false,
             baseRev: String? = nil,
-            isPayloadFinalized: Bool = true,
+            isPayloadFinalized: Bool? = true,
             generation: UInt64 = 0
         ) {
             self.databaseId = databaseId
@@ -78,9 +81,11 @@ enum PendingUploadQueue {
             createdAt = try container.decode(Date.self, forKey: .createdAt)
             isConflicted = try container.decodeIfPresent(Bool.self, forKey: .isConflicted) ?? false
             baseRev = try container.decodeIfPresent(String.self, forKey: .baseRev)
-            // Markers written before the two-phase protocol already described
-            // their payload, so missing means finalized for compatibility.
-            isPayloadFinalized = try container.decodeIfPresent(Bool.self, forKey: .isPayloadFinalized) ?? true
+            // Missing stays `nil`, not `true`: an extension interrupted between
+            // the cache write and finalization before an upgrade left a base
+            // hash here. The synthesized encoder omits `nil` again, so a
+            // drainer update keeps the marker unproven.
+            isPayloadFinalized = try container.decodeIfPresent(Bool.self, forKey: .isPayloadFinalized)
             generation = try container.decodeIfPresent(UInt64.self, forKey: .generation) ?? 0
         }
     }

@@ -30,6 +30,12 @@ enum PendingUploadRecovery {
         /// merged then: a partial merge would clear some conflicts while the
         /// change the user is looking for stays stranded.
         case unavailable
+        /// At least one conflicted marker is not proven to record the saved
+        /// AutoFill payload's hash: it is still provisional, or it was written
+        /// before markers recorded that. Its hash may be the pre-AutoFill
+        /// base, whose backup would match, merge nothing, and strand the
+        /// change. The change itself is still on the device.
+        case unidentified
     }
 
     struct Environment: Sendable {
@@ -77,8 +83,9 @@ enum PendingUploadRecovery {
             }
             // A provisional marker hashes the pre-save base, not the AutoFill
             // result. Recovering a matching backup would merge no change and
-            // strand the real payload while falsely reporting success.
-            guard storedMarker.marker.isPayloadFinalized else { return .unavailable }
+            // strand the real payload while falsely reporting success. A
+            // legacy marker (`nil`) may be exactly that, so it is refused too.
+            guard storedMarker.marker.isPayloadFinalized == true else { return .unidentified }
             let candidates: [(url: URL, location: Location)] =
                 [(environment.cacheURL(storedMarker.marker), .cache)]
                 + environment.backupURLs(reference).map { ($0, .backup($0)) }

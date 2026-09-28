@@ -127,6 +127,9 @@ enum PendingUploadMergeFailure: Error, Equatable, Sendable {
     /// The change's bytes are gone from this device, or were saved under a
     /// master key the database no longer uses.
     case changeUnavailable
+    /// The change is on this device, but no file is proven to hold it
+    /// (`PendingUploadRecovery.Lookup.unidentified`).
+    case changeUnidentified
     /// The change would not open with this database's master key.
     case changeUnreadable(PendingUploadRecovery.Location)
     /// See `DatabaseMergeFailure.attachmentsDiverged`.
@@ -144,6 +147,8 @@ enum PendingUploadMergeFailure: Error, Equatable, Sendable {
         switch self {
         case .changeUnavailable:
             String(localized: "The change saved through AutoFill is no longer stored on this device, or it was saved before the master key changed. Use Discard Pending Upload in the database list to clear the conflict.")
+        case .changeUnidentified:
+            String(localized: "KeeForge can't tell which copy on this device holds the change saved through AutoFill, so nothing was merged. The change may already be in this database; otherwise look for it in the backups in Database Details and export that backup to merge it in another KeePass app. Once the change is merged, use Discard Pending Upload in the database list to clear the conflict.")
         case .changeUnreadable(.cache):
             String(localized: "The change saved through AutoFill could not be opened with this database's master key. To merge it in another KeePass app, use Export Copy in the database list.")
         case .changeUnreadable(.backup(let url)):
@@ -2422,6 +2427,9 @@ final class DatabaseViewModel {
             return
         case .unavailable:
             pendingUploadMergeFailure = .changeUnavailable
+            return
+        case .unidentified:
+            pendingUploadMergeFailure = .changeUnidentified
             return
         case .recovered(let recovered):
             payloads = recovered
