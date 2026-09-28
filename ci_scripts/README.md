@@ -132,7 +132,8 @@ invoke `gh`, `curl`, `xcodebuild`, `notarytool`, tags, pushes, or ASC.
 4. Verify each merged artifact with `keepassxc-cli`:
    - `search` for every `expectedSearchTerms` entry, `ls` for every `expectedGroupPaths` entry.
    - `attachment-export` plus a SHA-256 comparison for every `expectedAttachments` entry (the `kitchen-sink.kdbx`- and `unknown-inner-header.kdbx`-derived artifacts).
-   - `show -s -a Password` for every `expectedPasswords` entry. This is the only check that decrypts anything: searching and listing only read plaintext XML, so without it a protected-value stream that is self-consistent but non-conforming would pass the whole gate. Every fixture-smoke artifact verifies both a password KeeForge just wrote and one the fixture already carried (authored by another KeePass implementation), covering AES, ChaCha20, Twofish, key-file, KDBX 4.1, unknown-XML, unknown-inner-header, high-iteration Argon2 (1500 x 1 MiB), and attachment databases; the rich `create-entry`/`update-entry` artifacts cover a created and an edited password.
+   - `show -s -a Password` for every `expectedPasswords` entry. This checks protected password decryption: searching and listing only read plaintext XML, so without it a protected-value stream that is self-consistent but non-conforming would pass the whole gate. Every fixture-smoke artifact verifies both a password KeeForge just wrote and one the fixture already carried (authored by another KeePass implementation), covering AES, ChaCha20, Twofish, key-file, KDBX 4.1, unknown-XML, unknown-inner-header, high-iteration Argon2 (1500 x 1 MiB), and attachment databases; the rich `create-entry`/`update-entry` artifacts cover a created and an edited password.
+   - `export -f xml` for `expectedCustomFields`: the `custom-field-edits` artifact must retain edited/added values (including Unicode, XML metacharacters, newlines, and empty strings), renamed and reused protected names, removal of plain/protected fields, and the original fields in history. KeePassXC decrypts the values and exports protection as `ProtectInMemory`; both are checked, with exact history count and explicit absent-field assertions. The gate fails if no custom-field checks run.
    - `show -t` (TOTP) for every `expectedTOTPs` entry, proving real KeePassXC *generates a code* from what KeeForge enrolled — `update-entry` carries the fresh-enrollment verbatim `otp` URI (the entry editor's primary output) and `create-entry` the `TimeOtp-*` authoring path. The expected code is recomputed by an independent RFC 6238 reference implementation inside the gate script for the time windows in effect just before and just after the CLI call, and either is accepted — the call takes well under one period, so a 30-second window rollover mid-check can never flake the gate.
    Entry paths are resolved by exact-title `search` hit (and cached), so entries that moved into the Recycle Bin or were renamed by the edit still resolve.
 5. On success the script prints the artifact count, attachment-check count, protected-password-check count, and TOTP-check count; zero TOTP checks fails the gate even if everything else passed.
@@ -197,3 +198,72 @@ system framework. The direct invocation must report Sparkle, an HTTPS feed, a pr
 `storekit_bundle_present=false`, and `storekit_linked=false`. The direct invocation must also report
 `installer_launcher_service=true`; the MAS invocation must report it false. The architecture argument is intentional: use universal
 `arm64,x86_64` unless an explicit product decision records a different set before continuing.
+
+## Manual Sparkle rehearsal (test feed only)
+
+Run this on a disposable Mac or test account after changing the feed host, signing
+key, updater configuration, release handoff, or Sparkle sandbox exceptions. The
+[macOS security model](../KeeForgeMac/SECURITY.md#sparkle-update-trust) describes the
+trust boundary; this procedure verifies an actual update. It does not authorize
+production publication. Use the Xcode lock wrapper for local Mac app runs as
+required by the repository's local instructions.
+
+1. Confirm that an off-machine recovery copy of the Sparkle EdDSA private key is backed up.
+   Record only that the prerequisite was confirmed, never the key or its location.
+   Do not generate, export, or print the private key during the rehearsal. Prepare
+   older and newer notarized, stapled direct-download apps using the same key pair
+   and architecture set (normally `arm64,x86_64`). Configure the older build's
+   `SUFeedURL` for the isolated test feed before signing and notarization; do not
+   edit a signed app's plist.
+2. Prepare an isolated HTTPS test host, using a temporary hostname or a local TLS
+   service with a trusted certificate. Create a test appcast containing only the
+   newer build. Sign the exact newer ZIP with Sparkle's `sign_update` using the
+   login Keychain key; put only the public `sparkle:edSignature` and byte `length`
+   in the enclosure. Never point this rehearsal at the production
+   `https://keeforge.com/appcast.xml` feed. Keep vault passwords and tokens out of
+   commands, appcasts, screenshots, and logs.
+3. Install the older app from its notarized ZIP in the test account and run
+   `ci_scripts/verify_mac_artifact.sh --channel direct --app <older-app> --architectures arm64,x86_64`
+   (substitute the explicitly agreed architecture set if different). Open a
+   disposable copy of a test vault and leave it visibly unlocked while checking
+   for updates. Confirm that Sparkle downloads the exact newer ZIP, verifies the
+   signature, replaces the app, and encounters no sandbox or hardened-runtime
+   failure.
+4. After relaunch, confirm that the newer version is running and the vault is
+   locked. Unlock must be required again: no unlocked session may survive the
+   updater restart. Reopen the disposable vault and verify it still reads.
+5. Make a separate copy of the newer ZIP, alter one byte, and serve that copy at
+   the test enclosure URL without changing its signature or length. Start again
+   from the older app. Sparkle must reject the download and leave the older app
+   installed and running, with no successful installation reported. Restore the
+   exact signed ZIP afterward; never alter the accepted release artifact itself.
+6. Download the exact signed ZIP afresh in a clean account, preserve the browser's
+   quarantine attribute, and launch the extracted app without clearing quarantine.
+   Confirm that Gatekeeper accepts it and that `verify_mac_artifact.sh` still
+   passes. Record the artifact identities and non-secret results in the candidate
+   manifest, then remove the disposable app, test feed, vault copy, and temporary
+   logs after retaining the required evidence.
+
+A static artifact-verifier pass cannot replace the successful-update,
+altered-download rejection, locked-relaunch, and clean-account launch checks.
+Old successful rehearsals are not evidence for changed update infrastructure.
+
+### ZIP extraction verification
+
+Verify the delivered ZIP as well as the exported `.app`. Inline AppleDouble
+`._name` entries produced by `ditto` can become real files inside signed bundles
+when extracted with plain `unzip` or third-party tools, causing Gatekeeper to
+reject a bundle that passed before packaging. Apple's extractors may consume
+these entries, hiding the problem during an update rehearsal.
+
+`build_mac_direct.sh` packages with `ditto -c -k --sequesterRsrc --keepParent`,
+keeping resource metadata in a `__MACOSX` sidecar. After stapling and final
+packaging, it extracts the ZIP with plain `unzip` and requires all three:
+
+- No AppleDouble `._*` files inside the extracted app.
+- Gatekeeper acceptance of the extracted app.
+- A valid stapled ticket, checked with `xcrun stapler validate`.
+
+Keep this round trip in the build gate and retain step 6 above as a separate
+clean-account check. Do not repair, re-sign, or repackage a downloaded candidate
+to make that check pass; any changed bytes need a new candidate.

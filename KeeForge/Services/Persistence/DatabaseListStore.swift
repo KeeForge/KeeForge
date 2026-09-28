@@ -586,7 +586,11 @@ enum DatabaseListStore {
         case databaseInTrash
 
         var errorDescription: String? {
+            #if os(macOS)
+            String(localized: "The database file is in the Trash. Restore it from the Trash in Finder, or choose the current file with Locate Database File in KeeForge.")
+            #else
             String(localized: "The database file is in Recently Deleted in the Files app. Restore it in Files, or choose the current file with Locate Database File in KeeForge.")
+            #endif
         }
     }
 

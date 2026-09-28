@@ -439,25 +439,50 @@ struct UnlockView: View {
                 .font(.caption.weight(.medium))
                 .foregroundStyle(.secondary)
 
-            Picker(selection: hardwareKeySelection) {
-                Text("None").tag(HardwareKeyConfiguration?.none)
+            Menu {
+                Button {
+                    viewModel.setHardwareKey(nil)
+                } label: {
+                    if viewModel.hardwareKey == nil {
+                        Label("None", systemImage: "checkmark")
+                    } else {
+                        Text("None")
+                    }
+                }
+
                 ForEach(hardwareKeyOptions, id: \.self) { option in
-                    Text(hardwareKeyTitle(option)).tag(Optional(option))
+                    Button {
+                        viewModel.setHardwareKey(option)
+                    } label: {
+                        if viewModel.hardwareKey == option {
+                            Label(hardwareKeyTitle(option), systemImage: "checkmark")
+                        } else {
+                            Text(hardwareKeyTitle(option))
+                        }
+                    }
                 }
             } label: {
-                Label("YubiKey", systemImage: "key.radiowaves.forward")
+                HStack(spacing: 12) {
+                    Image(systemName: "key.radiowaves.forward")
+                        .foregroundStyle(.primary)
+
+                    Text(viewModel.hardwareKey.map(hardwareKeyTitle) ?? String(localized: "None"))
+                        .foregroundStyle(viewModel.hardwareKey == nil ? .secondary : .primary)
+                        .lineLimit(1)
+
+                    Spacer(minLength: 8)
+
+                    Image(systemName: "chevron.up.chevron.down")
+                        .font(.subheadline)
+                        .foregroundStyle(.tint)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .contentShape(Rectangle())
             }
-            .pickerStyle(.menu)
+            .buttonStyle(.plain)
             .accessibilityIdentifier("unlock.hardware-key.picker")
             .modifier(UnlockInputContainer())
         }
-    }
-
-    private var hardwareKeySelection: Binding<HardwareKeyConfiguration?> {
-        Binding(
-            get: { viewModel.hardwareKey },
-            set: { viewModel.setHardwareKey($0) }
-        )
     }
 
     /// Every slot on each transport this device has, plus the stored choice

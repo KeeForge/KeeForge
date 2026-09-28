@@ -37,9 +37,6 @@ KeeForge ist ein nativer KeePass-Client für iPhone, iPad und Mac. Lokale Dateie
 
 **[Der KeeForge-Beta über TestFlight beitreten](https://testflight.apple.com/join/mPAT4f1a)**
 
-> [!WARNING]
-> **Teste mit einer Kopie deiner Datenbank, nicht mit deinem Haupttresor.** Beta-Builds sind ungeprüft und teilen sich Bundle-ID und Container mit der App-Store-App — sie öffnen also deine echten `.kdbx`-Dateien.
-
 ## Highlights
 
 | Bereich | Was KeeForge kann |
@@ -69,8 +66,10 @@ Lies die [Datenschutzerklärung](https://keeforge.com/de/privacy) ([englisches O
 KeeForge nimmt Datensicherheit sehr ernst: Ein Passwort-Manager darf deinen Tresor niemals beschädigen oder unbemerkt Daten verlieren. Bevor eine Änderung ausgeliefert wird, stellen automatisierte Tests sicher:
 
 - **Beim Speichern geht nichts verloren.** Jede Art von Änderung wird gespeichert und Stück für Stück wieder eingelesen — Passwörter, Notizen, Anhänge, Eintragsverlauf und selbst Daten anderer KeePass-Apps, die KeeForge gar nicht kennt, müssen exakt so zurückkommen, wie sie hineingingen.
-- **Deine Datei ist geschützt, bevor sie angefasst wird.** KeeForge weigert sich, Änderungen zu überschreiben, die anderswo gemacht wurden, während die Datei bei dir geöffnet war; es legt vor jedem Speichern ein zeitgestempeltes Backup an und lehnt beschädigte Datenbanken rundweg ab, statt unvollständige Daten zu laden.
+- **Deine Datei ist geschützt, bevor sie angefasst wird.** KeeForge prüft, ob die Datei während des Öffnens anderswo geändert wurde, und verweigert das Speichern, wenn es einen Konflikt erkennt; es legt vor jedem Speichern ein zeitgestempeltes Backup an und lehnt beschädigte Datenbanken rundweg ab, statt unvollständige Daten zu laden.
 - **Ein unabhängiges Programm bestätigt das.** Jede Version muss ein Prüf-Gate bestehen, in dem KeePassXC — eine weit verbreitete KeePass-App, die keinen Code mit KeeForge teilt — von KeeForge geschriebene Datenbanken öffnet, die Passwörter entschlüsselt und bestätigt, dass Anhänge Bit für Bit übereinstimmen. Umgekehrt müssen Datenbanken aus anderer KeePass-Software sich in KeeForge öffnen lassen und auch nach dem Speichern durch KeeForge anderswo lesbar bleiben.
+
+Bei FTP können die letzte Konfliktprüfung und das Ersetzen der Datei nicht als ein Vorgang erfolgen. Eine gleichzeitige Änderung aus einer anderen App oder von einem anderen Gerät kann daher überschrieben werden. Bearbeite eine FTP-Datenbank nicht an zwei Stellen gleichzeitig.
 
 Für technisch Interessierte: Die Test-Suite ist in [`KeeForgeTests/AGENTS.md`](../../KeeForgeTests/AGENTS.md) beschrieben, das Prüf-Gate vor jedem Release in [`ci_scripts/README.md`](../../ci_scripts/README.md) (beide auf Englisch).
 

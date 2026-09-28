@@ -25,6 +25,39 @@ enum HardwareKeyService {
     }
 }
 
+/// Whether a device shipped with a Lightning port. YubiKit's accessory
+/// connection is meant for those: it refuses the USB-C models it knows
+/// (iPhone 15, USB-C iPads) but treats any model newer than its table as
+/// having the port, so a later USB-C iPhone would offer Lightning and wait for
+/// a key it has no port for. Models this table doesn't recognize get no
+/// Lightning, since every iPhone and iPad released since has USB-C.
+enum LightningPort {
+    static var isPresentOnThisDevice: Bool {
+        var systemInfo = utsname()
+        uname(&systemInfo)
+        let machine = withUnsafeBytes(of: &systemInfo.machine) { bytes in
+            String(decoding: bytes.prefix { $0 != 0 }, as: UTF8.self)
+        }
+        return isPresent(onModel: machine)
+    }
+
+    /// `modelIdentifier` is a hardware model such as `iPhone14,7`.
+    static func isPresent(onModel modelIdentifier: String) -> Bool {
+        for family in ["iPhone", "iPad"] where modelIdentifier.hasPrefix(family) {
+            let numbers = modelIdentifier.dropFirst(family.count).split(separator: ",", omittingEmptySubsequences: false)
+            guard numbers.count == 2, let major = Int(numbers[0]), let minor = Int(numbers[1]) else { return false }
+            if family == "iPhone" {
+                // iPhone15,4 is the iPhone 15, the first with USB-C.
+                return (major, minor) < (15, 4)
+            }
+            // iPad8 (iPad Pro, 2018) and iPad13 onward are USB-C; iPad11 and
+            // iPad12 are the last Lightning iPad mini, iPad Air, and iPad.
+            return major <= 7 || major == 11 || major == 12
+        }
+        return false
+    }
+}
+
 #if os(iOS) && canImport(YubiKit)
 import CoreNFC
 @preconcurrency import YubiKit
@@ -70,7 +103,7 @@ enum HardwareKeyErrorMapper {
 private final class YubiKeyConnection: NSObject {
     static let shared = YubiKeyConnection()
 
-    private static let responseLength = 20
+    private nonisolated static let responseLength = 20
 
     private struct Request {
         let id: UUID
@@ -87,7 +120,7 @@ private final class YubiKeyConnection: NSObject {
         if YubiKitDeviceCapabilities.supportsISO7816NFCTags {
             transports.append(.nfc)
         }
-        if YubiKitDeviceCapabilities.supportsMFIAccessoryKey {
+        if YubiKitDeviceCapabilities.supportsMFIAccessoryKey, LightningPort.isPresentOnThisDevice {
             transports.append(.lightning)
         }
         return transports

@@ -37,9 +37,6 @@ KeeForge est un client KeePass natif pour iPhone, iPad et Mac. Les fichiers loca
 
 **[Rejoignez la bêta KeeForge sur TestFlight](https://testflight.apple.com/join/mPAT4f1a)**
 
-> [!WARNING]
-> **Testez avec une copie de votre base de données, pas avec votre coffre-fort principal.** Les versions bêta ne sont pas revues et partagent l’identifiant de bundle et le conteneur de l’application de l’App Store — elles ouvrent donc vos vrais fichiers `.kdbx`.
-
 ## Points forts
 
 | Domaine | Ce que fait KeeForge |
@@ -69,8 +66,10 @@ Lisez la [politique de confidentialité](https://keeforge.com/fr/privacy) ([vers
 KeeForge prend la sécurité des données très au sérieux : un gestionnaire de mots de passe ne doit jamais corrompre votre coffre-fort ni en perdre silencieusement une partie. Avant la publication de tout changement, des tests automatisés vérifient que :
 
 - **Rien n’est perdu à l’enregistrement.** Chaque type de modification est enregistré puis relu élément par élément — mots de passe, notes, pièces jointes, historique des entrées, et même les données d’autres applications KeePass que KeeForge ne reconnaît pas doivent toutes revenir exactement telles qu’elles ont été saisies.
-- **Votre fichier est protégé avant d’être touché.** KeeForge refuse d’écraser des modifications faites ailleurs pendant que le fichier était ouvert chez vous, écrit une sauvegarde horodatée avant chaque enregistrement, et rejette purement et simplement les bases de données endommagées plutôt que de charger des données partielles.
+- **Votre fichier est protégé avant d’être touché.** KeeForge vérifie si le fichier a été modifié ailleurs pendant qu’il était ouvert et refuse l’enregistrement lorsqu’il détecte un conflit, écrit une sauvegarde horodatée avant chaque enregistrement, et rejette purement et simplement les bases de données endommagées plutôt que de charger des données partielles.
 - **Un programme indépendant confirme.** Chaque version doit franchir une étape de vérification où KeePassXC — une application KeePass largement utilisée qui ne partage aucun code avec KeeForge — ouvre les bases de données écrites par KeeForge, déchiffre les mots de passe et confirme que les pièces jointes correspondent bit à bit. Les bases de données créées par d’autres logiciels KeePass doivent de même s’ouvrir dans KeeForge et rester lisibles ailleurs après avoir été enregistrées par KeeForge.
+
+Avec FTP, la dernière vérification des conflits et le remplacement du fichier ne peuvent pas se faire en une seule opération. Un enregistrement simultané depuis une autre application ou un autre appareil peut donc être écrasé. Évitez de modifier une base de données FTP à deux endroits en même temps.
 
 Pour les personnes curieuses sur le plan technique : la suite de tests est décrite dans [`KeeForgeTests/AGENTS.md`](../../KeeForgeTests/AGENTS.md), et l’étape de vérification avant chaque publication dans [`ci_scripts/README.md`](../../ci_scripts/README.md) (les deux en anglais).
 

@@ -4,22 +4,23 @@ import SwiftUI
 // App-level Settings entry points for the iOS build. They matter when the iPad
 // app runs on a Mac ("Designed for iPad"): the sidebar gear is hidden there and
 // the system "Settings…" menu item opens a compatibility window instead of
-// `SettingsView`. `KeeForgeApp` owns the sheet flag and publishes the presenter
-// through the environment so any column can raise it.
+// `SettingsView`. `KeeForgeApp` owns the presenter so any column can raise it.
 
-extension EnvironmentValues {
-    @Entry var presentAppSettings: () -> Void = {}
+@MainActor
+@Observable
+final class AppSettingsPresentation {
+    var isPresented = false
 }
 
 /// Replaces the app menu's Settings… item (⌘,) with one that presents the
 /// app-owned `SettingsView` sheet.
 struct AppSettingsCommands: Commands {
-    @Binding var isPresented: Bool
+    let presentation: AppSettingsPresentation
 
     var body: some Commands {
         CommandGroup(replacing: .appSettings) {
             Button("Settings…") {
-                isPresented = true
+                presentation.isPresented = true
             }
             .keyboardShortcut(",", modifiers: .command)
         }
@@ -35,14 +36,14 @@ extension View {
 }
 
 private struct AppSettingsToolbarModifier: ViewModifier {
-    @Environment(\.presentAppSettings) private var presentAppSettings
+    @Environment(AppSettingsPresentation.self) private var presentation
 
     func body(content: Content) -> some View {
         content.toolbar {
             if ProcessInfo.processInfo.isiOSAppOnMac {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
-                        presentAppSettings()
+                        presentation.isPresented = true
                     } label: {
                         Label("Settings", systemImage: "gearshape")
                     }

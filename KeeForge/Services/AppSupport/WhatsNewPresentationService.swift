@@ -58,6 +58,40 @@ enum WhatsNewCatalog {
         let features: [WhatsNewFeature]
 
         switch version {
+        case "1.17.0":
+            features = [
+                WhatsNewFeature(
+                    id: "ftp-databases",
+                    title: "Connect to databases over FTP",
+                    detail: "Open, save, and create databases on an FTP server. FTP is unencrypted, so use it only on a network you trust.",
+                    systemImage: "network"
+                ),
+                WhatsNewFeature(
+                    id: "yubikey-unlock",
+                    title: "Unlock with a YubiKey — experimental",
+                    detail: "Use NFC on any iPhone, or a Lightning YubiKey on iPhones and iPads with a Lightning port, to open protected KDBX 4 databases.",
+                    systemImage: "key.horizontal",
+                    platforms: [.iOS]
+                ),
+                WhatsNewFeature(
+                    id: "edit-custom-fields",
+                    title: "Edit custom fields",
+                    detail: "Add, rename, edit, and remove custom fields. Protected fields stay hidden and remain protected after renaming.",
+                    systemImage: "list.bullet.rectangle"
+                ),
+                WhatsNewFeature(
+                    id: "autofill-save-group",
+                    title: "Choose where AutoFill saves new entries",
+                    detail: "Choose the group where each database saves new AutoFill passwords and passkeys. The save screen shows which group will be used.",
+                    systemImage: "folder"
+                ),
+                WhatsNewFeature(
+                    id: "japanese-localization",
+                    title: "Use KeeForge in Japanese",
+                    detail: "KeeForge and AutoFill are now fully translated into Japanese.",
+                    systemImage: "globe"
+                ),
+            ]
         case "1.16.0":
             features = [
                 WhatsNewFeature(
