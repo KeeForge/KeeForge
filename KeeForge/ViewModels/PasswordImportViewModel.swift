@@ -142,7 +142,7 @@ final class PasswordImportViewModel {
             guard size <= PasswordImport.maximumFileSize else {
                 throw PasswordImportError.fileTooLarge
             }
-            var data = try Data(contentsOf: url)
+            var data = try CoordinatedFileReader.readData(from: url)
             defer { SecureWipe.wipe(&data) }
             return try ApplePasswordsCSVImporter.preview(from: data)
         }.value

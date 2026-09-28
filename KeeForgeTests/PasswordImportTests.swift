@@ -387,4 +387,38 @@ final class PasswordImportViewModelTests: XCTestCase {
         XCTAssertNil(viewModel.fileName)
         XCTAssertFalse(viewModel.isLoading)
     }
+
+    // MARK: - Reading the picked file
+
+    func testDefaultLoaderReadsAnExportFileFromDisk() async throws {
+        let url = try temporaryFile(named: "Passwords.csv")
+        try Data("Title,URL,Username,Password,Notes,OTPAuth\nA,https://a.example,me,pw,,\n".utf8).write(to: url)
+
+        let loaded = try await PasswordImportViewModel.loadApplePasswordsExport(from: url)
+
+        XCTAssertEqual(loaded.items.map(\.draft.title), ["A"])
+    }
+
+    func testDefaultLoaderRefusesAnOversizedFileBeforeReadingIt() async throws {
+        let url = try temporaryFile(named: "Huge.csv")
+        XCTAssertTrue(FileManager.default.createFile(atPath: url.path, contents: nil))
+        let handle = try FileHandle(forWritingTo: url)
+        try handle.truncate(atOffset: UInt64(PasswordImport.maximumFileSize + 1))
+        try handle.close()
+
+        do {
+            _ = try await PasswordImportViewModel.loadApplePasswordsExport(from: url)
+            XCTFail("An oversized file must be refused")
+        } catch {
+            XCTAssertEqual(error as? PasswordImportError, .fileTooLarge)
+        }
+    }
+
+    private func temporaryFile(named name: String) throws -> URL {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        addTeardownBlock { try? FileManager.default.removeItem(at: directory) }
+        return directory.appendingPathComponent(name)
+    }
 }
