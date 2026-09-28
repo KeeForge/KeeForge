@@ -46,7 +46,7 @@ In scope:
 - KDBX parsing, writing, and cryptography
 - Keychain, App Group, and local storage handling
 - Cloud sync and network features
-- macOS-specific security boundaries documented in [`docs/macos-security-notes.md`](docs/macos-security-notes.md)
+- macOS-specific security boundaries documented in [`KeeForgeMac/SECURITY.md`](KeeForgeMac/SECURITY.md)
 
 Out of scope:
 

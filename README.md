@@ -107,7 +107,6 @@ scripts/              # Local dev tooling
 - [`KeeForge/README.md`](KeeForge/README.md) - app-target architecture map
 - [`AutoFillExtension/AGENTS.md`](AutoFillExtension/AGENTS.md) - extension constraints and shared-source notes
 - [`SECURITY.md`](SECURITY.md) - vulnerability disclosure policy
-- [`docs/macos-security-notes.md`](docs/macos-security-notes.md) - macOS security model, platform limits, and mitigations
 - [`docs/`](docs/) - implementation specs, audits, and longer-form design docs
 
 ## Support

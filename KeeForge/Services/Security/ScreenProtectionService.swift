@@ -122,7 +122,7 @@ import AppKit
 /// nothing to hide, and covering a secret-free preferences window would only
 /// be visual noise. `shouldPrivacyCover(windowIdentifier:)` encodes that split.
 ///
-/// Window covering is exercised manually (see `docs/macos-security-notes.md`);
+/// Window covering is exercised manually (see `KeeForgeMac/SECURITY.md`);
 /// the pure policy decisions (`windowSharingType`, `shouldPrivacyCover`) are
 /// unit-tested.
 @MainActor

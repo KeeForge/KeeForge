@@ -4,11 +4,9 @@
 
 Files and folders are prefixed with the date the doc was written. Do not update these docs for new code changes unless explicitly asked.
 
-Two root items have no date prefix and are not archive material: `i18n/` and `macos-security-notes.md`. The user-facing privacy policy lives at <https://keeforge.com/privacy> (source in the `keeforge.com` repo); code changes should not contradict it.
+The `i18n/` folder has no date prefix and is not archive material. The user-facing privacy policy lives at <https://keeforge.com/privacy> (source in the `keeforge.com` repo); code changes should not contradict it.
 
 `i18n/` is **living**: it holds the translated `README.<locale>.md` and `CONTRIBUTING.<locale>.md` files for every shipped locale. Update them whenever the root `README.md` or `CONTRIBUTING.md` changes, and keep their relative links pointing at repo-root paths through `../../`.
-
-`macos-security-notes.md` is a **living** note on the macOS app's per-platform security deltas (in-memory model, App Group world-readability, screen-capture best-effort, clipboard ceiling, attachment previews, what is not fixable at the app level). Keep it truthful alongside the code; it backs the README security highlights and the in-app Settings copy.
 
 ## `specs/` — Feature Design Specs
 

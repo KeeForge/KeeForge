@@ -32,13 +32,14 @@ never replace the symlink with a second copy. The docs below are read on demand:
 - `KeeForge/Views/README.md` — UI rules every shell shares: the macOS grouped-form requirement, the `ForEach`/`.onMove` single-row-type rule, and the identifier surface
 - `KeeForge/Resources/README.md` — string catalogs, assets, and resource conventions
 - `KeeForgeMac/README.md` — macOS target constraints and "What Mac Work Has To Test"
+- `KeeForgeMac/SECURITY.md` — maintained Mac security boundaries and platform limitations
 - `KeeForgeUITests/README.md` — XCUITest workflow and flake-avoidance guidance
 - `TestFixtures/README.md` — bundled databases, passwords, and key files
 - `Vendor/KeeForgeTwofish/README.md` — vendored Twofish cipher package
 - `ci_scripts/README.md` — Xcode Cloud bootstrap and `run_kdbx_compatibility_gate.sh`, the required local release gate
 - `scripts/README.md` — local dev tooling
 - `.github/AGENTS.md` — CI workflow gating map (named `AGENTS.md` because GitHub renders a `.github/README.md` as the repo front-page README)
-- `docs/README.md` — historical archive of past design specs, audits, and notes (may not match current code), except `docs/macos-security-notes.md`, a living doc kept truthful with the code
+- `docs/README.md` — historical archive of past design specs, audits, and notes (may not match current code)
 
 ## Agent Orchestration
 
