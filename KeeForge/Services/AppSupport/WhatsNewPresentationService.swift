@@ -63,32 +63,32 @@ enum WhatsNewCatalog {
                 WhatsNewFeature(
                     id: "ftp-databases",
                     title: "Connect to databases over FTP",
-                    detail: "Open, save, and create databases directly on an FTP server. FTP is unencrypted, so KeeForge requires you to enable it explicitly and it should only be used on a network you trust.",
+                    detail: "Open, save, and create databases on an FTP server. FTP is unencrypted, so use it only on a network you trust.",
                     systemImage: "network"
                 ),
                 WhatsNewFeature(
                     id: "yubikey-unlock",
                     title: "Unlock with a YubiKey — experimental",
-                    detail: "On any iPhone, use NFC to open a YubiKey-protected KDBX 4 database. On iPhones and iPads with a Lightning port, you can also connect a Lightning YubiKey. These databases open read-only for now; USB-C, AutoFill, and Mac aren’t supported.",
+                    detail: "Use NFC on any iPhone, or a Lightning YubiKey on iPhones and iPads with a Lightning port, to open protected KDBX 4 databases.",
                     systemImage: "key.horizontal",
                     platforms: [.iOS]
                 ),
                 WhatsNewFeature(
                     id: "edit-custom-fields",
                     title: "Edit custom fields",
-                    detail: "Add, rename, edit, and remove custom fields while editing an entry. Protected fields stay hidden until revealed and remain protected after renaming.",
+                    detail: "Add, rename, edit, and remove custom fields. Protected fields stay hidden and remain protected after renaming.",
                     systemImage: "list.bullet.rectangle"
                 ),
                 WhatsNewFeature(
                     id: "autofill-save-group",
                     title: "Choose where AutoFill saves new entries",
-                    detail: "Pick a destination group for each database in Database Details. New passwords and passkeys saved from AutoFill go there, and the save screen shows which group will be used.",
+                    detail: "Choose the group where each database saves new AutoFill passwords and passkeys. The save screen shows which group will be used.",
                     systemImage: "folder"
                 ),
                 WhatsNewFeature(
                     id: "japanese-localization",
                     title: "Use KeeForge in Japanese",
-                    detail: "KeeForge is now fully translated into Japanese throughout the app and AutoFill.",
+                    detail: "KeeForge and AutoFill are now fully translated into Japanese.",
                     systemImage: "globe"
                 ),
             ]
