@@ -122,7 +122,7 @@ final class PendingUploadQueueTests: XCTestCase {
         XCTAssertEqual(markers.map(\.id), [extensionSnapshot.id])
         XCTAssertEqual(markers.first?.marker, finalized.marker)
         XCTAssertEqual(finalized.marker.openTimeSHA512, Data("payload-sha".utf8))
-        XCTAssertTrue(finalized.marker.isPayloadFinalized)
+        XCTAssertEqual(finalized.marker.isPayloadFinalized, true)
         XCTAssertFalse(finalized.marker.isConflicted)
         XCTAssertEqual(finalized.marker.expectedRev, "rev-2", "The drainer's rebase must survive finalization")
         XCTAssertEqual(finalized.marker.generation, 2)
@@ -257,7 +257,7 @@ final class PendingUploadQueueTests: XCTestCase {
         XCTAssertEqual(notificationCounter.value, 2)
     }
 
-    func test_dropMarkersWithPayloadSHA_dropsMatchesIncludingConflicted_keepsOthersAndExcluded() throws {
+    func test_dropMarkersWithPayloadSHA_dropsFinalizedMatchesIncludingConflicted_keepsOthersExcludedAndUnproven() throws {
         let environment = makeEnvironment()
         let databaseId = UUID()
         let supersededSHA = Data("base-sha".utf8)
@@ -289,6 +289,14 @@ final class PendingUploadQueueTests: XCTestCase {
             makeMarker(createdAt: Date(timeIntervalSince1970: 50), openTimeSHA512: supersededSHA),
             environment: environment
         )
+        // An unproven marker's hash may be the base its AutoFill save started
+        // from; a save on that base does not contain the change.
+        var provisionalMarker = makeMarker(databaseId: databaseId, createdAt: Date(timeIntervalSince1970: 60), isConflicted: true, openTimeSHA512: supersededSHA)
+        provisionalMarker.isPayloadFinalized = false
+        let provisional = try PendingUploadQueue.enqueue(provisionalMarker, environment: environment)
+        var legacyMarker = makeMarker(databaseId: databaseId, createdAt: Date(timeIntervalSince1970: 70), isConflicted: true, openTimeSHA512: supersededSHA)
+        legacyMarker.isPayloadFinalized = nil
+        let legacy = try PendingUploadQueue.enqueue(legacyMarker, environment: environment)
 
         PendingUploadQueue.dropMarkers(
             withPayloadSHA512: supersededSHA,
@@ -303,6 +311,8 @@ final class PendingUploadQueueTests: XCTestCase {
         XCTAssertTrue(remainingIDs.contains(differentPayload.id))
         XCTAssertTrue(remainingIDs.contains(newMarker.id))
         XCTAssertTrue(remainingIDs.contains(otherDatabase.id))
+        XCTAssertTrue(remainingIDs.contains(provisional.id))
+        XCTAssertTrue(remainingIDs.contains(legacy.id))
     }
 
     private func makeEnvironment(

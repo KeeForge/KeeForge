@@ -316,8 +316,11 @@ enum PendingUploadQueue {
     /// SHA equality proves supersession: that exact content is the base of
     /// what the caller is about to upload or just uploaded, so the marker can
     /// no longer represent unsaved content — including conflicted markers,
-    /// whose conflict the equality shows to be spurious. Best-effort per
-    /// marker: a failed drop leaves a phantom conflict badge, never data loss.
+    /// whose conflict the equality shows to be spurious. Only a finalized
+    /// marker counts: an unproven one may record the base its AutoFill save
+    /// started from, so a save on that base does not contain the change.
+    /// Best-effort per marker: a failed drop leaves a phantom conflict badge,
+    /// never data loss.
     static func dropMarkers(
         withPayloadSHA512 payloadSHA512: Data,
         for databaseId: UUID,
@@ -338,7 +341,9 @@ enum PendingUploadQueue {
         environment: Environment
     ) {
         for storedMarker in listMarkers(for: databaseId, environment: environment)
-        where storedMarker.id != excludedMarkerID && storedMarker.marker.openTimeSHA512 == payloadSHA512 {
+        where storedMarker.id != excludedMarkerID
+            && storedMarker.marker.isPayloadFinalized == true
+            && storedMarker.marker.openTimeSHA512 == payloadSHA512 {
             try? dropIfUnchanged(storedMarker, environment: environment)
         }
     }
