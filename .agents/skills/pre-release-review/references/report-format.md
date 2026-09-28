@@ -1,6 +1,6 @@
 # Pre-release review report contract (version 1)
 
-This is the shared contract for the review skill and the release skill's report check.
+This is the report contract for the standalone pre-release review skill.
 Use one human-readable Markdown report with YAML frontmatter, not a second JSON record.
 
 ## Location and naming
@@ -159,27 +159,3 @@ timestamped entries identifying old/new target SHAs, material finding transition
 supporting evidence. Update frontmatter and the concise current report after reviewing
 the delta and affected contracts. Do not append history to `report.md` or repeat it in
 the final response.
-
-## Release-time lookup and freshness
-
-1. Search `*/report.md` under the canonical root, plus any explicit report path the user
-   supplies. Validate schema, repository identity, baseline, and full SHAs. Malformed or
-   inaccessible reports are not proof of review.
-2. Select by applicable release lineage and reviewed commit coverage, not filename order
-   or the largest version. A newer unrelated-branch review must not displace a relevant
-   one. If there is no applicable report, warn with the expected root and invocation.
-3. Compare the effective `reviewed_through_commit` to the current candidate source. An
-   identical SHA is current. If it is an ancestor, inspect the intervening history and
-   diff. Only proven release bookkeeping (version/build metadata and release-note
-   organization with no changed behavior) may be called `current with bookkeeping
-   delta`; record those commits in supporting evidence. Behavioral, test, documentation, translation, workflow,
-   or website changes need a follow-up review. Do not whitelist entire files, or accept
-   an unrelated/superset commit as equivalent without evidence. Dirty candidate changes
-   also prevent calling the committed report fully current.
-4. Check the recorded website SHA against available source and identify changed reviewed
-   pages when practical. Website drift or unverified live deployment is reported separately
-   from app-commit freshness. Do not silently infer a website deployment from Git.
-5. Surface incomplete/unchecked coverage, open findings, deferred risks, and manual items
-   relevant to the candidate. Missing, outdated, malformed, or incomplete review evidence
-   produces an explicit warning; it is not a new hard release gate. Do not auto-run the
-   review or rewrite its verdict while checking for it.
