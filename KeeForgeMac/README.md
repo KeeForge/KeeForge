@@ -98,7 +98,7 @@ Keep `Info.plist` in sync with `KeeForge/Info.plist` and `AutoFillExtension/Info
 
 ## Security Posture
 
-Per-platform security deltas vs iOS: `docs/macos-security-notes.md` — a living doc; update it when Mac-relevant security behavior changes.
+The [macOS security model](SECURITY.md) covers secrets, shared storage, lock behavior, platform limits, extension entitlements, and update trust. Keep it current when Mac-relevant security behavior changes. Release procedures live in [CI Scripts](../ci_scripts/README.md#manual-sparkle-rehearsal-test-feed-only).
 
 ## Build And Test
 
@@ -125,7 +125,7 @@ The rule of thumb from `../AGENTS.md` ("macOS Test Strategy") in the form a chan
 | User-facing text | Translations for all six translated locales plus a `LocalizationTests` run; the Mac targets use the same four catalogs the iOS ones do. |
 | Parser, writer, protected fields, unknown XML, or any save path | `../KeeForgeTests/KDBXCompatibilityTests.swift`, plus the compatibility gate per platform: `KDBX_COMPAT_SCHEME=KeeForgeMac ci_scripts/run_kdbx_compatibility_gate.sh`. |
 | Anything writing to the system credential identity store | A `KeeForgeTests/CredentialIdentityStoreManagerTests.swift` case against `FakeCredentialIdentityStore` with `supportsIncrementalUpdatesValue = false`, alongside the incremental one. macOS takes that branch for every write. |
-| Entitlements, the App Group container, the AutoFill extension boundary, or Sparkle | `docs/macos-security-notes.md` refreshed against what actually shipped, and `AppGroupGuardrailTests` re-run if the container's write surface moved. |
+| Entitlements, the App Group container, the AutoFill extension boundary, or Sparkle | [`SECURITY.md`](SECURITY.md) refreshed against what actually shipped, and `AppGroupGuardrailTests` re-run if the container's write surface moved. |
 
 Two standing constraints behind the table:
 

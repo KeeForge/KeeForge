@@ -421,6 +421,26 @@ enum DatabaseListStore {
         }
     }
 
+    /// Adding or removing the hardware key changes what the stored Quick
+    /// Launch key means (composite key vs. pre-key), so that key is dropped
+    /// and the next successful unlock stores the right one.
+    static func setHardwareKey(_ hardwareKey: HardwareKeyConfiguration?, for reference: DatabaseReference) {
+        withStateLock {
+            guard var updatedReference = loadDatabases().first(where: { $0.id == reference.id }) else { return }
+            guard updatedReference.hardwareKey != hardwareKey else { return }
+
+            if (updatedReference.hardwareKey == nil) != (hardwareKey == nil) {
+                KeychainService.deleteCompositeKey(for: updatedReference.id)
+                if let legacyFilename = updatedReference.legacyKeychainFilename {
+                    KeychainService.deleteLegacyCompositeKey(forFilename: legacyFilename)
+                    updatedReference.legacyKeychainFilename = nil
+                }
+            }
+            updatedReference.hardwareKey = hardwareKey
+            update(updatedReference)
+        }
+    }
+
     /// Owns the consequences of toggling a database's AutoFill participation
     /// (mirroring how `remove(id:)` owns removal consequences): disabling
     /// removes exactly that database's published identities — targeted, needs
@@ -565,7 +585,11 @@ enum DatabaseListStore {
         case databaseInTrash
 
         var errorDescription: String? {
+            #if os(macOS)
+            String(localized: "The database file is in the Trash. Restore it from the Trash in Finder, or choose the current file with Locate Database File in KeeForge.")
+            #else
             String(localized: "The database file is in Recently Deleted in the Files app. Restore it in Files, or choose the current file with Locate Database File in KeeForge.")
+            #endif
         }
     }
 

@@ -140,7 +140,7 @@ struct GroupListView: View {
                                 }
 
                                 if viewModel.isReadOnly {
-                                    ReadOnlyIndicator(isFormatReadOnly: viewModel.isFormatReadOnly)
+                                    ReadOnlyIndicator(explanation: viewModel.readOnlyExplanation)
                                 }
 
                                 if viewModel.isReadOnly == false {

@@ -216,6 +216,10 @@ struct UnlockView: View {
 
             keyFileRow
 
+            if viewModel.availableHardwareKeyTransports.isEmpty == false || viewModel.hardwareKey != nil {
+                hardwareKeyRow
+            }
+
             Button(action: unlockWithPassword) {
                 Label("Unlock Database", systemImage: "lock.open.fill")
                     .frame(maxWidth: .infinity)
@@ -223,7 +227,7 @@ struct UnlockView: View {
             }
             .buttonStyle(.borderedProminent)
             .macControlSizeLarge()
-            .disabled((password.isEmpty && keyFileData == nil) || isUnlocking)
+            .disabled(hasKeyComponent == false || isUnlocking)
             .accessibilityIdentifier("unlock.button")
 
             if viewModel.canUseBiometrics {
@@ -414,6 +418,79 @@ struct UnlockView: View {
         }
     }
 
+    private var hardwareKeyRow: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Hardware Key")
+                .font(.caption.weight(.medium))
+                .foregroundStyle(.secondary)
+
+            Menu {
+                Button {
+                    viewModel.setHardwareKey(nil)
+                } label: {
+                    if viewModel.hardwareKey == nil {
+                        Label("None", systemImage: "checkmark")
+                    } else {
+                        Text("None")
+                    }
+                }
+
+                ForEach(hardwareKeyOptions, id: \.self) { option in
+                    Button {
+                        viewModel.setHardwareKey(option)
+                    } label: {
+                        if viewModel.hardwareKey == option {
+                            Label(hardwareKeyTitle(option), systemImage: "checkmark")
+                        } else {
+                            Text(hardwareKeyTitle(option))
+                        }
+                    }
+                }
+            } label: {
+                HStack(spacing: 12) {
+                    Image(systemName: "key.radiowaves.forward")
+                        .foregroundStyle(.primary)
+
+                    Text(viewModel.hardwareKey.map(hardwareKeyTitle) ?? String(localized: "None"))
+                        .foregroundStyle(viewModel.hardwareKey == nil ? .secondary : .primary)
+                        .lineLimit(1)
+
+                    Spacer(minLength: 8)
+
+                    Image(systemName: "chevron.up.chevron.down")
+                        .font(.subheadline)
+                        .foregroundStyle(.tint)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("unlock.hardware-key.picker")
+            .modifier(UnlockInputContainer())
+        }
+    }
+
+    /// Every slot on each transport this device has, plus the stored choice
+    /// even when this device lacks its transport, so the picker can show it.
+    private var hardwareKeyOptions: [HardwareKeyConfiguration] {
+        var options = viewModel.availableHardwareKeyTransports.flatMap { transport in
+            HardwareKeyConfiguration.Slot.allCases.map { HardwareKeyConfiguration(transport: transport, slot: $0) }
+        }
+        if let current = viewModel.hardwareKey, options.contains(current) == false {
+            options.append(current)
+        }
+        return options
+    }
+
+    private func hardwareKeyTitle(_ configuration: HardwareKeyConfiguration) -> String {
+        switch (configuration.transport, configuration.slot) {
+        case (.nfc, .one): String(localized: "YubiKey via NFC, Slot 1")
+        case (.nfc, .two): String(localized: "YubiKey via NFC, Slot 2")
+        case (.lightning, .one): String(localized: "YubiKey via Lightning, Slot 1")
+        case (.lightning, .two): String(localized: "YubiKey via Lightning, Slot 2")
+        }
+    }
+
     private var unavailableSection: some View {
         VStack(spacing: 16) {
             Text("This database is unavailable. Return to the database list to remove it or refresh its bookmark.")
@@ -440,8 +517,13 @@ struct UnlockView: View {
         return false
     }
 
+    /// A YubiKey alone is a valid master key; KeePassXC allows it.
+    private var hasKeyComponent: Bool {
+        password.isEmpty == false || keyFileData != nil || viewModel.hardwareKey != nil
+    }
+
     private func retryUnlock() {
-        if password.isEmpty == false || keyFileData != nil {
+        if hasKeyComponent {
             unlockWithPassword()
             return
         }
@@ -461,8 +543,7 @@ struct UnlockView: View {
     }
 
     private func unlockWithPassword() {
-        let pwd = password.isEmpty ? nil : password
-        guard pwd != nil || keyFileData != nil else { return }
+        guard hasKeyComponent else { return }
         Task {
             await viewModel.unlock(password: password, keyFileData: keyFileData)
             if case .unlocked = viewModel.state {
@@ -643,6 +724,7 @@ struct DatabaseOpeningView: View {
     let databaseName: String
     let statusMessage: String
     var progress: Double? = nil
+    var onCancel: (() -> Void)? = nil
 
     var body: some View {
         VStack(spacing: 18) {
@@ -675,6 +757,12 @@ struct DatabaseOpeningView: View {
             } else {
                 ProgressView()
                     .controlSize(.large)
+            }
+
+            if let onCancel {
+                Button("Cancel", action: onCancel)
+                    .buttonStyle(.bordered)
+                    .accessibilityIdentifier("unlock.hardware-key.cancel")
             }
 
             Spacer()

@@ -60,18 +60,20 @@ every minor, major, patch, and respin candidate and is identical on `KeeForge`,
 `KeeForgeAutoFill`, `KeeForgeMac`, and `KeeForgeMacAutoFill`. It is never reset for a new marketing
 version. The direct build's `CFBundleVersion` is this repo build. Xcode Cloud may assign separate,
 platform-specific TestFlight build numbers; record both and match each back to the RC tag and SHA.
-Do not compare either TestFlight number with `repoBuild` or force the platform numbers to match.
+Existing App Store Connect uploads contribute a pre-candidate monotonic floor, but do not require
+the new platform TestFlight numbers to equal `repoBuild` or force the platform numbers to match.
 
 During a release, record the state in `scratch/release-manifests/{version}-b{repoBuild}.json`.
 That path is gitignored and is working state, not a secret store. The manifest must contain only
 non-secret evidence: `schemaVersion`, `version`, `repoBuild`, `rcTag`, `commitSHA`, `sourceTree`,
-both platform build numbers/version records, distribution timestamps and soak metrics, all gate
-verdicts/URLs or log paths, direct zip filename/URL/SHA-256, Sparkle signature attributes,
-notarization ID, archive/symbol locations, review states, release timestamps, and accepted soak
-exceptions. Never put passwords, tokens, App Store Connect credentials, private signing keys,
-keychain profiles, or cloud secret values in it or in logs. At ship time preserve the completed
-non-secret manifest with the release evidence (for example, GitHub Release notes/asset or the
-team's secure release archive); the scratch copy is not the long-term record.
+the App Store Connect build-number preflight, both platform build numbers/version records,
+distribution timestamps and soak metrics, all gate verdicts/URLs or log paths, direct zip
+filename/URL/SHA-256, Sparkle signature attributes, notarization ID, archive/symbol locations,
+review states, release timestamps, and accepted soak exceptions. Never put passwords, tokens,
+App Store Connect credentials, private signing keys, keychain profiles, or cloud secret values in
+it or in logs. At ship time preserve the completed non-secret manifest with the release evidence
+(for example, GitHub Release notes/asset or the team's secure release archive); the scratch copy is
+not the long-term record.
 
 A passed gate records its verdict and a log, URL, or result bundle. An adjudicated gate is only an
 XCTest result: record `failureKind: "xctest"`, the failed test names, exact local reproductions, and
@@ -112,6 +114,30 @@ Identify which mode applies before touching anything. Ask the user if it is ambi
 | Soak criteria met, ready for the App Store | **C — Ship** |
 | Shipped version needs a patch (`1.11.1`) | **D — Patch** |
 
+## App Store Connect build-number preflight
+
+For every candidate prepared in Mode A, B, or D, perform this read-only check as soon as the
+marketing version is confirmed and before changing `CURRENT_PROJECT_VERSION`:
+
+1. Use browser control to open KeeForge in the signed-in App Store Connect website, then open
+   TestFlight. Inspect the upload history separately for **iOS** and **macOS**; checking only the
+   currently selected platform is insufficient.
+2. Record the greatest existing uploaded build number for each platform across marketing versions,
+   including builds that are processing, expired, rejected, or otherwise not distributable. An
+   upload has consumed its build number even when it never shipped. If one platform has no uploads,
+   record that explicitly and use the other platform's history.
+3. Set `ascNextBuild` to one greater than the larger of the iOS and macOS maxima. State both
+   platform maxima, the observation time, and `ascNextBuild` before editing the project. Carry this
+   non-secret evidence into the candidate manifest after A7 initializes it.
+4. If App Store Connect is inaccessible, either platform's history cannot be inspected, or the
+   next number is ambiguous, stop. Do not infer it from a stale setup note, one platform, local
+   tags, or the working tree.
+
+This check establishes the App Store upload floor. A5 or B2 also establishes the repository floor;
+the candidate uses the higher result. Xcode Cloud may still assign different platform-specific
+TestFlight numbers to the new archives, so record the actual uploaded numbers later in A9 rather
+than assuming they equal `repoBuild`.
+
 Reference files, read on demand:
 
 - `gate-adjudication.md` — how to read cloud check runs and adjudicate test failures locally.
@@ -137,6 +163,7 @@ Reference files, read on demand:
    - `{version}` is valid semver (MAJOR.MINOR.PATCH) and greater than the current `MARKETING_VERSION`.
    - `release/{major}.{minor}` does not already exist. **If it does, this is Mode B or D, not Mode A.**
 5. If a version was not supplied, suggest the next minor bump and ask the user to confirm.
+6. Once the version is confirmed, immediately run the App Store Connect build-number preflight.
 
 ## A2. Update CHANGELOG.md
 
@@ -240,18 +267,25 @@ one commit on `main` undoes all of it together.
 
 ## A5. Set the candidate build number
 
-Determine `repoBuild` mechanically; never guess from the latest TestFlight number or from a single
-working-tree value. The new four-target invariant begins with this process: older revisions may
-predate the Mac targets and may contain unequal or reset build values. Scan those revisions for
-every numeric value belonging to whichever of the four targets existed, using their maximum only as
-the legacy floor. Separately require the current working tree to satisfy the new invariant. First
-fetch the refs used for release bookkeeping, then validate every present new-process manifest. Run
-this in a fresh Bash shell; any failed check is a stop, not a reason to fall back to a guessed value:
+Determine the repository floor mechanically; never use the App Store Connect result or a single
+working-tree value as the only source. The new four-target invariant begins with this process:
+older revisions may predate the Mac targets and may contain unequal or reset build values. Scan
+those revisions for every numeric value belonging to whichever of the four targets existed, using
+their maximum only as the legacy floor. Separately require the current working tree to satisfy the
+new invariant. First fetch the refs used for release bookkeeping, then validate every present
+new-process manifest. Run this in a fresh Bash shell; any failed check is a stop, not a reason to
+fall back to a guessed value:
 
 ```bash
 git fetch origin --tags 'refs/heads/release/*:refs/remotes/origin/release/*'
 ci_scripts/next_repo_build.sh --no-fetch
 ```
+
+Call the script's reported value `localNextBuild`. Set `repoBuild` to
+`max(localNextBuild, ascNextBuild)` and state which floor determined it. The App Store Connect
+preflight is mandatory even when `localNextBuild` is already higher; conversely, an App Store
+upload ahead of repository history must raise `repoBuild` so the shared project/direct build never
+trails a number already consumed by either store platform.
 
 Stop if the current `project.yml` does not contain exactly one numeric
 `CURRENT_PROJECT_VERSION` for each of `KeeForge`, `KeeForgeAutoFill`, `KeeForgeMac`, and
@@ -260,11 +294,12 @@ to satisfy this new invariant: absent Mac targets, unequal values, and old reset
 only numeric values from an existing target contribute to the legacy floor. Stop if a present
 new-process manifest is malformed/missing `repoBuild`, or if its `repoBuild` disagrees with its
 filename/RC tag. The greatest validated value across reachable project history and manifests is the
-previous global maximum; set `repoBuild` to exactly that value plus one on all four current targets.
-Re-check that all four current values are identical before committing and record the result in the
-new manifest. A missing project history or no usable numeric historical value is not evidence that
-the floor is zero; stop and resolve the scope instead. A manifest from a different release may
-legitimately have a lower build; only malformed or internally inconsistent evidence is a disagreement.
+previous global maximum; its successor is `localNextBuild`. Set the selected `repoBuild` on all
+four current targets. Re-check that all four current values are identical before committing and
+record the result plus the App Store Connect preflight in the new manifest. A missing project
+history or no usable numeric historical value is not evidence that the floor is zero; stop and
+resolve the scope instead. A manifest from a different release may legitimately have a lower build;
+only malformed or internally inconsistent evidence is a disagreement.
 
 `MARKETING_VERSION` is already correct from A4.
 
@@ -555,10 +590,12 @@ Never amend or force-push an existing release commit; the fix is always a new co
 
 ## B2. Bump the build number
 
-In `project.yml`, increment the globally monotonic `CURRENT_PROJECT_VERSION` by 1 on **all four**
-targets: `KeeForge`, `KeeForgeAutoFill`, `KeeForgeMac`, and `KeeForgeMacAutoFill`. Never reset it;
-`MARKETING_VERSION` does not change. Update `repoBuild` in the new manifest and rebuild iOS, MAS,
-and direct artifacts from the new RC commit.
+Run the App Store Connect build-number preflight again for this respin; never reuse the observation
+from the prior candidate. Then run A5's repository-floor command and set `repoBuild` to
+`max(localNextBuild, ascNextBuild)` on **all four** targets: `KeeForge`, `KeeForgeAutoFill`,
+`KeeForgeMac`, and `KeeForgeMacAutoFill`. Never reset it; `MARKETING_VERSION` does not change.
+Carry `repoBuild` and the new preflight evidence into the manifest after A7 initializes it, then
+rebuild iOS, MAS, and direct artifacts from the new RC commit.
 
 If the fix warrants a user-visible changelog line, add it to the version's section in
 `CHANGELOG.md` (not `## Unreleased` — this version is no longer unreleased on this branch).
@@ -760,8 +797,10 @@ Verify the branch tip is at or after the `v{major}.{minor}.0` tag.
 ## D2. Land the fix and bump
 
 1. Land the fix (Mode B1) and port it to `main` (Mode B5).
-2. In `project.yml`, set `MARKETING_VERSION` to the patch version and increment the global
-   `CURRENT_PROJECT_VERSION` on all four targets. Never reset it to `"1"`.
+2. Confirm the patch marketing version, then run the App Store Connect build-number preflight and
+   A5's repository-floor command. In `project.yml`, set `MARKETING_VERSION` to the patch version
+   and set the global `CURRENT_PROJECT_VERSION` on all four targets to
+   `max(localNextBuild, ascNextBuild)`. Never reset it to `"1"`.
 3. Add a `## v{version} ({date})` section to `CHANGELOG.md` above the previous version's section.
 4. Run A3 only if the patch has a user-visible highlight worth a What's New sheet. Most patches do
    not; confirm `WhatsNewCatalog` has no case rather than shipping an empty sheet.

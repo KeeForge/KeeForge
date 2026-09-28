@@ -16,7 +16,7 @@ struct KeeForgeApp: App {
     @State private var macLockMonitor = MacLockMonitor()
     @State private var macWindowCloseGuard = MacWindowCloseGuard()
     #else
-    @State private var isShowingAppSettings = false
+    @State private var appSettingsPresentation = AppSettingsPresentation()
     #endif
     @AppStorage(SettingsService.appearanceModeDefaultsKey) private var appearanceModeRaw = SettingsService.AppearanceMode.system.rawValue
     @AppStorage(SettingsService.appAccentColorDefaultsKey) private var appAccentColorRaw = ""
@@ -50,8 +50,8 @@ struct KeeForgeApp: App {
             #else
             // App-owned Settings sheet (⌘, / the Mac-compat toolbar gear),
             // above the root so it survives the lock/unlock root swap.
-            .environment(\.presentAppSettings, { isShowingAppSettings = true })
-            .sheet(isPresented: $isShowingAppSettings) {
+            .environment(appSettingsPresentation)
+            .sheet(isPresented: $appSettingsPresentation.isPresented) {
                 SettingsView(viewModel: activeDatabaseViewModel, listViewModel: listViewModel)
             }
             #endif
@@ -120,7 +120,7 @@ struct KeeForgeApp: App {
         #else
         return windowGroup
             .commands {
-                AppSettingsCommands(isPresented: $isShowingAppSettings)
+                AppSettingsCommands(presentation: appSettingsPresentation)
             }
         #endif
     }
@@ -731,6 +731,13 @@ private struct CompactDatabaseHost: View {
     }
 }
 
+/// Offered by the opening screen only while a YubiKey challenge is outstanding.
+@MainActor
+private func hardwareKeyCancelAction(for viewModel: DatabaseViewModel) -> (() -> Void)? {
+    guard viewModel.isAwaitingHardwareKey else { return nil }
+    return { viewModel.cancelHardwareKeyRequest() }
+}
+
 private struct CompactUnlockScene: View {
     @Bindable var viewModel: DatabaseViewModel
     let onReturnToList: () -> Void
@@ -763,7 +770,8 @@ private struct CompactUnlockScene: View {
                 DatabaseOpeningView(
                     databaseName: viewModel.databaseDisplayName,
                     statusMessage: viewModel.unlockStatusMessage,
-                    progress: viewModel.cloudSyncProgress
+                    progress: viewModel.cloudSyncProgress,
+                    onCancel: hardwareKeyCancelAction(for: viewModel)
                 )
                     .transition(.opacity)
             case .unlocked:
@@ -811,7 +819,8 @@ private struct RegularDatabaseScene: View {
                 DatabaseOpeningView(
                     databaseName: viewModel.databaseDisplayName,
                     statusMessage: viewModel.unlockStatusMessage,
-                    progress: viewModel.cloudSyncProgress
+                    progress: viewModel.cloudSyncProgress,
+                    onCancel: hardwareKeyCancelAction(for: viewModel)
                 )
                 .transition(.opacity)
             case .unlocked:

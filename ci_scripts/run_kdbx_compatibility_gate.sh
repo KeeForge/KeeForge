@@ -57,6 +57,7 @@ import subprocess
 import sys
 import tempfile
 import time
+import xml.etree.ElementTree as ET
 
 attachment_dir = sys.argv[1]
 keepassxc_cli = sys.argv[2]
@@ -169,6 +170,7 @@ artifacts = [merged_artifacts[key] for key in sorted(merged_artifacts)]
 attachment_checks_verified = 0
 password_checks_verified = 0
 totp_checks_verified = 0
+custom_field_checks_verified = 0
 entry_path_cache = {}
 
 TOTP_HASHES = {"SHA1": hashlib.sha1, "SHA256": hashlib.sha256, "SHA512": hashlib.sha512}
@@ -215,6 +217,50 @@ def resolve_entry_path(db_path, base_options, password, entry_title, artifact_id
 
     entry_path_cache[cache_key] = resolved
     return resolved
+
+def verify_field_set(entry, expected, label):
+    strings = {}
+    for item in entry.findall("String"):
+        name = item.findtext("Key")
+        if name in strings:
+            raise ValueError(f"{label}: duplicate field {name!r}")
+        strings[name] = item.find("Value")
+    for field in expected["fields"]:
+        name = field["name"]
+        value = strings.get(name)
+        if value is None:
+            raise ValueError(f"{label}: missing field {name!r}")
+        if (value.text or "") != field["value"]:
+            raise ValueError(f"{label}: incorrect value for field {name!r}")
+        # KeePassXC exports decrypted values and preserves their protection
+        # as ProtectInMemory, rather than the on-disk Protected attribute.
+        protected = value.get("ProtectInMemory", "False") == "True"
+        if protected != field["isProtected"]:
+            raise ValueError(f"{label}: incorrect protection for field {name!r}")
+    for name in expected["absentFields"]:
+        if name in strings:
+            raise ValueError(f"{label}: deleted field {name!r} is still present")
+
+
+def verify_custom_fields(xml, expectations):
+    root = ET.fromstring(xml)
+    for expected in expectations:
+        title = expected["entryTitle"]
+        matches = [
+            entry for entry in root.findall(".//Group/Entry")
+            if any(item.findtext("Key") == "Title" and item.findtext("Value") == title
+                   for item in entry.findall("String"))
+        ]
+        if len(matches) != 1:
+            raise ValueError(f"expected exactly one live entry titled {title!r}, found {len(matches)}")
+        entry = matches[0]
+        verify_field_set(entry, expected["current"], title)
+        history = entry.findall("History/Entry")
+        if len(history) != len(expected["history"]):
+            raise ValueError(f"{title}: incorrect history count")
+        for index, (version, fields) in enumerate(zip(history, expected["history"])):
+            verify_field_set(version, fields, f"{title} history {index}")
+
 
 for artifact in artifacts:
     artifact_id = artifact["id"]
@@ -287,6 +333,20 @@ for artifact in artifacts:
                 )
             else:
                 attachment_checks_verified += 1
+
+    custom_fields = artifact.get("expectedCustomFields", [])
+    if custom_fields:
+        command = [keepassxc_cli, "export", *base_options, "-f", "xml", db_path]
+        result = run_keepassxc(command, artifact["password"])
+        if result.returncode != 0:
+            failures.append(f"{artifact_id}: XML export failed\nstderr: {result.stderr}")
+        else:
+            try:
+                verify_custom_fields(result.stdout, custom_fields)
+            except (ET.ParseError, ValueError) as error:
+                failures.append(f"{artifact_id}: {error}")
+            else:
+                custom_field_checks_verified += len(custom_fields)
 
     # Protected values: prove an external opener can decrypt what KeeForge
     # wrote into the inner random stream. Searching by title and listing groups
@@ -375,14 +435,20 @@ if failures:
         print(f"- {failure}", file=sys.stderr)
     sys.exit(1)
 
-print(
-    f"KDBX compatibility gate passed for {len(artifacts)} artifacts "
-    f"({attachment_checks_verified} attachment checks, "
-    f"{password_checks_verified} protected-password checks, "
-    f"{totp_checks_verified} TOTP checks verified)."
-)
+if custom_field_checks_verified == 0:
+    print("error: no custom-field checks ran — the edit artifact lost its expectations", file=sys.stderr)
+    sys.exit(1)
 
 if totp_checks_verified == 0:
     print("error: no TOTP checks ran — the enrollment artifacts lost their expectations", file=sys.stderr)
     sys.exit(1)
+
+print(
+    f"KDBX compatibility gate passed for {len(artifacts)} artifacts "
+    f"({attachment_checks_verified} attachment checks, "
+    f"{password_checks_verified} protected-password checks, "
+    f"{totp_checks_verified} TOTP checks, "
+    f"{custom_field_checks_verified} custom-field/history checks verified)."
+)
+
 PY

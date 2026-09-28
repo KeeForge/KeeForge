@@ -70,7 +70,10 @@ struct FTPConnectView: View {
                 } header: {
                     Text("Security")
                 } footer: {
-                    Text("FTP sends your username, password, and database file without encryption. Only use it on a local network you trust.")
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("FTP sends your username, password, and database file without encryption. Only use it on a local network you trust.")
+                        Text("FTP cannot prevent every simultaneous save. Avoid editing this database from another app or device at the same time; a concurrent change may be overwritten.")
+                    }
                 }
 
                 if let errorMessage = viewModel.errorMessage {

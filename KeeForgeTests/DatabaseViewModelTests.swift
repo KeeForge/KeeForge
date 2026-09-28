@@ -511,10 +511,9 @@ final class DatabaseViewModelTests: XCTestCase {
         XCTAssertFalse(vm.openFailure?.countsTowardFailedAttempts ?? true)
     }
 
-    func testUnlockFailsWhenDatabaseFileIsInRecentlyDeleted() async throws {
-        // A bookmark follows its file into the Files app's Recently Deleted
-        // (".Trash"), so unlock must refuse the stale copy with a dedicated
-        // failure instead of silently opening it.
+    func testUnlockFailsWhenDatabaseFileIsInTrash() async throws {
+        // A bookmark can follow a deleted file into the trash, so unlock must
+        // refuse the stale copy instead of silently opening it.
         let fileManager = FileManager.default
         let trashDirectoryURL = fileManager.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
@@ -533,6 +532,24 @@ final class DatabaseViewModelTests: XCTestCase {
         XCTAssertFalse(vm.openFailure?.countsTowardFailedAttempts ?? true)
         XCTAssertNil(vm.rootGroup)
         XCTAssertNil(DatabaseListStore.cachedDatabaseURL(for: reference.id))
+    }
+
+    func testTrashRecoveryGuidanceMatchesPlatform() throws {
+        let error = DatabaseListStore.LocalDatabaseFileError.databaseInTrash
+        let failure = DatabaseOpenFailure.classify(error, isCloudBacked: false)
+        let description = try XCTUnwrap(error.errorDescription)
+
+        #if os(macOS)
+        XCTAssertEqual(failure.title, String(localized: "Database Is in the Trash"))
+        XCTAssertTrue(failure.summary.contains("Finder"))
+        XCTAssertTrue(description.contains("Finder"))
+        XCTAssertFalse(failure.summary.contains("Files app"))
+        XCTAssertFalse(description.contains("Files app"))
+        #else
+        XCTAssertEqual(failure.title, String(localized: "Database Is in Recently Deleted"))
+        XCTAssertEqual(failure.summary, String(localized: "The database file was moved to Recently Deleted in the Files app — it may have been deleted, or replaced by a newer copy. Restore it in Files, or choose the current file with Locate Database File."))
+        XCTAssertEqual(description, String(localized: "The database file is in Recently Deleted in the Files app. Restore it in Files, or choose the current file with Locate Database File in KeeForge."))
+        #endif
     }
 
     func testRelinkAfterProviderReplacedFileUnlocksSameReference() async throws {
