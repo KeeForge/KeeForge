@@ -12,6 +12,7 @@ description: >
   TestFlight/App Store. Triggers on phrases like "release", "new version", "bump version",
   "cut a release", "prepare release", "ship it", "release candidate", "respin", "new RC build",
   "hotfix", or "push a new build".
+  Standalone readiness reviews use pre-release-review; release only checks its report.
 ---
 
 # KeeForge Release Workflow
@@ -111,6 +112,30 @@ Identify which mode applies before touching anything. Ask the user if it is ambi
 | Release branch exists, a fix needs a new candidate build | **B — Respin** |
 | Soak criteria met, ready for the App Store | **C — Ship** |
 | Shipped version needs a patch (`1.11.1`) | **D — Patch** |
+
+## Pre-release review report check
+
+For candidate preparation in Modes A, B, and D, check for the separately invoked
+`pre-release-review` report before release mutations. For B/D, also account for fixes
+landed during preparation before tagging the candidate. Follow the shared
+[report contract and lookup rules](../pre-release-review/references/report-format.md).
+The canonical location is the primary checkout's `scratch/pre-release/*/report.md`
+(`/Users/tan/src/KeeForge/scratch/pre-release/` on Tan's Mac), shared across worktrees.
+
+Link the applicable report and state whether it is current, current with an inspected
+bookkeeping delta, outdated, or missing. Surface incomplete coverage, unresolved findings,
+website drift, and manual checks relevant to the candidate. Warn clearly if the report
+is missing, malformed, outdated, or incomplete, naming the location and recommending
+`$pre-release-review` or a focused follow-up. Do not launch that skill automatically.
+This warning is advisory, not a new hard gate or a request for repeated permission;
+continue the authorized release workflow subject to its existing invariants.
+
+Carry the report link and relevant manual checks into the release handoff. Pre-release
+verification never replaces candidate gates or exact-artifact soak evidence. Mode C
+consumes the handoff; do not reopen accepted gates or demand a new review merely because
+the candidate is now being shipped.
+Keep the human-facing check brief: report status plus actionable findings or material
+limitations. Do not repeat audit history, routine passing tests, or inspected-file lists.
 
 Reference files, read on demand:
 
