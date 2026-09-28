@@ -141,6 +141,23 @@ final class DatabaseViewModelTests: XCTestCase {
         XCTAssertState(vm.state, is: .unlocked)
     }
 
+    func testAppleWatchUnlockIsOfferedOnlyByTheNativeMacApp() throws {
+        let vm = try makeViewModel()
+        let databaseID = vm.databaseReference.id
+        defer { KeychainService.deleteQuickUnlockKeys(for: databaseID) }
+        do {
+            try KeychainService.storeCompanionCompositeKey(SymmetricKey(size: .bits256), for: databaseID)
+        } catch {
+            throw XCTSkip("Companion-protected keychain writes are unavailable in the current test host: \(error)")
+        }
+
+        #if os(macOS)
+        XCTAssertTrue(vm.canUseCompanionUnlock)
+        #else
+        XCTAssertFalse(vm.canUseCompanionUnlock, "iPhone, iPad and the iOS app on a Mac never offer Apple Watch unlock")
+        #endif
+    }
+
     func testCompanionUnlockCancellationLeavesDatabaseLockedWithoutAnError() async throws {
         let vm = try makeViewModel(
             companionCompositeKeyOperation: { _, _ in throw LAError(.userCancel) }
@@ -5468,7 +5485,11 @@ final class DatabaseViewModelTests: XCTestCase {
             KeychainService.hasAnyStoredKey(for: reference.id, legacyFilename: reference.legacyKeychainFilename)
         },
         storedKeyStoreOperation: @escaping DatabaseViewModel.StoredKeyStoreOperation = { compositeKey, reference in
-            try KeychainService.storeAvailableQuickUnlockKeys(compositeKey, for: reference.id)
+            try KeychainService.replaceStoredQuickUnlockKeys(
+                compositeKey,
+                for: reference.id,
+                legacyFilename: reference.legacyKeychainFilename
+            )
         },
         storedKeyDeleteOperation: @escaping DatabaseViewModel.StoredKeyDeleteOperation = { reference in
             KeychainService.deleteQuickUnlockKeys(for: reference.id)

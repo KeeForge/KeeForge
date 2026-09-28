@@ -613,7 +613,11 @@ final class DatabaseViewModel {
             KeychainService.hasAnyStoredKey(for: reference.id, legacyFilename: reference.legacyKeychainFilename)
         },
         storedKeyStoreOperation: @escaping StoredKeyStoreOperation = { compositeKey, reference in
-            try KeychainService.storeAvailableQuickUnlockKeys(compositeKey, for: reference.id)
+            try KeychainService.replaceStoredQuickUnlockKeys(
+                compositeKey,
+                for: reference.id,
+                legacyFilename: reference.legacyKeychainFilename
+            )
         },
         storedKeyDeleteOperation: @escaping StoredKeyDeleteOperation = { reference in
             KeychainService.deleteQuickUnlockKeys(for: reference.id)
@@ -3370,7 +3374,9 @@ final class DatabaseViewModel {
     }
 
     private func persistCompositeKeyForQuickUnlock(_ compositeKey: SymmetricKey) {
-        guard BiometricService.isAvailable || BiometricService.supportsCompanionUnlock else { return }
+        // A Mac without enrolled Touch ID or a paired Apple Watch stores
+        // nothing and surfaces no error; password unlock stays primary.
+        guard BiometricService.isAvailable || BiometricService.isCompanionAvailable else { return }
 
         do {
             try KeychainService.storeAvailableQuickUnlockKeys(compositeKey, for: databaseReference.id)

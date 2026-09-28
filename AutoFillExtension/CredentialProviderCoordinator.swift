@@ -1266,7 +1266,7 @@ final class CredentialProviderCoordinator {
     }
 
     private func persistCompositeKeyIfPossible(_ compositeKey: SymmetricKey, for databaseReference: DatabaseReference) {
-        guard BiometricService.isAvailable || BiometricService.supportsCompanionUnlock else { return }
+        guard BiometricService.isAvailable || BiometricService.isCompanionAvailable else { return }
 
         do {
             try KeychainService.storeAvailableQuickUnlockKeys(compositeKey, for: databaseReference.id)

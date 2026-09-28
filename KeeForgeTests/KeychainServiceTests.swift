@@ -42,35 +42,12 @@ final class KeychainServiceTests: XCTestCase {
         XCTAssertFalse(flags.contains(.biometryCurrentSet))
     }
 
-    func testSignedIPadOnMacCompanionRoundTrip() async throws {
-        #if os(iOS)
-        guard ProcessInfo.processInfo.isiOSAppOnMac else {
-            throw XCTSkip("Requires a signed Designed for iPad test host on a Mac.")
-        }
-        guard BiometricService.isCompanionAvailable else {
-            XCTFail("The signed iPad-on-Mac runtime did not advertise companion authentication.")
-            return
-        }
-        XCTAssertFalse(BiometricAutoUnlockPolicy.allowsAutomaticUnlock)
-
-        let databaseID = trackedDatabaseID()
-        let keyData = Data("companion-round-trip".utf8)
-        try KeychainService.storeAvailableQuickUnlockKeys(
-            SymmetricKey(data: keyData),
-            for: databaseID
-        )
-        XCTAssertTrue(KeychainService.hasStoredCompanionKey(for: databaseID))
-
-        let context = try await BiometricService.authenticateWithCompanion(
-            reason: "Verify KeeForge Apple Watch unlock"
-        )
-        let retrieved = try KeychainService.retrieveCompanionCompositeKey(
-            for: databaseID,
-            context: context
-        )
-        XCTAssertEqual(retrieved, SymmetricKey(data: keyData))
+    func testCompanionUnlockIsOfferedOnlyByTheNativeMacApp() {
+        #if os(macOS)
+        XCTAssertTrue(BiometricService.supportsCompanionUnlock)
         #else
-        throw XCTSkip("Requires the iOS app running on a Mac.")
+        XCTAssertFalse(BiometricService.supportsCompanionUnlock)
+        XCTAssertFalse(BiometricService.isCompanionAvailable)
         #endif
     }
 
@@ -169,6 +146,65 @@ final class KeychainServiceTests: XCTestCase {
                 "A key that was just stored must never appear as item-not-found, even when auth cannot complete"
             )
         }
+    }
+
+    // MARK: - Rekey: replaceStoredQuickUnlockKeys
+
+    func testReplaceRewritesAnExistingBiometricItemWhileBiometricsAreUnavailable() throws {
+        try XCTSkipIf(BiometricService.isAvailable, "Needs a host without usable Touch ID / Face ID.")
+        let databaseID = trackedDatabaseID()
+        try requireStore(Data("old-key".utf8), for: databaseID)
+        let before = try XCTUnwrap(persistentReference(account: "compositeKey:\(databaseID.uuidString)"))
+
+        try KeychainService.replaceStoredQuickUnlockKeys(SymmetricKey(data: Data("new-key".utf8)), for: databaseID)
+
+        let after = try XCTUnwrap(persistentReference(account: "compositeKey:\(databaseID.uuidString)"))
+        XCTAssertNotEqual(before, after, "The old key must not survive a rekey just because biometrics are unavailable")
+        XCTAssertFalse(KeychainService.hasStoredCompanionKey(for: databaseID), "A rekey must not create items that did not exist")
+    }
+
+    func testReplaceRewritesAnExistingCompanionItemWhileNoCompanionIsAvailable() throws {
+        try XCTSkipIf(BiometricService.isCompanionAvailable, "Needs a host without a paired Apple Watch.")
+        let databaseID = trackedDatabaseID()
+        do {
+            try KeychainService.storeCompanionCompositeKey(SymmetricKey(data: Data("old-key".utf8)), for: databaseID)
+        } catch {
+            throw XCTSkip("Companion-protected keychain writes are unavailable in the current test host: \(error)")
+        }
+        let before = try XCTUnwrap(persistentReference(account: "companionCompositeKey:\(databaseID.uuidString)"))
+
+        try KeychainService.replaceStoredQuickUnlockKeys(SymmetricKey(data: Data("new-key".utf8)), for: databaseID)
+
+        let after = try XCTUnwrap(persistentReference(account: "companionCompositeKey:\(databaseID.uuidString)"))
+        XCTAssertNotEqual(before, after)
+        XCTAssertFalse(KeychainService.hasStoredKey(for: databaseID), "A rekey must not create items that did not exist")
+    }
+
+    func testReplaceMovesALegacyOnlyItemToTheDatabaseIDAccount() throws {
+        let databaseID = trackedDatabaseID()
+        let filename = trackedLegacyFilename()
+        try seedLegacyItem(Data("old-key".utf8), forFilename: filename)
+
+        do {
+            try KeychainService.replaceStoredQuickUnlockKeys(
+                SymmetricKey(data: Data("new-key".utf8)),
+                for: databaseID,
+                legacyFilename: filename
+            )
+        } catch {
+            throw XCTSkip("Keychain writes are unavailable in the current test host: \(error)")
+        }
+
+        XCTAssertTrue(KeychainService.hasStoredKey(for: databaseID))
+    }
+
+    func testReplaceStoresNothingWhenNoItemExists() throws {
+        let databaseID = trackedDatabaseID()
+
+        try KeychainService.replaceStoredQuickUnlockKeys(SymmetricKey(data: Data("new-key".utf8)), for: databaseID)
+
+        XCTAssertFalse(KeychainService.hasStoredKey(for: databaseID))
+        XCTAssertFalse(KeychainService.hasStoredCompanionKey(for: databaseID))
     }
 
     // MARK: - Legacy filename-keyed accounts (pre-migration compatibility)
@@ -284,6 +320,24 @@ final class KeychainServiceTests: XCTestCase {
         let filename = "legacy-\(UUID().uuidString).kdbx"
         legacyFilenamesToClean.append(filename)
         return filename
+    }
+
+    /// A new row every time the item is re-added, so it tells a rewrite from a
+    /// skip without the authentication that reading the key bytes needs.
+    private func persistentReference(account: String) -> Data? {
+        let context = LAContext()
+        context.interactionNotAllowed = true
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: Self.legacyKeychainService,
+            kSecAttrAccount as String: account,
+            kSecReturnPersistentRef as String: true,
+            kSecUseAuthenticationContext as String: context,
+            kSecUseDataProtectionKeychain as String: true,
+        ]
+        var result: AnyObject?
+        guard SecItemCopyMatching(query as CFDictionary, &result) == errSecSuccess else { return nil }
+        return result as? Data
     }
 
     private func requireStore(_ key: Data, for databaseID: UUID) throws {

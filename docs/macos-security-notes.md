@@ -135,13 +135,17 @@ gates the macOS AutoFill extension's auto-unlock
 (`AutoFillExtension/CredentialProviderCoordinator.swift`), which runs in its
 own foreground extension context.
 
-The compatibility-mode iOS app can offer Apple Watch as a separate explicit
-unlock action (#66). Its saved composite-key copy is protected by Security's
-`.companion` access-control constraint and LocalAuthentication evaluates
+The native Mac app can offer Apple Watch as a separate explicit unlock action
+(#66). Its saved composite-key copy is protected by Security's `.companion`
+access-control constraint and LocalAuthentication evaluates
 `.deviceOwnerAuthenticationWithCompanion`; neither permits fallback to the Mac
-login password. The item is device-only, stays in the existing shared Keychain
-access group, and is stored independently from the biometric item so adding the
-Watch path cannot weaken or migrate the existing Touch ID / Face ID policy.
+login password. The copy is written only while a paired companion is available,
+so a Mac without an Apple Watch never holds one. The item is device-only, stays
+in the existing shared Keychain access group, and is stored independently from
+the biometric item so adding the Watch path cannot weaken or migrate the
+existing Touch ID policy. Like the Touch ID item, it is never raised by a lock
+cycle, only by the explicit button, and a master-key change rewrites it even
+when no watch is in range.
 
 ## Screen privacy — layered, and best-effort on macOS 15+
 

@@ -391,6 +391,24 @@ final class HardwareKeyUnlockTests: XCTestCase {
         XCTAssertNil(DatabaseListStore.databases.first { $0.id == reference.id }?.hardwareKey)
     }
 
+    func testTurningTheYubiKeyOnDropsTheAppleWatchKeyToo() throws {
+        let reference = try TestDatabaseSupport.makeReference(for: fixture.url(in: bundle))
+        DatabaseListStore.update(reference)
+        defer { KeychainService.deleteQuickUnlockKeys(for: reference.id) }
+        do {
+            try KeychainService.storeCompanionCompositeKey(SymmetricKey(size: .bits256), for: reference.id)
+        } catch {
+            throw XCTSkip("Companion-protected keychain writes are unavailable in the current test host: \(error)")
+        }
+
+        DatabaseListStore.setHardwareKey(slotTwoOverNFC, for: reference)
+
+        XCTAssertFalse(
+            KeychainService.hasStoredCompanionKey(for: reference.id),
+            "A composite key kept for Apple Watch would be misread as the YubiKey pre-key"
+        )
+    }
+
     // MARK: - Helpers
 
     private var fixture: KDBXTestFixture { .challengeResponse }

@@ -87,7 +87,7 @@ enum KeychainService {
             }
         }
 
-        if BiometricService.supportsCompanionUnlock {
+        if BiometricService.isCompanionAvailable {
             do {
                 try storeCompanionCompositeKey(key, for: databaseID)
                 didStoreKey = true
@@ -99,6 +99,39 @@ enum KeychainService {
         }
 
         if !didStoreKey, let firstError {
+            throw firstError
+        }
+    }
+
+    /// Rekey path: rewrites every item that already exists, even while its
+    /// mechanism cannot authenticate (Touch ID lockout, watch away) — a
+    /// skipped item would keep a key the database no longer accepts.
+    static func replaceStoredQuickUnlockKeys(
+        _ key: SymmetricKey,
+        for databaseID: UUID,
+        legacyFilename: String? = nil
+    ) throws {
+        var firstError: Error?
+
+        if hasStoredKey(for: databaseID, legacyFilename: legacyFilename) {
+            do {
+                try storeCompositeKey(key, for: databaseID)
+            } catch {
+                firstError = error
+            }
+        }
+
+        if hasStoredCompanionKey(for: databaseID) {
+            do {
+                try storeCompanionCompositeKey(key, for: databaseID)
+            } catch {
+                if firstError == nil {
+                    firstError = error
+                }
+            }
+        }
+
+        if let firstError {
             throw firstError
         }
     }

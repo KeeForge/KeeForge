@@ -28,17 +28,20 @@ enum BiometricService {
         availableType != .none
     }
 
-    /// Apple Watch quick unlock is deliberately limited to the iOS app while
-    /// it runs on a Mac. The native Mac app and iPhone/iPad hardware keep their
-    /// existing biometric-only database unlock behavior.
+    /// Apple Watch database unlock belongs to the native Mac app only.
+    /// iPhone and iPad keep biometric-only database unlock, and the iOS app
+    /// running on a Mac is not a supported platform.
     static var supportsCompanionUnlock: Bool {
-        #if os(iOS)
-        ProcessInfo.processInfo.isiOSAppOnMac
+        #if os(macOS)
+        true
         #else
         false
         #endif
     }
 
+    /// Whether this Mac has a paired companion that may approve unlocks.
+    /// Gates storing the companion-protected key copy, so a Mac without an
+    /// Apple Watch never holds one.
     static var isCompanionAvailable: Bool {
         guard supportsCompanionUnlock else { return false }
         var error: NSError?

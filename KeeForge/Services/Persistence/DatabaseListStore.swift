@@ -422,15 +422,16 @@ enum DatabaseListStore {
     }
 
     /// Adding or removing the hardware key changes what the stored Quick
-    /// Launch key means (composite key vs. pre-key), so that key is dropped
-    /// and the next successful unlock stores the right one.
+    /// Launch keys mean (composite key vs. pre-key), so the Touch ID / Face ID
+    /// and Apple Watch copies are both dropped and the next successful unlock
+    /// stores the right one.
     static func setHardwareKey(_ hardwareKey: HardwareKeyConfiguration?, for reference: DatabaseReference) {
         withStateLock {
             guard var updatedReference = loadDatabases().first(where: { $0.id == reference.id }) else { return }
             guard updatedReference.hardwareKey != hardwareKey else { return }
 
             if (updatedReference.hardwareKey == nil) != (hardwareKey == nil) {
-                KeychainService.deleteCompositeKey(for: updatedReference.id)
+                KeychainService.deleteQuickUnlockKeys(for: updatedReference.id)
                 if let legacyFilename = updatedReference.legacyKeychainFilename {
                     KeychainService.deleteLegacyCompositeKey(forFilename: legacyFilename)
                     updatedReference.legacyKeychainFilename = nil
