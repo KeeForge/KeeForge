@@ -34102,6 +34102,46 @@
         }
       }
     },
+    "This database changed while the entries were being prepared. Import again to add them." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Diese Datenbank wurde geändert, während die Einträge vorbereitet wurden. Importiere erneut, um sie hinzuzufügen."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Esta base de datos cambió mientras se preparaban las entradas. Vuelve a importar para añadirlas."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cette base de données a changé pendant la préparation des entrées. Importez à nouveau pour les ajouter."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "エントリの準備中にこのデータベースが変更されました。もう一度読み込んで追加してください。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "准备条目时此数据库已更改。请重新导入以添加它们。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "準備項目時此資料庫已變更。請重新匯入以新增它們。"
+          }
+        }
+      }
+    },
     "This database has pending AutoFill changes. Let them finish syncing, then try again." : {
       "localizations" : {
         "de" : {

@@ -382,6 +382,13 @@ final class DatabaseViewModel {
         _ configuration: HardwareKeyConfiguration
     ) async throws -> Data
     typealias HardwareKeyTransportsProvider = @MainActor () -> [HardwareKeyConfiguration.Transport]
+    /// Builds the draft an import saves. Injected so tests can hold it open
+    /// and change the session underneath it.
+    typealias ImportStagingOperation = @Sendable (
+        _ base: DatabaseDraft,
+        _ drafts: [EntryDraftPayload],
+        _ groupID: UUID
+    ) async throws -> DatabaseDraft
 
     private static let sortOrderKey = "KeeForge.sortOrder"
     private static let sortAscendingKey = "KeeForge.sortAscending"
@@ -584,6 +591,7 @@ final class DatabaseViewModel {
     private let deviceOwnerAuthAvailabilityCheck: DeviceOwnerAuthAvailabilityCheck
     private let hardwareKeyResponseOperation: HardwareKeyResponseOperation
     private let hardwareKeyTransportsProvider: HardwareKeyTransportsProvider
+    private let importStagingOperation: ImportStagingOperation
     private let conflictCopyDateProvider: @Sendable () -> Date
     private let nowProvider: @Sendable () -> Date
     private var backgroundEnteredAt: Date?
@@ -677,6 +685,7 @@ final class DatabaseViewModel {
         hardwareKeyTransportsProvider: @escaping HardwareKeyTransportsProvider = {
             HardwareKeyService.availableTransports
         },
+        importStagingOperation: @escaping ImportStagingOperation = DatabaseViewModel.stageImportedEntries,
         conflictCopyDateProvider: @escaping @Sendable () -> Date = { .now },
         nowProvider: @escaping @Sendable () -> Date = { .now }
     ) {
@@ -703,6 +712,7 @@ final class DatabaseViewModel {
         self.deviceOwnerAuthAvailabilityCheck = deviceOwnerAuthAvailabilityCheck
         self.hardwareKeyResponseOperation = hardwareKeyResponseOperation
         self.hardwareKeyTransportsProvider = hardwareKeyTransportsProvider
+        self.importStagingOperation = importStagingOperation
         self.conflictCopyDateProvider = conflictCopyDateProvider
         self.nowProvider = nowProvider
     }
@@ -1357,6 +1367,8 @@ final class DatabaseViewModel {
         case sessionUnavailable
         case destinationUnavailable
         case saveInProgress
+        /// The tree changed while the entries were being built on it.
+        case databaseChanged
     }
 
     enum PasswordImportOutcome: Equatable {
@@ -1379,9 +1391,20 @@ final class DatabaseViewModel {
             .map { PasswordImport.LoginIdentity(title: $0.title, username: $0.username, url: $0.url) }
     }
 
+    nonisolated static func stageImportedEntries(
+        _ base: DatabaseDraft,
+        _ drafts: [EntryDraftPayload],
+        _ groupID: UUID
+    ) async throws -> DatabaseDraft {
+        try await Task.detached(priority: .userInitiated) {
+            try base.creatingEntries(drafts, inGroup: groupID)
+        }.value
+    }
+
     /// Adds imported entries to `groupID` and saves them through the normal
-    /// save path. The entries go into the draft as one change, so the tree
-    /// and search index are rebuilt once rather than once per entry.
+    /// save path. The entries are built off the main actor in one pass and go
+    /// into the draft as one change, so the tree and search index are rebuilt
+    /// once rather than once per entry.
     func importEntries(_ drafts: [EntryDraftPayload], into groupID: UUID) async throws -> PasswordImportOutcome {
         guard case .unlocked = state, sessionKey != nil else {
             throw PasswordImportFailure.sessionUnavailable
@@ -1401,11 +1424,23 @@ final class DatabaseViewModel {
             throw PasswordImportFailure.destinationUnavailable
         }
 
-        var working = try makeWorkingDraft()
-        for draft in drafts {
-            working = try working.apply(.createEntry(parentGroupID: groupID, draft: draft))
+        let base = try makeWorkingDraft()
+        let expectedLockCycleID = lockCycleID
+        let expectedContentRevision = contentRevision
+        let staged = try await importStagingOperation(base, drafts, groupID)
+
+        // Every change to the tree bumps `contentRevision`, so an unchanged
+        // revision means `base` is still the working draft.
+        guard expectedLockCycleID == lockCycleID, case .unlocked = state else {
+            throw PasswordImportFailure.sessionUnavailable
         }
-        draft = working
+        guard expectedContentRevision == contentRevision else {
+            throw PasswordImportFailure.databaseChanged
+        }
+        guard isSaving == false else {
+            throw PasswordImportFailure.saveInProgress
+        }
+        draft = staged
         saveConflict = nil
         refreshCredentialStoreForCurrentTreeIfNeeded()
         resetInactivityTimer()

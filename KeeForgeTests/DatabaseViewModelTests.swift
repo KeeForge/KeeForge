@@ -5507,6 +5507,74 @@ final class DatabaseViewModelTests: XCTestCase {
         XCTAssertTrue(saved.drafts.isEmpty)
     }
 
+    func testImportEntriesDropsEntriesBuiltOnATreeThatChangedMeanwhile() async throws {
+        let gate = InFlightSaveGate()
+        let saved = SavedDraftCapture()
+        let vm = try makeViewModel(
+            localSaveOperation: { draft, _, _, _, _, _, _ in
+                saved.record(draft)
+                return .saved(newSHA512: Data())
+            },
+            importStagingOperation: { base, drafts, groupID in
+                await gate.parkFirstCall()
+                return try await DatabaseViewModel.stageImportedEntries(base, drafts, groupID)
+            }
+        )
+        await vm.unlock(password: fixturePassword)
+        let groupID = try XCTUnwrap(vm.visibleRootGroupID)
+        let drafts = try importDrafts()
+        let importTask = Task { try await vm.importEntries(drafts, into: groupID) }
+        await gate.firstCallStarted()
+
+        try vm.createGroup(named: "Edited Meanwhile", in: groupID)
+        await gate.releaseFirstCall()
+
+        do {
+            _ = try await importTask.value
+            XCTFail("entries built on the replaced tree must not be saved")
+        } catch {
+            XCTAssertEqual(error as? DatabaseViewModel.PasswordImportFailure, .databaseChanged)
+        }
+        XCTAssertEqual(
+            vm.draft?.pendingEdits,
+            [.createGroup(parentGroupID: groupID, name: "Edited Meanwhile")],
+            "the edit made meanwhile survives and nothing is imported"
+        )
+        XCTAssertTrue(saved.drafts.isEmpty)
+    }
+
+    func testImportEntriesDropsEntriesWhenTheSessionLocksMeanwhile() async throws {
+        let gate = InFlightSaveGate()
+        let saved = SavedDraftCapture()
+        let vm = try makeViewModel(
+            localSaveOperation: { draft, _, _, _, _, _, _ in
+                saved.record(draft)
+                return .saved(newSHA512: Data())
+            },
+            importStagingOperation: { base, drafts, groupID in
+                await gate.parkFirstCall()
+                return try await DatabaseViewModel.stageImportedEntries(base, drafts, groupID)
+            }
+        )
+        await vm.unlock(password: fixturePassword)
+        let groupID = try XCTUnwrap(vm.visibleRootGroupID)
+        let drafts = try importDrafts()
+        let importTask = Task { try await vm.importEntries(drafts, into: groupID) }
+        await gate.firstCallStarted()
+
+        vm.lock()
+        await gate.releaseFirstCall()
+
+        do {
+            _ = try await importTask.value
+            XCTFail("a locked session must not receive the entries")
+        } catch {
+            XCTAssertEqual(error as? DatabaseViewModel.PasswordImportFailure, .sessionUnavailable)
+        }
+        XCTAssertNil(vm.draft)
+        XCTAssertTrue(saved.drafts.isEmpty)
+    }
+
     func testImportEntriesNeedsAnUnlockedSession() async throws {
         let vm = try makeViewModel()
 
@@ -5947,6 +6015,7 @@ final class DatabaseViewModelTests: XCTestCase {
         deviceOwnerAuthAvailabilityCheck: @escaping DatabaseViewModel.DeviceOwnerAuthAvailabilityCheck = {
             BiometricService.canAuthenticateDeviceOwner
         },
+        importStagingOperation: @escaping DatabaseViewModel.ImportStagingOperation = DatabaseViewModel.stageImportedEntries,
         conflictCopyDateProvider: @escaping @Sendable () -> Date = { .now },
         nowProvider: @escaping @Sendable () -> Date = { .now }
     ) throws -> DatabaseViewModel {
@@ -5972,6 +6041,7 @@ final class DatabaseViewModelTests: XCTestCase {
             storedKeyStoreOperation: storedKeyStoreOperation,
             storedKeyDeleteOperation: storedKeyDeleteOperation,
             deviceOwnerAuthAvailabilityCheck: deviceOwnerAuthAvailabilityCheck,
+            importStagingOperation: importStagingOperation,
             conflictCopyDateProvider: conflictCopyDateProvider,
             nowProvider: nowProvider
         )

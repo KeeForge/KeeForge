@@ -120,6 +120,8 @@ final class PasswordImportViewModel {
             return String(localized: "The selected group no longer exists. Choose another group.")
         case DatabaseViewModel.PasswordImportFailure.saveInProgress:
             return String(localized: "KeeForge is still saving this database. Try again in a moment.")
+        case DatabaseViewModel.PasswordImportFailure.databaseChanged:
+            return String(localized: "This database changed while the entries were being prepared. Import again to add them.")
         case DatabaseViewModel.PasswordImportFailure.sessionUnavailable:
             return String(localized: "Unlock the database to import passwords.")
         default:

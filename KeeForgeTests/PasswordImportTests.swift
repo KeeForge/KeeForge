@@ -211,6 +211,22 @@ final class ApplePasswordsCSVImporterTests: XCTestCase {
 
         XCTAssertEqual(duplicates, [2, 5, 6])
     }
+
+    func testLikelyDuplicatesIgnoreCaseOnlyInTheSchemeAndHost() throws {
+        let csv = header
+            + "Tenant,https://example.com/Tenant,me,first,,\n"
+            + "tenant,https://example.com/tenant,me,second,,\n"
+            + "Org,https://example.com/login?org=Acme,me,pw,,\n"
+            + "org,https://example.com/login?org=acme,me,pw,,\n"
+            + "Admin,https://Admin@example.com/,me,pw,,\n"
+            + "admin,https://admin@example.com/,me,pw,,\n"
+            + "Tenant again,HTTPS://EXAMPLE.COM/Tenant,me,pw,,\n"
+            + "Bare,Example.COM/Tenant,me,pw,,\n"
+            + "Bare again,example.com/Tenant,me,pw,,\n"
+        let preview = try ApplePasswordsCSVImporter.preview(from: Data(csv.utf8))
+
+        XCTAssertEqual(preview.likelyDuplicateRows(existing: []), [8, 10])
+    }
 }
 
 @MainActor
@@ -337,6 +353,23 @@ final class PasswordImportViewModelTests: XCTestCase {
         XCTAssertNotNil(viewModel.preview)
         XCTAssertEqual(viewModel.errorMessage, String(localized: "The selected group no longer exists. Choose another group."))
         XCTAssertTrue(viewModel.canImport, "the user can pick another group and retry")
+    }
+
+    func testDatabaseChangedDuringImportKeepsThePreviewForAnotherTry() async throws {
+        let recorder = ImportRecorder()
+        recorder.error = DatabaseViewModel.PasswordImportFailure.databaseChanged
+        let viewModel = makeViewModel(loaded: try preview("A,,me,pw,,\n"), recorder: recorder)
+        await viewModel.loadFile(at: fileURL)
+
+        await viewModel.performImport()
+
+        XCTAssertNil(viewModel.summary)
+        XCTAssertNotNil(viewModel.preview)
+        XCTAssertEqual(
+            viewModel.errorMessage,
+            String(localized: "This database changed while the entries were being prepared. Import again to add them.")
+        )
+        XCTAssertTrue(viewModel.canImport)
     }
 
     func testUnreadableFileShowsTheErrorAndNoPreview() async {

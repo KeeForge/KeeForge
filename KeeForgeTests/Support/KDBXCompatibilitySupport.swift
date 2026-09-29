@@ -236,9 +236,10 @@ enum KDBXCompatibilitySupport {
         /// not modeled as a content edit, so the whole tree must survive the
         /// save byte-semantically unchanged.
         var makeEdit: ((LoadedFixture) throws -> EntryEdit)?
-        /// Several edits applied in order to one draft, the shape a password
-        /// import produces. Mutually exclusive with `makeEdit`.
-        var makeEdits: ((LoadedFixture) throws -> [EntryEdit])?
+        /// New entries added to one group through
+        /// `DatabaseDraft.creatingEntries`, the path a password import takes.
+        /// Mutually exclusive with `makeEdit`.
+        var makeImportedEntries: ((LoadedFixture) throws -> (groupID: UUID, drafts: [EntryDraftPayload]))?
         /// When set, the whole tree is replaced instead of an `EntryEdit`
         /// being applied. A merge result is not a sequence of edits, so it
         /// reaches the writer through a pristine draft — the same path
@@ -273,8 +274,11 @@ enum KDBXCompatibilitySupport {
                 )
             } else {
                 let draft = DatabaseDraft(rootGroup: loaded.rootGroup, meta: loaded.meta, sessionKey: loaded.sessionKey)
-                let edits = try makeEdits?(loaded) ?? makeEdit.map { [try $0(loaded)] } ?? []
-                updatedDraft = try edits.reduce(draft) { try $0.apply($1) }
+                if let imported = try makeImportedEntries?(loaded) {
+                    updatedDraft = try draft.creatingEntries(imported.drafts, inGroup: imported.groupID)
+                } else {
+                    updatedDraft = try makeEdit.map { try draft.apply($0(loaded)) } ?? draft
+                }
             }
             let rekeyTarget = try rekey?(loaded)
             let writeKey = rekeyTarget?.compositeKey ?? loaded.compositeKey
@@ -2728,8 +2732,8 @@ private extension KDBXCompatibilitySupport {
     static let importedBetaOTPAuth = "otpauth://hotp/Beta:beta-user?secret=JBSWY3DPEHPK3PXP&counter=3"
 
     /// An Apple Passwords export read by `ApplePasswordsCSVImporter` and added
-    /// the way `DatabaseViewModel.importEntries` adds it: one `createEntry`
-    /// per row into the visible root. The file exercises quoted commas and
+    /// the way `DatabaseViewModel.importEntries` adds it: every row in one
+    /// `DatabaseDraft.creatingEntries` call into the visible root. The file exercises quoted commas and
     /// quotes, a multi-line note, non-ASCII text, a TOTP link KeePassXC must
     /// generate codes from, and an HOTP link kept as a protected field.
     static func importApplePasswordsScenario() -> Scenario {
@@ -2758,11 +2762,11 @@ private extension KDBXCompatibilitySupport {
             artifactFileName: "synthetic-rich-import-apple-passwords.kdbx",
             expectedSearchTerms: ["Import Alpha", "Import Beta"],
             expectedGroupPaths: [],
-            makeEdits: { loaded in
+            makeImportedEntries: { loaded in
                 let preview = try ApplePasswordsCSVImporter.preview(from: Data(csv.utf8))
                 XCTAssertEqual(preview.skippedRows, [.init(row: 4, reason: .noLoginData)])
                 let groupID = TestDatabaseSupport.visibleRootGroupID(in: loaded.rootGroup)
-                return preview.items.map { .createEntry(parentGroupID: groupID, draft: $0.draft) }
+                return (groupID, preview.items.map(\.draft))
             },
             expectedCustomFields: [.init(entryTitle: "Import Beta", current: betaFields, history: [])],
             assertChange: { before, after, _ in

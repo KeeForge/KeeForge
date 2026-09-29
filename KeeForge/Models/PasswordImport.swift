@@ -106,10 +106,34 @@ enum PasswordImport {
         let title: String?
 
         init(_ identity: LoginIdentity) {
-            let url = identity.url.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+            let url = Self.normalizedURL(identity.url)
             self.url = url
             username = identity.username.trimmingCharacters(in: .whitespacesAndNewlines)
             title = url.isEmpty ? identity.title.trimmingCharacters(in: .whitespacesAndNewlines) : nil
+        }
+
+        /// Only the scheme and host ignore case; the rest of an address can
+        /// tell two logins apart (`/Tenant` and `/tenant`).
+        static func normalizedURL(_ rawURL: String) -> String {
+            let url = rawURL.trimmingCharacters(in: .whitespacesAndNewlines)
+            let scheme: String
+            let remainder: Substring
+            if let separator = url.range(of: "://") {
+                scheme = url[..<separator.lowerBound].lowercased() + "://"
+                remainder = url[separator.upperBound...]
+            } else {
+                // A bare `example.com/Path` still starts with its host.
+                scheme = ""
+                remainder = url[...]
+            }
+
+            let authorityEnd = remainder.firstIndex { "/?#".contains($0) } ?? remainder.endIndex
+            let authority = remainder[..<authorityEnd]
+            let hostStart = authority.lastIndex(of: "@").map(authority.index(after:)) ?? authority.startIndex
+            return scheme
+                + authority[..<hostStart]
+                + authority[hostStart...].lowercased()
+                + remainder[authorityEnd...]
         }
     }
 }
