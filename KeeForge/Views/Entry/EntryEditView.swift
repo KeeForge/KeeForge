@@ -1,5 +1,4 @@
 import SwiftUI
-import UniformTypeIdentifiers
 
 struct EntryEditView: View {
     typealias Completion = EntryEditCompletion
@@ -228,7 +227,7 @@ struct EntryEditView: View {
                 Button(confirmButtonTitle) {
                     saveTapped()
                 }
-                .disabled(formViewModel.canSave == false || isSavingInProgress || isImportingAttachments)
+                .disabled(isSaveDisabled)
                 .accessibilityIdentifier("entry-edit.save")
             }
         }
@@ -272,12 +271,12 @@ struct EntryEditView: View {
             }
         }
         #endif
-        .fileImporter(
+        .modifier(EntryAttachmentImporter(
             isPresented: $showAttachmentImporter,
-            allowedContentTypes: [.item],
-            allowsMultipleSelection: true,
-            onCompletion: importAttachments
-        )
+            isImporting: $isImportingAttachments,
+            errorMessage: $attachmentErrorMessage,
+            onLoad: { formViewModel.addAttachment(named: $0.name, data: $0.data) }
+        ))
         .sheet(isPresented: $showTOTPSetupLink) {
             TOTPSetupLinkSheet { link in
                 formViewModel.applySetupLink(link)
@@ -384,45 +383,10 @@ struct EntryEditView: View {
         } message: {
             Text(editingErrorMessage ?? "")
         }
-        .alert(
-            "Couldn’t Add Attachment",
-            isPresented: Binding(
-                get: { attachmentErrorMessage != nil },
-                set: { isPresented in
-                    if isPresented == false {
-                        attachmentErrorMessage = nil
-                    }
-                }
-            )
-        ) {
-            Button("OK", role: .cancel) {}
-        } message: {
-            Text(attachmentErrorMessage ?? "")
-        }
     }
 
-    private func importAttachments(_ result: Result<[URL], Error>) {
-        let urls: [URL]
-        switch result {
-        case .success(let picked):
-            urls = picked
-        case .failure(let error):
-            attachmentErrorMessage = error.localizedDescription
-            return
-        }
-        guard urls.isEmpty == false else { return }
-
-        isImportingAttachments = true
-        Task { @MainActor in
-            let loaded = await EntryAttachmentFileLoader.load(urls)
-            for file in loaded.files {
-                formViewModel.addAttachment(named: file.name, data: file.data)
-            }
-            if let error = loaded.error {
-                attachmentErrorMessage = error.localizedDescription
-            }
-            isImportingAttachments = false
-        }
+    private var isSaveDisabled: Bool {
+        formViewModel.canSave == false || isSavingInProgress || isImportingAttachments
     }
 
     private func togglePasswordVisibility() {
