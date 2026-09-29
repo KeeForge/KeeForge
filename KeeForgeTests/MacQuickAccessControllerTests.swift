@@ -61,7 +61,9 @@ final class MacQuickAccessControllerTests: XCTestCase {
         SettingsService.macMenuBarQuickAccessEnabled = true
         SettingsService.macQuickSearchShortcut = shortcut
 
-        let controller = makeStartedController()
+        // Not `makeStartedController()`: it would overwrite the saved choice.
+        let controller = MacQuickAccessController(presenter: presenter, hotKey: hotKey, activateApp: {})
+        controller.start()
 
         XCTAssertTrue(controller.isMenuBarItemEnabled)
         XCTAssertEqual(controller.shortcut, shortcut)
