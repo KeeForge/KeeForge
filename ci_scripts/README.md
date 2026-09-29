@@ -2,6 +2,27 @@
 
 This folder holds small scripts used by Xcode Cloud and local build setup.
 
+## Xcode Cloud test partition
+
+The prepared RC test split defines three Required-to-Pass iOS test actions: `KeeForgeCloudUnitTests`,
+`KeeForgeCloudUIA`, and `KeeForgeCloudUIB`. Each is intended to run on both configured iPhone destinations. Live activation is pending;
+see the account configuration below.
+Unit tests have their own action per destination, so a UI task retry does not repeat them. UI A selects whole classes through
+`EntryHistoryUITests`; UI B excludes exactly that list using the same YAML anchor in
+`project.yml`, so new classes automatically run in B. Both UI groups remain serial.
+Historical cloud timings put each UI group around 35–40 minutes; rebalance the class list
+when measured durations drift. The ordinary `KeeForge` scheme still contains both full suites.
+
+`validate_cloud_test_schemes.py` runs after every XcodeGen generation, including Cloud's
+post-clone phase. It rejects gaps, overlap, stale class names, filtered unit coverage, or
+parallel targets in the generated Cloud schemes. Run it with `--self-test` for negative
+fixtures and the new-class coverage check. UI tests inheriting `KeeForgeUITestCase` have a
+300-second execution allowance; Cloud enables test timeouts, and local runs should pass
+`-test-timeouts-enabled YES` to enforce it. Opt-in App Store screenshot capture is separate.
+
+The live account configuration and destination details are documented in
+`../.agents/skills/release/xcode-cloud-setup.md`.
+
 ## Scripts
 
 - `prepare_build_config.sh` validates `BuildConfig.local.xcconfig`, stamps `BuildMetadata.xcconfig` with the current git hash, and can bootstrap the local config from environment variables in CI.

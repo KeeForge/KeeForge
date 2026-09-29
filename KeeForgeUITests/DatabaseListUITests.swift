@@ -38,6 +38,7 @@ final class DatabaseListUITests: KeeForgeUITestCase {
     }
 
     func testDatabaseDetailsAutoFillTogglePersistsAcrossReopen() {
+        executionTimeAllowance = 120
         XCTAssertTrue(waitForDatabaseList(), "Database list did not appear")
 
         openDatabaseDetails(rowContaining: "alpha")

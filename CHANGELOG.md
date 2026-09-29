@@ -2,8 +2,13 @@
 
 ## Unreleased
 
+### Fixes
+
+- Database context menus open without delays on iPhone and iPad. Tap Edit to reorder databases.
+
 ### New Features
 
+- A password or passkey saved through AutoFill no longer gets stuck when the cloud copy of the database changed in the meantime (#149). Open the database and tap "Merge Changes" in the notice at the top: KeeForge combines the change with the cloud copy the way KeePass merges databases and uploads the result. If the merge can't be done safely, nothing changes, and the message explains what to do instead, such as merging the change in another KeePass app.
 - On Mac, search your open database from the menu bar (#156). Turn on Settings → Menu Bar → "Show KeeForge in the Menu Bar", then click the key icon, or record a quick search shortcut there that works from any app. Pick an entry to copy its user name, password, or verification code, or open it in the main window. Entries show only while the database is unlocked, and copying a password asks for Touch ID or your login password, as in the main window. The menu bar item and the shortcut are off until you turn them on. Quick search covers the database open in the main window, and closing that window still locks it.
 
 ## v1.17.0 (2026-09-27)
