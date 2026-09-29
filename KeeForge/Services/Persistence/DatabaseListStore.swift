@@ -413,6 +413,14 @@ enum DatabaseListStore {
         }
     }
 
+    static func setCloudSyncPolicy(_ policy: CloudSyncPolicy, for reference: DatabaseReference) {
+        withStateLock {
+            guard var updatedReference = loadDatabases().first(where: { $0.id == reference.id }) else { return }
+            updatedReference.cloudSyncPolicy = policy
+            update(updatedReference)
+        }
+    }
+
     static func setAutoFillDestinationGroupID(_ groupID: UUID, for reference: DatabaseReference) {
         withStateLock {
             guard var updatedReference = loadDatabases().first(where: { $0.id == reference.id }) else { return }
