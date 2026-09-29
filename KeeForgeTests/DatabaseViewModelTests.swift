@@ -4075,7 +4075,8 @@ final class DatabaseViewModelTests: XCTestCase {
 
         try await vm.save()
 
-        let expectedPool = openedPool + [Data([0x01]) + bytes]
+        let appended: Data = Data([0x01]) + bytes
+        let expectedPool = openedPool + [appended]
         XCTAssertEqual(pools.recorded, [expectedPool])
         XCTAssertNil(vm.draft)
         XCTAssertEqual(vm.binaryPool?.rawFields, expectedPool)
@@ -4124,7 +4125,8 @@ final class DatabaseViewModelTests: XCTestCase {
         // The remote still has the pool the session opened, so the refs it
         // brings mean the same bytes in the draft's pool, which only appended.
         XCTAssertNil(vm.mergeFailure)
-        let expectedPool = openedPool + [Data([0x01]) + bytes]
+        let appended: Data = Data([0x01]) + bytes
+        let expectedPool = openedPool + [appended]
         XCTAssertEqual(pools.recorded.last, expectedPool)
         let calls = recorder.recordedCalls
         XCTAssertEqual(calls.count, 2)

@@ -201,7 +201,8 @@ final class AttachmentTests: XCTestCase {
         ))
 
         let pool = try XCTUnwrap(draft.binaryPoolFields)
-        XCTAssertEqual(pool, fixture.header.innerHeaderBinaryFields + [Data([0x01]) + Data("bravo-bytes".utf8)])
+        let appended: Data = Data([0x01]) + Data("bravo-bytes".utf8)
+        XCTAssertEqual(pool, fixture.header.innerHeaderBinaryFields + [appended])
         let updated = try XCTUnwrap(draft.rootGroup.allEntries.first { $0.id == entry.id })
         XCTAssertEqual(updated.attachments.map(\.name), ["alpha.txt", "bravo.pdf"])
         XCTAssertEqual(updated.attachments.map(\.ref), [0, 1])
