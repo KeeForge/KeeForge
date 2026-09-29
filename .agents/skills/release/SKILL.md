@@ -438,7 +438,7 @@ but that build remains blocked from external distribution until the failure is a
 required gates are accepted. External TestFlight distribution is always a deliberate manual action
 in App Store Connect, independently for iOS and Mac.
 
-## A9. Verify all three artifacts and manually distribute the App Store builds
+## A9. Verify all three artifacts, assign the App Store builds, and distribute when approved
 
 1. Find both processed builds in App Store Connect under TestFlight for marketing version
    `{version}`. Their numbers may differ from `repoBuild` and from each other because Xcode Cloud
@@ -512,14 +512,28 @@ in App Store Connect, independently for iOS and Mac.
    date until this clears. Until it does, the published public link shows
    *"This beta isn't accepting any new testers right now"* to everyone arriving from `README.md`
    or keeforge.com — expected, and another reason not to announce early.
-6. Distribute each platform to its external group when the user has already authorized that named
-   candidate distribution; otherwise obtain a confirmation at this action. Do not treat beta
-   authorization as production go or a legal declaration. The iOS public link is permanently enabled, so
-   distribution reaches every tester accumulated from earlier releases, not just people who opted
-   into this one.
-7. Record each platform's distribution timestamp — the soak clocks start here, not at the branch
-   cut.
-   The direct artifact has no TestFlight metrics and is tested separately in A10.
+6. Assign **both** App Store builds to their platform-specific external TestFlight groups immediately
+   after step 5 — or immediately after the notes for a later build that skips Beta App Review. Do
+   this even when the review state is `READY_FOR_BETA_SUBMISSION`, `WAITING_FOR_REVIEW`, or
+   `IN_REVIEW`; do not wait for `APPROVED`. Assign the exact iOS build ID to the iOS external group
+   and the exact macOS build ID to the Mac external group; never cross-assign them just because the
+   visible version/build numbers match. This early association is intentional: App Store Connect
+   keeps an unapproved build unavailable to external testers, then makes the already-associated
+   build available after approval without a later manual add that can be forgotten.
+
+   When the user has already authorized distribution of that named candidate, the authorization
+   covers these two group assignments; otherwise obtain confirmation immediately before the first
+   group mutation. Do not treat beta authorization as production go or a legal declaration. Read
+   both group relationships back and record each `groupID`, `buildID`, review state, and
+   `groupAssignmentTimestamp` in the manifest. The iOS public link is permanently enabled, so once
+   approved, distribution reaches every tester accumulated from earlier releases, not just people
+   who opted into this one.
+7. Track group assignment separately from actual distribution. A pending build's
+   `groupAssignmentTimestamp` is **not** its soak start: leave `distributionTimestamp` unset until
+   App Store Connect reports that the exact associated build is externally available (for example,
+   `externalBuildState` is `IN_BETA_TESTING`). Record that observed distribution timestamp for each
+   platform; its soak clock starts there, not at assignment, review submission, or branch cut. The
+   direct artifact has no TestFlight metrics and is tested separately in A10.
 
 ## A10. Soak
 
