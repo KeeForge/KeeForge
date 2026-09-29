@@ -131,9 +131,9 @@ enum PasswordImport {
             let authority = remainder[..<authorityEnd]
             let hostStart = authority.lastIndex(of: "@").map(authority.index(after:)) ?? authority.startIndex
             return scheme
-                + authority[..<hostStart]
+                + String(authority[..<hostStart])
                 + authority[hostStart...].lowercased()
-                + remainder[authorityEnd...]
+                + String(remainder[authorityEnd...])
         }
     }
 }
