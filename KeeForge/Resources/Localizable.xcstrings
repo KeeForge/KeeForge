@@ -1808,6 +1808,86 @@
         }
       }
     },
+    "A newer copy was downloaded. Lock the database and unlock it again with your YubiKey to open it." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Eine neuere Kopie wurde heruntergeladen. Sperren Sie die Datenbank und entsperren Sie sie erneut mit Ihrem YubiKey, um sie zu öffnen."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Se descargó una copia más reciente. Bloquee la base de datos y desbloquéela de nuevo con su YubiKey para abrirla."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Une copie plus récente a été téléchargée. Verrouillez la base de données, puis déverrouillez-la de nouveau avec votre YubiKey pour l'ouvrir."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新しいコピーをダウンロードしました。開くには、データベースをロックしてから YubiKey で再度ロック解除してください。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已下载较新的副本。要打开它，请锁定数据库，然后使用 YubiKey 重新解锁。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已下載較新的副本。若要開啟，請鎖定資料庫，然後使用 YubiKey 重新解鎖。"
+          }
+        }
+      }
+    },
+    "A newer copy was downloaded. When you save, KeeForge will ask how to combine it with your changes." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Eine neuere Kopie wurde heruntergeladen. Beim Sichern fragt KeeForge, wie sie mit Ihren Änderungen zusammengeführt werden soll."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Se descargó una copia más reciente. Al guardar, KeeForge le preguntará cómo combinarla con sus cambios."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Une copie plus récente a été téléchargée. Lors de l'enregistrement, KeeForge vous demandera comment la combiner avec vos modifications."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新しいコピーをダウンロードしました。保存時に、変更内容とどのように統合するかを KeeForge が確認します。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已下载较新的副本。保存时，KeeForge 会询问如何将其与你的更改合并。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已下載較新的副本。儲存時，KeeForge 會詢問如何將其與你的變更合併。"
+          }
+        }
+      }
+    },
     "A parent group is hidden from Search & AutoFill. Turn this off to show this group anyway." : {
       "localizations" : {
         "de" : {
@@ -5450,6 +5530,46 @@
         }
       }
     },
+    "Changes saved through AutoFill are still waiting to upload." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Über AutoFill gesicherte Änderungen warten noch auf das Hochladen."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Los cambios guardados mediante el autorrelleno aún están pendientes de subir."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Les modifications enregistrées via le Remplissage automatique sont encore en attente d'envoi."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "自動入力で保存された変更はまだアップロードを待っています。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "通过自动填充保存的更改仍在等待上传。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "透過自動填寫儲存的變更仍在等待上傳。"
+          }
+        }
+      }
+    },
     "Changes the entry icon" : {
       "localizations" : {
         "de" : {
@@ -5646,6 +5766,46 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "檢查更新…"
+          }
+        }
+      }
+    },
+    "Checking %@ for changes…" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ wird auf Änderungen geprüft …"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Buscando cambios en %@…"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Recherche de modifications sur %@…"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ の変更を確認しています…"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在检查 %@ 上的更改…"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在檢查 %@ 上的變更…"
           }
         }
       }
@@ -18296,6 +18456,46 @@
         }
       }
     },
+    "KeeForge opens the copy saved on this device without checking the cloud. Use Sync Now in the unlocked database to get newer changes. Saving still checks the cloud copy first and stops if it changed. AutoFill uses the cached copy only." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge öffnet die auf diesem Gerät gespeicherte Kopie, ohne die Cloud zu prüfen. Verwenden Sie „Jetzt synchronisieren“ in der entsperrten Datenbank, um neuere Änderungen zu laden. Beim Sichern wird die Cloud-Kopie weiterhin zuerst geprüft und der Vorgang angehalten, falls sie sich geändert hat. AutoFill verwendet nur die Cache-Kopie."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge abre la copia guardada en este dispositivo sin comprobar la nube. Use «Sincronizar ahora» en la base de datos desbloqueada para obtener cambios más recientes. Al guardar, se sigue comprobando primero la copia en la nube y se detiene si ha cambiado. El autorrelleno solo utiliza la copia en caché."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge ouvre la copie enregistrée sur cet appareil sans vérifier le cloud. Utilisez « Synchroniser maintenant » dans la base de données déverrouillée pour obtenir les modifications plus récentes. L'enregistrement vérifie toujours d'abord la copie dans le cloud et s'arrête si elle a changé. Le remplissage automatique utilise uniquement la copie en cache."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge はクラウドを確認せずに、このデバイスに保存されたコピーを開きます。新しい変更を取得するには、ロック解除したデータベースで「今すぐ同期」を使用してください。保存時は引き続き最初にクラウドのコピーを確認し、変更されていた場合は中止します。自動入力はキャッシュされたコピーのみを使用します。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge 会打开保存在此设备上的副本，而不检查云端。要获取较新的更改，请在已解锁的数据库中使用“立即同步”。保存时仍会先检查云端副本，如有更改则停止。自动填充仅使用缓存副本。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge 會開啟儲存在此裝置上的副本，而不檢查雲端。若要取得較新的變更，請在已解鎖的資料庫中使用「立即同步」。儲存時仍會先檢查雲端副本，如有變更則停止。自動填寫僅使用快取副本。"
+          }
+        }
+      }
+    },
     "KeeForge remembers this key file and prefills it when unlocking. To change the key file the database requires, change the master key." : {
       "localizations" : {
         "de" : {
@@ -19133,6 +19333,46 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "最後同步"
+          }
+        }
+      }
+    },
+    "Last synced %@" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zuletzt synchronisiert: %@"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Última sincronización: %@"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dernière synchronisation : %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "最終同期：%@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "上次同步：%@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "上次同步：%@"
           }
         }
       }
@@ -22898,6 +23138,46 @@
         }
       }
     },
+    "Opened without checking %@ for changes." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Geöffnet, ohne %@ auf Änderungen zu prüfen."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Abierta sin buscar cambios en %@."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ouverte sans rechercher de modifications sur %@."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ の変更を確認せずに開きました。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已打开，未检查 %@ 上的更改。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已開啟，未檢查 %@ 上的變更。"
+          }
+        }
+      }
+    },
     "Opening %@" : {
       "localizations" : {
         "de" : {
@@ -26340,6 +26620,46 @@
         }
       }
     },
+    "Save your changes before syncing." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sichern Sie Ihre Änderungen vor dem Synchronisieren."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Guarde sus cambios antes de sincronizar."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Enregistrez vos modifications avant de synchroniser."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "同期する前に変更を保存してください。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "请先保存更改，然后再同步。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "請先儲存變更，然後再同步。"
+          }
+        }
+      }
+    },
     "Saves a copy of the database as KeeForge currently has it. Use it to merge changes into your main file with another KeePass app when a cloud upload is stuck." : {
       "localizations" : {
         "de" : {
@@ -29140,6 +29460,46 @@
         }
       }
     },
+    "Sync Now" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Jetzt synchronisieren"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sincronizar ahora"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Synchroniser maintenant"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "今すぐ同期"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "立即同步"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "立即同步"
+          }
+        }
+      }
+    },
     "Sync older than 24h" : {
       "localizations" : {
         "de" : {
@@ -29176,6 +29536,46 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "最後同步已超過 24 小時"
+          }
+        }
+      }
+    },
+    "Sync When Opening" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Beim Öffnen synchronisieren"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sincronizar al abrir"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Synchroniser à l'ouverture"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "開くときに同期"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "打开时同步"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "開啟時同步"
           }
         }
       }
@@ -29900,42 +30300,42 @@
         }
       }
     },
-    "The cloud copy changed again while merging. Nothing was lost. Lock the database, open it again, and merge once more." : {
+    "The cloud copy has changed since this database was last synced. Nothing was lost. Use Sync Now in Database Details to get the latest copy, then choose Merge Changes again." : {
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Die Cloud-Kopie wurde während des Zusammenführens erneut geändert. Es ist nichts verloren gegangen. Sperren Sie die Datenbank, öffnen Sie sie erneut und führen Sie die Änderungen noch einmal zusammen."
+            "value" : "Die Cloud-Kopie wurde seit der letzten Synchronisierung dieser Datenbank geändert. Es ist nichts verloren gegangen. Verwenden Sie „Jetzt synchronisieren“ in den Datenbankdetails, um die neueste Kopie zu laden, und wählen Sie dann erneut „Änderungen zusammenführen“."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "La copia de la nube volvió a cambiar durante la combinación. No se perdió nada. Bloquee la base de datos, vuelva a abrirla y combine de nuevo."
+            "value" : "La copia de la nube ha cambiado desde la última sincronización de esta base de datos. No se perdió nada. Use «Sincronizar ahora» en Detalles de la base de datos para obtener la copia más reciente y, después, vuelva a elegir «Combinar cambios»."
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "La copie du cloud a de nouveau changé pendant la fusion. Rien n'a été perdu. Verrouillez la base de données, rouvrez-la et fusionnez à nouveau."
+            "value" : "La copie du cloud a changé depuis la dernière synchronisation de cette base de données. Rien n'a été perdu. Utilisez « Synchroniser maintenant » dans Détails de la base de données pour obtenir la copie la plus récente, puis choisissez à nouveau « Fusionner les modifications »."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "マージ中にクラウドのコピーが再び変更されました。何も失われていません。データベースをロックしてから再度開き、もう一度マージしてください。"
+            "value" : "このデータベースを最後に同期してから、クラウドのコピーが変更されました。何も失われていません。データベースの詳細で「今すぐ同期」を使用して最新のコピーを取得してから、もう一度「変更をマージ」を選択してください。"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "合并期间云端副本再次发生了变化。没有丢失任何内容。请锁定数据库，重新打开后再合并一次。"
+            "value" : "自上次同步此数据库以来，云端副本已发生变化。没有丢失任何内容。请在数据库详细信息中使用“立即同步”获取最新副本，然后再次选择“合并更改”。"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "合併期間雲端副本再次變更。沒有遺失任何內容。請鎖定資料庫，重新開啟後再合併一次。"
+            "value" : "自上次同步此資料庫以來，雲端副本已變更。沒有遺失任何內容。請在資料庫詳細資訊中使用「立即同步」取得最新副本，然後再次選擇「合併變更」。"
           }
         }
       }
@@ -33018,6 +33418,46 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "此資料庫無法使用。請返回資料庫列表將其移除或重新整理其書籤。"
+          }
+        }
+      }
+    },
+    "This database is up to date." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Diese Datenbank ist auf dem neuesten Stand."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Esta base de datos está actualizada."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cette base de données est à jour."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このデータベースは最新です。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此数据库已是最新。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此資料庫已是最新。"
           }
         }
       }
@@ -36184,6 +36624,46 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "不支援的變體對應值，鍵：%@"
+          }
+        }
+      }
+    },
+    "Updated with the latest changes from the cloud." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mit den neuesten Änderungen aus der Cloud aktualisiert."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Actualizada con los últimos cambios de la nube."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mise à jour avec les dernières modifications du cloud."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "クラウドの最新の変更で更新しました。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已使用云端的最新更改进行更新。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已使用雲端的最新變更進行更新。"
           }
         }
       }

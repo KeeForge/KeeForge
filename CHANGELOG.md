@@ -9,6 +9,7 @@
 ### New Features
 
 - A password or passkey saved through AutoFill no longer gets stuck when the cloud copy of the database changed in the meantime (#149). Open the database and tap "Merge Changes" in the notice at the top: KeeForge combines the change with the cloud copy the way KeePass merges databases and uploads the result. If the merge can't be done safely, nothing changes, and the message explains what to do instead, such as merging the change in another KeePass app.
+- Open a cloud database without syncing it first (#67). In Database Details, turn off Cloud Sync → "Sync When Opening" and KeeForge opens the copy saved on your device right away, without contacting Dropbox, OneDrive, WebDAV, or FTP. A banner in the unlocked database says the cloud wasn't checked and when it last synced; tap Sync Now there, or in Database Details, to get newer changes. Saving still checks the cloud copy first and stops with the usual conflict choices if it changed in the meantime. The first open still downloads the database, and changes saved through AutoFill still upload as before.
 
 ## v1.17.0 (2026-09-27)
 

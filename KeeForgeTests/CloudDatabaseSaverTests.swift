@@ -356,6 +356,62 @@ final class CloudDatabaseSaverTests: XCTestCase {
         XCTAssertEqual(uploadCallCount, 1)
     }
 
+    /// A manual-policy open never looks at the remote copy, so the save is
+    /// the first point that does. It must still stop when the remote moved
+    /// on since the last sync rather than overwrite it.
+    func testSaveAfterManualPolicyOpenConflictsWhenRemoteChangedSinceLastSync() async throws {
+        var reference = try makeCloudReference(remoteRev: "rev-A")
+        reference.cloudSyncPolicy = .manual
+        DatabaseListStore.update(reference)
+        let opened = try await CloudSyncCoordinator.syncIfNeededForOpen(
+            reference: reference,
+            providerResolver: { _ in
+                XCTFail("A manual-policy open must not resolve a provider")
+                return nil
+            }
+        )
+        XCTAssertEqual(opened.status, .refreshSkipped)
+
+        let cacheURL = DatabaseListStore.cacheLocation(for: opened.reference)
+        let context = try makeDirtySaveContext(cacheURL: cacheURL, entryTitle: "Manual Policy Entry")
+        let recorder = UploadRecorder()
+        let remoteData = Data("edited-on-another-device".utf8)
+        let environment = makeEnvironment(
+            getMetadata: { _ in
+                CloudFileMetadata(
+                    modifiedDate: Date(timeIntervalSince1970: 175),
+                    contentHash: "remote-hash-B",
+                    size: 256,
+                    rev: "rev-B"
+                )
+            },
+            upload: { _, data, expectedRev, _ in
+                await recorder.record(data: data, expectedRev: expectedRev)
+                return CloudFileMetadata(modifiedDate: .now, contentHash: nil, size: Int64(data.count), rev: "rev-C")
+            },
+            downloadRemoteData: { _ in remoteData }
+        )
+
+        let result = try await CloudDatabaseSaver.save(
+            draft: context.draft,
+            reference: opened.reference,
+            compositeKey: context.compositeKey,
+            openTimeSHA512: KDBXCrypto.sha512(opened.data),
+            expectedRev: opened.reference.expectedCloudRevision,
+            kdfPolicy: .mainApp,
+            environment: environment
+        )
+
+        guard case .conflict(let remoteSHA512, _) = result else {
+            XCTFail("Expected save conflict.")
+            return
+        }
+        let uploadCallCount = await recorder.callCount()
+        XCTAssertEqual(uploadCallCount, 0)
+        XCTAssertEqual(remoteSHA512, KDBXCrypto.sha512(remoteData))
+        XCTAssertEqual(try Data(contentsOf: cacheURL), context.currentData)
+    }
+
     func testSaveWithoutReconciledRemoteHashStillConflictsOnTheSameDivergence() async throws {
         let reference = try makeCloudReference(remoteRev: "rev-A")
         let cacheURL = DatabaseListStore.cacheLocation(for: reference)
