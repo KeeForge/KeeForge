@@ -101,6 +101,8 @@ struct DatabaseOpenDiagnostics: Equatable, Sendable {
             return "current"
         case .downloaded:
             return "downloaded"
+        case .refreshSkipped:
+            return "refresh_skipped"
         case .offlineCached:
             return "offline_cached"
         case .disconnectedCached:

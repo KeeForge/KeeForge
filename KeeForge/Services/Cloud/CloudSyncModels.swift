@@ -265,6 +265,34 @@ extension CloudSyncIssue: Codable {
     }
 }
 
+/// When the main app checks a cloud database's remote copy. Uploads of saved
+/// changes are not affected: an in-app save and a queued AutoFill upload
+/// still go out, behind the same conflict gate, under either policy.
+enum CloudSyncPolicy: String, CaseIterable, Hashable, Sendable {
+    /// Check the remote copy on every open and when the app returns to the
+    /// foreground.
+    case onOpen
+    /// Open the cached copy without contacting the provider; the remote copy
+    /// is only checked when the user asks (Sync Now) or when no cached copy
+    /// exists yet.
+    case manual
+}
+
+extension CloudSyncPolicy: Codable {
+    /// An unrecognized value decodes as `onOpen` rather than throwing: this
+    /// sits inside `DatabaseReference`, and `DatabaseListStore` decodes the
+    /// stored list all-or-nothing.
+    init(from decoder: any Decoder) throws {
+        let rawValue = try decoder.singleValueContainer().decode(String.self)
+        self = Self(rawValue: rawValue) ?? .onOpen
+    }
+
+    func encode(to encoder: any Encoder) throws {
+        var container = encoder.singleValueContainer()
+        try container.encode(rawValue)
+    }
+}
+
 struct CloudSyncMetadata: Codable, Hashable, Sendable {
     let provider: String
     let accountId: String

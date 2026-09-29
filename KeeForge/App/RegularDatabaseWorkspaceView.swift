@@ -121,6 +121,10 @@ struct RegularDatabaseWorkspaceView: View {
                         UnsavedChangesBanner(viewModel: viewModel)
                     }
 
+                    if CloudSyncStatusBanner.isVisible(for: viewModel) {
+                        CloudSyncStatusBanner(viewModel: viewModel)
+                    }
+
                     if viewModel.hasPendingUploadConflict && viewModel.isSaving == false {
                         PendingUploadConflictBanner(viewModel: viewModel)
                     }
