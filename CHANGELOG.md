@@ -8,6 +8,7 @@
 
 ### New Features
 
+- Add and remove an entry's attachments in the entry editor, on iPhone, iPad, and Mac (#162). Under Attachments, tap "Add Attachment" to pick one or more files, or the remove button next to an attachment to take it off the entry; the changes are saved with the entry. A file whose name is already taken on the entry gets a number, such as "scan (2).pdf". A removed attachment stays in the entry's history, as in other KeePass apps. Attachments you don't change stay exactly as they were.
 - A password or passkey saved through AutoFill no longer gets stuck when the cloud copy of the database changed in the meantime (#149). Open the database and tap "Merge Changes" in the notice at the top: KeeForge combines the change with the cloud copy the way KeePass merges databases and uploads the result. If the merge can't be done safely, nothing changes, and the message explains what to do instead, such as merging the change in another KeePass app.
 
 ## v1.17.0 (2026-09-27)
