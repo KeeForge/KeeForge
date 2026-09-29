@@ -716,7 +716,10 @@ final class DatabaseViewModel {
             )
         },
         biometricCompositeKeyOperation: @escaping BiometricCompositeKeyOperation = { reference, reason in
-            let context = try await BiometricService.authenticate(reason: reason)
+            let context = try await BiometricService.authenticate(
+                reason: reason,
+                policy: BiometricService.quickUnlockPolicy
+            )
             return try DatabaseViewModel.retrieveStoredCompositeKey(for: reference, context: context)
         },
         pendingUploadMarkerCheck: @escaping PendingUploadMarkerCheck = { reference in
@@ -949,8 +952,10 @@ final class DatabaseViewModel {
         return DatabaseListStore.isDocumentsFileMissing(for: databaseReference)
     }
 
+    /// Named for its iOS meaning; on the native Mac app the stored key also
+    /// opens with an authorized Apple Watch (`BiometricService.quickUnlockPolicy`).
     var canUseBiometrics: Bool {
-        guard BiometricService.isAvailable else { return false }
+        guard BiometricService.isQuickUnlockAvailable else { return false }
         return KeychainService.hasStoredKey(
             for: databaseReference.id,
             legacyFilename: databaseReference.legacyKeychainFilename
@@ -972,18 +977,41 @@ final class DatabaseViewModel {
     }
 
     var biometricLabel: String {
+        #if os(macOS)
+        switch (BiometricService.availableType, BiometricService.isCompanionAvailable) {
+        case (.touchID, true): return String(localized: "Unlock with Touch ID or Apple Watch")
+        case (.none, true): return String(localized: "Unlock with Apple Watch")
+        default: break
+        }
+        #endif
         switch BiometricService.availableType {
-        case .faceID: "Unlock with Face ID"
-        case .touchID: "Unlock with Touch ID"
-        case .none: "Biometrics unavailable"
+        case .faceID: return "Unlock with Face ID"
+        case .touchID: return "Unlock with Touch ID"
+        case .none: return "Biometrics unavailable"
         }
     }
 
+    var biometricCaption: String {
+        #if os(macOS)
+        switch (BiometricService.availableType, BiometricService.isCompanionAvailable) {
+        case (.touchID, true): return String(localized: "Touch ID or Apple Watch unlock")
+        case (.none, true): return String(localized: "Apple Watch unlock")
+        default: break
+        }
+        #endif
+        return String(localized: "Biometric unlock")
+    }
+
     var biometricIcon: String {
+        #if os(macOS)
+        if BiometricService.availableType == .none, BiometricService.isCompanionAvailable {
+            return "applewatch"
+        }
+        #endif
         switch BiometricService.availableType {
-        case .faceID: "faceid"
-        case .touchID: "touchid"
-        case .none: "lock.fill"
+        case .faceID: return "faceid"
+        case .touchID: return "touchid"
+        case .none: return "lock.fill"
         }
     }
 
@@ -3751,12 +3779,16 @@ final class DatabaseViewModel {
     }
 
     private func persistCompositeKeyForBiometricUnlock(_ compositeKey: SymmetricKey) {
-        // Silently skip when `.biometryCurrentSet` cannot be satisfied — no
-        // enrolled biometrics is the common Mac desktop case (no Touch ID, or
-        // Touch ID never enrolled). `BiometricService.isAvailable` is false in
-        // exactly those situations, so password unlock stays primary, nothing
-        // is stored, no error is surfaced, and there are no retry loops.
-        guard BiometricService.isAvailable else { return }
+        // Silently skip when nothing could satisfy the item's access control:
+        // no enrolled biometrics (and, on the Mac, no authorized Apple Watch)
+        // is the common Mac desktop case. Password unlock stays primary,
+        // nothing is stored, no error is surfaced, and there are no retry
+        // loops. An existing Mac item is still refreshed; see
+        // `KeychainService.shouldStoreQuickUnlockKey`.
+        guard KeychainService.shouldStoreQuickUnlockKey(
+            for: databaseReference.id,
+            legacyFilename: databaseReference.legacyKeychainFilename
+        ) else { return }
 
         do {
             try KeychainService.storeCompositeKey(compositeKey, for: databaseReference.id)

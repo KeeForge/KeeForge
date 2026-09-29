@@ -3408,6 +3408,46 @@
         }
       }
     },
+    "Apple Watch unlock" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apple Watch-Entsperrung"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Desbloqueo con Apple Watch"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Déverrouillage par Apple Watch"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apple Watchでロック解除"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apple Watch 解锁"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apple Watch 解鎖"
+          }
+        }
+      }
+    },
     "Apply" : {
       "localizations" : {
         "de" : {
@@ -17616,6 +17656,86 @@
         }
       }
     },
+    "KeeForge couldn't use the key saved for Face ID or Touch ID unlock, for example because the enrolled face or fingerprints changed. Unlock with your master password and key file, and KeeForge will save a new one." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge konnte den für die Entsperrung per Face ID oder Touch ID gespeicherten Schlüssel nicht verwenden, zum Beispiel weil sich das registrierte Gesicht oder die Fingerabdrücke geändert haben. Entsperren Sie mit Ihrem Master-Passwort und Ihrer Schlüsseldatei; KeeForge speichert dann einen neuen Schlüssel."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge no pudo usar la clave guardada para desbloquear con Face ID o Touch ID, por ejemplo porque cambiaron la cara o las huellas registradas. Desbloquee con su contraseña maestra y su archivo de clave, y KeeForge guardará una nueva."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge n'a pas pu utiliser la clé enregistrée pour le déverrouillage par Face ID ou Touch ID, par exemple parce que le visage ou les empreintes enregistrés ont changé. Déverrouillez avec votre mot de passe maître et votre fichier de clé, et KeeForge en enregistrera une nouvelle."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Face ID または Touch ID でのロック解除用に保存されたキーを使用できませんでした。登録済みの顔や指紋が変更された場合などに起こります。マスターパスワードとキーファイルでロックを解除すると、KeeForge が新しいキーを保存します。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge 无法使用为 Face ID 或 Touch ID 解锁保存的密钥，例如已登记的面容或指纹发生了变化。请使用主密码和密钥文件解锁，KeeForge 会保存新的密钥。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge 無法使用為 Face ID 或 Touch ID 解鎖儲存的金鑰，例如已登錄的臉孔或指紋有所變更。請使用主密碼和金鑰檔案解鎖，KeeForge 會儲存新的金鑰。"
+          }
+        }
+      }
+    },
+    "KeeForge couldn't use the key saved for Touch ID or Apple Watch unlock, for example because the enrolled fingerprints changed. Unlock with your master password and key file, and KeeForge will save a new one." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge konnte den für die Entsperrung per Touch ID oder Apple Watch gespeicherten Schlüssel nicht verwenden, zum Beispiel weil sich die registrierten Fingerabdrücke geändert haben. Entsperren Sie mit Ihrem Master-Passwort und Ihrer Schlüsseldatei; KeeForge speichert dann einen neuen Schlüssel."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge no pudo usar la clave guardada para desbloquear con Touch ID o Apple Watch, por ejemplo porque cambiaron las huellas registradas. Desbloquee con su contraseña maestra y su archivo de clave, y KeeForge guardará una nueva."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge n'a pas pu utiliser la clé enregistrée pour le déverrouillage par Touch ID ou Apple Watch, par exemple parce que les empreintes enregistrées ont changé. Déverrouillez avec votre mot de passe maître et votre fichier de clé, et KeeForge en enregistrera une nouvelle."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Touch ID または Apple Watch でのロック解除用に保存されたキーを使用できませんでした。登録済みの指紋が変更された場合などに起こります。マスターパスワードとキーファイルでロックを解除すると、KeeForge が新しいキーを保存します。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge 无法使用为 Touch ID 或 Apple Watch 解锁保存的密钥，例如已登记的指纹发生了变化。请使用主密码和密钥文件解锁，KeeForge 会保存新的密钥。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KeeForge 無法使用為 Touch ID 或 Apple Watch 解鎖儲存的金鑰，例如已登錄的指紋有所變更。請使用主密碼和金鑰檔案解鎖，KeeForge 會儲存新的金鑰。"
+          }
+        }
+      }
+    },
     "KeeForge creates KDBX 4 databases encrypted with %@ and Argon2id key derivation (%@). Stronger settings take longer to unlock and may exceed AutoFill's memory limit on some devices." : {
       "localizations" : {
         "de" : {
@@ -26740,6 +26860,46 @@
         }
       }
     },
+    "Saved Unlock Key Unavailable" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gespeicherter Entsperrschlüssel nicht verfügbar"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Clave de desbloqueo guardada no disponible"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Clé de déverrouillage enregistrée indisponible"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "保存されたロック解除キーを使用できません"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已保存的解锁密钥不可用"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已儲存的解鎖金鑰無法使用"
+          }
+        }
+      }
+    },
     "Saves a copy of the database as KeeForge currently has it. Use it to merge changes into your main file with another KeePass app when a cloud upload is stuck." : {
       "localizations" : {
         "de" : {
@@ -35588,6 +35748,126 @@
         }
       }
     },
+    "Touch ID and Apple Watch aren't available right now. You can still use your password and key file." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Touch ID und Apple Watch sind derzeit nicht verfügbar. Sie können weiterhin Ihr Passwort und Ihre Schlüsseldatei verwenden."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Touch ID y Apple Watch no están disponibles en este momento. Aún puede usar su contraseña y su archivo de clave."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Touch ID et l’Apple Watch ne sont pas disponibles pour le moment. Vous pouvez toujours utiliser votre mot de passe et votre fichier de clé."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Touch ID と Apple Watch は現在利用できません。パスワードとキーファイルは引き続き使用できます。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Touch ID 和 Apple Watch 目前不可用。你仍可使用密码和密钥文件。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Touch ID 和 Apple Watch 目前無法使用。你仍可使用密碼和金鑰檔案。"
+          }
+        }
+      }
+    },
+    "Touch ID or Apple Watch didn't verify, so KeeForge could not continue unlocking." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Touch ID oder Apple Watch konnte Ihre Identität nicht bestätigen. Daher konnte KeeForge nicht mit dem Entsperren fortfahren."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Touch ID o Apple Watch no pudo confirmar su identidad. Por lo tanto, KeeForge no pudo continuar con el desbloqueo."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Touch ID ou l’Apple Watch n'a pas pu confirmer votre identité. KeeForge n'a donc pas pu poursuivre le déverrouillage."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Touch ID または Apple Watch で確認できなかったため、ロック解除を続行できませんでした。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Touch ID 或 Apple Watch 未通过验证，KeeForge 无法继续解锁。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Touch ID 或 Apple Watch 未通過驗證，KeeForge 無法繼續解鎖。"
+          }
+        }
+      }
+    },
+    "Touch ID or Apple Watch unlock" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Entsperrung per Touch ID oder Apple Watch"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Desbloqueo con Touch ID o Apple Watch"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Déverrouillage par Touch ID ou Apple Watch"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Touch ID または Apple Watchでロック解除"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Touch ID 或 Apple Watch 解锁"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Touch ID 或 Apple Watch 解鎖"
+          }
+        }
+      }
+    },
     "Try Again" : {
       "localizations" : {
         "de" : {
@@ -36424,6 +36704,86 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "使用 YubiKey 解鎖 — 實驗性功能"
+          }
+        }
+      }
+    },
+    "Unlock with Apple Watch" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mit Apple Watch entsperren"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Desbloquear con Apple Watch"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Déverrouiller avec l’Apple Watch"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apple Watchでロック解除"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "使用 Apple Watch 解锁"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "使用 Apple Watch 解鎖"
+          }
+        }
+      }
+    },
+    "Unlock with Touch ID or Apple Watch" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mit Touch ID oder Apple Watch entsperren"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Desbloquear con Touch ID o Apple Watch"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Déverrouiller avec Touch ID ou l’Apple Watch"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Touch ID または Apple Watchでロック解除"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "使用 Touch ID 或 Apple Watch 解锁"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "使用 Touch ID 或 Apple Watch 解鎖"
           }
         }
       }
