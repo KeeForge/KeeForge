@@ -426,15 +426,73 @@ struct DatabaseDetailsView: View {
                 }
 
                 LabeledContent("Status", value: cloudState.warningText ?? String(localized: "Healthy"))
+
+                Toggle(
+                    "Sync When Opening",
+                    isOn: Binding(
+                        get: { currentReference.cloudSyncPolicy == .onOpen },
+                        set: { setCloudSyncPolicy($0 ? .onOpen : .manual) }
+                    )
+                )
+                .accessibilityIdentifier("database-details.sync-on-open-toggle")
+
+                // Replacing the open database needs the unlocked session.
+                if let sessionViewModel {
+                    syncNowRow(sessionViewModel)
+                }
             } header: {
                 Text("Cloud Sync")
             } footer: {
-                if cloudState.isConnected {
-                    Text("Cloud databases are cached locally and refreshed whenever you open them in the main app. AutoFill uses the cached copy only.")
-                } else {
+                if cloudState.isConnected == false {
                     Text("This account is disconnected. KeeForge keeps the cached copy until you remove the database.")
+                } else if currentReference.cloudSyncPolicy == .manual {
+                    Text("KeeForge opens the copy saved on this device without checking the cloud. Use Sync Now in the unlocked database to get newer changes. Saving still checks the cloud copy first and stops if it changed. AutoFill uses the cached copy only.")
+                } else {
+                    Text("Cloud databases are cached locally and refreshed whenever you open them in the main app. AutoFill uses the cached copy only.")
                 }
             }
+        }
+    }
+
+    private func syncNowRow(_ sessionViewModel: DatabaseViewModel) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack {
+                Button("Sync Now") {
+                    Task {
+                        await sessionViewModel.syncCloudNow()
+                        // Last Sync and Status read the stored reference.
+                        listViewModel.reload()
+                    }
+                }
+                .disabled(sessionViewModel.canSyncCloudNow == false)
+                .accessibilityIdentifier("database-details.sync-now")
+
+                if sessionViewModel.isSyncingCloud {
+                    Spacer()
+                    ProgressView()
+                        .controlSize(.small)
+                }
+            }
+
+            if let outcome = sessionViewModel.cloudSyncOutcome {
+                Text(outcome.message)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .accessibilityIdentifier("database-details.sync-outcome")
+            } else if sessionViewModel.isDirty || sessionViewModel.hasUnsavedEditor {
+                Text("Save your changes before syncing.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    private func setCloudSyncPolicy(_ policy: CloudSyncPolicy) {
+        if let sessionViewModel {
+            sessionViewModel.setCloudSyncPolicy(policy)
+            listViewModel.reload()
+        } else {
+            listViewModel.setCloudSyncPolicy(policy, for: reference)
         }
     }
 

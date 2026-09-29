@@ -3758,6 +3758,105 @@ final class DatabaseViewModelTests: XCTestCase {
         XCTAssertEqual(vm.openTimeSHA512, KDBXCrypto.sha512(fixtureData))
     }
 
+    /// `.cloudChanged` is also what a manual-sync-policy open gets: the
+    /// session never checked the cloud, so its copy is behind before the
+    /// merge starts, and reopening would skip the check again. The way out
+    /// the message names has to work: Sync Now, then merge again.
+    func testMergePendingUploadsThatHitANewerCloudCopySucceedsAfterSyncNow() async throws {
+        let fixtureData = try Data(contentsOf: fixtureURL())
+        let pendingData = try makeRemoteVariantData { visibleRoot in
+            visibleRoot.entries.append(KPEntry(title: "AutoFill Entry"))
+        }
+        let newerCloudData = try makeRemoteVariantData { visibleRoot in
+            visibleRoot.entries.append(KPEntry(title: "Newer Cloud Entry"))
+        }
+        let newerCloudHash = KDBXCrypto.sha512(newerCloudData)
+        let savedHash = KDBXCrypto.sha512(Data("merged-upload".utf8))
+        let recorder = MergeSaveRecorder(results: [
+            .conflict(remoteSHA512: newerCloudHash, remoteData: newerCloudData),
+            .saved(newSHA512: savedHash),
+        ])
+        let reference = makeCloudReference(remoteRev: "rev-A")
+        let pending = PendingUploadFake(reference: reference, payload: pendingData)
+        let vm = try makePendingUploadViewModel(
+            reference: reference,
+            fixtureData: fixtureData,
+            pending: pending,
+            recorder: recorder,
+            cloudRefreshOperation: { reference, _ in
+                CloudSyncResolution(
+                    reference: reference,
+                    localURL: DatabaseListStore.cacheLocation(for: reference),
+                    data: newerCloudData,
+                    status: .downloaded
+                )
+            }
+        )
+
+        await vm.unlock(password: fixturePassword)
+        try await vm.mergePendingUploads()
+
+        XCTAssertEqual(vm.pendingUploadMergeFailure, .cloudChanged)
+        let message = PendingUploadMergeFailure.cloudChanged.message
+        XCTAssertTrue(message.contains("Sync Now"), "Reopening skips the check under the manual policy; only Sync Now gets the newer copy")
+        XCTAssertFalse(message.contains("open it again"))
+        vm.dismissPendingUploadMergeFailure()
+
+        await vm.syncCloudNow()
+        XCTAssertEqual(vm.cloudSyncOutcome, .updated)
+        XCTAssertEqual(vm.openTimeSHA512, newerCloudHash)
+        XCTAssertTrue(vm.hasPendingUploadConflict)
+
+        try await vm.mergePendingUploads()
+
+        XCTAssertEqual(recorder.recordedCalls.count, 2)
+        let retry = try XCTUnwrap(recorder.recordedCalls.last)
+        XCTAssertEqual(retry.openTimeSHA512, newerCloudHash, "The retry must be based on the copy Sync Now fetched")
+        let savedTitles = Set(allEntryTitles(in: retry.rootGroup))
+        XCTAssertTrue(savedTitles.contains("AutoFill Entry"))
+        XCTAssertTrue(savedTitles.contains("Newer Cloud Entry"))
+        XCTAssertNil(vm.pendingUploadMergeFailure)
+        XCTAssertEqual(pending.droppedMarkerIDs, [pending.storedMarker.id])
+        XCTAssertFalse(vm.hasPendingUploadConflict)
+        XCTAssertEqual(vm.openTimeSHA512, savedHash)
+    }
+
+    func testSyncStatusBannerLeavesAConflictedUploadToTheConflictBanner() async throws {
+        let fixtureData = try Data(contentsOf: fixtureURL())
+        let pendingData = try makeRemoteVariantData { visibleRoot in
+            visibleRoot.entries.append(KPEntry(title: "AutoFill Entry"))
+        }
+        let reference = makeCloudReference(remoteRev: "rev-A")
+
+        let conflicted = PendingUploadFake(reference: reference, payload: pendingData)
+        let conflictedVM = try makePendingUploadViewModel(
+            reference: reference,
+            fixtureData: fixtureData,
+            pending: conflicted,
+            recorder: MergeSaveRecorder(results: []),
+            pendingUploadMarkerCheck: { _ in true }
+        )
+        await conflictedVM.unlock(password: fixturePassword)
+        XCTAssertTrue(conflictedVM.hasPendingCloudUploads)
+        XCTAssertTrue(conflictedVM.hasPendingUploadConflict)
+        XCTAssertFalse(
+            CloudSyncStatusBanner.showsPendingUploadNote(for: conflictedVM),
+            "\"Still waiting to upload\" contradicts the conflict banner saying the upload failed"
+        )
+
+        let waiting = PendingUploadFake(reference: reference, payload: pendingData, isConflicted: false)
+        let waitingVM = try makePendingUploadViewModel(
+            reference: reference,
+            fixtureData: fixtureData,
+            pending: waiting,
+            recorder: MergeSaveRecorder(results: []),
+            pendingUploadMarkerCheck: { _ in true }
+        )
+        await waitingVM.unlock(password: fixturePassword)
+        XCTAssertFalse(waitingVM.hasPendingUploadConflict)
+        XCTAssertTrue(CloudSyncStatusBanner.showsPendingUploadNote(for: waitingVM))
+    }
+
     func testMergePendingUploadsWhoseUploadFailsKeepsTheMarker() async throws {
         let fixtureData = try Data(contentsOf: fixtureURL())
         let pendingData = try makeRemoteVariantData { visibleRoot in
@@ -3985,7 +4084,11 @@ final class DatabaseViewModelTests: XCTestCase {
         reference: DatabaseReference,
         fixtureData: Data,
         pending: PendingUploadFake,
-        recorder: MergeSaveRecorder
+        recorder: MergeSaveRecorder,
+        cloudRefreshOperation: @escaping DatabaseViewModel.CloudSyncOperation = { _, _ in
+            throw CloudProviderError.networkUnavailable
+        },
+        pendingUploadMarkerCheck: @escaping DatabaseViewModel.PendingUploadMarkerCheck = { _ in false }
     ) throws -> DatabaseViewModel {
         try makeViewModel(
             reference: reference,
@@ -3997,6 +4100,7 @@ final class DatabaseViewModelTests: XCTestCase {
                     status: .current
                 )
             },
+            cloudRefreshOperation: cloudRefreshOperation,
             cloudSaveOperation: { draft, _, _, openTimeSHA512, reconciledRemoteSHA512, expectedRev, _, _ in
                 recorder.record(
                     openTimeSHA512: openTimeSHA512,
@@ -4005,7 +4109,8 @@ final class DatabaseViewModelTests: XCTestCase {
                     rootGroup: draft.rootGroup
                 )
             },
-            pendingUploadRecovery: pending.environment
+            pendingUploadRecovery: pending.environment,
+            pendingUploadMarkerCheck: pendingUploadMarkerCheck
         )
     }
 
@@ -5894,6 +5999,13 @@ final class DatabaseViewModelTests: XCTestCase {
                 progress: progress
             )
         },
+        cloudRefreshOperation: @escaping DatabaseViewModel.CloudSyncOperation = { reference, progress in
+            try await CloudSyncCoordinator.syncIfNeededForOpen(
+                reference: reference,
+                honorsManualSyncPolicy: false,
+                progress: progress
+            )
+        },
         localSaveOperation: @escaping DatabaseViewModel.LocalSaveOperation = { draft, reference, compositeKey, openTimeSHA512, reconciledRemoteSHA512, newCompositeKey, encryptionSettings in
             try await LocalDatabaseSaver.save(
                 draft: draft,
@@ -6028,6 +6140,7 @@ final class DatabaseViewModelTests: XCTestCase {
         return DatabaseViewModel(
             databaseReference: resolvedReference,
             cloudSyncOperation: cloudSyncOperation,
+            cloudRefreshOperation: cloudRefreshOperation,
             localSaveOperation: localSaveOperation,
             cloudSaveOperation: cloudSaveOperation,
             conflictCopyEncryptionOperation: conflictCopyEncryptionOperation,
