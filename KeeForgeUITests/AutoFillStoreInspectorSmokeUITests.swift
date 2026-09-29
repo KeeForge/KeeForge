@@ -11,6 +11,7 @@ import XCTest
 final class AutoFillStoreInspectorSmokeUITests: XCTestCase {
     override func setUp() {
         continueAfterFailure = false
+        executionTimeAllowance = 300
     }
 
     func testInspectorPresentsAndReadsDisabledOnUnprovisionedSimulator() {

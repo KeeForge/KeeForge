@@ -2,8 +2,13 @@
 
 ## Unreleased
 
+### Fixes
+
+- Database context menus open without delays on iPhone and iPad. Tap Edit to reorder databases.
+
 ### New Features
 
+- A password or passkey saved through AutoFill no longer gets stuck when the cloud copy of the database changed in the meantime (#149). Open the database and tap "Merge Changes" in the notice at the top: KeeForge combines the change with the cloud copy the way KeePass merges databases and uploads the result. If the merge can't be done safely, nothing changes, and the message explains what to do instead, such as merging the change in another KeePass app.
 - The entry editor now shows the current verification code as soon as you add one, before you save the entry (#123). After scanning a QR code (iPhone and iPad), pasting a setup link, or typing a setup key, enter or copy the code shown under One-Time Password to finish turning on two-factor authentication for that account. The code follows your changes to the digits, period, and algorithm; while the secret key can't produce a code, the editor asks for a valid one instead.
 
 ## v1.17.0 (2026-09-27)
