@@ -134,7 +134,10 @@ enum PendingUploadMergeFailure: Error, Equatable, Sendable {
     case changeUnreadable(PendingUploadRecovery.Location)
     /// See `DatabaseMergeFailure.attachmentsDiverged`.
     case attachmentsDiverged(PendingUploadRecovery.Location)
-    /// The cloud copy changed again between opening and uploading the merge.
+    /// The cloud copy moved on since the session's copy was synced: between
+    /// opening and uploading the merge, or before a manual-policy open that
+    /// did not check. Reopening is no way out under the manual policy, so the
+    /// message points at Sync Now, which works under either policy.
     case cloudChanged
     /// No unlocked, writable session, a save conflict still standing, or a
     /// save already in flight.
@@ -158,7 +161,7 @@ enum PendingUploadMergeFailure: Error, Equatable, Sendable {
         case .attachmentsDiverged(.backup(let url)):
             String(localized: "The change saved through AutoFill and the cloud copy store their attachments differently, so merging them could point an attachment at the wrong file. It is kept in the backup from \(Self.backupLabel(for: url)) in Database Details. Export that backup to merge it in another KeePass app.")
         case .cloudChanged:
-            String(localized: "The cloud copy changed again while merging. Nothing was lost. Lock the database, open it again, and merge once more.")
+            String(localized: "The cloud copy has changed since this database was last synced. Nothing was lost. Use Sync Now in Database Details to get the latest copy, then choose Merge Changes again.")
         case .sessionUnavailable:
             String(localized: "The change can't be merged right now. Make sure the database is editable and has no unresolved save conflict, then try again.")
         }

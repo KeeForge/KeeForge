@@ -30300,42 +30300,42 @@
         }
       }
     },
-    "The cloud copy changed again while merging. Nothing was lost. Lock the database, open it again, and merge once more." : {
+    "The cloud copy has changed since this database was last synced. Nothing was lost. Use Sync Now in Database Details to get the latest copy, then choose Merge Changes again." : {
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Die Cloud-Kopie wurde während des Zusammenführens erneut geändert. Es ist nichts verloren gegangen. Sperren Sie die Datenbank, öffnen Sie sie erneut und führen Sie die Änderungen noch einmal zusammen."
+            "value" : "Die Cloud-Kopie wurde seit der letzten Synchronisierung dieser Datenbank geändert. Es ist nichts verloren gegangen. Verwenden Sie „Jetzt synchronisieren“ in den Datenbankdetails, um die neueste Kopie zu laden, und wählen Sie dann erneut „Änderungen zusammenführen“."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "La copia de la nube volvió a cambiar durante la combinación. No se perdió nada. Bloquee la base de datos, vuelva a abrirla y combine de nuevo."
+            "value" : "La copia de la nube ha cambiado desde la última sincronización de esta base de datos. No se perdió nada. Use «Sincronizar ahora» en Detalles de la base de datos para obtener la copia más reciente y, después, vuelva a elegir «Combinar cambios»."
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "La copie du cloud a de nouveau changé pendant la fusion. Rien n'a été perdu. Verrouillez la base de données, rouvrez-la et fusionnez à nouveau."
+            "value" : "La copie du cloud a changé depuis la dernière synchronisation de cette base de données. Rien n'a été perdu. Utilisez « Synchroniser maintenant » dans Détails de la base de données pour obtenir la copie la plus récente, puis choisissez à nouveau « Fusionner les modifications »."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "マージ中にクラウドのコピーが再び変更されました。何も失われていません。データベースをロックしてから再度開き、もう一度マージしてください。"
+            "value" : "このデータベースを最後に同期してから、クラウドのコピーが変更されました。何も失われていません。データベースの詳細で「今すぐ同期」を使用して最新のコピーを取得してから、もう一度「変更をマージ」を選択してください。"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "合并期间云端副本再次发生了变化。没有丢失任何内容。请锁定数据库，重新打开后再合并一次。"
+            "value" : "自上次同步此数据库以来，云端副本已发生变化。没有丢失任何内容。请在数据库详细信息中使用“立即同步”获取最新副本，然后再次选择“合并更改”。"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "合併期間雲端副本再次變更。沒有遺失任何內容。請鎖定資料庫，重新開啟後再合併一次。"
+            "value" : "自上次同步此資料庫以來，雲端副本已變更。沒有遺失任何內容。請在資料庫詳細資訊中使用「立即同步」取得最新副本，然後再次選擇「合併變更」。"
           }
         }
       }

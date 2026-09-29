@@ -1132,6 +1132,13 @@ struct CloudSyncStatusBanner: View {
         viewModel.isCloudRefreshPending || viewModel.isSyncingCloud || viewModel.cloudSyncOutcome != nil
     }
 
+    /// A conflicted AutoFill upload is not waiting: `PendingUploadConflictBanner`
+    /// right below says it failed and offers Merge Changes, so this line would
+    /// contradict it.
+    static func showsPendingUploadNote(for viewModel: DatabaseViewModel) -> Bool {
+        viewModel.hasPendingCloudUploads && viewModel.hasPendingUploadConflict == false
+    }
+
     private var providerName: String {
         viewModel.databaseReference.cloudProviderKind?.displayName ?? String(localized: "cloud")
     }
@@ -1183,7 +1190,7 @@ struct CloudSyncStatusBanner: View {
                         .foregroundStyle(.secondary)
                 }
 
-                if viewModel.hasPendingCloudUploads {
+                if Self.showsPendingUploadNote(for: viewModel) {
                     Text("Changes saved through AutoFill are still waiting to upload.")
                         .font(.caption2)
                         .foregroundStyle(.secondary)
