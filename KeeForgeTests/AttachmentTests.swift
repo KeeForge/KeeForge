@@ -186,6 +186,269 @@ final class AttachmentTests: XCTestCase {
         XCTAssertEqual(poolAfterSave[1]?.data, Data("plain-attachment-bytes".utf8))
     }
 
+    // MARK: - Editing attachments
+
+    func test_addingAttachment_appendsProtectedPoolEntryKeepsHistoryAndRoundTrips() throws {
+        let fixture = try makeEditableFixture()
+        let entry = try fixture.entry()
+
+        let draft = try fixture.draft().apply(.updateEntry(
+            entryID: entry.id,
+            draft: payload(for: entry, attachments: [
+                .existing(name: "alpha.txt", ref: 0),
+                .new(name: "bravo.pdf", data: Data("bravo-bytes".utf8)),
+            ])
+        ))
+
+        let pool = try XCTUnwrap(draft.binaryPoolFields)
+        XCTAssertEqual(pool, fixture.header.innerHeaderBinaryFields + [Data([0x01]) + Data("bravo-bytes".utf8)])
+        let updated = try XCTUnwrap(draft.rootGroup.allEntries.first { $0.id == entry.id })
+        XCTAssertEqual(updated.attachments.map(\.name), ["alpha.txt", "bravo.pdf"])
+        XCTAssertEqual(updated.attachments.map(\.ref), [0, 1])
+        XCTAssertEqual(updated.history.first?.attachments, entry.attachments)
+
+        let reparsed = try fixture.writeAndReparse(draft)
+        let saved = try XCTUnwrap(reparsed.rootGroup.allEntries.first { $0.id == entry.id })
+        // Whole-value equality, insertion index included: the in-memory tree
+        // has to match what the next parse of the saved file reports, or a
+        // later merge sees a change that never happened.
+        XCTAssertEqual(saved.attachments, updated.attachments)
+        let savedPool = BinaryPool(rawFields: reparsed.header.innerHeaderBinaryFields)
+        XCTAssertEqual(savedPool[saved.attachments[1].ref]?.data, Data("bravo-bytes".utf8))
+        XCTAssertEqual(savedPool[saved.attachments[1].ref]?.isProtected, true)
+        XCTAssertEqual(savedPool[saved.attachments[0].ref]?.data, Data("alpha-bytes".utf8))
+    }
+
+    func test_addingAttachment_toEntryWithoutAttachments_landsWhereTheParserReportsIt() throws {
+        let fixture = try makeEditableFixture()
+        let entry = try fixture.entry(titled: "Bare")
+
+        let draft = try fixture.draft().apply(.updateEntry(
+            entryID: entry.id,
+            draft: payload(for: entry, attachments: [.new(name: "first.bin", data: Data("first".utf8))])
+        ))
+        let updated = try XCTUnwrap(draft.rootGroup.allEntries.first { $0.id == entry.id })
+
+        let reparsed = try fixture.writeAndReparse(draft)
+        let saved = try XCTUnwrap(reparsed.rootGroup.allEntries.first { $0.id == entry.id })
+        XCTAssertEqual(saved.attachments, updated.attachments)
+        XCTAssertEqual(saved.unknownXML, updated.unknownXML)
+        XCTAssertEqual(saved.customFields, updated.customFields)
+    }
+
+    func test_creatingEntryWithAttachment_storesItAndRoundTrips() throws {
+        let fixture = try makeEditableFixture()
+
+        let draft = try fixture.draft().apply(.createEntry(
+            parentGroupID: fixture.rootGroup.id,
+            draft: EntryDraftPayload(
+                title: "Created",
+                password: "created-password",
+                attachments: [.new(name: "created.txt", data: Data("created-bytes".utf8))]
+            )
+        ))
+        let created = try XCTUnwrap(draft.rootGroup.allEntries.first { $0.title == "Created" })
+        XCTAssertEqual(created.attachments.map(\.name), ["created.txt"])
+
+        let reparsed = try fixture.writeAndReparse(draft)
+        let saved = try XCTUnwrap(reparsed.rootGroup.allEntries.first { $0.title == "Created" })
+        XCTAssertEqual(saved.attachments, created.attachments)
+        let savedPool = BinaryPool(rawFields: reparsed.header.innerHeaderBinaryFields)
+        XCTAssertEqual(savedPool[saved.attachments[0].ref]?.data, Data("created-bytes".utf8))
+    }
+
+    func test_addingBytesThePoolAlreadyHolds_reusesThatPoolEntry() throws {
+        let fixture = try makeEditableFixture()
+        let entry = try fixture.entry(titled: "Bare")
+
+        let draft = try fixture.draft().apply(.updateEntry(
+            entryID: entry.id,
+            draft: payload(for: entry, attachments: [
+                .new(name: "copy-of-alpha.txt", data: Data("alpha-bytes".utf8)),
+                .new(name: "new.txt", data: Data("new-bytes".utf8)),
+                .new(name: "new-again.txt", data: Data("new-bytes".utf8)),
+            ])
+        ))
+
+        let updated = try XCTUnwrap(draft.rootGroup.allEntries.first { $0.id == entry.id })
+        XCTAssertEqual(updated.attachments.map(\.ref), [0, 1, 1])
+        XCTAssertEqual(draft.binaryPoolFields?.count, 2)
+    }
+
+    func test_removingAttachment_dropsTheReferenceButHistoryStillResolvesIt() throws {
+        let fixture = try makeEditableFixture()
+        let entry = try fixture.entry()
+
+        let draft = try fixture.draft().apply(.updateEntry(
+            entryID: entry.id,
+            draft: payload(for: entry, attachments: [])
+        ))
+
+        let updated = try XCTUnwrap(draft.rootGroup.allEntries.first { $0.id == entry.id })
+        XCTAssertTrue(updated.attachments.isEmpty)
+        XCTAssertEqual(draft.binaryPoolFields, fixture.header.innerHeaderBinaryFields)
+
+        let reparsed = try fixture.writeAndReparse(draft)
+        let saved = try XCTUnwrap(reparsed.rootGroup.allEntries.first { $0.id == entry.id })
+        XCTAssertTrue(saved.attachments.isEmpty)
+        let historical = try XCTUnwrap(saved.history.first?.attachments.first)
+        XCTAssertEqual(historical.name, "alpha.txt")
+        let savedPool = BinaryPool(rawFields: reparsed.header.innerHeaderBinaryFields)
+        XCTAssertEqual(savedPool[historical.ref]?.data, Data("alpha-bytes".utf8))
+    }
+
+    func test_nilAttachmentPayload_keepsTheEntrysAttachments() throws {
+        let fixture = try makeEditableFixture()
+        let entry = try fixture.entry()
+
+        let draft = try fixture.draft().apply(.updateEntry(
+            entryID: entry.id,
+            draft: payload(for: entry, attachments: nil)
+        ))
+
+        let updated = try XCTUnwrap(draft.rootGroup.allEntries.first { $0.id == entry.id })
+        XCTAssertEqual(updated.attachments, entry.attachments)
+        XCTAssertEqual(draft.binaryPoolFields, fixture.header.innerHeaderBinaryFields)
+    }
+
+    func test_keepingAnAttachmentTheEntryNoLongerHas_throws() throws {
+        let fixture = try makeEditableFixture()
+        let entry = try fixture.entry()
+
+        XCTAssertThrowsError(try fixture.draft().apply(.updateEntry(
+            entryID: entry.id,
+            draft: payload(for: entry, attachments: [.existing(name: "alpha.txt", ref: 7)])
+        ))) { error in
+            XCTAssertEqual(error as? DatabaseDraft.DraftError, .attachmentNotFound(name: "alpha.txt"))
+        }
+    }
+
+    func test_draftWithoutPool_refusesNewAttachmentsButStillRemovesThem() throws {
+        let fixture = try makeEditableFixture()
+        let entry = try fixture.entry()
+        let poolless = DatabaseDraft(rootGroup: fixture.rootGroup, meta: fixture.meta, sessionKey: sessionKey)
+
+        XCTAssertThrowsError(try poolless.apply(.updateEntry(
+            entryID: entry.id,
+            draft: payload(for: entry, attachments: [.new(name: "x.bin", data: Data("x".utf8))])
+        ))) { error in
+            XCTAssertEqual(error as? DatabaseDraft.DraftError, .attachmentPoolUnavailable)
+        }
+
+        let removed = try poolless.apply(.updateEntry(entryID: entry.id, draft: payload(for: entry, attachments: [])))
+        XCTAssertNil(removed.binaryPoolFields)
+    }
+
+    func test_draftWithoutPool_writesThePoolOfTheHeaderItReplaces() throws {
+        let fixture = try makeEditableFixture()
+        let poolless = DatabaseDraft(rootGroup: fixture.rootGroup, meta: fixture.meta, sessionKey: sessionKey)
+
+        let reparsed = try fixture.writeAndReparse(poolless)
+
+        XCTAssertEqual(reparsed.header.innerHeaderBinaryFields, fixture.header.innerHeaderBinaryFields)
+    }
+
+    func test_discardingEdits_restoresTheOpenedPool() throws {
+        let fixture = try makeEditableFixture()
+        let entry = try fixture.entry()
+
+        let edited = try fixture.draft().apply(.updateEntry(
+            entryID: entry.id,
+            draft: payload(for: entry, attachments: [.new(name: "b.bin", data: Data("b".utf8))])
+        ))
+
+        XCTAssertEqual(edited.discardingEdits().binaryPoolFields, fixture.header.innerHeaderBinaryFields)
+    }
+
+    private struct EditableFixture {
+        let rootGroup: KPGroup
+        let meta: KPMeta
+        let header: KDBXParser.Header
+        let compositeKey: SymmetricKey
+        let sessionKey: SymmetricKey
+
+        func entry(titled title: String = "With Attachment") throws -> KPEntry {
+            try XCTUnwrap(rootGroup.allEntries.first { $0.title == title })
+        }
+
+        func draft() -> DatabaseDraft {
+            DatabaseDraft(
+                rootGroup: rootGroup,
+                meta: meta,
+                sessionKey: sessionKey,
+                binaryPoolFields: header.innerHeaderBinaryFields
+            )
+        }
+
+        func writeAndReparse(_ draft: DatabaseDraft) throws -> (rootGroup: KPGroup, meta: KPMeta, header: KDBXParser.Header) {
+            let data = try draft.write(compositeKey: compositeKey, header: header, kdfPolicy: .mainApp)
+            return try KDBXParser.parseWithMetaAndHeader(data: data, compositeKey: compositeKey, sessionKey: sessionKey)
+        }
+    }
+
+    /// A parsed database with one entry carrying a tag, a custom field, and an
+    /// attachment, and one bare entry, so edits run against parser-recorded
+    /// positions rather than hand-built ones.
+    private func makeEditableFixture() throws -> EditableFixture {
+        let compositeKey = KDBXCrypto.compositeKey(password: "attachment-edit-password")
+        let timestamp = Date(timeIntervalSince1970: 1_700_000_000)
+        let withAttachment = KPEntry(
+            title: "With Attachment",
+            username: "user",
+            password: try EncryptedValue.encrypt("secret", using: sessionKey),
+            tags: ["work"],
+            hasTagsElement: true,
+            customFields: ["PIN": "1234"],
+            creationTime: timestamp,
+            lastModificationTime: timestamp,
+            attachments: [KPAttachment(name: "alpha.txt", ref: 0)]
+        )
+        let bare = KPEntry(
+            title: "Bare",
+            password: try EncryptedValue.encrypt("bare-secret", using: sessionKey),
+            creationTime: timestamp,
+            lastModificationTime: timestamp
+        )
+        let root = KPGroup(name: "Root", entries: [withAttachment, bare])
+        let meta = KPMeta(
+            maintenanceHistoryDays: KPMeta.defaultMaintenanceHistoryDays,
+            historyMaxItems: KPMeta.defaultHistoryMaxItems,
+            historyMaxSize: KPMeta.defaultHistoryMaxSize
+        )
+        let written = try KDBXWriter.write(
+            rootGroup: root,
+            meta: meta,
+            compositeKey: compositeKey,
+            freshHeader: KDBXWriter.FreshHeaderConfiguration(
+                cipherID: KDBXParser.aesCipherUUID,
+                kdfParameters: KDBXCompatibilitySupport.fastArgon2idParameters(),
+                innerHeaderBinaryFields: [Data([0x00]) + Data("alpha-bytes".utf8)]
+            ),
+            sessionKey: sessionKey
+        )
+        let parsed = try KDBXParser.parseWithMetaAndHeader(data: written, compositeKey: compositeKey, sessionKey: sessionKey)
+        return EditableFixture(
+            rootGroup: parsed.rootGroup,
+            meta: parsed.meta,
+            header: parsed.header,
+            compositeKey: compositeKey,
+            sessionKey: sessionKey
+        )
+    }
+
+    private func payload(for entry: KPEntry, attachments: [EntryAttachmentPayload]?) throws -> EntryDraftPayload {
+        EntryDraftPayload(
+            title: entry.title,
+            username: entry.username,
+            password: try entry.password.decrypt(using: sessionKey),
+            url: entry.url,
+            notes: entry.notes,
+            customFields: entry.customFields,
+            tags: entry.tags,
+            attachments: attachments
+        )
+    }
+
     func test_freshDatabaseCreation_defaultsToEmptyBinaryPool() throws {
         let compositeKey = KDBXCrypto.compositeKey(password: "fresh-password")
         let root = KPGroup(name: "Root")

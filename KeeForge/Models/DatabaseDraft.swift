@@ -11,6 +11,8 @@ struct DatabaseDraft: Sendable {
         case historyVersionNotFound(entryID: UUID, index: Int)
         case customIconNotStorable
         case moveDestinationInsideMovedGroup(groupID: UUID, destinationGroupID: UUID)
+        case attachmentNotFound(name: String)
+        case attachmentPoolUnavailable
 
         var errorDescription: String? {
             switch self {
@@ -30,6 +32,10 @@ struct DatabaseDraft: Sendable {
                 String(localized: "This database's icons are stored in a form KeeForge cannot add to without risking the ones already there.")
             case .moveDestinationInsideMovedGroup:
                 String(localized: "A group cannot be moved into itself or one of its subgroups.")
+            case .attachmentNotFound(let name):
+                String(localized: "The attachment \"\(name)\" is no longer part of this entry.")
+            case .attachmentPoolUnavailable:
+                String(localized: "Attachments can't be added here.")
             }
         }
     }
@@ -48,11 +54,18 @@ struct DatabaseDraft: Sendable {
     private let currentRootGroupStorage: KPGroup
     private let originalMetaStorage: KPMeta
     private let currentMetaStorage: KPMeta
+    private let originalBinaryPoolFields: [Data]?
+    private let currentBinaryPoolFields: [Data]?
     private let sessionKey: SymmetricKey
 
     let pendingEdits: [EntryEdit]
 
-    init(rootGroup: KPGroup, meta: KPMeta, sessionKey: SymmetricKey) {
+    /// `binaryPoolFields` is the inner-header binary pool `rootGroup`'s
+    /// attachment refs point into, verbatim (`KDBXParser.Header.innerHeaderBinaryFields`).
+    /// `nil` leaves the pool to the file being replaced, which is only correct
+    /// while no edit adds an attachment, so such edits then throw
+    /// `attachmentPoolUnavailable`.
+    init(rootGroup: KPGroup, meta: KPMeta, sessionKey: SymmetricKey, binaryPoolFields: [Data]? = nil) {
         let originalRootGroupStorage = rootGroup.deepCopy()
         originalRootGroupStorage.recycleBinUUID = meta.recycleBinUUID
 
@@ -60,6 +73,8 @@ struct DatabaseDraft: Sendable {
         self.currentRootGroupStorage = originalRootGroupStorage
         self.originalMetaStorage = meta
         self.currentMetaStorage = meta
+        self.originalBinaryPoolFields = binaryPoolFields
+        self.currentBinaryPoolFields = binaryPoolFields
         self.sessionKey = sessionKey
         self.pendingEdits = []
     }
@@ -69,6 +84,8 @@ struct DatabaseDraft: Sendable {
         currentRootGroupStorage: KPGroup,
         originalMetaStorage: KPMeta,
         currentMetaStorage: KPMeta,
+        originalBinaryPoolFields: [Data]?,
+        currentBinaryPoolFields: [Data]?,
         sessionKey: SymmetricKey,
         pendingEdits: [EntryEdit]
     ) {
@@ -76,6 +93,8 @@ struct DatabaseDraft: Sendable {
         self.currentRootGroupStorage = currentRootGroupStorage
         self.originalMetaStorage = originalMetaStorage
         self.currentMetaStorage = currentMetaStorage
+        self.originalBinaryPoolFields = originalBinaryPoolFields
+        self.currentBinaryPoolFields = currentBinaryPoolFields
         self.sessionKey = sessionKey
         self.pendingEdits = pendingEdits
     }
@@ -90,6 +109,12 @@ struct DatabaseDraft: Sendable {
         currentMetaStorage
     }
 
+    /// The binary pool the draft's attachment refs point into, or `nil` when
+    /// the draft was built without one.
+    var binaryPoolFields: [Data]? {
+        currentBinaryPoolFields
+    }
+
     var writerSessionKey: SymmetricKey {
         sessionKey
     }
@@ -98,16 +123,42 @@ struct DatabaseDraft: Sendable {
         !pendingEdits.isEmpty
     }
 
+    /// Encrypts the draft over `header`, writing the draft's binary pool in
+    /// place of the one `header` was read with when the draft carries one.
+    func write(
+        compositeKey: SymmetricKey,
+        header: KDBXParser.Header,
+        kdfPolicy: KDFExecutionPolicy
+    ) throws -> Data {
+        var header = header
+        if let currentBinaryPoolFields {
+            header.innerHeaderBinaryFields = currentBinaryPoolFields
+        }
+        return try KDBXWriter.write(
+            rootGroup: rootGroup,
+            meta: meta,
+            compositeKey: compositeKey,
+            header: header,
+            sessionKey: sessionKey,
+            kdfPolicy: kdfPolicy
+        )
+    }
+
     func apply(_ edit: EntryEdit) throws -> DatabaseDraft {
         let updatedState: (rootGroup: KPGroup, meta: KPMeta)
+        var binaryPoolFields = currentBinaryPoolFields
 
         switch edit {
         case .createEntry(let parentGroupID, let draft):
-            updatedState = try applyCreate(parentGroupID: parentGroupID, draft: draft)
+            updatedState = try applyCreate(
+                parentGroupID: parentGroupID,
+                draft: draft,
+                binaryPoolFields: &binaryPoolFields
+            )
         case .createGroup(let parentGroupID, let name):
             updatedState = try applyCreateGroup(parentGroupID: parentGroupID, name: name)
         case .updateEntry(let entryID, let draft):
-            updatedState = try applyUpdate(entryID: entryID, draft: draft)
+            updatedState = try applyUpdate(entryID: entryID, draft: draft, binaryPoolFields: &binaryPoolFields)
         case .deleteEntry(let entryID, let sendToRecycleBin):
             updatedState = try applyDelete(entryID: entryID, sendToRecycleBin: sendToRecycleBin)
         case .deleteGroup(let groupID, let sendToRecycleBin):
@@ -141,6 +192,8 @@ struct DatabaseDraft: Sendable {
             currentRootGroupStorage: updatedState.rootGroup,
             originalMetaStorage: originalMetaStorage,
             currentMetaStorage: updatedState.meta,
+            originalBinaryPoolFields: originalBinaryPoolFields,
+            currentBinaryPoolFields: binaryPoolFields,
             sessionKey: sessionKey,
             pendingEdits: pendingEdits + [edit]
         )
@@ -152,6 +205,8 @@ struct DatabaseDraft: Sendable {
             currentRootGroupStorage: originalRootGroupStorage,
             originalMetaStorage: originalMetaStorage,
             currentMetaStorage: originalMetaStorage,
+            originalBinaryPoolFields: originalBinaryPoolFields,
+            currentBinaryPoolFields: originalBinaryPoolFields,
             sessionKey: sessionKey,
             pendingEdits: []
         )
@@ -159,14 +214,23 @@ struct DatabaseDraft: Sendable {
 
     private func applyCreate(
         parentGroupID: UUID,
-        draft: EntryDraftPayload
+        draft: EntryDraftPayload,
+        binaryPoolFields: inout [Data]?
     ) throws -> (rootGroup: KPGroup, meta: KPMeta) {
         guard let parentGroupPath = pathToGroup(withID: parentGroupID, in: currentRootGroupStorage) else {
             throw DraftError.groupNotFound(parentGroupID)
         }
 
         let timestamp = Date.now
-        let newEntry = try makeCreatedEntry(from: draft, timestamp: timestamp)
+        var newEntry = try makeCreatedEntry(from: draft, timestamp: timestamp)
+        if let attachments = draft.attachments {
+            newEntry.attachments = try Self.resolvedAttachments(
+                attachments,
+                of: newEntry,
+                keeping: [],
+                binaryPoolFields: &binaryPoolFields
+            )
+        }
         let updatedRootGroup = try rebuildGroup(in: currentRootGroupStorage, targetPath: parentGroupPath[...]) { group in
             var updatedEntries = group.entries
             updatedEntries.append(newEntry)
@@ -496,21 +560,89 @@ struct DatabaseDraft: Sendable {
 
     private func applyUpdate(
         entryID: UUID,
-        draft: EntryDraftPayload
+        draft: EntryDraftPayload,
+        binaryPoolFields: inout [Data]?
     ) throws -> (rootGroup: KPGroup, meta: KPMeta) {
         guard let entryLocation = findEntryLocation(entryID: entryID, in: currentRootGroupStorage) else {
             throw DraftError.entryNotFound(entryID)
         }
 
         let timestamp = Date.now
-        let updatedEntry = try makeUpdatedEntry(
+        var updatedEntry = try makeUpdatedEntry(
             from: draft,
             originalEntry: entryLocation.entry,
             timestamp: timestamp
         )
+        if let attachments = draft.attachments {
+            updatedEntry.attachments = try Self.resolvedAttachments(
+                attachments,
+                of: updatedEntry,
+                keeping: entryLocation.entry.attachments,
+                binaryPoolFields: &binaryPoolFields
+            )
+        }
         let updatedRootGroup = try replacingEntry(at: entryLocation, with: updatedEntry)
 
         return (updatedRootGroup, currentMetaStorage)
+    }
+
+    /// The attachments `payloads` describe, storing new files in the pool.
+    ///
+    /// Removing an attachment only drops the entry's reference: the version
+    /// pushed onto the history still points at the bytes, as in KeePass, so
+    /// the pool entry stays. A new file whose bytes the pool already holds
+    /// reuses that entry, as KeePassXC does on save.
+    private static func resolvedAttachments(
+        _ payloads: [EntryAttachmentPayload],
+        of entry: KPEntry,
+        keeping original: [KPAttachment],
+        binaryPoolFields: inout [Data]?
+    ) throws -> [KPAttachment] {
+        var unclaimed = original
+        var resolved: [KPAttachment] = []
+        for payload in payloads {
+            switch payload {
+            case .existing(let name, let ref):
+                guard let index = unclaimed.firstIndex(where: { $0.name == name && $0.ref == ref }) else {
+                    throw DraftError.attachmentNotFound(name: name)
+                }
+                resolved.append(unclaimed.remove(at: index))
+            case .new(let name, let data):
+                guard var pool = binaryPoolFields else {
+                    throw DraftError.attachmentPoolUnavailable
+                }
+                let ref: Int
+                if let existing = pool.firstIndex(where: { $0.dropFirst() == data }) {
+                    ref = existing
+                } else {
+                    // KeePassXC flags every pool entry it writes as protected.
+                    pool.append(Data([0x01]) + data)
+                    ref = pool.count - 1
+                }
+                binaryPoolFields = pool
+                resolved.append(KPAttachment(
+                    name: name,
+                    ref: ref,
+                    insertionIndex: resolved.last?.insertionIndex ?? attachmentInsertionIndexAfterNotes(for: entry)
+                ))
+            }
+        }
+        return resolved
+    }
+
+    /// The `KPAttachment.insertionIndex` that writes a `<Binary>` directly
+    /// after `<Notes>`, and that the parser reports back for it.
+    ///
+    /// Every entry writes `<UUID>`, `<IconID>` and the five standard strings,
+    /// `<Tags>` and `<Times>` only sometimes, all of them ahead of `<Notes>`.
+    /// Whatever the serializer writes after `<Notes>` cannot move this slot:
+    /// with nothing after it the attachment trails the entry, which the parser
+    /// counts as the same position. An edited entry always carries
+    /// `<LastModificationTime>`, so `<Times>` is always written here.
+    private static func attachmentInsertionIndexAfterNotes(for entry: KPEntry) -> Int {
+        let hasTags = entry.hasTagsElement || !entry.tags.isEmpty
+        let hasTimes = entry.creationTime != nil || entry.lastModificationTime != nil || entry.locationChanged != nil
+        return 2 + (hasTags ? 1 : 0) + (hasTimes ? 1 : 0) + 5
     }
 
     /// Whether a restore would keep the state it replaces, i.e. whether it can be undone.

@@ -360,7 +360,7 @@ final class KDBXCompatibilityTests: XCTestCase {
     /// The kitchen-sink fixture's dedicated pass. It is deliberately absent
     /// from `smokeFixtures` so its smoke scenario runs exactly once — here,
     /// where the attachment, group-tag, opaque-XML and outer-header invariants
-    /// can be asserted on the same reparsed snapshots — followed by the four
+    /// can be asserted on the same reparsed snapshots — followed by the five
     /// edit scenarios that belong to it.
     ///
     /// `keepassxc-cli` has no verb that prints group tags, an unknown
@@ -438,6 +438,11 @@ final class KDBXCompatibilityTests: XCTestCase {
         // softDelete: recycling one dedup entry doesn't disturb its sibling.
         let softDeleteLoaded = try KDBXCompatibilitySupport.load(.kitchenSink, bundle: bundle)
         try collector.run(KDBXCompatibilitySupport.attachmentsFixtureSoftDeleteScenario(), on: softDeleteLoaded)
+
+        // addRemove: the entry editor's attachment payload, one kept, one
+        // removed, one new file, written through the app's own save path.
+        let addRemoveLoaded = try KDBXCompatibilitySupport.load(.kitchenSink, bundle: bundle)
+        try collector.run(KDBXCompatibilitySupport.attachmentsFixtureAddRemoveScenario(), on: addRemoveLoaded)
 
         // group-tags updateEntry: editing an entry nested under both tagged
         // groups runs the copyGroup/replacingChildGroup funnel over exactly
@@ -672,6 +677,7 @@ final class KDBXCompatibilityTests: XCTestCase {
             "kitchen-sink-fixture-smoke-kitchen-sink",
             "kitchen-sink-attachments-update-entry",
             "kitchen-sink-attachments-soft-delete-entry",
+            "kitchen-sink-attachments-add-remove",
             "kitchen-sink-group-tags-update-entry",
             "kitchen-sink-group-tags-update-group",
             "\(richID)-keeotp-source-matrix",
@@ -694,7 +700,7 @@ final class KDBXCompatibilityTests: XCTestCase {
 
         // The artifact set never shrinks silently: the gate's merged manifest
         // is compared against exactly this count.
-        XCTAssertEqual(descriptors.count, 36)
+        XCTAssertEqual(descriptors.count, 37)
     }
 
     func test_externalExpectationTables_areExhaustiveOverEveryArtifactScenario() throws {

@@ -4045,6 +4045,98 @@ final class DatabaseViewModelTests: XCTestCase {
         XCTAssertNil(vm.mergeSummaryMessage)
     }
 
+    func testAddedAttachmentOpensBeforeSaveAndSavesWithThePool() async throws {
+        let pools = DraftPoolRecorder()
+        let savedHash = KDBXCrypto.sha512(Data("saved".utf8))
+        let vm = try makeViewModel(
+            localSaveOperation: { draft, _, _, _, _, _, _ in
+                pools.record(draft.binaryPoolFields)
+                return .saved(newSHA512: savedHash)
+            }
+        )
+        await vm.unlock(password: fixturePassword)
+        let openedPool = try XCTUnwrap(vm.binaryPool).rawFields
+        let entry = try XCTUnwrap(vm.currentRootGroup?.allEntries.first)
+        let bytes = Data("attached-bytes".utf8)
+
+        try vm.applyEntryEdit(.updateEntry(
+            entryID: entry.id,
+            draft: EntryDraftPayload(
+                title: entry.title,
+                password: "pw",
+                attachments: [.new(name: "attached.txt", data: bytes)]
+            )
+        ))
+        let attachment = try XCTUnwrap(vm.entry(withID: entry.id)?.attachments.last)
+        XCTAssertEqual(attachment.name, "attached.txt")
+        let unsavedData = await vm.attachmentData(for: attachment)
+        XCTAssertEqual(unsavedData, bytes, "An attachment in an unsaved edit must already open.")
+        XCTAssertEqual(vm.attachmentByteCount(for: attachment), bytes.count)
+
+        try await vm.save()
+
+        let expectedPool = openedPool + [Data([0x01]) + bytes]
+        XCTAssertEqual(pools.recorded, [expectedPool])
+        XCTAssertNil(vm.draft)
+        XCTAssertEqual(vm.binaryPool?.rawFields, expectedPool)
+        let savedData = await vm.attachmentData(for: attachment)
+        XCTAssertEqual(savedData, bytes)
+    }
+
+    func testMergeAndSaveKeepsAnAttachmentTheUnsavedEditAdded() async throws {
+        let remoteData = try makeRemoteVariantData { visibleRoot in
+            visibleRoot.entries.append(KPEntry(title: "Remote Only Entry"))
+        }
+        let remoteHash = KDBXCrypto.sha512(remoteData)
+        let recorder = MergeSaveRecorder(results: [
+            .conflict(remoteSHA512: remoteHash, remoteData: remoteData),
+            .saved(newSHA512: KDBXCrypto.sha512(Data("merged".utf8))),
+        ])
+        let pools = DraftPoolRecorder()
+        let vm = try makeViewModel(
+            localSaveOperation: { draft, _, _, openTimeSHA512, reconciledRemoteSHA512, _, _ in
+                pools.record(draft.binaryPoolFields)
+                return recorder.record(
+                    openTimeSHA512: openTimeSHA512,
+                    reconciledRemoteSHA512: reconciledRemoteSHA512,
+                    expectedRev: nil,
+                    rootGroup: draft.rootGroup
+                )
+            }
+        )
+        await vm.unlock(password: fixturePassword)
+        let openedPool = try XCTUnwrap(vm.binaryPool).rawFields
+        let entry = try XCTUnwrap(vm.currentRootGroup?.allEntries.first)
+        let bytes = Data("merged-attachment".utf8)
+        try vm.applyEntryEdit(.updateEntry(
+            entryID: entry.id,
+            draft: EntryDraftPayload(
+                title: entry.title,
+                password: "pw",
+                attachments: [.new(name: "local.txt", data: bytes)]
+            )
+        ))
+        try await vm.save()
+        XCTAssertNotNil(vm.saveConflict)
+
+        try await vm.mergeAndSave()
+
+        // The remote still has the pool the session opened, so the refs it
+        // brings mean the same bytes in the draft's pool, which only appended.
+        XCTAssertNil(vm.mergeFailure)
+        let expectedPool = openedPool + [Data([0x01]) + bytes]
+        XCTAssertEqual(pools.recorded.last, expectedPool)
+        let calls = recorder.recordedCalls
+        XCTAssertEqual(calls.count, 2)
+        XCTAssertTrue(allEntryTitles(in: calls[1].rootGroup).contains("Remote Only Entry"))
+        let mergedEntry = try XCTUnwrap(calls[1].rootGroup.allEntries.first { $0.id == entry.id })
+        XCTAssertEqual(mergedEntry.attachments.map(\.name), ["local.txt"])
+        XCTAssertEqual(vm.binaryPool?.rawFields, expectedPool)
+        let attachment = try XCTUnwrap(vm.entry(withID: entry.id)?.attachments.first)
+        let mergedData = await vm.attachmentData(for: attachment)
+        XCTAssertEqual(mergedData, bytes)
+    }
+
     func testMergeAndSaveWithUnreadableRemoteKeepsConflictOptions() async throws {
         let remoteData = Data("not-a-kdbx-file".utf8)
         let remoteHash = KDBXCrypto.sha512(remoteData)
@@ -4292,6 +4384,55 @@ final class DatabaseViewModelTests: XCTestCase {
         XCTAssertEqual(call.bytes, conflictBytes)
         XCTAssertNil(vm.draft)
         XCTAssertNil(vm.saveConflict)
+    }
+
+    func testSaveAsConflictCopyWritesThePoolTheDraftsAttachmentsPointInto() async throws {
+        // The remote's pool holds different bytes at the index the local
+        // attachment uses, so writing the draft over the remote's pool would
+        // hand the copy's attachment the remote's bytes.
+        let remoteData = try makeRemoteVariantData(
+            binaryPoolFields: [Data([0x00]) + Data("remote-only-bytes".utf8)]
+        ) { visibleRoot in
+            var entry = KPEntry(title: "Remote Entry With Attachment")
+            entry.attachments = [KPAttachment(name: "remote.txt", ref: 0)]
+            visibleRoot.entries.append(entry)
+        }
+        let recorder = ConflictCopyRecorder()
+        let vm = try makeViewModel(
+            localSaveOperation: { _, _, _, _, _, _, _ in
+                .conflict(remoteSHA512: KDBXCrypto.sha512(remoteData), remoteData: remoteData)
+            },
+            localConflictCopyOperation: { _, filename, bytes in
+                await recorder.record(filename: filename, bytes: bytes)
+            }
+        )
+        await vm.unlock(password: fixturePassword)
+        XCTAssertEqual(vm.binaryPool?.count, 0, "Fixture precondition: the opened database has no attachments")
+        let entry = try XCTUnwrap(vm.currentRootGroup?.allEntries.first)
+        try vm.applyEntryEdit(.updateEntry(
+            entryID: entry.id,
+            draft: EntryDraftPayload(
+                title: entry.title,
+                password: "pw",
+                attachments: [.new(name: "local.txt", data: Data("local-bytes".utf8))]
+            )
+        ))
+        try await vm.save()
+        XCTAssertNotNil(vm.saveConflict)
+
+        try await vm.saveAsConflictCopy()
+
+        let recordedCall = await recorder.firstCall()
+        let copy = try KDBXParser.parseWithMetaAndHeader(
+            data: try XCTUnwrap(recordedCall).bytes,
+            compositeKey: try KDBXCrypto.compositeKey(password: fixturePassword, keyFileData: nil),
+            sessionKey: SymmetricKey(size: .bits256)
+        )
+        let copiedEntry = try XCTUnwrap(copy.rootGroup.allEntries.first { $0.id == entry.id })
+        let attachment = try XCTUnwrap(copiedEntry.attachments.first)
+        XCTAssertEqual(attachment.name, "local.txt")
+        let pool = BinaryPool(rawFields: copy.header.innerHeaderBinaryFields)
+        XCTAssertEqual(pool[attachment.ref]?.data, Data("local-bytes".utf8))
     }
 
     func testSaveAsConflictCopyCloudUploadsSuffixedFileClearsConflict() async throws {
@@ -5685,20 +5826,11 @@ final class DatabaseViewModelTests: XCTestCase {
             )
         },
         conflictCopyEncryptionOperation: @escaping DatabaseViewModel.ConflictCopyEncryptionOperation = { draft, compositeKey, sourceData in
-            try await Task.detached {
-                let parsed = try KDBXParser.parseWithMetaAndHeader(
-                    data: sourceData,
-                    compositeKey: compositeKey,
-                    sessionKey: SymmetricKey(size: .bits256)
-                )
-                return try KDBXWriter.write(
-                    rootGroup: draft.rootGroup,
-                    meta: draft.meta,
-                    compositeKey: compositeKey,
-                    header: parsed.header,
-                    sessionKey: draft.writerSessionKey
-                )
-            }.value
+            try await DatabaseViewModel.encryptConflictCopy(
+                draft: draft,
+                compositeKey: compositeKey,
+                sourceData: sourceData
+            )
         },
         localConflictCopyOperation: @escaping DatabaseViewModel.LocalConflictCopyOperation = { reference, filename, bytes in
             try await Task.detached {
@@ -6205,6 +6337,23 @@ private final class PendingUploadFake: @unchecked Sendable {
                 }
             }
         )
+    }
+}
+
+private final class DraftPoolRecorder: @unchecked Sendable {
+    private let lock = NSLock()
+    private var pools: [[Data]?] = []
+
+    var recorded: [[Data]?] {
+        lock.lock()
+        defer { lock.unlock() }
+        return pools
+    }
+
+    func record(_ pool: [Data]?) {
+        lock.lock()
+        defer { lock.unlock() }
+        pools.append(pool)
     }
 }
 

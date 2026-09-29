@@ -23,8 +23,8 @@ enum KDBXMerger {
         var meta: KPMeta
         /// The side's KDBX4 inner-header binary pool, verbatim
         /// (`KDBXParser.Header.innerHeaderBinaryFields`). Used only for the
-        /// divergence check: the writer re-emits the pool of the file being
-        /// replaced and cannot renumber refs.
+        /// divergence check: the merged tree is written with the local side's
+        /// pool and refs are never renumbered.
         var binaryPoolFields: [Data]
 
         init(rootGroup: KPGroup, meta: KPMeta, binaryPoolFields: [Data] = []) {
@@ -79,8 +79,8 @@ enum KDBXMerger {
     /// are detected before the engine runs and are not modelled here.
     enum Blocker: Sendable, Hashable {
         /// The two inner-header binary pools differ and something references an
-        /// attachment. KeeForge re-emits the pool of the file it replaces and
-        /// cannot renumber refs, so a grafted ref could point at other data.
+        /// attachment. KeeForge writes the local side's pool and cannot
+        /// renumber refs, so a grafted ref could point at other data.
         case attachmentPoolDivergence
     }
 
