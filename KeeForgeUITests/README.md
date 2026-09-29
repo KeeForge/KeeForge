@@ -7,8 +7,8 @@ identifiers where the product behavior is shared.
 Detailed guidance for adding, running, and fixing XCUITests in `KeeForgeUITests/`.
 
 The Cloud-specific schemes split this target into two serial groups, `KeeForgeCloudUIA`
-and `KeeForgeCloudUIB`, alongside a separate unit-only scheme. Live workflow activation
-is tracked in `../.agents/skills/release/xcode-cloud-setup.md`. Group A selects whole classes
+and `KeeForgeCloudUIB`, alongside a separate unit-only scheme. All three are active in the
+RC workflow; see `../.agents/skills/release/xcode-cloud-setup.md`. Group A selects whole classes
 in `project.yml`; B runs the complement, including new classes automatically. XcodeGen's
 post-generation check verifies the partition. Rebalance using measured cloud durations;
 see `../ci_scripts/README.md`. The ordinary `KeeForge` scheme still runs the full target.

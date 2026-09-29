@@ -123,6 +123,78 @@ final class CloudSyncCoordinatorTests: XCTestCase {
         XCTAssertEqual(strays, [cacheURL.lastPathComponent], "The pin and the staged download must both be cleaned up.")
     }
 
+    /// A save can land in the cache while the download is in flight (an app
+    /// save's `applyUploadedBytesAfterSave`, an AutoFill save). Its bytes are
+    /// newer than the ones arriving, so the download must not replace them:
+    /// the next sync would then see the save's revision, trust the cache, and
+    /// hand back the pre-save bytes.
+    func testSyncDownloadDoesNotRevertACacheWrittenDuringTheTransfer() async throws {
+        let reference = makeCloudReference(
+            remoteContentHash: "old-hash",
+            remoteModifiedAt: Date(timeIntervalSince1970: 100)
+        )
+        try DatabaseListStore.cacheDatabaseCopy(Data("opened-bytes".utf8), for: reference)
+        let cacheURL = DatabaseListStore.cacheLocation(for: reference)
+        let savedBytes = Data("saved-during-download".utf8)
+
+        let provider = MockCloudProvider()
+        provider.metadataResult = .success(
+            CloudFileMetadata(modifiedDate: Date(timeIntervalSince1970: 200), contentHash: "new-hash", size: 128)
+        )
+        provider.downloadedData = Data("pre-save-remote-bytes".utf8)
+        provider.duringDownload = {
+            try DatabaseListStore.cacheDatabaseCopy(savedBytes, for: reference)
+        }
+
+        let resolution = try await CloudSyncCoordinator.syncIfNeededForOpen(
+            reference: reference,
+            providerResolver: { _ in provider }
+        )
+
+        XCTAssertEqual(try Data(contentsOf: cacheURL), savedBytes, "The saved bytes must survive the download.")
+        XCTAssertEqual(resolution.data, savedBytes)
+        guard case .cachedWithError = resolution.status else {
+            XCTFail("A superseded download must not report the cache as synced; got \(resolution.status)")
+            return
+        }
+        XCTAssertEqual(resolution.reference.cloudSyncMetadata?.remoteContentHash, "old-hash")
+        let strays = try FileManager.default.contentsOfDirectory(
+            atPath: cacheURL.deletingLastPathComponent().path
+        )
+        XCTAssertEqual(strays, [cacheURL.lastPathComponent], "The pin and the staged download must both be cleaned up.")
+    }
+
+    /// Same window on a first download: a cache that appears while the
+    /// transfer runs was written by someone else and is kept. With no cache
+    /// at the start there was nothing to fall back to, so the sync fails.
+    func testFirstDownloadDoesNotReplaceACacheCreatedDuringTheTransfer() async throws {
+        let reference = makeCloudReference(remoteContentHash: nil, remoteModifiedAt: nil)
+        let cacheURL = DatabaseListStore.cacheLocation(for: reference)
+        // Cloud caches are keyed by remote path, not reference id, so an
+        // earlier test's copy would otherwise stand in.
+        try? FileManager.default.removeItem(at: cacheURL)
+        let savedBytes = Data("saved-during-download".utf8)
+
+        let provider = MockCloudProvider()
+        provider.metadataResult = .success(
+            CloudFileMetadata(modifiedDate: Date(timeIntervalSince1970: 200), contentHash: "new-hash", size: 128)
+        )
+        provider.downloadedData = Data("pre-save-remote-bytes".utf8)
+        provider.duringDownload = {
+            try DatabaseListStore.cacheDatabaseCopy(savedBytes, for: reference)
+        }
+
+        do {
+            _ = try await CloudSyncCoordinator.syncIfNeededForOpen(
+                reference: reference,
+                providerResolver: { _ in provider }
+            )
+            XCTFail("A superseded first download must not report success")
+        } catch {}
+
+        XCTAssertEqual(try Data(contentsOf: cacheURL), savedBytes)
+    }
+
     // MARK: - Coordinated cache replace (M12, direct)
 
     // `replaceCacheItem` is the conditional swap the whole M12 race defense
@@ -677,6 +749,119 @@ final class CloudSyncCoordinatorTests: XCTestCase {
         XCTAssertNotNil(resolution.reference.cloudSyncMetadata?.lastSyncedAt)
     }
 
+    // MARK: - Manual sync policy (#67)
+
+    func testManualPolicyOpensCachedCopyWithoutContactingTheProvider() async throws {
+        let lastSyncedAt = Date(timeIntervalSince1970: 300)
+        var reference = makeCloudReference(
+            remoteContentHash: "cached-hash",
+            remoteModifiedAt: Date(timeIntervalSince1970: 100)
+        )
+        reference.cloudSyncPolicy = .manual
+        reference.updateCloudSyncMetadata { metadata in
+            metadata.lastSyncedAt = lastSyncedAt
+            metadata.lastSyncIssue = .networkUnavailable
+        }
+        try DatabaseListStore.cacheDatabaseCopy(Data("cached-manual-copy".utf8), for: reference)
+
+        let provider = MockCloudProvider()
+        provider.metadataResult = .success(
+            CloudFileMetadata(modifiedDate: Date(timeIntervalSince1970: 200), contentHash: "new-hash", size: 128)
+        )
+        var resolvedProvider = false
+
+        let resolution = try await CloudSyncCoordinator.syncIfNeededForOpen(
+            reference: reference,
+            providerResolver: { _ in
+                resolvedProvider = true
+                return provider
+            }
+        )
+
+        XCTAssertEqual(resolution.status, .refreshSkipped)
+        XCTAssertNil(resolution.bannerMessage, "A deliberate skip is not a warning")
+        XCTAssertEqual(resolution.data, Data("cached-manual-copy".utf8))
+        XCTAssertFalse(resolvedProvider)
+        XCTAssertEqual(provider.metadataCallCount, 0)
+        XCTAssertEqual(provider.downloadCallCount, 0)
+        // Nothing was learned, so the recorded sync state (and its staleness)
+        // stays exactly as it was.
+        XCTAssertEqual(resolution.reference, reference)
+    }
+
+    func testManualPolicyStillDownloadsWhenNoCachedCopyExists() async throws {
+        var reference = makeCloudReference(remoteContentHash: nil, remoteModifiedAt: nil)
+        reference.cloudSyncPolicy = .manual
+        // Cloud caches are keyed by remote path, not reference id, so an
+        // earlier test's copy would otherwise stand in.
+        try? FileManager.default.removeItem(at: DatabaseListStore.cacheLocation(for: reference))
+
+        let provider = MockCloudProvider()
+        provider.metadataResult = .success(
+            CloudFileMetadata(modifiedDate: Date(timeIntervalSince1970: 200), contentHash: "first-hash", size: 128)
+        )
+        provider.downloadedData = Data("first-download".utf8)
+
+        let resolution = try await CloudSyncCoordinator.syncIfNeededForOpen(
+            reference: reference,
+            providerResolver: { _ in provider }
+        )
+
+        XCTAssertEqual(resolution.status, .downloaded)
+        XCTAssertEqual(resolution.data, Data("first-download".utf8))
+        XCTAssertEqual(provider.downloadCallCount, 1)
+        XCTAssertEqual(resolution.reference.cloudSyncMetadata?.remoteContentHash, "first-hash")
+    }
+
+    func testManualPolicyIsIgnoredForAnExplicitSync() async throws {
+        var reference = makeCloudReference(
+            remoteContentHash: "cached-hash",
+            remoteModifiedAt: Date(timeIntervalSince1970: 100)
+        )
+        reference.cloudSyncPolicy = .manual
+        try DatabaseListStore.cacheDatabaseCopy(Data("cached-manual-copy".utf8), for: reference)
+
+        let provider = MockCloudProvider()
+        provider.metadataResult = .success(
+            CloudFileMetadata(modifiedDate: Date(timeIntervalSince1970: 200), contentHash: "new-hash", size: 128)
+        )
+        provider.downloadedData = Data("newer-remote-copy".utf8)
+
+        let resolution = try await CloudSyncCoordinator.syncIfNeededForOpen(
+            reference: reference,
+            honorsManualSyncPolicy: false,
+            providerResolver: { _ in provider }
+        )
+
+        XCTAssertEqual(resolution.status, .downloaded)
+        XCTAssertEqual(resolution.data, Data("newer-remote-copy".utf8))
+        XCTAssertEqual(provider.metadataCallCount, 1)
+        XCTAssertEqual(resolution.reference.cloudSyncMetadata?.remoteContentHash, "new-hash")
+        XCTAssertEqual(resolution.reference.cloudSyncPolicy, .manual)
+    }
+
+    func testExplicitSyncOfManualDatabaseStillFallsBackToCacheOffline() async throws {
+        var reference = makeCloudReference(
+            remoteContentHash: "cached-hash",
+            remoteModifiedAt: Date(timeIntervalSince1970: 100)
+        )
+        reference.cloudSyncPolicy = .manual
+        try DatabaseListStore.cacheDatabaseCopy(Data("cached-manual-copy".utf8), for: reference)
+
+        let provider = MockCloudProvider()
+        provider.metadataResult = .failure(CloudProviderError.networkUnavailable)
+
+        let resolution = try await CloudSyncCoordinator.syncIfNeededForOpen(
+            reference: reference,
+            honorsManualSyncPolicy: false,
+            providerResolver: { _ in provider }
+        )
+
+        XCTAssertEqual(resolution.status, .offlineCached)
+        XCTAssertEqual(resolution.data, Data("cached-manual-copy".utf8))
+        XCTAssertEqual(resolution.reference.cloudSyncMetadata?.lastSyncIssue, .networkUnavailable)
+    }
+
     func testSyncFallsBackToCachedCopyWhenOffline() async throws {
         let reference = makeCloudReference(
             remoteContentHash: "cached-hash",
@@ -996,6 +1181,9 @@ private final class MockCloudProvider: CloudProvider, @unchecked Sendable {
     /// deadline must not cut off.
     var metadataProbeTransfersContent = false
     var downloadDelay: Duration = .zero
+    /// Runs while the transfer is in flight, before its bytes are written:
+    /// the window a concurrent save can land in.
+    var duringDownload: (() throws -> Void)?
     var downloadedData = Data()
     /// What `download` reports about the bytes it wrote. Nil models a
     /// transport that cannot say (OneDrive), where the caller must keep the
@@ -1034,6 +1222,7 @@ private final class MockCloudProvider: CloudProvider, @unchecked Sendable {
         if downloadDelay > .zero {
             try await Task.sleep(for: downloadDelay)
         }
+        try duringDownload?()
         try downloadedData.write(to: localURL)
         progress(1)
         return downloadedMetadata

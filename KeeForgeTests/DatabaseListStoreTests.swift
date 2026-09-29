@@ -182,6 +182,25 @@ final class DatabaseListStoreTests: XCTestCase {
         XCTAssertEqual(try Data(contentsOf: cachedURL), cachedData)
     }
 
+    func testSetCloudSyncPolicyPersistsWithoutTouchingOtherFields() throws {
+        var reference = makeStoredCloudReference(remoteRev: "rev-A", remoteContentHash: "hash-A")
+        reference.nickname = "Stored Name"
+        DatabaseListStore.update(reference)
+
+        // A stale copy (no nickname) must not carry its other fields back.
+        var staleCopy = reference
+        staleCopy.nickname = nil
+        DatabaseListStore.setCloudSyncPolicy(.manual, for: staleCopy)
+
+        let stored = try XCTUnwrap(DatabaseListStore.databases.first(where: { $0.id == reference.id }))
+        XCTAssertEqual(stored.cloudSyncPolicy, .manual)
+        XCTAssertEqual(stored.nickname, "Stored Name")
+        XCTAssertEqual(stored.cloudSyncMetadata, reference.cloudSyncMetadata)
+
+        DatabaseListStore.setCloudSyncPolicy(.onOpen, for: reference)
+        XCTAssertEqual(DatabaseListStore.databases.first(where: { $0.id == reference.id })?.cloudSyncPolicy, .onOpen)
+    }
+
     // MARK: - Cloud sync metadata merge (M13)
 
     func testUpdateCloudSyncMetadataMergesSyncFieldsWithoutTouchingOtherFields() throws {
