@@ -17,6 +17,7 @@ Entry point for coding agents working on KeeForge. This file is intentionally br
 - Native iPhone, iPad, and Mac KeePass manager for KDBX 4.x databases; also reads KDBX 3.1 (read-only)
 - Swift 6, SwiftUI, iOS 18+ / macOS 15+, `@Observable`, strict concurrency
 - XcodeGen build graph: edit `project.yml`, then regenerate `KeeForge.xcodeproj`
+- Xcode Cloud uses `KeeForgeCloudUnitTests`, `KeeForgeCloudUIA`, and `KeeForgeCloudUIB`; the ordinary `KeeForge` scheme retains both full suites. UI B is the complement of A, so new UI classes stay covered. XcodeGen validates this partition automatically; details live in `ci_scripts/README.md`.
 - Main targets: `KeeForge`, `KeeForgeMac`, `KeeForgeAutoFill`, `KeeForgeMacAutoFill`, `KeeForgeTests`, `KeeForgeMacTests`, `KeeForgeUITests`, `KeeForgeMacUITests`. The native macOS app shipped in v1.16.0; macOS work now follows the ordinary changelog flow under `## Unreleased`.
 
 ## Open The Local Doc First

@@ -52,6 +52,9 @@ struct DatabaseListView: View {
     @State private var isDatabaseCreationPresented = false
     @State private var exportRequest: DatabaseExportRequest?
     @Environment(\.scenePhase) private var scenePhase
+    #if os(iOS)
+    @State private var editMode: EditMode = .inactive
+    #endif
 
     var body: some View {
         listShell
@@ -199,6 +202,7 @@ struct DatabaseListView: View {
         #else
         NavigationStack {
             listContent
+                .environment(\.editMode, $editMode)
         }
         #endif
     }
@@ -225,6 +229,10 @@ struct DatabaseListView: View {
         List {
             ForEach(viewModel.databases) { reference in
                 databaseRowButton(for: reference)
+                    #if os(iOS)
+                    // Outside Edit mode, the long press belongs to the context menu.
+                    .moveDisabled(!editMode.isEditing)
+                    #endif
                     .modifier(
                         DatabaseRowChrome(isSelected: reference.id == selectedDatabaseID)
                     )

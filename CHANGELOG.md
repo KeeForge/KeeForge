@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Fixes
+
+- Database context menus open without delays on iPhone and iPad. Tap Edit to reorder databases.
+
 ### New Features
 
 - A password or passkey saved through AutoFill no longer gets stuck when the cloud copy of the database changed in the meantime (#149). Open the database and tap "Merge Changes" in the notice at the top: KeeForge combines the change with the cloud copy the way KeePass merges databases and uploads the result. If the merge can't be done safely, nothing changes, and the message explains what to do instead, such as merging the change in another KeePass app.

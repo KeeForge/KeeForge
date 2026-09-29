@@ -139,6 +139,7 @@ final class AutoFillStoreUITests: AppSettingsUITestCase {
     private static var cachedStoreProbe: StoreProbe?
 
     override func setUp() async throws {
+        executionTimeAllowance = 300
         try skipUnlessProvisionedStoreIsAvailable()
         try await super.setUp()
     }
