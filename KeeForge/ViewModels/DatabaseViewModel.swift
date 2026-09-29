@@ -1495,11 +1495,13 @@ final class DatabaseViewModel {
         let staged = try await importStagingOperation(base, drafts, groupID)
 
         // Every change to the tree bumps `contentRevision`, so an unchanged
-        // revision means `base` is still the working draft.
-        guard expectedLockCycleID == lockCycleID, case .unlocked = state else {
+        // revision means `base` is still the working draft. A session that
+        // is `.unlocking` without a lock in between is replacing its tree
+        // (Sync Now or a conflict reload), which is a change, not a lock.
+        guard expectedLockCycleID == lockCycleID else {
             throw PasswordImportFailure.sessionUnavailable
         }
-        guard expectedContentRevision == contentRevision else {
+        guard case .unlocked = state, expectedContentRevision == contentRevision else {
             throw PasswordImportFailure.databaseChanged
         }
         guard isSaving == false else {

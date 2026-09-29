@@ -6421,7 +6421,7 @@ private actor AsyncGate {
 
 /// Parks the first save-operation call until the test releases it, so an edit
 /// can land while that save is provably in flight. Later calls pass through.
-private actor InFlightSaveGate {
+actor InFlightSaveGate {
     private var startWaiter: CheckedContinuation<Void, Never>?
     private var hasStarted = false
     private var releaseWaiter: CheckedContinuation<Void, Never>?

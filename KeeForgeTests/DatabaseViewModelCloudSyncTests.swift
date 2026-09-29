@@ -568,6 +568,60 @@ final class DatabaseViewModelCloudSyncTests: XCTestCase {
         XCTAssertTrue(vm.isCloudRefreshPending, "The provider was not reached")
     }
 
+    func testImportStagedWhileSyncNowReplacesTheTreeReportsAChangeNotALock() async throws {
+        let gate = InFlightSaveGate()
+        let newerData = try fixtureData(named: "kitchen-sink")
+        let vm = makeViewModel(
+            reference: try makeStoredManualReference(),
+            openedData: try fixtureData(),
+            cloudRefreshOperation: { reference, _ in
+                Self.resolution(reference, data: newerData, status: .downloaded)
+            },
+            cloudSaveOperation: { _, _, _, _, _, _, _, _ in
+                XCTFail("entries built on the replaced tree must not be saved")
+                throw CloudProviderError.networkUnavailable
+            },
+            importStagingOperation: { base, drafts, groupID in
+                await gate.parkFirstCall()
+                return try await DatabaseViewModel.stageImportedEntries(base, drafts, groupID)
+            }
+        )
+        await vm.unlock(password: fixturePassword)
+        let groupID = try XCTUnwrap(vm.visibleRootGroupID)
+        let csv = """
+        Title,URL,Username,Password
+        Imported During Sync,https://imported.example,me,secret
+
+        """
+        let drafts = try ApplePasswordsCSVImporter.preview(from: Data(csv.utf8)).items.map(\.draft)
+        let importTask = Task { try await vm.importEntries(drafts, into: groupID) }
+        await gate.firstCallStarted()
+
+        // The staged entries come back while the fetched copy is parsed.
+        let parsing = triggerWhenParsing(vm) {
+            Task { await gate.releaseFirstCall() }
+        }
+        let sync = Task { await vm.syncCloudNow() }
+        do {
+            _ = try await importTask.value
+            XCTFail("entries built on the replaced tree must not be staged")
+        } catch {
+            XCTAssertEqual(
+                error as? DatabaseViewModel.PasswordImportFailure,
+                .databaseChanged,
+                "a tree being replaced is a change, not a locked session"
+            )
+        }
+        await sync.value
+        let triggered = await parsing.value
+
+        XCTAssertTrue(triggered)
+        XCTAssertEqual(vm.cloudSyncOutcome, .updated)
+        XCTAssertEqual(vm.state, .unlocked)
+        XCTAssertNil(vm.draft)
+        XCTAssertFalse(entryTitles(in: vm).contains("Imported During Sync"))
+    }
+
     // MARK: - Helpers
 
     private func makeViewModel(
@@ -579,7 +633,8 @@ final class DatabaseViewModelCloudSyncTests: XCTestCase {
         cloudSaveOperation: @escaping DatabaseViewModel.CloudSaveOperation = { _, _, _, _, _, _, _, _ in
             throw CloudProviderError.networkUnavailable
         },
-        pendingUploadMarkerCheck: @escaping DatabaseViewModel.PendingUploadMarkerCheck = { _ in false }
+        pendingUploadMarkerCheck: @escaping DatabaseViewModel.PendingUploadMarkerCheck = { _ in false },
+        importStagingOperation: @escaping DatabaseViewModel.ImportStagingOperation = DatabaseViewModel.stageImportedEntries
     ) -> DatabaseViewModel {
         DatabaseViewModel(
             databaseReference: reference,
@@ -588,7 +643,8 @@ final class DatabaseViewModelCloudSyncTests: XCTestCase {
             },
             cloudRefreshOperation: cloudRefreshOperation,
             cloudSaveOperation: cloudSaveOperation,
-            pendingUploadMarkerCheck: pendingUploadMarkerCheck
+            pendingUploadMarkerCheck: pendingUploadMarkerCheck,
+            importStagingOperation: importStagingOperation
         )
     }
 
