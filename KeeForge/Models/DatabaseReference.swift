@@ -38,6 +38,8 @@ struct DatabaseReference: Identifiable, Codable, Hashable, Sendable {
     /// still has to ask the hardware key; `DatabaseListStore.setHardwareKey`
     /// owns that invariant.
     var hardwareKey: HardwareKeyConfiguration?
+    /// Only meaningful for cloud-backed references.
+    var cloudSyncPolicy: CloudSyncPolicy = .onOpen
 
     var displayName: String {
         let trimmedNickname = nickname?.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -109,6 +111,7 @@ extension DatabaseReference {
         case lastMasterKeyChangeAt
         case hasUnverifiedRelink
         case hardwareKey
+        case cloudSyncPolicy
     }
 
     init(from decoder: Decoder) throws {
@@ -132,6 +135,7 @@ extension DatabaseReference {
         lastMasterKeyChangeAt = try container.decodeIfPresent(Date.self, forKey: .lastMasterKeyChangeAt)
         hasUnverifiedRelink = try container.decodeIfPresent(Bool.self, forKey: .hasUnverifiedRelink) ?? false
         hardwareKey = try container.decodeIfPresent(HardwareKeyConfiguration.self, forKey: .hardwareKey)
+        cloudSyncPolicy = try container.decodeIfPresent(CloudSyncPolicy.self, forKey: .cloudSyncPolicy) ?? .onOpen
     }
 
     func encode(to encoder: Encoder) throws {
@@ -155,5 +159,6 @@ extension DatabaseReference {
         try container.encodeIfPresent(lastMasterKeyChangeAt, forKey: .lastMasterKeyChangeAt)
         try container.encode(hasUnverifiedRelink, forKey: .hasUnverifiedRelink)
         try container.encodeIfPresent(hardwareKey, forKey: .hardwareKey)
+        try container.encode(cloudSyncPolicy, forKey: .cloudSyncPolicy)
     }
 }
