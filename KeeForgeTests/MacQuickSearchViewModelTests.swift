@@ -15,6 +15,7 @@ final class MacQuickSearchViewModelTests: XCTestCase {
     private var authenticationRequests = 0
     private var authenticationResult = true
     private var copiedCallbacks = 0
+    private var abortedCopies = 0
     private var mainWindowRequests = 0
     private var dismissRequests = 0
 
@@ -25,6 +26,7 @@ final class MacQuickSearchViewModelTests: XCTestCase {
         authenticationRequests = 0
         authenticationResult = true
         copiedCallbacks = 0
+        abortedCopies = 0
         mainWindowRequests = 0
         dismissRequests = 0
     }
@@ -160,9 +162,10 @@ final class MacQuickSearchViewModelTests: XCTestCase {
         XCTAssertEqual(authenticationRequests, 1)
         XCTAssertEqual(copied, ["twitterpass123"])
         XCTAssertEqual(copiedCallbacks, 1)
+        XCTAssertEqual(abortedCopies, 0)
     }
 
-    func testDeclinedAuthenticationCopiesNothing() async throws {
+    func testDeclinedAuthenticationCopiesNothingAndHandsFocusBack() async throws {
         session = try await makeUnlockedSession()
         authenticationResult = false
         let model = makeModel()
@@ -174,9 +177,10 @@ final class MacQuickSearchViewModelTests: XCTestCase {
         XCTAssertEqual(authenticationRequests, 1)
         XCTAssertTrue(copied.isEmpty)
         XCTAssertEqual(copiedCallbacks, 0)
+        XCTAssertEqual(abortedCopies, 1, "The prompt activated KeeForge, so the other app gets focus back")
     }
 
-    func testALockDuringTheAuthenticationPromptCopiesNothing() async throws {
+    func testALockDuringTheAuthenticationPromptCopiesNothingAndHandsFocusBack() async throws {
         let session = try await makeUnlockedSession()
         self.session = session
         let model = MacQuickSearchViewModel(
@@ -187,12 +191,39 @@ final class MacQuickSearchViewModelTests: XCTestCase {
             },
             copyToClipboard: { [weak self] in self?.copied.append($0) }
         )
+        model.onCopied = { [weak self] in self?.copiedCallbacks += 1 }
+        model.onCopyAborted = { [weak self] in self?.abortedCopies += 1 }
         let twitter = try entry(titled: "Twitter", in: model)
 
         let didCopy = await model.copy(.password, from: twitter)
 
         XCTAssertFalse(didCopy)
         XCTAssertTrue(copied.isEmpty)
+        XCTAssertEqual(copiedCallbacks, 0)
+        XCTAssertEqual(abortedCopies, 1)
+    }
+
+    func testAnEntryDeletedDuringTheAuthenticationPromptCopiesNothingAndHandsFocusBack() async throws {
+        let session = try await makeUnlockedSession()
+        self.session = session
+        let twitterID = try XCTUnwrap(session.entries(matching: "Twitter").first { $0.title == "Twitter" }).id
+        let model = MacQuickSearchViewModel(
+            sessionProvider: { session },
+            authenticateDeviceOwner: {
+                try? session.deleteEntry(twitterID, sendToRecycleBin: false)
+                return true
+            },
+            copyToClipboard: { [weak self] in self?.copied.append($0) }
+        )
+        model.onCopyAborted = { [weak self] in self?.abortedCopies += 1 }
+        let twitter = try entry(titled: "Twitter", in: model)
+
+        let didCopy = await model.copy(.password, from: twitter)
+
+        XCTAssertNil(session.entry(withID: twitterID), "The entry is gone, not just recycled")
+        XCTAssertFalse(didCopy)
+        XCTAssertTrue(copied.isEmpty)
+        XCTAssertEqual(abortedCopies, 1)
     }
 
     func testUsernameAndVerificationCodeCopyWithoutAuthentication() async throws {
@@ -231,6 +262,7 @@ final class MacQuickSearchViewModelTests: XCTestCase {
         XCTAssertFalse(copiedMissingPassword)
         XCTAssertEqual(authenticationRequests, 0, "No prompt for a field that is not there")
         XCTAssertTrue(copied.isEmpty)
+        XCTAssertEqual(abortedCopies, 0, "Nothing activated KeeForge, so the panel stays open")
     }
 
     func testCopyingFromALockedSessionIsRefused() async throws {
@@ -247,6 +279,7 @@ final class MacQuickSearchViewModelTests: XCTestCase {
         XCTAssertFalse(copiedPassword)
         XCTAssertEqual(authenticationRequests, 0)
         XCTAssertTrue(copied.isEmpty)
+        XCTAssertEqual(abortedCopies, 0)
     }
 
     // MARK: - Hand-offs to the main window
@@ -317,6 +350,7 @@ final class MacQuickSearchViewModelTests: XCTestCase {
             copyToClipboard: { [weak self] in self?.copied.append($0) }
         )
         model.onCopied = { [weak self] in self?.copiedCallbacks += 1 }
+        model.onCopyAborted = { [weak self] in self?.abortedCopies += 1 }
         model.onShowMainWindow = { [weak self] in self?.mainWindowRequests += 1 }
         model.onDismiss = { [weak self] in self?.dismissRequests += 1 }
         return model

@@ -49,6 +49,12 @@ final class MacQuickSearchViewModel {
 
     /// A value reached the clipboard; the panel should close.
     @ObservationIgnored var onCopied: (() -> Void)?
+    /// The password prompt ended without a copy: it was declined, or the
+    /// session locked or the entry changed while it was up. The prompt
+    /// activated KeeForge, so the panel should close and hand focus back just
+    /// as a copy does. A copy refused before the prompt changes nothing, and
+    /// the panel stays open.
+    @ObservationIgnored var onCopyAborted: (() -> Void)?
     @ObservationIgnored var onDismiss: (() -> Void)?
     /// Bring the main window forward, reopening it if it was closed.
     @ObservationIgnored var onShowMainWindow: (() -> Void)?
@@ -169,26 +175,14 @@ final class MacQuickSearchViewModel {
     func copy(_ field: CopyField, from entry: KPEntry) async -> Bool {
         guard canCopy(field, from: entry) else { return false }
 
+        let value: String?
         if field == .password {
-            guard await authenticateDeviceOwner() else { return false }
+            value = await authenticateDeviceOwner() ? currentValue(of: field, entryID: entry.id) : nil
+            if value == nil { onCopyAborted?() }
+        } else {
+            value = currentValue(of: field, entryID: entry.id)
         }
-
-        guard let session = unlockedSession,
-              let current = session.entry(withID: entry.id),
-              canCopy(field, from: current)
-        else { return false }
-
-        let value: String
-        switch field {
-        case .username:
-            value = session.resolvingFieldReferences(current.username)
-        case .password:
-            value = session.resolvedPassword(for: current)
-        case .verificationCode:
-            guard let config = current.totpConfig, let sessionKey = session.sessionKey else { return false }
-            value = TOTPGenerator.generateCode(config: config, sessionKey: sessionKey)
-        }
-        guard value.isEmpty == false else { return false }
+        guard let value else { return false }
 
         copyToClipboard(value)
         onCopied?()
@@ -208,6 +202,27 @@ final class MacQuickSearchViewModel {
     /// owns choosing and unlocking a database.
     func showMainWindow() {
         onShowMainWindow?()
+    }
+
+    /// The field as the live session has it now, or nil when the session locked,
+    /// the entry is gone, or it no longer has a value for the field.
+    private func currentValue(of field: CopyField, entryID: UUID) -> String? {
+        guard let session = unlockedSession,
+              let entry = session.entry(withID: entryID),
+              canCopy(field, from: entry)
+        else { return nil }
+
+        let value: String
+        switch field {
+        case .username:
+            value = session.resolvingFieldReferences(entry.username)
+        case .password:
+            value = session.resolvedPassword(for: entry)
+        case .verificationCode:
+            guard let config = entry.totpConfig, let sessionKey = session.sessionKey else { return nil }
+            value = TOTPGenerator.generateCode(config: config, sessionKey: sessionKey)
+        }
+        return value.isEmpty ? nil : value
     }
 
     private var unlockedSession: DatabaseViewModel? {

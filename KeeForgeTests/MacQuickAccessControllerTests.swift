@@ -174,6 +174,19 @@ final class MacQuickAccessControllerTests: XCTestCase {
         XCTAssertEqual(presenter.hideCalls.last, true)
     }
 
+    func testAnAbortedPasswordCopyClosesThePanelAndRestoresTheOtherApp() {
+        let controller = makeStartedController(menuBarEnabled: true)
+        controller.togglePanel()
+        // The authentication prompt took key status, which hides the panel
+        // without handing focus back.
+        presenter.hidePanel(restoringPreviousApp: false)
+
+        controller.searchModel.onCopyAborted?()
+
+        XCTAssertFalse(presenter.isPanelVisible)
+        XCTAssertEqual(presenter.hideCalls, [false, true])
+    }
+
     func testHandingOffToTheMainWindowOpensOneWhenNoneIsLeft() {
         let controller = makeStartedController(menuBarEnabled: true)
         var openRequests = 0
@@ -237,6 +250,24 @@ final class MacQuickAccessControllerTests: XCTestCase {
         XCTAssertNil(try command(keyCode: kVK_ANSI_C, modifiers: .command, characters: "c"), "⌘C stays the field's copy")
         XCTAssertNil(try command(keyCode: kVK_ANSI_V, modifiers: .command, characters: "v"))
         XCTAssertNil(try command(keyCode: kVK_Return, modifiers: .shift))
+    }
+
+    func testAnInputMethodKeepsItsKeysWhileItComposes() {
+        let fieldEditor = NSTextView()
+        XCTAssertFalse(MacQuickSearchPanel.isComposingText(in: fieldEditor))
+
+        // A Japanese input method holding "にほん" before the user confirms it.
+        fieldEditor.setMarkedText(
+            "にほん",
+            selectedRange: NSRange(location: 3, length: 0),
+            replacementRange: NSRange(location: NSNotFound, length: 0)
+        )
+        XCTAssertTrue(MacQuickSearchPanel.isComposingText(in: fieldEditor), "Return, arrows and Escape belong to the candidate window")
+
+        fieldEditor.unmarkText()
+        XCTAssertFalse(MacQuickSearchPanel.isComposingText(in: fieldEditor))
+        XCTAssertFalse(MacQuickSearchPanel.isComposingText(in: nil))
+        XCTAssertFalse(MacQuickSearchPanel.isComposingText(in: NSView()))
     }
 
     // MARK: - Helpers

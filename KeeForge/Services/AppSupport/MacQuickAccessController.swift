@@ -113,6 +113,9 @@ final class MacQuickAccessController {
         searchModel.onCopied = { [weak self] in
             self?.presenter.hidePanel(restoringPreviousApp: true)
         }
+        searchModel.onCopyAborted = { [weak self] in
+            self?.presenter.hidePanel(restoringPreviousApp: true)
+        }
         searchModel.onDismiss = { [weak self] in
             self?.presenter.hidePanel(restoringPreviousApp: true)
         }
@@ -201,7 +204,7 @@ struct MacWindowReader: NSViewRepresentable {
 /// frontmost: the panel takes the keyboard, and closing it hands nothing back
 /// because nothing was taken. Only the password copy activates KeeForge, for
 /// its authentication prompt, and the app the user came from is re-activated
-/// once the copy lands.
+/// once the prompt ends, whether the copy landed or not.
 @MainActor
 final class MacQuickSearchPanel: NSObject, MacQuickSearchPanelPresenting {
     static let panelSize = NSSize(width: 380, height: 420)
@@ -327,7 +330,8 @@ final class MacQuickSearchPanel: NSObject, MacQuickSearchPanelPresenting {
                 guard let self, self.isPanelVisible else { return }
                 self.lastResignedKeyAt = Date()
                 // Keeps `previousApp`: a password copy whose prompt took the
-                // key status still hands focus back once it lands.
+                // key status still hands focus back once the prompt ends,
+                // cancelled or not.
                 self.hidePanel(restoringPreviousApp: false)
             }
         }
@@ -359,7 +363,9 @@ final class MacQuickSearchPanel: NSObject, MacQuickSearchPanelPresenting {
             let windowNumber = event.windowNumber
             guard let command = Self.command(for: event) else { return event }
             let handled = MainActor.assumeIsolated { () -> Bool in
-                guard let self, let panel = self.panel, panel.windowNumber == windowNumber else { return false }
+                guard let self, let panel = self.panel, panel.windowNumber == windowNumber,
+                      Self.isComposingText(in: panel.firstResponder) == false
+                else { return false }
                 self.searchModel.perform(command)
                 return true
             }
@@ -399,6 +405,14 @@ final class MacQuickSearchPanel: NSObject, MacQuickSearchPanelPresenting {
         case "t": return .copy(.verificationCode)
         default: return nil
         }
+    }
+
+    /// Whether an input method (Chinese, Japanese, Korean, …) is composing in
+    /// the search field. It confirms, picks, and cancels its candidates with
+    /// Return, the arrow keys, and Escape, so while the field editor holds
+    /// marked text every key stays with it and none becomes a panel command.
+    static func isComposingText(in firstResponder: NSResponder?) -> Bool {
+        (firstResponder as? NSTextInputClient)?.hasMarkedText() == true
     }
 }
 
