@@ -68,6 +68,7 @@ class KeeForgeUITestCase: XCTestCase {
 
     override func setUp() async throws {
         continueAfterFailure = false
+        executionTimeAllowance = 300
 
         app = XCUIApplication()
 
@@ -635,7 +636,10 @@ class KeeForgeUITestCase: XCTestCase {
         let deadline = Date().addingTimeInterval(5)
 
         while (toggle.value as? String) != desiredRawValue, Date() < deadline {
-            toggle.coordinate(withNormalizedOffset: CGVector(dx: 0.85, dy: 0.5)).tap()
+            // A SwiftUI switch can expose the entire row as its accessibility frame.
+            toggle.coordinate(withNormalizedOffset: CGVector(dx: 1, dy: 0.5))
+                .withOffset(CGVector(dx: -20, dy: 0))
+                .tap()
             RunLoop.current.run(until: Date().addingTimeInterval(0.25))
         }
 

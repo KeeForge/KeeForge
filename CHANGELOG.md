@@ -2,8 +2,13 @@
 
 ## Unreleased
 
+### Fixes
+
+- Database context menus open without delays on iPhone and iPad. Tap Edit to reorder databases.
+
 ### New Features
 
+- A password or passkey saved through AutoFill no longer gets stuck when the cloud copy of the database changed in the meantime (#149). Open the database and tap "Merge Changes" in the notice at the top: KeeForge combines the change with the cloud copy the way KeePass merges databases and uploads the result. If the merge can't be done safely, nothing changes, and the message explains what to do instead, such as merging the change in another KeePass app.
 - Import passwords exported from Apple's Passwords app on iPhone, iPad, and Mac (#157). Unlock a database, open Database Details, choose "Import Passwords…", and pick the CSV file the Passwords app exported. Before anything is added, KeeForge shows how many entries it will import, which rows it can't read and why, and which rows look like logins the database already has; those are skipped unless you turn that off. Choose the group the entries go into, then import. Titles, websites, user names, passwords, notes, and verification codes come along. A verification code setup KeeForge can't generate codes from is kept in a protected field named OTPAuth. The export file isn't encrypted, so delete it once you've checked the imported entries. Files from other password managers aren't supported yet.
 
 ## v1.17.0 (2026-09-27)

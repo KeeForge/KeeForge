@@ -22,4 +22,5 @@
 - [ ] Kept AutoFill extension target membership/imports in sync for shared code
 - [ ] Updated `KDBXCompatibilityTests` if parser/writer/save behavior changed
 - [ ] Preserved accessibility identifiers or updated the affected UI tests
+- [ ] Checked iOS and macOS parity for user-facing changes and noted intentional platform differences
 - [ ] Ran a `KeeForgeMacTests` slice when shared or Mac behavior changed
