@@ -6,7 +6,7 @@ web UI; none of it lives in this repo.
 
 ## Configured state
 
-Configured on 2026-09-06 in the App Store Connect web UI (verify the live account before
+Last verified on 2026-09-28 in the App Store Connect web UI (verify the live account before
 relying on this; Apple can change the UI and the account can drift):
 
 - KeeForge is App Store Connect app Apple ID `6759309295`. The app record now carries **both**
@@ -14,9 +14,10 @@ relying on this; Apple can change the UI and the account can drift):
   own dialog reads "add platforms to an app to create a universal purchase", there is no separate
   toggle, and a platform cannot be removed afterwards. The macOS version record, auto-created as
   1.0, has since been corrected to **1.16.0** (verified 2026-09-14).
-- The active **Tests (RC)** workflow has three actions: **Archive - macOS** (scheme
+- The active **Tests (RC)** workflow has five actions: **Archive - macOS** (scheme
   `KeeForgeMac`, Build For *Any Mac* — native, not Mac Catalyst — Distribution Preparation
-  *App Store Connect*), **Archive - iOS**, and **Test - iOS** (Required to Pass). A
+  *App Store Connect*), **Archive - iOS**, and three **Test - iOS** actions (all Required to Pass):
+  `KeeForgeCloudUnitTests`, `KeeForgeCloudUIA`, and `KeeForgeCloudUIB`. A
   **Test - macOS** action was added and then removed once build 53 proved Xcode Cloud cannot
   launch the Mac app to test it; the reasoning is under "Required workflow shape". Its `rc/*` tag
   trigger is active and the **Release** workflow is still deactivated. Xcode Cloud build 56
@@ -33,9 +34,8 @@ relying on this; Apple can change the UI and the account can drift):
   `••••••••••`, which is how App Store Connect displays a variable with the Secret/redaction flag
   set — a non-secret variable shows its plain value. The flag is therefore on for both. Never
   record or expose their values.
-- **Restrict Editing is off.** The doc previously assumed a **Restrict and Save** control; this
-  account presents a plain **Save**. Turning restriction on is a separate deliberate choice, not
-  a side effect of saving.
+- **Restrict Editing is on.** Preserve it when editing the workflow. The editor presents a
+  plain **Save** control; restriction is a separate checkbox.
 - External groups are **KeeForge Test** (the iOS public-link group, documented below) and
   **KeeForge Mac Test** (the native Mac group, public link
   `https://testflight.apple.com/join/ZKQRwPaa`, 300-tester cap). Do not send the MAS build to the
@@ -49,17 +49,37 @@ distribution when the user has already authorized that named candidate action in
 otherwise obtain action-time confirmation. Beta authorization does not authorize production release,
 App Review submission, or legal declarations.
 
+## Test partition
+
+The RC workflow uses `KeeForgeCloudUnitTests`, `KeeForgeCloudUIA`, and `KeeForgeCloudUIB`.
+They separate unit coverage from two serial UI groups to reduce the work repeated by a Cloud
+task retry. `ci_scripts/README.md` documents the coverage guard and timeouts.
+
+Activated on 2026-09-28 through Xcode's workflow editor. App Store Connect's scheme picker
+continued to show only older schemes after a source push and full page reload; Xcode exposed
+the local shared schemes and saved them successfully. Its warning that a scheme may only exist
+locally is resolved by verifying that the shared `.xcscheme` files are committed and pushed.
+
+All three iOS Test actions are **Required to Pass**, use **Test (Use Scheme Setting)**, and run
+on iPhone 18 Pro and iPhone SE (3rd generation), both **Latest from Selected Xcode** (currently
+iOS 27). Both archives, start conditions, redacted environment variables, Clean, Restrict Editing,
+and the absence of post-actions were preserved.
+
+This workflow requires a commit containing these three schemes (added in `9155c05`). Do not
+use it to rebuild an older commit without them. The manual `release/1.16` branch condition is
+historical; verify that it names the candidate's actual release branch before a recovery run.
+
 ## Required workflow shape
 
 | Trigger | Workflow | Actions |
 | --- | --- | --- |
-| `rc/*` tag push | **Tests (RC)** | Test - iOS (Required to Pass), and Archive - iOS + Archive - macOS (both Distribution Preparation: App Store Connect). Archives/uploads may run automatically; no external-distribution post-action is configured. There is deliberately **no Test - macOS** — see below. |
+| `rc/*` tag push | **Tests (RC)** | Three Test - iOS actions (unit, UI A, UI B; all Required to Pass), and Archive - iOS + Archive - macOS (both Distribution Preparation: App Store Connect). Archives/uploads may run automatically; no external-distribution post-action is configured. There is deliberately **no Test - macOS** — see below. |
 | Manual Start, exact branch `release/1.16` | **Tests (RC)** | Same actions. Recovery only, when the `rc/*` tag push produced no run; see "Recovering a missing tag-triggered run". |
 | `v*` tag push | *(none — the `Release` workflow is deactivated)* | — |
 
 Three properties matter:
 
-1. **Tests and both platform archives live in the same workflow, and the test action is Required
+1. **Tests and both platform archives live in the same workflow, and all three test actions are Required
    to Pass.** App
    Store Connect lists a workflow's actions alphabetically and offers no way to reorder them, so
    "test first" is not something you configure — the actions run in **parallel**.
@@ -71,7 +91,7 @@ Three properties matter:
 
    Leaving the archives ungated is deliberate. When a cloud test failure turns out to be a flake
    (`gate-adjudication.md`), the binary already exists and can be distributed by hand; gating the
-   archive would force a respin to rebuild a binary that was never at fault. Switching the test
+   archive would force a respin to rebuild a binary that was never at fault. Switching any test
    action to *Not Required to Pass* would remove the real gate and let a build distribute
    over failing tests. Splitting tests and archives into workflows both triggered on `rc/*` would
    have the same effect, because neither could gate the other.
@@ -86,7 +106,7 @@ Three properties matter:
    The knobs that make this work on GitHub Actions — `CODE_SIGN_IDENTITY=-`,
    `CODE_SIGN_ENTITLEMENTS=` (ad-hoc, unsandboxed) and `-only-testing:KeeForgeMacTests` — are
    `xcodebuild` build settings, and an Xcode Cloud test action accepts none of them. Nothing is
-   lost by removing it: `Test - iOS` already runs the same shared `KeeForgeTests` sources, and
+   lost by removing it: `KeeForgeCloudUnitTests` already runs the same shared `KeeForgeTests` sources, and
    `.github/workflows/macos-rc-tests.yml` runs them compiled against the Mac app. Re-adding the
    action is one click if Apple ever fixes the VM, but do not re-add it speculatively — a
    permanently red Required-to-Pass action makes every candidate need adjudication.
@@ -131,8 +151,8 @@ alphanumerics only, because it is interpolated into the `db-$(DROPBOX_APP_KEY)`
   its own public-link group, **KeeForge Mac Test**. Do not send the MAS build to the iOS group.
 - After editing, verify that no external-testing post-action is present and save the workflow using
   the control App Store Connect presents. This account presents a plain **Save**; the separate
-  **Restrict Editing** checkbox is off and turning it on is its own decision, after which only the
-  Account Holder, Admins, and App Managers can change the workflow.
+  **Restrict Editing** checkbox is on, so only the Account Holder, Admins, and App Managers
+  can change the workflow. Preserve that setting.
 - The **first build of each new marketing version/platform** goes through Beta App Review before
   external testers can install it — budget roughly a day. Proceed when the user has already
   authorized that named candidate beta action in the current task; otherwise obtain action-time
@@ -158,7 +178,7 @@ a reconnect, or permission changes to fix it.
    SHA. Nothing may be pushed to the release branch from then until step 4 verifies the run.
 3. Start **Tests (RC)** manually on that exact release branch. If the workflow has no Manual Start
    condition for it, add one restricted to that exact branch name (never any branch or a prefix)
-   and change nothing else in the workflow. All three actions must start.
+   and change nothing else in the workflow. All five actions must start.
 4. Open the run's Overview and confirm its full commit SHA equals the RC SHA. If it differs, stop or
    cancel that run and do not accept any of its results or uploads.
 

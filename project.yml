@@ -7,6 +7,7 @@ options:
     macOS: "15.0"
   xcodeVersion: "16.0"
   minimumXcodeGenVersion: "2.38"
+  postGenCommand: python3 ci_scripts/validate_cloud_test_schemes.py
 configFiles:
   Debug: Configs/BuildConfig.xcconfig
   Release: Configs/BuildConfig.xcconfig
@@ -118,6 +119,8 @@ targets:
         GENERATE_INFOPLIST_FILE: false
         SWIFT_EMIT_LOC_STRINGS: "YES"
         LOCALIZATION_PREFERS_STRING_CATALOGS: "YES"
+        # YubiKit's SPM header links include private headers outside its umbrella header.
+        OTHER_SWIFT_FLAGS: "$(inherited) -Xcc -Wno-incomplete-umbrella"
     dependencies:
       - target: KeeForgeAutoFill
         embed: true
@@ -558,7 +561,79 @@ targets:
           - "OneDriveCloudProviderTests.swift"
 
 
+schemeTemplates:
+  CloudUITests:
+    build:
+      preActions:
+        - script: |
+            "${SRCROOT}/ci_scripts/prepare_build_config.sh" "${SRCROOT}"
+          settingsTarget: KeeForge
+      targets:
+        KeeForge: [test]
+        KeeForgeUITests: [test]
+    test:
+      config: Debug
+      gatherCoverageData: false
+
 schemes:
+  KeeForgeCloudUnitTests:
+    build:
+      preActions:
+        - script: |
+            "${SRCROOT}/ci_scripts/prepare_build_config.sh" "${SRCROOT}"
+          settingsTarget: KeeForge
+      targets:
+        KeeForge: [test]
+        KeeForgeTests: [test]
+    test:
+      config: Debug
+      gatherCoverageData: false
+      targets:
+        - name: KeeForgeTests
+          parallelizable: false
+          randomExecutionOrder: true
+
+  KeeForgeCloudUIA:
+    templates: [CloudUITests]
+    test:
+      targets:
+        - name: KeeForgeUITests
+          parallelizable: false
+          randomExecutionOrder: false
+          selectedTests: &cloudUIGroupA
+            - AppSettingsUITests
+            - AppStoreScreenshots
+            - AutoFillStoreInspectorSmokeUITests
+            - AutoFillStoreUITests
+            - AutoFillTipUITests
+            - BackoffUITests
+            - CloudAccountEdgeUITests
+            - CloudBrowserSmokeUITests
+            - CloudUnlockSmokeUITests
+            - DatabaseCreationCompactUITests
+            - DatabaseCreationRegularWidthUITests
+            - DatabaseListUITests
+            - DocumentsVaultUITests
+            - EncryptionSettingsUITests
+            - EntryAttachmentsSmokeUITests
+            - EntryCreateSmokeUITests
+            - EntryCustomIconPickerUITests
+            - EntryDeleteSmokeUITests
+            - EntryDuplicateUITests
+            - EntryEditEdgeUITests
+            - EntryEditSmokeUITests
+            - EntryHistoryUITests
+
+  KeeForgeCloudUIB:
+    templates: [CloudUITests]
+    test:
+      targets:
+        - name: KeeForgeUITests
+          parallelizable: false
+          randomExecutionOrder: false
+          # The complement includes new classes automatically.
+          skippedTests: *cloudUIGroupA
+
   KeeForge:
     build:
       preActions:

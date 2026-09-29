@@ -8,6 +8,9 @@ enum PendingUploadQueue {
         /// this update ran. Persisting anyway would resurrect a marker that has
         /// already been handled, so callers must treat this as a lost race.
         case markerNoLongerExists
+        /// Another process updated this marker after the caller read it.
+        /// Replacing that newer value could revert a finalized payload hash.
+        case markerChanged
     }
 
     struct Marker: Codable, Equatable, Sendable {
@@ -17,6 +20,16 @@ enum PendingUploadQueue {
         /// when the drainer pushes them. A provisional marker records the base
         /// bytes' hash; finalize swaps in the saved payload's hash.
         var openTimeSHA512: Data
+        /// False only during the durable pre-save phase. Until finalization,
+        /// `openTimeSHA512` identifies the base bytes rather than the saved
+        /// AutoFill payload and must never be used as merge input.
+        /// `nil` on markers written before this field existed: v1.16.0 already
+        /// wrote the provisional base hash first without recording the phase,
+        /// so such a marker is never proven to describe its payload.
+        var isPayloadFinalized: Bool?
+        /// Monotonic compare-and-swap generation for in-place updates.
+        /// Legacy markers start at zero.
+        var generation: UInt64
         var expectedRev: String?
         let createdAt: Date
         /// Whether the last drain attempt was blocked by a conflict. A cached
@@ -38,7 +51,9 @@ enum PendingUploadQueue {
             expectedRev: String?,
             createdAt: Date,
             isConflicted: Bool = false,
-            baseRev: String? = nil
+            baseRev: String? = nil,
+            isPayloadFinalized: Bool? = true,
+            generation: UInt64 = 0
         ) {
             self.databaseId = databaseId
             self.encryptedBytesCacheURL = encryptedBytesCacheURL
@@ -47,6 +62,8 @@ enum PendingUploadQueue {
             self.createdAt = createdAt
             self.isConflicted = isConflicted
             self.baseRev = baseRev
+            self.isPayloadFinalized = isPayloadFinalized
+            self.generation = generation
         }
 
         /// Hand-written so markers persisted before `isConflicted` existed keep
@@ -64,6 +81,12 @@ enum PendingUploadQueue {
             createdAt = try container.decode(Date.self, forKey: .createdAt)
             isConflicted = try container.decodeIfPresent(Bool.self, forKey: .isConflicted) ?? false
             baseRev = try container.decodeIfPresent(String.self, forKey: .baseRev)
+            // Missing stays `nil`, not `true`: an extension interrupted between
+            // the cache write and finalization before an upgrade left a base
+            // hash here. The synthesized encoder omits `nil` again, so a
+            // drainer update keeps the marker unproven.
+            isPayloadFinalized = try container.decodeIfPresent(Bool.self, forKey: .isPayloadFinalized)
+            generation = try container.decodeIfPresent(UInt64.self, forKey: .generation) ?? 0
         }
     }
 
@@ -133,6 +156,7 @@ enum PendingUploadQueue {
     }
 
     static let notificationName = "com.keevault.app.pending-upload-enqueued"
+    static let markerLockFileName = ".markers.lock"
 
     static func enqueue(_ marker: Marker, notifying: Bool = true) throws -> StoredMarker {
         try enqueue(marker, notifying: notifying, environment: .live)
@@ -206,6 +230,23 @@ enum PendingUploadQueue {
         try environment.removeItem(storedMarker.fileURL)
     }
 
+    /// Removes a marker only while its persisted value still matches the
+    /// snapshot the caller handled. A late AutoFill finalization changes the
+    /// marker in place; deleting by id alone would then discard a different,
+    /// still-unuploaded payload.
+    @discardableResult
+    static func dropIfUnchanged(_ storedMarker: StoredMarker, environment: Environment = .live) throws -> Bool {
+        try withExclusiveMarkerLock(for: storedMarker.fileURL) {
+            guard let data = try? environment.readData(storedMarker.fileURL),
+                  let current = try? environment.decodeMarker(data),
+                  current == storedMarker.marker else {
+                return false
+            }
+            try environment.removeItem(storedMarker.fileURL)
+            return true
+        }
+    }
+
     static func update(_ storedMarker: StoredMarker) throws -> StoredMarker {
         try update(storedMarker, environment: .live)
     }
@@ -215,11 +256,52 @@ enum PendingUploadQueue {
         // already dropped the file, refuse to recreate it. Without this guard an
         // in-flight `markConflicted`/rebase could resurrect a marker the drainer
         // just completed, leaving a phantom pending upload behind.
-        guard FileManager.default.fileExists(atPath: storedMarker.fileURL.path) else {
-            throw UpdateError.markerNoLongerExists
+        try withExclusiveMarkerLock(for: storedMarker.fileURL) {
+            guard let data = try? environment.readData(storedMarker.fileURL),
+                  let current = try? environment.decodeMarker(data) else {
+                throw UpdateError.markerNoLongerExists
+            }
+            guard current.generation == storedMarker.marker.generation else {
+                throw UpdateError.markerChanged
+            }
+            var updated = storedMarker
+            updated.marker.generation += 1
+            try persist(updated, environment: environment)
+            return updated
         }
-        try persist(storedMarker, environment: environment)
-        return storedMarker
+    }
+
+    /// Phase 3 of the AutoFill two-phase marker: records the saved payload's
+    /// hash on the marker as it is on disk now, not as the extension read it.
+    /// A drainer that ran between the cache write and this call has already
+    /// bumped the generation and flagged the marker conflicted, because the
+    /// cache no longer matched the provisional base hash. A generation-checked
+    /// `update` would then fail and leave that provisional marker behind for
+    /// good, which makes every later recovery lookup `.unavailable`. The
+    /// conflict flag is cleared because the hash it was raised against is
+    /// gone; the drainer re-checks the finalized marker on its next pass.
+    /// The drainer's own changes (`expectedRev`, `baseRev`) are kept.
+    static func finalize(_ storedMarker: StoredMarker) throws -> StoredMarker {
+        try finalize(storedMarker, environment: .live)
+    }
+
+    static func finalize(_ storedMarker: StoredMarker, environment: Environment) throws -> StoredMarker {
+        try withExclusiveMarkerLock(for: storedMarker.fileURL) {
+            guard let data = try? environment.readData(storedMarker.fileURL),
+                  var current = try? environment.decodeMarker(data) else {
+                throw UpdateError.markerNoLongerExists
+            }
+            guard current.isPayloadFinalized == false else {
+                throw UpdateError.markerChanged
+            }
+            current.openTimeSHA512 = storedMarker.marker.openTimeSHA512
+            current.isPayloadFinalized = true
+            current.isConflicted = false
+            current.generation += 1
+            let finalized = StoredMarker(id: storedMarker.id, fileURL: storedMarker.fileURL, marker: current)
+            try persist(finalized, environment: environment)
+            return finalized
+        }
     }
 
     static func markConflicted(_ storedMarker: StoredMarker, environment: Environment = .live) throws -> StoredMarker {
@@ -234,8 +316,11 @@ enum PendingUploadQueue {
     /// SHA equality proves supersession: that exact content is the base of
     /// what the caller is about to upload or just uploaded, so the marker can
     /// no longer represent unsaved content — including conflicted markers,
-    /// whose conflict the equality shows to be spurious. Best-effort per
-    /// marker: a failed drop leaves a phantom conflict badge, never data loss.
+    /// whose conflict the equality shows to be spurious. Only a finalized
+    /// marker counts: an unproven one may record the base its AutoFill save
+    /// started from, so a save on that base does not contain the change.
+    /// Best-effort per marker: a failed drop leaves a phantom conflict badge,
+    /// never data loss.
     static func dropMarkers(
         withPayloadSHA512 payloadSHA512: Data,
         for databaseId: UUID,
@@ -256,8 +341,10 @@ enum PendingUploadQueue {
         environment: Environment
     ) {
         for storedMarker in listMarkers(for: databaseId, environment: environment)
-        where storedMarker.id != excludedMarkerID && storedMarker.marker.openTimeSHA512 == payloadSHA512 {
-            try? drop(storedMarker, environment: environment)
+        where storedMarker.id != excludedMarkerID
+            && storedMarker.marker.isPayloadFinalized == true
+            && storedMarker.marker.openTimeSHA512 == payloadSHA512 {
+            try? dropIfUnchanged(storedMarker, environment: environment)
         }
     }
 
@@ -323,6 +410,28 @@ enum PendingUploadQueue {
 
     private static func queueDirectoryURL(for databaseId: UUID, environment: Environment) -> URL {
         queueRootURL(environment: environment).appendingPathComponent(databaseId.uuidString, isDirectory: true)
+    }
+
+    /// Serializes an in-place marker update with a conditional delete across
+    /// the app and AutoFill extension. One lock file per database directory,
+    /// never removed while the directory exists: removing a lock file after
+    /// unlock can split later callers across two inodes, and a per-marker
+    /// sidecar that must stay would pile up one file per AutoFill save.
+    /// Queue enumeration ignores it because it is hidden and not JSON.
+    private static func withExclusiveMarkerLock<T>(for markerURL: URL, _ operation: () throws -> T) throws -> T {
+        let lockURL = markerURL.deletingLastPathComponent()
+            .appendingPathComponent(markerLockFileName, isDirectory: false)
+        let descriptor = Darwin.open(lockURL.path, O_CREAT | O_RDWR, S_IRUSR | S_IWUSR)
+        guard descriptor >= 0 else {
+            throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO)
+        }
+        defer { Darwin.close(descriptor) }
+
+        guard flock(descriptor, LOCK_EX) == 0 else {
+            throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO)
+        }
+        defer { flock(descriptor, LOCK_UN) }
+        return try operation()
     }
 }
 

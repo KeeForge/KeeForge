@@ -26,6 +26,7 @@ final class AppStoreScreenshots: KeeForgeUITestCase {
             throw XCTSkip("App Store screenshot capture runs only with APPSTORE_SCREENSHOTS=1")
         }
         try await super.setUp()
+        executionTimeAllowance = 600
     }
 
     private enum ScreenshotName: String {
